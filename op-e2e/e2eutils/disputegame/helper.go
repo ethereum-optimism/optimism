@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
+	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
@@ -149,13 +150,10 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem, o
 }
 
 func (h *FactoryHelper) PreimageHelper(ctx context.Context) *preimage.Helper {
-	opts := &bind.CallOpts{Context: ctx}
-	gameAddr, err := h.Factory.GameImpls(opts, cannonGameType)
-	h.Require.NoError(err)
 	caller := batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize)
-	game, err := contracts.NewFaultDisputeGameContract(ctx, metrics.NoopContractMetrics, gameAddr, caller)
+	dgf, err := contracts.NewDisputeGameFactoryContract(ctx, metrics.NoopContractMetrics, h.FactoryAddr, caller)
 	h.Require.NoError(err)
-	vm, err := game.Vm(ctx)
+	vm, err := dgf.GetGameVm(ctx, challengerTypes.GameType(cannonGameType))
 	h.Require.NoError(err)
 	oracle, err := vm.Oracle(ctx)
 	h.Require.NoError(err)

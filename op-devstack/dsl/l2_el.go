@@ -7,10 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -82,11 +83,10 @@ func (el *L2ELNode) AdvancedFn(label eth.BlockLabel, block uint64) CheckFunc {
 	}
 }
 
-func (el *L2ELNode) NotAdvancedFn(label eth.BlockLabel) CheckFunc {
+func (el *L2ELNode) NotAdvancedFn(label eth.BlockLabel, attempts int) CheckFunc {
 	return func() error {
 		el.log.Info("expecting chain not to advance", "chain", el.inner.ChainID(), "label", label)
 		initial := el.BlockRefByLabel(label)
-		attempts := 5 // check few times to make sure head does not advance
 		for range attempts {
 			time.Sleep(2 * time.Second)
 			head := el.BlockRefByLabel(label)
@@ -112,7 +112,7 @@ func (el *L2ELNode) ReachedFn(label eth.BlockLabel, target uint64, attempts int)
 					return nil
 				}
 				logger.Info("L2EL sync status", "current", head.Number)
-				return fmt.Errorf("expected head to advance: %s", label)
+				return fmt.Errorf("expected head for label=%s to advance to target=%d, but got current=%d", label, target, head.Number)
 			})
 	}
 }
@@ -166,8 +166,8 @@ func (el *L2ELNode) Reached(label eth.BlockLabel, block uint64, attempts int) {
 	el.require.NoError(el.ReachedFn(label, block, attempts)())
 }
 
-func (el *L2ELNode) NotAdvanced(label eth.BlockLabel) {
-	el.require.NoError(el.NotAdvancedFn(label)())
+func (el *L2ELNode) NotAdvanced(label eth.BlockLabel, attempts int) {
+	el.require.NoError(el.NotAdvancedFn(label, attempts)())
 }
 
 func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) {
@@ -248,7 +248,7 @@ func (el *L2ELNode) DisconnectPeerWith(peer *L2ELNode) {
 }
 
 func (el *L2ELNode) PayloadByNumber(number uint64) *eth.ExecutionPayloadEnvelope {
-	payload, err := el.inner.L2EthExtendedClient().PayloadByNumber(el.ctx, number)
+	payload, err := el.inner.L2EthClient().PayloadByNumber(el.ctx, number)
 	el.require.NoError(err, "failed to get payload")
 	return payload
 }
@@ -257,23 +257,50 @@ func (el *L2ELNode) PayloadByNumber(number uint64) *eth.ExecutionPayloadEnvelope
 func (el *L2ELNode) NewPayload(refNode *L2ELNode, number uint64) *NewPayloadResult {
 	el.log.Info("NewPayload", "number", number, "node", el, "refNode", refNode)
 	payload := refNode.PayloadByNumber(number)
+	return el.NewPayloadRaw(payload)
+}
+
+func (el *L2ELNode) NewPayloadRaw(payload *eth.ExecutionPayloadEnvelope) *NewPayloadResult {
+	el.log.Info("NewPayloadRaw", "number", payload.ExecutionPayload.BlockNumber)
 	status, err := el.inner.L2EngineClient().NewPayload(el.ctx, payload.ExecutionPayload, payload.ParentBeaconBlockRoot)
 	return &NewPayloadResult{T: el.t, Status: status, Err: err}
 }
 
 // ForkchoiceUpdate fetches FCU target hashes from the reference EL node, and FCU update with attributes
 func (el *L2ELNode) ForkchoiceUpdate(refNode *L2ELNode, unsafe, safe, finalized uint64, attr *eth.PayloadAttributes) *ForkchoiceUpdateResult {
+	unsafeHash := refNode.BlockRefByNumber(unsafe).Hash
+	safeHash := refNode.BlockRefByNumber(safe).Hash
+	finalizedHash := refNode.BlockRefByNumber(finalized).Hash
+	el.log.Info("ForkchoiceUpdate with reference node", "unsafe", unsafe, "safe", safe, "finalized", finalized, "node", el, "refNode", refNode)
+	return el.ForkchoiceUpdateRaw(unsafeHash, safeHash, finalizedHash, attr)
+}
+
+// ForkchoiceUpdateRaw calls FCU with block hashes with attributes
+func (el *L2ELNode) ForkchoiceUpdateRaw(unsafe, safe, finalized common.Hash, attr *eth.PayloadAttributes) *ForkchoiceUpdateResult {
 	result := &ForkchoiceUpdateResult{T: el.t}
 	refresh := func() {
-		el.log.Info("ForkchoiceUpdate", "unsafe", unsafe, "safe", safe, "finalized", finalized, "attr", attr, "node", el, "refNode", refNode)
+		result.RefreshCnt += 1
+		el.log.Info("ForkchoiceUpdateRaw", "unsafe", unsafe, "safe", safe, "finalized", finalized, "attr", attr, "node", el)
 		state := &eth.ForkchoiceState{
-			HeadBlockHash:      refNode.BlockRefByNumber(unsafe).Hash,
-			SafeBlockHash:      refNode.BlockRefByNumber(safe).Hash,
-			FinalizedBlockHash: refNode.BlockRefByNumber(finalized).Hash,
+			HeadBlockHash:      unsafe,
+			SafeBlockHash:      safe,
+			FinalizedBlockHash: finalized,
 		}
 		res, err := el.inner.L2EngineClient().ForkchoiceUpdate(el.ctx, state, attr)
 		result.Result = res
 		result.Err = err
+		if result.Result != nil {
+			switch result.Result.PayloadStatus.Status {
+			case eth.ExecutionValid:
+				result.ValidCnt += 1
+			case eth.ExecutionSyncing:
+				result.SyncingCnt += 1
+			case eth.ExecutionInvalid:
+				result.InvalidCnt += 1
+			default:
+				el.require.NoError(fmt.Errorf("invalid fcu payload status: %s", result.Result.PayloadStatus.Status))
+			}
+		}
 	}
 	result.Refresh = refresh
 	result.Refresh()
@@ -281,10 +308,10 @@ func (el *L2ELNode) ForkchoiceUpdate(refNode *L2ELNode, unsafe, safe, finalized 
 }
 
 func (el *L2ELNode) FinishedELSync(refNode *L2ELNode, unsafe, safe, finalized uint64) {
-	el.log.Info("Start EL Sync", "unsafe", unsafe, "safe", safe, "finalized", finalized)
+	el.log.Info("Trigger EL Sync", "unsafe", unsafe, "safe", safe, "finalized", finalized)
 	trial := 1
 	el.require.NoError(retry.Do0(el.ctx, 5, &retry.FixedStrategy{Dur: 2 * time.Second}, func() error {
-		el.log.Info("FCU to activate EL Sync", "trial", trial)
+		el.log.Info("FCU to trigger EL Sync", "trial", trial)
 		res := el.ForkchoiceUpdate(refNode, unsafe, safe, finalized, nil)
 		// If EL Sync triggered, Example logs from L2EL(geth)
 		//  New skeleton head announced
@@ -294,7 +321,7 @@ func (el *L2ELNode) FinishedELSync(refNode *L2ELNode, unsafe, safe, finalized ui
 			return nil
 		}
 		trial += 1
-		return errors.New("EL Sync not yet triggered")
+		return errors.New("EL Sync not finished")
 	}))
 }
 
@@ -320,4 +347,22 @@ func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl types.SafetyLevel,
 
 func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) {
 	el.require.NoError(el.MatchedFn(refNode, lvl, attempts)())
+}
+
+func (el *L2ELNode) UnsafeHead() *BlockRefResult {
+	return &BlockRefResult{T: el.t, BlockRef: el.BlockRefByLabel(eth.Unsafe)}
+}
+
+func (el *L2ELNode) SafeHead() *BlockRefResult {
+	return &BlockRefResult{T: el.t, BlockRef: el.BlockRefByLabel(eth.Safe)}
+}
+
+type BlockRefResult struct {
+	T        devtest.T
+	BlockRef eth.L2BlockRef
+}
+
+func (r *BlockRefResult) NumEqualTo(num uint64) *BlockRefResult {
+	r.T.Require().Equal(num, r.BlockRef.Number)
+	return r
 }

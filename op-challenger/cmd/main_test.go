@@ -105,13 +105,16 @@ func TestOpSupervisor(t *testing.T) {
 	t.Run("RequiredForSuperPermissioned", func(t *testing.T) {
 		verifyArgsInvalid(t, "flag supervisor-rpc is required", addRequiredArgsExcept(types.TraceTypeSuperPermissioned, "--supervisor-rpc"))
 	})
+	t.Run("RequiredForSuperCannonKona", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag supervisor-rpc is required", addRequiredArgsExcept(types.TraceTypeSuperCannonKona, "--supervisor-rpc"))
+	})
 	t.Run("RequiredForSuperAsteriscKona", func(t *testing.T) {
 		verifyArgsInvalid(t, "flag supervisor-rpc is required", addRequiredArgsExcept(types.TraceTypeSuperAsteriscKona, "--supervisor-rpc"))
 	})
 
 	for _, traceType := range types.TraceTypes {
 		traceType := traceType
-		if traceType == types.TraceTypeSuperCannon || traceType == types.TraceTypeSuperPermissioned || traceType == types.TraceTypeSuperAsteriscKona {
+		if traceType == types.TraceTypeSuperCannon || traceType == types.TraceTypeSuperPermissioned || traceType == types.TraceTypeSuperAsteriscKona || traceType == types.TraceTypeSuperCannonKona {
 			continue
 		}
 
@@ -129,6 +132,12 @@ func TestOpSupervisor(t *testing.T) {
 	t.Run("Valid-SuperPermissioned", func(t *testing.T) {
 		url := "http://localhost/supervisor"
 		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeSuperPermissioned, "--supervisor-rpc", "--supervisor-rpc", url))
+		require.Equal(t, url, cfg.SupervisorRPC)
+	})
+
+	t.Run("Valid-SuperCannonKona", func(t *testing.T) {
+		url := "http://localhost/supervisor"
+		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeSuperCannonKona, "--supervisor-rpc", "--supervisor-rpc", url))
 		require.Equal(t, url, cfg.SupervisorRPC)
 	})
 
@@ -839,6 +848,91 @@ func TestSuperCannonCustomConfigArgs(t *testing.T) {
 	}
 }
 
+func TestSuperCannonKonaCustomConfigArgs(t *testing.T) {
+	traceType := types.TraceTypeSuperCannonKona
+
+	t.Run(fmt.Sprintf("TestRequireEitherCannonKonaNetworkOrRollupAndGenesisAndDepset-%v", traceType), func(t *testing.T) {
+		expectedErrorMessage := "flag network or rollup-config/cannon-kona-rollup-config, l2-genesis/cannon-kona-l2-genesis and depset-config/cannon-kona-depset-config is required"
+		// Missing all
+		verifyArgsInvalid(
+			t,
+			expectedErrorMessage,
+			addRequiredArgsExcept(traceType, "--network"))
+		// Missing l2-genesis
+		verifyArgsInvalid(
+			t,
+			expectedErrorMessage,
+			addRequiredArgsExcept(traceType, "--network", "--cannon-kona-rollup-config=rollup.json", "--cannon-kona-depset-config=depset.json"))
+		// Missing rollup-config
+		verifyArgsInvalid(
+			t,
+			expectedErrorMessage,
+			addRequiredArgsExcept(traceType, "--network", "--cannon-kona-l2-genesis=gensis.json", "--cannon-kona-depset-config=depset.json"))
+		// Missing depset-config
+		verifyArgsInvalid(
+			t,
+			expectedErrorMessage,
+			addRequiredArgsExcept(traceType, "--network", "--cannon-kona-rollup-config=rollup.json", "--cannon-kona-l2-genesis=gensis.json"))
+	})
+
+	validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, traceType, types.TraceTypeCannonKona, "cannon-kona-l2-custom")
+
+	t.Run(fmt.Sprintf("TestNetwork-%v", traceType), func(t *testing.T) {
+		t.Run("NotRequiredWhenRollupGenesisAndDepsetIsSpecified", func(t *testing.T) {
+			configForArgs(t, addRequiredArgsExcept(traceType, "--network",
+				"--cannon-kona-rollup-config=rollup.json", "--cannon-kona-l2-genesis=genesis.json", "--cannon-kona-depset-config=depset.json"))
+		})
+
+		t.Run("Valid", func(t *testing.T) {
+			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--network", testNetwork))
+			require.Equal(t, []string{testNetwork}, cfg.CannonKona.Networks)
+		})
+	})
+
+	t.Run(fmt.Sprintf("TestSetCannonKonaL2ChainId-%v", traceType), func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network",
+			"--cannon-kona-rollup-config=rollup.json",
+			"--cannon-kona-l2-genesis=genesis.json",
+			"--cannon-kona-depset-config=depset.json",
+			"--cannon-kona-l2-custom"))
+		require.True(t, cfg.CannonKona.L2Custom)
+	})
+
+	t.Run(fmt.Sprintf("TestCannonKonaRollupConfig-%v", traceType), func(t *testing.T) {
+		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+			configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--cannon-kona-rollup-config"))
+		})
+
+		t.Run("Valid", func(t *testing.T) {
+			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network",
+				"--cannon-kona-rollup-config=rollup.json", "--cannon-kona-l2-genesis=genesis.json", "--cannon-kona-depset-config=depset.json"))
+			require.Equal(t, []string{"rollup.json"}, cfg.CannonKona.RollupConfigPaths)
+		})
+	})
+
+	t.Run(fmt.Sprintf("TestCannonKonaL2Genesis-%v", traceType), func(t *testing.T) {
+		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+			configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--cannon-kona-l2-genesis"))
+		})
+
+		t.Run("Valid", func(t *testing.T) {
+			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--cannon-kona-rollup-config=rollup.json", "--cannon-kona-l2-genesis=genesis.json", "--cannon-kona-depset-config=depset.json"))
+			require.Equal(t, []string{"genesis.json"}, cfg.CannonKona.L2GenesisPaths)
+		})
+	})
+
+	t.Run(fmt.Sprintf("TestCannonKonaDepsetConfig-%v", traceType), func(t *testing.T) {
+		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+			configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--cannon-kona-depset-config"))
+		})
+
+		t.Run("Valid", func(t *testing.T) {
+			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--cannon-kona-rollup-config=rollup.json", "--cannon-kona-l2-genesis=genesis.json", "--cannon-kona-depset-config=depset.json"))
+			require.Equal(t, "depset.json", cfg.CannonKona.DepsetConfigPath)
+		})
+	})
+}
+
 func TestSuperAsteriscKonaCustomConfigArgs(t *testing.T) {
 	for _, traceType := range []types.TraceType{types.TraceTypeSuperAsteriscKona} {
 		traceType := traceType
@@ -1073,6 +1167,12 @@ func TestDepsetConfig(t *testing.T) {
 					"flag network or rollup-config/cannon-rollup-config, l2-genesis/cannon-l2-genesis and depset-config/cannon-depset-config is required",
 					addRequiredArgsExcept(traceType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
 			})
+		} else if traceType == types.TraceTypeSuperCannonKona {
+			t.Run("Required-"+traceType.String(), func(t *testing.T) {
+				verifyArgsInvalid(t,
+					"flag network or rollup-config/cannon-kona-rollup-config, l2-genesis/cannon-kona-l2-genesis and depset-config/cannon-kona-depset-config is required",
+					addRequiredArgsExcept(traceType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
+			})
 		} else if traceType == types.TraceTypeSuperAsteriscKona {
 			t.Run("Required-"+traceType.String(), func(t *testing.T) {
 				verifyArgsInvalid(t,
@@ -1107,7 +1207,7 @@ func TestRollupRpc(t *testing.T) {
 	for _, traceType := range types.TraceTypes {
 		traceType := traceType
 
-		if traceType == types.TraceTypeSuperCannon || traceType == types.TraceTypeSuperPermissioned || traceType == types.TraceTypeSuperAsteriscKona {
+		if traceType == types.TraceTypeSuperCannon || traceType == types.TraceTypeSuperPermissioned || traceType == types.TraceTypeSuperAsteriscKona || traceType == types.TraceTypeSuperCannonKona {
 			t.Run(fmt.Sprintf("NotRequiredFor-%v", traceType), func(t *testing.T) {
 				configForArgs(t, addRequiredArgsExcept(traceType, "--rollup-rpc"))
 			})
@@ -1296,6 +1396,8 @@ func requiredArgs(traceType types.TraceType) map[string]string {
 		addRequiredAsteriscKonaArgs(args)
 	case types.TraceTypeSuperCannon, types.TraceTypeSuperPermissioned:
 		addRequiredSuperCannonArgs(args)
+	case types.TraceTypeSuperCannonKona:
+		addRequiredSuperCannonKonaArgs(args)
 	case types.TraceTypeSuperAsteriscKona:
 		addRequiredSuperAsteriscKonaArgs(args)
 	case types.TraceTypeAlphabet, types.TraceTypeFast:
@@ -1335,6 +1437,11 @@ func addRequiredCannonKonaBaseArgs(args map[string]string) {
 	args["--cannon-bin"] = cannonBin
 	args["--cannon-kona-server"] = cannonKonaServer
 	args["--cannon-kona-prestate"] = cannonKonaPreState
+}
+
+func addRequiredSuperCannonKonaArgs(args map[string]string) {
+	addRequiredCannonKonaBaseArgs(args)
+	args["--supervisor-rpc"] = supervisorRpc
 }
 
 func addRequiredAsteriscArgs(args map[string]string) {

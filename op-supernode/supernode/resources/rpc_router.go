@@ -21,6 +21,7 @@ type Router struct {
 	cfg     RouterConfig
 	mu      sync.RWMutex
 	paths   map[string]http.Handler // chainID -> handler
+	root    http.Handler            // root handler mounted at '/'
 	closers []io.Closer
 }
 
@@ -50,11 +51,25 @@ func (r *Router) SetHandler(chainID string, h http.Handler) {
 	r.paths[chainID] = h
 }
 
+// SetRootHandler sets the optional handler for '/'. If unset, '/' returns 404.
+func (r *Router) SetRootHandler(h http.Handler) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.root = h
+}
+
 // ServeHTTP routes requests to the chain-specific handler, after stripping the chain prefix.
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	chainID, remainder := splitFirstSegment(req.URL.Path)
 	if chainID == "" {
-		http.NotFound(w, req)
+		r.mu.RLock()
+		root := r.root
+		r.mu.RUnlock()
+		if root == nil {
+			http.NotFound(w, req)
+			return
+		}
+		root.ServeHTTP(w, req)
 		return
 	}
 

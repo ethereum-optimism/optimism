@@ -1,6 +1,6 @@
 REPO_ROOT := `realpath ..`  # path to the root of the optimism monorepo
 KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
-ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.6.0")
+ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.6.6")
 DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
 ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
 
@@ -13,6 +13,9 @@ jovian:
 
 interop:
     @just acceptance-test "" interop
+
+cgt:
+    @just acceptance-test "" cgt
 
 
 # Run acceptance tests with mise-managed binary
@@ -98,8 +101,7 @@ acceptance-test devnet="" gate="base":
             "--validators" "./acceptance-tests.yaml"
             "--exclude-gates" "flake-shake"
             "--allow-skips"
-            "--timeout" "90m"
-            "--default-timeout" "30m"
+            "--timeout" "60m"
             "--orchestrator" "$ORCHESTRATOR"
             "--show-progress"
         )

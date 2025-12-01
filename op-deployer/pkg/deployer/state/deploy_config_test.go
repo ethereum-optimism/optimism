@@ -26,6 +26,7 @@ func TestCombineDeployConfig(t *testing.T) {
 		BaseFeeVaultRecipient:      common.HexToAddress("0x123"),
 		L1FeeVaultRecipient:        common.HexToAddress("0x456"),
 		SequencerFeeVaultRecipient: common.HexToAddress("0x789"),
+		OperatorFeeVaultRecipient:  common.HexToAddress("0xabc"),
 		Roles: ChainRoles{
 			SystemConfigOwner: common.HexToAddress("0x123"),
 			L1ProxyAdminOwner: common.HexToAddress("0x456"),
@@ -33,6 +34,10 @@ func TestCombineDeployConfig(t *testing.T) {
 			UnsafeBlockSigner: common.HexToAddress("0xabc"),
 			Batcher:           common.HexToAddress("0xdef"),
 		},
+		UseRevenueShare:    true,
+		ChainFeesRecipient: common.HexToAddress("0x123"),
+		// CustomGasToken defaults to disabled (all fields nil/empty)
+		CustomGasToken: CustomGasToken{},
 	}
 	state := State{
 		SuperchainDeployment: &addresses.SuperchainContracts{ProtocolVersionsProxy: common.HexToAddress("0x123")},

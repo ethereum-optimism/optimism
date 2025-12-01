@@ -1,16 +1,16 @@
 [
   {
-    "bytes": "416",
+    "bytes": "288",
     "label": "blueprint",
     "offset": 0,
     "slot": "0",
     "type": "struct OPContractsManager.Blueprints"
   },
   {
-    "bytes": "512",
+    "bytes": "576",
     "label": "implementation",
     "offset": 0,
-    "slot": "13",
+    "slot": "9",
     "type": "struct OPContractsManager.Implementations"
   }
 ]

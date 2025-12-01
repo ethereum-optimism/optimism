@@ -67,6 +67,9 @@ func CreatePrecompileOverrides(precompileOracle PrecompileOracle) vm.PrecompileO
 			return &ecrecoverOracle{Orig: orig, Oracle: precompileOracle}
 		case bn256PairingPrecompileAddress:
 			precompile := bn256PairingOracle{Orig: orig, Oracle: precompileOracle}
+			if rules.IsOptimismJovian {
+				return &bn256PairingOracleJovian{precompile}
+			}
 			if rules.IsOptimismGranite {
 				return &bn256PairingOracleGranite{precompile}
 			}
@@ -83,8 +86,12 @@ func CreatePrecompileOverrides(precompileOracle PrecompileOracle) vm.PrecompileO
 				precompileAddress: blsG1AddPrecompileAddress,
 			}
 		case blsG1MSMPrecompileAddress:
+			sizeLimit := params.Bls12381G1MulMaxInputSizeIsthmus
+			if rules.IsOptimismJovian {
+				sizeLimit = params.Bls12381G1MulMaxInputSizeJovian
+			}
 			return &blsOperationOracleWithSizeLimit{
-				sizeLimit: params.Bls12381G1MulMaxInputSizeIsthmus,
+				sizeLimit: sizeLimit,
 				blsOperationOracle: blsOperationOracle{
 					Orig:              orig,
 					Oracle:            precompileOracle,
@@ -103,8 +110,12 @@ func CreatePrecompileOverrides(precompileOracle PrecompileOracle) vm.PrecompileO
 				precompileAddress: blsG2AddPrecompileAddress,
 			}
 		case blsG2MSMPrecompileAddress:
+			sizeLimit := params.Bls12381G2MulMaxInputSizeIsthmus
+			if rules.IsOptimismJovian {
+				sizeLimit = params.Bls12381G2MulMaxInputSizeJovian
+			}
 			return &blsOperationOracleWithSizeLimit{
-				sizeLimit: params.Bls12381G2MulMaxInputSizeIsthmus,
+				sizeLimit: sizeLimit,
 				blsOperationOracle: blsOperationOracle{
 					Orig:              orig,
 					Oracle:            precompileOracle,
@@ -114,8 +125,12 @@ func CreatePrecompileOverrides(precompileOracle PrecompileOracle) vm.PrecompileO
 				},
 			}
 		case blsPairingPrecompileAddress:
+			sizeLimit := params.Bls12381PairingMaxInputSizeIsthmus
+			if rules.IsOptimismJovian {
+				sizeLimit = params.Bls12381PairingMaxInputSizeJovian
+			}
 			return &blsOperationOracleWithSizeLimit{
-				sizeLimit: params.Bls12381PairingMaxInputSizeIsthmus,
+				sizeLimit: sizeLimit,
 				blsOperationOracle: blsOperationOracle{
 					Orig:              orig,
 					Oracle:            precompileOracle,
@@ -167,6 +182,10 @@ func (c *ecrecoverOracle) Run(input []byte) ([]byte, error) {
 	// Below is a copy of the Cancun behavior. L1 might expand on that at a later point.
 
 	const ecRecoverInputLength = 128
+
+	if len(input) > ecRecoverInputLength {
+		input = input[:ecRecoverInputLength]
+	}
 
 	input = common.RightPadBytes(input, ecRecoverInputLength)
 	// "input" is (hash, v, r, s), each 32 bytes
@@ -258,6 +277,21 @@ func (b *bn256PairingOracleGranite) Run(input []byte) ([]byte, error) {
 }
 
 func (b *bn256PairingOracleGranite) Name() string {
+	return b.Orig.Name()
+}
+
+type bn256PairingOracleJovian struct {
+	bn256PairingOracle
+}
+
+func (b *bn256PairingOracleJovian) Run(input []byte) ([]byte, error) {
+	if len(input) > int(params.Bn256PairingMaxInputSizeJovian) {
+		return nil, errBadPairingInputSize
+	}
+	return b.bn256PairingOracle.Run(input)
+}
+
+func (b *bn256PairingOracleJovian) Name() string {
 	return b.Orig.Name()
 }
 

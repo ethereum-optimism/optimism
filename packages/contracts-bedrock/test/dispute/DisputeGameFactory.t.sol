@@ -117,17 +117,17 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         });
     }
 
-    function _getSuperGameConstructorParams(
-        Claim _absolutePrestate,
-        AlphabetVM _vm,
-        GameType _gameType
-    )
-        private
-        view
+    function _getSuperGameConstructorParams()
+        internal
+        pure
         returns (ISuperFaultDisputeGame.GameConstructorParams memory params_)
     {
-        bytes memory args = abi.encode(_getGameConstructorParams(_absolutePrestate, _vm, _gameType, 0));
-        params_ = abi.decode(args, (ISuperFaultDisputeGame.GameConstructorParams));
+        return ISuperFaultDisputeGame.GameConstructorParams({
+            maxGameDepth: 2 ** 3,
+            splitDepth: 2 ** 2,
+            clockExtension: Duration.wrap(3 hours),
+            maxClockDuration: Duration.wrap(3.5 days)
+        });
     }
 
     function _setGame(address _gameImpl, GameType _gameType) internal {
@@ -154,19 +154,17 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
-        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
+        bytes memory immutableArgs;
+        (immutableArgs, vm_, preimageOracle_) = getSuperFaultDisputeGameV2ImmutableArgs(_absolutePrestate);
 
         gameImpl_ = DeployUtils.create1({
             _name: "SuperFaultDisputeGame",
             _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(
-                    ISuperFaultDisputeGame.__constructor__,
-                    (_getSuperGameConstructorParams(_absolutePrestate, vm_, GameTypes.SUPER_CANNON))
-                )
+                abi.encodeCall(ISuperFaultDisputeGame.__constructor__, (_getSuperGameConstructorParams()))
             )
         });
 
-        _setGame(gameImpl_, GameTypes.SUPER_CANNON);
+        _setGame(gameImpl_, GameTypes.SUPER_CANNON, immutableArgs);
     }
 
     /// @notice Sets up a super permissioned game implementation
@@ -178,23 +176,10 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
-        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
-
-        gameImpl_ = DeployUtils.create1({
-            _name: "SuperPermissionedDisputeGame",
-            _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(
-                    ISuperPermissionedDisputeGame.__constructor__,
-                    (
-                        _getSuperGameConstructorParams(_absolutePrestate, vm_, GameTypes.SUPER_PERMISSIONED_CANNON),
-                        _proposer,
-                        _challenger
-                    )
-                )
-            )
-        });
-
-        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON);
+        bytes memory implArgs;
+        (implArgs, vm_, preimageOracle_) =
+            getSuperPermissionedDisputeGameImmutableArgs(_absolutePrestate, _proposer, _challenger);
+        gameImpl_ = setupSuperPermissionedDisputeGame(implArgs);
     }
 
     /// @notice Sets up a fault game implementation
@@ -241,6 +226,22 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
             anchorStateRegistry, // 20 bytes
             delayedWeth, // 20 bytes
             l2ChainId // 32 bytes (l2ChainId)
+        );
+    }
+
+    /// @notice Sets up immutable data for super fault dispute game implementation
+    function getSuperFaultDisputeGameV2ImmutableArgs(Claim _absolutePrestate)
+        internal
+        returns (bytes memory immutableArgs_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
+        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
+        // Encode the implementation args for CWIA (tightly packed)
+        immutableArgs_ = abi.encodePacked(
+            _absolutePrestate, // 32 bytes
+            vm_, // 20 bytes
+            anchorStateRegistry, // 20 bytes
+            delayedWeth, // 20 bytes
+            uint256(0) // 32 bytes (l2ChainId)
         );
     }
 
@@ -335,6 +336,29 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         );
     }
 
+    /// @notice Sets up immutable args for Super PDG implementation
+    function getSuperPermissionedDisputeGameImmutableArgs(
+        Claim _absolutePrestate,
+        address _proposer,
+        address _challenger
+    )
+        internal
+        returns (bytes memory implArgs_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
+        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
+
+        // Encode the implementation args for CWIA (tightly packed)
+        implArgs_ = abi.encodePacked(
+            _absolutePrestate, // 32 bytes
+            vm_, // 20 bytes
+            anchorStateRegistry, // 20 bytes
+            delayedWeth, // 20 bytes
+            uint256(0), // 32 bytes (l2ChainId),
+            _proposer, // 20 bytes
+            _challenger // 20 bytes
+        );
+    }
+
     /// @notice Deploys PDG v2 implementation and sets it on the DGF
     function setupPermissionedDisputeGameV2(
         Claim _absolutePrestate,
@@ -361,6 +385,17 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         });
 
         _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON, _implArgs);
+    }
+
+    /// @notice Deploys Super PDG implementation and sets it on the DGF
+    function setupSuperPermissionedDisputeGame(bytes memory _implArgs) internal returns (address gameImpl_) {
+        gameImpl_ = DeployUtils.create1({
+            _name: "SuperPermissionedDisputeGame",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (_getSuperGameConstructorParams()))
+            )
+        });
+        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON, _implArgs);
     }
 }
 
@@ -421,12 +456,13 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
     {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
         // values.
-        GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
+        uint32 maxGameType = isDevFeatureEnabled(DevFeatures.CANNON_KONA) ? 8 : 2;
+        GameType gt = GameType.wrap(uint8(bound(gameType, 0, maxGameType)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
         // Set all three implementations to the same `FakeClone` contract.
-        for (uint8 i; i < 3; i++) {
+        for (uint8 i; i < maxGameType + 1; i++) {
             GameType lgt = GameType.wrap(i);
             disputeGameFactory.setImplementation(lgt, IDisputeGame(address(fakeClone)));
             disputeGameFactory.setInitBond(lgt, _value);
@@ -487,7 +523,8 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
         // values. We skip over game type = 0, since the deploy script set the implementation for
         // that game type.
-        GameType gt = GameType.wrap(uint32(bound(gameType, 2, type(uint32).max)));
+        uint32 maxGameType = isDevFeatureEnabled(DevFeatures.CANNON_KONA) ? 8 : 2;
+        GameType gt = GameType.wrap(uint32(bound(gameType, maxGameType + 1, type(uint32).max)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
@@ -500,12 +537,13 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
     function testFuzz_create_sameUUID_reverts(uint32 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
         // values.
-        GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
+        uint32 maxGameType = isDevFeatureEnabled(DevFeatures.CANNON_KONA) ? 8 : 2;
+        GameType gt = GameType.wrap(uint8(bound(gameType, 0, maxGameType)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
         // Set all three implementations to the same `FakeClone` contract.
-        for (uint8 i; i < 3; i++) {
+        for (uint8 i; i < maxGameType + 1; i++) {
             disputeGameFactory.setImplementation(GameType.wrap(i), IDisputeGame(address(fakeClone)));
         }
 

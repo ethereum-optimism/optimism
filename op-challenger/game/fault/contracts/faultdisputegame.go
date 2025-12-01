@@ -208,9 +208,9 @@ type GameMetadata struct {
 	L2BlockNumberChallenger common.Address
 }
 
-// GetGameMetadata returns the game's L1 head, L2 block number, root claim, status, max clock duration, and is l2 block number challenged.
-func (f *FaultDisputeGameContractLatest) GetGameMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error) {
-	defer f.metrics.StartContractRequest("GetGameMetadata")()
+// GetExtendedMetadata returns the game's L1 head, L2 block number, root claim, status, max clock duration, and is l2 block number challenged.
+func (f *FaultDisputeGameContractLatest) GetExtendedMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error) {
+	defer f.metrics.StartContractRequest("GetExtendedMetadata")()
 	results, err := f.multiCaller.Call(ctx, block,
 		f.contract.Call(methodL1Head),
 		f.contract.Call(methodL2BlockNumber),
@@ -244,6 +244,36 @@ func (f *FaultDisputeGameContractLatest) GetGameMetadata(ctx context.Context, bl
 		MaxClockDuration:        duration,
 		L2BlockNumberChallenged: blockChallenged,
 		L2BlockNumberChallenger: blockChallenger,
+	}, nil
+}
+
+// GetMetadata returns the basic game metadata
+func (f *FaultDisputeGameContractLatest) GetMetadata(ctx context.Context, block rpcblock.Block) (GenericGameMetadata, error) {
+	defer f.metrics.StartContractRequest("GetMetadata")()
+	results, err := f.multiCaller.Call(ctx, block,
+		f.contract.Call(methodL1Head),
+		f.contract.Call(methodL2BlockNumber),
+		f.contract.Call(methodRootClaim),
+		f.contract.Call(methodStatus),
+	)
+	if err != nil {
+		return GenericGameMetadata{}, fmt.Errorf("failed to retrieve game metadata: %w", err)
+	}
+	if len(results) != 4 {
+		return GenericGameMetadata{}, fmt.Errorf("expected 4 results but got %v", len(results))
+	}
+	l1Head := results[0].GetHash(0)
+	l2BlockNumber := results[1].GetBigInt(0).Uint64()
+	rootClaim := results[2].GetHash(0)
+	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
+	if err != nil {
+		return GenericGameMetadata{}, fmt.Errorf("failed to convert game status: %w", err)
+	}
+	return GenericGameMetadata{
+		L1Head:        l1Head,
+		L2SequenceNum: l2BlockNumber,
+		ProposedRoot:  rootClaim,
+		Status:        status,
 	}, nil
 }
 
@@ -642,10 +672,9 @@ func (f *FaultDisputeGameContractLatest) decodeClaim(result *batching.CallResult
 }
 
 type FaultDisputeGameContract interface {
+	DisputeGameContract
 	GetBalanceAndDelay(ctx context.Context, block rpcblock.Block) (*big.Int, time.Duration, common.Address, error)
-	GetGameRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error)
-	GetGameMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error)
-	GetResolvedAt(ctx context.Context, block rpcblock.Block) (time.Time, error)
+	GetExtendedMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error)
 	GetStartingRootHash(ctx context.Context) (common.Hash, error)
 	GetSplitDepth(ctx context.Context) (types.Depth, error)
 	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error)
@@ -660,8 +689,6 @@ type FaultDisputeGameContract interface {
 	GetClockExtension(ctx context.Context) (time.Duration, error)
 	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
 	GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error)
-	GetL1Head(ctx context.Context) (common.Hash, error)
-	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
 	GetClaimCount(ctx context.Context) (uint64, error)
 	GetClaim(ctx context.Context, idx uint64) (types.Claim, error)
 	GetAllClaims(ctx context.Context, block rpcblock.Block) ([]types.Claim, error)
@@ -673,8 +700,6 @@ type FaultDisputeGameContract interface {
 	StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error)
 	CallResolveClaim(ctx context.Context, claimIdx uint64) error
 	ResolveClaimTx(claimIdx uint64) (txmgr.TxCandidate, error)
-	CallResolve(ctx context.Context) (gameTypes.GameStatus, error)
-	ResolveTx() (txmgr.TxCandidate, error)
 	Vm(ctx context.Context) (*VMContract, error)
 	GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (types.BondDistributionMode, error)
 }

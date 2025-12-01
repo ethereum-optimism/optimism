@@ -55,7 +55,7 @@ func (r *rpcL2ELNode) L2EthClient() apis.L2EthClient {
 	return r.l2Client
 }
 
-func (r *rpcL2ELNode) L2EthExtendedClient() apis.L2EthExtendedClient {
+func (r *rpcL2ELNode) L2EthExtendedClient() apis.L2EthClient {
 	return r.l2Client
 }
 

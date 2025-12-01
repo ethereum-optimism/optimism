@@ -15,6 +15,7 @@ import (
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
@@ -109,13 +110,17 @@ var (
 		Category: L1RPCCategory,
 	}
 	SyncModeFlag = &cli.GenericFlag{
-		Name:    "syncmode",
-		Usage:   fmt.Sprintf("Blockchain sync mode (options: %s)", openum.EnumString(sync.ModeStrings)),
-		EnvVars: prefixEnvVars("SYNCMODE"),
-		Value: func() *sync.Mode {
-			out := sync.CLSync
-			return &out
-		}(),
+		Name:     "syncmode",
+		Usage:    fmt.Sprintf("Blockchain sync mode (options: %s)", openum.EnumString(sync.ModeStrings)),
+		EnvVars:  prefixEnvVars("SYNCMODE"),
+		Value:    ptr.New(sync.CLSync),
+		Category: RollupCategory,
+	}
+	SyncModeReqRespFlag = &cli.BoolFlag{
+		Name:     "syncmode.req-resp",
+		Required: false,
+		Value:    true,
+		EnvVars:  prefixEnvVars("SYNCMODE_REQ_RESP"),
 		Category: RollupCategory,
 	}
 	RPCAdminPersistence = &cli.StringFlag{
@@ -212,6 +217,20 @@ var (
 		Value:    time.Second * 10,
 		Category: RollupCategory,
 	}
+	L2UnsafeOnly = &cli.BoolFlag{
+		Name:     "l2.unsafe-only",
+		Usage:    "Disable derivation",
+		EnvVars:  prefixEnvVars("L2_UNSAFE_ONLY"),
+		Category: RollupCategory,
+		Required: false,
+	}
+	L2FollowSource = &cli.StringFlag{
+		Name:     "l2.follow.source",
+		Usage:    "Address of L2 EL RPC HTTP endpoint to fetch safe/finalized blocks",
+		EnvVars:  prefixEnvVars("L2_FOLLOW_SOURCE"),
+		Category: RollupCategory,
+		Required: false,
+	}
 	VerifierL1Confs = &cli.Uint64Flag{
 		Name:     "verifier.l1-confs",
 		Usage:    "Number of L1 blocks to keep distance from the L1 head before deriving L2 data from. Reorgs are supported, but may be slow to perform.",
@@ -251,6 +270,18 @@ var (
 		EnvVars:  prefixEnvVars("SEQUENCER_RECOVER"),
 		Value:    false,
 		Category: SequencerCategory,
+	}
+	FinalityLookbackFlag = &cli.Uint64Flag{
+		Name:     "finality.lookback",
+		Usage:    "Number of L1 blocks to look back for finality verification. Uses default calculation if 0 (considers alt-DA challenge/resolve windows if applicable).",
+		EnvVars:  prefixEnvVars("FINALITY_LOOKBACK"),
+		Category: RollupCategory,
+	}
+	FinalityDelayFlag = &cli.Uint64Flag{
+		Name:     "finality.delay",
+		Usage:    "Number of L1 blocks to traverse before trying to finalize L2 blocks again. Uses default (64) if 0.",
+		EnvVars:  prefixEnvVars("FINALITY_DELAY"),
+		Category: RollupCategory,
 	}
 	L1EpochPollIntervalFlag = &cli.DurationFlag{
 		Name:     "l1.epoch-poll-interval",
@@ -436,6 +467,7 @@ var optionalFlags = []cli.Flag{
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
 	SyncModeFlag,
+	SyncModeReqRespFlag,
 	FetchWithdrawalRootFromState,
 	L1TrustRPC,
 	L1RPCProviderKind,
@@ -450,6 +482,8 @@ var optionalFlags = []cli.Flag{
 	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
 	SequencerRecoverMode,
+	FinalityLookbackFlag,
+	FinalityDelayFlag,
 	L1EpochPollIntervalFlag,
 	RuntimeConfigReloadIntervalFlag,
 	RPCAdminPersistence,
@@ -466,6 +500,8 @@ var optionalFlags = []cli.Flag{
 	L1ChainConfig,
 	L2EngineKind,
 	L2EngineRpcTimeout,
+	L2UnsafeOnly,
+	L2FollowSource,
 	InteropRPCAddr,
 	InteropRPCPort,
 	InteropJWTSecret,

@@ -157,6 +157,8 @@ interface IOPContractsManager {
         uint256 disputeSplitDepth;
         Duration disputeClockExtension;
         Duration disputeMaxClockDuration;
+        // Whether to use the custom gas token.
+        bool useCustomGasToken;
     }
 
     /// @notice The full set of outputs from deploying a new OP Stack chain.
@@ -194,10 +196,6 @@ interface IOPContractsManager {
         address permissionedDisputeGame2;
         address permissionlessDisputeGame1;
         address permissionlessDisputeGame2;
-        address superPermissionedDisputeGame1;
-        address superPermissionedDisputeGame2;
-        address superPermissionlessDisputeGame1;
-        address superPermissionlessDisputeGame2;
     }
 
     /// @notice The latest implementation contracts for the OP Stack.
@@ -218,13 +216,15 @@ interface IOPContractsManager {
         address mipsImpl;
         address faultDisputeGameV2Impl;
         address permissionedDisputeGameV2Impl;
+        address superFaultDisputeGameImpl;
+        address superPermissionedDisputeGameImpl;
     }
 
     /// @notice The input required to identify a chain for upgrading.
     struct OpChainConfig {
         ISystemConfig systemConfigProxy;
-        IProxyAdmin proxyAdmin;
-        Claim absolutePrestate;
+        Claim cannonPrestate;
+        Claim cannonKonaPrestate;
     }
 
     /// @notice The input required to identify a chain for updating prestates
@@ -237,7 +237,6 @@ interface IOPContractsManager {
     struct AddGameInput {
         string saltMixer;
         ISystemConfig systemConfig;
-        IProxyAdmin proxyAdmin;
         IDelayedWETH delayedWETH;
         GameType disputeGameType;
         Claim disputeAbsolutePrestate;
@@ -329,6 +328,23 @@ interface IOPContractsManager {
 
     function validate(
         IOPContractsManagerStandardValidator.ValidationInput calldata _input,
+        bool _allowFailure
+    )
+        external
+        view
+        returns (string memory);
+
+    function validateWithOverrides(
+        IOPContractsManagerStandardValidator.ValidationInputDev calldata _input,
+        bool _allowFailure,
+        IOPContractsManagerStandardValidator.ValidationOverrides calldata _overrides
+    )
+        external
+        view
+        returns (string memory);
+
+    function validate(
+        IOPContractsManagerStandardValidator.ValidationInputDev calldata _input,
         bool _allowFailure
     )
         external

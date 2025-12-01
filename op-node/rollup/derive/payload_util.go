@@ -109,7 +109,7 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 		r.MinBaseFee = *m
 	}
 	if rollupCfg.IsDAFootprintBlockLimit(uint64(payload.Timestamp)) {
-		r.SetDAFootprintGasScalar(info.DAFootprintGasScalar)
+		r.DAFootprintGasScalar = info.DAFootprintGasScalar
 	}
 	return r, nil
 }

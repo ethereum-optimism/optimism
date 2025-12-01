@@ -152,12 +152,12 @@ func (s *channelManager) rewindToBlock(block eth.BlockID) {
 // and removes the channel from the channelQueue, along with
 // any channels which are newer than the provided channel.
 func (s *channelManager) handleChannelInvalidated(c *channel) {
-	if len(c.channelBuilder.blocks) > 0 {
+	if len(c.ChannelBuilder.blocks) > 0 {
 		// This is usually true, but there is an edge case
 		// where a channel timed out before any blocks got added.
 		// In that case we end up with an empty frame (header only),
 		// and there are no blocks to requeue.
-		blockID := eth.ToBlockID(c.channelBuilder.blocks[0])
+		blockID := eth.ToBlockID(c.ChannelBuilder.blocks[0])
 		s.rewindToBlock(blockID)
 	} else {
 		s.log.Debug("channelManager.handleChannelInvalidated: channel had no blocks")
@@ -176,7 +176,7 @@ func (s *channelManager) handleChannelInvalidated(c *channel) {
 	for i := invalidatedChannelIdx; i < len(s.channelQueue); i++ {
 		s.log.Warn("Dropped channel",
 			"id", s.channelQueue[i].ID(),
-			"none_submitted", s.channelQueue[i].NoneSubmitted(),
+			"none_submitted", s.channelQueue[i].noneSubmitted(),
 			"fully_submitted", s.channelQueue[i].isFullySubmitted(),
 			"timed_out", s.channelQueue[i].isTimedOut(),
 			"full_reason", s.channelQueue[i].FullErr(),
@@ -232,7 +232,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isPectra, isThrottling, forc
 	}
 	// If the channel has already started being submitted,
 	// return now and ensure no requeuing happens
-	if !channel.NoneSubmitted() {
+	if !channel.noneSubmitted() {
 		return s.nextTxData(channel)
 	}
 
@@ -472,7 +472,7 @@ func (s *channelManager) outputFrames() error {
 		"compr_ratio", comprRatio,
 	)
 
-	s.currentChannel.channelBuilder.co.DiscardCompressor() // Free up memory by discarding the compressor
+	s.currentChannel.ChannelBuilder.co.DiscardCompressor() // Free up memory by discarding the compressor
 
 	return nil
 }
@@ -586,7 +586,7 @@ func (s *channelManager) unsafeBytesInOpenChannels() int64 {
 	var bytesInOpenChannels int64
 	for _, channel := range s.channelQueue {
 		if channel.TotalFrames() == 0 {
-			for _, block := range channel.channelBuilder.blocks {
+			for _, block := range channel.ChannelBuilder.blocks {
 				bytesInOpenChannels += int64(block.EstimatedDABytes())
 			}
 		}

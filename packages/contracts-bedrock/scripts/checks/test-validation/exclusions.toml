@@ -1,4 +1,4 @@
-  # Test validation exclusions configuration
+# Test validation exclusions configuration
 # This file contains lists of paths and test names that should be excluded
 # from various validation checks in the test validation script.
 
@@ -29,6 +29,8 @@ src_validation = [
     "test/universal/ExtendedPause.t.sol",  # Tests extended functionality
     "test/vendor/Initializable.t.sol",     # Tests external vendor code
     "test/vendor/InitializableOZv5.t.sol", # Tests external vendor code
+	"test/L2/LegacyFeeSplitter.t.sol",     # Tests legacy fee splitter with updated vaults interface
+	"test/L2/FeeSplitterVaults.t.sol",     # Tests FeeSplitter with vault-specific scenarios using test helper
 ]
 
 # PATHS EXCLUDED FROM CONTRACT NAME FILE PATH VALIDATION:
@@ -57,6 +59,7 @@ contract_name_validation = [
     "test/L2/GasPriceOracle.t.sol",                       # Contains contracts not matching GasPriceOracle base name
     "test/universal/StandardBridge.t.sol",                # Contains contracts not matching StandardBridge base name
     "test/L1/OPContractsManagerContractsContainer.t.sol", # Contains contracts not matching OPContractsManagerContractsContainer base name
+	"test/L2/RevenueSharingIntegration.t.sol",            # Contains contracts not matching RevenueSharingIntegration base name
     "test/libraries/Blueprint.t.sol",                     # Contains helper contracts (BlueprintHarness, ConstructorArgMock)
     "test/libraries/SafeCall.t.sol",                      # Contains helper contracts (SimpleSafeCaller)
 ]
@@ -94,5 +97,6 @@ contracts = [
     "OptimismPortal2_UpgradeInterop_Test",      # Interop tests hosted in the OptimismPortal2 test file
     "TransactionBuilder",                       # Transaction builder helper library in TimelockGuard test file
     "Constants_Test",                           # Invalid naming pattern - doesn't specify function or Uncategorized
-    "LivenessModule2_TestUtils",                 # Test utils library in LivenessModule2 test file
+    "LivenessModule2_TestUtils",                # Test utils library in LivenessModule2 test file
+    "L1Block_SetCustomGasToken_Test",           # Custom gas token tests hosted in the L1Block test file
 ]

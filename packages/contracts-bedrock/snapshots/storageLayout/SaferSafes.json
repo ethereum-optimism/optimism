@@ -15,9 +15,16 @@
   },
   {
     "bytes": "32",
-    "label": "_safeState",
+    "label": "_safeStates",
     "offset": 0,
     "slot": "2",
-    "type": "mapping(contract Safe => struct TimelockGuard.SafeState)"
+    "type": "mapping(contract Safe => mapping(uint256 => struct TimelockGuard.SafeState))"
+  },
+  {
+    "bytes": "32",
+    "label": "_safeConfigNonces",
+    "offset": 0,
+    "slot": "3",
+    "type": "mapping(contract Safe => uint256)"
   }
 ]

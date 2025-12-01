@@ -3,12 +3,14 @@ package derive
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -649,6 +651,30 @@ func TestValidBatch(t *testing.T) {
 			},
 			Expected: BatchDrop,
 		},
+	}
+
+	// Add test cases for all forks from Jovian to assert that upgrade block must not contain user
+	// txs. If a future fork should allow user txs in its upgrade block, it must be removed from
+	// this list explicitly.
+	for _, fork := range forks.From(forks.Jovian) {
+		singularBatchTestCases = append(singularBatchTestCases, ValidBatchTestCase{
+			Name:       fmt.Sprintf("user txs in %s upgrade block", fork),
+			L1Blocks:   []eth.L1BlockRef{l1A, l1B, l1C},
+			L2SafeHead: l2A0,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1B,
+				Batch: &SingularBatch{
+					ParentHash:   l2A1.ParentHash,
+					EpochNum:     rollup.Epoch(l2A1.L1Origin.Number),
+					EpochHash:    l2A1.L1Origin.Hash,
+					Timestamp:    l2A1.Time,
+					Transactions: []hexutil.Bytes{[]byte("forbidden tx in upgrade block")},
+				},
+			},
+			Expected:    BatchDrop,
+			ExpectedLog: "dropping batch with user transactions in fork activation block",
+			ConfigMod:   func(c *rollup.Config) { c.ActivateAt(fork, l2A1.Time) },
+		})
 	}
 
 	spanBatchTestCases := []ValidBatchTestCase{

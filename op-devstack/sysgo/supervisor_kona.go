@@ -109,7 +109,7 @@ func (s *KonaSupervisor) Stop() {
 		s.p.Logger().Warn("kona-supervisor already stopped")
 		return
 	}
-	err := s.sub.Stop()
+	err := s.sub.Stop(true)
 	s.p.Require().NoError(err, "Must stop")
 	s.sub = nil
 }

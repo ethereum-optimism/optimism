@@ -21,9 +21,6 @@ import (
 
 // TestCLIBootstrap tests the bootstrap commands via CLI
 func TestCLIBootstrap(t *testing.T) {
-	runner := NewCLITestRunnerWithNetwork(t)
-	workDir := runner.GetWorkDir()
-
 	// Use the same chain ID that anvil runs on
 	l1ChainID := uint64(devnet.DefaultChainID)
 	l1ChainIDBig := big.NewInt(int64(l1ChainID))
@@ -39,6 +36,9 @@ func TestCLIBootstrap(t *testing.T) {
 	challenger := shared.AddrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainIDBig))
 
 	t.Run("bootstrap superchain", func(t *testing.T) {
+		runner := NewCLITestRunnerWithNetwork(t)
+		workDir := runner.GetWorkDir()
+
 		superchainOutputFile := filepath.Join(workDir, "bootstrap_superchain.json")
 
 		// Run bootstrap superchain command
@@ -65,6 +65,9 @@ func TestCLIBootstrap(t *testing.T) {
 	})
 
 	t.Run("bootstrap superchain with custom protocol versions", func(t *testing.T) {
+		runner := NewCLITestRunnerWithNetwork(t)
+		workDir := runner.GetWorkDir()
+
 		superchainOutputFile := filepath.Join(workDir, "bootstrap_superchain_custom.json")
 
 		// Use a custom protocol version - create v1.0.0 with custom build
@@ -102,6 +105,9 @@ func TestCLIBootstrap(t *testing.T) {
 	})
 
 	t.Run("bootstrap superchain paused", func(t *testing.T) {
+		runner := NewCLITestRunnerWithNetwork(t)
+		workDir := runner.GetWorkDir()
+
 		superchainOutputFile := filepath.Join(workDir, "bootstrap_superchain_paused.json")
 
 		// Run bootstrap superchain command with paused flag
@@ -129,6 +135,9 @@ func TestCLIBootstrap(t *testing.T) {
 	})
 
 	t.Run("bootstrap implementations", func(t *testing.T) {
+		runner := NewCLITestRunnerWithNetwork(t)
+		workDir := runner.GetWorkDir()
+
 		// First, we need a superchain deployment
 		superchainOutputFile := filepath.Join(workDir, "bootstrap_superchain_for_impls.json")
 		runner.ExpectSuccessWithNetwork(t, []string{
@@ -156,7 +165,7 @@ func TestCLIBootstrap(t *testing.T) {
 			"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
 			"--protocol-versions-proxy", superchainOutput.ProtocolVersionsProxy.Hex(),
 			"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
-			"--upgrade-controller", superchainProxyAdminOwner.Hex(), // Use proxy admin owner as upgrade controller
+			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(), // Use proxy admin owner as upgrade controller
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 			"--challenger", challenger.Hex(),
 		}, nil)
@@ -190,40 +199,5 @@ func TestCLIBootstrap(t *testing.T) {
 		require.NotEqual(t, common.Address{}, implsOutput.AnchorStateRegistryImpl, "AnchorStateRegistryImpl should be set")
 		require.NotEqual(t, common.Address{}, implsOutput.SuperchainConfigImpl, "SuperchainConfigImpl should be set")
 		require.NotEqual(t, common.Address{}, implsOutput.ProtocolVersionsImpl, "ProtocolVersionsImpl should be set")
-	})
-
-	t.Run("bootstrap proxy", func(t *testing.T) {
-		proxyOutputFile := filepath.Join(workDir, "bootstrap_proxy.json")
-
-		// Run bootstrap proxy command
-		output := runner.ExpectSuccessWithNetwork(t, []string{
-			"bootstrap", "proxy",
-			"--proxy-owner", superchainProxyAdminOwner.Hex(),
-			"--outfile", proxyOutputFile,
-		}, nil)
-
-		t.Logf("Bootstrap proxy output:\n%s", output)
-
-		// Verify output file was created
-		require.FileExists(t, proxyOutputFile)
-
-		// Parse and validate the output
-		var proxyOutput opcm.DeployProxyOutput
-		data, err := os.ReadFile(proxyOutputFile)
-		require.NoError(t, err)
-		err = json.Unmarshal(data, &proxyOutput)
-		require.NoError(t, err)
-		require.NoError(t, addresses.CheckNoZeroAddresses(proxyOutput))
-	})
-
-	t.Run("bootstrap with stdout output", func(t *testing.T) {
-		// Test that stdout output works (no --outfile flag)
-		output := runner.ExpectSuccessWithNetwork(t, []string{
-			"bootstrap", "proxy",
-			"--proxy-owner", superchainProxyAdminOwner.Hex(),
-			"--outfile", "-", // stdout
-		}, nil)
-
-		t.Logf("Bootstrap proxy (stdout) output:\n%s", output)
 	})
 }

@@ -32,7 +32,15 @@ func prefixEnvVars(name string) []string {
 }
 
 var (
-	faultDisputeVMs = []types.TraceType{types.TraceTypeCannon, types.TraceTypeCannonKona, types.TraceTypeAsterisc, types.TraceTypeAsteriscKona, types.TraceTypeSuperCannon, types.TraceTypeSuperAsteriscKona}
+	faultDisputeVMs = []types.TraceType{
+		types.TraceTypeCannon,
+		types.TraceTypeCannonKona,
+		types.TraceTypeAsterisc,
+		types.TraceTypeAsteriscKona,
+		types.TraceTypeSuperCannon,
+		types.TraceTypeSuperCannonKona,
+		types.TraceTypeSuperAsteriscKona,
+	}
 	// Required Flags
 	L1EthRpcFlag = &cli.StringFlag{
 		Name:    "l1-eth-rpc",
@@ -397,6 +405,24 @@ func CheckSuperCannonFlags(ctx *cli.Context) error {
 	return nil
 }
 
+func CheckSuperCannonKonaFlags(ctx *cli.Context) error {
+	if !ctx.IsSet(SupervisorRpcFlag.Name) {
+		return fmt.Errorf("flag %v is required", SupervisorRpcFlag.Name)
+	}
+	if !ctx.IsSet(flags.NetworkFlagName) &&
+		!(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannonKona) && L2GenesisFlag.IsSet(ctx, types.TraceTypeCannonKona) && DepsetConfigFlag.IsSet(ctx, types.TraceTypeCannonKona)) {
+		return fmt.Errorf("flag %v or %v, %v and %v is required",
+			flags.NetworkFlagName,
+			RollupConfigFlag.EitherFlagName(types.TraceTypeCannonKona),
+			L2GenesisFlag.EitherFlagName(types.TraceTypeCannonKona),
+			DepsetConfigFlag.EitherFlagName(types.TraceTypeCannonKona))
+	}
+	if err := CheckCannonKonaBaseFlags(ctx, types.TraceTypeCannonKona); err != nil {
+		return err
+	}
+	return nil
+}
+
 func CheckCannonFlags(ctx *cli.Context) error {
 	if err := checkOutputProviderFlags(ctx); err != nil {
 		return err
@@ -547,6 +573,10 @@ func CheckRequired(ctx *cli.Context, traceTypes []types.TraceType) error {
 			}
 		case types.TraceTypeSuperCannon, types.TraceTypeSuperPermissioned:
 			if err := CheckSuperCannonFlags(ctx); err != nil {
+				return err
+			}
+		case types.TraceTypeSuperCannonKona:
+			if err := CheckSuperCannonKonaFlags(ctx); err != nil {
 				return err
 			}
 		case types.TraceTypeSuperAsteriscKona:

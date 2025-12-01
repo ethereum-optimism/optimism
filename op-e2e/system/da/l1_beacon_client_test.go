@@ -23,7 +23,7 @@ func TestGetVersion(t *testing.T) {
 	l := testlog.Logger(t, log.LevelInfo)
 
 	blobStore := blobstore.New()
-	beaconApi := fakebeacon.NewBeacon(l, blobStore, uint64(0), uint64(0))
+	beaconApi := fakebeacon.NewBeacon(l, blobStore, uint64(0), uint64(0), nil)
 	t.Cleanup(func() {
 		_ = beaconApi.Close()
 	})
@@ -43,7 +43,7 @@ func Test404NotFound(t *testing.T) {
 	l := testlog.Logger(t, log.LevelInfo)
 
 	blobStore := blobstore.New()
-	beaconApi := fakebeacon.NewBeacon(l, blobStore, uint64(0), uint64(12))
+	beaconApi := fakebeacon.NewBeacon(l, blobStore, uint64(0), uint64(12), nil)
 	t.Cleanup(func() {
 		_ = beaconApi.Close()
 	})

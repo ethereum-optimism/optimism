@@ -103,7 +103,7 @@ func WithL1NodesInProcess(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stac
 		blobPath := clP.TempDir()
 
 		clLogger := clP.Logger()
-		bcn := fakebeacon.NewBeacon(clLogger, blobstore.New(), l1Net.genesis.Timestamp, blockTimeL1)
+		bcn := fakebeacon.NewBeacon(clLogger, blobstore.New(), l1Net.genesis.Timestamp, blockTimeL1, l1Net.genesis.Config.OsakaTime)
 		clP.Cleanup(func() {
 			_ = bcn.Close()
 		})

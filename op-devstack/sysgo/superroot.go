@@ -1,13 +1,16 @@
 package sysgo
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/json"
 	"math/big"
 	"os"
 	"path"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
@@ -27,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/lmittmann/w3"
 	w3eth "github.com/lmittmann/w3/module/eth"
+	"github.com/stretchr/testify/require"
 )
 
 func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack.L2CLNodeID, supervisorID stack.SupervisorID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
@@ -62,15 +66,16 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 			superchainProxyAdmin := getProxyAdmin(t, w3Client, superchainConfigAddr)
 			require.NotEmpty(superchainProxyAdmin, "superchain proxy admin address is empty")
 
-			absolutePrestate := getInteropAbsolutePrestate(t)
+			absoluteCannonPrestate := getInteropCannonAbsolutePrestate(t)
+			absoluteCannonKonaPrestate := getInteropCannonKonaAbsolutePrestate(t)
 			var opChainConfigs []bindings.OPContractsManagerOpChainConfig
 			var l2ChainIDs []eth.ChainID
 			for l2ChainID, l2Deployment := range o.wb.outL2Deployment {
 				l2ChainIDs = append(l2ChainIDs, l2ChainID)
 				opChainConfigs = append(opChainConfigs, bindings.OPContractsManagerOpChainConfig{
-					SystemConfigProxy: l2Deployment.SystemConfigProxyAddr(),
-					ProxyAdmin:        superchainProxyAdmin,
-					AbsolutePrestate:  absolutePrestate,
+					SystemConfigProxy:  l2Deployment.SystemConfigProxyAddr(),
+					CannonPrestate:     absoluteCannonPrestate,
+					CannonKonaPrestate: absoluteCannonKonaPrestate,
 				})
 			}
 
@@ -176,6 +181,9 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 				delegateCallProxy,
 				oldDisputeGameFactories,
 			)
+
+			transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, superchainProxyAdmin, oldSuperchainProxyAdminOwner)
+
 			superchainProxyAdminOwner := getOwner(t, w3Client, superchainProxyAdmin)
 			t.Require().Equal(oldSuperchainProxyAdminOwner, superchainProxyAdminOwner, "superchain proxy admin owner is not the L1PAO")
 
@@ -202,13 +210,53 @@ func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervis
 
 	client, err := dial.DialSupervisorClientWithTimeout(t.Ctx(), t.Logger(), supervisor.UserRPC())
 	t.Require().NoError(err)
+
+	// wait for the super root to be ready
+	ctx, cancel := context.WithTimeout(t.Ctx(), time.Minute*2)
+	err = wait.For(ctx, time.Second*1, func() (bool, error) {
+		status, err := client.SyncStatus(ctx)
+		if err != nil {
+			return false, err
+		}
+		return timestamp < status.MinSyncedL1.Time, nil
+	})
+	cancel()
+	t.Require().NoError(err, "waiting for supervisor to sync failed")
+
 	super, err := client.SuperRootAtTimestamp(t.Ctx(), hexutil.Uint64(timestamp))
 	t.Require().NoError(err, "super root at timestamp failed")
 	return super.SuperRoot
 }
 
-func getInteropAbsolutePrestate(t devtest.CommonT) common.Hash {
+func getInteropCannonAbsolutePrestate(t devtest.CommonT) common.Hash {
 	return getAbsolutePrestate(t, "op-program/bin/prestate-proof-interop.json")
+}
+
+func getInteropCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
+	return loadKonaVersions(t).InteropPrestateHash
+}
+
+func getCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
+	return loadKonaVersions(t).PrestateHash
+}
+
+func loadKonaVersions(t devtest.CommonT) konaVersions {
+	konaVersionPath := "kona/version.json"
+	root, err := findMonorepoRoot(konaVersionPath)
+	t.Require().NoError(err)
+	p := path.Join(root, konaVersionPath)
+	data, err := os.ReadFile(p)
+	t.Require().NoError(err, "Failed to read kona versions")
+	var versions konaVersions
+	err = json.Unmarshal(data, &versions)
+	require.NoError(t, err, "Failed to parse kona versions")
+	return versions
+}
+
+type konaVersions struct {
+	Version             string      `json:"version"`
+	PrestateHash        common.Hash `json:"prestateHash"`
+	InteropPrestateHash common.Hash `json:"interopPrestateHash"`
 }
 
 func getAbsolutePrestate(t devtest.CommonT, prestatePath string) common.Hash {
@@ -234,13 +282,13 @@ var (
 	optimismPortalFn      = w3.MustNewFunc("optimismPortal()", "address")
 	disputeGameFactoryFn  = w3.MustNewFunc("disputeGameFactory()", "address")
 	gameImplsFn           = w3.MustNewFunc("gameImpls(uint32)", "address")
+	gameArgsFn            = w3.MustNewFunc("gameArgs(uint32)", "bytes")
 	ownerFn               = w3.MustNewFunc("owner()", "address")
 	proxyAdminFn          = w3.MustNewFunc("proxyAdmin()", "address")
 	adminFn               = w3.MustNewFunc("admin()", "address")
 	proxyAdminOwnerFn     = w3.MustNewFunc("proxyAdminOwner()", "address")
 	ethLockboxFn          = w3.MustNewFunc("ethLockbox()", "address")
 	anchorStateRegistryFn = w3.MustNewFunc("anchorStateRegistry()", "address")
-	wethFn                = w3.MustNewFunc("weth()", "address")
 	transferOwnershipFn   = w3.MustNewFunc("transferOwnership(address)", "")
 )
 
@@ -385,13 +433,12 @@ func resetOwnershipAfterMigration(
 
 	gameTypes := []uint32{superPermissionedGameType, superCannonGameType}
 	for _, gameType := range gameTypes {
-		var game common.Address
-		err = w3Client.Call(w3eth.CallFunc(sharedDGF, gameImplsFn, gameType).Returns(&game))
+		var gameArgsBytes []byte
+		err = w3Client.Call(w3eth.CallFunc(sharedDGF, gameArgsFn, gameType).Returns(&gameArgsBytes))
 		t.Require().NoError(err)
-		var wethProxy common.Address
-		err = w3Client.Call(w3eth.CallFunc(game, wethFn).Returns(&wethProxy))
-		t.Require().NoError(err, "failed to get weth proxy")
-		wethAdminOwner := getProxyAdminOwner(t, w3Client, wethProxy)
+		gameArgs, err := gameargs.Parse(gameArgsBytes)
+		t.Require().NoErrorf(err, "invalid game args for gameType %d", gameType)
+		wethAdminOwner := getProxyAdminOwner(t, w3Client, gameArgs.Weth)
 		t.Require().Equal(l1PAO, wethAdminOwner, "wethProxy proxy admin owner is not the L1PAO")
 	}
 }

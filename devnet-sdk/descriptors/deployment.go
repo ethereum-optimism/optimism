@@ -58,7 +58,6 @@ type Chain struct {
 
 type L2Chain struct {
 	*Chain
-	L1Addresses  AddressMap     `json:"l1_addresses,omitempty"`
 	L1Wallets    WalletMap      `json:"l1_wallets,omitempty"`
 	RollupConfig *rollup.Config `json:"rollup_config"`
 }

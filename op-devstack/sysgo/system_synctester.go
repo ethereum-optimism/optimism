@@ -69,6 +69,8 @@ func DefaultSimpleSystemWithSyncTester(dest *DefaultSimpleSystemWithSyncTesterID
 	// P2P Connect CLs to signal unsafe heads
 	opt.Add(WithL2CLP2PConnection(ids.L2CL, ids.L2CL2))
 
+	opt.Add(WithL2MetricsDashboard())
+
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
 	}))

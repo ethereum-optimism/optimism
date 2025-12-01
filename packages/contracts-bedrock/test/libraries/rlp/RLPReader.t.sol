@@ -325,3 +325,68 @@ contract RLPReader_readList_Test is Test {
         RLPReader.readList(hex"f80100");
     }
 }
+
+/// @title RLPReader_ToRLPItem_Test
+/// @notice Tests the `toRLPItem` function of the `RLPReader` library.
+contract RLPReader_ToRLPItem_Test is Test {
+    /// @notice Tests that the `toRLPItem` function reverts when given an empty byte array.
+    /// forge-config: default.allow_internal_expect_revert = true
+    function test_toRLPItem_emptyBytes_reverts() external {
+        vm.expectRevert(EmptyItem.selector);
+        RLPReader.toRLPItem(hex"");
+    }
+
+    /// @notice Tests that the `toRLPItem` function correctly converts a single byte.
+    function test_toRLPItem_singleByte_succeeds() external pure {
+        RLPReader.RLPItem memory item = RLPReader.toRLPItem(hex"00");
+        assertEq(item.length, 1);
+    }
+
+    /// @notice Tests that the `toRLPItem` function correctly converts a multi-byte array.
+    function test_toRLPItem_multiBytes_succeeds() external pure {
+        RLPReader.RLPItem memory item = RLPReader.toRLPItem(hex"827a77");
+        assertEq(item.length, 3);
+    }
+
+    /// @notice Tests that the `toRLPItem` function correctly converts an RLP-encoded list.
+    function test_toRLPItem_rlpList_succeeds() external pure {
+        RLPReader.RLPItem memory item = RLPReader.toRLPItem(hex"c0");
+        assertEq(item.length, 1);
+    }
+}
+
+/// @title RLPReader_ReadRawBytes_Test
+/// @notice Tests the `readRawBytes` function of the `RLPReader` library.
+contract RLPReader_ReadRawBytes_Test is Test {
+    /// @notice Tests that the `readRawBytes` function correctly reads a single byte item.
+    function test_readRawBytes_singleByte_succeeds() external pure {
+        RLPReader.RLPItem memory item = RLPReader.toRLPItem(hex"00");
+        assertEq(RLPReader.readRawBytes(item), hex"00");
+    }
+
+    /// @notice Tests that the `readRawBytes` function correctly reads a short string item.
+    function test_readRawBytes_shortString_succeeds() external pure {
+        RLPReader.RLPItem memory item = RLPReader.toRLPItem(hex"827a77");
+        assertEq(RLPReader.readRawBytes(item), hex"827a77");
+    }
+
+    /// @notice Tests that the `readRawBytes` function correctly reads an empty list item.
+    function test_readRawBytes_emptyList_succeeds() external pure {
+        RLPReader.RLPItem memory item = RLPReader.toRLPItem(hex"c0");
+        assertEq(RLPReader.readRawBytes(item), hex"c0");
+    }
+
+    /// @notice Tests that the `readRawBytes` function correctly reads a nested list item.
+    function test_readRawBytes_nestedList_succeeds() external pure {
+        RLPReader.RLPItem memory item = RLPReader.toRLPItem(hex"c7c0c1c0c3c0c1c0");
+        assertEq(RLPReader.readRawBytes(item), hex"c7c0c1c0c3c0c1c0");
+    }
+
+    /// @notice Tests that the `readRawBytes` function correctly reads items from a parsed list.
+    function test_readRawBytes_fromList_succeeds() external pure {
+        RLPReader.RLPItem[] memory list = RLPReader.readList(hex"c6827a77c10401");
+        assertEq(RLPReader.readRawBytes(list[0]), hex"827a77");
+        assertEq(RLPReader.readRawBytes(list[1]), hex"c104");
+        assertEq(RLPReader.readRawBytes(list[2]), hex"01");
+    }
+}

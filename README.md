@@ -1,7 +1,7 @@
 <div align="center">
   <br />
   <br />
-  <a href="https://optimism.io"><img alt="Optimism" src="https://raw.githubusercontent.com/ethereum-optimism/brand-kit/main/assets/svg/OPTIMISM-R.svg" width=600></a>
+  <a href="https://optimism.io"><img alt="Optimism" src="./logo.svg" width=600></a>
   <br />
   <h3><a href="https://optimism.io">Optimism</a> is Ethereum, scaled.</h3>
   <br />

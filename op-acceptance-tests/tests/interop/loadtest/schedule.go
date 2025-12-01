@@ -219,7 +219,7 @@ func (b *Burst) Run(t devtest.T, spammer Spammer) {
 			if isOverdraftErr(err) {
 				cancel()
 			}
-			t.Logger().Warn("Spammer error", "err", err)
+			logOnError(t, err)
 			aimd.Adjust(false)
 		}()
 	}
@@ -290,7 +290,7 @@ func (s *Steady) Run(t devtest.T, spammer Spammer) {
 			if isOverdraftErr(err) {
 				cancel()
 			}
-			t.Logger().Warn("Spammer error", "err", err)
+			logOnError(t, err)
 		}()
 	}
 }
@@ -317,10 +317,18 @@ func (c *Constant) Run(t devtest.T, spammer Spammer) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := spammer.Spam(t); err != nil {
-				t.Logger().Warn("Spammer error", "err", err)
-			}
+			logOnError(t, spammer.Spam(t))
 		}()
+	}
+}
+
+func logOnError(t devtest.T, err error) {
+	if errors.Is(err, context.Canceled) {
+		// Context cancelation is typically caused by the test ending, which is not really a
+		// spammer error. Don't spam warnings in that case.
+		t.Logger().Debug("Spammer error", "err", err)
+	} else if err != nil {
+		t.Logger().Warn("Spammer error", "err", err)
 	}
 }
 

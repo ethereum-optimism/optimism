@@ -1,10 +1,14 @@
 package proofs
 
 import (
+	"context"
 	"fmt"
+	"math/big"
 	"slices"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
@@ -43,12 +47,35 @@ func (c *Claim) Value() common.Hash {
 	return c.claim.Value
 }
 
+func (c *Claim) Bond() *big.Int {
+	return c.claim.Bond
+}
+
+func (c *Claim) Position() types.Position {
+	return c.claim.Position
+}
+
 func (c *Claim) Claimant() common.Address {
 	return c.claim.Claimant
 }
 
-func (c *Claim) Depth() uint64 {
-	return uint64(c.claim.Depth())
+func (c *Claim) Depth() types.Depth {
+	return c.claim.Depth()
+}
+
+func (c *Claim) asChallengerClaim() types.Claim {
+	return types.Claim{
+		ClaimData: types.ClaimData{
+			Value:    c.claim.Value,
+			Bond:     c.claim.Bond,
+			Position: c.claim.Position,
+		},
+		CounteredBy:         c.claim.CounteredBy,
+		Claimant:            c.claim.Claimant,
+		Clock:               c.claim.Clock,
+		ContractIndex:       int(c.Index),
+		ParentContractIndex: int(c.claim.ParentContractIndex),
+	}
 }
 
 // WaitForCounterClaim waits for the claim to be countered by another claim being posted.
@@ -60,6 +87,19 @@ func (c *Claim) WaitForCounterClaim(ignoreClaims ...*Claim) *Claim {
 	return newClaim(c.t, c.require, counterIdx, counterClaim, c.game)
 }
 
+// WaitForCountered waits until the claim is countered either by a child claim or by a step call.
+func (c *Claim) WaitForCountered() {
+	timedCtx, cancel := context.WithTimeout(c.t.Ctx(), defaultTimeout)
+	defer cancel()
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		claim := c.game.claimAtIndex(c.Index)
+		return claim.CounteredBy != common.Address{}, nil
+	})
+	if err != nil { // Avoid waiting time capturing game data when there's no error
+		c.require.NoErrorf(err, "Claim %v was not countered\n%v", c.Index, c.game.GameData())
+	}
+}
+
 func (c *Claim) VerifyNoCounterClaim() {
 	for i, claim := range c.game.allClaims() {
 		c.require.NotEqualValuesf(c.Index, claim.ParentContractIndex, "Found unexpected counter-claim at index %v: %v", i, claim)
@@ -68,6 +108,11 @@ func (c *Claim) VerifyNoCounterClaim() {
 
 func (c *Claim) Attack(eoa *dsl.EOA, newClaim common.Hash) *Claim {
 	c.game.Attack(eoa, c.Index, newClaim)
+	return c.WaitForCounterClaim()
+}
+
+func (c *Claim) Defend(eoa *dsl.EOA, newClaim common.Hash) *Claim {
+	c.game.Defend(eoa, c.Index, newClaim)
 	return c.WaitForCounterClaim()
 }
 

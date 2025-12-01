@@ -42,10 +42,19 @@ func (el *L1ELNode) EthClient() apis.EthClient {
 // EstimateBlockTime estimates the L1 block based on the last 1000 blocks
 // (or since genesis, if insufficient blocks).
 func (el *L1ELNode) EstimateBlockTime() time.Duration {
-	latest, err := el.inner.EthClient().BlockRefByLabel(el.t.Ctx(), eth.Unsafe)
-	el.require.NoError(err)
-	if latest.Number == 0 {
-		return time.Second * 12
+	var latest eth.BlockRef
+	for {
+		var err error
+		latest, err = el.inner.EthClient().BlockRefByLabel(el.t.Ctx(), eth.Unsafe)
+		el.require.NoError(err)
+		if latest.Number > 0 {
+			break
+		}
+		select {
+		case <-time.After(time.Millisecond * 500):
+		case <-el.ctx.Done():
+			el.require.Fail("context was canceled before L1 block time could be estimated")
+		}
 	}
 	lowerNum := uint64(0)
 	if latest.Number > 1000 {

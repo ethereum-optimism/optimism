@@ -105,7 +105,7 @@ func GetStateVersionStrings() []string {
 
 // GetCurrentVersion returns the current default version.
 func GetCurrentVersion() StateVersion {
-	return VersionMultiThreaded64_v4
+	return VersionMultiThreaded64_v5
 }
 
 // GetExperimentalVersion returns the newest in-development version of Cannon if it exists, otherwise returns the same

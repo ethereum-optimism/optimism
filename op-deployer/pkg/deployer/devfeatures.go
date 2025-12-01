@@ -17,6 +17,9 @@ var (
 
 	// DeployV2DisputeGamesDevFlag enables deployment of V2 dispute game contracts.
 	DeployV2DisputeGamesDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000100")
+
+	// CustomGasTokenDevFlag enables the custom gas token.
+	CustomGasTokenDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000001000")
 )
 
 // IsDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.
@@ -29,4 +32,13 @@ func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
 	featuresIsNonZero := f.Cmp(big.NewInt(0)) != 0
 	bitmapContainsFeatures := new(big.Int).And(b, f).Cmp(f) == 0
 	return featuresIsNonZero && bitmapContainsFeatures
+}
+
+// EnableDevFeature enables a specific development feature in a feature bitmap
+func EnableDevFeature(bitmap, flag common.Hash) common.Hash {
+	var result common.Hash
+	for i := 0; i < 32; i++ {
+		result[i] = bitmap[i] | flag[i]
+	}
+	return result
 }

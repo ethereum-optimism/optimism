@@ -14,6 +14,7 @@ contract SetDisputeGameImplInput is BaseDeployIO {
     IAnchorStateRegistry internal _anchorStateRegistry;
     IFaultDisputeGame internal _impl;
     uint32 internal _gameType;
+    bytes internal _gameArgs;
 
     // Setter for address type
     function set(bytes4 _sel, address _addr) public {
@@ -28,6 +29,11 @@ contract SetDisputeGameImplInput is BaseDeployIO {
     // Setter for GameType
     function set(bytes4 _sel, uint32 _type) public {
         if (_sel == this.gameType.selector) _gameType = _type;
+        else revert("SetDisputeGameImplInput: unknown selector");
+    }
+
+    function set(bytes4 _sel, bytes memory _value) public {
+        if (_sel == this.gameArgs.selector) _gameArgs = bytes(_value);
         else revert("SetDisputeGameImplInput: unknown selector");
     }
 
@@ -48,6 +54,10 @@ contract SetDisputeGameImplInput is BaseDeployIO {
     function gameType() public view returns (uint32) {
         return _gameType;
     }
+
+    function gameArgs() public view returns (bytes memory) {
+        return _gameArgs;
+    }
 }
 
 contract SetDisputeGameImpl is Script {
@@ -58,9 +68,15 @@ contract SetDisputeGameImpl is Script {
 
         IFaultDisputeGame impl = _input.impl();
         IAnchorStateRegistry anchorStateRegistry = _input.anchorStateRegistry();
+        bytes memory gameArgs = _input.gameArgs();
 
-        vm.broadcast(msg.sender);
-        factory.setImplementation(gameType, impl);
+        if (gameArgs.length > 0) {
+            vm.broadcast(msg.sender);
+            factory.setImplementation(gameType, impl, gameArgs);
+        } else {
+            vm.broadcast(msg.sender);
+            factory.setImplementation(gameType, impl);
+        }
 
         if (address(anchorStateRegistry) != address(0)) {
             require(address(anchorStateRegistry.disputeGameFactory()) == address(factory), "SDGI-20");

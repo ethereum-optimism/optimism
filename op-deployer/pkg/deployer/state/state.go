@@ -25,6 +25,9 @@ type State struct {
 	// Version versions the state so we can update it later.
 	Version int `json:"version"`
 
+	// OpDeployerVersion is the version of op-deployer that was used to create the state
+	OpDeployerVersion string `json:"opDeployerVersion"`
+
 	// Create2Salt is the salt used for CREATE2 deployments.
 	Create2Salt common.Hash `json:"create2Salt"`
 

@@ -16,6 +16,7 @@ import { Types } from "scripts/libraries/Types.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
 import { Hash } from "src/dispute/lib/Types.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -426,17 +427,25 @@ library ChainAssertions {
             Blueprint.parseBlueprintPreamble(address(blueprints.resolvedDelegateProxy).code);
         require(keccak256(rdProxyPreamble.initcode) == keccak256(vm.getCode("ResolvedDelegateProxy")), "CHECK-OPCM-200");
 
-        Blueprint.Preamble memory pdg1Preamble =
-            Blueprint.parseBlueprintPreamble(address(blueprints.permissionedDisputeGame1).code);
-        Blueprint.Preamble memory pdg2Preamble =
-            Blueprint.parseBlueprintPreamble(address(blueprints.permissionedDisputeGame2).code);
-        // combine pdg1 and pdg2 initcodes
-        bytes memory fullPermissionedDisputeGameInitcode =
-            abi.encodePacked(pdg1Preamble.initcode, pdg2Preamble.initcode);
-        require(
-            keccak256(fullPermissionedDisputeGameInitcode) == keccak256(vm.getCode("PermissionedDisputeGame")),
-            "CHECK-OPCM-210"
-        );
+        if (!_opcm.isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            Blueprint.Preamble memory pdg1Preamble =
+                Blueprint.parseBlueprintPreamble(address(blueprints.permissionedDisputeGame1).code);
+            Blueprint.Preamble memory pdg2Preamble =
+                Blueprint.parseBlueprintPreamble(address(blueprints.permissionedDisputeGame2).code);
+            // combine pdg1 and pdg2 initcodes
+            bytes memory fullPermissionedDisputeGameInitcode =
+                abi.encodePacked(pdg1Preamble.initcode, pdg2Preamble.initcode);
+            require(
+                keccak256(fullPermissionedDisputeGameInitcode) == keccak256(vm.getCode("PermissionedDisputeGame")),
+                "CHECK-OPCM-210"
+            );
+        } else {
+            // Should not deploy V1 blueprints when using V2 dispute games
+            require(address(blueprints.permissionedDisputeGame1).code.length == 0, "CHECK-OPCM-220");
+            require(address(blueprints.permissionedDisputeGame2).code.length == 0, "CHECK-OPCM-230");
+            require(address(blueprints.permissionlessDisputeGame1).code.length == 0, "CHECK-OPCM-240");
+            require(address(blueprints.permissionlessDisputeGame2).code.length == 0, "CHECK-OPCM-250");
+        }
     }
 
     function checkAnchorStateRegistryProxy(IAnchorStateRegistry _anchorStateRegistryProxy, bool _isProxy) internal {

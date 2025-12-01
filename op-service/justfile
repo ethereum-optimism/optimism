@@ -13,4 +13,4 @@ service_fuzz_task FUZZ TIME='60s': (go_fuzz FUZZ TIME "./eth")
 fuzz:
     go test ./eth/... -list=Fuzz -vet=off \
     | grep 'Fuzz' \
-    | parallel -j {{PARALLEL_JOBS}} {{just_executable()}} service_fuzz_task {}
+    | parallel --tag -j {{PARALLEL_JOBS}} {{just_executable()}} service_fuzz_task {}

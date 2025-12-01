@@ -591,8 +591,6 @@ type ForkchoiceUpdatedResult struct {
 	PayloadID *PayloadID `json:"payloadId"`
 }
 
-const DAFootprintGasScalarDefault = 400
-
 // SystemConfig represents the rollup system configuration that carries over in every L2 block,
 // and may be changed through L1 system config events.
 // The initial SystemConfig at rollup genesis is embedded in the rollup configuration.
@@ -626,14 +624,6 @@ type SystemConfig struct {
 	// not marshal the EIP1559Params field. The presence of this field in
 	// pre-Holocene codebases causes the rollup config to be rejected.
 	MarshalPreHolocene bool `json:"-"`
-}
-
-func (sysCfg *SystemConfig) SetDAFootprintGasScalar(daFootprintGasScalar uint16) {
-	if daFootprintGasScalar == 0 {
-		sysCfg.DAFootprintGasScalar = DAFootprintGasScalarDefault
-	} else {
-		sysCfg.DAFootprintGasScalar = daFootprintGasScalar
-	}
 }
 
 func (sysCfg SystemConfig) MarshalJSON() ([]byte, error) {

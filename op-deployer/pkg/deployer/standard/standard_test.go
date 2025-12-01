@@ -13,26 +13,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDefaultHardforkScheduleForTag(t *testing.T) {
-	sched := DefaultHardforkScheduleForTag(ContractsV160Tag)
-	require.Nil(t, sched.HoloceneTime(0))
-	require.Nil(t, sched.IsthmusTime(0))
-
-	sched = DefaultHardforkScheduleForTag(ContractsV180Tag)
-	require.NotNil(t, sched.HoloceneTime(0))
-	require.Nil(t, sched.IsthmusTime(0))
-
-	sched = DefaultHardforkScheduleForTag(ContractsV200Tag)
-	require.NotNil(t, sched.HoloceneTime(0))
-	require.Nil(t, sched.IsthmusTime(0))
-
-	sched = DefaultHardforkScheduleForTag(ContractsV300Tag)
-	require.NotNil(t, sched.HoloceneTime(0))
-	require.Nil(t, sched.IsthmusTime(0))
-
-	sched = DefaultHardforkScheduleForTag("")
+func TestDefaultHardforkSchedule(t *testing.T) {
+	sched := DefaultHardforkSchedule()
+	require.NotNil(t, sched.RegolithTime(0))
+	require.NotNil(t, sched.CanyonTime(0))
+	require.NotNil(t, sched.DeltaTime(0))
+	require.NotNil(t, sched.EcotoneTime(0))
+	require.NotNil(t, sched.FjordTime(0))
+	require.NotNil(t, sched.GraniteTime(0))
 	require.NotNil(t, sched.HoloceneTime(0))
 	require.NotNil(t, sched.IsthmusTime(0))
+	require.NotNil(t, sched.JovianTime(0))
 }
 
 func TestStandardAddresses(t *testing.T) {

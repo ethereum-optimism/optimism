@@ -18,6 +18,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opparams "github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -85,6 +86,22 @@ type DevDeployConfig struct {
 	FundDevAccounts bool `json:"fundDevAccounts"`
 }
 
+type RevenueShareDeployConfig struct {
+	UseRevenueShare    bool           `json:"useRevenueShare"`
+	ChainFeesRecipient common.Address `json:"chainFeesRecipient"`
+}
+
+var _ ConfigChecker = (*RevenueShareDeployConfig)(nil)
+
+func (d *RevenueShareDeployConfig) Check(log log.Logger) error {
+	if d.UseRevenueShare {
+		if d.ChainFeesRecipient == (common.Address{}) {
+			return fmt.Errorf("%w: ChainFeesRecipient cannot be address(0)", ErrInvalidDeployConfig)
+		}
+	}
+	return nil
+}
+
 type L2GenesisBlockDeployConfig struct {
 	L2GenesisBlockNonce         hexutil.Uint64 `json:"l2GenesisBlockNonce"`
 	L2GenesisBlockGasLimit      hexutil.Uint64 `json:"l2GenesisBlockGasLimit"`
@@ -149,18 +166,24 @@ type L2VaultsDeployConfig struct {
 	// SequencerFeeVaultRecipient represents the recipient of fees accumulated in the SequencerFeeVault.
 	// Can be an account on L1 or L2, depending on the SequencerFeeVaultWithdrawalNetwork value.
 	SequencerFeeVaultRecipient common.Address `json:"sequencerFeeVaultRecipient"`
+	// OperatorFeeVaultRecipient represents the recipient of fees accumulated in the OperatorFeeVault.
+	OperatorFeeVaultRecipient common.Address `json:"operatorFeeVaultRecipient"`
 	// BaseFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the BaseFeeVault.
 	BaseFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"baseFeeVaultMinimumWithdrawalAmount"`
 	// L1FeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the L1FeeVault.
 	L1FeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"l1FeeVaultMinimumWithdrawalAmount"`
 	// SequencerFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the SequencerFeeVault.
 	SequencerFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"sequencerFeeVaultMinimumWithdrawalAmount"`
+	// OperatorFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the OperatorFeeVault.
+	OperatorFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"operatorFeeVaultMinimumWithdrawalAmount"`
 	// BaseFeeVaultWithdrawalNetwork represents the withdrawal network for the BaseFeeVault.
 	BaseFeeVaultWithdrawalNetwork WithdrawalNetwork `json:"baseFeeVaultWithdrawalNetwork"`
 	// L1FeeVaultWithdrawalNetwork represents the withdrawal network for the L1FeeVault.
 	L1FeeVaultWithdrawalNetwork WithdrawalNetwork `json:"l1FeeVaultWithdrawalNetwork"`
 	// SequencerFeeVaultWithdrawalNetwork represents the withdrawal network for the SequencerFeeVault.
 	SequencerFeeVaultWithdrawalNetwork WithdrawalNetwork `json:"sequencerFeeVaultWithdrawalNetwork"`
+	// OperatorFeeVaultWithdrawalNetwork represents the withdrawal network for the OperatorFeeVault.
+	OperatorFeeVaultWithdrawalNetwork WithdrawalNetwork `json:"operatorFeeVaultWithdrawalNetwork"`
 }
 
 var _ ConfigChecker = (*L2VaultsDeployConfig)(nil)
@@ -175,6 +198,9 @@ func (d *L2VaultsDeployConfig) Check(log log.Logger) error {
 	if d.SequencerFeeVaultRecipient == (common.Address{}) {
 		return fmt.Errorf("%w: SequencerFeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
 	}
+	if d.OperatorFeeVaultRecipient == (common.Address{}) {
+		return fmt.Errorf("%w: OperatorFeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
+	}
 	if !d.BaseFeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: BaseFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
@@ -183,6 +209,9 @@ func (d *L2VaultsDeployConfig) Check(log log.Logger) error {
 	}
 	if !d.SequencerFeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: SequencerFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
+	}
+	if !d.OperatorFeeVaultWithdrawalNetwork.Valid() {
+		return fmt.Errorf("%w: OperatorFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
 	return nil
 }
@@ -275,18 +304,33 @@ func (d *GasPriceOracleDeployConfig) OperatorFeeParams() [32]byte {
 type GasTokenDeployConfig struct {
 	// UseCustomGasToken is a flag to indicate that a custom gas token should be used
 	UseCustomGasToken bool `json:"useCustomGasToken"`
-	// CustomGasTokenAddress is the address of the ERC20 token to be used to pay for gas on L2.
-	CustomGasTokenAddress common.Address `json:"customGasTokenAddress"`
+	// GasPayingTokenName represents the custom gas token name.
+	GasPayingTokenName string `json:"gasPayingTokenName"`
+	// GasPayingTokenSymbol represents the custom gas token symbol.
+	GasPayingTokenSymbol string `json:"gasPayingTokenSymbol"`
+	// NativeAssetLiquidityAmount represents the amount of liquidity to pre-fund the NativeAssetLiquidity contract with.
+	NativeAssetLiquidityAmount *hexutil.Big `json:"nativeAssetLiquidityAmount"`
+	// LiquidityControllerOwner represents the owner of the LiquidityController.
+	LiquidityControllerOwner common.Address `json:"liquidityControllerOwner"`
 }
 
 var _ ConfigChecker = (*GasTokenDeployConfig)(nil)
 
 func (d *GasTokenDeployConfig) Check(log log.Logger) error {
 	if d.UseCustomGasToken {
-		if d.CustomGasTokenAddress == (common.Address{}) {
-			return fmt.Errorf("%w: CustomGasTokenAddress cannot be address(0)", ErrInvalidDeployConfig)
+		if d.GasPayingTokenName == "" {
+			return fmt.Errorf("%w: GasPayingTokenName cannot be empty", ErrInvalidDeployConfig)
 		}
-		log.Info("Using custom gas token", "address", d.CustomGasTokenAddress)
+		if d.GasPayingTokenSymbol == "" {
+			return fmt.Errorf("%w: GasPayingTokenSymbol cannot be empty", ErrInvalidDeployConfig)
+		}
+		if d.NativeAssetLiquidityAmount == nil || d.NativeAssetLiquidityAmount.ToInt().Sign() < 0 {
+			return fmt.Errorf("%w: NativeAssetLiquidityAmount cannot be nil or negative", ErrInvalidDeployConfig)
+		}
+		if d.LiquidityControllerOwner == (common.Address{}) {
+			return fmt.Errorf("%w: LiquidityControllerOwner cannot be address(0)", ErrInvalidDeployConfig)
+		}
+		log.Info("Using custom gas token", "name", d.GasPayingTokenName, "symbol", d.GasPayingTokenSymbol, "nativeAssetLiquidityAmount", d.NativeAssetLiquidityAmount.ToInt())
 	}
 	return nil
 }
@@ -406,25 +450,25 @@ func offsetToUpgradeTime(offset *hexutil.Uint64, genesisTime uint64) *uint64 {
 
 func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint64 {
 	switch fork {
-	case rollup.Regolith:
+	case forks.Regolith:
 		return (*uint64)(d.L2GenesisRegolithTimeOffset)
-	case rollup.Canyon:
+	case forks.Canyon:
 		return (*uint64)(d.L2GenesisCanyonTimeOffset)
-	case rollup.Delta:
+	case forks.Delta:
 		return (*uint64)(d.L2GenesisDeltaTimeOffset)
-	case rollup.Ecotone:
+	case forks.Ecotone:
 		return (*uint64)(d.L2GenesisEcotoneTimeOffset)
-	case rollup.Fjord:
+	case forks.Fjord:
 		return (*uint64)(d.L2GenesisFjordTimeOffset)
-	case rollup.Granite:
+	case forks.Granite:
 		return (*uint64)(d.L2GenesisGraniteTimeOffset)
-	case rollup.Holocene:
+	case forks.Holocene:
 		return (*uint64)(d.L2GenesisHoloceneTimeOffset)
-	case rollup.Isthmus:
+	case forks.Isthmus:
 		return (*uint64)(d.L2GenesisIsthmusTimeOffset)
-	case rollup.Jovian:
+	case forks.Jovian:
 		return (*uint64)(d.L2GenesisJovianTimeOffset)
-	case rollup.Interop:
+	case forks.Interop:
 		return (*uint64)(d.L2GenesisInteropTimeOffset)
 	default:
 		panic(fmt.Sprintf("unknown fork: %s", fork))
@@ -433,32 +477,32 @@ func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint
 
 func (d *UpgradeScheduleDeployConfig) SetForkTimeOffset(fork rollup.ForkName, offset *uint64) {
 	switch fork {
-	case rollup.Regolith:
+	case forks.Regolith:
 		d.L2GenesisRegolithTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Canyon:
+	case forks.Canyon:
 		d.L2GenesisCanyonTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Delta:
+	case forks.Delta:
 		d.L2GenesisDeltaTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Ecotone:
+	case forks.Ecotone:
 		d.L2GenesisEcotoneTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Fjord:
+	case forks.Fjord:
 		d.L2GenesisFjordTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Granite:
+	case forks.Granite:
 		d.L2GenesisGraniteTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Holocene:
+	case forks.Holocene:
 		d.L2GenesisHoloceneTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Isthmus:
+	case forks.Isthmus:
 		d.L2GenesisIsthmusTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Jovian:
+	case forks.Jovian:
 		d.L2GenesisJovianTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Interop:
+	case forks.Interop:
 		d.L2GenesisInteropTimeOffset = (*hexutil.Uint64)(offset)
 	default:
 		panic(fmt.Sprintf("unknown fork: %s", fork))
 	}
 }
 
-var scheduleableForks = rollup.ForksFrom(rollup.Regolith)
+var scheduleableForks = forks.From(forks.Regolith)
 
 // ActivateForkAtOffset activates the given fork at the given offset. Previous forks are activated
 // at genesis and later forks are deactivated.
@@ -466,7 +510,7 @@ var scheduleableForks = rollup.ForksFrom(rollup.Regolith)
 // ActivateForkAtOffset with the earliest fork and then SetForkTimeOffset to individually set later
 // forks.
 func (d *UpgradeScheduleDeployConfig) ActivateForkAtOffset(fork rollup.ForkName, offset uint64) {
-	if !rollup.IsValidFork(fork) || fork == rollup.Bedrock {
+	if !forks.IsValid(fork) || fork == forks.Bedrock {
 		panic(fmt.Sprintf("invalid fork: %s", fork))
 	}
 	ts := new(uint64)
@@ -714,6 +758,18 @@ func (d *AltDADeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
+type FeeMarketConfig struct {
+	// MinBaseFee is the minimum base applied to each block.
+	MinBaseFee uint64 `json:"minBaseFee"`
+	// DAFootprintGasScalar is the scalar used to compute the DAFootprint of each block.
+	DAFootprintGasScalar uint16 `json:"daFootprintGasScalar"`
+}
+
+func (f *FeeMarketConfig) Check(log log.Logger) error {
+	// All values are valid.
+	return nil
+}
+
 // L2InitializationConfig represents all L2 configuration
 // data that can be configured before the deployment of any L1 contracts.
 type L2InitializationConfig struct {
@@ -728,8 +784,9 @@ type L2InitializationConfig struct {
 	EIP1559DeployConfig
 	UpgradeScheduleDeployConfig
 	L2CoreDeployConfig
+	FeeMarketConfig
 	AltDADeployConfig
-	DAFootprintGasScalar uint16 `json:"daFootprintGasScalar"`
+	RevenueShareDeployConfig
 }
 
 func (d *L2InitializationConfig) Check(log log.Logger) error {
@@ -1122,6 +1179,7 @@ func (d *DeployConfig) GenesisSystemConfig() eth.SystemConfig {
 		Scalar:            d.FeeScalar(),
 		GasLimit:          uint64(d.L2GenesisBlockGasLimit),
 		OperatorFeeParams: d.OperatorFeeParams(),
+		MinBaseFee:        d.MinBaseFee,
 		// Note that we don't use SetDAFootprintGasScalar here because this SystemConfig is supposed to
 		// reflect the genesis state and is not used inside derivation.
 		DAFootprintGasScalar: d.DAFootprintGasScalar,

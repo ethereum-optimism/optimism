@@ -101,7 +101,7 @@ func TestSystemConfigMarshaling(t *testing.T) {
 		OperatorFeeParams:    Bytes32{0x1, 0x2, 0x3},
 		GasLimit:             1234,
 		MinBaseFee:           0,
-		DAFootprintGasScalar: DAFootprintGasScalarDefault,
+		DAFootprintGasScalar: 400,
 		// Leave EIP1559 params empty to prove that the
 		// zero value is sent.
 	}

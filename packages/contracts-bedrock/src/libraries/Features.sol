@@ -10,4 +10,9 @@ library Features {
     ///         and the ETHLockbox contract has been configured, the OptimismPortal will use the
     ///         ETHLockbox to store ETH instead of storing ETH directly in the portal itself.
     bytes32 internal constant ETH_LOCKBOX = "ETH_LOCKBOX";
+
+    /// @notice The CUSTOM_GAS_TOKEN feature determines if the system is configured to use a custom
+    ///         gas token in the OptimismPortal. When the CUSTOM_GAS_TOKEN feature is active, the
+    ///         deposits and withdrawals of native ETH are disabled.
+    bytes32 internal constant CUSTOM_GAS_TOKEN = "CUSTOM_GAS_TOKEN";
 }

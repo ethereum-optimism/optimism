@@ -53,6 +53,7 @@ var (
 var singleCannonTraceTypes = []types.TraceType{types.TraceTypeCannon, types.TraceTypePermissioned}
 var superCannonTraceTypes = []types.TraceType{types.TraceTypeSuperCannon, types.TraceTypeSuperPermissioned}
 var allCannonTraceTypes []types.TraceType
+var cannonKonaTraceTypes = []types.TraceType{types.TraceTypeCannonKona, types.TraceTypeSuperCannonKona}
 var asteriscTraceTypes = []types.TraceType{types.TraceTypeAsterisc}
 var asteriscKonaTraceTypes = []types.TraceType{types.TraceTypeAsteriscKona}
 var superAsteriscKonaTraceTypes = []types.TraceType{types.TraceTypeSuperAsteriscKona}
@@ -139,6 +140,11 @@ func applyValidConfigForCannonKona(t *testing.T, cfg *Config) {
 	cfg.CannonKona.Networks = []string{validCannonKonaNetwork}
 }
 
+func applyValidConfigForSuperCannonKona(t *testing.T, cfg *Config) {
+	cfg.SupervisorRPC = validSupervisorRpc
+	applyValidConfigForCannonKona(t, cfg)
+}
+
 func applyValidConfigForSuperAsteriscKona(t *testing.T, cfg *Config) {
 	cfg.SupervisorRPC = validSupervisorRpc
 	applyValidConfigForAsteriscKona(t, cfg)
@@ -154,6 +160,9 @@ func validConfig(t *testing.T, traceType types.TraceType) Config {
 	}
 	if traceType == types.TraceTypeCannonKona {
 		applyValidConfigForCannonKona(t, &cfg)
+	}
+	if traceType == types.TraceTypeSuperCannonKona {
+		applyValidConfigForSuperCannonKona(t, &cfg)
 	}
 	if traceType == types.TraceTypeAsterisc {
 		applyValidConfigForAsterisc(t, &cfg)
@@ -179,6 +188,9 @@ func validConfigWithNoNetworks(t *testing.T, traceType types.TraceType) Config {
 	}
 	if slices.Contains(allCannonTraceTypes, traceType) {
 		mutateVmConfig(&cfg.Cannon)
+	}
+	if slices.Contains(cannonKonaTraceTypes, traceType) {
+		mutateVmConfig(&cfg.CannonKona)
 	}
 	if slices.Contains(asteriscTraceTypes, traceType) {
 		mutateVmConfig(&cfg.Asterisc)
@@ -357,6 +369,130 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestServerExists-%v", traceType), func(t *testing.T) {
 			cfg := validConfig(t, traceType)
 			cfg.Cannon.Server = nonExistingFile
+			require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
+		})
+	}
+}
+
+func TestCannonKonaRequiredArgs(t *testing.T) {
+	for _, traceType := range cannonKonaTraceTypes {
+		traceType := traceType
+
+		t.Run(fmt.Sprintf("TestCannonKonaBinRequired-%v", traceType), func(t *testing.T) {
+			config := validConfig(t, traceType)
+			config.CannonKona.VmBin = ""
+			require.ErrorIs(t, config.Check(), vm.ErrMissingBin)
+		})
+
+		t.Run(fmt.Sprintf("TestCannonKonaServerRequired-%v", traceType), func(t *testing.T) {
+			config := validConfig(t, traceType)
+			config.CannonKona.Server = ""
+			require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+		})
+
+		t.Run(fmt.Sprintf("TestCannonKonaAbsolutePreStateOrBaseURLRequired-%v", traceType), func(t *testing.T) {
+			config := validConfig(t, traceType)
+			config.CannonKonaAbsolutePreState = ""
+			config.CannonKonaAbsolutePreStateBaseURL = nil
+			require.ErrorIs(t, config.Check(), ErrMissingCannonKonaAbsolutePreState)
+		})
+
+		t.Run(fmt.Sprintf("TestCannonKonaAbsolutePreState-%v", traceType), func(t *testing.T) {
+			config := validConfig(t, traceType)
+			config.CannonKonaAbsolutePreState = validCannonAbsolutePreState
+			config.CannonKonaAbsolutePreStateBaseURL = nil
+			require.NoError(t, config.Check())
+		})
+
+		t.Run(fmt.Sprintf("TestCannonKonaAbsolutePreStateBaseURL-%v", traceType), func(t *testing.T) {
+			config := validConfig(t, traceType)
+			config.CannonKonaAbsolutePreState = ""
+			config.CannonKonaAbsolutePreStateBaseURL = validCannonAbsolutePreStateBaseURL
+			require.NoError(t, config.Check())
+		})
+
+		t.Run(fmt.Sprintf("TestAllowSupplyingBothCannonKonaAbsolutePreStateAndBaseURL-%v", traceType), func(t *testing.T) {
+			// Since the prestate baseURL might be inherited from the --prestate-urls option, allow overriding it with a specific prestate
+			config := validConfig(t, traceType)
+			config.CannonKonaAbsolutePreState = validCannonAbsolutePreState
+			config.CannonKonaAbsolutePreStateBaseURL = validCannonAbsolutePreStateBaseURL
+			require.NoError(t, config.Check())
+		})
+
+		t.Run(fmt.Sprintf("TestL2RpcRequired-%v", traceType), func(t *testing.T) {
+			config := validConfig(t, traceType)
+			config.L2Rpcs = nil
+			require.ErrorIs(t, config.Check(), ErrMissingL2Rpc)
+		})
+
+		t.Run(fmt.Sprintf("TestCannonKonaSnapshotFreq-%v", traceType), func(t *testing.T) {
+			t.Run("MustNotBeZero", func(t *testing.T) {
+				cfg := validConfig(t, traceType)
+				cfg.CannonKona.SnapshotFreq = 0
+				require.ErrorIs(t, cfg.Check(), ErrMissingCannonKonaSnapshotFreq)
+			})
+		})
+
+		t.Run(fmt.Sprintf("TestCannonKonaInfoFreq-%v", traceType), func(t *testing.T) {
+			t.Run("MustNotBeZero", func(t *testing.T) {
+				cfg := validConfig(t, traceType)
+				cfg.CannonKona.InfoFreq = 0
+				require.ErrorIs(t, cfg.Check(), ErrMissingCannonKonaInfoFreq)
+			})
+		})
+
+		t.Run(fmt.Sprintf("TestCannonKonaNetworkOrRollupConfigRequired-%v", traceType), func(t *testing.T) {
+			cfg := validConfigWithNoNetworks(t, traceType)
+			cfg.CannonKona.RollupConfigPaths = nil
+			require.ErrorIs(t, cfg.Check(), vm.ErrMissingRollupConfig)
+		})
+
+		t.Run(fmt.Sprintf("TestCannonKonaNetworkOrL2GenesisRequired-%v", traceType), func(t *testing.T) {
+			cfg := validConfigWithNoNetworks(t, traceType)
+			cfg.CannonKona.L2GenesisPaths = nil
+			require.ErrorIs(t, cfg.Check(), vm.ErrMissingL2Genesis)
+		})
+
+		t.Run(fmt.Sprintf("TestMaySpecifyNetworkAndCustomConfigs-%v", traceType), func(t *testing.T) {
+			cfg := validConfig(t, traceType)
+			cfg.CannonKona.Networks = []string{validCannonNetwork}
+			cfg.CannonKona.RollupConfigPaths = []string{"foo.json"}
+			cfg.CannonKona.L2GenesisPaths = []string{"genesis.json"}
+			require.NoError(t, cfg.Check())
+		})
+
+		t.Run(fmt.Sprintf("TestNetworkMustBeValid-%v", traceType), func(t *testing.T) {
+			cfg := validConfig(t, traceType)
+			cfg.CannonKona.Networks = []string{"unknown"}
+			require.ErrorIs(t, cfg.Check(), vm.ErrNetworkUnknown)
+		})
+
+		t.Run(fmt.Sprintf("TestNetworkMayBeAnyChainID-%v", traceType), func(t *testing.T) {
+			cfg := validConfig(t, traceType)
+			cfg.CannonKona.Networks = []string{"467294"}
+			require.NoError(t, cfg.Check())
+		})
+
+		t.Run(fmt.Sprintf("TestNetworkInvalidWhenNotEntirelyNumeric-%v", traceType), func(t *testing.T) {
+			cfg := validConfig(t, traceType)
+			cfg.CannonKona.Networks = []string{"467294a"}
+			require.ErrorIs(t, cfg.Check(), vm.ErrNetworkUnknown)
+		})
+
+		t.Run(fmt.Sprintf("TestDebugInfoEnabled-%v", traceType), func(t *testing.T) {
+			cfg := validConfig(t, traceType)
+			require.True(t, cfg.CannonKona.DebugInfo)
+		})
+
+		t.Run(fmt.Sprintf("TestVMBinExists-%v", traceType), func(t *testing.T) {
+			cfg := validConfig(t, traceType)
+			cfg.CannonKona.VmBin = nonExistingFile
+			require.ErrorIs(t, cfg.Check(), vm.ErrMissingBin)
+		})
+
+		t.Run(fmt.Sprintf("TestServerExists-%v", traceType), func(t *testing.T) {
+			cfg := validConfig(t, traceType)
+			cfg.CannonKona.Server = nonExistingFile
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
 		})
 	}
@@ -667,7 +803,7 @@ func TestHttpPollInterval(t *testing.T) {
 func TestRollupRpcRequired(t *testing.T) {
 	for _, traceType := range types.TraceTypes {
 		traceType := traceType
-		if traceType == types.TraceTypeSuperCannon || traceType == types.TraceTypeSuperPermissioned || traceType == types.TraceTypeSuperAsteriscKona {
+		if traceType == types.TraceTypeSuperCannon || traceType == types.TraceTypeSuperPermissioned || traceType == types.TraceTypeSuperAsteriscKona || traceType == types.TraceTypeSuperCannonKona {
 			continue
 		}
 		t.Run(traceType.String(), func(t *testing.T) {
@@ -691,6 +827,12 @@ func TestRollupRpcNotRequiredForInterop(t *testing.T) {
 		require.NoError(t, config.Check())
 	})
 
+	t.Run("SuperCannonKona", func(t *testing.T) {
+		config := validConfig(t, types.TraceTypeSuperCannonKona)
+		config.RollupRpc = ""
+		require.NoError(t, config.Check())
+	})
+
 	t.Run("SuperAsteriscKona", func(t *testing.T) {
 		config := validConfig(t, types.TraceTypeSuperAsteriscKona)
 		config.RollupRpc = ""
@@ -701,7 +843,7 @@ func TestRollupRpcNotRequiredForInterop(t *testing.T) {
 func TestSupervisorRpc(t *testing.T) {
 	for _, traceType := range types.TraceTypes {
 		traceType := traceType
-		if traceType == types.TraceTypeSuperCannon || traceType == types.TraceTypeSuperPermissioned || traceType == types.TraceTypeSuperAsteriscKona {
+		if traceType == types.TraceTypeSuperCannon || traceType == types.TraceTypeSuperPermissioned || traceType == types.TraceTypeSuperAsteriscKona || traceType == types.TraceTypeSuperCannonKona {
 			t.Run("RequiredFor"+traceType.String(), func(t *testing.T) {
 				config := validConfig(t, traceType)
 				config.SupervisorRPC = ""

@@ -35,7 +35,6 @@ type AddGameTypeConfig struct {
 	L1ProxyAdminOwner       common.Address
 	OPCMImpl                common.Address
 	SystemConfigProxy       common.Address
-	OPChainProxyAdmin       common.Address
 	DelayedWETHProxy        common.Address
 	DisputeGameType         uint32
 	DisputeAbsolutePrestate common.Hash
@@ -76,10 +75,6 @@ func (c *AddGameTypeConfig) Check() error {
 
 	if c.SystemConfigProxy == (common.Address{}) {
 		return fmt.Errorf("systemConfigProxy address must be specified")
-	}
-
-	if c.OPChainProxyAdmin == (common.Address{}) {
-		return fmt.Errorf("opChainProxyAdmin address must be specified")
 	}
 
 	if c.DisputeAbsolutePrestate == (common.Hash{}) {
@@ -152,10 +147,9 @@ func AddGameTypeCLI(cliCtx *cli.Context) error {
 
 	initialBond, err := cliutil.BigIntFlag(cliCtx, InitialBondFlag.Name)
 	if err != nil {
-		cfg.InitialBond = initialBond
-	} else {
 		return fmt.Errorf("failed to parse initial bond: %w", err)
 	}
+	cfg.InitialBond = initialBond
 
 	if err := cfg.Check(); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
@@ -222,7 +216,6 @@ func populateConfigFromWorkdir(cfg *AddGameTypeConfig, cliCtx *cli.Context) erro
 	}
 	cfg.OPCMImpl = *state.AppliedIntent.OPCMAddress
 	cfg.SystemConfigProxy = chainState.SystemConfigProxy
-	cfg.OPChainProxyAdmin = chainState.OpChainProxyAdminImpl
 	cfg.VM = state.ImplementationsDeployment.MipsImpl
 	return nil
 }
@@ -235,7 +228,6 @@ func populateConfigFromFlags(cfg *AddGameTypeConfig, cliCtx *cli.Context) error 
 	cfg.L1ProxyAdminOwner = common.HexToAddress(cliCtx.String(L1ProxyAdminOwnerFlag.Name))
 	cfg.OPCMImpl = common.HexToAddress(cliCtx.String(OPCMImplFlag.Name))
 	cfg.SystemConfigProxy = common.HexToAddress(cliCtx.String(SystemConfigProxyFlag.Name))
-	cfg.OPChainProxyAdmin = common.HexToAddress(cliCtx.String(OPChainProxyAdminFlag.Name))
 	cfg.VM = common.HexToAddress(cliCtx.String(VMFlag.Name))
 	return nil
 }
@@ -281,7 +273,6 @@ func AddGameType(ctx context.Context, cfg AddGameTypeConfig) (opcm.AddGameTypeOu
 		L1ProxyAdminOwner:       cfg.L1ProxyAdminOwner,
 		OPCMImpl:                cfg.OPCMImpl,
 		SystemConfigProxy:       cfg.SystemConfigProxy,
-		OPChainProxyAdmin:       cfg.OPChainProxyAdmin,
 		DelayedWETHProxy:        cfg.DelayedWETHProxy,
 		DisputeGameType:         cfg.DisputeGameType,
 		DisputeAbsolutePrestate: cfg.DisputeAbsolutePrestate,

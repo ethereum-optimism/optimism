@@ -25,7 +25,7 @@ type GameCallerMetrics interface {
 
 type GameCaller interface {
 	GetWithdrawals(context.Context, rpcblock.Block, ...common.Address) ([]*contracts.WithdrawalRequest, error)
-	GetGameMetadata(context.Context, rpcblock.Block) (contracts.GameMetadata, error)
+	GetExtendedMetadata(context.Context, rpcblock.Block) (contracts.GameMetadata, error)
 	GetAllClaims(context.Context, rpcblock.Block) ([]faultTypes.Claim, error)
 	BondCaller
 	BalanceCaller

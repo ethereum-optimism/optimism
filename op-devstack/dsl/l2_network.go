@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
@@ -192,7 +193,13 @@ func (n *L2Network) IsActivated(timestamp uint64) bool {
 	return head.Number >= blockNum
 }
 
-func (n *L2Network) IsForkActive(forkName rollup.ForkName, timestamp uint64) bool {
+func (n *L2Network) IsForkActive(fork forks.Name) bool {
+	el := NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL), n.control)
+	timestamp := el.BlockRefByLabel(eth.Unsafe).Time
+	return n.IsForkActiveAt(fork, timestamp)
+}
+
+func (n *L2Network) IsForkActiveAt(forkName forks.Name, timestamp uint64) bool {
 	return n.Escape().RollupConfig().IsForkActive(forkName, timestamp)
 }
 
@@ -231,7 +238,7 @@ func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.B
 	el := n.Escape().L2ELNode(match.FirstL2EL)
 
 	rollupCfg := n.Escape().RollupConfig()
-	maybeActivationTime := rollupCfg.ActivationTimeFor(forkName)
+	maybeActivationTime := rollupCfg.ActivationTime(forkName)
 	require.NotNil(maybeActivationTime, "Required fork is not scheduled for activation")
 	activationTime := *maybeActivationTime
 	if activationTime == 0 {

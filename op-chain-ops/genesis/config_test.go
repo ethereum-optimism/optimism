@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -94,7 +95,7 @@ func TestForksCantActivateAtSamePostGenesisBlock(t *testing.T) {
 	postGenesisOffset := uint64(1500)
 	config := &UpgradeScheduleDeployConfig{}
 	for _, fork := range config.forks() {
-		config.SetForkTimeOffset(rollup.ForkName(fork.Name), &postGenesisOffset)
+		config.SetForkTimeOffset(forks.Name(fork.Name), &postGenesisOffset)
 	}
 	err := config.Check(testlog.Logger(t, log.LevelDebug))
 	require.Error(t, err)
@@ -153,7 +154,7 @@ func TestL1Deployments(t *testing.T) {
 // This test guarantees that getters and setters for all forks are present.
 func TestUpgradeScheduleDeployConfig_ForkGettersAndSetters(t *testing.T) {
 	var d UpgradeScheduleDeployConfig
-	for i, fork := range rollup.ForksFrom(rollup.Regolith) {
+	for i, fork := range forks.From(forks.Regolith) {
 		require.Nil(t, d.ForkTimeOffset(fork))
 		offset := uint64(i * 42)
 		d.SetForkTimeOffset(fork, &offset)
@@ -165,11 +166,11 @@ func TestUpgradeScheduleDeployConfig_ActivateForkAtOffset(t *testing.T) {
 	var d UpgradeScheduleDeployConfig
 	ts := uint64(42)
 	t.Run("invalid", func(t *testing.T) {
-		require.Panics(t, func() { d.ActivateForkAtOffset(rollup.Bedrock, ts) })
+		require.Panics(t, func() { d.ActivateForkAtOffset(forks.Bedrock, ts) })
 	})
 
 	t.Run("regolith", func(t *testing.T) {
-		d.ActivateForkAtOffset(rollup.Regolith, ts)
+		d.ActivateForkAtOffset(forks.Regolith, ts)
 		require.EqualValues(t, &ts, d.L2GenesisRegolithTimeOffset)
 		for _, fork := range scheduleableForks[1:] {
 			require.Nil(t, d.ForkTimeOffset(fork))
@@ -177,7 +178,7 @@ func TestUpgradeScheduleDeployConfig_ActivateForkAtOffset(t *testing.T) {
 	})
 
 	t.Run("ecotone", func(t *testing.T) {
-		d.ActivateForkAtOffset(rollup.Ecotone, ts)
+		d.ActivateForkAtOffset(forks.Ecotone, ts)
 		require.EqualValues(t, &ts, d.L2GenesisEcotoneTimeOffset)
 		for _, fork := range scheduleableForks[:3] {
 			require.Zero(t, *d.ForkTimeOffset(fork))
@@ -201,14 +202,14 @@ func TestUpgradeScheduleDeployConfig_SolidityForkNumber(t *testing.T) {
 		fork     rollup.ForkName
 		expected int64
 	}{
-		{rollup.Delta, 1},
-		{rollup.Ecotone, 2},
-		{rollup.Fjord, 3},
-		{rollup.Granite, 4},
-		{rollup.Holocene, 5},
-		{rollup.Isthmus, 6},
-		{rollup.Jovian, 7},
-		{rollup.Interop, 8},
+		{forks.Delta, 1},
+		{forks.Ecotone, 2},
+		{forks.Fjord, 3},
+		{forks.Granite, 4},
+		{forks.Holocene, 5},
+		{forks.Isthmus, 6},
+		{forks.Jovian, 7},
+		{forks.Interop, 8},
 	}
 	for _, tt := range tests {
 		var d UpgradeScheduleDeployConfig

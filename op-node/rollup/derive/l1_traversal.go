@@ -76,8 +76,9 @@ func (l1t *L1Traversal) AdvanceL1Block(ctx context.Context) error {
 		return NewTemporaryError(fmt.Errorf("failed to fetch receipts of L1 block %s (parent: %s) for L1 sysCfg update: %w", nextL1Origin, origin, err))
 	}
 	if err := UpdateSystemConfigWithL1Receipts(&l1t.sysCfg, receipts, l1t.cfg, nextL1Origin.Time); err != nil {
-		// the sysCfg changes should always be formatted correctly.
-		return NewCriticalError(fmt.Errorf("failed to update L1 sysCfg with receipts from block %s: %w", nextL1Origin, err))
+		// if UpdateSystemConfigWithL1Receipts returns an error, it is because one or more of the receipts are malformed or invalid
+		// failure to apply is just informational, so we just log the error and continue
+		l1t.log.Warn("failed to fully update L1 sysCfg with receipts from block", "block", nextL1Origin, "error", err)
 	}
 
 	l1t.block = nextL1Origin

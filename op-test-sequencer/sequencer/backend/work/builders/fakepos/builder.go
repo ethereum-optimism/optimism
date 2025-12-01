@@ -15,7 +15,7 @@ import (
 )
 
 type Beacon interface {
-	StoreBlobsBundle(slot uint64, bundle *engine.BlobsBundleV1) error
+	StoreBlobsBundle(slot uint64, bundle *engine.BlobsBundle) error
 }
 
 type Blockchain interface {

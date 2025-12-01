@@ -49,5 +49,7 @@ library Types {
         // Fee params
         uint32 operatorFeeScalar;
         uint64 operatorFeeConstant;
+        // Whether to use the custom gas token.
+        bool useCustomGasToken;
     }
 }
