@@ -10,6 +10,11 @@
         "internalType": "contract IOPContractsManagerStandardValidator",
         "name": "_standardValidator",
         "type": "address"
+      },
+      {
+        "internalType": "contract IOPContractsManagerUtils",
+        "name": "_utils",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -498,7 +503,7 @@
                 "type": "bytes"
               }
             ],
-            "internalType": "struct OPContractsManagerV2.ExtraInstruction[]",
+            "internalType": "struct IOPContractsManagerUtils.ExtraInstruction[]",
             "name": "extraInstructions",
             "type": "tuple[]"
           }
@@ -603,7 +608,7 @@
                 "type": "bytes"
               }
             ],
-            "internalType": "struct OPContractsManagerV2.ExtraInstruction[]",
+            "internalType": "struct IOPContractsManagerUtils.ExtraInstruction[]",
             "name": "extraInstructions",
             "type": "tuple[]"
           }
@@ -633,6 +638,19 @@
   },
   {
     "inputs": [],
+    "name": "utils",
+    "outputs": [
+      {
+        "internalType": "contract IOPContractsManagerUtils",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "version",
     "outputs": [
       {
@@ -643,25 +661,6 @@
     ],
     "stateMutability": "view",
     "type": "function"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "name",
-        "type": "string"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "proxy",
-        "type": "address"
-      }
-    ],
-    "name": "ProxyCreation",
-    "type": "event"
   },
   {
     "inputs": [],
@@ -689,28 +688,6 @@
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "string",
-        "name": "_name",
-        "type": "string"
-      }
-    ],
-    "name": "OPContractsManagerV2_ConfigLoadFailed",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_contract",
-        "type": "address"
-      }
-    ],
-    "name": "OPContractsManagerV2_DowngradeNotAllowed",
-    "type": "error"
-  },
-  {
     "inputs": [],
     "name": "OPContractsManagerV2_InvalidGameConfigs",
     "type": "error"
@@ -723,17 +700,6 @@
   {
     "inputs": [],
     "name": "OPContractsManagerV2_InvalidUpgradeInstruction",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "string",
-        "name": "_name",
-        "type": "string"
-      }
-    ],
-    "name": "OPContractsManagerV2_ProxyMustLoad",
     "type": "error"
   },
   {
