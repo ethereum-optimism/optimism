@@ -52,8 +52,13 @@
     "sourceCodeHash": "0xc2b530bf529ac23d1ba1adf67eedcc5d95e25c2919e1d97f4f2bba4823303b17"
   },
   "src/L1/opcm/OPContractsManagerV2.sol:OPContractsManagerV2": {
-    "initCodeHash": "0x61f277f17bf912af82aa29ad6dab2eba80f7feaa657b8d2080698f967466f1a9",
-    "sourceCodeHash": "0xbedaf8efda625486fe6c2427c2bf3efe69b5fe1bbdd5d5835f9e2adb9755a441"
+<<<<<<< HEAD
+    "initCodeHash": "0xa288a8ea1931f665b15d2156c7d6758eae2099817195139d6f76acd5fc7fdbab",
+    "sourceCodeHash": "0x04afece9acbb0b2600aceff910f9d5897e52eb0830a7238cf9ddd219954a8cfe"
+=======
+    "initCodeHash": "0x631a5214207f818ef0d9a7547f237a4ede31d7c5a6fe986661489918c0cd4284",
+    "sourceCodeHash": "0xdb58f72f482407684b1b6fcd2bec54b8c389f73582991480681fa21ee8185e26"
+>>>>>>> 8056846306 (feat: add cgt to opcmv2)
   },
   "src/L2/BaseFeeVault.sol:BaseFeeVault": {
     "initCodeHash": "0x838bbd7f381e84e21887f72bd1da605bfc4588b3c39aed96cbce67c09335b3ee",
