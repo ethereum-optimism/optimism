@@ -345,8 +345,6 @@ func TestChannelManager_MoreComing(t *testing.T) {
 		m.blocks.Enqueue(SizedBlock{Block: block})
 	}
 
-	// The test requires us to have something in the channel queue
-	// at this point, but not yet ready to send and not full
 	require.NotEmpty(t, m.channelQueue)
 	require.False(t, m.channelQueue[0].IsFull())
 
@@ -354,6 +352,8 @@ func TestChannelManager_MoreComing(t *testing.T) {
 	_, err = m.TxData(eth.BlockID{Number: 22}, false, false, pubInfo{forcePublish: false, moreComing: false})
 	require.NoError(t, err)
 	require.NotEmpty(t, m.channelQueue)
+
+	// Given that `moreComing` is set to false, the channel should be timed out
 	require.True(t, m.channelQueue[0].IsFull())
 	require.ErrorIs(t, m.channelQueue[0].FullErr(), ErrMaxDurationReached)
 }
