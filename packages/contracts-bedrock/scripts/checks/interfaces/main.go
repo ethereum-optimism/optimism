@@ -30,6 +30,12 @@ var excludeContracts = []string{
 	// Misc stuff that can be ignored
 	"IOPContractsManagerLegacyUpgrade",
 
+	// Helper types defined in ISaferSafes.sol (not meant to be validated separately)
+	"ISafe", "IEnum",
+
+	// Interfaces for abstract contracts that have additional inherited functions
+	"ITimelockGuard", "ILivenessModule2",
+
 	// TODO: Interfaces that need to be fixed
 	"IInitializable", "IOptimismMintableERC20", "ILegacyMintableERC20",
 	"KontrolCheatsBase", "IResolvedDelegateProxy",
