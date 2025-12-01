@@ -1,0 +1,23 @@
+[
+  {
+    "label": "_owner",
+    "bytes": "20",
+    "offset": 0,
+    "slot": "0",
+    "type": "address"
+  },
+  {
+    "label": "proposers",
+    "bytes": "32",
+    "offset": 0,
+    "slot": "1",
+    "type": "mapping(address => bool)"
+  },
+  {
+    "label": "challengers",
+    "bytes": "32",
+    "offset": 0,
+    "slot": "2",
+    "type": "mapping(address => bool)"
+  }
+]
