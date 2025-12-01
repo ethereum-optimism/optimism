@@ -31,6 +31,7 @@ type Responder interface {
 }
 
 type ClaimLoader interface {
+	GetClaimCount(ctx context.Context) (uint64, error)
 	GetAllClaims(ctx context.Context, block rpcblock.Block) ([]types.Claim, error)
 	IsL2BlockNumberChallenged(ctx context.Context, block rpcblock.Block) (bool, error)
 	GetClockExtension(ctx context.Context) (time.Duration, error)
@@ -124,6 +125,14 @@ func (a *Agent) Act(ctx context.Context) error {
 	}
 	wg.Wait()
 	return nil
+}
+
+func (a *Agent) AdditionalStatus(ctx context.Context) ([]any, error) {
+	claimCount, err := a.loader.GetClaimCount(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return []any{"claims", claimCount}, nil
 }
 
 func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, game types.Game, action types.Action) {
