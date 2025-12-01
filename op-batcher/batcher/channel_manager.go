@@ -266,9 +266,10 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isPectra bool, isThrottling 
 	return s.nextTxData(channel)
 }
 
+// pubInfo is a struct that contains signal information sent on the publishSignal channel
 type pubInfo struct {
 	forcePublish bool
-	moreComing   bool
+	moreComing   bool // moreComing is set to true if there are more blocks to be processed while loading blocks into state
 }
 
 // getReadyChannel returns the next channel ready to submit data, or an error.
