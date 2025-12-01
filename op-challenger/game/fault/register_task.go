@@ -324,7 +324,7 @@ func (e *RegisterTask) Register(
 	txSender TxSender,
 	gameFactory *contracts.DisputeGameFactoryContract,
 	caller *batching.MultiCaller,
-	l1HeaderSource L1HeaderSource,
+	l1HeaderSource generic.L1HeaderSource,
 	selective bool,
 	claimants []common.Address,
 	responseDelay time.Duration,
@@ -358,15 +358,11 @@ func (e *RegisterTask) Register(
 		if err != nil {
 			return nil, fmt.Errorf("failed to load split depth: %w", err)
 		}
-		l1HeadID, err := loadL1Head(contract, ctx, l1HeaderSource)
-		if err != nil {
-			return nil, err
-		}
 		prestateProvider, err := e.getTopPrestateProvider(ctx, prestateBlock)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create top prestate provider: %w", err)
 		}
-		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.Depth, dir string) (faultTypes.TraceAccessor, error) {
+		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.Depth, l1HeadID eth.BlockID, dir string) (faultTypes.TraceAccessor, error) {
 			accessor, err := e.newTraceAccessor(logger, m, prestateProvider, vmPrestateProvider, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
@@ -378,7 +374,16 @@ func (e *RegisterTask) Register(
 			validators = append(validators, NewPrestateValidator(e.gameType.String(), contract.GetAbsolutePrestateHash, vmPrestateProvider))
 			validators = append(validators, NewPrestateValidator("output root", contract.GetStartingRootHash, prestateProvider))
 		}
-		return NewGamePlayer(ctx, systemClock, l1Clock, logger, m, dir, game.Proxy, txSender, contract, e.syncValidator, validators, creator, l1HeaderSource, selective, claimants, responseDelay, responseDelayAfter)
+		return generic.NewGenericGamePlayer(
+			ctx,
+			logger,
+			game.Proxy,
+			contract,
+			e.syncValidator,
+			validators,
+			l1HeaderSource,
+			AgentCreator(systemClock, l1Clock, m, dir, txSender, contract, creator, selective, claimants, responseDelay, responseDelayAfter),
+		)
 	}
 	err := registerOracle(ctx, logger, oracles, gameFactory, e.gameType)
 	if err != nil {
@@ -413,16 +418,4 @@ func registerOracle(ctx context.Context, logger log.Logger, oracles OracleRegist
 	}
 	oracles.RegisterOracle(oracle)
 	return nil
-}
-
-func loadL1Head(contract contracts.FaultDisputeGameContract, ctx context.Context, l1HeaderSource L1HeaderSource) (eth.BlockID, error) {
-	l1Head, err := contract.GetL1Head(ctx)
-	if err != nil {
-		return eth.BlockID{}, fmt.Errorf("failed to load L1 head: %w", err)
-	}
-	l1Header, err := l1HeaderSource.HeaderByHash(ctx, l1Head)
-	if err != nil {
-		return eth.BlockID{}, fmt.Errorf("failed to load L1 header: %w", err)
-	}
-	return eth.HeaderBlockID(l1Header), nil
 }

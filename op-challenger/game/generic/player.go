@@ -37,6 +37,8 @@ type L1HeaderSource interface {
 	HeaderByHash(context.Context, common.Hash) (*gethTypes.Header, error)
 }
 
+type ActorCreator func(ctx context.Context, logger log.Logger, l1Head eth.BlockID) (Actor, error)
+
 type GamePlayer struct {
 	actor              Actor
 	loader             GenericGameLoader
@@ -60,7 +62,7 @@ func NewGenericGamePlayer(
 	syncValidator SyncValidator,
 	validators []PrestateValidator,
 	l1HeaderSource L1HeaderSource,
-	createActor func(context.Context, log.Logger) (Actor, error),
+	createActor ActorCreator,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
 
@@ -90,7 +92,7 @@ func NewGenericGamePlayer(
 	}
 	l1Head := eth.HeaderBlockID(l1Header)
 
-	actor, err := createActor(ctx, logger)
+	actor, err := createActor(ctx, logger, l1Head)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create actor: %w", err)
 	}
