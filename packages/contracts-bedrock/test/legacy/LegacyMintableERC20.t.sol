@@ -9,7 +9,7 @@ import { ILegacyMintableERC20 } from "interfaces/legacy/ILegacyMintableERC20.sol
 
 /// @title LegacyMintableERC20_TestInit
 /// @notice Reusable test initialization for `LegacyMintableERC20` tests.
-contract LegacyMintableERC20_TestInit is CommonTest {
+abstract contract LegacyMintableERC20_TestInit is CommonTest {
     LegacyMintableERC20 legacyMintableERC20;
 
     function setUp() public override {

@@ -91,8 +91,8 @@ func (o *FastCanonicalBlockHeaderOracle) GetHeaderByNumber(n uint64) *types.Head
 	for h.Number.Uint64() > n {
 		headNumber := h.Number.Uint64()
 		var currEarliestHistory uint64
-		if params.HistoryServeWindow-1 < headNumber {
-			currEarliestHistory = headNumber - (params.HistoryServeWindow - 1)
+		if params.HistoryServeWindow < headNumber {
+			currEarliestHistory = headNumber - params.HistoryServeWindow
 		}
 		if currEarliestHistory <= n {
 			block := o.getHistoricalBlockHash(h, n)

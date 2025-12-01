@@ -2,6 +2,7 @@ package opcm
 
 import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -28,4 +29,14 @@ type DeploySuperchainScript script.DeployScriptWithOutput[DeploySuperchainInput,
 // NewDeploySuperchainScript loads and validates the DeploySuperchain script contract
 func NewDeploySuperchainScript(host *script.Host) (DeploySuperchainScript, error) {
 	return script.NewDeployScriptWithOutputFromFile[DeploySuperchainInput, DeploySuperchainOutput](host, "DeploySuperchain.s.sol", "DeploySuperchain")
+}
+
+func NewDeploySuperchainForgeCaller(client *forge.Client) forge.ScriptCaller[DeploySuperchainInput, DeploySuperchainOutput] {
+	return forge.NewScriptCaller(
+		client,
+		"scripts/deploy/DeploySuperchain.s.sol:DeploySuperchain",
+		"runWithBytes(bytes)",
+		&forge.BytesScriptEncoder[DeploySuperchainInput]{TypeName: "DeploySuperchainInput"},
+		&forge.BytesScriptDecoder[DeploySuperchainOutput]{TypeName: "DeploySuperchainOutput"},
+	)
 }

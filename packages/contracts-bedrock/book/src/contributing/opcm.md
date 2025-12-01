@@ -51,8 +51,7 @@ corresponding smart contract release, and upgrading existing chains from one ver
 smart contract release. Chains that are multiple versions behind must be upgraded in multiple stages across multiple
 OPCMs.
 
-The OPCM supports upgrading Superchain-wide contracts like `ProtocolVersions` and the `SuperchainConfig`. The OPCM will
-perform the upgrade when the user calling the `upgrade` method is also the `UpgradeController`.
+The OPCM supports upgrading Superchain-wide contracts like `ProtocolVersions` and the `SuperchainConfig`.
 
 ## Usage
 

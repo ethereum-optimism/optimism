@@ -55,6 +55,9 @@ func (o *Opnode) P2P() p2p.Node {
 var _ services.RollupNode = (*Opnode)(nil)
 
 func NewOpnode(l log.Logger, c *config.Config, errFn func(error)) (*Opnode, error) {
+	if err := c.Check(); err != nil {
+		return nil, err
+	}
 	var cycle cliapp.Lifecycle
 	c.Cancel = func(errCause error) {
 		l.Warn("node requested early shutdown!", "err", errCause)

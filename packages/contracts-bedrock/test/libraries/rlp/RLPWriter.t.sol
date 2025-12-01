@@ -117,10 +117,17 @@ contract RLPWriter_writeUint_Test is Test {
     function test_writeUint_mediumint3_succeeds() external pure {
         assertEq(RLPWriter.writeUint(100000), hex"830186a0");
     }
-}
 
+    /// @notice Tests RLP encoding produces valid output for any uint256 value.
+    /// @param _value Random uint256 value to encode.
+    function testFuzz_writeUint_anyValue_succeeds(uint256 _value) external pure {
+        bytes memory encoded = RLPWriter.writeUint(_value);
+        assertGt(encoded.length, 0);
+    }
+}
 /// @title RLPWriter_writeList_Test
 /// @notice Tests the `writeList` function of the `RLPWriter` library.
+
 contract RLPWriter_writeList_Test is Test {
     /// @notice Tests that the `writeList` function returns the correct RLP encoding when given an
     ///         empty list.
@@ -283,5 +290,46 @@ contract RLPWriter_writeList_Test is Test {
             RLPWriter.writeList(list),
             hex"ecca846b6579318476616c31ca846b6579328476616c32ca846b6579338476616c33ca846b6579348476616c34"
         );
+    }
+}
+
+/// @title RLPWriter_writeAddress_Test
+/// @notice Tests the `writeAddress` function of the `RLPWriter` library.
+contract RLPWriter_writeAddress_Test is Test {
+    /// @notice Tests that the `writeAddress` function returns correct RLP encoding for zero
+    ///         address.
+    function test_writeAddress_zeroAddress_succeeds() external pure {
+        assertEq(RLPWriter.writeAddress(address(0)), hex"940000000000000000000000000000000000000000");
+    }
+
+    /// @notice Tests that the `writeAddress` function returns correct RLP encoding for non-zero
+    ///         address.
+    function test_writeAddress_nonZeroAddress_succeeds() external pure {
+        assertEq(
+            RLPWriter.writeAddress(0x1234567890123456789012345678901234567890),
+            hex"941234567890123456789012345678901234567890"
+        );
+    }
+
+    /// @notice Tests RLP encoding produces valid output for any address.
+    /// @param _addr Random address to encode.
+    function testFuzz_writeAddress_anyAddress_succeeds(address _addr) external pure {
+        bytes memory encoded = RLPWriter.writeAddress(_addr);
+        assertEq(encoded.length, 21);
+        assertEq(uint8(encoded[0]), 0x94);
+    }
+}
+
+/// @title RLPWriter_writeBool_Test
+/// @notice Tests the `writeBool` function of the `RLPWriter` library.
+contract RLPWriter_writeBool_Test is Test {
+    /// @notice Tests that the `writeBool` function returns correct RLP encoding for true.
+    function test_writeBool_true_succeeds() external pure {
+        assertEq(RLPWriter.writeBool(true), hex"01");
+    }
+
+    /// @notice Tests that the `writeBool` function returns correct RLP encoding for false.
+    function test_writeBool_false_succeeds() external pure {
+        assertEq(RLPWriter.writeBool(false), hex"80");
     }
 }

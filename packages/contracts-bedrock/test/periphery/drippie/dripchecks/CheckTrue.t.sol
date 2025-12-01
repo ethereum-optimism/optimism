@@ -6,7 +6,7 @@ import { CheckTrue } from "src/periphery/drippie/dripchecks/CheckTrue.sol";
 
 /// @title CheckTrue_TestInit
 /// @notice Reusable test initialization for `CheckTrue` tests.
-contract CheckTrue_TestInit is Test {
+abstract contract CheckTrue_TestInit is Test {
     /// @notice An instance of the CheckTrue contract.
     CheckTrue c;
 
@@ -25,10 +25,10 @@ contract CheckTrue_Check_Test is CheckTrue_TestInit {
     }
 }
 
-/// @title CheckTrue_Unclassified_Test
+/// @title CheckTrue_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `CheckTrue` contract or
 ///         are testing multiple functions at once.
-contract CheckTrue_Unclassified_Test is CheckTrue_TestInit {
+contract CheckTrue_Uncategorized_Test is CheckTrue_TestInit {
     /// @notice Test that the `name` function returns the correct value.
     function test_name_succeeds() external view {
         assertEq(c.name(), "CheckTrue");

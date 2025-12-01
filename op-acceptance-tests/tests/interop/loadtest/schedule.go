@@ -171,6 +171,12 @@ type Spammer interface {
 	Spam(devtest.T) error
 }
 
+type SpammerFunc func(t devtest.T) error
+
+func (s SpammerFunc) Spam(t devtest.T) error {
+	return s(t)
+}
+
 // Schedule schedules a Spammer. It determines how often to spam and when to stop.
 type Schedule interface {
 	Run(devtest.T, Spammer)
@@ -213,7 +219,7 @@ func (b *Burst) Run(t devtest.T, spammer Spammer) {
 			if isOverdraftErr(err) {
 				cancel()
 			}
-			t.Logger().Warn("Spammer error", "err", err)
+			logOnError(t, err)
 			aimd.Adjust(false)
 		}()
 	}
@@ -284,7 +290,7 @@ func (s *Steady) Run(t devtest.T, spammer Spammer) {
 			if isOverdraftErr(err) {
 				cancel()
 			}
-			t.Logger().Warn("Spammer error", "err", err)
+			logOnError(t, err)
 		}()
 	}
 }
@@ -311,10 +317,18 @@ func (c *Constant) Run(t devtest.T, spammer Spammer) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := spammer.Spam(t); err != nil {
-				t.Logger().Warn("Spammer error", "err", err)
-			}
+			logOnError(t, spammer.Spam(t))
 		}()
+	}
+}
+
+func logOnError(t devtest.T, err error) {
+	if errors.Is(err, context.Canceled) {
+		// Context cancelation is typically caused by the test ending, which is not really a
+		// spammer error. Don't spam warnings in that case.
+		t.Logger().Debug("Spammer error", "err", err)
+	} else if err != nil {
+		t.Logger().Warn("Spammer error", "err", err)
 	}
 }
 
@@ -326,12 +340,16 @@ func setupAIMD(t devtest.T, blockTime time.Duration, aimdOpts ...AIMDOption) *AI
 		t.Require().NoError(err)
 	}
 	aimd := NewAIMD(targetMessagePassesPerBlock, blockTime, aimdOpts...)
+	ctx, cancel := context.WithCancel(t.Ctx())
 	var wg sync.WaitGroup
-	t.Cleanup(wg.Wait)
+	t.Cleanup(func() {
+		cancel()
+		wg.Wait()
+	})
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		aimd.Start(t.Ctx())
+		aimd.Start(ctx)
 	}()
 	return aimd
 }

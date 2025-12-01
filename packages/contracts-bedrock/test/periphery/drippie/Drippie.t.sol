@@ -38,7 +38,7 @@ contract Drippie_Test_Harness is Drippie {
 
 /// @title Drippie_TestInit
 /// @notice Reusable test initialization for `Drippie` tests.
-contract Drippie_TestInit is Test {
+abstract contract Drippie_TestInit is Test {
     /// @notice Emitted when a drip is executed.
     event DripExecuted(string indexed nameref, string name, address executor, uint256 timestamp);
 

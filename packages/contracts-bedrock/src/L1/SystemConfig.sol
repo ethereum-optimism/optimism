@@ -31,6 +31,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @custom:value EIP_1559_PARAMS     Represents an update to EIP-1559 parameters.
     /// @custom:value OPERATOR_FEE_PARAMS Represents an update to operator fee parameters.
     /// @custom:value MIN_BASE_FEE        Represents an update to the minimum base fee.
+    /// @custom:value DA_FOOTPRINT_GAS_SCALAR Represents an update to the DA footprint gas scalar.
     enum UpdateType {
         BATCHER,
         FEE_SCALARS,
@@ -38,7 +39,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         UNSAFE_BLOCK_SIGNER,
         EIP_1559_PARAMS,
         OPERATOR_FEE_PARAMS,
-        MIN_BASE_FEE
+        MIN_BASE_FEE,
+        DA_FOOTPRINT_GAS_SCALAR
     }
 
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
@@ -50,6 +52,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         address l1StandardBridge;
         address optimismPortal;
         address optimismMintableERC20Factory;
+        address delayedWETH;
     }
 
     /// @notice Version identifier, used for upgrades.
@@ -81,6 +84,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice Storage slot that the OptimismMintableERC20Factory address is stored at.
     bytes32 public constant OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT =
         bytes32(uint256(keccak256("systemconfig.optimismmintableerc20factory")) - 1);
+
+    /// @notice Storage slot that the DelayedWETH address is stored at.
+    bytes32 public constant DELAYED_WETH_SLOT = bytes32(uint256(keccak256("systemconfig.delayedweth")) - 1);
 
     /// @notice Storage slot that the batch inbox address is stored at.
     bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
@@ -133,6 +139,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice The operator fee constant.
     uint64 public operatorFeeConstant;
 
+    // @notice The DA footprint gas scalar.
+    uint16 public daFootprintGasScalar;
+
     /// @notice The L2 chain ID that this SystemConfig configures.
     uint256 public l2ChainId;
 
@@ -161,9 +170,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 3.9.0
+    /// @custom:semver 3.13.1
     function version() public pure virtual returns (string memory) {
-        return "3.9.0";
+        return "3.13.1";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -223,7 +232,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         Storage.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
-
+        Storage.setAddress(DELAYED_WETH_SLOT, _addresses.delayedWETH);
         _setStartBlock();
 
         _setResourceConfig(_config);
@@ -289,6 +298,11 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         addr_ = Storage.getAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
     }
 
+    /// @notice Getter for the DelayedWETH address.
+    function delayedWETH() public view returns (address addr_) {
+        addr_ = Storage.getAddress(DELAYED_WETH_SLOT);
+    }
+
     /// @notice Consolidated getter for the Addresses struct.
     function getAddresses() external view returns (Addresses memory) {
         return Addresses({
@@ -296,7 +310,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
             l1ERC721Bridge: l1ERC721Bridge(),
             l1StandardBridge: l1StandardBridge(),
             optimismPortal: optimismPortal(),
-            optimismMintableERC20Factory: optimismMintableERC20Factory()
+            optimismMintableERC20Factory: optimismMintableERC20Factory(),
+            delayedWETH: delayedWETH()
         });
     }
 
@@ -323,6 +338,12 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         bytes memory data = abi.encode(_unsafeBlockSigner);
         emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_SIGNER, data);
+    }
+
+    /// @notice Updates the batcher hash by formatting a provided batcher address.
+    /// @param _batcher New batcher address.
+    function setBatcherHash(address _batcher) external onlyOwner {
+        _setBatcherHash(bytes32(uint256(uint160(_batcher))));
     }
 
     /// @notice Updates the batcher hash. Can only be called by the owner.
@@ -433,8 +454,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     }
 
     /// @notice Updates the operator fee parameters. Can only be called by the owner.
-    /// @param _operatorFeeScalar operator fee scalar.
-    /// @param _operatorFeeConstant  operator fee constant.
+    /// @param _operatorFeeScalar New operator fee scalar.
+    /// @param _operatorFeeConstant New operator fee constant.
     function setOperatorFeeScalars(uint32 _operatorFeeScalar, uint64 _operatorFeeConstant) external onlyOwner {
         _setOperatorFeeScalars(_operatorFeeScalar, _operatorFeeConstant);
     }
@@ -446,6 +467,20 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         bytes memory data = abi.encode(uint256(_operatorFeeScalar) << 64 | _operatorFeeConstant);
         emit ConfigUpdate(VERSION, UpdateType.OPERATOR_FEE_PARAMS, data);
+    }
+
+    /// @notice Updates the DA footprint gas scalar. Can only be called by the owner.
+    /// @param _daFootprintGasScalar New DA footprint gas scalar.
+    function setDAFootprintGasScalar(uint16 _daFootprintGasScalar) external onlyOwner {
+        _setDAFootprintGasScalar(_daFootprintGasScalar);
+    }
+
+    /// @notice Internal function for updating the DA footprint gas scalar.
+    function _setDAFootprintGasScalar(uint16 _dAFootprintGasScalar) internal {
+        daFootprintGasScalar = _dAFootprintGasScalar;
+
+        bytes memory data = abi.encode(_dAFootprintGasScalar);
+        emit ConfigUpdate(VERSION, UpdateType.DA_FOOTPRINT_GAS_SCALAR, data);
     }
 
     /// @notice Sets the start block in a backwards compatible way. Proxies
@@ -511,6 +546,32 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
             revert SystemConfig_InvalidFeatureState();
         }
 
+        // Handle feature-specific safety logic here.
+        if (_feature == Features.ETH_LOCKBOX) {
+            // It would probably better to check that the ETHLockbox contract is set inside the
+            // OptimismPortal2 contract before you're allowed to enable the feature here, but the
+            // portal checks that the feature is set before allowing you to set the lockbox, so
+            // these checks are good enough.
+
+            // Lockbox shouldn't be unset if the ethLockbox address is still configured in the
+            // OptimismPortal2 contract. Doing so would cause the system to start keeping ETH in
+            // the portal. This check means there's no way to stop using ETHLockbox at the moment
+            // after it's been configured (which is expected).
+            if (
+                isFeatureEnabled[_feature] && !_enabled
+                    && address(IOptimismPortal2(payable(optimismPortal())).ethLockbox()) != address(0)
+            ) {
+                revert SystemConfig_InvalidFeatureState();
+            }
+
+            // Lockbox can't be set or unset if the system is currently paused because it would
+            // change the pause identifier which would potentially cause the system to become
+            // unpaused unexpectedly.
+            if (paused()) {
+                revert SystemConfig_InvalidFeatureState();
+            }
+        }
+
         // Set the feature.
         isFeatureEnabled[_feature] = _enabled;
 
@@ -538,5 +599,12 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @return address The guardian address.
     function guardian() public view returns (address) {
         return superchainConfig.guardian();
+    }
+
+    /// @custom:legacy
+    /// @notice Returns whether the custom gas token feature is enabled.
+    /// @return bool True if the custom gas token feature is enabled, false otherwise.
+    function isCustomGasToken() public view returns (bool) {
+        return isFeatureEnabled[Features.CUSTOM_GAS_TOKEN];
     }
 }

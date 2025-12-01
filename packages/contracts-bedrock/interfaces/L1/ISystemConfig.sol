@@ -13,7 +13,8 @@ interface ISystemConfig is IProxyAdminOwnedBase {
         UNSAFE_BLOCK_SIGNER,
         EIP_1559_PARAMS,
         OPERATOR_FEE_PARAMS,
-        MIN_BASE_FEE
+        MIN_BASE_FEE,
+        DA_FOOTPRINT_GAS_SCALAR
     }
 
     struct Addresses {
@@ -22,6 +23,7 @@ interface ISystemConfig is IProxyAdminOwnedBase {
         address l1StandardBridge;
         address optimismPortal;
         address optimismMintableERC20Factory;
+        address delayedWETH;
     }
 
     error ReinitializableBase_ZeroInitVersion();
@@ -38,6 +40,7 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     function L1_STANDARD_BRIDGE_SLOT() external view returns (bytes32);
     function OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT() external view returns (bytes32);
     function OPTIMISM_PORTAL_SLOT() external view returns (bytes32);
+    function DELAYED_WETH_SLOT() external view returns (bytes32);
     function START_BLOCK_SLOT() external view returns (bytes32);
     function UNSAFE_BLOCK_SIGNER_SLOT() external view returns (bytes32);
     function VERSION() external view returns (uint256);
@@ -74,13 +77,16 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     function operatorFeeConstant() external view returns (uint64);
     function operatorFeeScalar() external view returns (uint32);
     function minBaseFee() external view returns (uint64);
+    function daFootprintGasScalar() external view returns (uint16);
     function optimismMintableERC20Factory() external view returns (address addr_);
     function optimismPortal() external view returns (address addr_);
+    function delayedWETH() external view returns (address addr_);
     function overhead() external view returns (uint256);
     function owner() external view returns (address);
     function renounceOwnership() external;
     function resourceConfig() external view returns (IResourceMetering.ResourceConfig memory);
     function scalar() external view returns (uint256);
+    function setBatcherHash(address _batcher) external;
     function setBatcherHash(bytes32 _batcherHash) external;
     function setGasConfig(uint256 _overhead, uint256 _scalar) external;
     function setGasConfigEcotone(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) external;
@@ -89,6 +95,7 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     function setUnsafeBlockSigner(address _unsafeBlockSigner) external;
     function setEIP1559Params(uint32 _denominator, uint32 _elasticity) external;
     function setMinBaseFee(uint64 _minBaseFee) external;
+    function setDAFootprintGasScalar(uint16 _daFootprintGasScalar) external;
     function startBlock() external view returns (uint256 startBlock_);
     function transferOwnership(address newOwner) external; // nosemgrep
     function unsafeBlockSigner() external view returns (address addr_);
@@ -98,6 +105,7 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     function guardian() external view returns (address);
     function setFeature(bytes32 _feature, bool _enabled) external;
     function isFeatureEnabled(bytes32) external view returns (bool);
+    function isCustomGasToken() external view returns (bool);
 
     function __constructor__() external;
 }

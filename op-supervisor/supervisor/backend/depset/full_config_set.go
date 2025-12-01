@@ -87,7 +87,7 @@ func (l *FullConfigSetSourceMerged) LoadFullConfigSet(ctx context.Context) (Full
 	if err != nil {
 		return nil, fmt.Errorf("failed to load rollup config set: %w", err)
 	}
-	dependencySet, err := l.DependencySetSource.LoadDependencySet(ctx)
+	dependencySet, err := l.DependencySetSource.LoadDependencySet()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load dependency set: %w", err)
 	}

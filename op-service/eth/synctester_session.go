@@ -11,6 +11,23 @@ type FCUState struct {
 	Finalized uint64 `json:"finalized"`
 }
 
+// ELSyncPolicy defines the policy for determining the synchronization status
+// of the execution layer (EL) during EL Sync, as triggered exclusively by
+// ForkchoiceUpdated (FCU) calls.
+//
+// In the EL Sync process, the consensus layer (CL) notifies the EL of the
+// current head via FCU. The EL then evaluates its internal sync state and
+// reports whether it is still syncing or fully in sync. An ELSyncPolicy
+// implementation encapsulates this decision logic.
+//
+// The purpose of this interface is to provide a configurable or mockable
+// strategy for how the EL responds to FCU-triggered sync checks—useful in
+// testing, simulation, or devnet environments where the real EL behavior
+// needs to be emulated.
+type ELSyncPolicy interface {
+	ELSyncStatus(num uint64) ExecutePayloadStatus
+}
+
 type SyncTesterSession struct {
 	sync.Mutex
 
@@ -23,11 +40,10 @@ type SyncTesterSession struct {
 	// payloads
 	Payloads map[PayloadID]*ExecutionPayloadEnvelope `json:"-"`
 
-	ELSyncTarget uint64 `json:"el_sync_target"`
-	ELSyncActive bool   `json:"el_sync_active"`
+	ELSyncPolicy ELSyncPolicy `json:"-"`
+	ELSyncActive bool         `json:"el_sync_active"`
 
-	InitialState        FCUState `json:"initial_state"`
-	InitialELSyncActive bool     `json:"initial_el_sync_active"`
+	InitialState FCUState `json:"initial_state"`
 }
 
 func (s *SyncTesterSession) UpdateFCULatest(latest uint64) {
@@ -42,23 +58,17 @@ func (s *SyncTesterSession) UpdateFCUFinalized(finalized uint64) {
 	s.CurrentState.Finalized = finalized
 }
 
-func (s *SyncTesterSession) FinishELSync(target uint64) {
-	s.ELSyncActive = false
-	s.Validated = target
-}
-
-func (s *SyncTesterSession) IsELSyncFinished() bool {
-	return !s.ELSyncActive
-}
-
 func (s *SyncTesterSession) ResetSession() {
 	s.CurrentState = s.InitialState
 	s.Validated = s.InitialState.Latest
 	s.Payloads = make(map[PayloadID]*ExecutionPayloadEnvelope)
-	s.ELSyncActive = s.InitialELSyncActive
 }
 
-func NewSyncTesterSession(sessionID string, latest, safe, finalized, elSyncTarget uint64, elSyncActive bool) *SyncTesterSession {
+func (s *SyncTesterSession) IsELSyncActive() bool {
+	return s.ELSyncActive
+}
+
+func NewSyncTesterSession(sessionID string, latest, safe, finalized uint64, elSyncActive bool, elSyncState ELSyncPolicy) *SyncTesterSession {
 	return &SyncTesterSession{
 		SessionID: sessionID,
 		Validated: latest,
@@ -68,13 +78,12 @@ func NewSyncTesterSession(sessionID string, latest, safe, finalized, elSyncTarge
 			Finalized: finalized,
 		},
 		Payloads:     make(map[PayloadID]*ExecutionPayloadEnvelope),
-		ELSyncTarget: elSyncTarget,
 		ELSyncActive: elSyncActive,
+		ELSyncPolicy: elSyncState,
 		InitialState: FCUState{
 			Latest:    latest,
 			Safe:      safe,
 			Finalized: finalized,
 		},
-		InitialELSyncActive: elSyncActive,
 	}
 }

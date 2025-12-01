@@ -15,7 +15,7 @@ import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMes
 
 /// @title SuperchainETHBridge_TestInit
 /// @notice Reusable test initialization for `SuperchainETHBridge` tests.
-contract SuperchainETHBridge_TestInit is CommonTest {
+abstract contract SuperchainETHBridge_TestInit is CommonTest {
     event SendETH(address indexed from, address indexed to, uint256 amount, uint256 destination);
 
     event RelayETH(address indexed from, address indexed to, uint256 amount, uint256 source);

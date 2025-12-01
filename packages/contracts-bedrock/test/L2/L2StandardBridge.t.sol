@@ -14,6 +14,7 @@ import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Types } from "src/libraries/Types.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -23,7 +24,7 @@ import { IL2StandardBridge } from "interfaces/L2/IL2StandardBridge.sol";
 
 /// @title L2StandardBridge_TestInit
 /// @notice Reusable test initialization for `L2StandardBridge` tests.
-contract L2StandardBridge_TestInit is CommonTest {
+abstract contract L2StandardBridge_TestInit is CommonTest {
     /// @notice Sets up expected calls and emits for a successful ERC20 withdrawal.
     function _preBridgeERC20(bool _isLegacy, address _l2Token) internal {
         // Alice has 100 L2Token
@@ -231,6 +232,7 @@ contract L2StandardBridge_Initialize_Test is L2StandardBridge_TestInit {
 contract L2StandardBridge_Receive_Test is L2StandardBridge_TestInit {
     /// @notice Tests that the bridge receives ETH and successfully initiates a withdrawal.
     function test_receive_succeeds() external {
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
         assertEq(address(l2ToL1MessagePasser).balance, 0);
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
 
@@ -323,6 +325,7 @@ contract L2StandardBridge_Withdraw_Test is L2StandardBridge_TestInit {
     /// @notice Tests that the legacy `withdraw` interface on the L2StandardBridge sucessfully
     ///         initiates a withdrawal.
     function test_withdraw_ether_succeeds() external {
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
         assertTrue(alice.balance >= 100);
         assertEq(Predeploys.L2_TO_L1_MESSAGE_PASSER.balance, 0);
 
@@ -397,10 +400,10 @@ contract L2StandardBridge_WithdrawTo_Test is L2StandardBridge_TestInit {
     }
 }
 
-/// @title L2StandardBridge_Unclassified_Test
+/// @title L2StandardBridge_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `L2StandardBridge`
 ///         contract.
-contract L2StandardBridge_Unclassified_Test is L2StandardBridge_TestInit {
+contract L2StandardBridge_Uncategorized_Test is L2StandardBridge_TestInit {
     /// @notice Ensures that the L2StandardBridge is always not paused. The pausability happens
     ///         on L1 and not L2.
     function test_paused_succeeds() external view {
@@ -465,6 +468,7 @@ contract L2StandardBridge_Unclassified_Test is L2StandardBridge_TestInit {
 
     /// @notice Tests that bridging ETH succeeds.
     function testFuzz_bridgeETH_succeeds(uint256 _value, uint32 _minGasLimit, bytes calldata _extraData) external {
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
 
         bytes memory message = abi.encodeCall(IStandardBridge.finalizeBridgeETH, (alice, alice, _value, _extraData));
@@ -498,6 +502,7 @@ contract L2StandardBridge_Unclassified_Test is L2StandardBridge_TestInit {
 
     /// @notice Tests that bridging ETH to a different address succeeds.
     function testFuzz_bridgeETHTo_succeeds(uint256 _value, uint32 _minGasLimit, bytes calldata _extraData) external {
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
 
         vm.expectCall(

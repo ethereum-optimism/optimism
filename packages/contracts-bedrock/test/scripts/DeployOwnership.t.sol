@@ -9,15 +9,13 @@ import {
 } from "scripts/deploy/DeployOwnership.s.sol";
 import { Test } from "forge-std/Test.sol";
 
-import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
+import { Safe } from "safe-contracts/Safe.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 
 contract DeployOwnershipTest is Test, DeployOwnership {
     address internal constant SENTINEL_MODULES = address(0x1);
-    // keccak256("guard_manager.guard.address")
-    bytes32 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
     function setUp() public override {
         super.setUp();
@@ -69,12 +67,12 @@ contract DeployOwnershipTest is Test, DeployOwnership {
 
         // LivenessModule2 checks
         LivenessModuleConfig memory lmConfig = exampleSecurityCouncilConfig.livenessModuleConfig;
-        (uint256 configuredPeriod, address configuredFallback) =
-            LivenessModule2(livenessModule).livenessSafeConfiguration(address(securityCouncilSafe));
-        assertEq(configuredPeriod, lmConfig.livenessInterval);
-        assertEq(configuredFallback, lmConfig.fallbackOwner);
+        LivenessModule2.ModuleConfig memory moduleConfig =
+            LivenessModule2(livenessModule).livenessSafeConfiguration(Safe(payable(securityCouncilSafe)));
+        assertEq(moduleConfig.livenessResponsePeriod, lmConfig.livenessInterval);
+        assertEq(moduleConfig.fallbackOwner, lmConfig.fallbackOwner);
 
         // Verify no active challenge exists initially
-        assertEq(LivenessModule2(livenessModule).getChallengePeriodEnd(address(securityCouncilSafe)), 0);
+        assertEq(LivenessModule2(livenessModule).getChallengePeriodEnd(Safe(payable(securityCouncilSafe))), 0);
     }
 }

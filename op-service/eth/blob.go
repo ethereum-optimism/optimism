@@ -283,36 +283,23 @@ func (b *Blob) Clear() {
 	}
 }
 
-// CalcBlobFeeDefault calculates the blob fee for the given header using eip4844.CalcBlobFee,
-// using the requests hash field of the header as a best-effort heuristic whether
-// Prague is active, and the default Ethereum blob schedule.
-//
-// This is to deal in a best-effort way with situations where the chain config is not
-// available, but it can be assumed that per the definition of the Prague fork that
-// Prague is active iff the requests hash field is present.
-func CalcBlobFeeDefault(header *types.Header) *big.Int {
-	// We make the assumption that eip4844.CalcBlobFee only needs
-	// - London and Cancun to be active
-	// - the Prague time to be set relative to the header time
-	// and that the caller assumes the default prod Ethereum Blob schedule config.
-	dummyChainCfg := &params.ChainConfig{
-		LondonBlock:        common.Big0,
-		CancunTime:         ptr(uint64(0)),
-		BlobScheduleConfig: params.DefaultBlobSchedule,
-	}
-	// We assume that the requests hash is set iff Prague is active.
-	if header.RequestsHash != nil {
-		dummyChainCfg.PragueTime = ptr(uint64(0))
-	}
-	return eip4844.CalcBlobFee(dummyChainCfg, header)
-}
-
+// CalcBlobFeeCancun calculates the blob fee for the given header using
+// the default blob schedule for Cancun. This function only exists
+// to support the L1 Pectra Blob Schedule Fix. The geth function
+// eip4844.CalcBlobFee should be used instead.
 func CalcBlobFeeCancun(excessBlobGas uint64) *big.Int {
 	// Dummy Cancun header for calculation.
 	cancunHeader := &types.Header{
 		ExcessBlobGas: &excessBlobGas,
 	}
-	return CalcBlobFeeDefault(cancunHeader)
+
+	// Dummy Cancun chain config for calculation.
+	dummyChainCfg := &params.ChainConfig{
+		LondonBlock:        common.Big0,
+		CancunTime:         ptr(uint64(0)),
+		BlobScheduleConfig: params.DefaultBlobSchedule,
+	}
+	return eip4844.CalcBlobFee(dummyChainCfg, cancunHeader)
 }
 
 func ptr[T any](t T) *T { return &t }

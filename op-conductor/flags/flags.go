@@ -180,6 +180,16 @@ var (
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_EXECUTION_P2P_CHECK_API"),
 		Value:   "net",
 	}
+	HealthCheckRollupBoostPartialHealthinessToleranceLimit = &cli.Uint64Flag{
+		Name:    "healthcheck.rollup-boost-partial-healthiness-tolerance-limit",
+		Usage:   "Sets the count of rollup-boost partial healthiness failures to occur before marking op-conducto as unhealthy. Default is 0 with which a single occurrence of rollup-boost partial healthiness is enough to set op-conductor as unhealthy",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_ROLLUP_BOOST_PARTIAL_HEALTHINESS_TOLERANCE_LIMIT"),
+	}
+	HealthCheckRollupBoostPartialHealthinessToleranceIntervalSeconds = &cli.Uint64Flag{
+		Name:    "healthcheck.rollup-boost-partial-healthiness-tolerance-interval-seconds",
+		Usage:   "The time frame within which rollup-boost partial healthiness tolerance is evaluated",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_ROLLUP_BOOST_PARTIAL_HEALTHINESS_TOLERANCE_INTERVAL_SECONDS"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -213,6 +223,8 @@ var optionalFlags = []cli.Flag{
 	HealthcheckExecutionP2pMinPeerCount,
 	HealthcheckExecutionP2pRPCUrl,
 	HealthcheckExecutionP2pCheckApi,
+	HealthCheckRollupBoostPartialHealthinessToleranceLimit,
+	HealthCheckRollupBoostPartialHealthinessToleranceIntervalSeconds,
 }
 
 func init() {

@@ -65,7 +65,7 @@ func ListClaims(ctx *cli.Context) error {
 }
 
 func listClaims(ctx context.Context, game contracts.FaultDisputeGameContract, verbose bool) error {
-	metadata, err := game.GetGameMetadata(ctx, rpcblock.Latest)
+	metadata, err := game.GetExtendedMetadata(ctx, rpcblock.Latest)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve metadata: %w", err)
 	}

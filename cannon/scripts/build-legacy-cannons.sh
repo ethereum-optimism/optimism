@@ -7,7 +7,7 @@ SCRIPTS_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 TMP_DIR=$(mktemp -d)
 function cleanup() {
-    rm -rf "${TMP_DIR}"
+  rm -rf "${TMP_DIR}"
 }
 trap cleanup EXIT
 echo "Using temp dir: ${TMP_DIR}"
@@ -45,8 +45,7 @@ function buildVersion() {
 # The currently checked out code is built after this list to include the currently supported state versions and
 # build the final cannon executable.
 VERSIONS=$(git tag --list 'cannon/v*' --sort taggerdate | grep -v -- '-')
-for VERSION in ${VERSIONS}
-do
+for VERSION in ${VERSIONS}; do
   buildVersion "$VERSION"
 done
 

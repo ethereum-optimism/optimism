@@ -2,8 +2,11 @@ package runner
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base32"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -124,7 +127,8 @@ func (r *Runner) loop(ctx context.Context, runConfig RunConfig, rollupClient *so
 	t := time.NewTicker(1 * time.Minute)
 	defer t.Stop()
 	for {
-		r.runAndRecordOnce(ctx, runConfig, rollupClient, supervisorClient, caller)
+		baseLog := r.log.New("run_id", generateRunID())
+		r.runAndRecordOnce(ctx, baseLog, runConfig, rollupClient, supervisorClient, caller)
 		select {
 		case <-t.C:
 		case <-ctx.Done():
@@ -133,7 +137,7 @@ func (r *Runner) loop(ctx context.Context, runConfig RunConfig, rollupClient *so
 	}
 }
 
-func (r *Runner) runAndRecordOnce(ctx context.Context, runConfig RunConfig, rollupClient *sources.RollupClient, supervisorClient *sources.SupervisorClient, caller *batching.MultiCaller) {
+func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfig RunConfig, rollupClient *sources.RollupClient, supervisorClient *sources.SupervisorClient, caller *batching.MultiCaller) {
 	recordError := func(err error, traceType string, m Metricer, log log.Logger) {
 		if errors.Is(err, ErrUnexpectedStatusCode) {
 			log.Error("Incorrect status code", "type", runConfig.Name, "err", err)
@@ -153,13 +157,13 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, runConfig RunConfig, roll
 	var prestateSource prestateFetcher
 	if strings.HasPrefix(runConfig.PrestateFilename, "file:") {
 		path := runConfig.PrestateFilename[len("file:"):]
-		r.log.Info("Using local file prestate", "type", runConfig.TraceType, "path", path)
+		rlog.Info("Using local file prestate", "type", runConfig.TraceType, "path", path)
 		prestateSource = &LocalPrestateFetcher{path: path}
 	} else if runConfig.PrestateFilename != "" {
-		r.log.Info("Using named prestate", "type", runConfig.TraceType, "filename", runConfig.PrestateFilename)
+		rlog.Info("Using named prestate", "type", runConfig.TraceType, "filename", runConfig.PrestateFilename)
 		prestateSource = &NamedPrestateFetcher{filename: runConfig.PrestateFilename}
 	} else if runConfig.Prestate == (common.Hash{}) {
-		r.log.Info("Using on chain prestate", "type", runConfig.TraceType)
+		rlog.Info("Using on chain prestate", "type", runConfig.TraceType)
 		prestateSource = &OnChainPrestateFetcher{
 			m:                  r.m,
 			gameFactoryAddress: r.cfg.GameFactoryAddress,
@@ -167,26 +171,26 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, runConfig RunConfig, roll
 			caller:             caller,
 		}
 	} else {
-		r.log.Info("Using specific prestate", "type", runConfig.TraceType, "hash", runConfig.Prestate)
+		rlog.Info("Using specific prestate", "type", runConfig.TraceType, "hash", runConfig.Prestate)
 		prestateSource = &HashPrestateFetcher{prestateHash: runConfig.Prestate}
 	}
 
-	localInputs, err := createGameInputs(ctx, r.log, rollupClient, supervisorClient, runConfig.Name, runConfig.TraceType)
+	localInputs, err := createGameInputs(ctx, rlog, rollupClient, supervisorClient, runConfig.Name, runConfig.TraceType)
 	if err != nil {
-		recordError(err, runConfig.Name, r.m, r.log)
+		recordError(err, runConfig.Name, r.m, rlog)
 		return
 	}
 
-	inputsLogger := r.log.New("l1", localInputs.L1Head, "l2", localInputs.L2Head, "l2Block", localInputs.L2SequenceNumber, "claim", localInputs.L2Claim)
+	inputsLogger := rlog.New("l1", localInputs.L1Head, "l2", localInputs.L2Head, "l2Block", localInputs.L2SequenceNumber, "claim", localInputs.L2Claim)
 	// Sanitize the directory name.
 	safeName := regexp.MustCompile("[^a-zA-Z0-9_-]").ReplaceAllString(runConfig.Name, "")
 	dir, err := r.prepDatadir(safeName)
 	if err != nil {
-		recordError(err, runConfig.Name, r.m, r.log)
+		recordError(err, runConfig.Name, r.m, rlog)
 		return
 	}
 	err = r.runOnce(ctx, inputsLogger.With("type", runConfig.Name), runConfig.Name, runConfig.TraceType, prestateSource, localInputs, dir)
-	recordError(err, runConfig.Name, r.m, r.log)
+	recordError(err, runConfig.Name, r.m, rlog)
 }
 
 func (r *Runner) runOnce(ctx context.Context, logger log.Logger, name string, traceType types.TraceType, prestateSource prestateFetcher, localInputs utils.LocalGameInputs, dir string) error {
@@ -249,6 +253,14 @@ func (r *Runner) initMetricsServer(cfg *opmetrics.CLIConfig) error {
 	r.log.Info("started metrics server", "addr", metricsSrv.Addr())
 	r.metricsSrv = metricsSrv
 	return nil
+}
+
+var b32 = base32.StdEncoding.WithPadding(base32.NoPadding)
+
+func generateRunID() string {
+	var b [6]byte
+	_, _ = io.ReadFull(rand.Reader, b[:])
+	return b32.EncodeToString(b[:])
 }
 
 var _ cliapp.Lifecycle = (*Runner)(nil)

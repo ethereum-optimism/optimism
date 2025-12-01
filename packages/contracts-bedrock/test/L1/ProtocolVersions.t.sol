@@ -11,7 +11,7 @@ import { IProtocolVersions, ProtocolVersion } from "interfaces/L1/IProtocolVersi
 
 /// @title ProtocolVersions Test Init
 /// @notice Test initialization for ProtocolVersions tests.
-contract ProtocolVersions_TestInit is CommonTest {
+abstract contract ProtocolVersions_TestInit is CommonTest {
     event ConfigUpdate(uint256 indexed version, IProtocolVersions.UpdateType indexed updateType, bytes data);
 
     ProtocolVersion required;
@@ -69,6 +69,16 @@ contract ProtocolVersions_Initialize_Test is ProtocolVersions_TestInit {
                 )
             )
         );
+    }
+}
+
+/// @title ProtocolVersions_Version_Test
+/// @notice Test contract for ProtocolVersions `version` constant.
+contract ProtocolVersions_Version_Test is ProtocolVersions_TestInit {
+    /// @notice Tests that the version function returns a valid string. We avoid testing
+    ///         the specific value as it changes frequently.
+    function test_version_succeeds() external view {
+        assertGt(bytes(protocolVersions.version()).length, 0);
     }
 }
 

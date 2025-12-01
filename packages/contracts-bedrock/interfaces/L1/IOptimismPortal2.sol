@@ -21,6 +21,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error OptimismPortal_BadTarget();
     error OptimismPortal_CallPaused();
     error OptimismPortal_CalldataTooLarge();
+    error OptimismPortal_NotAllowedOnCGTMode();
     error OptimismPortal_GasEstimation();
     error OptimismPortal_GasLimitTooLow();
     error OptimismPortal_ImproperDisputeGame();
@@ -70,11 +71,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
         external;
     function finalizedWithdrawals(bytes32) external view returns (bool);
     function guardian() external view returns (address);
-    function initialize(
-        ISystemConfig _systemConfig,
-        IAnchorStateRegistry _anchorStateRegistry
-    )
-        external;
+    function initialize(ISystemConfig _systemConfig, IAnchorStateRegistry _anchorStateRegistry) external;
     function initVersion() external view returns (uint8);
     function l2Sender() external view returns (address);
     function minimumGasLimit(uint64 _byteCount) external pure returns (uint64);

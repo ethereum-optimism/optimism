@@ -112,6 +112,13 @@
     "type": "uint64"
   },
   {
+    "bytes": "2",
+    "label": "daFootprintGasScalar",
+    "offset": 20,
+    "slot": "106",
+    "type": "uint16"
+  },
+  {
     "bytes": "32",
     "label": "l2ChainId",
     "offset": 0,

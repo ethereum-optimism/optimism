@@ -39,7 +39,7 @@ type HealthMonitor interface {
 // interval is the interval between health checks measured in seconds.
 // safeInterval is the interval between safe head progress measured in seconds.
 // minPeerCount is the minimum number of peers required for the sequencer to be healthy.
-func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient, supervisor SupervisorHealthAPI, rb client.RollupBoostClient, elP2pClient client.ElP2PClient, minElP2pPeers uint64) HealthMonitor {
+func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient, supervisor SupervisorHealthAPI, rb client.RollupBoostClient, elP2pClient client.ElP2PClient, minElP2pPeers uint64, rollupBoostToleratePartialHealthinessToleranceLimit uint64, rollupBoostToleratePartialHealthinessToleranceIntervalSeconds uint64) HealthMonitor {
 	hm := &SequencerHealthMonitor{
 		log:            log,
 		metrics:        metrics,
@@ -50,7 +50,7 @@ func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interva
 		safeEnabled:    safeEnabled,
 		safeInterval:   safeInterval,
 		minPeerCount:   minPeerCount,
-		timeProviderFn: currentTimeProvicer,
+		timeProviderFn: currentTimeProvider,
 		node:           node,
 		p2p:            p2p,
 		supervisor:     supervisor,
@@ -62,6 +62,14 @@ func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interva
 			log:          log,
 			minPeerCount: minElP2pPeers,
 			elP2pClient:  elP2pClient,
+		}
+	}
+	if rollupBoostToleratePartialHealthinessToleranceLimit != 0 {
+		hm.rollupBoostPartialHealthinessToleranceLimit = rollupBoostToleratePartialHealthinessToleranceLimit
+		var err error
+		hm.rollupBoostPartialHealthinessToleranceCounter, err = NewTimeBoundedRotatingCounter(rollupBoostToleratePartialHealthinessToleranceIntervalSeconds)
+		if err != nil {
+			panic(fmt.Errorf("failed to setup health monitor: %w", err))
 		}
 	}
 
@@ -93,11 +101,13 @@ type SequencerHealthMonitor struct {
 
 	timeProviderFn func() uint64
 
-	node       dial.RollupClientInterface
-	p2p        apis.P2PClient
-	supervisor SupervisorHealthAPI
-	rb         client.RollupBoostClient
-	elP2p      *ElP2pHealthMonitor
+	node                                          dial.RollupClientInterface
+	p2p                                           apis.P2PClient
+	supervisor                                    SupervisorHealthAPI
+	rb                                            client.RollupBoostClient
+	elP2p                                         *ElP2pHealthMonitor
+	rollupBoostPartialHealthinessToleranceLimit   uint64
+	rollupBoostPartialHealthinessToleranceCounter *timeBoundedRotatingCounter
 }
 
 var _ HealthMonitor = (*SequencerHealthMonitor)(nil)
@@ -288,8 +298,14 @@ func (hm *SequencerHealthMonitor) checkRollupBoost(ctx context.Context) error {
 	case client.HealthStatusHealthy:
 		return nil
 	case client.HealthStatusPartial:
+		if hm.rollupBoostPartialHealthinessToleranceCounter != nil && hm.rollupBoostPartialHealthinessToleranceCounter.CurrentValue() < hm.rollupBoostPartialHealthinessToleranceLimit {
+			latestValue := hm.rollupBoostPartialHealthinessToleranceCounter.Increment()
+			hm.log.Debug("Rollup boost partial unhealthiness failure tolerated", "currentValue", latestValue, "limit", hm.rollupBoostPartialHealthinessToleranceLimit)
+			return nil
+		}
 		hm.log.Error("Rollup boost is partial failure, builder is down but fallback execution client is up", "err", ErrRollupBoostPartiallyHealthy)
 		return ErrRollupBoostPartiallyHealthy
+
 	case client.HealthStatusUnhealthy:
 		hm.log.Error("Rollup boost total failure, both builder and fallback execution client are down", "err", ErrRollupBoostNotHealthy)
 		return ErrRollupBoostNotHealthy
@@ -306,6 +322,6 @@ func calculateTimeDiff(now, then uint64) uint64 {
 	return now - then
 }
 
-func currentTimeProvicer() uint64 {
+func currentTimeProvider() uint64 {
 	return uint64(time.Now().Unix())
 }

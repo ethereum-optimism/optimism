@@ -86,7 +86,7 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 		logger.Info("Batcher key acquired", "addr", crypto.PubkeyToAddress(batcherSecret.PublicKey))
 
 		batcherCLIConfig := &bss.CLIConfig{
-			L1EthRpc:                 l1EL.userRPC,
+			L1EthRpc:                 l1EL.UserRPC(),
 			L2EthRpc:                 []string{l2EL.UserRPC()},
 			RollupRpc:                []string{l2CL.UserRPC()},
 			MaxPendingTransactions:   1,
@@ -97,7 +97,7 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			ApproxComprRatio:         0.4,
 			SubSafetyMargin:          4,
 			PollInterval:             500 * time.Millisecond,
-			TxMgrConfig:              setuputils.NewTxMgrConfig(endpoint.URL(l1EL.userRPC), batcherSecret),
+			TxMgrConfig:              setuputils.NewTxMgrConfig(endpoint.URL(l1EL.UserRPC()), batcherSecret),
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LevelInfo,
 				Format: oplog.FormatText,
@@ -132,7 +132,7 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			id:      batcherID,
 			service: batcher,
 			rpc:     batcher.HTTPEndpoint(),
-			l1RPC:   l1EL.userRPC,
+			l1RPC:   l1EL.UserRPC(),
 			l2CLRPC: l2CL.UserRPC(),
 			l2ELRPC: l2EL.UserRPC(),
 		}

@@ -32,7 +32,7 @@ contract Encoding_Harness {
 
 /// @title Encoding_TestInit
 /// @notice Reusable test initialization for `Encoding` tests.
-contract Encoding_TestInit is CommonTest {
+abstract contract Encoding_TestInit is CommonTest {
     Encoding_Harness encoding;
 
     function setUp() public override {
@@ -303,10 +303,10 @@ contract Encoding_EncodeSuperRootProof_Test is Encoding_TestInit {
     }
 }
 
-/// @title Encoding_Unclassified_Test
+/// @title Encoding_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `Encoding` contract or
 ///         are testing multiple functions at once.
-contract Encoding_Unclassified_Test is Encoding_TestInit {
+contract Encoding_Uncategorized_Test is Encoding_TestInit {
     /// @notice Tests encoding and decoding a nonce and version.
     function testFuzz_nonceVersioning_succeeds(uint240 _nonce, uint16 _version) external pure {
         (uint240 nonce, uint16 version) = Encoding.decodeVersionedNonce(Encoding.encodeVersionedNonce(_nonce, _version));

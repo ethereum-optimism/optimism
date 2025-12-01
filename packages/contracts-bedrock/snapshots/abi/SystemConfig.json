@@ -19,6 +19,19 @@
   },
   {
     "inputs": [],
+    "name": "DELAYED_WETH_SLOT",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "L1_CROSS_DOMAIN_MESSENGER_SLOT",
     "outputs": [
       {
@@ -175,6 +188,32 @@
   },
   {
     "inputs": [],
+    "name": "daFootprintGasScalar",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "",
+        "type": "uint16"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "delayedWETH",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "addr_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "disputeGameFactory",
     "outputs": [
       {
@@ -254,6 +293,11 @@
           {
             "internalType": "address",
             "name": "optimismMintableERC20Factory",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "delayedWETH",
             "type": "address"
           }
         ],
@@ -391,6 +435,11 @@
             "internalType": "address",
             "name": "optimismMintableERC20Factory",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "delayedWETH",
+            "type": "address"
           }
         ],
         "internalType": "struct SystemConfig.Addresses",
@@ -411,6 +460,19 @@
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "isCustomGasToken",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -708,12 +770,38 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "_batcher",
+        "type": "address"
+      }
+    ],
+    "name": "setBatcherHash",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes32",
         "name": "_batcherHash",
         "type": "bytes32"
       }
     ],
     "name": "setBatcherHash",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint16",
+        "name": "_daFootprintGasScalar",
+        "type": "uint16"
+      }
+    ],
+    "name": "setDAFootprintGasScalar",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

@@ -145,6 +145,13 @@ func (p *programExecutor) RunProgram(
 		return fmt.Errorf("could not find rollup config in the host for chain ID %v", chainID)
 	}
 
+	var l1ChainConfig *params.ChainConfig
+	if eth.ChainIDFromBig(p.cfg.L1ChainConfig.ChainID).Cmp(eth.ChainIDFromBig(rollupConfig.L1ChainID)) == 0 {
+		l1ChainConfig = p.cfg.L1ChainConfig
+	} else {
+		return fmt.Errorf("L1 chain config chain ID mismatch: %v != %v", eth.ChainIDFromBig(p.cfg.L1ChainConfig.ChainID), eth.ChainIDFromBig(rollupConfig.L1ChainID))
+	}
+
 	prefetcherCreator := func(context.Context, log.Logger, kvstore.KV, *config.Config) (hostcommon.Prefetcher, error) {
 		// TODO(#13663): prevent recursive block execution
 		return prefetcher, nil
@@ -165,6 +172,7 @@ func (p *programExecutor) RunProgram(
 	result, err := tasks.RunDerivation(
 		p.logger,
 		rollupConfig,
+		l1ChainConfig,
 		p.cfg.DependencySet,
 		l2ChainConfig,
 		p.cfg.L1Head,

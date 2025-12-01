@@ -33,4 +33,4 @@ fuzz:
         "FuzzChannelZeroCloseTimeout" \
         "FuzzSeqWindowClose" \
         "FuzzSeqWindowZeroTimeoutClose" \
-    | parallel -j {{PARALLEL_JOBS}} {{just_executable()}} batcher_fuzz_task {}
+    | parallel --tag -j {{PARALLEL_JOBS}} {{just_executable()}} batcher_fuzz_task {}

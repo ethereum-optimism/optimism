@@ -1,15 +1,19 @@
 package geth
 
 import (
+	"context"
 	"fmt"
+	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/txpool/blobpool"
 	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/catalyst"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
@@ -17,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/miner"
 	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	// Force-load the tracer engines to trigger registration
 	_ "github.com/ethereum/go-ethereum/eth/tracers/js"
@@ -59,21 +64,50 @@ func InitL1(blockTime uint64, finalizedDistance uint64, genesis *core.Genesis, c
 		return nil, nil, err
 	}
 
-	fakepos := &FakePoS{
-		clock:             c,
-		eth:               gethInstance.Backend,
-		log:               log.Root(), // geth logger is global anyway. Would be nice to replace with a local logger though.
-		blockTime:         blockTime,
-		finalizedDistance: finalizedDistance,
-		safeDistance:      10,
-		engineAPI:         catalyst.NewConsensusAPI(gethInstance.Backend),
-		beacon:            beaconSrv,
-	}
+	fakepos := NewFakePoS(&gethBackend{
+		chain: gethInstance.Backend.BlockChain(),
+	}, catalyst.NewConsensusAPI(gethInstance.Backend), c, log.Root(), blockTime, finalizedDistance, beaconSrv, gethInstance.Backend.BlockChain().Config())
 
 	// Instead of running a whole beacon node, we run this fake-proof-of-stake sidecar that sequences L1 blocks using the Engine API.
 	gethInstance.Node.RegisterLifecycle(fakepos)
 
 	return gethInstance, fakepos, nil
+}
+
+func WithAuth(jwtPath string) GethOption {
+	return func(_ *ethconfig.Config, nodeCfg *node.Config) error {
+		nodeCfg.AuthAddr = "127.0.0.1"
+		nodeCfg.AuthPort = 0
+		nodeCfg.JWTSecret = jwtPath
+		return nil
+	}
+}
+
+type gethBackend struct {
+	chain *core.BlockChain
+}
+
+func (b *gethBackend) HeaderByNumber(_ context.Context, num *big.Int) (*types.Header, error) {
+	if num == nil {
+		return b.chain.CurrentBlock(), nil
+	}
+	var h *types.Header
+	if num.IsInt64() && num.Int64() < 0 {
+		switch num.Int64() {
+		case int64(rpc.LatestBlockNumber):
+			h = b.chain.CurrentBlock()
+		case int64(rpc.SafeBlockNumber):
+			h = b.chain.CurrentSafeBlock()
+		case int64(rpc.FinalizedBlockNumber):
+			h = b.chain.CurrentFinalBlock()
+		}
+	} else {
+		h = b.chain.GetHeaderByNumber(num.Uint64())
+	}
+	if h == nil {
+		return nil, ethereum.NotFound
+	}
+	return h, nil
 }
 
 func defaultNodeConfig(name string, jwtPath string) *node.Config {
@@ -117,7 +151,8 @@ func InitL2(name string, genesis *core.Genesis, jwtPath string, opts ...GethOpti
 
 // createGethNode creates an in-memory geth node based on the configuration.
 // The private keys are added to the keystore and are unlocked.
-// If the node is l2, catalyst is enabled.
+// Catalyst is always enabled. If the node is an L1, the catalyst API can be used by alternative
+// sequencers (e.g., op-test-sequencer) if the default FakePoS is stopped.
 // The node should be started and then closed when done.
 func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, opts ...GethOption) (*GethInstance, error) {
 	for i, opt := range opts {
@@ -146,12 +181,9 @@ func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, opt
 
 	n.RegisterAPIs(tracers.APIs(backend.APIBackend))
 
-	// Enable catalyst if l2
-	if l2 {
-		if err := catalyst.Register(n, backend); err != nil {
-			n.Close()
-			return nil, err
-		}
+	if err := catalyst.Register(n, backend); err != nil {
+		n.Close()
+		return nil, err
 	}
 	return &GethInstance{
 		Backend: backend,

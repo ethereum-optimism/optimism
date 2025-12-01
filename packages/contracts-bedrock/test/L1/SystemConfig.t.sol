@@ -20,7 +20,7 @@ import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 /// @title SystemConfig Test Init
 /// @notice Reusable test initialization for SystemConfig tests.
-contract SystemConfig_TestInit is CommonTest {
+abstract contract SystemConfig_TestInit is CommonTest {
     event ConfigUpdate(uint256 indexed version, ISystemConfig.UpdateType indexed updateType, bytes data);
 
     bytes32 public constant EXAMPLE_FEATURE = "EXAMPLE_FEATURE";
@@ -164,7 +164,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
                 optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
+                optimismMintableERC20Factory: address(0),
+                delayedWETH: address(0)
             }),
             _l2ChainId: 1234,
             _superchainConfig: ISuperchainConfig(address(0))
@@ -220,7 +221,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
                 optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
+                optimismMintableERC20Factory: address(0),
+                delayedWETH: address(0)
             }),
             _l2ChainId: 1234,
             _superchainConfig: ISuperchainConfig(address(0))
@@ -254,7 +256,8 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
                 optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
+                optimismMintableERC20Factory: address(0),
+                delayedWETH: address(0)
             }),
             _l2ChainId: 1234,
             _superchainConfig: ISuperchainConfig(address(0))
@@ -285,7 +288,8 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
                 optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
+                optimismMintableERC20Factory: address(0),
+                delayedWETH: address(0)
             }),
             _l2ChainId: 1234,
             _superchainConfig: ISuperchainConfig(address(0))
@@ -323,6 +327,12 @@ contract SystemConfig_SetBatcherHash_Test is SystemConfig_TestInit {
         systemConfig.setBatcherHash(bytes32(hex""));
     }
 
+    /// @notice Tests that the address overload reverts if the caller is not the owner.
+    function test_setBatcherHashFromAddress_notOwner_reverts(address batcher) external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.setBatcherHash(batcher);
+    }
+
     /// @notice Tests that `setBatcherHash` updates the batcher hash successfully.
     function testFuzz_setBatcherHash_succeeds(bytes32 newBatcherHash) external {
         vm.expectEmit(address(systemConfig));
@@ -331,6 +341,18 @@ contract SystemConfig_SetBatcherHash_Test is SystemConfig_TestInit {
         vm.prank(systemConfig.owner());
         systemConfig.setBatcherHash(newBatcherHash);
         assertEq(systemConfig.batcherHash(), newBatcherHash);
+    }
+
+    /// @notice Tests that the address overload formats the hash correctly.
+    function testFuzz_setBatcherHashFromAddress_succeeds(address newBatcher) external {
+        bytes32 formatted = bytes32(uint256(uint160(newBatcher)));
+
+        vm.expectEmit(address(systemConfig));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.BATCHER, abi.encode(formatted));
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setBatcherHash(newBatcher);
+        assertEq(systemConfig.batcherHash(), formatted);
     }
 }
 
@@ -582,7 +604,8 @@ contract SystemConfig_SetResourceConfig_Test is SystemConfig_TestInit {
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
                 optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
+                optimismMintableERC20Factory: address(0),
+                delayedWETH: address(0)
             }),
             _l2ChainId: 1234,
             _superchainConfig: ISuperchainConfig(address(0))
@@ -772,6 +795,70 @@ contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
         vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
         systemConfig.setFeature("EXAMPLE FEATURE", false);
     }
+
+    /// @notice Tests that disabling ETH_LOCKBOX reverts if the OptimismPortal has a non-zero
+    ///         ETHLockbox configured.
+    function test_setFeature_ethLockboxDisableWhileConfigured_reverts() external {
+        address proxyAdmin = address(systemConfig.proxyAdmin());
+
+        // Ensure ETH_LOCKBOX is enabled first (no pause active in fresh setup).
+        if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            vm.prank(proxyAdmin);
+            systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+            assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+        }
+
+        // Force the portal to have a configured ETHLockbox address.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "ethLockbox");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(uint256(uint160(address(1)))));
+
+        // Disabling should revert due to safety check while lockbox is configured.
+        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
+        vm.prank(proxyAdmin);
+        systemConfig.setFeature(Features.ETH_LOCKBOX, false);
+    }
+
+    /// @notice Tests that enabling ETH_LOCKBOX while the system is paused (global) reverts.
+    function test_setFeature_ethLockboxEnableWhilePaused_reverts() external {
+        address proxyAdmin = address(systemConfig.proxyAdmin());
+
+        // Ensure ETH_LOCKBOX is enabled first (no pause active in fresh setup).
+        if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            vm.prank(proxyAdmin);
+            systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+            assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+        }
+
+        // Pause globally.
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+
+        // Enabling while paused should revert.
+        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
+        vm.prank(proxyAdmin);
+        systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+    }
+
+    /// @notice Tests that disabling ETH_LOCKBOX while the system is paused (global) reverts.
+    function test_setFeature_ethLockboxDisableWhilePaused_reverts() external {
+        address proxyAdmin = address(systemConfig.proxyAdmin());
+
+        // Ensure ETH_LOCKBOX is enabled first.
+        if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            vm.prank(proxyAdmin);
+            systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+            assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+        }
+
+        // Pause globally.
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+
+        // Disabling while paused should revert.
+        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
+        vm.prank(proxyAdmin);
+        systemConfig.setFeature(Features.ETH_LOCKBOX, false);
+    }
 }
 
 /// @title SystemConfig_IsFeatureEnabled_Test
@@ -841,5 +928,41 @@ contract SystemConfig_SetMinBaseFee_Test is SystemConfig_TestInit {
         vm.prank(systemConfig.owner());
         systemConfig.setMinBaseFee(newMinBaseFee);
         assertEq(systemConfig.minBaseFee(), newMinBaseFee);
+    }
+}
+
+/// @title SystemConfig_SetDAFootprintGasScalar_Test
+/// @notice Test contract for SystemConfig `setDAFootprintGasScalar` function.
+contract SystemConfig_SetDAFootprintGasScalar_Test is SystemConfig_TestInit {
+    /// @notice Tests that `setDAFootprintGasScalar` reverts if the caller is not the owner.
+    function test_setDAFootprintGasScalar_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.setDAFootprintGasScalar(0);
+    }
+
+    /// @notice Tests that `setDAFootprintGasScalar` updates the DA footprint gas scalar successfully.
+    function testFuzz_setDAFootprintGasScalar_succeeds(uint16 newScalar) external {
+        vm.expectEmit(address(systemConfig));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.DA_FOOTPRINT_GAS_SCALAR, abi.encode(newScalar));
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setDAFootprintGasScalar(newScalar);
+        assertEq(systemConfig.daFootprintGasScalar(), newScalar);
+    }
+}
+
+/// @title SystemConfig_IsCustomGasToken_Test
+/// @notice Test contract for SystemConfig `isCustomGasToken` function.
+contract SystemConfig_IsCustomGasToken_Test is SystemConfig_TestInit {
+    /// @notice Tests that `isCustomGasToken` returns the correct value.
+    function test_isCustomGasToken_enabled_succeeds() external {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+        assertTrue(systemConfig.isCustomGasToken());
+    }
+
+    /// @notice Tests that `isCustomGasToken` returns the correct value.
+    function test_isCustomGasToken_disabled_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        assertFalse(systemConfig.isCustomGasToken());
     }
 }

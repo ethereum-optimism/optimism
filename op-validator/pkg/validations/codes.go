@@ -93,6 +93,8 @@ var descriptions = map[string]string{
 	"PDDG-100": "Permissioned dispute game max game depth not set to 73",
 	"PDDG-110": "Permissioned dispute game max clock duration not set to 302400",
 	"PDDG-120": "Permissioned dispute game challenger address mismatch",
+	"PDDG-130": "Permissioned dispute game challenger address mismatch (from game implementation)",
+	"PDDG-140": "Permissioned dispute game proposer address mismatch",
 
 	// Permissionless Dispute Game validations
 	"PLDG-10":  "Permissionless dispute game implementation not found",
@@ -142,6 +144,41 @@ var descriptions = map[string]string{
 	"PLDG-PIMGO-10": "Permissionless dispute game preimage oracle version mismatch",
 	"PLDG-PIMGO-20": "Permissionless dispute game preimage oracle challenge period not set to 86400",
 	"PLDG-PIMGO-30": "Permissionless dispute game preimage oracle min proposal size not set to 126000",
+
+	// Custom/Override validations
+	"OVERRIDES-L1PAOMULTISIG": "L1 Proxy Admin Owner multisig override detected (non-standard deployment)",
+	"OVERRIDES-CHALLENGER":    "Challenger address override detected (non-standard deployment)",
+
+	// Custom Dispute Game validations (CKDG)
+	"CKDG-10":         "Custom dispute game implementation not found",
+	"CKDG-20":         "Custom dispute game version mismatch",
+	"CKDG-40":         "Custom dispute game absolute prestate mismatch",
+	"CKDG-60":         "Custom dispute game L2 chain ID mismatch",
+	"CKDG-70":         "Custom dispute game L2 block number not set to 0",
+	"CKDG-80":         "Custom dispute game clock extension not set to 10800",
+	"CKDG-90":         "Custom dispute game split depth not set to 30",
+	"CKDG-100":        "Custom dispute game max game depth not set to 73",
+	"CKDG-110":        "Custom dispute game max clock duration not set to 302400",
+	"CKDG-120":        "Custom dispute game challenger address mismatch",
+	"CKDG-VM-10":      "Custom dispute game VM version mismatch",
+	"CKDG-VM-20":      "Custom dispute game VM implementation address mismatch",
+	"CKDG-VM-30":      "Custom dispute game VM address mismatch",
+	"CKDG-ANCHORP-10": "Custom dispute game anchor state registry version mismatch",
+	"CKDG-ANCHORP-20": "Custom dispute game anchor state registry implementation address mismatch",
+	"CKDG-ANCHORP-30": "Custom dispute game anchor state registry dispute game factory address mismatch",
+	"CKDG-ANCHORP-40": "Custom dispute game anchor state registry root hash mismatch",
+	"CKDG-ANCHORP-50": "Custom dispute game anchor state registry superchain config address mismatch",
+	"CKDG-ANCHORP-60": "Custom dispute game anchor state registry retirement timestamp is not set",
+	"CKDG-DWETH-10":   "Custom dispute game delayed WETH version mismatch",
+	"CKDG-DWETH-20":   "Custom dispute game delayed WETH implementation address mismatch",
+	"CKDG-DWETH-30":   "Custom dispute game delayed WETH owner mismatch",
+	"CKDG-DWETH-40":   "Custom dispute game delayed WETH delay not set to 1 week",
+	"CKDG-DWETH-50":   "Custom dispute game delayed WETH system config address mismatch",
+	"CKDG-DWETH-60":   "Custom dispute game delayed WETH proxy admin mismatch",
+	"CKDG-PIMGO-10":   "Custom dispute game preimage oracle version mismatch",
+	"CKDG-PIMGO-20":   "Custom dispute game preimage oracle challenge period not set to 86400",
+	"CKDG-PIMGO-30":   "Custom dispute game preimage oracle min proposal size not set to 126000",
+	"CKDG-GARGS-10":   "Custom dispute game game args mismatch",
 }
 
 func ErrorDescription(code string) string {

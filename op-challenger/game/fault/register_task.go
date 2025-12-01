@@ -52,7 +52,25 @@ type RegisterTask struct {
 }
 
 func NewSuperCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider super.RootProvider, syncValidator *super.SyncValidator) *RegisterTask {
-	stateConverter := cannon.NewStateConverter(cfg.Cannon)
+	return newSuperCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, rootProvider, syncValidator, cfg.Cannon, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState)
+}
+
+func NewSuperCannonKonaRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider super.RootProvider, syncValidator *super.SyncValidator) *RegisterTask {
+	return newSuperCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, rootProvider, syncValidator, cfg.CannonKona, cfg.CannonKonaAbsolutePreStateBaseURL, cfg.CannonKonaAbsolutePreState)
+}
+
+func newSuperCannonVMRegisterTaskWithConfig(
+	gameType faultTypes.GameType,
+	cfg *config.Config,
+	m caching.Metrics,
+	serverExecutor vm.OracleServerExecutor,
+	rootProvider super.RootProvider,
+	syncValidator SyncValidator,
+	vmCfg vm.Config,
+	preStateBaseURL *url.URL,
+	preState string,
+) *RegisterTask {
+	stateConverter := cannon.NewStateConverter(vmCfg)
 	return &RegisterTask{
 		gameType:               gameType,
 		syncValidator:          syncValidator,
@@ -64,8 +82,8 @@ func NewSuperCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config
 			gameType,
 			stateConverter,
 			m,
-			cfg.CannonAbsolutePreStateBaseURL,
-			cfg.CannonAbsolutePreState,
+			preStateBaseURL,
+			preState,
 			filepath.Join(cfg.Datadir, "super-cannon-prestates"),
 			func(ctx context.Context, path string) faultTypes.PrestateProvider {
 				return vm.NewPrestateProvider(path, stateConverter)
@@ -82,7 +100,7 @@ func NewSuperCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config
 			poststateBlock uint64) (*trace.Accessor, error) {
 			provider := vmPrestateProvider.(*vm.PrestateProvider)
 			preimagePrestateProvider := prestateProvider.(super.PreimagePrestateProvider)
-			return super.NewSuperCannonTraceAccessor(logger, m, cfg.Cannon, serverExecutor, preimagePrestateProvider, rootProvider, provider.PrestatePath(), dir, l1Head, splitDepth, prestateBlock, poststateBlock)
+			return super.NewSuperCannonTraceAccessor(logger, m, vmCfg, serverExecutor, preimagePrestateProvider, rootProvider, provider.PrestatePath(), dir, l1Head, splitDepth, prestateBlock, poststateBlock)
 		},
 	}
 }
@@ -361,7 +379,7 @@ func (e *RegisterTask) Register(
 		}
 		return NewGamePlayer(ctx, systemClock, l1Clock, logger, m, dir, game.Proxy, txSender, contract, e.syncValidator, validators, creator, l1HeaderSource, selective, claimants, responseDelay, responseDelayAfter)
 	}
-	err := registerOracle(ctx, logger, m, oracles, gameFactory, caller, e.gameType)
+	err := registerOracle(ctx, logger, oracles, gameFactory, e.gameType)
 	if err != nil {
 		return err
 	}
@@ -374,20 +392,21 @@ func (e *RegisterTask) Register(
 	return nil
 }
 
-func registerOracle(ctx context.Context, logger log.Logger, m metrics.Metricer, oracles OracleRegistry, gameFactory *contracts.DisputeGameFactoryContract, caller *batching.MultiCaller, gameType faultTypes.GameType) error {
-	implAddr, err := gameFactory.GetGameImpl(ctx, gameType)
+func registerOracle(ctx context.Context, logger log.Logger, oracles OracleRegistry, gameFactory *contracts.DisputeGameFactoryContract, gameType faultTypes.GameType) error {
+	// Check that there is an implementation set for this game type and skip if not.
+	hasImpl, err := gameFactory.HasGameImpl(ctx, gameType)
 	if err != nil {
-		return fmt.Errorf("failed to load implementation for game type %v: %w", gameType, err)
+		return fmt.Errorf("failed to check implementation for game type %v: %w", gameType, err)
 	}
-	if implAddr == (common.Address{}) {
+	if !hasImpl {
 		logger.Warn("No game implementation set for game type", "gameType", gameType)
 		return nil
 	}
-	contract, err := contracts.NewFaultDisputeGameContract(ctx, m, implAddr, caller)
+	vmContract, err := gameFactory.GetGameVm(ctx, gameType)
 	if err != nil {
-		return fmt.Errorf("failed to create fault dispute game contracts: %w", err)
+		return fmt.Errorf("failed to get vm for game type %v: %w", gameType, err)
 	}
-	oracle, err := contract.GetOracle(ctx)
+	oracle, err := vmContract.Oracle(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load oracle address: %w", err)
 	}

@@ -15,7 +15,7 @@ import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 /// @title SuperchainConfig_TestInit
 /// @notice Initialization contract for SuperchainConfig tests.
-contract SuperchainConfig_TestInit is CommonTest {
+abstract contract SuperchainConfig_TestInit is CommonTest {
     function setUp() public virtual override {
         super.setUp();
         skipIfForkTest("SuperchainConfig_TestInit: cannot test initialization on forked network");

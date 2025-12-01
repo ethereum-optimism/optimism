@@ -8,10 +8,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum-optimism/superchain-registry/validation"
@@ -25,8 +27,10 @@ const (
 	IntentTypeStandardOverrides IntentType = "standard-overrides"
 )
 
-var emptyAddress common.Address
-var emptyHash common.Hash
+var (
+	emptyAddress common.Address
+	emptyHash    common.Hash
+)
 
 type SuperchainProofParams struct {
 	WithdrawalDelaySeconds          uint64      `json:"faultGameWithdrawalDelay" toml:"faultGameWithdrawalDelay"`
@@ -34,6 +38,10 @@ type SuperchainProofParams struct {
 	ChallengePeriodSeconds          uint64      `json:"preimageOracleChallengePeriod" toml:"preimageOracleChallengePeriod"`
 	ProofMaturityDelaySeconds       uint64      `json:"proofMaturityDelaySeconds" toml:"proofMaturityDelaySeconds"`
 	DisputeGameFinalityDelaySeconds uint64      `json:"disputeGameFinalityDelaySeconds" toml:"disputeGameFinalityDelaySeconds"`
+	DisputeMaxGameDepth             uint64      `json:"faultGameMaxDepth" toml:"faultGameMaxDepth"`
+	DisputeSplitDepth               uint64      `json:"faultGameSplitDepth" toml:"faultGameSplitDepth"`
+	DisputeClockExtension           uint64      `json:"faultGameClockExtension" toml:"faultGameClockExtension"`
+	DisputeMaxClockDuration         uint64      `json:"faultGameMaxClockDuration" toml:"faultGameMaxClockDuration"`
 	MIPSVersion                     uint64      `json:"mipsVersion" toml:"mipsVersion"`
 	DevFeatureBitmap                common.Hash `json:"devFeatureBitmap" toml:"devFeatureBitmap"`
 }
@@ -55,6 +63,20 @@ type L1DevGenesisParams struct {
 	// PragueTimeOffset configures Prague (aka Pectra) to be activated at the given time after L1 dev genesis time.
 	PragueTimeOffset *uint64 `json:"pragueTimeOffset" toml:"pragueTimeOffset"`
 
+	// OsakaTimeOffset configures Osaka (the EL changes in the Fusaka Ethereum fork) to be
+	// activated at the given time after L1 dev genesis time.
+	OsakaTimeOffset *uint64 `json:"osakaTimeOffset" toml:"osakaTimeOffset"`
+
+	// BPO1TimeOffset configures the BPO1 fork to be activated at the given time after L1 dev
+	// genesis time.
+	BPO1TimeOffset *uint64 `json:"bpo1TimeOffset" toml:"bpo1TimeOffset"`
+
+	// BPO2TimeOffset configures the BPO2 fork to be activated at the given time after L1 dev
+	// genesis time.
+	BPO2TimeOffset *uint64 `json:"bpo2TimeOffset" toml:"bpo2TimeOffset"`
+
+	BlobSchedule *params.BlobScheduleConfig `json:"blobSchedule"`
+
 	// Prefund is a map of addresses to balances (in wei), to prefund in the L1 dev genesis state.
 	// This is independent of the "Prefund" functionality that may fund a default 20 test accounts.
 	Prefund map[common.Address]*hexutil.U256 `json:"prefund" toml:"prefund"`
@@ -62,6 +84,7 @@ type L1DevGenesisParams struct {
 
 type Intent struct {
 	ConfigType            IntentType                 `json:"configType" toml:"configType"`
+	OpDeployerVersion     string                     `json:"opDeployerVersion" toml:"opDeployerVersion"`
 	L1ChainID             uint64                     `json:"l1ChainID" toml:"l1ChainID"`
 	OPCMAddress           *common.Address            `json:"opcmAddress" toml:"opcmAddress"`
 	SuperchainConfigProxy *common.Address            `json:"superchainConfigProxy" toml:"superchainConfigProxy"`
@@ -77,8 +100,10 @@ type Intent struct {
 	L1DevGenesisParams *L1DevGenesisParams `json:"l1DevGenesisParams"`
 }
 
-var ErrL1ContractsLocatorUndefined = errors.New("L1ContractsLocator undefined")
-var ErrL2ContractsLocatorUndefined = errors.New("L2ContractsLocator undefined")
+var (
+	ErrL1ContractsLocatorUndefined = errors.New("L1ContractsLocator undefined")
+	ErrL2ContractsLocatorUndefined = errors.New("L2ContractsLocator undefined")
+)
 
 func (c *Intent) L1ChainIDBig() *big.Int {
 	return big.NewInt(int64(c.L1ChainID))
@@ -157,6 +182,14 @@ func (c *Intent) validateStandardValues() error {
 		}
 		if len(chain.AdditionalDisputeGames) > 0 {
 			return fmt.Errorf("%w: chainId=%s additionalDisputeGames must be nil", ErrNonStandardValue, chain.ID)
+		}
+		if chain.UseRevenueShare {
+			if chain.ChainFeesRecipient == emptyAddress {
+				return fmt.Errorf("%w: chainId=%s", ErrRevenueShareZeroAddress, chain.ID)
+			}
+		}
+		if chain.IsCustomGasTokenEnabled() {
+			return fmt.Errorf("%w: chainId=%s custom gas token must be disabled for standard chains", ErrNonStandardValue, chain.ID)
 		}
 	}
 
@@ -281,6 +314,7 @@ func NewIntent(configType IntentType, l1ChainId uint64, l2ChainIds []common.Hash
 		return
 	}
 	intent.ConfigType = configType
+	intent.OpDeployerVersion = version.VersionWithMeta
 	return
 }
 
@@ -289,6 +323,7 @@ func NewIntent(configType IntentType, l1ChainId uint64, l2ChainIds []common.Hash
 func NewIntentCustom(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error) {
 	intent := Intent{
 		ConfigType:         IntentTypeCustom,
+		OpDeployerVersion:  version.VersionWithMeta,
 		L1ChainID:          l1ChainId,
 		L1ContractsLocator: &artifacts.Locator{URL: &url.URL{}},
 		L2ContractsLocator: &artifacts.Locator{URL: &url.URL{}},
@@ -299,6 +334,8 @@ func NewIntentCustom(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error)
 		intent.Chains = append(intent.Chains, &ChainIntent{
 			ID:       l2ChainID,
 			GasLimit: standard.GasLimit,
+			// CustomGasToken defaults to disabled (all fields nil/empty)
+			CustomGasToken: CustomGasToken{},
 		})
 	}
 	return intent, nil
@@ -312,6 +349,7 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 
 	intent := Intent{
 		ConfigType:         IntentTypeStandard,
+		OpDeployerVersion:  version.VersionWithMeta,
 		L1ChainID:          l1ChainId,
 		L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
 		L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
@@ -343,6 +381,9 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 				L1ProxyAdminOwner: l1ProxyAdminOwner,
 				L2ProxyAdminOwner: l2ProxyAdminOwner,
 			},
+			UseRevenueShare: standard.UseRevenueShare,
+			// CustomGasToken defaults to disabled (all fields nil/empty)
+			CustomGasToken: CustomGasToken{},
 		})
 	}
 	return intent, nil

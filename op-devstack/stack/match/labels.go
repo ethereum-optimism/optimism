@@ -20,6 +20,7 @@ const (
 type Vendor string
 
 const (
+	Geth                      Vendor = "geth"
 	OpReth                    Vendor = "op-reth"
 	OpGeth                    Vendor = "op-geth"
 	Proxyd                    Vendor = "proxyd"

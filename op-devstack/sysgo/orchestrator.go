@@ -33,6 +33,7 @@ type Orchestrator struct {
 	proposerOptions         []ProposerOption
 	l2CLOptions             L2CLOptionBundle
 	l2ELOptions             L2ELOptionBundle
+	l2ChallengerOpts        l2ChallengerOpts
 	SyncTesterELOptions     SyncTesterELOptionBundle
 	deployerPipelineOptions []DeployerPipelineOption
 
@@ -40,7 +41,7 @@ type Orchestrator struct {
 	clusters       locks.RWMap[stack.ClusterID, *Cluster]
 	l1Nets         locks.RWMap[eth.ChainID, *L1Network]
 	l2Nets         locks.RWMap[eth.ChainID, *L2Network]
-	l1ELs          locks.RWMap[stack.L1ELNodeID, *L1ELNode]
+	l1ELs          locks.RWMap[stack.L1ELNodeID, L1ELNode]
 	l1CLs          locks.RWMap[stack.L1CLNodeID, *L1CLNode]
 	l2ELs          locks.RWMap[stack.L2ELNodeID, L2ELNode]
 	l2CLs          locks.RWMap[stack.L2CLNodeID, L2CLNode]
@@ -49,6 +50,9 @@ type Orchestrator struct {
 	batchers       locks.RWMap[stack.L2BatcherID, *L2Batcher]
 	challengers    locks.RWMap[stack.L2ChallengerID, *L2Challenger]
 	proposers      locks.RWMap[stack.L2ProposerID, *L2Proposer]
+
+	// service name => prometheus endpoints to scrape
+	l2MetricsEndpoints locks.RWMap[string, []PrometheusMetricsTarget]
 
 	syncTester *SyncTesterService
 	faucet     *FaucetService
@@ -122,7 +126,7 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	o.clusters.Range(rangeHydrateFn[stack.ClusterID, *Cluster](sys))
 	o.l1Nets.Range(rangeHydrateFn[eth.ChainID, *L1Network](sys))
 	o.l2Nets.Range(rangeHydrateFn[eth.ChainID, *L2Network](sys))
-	o.l1ELs.Range(rangeHydrateFn[stack.L1ELNodeID, *L1ELNode](sys))
+	o.l1ELs.Range(rangeHydrateFn[stack.L1ELNodeID, L1ELNode](sys))
 	o.l1CLs.Range(rangeHydrateFn[stack.L1CLNodeID, *L1CLNode](sys))
 	o.l2ELs.Range(rangeHydrateFn[stack.L2ELNodeID, L2ELNode](sys))
 	o.l2CLs.Range(rangeHydrateFn[stack.L2CLNodeID, L2CLNode](sys))
@@ -136,6 +140,14 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	}
 	o.faucet.hydrate(sys)
 	o.sysHook.PostHydrate(sys)
+}
+
+func (o *Orchestrator) RegisterL2MetricsTargets(id stack.IDWithChain, endpoints ...PrometheusMetricsTarget) {
+	wasSet := o.l2MetricsEndpoints.SetIfMissing(id.Key(), endpoints)
+	if !wasSet {
+		existing, _ := o.l2MetricsEndpoints.Get(id.Key())
+		o.p.Logger().Warn("multiple endpoints registered with the same key", "key", id.Key(), "existing", existing, "new", endpoints)
+	}
 }
 
 type hydrator interface {

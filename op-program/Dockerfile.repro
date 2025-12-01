@@ -1,4 +1,4 @@
-ARG GO_VERSION=1.23.8-alpine3.21
+ARG GO_VERSION=1.24.10-alpine3.21
 ARG EXPORT_TARGET=current
 FROM golang:${GO_VERSION} AS src
 

@@ -133,12 +133,6 @@ func (c *ChannelBuilder) OutputBytes() int {
 	return c.outputBytes
 }
 
-// Blocks returns a backup list of all blocks that were added to the channel. It
-// can be used in case the channel needs to be rebuilt.
-func (c *ChannelBuilder) Blocks() []SizedBlock {
-	return c.blocks
-}
-
 // LatestL1Origin returns the latest L1 block origin from all the L2 blocks that have been added to the channel
 func (c *ChannelBuilder) LatestL1Origin() eth.BlockID {
 	return c.latestL1Origin
@@ -211,13 +205,6 @@ func (c *ChannelBuilder) AddBlock(block SizedBlock) (*derive.L1BlockInfo, error)
 	}
 
 	return l1info, nil
-}
-
-// Timeout management
-
-// Timeout returns the block number of the channel timeout. If no timeout is set it returns 0
-func (c *ChannelBuilder) Timeout() uint64 {
-	return c.timeout
 }
 
 // FramePublished should be called whenever a frame of this channel got

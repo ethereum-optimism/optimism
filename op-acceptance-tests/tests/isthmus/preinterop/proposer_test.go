@@ -18,6 +18,6 @@ func TestProposer(gt *testing.T) {
 	rootClaim := newGame.RootClaim().Value()
 	l2SequenceNumber := newGame.L2SequenceNumber()
 
-	superRoot := sys.Supervisor.FetchSuperRootAtTimestamp(l2SequenceNumber.Uint64())
+	superRoot := sys.Supervisor.FetchSuperRootAtTimestamp(l2SequenceNumber)
 	t.Require().Equal(superRoot.SuperRoot[:], rootClaim[:])
 }

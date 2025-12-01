@@ -7,7 +7,7 @@ import "test/safe-tools/SafeTestTools.sol";
 
 /// @title SafeSigners_TestInit
 /// @notice Reusable test initialization for `SafeSigners` tests.
-contract SafeSigners_TestInit is Test {
+abstract contract SafeSigners_TestInit is Test {
     bytes4 internal constant EIP1271_MAGIC_VALUE = 0x20c13b0b;
 
     enum SigTypes {

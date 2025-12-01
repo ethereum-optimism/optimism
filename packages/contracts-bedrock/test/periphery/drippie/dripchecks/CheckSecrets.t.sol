@@ -6,7 +6,7 @@ import { CheckSecrets } from "src/periphery/drippie/dripchecks/CheckSecrets.sol"
 
 /// @title CheckSecrets_TestInit
 /// @notice Reusable test initialization for `CheckSecrets` tests.
-contract CheckSecrets_TestInit is Test {
+abstract contract CheckSecrets_TestInit is Test {
     /// @notice Event emitted when a secret is revealed.
     event SecretRevealed(bytes32 indexed secretHash, bytes secret);
 
@@ -191,10 +191,10 @@ contract CheckSecrets_Reveal_Test is CheckSecrets_TestInit {
     }
 }
 
-/// @title CheckSecrets_Unclassified_Test
+/// @title CheckSecrets_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `CheckSecrets` contract
 ///         or are testing multiple functions at once.
-contract CheckSecrets_Unclassified_Test is CheckSecrets_TestInit {
+contract CheckSecrets_Uncategorized_Test is CheckSecrets_TestInit {
     /// @notice Test that the `name` function returns the correct value.
     function test_name_succeeds() external view {
         assertEq(c.name(), "CheckSecrets");

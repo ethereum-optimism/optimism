@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	gn "github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
@@ -112,7 +113,7 @@ func (s *interopE2ESystem) L2RollupClient(id string, name string) *sources.Rollu
 func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output, depSet depset.DependencySet) l2Net {
 	operatorKeys := s.newOperatorKeysForL2(l2Out)
 	l2Geth := s.newGethForL2(id, "sequencer", l2Out)
-	opNode := s.newNodeForL2(id, "sequencer", l2Out, depSet, operatorKeys, l2Geth, true)
+	opNode := s.newNodeForL2(id, "sequencer", l2Out, depSet, operatorKeys, l2Geth, true, s.l1.Backend.BlockChain().Config())
 	proposer := s.newProposerForL2(id, operatorKeys)
 	batcher := s.newBatcherForL2(id, operatorKeys, l2Geth, opNode)
 
@@ -131,7 +132,7 @@ func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output, depSet d
 func (s *interopE2ESystem) AddNode(id string, name string) {
 	l2 := s.l2s[id]
 	l2Geth := s.newGethForL2(id, name, l2.l2Out)
-	opNode := s.newNodeForL2(id, name, l2.l2Out, s.DependencySet(), l2.operatorKeys, l2Geth, false)
+	opNode := s.newNodeForL2(id, name, l2.l2Out, s.DependencySet(), l2.operatorKeys, l2Geth, false, s.l1.Backend.BlockChain().Config())
 	l2.nodes[name] = &l2Node{name: name, opNode: opNode, l2Geth: l2Geth}
 
 	endpoint, secret := l2.nodes[name].opNode.InteropRPC()
@@ -148,6 +149,7 @@ func (s *interopE2ESystem) newNodeForL2(
 	operatorKeys map[devkeys.ChainOperatorRole]ecdsa.PrivateKey,
 	l2Geth *geth.GethInstance,
 	isSequencer bool,
+	l1ChainConfig *params.ChainConfig,
 ) *opnode.Opnode {
 	logger := s.logger.New("role", "op-node-"+id+"-"+name)
 	p2pKey := operatorKeys[devkeys.SequencerP2PRole]
@@ -158,6 +160,7 @@ func (s *interopE2ESystem) newNodeForL2(
 			TrustRPC:        false,
 			RPCProviderKind: sources.RPCKindDebugGeth,
 		},
+		L1ChainConfig: l1ChainConfig,
 		L2: &config.L2EndpointConfig{
 			L2EngineAddr:      l2Geth.AuthRPC().RPC(),
 			L2EngineJWTSecret: testingJWTSecret,

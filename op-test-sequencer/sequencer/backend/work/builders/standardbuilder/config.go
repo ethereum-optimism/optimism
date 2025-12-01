@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type Config struct {
@@ -23,6 +24,8 @@ type Config struct {
 	L2EL endpoint.MustRPC `yaml:"l2EL"`
 	// L2 consensus-layer RPC endpoint
 	L2CL endpoint.MustRPC `yaml:"l2CL"`
+
+	L1ChainConfig *params.ChainConfig
 }
 
 func (c *Config) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.ServiceOpts) (work.Builder, error) {
@@ -87,7 +90,7 @@ func (c *Config) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.Se
 	if err != nil {
 		return nil, err
 	}
-	fb := derive.NewFetchingAttributesBuilder(cfg, depSet, l1Cl, l2Cl)
+	fb := derive.NewFetchingAttributesBuilder(cfg, c.L1ChainConfig, depSet, l1Cl, l2Cl)
 
 	fb.TestSkipL1OriginCheck()
 

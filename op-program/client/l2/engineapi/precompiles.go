@@ -67,6 +67,9 @@ func CreatePrecompileOverrides(precompileOracle PrecompileOracle) vm.PrecompileO
 			return &ecrecoverOracle{Orig: orig, Oracle: precompileOracle}
 		case bn256PairingPrecompileAddress:
 			precompile := bn256PairingOracle{Orig: orig, Oracle: precompileOracle}
+			if rules.IsOptimismJovian {
+				return &bn256PairingOracleJovian{precompile}
+			}
 			if rules.IsOptimismGranite {
 				return &bn256PairingOracleGranite{precompile}
 			}
@@ -83,8 +86,12 @@ func CreatePrecompileOverrides(precompileOracle PrecompileOracle) vm.PrecompileO
 				precompileAddress: blsG1AddPrecompileAddress,
 			}
 		case blsG1MSMPrecompileAddress:
+			sizeLimit := params.Bls12381G1MulMaxInputSizeIsthmus
+			if rules.IsOptimismJovian {
+				sizeLimit = params.Bls12381G1MulMaxInputSizeJovian
+			}
 			return &blsOperationOracleWithSizeLimit{
-				sizeLimit: params.Bls12381G1MulMaxInputSizeIsthmus,
+				sizeLimit: sizeLimit,
 				blsOperationOracle: blsOperationOracle{
 					Orig:              orig,
 					Oracle:            precompileOracle,
@@ -103,8 +110,12 @@ func CreatePrecompileOverrides(precompileOracle PrecompileOracle) vm.PrecompileO
 				precompileAddress: blsG2AddPrecompileAddress,
 			}
 		case blsG2MSMPrecompileAddress:
+			sizeLimit := params.Bls12381G2MulMaxInputSizeIsthmus
+			if rules.IsOptimismJovian {
+				sizeLimit = params.Bls12381G2MulMaxInputSizeJovian
+			}
 			return &blsOperationOracleWithSizeLimit{
-				sizeLimit: params.Bls12381G2MulMaxInputSizeIsthmus,
+				sizeLimit: sizeLimit,
 				blsOperationOracle: blsOperationOracle{
 					Orig:              orig,
 					Oracle:            precompileOracle,
@@ -114,8 +125,12 @@ func CreatePrecompileOverrides(precompileOracle PrecompileOracle) vm.PrecompileO
 				},
 			}
 		case blsPairingPrecompileAddress:
+			sizeLimit := params.Bls12381PairingMaxInputSizeIsthmus
+			if rules.IsOptimismJovian {
+				sizeLimit = params.Bls12381PairingMaxInputSizeJovian
+			}
 			return &blsOperationOracleWithSizeLimit{
-				sizeLimit: params.Bls12381PairingMaxInputSizeIsthmus,
+				sizeLimit: sizeLimit,
 				blsOperationOracle: blsOperationOracle{
 					Orig:              orig,
 					Oracle:            precompileOracle,
@@ -168,6 +183,10 @@ func (c *ecrecoverOracle) Run(input []byte) ([]byte, error) {
 
 	const ecRecoverInputLength = 128
 
+	if len(input) > ecRecoverInputLength {
+		input = input[:ecRecoverInputLength]
+	}
+
 	input = common.RightPadBytes(input, ecRecoverInputLength)
 	// "input" is (hash, v, r, s), each 32 bytes
 	r := new(big.Int).SetBytes(input[64:96])
@@ -187,6 +206,10 @@ func (c *ecrecoverOracle) Run(input []byte) ([]byte, error) {
 	return result, nil
 }
 
+func (c *ecrecoverOracle) Name() string {
+	return "ECRECOVER_ORACLE"
+}
+
 func allZero(b []byte) bool {
 	for _, byte := range b {
 		if byte != 0 {
@@ -203,6 +226,10 @@ type bn256PairingOracle struct {
 
 func (b *bn256PairingOracle) RequiredGas(input []byte) uint64 {
 	return b.Orig.RequiredGas(input)
+}
+
+func (b *bn256PairingOracle) Name() string {
+	return b.Orig.Name()
 }
 
 var (
@@ -249,6 +276,25 @@ func (b *bn256PairingOracleGranite) Run(input []byte) ([]byte, error) {
 	return b.bn256PairingOracle.Run(input)
 }
 
+func (b *bn256PairingOracleGranite) Name() string {
+	return b.Orig.Name()
+}
+
+type bn256PairingOracleJovian struct {
+	bn256PairingOracle
+}
+
+func (b *bn256PairingOracleJovian) Run(input []byte) ([]byte, error) {
+	if len(input) > int(params.Bn256PairingMaxInputSizeJovian) {
+		return nil, errBadPairingInputSize
+	}
+	return b.bn256PairingOracle.Run(input)
+}
+
+func (b *bn256PairingOracleJovian) Name() string {
+	return b.Orig.Name()
+}
+
 // kzgPointEvaluationOracle implements the EIP-4844 point evaluation precompile,
 // using the preimage-oracle to perform the evaluation.
 type kzgPointEvaluationOracle struct {
@@ -259,6 +305,10 @@ type kzgPointEvaluationOracle struct {
 // RequiredGas estimates the gas required for running the point evaluation precompile.
 func (b *kzgPointEvaluationOracle) RequiredGas(input []byte) uint64 {
 	return b.Orig.RequiredGas(input)
+}
+
+func (b *kzgPointEvaluationOracle) Name() string {
+	return b.Orig.Name()
 }
 
 const (
@@ -362,6 +412,10 @@ func (b *blsOperationOracle) Run(input []byte) ([]byte, error) {
 		panic("unexpected result from BLS12-381 operation")
 	}
 	return result, nil
+}
+
+func (b *blsOperationOracle) Name() string {
+	return b.Orig.Name()
 }
 
 type blsOperationOracleWithSizeLimit struct {

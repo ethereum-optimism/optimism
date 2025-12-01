@@ -194,7 +194,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 
 		emitter := &testutils.MockEmitter{}
 		ec := new(fakeEngineController)
-		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, ec)
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, nil, l1F, ec)
 		fi.AttachEmitter(emitter)
 
 		// now say C1 was included in D and became the new safe head
@@ -229,7 +229,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 
 		emitter := &testutils.MockEmitter{}
 		ec := new(fakeEngineController)
-		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, ec)
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, nil, l1F, ec)
 		fi.AttachEmitter(emitter)
 
 		// now say C1 was included in D and became the new safe head
@@ -268,7 +268,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 
 		emitter := &testutils.MockEmitter{}
 		ec := new(fakeEngineController)
-		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, ec)
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, nil, l1F, ec)
 		fi.AttachEmitter(emitter)
 
 		fi.OnEvent(ctx, engine.SafeDerivedEvent{Safe: refC1, Source: refD})
@@ -352,7 +352,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 
 		emitter := &testutils.MockEmitter{}
 		ec := new(fakeEngineController)
-		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, ec)
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, nil, l1F, ec)
 		fi.AttachEmitter(emitter)
 
 		// now say B1 was included in C and became the new safe head
@@ -389,7 +389,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 
 		emitter := &testutils.MockEmitter{}
 		ec := new(fakeEngineController)
-		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, ec)
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, nil, l1F, ec)
 		fi.AttachEmitter(emitter)
 
 		// now say B1 was included in C and became the new safe head
@@ -486,7 +486,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		ec := new(fakeEngineController)
 		fi := NewFinalizer(context.Background(), logger, &rollup.Config{
 			InteropTime: &refC1.Time,
-		}, l1F, ec)
+		}, nil, l1F, ec)
 		fi.AttachEmitter(emitter)
 
 		// now say C0 and C1 were included in D and became the new safe head
@@ -502,5 +502,103 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		fi.OnEvent(ctx, TryFinalizeEvent{})
 		require.Equal(t, refC0, ec.finalizedL2)
 		emitter.AssertExpectations(t)
+	})
+}
+
+func TestFinalizerConfig(t *testing.T) {
+	t.Run("uses custom finality lookback", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelError)
+		l1F := &testutils.MockL1Source{}
+		ec := new(fakeEngineController)
+
+		customLookback := uint64(200)
+		finalizerCfg := &Config{
+			FinalityLookback: &customLookback,
+		}
+
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, finalizerCfg, l1F, ec)
+
+		require.Equal(t, customLookback, fi.finalityLookback, "should use custom finality lookback")
+		require.Equal(t, int(customLookback), cap(fi.finalityData), "finalityData capacity should match custom lookback")
+	})
+
+	t.Run("uses custom finality delay", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelError)
+		l1F := &testutils.MockL1Source{}
+		ec := new(fakeEngineController)
+
+		customDelay := uint64(32)
+		finalizerCfg := &Config{
+			FinalityDelay: &customDelay,
+		}
+
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, finalizerCfg, l1F, ec)
+
+		require.Equal(t, customDelay, fi.finalityDelay, "should use custom finality delay")
+	})
+
+	t.Run("uses defaults when config is nil", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelError)
+		l1F := &testutils.MockL1Source{}
+		ec := new(fakeEngineController)
+
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, nil, l1F, ec)
+
+		require.Equal(t, uint64(defaultFinalityLookback), fi.finalityLookback, "should use default finality lookback when config is nil")
+		require.Equal(t, uint64(finalityDelay), fi.finalityDelay, "should use default finality delay when config is nil")
+	})
+
+	t.Run("uses defaults when config fields are nil", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelError)
+		l1F := &testutils.MockL1Source{}
+		ec := new(fakeEngineController)
+
+		// Passing empty config should behave same as nil
+		finalizerCfg := &Config{}
+
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, finalizerCfg, l1F, ec)
+
+		require.Equal(t, uint64(defaultFinalityLookback), fi.finalityLookback, "should use default finality lookback when config fields are nil")
+		require.Equal(t, uint64(finalityDelay), fi.finalityDelay, "should use default finality delay when config fields are nil")
+	})
+
+	t.Run("uses alt-da lookback when configured", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelError)
+		l1F := &testutils.MockL1Source{}
+		ec := new(fakeEngineController)
+
+		cfg := &rollup.Config{
+			AltDAConfig: &rollup.AltDAConfig{
+				DAChallengeWindow: 90,
+				DAResolveWindow:   90,
+			},
+		}
+
+		fi := NewFinalizer(context.Background(), logger, cfg, nil, l1F, ec)
+
+		expectedLookback := uint64(181) // 90 + 90 + 1
+		require.Equal(t, expectedLookback, fi.finalityLookback, "should use alt-da calculated lookback")
+	})
+
+	t.Run("custom lookback overrides alt-da calculation", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelError)
+		l1F := &testutils.MockL1Source{}
+		ec := new(fakeEngineController)
+
+		cfg := &rollup.Config{
+			AltDAConfig: &rollup.AltDAConfig{
+				DAChallengeWindow: 90,
+				DAResolveWindow:   90,
+			},
+		}
+
+		customLookback := uint64(300)
+		finalizerCfg := &Config{
+			FinalityLookback: &customLookback,
+		}
+
+		fi := NewFinalizer(context.Background(), logger, cfg, finalizerCfg, l1F, ec)
+
+		require.Equal(t, customLookback, fi.finalityLookback, "custom lookback should override alt-da calculation")
 	})
 }

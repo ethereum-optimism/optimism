@@ -14,7 +14,7 @@ import { IL1Block } from "interfaces/L2/IL1Block.sol";
 
 /// @title L1BlockNumber_TestInit
 /// @notice Reusable test initialization for `L1BlockNumber` tests.
-contract L1BlockNumber_TestInit is Test {
+abstract contract L1BlockNumber_TestInit is Test {
     IL1Block lb;
     IL1BlockNumber bn;
 

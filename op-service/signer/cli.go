@@ -8,6 +8,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	optls "github.com/ethereum-optimism/optimism/op-service/tls"
 )
 
@@ -70,7 +71,7 @@ func (c CLIConfig) Enabled() bool {
 	return c.Endpoint != "" && c.Address != ""
 }
 
-func ReadCLIConfig(ctx *cli.Context) CLIConfig {
+func ReadCLIConfig(ctx cliiface.Context) CLIConfig {
 	var headers = http.Header{}
 	if ctx.StringSlice(HeadersFlagName) != nil {
 		for _, header := range ctx.StringSlice(HeadersFlagName) {
@@ -80,7 +81,6 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 			}
 		}
 	}
-
 	cfg := CLIConfig{
 		Endpoint:  ctx.String(EndpointFlagName),
 		Address:   ctx.String(AddressFlagName),

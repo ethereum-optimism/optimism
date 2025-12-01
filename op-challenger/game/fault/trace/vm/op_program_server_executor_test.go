@@ -33,10 +33,11 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 
 	oracleCommand := func(t *testing.T, lvl slog.Level, configModifier func(c *Config, inputs *utils.LocalGameInputs)) map[string]string {
 		cfg := Config{
-			L1:       "http://localhost:8888",
-			L1Beacon: "http://localhost:9000",
-			L2s:      []string{"http://localhost:9999", "http://localhost:9999/two"},
-			Server:   "./bin/mockserver",
+			L1:            "http://localhost:8888",
+			L1Beacon:      "http://localhost:9000",
+			L2s:           []string{"http://localhost:9999", "http://localhost:9999/two"},
+			Server:        "./bin/mockserver",
+			L1GenesisPath: "mockdir/l1-genesis-1.json",
 		}
 		inputs := utils.LocalGameInputs{
 			L1Head:           common.Hash{0x11},
@@ -60,6 +61,7 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 		require.Equal(t, inputs.L1Head.Hex(), pairs["--l1.head"])
 		require.Equal(t, inputs.L2Claim.Hex(), pairs["--l2.claim"])
 		require.Equal(t, inputs.L2SequenceNumber.String(), pairs["--l2.blocknumber"])
+		require.Equal(t, cfg.L1GenesisPath, pairs["--l1.chainconfig"])
 		return pairs
 	}
 

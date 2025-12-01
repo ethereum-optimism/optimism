@@ -16,6 +16,7 @@ import (
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 )
 
@@ -52,7 +53,7 @@ func CLIFlagsWithCategory(envPrefix string, category string) []cli.Flag {
 		},
 		&cli.GenericFlag{
 			Name:     FormatFlagName,
-			Usage:    "Format the log output. Supported formats: 'text', 'terminal', 'logfmt', 'json', 'json-pretty',",
+			Usage:    fmt.Sprintf("Format the log output. Supported formats: %s", SupportedFormatsString()),
 			Value:    NewFormatFlagValue(FormatText),
 			EnvVars:  opservice.PrefixEnvVar(envPrefix, "LOG_FORMAT"),
 			Category: category,
@@ -142,6 +143,25 @@ const (
 	FormatJSON     FormatType = "json"
 	FormatJSONMs   FormatType = "jsonms"
 )
+
+// All supported format types in a slice for iteration
+var formatTypes = []FormatType{
+	FormatText,
+	FormatTerminal,
+	FormatLogFmt,
+	FormatLogFmtMs,
+	FormatJSON,
+	FormatJSONMs,
+}
+
+// SupportedFormatsString returns a comma-delimited string of supported formats,
+func SupportedFormatsString() string {
+	names := make([]string, 0, len(formatTypes))
+	for _, f := range formatTypes {
+		names = append(names, f.String())
+	}
+	return strings.Join(names, ", ")
+}
 
 // FormatHandler returns the correct slog handler factory for the provided format.
 func FormatHandler(ft FormatType, color bool) func(io.Writer) slog.Handler {
@@ -263,7 +283,7 @@ func DefaultCLIConfig() CLIConfig {
 	}
 }
 
-func ReadCLIConfig(ctx *cli.Context) CLIConfig {
+func ReadCLIConfig(ctx cliiface.Context) CLIConfig {
 	cfg := DefaultCLIConfig()
 	cfg.Level = ctx.Generic(LevelFlagName).(*LevelFlagValue).Level()
 	cfg.Format = ctx.Generic(FormatFlagName).(*FormatFlagValue).FormatType()

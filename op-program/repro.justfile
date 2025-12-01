@@ -40,9 +40,9 @@ prestate TYPE CLIENT_SUFFIX PRESTATE_SUFFIX: cannon op-program-client-mips
         --version {{TYPE}}\
         --suffix {{PRESTATE_SUFFIX}}
 
-build-mt64: (prestate "multithreaded64-4" "64" "-mt64")
+build-mt64: (prestate "multithreaded64-5" "64" "-mt64")
 build-mt64Next: (prestate "multithreaded64-5" "64" "-mt64Next")
-build-interop: (prestate "multithreaded64-4" "-interop" "-interop")
+build-interop: (prestate "multithreaded64-5" "-interop" "-interop")
 build-interopNext: (prestate "multithreaded64-5" "-interop" "-interopNext")
 
 build-current: build-mt64 build-interop

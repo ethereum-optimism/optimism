@@ -6,6 +6,7 @@ import (
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 
+	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	"github.com/urfave/cli/v2"
 )
 
@@ -74,7 +75,7 @@ func (m CLIConfig) Check() error {
 	return nil
 }
 
-func ReadCLIConfig(ctx *cli.Context) CLIConfig {
+func ReadCLIConfig(ctx cliiface.Context) CLIConfig {
 	return CLIConfig{
 		Enabled:    ctx.Bool(EnabledFlagName),
 		ListenAddr: ctx.String(ListenAddrFlagName),

@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -123,19 +124,19 @@ func createSignedP2Payload(payload MarshalSSZ, signer Signer, l2ChainID *big.Int
 	return snappy.Encode(nil, data), nil
 }
 
-func createExecutionPayload(w types.Withdrawals, withdrawalsRoot *common.Hash, excessGas, gasUsed *uint64) *eth.ExecutionPayload {
+func createExecutionPayload(w types.Withdrawals, withdrawalsRoot *common.Hash, excessBlobGas, blobGasUsed *uint64) *eth.ExecutionPayload {
 	return &eth.ExecutionPayload{
 		Timestamp:       hexutil.Uint64(time.Now().Unix()),
 		Withdrawals:     &w,
 		WithdrawalsRoot: withdrawalsRoot,
-		ExcessBlobGas:   (*eth.Uint64Quantity)(excessGas),
-		BlobGasUsed:     (*eth.Uint64Quantity)(gasUsed),
+		ExcessBlobGas:   (*eth.Uint64Quantity)(excessBlobGas),
+		BlobGasUsed:     (*eth.Uint64Quantity)(blobGasUsed),
 	}
 }
 
-func createEnvelope(h *common.Hash, w types.Withdrawals, withdrawalsRoot *common.Hash, excessGas, gasUsed *uint64) *eth.ExecutionPayloadEnvelope {
+func createEnvelope(h *common.Hash, w types.Withdrawals, withdrawalsRoot *common.Hash, excessBlobGas, blobGasUsed *uint64) *eth.ExecutionPayloadEnvelope {
 	return &eth.ExecutionPayloadEnvelope{
-		ExecutionPayload:      createExecutionPayload(w, withdrawalsRoot, excessGas, gasUsed),
+		ExecutionPayload:      createExecutionPayload(w, withdrawalsRoot, excessBlobGas, blobGasUsed),
 		ParentBeaconBlockRoot: h,
 	}
 }
@@ -157,7 +158,12 @@ func TestBlockValidator(t *testing.T) {
 	mockGossipConf := &mockGossipSetupConfigurablesWithThreshold{threshold: 60 * time.Second}
 	v2Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2, mockGossipConf)
 	v3Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV3, mockGossipConf)
-	v4Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV4, mockGossipConf)
+	v4Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelDebug), cfg, runCfg, eth.BlockV4, mockGossipConf)
+	jovianCfg := &rollup.Config{
+		L2ChainID:  big.NewInt(100),
+		JovianTime: ptr.New(uint64(0)),
+	}
+	v4JovianValidator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), jovianCfg, runCfg, eth.BlockV4, mockGossipConf)
 
 	zero, one := uint64(0), uint64(1)
 	beaconHash, withdrawalsRoot := common.HexToHash("0x1234"), common.HexToHash("0x9876")
@@ -174,8 +180,7 @@ func TestBlockValidator(t *testing.T) {
 		{"V3RejectExecutionPayload", v3Validator, pubsub.ValidationReject, createExecutionPayload(types.Withdrawals{}, nil, &zero, &zero)},
 	}
 
-	for _, tt := range payloadTests {
-		test := tt
+	for _, test := range payloadTests {
 		t.Run(fmt.Sprintf("ExecutionPayload_%s", test.name), func(t *testing.T) {
 			e := &eth.ExecutionPayloadEnvelope{ExecutionPayload: test.payload}
 			test.payload.BlockHash, _ = e.CheckBlockHash() // hack to generate the block hash easily.
@@ -198,10 +203,11 @@ func TestBlockValidator(t *testing.T) {
 		{"V3Valid", v3Validator, pubsub.ValidationAccept, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &zero, &zero)},
 		{"V4Valid", v4Validator, pubsub.ValidationAccept, createEnvelope(&beaconHash, types.Withdrawals{}, &withdrawalsRoot, &zero, &zero)},
 		{"V4RejectNoWithdrawalRoot", v4Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &zero, &zero)},
+		{"V4AcceptNonZeroBlobGasUsedJovian", v4JovianValidator, pubsub.ValidationAccept, createEnvelope(&beaconHash, types.Withdrawals{}, &withdrawalsRoot, &zero, &one)},
+		// Note: v3+ test cases with nil blobGasUsed cannot easily be included because they already fail at the SSZ marshaling stage.
 	}
 
-	for _, tt := range envelopeTests {
-		test := tt
+	for _, test := range envelopeTests {
 		t.Run(fmt.Sprintf("ExecutionPayloadEnvelope_%s", test.name), func(t *testing.T) {
 			test.payload.ExecutionPayload.BlockHash, _ = test.payload.CheckBlockHash() // hack to generate the block hash easily.
 			data, err := createSignedP2Payload(test.payload, signer, cfg.L2ChainID)

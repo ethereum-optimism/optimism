@@ -27,16 +27,44 @@ func TestGetCustomRollupConfig_Missing(t *testing.T) {
 
 // TestGetCustomChainConfig tests loading the custom chain configs from test embed FS.
 func TestGetCustomChainConfig(t *testing.T) {
-	config, err := chainConfigByChainID(eth.ChainIDFromUInt64(901), test.TestCustomChainConfigFS)
+	config, err := l2ChainConfigByChainID(eth.ChainIDFromUInt64(901), test.TestCustomChainConfigFS)
 	require.NoError(t, err)
 	require.Equal(t, config.ChainID.Uint64(), uint64(901))
 
-	_, err = chainConfigByChainID(eth.ChainIDFromUInt64(900), test.TestCustomChainConfigFS)
+	_, err = l2ChainConfigByChainID(eth.ChainIDFromUInt64(900), test.TestCustomChainConfigFS)
 	require.Error(t, err)
 }
 
 func TestGetCustomChainConfig_Missing(t *testing.T) {
-	_, err := chainConfigByChainID(eth.ChainIDFromUInt64(11111), test.TestCustomChainConfigFS)
+	_, err := l2ChainConfigByChainID(eth.ChainIDFromUInt64(11111), test.TestCustomChainConfigFS)
+	require.ErrorIs(t, err, ErrMissingChainConfig)
+}
+
+func TestGetCustomL1ChainConfig(t *testing.T) {
+	config, err := l1ChainConfigByChainID(eth.ChainIDFromUInt64(900), test.TestCustomChainConfigFS)
+	require.NoError(t, err)
+	require.Equal(t, config.ChainID.Uint64(), uint64(900))
+}
+
+func TestGetCustomL1ChainConfig_Missing(t *testing.T) {
+	_, err := l1ChainConfigByChainID(eth.ChainIDFromUInt64(11111), test.TestCustomChainConfigFS)
+	require.ErrorIs(t, err, ErrMissingChainConfig)
+}
+
+func TestGetCustomL1ChainConfig_KnownChainID(t *testing.T) {
+	knownChainIds := []eth.ChainID{
+		eth.ChainIDFromUInt64(1),        // Mainnet
+		eth.ChainIDFromUInt64(11155111), // Sepolia
+		eth.ChainIDFromUInt64(17000),    // Holesky
+		eth.ChainIDFromUInt64(560048),   // Hoodi
+	}
+	for _, chainID := range knownChainIds {
+		cfg, err := L1ChainConfigByChainID(chainID)
+		require.NoError(t, err)
+		require.True(t, chainID.Cmp(eth.ChainIDFromBig(cfg.ChainID)) == 0)
+	}
+	unknownChainId := eth.ChainIDFromUInt64(11111)
+	_, err := L1ChainConfigByChainID(unknownChainId)
 	require.ErrorIs(t, err, ErrMissingChainConfig)
 }
 
@@ -76,6 +104,16 @@ func TestLoadDependencySetFromRegistry(t *testing.T) {
 
 func TestCheckConfigFilenames(t *testing.T) {
 	err := checkConfigFilenames(test.TestCustomChainConfigFS, "configs")
+	require.NoError(t, err)
+}
+
+func TestCheckConfigFilenames_WithoutCustomL1Genesis(t *testing.T) {
+	err := checkConfigFilenames(test.TestCustomChainConfigNoL1FS, "configs_no_l1")
+	require.NoError(t, err)
+}
+
+func TestCheckConfigFilenames_MultipleL1Genesis(t *testing.T) {
+	err := checkConfigFilenames(test.TestCustomChainConfigMultipleL1FS, "configs_multiple_l1")
 	require.NoError(t, err)
 }
 

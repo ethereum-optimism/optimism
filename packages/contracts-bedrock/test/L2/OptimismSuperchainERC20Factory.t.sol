@@ -13,7 +13,7 @@ import { IERC20Metadata } from "@openzeppelin/contracts/interfaces/IERC20Metadat
 
 /// @title OptimismSuperchainERC20Factory_TestInit
 /// @notice Reusable test initialization for `OptimismSuperchainERC20Factory` tests.
-contract OptimismSuperchainERC20Factory_TestInit is CommonTest {
+abstract contract OptimismSuperchainERC20Factory_TestInit is CommonTest {
     using Bytes32AddressLib for bytes32;
 
     event OptimismSuperchainERC20Created(

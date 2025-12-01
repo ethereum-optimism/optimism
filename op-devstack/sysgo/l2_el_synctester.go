@@ -38,13 +38,12 @@ type SyncTesterEL struct {
 type SyncTesterELConfig struct {
 	FCUState     eth.FCUState
 	ELSyncActive bool
-	ELSyncTarget uint64
 }
 
 func (cfg *SyncTesterELConfig) Path() string {
 	path := fmt.Sprintf("?latest=%d&safe=%d&finalized=%d", cfg.FCUState.Latest, cfg.FCUState.Safe, cfg.FCUState.Finalized)
 	if cfg.ELSyncActive {
-		path += fmt.Sprintf("&el_sync_target=%d", cfg.ELSyncTarget)
+		path += "&el_sync_active=true"
 	}
 	return path
 }
@@ -53,7 +52,6 @@ func DefaultSyncTesterELConfig() *SyncTesterELConfig {
 	return &SyncTesterELConfig{
 		FCUState:     eth.FCUState{Latest: 0, Safe: 0, Finalized: 0},
 		ELSyncActive: false,
-		ELSyncTarget: 0,
 	}
 }
 
@@ -96,6 +94,11 @@ func (n *SyncTesterEL) hydrate(system stack.ExtensibleSystem) {
 	require.NoError(err)
 	system.T().Cleanup(rpcCl.Close)
 
+	// Sync Tester EL is always writable, and needs no auth
+	engineCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), n.authRPC)
+	require.NoError(err)
+	system.T().Cleanup(engineCl.Close)
+
 	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
 	sysL2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
 		RollupCfg: l2Net.RollupConfig(),
@@ -104,7 +107,8 @@ func (n *SyncTesterEL) hydrate(system stack.ExtensibleSystem) {
 			Client:       rpcCl,
 			ChainID:      n.id.ChainID(),
 		},
-		ID: n.id,
+		EngineClient: engineCl,
+		ID:           n.id,
 	})
 	sysL2EL.SetLabel(match.LabelVendor, "sync-tester")
 	l2Net.(stack.ExtensibleL2Network).AddL2ELNode(sysL2EL)

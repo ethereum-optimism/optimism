@@ -97,6 +97,8 @@ func (s *HealthMonitorTestSuite) SetupMonitor(
 	return monitor
 }
 
+type monitorOpts func(*SequencerHealthMonitor)
+
 // SetupMonitorWithRollupBoost creates a HealthMonitor that includes a RollupBoostClient
 func (s *HealthMonitorTestSuite) SetupMonitorWithRollupBoost(
 	now, unsafeInterval, safeInterval uint64,
@@ -104,6 +106,7 @@ func (s *HealthMonitorTestSuite) SetupMonitorWithRollupBoost(
 	mockP2P *p2pMocks.API,
 	mockRollupBoost *clientmocks.RollupBoostClient,
 	elP2pClient client.ElP2PClient,
+	opts ...monitorOpts,
 ) *SequencerHealthMonitor {
 	tp := &timeProvider{now: now}
 	if mockP2P == nil {
@@ -136,6 +139,9 @@ func (s *HealthMonitorTestSuite) SetupMonitorWithRollupBoost(
 			minPeerCount: s.minElP2pPeerCount,
 			elP2pClient:  elP2pClient,
 		}
+	}
+	for _, opt := range opts {
+		opt(monitor)
 	}
 	err := monitor.Start(context.Background())
 	s.NoError(err)
@@ -438,6 +444,81 @@ func (s *HealthMonitorTestSuite) TestRollupBoostPartialStatus() {
 	healthUpdateCh := monitor.Subscribe()
 	healthFailure := <-healthUpdateCh
 	s.Equal(ErrRollupBoostPartiallyHealthy, healthFailure)
+
+	s.NoError(monitor.Stop())
+}
+
+func (s *HealthMonitorTestSuite) TestRollupBoostPartialStatusWithTolerance() {
+	s.T().Parallel()
+	now := uint64(time.Now().Unix())
+
+	// Setup healthy node conditions
+	rc := &testutils.MockRollupClient{}
+	ss1 := mockSyncStatus(now-1, 1, now-3, 0)
+
+	// because 6 healthchecks are going to be expected cause 6 calls of sync status
+	for i := 0; i < 6; i++ {
+		rc.ExpectSyncStatus(ss1, nil)
+	}
+
+	// Setup healthy peer count
+	pc := &p2pMocks.API{}
+	ps1 := &p2p.PeerStats{
+		Connected: healthyPeerCount,
+	}
+	pc.EXPECT().PeerStats(mock.Anything).Return(ps1, nil)
+
+	// Setup partial rollup boost status (treated as unhealthy)
+	rb := &clientmocks.RollupBoostClient{}
+	rb.EXPECT().Healthcheck(mock.Anything).Return(client.HealthStatusPartial, nil)
+
+	toleranceLimit := uint64(2)
+	toleranceIntervalSeconds := uint64(6)
+
+	timeBoundedRotatingCounter, err := NewTimeBoundedRotatingCounter(toleranceIntervalSeconds)
+	s.Nil(err)
+
+	tp := &timeProvider{now: 1758792282}
+
+	// Start monitor with all dependencies as well as tolerance of 2 rollup-boost partial unhealthiness per 3s period
+	monitor := s.SetupMonitorWithRollupBoost(now, 60, 60, rc, pc, rb, nil, func(shm *SequencerHealthMonitor) {
+		timeBoundedRotatingCounter.timeProviderFn = tp.Now
+
+		// pollute the cache of timeBoundRotatingCounter with 998 elements so as to later test the lazy cleanup
+		// note: the 999th and 1000th element will be added by the first healthcheck run
+		for i := 0; i < 999; i++ {
+			timeBoundedRotatingCounter.temporalCache[int64(i)] = uint64(1)
+		}
+
+		shm.rollupBoostPartialHealthinessToleranceCounter = timeBoundedRotatingCounter
+		shm.rollupBoostPartialHealthinessToleranceLimit = toleranceLimit
+	})
+
+	healthUpdateCh := monitor.Subscribe()
+
+	s.Eventually(func() bool {
+		return len(timeBoundedRotatingCounter.temporalCache) == 1000
+	}, time.Second*3, time.Second*1)
+
+	firstHealthStatus := <-healthUpdateCh
+	secondHealthStatus := <-healthUpdateCh
+	thirdHealthStatus := <-healthUpdateCh
+
+	s.Nil(firstHealthStatus)
+	s.Nil(secondHealthStatus)
+	s.Equal(ErrRollupBoostPartiallyHealthy, thirdHealthStatus)
+
+	tp.Now() // simulate another second passing
+	// by now, because of three healthchecks, six seconds (CurrentValue + Increment + CurrentValue + Increment + CurrentValue + tp.Now()) have been simulated to pass (by the timeProviderFn)
+	// this should reset the time bound counter, thereby allowing partial unhealthiness failures to be tolerated again
+
+	fourthHealthStatus := <-healthUpdateCh
+	fifthHealthStatus := <-healthUpdateCh
+	sixthHealthStatus := <-healthUpdateCh
+
+	s.Nil(fourthHealthStatus)
+	s.Nil(fifthHealthStatus)
+	s.Equal(ErrRollupBoostPartiallyHealthy, sixthHealthStatus)
 
 	s.NoError(monitor.Stop())
 }

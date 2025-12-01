@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
@@ -59,7 +60,7 @@ func UpgradeCLI(upgrader Upgrader) func(*cli.Context) error {
 
 		artifactsFS, err := artifacts.Download(ctx, artifactsLocator, ioutil.BarProgressor(), cacheDir)
 		if err != nil {
-			return fmt.Errorf("failed to download L1 artifacts: %w", err)
+			return fmt.Errorf("failed to download L1 artifacts: %w, url: %s", err, artifactsLocator)
 		}
 
 		host, err := env.DefaultForkedScriptHost(
@@ -91,12 +92,12 @@ func UpgradeCLI(upgrader Upgrader) func(*cli.Context) error {
 			return fmt.Errorf("failed to dump calldata: %w", err)
 		}
 
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		if err := enc.Encode(dump); err != nil {
-			return fmt.Errorf("failed to encode calldata: %w", err)
+		outfile := cliCtx.String(OutfileFlag.Name)
+		if err := jsonutil.WriteJSON(dump, ioutil.ToStdOutOrFileOrNoop(outfile, 0o666)); err != nil {
+			return fmt.Errorf("failed to write output: %w", err)
 		}
 
+		lgr.Info("Success! opcm.upgrade calldata created")
 		return nil
 	}
 }

@@ -2,12 +2,12 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_guardianSafe",
         "type": "address"
       },
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_foundationSafe",
         "type": "address"
       },
@@ -104,7 +104,7 @@
     "name": "foundationSafe",
     "outputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "foundationSafe_",
         "type": "address"
       }
@@ -117,7 +117,7 @@
     "name": "guardianSafe",
     "outputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "guardianSafe_",
         "type": "address"
       }

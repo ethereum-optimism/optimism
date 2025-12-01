@@ -138,9 +138,6 @@ func TestGetChain(t *testing.T) {
 							"deployer": common.HexToAddress("0x2345678901234567890123456789012345678901"),
 						},
 					},
-					L1Addresses: descriptors.AddressMap{
-						"deployer": common.HexToAddress("0x2345678901234567890123456789012345678901"),
-					},
 					L1Wallets: descriptors.WalletMap{
 						"deployer": &descriptors.Wallet{
 							Address:    common.HexToAddress("0x2345678901234567890123456789012345678901"),

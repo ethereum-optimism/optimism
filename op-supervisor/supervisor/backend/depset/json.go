@@ -26,7 +26,7 @@ type JSONDependencySetLoader struct {
 	Path string
 }
 
-func (j *JSONDependencySetLoader) LoadDependencySet(ctx context.Context) (DependencySet, error) {
+func (j *JSONDependencySetLoader) LoadDependencySet() (DependencySet, error) {
 	f, err := os.Open(j.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open dependency set: %w", err)

@@ -1,9 +1,9 @@
 package rollup
 
 import (
-	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
@@ -30,64 +30,8 @@ const (
 // ChainSpec instead of reading the rollup configuration field directly.
 const maxSequencerDriftFjord = 1800
 
-type ForkName string
-
-const (
-	Bedrock  ForkName = "bedrock"
-	Regolith ForkName = "regolith"
-	Canyon   ForkName = "canyon"
-	Delta    ForkName = "delta"
-	Ecotone  ForkName = "ecotone"
-	Fjord    ForkName = "fjord"
-	Granite  ForkName = "granite"
-	Holocene ForkName = "holocene"
-	Isthmus  ForkName = "isthmus"
-	Jovian   ForkName = "jovian"
-	Interop  ForkName = "interop"
-	// ADD NEW FORKS TO AllForks BELOW!
-	None ForkName = ""
-)
-
-var AllForks = []ForkName{
-	Bedrock,
-	Regolith,
-	Canyon,
-	Delta,
-	Ecotone,
-	Fjord,
-	Granite,
-	Holocene,
-	Isthmus,
-	Jovian,
-	Interop,
-	// ADD NEW FORKS HERE!
-}
-
-func ForksFrom(fork ForkName) []ForkName {
-	for i, f := range AllForks {
-		if f == fork {
-			return AllForks[i:]
-		}
-	}
-	panic(fmt.Sprintf("invalid fork: %s", fork))
-}
-
-var nextFork = func() map[ForkName]ForkName {
-	m := make(map[ForkName]ForkName, len(AllForks))
-	for i, f := range AllForks {
-		if i == len(AllForks)-1 {
-			m[f] = None
-			break
-		}
-		m[f] = AllForks[i+1]
-	}
-	return m
-}()
-
-func IsValidFork(fork ForkName) bool {
-	_, ok := nextFork[fork]
-	return ok
-}
+// Legacy type alias kept temporarily for rollup internals; external code should use forks.Name directly.
+type ForkName = forks.Name
 
 type ChainSpec struct {
 	config      *Config
@@ -173,36 +117,36 @@ func (s *ChainSpec) MaxSequencerDrift(t uint64) uint64 {
 func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
 	if s.currentFork == "" {
 		// Initialize currentFork if it is not set yet
-		s.currentFork = Bedrock
+		s.currentFork = forks.Bedrock
 		if s.config.IsRegolith(block.Time) {
-			s.currentFork = Regolith
+			s.currentFork = forks.Regolith
 		}
 		if s.config.IsCanyon(block.Time) {
-			s.currentFork = Canyon
+			s.currentFork = forks.Canyon
 		}
 		if s.config.IsDelta(block.Time) {
-			s.currentFork = Delta
+			s.currentFork = forks.Delta
 		}
 		if s.config.IsEcotone(block.Time) {
-			s.currentFork = Ecotone
+			s.currentFork = forks.Ecotone
 		}
 		if s.config.IsFjord(block.Time) {
-			s.currentFork = Fjord
+			s.currentFork = forks.Fjord
 		}
 		if s.config.IsGranite(block.Time) {
-			s.currentFork = Granite
+			s.currentFork = forks.Granite
 		}
 		if s.config.IsHolocene(block.Time) {
-			s.currentFork = Holocene
+			s.currentFork = forks.Holocene
 		}
 		if s.config.IsIsthmus(block.Time) {
-			s.currentFork = Isthmus
+			s.currentFork = forks.Isthmus
 		}
 		if s.config.IsJovian(block.Time) {
-			s.currentFork = Jovian
+			s.currentFork = forks.Jovian
 		}
 		if s.config.IsInterop(block.Time) {
-			s.currentFork = Interop
+			s.currentFork = forks.Interop
 		}
 		log.Info("Current hardfork version detected", "forkName", s.currentFork)
 		return
@@ -210,31 +154,31 @@ func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
 
 	foundActivationBlock := false
 
-	switch nextFork[s.currentFork] {
-	case Regolith:
+	switch forks.Next(s.currentFork) {
+	case forks.Regolith:
 		foundActivationBlock = s.config.IsRegolithActivationBlock(block.Time)
-	case Canyon:
+	case forks.Canyon:
 		foundActivationBlock = s.config.IsCanyonActivationBlock(block.Time)
-	case Delta:
+	case forks.Delta:
 		foundActivationBlock = s.config.IsDeltaActivationBlock(block.Time)
-	case Ecotone:
+	case forks.Ecotone:
 		foundActivationBlock = s.config.IsEcotoneActivationBlock(block.Time)
-	case Fjord:
+	case forks.Fjord:
 		foundActivationBlock = s.config.IsFjordActivationBlock(block.Time)
-	case Granite:
+	case forks.Granite:
 		foundActivationBlock = s.config.IsGraniteActivationBlock(block.Time)
-	case Holocene:
+	case forks.Holocene:
 		foundActivationBlock = s.config.IsHoloceneActivationBlock(block.Time)
-	case Isthmus:
+	case forks.Isthmus:
 		foundActivationBlock = s.config.IsIsthmusActivationBlock(block.Time)
-	case Jovian:
+	case forks.Jovian:
 		foundActivationBlock = s.config.IsJovianActivationBlock(block.Time)
-	case Interop:
+	case forks.Interop:
 		foundActivationBlock = s.config.IsInteropActivationBlock(block.Time)
 	}
 
 	if foundActivationBlock {
-		s.currentFork = nextFork[s.currentFork]
+		s.currentFork = forks.Next(s.currentFork)
 		log.Info("Detected hardfork activation block", "forkName", s.currentFork, "timestamp", block.Time, "blockNum", block.Number, "hash", block.Hash)
 	}
 }

@@ -559,6 +559,13 @@ func (m *Metrics) StartServer(hostname string, port int) (*ophttp.HTTPServer, er
 	return ophttp.StartHTTPServer(addr, h)
 }
 
+// Registry returns the underlying Prometheus registry used by this metrics instance.
+// This enables external services (e.g. a supervising process) to expose metrics
+// without starting an internal HTTP server per node.
+func (m *Metrics) Registry() *prometheus.Registry {
+	return m.registry
+}
+
 func (m *Metrics) Document() []metrics.DocumentedMetric {
 	return m.factory.Document()
 }

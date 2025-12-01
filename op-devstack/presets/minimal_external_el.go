@@ -17,9 +17,10 @@ type MinimalExternalEL struct {
 	L1Network *dsl.L1Network
 	L1EL      *dsl.L1ELNode
 
-	L2Chain *dsl.L2Network
-	L2CL    *dsl.L2CLNode
-	L2EL    *dsl.L2ELNode
+	L2Chain      *dsl.L2Network
+	L2CL         *dsl.L2CLNode
+	L2EL         *dsl.L2ELNode
+	L2ELReadOnly *dsl.L2ELNode
 
 	SyncTester *dsl.SyncTester
 }

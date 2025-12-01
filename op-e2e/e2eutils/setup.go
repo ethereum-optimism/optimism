@@ -109,11 +109,11 @@ func Ether(v uint64) *big.Int {
 }
 
 func GetL2AllocsMode(dc *genesis.DeployConfig, t uint64) genesis.L2AllocsMode {
-	if fork := dc.JovianTime(t); fork != nil && *fork <= 0 {
-		return genesis.L2AllocsJovian
-	}
 	if fork := dc.InteropTime(t); fork != nil && *fork <= 0 {
 		return genesis.L2AllocsInterop
+	}
+	if fork := dc.JovianTime(t); fork != nil && *fork <= 0 {
+		return genesis.L2AllocsJovian
 	}
 	if fork := dc.IsthmusTime(t); fork != nil && *fork <= 0 {
 		return genesis.L2AllocsIsthmus

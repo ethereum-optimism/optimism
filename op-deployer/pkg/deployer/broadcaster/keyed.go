@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	GasPadFactor = 2.0
+	GasPadFactor = 1.2
 )
 
 type KeyedBroadcaster struct {

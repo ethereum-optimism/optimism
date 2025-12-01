@@ -27,7 +27,7 @@ contract XDomainSetter2 is CrossDomainOwnable2 {
 
 /// @title CrossDomainOwnable2_TestInit
 /// @notice Reusable test initialization for `CrossDomainOwnable2` tests.
-contract CrossDomainOwnable2_TestInit is CommonTest {
+abstract contract CrossDomainOwnable2_TestInit is CommonTest {
     XDomainSetter2 setter;
 
     function setUp() public virtual override {

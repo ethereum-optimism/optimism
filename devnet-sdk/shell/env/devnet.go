@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/controller/surface"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -138,8 +139,12 @@ func fixupDevnetConfig(config *descriptors.DevnetEnvironment) error {
 		return fmt.Errorf("invalid L1 ID: %s", config.L1.ID)
 	}
 	if config.L1.Config == nil {
-		config.L1.Config = &params.ChainConfig{
-			ChainID: l1ID,
+		if l1Config := eth.L1ChainConfigByChainID(eth.ChainIDFromBig(l1ID)); l1Config != nil {
+			config.L1.Config = l1Config
+		} else {
+			config.L1.Config = &params.ChainConfig{
+				ChainID: l1ID,
+			}
 		}
 	}
 	for _, l2Chain := range config.L2 {

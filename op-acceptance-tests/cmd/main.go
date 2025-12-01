@@ -298,6 +298,11 @@ func runOpAcceptor(ctx context.Context, tracer trace.Tracer, config AcceptorConf
 		args = append(args, "--allow-skips")
 	}
 
+	// Exclude quarantined tests by default in all runs except when explicitly running the flake-shake gate
+	if config.Gate != "flake-shake" {
+		args = append(args, "--exclude-gates", "flake-shake")
+	}
+
 	acceptorCmd := exec.CommandContext(ctx, config.Acceptor, args...)
 	acceptorCmd.Env = env
 	acceptorCmd.Stdout = os.Stdout

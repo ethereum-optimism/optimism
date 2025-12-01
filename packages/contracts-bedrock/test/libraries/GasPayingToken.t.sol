@@ -15,7 +15,7 @@ contract GasPayingToken_Harness {
 
 /// @title GasPayingToken_TestInit
 /// @notice Reusable test initialization for `GasPayingToken` tests.
-contract GasPayingToken_TestInit is Test {
+abstract contract GasPayingToken_TestInit is Test {
     GasPayingToken_Harness harness;
 
     function setUp() public {
@@ -116,10 +116,10 @@ contract GasPayingToken_Sanitize_Test is GasPayingToken_TestInit {
     }
 }
 
-/// @title GasPayingToken_Unclassified_Test
+/// @title GasPayingToken_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `GasPayingToken`
 ///         library or are testing multiple functions at once.
-contract GasPayingToken_Unclassified_Test is GasPayingToken_TestInit {
+contract GasPayingToken_Uncategorized_Test is GasPayingToken_TestInit {
     /// @notice Test that the gas paying token correctly sets values in storage when input name
     ///         and symbol are strings.
     function testFuzz_setGetWithSanitize_succeeds(

@@ -87,4 +87,28 @@ func TestNonceManagerInsertGap(t *testing.T) {
 		require.Equal(t, uint64(30), nm.Next())
 		require.Equal(t, uint64(100), nm.Next())
 	})
+
+	t.Run("future gap is a no-op", func(t *testing.T) {
+		nm := newNonceManager(20)
+
+		nm.InsertGap(21)
+
+		require.Equal(t, uint64(20), nm.Next())
+		require.Equal(t, uint64(21), nm.Next())
+		require.Equal(t, uint64(22), nm.Next())
+	})
+
+	t.Run("handles multiple future gaps", func(t *testing.T) {
+		nm := newNonceManager(20)
+
+		nm.InsertGap(21)
+		nm.InsertGap(22)
+		nm.InsertGap(23)
+
+		require.Equal(t, uint64(20), nm.Next())
+		require.Equal(t, uint64(21), nm.Next())
+		require.Equal(t, uint64(22), nm.Next())
+		require.Equal(t, uint64(23), nm.Next())
+		require.Equal(t, uint64(24), nm.Next())
+	})
 }

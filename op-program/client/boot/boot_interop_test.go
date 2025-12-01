@@ -24,7 +24,7 @@ func TestInteropBootstrap_SimpleValues(t *testing.T) {
 		Claim:          common.Hash{0xcc},
 		GameTimestamp:  49829482,
 	}
-	mockOracle := newMockInteropBootstrapOracle(expected, false)
+	mockOracle := newMockInteropBootstrapOracle(expected, false, params.SepoliaChainConfig)
 	actual := BootstrapInterop(mockOracle)
 	require.Equal(t, expected.L1Head, actual.L1Head)
 	require.Equal(t, expected.AgreedPrestate, actual.AgreedPrestate)
@@ -40,7 +40,7 @@ func TestInteropBootstrap_RollupConfigBuiltIn(t *testing.T) {
 		Claim:          common.Hash{0xcc},
 		GameTimestamp:  49829482,
 	}
-	mockOracle := newMockInteropBootstrapOracle(expected, false)
+	mockOracle := newMockInteropBootstrapOracle(expected, false, params.SepoliaChainConfig)
 	actual := BootstrapInterop(mockOracle)
 	actualCfg, err := actual.Configs.RollupConfig(eth.ChainIDFromBig(expectedCfg.L2ChainID))
 	require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestInteropBootstrap_RollupConfigCustom(t *testing.T) {
 		Claim:          common.Hash{0xcc},
 		GameTimestamp:  49829482,
 	}
-	mockOracle := newMockInteropBootstrapOracle(source, true)
+	mockOracle := newMockInteropBootstrapOracle(source, true, params.SepoliaChainConfig)
 	mockOracle.rollupCfgs = []*rollup.Config{config1, config2}
 	actual := BootstrapInterop(mockOracle)
 	actualCfg, err := actual.Configs.RollupConfig(eth.ChainIDFromBig(config1.L2ChainID))
@@ -76,7 +76,7 @@ func TestInteropBootstrap_ChainConfigBuiltIn(t *testing.T) {
 		Claim:          common.Hash{0xcc},
 		GameTimestamp:  49829482,
 	}
-	mockOracle := newMockInteropBootstrapOracle(expected, false)
+	mockOracle := newMockInteropBootstrapOracle(expected, false, params.SepoliaChainConfig)
 	actual := BootstrapInterop(mockOracle)
 	actualCfg, err := actual.Configs.ChainConfig(eth.ChainIDFromBig(expectedCfg.ChainID))
 	require.NoError(t, err)
@@ -92,7 +92,7 @@ func TestInteropBootstrap_ChainConfigCustom(t *testing.T) {
 		Claim:          common.Hash{0xcc},
 		GameTimestamp:  49829482,
 	}
-	mockOracle := newMockInteropBootstrapOracle(expected, true)
+	mockOracle := newMockInteropBootstrapOracle(expected, true, params.SepoliaChainConfig)
 	mockOracle.chainCfgs = []*params.ChainConfig{config1, config2}
 	mockOracle.depset, _ = depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
 		eth.ChainIDFromBig(config1.ChainID): {},
@@ -107,6 +107,11 @@ func TestInteropBootstrap_ChainConfigCustom(t *testing.T) {
 	actualCfg, err = actual.Configs.ChainConfig(eth.ChainIDFromBig(config2.ChainID))
 	require.NoError(t, err)
 	require.Equal(t, config2, actualCfg)
+
+	actualCfg, err = actual.Configs.L1ChainConfig(eth.ChainIDFromBig(params.SepoliaChainConfig.ChainID))
+	require.NoError(t, err)
+	require.Equal(t, params.SepoliaChainConfig, actualCfg)
+
 }
 
 func TestInteropBootstrap_DependencySetCustom(t *testing.T) {
@@ -118,7 +123,7 @@ func TestInteropBootstrap_DependencySetCustom(t *testing.T) {
 		Claim:          common.Hash{0xcc},
 		GameTimestamp:  49829482,
 	}
-	mockOracle := newMockInteropBootstrapOracle(expected, true)
+	mockOracle := newMockInteropBootstrapOracle(expected, true, params.SepoliaChainConfig)
 	var err error
 	mockOracle.depset, err = depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
 		eth.ChainIDFromBig(config1.ChainID): {},
@@ -132,7 +137,7 @@ func TestInteropBootstrap_DependencySetCustom(t *testing.T) {
 	require.Equal(t, mockOracle.depset, depset)
 }
 
-func newMockInteropBootstrapOracle(b *BootInfoInterop, custom bool) *mockInteropBootstrapOracle {
+func newMockInteropBootstrapOracle(b *BootInfoInterop, custom bool, l1ChainCfg *params.ChainConfig) *mockInteropBootstrapOracle {
 	return &mockInteropBootstrapOracle{
 		mockBootstrapOracle: mockBootstrapOracle{
 			l1Head:             b.L1Head,
@@ -140,7 +145,8 @@ func newMockInteropBootstrapOracle(b *BootInfoInterop, custom bool) *mockInterop
 			l2Claim:            b.Claim,
 			l2ClaimBlockNumber: b.GameTimestamp,
 		},
-		custom: custom,
+		custom:     custom,
+		l1ChainCfg: l1ChainCfg,
 	}
 }
 
@@ -148,6 +154,7 @@ type mockInteropBootstrapOracle struct {
 	mockBootstrapOracle
 	rollupCfgs []*rollup.Config
 	chainCfgs  []*params.ChainConfig
+	l1ChainCfg *params.ChainConfig
 	depset     *depset.StaticConfigDependencySet
 	custom     bool
 }
@@ -173,6 +180,12 @@ func (o *mockInteropBootstrapOracle) Get(key preimage.Key) []byte {
 			panic(fmt.Sprintf("unexpected oracle request for preimage key %x", key.PreimageKey()))
 		}
 		b, _ := json.Marshal(o.depset)
+		return b
+	case L1ChainConfigLocalIndex.PreimageKey():
+		if !o.custom {
+			panic(fmt.Sprintf("unexpected oracle request for preimage key %x", key.PreimageKey()))
+		}
+		b, _ := json.Marshal(o.l1ChainCfg)
 		return b
 	default:
 		return o.mockBootstrapOracle.Get(key)

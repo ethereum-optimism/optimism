@@ -10,7 +10,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 /// @title DeployerWhitelist_TestInit
 /// @notice Reusable test initialization for `DeployerWhitelist` tests.
-contract DeployerWhitelist_TestInit is Test {
+abstract contract DeployerWhitelist_TestInit is Test {
     IDeployerWhitelist list;
     address owner = address(12345);
 

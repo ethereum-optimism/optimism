@@ -14,8 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
 type L2AllocsMode string
@@ -29,8 +29,8 @@ const (
 	L2AllocsGranite  L2AllocsMode = "granite"
 	L2AllocsHolocene L2AllocsMode = "holocene"
 	L2AllocsIsthmus  L2AllocsMode = "isthmus"
-	L2AllocsInterop  L2AllocsMode = "interop"
 	L2AllocsJovian   L2AllocsMode = "jovian"
+	L2AllocsInterop  L2AllocsMode = "interop"
 )
 
 var (

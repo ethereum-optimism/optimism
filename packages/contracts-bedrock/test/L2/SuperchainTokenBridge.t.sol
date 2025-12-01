@@ -18,7 +18,7 @@ import { MockSuperchainERC20Implementation } from "test/mocks/SuperchainERC20Imp
 
 /// @title SuperchainTokenBridge_TestInit
 /// @notice Reusable test initialization for `SuperchainTokenBridge` tests.
-contract SuperchainTokenBridge_TestInit is Test {
+abstract contract SuperchainTokenBridge_TestInit is Test {
     address internal constant ZERO_ADDRESS = address(0);
     string internal constant NAME = "SuperchainERC20";
     string internal constant SYMBOL = "OSE";

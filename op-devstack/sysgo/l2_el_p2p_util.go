@@ -64,6 +64,29 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 	require.NoError(err, "The peer was not connected")
 }
 
+// DisconnectP2P disconnects a p2p peer connection between node1 and node2.
+func DisconnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcCaller, acceptor RpcCaller) {
+	var targetInfo p2p.NodeInfo
+	require.NoError(acceptor.CallContext(ctx, &targetInfo, "admin_nodeInfo"), "get node info")
+
+	var peerRemoved bool
+	require.NoError(initiator.CallContext(ctx, &peerRemoved, "admin_removePeer", targetInfo.ENR), "add peer")
+	require.True(peerRemoved, "should have removed peer successfully")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err := wait.For(ctx, time.Second, func() (bool, error) {
+		var peers []peer
+		if err := initiator.CallContext(ctx, &peers, "admin_peers"); err != nil {
+			return false, err
+		}
+		return !slices.ContainsFunc(peers, func(p peer) bool {
+			return p.ID == targetInfo.ID
+		}), nil
+	})
+	require.NoError(err, "The peer was not removed")
+}
+
 type peer struct {
 	ID string `json:"id"`
 }

@@ -16,13 +16,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/boot"
 	"github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/urfave/cli/v2"
@@ -86,6 +86,10 @@ type Config struct {
 	// L2ChainConfigs are the op-geth chain config for the L2 execution engines
 	// Must have one chain config for each rollup config
 	L2ChainConfigs []*params.ChainConfig
+	// L1ChainConfig is the geth chain config for the L1 execution engine
+	// For interop, we only have one L1 chain config
+	// since all L2 chains must have the same L1
+	L1ChainConfig *params.ChainConfig
 	// ExecCmd specifies the client program to execute in a separate process.
 	// If unset, the fault proof client is run in the same process.
 	ExecCmd string
@@ -183,6 +187,7 @@ func (c *Config) FetchingEnabled() bool {
 func NewSingleChainConfig(
 	rollupCfg *rollup.Config,
 	l2ChainConfig *params.ChainConfig,
+	l1ChainConfig *params.ChainConfig,
 	l1Head common.Hash,
 	l2Head common.Hash,
 	l2OutputRoot common.Hash,
@@ -198,6 +203,7 @@ func NewSingleChainConfig(
 	cfg := NewConfig(
 		[]*rollup.Config{rollupCfg},
 		[]*params.ChainConfig{l2ChainConfig},
+		l1ChainConfig,
 		l1Head,
 		l2Head,
 		l2OutputRoot,
@@ -211,6 +217,7 @@ func NewSingleChainConfig(
 func NewConfig(
 	rollupCfgs []*rollup.Config,
 	l2ChainConfigs []*params.ChainConfig,
+	l1ChainConfig *params.ChainConfig,
 	l1Head common.Hash,
 	l2Head common.Hash,
 	l2OutputRoot common.Hash,
@@ -219,6 +226,7 @@ func NewConfig(
 ) *Config {
 	return &Config{
 		Rollups:            rollupCfgs,
+		L1ChainConfig:      l1ChainConfig,
 		L2ChainConfigs:     l2ChainConfigs,
 		L1Head:             l1Head,
 		L2Head:             l2Head,
@@ -289,7 +297,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 			chainID = eth.ChainIDFromUInt64(ch.ChainID)
 		}
 
-		l2ChainConfig, err := chainconfig.ChainConfigByChainID(chainID)
+		l2ChainConfig, err := chainconfig.L2ChainConfigByChainID(chainID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load chain config for chain %d: %w", chainID, err)
 		}
@@ -299,6 +307,8 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 			return nil, fmt.Errorf("failed to load rollup config for chain %d: %w", chainID, err)
 		}
 		rollupCfgs = append(rollupCfgs, rollupCfg)
+
+		// L1 chain config resolution deferred until after all rollup configs are loaded
 
 		if interopEnabled {
 			depSet, err := depset.FromRegistry(chainID)
@@ -328,8 +338,38 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 			return nil, fmt.Errorf("invalid rollup config: %w", err)
 		}
 		rollupCfgs = append(rollupCfgs, rollupCfg)
-
 	}
+
+	// Resolve L1 chain config akin to op-node's NewL1ChainConfig
+	if len(rollupCfgs) == 0 {
+		return nil, fmt.Errorf("no rollup configs provided to resolve L1 chain config")
+	}
+	l1ChainIDBig := rollupCfgs[0].L1ChainID
+	l1ChainConfig := eth.L1ChainConfigByChainID(eth.ChainIDFromBig(l1ChainIDBig))
+	if l1ChainConfig == nil {
+		// if the l1 chain config is not known, we fallback to the CLI flag if set...
+		if ctx.IsSet(flags.L1ChainConfig.Name) {
+			cf, err := loadL1ChainConfigFromFile(ctx.String(flags.L1ChainConfig.Name))
+			if err != nil {
+				return nil, fmt.Errorf("invalid l1 chain config: %w", err)
+			}
+			if cf.ChainID.Cmp(l1ChainIDBig) != 0 {
+				return nil, fmt.Errorf("l1 chain config chain ID mismatch: %v != %v", cf.ChainID, l1ChainIDBig)
+			}
+			l1ChainConfig = cf
+		} else {
+			// ... or the program-embedded lookup if no CLI flag is set
+			lc, err := chainconfig.L1ChainConfigByChainID(eth.ChainIDFromBig(l1ChainIDBig))
+			if err != nil {
+				return nil, fmt.Errorf("failed to load l1 chain config for chain %d: %w", eth.EvilChainIDToUInt64(eth.ChainIDFromBig(l1ChainIDBig)), err)
+			}
+			l1ChainConfig = lc
+		}
+	}
+	if l1ChainConfig == nil || l1ChainConfig.BlobScheduleConfig == nil {
+		return nil, fmt.Errorf("L1 chain config does not have a blob schedule config")
+	}
+
 	if ctx.Bool(flags.L2Custom.Name) {
 		log.Warn("Using custom chain configuration via preimage oracle. This is not compatible with on-chain execution.")
 		l2ChainID = boot.CustomChainIDIndicator
@@ -358,6 +398,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	return &Config{
 		L2ChainID:          l2ChainID,
 		Rollups:            rollupCfgs,
+		L1ChainConfig:      l1ChainConfig,
 		DataDir:            ctx.String(flags.DataDir.Name),
 		DataFormat:         dbFormat,
 		L2URLs:             ctx.StringSlice(flags.L2NodeAddr.Name),
@@ -381,16 +422,30 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 }
 
 func loadChainConfigFromGenesis(path string) (*params.ChainConfig, error) {
-	data, err := os.ReadFile(path)
+	cfg, err := jsonutil.LoadJSONFieldStrict[params.ChainConfig](path, "config")
 	if err != nil {
-		return nil, fmt.Errorf("read l2 genesis file: %w", err)
+		return nil, fmt.Errorf("parse genesis file: %w", err)
 	}
-	var genesis core.Genesis
-	err = json.Unmarshal(data, &genesis)
+	return cfg, nil
+}
+
+// loadL1ChainConfigFromFile attempts to decode a file as a params.ChainConfig directly,
+// and if that fails, it attempts to load the config from the .config field (genesis.json format).
+func loadL1ChainConfigFromFile(path string) (*params.ChainConfig, error) {
+	file, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("parse l2 genesis file: %w", err)
+		return nil, fmt.Errorf("failed to read chain spec: %w", err)
 	}
-	return genesis.Config, nil
+	defer file.Close()
+
+	var chainConfig params.ChainConfig
+	dec := json.NewDecoder(file)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&chainConfig); err == nil {
+		return &chainConfig, nil
+	}
+
+	return jsonutil.LoadJSONFieldStrict[params.ChainConfig](path, "config")
 }
 
 func loadRollupConfig(rollupConfigPath string) (*rollup.Config, error) {

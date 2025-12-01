@@ -30,6 +30,7 @@ type DisputeGameFactory struct {
 	GameCount   func() TypedCall[*big.Int]                      `sol:"gameCount"`
 	GameAtIndex func(index *big.Int) TypedCall[DisputeGame]     `sol:"gameAtIndex"`
 	GameImpls   func(gameType uint32) TypedCall[common.Address] `sol:"gameImpls"`
+	GameArgs    func(gameType uint32) TypedCall[[]byte]         `sol:"gameArgs"`
 	Games       func(gameType uint32, rootClaim common.Hash, extraData []byte) TypedCall[struct {
 		Proxy     common.Address
 		Timestamp uint64

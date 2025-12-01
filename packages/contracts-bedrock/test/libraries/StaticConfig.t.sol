@@ -10,7 +10,7 @@ import { StaticConfig } from "src/libraries/StaticConfig.sol";
 
 /// @title StaticConfig_TestInit
 /// @notice Reusable test initialization for `StaticConfig` tests.
-contract StaticConfig_TestInit is Test {
+abstract contract StaticConfig_TestInit is Test {
     FFIInterface constant ffi = FFIInterface(address(uint160(uint256(keccak256(abi.encode("optimism.ffi"))))));
 
     function setUp() public {

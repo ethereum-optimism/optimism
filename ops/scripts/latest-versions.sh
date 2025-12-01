@@ -120,8 +120,8 @@ done < <(git ls-remote --tags origin)
 # Process each component once and store results in `latest_versions`, `stable_versions`
 for component in "${!component_versions[@]}"; do
   result=$(find_latest_versions "${component_versions[$component]}")
-  latest_versions["$component"]="${result%|*}"  # Everything before pipe delimiter
-  stable_versions["$component"]="${result#*|}"  # Everything after pipe delimiter
+  latest_versions["$component"]="${result%|*}" # Everything before pipe delimiter
+  stable_versions["$component"]="${result#*|}" # Everything after pipe delimiter
 done
 
 # Sort components alphabetically for consistent output

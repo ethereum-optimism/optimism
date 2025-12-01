@@ -12,7 +12,7 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 
 /// @title DisputeMonitorHelper_TestInit
 /// @notice Reusable test initialization for `DisputeMonitorHelper` tests.
-contract DisputeMonitorHelper_TestInit is DisputeGameFactory_TestInit {
+abstract contract DisputeMonitorHelper_TestInit is DisputeGameFactory_TestInit {
     DisputeMonitorHelper helper;
 
     function setUp() public override {

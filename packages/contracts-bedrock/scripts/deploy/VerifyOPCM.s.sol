@@ -12,6 +12,7 @@ import { LibString } from "@solady/utils/LibString.sol";
 import { Process } from "scripts/libraries/Process.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -113,6 +114,8 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["optimismPortalInteropImpl"] = "OptimismPortalInterop";
         fieldNameOverrides["mipsImpl"] = "MIPS64";
         fieldNameOverrides["ethLockboxImpl"] = "ETHLockbox";
+        fieldNameOverrides["faultDisputeGameV2Impl"] = "FaultDisputeGameV2";
+        fieldNameOverrides["permissionedDisputeGameV2Impl"] = "PermissionedDisputeGameV2";
         fieldNameOverrides["permissionlessDisputeGame1"] = "FaultDisputeGame";
         fieldNameOverrides["permissionlessDisputeGame2"] = "FaultDisputeGame";
         fieldNameOverrides["permissionedDisputeGame1"] = "PermissionedDisputeGame";
@@ -126,6 +129,7 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["opcmUpgrader"] = "OPContractsManagerUpgrader";
         fieldNameOverrides["opcmInteropMigrator"] = "OPContractsManagerInteropMigrator";
         fieldNameOverrides["opcmStandardValidator"] = "OPContractsManagerStandardValidator";
+        fieldNameOverrides["opcmV2"] = "OPContractsManagerV2";
         fieldNameOverrides["contractsContainer"] = "OPContractsManagerContractsContainer";
 
         // Overrides for situations where contracts have differently named source files.
@@ -146,8 +150,6 @@ contract VerifyOPCM is Script {
         // Getters verified via environment variables in _verifyOpcmImmutableVariables()
         expectedGetters["protocolVersions"] = "EXPECTED_PROTOCOL_VERSIONS";
         expectedGetters["superchainConfig"] = "EXPECTED_SUPERCHAIN_CONFIG";
-        expectedGetters["superchainProxyAdmin"] = "EXPECTED_SUPERCHAIN_PROXY_ADMIN";
-        expectedGetters["upgradeController"] = "EXPECTED_UPGRADE_CONTROLLER";
 
         // Getters for OPCM sub-contracts (addresses verified via bytecode comparison)
         expectedGetters["opcmDeployer"] = "SKIP"; // Address verified via bytecode comparison
@@ -155,6 +157,7 @@ contract VerifyOPCM is Script {
         expectedGetters["opcmInteropMigrator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmStandardValidator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmUpgrader"] = "SKIP"; // Address verified via bytecode comparison
+        expectedGetters["opcmV2"] = "SKIP"; // Address verified via bytecode comparison
 
         // Getters that don't need any sort of verification
         expectedGetters["devFeatureBitmap"] = "SKIP";
@@ -178,8 +181,14 @@ contract VerifyOPCM is Script {
     /// @param _addr Address of the contract to verify.
     /// @param _skipConstructorVerification Whether to skip constructor verification.
     function runSingle(string memory _name, address _addr, bool _skipConstructorVerification) public {
+        // This function is used as part of the release checklist to verify new contracts.
+        // Rather than requiring an opcm input parameter, just pass in an empty reference
+        // as we really only need this for features that are in development.
+        IOPContractsManager emptyOpcm = IOPContractsManager(address(0));
         _verifyOpcmContractRef(
-            OpcmContractRef({ field: _name, name: _name, addr: _addr, blueprint: false }), _skipConstructorVerification
+            emptyOpcm,
+            OpcmContractRef({ field: _name, name: _name, addr: _addr, blueprint: false }),
+            _skipConstructorVerification
         );
     }
 
@@ -214,7 +223,7 @@ contract VerifyOPCM is Script {
         // Verify each reference.
         bool success = true;
         for (uint256 i = 0; i < refs.length; i++) {
-            success = _verifyOpcmContractRef(refs[i], _skipConstructorVerification) && success;
+            success = _verifyOpcmContractRef(opcm, refs[i], _skipConstructorVerification) && success;
         }
 
         // Final Result
@@ -382,16 +391,20 @@ contract VerifyOPCM is Script {
     }
 
     /// @notice Verifies a single OPCM contract reference (implementation or bytecode).
+    /// @param _opcm The OPCM contract that contains the target contract reference.
     /// @param _target The target contract reference to verify.
     /// @param _skipConstructorVerification Whether to skip constructor verification.
     /// @return True if the contract reference is verified, false otherwise.
     function _verifyOpcmContractRef(
+        IOPContractsManager _opcm,
         OpcmContractRef memory _target,
         bool _skipConstructorVerification
     )
         internal
         returns (bool)
     {
+        bool success = true;
+
         console.log();
         console.log(string.concat("Checking Contract: ", _target.field));
         console.log(string.concat("  Type: ", _target.blueprint ? "Blueprint" : "Implementation"));
@@ -401,6 +414,43 @@ contract VerifyOPCM is Script {
         // Build the expected path to the artifact file.
         string memory artifactPath = _buildArtifactPath(_target.name);
         console.log(string.concat("  Expected Runtime Artifact: ", artifactPath));
+
+        // Check if this is a V1 dispute game that should be skipped
+        if (_isV1DisputeGameImplementation(_target.name) && _target.blueprint) {
+            if (_isV2DisputeGamesEnabled(_opcm)) {
+                console.log("[SKIP] Dispute game blueprint not deployed (dispute game v2 feature enabled)");
+                return true; // Consider this "verified" when feature is on
+            } else if (_target.addr == address(0)) {
+                console.log("[FAIL] Dispute game blueprint not deployed (dispute game v2 feature disabled)");
+                success = false;
+            }
+        }
+        // Check if this is a V2 dispute game that should be skipped
+        if (_isV2DisputeGameImplementation(_target.name)) {
+            if (!_isV2DisputeGamesEnabled(_opcm)) {
+                if (_target.addr == address(0)) {
+                    console.log("[SKIP] V2 dispute game not deployed (feature disabled)");
+                    return true; // Consider this "verified" when feature is off
+                } else {
+                    console.log("[FAIL] ERROR: V2 dispute game deployed but feature disabled");
+                    success = false;
+                }
+            }
+            // If feature is enabled, continue with normal verification
+        }
+        // Check if this is a Super dispute game that should be skipped
+        if (_isSuperDisputeGameImplementation(_target.name)) {
+            if (!_isSuperDisputeGamesEnabled(_opcm)) {
+                if (_target.addr == address(0)) {
+                    console.log("[SKIP] Super game not deployed (feature disabled)");
+                    return true; // Consider this "verified" when feature is off
+                } else {
+                    console.log("[FAIL] ERROR: Super game deployed but feature disabled");
+                    success = false;
+                }
+            }
+            // If feature is enabled, continue with normal verification
+        }
 
         // Load artifact information (bytecode, immutable refs) for detailed comparison
         ArtifactInfo memory artifact = _loadArtifactInfo(artifactPath);
@@ -443,24 +493,12 @@ contract VerifyOPCM is Script {
         }
 
         // Perform detailed bytecode comparison.
-        bool success = _compareBytecode(actualCode, expectedCode, _target.name, artifact, !_target.blueprint);
+        success = _compareBytecode(actualCode, expectedCode, _target.name, artifact, !_target.blueprint) && success;
 
         // If requested and this is not a blueprint, we also need to check the creation code.
         if (!_target.blueprint && !_skipConstructorVerification) {
-            // Use the Etherscan API to get the creation code.
-            bytes memory actualCreationCode = bytes(
-                Process.bash(
-                    string.concat(
-                        "curl -s 'https://api.etherscan.io/v2/api?chainid=",
-                        vm.toString(block.chainid),
-                        "&module=contract&action=getcontractcreation&contractaddresses=",
-                        vm.toString(_target.addr),
-                        "&apikey=",
-                        Config.etherscanApiKey(),
-                        "' | jq -r '.result[0].creationBytecode'"
-                    )
-                )
-            );
+            // Get the creation code from the selected block explorer.
+            bytes memory actualCreationCode = _getCreationCode(_target.addr);
 
             // Verify that the artifact bytecode is a prefix of the actual creation code and
             // extract any remaining bytes so we can verify the constructor arguments.
@@ -496,6 +534,79 @@ contract VerifyOPCM is Script {
         }
 
         return success;
+    }
+
+    /// @notice Gets the creation code for a given contract address from the configured block explorer.
+    /// @param _addr The address of the contract to get the creation code for.
+    /// @return The creation code of the contract.
+    function _getCreationCode(address _addr) internal returns (bytes memory) {
+        // Prepare the command to execute.
+        string memory cmd;
+
+        // Check which block explorer to use.
+        if (LibString.eq(Config.blockExplorer(), "blockscout")) {
+            console.log("  Fetching creation code from Blockscout...");
+            cmd = string.concat(
+                "curl -s '",
+                Config.blockscoutApiUrl(),
+                "/api?module=contract&action=getcontractcreation&contractaddresses=",
+                vm.toString(_addr),
+                "' | jq -r '.result[0].creationBytecode'"
+            );
+        } else {
+            console.log("  Fetching creation code from Etherscan...");
+            cmd = string.concat(
+                "curl -s 'https://api.etherscan.io/v2/api?chainid=",
+                vm.toString(block.chainid),
+                "&module=contract&action=getcontractcreation&contractaddresses=",
+                vm.toString(_addr),
+                "&apikey=",
+                Config.etherscanApiKey(),
+                "' | jq -r '.result[0].creationBytecode'"
+            );
+        }
+
+        // Execute the command.
+        return bytes(Process.bash(cmd));
+    }
+
+    /// @notice Checks if V2 dispute games feature is enabled in the dev feature bitmap.
+    /// @param _opcm The OPContractsManager to check.
+    /// @return True if V2 dispute games are enabled.
+    function _isV2DisputeGamesEnabled(IOPContractsManager _opcm) internal view returns (bool) {
+        bytes32 bitmap = _opcm.devFeatureBitmap();
+        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
+    }
+
+    /// @notice Checks if super dispute games feature is enabled in the dev feature bitmap.
+    /// @param _opcm The OPContractsManager to check.
+    /// @return True if super dispute games are enabled.
+    function _isSuperDisputeGamesEnabled(IOPContractsManager _opcm) internal view returns (bool) {
+        bytes32 bitmap = _opcm.devFeatureBitmap();
+        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+    }
+
+    /// @notice Checks if a contract is a V1 dispute game implementation.
+    /// @param _contractName The name to check.
+    /// @return True if this is a V1 dispute game.
+    function _isV1DisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
+        return LibString.eq(_contractName, "FaultDisputeGame") || LibString.eq(_contractName, "PermissionedDisputeGame");
+    }
+
+    /// @notice Checks if a contract is a V2 dispute game implementation.
+    /// @param _contractName The name to check.
+    /// @return True if this is a V2 dispute game.
+    function _isV2DisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
+        return LibString.eq(_contractName, "FaultDisputeGameV2")
+            || LibString.eq(_contractName, "PermissionedDisputeGameV2");
+    }
+
+    /// @notice Checks if a contract is a Super dispute game implementation.
+    /// @param _contractName The name to check.
+    /// @return True if this is a V2 dispute game.
+    function _isSuperDisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
+        return LibString.eq(_contractName, "SuperFaultDisputeGame")
+            || LibString.eq(_contractName, "SuperPermissionedDisputeGame");
     }
 
     /// @notice Verifies that the immutable variables in the OPCM contract match expected values.

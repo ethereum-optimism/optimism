@@ -224,7 +224,7 @@ func newL2ChainFromDescriptor(d *descriptors.L2Chain) (*l2Chain, error) {
 	// TODO: handle incorrect descriptors better. We could panic here.
 
 	nodes := newNodesFromDescriptor(d.Chain)
-	c := newL2Chain(d.ID, nil, nil, d.Config, AddressMap(d.L1Addresses), AddressMap(d.Addresses), nodes) // Create chain first
+	c := newL2Chain(d.ID, nil, nil, d.Config, AddressMap(d.Addresses), nodes) // Create chain first
 
 	l2Wallets, err := newWalletMapFromDescriptorWalletMap(d.Wallets, c)
 	if err != nil {
@@ -241,23 +241,17 @@ func newL2ChainFromDescriptor(d *descriptors.L2Chain) (*l2Chain, error) {
 	return c, nil
 }
 
-func newL2Chain(chainID string, l1Wallets WalletMap, l2Wallets WalletMap, chainConfig *params.ChainConfig, l1Addresses AddressMap, l2Addresses AddressMap, nodes []Node) *l2Chain {
+func newL2Chain(chainID string, l1Wallets WalletMap, l2Wallets WalletMap, chainConfig *params.ChainConfig, l2Addresses AddressMap, nodes []Node) *l2Chain {
 	chain := &l2Chain{
-		chain:       newChain(chainID, l2Wallets, chainConfig, l2Addresses, nodes),
-		l1Addresses: l1Addresses,
-		l1Wallets:   l1Wallets,
+		chain:     newChain(chainID, l2Wallets, chainConfig, l2Addresses, nodes),
+		l1Wallets: l1Wallets,
 	}
 	return chain
 }
 
 type l2Chain struct {
 	*chain
-	l1Addresses AddressMap
-	l1Wallets   WalletMap
-}
-
-func (c *l2Chain) L1Addresses() AddressMap {
-	return c.l1Addresses
+	l1Wallets WalletMap
 }
 
 func (c *l2Chain) L1Wallets() WalletMap {

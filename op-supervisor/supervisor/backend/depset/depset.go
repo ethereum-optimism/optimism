@@ -1,7 +1,6 @@
 package depset
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -10,7 +9,7 @@ import (
 )
 
 type DependencySetSource interface {
-	LoadDependencySet(ctx context.Context) (DependencySet, error)
+	LoadDependencySet() (DependencySet, error)
 }
 
 // DependencySet is an initialized dependency set, ready to answer queries

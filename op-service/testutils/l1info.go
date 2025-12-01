@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 var _ eth.BlockInfo = &MockBlockInfo{}
@@ -27,11 +28,16 @@ type MockBlockInfo struct {
 	InfoExcessBlobGas *uint64
 	InfoReceiptRoot   common.Hash
 	InfoGasUsed       uint64
+	InfoBlobGasUsed   *uint64
 	InfoGasLimit      uint64
 	InfoHeaderRLP     []byte
 
 	InfoParentBeaconRoot *common.Hash
 	InfoWithdrawalsRoot  *common.Hash
+}
+
+func (l *MockBlockInfo) Header() *types.Header {
+	panic("not implemented")
 }
 
 func (l *MockBlockInfo) Hash() common.Hash {
@@ -66,7 +72,7 @@ func (l *MockBlockInfo) BaseFee() *big.Int {
 	return l.InfoBaseFee
 }
 
-func (l *MockBlockInfo) BlobBaseFee() *big.Int {
+func (l *MockBlockInfo) BlobBaseFee(chainConfig *params.ChainConfig) *big.Int {
 	return l.InfoBlobBaseFee
 }
 
@@ -80,6 +86,10 @@ func (l *MockBlockInfo) ReceiptHash() common.Hash {
 
 func (l *MockBlockInfo) GasUsed() uint64 {
 	return l.InfoGasUsed
+}
+
+func (l *MockBlockInfo) BlobGasUsed() *uint64 {
+	return l.InfoBlobGasUsed
 }
 
 func (l *MockBlockInfo) GasLimit() uint64 {

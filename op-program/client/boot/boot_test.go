@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,6 +23,7 @@ func TestBootstrapClient(t *testing.T) {
 		L2Claim:            common.HexToHash("0x3333"),
 		L2ClaimBlockNumber: 1,
 		L2ChainID:          eth.ChainIDFromBig(rollupCfg.L2ChainID),
+		L1ChainConfig:      params.SepoliaChainConfig,
 		L2ChainConfig:      chainconfig.OPSepoliaChainConfig(),
 		RollupConfig:       rollupCfg,
 	}
@@ -37,12 +39,28 @@ func TestBootstrapClient_CustomChain(t *testing.T) {
 		L2Claim:            common.HexToHash("0x3333"),
 		L2ClaimBlockNumber: 1,
 		L2ChainID:          CustomChainIDIndicator,
+		L1ChainConfig:      params.SepoliaChainConfig,
 		L2ChainConfig:      chainconfig.OPSepoliaChainConfig(),
 		RollupConfig:       chaincfg.OPSepolia(),
 	}
 	mockOracle := newMockPreinteropBootstrapOracle(bootInfo, true)
 	readBootInfo := NewBootstrapClient(mockOracle).BootInfo()
 	require.EqualValues(t, bootInfo, readBootInfo)
+}
+
+func TestBootstrapClient_CustomChain_L1ChainConfigMismatch(t *testing.T) {
+	bootInfo := &BootInfo{
+		L1Head:             common.HexToHash("0x1111"),
+		L2OutputRoot:       common.HexToHash("0x2222"),
+		L2Claim:            common.HexToHash("0x3333"),
+		L2ClaimBlockNumber: 1,
+		L2ChainID:          CustomChainIDIndicator,
+		L1ChainConfig:      params.MainnetChainConfig,
+		L2ChainConfig:      chainconfig.OPSepoliaChainConfig(),
+		RollupConfig:       chaincfg.OPSepolia(),
+	}
+	mockOracle := newMockPreinteropBootstrapOracle(bootInfo, true)
+	require.Panics(t, func() { NewBootstrapClient(mockOracle).BootInfo() })
 }
 
 func TestBootstrapClient_UnknownChainPanics(t *testing.T) {
@@ -86,6 +104,12 @@ func (o *mockPreinteropBootstrapOracle) Get(key preimage.Key) []byte {
 			panic(fmt.Sprintf("unexpected oracle request for preimage key %x", key.PreimageKey()))
 		}
 		b, _ := json.Marshal(o.b.L2ChainConfig)
+		return b
+	case L1ChainConfigLocalIndex.PreimageKey():
+		if !o.custom {
+			panic(fmt.Sprintf("unexpected oracle request for preimage key %x", key.PreimageKey()))
+		}
+		b, _ := json.Marshal(o.b.L1ChainConfig)
 		return b
 	case RollupConfigLocalIndex.PreimageKey():
 		if !o.custom {

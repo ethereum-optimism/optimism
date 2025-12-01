@@ -39,7 +39,7 @@ contract MIPS64MemoryWithCalldata {
 
 /// @title MIPS64Memory_TestInit
 /// @notice Reusable test initialization for `MIPS64Memory` tests.
-contract MIPS64Memory_TestInit is CommonTest {
+abstract contract MIPS64Memory_TestInit is CommonTest {
     MIPS64MemoryWithCalldata mem;
 
     error InvalidAddress();

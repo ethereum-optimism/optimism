@@ -17,16 +17,22 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+type l2ChallengerOpts struct {
+	useCannonKonaConfig bool
+}
+
 type L2Challenger struct {
 	id       stack.L2ChallengerID
 	service  cliapp.Lifecycle
 	l2NetIDs []stack.L2NetworkID
+	config   *config.Config
 }
 
 func (p *L2Challenger) hydrate(system stack.ExtensibleSystem) {
 	bFrontend := shim.NewL2Challenger(shim.L2ChallengerConfig{
 		CommonConfig: shim.NewCommonConfig(system.T()),
 		ID:           p.id,
+		Config:       p.config,
 	})
 
 	for _, netID := range p.l2NetIDs {
@@ -101,6 +107,16 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 		l2NetIDs = append(l2NetIDs, l2Net.id)
 	}
 
+	l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID())
+	if !ok {
+		require.Fail("l1 network not found")
+	}
+	l1Genesis := l1Net.genesis
+
+	if orch.l2ChallengerOpts.useCannonKonaConfig {
+		p.Log("Enabling cannon-kona, you may need to build kona-host and prestates with: cd kona && just")
+	}
+
 	dir := p.TempDir()
 	var cfg *config.Config
 	// If interop is scheduled, or if we cannot do the pre-interop connection, then set up with supervisor
@@ -118,14 +134,21 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 		cluster, ok := orch.clusters.Get(*clusterID)
 		require.True(ok)
 		prestateVariant := shared.InteropVariant
-		cfg, err = shared.NewInteropChallengerConfig(dir, l1EL.userRPC, l1CL.beaconHTTPAddr, supervisorNode.UserRPC(), l2ELRPCs,
+		options := []shared.Option{
 			shared.WithFactoryAddress(disputeGameFactoryAddr),
 			shared.WithPrivKey(challengerSecret),
 			shared.WithDepset(cluster.DepSet()),
-			shared.WithCannonConfig(rollupCfgs, l2Geneses, prestateVariant),
+			shared.WithCannonConfig(rollupCfgs, l1Genesis, l2Geneses, prestateVariant),
 			shared.WithSuperCannonTraceType(),
 			shared.WithSuperPermissionedTraceType(),
-		)
+		}
+		if orch.l2ChallengerOpts.useCannonKonaConfig {
+			options = append(options,
+				shared.WithCannonKonaConfig(rollupCfgs, l1Genesis, l2Geneses),
+				shared.WithCannonKonaTraceType(),
+			)
+		}
+		cfg, err = shared.NewInteropChallengerConfig(dir, l1EL.UserRPC(), l1CL.beaconHTTPAddr, supervisorNode.UserRPC(), l2ELRPCs, options...)
 		require.NoError(err, "Failed to create interop challenger config")
 	} else {
 		require.NotNil(l2CLID, "need L2 CL to connect to pre-interop")
@@ -143,14 +166,21 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 		l2EL, ok := orch.l2ELs.Get(l2ELID)
 		require.True(ok)
 		prestateVariant := shared.MTCannonVariant
-		cfg, err = shared.NewPreInteropChallengerConfig(dir, l1EL.userRPC, l1CL.beaconHTTPAddr, l2CL.UserRPC(), l2EL.UserRPC(),
+		options := []shared.Option{
 			shared.WithFactoryAddress(disputeGameFactoryAddr),
 			shared.WithPrivKey(challengerSecret),
-			shared.WithCannonConfig(rollupCfgs, l2Geneses, prestateVariant),
+			shared.WithCannonConfig(rollupCfgs, l1Genesis, l2Geneses, prestateVariant),
 			shared.WithCannonTraceType(),
 			shared.WithPermissionedTraceType(),
 			shared.WithFastGames(),
-		)
+		}
+		if orch.l2ChallengerOpts.useCannonKonaConfig {
+			options = append(options,
+				shared.WithCannonKonaConfig(rollupCfgs, l1Genesis, l2Geneses),
+				shared.WithCannonKonaTraceType(),
+			)
+		}
+		cfg, err = shared.NewPreInteropChallengerConfig(dir, l1EL.UserRPC(), l1CL.beaconHTTPAddr, l2CL.UserRPC(), l2EL.UserRPC(), options...)
 		require.NoError(err, "Failed to create pre-interop challenger config")
 	}
 
@@ -170,6 +200,7 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 		id:       challengerID,
 		service:  svc,
 		l2NetIDs: l2NetIDs,
+		config:   cfg,
 	}
 	orch.challengers.Set(challengerID, c)
 }

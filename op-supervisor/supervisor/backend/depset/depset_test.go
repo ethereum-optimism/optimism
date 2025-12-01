@@ -2,7 +2,6 @@ package depset
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"os"
 	"path"
@@ -73,7 +72,7 @@ func testDependencySetSerialization(
 		var result DependencySet
 		if fileExt == "json" {
 			loader := &JSONDependencySetLoader{Path: d}
-			result, err = loader.LoadDependencySet(context.Background())
+			result, err = loader.LoadDependencySet()
 			require.NoError(t, err)
 		} else {
 			fileData, err := os.ReadFile(d)
@@ -104,7 +103,7 @@ func testDependencySetSerialization(
 		var result DependencySet
 		if fileExt == "json" {
 			loader := &JSONDependencySetLoader{Path: d}
-			result, err = loader.LoadDependencySet(context.Background())
+			result, err = loader.LoadDependencySet()
 			require.NoError(t, err)
 		} else {
 			fileData, err := os.ReadFile(d)

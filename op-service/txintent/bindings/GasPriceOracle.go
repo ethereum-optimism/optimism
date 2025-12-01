@@ -13,6 +13,8 @@ type GasPriceOracle struct {
 	L1BaseFee          func() TypedCall[*eth.ETH]                       `sol:"l1BaseFee"`
 	BlobBaseFee        func() TypedCall[*eth.ETH]                       `sol:"blobBaseFee"`
 	IsFjord            func() TypedCall[bool]                           `sol:"isFjord"`
+	IsIsthmus          func() TypedCall[bool]                           `sol:"isIsthmus"`
+	IsJovian           func() TypedCall[bool]                           `sol:"isJovian"`
 	GetL1Fee           func(data []byte) TypedCall[eth.ETH]             `sol:"getL1Fee"`
 	GetL1GasUsed       func(data []byte) TypedCall[uint64]              `sol:"getL1GasUsed"`
 	GetL1FeeUpperBound func(unsignedTxSize *big.Int) TypedCall[eth.ETH] `sol:"getL1FeeUpperBound"`

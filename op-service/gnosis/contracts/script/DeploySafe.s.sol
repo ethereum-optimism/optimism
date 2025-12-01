@@ -3,8 +3,8 @@ pragma solidity ^0.8.19;
 
 import { Script } from "forge-std/Script.sol";
 import { console } from "forge-std/console.sol";
-import { GnosisSafe } from "safe-contracts/GnosisSafe.sol";
-import { GnosisSafeProxyFactory } from "safe-contracts/proxies/GnosisSafeProxyFactory.sol";
+import { Safe as GnosisSafe } from "safe-contracts/Safe.sol";
+import { SafeProxyFactory as GnosisSafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { TestDelegateCall } from "src/TestDelegateCall.sol";
 
 contract DeploySafe is Script {

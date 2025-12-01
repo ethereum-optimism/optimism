@@ -11,7 +11,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 /// @title MintManager_TestInit
 /// @notice Reusable test initialization for `MintManager` tests.
-contract MintManager_TestInit is CommonTest {
+abstract contract MintManager_TestInit is CommonTest {
     address constant owner = address(0x1234);
     address constant rando = address(0x5678);
     IGovernanceToken internal gov;

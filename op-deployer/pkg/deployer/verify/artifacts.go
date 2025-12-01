@@ -4,19 +4,31 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/log"
 )
 
-type contractArtifact struct {
-	ContractName    string
+// SourceContent represents the content of a source file
+type SourceContent struct {
+	Content string
+}
+
+// OptimizerSettings represents compiler optimizer configuration
+type OptimizerSettings struct {
+	Enabled bool `json:"enabled"`
+	Runs    int  `json:"runs"`
+}
+
+// ArtifactMetadata contains processed artifact information
+type ArtifactMetadata struct {
+	ContractPath    string
 	CompilerVersion string
 	Optimizer       OptimizerSettings
 	EVMVersion      string
 	Sources         map[string]SourceContent
-	ConstructorArgs abi.Arguments
 }
 
 // Map state.json struct fields to forge artifact paths
@@ -31,10 +43,43 @@ var contractNameExceptions = map[string]string{
 	"OpcmUpgrader":                "OPContractsManager.sol/OPContractsManagerUpgrader.json",
 	"OpcmInteropMigrator":         "OPContractsManager.sol/OPContractsManagerInteropMigrator.json",
 	"OpcmStandardValidator":       "OPContractsManagerStandardValidator.sol/OPContractsManagerStandardValidator.json",
+	"OpcmV2":                      "OPContractsManagerV2.sol/OPContractsManagerV2.json",
+	"OpcmContainer":               "OPContractsManagerContainer.sol/OPContractsManagerContainer.json",
 	"Mips":                        "MIPS64.sol/MIPS64.json",
+	"EthLockbox":                  "ETHLockbox.sol/ETHLockbox.json",
 }
 
 func getArtifactPath(name string) string {
+	// Handle state file contract names (underscore-separated)
+	if strings.Contains(name, "_") {
+		parts := strings.Split(name, "_")
+
+		// Handle proxy contracts (ending with _proxy)
+		if parts[len(parts)-1] == "proxy" {
+			return path.Join("Proxy.sol", "Proxy.json")
+		}
+
+		// Handle implementation contracts (ending with _impl)
+		if parts[len(parts)-1] == "impl" {
+			// For impl contracts, remove the _impl suffix and the prefix (like "implementations_" or "superchain_")
+			contractName := strings.Join(parts[1:len(parts)-1], "_") // Skip first part (prefix) and last part (_impl)
+			// Convert snake_case to PascalCase for contract names
+			contractName = convertSnakeToPascal(contractName)
+			if artifactPath, exists := contractNameExceptions[contractName]; exists {
+				return artifactPath
+			}
+			return path.Join(contractName+".sol", contractName+".json")
+		}
+
+		// For other underscore-separated names, convert to PascalCase
+		contractName := convertSnakeToPascal(name)
+		if artifactPath, exists := contractNameExceptions[contractName]; exists {
+			return artifactPath
+		}
+		return path.Join(contractName+".sol", contractName+".json")
+	}
+
+	// Handle regular contract names (legacy logic)
 	lookupName := strings.TrimSuffix(name, "Address")
 	lookupName = strings.TrimSuffix(lookupName, "Impl")
 	lookupName = strings.TrimSuffix(lookupName, "Singleton")
@@ -54,48 +99,79 @@ func getArtifactPath(name string) string {
 	return path.Join(lookupName+".sol", lookupName+".json")
 }
 
-func (v *Verifier) getContractArtifact(name string) (*contractArtifact, error) {
-	artifactPath := getArtifactPath(name)
+// GetArtifactPath returns the artifact path for a given contract name
+func GetArtifactPath(name string) string {
+	return getArtifactPath(name)
+}
 
-	v.log.Info("Opening artifact", "path", artifactPath, "name", name)
-	f, err := v.artifactsFS.Open(artifactPath)
+// convertSnakeToPascal converts snake_case to PascalCase
+func convertSnakeToPascal(snake string) string {
+	parts := strings.Split(snake, "_")
+	for i, part := range parts {
+		if len(part) > 0 {
+			parts[i] = strings.ToUpper(string(part[0])) + strings.ToLower(part[1:])
+		}
+	}
+	return strings.Join(parts, "")
+}
+
+// loadArtifact loads and parses a foundry artifact with proper source handling
+// Returns both the raw artifact and structured metadata with processed sources
+func loadArtifact(artifactsFS foundry.StatDirFs, artifactPath string, logger log.Logger) (*foundry.Artifact, *ArtifactMetadata, error) {
+	f, err := artifactsFS.Open(artifactPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open artifact: %w", err)
+		return nil, nil, fmt.Errorf("failed to open artifact %s: %w", artifactPath, err)
 	}
 	defer f.Close()
 
 	var art foundry.Artifact
 	if err := json.NewDecoder(f).Decode(&art); err != nil {
-		return nil, fmt.Errorf("failed to decode artifact: %w", err)
+		return nil, nil, fmt.Errorf("failed to decode artifact: %w", err)
 	}
 
-	// Add all sources (main contract and dependencies)
+	// Process sources with remapping (reusing the better approach from original code)
 	sources := make(map[string]SourceContent)
 	for sourcePath, sourceInfo := range art.Metadata.Sources {
 		remappedKey := art.SearchRemappings(sourcePath)
 		sources[remappedKey] = SourceContent{Content: sourceInfo.Content}
-		v.log.Debug("added source contract", "originalPath", sourcePath, "remappedKey", remappedKey)
+		logger.Debug("added source contract", "originalPath", sourcePath, "remappedKey", remappedKey)
 	}
 
-	var optimizer OptimizerSettings
-	if err := json.Unmarshal(art.Metadata.Settings.Optimizer, &optimizer); err != nil {
-		return nil, fmt.Errorf("failed to parse optimizer settings: %w", err)
-	}
-
-	// Get the contract name from the compilation target
-	var contractName string
-	for contractFile, name := range art.Metadata.Settings.CompilationTarget {
-		contractName = contractFile + ":" + name
+	// Extract contract path from compilation target
+	var contractPath string
+	for path, name := range art.Metadata.Settings.CompilationTarget {
+		contractPath = fmt.Sprintf("%s:%s", path, name)
 		break
 	}
-	v.log.Info("Compilation target", "target", contractName)
 
-	return &contractArtifact{
-		ContractName:    contractName,
-		CompilerVersion: art.Metadata.Compiler.Version,
+	if contractPath == "" {
+		return nil, nil, fmt.Errorf("failed to find compilation target in artifact")
+	}
+
+	// Extract compiler version
+	compilerVersion := art.Metadata.Compiler.Version
+	if compilerVersion == "" {
+		return nil, nil, fmt.Errorf("compiler version not found in artifact")
+	}
+
+	// Parse optimizer settings
+	var optimizer OptimizerSettings
+	if len(art.Metadata.Settings.Optimizer) > 0 {
+		if err := json.Unmarshal(art.Metadata.Settings.Optimizer, &optimizer); err != nil {
+			return nil, nil, fmt.Errorf("failed to parse optimizer settings: %w", err)
+		}
+	}
+
+	// Extract EVM version
+	evmVersion := art.Metadata.Settings.EVMVersion
+
+	metadata := &ArtifactMetadata{
+		ContractPath:    contractPath,
+		CompilerVersion: compilerVersion,
 		Optimizer:       optimizer,
-		EVMVersion:      art.Metadata.Settings.EVMVersion,
+		EVMVersion:      evmVersion,
 		Sources:         sources,
-		ConstructorArgs: art.ABI.Constructor.Inputs,
-	}, nil
+	}
+
+	return &art, metadata, nil
 }

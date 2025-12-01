@@ -4,11 +4,6 @@
       {
         "components": [
           {
-            "internalType": "GameType",
-            "name": "gameType",
-            "type": "uint32"
-          },
-          {
             "internalType": "uint256",
             "name": "maxGameDepth",
             "type": "uint256"
@@ -390,7 +385,7 @@
         "type": "bytes"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -403,7 +398,7 @@
         "type": "uint32"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -1190,11 +1185,6 @@
   {
     "inputs": [],
     "name": "OutOfOrderResolution",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ReservedGameType",
     "type": "error"
   },
   {

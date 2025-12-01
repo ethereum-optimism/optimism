@@ -85,7 +85,7 @@ contract CrossDomainMessenger_ExternalRelay_Harness is Test {
 
 /// @title CrossDomainMessenger_TestInit
 /// @notice Reusable test initialization for `CrossDomainMessenger` tests.
-contract CrossDomainMessenger_TestInit is CommonTest {
+abstract contract CrossDomainMessenger_TestInit is CommonTest {
     // Storage slot of the l2Sender
     uint256 constant senderSlotIndex = 50;
 

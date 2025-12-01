@@ -26,7 +26,7 @@ contract SemverComp_Harness {
 
 /// @title SemverComp_TestInit
 /// @notice Reusable test initialization for `SemverComp` tests.
-contract SemverComp_TestInit is Test {
+abstract contract SemverComp_TestInit is Test {
     SemverComp_Harness internal harness;
 
     /// @notice Sets up the test environment.

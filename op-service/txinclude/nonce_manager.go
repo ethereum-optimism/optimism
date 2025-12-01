@@ -35,10 +35,14 @@ func (nm *nonceManager) Next() uint64 {
 	return nonce
 }
 
-// InsertGap inserts a nonce gap. It is a no-op if nonce is already a gap.
+// InsertGap inserts a nonce gap. It is a no-op if nonce is already a gap or if it is ahead of the
+// current nonce.
 func (nm *nonceManager) InsertGap(nonce uint64) {
 	nm.mu.Lock()
 	defer nm.mu.Unlock()
+	if nonce >= nm.nextNonce {
+		return
+	}
 	i, exists := slices.BinarySearch(nm.gaps, nonce)
 	if exists {
 		return

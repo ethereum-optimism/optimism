@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -159,55 +160,55 @@ func TestCheckForkActivation(t *testing.T) {
 		{
 			name:                "Regolith activation",
 			block:               eth.L2BlockRef{Time: 10, Number: 5, Hash: common.Hash{0x5}},
-			expectedCurrentFork: Regolith,
+			expectedCurrentFork: forks.Regolith,
 			expectedLog:         "Detected hardfork activation block",
 		},
 		{
 			name:                "Still Regolith",
 			block:               eth.L2BlockRef{Time: 11, Number: 6, Hash: common.Hash{0x6}},
-			expectedCurrentFork: Regolith,
+			expectedCurrentFork: forks.Regolith,
 			expectedLog:         "",
 		},
 		{
 			name:                "Canyon activation",
 			block:               eth.L2BlockRef{Time: 20, Number: 7, Hash: common.Hash{0x7}},
-			expectedCurrentFork: Canyon,
+			expectedCurrentFork: forks.Canyon,
 			expectedLog:         "Detected hardfork activation block",
 		},
 		{
 			name:                "Granite activation",
 			block:               eth.L2BlockRef{Time: 60, Number: 8, Hash: common.Hash{0x8}},
-			expectedCurrentFork: Granite,
+			expectedCurrentFork: forks.Granite,
 			expectedLog:         "Detected hardfork activation block",
 		},
 		{
 			name:                "Holocene activation",
 			block:               eth.L2BlockRef{Time: 70, Number: 9, Hash: common.Hash{0x9}},
-			expectedCurrentFork: Holocene,
+			expectedCurrentFork: forks.Holocene,
 			expectedLog:         "Detected hardfork activation block",
 		},
 		{
 			name:                "Isthmus activation",
 			block:               eth.L2BlockRef{Time: 80, Number: 10, Hash: common.Hash{0xa}},
-			expectedCurrentFork: Isthmus,
+			expectedCurrentFork: forks.Isthmus,
 			expectedLog:         "Detected hardfork activation block",
 		},
 		{
 			name:                "Jovian activation",
 			block:               eth.L2BlockRef{Time: 90, Number: 11, Hash: common.Hash{0xb}},
-			expectedCurrentFork: Jovian,
+			expectedCurrentFork: forks.Jovian,
 			expectedLog:         "Detected hardfork activation block",
 		},
 		{
 			name:                "Interop activation",
 			block:               eth.L2BlockRef{Time: 100, Number: 11, Hash: common.Hash{0xb}},
-			expectedCurrentFork: Interop,
+			expectedCurrentFork: forks.Interop,
 			expectedLog:         "Detected hardfork activation block",
 		},
 		{
 			name:                "No more hardforks",
 			block:               eth.L2BlockRef{Time: 700, Number: 12, Hash: common.Hash{0xc}},
-			expectedCurrentFork: Interop,
+			expectedCurrentFork: forks.Interop,
 			expectedLog:         "",
 		},
 	}

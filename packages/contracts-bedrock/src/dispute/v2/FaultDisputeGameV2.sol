@@ -56,7 +56,6 @@ import {
     GameNotFinalized,
     InvalidBondDistributionMode,
     GameNotResolved,
-    ReservedGameType,
     GamePaused,
     BadExtraData
 } from "src/dispute/lib/Errors.sol";
@@ -97,7 +96,6 @@ contract FaultDisputeGameV2 is Clone, ISemver {
     /// @notice Parameters for creating a new FaultDisputeGame. We place this into a struct to
     ///         avoid stack-too-deep errors when compiling without the optimizer enabled.
     struct GameConstructorParams {
-        GameType gameType;
         uint256 maxGameDepth;
         uint256 splitDepth;
         Duration clockExtension;
@@ -135,9 +133,6 @@ contract FaultDisputeGameV2 is Clone, ISemver {
     /// @notice The maximum duration that may accumulate on a team's chess clock before they may no longer respond.
     Duration internal immutable MAX_CLOCK_DURATION;
 
-    /// @notice The game type ID.
-    GameType internal immutable GAME_TYPE;
-
     /// @notice The duration of the clock extension. Will be doubled if the grandchild is the root claim of an execution
     ///         trace bisection subgame.
     Duration internal immutable CLOCK_EXTENSION;
@@ -151,9 +146,9 @@ contract FaultDisputeGameV2 is Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.1.0
+    /// @custom:semver 2.2.0
     function version() public pure virtual returns (string memory) {
-        return "2.1.0";
+        return "2.2.0";
     }
 
     /// @notice The starting timestamp of the game
@@ -224,10 +219,6 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         // The split depth cannot be 0 or 1 to stay in bounds of clock extension arithmetic.
         if (_params.splitDepth < 2) revert InvalidSplitDepth();
 
-        // Block type(uint32).max from being used as a game type so that it can be used in the
-        // OptimismPortal respected game type trick.
-        if (_params.gameType.raw() == type(uint32).max) revert ReservedGameType();
-
         // Validate clock extension bounds that don't require VM access.
         // The split depth extension is always clockExtension * 2.
         uint256 splitDepthExtension = uint256(_params.clockExtension.raw()) * 2;
@@ -239,7 +230,6 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         if (uint64(splitDepthExtension) > _params.maxClockDuration.raw()) revert InvalidClockExtension();
 
         // Set up initial game state.
-        GAME_TYPE = _params.gameType;
         MAX_GAME_DEPTH = _params.maxGameDepth;
         SPLIT_DEPTH = _params.splitDepth;
         CLOCK_EXTENSION = _params.clockExtension;
@@ -324,7 +314,7 @@ contract FaultDisputeGameV2 is Clone, ISemver {
 
         // Set whether the game type was respected when the game was created.
         wasRespectedGameTypeWhenCreated =
-            GameType.unwrap(anchorStateRegistry().respectedGameType()) == GameType.unwrap(GAME_TYPE);
+            GameType.unwrap(anchorStateRegistry().respectedGameType()) == GameType.unwrap(gameType());
     }
 
     /// @notice Returns the expected calldata length for the initialize method
@@ -342,13 +332,14 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         // - 20 bytes: creator address
         // - 32 bytes: root claim
         // - 32 bytes: l1 head
+        // -  4 bytes: game type
         // - 32 bytes: extraData
         // - 32 bytes: absolutePrestate
         // - 20 bytes: vm address
         // - 20 bytes: anchorStateRegistry address
         // - 20 bytes: weth address
         // - 32 bytes: l2ChainId
-        return 240;
+        return 244;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -637,7 +628,7 @@ contract FaultDisputeGameV2 is Clone, ISemver {
 
     /// @notice The l2BlockNumber of the disputed output root in the `L2OutputOracle`.
     function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
-        l2BlockNumber_ = _getArgUint256(84);
+        l2BlockNumber_ = _getArgUint256(88);
     }
 
     /// @notice The l2SequenceNumber of the disputed output root in the `L2OutputOracle` (in this case - block number).
@@ -861,48 +852,55 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         l1Head_ = Hash.wrap(_getArgBytes32(52));
     }
 
-    /// @notice Getter for the extra data.
+    /// @notice Getter for the game type.
     /// @dev `clones-with-immutable-args` argument #4
+    /// @return gameType_ The type of proof system being used.
+    function gameType() public pure returns (GameType gameType_) {
+        gameType_ = GameType.wrap(_getArgUint32(84));
+    }
+
+    /// @notice Getter for the extra data.
+    /// @dev `clones-with-immutable-args` argument #5
     /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
     function extraData() public pure returns (bytes memory extraData_) {
         // The extra data starts at the second word within the cwia calldata and
         // is 32 bytes long.
-        extraData_ = _getArgBytes(84, 32);
+        extraData_ = _getArgBytes(88, 32);
     }
 
     /// @notice Getter for the absolute prestate of the instruction trace.
-    /// @dev `clones-with-immutable-args` argument #5
+    /// @dev `clones-with-immutable-args` argument #6
     /// @return absolutePrestate_ The absolute prestate of the instruction trace.
     function absolutePrestate() public pure returns (Claim absolutePrestate_) {
-        absolutePrestate_ = Claim.wrap(_getArgBytes32(116));
+        absolutePrestate_ = Claim.wrap(_getArgBytes32(120));
     }
 
     /// @notice Getter for the VM implementation.
-    /// @dev `clones-with-immutable-args` argument #6
+    /// @dev `clones-with-immutable-args` argument #7
     /// @return vm_ The onchain VM implementation address.
     function vm() public pure returns (IBigStepper vm_) {
-        vm_ = IBigStepper(_getArgAddress(148));
+        vm_ = IBigStepper(_getArgAddress(152));
     }
 
     /// @notice Getter for the anchor state registry.
-    /// @dev `clones-with-immutable-args` argument #7
+    /// @dev `clones-with-immutable-args` argument #8
     /// @return registry_ The anchor state registry contract address.
     function anchorStateRegistry() public pure returns (IAnchorStateRegistry registry_) {
-        registry_ = IAnchorStateRegistry(_getArgAddress(168));
+        registry_ = IAnchorStateRegistry(_getArgAddress(172));
     }
 
     /// @notice Getter for the WETH contract.
-    /// @dev `clones-with-immutable-args` argument #8
+    /// @dev `clones-with-immutable-args` argument #9
     /// @return weth_ The WETH contract for holding ETH.
     function weth() public pure returns (IDelayedWETH weth_) {
-        weth_ = IDelayedWETH(payable(_getArgAddress(188)));
+        weth_ = IDelayedWETH(payable(_getArgAddress(192)));
     }
 
     /// @notice Getter for the L2 chain ID.
-    /// @dev `clones-with-immutable-args` argument #9
+    /// @dev `clones-with-immutable-args` argument #10
     /// @return l2ChainId_ The L2 chain ID.
     function l2ChainId() public pure returns (uint256 l2ChainId_) {
-        l2ChainId_ = _getArgUint256(208);
+        l2ChainId_ = _getArgUint256(212);
     }
 
     /// @notice A compliant implementation of this interface should return the components of the
@@ -912,18 +910,10 @@ contract FaultDisputeGameV2 is Clone, ISemver {
     /// @return gameType_ The type of proof system being used.
     /// @return rootClaim_ The root claim of the DisputeGame.
     /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
-    function gameData() external view returns (GameType gameType_, Claim rootClaim_, bytes memory extraData_) {
+    function gameData() external pure returns (GameType gameType_, Claim rootClaim_, bytes memory extraData_) {
         gameType_ = gameType();
         rootClaim_ = rootClaim();
         extraData_ = extraData();
-    }
-
-    /// @notice Getter for the game type.
-    /// @dev The reference impl should be entirely different depending on the type (fault, validity)
-    ///      i.e. The game type should indicate the security model.
-    /// @return gameType_ The type of proof system being used.
-    function gameType() public view returns (GameType gameType_) {
-        gameType_ = GAME_TYPE;
     }
 
     ////////////////////////////////////////////////////////////////

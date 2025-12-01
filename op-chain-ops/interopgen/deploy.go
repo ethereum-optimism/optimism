@@ -18,8 +18,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/beacondeposit"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -27,10 +29,6 @@ var (
 	// sysGenesisDeployer is used as tx.origin/msg.sender on system genesis script calls.
 	// At the end we verify none of the deployed contracts persist (there may be temporary ones, to insert bytecode).
 	sysGenesisDeployer = common.Address(crypto.Keccak256([]byte("System genesis deployer"))[12:])
-
-	// OptimismPortalInteropDevFlag is the feature bitmap that enables the OptimismPortalInterop contract.
-	OptimismPortalInteropDevFlag = common.Hash{31: 0x01} // 0x0000000000000000000000000000000000000000000000000000000000000001
-
 )
 
 func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMapFS, cfg *WorldConfig) (*WorldDeployment, *WorldOutput, error) {
@@ -195,11 +193,15 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		ProofMaturityDelaySeconds:       superCfg.Implementations.FaultProof.ProofMaturityDelaySeconds,
 		DisputeGameFinalityDelaySeconds: superCfg.Implementations.FaultProof.DisputeGameFinalityDelaySeconds,
 		MipsVersion:                     superCfg.Implementations.FaultProof.MipsVersion,
-		DevFeatureBitmap:                OptimismPortalInteropDevFlag,
+		DevFeatureBitmap:                deployer.OptimismPortalInteropDevFlag,
+		FaultGameV2MaxGameDepth:         big.NewInt(73),
+		FaultGameV2SplitDepth:           big.NewInt(30),
+		FaultGameV2ClockExtension:       big.NewInt(10800),
+		FaultGameV2MaxClockDuration:     big.NewInt(302400),
 		SuperchainProxyAdmin:            superDeployment.SuperchainProxyAdmin,
 		SuperchainConfigProxy:           superDeployment.SuperchainConfigProxy,
 		ProtocolVersionsProxy:           superDeployment.ProtocolVersionsProxy,
-		UpgradeController:               superCfg.ProxyAdminOwner,
+		L1ProxyAdminOwner:               superCfg.ProxyAdminOwner,
 		Challenger:                      superCfg.Challenger,
 	})
 	if err != nil {
@@ -225,7 +227,12 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 
 	l1Host.SetTxOrigin(cfg.Deployer)
 
-	output, err := opcm.DeployOPChain(l1Host, opcm.DeployOPChainInput{
+	deployOPChainScript, err := opcm.NewDeployOPChainScript(l1Host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load DeployOPChain script: %w", err)
+	}
+
+	output, err := deployOPChainScript.Run(opcm.DeployOPChainInput{
 		OpChainProxyAdminOwner:       superCfg.ProxyAdminOwner,
 		SystemConfigOwner:            cfg.SystemConfigOwner,
 		Batcher:                      cfg.BatchSenderAddress,
@@ -240,13 +247,14 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 		GasLimit:                     cfg.GasLimit,
 		DisputeGameType:              cfg.DisputeGameType,
 		DisputeAbsolutePrestate:      cfg.DisputeAbsolutePrestate,
-		DisputeMaxGameDepth:          cfg.DisputeMaxGameDepth,
-		DisputeSplitDepth:            cfg.DisputeSplitDepth,
+		DisputeMaxGameDepth:          new(big.Int).SetUint64(cfg.DisputeMaxGameDepth),
+		DisputeSplitDepth:            new(big.Int).SetUint64(cfg.DisputeSplitDepth),
 		DisputeClockExtension:        cfg.DisputeClockExtension,
 		DisputeMaxClockDuration:      cfg.DisputeMaxClockDuration,
 		AllowCustomDisputeParameters: true,
 		OperatorFeeScalar:            cfg.GasPriceOracleOperatorFeeScalar,
 		OperatorFeeConstant:          cfg.GasPriceOracleOperatorFeeConstant,
+		UseCustomGasToken:            cfg.UseCustomGasToken,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy L2 OP chain: %w", err)
@@ -254,7 +262,7 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 
 	// Collect deployment addresses
 	return &L2Deployment{
-		L2OpchainDeployment: L2OpchainDeployment(output),
+		L2OpchainDeployment: NewL2OPChainDeploymentFromDeployOPChainOutput(output),
 	}, nil
 }
 
@@ -268,8 +276,7 @@ func MigrateInterop(
 		l2Deployment := l2Deployments[l2ChainID]
 		chainConfigs[i] = manage.OPChainConfig{
 			SystemConfigProxy: l2Deployment.SystemConfigProxy,
-			ProxyAdmin:        superDeployment.ProxyAdmin,
-			AbsolutePrestate:  l2Cfgs[l2ChainID].DisputeAbsolutePrestate,
+			CannonPrestate:    l2Cfgs[l2ChainID].DisputeAbsolutePrestate,
 		}
 	}
 
@@ -324,11 +331,22 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		L1FeeVaultRecipient:                      cfg.L1FeeVaultRecipient,
 		L1FeeVaultMinimumWithdrawalAmount:        cfg.L1FeeVaultMinimumWithdrawalAmount.ToInt(),
 		L1FeeVaultWithdrawalNetwork:              big.NewInt(int64(cfg.L1FeeVaultWithdrawalNetwork.ToUint8())),
+		OperatorFeeVaultRecipient:                cfg.OperatorFeeVaultRecipient,
+		OperatorFeeVaultMinimumWithdrawalAmount:  cfg.OperatorFeeVaultMinimumWithdrawalAmount.ToInt(),
+		OperatorFeeVaultWithdrawalNetwork:        big.NewInt(int64(cfg.OperatorFeeVaultWithdrawalNetwork.ToUint8())),
 		GovernanceTokenOwner:                     cfg.GovernanceTokenOwner,
 		Fork:                                     big.NewInt(cfg.SolidityForkNumber(1)),
 		DeployCrossL2Inbox:                       multichainDepSet,
 		EnableGovernance:                         cfg.EnableGovernance,
 		FundDevAccounts:                          cfg.FundDevAccounts,
+		UseRevenueShare:                          cfg.UseRevenueShare,
+		ChainFeesRecipient:                       cfg.ChainFeesRecipient,
+		L1FeesDepositor:                          standard.L1FeesDepositor,
+		UseCustomGasToken:                        cfg.UseCustomGasToken,
+		GasPayingTokenName:                       cfg.GasPayingTokenName,
+		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
+		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
+		LiquidityControllerOwner:                 cfg.LiquidityControllerOwner,
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
 	}

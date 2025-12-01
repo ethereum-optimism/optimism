@@ -16,7 +16,7 @@ import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMin
 
 /// @title OptimismMintableERC20Factory_TestInit
 /// @notice Reusable test initialization for `OptimismMintableERC20Factory` tests.
-contract OptimismMintableERC20Factory_TestInit is CommonTest {
+abstract contract OptimismMintableERC20Factory_TestInit is CommonTest {
     event StandardL2TokenCreated(address indexed remoteToken, address indexed localToken);
     event OptimismMintableERC20Created(address indexed localToken, address indexed remoteToken, address deployer);
 
@@ -218,10 +218,10 @@ contract OptimismMintableERC20Factory_CreateStandardL2Token_Test is OptimismMint
     }
 }
 
-/// @title OptimismMintableERC20Factory_Unclassified_Test
+/// @title OptimismMintableERC20Factory_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the
 ///         `OptimismMintableERC20Factory` contract.
-contract OptimismMintableERC20Factory_Unclassified_Test is OptimismMintableERC20Factory_TestInit {
+contract OptimismMintableERC20Factory_Uncategorized_Test is OptimismMintableERC20Factory_TestInit {
     /// @notice Tests that the upgrade is successful.
     function test_upgrading_succeeds() external {
         IProxy proxy = IProxy(artifacts.mustGetAddress("OptimismMintableERC20FactoryProxy"));

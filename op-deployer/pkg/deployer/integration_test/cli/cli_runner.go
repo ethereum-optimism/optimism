@@ -5,12 +5,15 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,33 +22,75 @@ type CLITestRunner struct {
 	workDir       string
 	l1RPC         string
 	privateKeyHex string
+	lgr           log.Logger
 }
 
-// NewCLITestRunner creates a new CLI test runner
-func NewCLITestRunner(t *testing.T) *CLITestRunner {
-	// Create a temporary working directory for tests
-	workDir := t.TempDir()
+// CLITestRunnerOption is a functional option for configuring CLITestRunner
+type CLITestRunnerOption func(*CLITestRunner)
 
-	return &CLITestRunner{
-		workDir: workDir,
+func WithL1RPC(rpcURL string) CLITestRunnerOption {
+	return func(r *CLITestRunner) {
+		r.l1RPC = rpcURL
 	}
 }
 
-// NewCLITestRunnerWithNetwork creates a new CLI test runner with network setup
-func NewCLITestRunnerWithNetwork(t *testing.T) *CLITestRunner {
-	workDir := t.TempDir()
+func WithPrivateKey(pkHex string) CLITestRunnerOption {
+	return func(r *CLITestRunner) {
+		r.privateKeyHex = pkHex
+	}
+}
 
+func NewCLITestRunner(t *testing.T, opts ...CLITestRunnerOption) *CLITestRunner {
+	workDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	return &CLITestRunner{
+		workDir: workDir,
+		lgr:     testlog.Logger(t, slog.LevelDebug),
+	}
+}
+
+// NewCLITestRunnerWithNetwork creates a new CLI test runner with default network setup.
+// Defaults can be overridden using functional options.
+func NewCLITestRunnerWithNetwork(t *testing.T, opts ...CLITestRunnerOption) *CLITestRunner {
+	workDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+
+	// Set up defaults
 	lgr := testlog.Logger(t, slog.LevelDebug)
-	l1RPC, _ := devnet.DefaultAnvilRPC(t, lgr)
-
-	// Get private key
+	l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
 	pkHex, _, _ := shared.DefaultPrivkey(t)
 
-	return &CLITestRunner{
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// Poll until we can get the chain ID, maximum 10 seconds
+	// Helps prevent race condition where anvil env is accessed before its ready
+	var anvilReady bool
+	for range 25 {
+		if _, err := l1Client.ChainID(ctx); err == nil {
+			anvilReady = true
+			lgr.Info("Anvil is ready and responding")
+			break
+		}
+		// Exit early if context expired
+		if ctx.Err() != nil {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	require.True(t, anvilReady, "Anvil did not become ready in time")
+
+	runner := &CLITestRunner{
 		workDir:       workDir,
 		l1RPC:         l1RPC,
 		privateKeyHex: pkHex,
+		lgr:           lgr,
 	}
+
+	// Apply options to override defaults
+	for _, opt := range opts {
+		opt(runner)
+	}
+
+	return runner
 }
 
 // GetWorkDir returns the working directory for this test runner
@@ -91,11 +136,13 @@ func (r *CLITestRunner) Run(ctx context.Context, args []string, env map[string]s
 	stdout := newCaptureOutputWriter()
 	stderr := newCaptureOutputWriter()
 
-	// Add "op-deployer" as the first argument if not already present
-	fullArgs := args
-	if len(args) == 0 || args[0] != "op-deployer" {
-		fullArgs = append([]string{"op-deployer"}, args...)
+	// Ensure command format is: op-deployer --cache-dir <path> <subcommand and flags>
+	cacheDir := filepath.Join(r.workDir, ".cache")
+	commandArgs := args
+	if len(args) > 0 && args[0] == "op-deployer" {
+		commandArgs = args[1:] // Skip "op-deployer" if already present
 	}
+	fullArgs := append([]string{"op-deployer", "--cache-dir", cacheDir}, commandArgs...)
 
 	// Run the CLI command using the testable interface
 	err = RunCLI(ctx, stdout, stderr, fullArgs)
@@ -121,7 +168,8 @@ func (r *CLITestRunner) RunWithNetwork(ctx context.Context, args []string, env m
 
 // ExpectSuccess runs a command expecting it to succeed
 func (r *CLITestRunner) ExpectSuccess(t *testing.T, args []string, env map[string]string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	r.lgr.Info("Running cli command, expecting success")
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	output, err := r.Run(ctx, args, env)
@@ -131,7 +179,8 @@ func (r *CLITestRunner) ExpectSuccess(t *testing.T, args []string, env map[strin
 
 // ExpectSuccessWithNetwork runs a command with network parameters expecting it to succeed
 func (r *CLITestRunner) ExpectSuccessWithNetwork(t *testing.T, args []string, env map[string]string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	r.lgr.Info("Running cli command with network, expecting success")
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	output, err := r.RunWithNetwork(ctx, args, env)
@@ -141,7 +190,8 @@ func (r *CLITestRunner) ExpectSuccessWithNetwork(t *testing.T, args []string, en
 
 // ExpectErrorContains runs a command expecting it to fail with specific error text
 func (r *CLITestRunner) ExpectErrorContains(t *testing.T, args []string, env map[string]string, contains string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	r.lgr.Info("Running cli command, expecting error")
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	output, err := r.Run(ctx, args, env)

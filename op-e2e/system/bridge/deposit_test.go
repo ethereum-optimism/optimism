@@ -8,7 +8,6 @@ import (
 	"time"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -129,7 +129,7 @@ func TestMintCallToDelegatedAccount(t *testing.T) {
 	op_e2e.InitParallel(t)
 	cfg := e2esys.DefaultSystemConfig(t)
 	cfg.DeployConfig = cfg.DeployConfig.Copy()
-	cfg.DeployConfig.ActivateForkAtGenesis(rollup.Isthmus)
+	cfg.DeployConfig.ActivateForkAtGenesis(forks.Isthmus)
 	delete(cfg.Nodes, "verifier")
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Error starting up system")

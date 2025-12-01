@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -27,6 +28,22 @@ type Client struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Wd     string
+}
+
+func NewStandardClient(workdir string) (*Client, error) {
+	forgeBinary, err := NewStandardBinary()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize forge binary: %w", err)
+	}
+	if err := forgeBinary.Ensure(context.Background()); err != nil {
+		return nil, fmt.Errorf("failed to ensure forge binary: %w", err)
+	}
+
+	forgeClient := NewClient(forgeBinary)
+	forgeClient.Wd = filepath.Dir(workdir)
+	fmt.Printf("Forge client working directory: %s\n", forgeClient.Wd)
+
+	return forgeClient, nil
 }
 
 func NewClient(binary Binary) *Client {
@@ -68,6 +85,16 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	cliOpts = append(cliOpts, "--sig", sig, script, "0x"+hex.EncodeToString(args))
 	if err := c.execCmd(ctx, buf, io.Discard, cliOpts...); err != nil {
 		return "", fmt.Errorf("failed to execute forge script: %w", err)
+	}
+	return buf.String(), nil
+}
+
+func (c *Client) VerifyContract(ctx context.Context, opts ...string) (string, error) {
+	buf := new(bytes.Buffer)
+	cliOpts := []string{"verify-contract"}
+	cliOpts = append(cliOpts, opts...)
+	if err := c.execCmd(ctx, buf, buf, cliOpts...); err != nil {
+		return buf.String(), fmt.Errorf("failed to verify contract: %w", err)
 	}
 	return buf.String(), nil
 }

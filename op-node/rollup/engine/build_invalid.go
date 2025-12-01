@@ -30,43 +30,43 @@ func (ev InvalidPayloadAttributesEvent) String() string {
 	return "invalid-payload-attributes"
 }
 
-func (eq *EngineController) onBuildInvalid(ctx context.Context, ev BuildInvalidEvent) {
-	eq.log.Warn("could not process payload attributes", "err", ev.Err)
+func (e *EngineController) onBuildInvalid(ctx context.Context, ev BuildInvalidEvent) {
+	e.log.Warn("could not process payload attributes", "err", ev.Err)
 
 	// Deposit transaction execution errors are suppressed in the execution engine, but if the
 	// block is somehow invalid, there is nothing we can do to recover & we should exit.
 	if ev.Attributes.Attributes.IsDepositsOnly() {
-		eq.log.Error("deposit only block was invalid", "parent", ev.Attributes.Parent, "err", ev.Err)
-		eq.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+		e.log.Error("deposit only block was invalid", "parent", ev.Attributes.Parent, "err", ev.Err)
+		e.emitter.Emit(ctx, rollup.CriticalErrorEvent{
 			Err: fmt.Errorf("failed to process block with only deposit transactions: %w", ev.Err),
 		})
 		return
 	}
 
-	if ev.Attributes.IsDerived() && eq.rollupCfg.IsHolocene(ev.Attributes.DerivedFrom.Time) {
-		eq.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Attributes.Parent.ID(), ev.Attributes.DerivedFrom)
+	if ev.Attributes.IsDerived() && e.rollupCfg.IsHolocene(ev.Attributes.DerivedFrom.Time) {
+		e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Attributes.Parent.ID(), ev.Attributes.DerivedFrom)
 		return
 	}
 
 	// Revert the pending safe head to the safe head.
-	eq.SetPendingSafeL2Head(eq.SafeL2Head())
+	e.SetPendingSafeL2Head(e.safeHead)
 	// suppress the error b/c we want to retry with the next batch from the batch queue
 	// If there is no valid batch the node will eventually force a deposit only block. If
 	// the deposit only block fails, this will return the critical error above.
 
 	// Try to restore to previous known unsafe chain.
-	eq.SetBackupUnsafeL2Head(eq.BackupUnsafeL2Head(), true)
+	e.SetBackupUnsafeL2Head(e.backupUnsafeHead, true)
 
 	// drop the payload without inserting it into the engine
 
 	// Signal that we deemed the attributes as unfit
-	eq.emitter.Emit(ctx, InvalidPayloadAttributesEvent(ev))
+	e.emitter.Emit(ctx, InvalidPayloadAttributesEvent(ev))
 }
 
-func (eq *EngineController) emitDepositsOnlyPayloadAttributesRequest(ctx context.Context, parent eth.BlockID, derivedFrom eth.L1BlockRef) {
-	eq.log.Warn("Holocene active, requesting deposits-only attributes", "parent", parent, "derived_from", derivedFrom)
+func (e *EngineController) emitDepositsOnlyPayloadAttributesRequest(ctx context.Context, parent eth.BlockID, derivedFrom eth.L1BlockRef) {
+	e.log.Warn("Holocene active, requesting deposits-only attributes", "parent", parent, "derived_from", derivedFrom)
 	// request deposits-only version
-	eq.emitter.Emit(ctx, derive.DepositsOnlyPayloadAttributesRequestEvent{
+	e.emitter.Emit(ctx, derive.DepositsOnlyPayloadAttributesRequestEvent{
 		Parent:      parent,
 		DerivedFrom: derivedFrom,
 	})

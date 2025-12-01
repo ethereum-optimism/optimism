@@ -72,5 +72,8 @@ func (s *OpProgramServerExecutor) OracleCommand(cfg Config, dataDir string, inpu
 	if cfg.L2Custom {
 		args = append(args, "--l2.custom")
 	}
+	if cfg.L1GenesisPath != "" {
+		args = append(args, "--l1.chainconfig", cfg.L1GenesisPath)
+	}
 	return args, nil
 }

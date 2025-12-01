@@ -43,6 +43,7 @@ type EndpointProvider interface {
 
 type System interface {
 	RollupCfgs() []*rollup.Config
+	L1Genesis() *core.Genesis
 	L2Geneses() []*core.Genesis
 	PrestateVariant() shared.PrestateVariant
 }
@@ -133,21 +134,21 @@ func handleOptError(t *testing.T, opt shared.Option) Option {
 }
 func WithCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))(c)
+		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
 		handleOptError(t, shared.WithCannonTraceType())(c)
 	}
 }
 
 func WithPermissioned(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))(c)
+		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
 		handleOptError(t, shared.WithPermissionedTraceType())(c)
 	}
 }
 
 func WithSuperCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))(c)
+		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
 		handleOptError(t, shared.WithSuperCannonTraceType())(c)
 	}
 }
