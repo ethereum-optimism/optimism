@@ -758,6 +758,25 @@ func TestChannelBuilder_CheckTimeout(t *testing.T) {
 	require.ErrorIs(t, cb.FullErr(), ErrMaxDurationReached)
 }
 
+func TestChannelBuilder_MaxChannelDurationZero(t *testing.T) {
+	log := testlog.Logger(t, log.LvlInfo)
+	channelConfig := defaultTestChannelConfig()
+	channelConfig.MaxChannelDuration = 0
+
+	// Construct the channel builder
+	cb, err := newChannelBuilder(log, channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
+	require.NoError(t, err)
+
+	// Assert timeout is setup correctly
+	require.Equal(t, uint64(0), channelConfig.MaxChannelDuration)
+
+	// Check a new L1 block which should not update the timeout, due to config setting MaxChannelDuration to 0
+	cb.CheckTimeout(uint64(12345))
+
+	require.Equal(t, uint64(0), cb.timeout)
+	require.NoError(t, cb.FullErr())
+}
+
 func TestChannelBuilder_CheckTimeoutZeroMaxChannelDuration(t *testing.T) {
 	log := testlog.Logger(t, log.LvlInfo)
 	channelConfig := defaultTestChannelConfig()
