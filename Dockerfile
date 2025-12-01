@@ -63,7 +63,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 FROM gcr.io/distroless/cc-debian12
 WORKDIR /app
 
-ARG SERVICE_NAME
+ARG SERVICE_NAME="rollup-boost"
 # Copy binary with its proper service name
 COPY --from=builder /tmp/final_binary /usr/local/bin/${SERVICE_NAME}
 # Also copy as a fixed entrypoint name
