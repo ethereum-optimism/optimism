@@ -8,6 +8,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
+import { IL2ToL1MessagePasserCGT } from "interfaces/L2/IL2ToL1MessagePasserCGT.sol";
 
 // Libraries
 import { Hashing } from "src/libraries/Hashing.sol";
@@ -143,6 +144,31 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
         assertEq(feeVault.totalProcessed(), amount);
         assertEq(address(feeVault).balance, 0);
         assertEq(Predeploys.L2_TO_L1_MESSAGE_PASSER.balance, amount);
+    }
+
+    /// @notice Tests that withdraw to L1 reverts when custom gas token is enabled and value is sent.
+    function testFuzz_withdraw_toL1WithCustomGasToken_reverts(uint256 _amount) external {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        // Setup L1 withdrawal
+        vm.prank(IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+        feeVault.setWithdrawalNetwork(Types.WithdrawalNetwork.L1);
+
+        // Set recipient
+        vm.prank(IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+        feeVault.setRecipient(recipient);
+
+        // Set minimum withdrawal amount
+        vm.prank(IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+        feeVault.setMinWithdrawalAmount(minWithdrawalAmount);
+
+        // Set the balance to be greater than the minimum withdrawal amount
+        _amount = bound(_amount, feeVault.minWithdrawalAmount() + 1, type(uint128).max);
+        vm.deal(address(feeVault), _amount);
+
+        // Withdrawal should revert due to CGT mode
+        vm.expectRevert(IL2ToL1MessagePasserCGT.L2ToL1MessagePasserCGT_NotAllowedOnCGTMode.selector);
+        feeVault.withdraw();
     }
 
     /// @notice Tests that `withdraw` successfully initiates a withdrawal to L2.
