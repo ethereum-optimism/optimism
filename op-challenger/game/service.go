@@ -10,6 +10,7 @@ import (
 	challengerClient "github.com/ethereum-optimism/optimism/op-challenger/game/client"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/zk"
 	"github.com/ethereum-optimism/optimism/op-challenger/sender"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -214,6 +215,10 @@ func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) err
 	oracles := registry.NewOracleRegistry()
 	s.clientProvider = challengerClient.NewProvider(ctx, s.logger, cfg, s.l1Client)
 	err := fault.RegisterGameTypes(ctx, s.systemClock, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, oracles, s.txSender, s.factoryContract, s.clientProvider, cfg.SelectiveClaimResolution, s.claimants)
+	if err != nil {
+		return err
+	}
+	err = zk.RegisterGameTypes(ctx, s.systemClock, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, s.txSender, s.clientProvider)
 	if err != nil {
 		return err
 	}

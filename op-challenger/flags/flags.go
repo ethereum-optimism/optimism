@@ -589,7 +589,7 @@ func CheckRequired(ctx *cli.Context, types []gameTypes.GameType) error {
 			if err := CheckSuperAsteriscKonaFlags(ctx); err != nil {
 				return err
 			}
-		case gameTypes.AlphabetGameType, gameTypes.FastGameType:
+		case gameTypes.OptimisticZKGameType, gameTypes.AlphabetGameType, gameTypes.FastGameType:
 			if err := checkOutputProviderFlags(ctx); err != nil {
 				return err
 			}

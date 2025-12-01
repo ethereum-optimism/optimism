@@ -21,7 +21,7 @@ const (
 	SuperAsteriscKonaGameType GameType = 7
 	CannonKonaGameType        GameType = 8
 	SuperCannonKonaGameType   GameType = 9
-	OptimisticZKGameType      GameType = 10 // Not (yet) supported by op-challenger
+	OptimisticZKGameType      GameType = 10
 	FastGameType              GameType = 254
 	AlphabetGameType          GameType = 255
 	KailuaGameType            GameType = 1337           // Not supported by op-challenger
@@ -42,6 +42,7 @@ var SupportedGameTypes = []GameType{
 	SuperCannonKonaGameType,
 	SuperPermissionedGameType,
 	SuperAsteriscKonaGameType,
+	OptimisticZKGameType,
 }
 
 // Set implements the Set method required by the [cli.Generic] interface.

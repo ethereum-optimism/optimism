@@ -20,6 +20,10 @@ const (
 	versZKLatest = "0.0.0"
 )
 
+var (
+	zkGameAddr = common.Address{0x45, 0x44, 0x43}
+)
+
 var zkVersions = []contractVersion{
 	{
 		version:  versZKLatest,
@@ -82,7 +86,7 @@ func TestZKSimpleGetters(t *testing.T) {
 						t.Skip("Skipping for this version")
 					}
 					stubRpc, game := setupZKDisputeGameTest(t, version)
-					stubRpc.SetResponse(fdgAddr, test.method, rpcblock.Latest, nil, []interface{}{test.result})
+					stubRpc.SetResponse(zkGameAddr, test.method, rpcblock.Latest, nil, []interface{}{test.result})
 					status, err := test.call(game)
 					require.NoError(t, err)
 					expected := test.expected
@@ -106,10 +110,10 @@ func TestZKGetMetadata(t *testing.T) {
 			expectedRootClaim := common.Hash{0x01, 0x02}
 			expectedStatus := gameTypes.GameStatusChallengerWon
 			block := rpcblock.ByNumber(889)
-			stubRpc.SetResponse(fdgAddr, methodL1Head, block, nil, []interface{}{expectedL1Head})
-			stubRpc.SetResponse(fdgAddr, methodL2SequenceNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
-			stubRpc.SetResponse(fdgAddr, methodRootClaim, block, nil, []interface{}{expectedRootClaim})
-			stubRpc.SetResponse(fdgAddr, methodStatus, block, nil, []interface{}{expectedStatus})
+			stubRpc.SetResponse(zkGameAddr, methodL1Head, block, nil, []interface{}{expectedL1Head})
+			stubRpc.SetResponse(zkGameAddr, methodL2SequenceNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
+			stubRpc.SetResponse(zkGameAddr, methodRootClaim, block, nil, []interface{}{expectedRootClaim})
+			stubRpc.SetResponse(zkGameAddr, methodStatus, block, nil, []interface{}{expectedStatus})
 			actual, err := contract.GetMetadata(context.Background(), block)
 			expected := GenericGameMetadata{
 				L1Head:        expectedL1Head,
@@ -130,8 +134,8 @@ func TestZKGetGameRange(t *testing.T) {
 			stubRpc, contract := setupZKDisputeGameTest(t, version)
 			expectedStart := uint64(65)
 			expectedEnd := uint64(102)
-			stubRpc.SetResponse(fdgAddr, methodStartingBlockNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
-			stubRpc.SetResponse(fdgAddr, methodL2SequenceNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedEnd)})
+			stubRpc.SetResponse(zkGameAddr, methodStartingBlockNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
+			stubRpc.SetResponse(zkGameAddr, methodL2SequenceNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedEnd)})
 			start, end, err := contract.GetGameRange(context.Background())
 			require.NoError(t, err)
 			require.Equal(t, expectedStart, start)
@@ -145,10 +149,106 @@ func TestZKResolveTx(t *testing.T) {
 		version := version
 		t.Run(version.String(), func(t *testing.T) {
 			stubRpc, game := setupZKDisputeGameTest(t, version)
-			stubRpc.SetResponse(fdgAddr, methodResolve, rpcblock.Latest, nil, nil)
+			stubRpc.SetResponse(zkGameAddr, methodResolve, rpcblock.Latest, nil, nil)
 			tx, err := game.ResolveTx()
 			require.NoError(t, err)
 			stubRpc.VerifyTxCandidate(tx)
+		})
+	}
+}
+
+func TestZKCanChallenge(t *testing.T) {
+	for _, version := range zkVersions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			parentIndex := uint32(525)
+			claim := common.Hash{0xbb}
+			deadline := uint64(42824240)
+
+			tests := []struct {
+				name           string
+				counteredBy    common.Address
+				prover         common.Address
+				status         ProposalStatus
+				expectedResult bool
+			}{
+				{
+					name:           "Unchallenged",
+					status:         ProposalStatusUnchallenged,
+					expectedResult: true,
+				},
+				{
+					name:           "Challenged",
+					counteredBy:    common.Address{0xaa},
+					status:         ProposalStatusChallenged,
+					expectedResult: false,
+				},
+				{
+					name:           "UnchallengedAndProven",
+					prover:         common.Address{0xaa},
+					status:         ProposalStatusUnchallengedAndValidProofProvided,
+					expectedResult: false,
+				},
+				{
+					name:           "ChallengedAndProven",
+					counteredBy:    common.Address{0xaa},
+					prover:         common.Address{0xbb},
+					status:         ProposalStatusChallengedAndValidProofProvided,
+					expectedResult: false,
+				},
+				{
+					name:           "Resolved",
+					status:         ProposalStatusResolved,
+					expectedResult: false,
+				},
+			}
+
+			for _, test := range tests {
+				t.Run(test.name, func(t *testing.T) {
+					stubRpc, game := setupZKDisputeGameTest(t, version)
+					stubRpc.SetResponse(zkGameAddr, methodClaimData, rpcblock.Latest, nil, []interface{}{
+						parentIndex, test.counteredBy, test.prover, claim, test.status, deadline,
+					})
+					result, err := game.CanChallenge(context.Background())
+					require.NoError(t, err)
+					require.Equal(t, test.expectedResult, result)
+				})
+			}
+		})
+	}
+}
+
+func TestZKChallengeTx(t *testing.T) {
+	for _, version := range zkVersions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			bond := big.NewInt(97592472)
+
+			stubRpc, game := setupZKDisputeGameTest(t, version)
+			stubRpc.SetResponse(zkGameAddr, methodChallengerBond, rpcblock.Latest, nil, []interface{}{bond})
+			stubRpc.SetResponse(zkGameAddr, methodChallenge, rpcblock.Latest, nil, nil)
+
+			tx, err := game.ChallengeTx(context.Background())
+			require.NoError(t, err)
+			stubRpc.VerifyTxCandidate(tx)
+		})
+	}
+}
+
+func TestZKGetProposal(t *testing.T) {
+	for _, version := range zkVersions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			rootClaim := common.Hash{0xaa}
+			l2SequenceNumber := big.NewInt(1236)
+			stubRpc, game := setupZKDisputeGameTest(t, version)
+			stubRpc.SetResponse(zkGameAddr, methodRootClaim, rpcblock.Latest, nil, []interface{}{rootClaim})
+			stubRpc.SetResponse(zkGameAddr, methodL2SequenceNumber, rpcblock.Latest, nil, []interface{}{l2SequenceNumber})
+
+			actualClaim, actualSeqNum, err := game.GetProposal(context.Background())
+			require.NoError(t, err)
+			require.Equal(t, rootClaim, actualClaim)
+			require.Equal(t, l2SequenceNumber.Uint64(), actualSeqNum)
 		})
 	}
 }
@@ -159,15 +259,15 @@ func setupZKDisputeGameTest(t *testing.T, version contractVersion) (*batchingTes
 	vmAbi := snapshots.LoadMIPSABI()
 	oracleAbi := snapshots.LoadPreimageOracleABI()
 
-	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAddr, fdgAbi)
+	stubRpc := batchingTest.NewAbiBasedRpc(t, zkGameAddr, fdgAbi)
 	stubRpc.AddContract(vmAddr, vmAbi)
 	stubRpc.AddContract(oracleAddr, oracleAbi)
 	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)
 
-	stubRpc.SetResponse(fdgAddr, methodGameType, rpcblock.Latest, nil, []interface{}{uint32(version.gameType)})
-	stubRpc.SetResponse(fdgAddr, methodVersion, rpcblock.Latest, nil, []interface{}{version.version})
+	stubRpc.SetResponse(zkGameAddr, methodGameType, rpcblock.Latest, nil, []interface{}{uint32(version.gameType)})
+	stubRpc.SetResponse(zkGameAddr, methodVersion, rpcblock.Latest, nil, []interface{}{version.version})
 	stubRpc.SetResponse(oracleAddr, methodVersion, rpcblock.Latest, nil, []interface{}{oracleLatest})
-	game, err := NewOptimisticZKDisputeGameContract(contractMetrics.NoopContractMetrics, fdgAddr, caller)
+	game, err := NewOptimisticZKDisputeGameContract(contractMetrics.NoopContractMetrics, zkGameAddr, caller)
 	require.NoError(t, err)
 	return stubRpc, game
 }

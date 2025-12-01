@@ -14,8 +14,36 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+type ProposalStatus uint8
+
+const (
+	ProposalStatusUnchallenged ProposalStatus = iota
+	ProposalStatusChallenged
+	ProposalStatusUnchallengedAndValidProofProvided
+	ProposalStatusChallengedAndValidProofProvided
+	ProposalStatusResolved
+)
+
+var (
+	methodChallenge      = "challenge"
+	methodChallengerBond = "challengerBond"
+	methodClaimData      = "claimData"
+)
+
+type claimData struct {
+	ParentIndex uint32
+	CounteredBy common.Address
+	Prover      common.Address
+	Claim       common.Hash
+	Status      ProposalStatus
+	Deadline    uint64
+}
+
 type OptimisticZKDisputeGameContract interface {
 	DisputeGameContract
+	CanChallenge(ctx context.Context) (bool, error)
+	ChallengeTx(ctx context.Context) (txmgr.TxCandidate, error)
+	GetProposal(ctx context.Context) (common.Hash, uint64, error)
 }
 
 type OptimisticZKDisputeGameContractLatest struct {
@@ -103,6 +131,48 @@ func (g *OptimisticZKDisputeGameContractLatest) GetGameRange(ctx context.Context
 	return
 }
 
+func (g *OptimisticZKDisputeGameContractLatest) CanChallenge(ctx context.Context) (bool, error) {
+	data, err := g.claimData(ctx)
+	if err != nil {
+		return false, err
+	}
+	return data.Status == ProposalStatusUnchallenged, nil
+}
+
+func (g *OptimisticZKDisputeGameContractLatest) claimData(ctx context.Context) (claimData, error) {
+	defer g.metrics.StartContractRequest("ClaimData")()
+	result, err := g.multiCaller.SingleCall(ctx, rpcblock.Latest, g.contract.Call(methodClaimData))
+	if err != nil {
+		return claimData{}, fmt.Errorf("failed to retrieve claim data: %w", err)
+	}
+	return g.decodeClaimData(result), nil
+}
+
+func (g *OptimisticZKDisputeGameContractLatest) ChallengeTx(ctx context.Context) (txmgr.TxCandidate, error) {
+	tx, err := g.contract.Call(methodChallenge).ToTxCandidate()
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("failed to create challenge tx: %w", err)
+	}
+
+	result, err := g.multiCaller.SingleCall(ctx, rpcblock.Latest, g.contract.Call(methodChallengerBond))
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("failed to retrieve challenger bond: %w", err)
+	}
+	tx.Value = result.GetBigInt(0)
+	return tx, nil
+}
+
+func (g *OptimisticZKDisputeGameContractLatest) GetProposal(ctx context.Context) (common.Hash, uint64, error) {
+	results, err := g.multiCaller.Call(ctx, rpcblock.Latest, g.contract.Call(methodRootClaim), g.contract.Call(methodL2SequenceNumber))
+	if err != nil {
+		return common.Hash{}, 0, fmt.Errorf("failed to retrieve proposal: %w", err)
+	}
+	if len(results) != 2 {
+		return common.Hash{}, 0, fmt.Errorf("expected 2 results but got %v", len(results))
+	}
+	return results[0].GetHash(0), results[1].GetBigInt(0).Uint64(), nil
+}
+
 func (g *OptimisticZKDisputeGameContractLatest) GetResolvedAt(ctx context.Context, block rpcblock.Block) (time.Time, error) {
 	defer g.metrics.StartContractRequest("GetResolvedAt")()
 	result, err := g.multiCaller.SingleCall(ctx, block, g.contract.Call(methodResolvedAt))
@@ -130,6 +200,23 @@ func (g *OptimisticZKDisputeGameContractLatest) ResolveTx() (txmgr.TxCandidate, 
 
 func (g *OptimisticZKDisputeGameContractLatest) resolveCall() *batching.ContractCall {
 	return g.contract.Call(methodResolve)
+}
+
+func (g *OptimisticZKDisputeGameContractLatest) decodeClaimData(result *batching.CallResult) claimData {
+	parentIndex := result.GetUint32(0)
+	counteredBy := result.GetAddress(1)
+	prover := result.GetAddress(2)
+	claim := result.GetHash(3)
+	status := result.GetUint8(4)
+	deadline := result.GetUint64(5)
+	return claimData{
+		ParentIndex: parentIndex,
+		CounteredBy: counteredBy,
+		Prover:      prover,
+		Claim:       claim,
+		Status:      ProposalStatus(status),
+		Deadline:    deadline,
+	}
 }
 
 var _ DisputeGameContract = (*OptimisticZKDisputeGameContractLatest)(nil)

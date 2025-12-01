@@ -1409,7 +1409,7 @@ func requiredArgs(gameType gameTypes.GameType) map[string]string {
 		addRequiredSuperCannonKonaArgs(args)
 	case gameTypes.SuperAsteriscKonaGameType:
 		addRequiredSuperAsteriscKonaArgs(args)
-	case gameTypes.AlphabetGameType, gameTypes.FastGameType:
+	case gameTypes.OptimisticZKGameType, gameTypes.AlphabetGameType, gameTypes.FastGameType:
 		addRequiredOutputRootArgs(args)
 	}
 	return args
