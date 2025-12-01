@@ -64,10 +64,14 @@ contract OPContractsManagerContainer_TestInit is Test {
 /// @notice Tests the constructor of OPContractsManagerContainer.
 contract OPContractsManagerContainer_Constructor_Test is OPContractsManagerContainer_TestInit {
     /// @notice Tests that the constructor succeeds with any dev bitmap when in a test environment.
+    /// @param _chainId The chain ID to use.
     /// @param _devFeatureBitmap The dev feature bitmap to use.
-    function testFuzz_constructor_devBitmapInTestEnv_succeeds(bytes32 _devFeatureBitmap) public {
+    function testFuzz_constructor_devBitmapInTestEnv_succeeds(uint64 _chainId, bytes32 _devFeatureBitmap) public {
         // Etch code into the magic testing address so we're recognized as a test env.
         vm.etch(Constants.TESTING_ENVIRONMENT_ADDRESS, hex"01");
+
+        // Set chain ID.
+        vm.chainId(_chainId);
 
         OPContractsManagerContainer container = _deploy(_devFeatureBitmap);
 
@@ -89,20 +93,6 @@ contract OPContractsManagerContainer_Constructor_Test is OPContractsManagerConta
 
         vm.expectRevert(OPContractsManagerContainer.OPContractsManagerContractsContainer_DevFeatureInProd.selector);
         _deploy(_devFeatureBitmap);
-    }
-
-    /// @notice Tests that the constructor succeeds on mainnet when the test env flag is set.
-    /// @param _devFeatureBitmap The dev feature bitmap to use.
-    function testFuzz_constructor_devBitmapOnMainnetButTestEnv_succeeds(bytes32 _devFeatureBitmap) public {
-        // Etch code into the magic testing address.
-        vm.etch(Constants.TESTING_ENVIRONMENT_ADDRESS, hex"01");
-
-        // Set chain ID to mainnet.
-        vm.chainId(1);
-
-        OPContractsManagerContainer container = _deploy(_devFeatureBitmap);
-
-        assertEq(container.devFeatureBitmap(), _devFeatureBitmap);
     }
 
     /// @notice Tests that the constructor succeeds on mainnet with a zero dev bitmap.
@@ -153,6 +143,7 @@ contract OPContractsManagerContainer_IsDevFeatureEnabled_Test is OPContractsMana
         OPContractsManagerContainer container = _deploy(bitmap);
 
         assertTrue(container.isDevFeatureEnabled(feature));
+        assertFalse(container.isDevFeatureEnabled(bytes32(0)));
     }
 
     /// @notice Tests that isDevFeatureEnabled returns false when the feature bit is not set.
@@ -173,6 +164,28 @@ contract OPContractsManagerContainer_IsDevFeatureEnabled_Test is OPContractsMana
         OPContractsManagerContainer container = _deploy(bytes32(0));
 
         assertFalse(container.isDevFeatureEnabled(_feature));
+    }
+
+    /// @notice Tests that isDevFeatureEnabled returns true for multiple features set at once.
+    function test_isDevFeatureEnabled_multipleBitsSet_succeeds() public {
+        uint256 numFeatures = vm.randomUint(1, 16);
+        uint256 bitmap;
+        uint8[] memory bitIndices = new uint8[](numFeatures);
+
+        // Set random bits in the bitmap.
+        for (uint256 i = 0; i < numFeatures; i++) {
+            uint8 bitIndex = uint8(vm.randomUint(0, 255));
+            bitIndices[i] = bitIndex;
+            bitmap |= uint256(1) << bitIndex;
+        }
+
+        OPContractsManagerContainer container = _deploy(bytes32(bitmap));
+
+        // Verify each feature is enabled.
+        for (uint256 i = 0; i < numFeatures; i++) {
+            bytes32 feature = bytes32(uint256(1) << bitIndices[i]);
+            assertTrue(container.isDevFeatureEnabled(feature));
+        }
     }
 }
 
