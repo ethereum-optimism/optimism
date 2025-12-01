@@ -1261,7 +1261,6 @@ jobs:
     machine: true
     resource_class: ethereum-optimism/latitude-1
     steps:
-      - checkout-from-workspace
       - check-changed:
           patterns: contracts-bedrock
       - get-target-branch
