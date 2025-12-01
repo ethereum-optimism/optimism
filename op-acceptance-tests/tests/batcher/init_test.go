@@ -26,7 +26,7 @@ func TestMain(m *testing.M) {
 
 			cfg.PollInterval = 1000 * time.Millisecond
 
-			cfg.MaxChannelDuration = 50 // not sure if this is reasonable, or should be larger?
+			cfg.MaxChannelDuration = 50
 			cfg.MaxPendingTransactions = 7
 		})),
 	)

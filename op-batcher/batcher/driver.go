@@ -117,7 +117,7 @@ type BatchSubmitter struct {
 
 	throttleController *throttler.ThrottleController
 
-	publishSignal chan pubInfo // true if we should force a tx to be published now, false if we should check the usual conditions (timeouts)
+	publishSignal chan pubInfo
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter driver from a preconfigured DriverSetup
