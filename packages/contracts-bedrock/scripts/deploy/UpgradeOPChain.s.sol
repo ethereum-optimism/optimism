@@ -7,6 +7,7 @@ import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { GameType } from "src/dispute/lib/Types.sol";
@@ -103,41 +104,56 @@ contract UpgradeOPChain is Script {
             // Call into the DummyCallerV2 to perform the delegatecall
             // Note: DummyCaller and DummyCallerV2 are compatible - same storage slot, different function sig
             vm.broadcast(msg.sender);
-            (bool success, bytes memory result) = DummyCallerV2(_prank).upgrade(upgradeInput);
+            (bool success,) = DummyCallerV2(_prank).upgrade(upgradeInput);
             require(success, "UpgradeChain: v2 upgrade failed");
         }
     }
 
     /// @notice Fetch existing dispute game configs from the chain
     /// @dev This is critical for v2 to avoid accidentally disabling existing games
-    function fetchExistingGameConfigs(address /* _systemConfig */)
+    function fetchExistingGameConfigs(address _systemConfig)
         internal
-        pure
+        view
         returns (IOPContractsManagerV2.DisputeGameConfig[] memory)
     {
-        // TODO: Query actual game configs from the DisputeGameFactory
-        // ISystemConfig systemConfig = ISystemConfig(_systemConfig);
-        // IDisputeGameFactory factory = IDisputeGameFactory(address(systemConfig.disputeGameFactory()));
-        // Query all game types from the factory
-        // For now, return a standard set - in production this should query the actual chain state
+        ISystemConfig systemConfig = ISystemConfig(_systemConfig);
+        IDisputeGameFactory factory = IDisputeGameFactory(address(systemConfig.disputeGameFactory()));
+
+        // First pass: count how many game types are configured
+        uint256 configuredCount = 0;
+        uint256 maxGameType = 15; // Check game types 0-15 (reasonable upper bound)
+
+        for (uint256 i = 0; i <= maxGameType; i++) {
+            GameType gameType = GameType.wrap(uint32(i));
+            IDisputeGame impl = factory.gameImpls(gameType);
+            if (address(impl) != address(0)) {
+                configuredCount++;
+            }
+        }
+
+        // Second pass: build the config array
         IOPContractsManagerV2.DisputeGameConfig[] memory configs =
-            new IOPContractsManagerV2.DisputeGameConfig[](2);
+            new IOPContractsManagerV2.DisputeGameConfig[](configuredCount);
 
-        // Standard CANNON game (type 0)
-        configs[0] = IOPContractsManagerV2.DisputeGameConfig({
-            enabled: true,
-            initBond: 0.08 ether,
-            gameType: GameType.wrap(0), // CANNON
-            gameArgs: bytes("")
-        });
+        uint256 index = 0;
+        for (uint256 i = 0; i <= maxGameType; i++) {
+            GameType gameType = GameType.wrap(uint32(i));
+            IDisputeGame impl = factory.gameImpls(gameType);
 
-        // Standard PERMISSIONED_CANNON game (type 1)
-        configs[1] = IOPContractsManagerV2.DisputeGameConfig({
-            enabled: true,
-            initBond: 0.08 ether,
-            gameType: GameType.wrap(1), // PERMISSIONED_CANNON
-            gameArgs: bytes("")
-        });
+            if (address(impl) != address(0)) {
+                // Game type is configured - fetch its parameters
+                uint256 initBond = factory.initBonds(gameType);
+                bytes memory gameArgs = factory.gameArgs(gameType);
+
+                configs[index] = IOPContractsManagerV2.DisputeGameConfig({
+                    enabled: true,
+                    initBond: initBond,
+                    gameType: gameType,
+                    gameArgs: gameArgs
+                });
+                index++;
+            }
+        }
 
         return configs;
     }

@@ -16,7 +16,10 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { GameType, Duration, Claim } from "src/dispute/lib/Types.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { GameTypes } from "src/dispute/lib/Types.sol";
 
 /// @title AddGameType
 contract AddGameType is Script {
@@ -154,48 +157,66 @@ contract AddGameType is Script {
 
     /// @notice Fetch existing dispute game configs from the chain
     /// @dev Critical for v2 to avoid accidentally disabling existing games
-    function fetchExistingGameConfigs(address /* _systemConfig */)
+    function fetchExistingGameConfigs(address _systemConfig)
         internal
-        pure
+        view
         returns (IOPContractsManagerV2.DisputeGameConfig[] memory)
     {
-        // TODO: Query actual game configs from the DisputeGameFactory
-        // ISystemConfig systemConfig = ISystemConfig(_systemConfig);
-        // IDisputeGameFactory factory = IDisputeGameFactory(address(systemConfig.disputeGameFactory()));
-        // For now, return standard game configs
-        IOPContractsManagerV2.DisputeGameConfig[] memory configs = new IOPContractsManagerV2.DisputeGameConfig[](2);
+        ISystemConfig systemConfig = ISystemConfig(_systemConfig);
+        IDisputeGameFactory factory = IDisputeGameFactory(address(systemConfig.disputeGameFactory()));
 
-        // Standard CANNON game (type 0)
-        configs[0] = IOPContractsManagerV2.DisputeGameConfig({
-            enabled: true,
-            initBond: 0.08 ether,
-            gameType: GameType.wrap(0), // CANNON
-            gameArgs: bytes("")
-        });
+        // First pass: count how many game types are configured
+        uint256 configuredCount = 0;
+        uint256 maxGameType = 15; // Check game types 0-15 (reasonable upper bound)
 
-        // Standard PERMISSIONED_CANNON game (type 1)
-        configs[1] = IOPContractsManagerV2.DisputeGameConfig({
-            enabled: true,
-            initBond: 0.08 ether,
-            gameType: GameType.wrap(1), // PERMISSIONED_CANNON
-            gameArgs: bytes("")
-        });
+        for (uint256 i = 0; i <= maxGameType; i++) {
+            GameType gameType = GameType.wrap(uint32(i));
+            IDisputeGame impl = factory.gameImpls(gameType);
+            if (address(impl) != address(0)) {
+                configuredCount++;
+            }
+        }
+
+        // Second pass: build the config array
+        IOPContractsManagerV2.DisputeGameConfig[] memory configs =
+            new IOPContractsManagerV2.DisputeGameConfig[](configuredCount);
+
+        uint256 index = 0;
+        for (uint256 i = 0; i <= maxGameType; i++) {
+            GameType gameType = GameType.wrap(uint32(i));
+            IDisputeGame impl = factory.gameImpls(gameType);
+
+            if (address(impl) != address(0)) {
+                // Game type is configured - fetch its parameters
+                uint256 initBond = factory.initBonds(gameType);
+                bytes memory gameArgs = factory.gameArgs(gameType);
+
+                configs[index] = IOPContractsManagerV2.DisputeGameConfig({
+                    enabled: true,
+                    initBond: initBond,
+                    gameType: gameType,
+                    gameArgs: gameArgs
+                });
+                index++;
+            }
+        }
 
         return configs;
     }
 
     /// @notice Build a new game config from the input
-    function buildNewGameConfig(Input memory _agi) internal pure returns (IOPContractsManagerV2.DisputeGameConfig memory) {
+    function buildNewGameConfig(Input memory _agi) internal view returns (IOPContractsManagerV2.DisputeGameConfig memory) {
         bytes memory gameArgs;
 
         if (_agi.permissioned) {
-            // For permissioned games, we need proposer and challenger addresses
-            // TODO: These should be passed in the Input struct - for now use zero addresses
+            // For permissioned games, fetch proposer/challenger from existing PERMISSIONED_CANNON game
+            (address proposer, address challenger) = fetchProposerAndChallenger(_agi.systemConfigProxy);
+
             gameArgs = abi.encode(
                 IOPContractsManagerV2.PermissionedDisputeGameConfig({
                     absolutePrestate: _agi.disputeAbsolutePrestate,
-                    proposer: address(0),
-                    challenger: address(0)
+                    proposer: proposer,
+                    challenger: challenger
                 })
             );
         } else {
@@ -213,6 +234,32 @@ contract AddGameType is Script {
             gameType: _agi.disputeGameType,
             gameArgs: gameArgs
         });
+    }
+
+    /// @notice Fetch proposer and challenger addresses from existing PERMISSIONED_CANNON game
+    function fetchProposerAndChallenger(ISystemConfig _systemConfig)
+        internal
+        view
+        returns (address proposer_, address challenger_)
+    {
+        IDisputeGameFactory factory = IDisputeGameFactory(address(_systemConfig.disputeGameFactory()));
+
+        // Get the PERMISSIONED_CANNON game implementation (type 1)
+        IDisputeGame permissionedGameImpl = factory.gameImpls(GameTypes.PERMISSIONED_CANNON);
+
+        require(
+            address(permissionedGameImpl) != address(0),
+            "AddGameType: PERMISSIONED_CANNON not found - cannot derive proposer/challenger"
+        );
+
+        // Cast to IPermissionedDisputeGame to access proposer() and challenger()
+        IPermissionedDisputeGame permissionedGame = IPermissionedDisputeGame(address(permissionedGameImpl));
+
+        proposer_ = permissionedGame.proposer();
+        challenger_ = permissionedGame.challenger();
+
+        require(proposer_ != address(0), "AddGameType: proposer address is zero");
+        require(challenger_ != address(0), "AddGameType: challenger address is zero");
     }
 
     function checkOutput(Output memory _ago) internal view {
