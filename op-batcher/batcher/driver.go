@@ -268,7 +268,7 @@ func (l *BatchSubmitter) Flush(ctx context.Context) error {
 	}
 
 	l.Log.Info("Flushing Batch Submitter")
-	l.tryPublishSignal(l.publishSignal, pubInfo{forcePublish: true, moreComing: false})
+	l.tryPublishSignal(l.publishSignal, pubInfo{forcePublish: true, publishingBacklog: false})
 	return nil
 }
 
@@ -302,7 +302,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 			// This allows the batcher to start publishing sooner in the
 			// case of a large backlog of blocks to load.
 			l.sendToThrottlingLoop(unsafeBytesUpdated)
-			l.tryPublishSignal(publishSignal, pubInfo{moreComing: i < end, forcePublish: false})
+			l.tryPublishSignal(publishSignal, pubInfo{publishingBacklog: i < end, forcePublish: false})
 		}
 
 	}
@@ -556,7 +556,7 @@ func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGrou
 					l.sendToThrottlingLoop(unsafeBytesUpdated) // we have increased the unsafe data. Signal the throttling loop to check if it should throttle.
 				}
 			}
-			l.tryPublishSignal(publishSignal, pubInfo{forcePublish: false, moreComing: false}) // always signal the write loop to ensure we periodically publish even if we aren't loading blocks
+			l.tryPublishSignal(publishSignal, pubInfo{forcePublish: false, publishingBacklog: false}) // always signal the write loop to ensure we periodically publish even if we aren't loading blocks
 		case <-ctx.Done():
 			l.Log.Info("blockLoadingLoop returning")
 			return

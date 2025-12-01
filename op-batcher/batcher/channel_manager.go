@@ -268,8 +268,8 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isPectra bool, isThrottling 
 
 // pubInfo is a struct that contains signal information sent on the publishSignal channel
 type pubInfo struct {
-	forcePublish bool
-	moreComing   bool // moreComing is set to true if there are more blocks to be processed while loading blocks into state
+	forcePublish      bool
+	publishingBacklog bool // publishingBacklog is set to true if there are more blocks to be processed while loading blocks into state
 }
 
 // getReadyChannel returns the next channel ready to submit data, or an error.
@@ -319,7 +319,7 @@ func (s *channelManager) getReadyChannel(l1Head eth.BlockID, pi pubInfo) (*chann
 		return nil, err
 	}
 
-	if !pi.moreComing {
+	if !pi.publishingBacklog {
 		// Register current L1 head only after all pending blocks have been
 		// processed. Even if a timeout will be triggered now, it is better to have
 		// all pending blocks be included in this channel for submission.

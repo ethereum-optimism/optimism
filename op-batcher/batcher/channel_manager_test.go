@@ -103,9 +103,9 @@ func ChannelManagerReturnsErrReorgWhenDrained(t *testing.T, batchType uint) {
 
 	require.NoError(t, m.AddL2Block(a))
 
-	_, err := m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, moreComing: false})
+	_, err := m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, publishingBacklog: false})
 	require.NoError(t, err)
-	_, err = m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, moreComing: false})
+	_, err = m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, publishingBacklog: false})
 	require.ErrorIs(t, err, io.EOF)
 
 	require.ErrorIs(t, m.AddL2Block(x), ErrReorg)
@@ -207,7 +207,7 @@ func ChannelManager_TxResend(t *testing.T, batchType uint) {
 
 	require.NoError(m.AddL2Block(a))
 
-	txdata0, err := m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, moreComing: false})
+	txdata0, err := m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, publishingBacklog: false})
 	require.NoError(err)
 	txdata0bytes := txdata0.CallData()
 	data0 := make([]byte, len(txdata0bytes))
@@ -215,13 +215,13 @@ func ChannelManager_TxResend(t *testing.T, batchType uint) {
 	copy(data0, txdata0bytes)
 
 	// ensure channel is drained
-	_, err = m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, moreComing: false})
+	_, err = m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, publishingBacklog: false})
 	require.ErrorIs(err, io.EOF)
 
 	// requeue frame
 	m.TxFailed(txdata0.ID())
 
-	txdata1, err := m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, moreComing: false})
+	txdata1, err := m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, publishingBacklog: false})
 	require.NoError(err)
 
 	data1 := txdata1.CallData()
@@ -318,8 +318,9 @@ func newFakeDynamicEthChannelConfig(lgr log.Logger,
 	}
 }
 
-// TestChannelManager_MoreComing
-func TestChannelManager_MoreComing(t *testing.T) {
+// TestChannelManager_PublishingBacklog tests that the channel manager will not time out
+// when publishingBacklog is set to true in the signal struct.
+func TestChannelManager_PublishingBacklog(t *testing.T) {
 	l := testlog.Logger(t, log.LevelCrit)
 
 	cfg := channelManagerTestConfig(10000, derive.SingularBatchType)
@@ -335,8 +336,8 @@ func TestChannelManager_MoreComing(t *testing.T) {
 		m.blocks.Enqueue(SizedBlock{Block: block})
 	}
 
-	// Call TxData a first time - if `moreComing` is `false`, channel would be timed out.
-	_, err := m.TxData(eth.BlockID{Number: 21}, false, false, pubInfo{forcePublish: false, moreComing: true})
+	// Call TxData a first time - if `publishingBacklog` is `false`, channel would be timed out.
+	_, err := m.TxData(eth.BlockID{Number: 21}, false, false, pubInfo{forcePublish: false, publishingBacklog: true})
 	require.ErrorIs(t, err, io.EOF)
 
 	// Add more blocks to the channel manager
@@ -348,12 +349,12 @@ func TestChannelManager_MoreComing(t *testing.T) {
 	require.NotEmpty(t, m.channelQueue)
 	require.False(t, m.channelQueue[0].IsFull())
 
-	// Call TxData again, with moreComing set to false
-	_, err = m.TxData(eth.BlockID{Number: 22}, false, false, pubInfo{forcePublish: false, moreComing: false})
+	// Call TxData again, with publishingBacklog set to false
+	_, err = m.TxData(eth.BlockID{Number: 22}, false, false, pubInfo{forcePublish: false, publishingBacklog: false})
 	require.NoError(t, err)
 	require.NotEmpty(t, m.channelQueue)
 
-	// Given that `moreComing` is set to false, the channel should be timed out
+	// Given that `publishingBacklog` is set to false, the channel should be timed out
 	require.True(t, m.channelQueue[0].IsFull())
 	require.ErrorIs(t, m.channelQueue[0].FullErr(), ErrMaxDurationReached)
 }
@@ -404,7 +405,7 @@ func TestChannelManager_TxData(t *testing.T) {
 			m.blocks = queue.Queue[SizedBlock]{SizedBlock{Block: blockA}}
 
 			// Call TxData a first time to trigger blocks->channels pipeline
-			_, err := m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, moreComing: false})
+			_, err := m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, publishingBacklog: false})
 			require.ErrorIs(t, err, io.EOF)
 
 			// The test requires us to have something in the channel queue
@@ -423,7 +424,7 @@ func TestChannelManager_TxData(t *testing.T) {
 			var data txData
 			for {
 				m.blocks.Enqueue(SizedBlock{Block: blockA})
-				data, err = m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, moreComing: false})
+				data, err = m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, publishingBacklog: false})
 				if err == nil && data.Len() > 0 {
 					break
 				}
@@ -751,7 +752,7 @@ func TestChannelManager_TxData_ForcePublish(t *testing.T) {
 	m.blocks = queue.Queue[SizedBlock]{SizedBlock{Block: blockA}}
 
 	// Call TxData a first time to trigger blocks->channels pipeline
-	txData, err := m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, moreComing: false})
+	txData, err := m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, publishingBacklog: false})
 	require.ErrorIs(t, err, io.EOF)
 	require.Zero(t, txData.Len(), 0)
 
@@ -761,7 +762,7 @@ func TestChannelManager_TxData_ForcePublish(t *testing.T) {
 	require.False(t, m.channelQueue[0].IsFull())
 
 	// Call TxData with force publish enabled
-	txData, err = m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: true, moreComing: false})
+	txData, err = m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: true, publishingBacklog: false})
 
 	// Despite no additional blocks being added, we should have tx data:
 	require.NoError(t, err)
@@ -868,7 +869,7 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 			_, err = manager.TxData(eth.BlockID{
 				Hash:   common.Hash{},
 				Number: 0,
-			}, true, false, pubInfo{forcePublish: false, moreComing: false})
+			}, true, false, pubInfo{forcePublish: false, publishingBacklog: false})
 		}
 
 		assert.Equal(t, tc.afterAddingToChannel, manager.UnsafeDABytes())
