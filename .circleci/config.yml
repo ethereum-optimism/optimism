@@ -806,7 +806,7 @@ jobs:
             fi
 
             # Let them cook!
-            KONA_VERSION=$(jq -r .version kona/version.json) \
+            KONA_VERSION=$(jq -r .version kona-proofs/version.json) \
             docker buildx bake \
               --progress plain \
               --builder=buildx-build \
@@ -2030,20 +2030,20 @@ jobs:
           checkout-method: blobless
       - restore_cache:
           name: Restore kona cache
-          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
+          key: kona-prestate-{{ checksum "./kona-proofs/justfile" }}-{{ checksum "./kona-proofs/version.json" }}
       - run:
           name: Build kona prestates
           command: just build-prestates
-          working_directory: kona
+          working_directory: kona-proofs
       - save_cache:
-          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
+          key: kona-prestate-{{ checksum "./kona-proofs/justfile" }}-{{ checksum "./kona-proofs/version.json" }}
           name: Save Kona to cache
           paths:
-            - "kona/prestates/"
+            - "kona-proofs/prestates/"
       - persist_to_workspace:
           root: .
           paths:
-            - "kona/prestates/*"
+            - "kona-proofs/prestates/*"
 
   cannon-kona-host:
     docker:
@@ -2053,7 +2053,7 @@ jobs:
           checkout-method: blobless
       - restore_cache:
           name: Restore kona host cache
-          key: kona-host-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
+          key: kona-host-{{ checksum "./kona-proofs/justfile" }}-{{ checksum "./kona-proofs/version.json" }}
       - run: # The mise plugin for clang is broken so install via apt-get
           name: Install clang
           command: |
@@ -2062,16 +2062,16 @@ jobs:
       - run:
           name: Build kona host
           command: just build-kona-host
-          working_directory: kona
+          working_directory: kona-proofs
       - save_cache:
-          key: kona-host-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
+          key: kona-host-{{ checksum "./kona-proofs/justfile" }}-{{ checksum "./kona-proofs/version.json" }}
           name: Save Kona host to cache
           paths:
-            - "kona/bin/kona-host"
+            - "kona-proofs/bin/kona-host"
       - persist_to_workspace:
           root: .
           paths:
-            - "kona/bin/kona-host"
+            - "kona-proofs/bin/kona-host"
 
   publish-cannon-prestates:
     resource_class: medium
