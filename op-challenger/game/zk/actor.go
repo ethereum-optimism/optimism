@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/generic"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -20,6 +21,10 @@ type RootProvider interface {
 	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
 }
 
+type GameStatusProvider interface {
+	GetGameStatus(ctx context.Context, idx uint64) (gameTypes.GameStatus, error)
+}
+
 type ChallengableContract interface {
 	ChallengeTx(ctx context.Context) (txmgr.TxCandidate, error)
 	GetProposal(ctx context.Context) (common.Hash, uint64, error)
@@ -28,23 +33,25 @@ type ChallengableContract interface {
 }
 
 type Actor struct {
-	logger       log.Logger
-	l1Clock      ClockReader
-	rootProvider RootProvider
-	contract     ChallengableContract
-	txSender     TxSender
-	l1Head       eth.BlockID
+	logger             log.Logger
+	l1Clock            ClockReader
+	rootProvider       RootProvider
+	gameStatusProvider GameStatusProvider
+	contract           ChallengableContract
+	txSender           TxSender
+	l1Head             eth.BlockID
 }
 
-func ActorCreator(l1Clock ClockReader, rootProvider RootProvider, contract ChallengableContract, txSender TxSender) generic.ActorCreator {
+func ActorCreator(l1Clock ClockReader, rootProvider RootProvider, gameStatusProvider GameStatusProvider, contract ChallengableContract, txSender TxSender) generic.ActorCreator {
 	return func(ctx context.Context, logger log.Logger, l1Head eth.BlockID) (generic.Actor, error) {
 		return &Actor{
-			logger:       logger,
-			l1Clock:      l1Clock,
-			rootProvider: rootProvider,
-			contract:     contract,
-			txSender:     txSender,
-			l1Head:       l1Head,
+			logger:             logger,
+			l1Clock:            l1Clock,
+			rootProvider:       rootProvider,
+			gameStatusProvider: gameStatusProvider,
+			contract:           contract,
+			txSender:           txSender,
+			l1Head:             l1Head,
 		}, nil
 	}
 }
@@ -109,13 +116,36 @@ func (a *Actor) isValidProposal(ctx context.Context, proposalSeqNum uint64, prop
 func (a *Actor) tryResolve(ctx context.Context, gameState contracts.ChallengerMetadata) (bool, error) {
 	if gameState.ProposalStatus == contracts.ProposalStatusResolved {
 		a.logger.Trace("Skipping resolution of resolved zk game")
-		return false, nil
+		return true, nil // Already resolved so skip challenging
 	}
-	if gameState.ProposalStatus != contracts.ProposalStatusChallengedAndValidProofProvided &&
-		gameState.ProposalStatus != contracts.ProposalStatusUnchallengedAndValidProofProvided &&
-		!gameState.Deadline.Before(a.l1Clock.Now()) {
-		return false, nil
+	deadlineExpired := gameState.Deadline.Before(a.l1Clock.Now())
+
+	parentStatus, err := a.gameStatusProvider.GetGameStatus(ctx, uint64(gameState.ParentIndex))
+	if err != nil {
+		return false, fmt.Errorf("failed to get parent game status: %w", err)
 	}
+	if parentStatus == gameTypes.GameStatusInProgress {
+		a.logger.Trace("Skipping resolution of zk game with parent in progress")
+		return deadlineExpired, nil // skip challenging if deadline already expired
+	}
+
+	if gameState.ProposalStatus == contracts.ProposalStatusChallengedAndValidProofProvided ||
+		gameState.ProposalStatus == contracts.ProposalStatusUnchallengedAndValidProofProvided {
+		// Resolve if a valid proof is provided
+		return a.resolve()
+	}
+	if deadlineExpired {
+		// Resolve if the deadline has expired (either for challenging or proving)
+		return a.resolve()
+	}
+	if parentStatus == gameTypes.GameStatusChallengerWon {
+		// Resolve if the parent game is invalid
+		return a.resolve()
+	}
+	return false, nil
+}
+
+func (a *Actor) resolve() (bool, error) {
 	a.logger.Info("Resolving zk game")
 	tx, err := a.contract.ResolveTx()
 	if err != nil {

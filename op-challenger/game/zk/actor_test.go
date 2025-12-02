@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -51,11 +52,25 @@ func TestActor_ChallengeProposalBeyondCurrentUnsafeHead(t *testing.T) {
 func TestActor_Resolve(t *testing.T) {
 	// Could just call `gameOver()` and check parent.
 	t.Run("ParentNotResolved", func(t *testing.T) {
-
+		actor, _, contract, sender := setupActorTest(t)
+		// Child is resolvable but still has to wait until the parent is resolved.
+		contract.setDeadlineExpired()
+		contract.setParentStatus(types.GameStatusInProgress)
+		// Invalid proposal hash but shouldn't challenge as deadline has expired
+		contract.proposalHash = common.Hash{0xba, 0xd0}
+		err := actor.Act(context.Background())
+		require.NoError(t, err)
+		require.Empty(t, sender.sentData, "should not resolve game before parent")
 	})
 
 	t.Run("InChallengePeriodButParentInvalid", func(t *testing.T) {
-
+		actor, _, contract, sender := setupActorTest(t)
+		// Child is resolvable but still has to wait until the parent is resolved.
+		contract.setDeadlineNotReached()
+		contract.setParentStatus(types.GameStatusChallengerWon)
+		// Invalid proposal hash but shouldn't challenge as game can be resolved
+		contract.proposalHash = common.Hash{0xba, 0xd0}
+		verifyResolved(t, actor, sender)
 	})
 
 	t.Run("Unchallenged-DeadlinePassed", func(t *testing.T) {
@@ -140,11 +155,14 @@ func setupActorTest(t *testing.T) (*Actor, *stubRootProvider, *stubContract, *st
 	contract := &stubContract{
 		proposalHash:     rootProvider.root,
 		l2SequenceNumber: rootProvider.rootBlockNum,
+		parentStatus:     types.GameStatusDefenderWon,
+		parentIndex:      482,
 	}
 	contract.setDeadlineNotReached()
 	txSender := &stubTxSender{}
 	l1Clock := clock.NewDeterministicClock(l1Time)
-	creator := ActorCreator(l1Clock, rootProvider, contract, txSender)
+	// Simplify the tests by using the same stub for the game and the dispute game factory
+	creator := ActorCreator(l1Clock, rootProvider, contract, contract, txSender)
 	genericActor, err := creator(context.Background(), logger, l1Head)
 	require.NoError(t, err, "failed to create actor")
 	actor, ok := genericActor.(*Actor)
@@ -172,6 +190,7 @@ func (s *stubRootProvider) OutputAtBlock(_ context.Context, blockNum uint64) (*e
 
 type stubContract struct {
 	parentIndex      uint32
+	parentStatus     types.GameStatus
 	proposalStatus   contracts.ProposalStatus
 	deadline         time.Time
 	txCreated        bool
@@ -203,6 +222,17 @@ func (s *stubContract) setDeadlineNotReached() {
 
 func (s *stubContract) markResolved() {
 	s.proposalStatus = contracts.ProposalStatusResolved
+}
+
+func (s *stubContract) setParentStatus(status types.GameStatus) {
+	s.parentStatus = status
+}
+
+func (s *stubContract) GetGameStatus(_ context.Context, idx uint64) (types.GameStatus, error) {
+	if idx != uint64(s.parentIndex) {
+		return 0, errors.New("unexpected parent index")
+	}
+	return s.parentStatus, nil
 }
 
 func (s *stubContract) GetChallengerMetadata(_ context.Context, _ rpcblock.Block) (contracts.ChallengerMetadata, error) {

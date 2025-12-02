@@ -37,6 +37,7 @@ func RegisterGameTypes(
 	registry Registry,
 	txSender TxSender,
 	clients *client.Provider,
+	gameStatusProvider GameStatusProvider,
 ) error {
 	if cfg.GameTypeEnabled(gameTypes.OptimisticZKGameType) {
 		registry.RegisterGameType(gameTypes.OptimisticZKGameType, func(game gameTypes.GameMetadata, dir string) (scheduler.GamePlayer, error) {
@@ -56,7 +57,7 @@ func RegisterGameTypes(
 				syncValidator,
 				nil,
 				clients.L1Client(),
-				ActorCreator(l1Clock, rollupClient, contract, txSender),
+				ActorCreator(l1Clock, rollupClient, gameStatusProvider, contract, txSender),
 			)
 		})
 	}

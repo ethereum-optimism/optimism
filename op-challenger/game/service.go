@@ -218,7 +218,7 @@ func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) err
 	if err != nil {
 		return err
 	}
-	err = zk.RegisterGameTypes(ctx, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, s.txSender, s.clientProvider)
+	err = zk.RegisterGameTypes(ctx, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, s.txSender, s.clientProvider, s.factoryContract)
 	if err != nil {
 		return err
 	}
