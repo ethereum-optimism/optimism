@@ -698,6 +698,40 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             revert OPContractsManagerV2_SuperchainConfigNeedsUpgrade();
         }
 
+        // NOTE: This is STEP 1 in an interop migration. Here we're replacing the three shared
+        // interop contracts with the shared interop references. DisputeGameFactory and
+        // AnchorStateRegistry are easy to replace, we just swap the references. ETHLockbox is a
+        // special case because we'll have to migrate the liquidity from the OptimismPortal and the
+        // old ETHLockbox to the new shared ETHLockbox.
+        // Grab the address of the existing lockbox before it potentially gets replaced by the
+        // shared lockbox address. If this is not an interop migration then we won't end up using
+        // this variable.
+        IETHLockbox oldLockbox = _cts.ethLockbox;
+        if (_hasInstructionByKey(_cfg.extraInstructions, INTEROP_MIGRATION_LOCKBOX)) {
+            // Replace existing contract references with the shared interop references.
+            _cts.ethLockbox = IETHLockbox(
+                address(abi.decode(_getInstructionByKey(_cfg.extraInstructions, INTEROP_MIGRATION_LOCKBOX), address))
+            );
+            _cts.disputeGameFactory = IDisputeGameFactory(
+                address(abi.decode(_getInstructionByKey(_cfg.extraInstructions, INTEROP_MIGRATION_DGF), address))
+            );
+            _cts.anchorStateRegistry = IAnchorStateRegistry(
+                address(abi.decode(_getInstructionByKey(_cfg.extraInstructions, INTEROP_MIGRATION_ASR), address))
+            );
+
+            // Authorize the OptimismPortal for this chain to use the new ETHLockbox.
+            _cts.ethLockbox.authorizePortal(_cts.optimismPortal);
+
+            // TODO(#?????): Need to enforce that the interop dev flag is enabled.
+
+            // TODO(#?????): We can't call OptimismPortal.migrateLiquidity() here because the
+            // portal may not already be upgraded to the interop version of the contract. Once the
+            // core OptimismPortal contract has been upgraded so that it natively supports interop
+            // functionality, we can just do the liquidity migration here and save ourselves some
+            // unnecessary mess in this function. Generally lots of small tweaks to be made once
+            // we merge the interop functionality into the core OptimismPortal contract.
+        }
+
         // Update the SystemConfig.
         // SystemConfig initializer is the only one large enough to require a separate function to
         // avoid stack-too-deep errors.
@@ -724,11 +758,16 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             );
         }
 
-        // NOTE: Same general pattern, we call _upgrade for each contract rather than
-        // iterating over some sort of array because it's easier to implement and understand.
+        // If we haven't already enabled the ETHLockbox, enable it.
+        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+                _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+            }
+        }
 
         // We upgrade/initialize the ETHLockbox if this is an initial deployment or if it's an
         // upgrade and the ETH_LOCKBOX feature is enabled.
+        // TODO(#?????): Maybe just initialize this every time?
         if (_isInitialDeployment || _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
             IOptimismPortal[] memory portals = new IOptimismPortal[](1);
             portals[0] = _cts.optimismPortal;
@@ -740,16 +779,18 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             );
         }
 
-        // If interop was requested, also set the ETHLockbox feature and migrate liquidity into the
-        // ETHLockbox contract.
+        // Now we can migrate any liquidity into the ETHLockbox.
         if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            // If we haven't already enabled the ETHLockbox, enable it.
-            if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-                _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-            }
-
-            // Migrate any ETH into the ETHLockbox.
+            // Start by migrating any portal liquidity into the ETHLockbox.
             IOptimismPortalInterop(payable(_cts.optimismPortal)).migrateLiquidity();
+
+            // If we have an old lockbox (we're doing an interop migration) then also migrate any
+            // liquidity from the old lockbox into the new one. Requires that we first authorize
+            // the old lockbox and then migrate liquidity to the new one.
+            if (oldLockbox != IETHLockbox(address(0))) {
+                oldLockbox.authorizeLockbox(_cts.ethLockbox);
+                oldLockbox.migrateLiquidity(_cts.ethLockbox);
+            }
         }
 
         // Update the L1CrossDomainMessenger.
