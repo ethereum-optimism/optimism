@@ -212,7 +212,7 @@ commands:
           command: |
             # Manually craft the submodule update command in order to take advantage
             # of the -j parameter, which speeds it up a lot.
-            git submodule update --init --recursive --force -j 8
+            git submodule update --init --recursive --single-branch --force -j 8
           working_directory: packages/contracts-bedrock
 
   # Notifies us on Slack a build fails on develop
@@ -1690,6 +1690,15 @@ jobs:
           checkout-method: blobless
       - attach_workspace:
           at: .
+      - run:
+          name: Configure Rust binary paths (sysgo)
+          command: |
+            ROOT_DIR="$(pwd)"
+            BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
+            echo "export RUST_BINARY_PATH_KONA_NODE=$BIN_DIR/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$BIN_DIR/kona-supervisor" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
       # Restore cached Go modules
       - restore_cache:
           keys:
@@ -1782,6 +1791,17 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      - attach_workspace:
+          at: .
+      - run:
+          name: Configure Rust binary paths (sysgo)
+          command: |
+            ROOT_DIR="$(pwd)"
+            BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
+            echo "export RUST_BINARY_PATH_KONA_NODE=$BIN_DIR/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$BIN_DIR/kona-supervisor" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
@@ -2072,6 +2092,111 @@ jobs:
           root: .
           paths:
             - "kona-proofs/bin/kona-host"
+
+  # Build a single Rust binary for sysgo tests (parameterized).
+  rust-binary-build:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      binaries:
+        description: "Space-separated list of binary names to copy from target/release into the cache"
+        type: string
+      build_command:
+        description: "Cargo build command to run"
+        type: string
+      needs_clang:
+        description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)"
+        type: boolean
+        default: false
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Get << parameters.directory >> submodule HASH
+          command: |
+            mkdir -p .circleci-cache
+            # Verify the path is a git submodule (gitlink). For submodules, ls-tree prints:
+            # 160000 commit <sha> <path>
+            MODE_AND_TYPE="$(git ls-tree HEAD << parameters.directory >> | awk '{print $1 " " $2}')"
+            if [ "$MODE_AND_TYPE" != "160000 commit" ]; then
+              echo "ERROR: << parameters.directory >> is not a submodule path (expected '160000 commit', got '$MODE_AND_TYPE')" >&2
+              git ls-tree HEAD << parameters.directory >> >&2 || true
+              exit 1
+            fi
+
+            git ls-tree HEAD << parameters.directory >> | awk '{print $3}' > .circleci-cache/expected-submod-sha.txt
+            echo "Expected submodule HASH: $(cat .circleci-cache/expected-submod-sha.txt)"
+            echo "<< parameters.binaries >>" | tr ' ' '\n' | awk 'NF' | sort -u > .circleci-cache/expected-binaries.txt
+            echo "Expected binaries: $(tr '\n' ' ' < .circleci-cache/expected-binaries.txt)"
+      - restore_cache:
+          name: Restore << parameters.directory >> cache
+          keys:
+            - rust-<< parameters.directory >>-v8-{{ checksum ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum ".circleci-cache/expected-binaries.txt" }}
+      - run:
+          name: Build << parameters.directory >> submodule (if needed)
+          command: |
+            ROOT_DIR="$(pwd)"
+            BIN_CACHE_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
+
+            HIT=true
+            for bin in << parameters.binaries >>; do
+              if [ ! -f "$BIN_CACHE_DIR/$bin" ]; then
+                HIT=false
+                break
+              fi
+            done
+            if [ "$HIT" = "true" ]; then
+              echo "Cache hit - binaries exist"
+              exit 0
+            fi
+
+            echo "Cache miss - will build"
+            # Only run on cache miss. We intentionally do not cache into the submodule directory so that cache
+            # restore cannot make the submodule path non-empty (which breaks `git submodule update --init`).
+            git submodule update --init --recursive --depth 1 -j 8 --single-branch << parameters.directory >>
+
+            if [ "<< parameters.needs_clang >>" = "true" ]; then
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends clang
+            fi
+
+            cd << parameters.directory >> && << parameters.build_command >>
+
+            mkdir -p "$BIN_CACHE_DIR"
+            for bin in << parameters.binaries >>; do
+              SRC="$ROOT_DIR/<< parameters.directory >>/target/release/$bin"
+              DST="$BIN_CACHE_DIR/$bin"
+              if [ ! -f "$SRC" ]; then
+                echo "ERROR: expected built binary not found at $SRC" >&2
+                exit 1
+              fi
+              cp "$SRC" "$DST"
+              chmod +x "$DST" || true
+            done
+          no_output_timeout: 30m
+      - save_cache:
+          key: rust-<< parameters.directory >>-v8-{{ checksum ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum ".circleci-cache/expected-binaries.txt" }}
+          name: Save << parameters.directory >> cache
+          paths:
+            - ".circleci-cache/rust-binaries"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ".circleci-cache/rust-binaries"
+
+  # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
+  rust-binaries-for-sysgo:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: small
+    steps:
+      - run:
+          name: All Rust binaries ready
+          command: echo "All Rust binaries built and persisted to workspace"
 
   publish-cannon-prestates:
     resource_class: medium
@@ -3169,12 +3294,41 @@ workflows:
       - cannon-prestate-quick:
           context:
             - circleci-repo-readonly-authenticated-github-token
+      - rust-binary-build:
+          name: rust-build-kona
+          directory: kona
+          binaries: "kona-node kona-supervisor"
+          build_command: cargo build --release --bin kona-node --bin kona-supervisor
+          needs_clang: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-binary-build:
+          name: rust-build-op-rbuilder
+          directory: op-rbuilder
+          binaries: "op-rbuilder"
+          build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
+          needs_clang: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-binary-build:
+          name: rust-build-rollup-boost
+          directory: rollup-boost
+          binaries: "rollup-boost"
+          build_command: cargo build --release -p rollup-boost --bin rollup-boost
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-binaries-for-sysgo:
+          requires:
+            - rust-build-kona
+            - rust-build-op-rbuilder
+            - rust-build-rollup-boost
       - op-acceptance-tests-flake-shake:
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
+            - rust-binaries-for-sysgo
       - op-acceptance-tests-flake-shake-report:
           requires:
             - op-acceptance-tests-flake-shake
@@ -3280,6 +3434,34 @@ workflows:
       - cannon-kona-host: # needed for sysgo tests (if any package is in-memory)
           context:
             - circleci-repo-readonly-authenticated-github-token
+      - rust-binary-build:
+          name: rust-build-kona
+          directory: kona
+          binaries: "kona-node kona-supervisor"
+          build_command: cargo build --release --bin kona-node --bin kona-supervisor
+          needs_clang: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-binary-build:
+          name: rust-build-op-rbuilder
+          directory: op-rbuilder
+          binaries: "op-rbuilder"
+          build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
+          needs_clang: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-binary-build:
+          name: rust-build-rollup-boost
+          directory: rollup-boost
+          binaries: "rollup-boost"
+          build_command: cargo build --release -p rollup-boost --bin rollup-boost
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-binaries-for-sysgo:
+          requires:
+            - rust-build-kona
+            - rust-build-op-rbuilder
+            - rust-build-rollup-boost
       # IN-MEMORY (all)
       - op-acceptance-tests:
           name: memory-all
@@ -3294,6 +3476,7 @@ workflows:
             - cannon-prestate-quick
             - cannon-kona-prestate
             - cannon-kona-host
+            - rust-binaries-for-sysgo
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report

@@ -46,7 +46,7 @@ acceptance-test devnet="" gate="base":
         echo "Building contracts (local build)..."
         cd {{REPO_ROOT}}
         echo " - Updating submodules..."
-        git submodule update --init --recursive
+        git submodule update --init --recursive --single-branch -j 8
         echo " - Installing mise..."
         mise install
         cd packages/contracts-bedrock
@@ -62,6 +62,10 @@ acceptance-test devnet="" gate="base":
             cd {{REPO_ROOT}}
             make cannon-prestates
         fi
+
+        echo "Building Rust binaries (kona-node, kona-supervisor, op-rbuilder, rollup-boost)..."
+        cd {{REPO_ROOT}}
+        just build-rust-debug
     fi
 
     cd {{REPO_ROOT}}/op-acceptance-tests
