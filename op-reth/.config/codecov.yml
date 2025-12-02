@@ -1,0 +1,26 @@
+coverage:
+  status:
+    patch: off
+    project:
+      default:
+        threshold: null
+        informational: true
+github_checks:
+  annotations: false
+comment:
+  layout: "reach, files, flags, components"
+  require_changes: true
+component_management:
+  individual_components:
+    - component_id: reth_binary
+      name: reth binary
+      paths:
+        - bin/**
+        - crates/config/**
+        - crates/metrics/**
+        - crates/tracing/**
+    - component_id: op-historical-proof
+      name: op historical proof
+      paths:
+        - crates/optimism/exex/**
+        - crates/optimism/trie/**
