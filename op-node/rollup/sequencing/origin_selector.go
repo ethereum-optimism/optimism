@@ -175,7 +175,7 @@ func (los *L1OriginSelector) maybeSetNextOrigin(nextOrigin eth.L1BlockRef) {
 	// Set the next origin if it is the subsequent block by number.
 	// On reorgs, this might not be the immediate child of the current origin
 	// since the hash is not checked.
-	if nextOrigin.Number == los.currentOrigin.Number + 1 {
+	if nextOrigin.Number == los.currentOrigin.Number+1 {
 		los.nextOrigin = nextOrigin
 	}
 }

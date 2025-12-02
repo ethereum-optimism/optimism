@@ -124,7 +124,6 @@ func TestOriginSelectorFetchNextError(t *testing.T) {
 // is no conf depth to stop the origin selection so block `b` should
 // be the next L1 origin, and then block `c` is the subsequent L1 origin.
 func TestOriginSelectorAdvances(t *testing.T) {
-
 	testOriginSelectorAdvances := func(t *testing.T, recoverMode bool) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
