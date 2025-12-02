@@ -1,0 +1,84 @@
+version: "2"
+linters:
+  enable:
+    - sqlclosecheck
+    - bodyclose
+    - asciicheck
+    - misspell
+    - errorlint
+    - bigint
+
+    # Only enabled in specific cases. See settings and exclusions below
+    - exhaustruct
+    - err113
+
+    # Enabled by default but be explicit so it's easy to see what we're running
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  settings:
+    custom:
+      bigint:
+        type: "module"
+        description: "Optimism big.Int checks"
+        settings: {}
+    # Require specifying all fields in op-deployer's OPCM input and output structs
+    exhaustruct:
+      include:
+        - .*op-deployer/pkg/deployer/opcm\..*(Input|Output)$
+    staticcheck:
+      checks:
+        - all
+
+        # Disabled checks
+        - -S1000 # should use for range instead of for { select {} }
+        - -QF1001 # could apply De Morgan's law
+        - -QF1002 # could use tagged switch
+        - -QF1003 # could use tagged switch
+        - -QF1006 # could lift into loop condition
+        - -QF1008 # could remove embedded field from selector (note: no benefit from this check)
+        - -QF1009 # want to use time.Time.Equal instead
+        - -QF1011 # could omit type from declaration; it will be inferred from the right-hand side
+        - -QF1012 # Use fmt.Fprintf(...) instead of WriteString(fmt.Sprintf(...))
+        - -ST1003 # capitalization of abbreviations
+        - -ST1005 # error strings should not end with punctuation or newlines
+        - -ST1008 # error should be returned as the last argument
+        - -ST1011 # var is of type time.Duration; don't use unit-specific suffix
+        - -ST1012 # error var mockErr should have name of the form errFoo
+        - -ST1016 # methods on the same type should have the same receiver name
+        - -ST1017 # don't use Yoda conditions
+        - -ST1019 # package is being imported more than once
+        - -ST1023 # should omit type from declaration; it will be inferred from the right-hand side
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Only apply err113 to op-program/client
+      - linters:
+          - err113
+        path-except: op-program/client/.*
+      - path: (.+)\.go$
+        text: errors.As
+      - path: (.+)\.go$
+        text: errors.Is
+      - path: (.+)\.go$
+        text: use bigs.Uint64Strict # Ignore violations until code has been updated
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

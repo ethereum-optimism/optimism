@@ -1,0 +1,4 @@
+synctesters:
+  local:
+    chain_id: 1234
+    el_rpc: https://localhost:8545

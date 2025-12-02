@@ -1,0 +1,306 @@
+package sysgo
+
+import (
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+
+	"github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/shim"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/logpipe"
+	"github.com/ethereum-optimism/optimism/op-service/tasks"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
+)
+
+type KonaNode struct {
+	mu sync.Mutex
+
+	id stack.L2CLNodeID
+
+	userRPC          string
+	interopEndpoint  string // warning: currently not fully supported
+	interopJwtSecret eth.Bytes32
+	el               stack.L2ELNodeID
+
+	userProxy *tcpproxy.Proxy
+
+	execPath string
+	args     []string
+	// Each entry is of the form "key=value".
+	env []string
+
+	p devtest.P
+
+	sub *SubProcess
+
+	l2MetricsRegistrar L2MetricsRegistrar
+}
+
+func (k *KonaNode) hydrate(system stack.ExtensibleSystem) {
+	require := system.T().Require()
+	rpcCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), k.userRPC, client.WithLazyDial())
+	require.NoError(err)
+	system.T().Cleanup(rpcCl.Close)
+
+	sysL2CL := shim.NewL2CLNode(shim.L2CLNodeConfig{
+		CommonConfig:     shim.NewCommonConfig(system.T()),
+		ID:               k.id,
+		Client:           rpcCl,
+		UserRPC:          k.userRPC,
+		InteropEndpoint:  k.interopEndpoint,
+		InteropJwtSecret: k.interopJwtSecret,
+	})
+	sysL2CL.SetLabel(match.LabelVendor, string(match.KonaNode))
+	l2Net := system.L2Network(stack.L2NetworkID(k.id.ChainID()))
+	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
+	sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(k.el))
+}
+
+func (k *KonaNode) Start() {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.sub != nil {
+		k.p.Logger().Warn("Kona-node already started")
+		return
+	}
+	// Create a proxy for the user RPC,
+	// so other services can connect, and stay connected, across restarts.
+	if k.userProxy == nil {
+		k.userProxy = tcpproxy.New(k.p.Logger())
+		k.p.Require().NoError(k.userProxy.Start())
+		k.p.Cleanup(func() {
+			k.userProxy.Close()
+		})
+		k.userRPC = "http://" + k.userProxy.Addr()
+	}
+	// Create the sub-process.
+	// We pipe sub-process logs to the test-logger.
+	// And inspect them along the way, to get the RPC server address.
+	logOut := logpipe.ToLogger(k.p.Logger().New("component", "kona-node", "src", "stdout"))
+	logErr := logpipe.ToLogger(k.p.Logger().New("component", "kona-node", "src", "stderr"))
+	userRPCChan := make(chan string, 1)
+	defer close(userRPCChan)
+
+	metricsTargetChan := make(chan PrometheusMetricsTarget, 1)
+	defer close(metricsTargetChan)
+
+	onLogEntry := func(e logpipe.LogEntry) {
+		msg := e.LogMessage()
+		if msg == "RPC server bound to address" {
+			userRPCChan <- "http://" + e.FieldValue("addr").(string)
+		} else if metricsUrl, found := strings.CutPrefix(msg, "Serving metrics at: "); found {
+			// Matching messages like "Serving metrics at: http://0.0.0.0:9091"
+			if !strings.HasPrefix(metricsUrl, "http") {
+				metricsUrl = fmt.Sprintf("http://%s", metricsUrl)
+			}
+			parsedUrl, err := url.Parse(metricsUrl)
+			k.p.Require().NoError(err, "invalid metrics url output to logs", "log", msg)
+			k.p.Require().NotEmpty(parsedUrl.Port(), "empty port in logged metrics url", "log", msg)
+			metricsTargetChan <- NewPrometheusMetricsTarget(parsedUrl.Hostname(), parsedUrl.Port(), false)
+		}
+	}
+	stdOutLogs := logpipe.LogCallback(func(line []byte) {
+		e := logpipe.ParseRustStructuredLogs(line)
+		logOut(e)
+		onLogEntry(e)
+	})
+	stdErrLogs := logpipe.LogCallback(func(line []byte) {
+		e := logpipe.ParseRustStructuredLogs(line)
+		logErr(e)
+	})
+	k.sub = NewSubProcess(k.p, stdOutLogs, stdErrLogs)
+
+	err := k.sub.Start(k.execPath, k.args, k.env)
+	k.p.Require().NoError(err, "Must start")
+
+	var userRPCAddr string
+	k.p.Require().NoError(tasks.Await(k.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
+
+	if areMetricsEnabled() {
+		var metricsTarget PrometheusMetricsTarget
+		k.p.Require().NoError(tasks.Await(k.p.Ctx(), metricsTargetChan, &metricsTarget), "need metrics endpoint")
+		k.l2MetricsRegistrar.RegisterL2MetricsTargets(k.id, metricsTarget)
+	}
+
+	k.userProxy.SetUpstream(ProxyAddr(k.p.Require(), userRPCAddr))
+}
+
+// Stop stops the kona node.
+// warning: no restarts supported yet, since the RPC port is not remembered.
+func (k *KonaNode) Stop() {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.sub == nil {
+		k.p.Logger().Warn("kona-node already stopped")
+		return
+	}
+	err := k.sub.Stop(true)
+	k.p.Require().NoError(err, "Must stop")
+	k.sub = nil
+}
+
+func (k *KonaNode) UserRPC() string {
+	return k.userRPC
+}
+
+func (k *KonaNode) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
+	return k.interopEndpoint, k.interopJwtSecret
+}
+
+var _ L2CLNode = (*KonaNode)(nil)
+
+func WithKonaNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, l2FollowSourceID stack.L2CLNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(func(orch *Orchestrator) {
+		followSource := func(orch *Orchestrator) string {
+			p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
+			l2CLFollowSource, ok := orch.l2CLs.Get(l2FollowSourceID)
+			p.Require().True(ok, "l2 CL Follow Source required")
+			return l2CLFollowSource.UserRPC()
+		}(orch)
+		opts = append(opts, L2CLFollowSource(followSource))
+		withKonaNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)(orch)
+	})
+}
+
+func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(withKonaNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...))
+}
+
+func withKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) func(orch *Orchestrator) {
+	return func(orch *Orchestrator) {
+		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
+
+		require := p.Require()
+
+		l1Net, ok := orch.l1Nets.Get(l1CLID.ChainID())
+		require.True(ok, "l1 network required")
+
+		l2Net, ok := orch.l2Nets.Get(l2CLID.ChainID())
+		require.True(ok, "l2 network required")
+
+		l1ChainConfig := l1Net.genesis.Config
+
+		l1EL, ok := orch.l1ELs.Get(l1ELID)
+		require.True(ok, "l1 EL node required")
+
+		l1CL, ok := orch.l1CLs.Get(l1CLID)
+		require.True(ok, "l1 CL node required")
+
+		l2EL, ok := orch.GetL2EL(l2ELID)
+		require.True(ok, "l2 EL node required")
+
+		cfg := DefaultL2CLConfig()
+		orch.l2CLOptions.Apply(orch.P(), l2CLID, cfg)       // apply global options
+		L2CLOptionBundle(opts).Apply(orch.P(), l2CLID, cfg) // apply specific options
+
+		tempKonaDir := p.TempDir()
+
+		tempP2PPath := filepath.Join(tempKonaDir, "p2pkey.txt")
+
+		tempRollupCfgPath := filepath.Join(tempKonaDir, "rollup.json")
+		rollupCfgData, err := json.Marshal(l2Net.rollupCfg)
+		p.Require().NoError(err, "must write rollup config")
+		p.Require().NoError(err, os.WriteFile(tempRollupCfgPath, rollupCfgData, 0o644))
+
+		tempL1CfgPath := filepath.Join(tempKonaDir, "l1-chain-config.json")
+		l1CfgData, err := json.Marshal(l1ChainConfig)
+		p.Require().NoError(err, "must write l1 chain config")
+		p.Require().NoError(err, os.WriteFile(tempL1CfgPath, l1CfgData, 0o644))
+
+		envVars := []string{
+			"KONA_NODE_L1_ETH_RPC=" + l1EL.UserRPC(),
+			"KONA_NODE_L1_BEACON=" + l1CL.beaconHTTPAddr,
+			// TODO: WS RPC addresses do not work and will make the startup panic with a connection error in the
+			// JWT validation / engine-capabilities setup code-path.
+			"KONA_NODE_L2_ENGINE_RPC=" + strings.ReplaceAll(l2EL.EngineRPC(), "ws://", "http://"),
+			"KONA_NODE_L2_ENGINE_AUTH=" + l2EL.JWTPath(),
+			"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
+			"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
+			"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
+			propagateEnvVarOrDefault("KONA_NODE_P2P_NO_DISCOVERY", "true"),
+			propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
+			propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
+			propagateEnvVarOrDefault("KONA_NODE_RPC_WS_ENABLED", "true"),
+			propagateEnvVarOrDefault("KONA_METRICS_ADDR", ""),
+			propagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"), // default to info level
+			propagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
+			// p2p ports
+			propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_IP", "127.0.0.1"),
+			propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_TCP_PORT", "0"),
+			propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_UDP_PORT", "0"),
+		}
+
+		if areMetricsEnabled() {
+			// NB: Instead of getAvailableLocalPort, we should pass "0" so the OS picks its
+			// own port, but that is not currently logged properly so we cannot parse it.
+			// See: https://github.com/op-rs/kona/issues/2987
+			metricsPort, err := getAvailableLocalPort()
+			p.Require().NoError(err, "WithKonaNode: getting metrics port")
+
+			envVars = append(envVars, propagateEnvVarOrDefault("KONA_METRICS_PORT", metricsPort))
+			envVars = append(envVars, "KONA_METRICS_ENABLED=true")
+		}
+
+		if cfg.FollowSource != "" {
+			envVars = append(envVars,
+				"KONA_NODE_L2_FOLLOW_SOURCE="+cfg.FollowSource,
+			)
+		}
+
+		if cfg.IsSequencer {
+			p2pKey, err := orch.keys.Secret(devkeys.SequencerP2PRole.Key(l2CLID.ChainID().ToBig()))
+			require.NoError(err, "need p2p key for sequencer")
+			p2pKeyHex := "0x" + hex.EncodeToString(crypto.FromECDSA(p2pKey))
+			// TODO: Kona should support loading keys from a file
+			//tempSeqKeyPath := filepath.Join(tempKonaDir, "p2p-sequencer.txt")
+			//p.Require().NoError(err, os.WriteFile(tempSeqKeyPath, []byte(p2pKeyHex), 0o644))
+			envVars = append(envVars,
+				"KONA_NODE_P2P_SEQUENCER_KEY="+p2pKeyHex,
+				"KONA_NODE_SEQUENCER_L1_CONFS=2",
+				"KONA_NODE_MODE=Sequencer",
+			)
+		} else {
+			envVars = append(envVars,
+				"KONA_NODE_MODE=Validator",
+			)
+		}
+
+		execPath, err := EnsureRustBinary(p, RustBinarySpec{
+			SrcDir:  "kona",
+			Package: "kona-node",
+			Binary:  "kona-node",
+		})
+		p.Require().NoError(err, "prepare kona-node binary")
+		p.Require().NotEmpty(execPath, "kona-node binary path resolved")
+
+		k := &KonaNode{
+			id:                 l2CLID,
+			userRPC:            "", // retrieved from logs
+			interopEndpoint:    "", // retrieved from logs
+			interopJwtSecret:   eth.Bytes32{},
+			el:                 l2ELID,
+			execPath:           execPath,
+			args:               []string{"node"},
+			env:                envVars,
+			p:                  p,
+			l2MetricsRegistrar: orch,
+		}
+		p.Logger().Info("Starting kona-node")
+		k.Start()
+		p.Cleanup(k.Stop)
+		p.Logger().Info("Kona-node is up", "rpc", k.UserRPC())
+		require.True(orch.l2CLs.SetIfMissing(l2CLID, k), "must not already exist")
+	}
+}
