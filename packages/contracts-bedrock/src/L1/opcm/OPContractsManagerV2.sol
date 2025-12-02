@@ -157,24 +157,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     IOPContractsManagerStandardValidator public immutable standardValidator;
 
     /// @notice The version of the OPCM contract.
-<<<<<<< HEAD
     ///         WARNING: OPCM versioning rules differ from other contracts:
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
     /// @custom:semver 6.0.3
     string public constant version = "6.0.3";
-=======
-    /// @custom:semver 6.2.0
-    string public constant version = "6.2.0";
-
-    /// @notice Special constant key for the PermittedProxyDeployment instruction.
-    string internal constant PERMITTED_PROXY_DEPLOYMENT_KEY = "PermittedProxyDeployment";
-
-    /// @notice Special constant value for the PermittedProxyDeployment instruction to permit all
-    ///         contracts to be deployed. Only to be used for deployments.
-    bytes internal constant PERMIT_ALL_CONTRACTS_INSTRUCTION = bytes("ALL");
->>>>>>> 8056846306 (feat: add cgt to opcmv2)
 
     /// @param _contractsContainer The container of blueprint and implementation contract addresses.
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -515,6 +503,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // Load the full config.
         return FullConfig({
             disputeGameConfigs: _upgradeInput.disputeGameConfigs,
+            disputeGameConfigs: _upgradeInput.disputeGameConfigs,
             saltMixer: string(bytes.concat(bytes32(uint256(uint160(address(_chainContracts.systemConfig)))))),
             superchainConfig: abi.decode(
                 _loadBytes(
@@ -624,7 +613,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 ),
                 (GameType)
             ),
-            disputeGameConfigs: _upgradeInput.disputeGameConfigs
+            useCustomGasToken: abi.decode(
+                _loadBytes(
+                    address(_chainContracts.systemConfig),
+                    _chainContracts.systemConfig.isCustomGasToken.selector,
+                    "overrides.cfg.useCustomGasToken",
+                    _upgradeInput.extraInstructions
+                ),
+                (bool)
+            )
         });
     }
 
