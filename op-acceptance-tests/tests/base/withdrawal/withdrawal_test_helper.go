@@ -3,14 +3,14 @@ package withdrawal
 import (
 	"testing"
 
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-func InitWithGameType(m *testing.M, gameType faultTypes.GameType) {
+func InitWithGameType(m *testing.M, gameType gameTypes.GameType) {
 	presets.DoMain(m,
 		presets.WithCompatibleTypes(compat.SysGo),
 		presets.WithMinimal(),
@@ -25,7 +25,7 @@ func InitWithGameType(m *testing.M, gameType faultTypes.GameType) {
 	)
 }
 
-func TestWithdrawal(gt *testing.T, gameType faultTypes.GameType) {
+func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t)
 	require := sys.T.Require()

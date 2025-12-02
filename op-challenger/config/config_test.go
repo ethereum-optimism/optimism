@@ -10,10 +10,10 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -50,17 +50,17 @@ var (
 	validCannonKonaAbsolutePreStateBaseURL, _ = url.Parse("http://localhost/bar/")
 )
 
-var singleCannonTraceTypes = []types.TraceType{types.TraceTypeCannon, types.TraceTypePermissioned}
-var superCannonTraceTypes = []types.TraceType{types.TraceTypeSuperCannon, types.TraceTypeSuperPermissioned}
-var allCannonTraceTypes []types.TraceType
-var cannonKonaTraceTypes = []types.TraceType{types.TraceTypeCannonKona, types.TraceTypeSuperCannonKona}
-var asteriscTraceTypes = []types.TraceType{types.TraceTypeAsterisc}
-var asteriscKonaTraceTypes = []types.TraceType{types.TraceTypeAsteriscKona}
-var superAsteriscKonaTraceTypes = []types.TraceType{types.TraceTypeSuperAsteriscKona}
+var singleCannonGameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType}
+var superCannonGameTypes = []gameTypes.GameType{gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType}
+var allCannonGameTypes []gameTypes.GameType
+var cannonKonaGameTypes = []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType}
+var asteriscGameTypes = []gameTypes.GameType{gameTypes.AsteriscGameType}
+var asteriscKonaGameTypes = []gameTypes.GameType{gameTypes.AsteriscKonaGameType}
+var superAsteriscKonaGameTypes = []gameTypes.GameType{gameTypes.SuperAsteriscKonaGameType}
 
 func init() {
-	allCannonTraceTypes = append(allCannonTraceTypes, singleCannonTraceTypes...)
-	allCannonTraceTypes = append(allCannonTraceTypes, superCannonTraceTypes...)
+	allCannonGameTypes = append(allCannonGameTypes, singleCannonGameTypes...)
+	allCannonGameTypes = append(allCannonGameTypes, superCannonGameTypes...)
 }
 
 func ensureExists(path string) error {
@@ -150,34 +150,34 @@ func applyValidConfigForSuperAsteriscKona(t *testing.T, cfg *Config) {
 	applyValidConfigForAsteriscKona(t, cfg)
 }
 
-func validConfig(t *testing.T, traceType types.TraceType) Config {
-	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validL1BeaconUrl, validRollupRpc, validL2Rpc, validDatadir, traceType)
-	if traceType == types.TraceTypeSuperCannon || traceType == types.TraceTypeSuperPermissioned {
+func validConfig(t *testing.T, gameType gameTypes.GameType) Config {
+	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validL1BeaconUrl, validRollupRpc, validL2Rpc, validDatadir, gameType)
+	if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType {
 		applyValidConfigForSuperCannon(t, &cfg)
 	}
-	if traceType == types.TraceTypeCannon || traceType == types.TraceTypePermissioned {
+	if gameType == gameTypes.CannonGameType || gameType == gameTypes.PermissionedGameType {
 		applyValidConfigForCannon(t, &cfg)
 	}
-	if traceType == types.TraceTypeCannonKona {
+	if gameType == gameTypes.CannonKonaGameType {
 		applyValidConfigForCannonKona(t, &cfg)
 	}
-	if traceType == types.TraceTypeSuperCannonKona {
+	if gameType == gameTypes.SuperCannonKonaGameType {
 		applyValidConfigForSuperCannonKona(t, &cfg)
 	}
-	if traceType == types.TraceTypeAsterisc {
+	if gameType == gameTypes.AsteriscGameType {
 		applyValidConfigForAsterisc(t, &cfg)
 	}
-	if traceType == types.TraceTypeAsteriscKona {
+	if gameType == gameTypes.AsteriscKonaGameType {
 		applyValidConfigForAsteriscKona(t, &cfg)
 	}
-	if traceType == types.TraceTypeSuperAsteriscKona {
+	if gameType == gameTypes.SuperAsteriscKonaGameType {
 		applyValidConfigForSuperAsteriscKona(t, &cfg)
 	}
 	return cfg
 }
 
-func validConfigWithNoNetworks(t *testing.T, traceType types.TraceType) Config {
-	cfg := validConfig(t, traceType)
+func validConfigWithNoNetworks(t *testing.T, gameType gameTypes.GameType) Config {
+	cfg := validConfig(t, gameType)
 
 	mutateVmConfig := func(cfg *vm.Config) {
 		cfg.Networks = nil
@@ -186,16 +186,16 @@ func validConfigWithNoNetworks(t *testing.T, traceType types.TraceType) Config {
 		cfg.L1GenesisPath = "bar.json"
 		cfg.DepsetConfigPath = "foo.json"
 	}
-	if slices.Contains(allCannonTraceTypes, traceType) {
+	if slices.Contains(allCannonGameTypes, gameType) {
 		mutateVmConfig(&cfg.Cannon)
 	}
-	if slices.Contains(cannonKonaTraceTypes, traceType) {
+	if slices.Contains(cannonKonaGameTypes, gameType) {
 		mutateVmConfig(&cfg.CannonKona)
 	}
-	if slices.Contains(asteriscTraceTypes, traceType) {
+	if slices.Contains(asteriscGameTypes, gameType) {
 		mutateVmConfig(&cfg.Asterisc)
 	}
-	if slices.Contains(asteriscKonaTraceTypes, traceType) {
+	if slices.Contains(asteriscKonaGameTypes, gameType) {
 		mutateVmConfig(&cfg.AsteriscKona)
 	}
 	return cfg
@@ -203,10 +203,10 @@ func validConfigWithNoNetworks(t *testing.T, traceType types.TraceType) Config {
 
 // TestValidConfigIsValid checks that the config provided by validConfig is actually valid
 func TestValidConfigIsValid(t *testing.T) {
-	for _, traceType := range types.TraceTypes {
-		traceType := traceType
-		t.Run(traceType.String(), func(t *testing.T) {
-			err := validConfig(t, traceType).Check()
+	for _, gameType := range gameTypes.SupportedGameTypes {
+		gameType := gameType
+		t.Run(gameType.String(), func(t *testing.T) {
+			err := validConfig(t, gameType).Check()
 			require.NoError(t, err)
 		})
 	}
@@ -214,160 +214,160 @@ func TestValidConfigIsValid(t *testing.T) {
 
 func TestTxMgrConfig(t *testing.T) {
 	t.Run("Invalid", func(t *testing.T) {
-		config := validConfig(t, types.TraceTypeCannon)
+		config := validConfig(t, gameTypes.CannonGameType)
 		config.TxMgrConfig = txmgr.CLIConfig{}
 		require.Equal(t, config.Check().Error(), "must provide a L1 RPC url")
 	})
 }
 
 func TestL1EthRpcRequired(t *testing.T) {
-	config := validConfig(t, types.TraceTypeCannon)
+	config := validConfig(t, gameTypes.CannonGameType)
 	config.L1EthRpc = ""
 	require.ErrorIs(t, config.Check(), ErrMissingL1EthRPC)
 }
 
 func TestL1BeaconRequired(t *testing.T) {
-	config := validConfig(t, types.TraceTypeCannon)
+	config := validConfig(t, gameTypes.CannonGameType)
 	config.L1Beacon = ""
 	require.ErrorIs(t, config.Check(), ErrMissingL1Beacon)
 }
 
 func TestGameFactoryAddressRequired(t *testing.T) {
-	config := validConfig(t, types.TraceTypeCannon)
+	config := validConfig(t, gameTypes.CannonGameType)
 	config.GameFactoryAddress = common.Address{}
 	require.ErrorIs(t, config.Check(), ErrMissingGameFactoryAddress)
 }
 
 func TestSelectiveClaimResolutionNotRequired(t *testing.T) {
-	config := validConfig(t, types.TraceTypeCannon)
+	config := validConfig(t, gameTypes.CannonGameType)
 	require.Equal(t, false, config.SelectiveClaimResolution)
 	require.NoError(t, config.Check())
 }
 
 func TestGameAllowlistNotRequired(t *testing.T) {
-	config := validConfig(t, types.TraceTypeCannon)
+	config := validConfig(t, gameTypes.CannonGameType)
 	config.GameAllowlist = []common.Address{}
 	require.NoError(t, config.Check())
 }
 
 func TestCannonRequiredArgs(t *testing.T) {
-	for _, traceType := range allCannonTraceTypes {
-		traceType := traceType
+	for _, gameType := range allCannonGameTypes {
+		gameType := gameType
 
-		t.Run(fmt.Sprintf("TestCannonBinRequired-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestCannonBinRequired-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.Cannon.VmBin = ""
 			require.ErrorIs(t, config.Check(), vm.ErrMissingBin)
 		})
 
-		t.Run(fmt.Sprintf("TestCannonServerRequired-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestCannonServerRequired-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.Cannon.Server = ""
 			require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
 		})
 
-		t.Run(fmt.Sprintf("TestCannonAbsolutePreStateOrBaseURLRequired-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestCannonAbsolutePreStateOrBaseURLRequired-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.CannonAbsolutePreState = ""
 			config.CannonAbsolutePreStateBaseURL = nil
 			require.ErrorIs(t, config.Check(), ErrMissingCannonAbsolutePreState)
 		})
 
-		t.Run(fmt.Sprintf("TestCannonAbsolutePreState-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestCannonAbsolutePreState-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.CannonAbsolutePreState = validCannonAbsolutePreState
 			config.CannonAbsolutePreStateBaseURL = nil
 			require.NoError(t, config.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestCannonAbsolutePreStateBaseURL-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestCannonAbsolutePreStateBaseURL-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.CannonAbsolutePreState = ""
 			config.CannonAbsolutePreStateBaseURL = validCannonAbsolutePreStateBaseURL
 			require.NoError(t, config.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestAllowSupplyingBothCannonAbsolutePreStateAndBaseURL-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestAllowSupplyingBothCannonAbsolutePreStateAndBaseURL-%v", gameType), func(t *testing.T) {
 			// Since the prestate baseURL might be inherited from the --prestate-urls option, allow overriding it with a specific prestate
-			config := validConfig(t, traceType)
+			config := validConfig(t, gameType)
 			config.CannonAbsolutePreState = validCannonAbsolutePreState
 			config.CannonAbsolutePreStateBaseURL = validCannonAbsolutePreStateBaseURL
 			require.NoError(t, config.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestL2RpcRequired-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestL2RpcRequired-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.L2Rpcs = nil
 			require.ErrorIs(t, config.Check(), ErrMissingL2Rpc)
 		})
 
-		t.Run(fmt.Sprintf("TestCannonSnapshotFreq-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonSnapshotFreq-%v", gameType), func(t *testing.T) {
 			t.Run("MustNotBeZero", func(t *testing.T) {
-				cfg := validConfig(t, traceType)
+				cfg := validConfig(t, gameType)
 				cfg.Cannon.SnapshotFreq = 0
 				require.ErrorIs(t, cfg.Check(), ErrMissingCannonSnapshotFreq)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestCannonInfoFreq-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonInfoFreq-%v", gameType), func(t *testing.T) {
 			t.Run("MustNotBeZero", func(t *testing.T) {
-				cfg := validConfig(t, traceType)
+				cfg := validConfig(t, gameType)
 				cfg.Cannon.InfoFreq = 0
 				require.ErrorIs(t, cfg.Check(), ErrMissingCannonInfoFreq)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestCannonNetworkOrRollupConfigRequired-%v", traceType), func(t *testing.T) {
-			cfg := validConfigWithNoNetworks(t, traceType)
+		t.Run(fmt.Sprintf("TestCannonNetworkOrRollupConfigRequired-%v", gameType), func(t *testing.T) {
+			cfg := validConfigWithNoNetworks(t, gameType)
 			cfg.Cannon.RollupConfigPaths = nil
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingRollupConfig)
 		})
 
-		t.Run(fmt.Sprintf("TestCannonNetworkOrL2GenesisRequired-%v", traceType), func(t *testing.T) {
-			cfg := validConfigWithNoNetworks(t, traceType)
+		t.Run(fmt.Sprintf("TestCannonNetworkOrL2GenesisRequired-%v", gameType), func(t *testing.T) {
+			cfg := validConfigWithNoNetworks(t, gameType)
 			cfg.Cannon.L2GenesisPaths = nil
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingL2Genesis)
 		})
 
-		t.Run(fmt.Sprintf("TestMaySpecifyNetworkAndCustomConfigs-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestMaySpecifyNetworkAndCustomConfigs-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.Cannon.Networks = []string{validCannonNetwork}
 			cfg.Cannon.RollupConfigPaths = []string{"foo.json"}
 			cfg.Cannon.L2GenesisPaths = []string{"genesis.json"}
 			require.NoError(t, cfg.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestNetworkMustBeValid-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestNetworkMustBeValid-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.Cannon.Networks = []string{"unknown"}
 			require.ErrorIs(t, cfg.Check(), vm.ErrNetworkUnknown)
 		})
 
-		t.Run(fmt.Sprintf("TestNetworkMayBeAnyChainID-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestNetworkMayBeAnyChainID-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.Cannon.Networks = []string{"467294"}
 			require.NoError(t, cfg.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestNetworkInvalidWhenNotEntirelyNumeric-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestNetworkInvalidWhenNotEntirelyNumeric-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.Cannon.Networks = []string{"467294a"}
 			require.ErrorIs(t, cfg.Check(), vm.ErrNetworkUnknown)
 		})
 
-		t.Run(fmt.Sprintf("TestDebugInfoEnabled-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestDebugInfoEnabled-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			require.True(t, cfg.Cannon.DebugInfo)
 		})
 
-		t.Run(fmt.Sprintf("TestVMBinExists-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestVMBinExists-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.Cannon.VmBin = nonExistingFile
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingBin)
 		})
 
-		t.Run(fmt.Sprintf("TestServerExists-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestServerExists-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.Cannon.Server = nonExistingFile
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
 		})
@@ -375,123 +375,123 @@ func TestCannonRequiredArgs(t *testing.T) {
 }
 
 func TestCannonKonaRequiredArgs(t *testing.T) {
-	for _, traceType := range cannonKonaTraceTypes {
-		traceType := traceType
+	for _, gameType := range cannonKonaGameTypes {
+		gameType := gameType
 
-		t.Run(fmt.Sprintf("TestCannonKonaBinRequired-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestCannonKonaBinRequired-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.CannonKona.VmBin = ""
 			require.ErrorIs(t, config.Check(), vm.ErrMissingBin)
 		})
 
-		t.Run(fmt.Sprintf("TestCannonKonaServerRequired-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestCannonKonaServerRequired-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.CannonKona.Server = ""
 			require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
 		})
 
-		t.Run(fmt.Sprintf("TestCannonKonaAbsolutePreStateOrBaseURLRequired-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestCannonKonaAbsolutePreStateOrBaseURLRequired-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.CannonKonaAbsolutePreState = ""
 			config.CannonKonaAbsolutePreStateBaseURL = nil
 			require.ErrorIs(t, config.Check(), ErrMissingCannonKonaAbsolutePreState)
 		})
 
-		t.Run(fmt.Sprintf("TestCannonKonaAbsolutePreState-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestCannonKonaAbsolutePreState-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.CannonKonaAbsolutePreState = validCannonAbsolutePreState
 			config.CannonKonaAbsolutePreStateBaseURL = nil
 			require.NoError(t, config.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestCannonKonaAbsolutePreStateBaseURL-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestCannonKonaAbsolutePreStateBaseURL-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.CannonKonaAbsolutePreState = ""
 			config.CannonKonaAbsolutePreStateBaseURL = validCannonAbsolutePreStateBaseURL
 			require.NoError(t, config.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestAllowSupplyingBothCannonKonaAbsolutePreStateAndBaseURL-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestAllowSupplyingBothCannonKonaAbsolutePreStateAndBaseURL-%v", gameType), func(t *testing.T) {
 			// Since the prestate baseURL might be inherited from the --prestate-urls option, allow overriding it with a specific prestate
-			config := validConfig(t, traceType)
+			config := validConfig(t, gameType)
 			config.CannonKonaAbsolutePreState = validCannonAbsolutePreState
 			config.CannonKonaAbsolutePreStateBaseURL = validCannonAbsolutePreStateBaseURL
 			require.NoError(t, config.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestL2RpcRequired-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestL2RpcRequired-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.L2Rpcs = nil
 			require.ErrorIs(t, config.Check(), ErrMissingL2Rpc)
 		})
 
-		t.Run(fmt.Sprintf("TestCannonKonaSnapshotFreq-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonKonaSnapshotFreq-%v", gameType), func(t *testing.T) {
 			t.Run("MustNotBeZero", func(t *testing.T) {
-				cfg := validConfig(t, traceType)
+				cfg := validConfig(t, gameType)
 				cfg.CannonKona.SnapshotFreq = 0
 				require.ErrorIs(t, cfg.Check(), ErrMissingCannonKonaSnapshotFreq)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestCannonKonaInfoFreq-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonKonaInfoFreq-%v", gameType), func(t *testing.T) {
 			t.Run("MustNotBeZero", func(t *testing.T) {
-				cfg := validConfig(t, traceType)
+				cfg := validConfig(t, gameType)
 				cfg.CannonKona.InfoFreq = 0
 				require.ErrorIs(t, cfg.Check(), ErrMissingCannonKonaInfoFreq)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestCannonKonaNetworkOrRollupConfigRequired-%v", traceType), func(t *testing.T) {
-			cfg := validConfigWithNoNetworks(t, traceType)
+		t.Run(fmt.Sprintf("TestCannonKonaNetworkOrRollupConfigRequired-%v", gameType), func(t *testing.T) {
+			cfg := validConfigWithNoNetworks(t, gameType)
 			cfg.CannonKona.RollupConfigPaths = nil
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingRollupConfig)
 		})
 
-		t.Run(fmt.Sprintf("TestCannonKonaNetworkOrL2GenesisRequired-%v", traceType), func(t *testing.T) {
-			cfg := validConfigWithNoNetworks(t, traceType)
+		t.Run(fmt.Sprintf("TestCannonKonaNetworkOrL2GenesisRequired-%v", gameType), func(t *testing.T) {
+			cfg := validConfigWithNoNetworks(t, gameType)
 			cfg.CannonKona.L2GenesisPaths = nil
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingL2Genesis)
 		})
 
-		t.Run(fmt.Sprintf("TestMaySpecifyNetworkAndCustomConfigs-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestMaySpecifyNetworkAndCustomConfigs-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.CannonKona.Networks = []string{validCannonNetwork}
 			cfg.CannonKona.RollupConfigPaths = []string{"foo.json"}
 			cfg.CannonKona.L2GenesisPaths = []string{"genesis.json"}
 			require.NoError(t, cfg.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestNetworkMustBeValid-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestNetworkMustBeValid-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.CannonKona.Networks = []string{"unknown"}
 			require.ErrorIs(t, cfg.Check(), vm.ErrNetworkUnknown)
 		})
 
-		t.Run(fmt.Sprintf("TestNetworkMayBeAnyChainID-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestNetworkMayBeAnyChainID-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.CannonKona.Networks = []string{"467294"}
 			require.NoError(t, cfg.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestNetworkInvalidWhenNotEntirelyNumeric-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestNetworkInvalidWhenNotEntirelyNumeric-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.CannonKona.Networks = []string{"467294a"}
 			require.ErrorIs(t, cfg.Check(), vm.ErrNetworkUnknown)
 		})
 
-		t.Run(fmt.Sprintf("TestDebugInfoEnabled-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestDebugInfoEnabled-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			require.True(t, cfg.CannonKona.DebugInfo)
 		})
 
-		t.Run(fmt.Sprintf("TestVMBinExists-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestVMBinExists-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.CannonKona.VmBin = nonExistingFile
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingBin)
 		})
 
-		t.Run(fmt.Sprintf("TestServerExists-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestServerExists-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.CannonKona.Server = nonExistingFile
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
 		})
@@ -499,10 +499,10 @@ func TestCannonKonaRequiredArgs(t *testing.T) {
 }
 
 func TestDepsetConfig(t *testing.T) {
-	for _, traceType := range superCannonTraceTypes {
-		traceType := traceType
-		t.Run(fmt.Sprintf("TestCannonNetworkOrDepsetConfigRequired-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+	for _, gameType := range superCannonGameTypes {
+		gameType := gameType
+		t.Run(fmt.Sprintf("TestCannonNetworkOrDepsetConfigRequired-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.Cannon.Networks = nil
 			cfg.Cannon.RollupConfigPaths = []string{"foo.json"}
 			cfg.Cannon.L2GenesisPaths = []string{"genesis.json"}
@@ -511,10 +511,10 @@ func TestDepsetConfig(t *testing.T) {
 		})
 	}
 
-	for _, traceType := range superAsteriscKonaTraceTypes {
-		traceType := traceType
-		t.Run(fmt.Sprintf("TestAsteriscNetworkOrDepsetConfigRequired-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+	for _, gameType := range superAsteriscKonaGameTypes {
+		gameType := gameType
+		t.Run(fmt.Sprintf("TestAsteriscNetworkOrDepsetConfigRequired-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.AsteriscKona.Networks = nil
 			cfg.AsteriscKona.RollupConfigPaths = []string{"foo.json"}
 			cfg.AsteriscKona.L2GenesisPaths = []string{"genesis.json"}
@@ -523,10 +523,10 @@ func TestDepsetConfig(t *testing.T) {
 		})
 	}
 
-	for _, traceType := range singleCannonTraceTypes {
-		traceType := traceType
-		t.Run(fmt.Sprintf("TestDepsetConfigNotRequired-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+	for _, gameType := range singleCannonGameTypes {
+		gameType := gameType
+		t.Run(fmt.Sprintf("TestDepsetConfigNotRequired-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.Cannon.Networks = nil
 			cfg.Cannon.RollupConfigPaths = []string{"foo.json"}
 			cfg.Cannon.L1GenesisPath = "bar.json"
@@ -536,10 +536,10 @@ func TestDepsetConfig(t *testing.T) {
 		})
 	}
 
-	for _, traceType := range asteriscKonaTraceTypes {
-		traceType := traceType
-		t.Run(fmt.Sprintf("TestDepsetConfigNotRequired-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+	for _, gameType := range asteriscKonaGameTypes {
+		gameType := gameType
+		t.Run(fmt.Sprintf("TestDepsetConfigNotRequired-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.AsteriscKona.Networks = nil
 			cfg.AsteriscKona.RollupConfigPaths = []string{"foo.json"}
 			cfg.AsteriscKona.L1GenesisPath = "bar.json"
@@ -551,111 +551,111 @@ func TestDepsetConfig(t *testing.T) {
 }
 
 func TestAsteriscRequiredArgs(t *testing.T) {
-	for _, traceType := range asteriscTraceTypes {
-		traceType := traceType
+	for _, gameType := range asteriscGameTypes {
+		gameType := gameType
 
-		t.Run(fmt.Sprintf("TestAsteriscBinRequired-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestAsteriscBinRequired-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.Asterisc.VmBin = ""
 			require.ErrorIs(t, config.Check(), vm.ErrMissingBin)
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscServerRequired-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestAsteriscServerRequired-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.Asterisc.Server = ""
 			require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscAbsolutePreStateOrBaseURLRequired-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestAsteriscAbsolutePreStateOrBaseURLRequired-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.AsteriscAbsolutePreState = ""
 			config.AsteriscAbsolutePreStateBaseURL = nil
 			require.ErrorIs(t, config.Check(), ErrMissingAsteriscAbsolutePreState)
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscAbsolutePreState-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestAsteriscAbsolutePreState-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.AsteriscAbsolutePreState = validAsteriscAbsolutePreState
 			config.AsteriscAbsolutePreStateBaseURL = nil
 			require.NoError(t, config.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscAbsolutePreStateBaseURL-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestAsteriscAbsolutePreStateBaseURL-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.AsteriscAbsolutePreState = ""
 			config.AsteriscAbsolutePreStateBaseURL = validAsteriscAbsolutePreStateBaseURL
 			require.NoError(t, config.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestAllowSupplingBothAsteriscAbsolutePreStateAndBaseURL-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestAllowSupplingBothAsteriscAbsolutePreStateAndBaseURL-%v", gameType), func(t *testing.T) {
 			// Since the prestate base URL might be inherited from the --prestate-urls option, allow overriding it with a specific prestate
-			config := validConfig(t, traceType)
+			config := validConfig(t, gameType)
 			config.AsteriscAbsolutePreState = validAsteriscAbsolutePreState
 			config.AsteriscAbsolutePreStateBaseURL = validAsteriscAbsolutePreStateBaseURL
 			require.NoError(t, config.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestL2RpcRequired-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestL2RpcRequired-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.L2Rpcs = nil
 			require.ErrorIs(t, config.Check(), ErrMissingL2Rpc)
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscSnapshotFreq-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestAsteriscSnapshotFreq-%v", gameType), func(t *testing.T) {
 			t.Run("MustNotBeZero", func(t *testing.T) {
-				cfg := validConfig(t, traceType)
+				cfg := validConfig(t, gameType)
 				cfg.Asterisc.SnapshotFreq = 0
 				require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscSnapshotFreq)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscInfoFreq-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestAsteriscInfoFreq-%v", gameType), func(t *testing.T) {
 			t.Run("MustNotBeZero", func(t *testing.T) {
-				cfg := validConfig(t, traceType)
+				cfg := validConfig(t, gameType)
 				cfg.Asterisc.InfoFreq = 0
 				require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscInfoFreq)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscNetworkOrRollupConfigRequired-%v", traceType), func(t *testing.T) {
-			cfg := validConfigWithNoNetworks(t, traceType)
+		t.Run(fmt.Sprintf("TestAsteriscNetworkOrRollupConfigRequired-%v", gameType), func(t *testing.T) {
+			cfg := validConfigWithNoNetworks(t, gameType)
 			cfg.Asterisc.RollupConfigPaths = nil
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingRollupConfig)
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscNetworkOrL2GenesisRequired-%v", traceType), func(t *testing.T) {
-			cfg := validConfigWithNoNetworks(t, traceType)
+		t.Run(fmt.Sprintf("TestAsteriscNetworkOrL2GenesisRequired-%v", gameType), func(t *testing.T) {
+			cfg := validConfigWithNoNetworks(t, gameType)
 			cfg.Asterisc.L2GenesisPaths = nil
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingL2Genesis)
 		})
 
-		t.Run(fmt.Sprintf("MaySpecifyNetworkAndCustomConfigs-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("MaySpecifyNetworkAndCustomConfigs-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.Asterisc.Networks = []string{validAsteriscNetwork}
 			cfg.Asterisc.RollupConfigPaths = []string{"foo.json"}
 			cfg.Asterisc.L2GenesisPaths = []string{"genesis.json"}
 			require.NoError(t, cfg.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestNetworkMustBeValid-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestNetworkMustBeValid-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.Asterisc.Networks = []string{"unknown"}
 			require.ErrorIs(t, cfg.Check(), vm.ErrNetworkUnknown)
 		})
 
-		t.Run(fmt.Sprintf("TestDebugInfoDisabled-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestDebugInfoDisabled-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			require.False(t, cfg.Asterisc.DebugInfo)
 		})
 
-		t.Run(fmt.Sprintf("TestVMBinExists-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestVMBinExists-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.Asterisc.VmBin = nonExistingFile
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingBin)
 		})
 
-		t.Run(fmt.Sprintf("TestServerExists-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestServerExists-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.Asterisc.Server = nonExistingFile
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
 		})
@@ -663,111 +663,111 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 }
 
 func TestAsteriscKonaRequiredArgs(t *testing.T) {
-	for _, traceType := range asteriscKonaTraceTypes {
-		traceType := traceType
+	for _, gameType := range asteriscKonaGameTypes {
+		gameType := gameType
 
-		t.Run(fmt.Sprintf("TestAsteriscKonaBinRequired-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestAsteriscKonaBinRequired-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.AsteriscKona.VmBin = ""
 			require.ErrorIs(t, config.Check(), vm.ErrMissingBin)
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscKonaServerRequired-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestAsteriscKonaServerRequired-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.AsteriscKona.Server = ""
 			require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscKonaAbsolutePreStateOrBaseURLRequired-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestAsteriscKonaAbsolutePreStateOrBaseURLRequired-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.AsteriscKonaAbsolutePreState = ""
 			config.AsteriscKonaAbsolutePreStateBaseURL = nil
 			require.ErrorIs(t, config.Check(), ErrMissingAsteriscKonaAbsolutePreState)
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscKonaAbsolutePreState-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestAsteriscKonaAbsolutePreState-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.AsteriscKonaAbsolutePreState = validAsteriscKonaAbsolutePreState
 			config.AsteriscKonaAbsolutePreStateBaseURL = nil
 			require.NoError(t, config.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscKonaAbsolutePreStateBaseURL-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestAsteriscKonaAbsolutePreStateBaseURL-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.AsteriscKonaAbsolutePreState = ""
 			config.AsteriscKonaAbsolutePreStateBaseURL = validAsteriscKonaAbsolutePreStateBaseURL
 			require.NoError(t, config.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestAllowSupplyingBothAsteriscKonaAbsolutePreStateAndBaseURL-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestAllowSupplyingBothAsteriscKonaAbsolutePreStateAndBaseURL-%v", gameType), func(t *testing.T) {
 			// Since the prestate base URL might be inherited from the --prestate-urls option, allow overriding it with a specific prestate
-			config := validConfig(t, traceType)
+			config := validConfig(t, gameType)
 			config.AsteriscKonaAbsolutePreState = validAsteriscKonaAbsolutePreState
 			config.AsteriscKonaAbsolutePreStateBaseURL = validAsteriscKonaAbsolutePreStateBaseURL
 			require.NoError(t, config.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestL2RpcRequired-%v", traceType), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestL2RpcRequired-%v", gameType), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.L2Rpcs = nil
 			require.ErrorIs(t, config.Check(), ErrMissingL2Rpc)
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscKonaSnapshotFreq-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestAsteriscKonaSnapshotFreq-%v", gameType), func(t *testing.T) {
 			t.Run("MustNotBeZero", func(t *testing.T) {
-				cfg := validConfig(t, traceType)
+				cfg := validConfig(t, gameType)
 				cfg.AsteriscKona.SnapshotFreq = 0
 				require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscKonaSnapshotFreq)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscKonaInfoFreq-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestAsteriscKonaInfoFreq-%v", gameType), func(t *testing.T) {
 			t.Run("MustNotBeZero", func(t *testing.T) {
-				cfg := validConfig(t, traceType)
+				cfg := validConfig(t, gameType)
 				cfg.AsteriscKona.InfoFreq = 0
 				require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscKonaInfoFreq)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscKonaNetworkOrRollupConfigRequired-%v", traceType), func(t *testing.T) {
-			cfg := validConfigWithNoNetworks(t, traceType)
+		t.Run(fmt.Sprintf("TestAsteriscKonaNetworkOrRollupConfigRequired-%v", gameType), func(t *testing.T) {
+			cfg := validConfigWithNoNetworks(t, gameType)
 			cfg.AsteriscKona.RollupConfigPaths = nil
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingRollupConfig)
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscKonaNetworkOrL2GenesisRequired-%v", traceType), func(t *testing.T) {
-			cfg := validConfigWithNoNetworks(t, traceType)
+		t.Run(fmt.Sprintf("TestAsteriscKonaNetworkOrL2GenesisRequired-%v", gameType), func(t *testing.T) {
+			cfg := validConfigWithNoNetworks(t, gameType)
 			cfg.AsteriscKona.L2GenesisPaths = nil
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingL2Genesis)
 		})
 
-		t.Run(fmt.Sprintf("MaySpecifyNetworkAndCustomConfig-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("MaySpecifyNetworkAndCustomConfig-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.AsteriscKona.Networks = []string{validAsteriscKonaNetwork}
 			cfg.AsteriscKona.RollupConfigPaths = []string{"foo.json"}
 			cfg.AsteriscKona.L2GenesisPaths = []string{"genesis.json"}
 			require.NoError(t, cfg.Check())
 		})
 
-		t.Run(fmt.Sprintf("TestNetworkMustBeValid-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestNetworkMustBeValid-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.AsteriscKona.Networks = []string{"unknown"}
 			require.ErrorIs(t, cfg.Check(), vm.ErrNetworkUnknown)
 		})
 
-		t.Run(fmt.Sprintf("TestDebugInfoDisabled-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestDebugInfoDisabled-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			require.False(t, cfg.AsteriscKona.DebugInfo)
 		})
 
-		t.Run(fmt.Sprintf("TestVMBinExists-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestVMBinExists-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.AsteriscKona.VmBin = nonExistingFile
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingBin)
 		})
 
-		t.Run(fmt.Sprintf("TestServerExists-%v", traceType), func(t *testing.T) {
-			cfg := validConfig(t, traceType)
+		t.Run(fmt.Sprintf("TestServerExists-%v", gameType), func(t *testing.T) {
+			cfg := validConfig(t, gameType)
 			cfg.AsteriscKona.Server = nonExistingFile
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
 		})
@@ -775,39 +775,39 @@ func TestAsteriscKonaRequiredArgs(t *testing.T) {
 }
 
 func TestDatadirRequired(t *testing.T) {
-	config := validConfig(t, types.TraceTypeAlphabet)
+	config := validConfig(t, gameTypes.AlphabetGameType)
 	config.Datadir = ""
 	require.ErrorIs(t, config.Check(), ErrMissingDatadir)
 }
 
 func TestMaxConcurrency(t *testing.T) {
 	t.Run("Required", func(t *testing.T) {
-		config := validConfig(t, types.TraceTypeAlphabet)
+		config := validConfig(t, gameTypes.AlphabetGameType)
 		config.MaxConcurrency = 0
 		require.ErrorIs(t, config.Check(), ErrMaxConcurrencyZero)
 	})
 
 	t.Run("DefaultToNumberOfCPUs", func(t *testing.T) {
-		config := validConfig(t, types.TraceTypeAlphabet)
+		config := validConfig(t, gameTypes.AlphabetGameType)
 		require.EqualValues(t, runtime.NumCPU(), config.MaxConcurrency)
 	})
 }
 
 func TestHttpPollInterval(t *testing.T) {
 	t.Run("Default", func(t *testing.T) {
-		config := validConfig(t, types.TraceTypeAlphabet)
+		config := validConfig(t, gameTypes.AlphabetGameType)
 		require.EqualValues(t, DefaultPollInterval, config.PollInterval)
 	})
 }
 
 func TestRollupRpcRequired(t *testing.T) {
-	for _, traceType := range types.TraceTypes {
-		traceType := traceType
-		if traceType == types.TraceTypeSuperCannon || traceType == types.TraceTypeSuperPermissioned || traceType == types.TraceTypeSuperAsteriscKona || traceType == types.TraceTypeSuperCannonKona {
+	for _, gameType := range gameTypes.SupportedGameTypes {
+		gameType := gameType
+		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperAsteriscKonaGameType || gameType == gameTypes.SuperCannonKonaGameType {
 			continue
 		}
-		t.Run(traceType.String(), func(t *testing.T) {
-			config := validConfig(t, traceType)
+		t.Run(gameType.String(), func(t *testing.T) {
+			config := validConfig(t, gameType)
 			config.RollupRpc = ""
 			require.ErrorIs(t, config.Check(), ErrMissingRollupRpc)
 		})
@@ -816,42 +816,42 @@ func TestRollupRpcRequired(t *testing.T) {
 
 func TestRollupRpcNotRequiredForInterop(t *testing.T) {
 	t.Run("SuperCannon", func(t *testing.T) {
-		config := validConfig(t, types.TraceTypeSuperCannon)
+		config := validConfig(t, gameTypes.SuperCannonGameType)
 		config.RollupRpc = ""
 		require.NoError(t, config.Check())
 	})
 
 	t.Run("SuperPermissioned", func(t *testing.T) {
-		config := validConfig(t, types.TraceTypeSuperPermissioned)
+		config := validConfig(t, gameTypes.SuperPermissionedGameType)
 		config.RollupRpc = ""
 		require.NoError(t, config.Check())
 	})
 
 	t.Run("SuperCannonKona", func(t *testing.T) {
-		config := validConfig(t, types.TraceTypeSuperCannonKona)
+		config := validConfig(t, gameTypes.SuperCannonKonaGameType)
 		config.RollupRpc = ""
 		require.NoError(t, config.Check())
 	})
 
 	t.Run("SuperAsteriscKona", func(t *testing.T) {
-		config := validConfig(t, types.TraceTypeSuperAsteriscKona)
+		config := validConfig(t, gameTypes.SuperAsteriscKonaGameType)
 		config.RollupRpc = ""
 		require.NoError(t, config.Check())
 	})
 }
 
 func TestSupervisorRpc(t *testing.T) {
-	for _, traceType := range types.TraceTypes {
-		traceType := traceType
-		if traceType == types.TraceTypeSuperCannon || traceType == types.TraceTypeSuperPermissioned || traceType == types.TraceTypeSuperAsteriscKona || traceType == types.TraceTypeSuperCannonKona {
-			t.Run("RequiredFor"+traceType.String(), func(t *testing.T) {
-				config := validConfig(t, traceType)
+	for _, gameType := range gameTypes.SupportedGameTypes {
+		gameType := gameType
+		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperAsteriscKonaGameType || gameType == gameTypes.SuperCannonKonaGameType {
+			t.Run("RequiredFor"+gameType.String(), func(t *testing.T) {
+				config := validConfig(t, gameType)
 				config.SupervisorRPC = ""
 				require.ErrorIs(t, config.Check(), ErrMissingSupervisorRpc)
 			})
 		} else {
-			t.Run("NotRequiredFor"+traceType.String(), func(t *testing.T) {
-				config := validConfig(t, traceType)
+			t.Run("NotRequiredFor"+gameType.String(), func(t *testing.T) {
+				config := validConfig(t, gameType)
 				config.SupervisorRPC = ""
 				require.NoError(t, config.Check())
 			})
@@ -859,9 +859,9 @@ func TestSupervisorRpc(t *testing.T) {
 	}
 }
 
-func TestRequireConfigForMultipleTraceTypesForCannon(t *testing.T) {
-	cfg := validConfig(t, types.TraceTypeCannon)
-	cfg.TraceTypes = []types.TraceType{types.TraceTypeCannon, types.TraceTypeAlphabet}
+func TestRequireConfigForMultipleGameTypesForCannon(t *testing.T) {
+	cfg := validConfig(t, gameTypes.CannonGameType)
+	cfg.GameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.AlphabetGameType}
 	// Set all required options and check its valid
 	cfg.RollupRpc = validRollupRpc
 	require.NoError(t, cfg.Check())
@@ -877,9 +877,9 @@ func TestRequireConfigForMultipleTraceTypesForCannon(t *testing.T) {
 	require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
 }
 
-func TestRequireConfigForMultipleTraceTypesForAsterisc(t *testing.T) {
-	cfg := validConfig(t, types.TraceTypeAsterisc)
-	cfg.TraceTypes = []types.TraceType{types.TraceTypeAsterisc, types.TraceTypeAlphabet}
+func TestRequireConfigForMultipleGameTypesForAsterisc(t *testing.T) {
+	cfg := validConfig(t, gameTypes.AsteriscGameType)
+	cfg.GameTypes = []gameTypes.GameType{gameTypes.AsteriscGameType, gameTypes.AlphabetGameType}
 	// Set all required options and check its valid
 	cfg.RollupRpc = validRollupRpc
 	require.NoError(t, cfg.Check())
@@ -895,11 +895,11 @@ func TestRequireConfigForMultipleTraceTypesForAsterisc(t *testing.T) {
 	require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
 }
 
-func TestRequireConfigForMultipleTraceTypesForCannonAndAsterisc(t *testing.T) {
-	cfg := validConfig(t, types.TraceTypeCannon)
+func TestRequireConfigForMultipleGameTypesForCannonAndAsterisc(t *testing.T) {
+	cfg := validConfig(t, gameTypes.CannonGameType)
 	applyValidConfigForAsterisc(t, &cfg)
 
-	cfg.TraceTypes = []types.TraceType{types.TraceTypeCannon, types.TraceTypeAsterisc, types.TraceTypeAlphabet, types.TraceTypeFast}
+	cfg.GameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.AsteriscGameType, gameTypes.AlphabetGameType, gameTypes.FastGameType}
 	// Set all required options and check its valid
 	cfg.RollupRpc = validRollupRpc
 	require.NoError(t, cfg.Check())

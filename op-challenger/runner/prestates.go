@@ -14,7 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -23,7 +23,7 @@ import (
 type OnChainPrestateFetcher struct {
 	m                  metrics.ContractMetricer
 	gameFactoryAddress common.Address
-	gameType           types.GameType
+	gameType           gameTypes.GameType
 	caller             *batching.MultiCaller
 }
 
