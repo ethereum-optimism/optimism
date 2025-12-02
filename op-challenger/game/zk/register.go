@@ -14,8 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum/go-ethereum/common"
-	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -29,10 +27,6 @@ type Registry interface {
 
 type TxSender interface {
 	SendAndWaitSimple(txPurpose string, txs ...txmgr.TxCandidate) error
-}
-
-type L1HeaderSource interface {
-	HeaderByHash(context.Context, common.Hash) (*gethTypes.Header, error)
 }
 
 func RegisterGameTypes(
