@@ -170,7 +170,7 @@ coverage-lcov-upgrade *ARGS: build-go-ffi
 # Runs coverage-lcov and coverage-lcov-upgrade and merges their output files info one file
 coverage-lcov-all *ARGS:
   just coverage-lcov {{ARGS}} && \
-  just coverage-lcov-upgrade --match-contract OPContractsManager_Upgrade_Test {{ARGS}} && \
+  just coverage-lcov-upgrade --match-contract "OPContractsManager.*_Upgrade_Test" {{ARGS}} && \
   lcov -a lcov.info -a lcov-upgrade.info -o lcov-all.info
 
 ########################################################
@@ -286,12 +286,23 @@ lint-forge-tests-check: build lint-forge-tests-check-no-build
 lint-check:
   forge fmt --check
 
+# Updates the selectors for the contracts
+update-selectors:
+  forge selectors up --all
+
 # Checks for unused imports in Solidity contracts. Does not build contracts.
 unused-imports-check-no-build:
   go run ./scripts/checks/unused-imports
 
 # Checks for unused imports in Solidity contracts.
 unused-imports-check: build unused-imports-check-no-build
+
+# Checks that contracts use strict pragma versions. Does not build contracts.
+strict-pragma-check-no-build:
+  go run ./scripts/checks/strict-pragma
+
+# Checks that contracts use strict pragma versions.
+strict-pragma-check: build strict-pragma-check-no-build
 
 # Checks that the semver of contracts are valid. Does not build contracts.
 valid-semver-check-no-build:
@@ -332,6 +343,7 @@ check:
   lint-check \
   snapshots-check-no-build \
   unused-imports-check-no-build \
+  strict-pragma-check-no-build \
   valid-semver-check-no-build \
   semver-diff-check-no-build \
   validate-deploy-configs \
@@ -352,6 +364,7 @@ pre-commit *ARGS:
 # Cleans, builds, lints, and runs all checks.
 pre-pr *ARGS:
   #!/bin/bash
+  set -e
   # Optionally clean the previous build.
   # --clean is typically not needed but can force a clean build if you suspect cache issues.
   if [[ "{{ARGS}}" == *"--clean"* ]]; then
@@ -378,6 +391,7 @@ pre-pr *ARGS:
   just lint
   just build-source
   just check
+
 
   # Restore build artifacts after running checks.
   if [ -d "$TEMP_BUILD_DIR" ]; then

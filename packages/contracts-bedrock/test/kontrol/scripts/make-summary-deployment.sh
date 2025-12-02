@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+SCRIPT_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 # shellcheck source=/dev/null
 source "$SCRIPT_HOME/common.sh"
 # Sanity check on arguments
@@ -33,16 +33,16 @@ trap cleanup EXIT ERR
 
 # create deployments/hardhat/.deploy and snapshots/state-diff/Deploy.json if necessary
 if [ ! -d "deployments/hardhat" ]; then
-  mkdir deployments/hardhat;
+  mkdir deployments/hardhat
 fi
 if [ ! -f "deployments/hardhat/.deploy" ]; then
-  touch deployments/hardhat/.deploy;
+  touch deployments/hardhat/.deploy
 fi
 if [ ! -d "snapshots/state-diff" ]; then
-  mkdir snapshots/state-diff;
+  mkdir snapshots/state-diff
 fi
 if [ ! -f "snapshots/state-diff/Deploy.json" ]; then
-  touch snapshots/state-diff/Deploy.json;
+  touch snapshots/state-diff/Deploy.json
 fi
 
 conditionally_start_docker
@@ -56,13 +56,13 @@ fi
 # Otherwise state changes inside of Deploy.s.sol get stored in the state diff under the default script address (0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496)
 # Conflicts with other stuff that happens inside of Kontrol and leads to errors that are hard to debug
 DEPLOY_CONFIG_PATH=deploy-config/hardhat.json \
-DEPLOYMENT_OUTFILE="$CONTRACT_NAMES" \
+  DEPLOYMENT_OUTFILE="$CONTRACT_NAMES" \
   forge script --sender 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 -vvv scripts/deploy/Deploy.s.sol:Deploy --sig runWithStateDiff
 echo "Created state diff json"
 
 # Clean and store the state diff json in snapshots/state-diff/Kontrol-Deploy.json
 JSON_SCRIPTS=test/kontrol/scripts/json
-GENERATED_STATEDIFF=31337.json # Name of the statediff json produced by the deployment script
+GENERATED_STATEDIFF=31337.json         # Name of the statediff json produced by the deployment script
 STATEDIFF=Kontrol-$GENERATED_STATEDIFF # Name of the Kontrol statediff
 mv snapshots/state-diff/$GENERATED_STATEDIFF snapshots/state-diff/$STATEDIFF
 python3 $JSON_SCRIPTS/clean_json.py snapshots/state-diff/$STATEDIFF
@@ -83,8 +83,8 @@ fi
 copy_to_docker # Copy the newly generated files to the docker container
 run kontrol load-state --from-state-diff $SUMMARY_NAME snapshots/state-diff/$STATEDIFF --contract-names $CONTRACT_NAMES --output-dir $SUMMARY_DIR --license $LICENSE
 if [ "$LOCAL" = false ]; then
-    # Sync Snapshot updates to the host
-    docker cp "$CONTAINER_NAME:/home/user/workspace/$SUMMARY_DIR" "$WORKSPACE_DIR/$SUMMARY_DIR/.."
+  # Sync Snapshot updates to the host
+  docker cp "$CONTAINER_NAME:/home/user/workspace/$SUMMARY_DIR" "$WORKSPACE_DIR/$SUMMARY_DIR/.."
 fi
 forge fmt $SUMMARY_DIR/$SUMMARY_NAME.sol
 forge fmt $SUMMARY_DIR/${SUMMARY_NAME}Code.sol

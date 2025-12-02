@@ -77,6 +77,7 @@ func TestEnvVarFormat(t *testing.T) {
 			txmgr.FeeLimitMultiplierFlagName,
 			txmgr.TxSendTimeoutFlagName,
 			txmgr.TxNotInMempoolTimeoutFlagName,
+			GameTypesFlag.Name, // Has multiple env vars for backwards compatibility
 		}
 
 		t.Run(flagName, func(t *testing.T) {
@@ -93,6 +94,11 @@ func TestEnvVarFormat(t *testing.T) {
 			require.Equal(t, expectedEnvVar, envFlags[0])
 		})
 	}
+}
+
+func TestGameTypesFlagEnvVars(t *testing.T) {
+	envFlags := GameTypesFlag.GetEnvVars()
+	require.Equal(t, []string{opservice.FlagNameToEnvVarName(GameTypesFlag.Name, "OP_CHALLENGER"), "OP_CHALLENGER_TRACE_TYPE"}, envFlags)
 }
 
 func TestResponseDelayFlag(t *testing.T) {

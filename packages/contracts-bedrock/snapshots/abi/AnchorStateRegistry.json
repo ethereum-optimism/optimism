@@ -125,6 +125,31 @@
   },
   {
     "inputs": [],
+    "name": "getStartingAnchorRoot",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "Hash",
+            "name": "root",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "l2SequenceNumber",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Proposal",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "initVersion",
     "outputs": [
       {

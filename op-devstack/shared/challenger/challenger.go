@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
@@ -57,50 +59,77 @@ func applyCannonConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis 
 	if err != nil {
 		return err
 	}
-	c.Cannon.VmBin = root + "cannon/bin/cannon"
-	c.Cannon.Server = root + "op-program/bin/op-program"
+	if err := applyVmConfig(root, &c.Cannon, c.Datadir, rollupCfgs, l1Genesis, l2Geneses); err != nil {
+		return err
+	}
 	if prestateVariant != "" {
 		c.CannonAbsolutePreState = root + "op-program/bin/prestate-" + string(prestateVariant) + ".bin.gz"
 	} else {
 		c.CannonAbsolutePreState = root + "op-program/bin/prestate.bin.gz"
 	}
-	c.Cannon.SnapshotFreq = 10_000_000
+	c.Cannon.Server = root + "op-program/bin/op-program"
+	return nil
+}
+
+func applyCannonKonaConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) error {
+	root, err := findMonorepoRoot()
+	if err != nil {
+		return err
+	}
+	if err := applyVmConfig(root, &c.CannonKona, c.Datadir, rollupCfgs, l1Genesis, l2Geneses); err != nil {
+		return err
+	}
+	c.CannonKona.Server = root + "kona/bin/kona-host"
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path to prestate dir: %w", err)
+	}
+	c.CannonKonaAbsolutePreStateBaseURL, err = url.Parse("file:" + absRoot + "/kona/prestates")
+	if err != nil {
+		return fmt.Errorf("failed to create kona prestates url: %w", err)
+	}
+	return nil
+}
+
+func applyVmConfig(root string, c *vm.Config, dataDir string, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) error {
+	c.VmBin = root + "cannon/bin/cannon"
+	c.SnapshotFreq = 10_000_000
 
 	for _, l2Genesis := range l2Geneses {
 		genesisBytes, err := json.Marshal(l2Genesis)
 		if err != nil {
 			return fmt.Errorf("marshall l2 genesis config: %w", err)
 		}
-		genesisFile := filepath.Join(c.Datadir, fmt.Sprintf("l2-genesis-%v.json", l2Genesis.Config.ChainID))
+		genesisFile := filepath.Join(dataDir, fmt.Sprintf("l2-genesis-%v.json", l2Genesis.Config.ChainID))
 		err = os.WriteFile(genesisFile, genesisBytes, 0o644)
 		if err != nil {
 			return fmt.Errorf("write l2 genesis config: %w", err)
 		}
-		c.Cannon.L2GenesisPaths = append(c.Cannon.L2GenesisPaths, genesisFile)
+		c.L2GenesisPaths = append(c.L2GenesisPaths, genesisFile)
 	}
 
 	l1GenesisBytes, err := json.Marshal(l1Genesis)
 	if err != nil {
 		return fmt.Errorf("marshall l1 genesis config: %w", err)
 	}
-	l1GenesisFile := filepath.Join(c.Datadir, fmt.Sprintf("l1-genesis-%v.json", l1Genesis.Config.ChainID))
+	l1GenesisFile := filepath.Join(dataDir, fmt.Sprintf("l1-genesis-%v.json", l1Genesis.Config.ChainID))
 	err = os.WriteFile(l1GenesisFile, l1GenesisBytes, 0o644)
 	if err != nil {
 		return fmt.Errorf("write l1 genesis config: %w", err)
 	}
-	c.Cannon.L1GenesisPath = l1GenesisFile
+	c.L1GenesisPath = l1GenesisFile
 
 	for _, rollupCfg := range rollupCfgs {
 		rollupBytes, err := json.Marshal(rollupCfg)
 		if err != nil {
 			return fmt.Errorf("marshall rollup config: %w", err)
 		}
-		rollupFile := filepath.Join(c.Datadir, fmt.Sprintf("rollup-%v.json", rollupCfg.L2ChainID))
+		rollupFile := filepath.Join(dataDir, fmt.Sprintf("rollup-%v.json", rollupCfg.L2ChainID))
 		err = os.WriteFile(rollupFile, rollupBytes, 0o644)
 		if err != nil {
 			return fmt.Errorf("write rollup config: %w", err)
 		}
-		c.Cannon.RollupConfigPaths = append(c.Cannon.RollupConfigPaths, rollupFile)
+		c.RollupConfigPaths = append(c.RollupConfigPaths, rollupFile)
 	}
 	return nil
 }
@@ -118,37 +147,50 @@ func WithCannonConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Ge
 	}
 }
 
-func WithCannonTraceType() Option {
+func WithCannonKonaConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) Option {
 	return func(c *config.Config) error {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypeCannon)
+		return applyCannonKonaConfig(c, rollupCfgs, l1Genesis, l2Geneses)
+	}
+}
+
+func WithCannonGameType() Option {
+	return func(c *config.Config) error {
+		c.GameTypes = append(c.GameTypes, gameTypes.CannonGameType)
 		return nil
 	}
 }
 
-func WithPermissionedTraceType() Option {
+func WithCannonKonaGameType() Option {
 	return func(c *config.Config) error {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypePermissioned)
+		c.GameTypes = append(c.GameTypes, gameTypes.CannonKonaGameType)
 		return nil
 	}
 }
 
-func WithSuperCannonTraceType() Option {
+func WithPermissionedGameType() Option {
 	return func(c *config.Config) error {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypeSuperCannon)
+		c.GameTypes = append(c.GameTypes, gameTypes.PermissionedGameType)
 		return nil
 	}
 }
 
-func WithSuperPermissionedTraceType() Option {
+func WithSuperCannonGameType() Option {
 	return func(c *config.Config) error {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypeSuperPermissioned)
+		c.GameTypes = append(c.GameTypes, gameTypes.SuperCannonGameType)
+		return nil
+	}
+}
+
+func WithSuperPermissionedGameType() Option {
+	return func(c *config.Config) error {
+		c.GameTypes = append(c.GameTypes, gameTypes.SuperPermissionedGameType)
 		return nil
 	}
 }
 
 func WithFastGames() Option {
 	return func(c *config.Config) error {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypeFast)
+		c.GameTypes = append(c.GameTypes, gameTypes.FastGameType)
 		return nil
 	}
 }

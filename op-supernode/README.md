@@ -1,126 +1,85 @@
-## OP Supernode
+# OP Supernode
 
 Run multiple OP Stack chains in a single process. OP Supernode virtualizes OP Node so each chain runs as an isolated in-memory worker with per-chain config, data, and logs.
 
-### Highlights
-- Multi-chain in one binary; lightweight per-chain workers
-- Per-chain config via `-vn.*` flag prefixing
-- Isolated data directories per chain
-- Structured logs with `chain_id` and `vn_id`
-- Shared L1 RPC and Beacon clients with non-closeable wrappers
+## Major Features
+### Chain Containers
+Chain Containers represent the concerns of one specific Chain being managed by the `op-supernode`
 
-### How it works
+#### Chain Isolation / Interfacing
+Chain Containers abstract away the local Consensus Layer / Derivation Pipeline, as well as the Execution Engine.
+Chain containers manage the runtime of the CL as a local process called a "Virtual Node", which presently is implemented
+only by `op-node` itself.
+Chain Containers provide a stable interface to get data from the chain or affect the chain without needing to operate on the internals of
+that chain.
+Chain Containers also allow for multiple chains to be derived inside of the same `op-supernode`. Because theya re isolated,
+running many chains worth of derivation is trivial.
+
+
+#### Shared Chain Resources
+Chain Containers also benefit from running in a shared environment through the use of shared resources.
+Shared resources are Dependencies which have been injected into the Virtual Node such that the original behavior is in-tact,
+but redundant access is eliminated.
+
+- Shared L1 and Beacon Client mean shared caching and only a single pipe to the L1 across all chains.
+- Shared RPCs through a namespaced RPC registration system. Call `11155420/` for OP Sepolia's RPC capabilities, or `84532/` for Base Sepolia.
+- Metrics are shared through similar namespacing, but will likely be joined via prometheus dimensions in the future.
+- Data Directories are namespaced to protect SafeDB and P2P resources
+- Flag configuration can be shared amongst chains for common setup.
+
+
+#### Flag Configuration Tips
+
+Because `op-node` is the only implementation of Virtual Nodes presently, it gets special treatment when the application starts up.
+In specific, all those flags which are found in `op-node` are upstreamed with namespacing into the `op-supernode` flags.
+This allows for *roughly* 1:1 setup and behavior between Node and Supernode, with cavets listed below.
+- To set a value for one chain, use `--vn.<chainID>.<flag>`
+- To set a value for *all* chains, use `--vn.all.<flag>`
+- Some behaviors are expected to be configured at the `op-supernode` level and are not respected per usual when the application starts:
+  - `l1` and `l1.beacon` are used to create the shared L1 client. Any L1 configuration will not be respected by a Virtual Node.
+  - Log and Metric settings are passed down to the Virtual node from the top level Log/Metric flags, and individual chain settings may not be respected.
+  - `p2p` is enabled/disabled at the top level and sets all listen ports to `0` to prevent collisions. Per-chain P2P functionality will added
+  via a shared resource in the future.
+
+Example launch of Supernode:
 ```
-Supernode: Runs Containers
-  ├── ChainContainer (901) Manages:
-      ├── VirtualNode ── In Memory OP Node (901)
-      └── (FUTURE) Engine Controller (901)
-  ├── ChainContainer (902) Manages:
-      ├── VirtualNode ── In Memory OP Node (902)
-      └── (FUTURE) Engine Controller (902)
-  └── ChainContainer (903) Manages:
-      ├── VirtualNode ── In Memory OP Node (903)
-      └── (FUTURE) Engine Controller (903)
-```
-- Supernode orchestrates chain containers (start/stop/restart, pause/resume, shutdown)
-- ChainContainer applies per-chain config and passes shared resources
-- VirtualNode runs OP Node with isolated resources and context-rich logging
+./bin/op-supernode \
+  --l1='...' \
+  --l1.beacon='...' \
+  --disable-p2p=true \
+  --log.level=DEBUG \
+  --metrics.enabled=true \
+  --metrics.port=7300 \
+  --chains=11155420,84532 \
+  --vn.11155420.network=op-sepolia \
+  --vn.11155420.l2='...' \
+  --vn.84532.network=base-sepolia \
+  --vn.84532.l2='...'
+  --vn.84532.l1.beacon-archiver='...' \
+  --vn.all.l2.jwt-secret=../../jwt-secret.txt \
+  ```
+
+Note: consult the `help` printout of the application as currently there is a mistake in the naming of Environment Variables for flags.
+Env Vars may be used, but at present their names include inappropriate `op-node` markers.
+
+### Activities
+Activities represent the concerns of `op-supernode` which fall outside of any one chain, and are modular plugins to the capabilities of the software.
+
+#### RPC Activities
+Components which expose RPC functionality and register as an Activity will have their RPC namespaces registered against the `op-supernode` root.
+
+#### Runnable Activities
+Components which expose Start/Stop are given a goroutine to work during `op-supernode` runtime
+
+#### Current Activities:
+- `Heartbeat`
+  - RPC: `heartbeat_check` produces a random-hex sign of life when called.
+  - Runtime: emits a simple heartbeat message to the logs to show liveness.
+- `SuperRoot`
+  - RPC: `superroot_atTimestamp` produces a SuperRoot from Verified L2 blocks, and includes sync/derivation information for Proofs.
 
 ### Quickstart
 Build:
 ```bash
 just op-supernode
 ```
-
-Run multiple chains:
-```bash
-./bin/op-supernode \
-  --chains 901,902 \
-  --data-dir ./supernode-data \
-  --l1 http://localhost:8545 \
-  --l1.beacon http://localhost:5052 \
-  -vn.901.l2=http://localhost:9001 \
-  -vn.901.rollup.config=./rollup-901.json \
-  -vn.902.l2=http://localhost:9002 \
-  -vn.902.rollup.config=./rollup-902.json \
-  -vn.all.l2.jwt-secret=./jwt-902.txt
-```
-
-Environment variables:
-```bash
-export OP_SUPERNODE_CHAINS=901,902,903
-export OP_SUPERNODE_DATA_DIR=/var/lib/supernode
-export OP_SUPERNODE_L1_ETH_RPC=$L1_RPC
-export OP_SUPERNODE_L1_BEACON=$L1_BEACON
-
-./bin/op-supernode \
-  -vn.901.l2=$CHAIN_901_RPC \
-  -vn.902.l2=$CHAIN_902_RPC \
-  -vn.903.l2=$CHAIN_903_RPC
-```
-
-### Configuration
-- Required: `--chains`, `--l1`
-- Optional: `--l1.beacon`, `--data-dir` (default `./datadir`), standard op-service flags (logging, metrics, pprof, RPC)
-
-Per-chain flags are prefixed:
-- `-vn.all.<flag>` applies to all chains
-- `-vn.<chainID>.<flag>` applies to one chain
-
-All virtual node configuration flags can also be set by environment variable, prefixed with `VN_ALL_` or `VN_<CHAINID>_`.
-
-Common examples:
-```bash
-# Supernode-level L1
---l1 http://l1:8545
---l1.beacon http://l1:5052
-
-# Per-chain L2 execution engines
--vn.901.l2=http://op-geth-901:8551
--vn.902.l2=http://op-geth-902:8551
-
-# Per-chain rollup configs
--vn.901.rollup.config=./rollup-901.json
--vn.902.rollup.config=./rollup-902.json
-
-# Apply to all chains
--vn.all.syncmode=execution-layer
-```
-
-### Data and logs
-Data layout:
-```
-<data-dir>/
-  ├── 901/
-  │   └── safe_db/
-  ├── 902/
-  │   └── safe_db/
-  └── 903/
-      └── safe_db/
-```
-
-Logs include `chain_id` and a short-lived `vn_id` for filtering and debugging.
-
-### RPC Routing
-RPC Clients are created in namespaced paths, so the supernode has a single RPC URL which acts as an RPC router to the virtual nodes
-```
-/
-  ├── 901/
-  ├── 902/
-  └── 903/
-```
-calling RPC methods on `/901` will route the method to the Virtual Node for that chain.
-
-### Metrics Routing
-Prometheus Metrics are exposed in namespaced paths, so the supernode has a single RPC URL which acts as an RPC router to the virtual nodes
-```
-/
-  ├── 901/metrics
-  ├── 902/metrics
-  └── 903/metrics
-```
-All metrics are available at the supernode-configured metrics port.
-
-### Limitations
-- P2P disabled for Virtual Nodes (unsafe head sync possible later)
-- Pause/resume exists but not yet exposed via API

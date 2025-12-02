@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -20,7 +21,8 @@ import (
 )
 
 func TestDownloadArtifacts_MockArtifacts(t *testing.T) {
-	f, err := os.OpenFile("testdata/artifacts.tar.gz", os.O_RDONLY, 0o644)
+	testTarGzPath := filepath.Join("testdata", "test.tar.gz")
+	f, err := os.Open(testTarGzPath)
 	require.NoError(t, err)
 	defer f.Close()
 
@@ -65,7 +67,7 @@ func TestDownloadArtifacts_MockArtifacts(t *testing.T) {
 	})
 
 	correctIntegrity := &hashIntegrityChecker{
-		hash: common.HexToHash("0x0f814df0c4293aaaadd468ac37e6c92f0b40fd21df848076835cb2c21d2a516f"),
+		hash: common.HexToHash("0x8171bd7ea902495701fecf396cdc9906273c8230205645a1293d5e27aea7ac9f"),
 	}
 
 	t.Run("ok integrity", func(t *testing.T) {
@@ -109,5 +111,99 @@ func TestDownloadArtifacts_MockArtifacts(t *testing.T) {
 
 		_, err = downloadHTTP(ctx, u, nil, correctIntegrity, testCacheDir)
 		require.ErrorContains(t, err, "integrity check failed")
+	})
+}
+
+func TestTarballExtractor_Extract(t *testing.T) {
+	t.Run("gzip extraction", func(t *testing.T) {
+		extractor := &TarballExtractor{
+			checker: &noopIntegrityChecker{},
+		}
+
+		tempDir := t.TempDir()
+		gzPath := filepath.Join("testdata", "test.tar.gz")
+		destDir := tempDir
+
+		err := extractor.Extract(gzPath, destDir)
+		require.NoError(t, err)
+
+		// Verify the extracted content
+		forgeArtifactsDir := destDir + "/forge-artifacts"
+		require.DirExists(t, forgeArtifactsDir)
+
+		wethFile := forgeArtifactsDir + "/WETH98.sol/WETH98.json"
+		require.FileExists(t, wethFile)
+
+		info, err := os.Stat(wethFile)
+		require.NoError(t, err)
+		require.Greater(t, info.Size(), int64(0))
+	})
+
+	t.Run("zstd extraction", func(t *testing.T) {
+		extractor := &TarballExtractor{
+			checker: &noopIntegrityChecker{},
+		}
+
+		tempDir := t.TempDir()
+		zstPath := filepath.Join("testdata", "test.tar.zst")
+		destDir := tempDir
+
+		err := extractor.Extract(zstPath, destDir)
+		require.NoError(t, err)
+
+		forgeArtifactsDir := destDir + "/forge-artifacts"
+		require.DirExists(t, forgeArtifactsDir)
+
+		wethFile := forgeArtifactsDir + "/WETH98.sol/WETH98.json"
+		require.FileExists(t, wethFile)
+
+		info, err := os.Stat(wethFile)
+		require.NoError(t, err)
+		require.Greater(t, info.Size(), int64(0))
+	})
+
+	t.Run("unsupported compression", func(t *testing.T) {
+		extractor := &TarballExtractor{
+			checker: &noopIntegrityChecker{},
+		}
+
+		tempDir := t.TempDir()
+
+		// Create a test file with invalid compression
+		invalidFile := tempDir + "/invalid.tar"
+		err := os.WriteFile(invalidFile, []byte("not compressed data"), 0644)
+		require.NoError(t, err)
+
+		err = extractor.Extract(invalidFile, tempDir+"/dest")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unsupported compression format")
+	})
+}
+
+func TestTarballExtractor_CompressionDetection(t *testing.T) {
+	extractor := &TarballExtractor{}
+
+	t.Run("gzip magic bytes", func(t *testing.T) {
+		data := []byte{0x1f, 0x8b} // gzip magic bytes
+		require.True(t, extractor.isGzipCompressed(data))
+		require.False(t, extractor.isZstdCompressed(data))
+	})
+
+	t.Run("zstd magic bytes", func(t *testing.T) {
+		data := []byte{0x28, 0xb5, 0x2f, 0xfd} // zstd magic bytes
+		require.False(t, extractor.isGzipCompressed(data))
+		require.True(t, extractor.isZstdCompressed(data))
+	})
+
+	t.Run("unknown magic bytes", func(t *testing.T) {
+		data := []byte{0x00, 0x00, 0x00, 0x00} // unknown
+		require.False(t, extractor.isGzipCompressed(data))
+		require.False(t, extractor.isZstdCompressed(data))
+	})
+
+	t.Run("insufficient data", func(t *testing.T) {
+		data := []byte{0x1f} // too short
+		require.False(t, extractor.isGzipCompressed(data))
+		require.False(t, extractor.isZstdCompressed(data))
 	})
 }

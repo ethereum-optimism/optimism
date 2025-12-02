@@ -49,35 +49,23 @@ func WithL2NetworkFromSuperchainRegistry(l2NetworkID stack.L2NetworkID, networkN
 	})
 }
 
-// WithL2NetworkFromSuperchainRegistryWithDependencySet creates an L2 network using the rollup config from the superchain registry
-// and also sets up the dependency set for interop support
-func WithL2NetworkFromSuperchainRegistryWithDependencySet(l2NetworkID stack.L2NetworkID, networkName string) stack.Option[*Orchestrator] {
+// WithEmptyDepSet creates an L2 network using the rollup config from the superchain registry
+func WithEmptyDepSet(l2NetworkID stack.L2NetworkID, networkName string) stack.Option[*Orchestrator] {
 	return stack.Combine(
 		WithL2NetworkFromSuperchainRegistry(l2NetworkID, networkName),
 		stack.BeforeDeploy(func(orch *Orchestrator) {
 			p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2NetworkID))
 			require := p.Require()
 
-			// Load the dependency set from the superchain registry
+			// Check that chain config is available in registry
 			chainCfg := chaincfg.ChainByName(networkName)
 			require.NotNil(chainCfg, "chain config not found for network %s", networkName)
 
-			_, err := depset.FromRegistry(eth.ChainIDFromUInt64(chainCfg.ChainID))
-			if err != nil {
-				// If dependency set is not available, that's okay - it's optional
-				p.Logger().Info("No dependency set available for network", "network", networkName, "err", err)
-				return
-			}
-
-			// Create a cluster to hold the dependency set
+			// Create a minimal cluster with empty dependency set
 			clusterID := stack.ClusterID(networkName)
-
-			// Create a minimal full config set with just the dependency set
-			// This is a simplified approach - in a real implementation you might want
-			// to create a proper FullConfigSetMerged
 			cluster := &Cluster{
 				id:     clusterID,
-				cfgset: depset.FullConfigSetMerged{}, // Empty for now
+				cfgset: depset.FullConfigSetMerged{},
 			}
 
 			orch.clusters.Set(clusterID, cluster)

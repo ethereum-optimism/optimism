@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"os"
 	"path"
+	"slices"
 	"sort"
 
 	"github.com/ethereum-optimism/optimism/op-node/cmd/batch_decoder/fetch"
@@ -63,7 +64,7 @@ func LoadFrames(directory string, inbox common.Address) []FrameWithMetadata {
 // specified batch inbox and then re-assembles all channels & writes the re-assembled channels
 // to the out directory.
 func Channels(config Config, rollupCfg *rollup.Config) {
-	if err := os.MkdirAll(config.OutDirectory, 0750); err != nil {
+	if err := os.MkdirAll(config.OutDirectory, 0o750); err != nil {
 		log.Fatal(err)
 	}
 	frames := LoadFrames(config.InDirectory, config.BatchInbox)
@@ -72,6 +73,9 @@ func Channels(config Config, rollupCfg *rollup.Config) {
 		framesByChannel[frame.Frame.ID] = append(framesByChannel[frame.Frame.ID], frame)
 	}
 	for id, frames := range framesByChannel {
+		slices.SortFunc(frames, func(a FrameWithMetadata, b FrameWithMetadata) int {
+			return int(a.Frame.FrameNumber) - int(b.Frame.FrameNumber)
+		})
 		ch := ProcessFrames(config, rollupCfg, id, frames)
 		filename := path.Join(config.OutDirectory, fmt.Sprintf("%s.json", id.String()))
 		if err := writeChannel(ch, filename); err != nil {

@@ -13,10 +13,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/heartbeat"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/superroot"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	gethlog "github.com/ethereum/go-ethereum/log"
+	rpc "github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 )
@@ -28,6 +33,8 @@ type Supernode struct {
 	stopped      bool
 	cfg          *config.CLIConfig
 	chains       map[eth.ChainID]cc.ChainContainer
+	activities   []activity.Activity
+	rootRPC      *oprpc.Handler
 	wg           sync.WaitGroup
 	l1Client     *sources.L1Client
 	beaconClient *sources.L1BeaconClient
@@ -57,6 +64,9 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	// Pass shared resources via InitializationOverrides to all containers
 	// Build RPC router first; we'll attach per-chain handlers at runtime via SetHandler
 	s.rpcRouter = resources.NewRouter(log, resources.RouterConfig{})
+	// Root JSON-RPC handler mounted at '/'
+	s.rootRPC = oprpc.NewHandler(version, oprpc.WithLogger(log))
+	s.rpcRouter.SetRootHandler(s.rootRPC)
 	// Build metrics router; attach per-chain registries later
 	s.metricsRouter = resources.NewMetricsRouter(log)
 	for _, id := range cfg.Chains {
@@ -71,6 +81,11 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			continue
 		}
 		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsRouter.SetHandler)
+	}
+	// Initialize activities
+	s.activities = []activity.Activity{
+		heartbeat.New(log.New("activity", "heartbeat"), 10*time.Second),
+		superroot.New(log.New("activity", "superroot"), s.chains),
 	}
 	addr := net.JoinHostPort(cfg.RPCConfig.ListenAddr, strconv.Itoa(cfg.RPCConfig.ListenPort))
 	s.httpServer = httputil.NewHTTPServer(addr, s.rpcRouter)
@@ -111,6 +126,23 @@ func (s *Supernode) Start(ctx context.Context) error {
 				s.requestStop(err)
 			}
 		})
+	}
+	// Register RPC APIs and start only Runnable activities
+	for _, a := range s.activities {
+		if ra, ok := a.(activity.RPCActivity); ok {
+			if err := s.rootRPC.AddAPI(rpc.API{Namespace: ra.RPCNamespace(), Service: ra.RPCService()}); err != nil {
+				s.log.Error("failed to register activity RPC API", "namespace", ra.RPCNamespace(), "error", err)
+			}
+		}
+		if run, ok := a.(activity.RunnableActivity); ok {
+			s.wg.Add(1)
+			go func(run activity.RunnableActivity) {
+				defer s.wg.Done()
+				if err := run.Start(ctx); err != nil {
+					s.log.Error("error starting runnable activity", "error", err)
+				}
+			}(run)
+		}
 	}
 	for chainID, chain := range s.chains {
 		s.wg.Add(1)
@@ -153,6 +185,15 @@ func (s *Supernode) Stop(ctx context.Context) error {
 	if s.metricsRouter != nil {
 		if err := s.metricsRouter.Close(); err != nil {
 			s.log.Error("error closing metrics router", "error", err)
+		}
+	}
+
+	// Stop runnable activities
+	for _, a := range s.activities {
+		if run, ok := a.(activity.RunnableActivity); ok {
+			if err := run.Stop(ctx); err != nil {
+				s.log.Error("error stopping runnable activity", "error", err)
+			}
 		}
 	}
 

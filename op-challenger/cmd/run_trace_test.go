@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/runner"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -16,13 +16,13 @@ func TestParseRunArg(t *testing.T) {
 		expected runner.RunConfig
 		err      error
 	}{
-		{arg: "unknown/test1/0x1234", err: ErrUnknownTraceType},
-		{arg: "cannon", expected: runner.RunConfig{TraceType: types.TraceTypeCannon, Name: types.TraceTypeCannon.String()}},
-		{arg: "asterisc", expected: runner.RunConfig{TraceType: types.TraceTypeAsterisc, Name: types.TraceTypeAsterisc.String()}},
-		{arg: "cannon/test1", expected: runner.RunConfig{TraceType: types.TraceTypeCannon, Name: "test1"}},
-		{arg: "cannon/test1/0x1234", expected: runner.RunConfig{TraceType: types.TraceTypeCannon, Name: "test1", Prestate: common.HexToHash("0x1234")}},
+		{arg: "unknown/test1/0x1234", err: gameTypes.ErrUnknownGameType},
+		{arg: "cannon", expected: runner.RunConfig{GameType: gameTypes.CannonGameType, Name: gameTypes.CannonGameType.String()}},
+		{arg: "asterisc", expected: runner.RunConfig{GameType: gameTypes.AsteriscGameType, Name: gameTypes.AsteriscGameType.String()}},
+		{arg: "cannon/test1", expected: runner.RunConfig{GameType: gameTypes.CannonGameType, Name: "test1"}},
+		{arg: "cannon/test1/0x1234", expected: runner.RunConfig{GameType: gameTypes.CannonGameType, Name: "test1", Prestate: common.HexToHash("0x1234")}},
 		{arg: "cannon/test1/0xinvalid", err: ErrInvalidPrestateHash},
-		{arg: "cannon/test1/develop.bin.gz", expected: runner.RunConfig{TraceType: types.TraceTypeCannon, Name: "test1", PrestateFilename: "develop.bin.gz"}},
+		{arg: "cannon/test1/develop.bin.gz", expected: runner.RunConfig{GameType: gameTypes.CannonGameType, Name: "test1", PrestateFilename: "develop.bin.gz"}},
 	}
 	for _, test := range tests {
 		test := test

@@ -201,8 +201,15 @@ type InitializationOverrides struct {
 // some later initialization steps depend on the node being partially initialized with other components,
 // so order is important to ensure that all resources are available when needed.
 func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides InitializationOverrides) error {
-
 	n.log.Info("Initializing rollup node", "version", n.appVersion)
+	safe := "enabled"
+	if cfg.Sync.UnsafeOnly {
+		safe = cfg.Sync.L2FollowSourceEndpoint
+		if safe == "" {
+			safe = "disabled"
+		}
+	}
+	n.log.Info("Safety levels", "unsafe", "enabled", "safe", safe)
 
 	var err error
 
@@ -984,4 +991,15 @@ func (n *OpNode) getP2PNodeIfEnabled() *p2p.NodeP2P {
 	n.p2pMu.Lock()
 	defer n.p2pMu.Unlock()
 	return n.p2pNode
+}
+
+func (n *OpNode) SafeDB() SafeDBReader {
+	return n.safeDB
+}
+
+func (n *OpNode) SyncStatus() *eth.SyncStatus {
+	if n.l2Driver == nil || n.l2Driver.StatusTracker == nil {
+		return &eth.SyncStatus{}
+	}
+	return n.l2Driver.StatusTracker.SyncStatus()
 }

@@ -14,6 +14,8 @@ import { LibString } from "@solady/utils/LibString.sol";
 // Interfaces
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
+import { IPermissionedDisputeGameV2 } from "interfaces/dispute/v2/IPermissionedDisputeGameV2.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -24,6 +26,7 @@ contract DeployDisputeGame is Script {
     struct Input {
         // Common inputs.
         string release;
+        bool useV2;
         // Specify which game kind is being deployed here.
         string gameKind;
         // All inputs required to deploy FaultDisputeGame.
@@ -49,12 +52,16 @@ contract DeployDisputeGame is Script {
     function run(Input memory _input) public returns (Output memory output_) {
         assertValidInput(_input);
 
-        deployDisputeGameImpl(_input, output_);
+        if (_input.useV2) {
+            deployDisputeGameImplV2(_input, output_);
+        } else {
+            deployDisputeGameImplV1(_input, output_);
+        }
 
         assertValidOutput(_input, output_);
     }
 
-    function deployDisputeGameImpl(Input memory _input, Output memory _output) internal {
+    function deployDisputeGameImplV1(Input memory _input, Output memory _output) internal {
         // Shove the arguments into a struct to avoid stack-too-deep errors.
         IFaultDisputeGame.GameConstructorParams memory args = IFaultDisputeGame.GameConstructorParams({
             gameType: _input.gameType,
@@ -97,6 +104,41 @@ contract DeployDisputeGame is Script {
         _output.disputeGameImpl = impl;
     }
 
+    function deployDisputeGameImplV2(Input memory _input, Output memory _output) internal {
+        // Shove the arguments into a struct to avoid stack-too-deep errors.
+        IFaultDisputeGameV2.GameConstructorParams memory args = IFaultDisputeGameV2.GameConstructorParams({
+            maxGameDepth: _input.maxGameDepth,
+            splitDepth: _input.splitDepth,
+            clockExtension: Duration.wrap(_input.clockExtension),
+            maxClockDuration: Duration.wrap((_input.maxClockDuration))
+        });
+
+        // PermissionedDisputeGame is used as the type here because it is a superset of
+        // FaultDisputeGame. If the user requests to deploy a FaultDisputeGame, the user will get a
+        // FaultDisputeGame (and not a PermissionedDisputeGame).
+        IPermissionedDisputeGame impl;
+        if (LibString.eq(_input.gameKind, "FaultDisputeGame")) {
+            impl = IPermissionedDisputeGame(
+                DeployUtils.createDeterministic({
+                    _name: "FaultDisputeGameV2",
+                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGameV2.__constructor__, (args))),
+                    _salt: DeployUtils.DEFAULT_SALT
+                })
+            );
+        } else {
+            impl = IPermissionedDisputeGame(
+                DeployUtils.createDeterministic({
+                    _name: "PermissionedDisputeGameV2",
+                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IPermissionedDisputeGameV2.__constructor__, (args))),
+                    _salt: DeployUtils.DEFAULT_SALT
+                })
+            );
+        }
+
+        vm.label(address(impl), string.concat(_input.gameKind, "Impl"));
+        _output.disputeGameImpl = impl;
+    }
+
     // A release is considered a 'develop' release if it does not start with 'op-contracts'.
     function isDevelopRelease(string memory _release) internal pure returns (bool) {
         return !LibString.startsWith(_release, "op-contracts");
@@ -129,19 +171,24 @@ contract DeployDisputeGame is Script {
 
         DeployUtils.assertValidContractAddress(address(game));
 
-        require(GameType.unwrap(game.gameType()) == GameType.unwrap(_input.gameType), "DG-10");
+        if (!_input.useV2) {
+            require(GameType.unwrap(game.gameType()) == GameType.unwrap(_input.gameType), "DG-10");
+        }
         require(game.maxGameDepth() == _input.maxGameDepth, "DG-20");
         require(game.splitDepth() == _input.splitDepth, "DG-30");
         require(game.clockExtension().raw() == uint64(_input.clockExtension), "DG-40");
         require(game.maxClockDuration().raw() == uint64(_input.maxClockDuration), "DG-50");
-        require(game.vm() == _input.vmAddress, "DG-60");
-        require(game.weth() == _input.delayedWethProxy, "DG-70");
-        require(game.anchorStateRegistry() == _input.anchorStateRegistryProxy, "DG-80");
-        require(game.l2ChainId() == _input.l2ChainId, "DG-90");
 
-        if (LibString.eq(_input.gameKind, "PermissionedDisputeGame")) {
-            require(game.proposer() == _input.proposer, "DG-100");
-            require(game.challenger() == _input.challenger, "DG-110");
+        if (!_input.useV2) {
+            require(game.vm() == _input.vmAddress, "DG-60");
+            require(game.weth() == _input.delayedWethProxy, "DG-70");
+            require(game.anchorStateRegistry() == _input.anchorStateRegistryProxy, "DG-80");
+            require(game.l2ChainId() == _input.l2ChainId, "DG-90");
+
+            if (LibString.eq(_input.gameKind, "PermissionedDisputeGame")) {
+                require(game.proposer() == _input.proposer, "DG-100");
+                require(game.challenger() == _input.challenger, "DG-110");
+            }
         }
     }
 }

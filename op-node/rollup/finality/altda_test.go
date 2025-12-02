@@ -81,11 +81,11 @@ func TestAltDAFinalityData(t *testing.T) {
 		DAResolveWindow:   90,
 	}
 	// should return l1 finality if altda is not enabled
-	require.Equal(t, uint64(defaultFinalityLookback), calcFinalityLookback(cfg))
+	require.Equal(t, uint64(defaultFinalityLookback), calcFinalityLookback(cfg, nil))
 
 	cfg.AltDAConfig = altDACfg
 	expFinalityLookback := 181
-	require.Equal(t, uint64(expFinalityLookback), calcFinalityLookback(cfg))
+	require.Equal(t, uint64(expFinalityLookback), calcFinalityLookback(cfg, nil))
 
 	refA1 := eth.L2BlockRef{
 		Hash:           testutils.RandomHash(rng),
@@ -108,7 +108,7 @@ func TestAltDAFinalityData(t *testing.T) {
 
 	emitter := &testutils.MockEmitter{}
 	ec := new(fakeEngineController)
-	fi := NewAltDAFinalizer(context.Background(), logger, cfg, l1F, altDABackend, ec)
+	fi := NewAltDAFinalizer(context.Background(), logger, cfg, nil, l1F, altDABackend, ec)
 	fi.AttachEmitter(emitter)
 	require.NotNil(t, altDABackend.forwardTo, "altda backend must have access to underlying standard finalizer")
 

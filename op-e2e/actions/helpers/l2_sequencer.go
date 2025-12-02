@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
@@ -212,7 +213,7 @@ func (s *L2Sequencer) ActBuildL2ToTime(t Testing, target uint64) {
 	}
 }
 
-func (s *L2Sequencer) ActBuildL2ToFork(t Testing, fork rollup.ForkName) eth.L2BlockRef {
+func (s *L2Sequencer) ActBuildL2ToFork(t Testing, fork forks.Name) eth.L2BlockRef {
 	require.NotNil(t, s.RollupCfg.ActivationTime(fork), "cannot activate %s when it is not scheduled", fork)
 	for !s.RollupCfg.IsForkActive(fork, s.L2Unsafe().Time) {
 		s.ActL2EmptyBlock(t)

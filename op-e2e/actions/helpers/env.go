@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	e2ecfg "github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -52,7 +53,7 @@ func WithActiveGenesisFork(fork rollup.ForkName) EnvOpt {
 // DefaultFork specifies the default fork to use when setting up the action test environment.
 // Currently manually set to Holocene.
 // Replace with `var DefaultFork = func() rollup.ForkName { return rollup.AllForks[len(rollup.AllForks)-1] }()` after Interop launch.
-const DefaultFork = rollup.Holocene
+const DefaultFork = forks.Holocene
 
 // SetupEnv sets up a default action test environment. If no fork is specified, the default fork as
 // specified by the package variable [defaultFork] is used.

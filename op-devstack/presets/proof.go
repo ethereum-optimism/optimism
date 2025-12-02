@@ -1,48 +1,84 @@
 package presets
 
 import (
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	ps "github.com/ethereum-optimism/optimism/op-proposer/proposer"
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 )
 
-func WithProposerGameType(gameType faultTypes.GameType) stack.CommonOption {
+func WithRespectedGameType(gameType gameTypes.GameType) stack.CommonOption {
+	opts := WithProposerGameType(gameType)
+	opts = stack.Combine(opts,
+		stack.MakeCommon(sysgo.WithRespectedGameType(gameType)), // Set if sysgo is in use
+		RequireRespectedGameType(gameType),
+	)
+	return opts
+}
+
+func WithAddedGameType(gameType gameTypes.GameType) stack.CommonOption {
+	opts := stack.Combine(
+		stack.MakeCommon(sysgo.WithGameTypeAdded(gameType)), // Add if sysgo is in use
+		RequireGameTypePresent(gameType),                    // Verify present for other chains
+	)
+
+	if gameType == gameTypes.CannonKonaGameType {
+		opts = stack.Combine(
+			opts,
+			WithCannonKonaFeatureEnabled(),
+			stack.MakeCommon(sysgo.WithChallengerCannonKonaEnabled()),
+		)
+	}
+	return opts
+}
+
+func RequireGameTypePresent(gameType gameTypes.GameType) stack.CommonOption {
+	return stack.FnOption[stack.Orchestrator]{
+		PostHydrateFn: func(sys stack.System) {
+			elNode := sys.L1Network(match.FirstL1Network).L1ELNode(match.FirstL1EL)
+			for _, l2Network := range sys.L2Networks() {
+				dgf := bindings.NewBindings[bindings.DisputeGameFactory](
+					bindings.WithClient(elNode.EthClient()),
+					bindings.WithTo(l2Network.Deployment().DisputeGameFactoryProxyAddr()),
+					bindings.WithTest(sys.T()),
+				)
+				gameImpl := contract.Read(dgf.GameImpls(uint32(gameType)))
+				sys.T().Gate().NotZerof(gameImpl, "Dispute game factory must have a game implementation for %s", gameType)
+			}
+		},
+	}
+}
+
+func RequireRespectedGameType(gameType gameTypes.GameType) stack.CommonOption {
+	return stack.FnOption[stack.Orchestrator]{
+		PostHydrateFn: func(sys stack.System) {
+
+			elNode := sys.L1Network(match.FirstL1Network).L1ELNode(match.FirstL1EL)
+			for _, l2Network := range sys.L2Networks() {
+				l1PortalAddr := l2Network.RollupConfig().DepositContractAddress
+				l1Portal := bindings.NewBindings[bindings.OptimismPortal2](
+					bindings.WithClient(elNode.EthClient()),
+					bindings.WithTo(l1PortalAddr),
+					bindings.WithTest(sys.T()))
+
+				respectedGameType, err := contractio.Read(l1Portal.RespectedGameType(), sys.T().Ctx())
+				sys.T().Require().NoError(err, "Failed to read respected game type")
+				sys.T().Gate().EqualValuesf(gameType, respectedGameType, "Respected game type must be %s", gameType)
+			}
+		},
+	}
+}
+
+func WithProposerGameType(gameType gameTypes.GameType) stack.CommonOption {
 	return stack.Combine(
 		stack.MakeCommon(
 			sysgo.WithProposerOption(func(id stack.L2ProposerID, cfg *ps.CLIConfig) {
 				cfg.DisputeGameType = uint32(gameType)
 			})))
-}
-
-// TODO(infra#401): Implement support in the sysext toolset
-func WithFastGame() stack.CommonOption {
-	return stack.MakeCommon(
-		sysgo.WithDeployerOptions(
-			sysgo.WithAdditionalDisputeGames(
-				[]state.AdditionalDisputeGame{
-					{
-						ChainProofParams: state.ChainProofParams{
-							DisputeGameType: uint32(faultTypes.FastGameType),
-							// Use Alphabet VM prestate which is a pre-determined fixed hash
-							DisputeAbsolutePrestate: common.HexToHash("0x03c7ae758795765c6664a5d39bf63841c71ff191e9189522bad8ebff5d4eca98"),
-							DisputeMaxGameDepth:     14 + 3 + 1,
-							DisputeSplitDepth:       14,
-							DisputeClockExtension:   0,
-							DisputeMaxClockDuration: 0,
-						},
-						VMType:                       state.VMTypeAlphabet,
-						UseCustomOracle:              true,
-						OracleMinProposalSize:        10000,
-						OracleChallengePeriodSeconds: 0,
-						MakeRespected:                true,
-					},
-				},
-			),
-		),
-	)
 }
 
 // TODO(infra#401): Implement support in the sysext toolset

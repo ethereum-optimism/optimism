@@ -26,6 +26,7 @@ interface IAnchorStateRegistry is IProxyAdminOwnedBase {
     function blacklistDisputeGame(IDisputeGame _disputeGame) external;
     function disputeGameBlacklist(IDisputeGame) external view returns (bool);
     function getAnchorRoot() external view returns (Hash, uint256);
+    function getStartingAnchorRoot() external view returns (Proposal memory);
     function disputeGameFinalityDelaySeconds() external view returns (uint256);
     function disputeGameFactory() external view returns (IDisputeGameFactory);
     function initialize(

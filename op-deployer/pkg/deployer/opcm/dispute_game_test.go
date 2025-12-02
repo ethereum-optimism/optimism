@@ -1,6 +1,7 @@
 package opcm
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -31,31 +32,36 @@ func TestDeployDisputeGame(t *testing.T) {
 
 	vmAddr := deployDisputeGameScriptVM(t, host)
 
-	input := DeployDisputeGameInput{
-		Release:                  "dev",
-		VmAddress:                vmAddr,
-		GameKind:                 "PermissionedDisputeGame",
-		GameType:                 1,
-		AbsolutePrestate:         common.Hash{'A'},
-		MaxGameDepth:             big.NewInt(int64(standard.DisputeMaxGameDepth)),
-		SplitDepth:               big.NewInt(int64(standard.DisputeSplitDepth)),
-		ClockExtension:           standard.DisputeClockExtension,
-		MaxClockDuration:         standard.DisputeMaxClockDuration,
-		DelayedWethProxy:         common.Address{'D'},
-		AnchorStateRegistryProxy: common.Address{'A'},
-		L2ChainId:                big.NewInt(69),
-		Proposer:                 common.Address{'P'},
-		Challenger:               common.Address{'C'},
+	for _, useV2 := range []bool{false, true} {
+		t.Run(fmt.Sprintf("useV2=%v", useV2), func(t *testing.T) {
+			input := DeployDisputeGameInput{
+				Release:                  "dev",
+				UseV2:                    useV2,
+				VmAddress:                vmAddr,
+				GameKind:                 "PermissionedDisputeGame",
+				GameType:                 1,
+				AbsolutePrestate:         common.Hash{'A'},
+				MaxGameDepth:             big.NewInt(int64(standard.DisputeMaxGameDepth)),
+				SplitDepth:               big.NewInt(int64(standard.DisputeSplitDepth)),
+				ClockExtension:           standard.DisputeClockExtension,
+				MaxClockDuration:         standard.DisputeMaxClockDuration,
+				DelayedWethProxy:         common.Address{'D'},
+				AnchorStateRegistryProxy: common.Address{'A'},
+				L2ChainId:                big.NewInt(69),
+				Proposer:                 common.Address{'P'},
+				Challenger:               common.Address{'C'},
+			}
+
+			script, err := NewDeployDisputeGameScript(host)
+			require.NoError(t, err)
+
+			output, err := script.Run(input)
+			require.NoError(t, err)
+
+			require.NotEmpty(t, output.DisputeGameImpl)
+			require.NotEmpty(t, host.GetCode(output.DisputeGameImpl))
+		})
 	}
-
-	script, err := NewDeployDisputeGameScript(host)
-	require.NoError(t, err)
-
-	output, err := script.Run(input)
-	require.NoError(t, err)
-
-	require.NotEmpty(t, output.DisputeGameImpl)
-	require.NotEmpty(t, host.GetCode(output.DisputeGameImpl))
 }
 
 func deployDisputeGameScriptVM(t *testing.T, host *script.Host) common.Address {

@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -83,11 +83,10 @@ func (el *L2ELNode) AdvancedFn(label eth.BlockLabel, block uint64) CheckFunc {
 	}
 }
 
-func (el *L2ELNode) NotAdvancedFn(label eth.BlockLabel) CheckFunc {
+func (el *L2ELNode) NotAdvancedFn(label eth.BlockLabel, attempts int) CheckFunc {
 	return func() error {
 		el.log.Info("expecting chain not to advance", "chain", el.inner.ChainID(), "label", label)
 		initial := el.BlockRefByLabel(label)
-		attempts := 5 // check few times to make sure head does not advance
 		for range attempts {
 			time.Sleep(2 * time.Second)
 			head := el.BlockRefByLabel(label)
@@ -113,7 +112,7 @@ func (el *L2ELNode) ReachedFn(label eth.BlockLabel, target uint64, attempts int)
 					return nil
 				}
 				logger.Info("L2EL sync status", "current", head.Number)
-				return fmt.Errorf("expected head to advance: %s", label)
+				return fmt.Errorf("expected head for label=%s to advance to target=%d, but got current=%d", label, target, head.Number)
 			})
 	}
 }
@@ -167,8 +166,12 @@ func (el *L2ELNode) Reached(label eth.BlockLabel, block uint64, attempts int) {
 	el.require.NoError(el.ReachedFn(label, block, attempts)())
 }
 
-func (el *L2ELNode) NotAdvanced(label eth.BlockLabel) {
-	el.require.NoError(el.NotAdvancedFn(label)())
+func (el *L2ELNode) NotAdvanced(label eth.BlockLabel, attempts int) {
+	el.require.NoError(el.NotAdvancedFn(label, attempts)())
+}
+
+func (el *L2ELNode) NotAdvancedUnsafe(attempts int) {
+	el.NotAdvanced(eth.Unsafe, attempts)
 }
 
 func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) {
@@ -350,6 +353,10 @@ func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl types.SafetyLevel, a
 	el.require.NoError(el.MatchedFn(refNode, lvl, attempts)())
 }
 
+func (el *L2ELNode) MatchedUnsafe(refNode SyncStatusProvider, attempts int) {
+	el.Matched(refNode, types.LocalUnsafe, attempts)
+}
+
 func (el *L2ELNode) UnsafeHead() *BlockRefResult {
 	return &BlockRefResult{T: el.t, BlockRef: el.BlockRefByLabel(eth.Unsafe)}
 }
@@ -366,4 +373,8 @@ type BlockRefResult struct {
 func (r *BlockRefResult) NumEqualTo(num uint64) *BlockRefResult {
 	r.T.Require().Equal(num, r.BlockRef.Number)
 	return r
+}
+
+func (r *BlockRefResult) IsGenesis() *BlockRefResult {
+	return r.NumEqualTo(0)
 }

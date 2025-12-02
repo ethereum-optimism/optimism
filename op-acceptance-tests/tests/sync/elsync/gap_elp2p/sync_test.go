@@ -445,7 +445,7 @@ func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	sys.L2CLB.PostUnsafePayload(payload)
 	// ex) op-geth error msg: "ignoring bad block: invalid merkle root"
 	sys.L2CLB.NotAdvanced(types.LocalUnsafe, attempts)
-	sys.L2ELB.NotAdvanced(eth.Unsafe)
+	sys.L2ELB.NotAdvanced(eth.Unsafe, attempts)
 	// EL did not advance
 	sys.L2ELB.UnsafeHead().NumEqualTo(startNum + 1)
 	// CL did not advance
@@ -466,7 +466,7 @@ func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	sys.L2CLB.PostUnsafePayload(payload)
 	// ex) op-geth error msg: "ignoring bad block: links to previously rejected block"
 	sys.L2CLB.NotAdvanced(types.LocalUnsafe, attempts)
-	sys.L2ELB.NotAdvanced(eth.Unsafe)
+	sys.L2ELB.NotAdvanced(eth.Unsafe, attempts)
 	// EL did not advance
 	sys.L2ELB.UnsafeHead().NumEqualTo(startNum + 1)
 	// CL did not advance

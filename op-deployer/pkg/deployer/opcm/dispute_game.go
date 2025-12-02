@@ -10,6 +10,7 @@ import (
 
 type DeployDisputeGameInput struct {
 	Release                  string
+	UseV2                    bool
 	GameKind                 string
 	GameType                 uint32
 	AbsolutePrestate         common.Hash

@@ -24,42 +24,70 @@ import (
 type gameHelperProvider func(deployer *dsl.EOA) *GameHelper
 
 type FaultDisputeGame struct {
-	t              devtest.T
-	require        *require.Assertions
-	game           *bindings.FaultDisputeGame
-	Address        common.Address
-	helperProvider gameHelperProvider
+	t                   devtest.T
+	require             *require.Assertions
+	game                *bindings.FaultDisputeGame
+	Address             common.Address
+	helperProvider      gameHelperProvider
+	honestTraceProvider func() challengerTypes.TraceAccessor
 }
 
-func NewFaultDisputeGame(t devtest.T, require *require.Assertions, addr common.Address, helperProvider gameHelperProvider, game *bindings.FaultDisputeGame) *FaultDisputeGame {
-	return &FaultDisputeGame{
+func NewFaultDisputeGame(
+	t devtest.T,
+	require *require.Assertions,
+	addr common.Address,
+	helperProvider gameHelperProvider,
+	honestTrace func(game *FaultDisputeGame) challengerTypes.TraceAccessor,
+	game *bindings.FaultDisputeGame,
+) *FaultDisputeGame {
+	fdg := &FaultDisputeGame{
 		t:              t,
 		require:        require,
 		game:           game,
 		Address:        addr,
 		helperProvider: helperProvider,
 	}
+	fdg.honestTraceProvider = func() challengerTypes.TraceAccessor {
+		return honestTrace(fdg)
+	}
+	return fdg
+}
+
+func (g *FaultDisputeGame) GameType() gameTypes.GameType {
+	return gameTypes.GameType(contract.Read(g.game.GameType()))
 }
 
 func (g *FaultDisputeGame) MaxDepth() challengerTypes.Depth {
 	return challengerTypes.Depth(contract.Read(g.game.MaxGameDepth()).Uint64())
 }
 
-func (g *FaultDisputeGame) SplitDepth() uint64 {
-	return contract.Read(g.game.SplitDepth()).Uint64()
+func (g *FaultDisputeGame) SplitDepth() challengerTypes.Depth {
+	return challengerTypes.Depth(contract.Read(g.game.SplitDepth()).Uint64())
 }
 
 func (g *FaultDisputeGame) RootClaim() *Claim {
 	return g.ClaimAtIndex(0)
 }
 
-func (g *FaultDisputeGame) L2SequenceNumber() *big.Int {
-	return contract.Read(g.game.L2SequenceNumber())
+func (g *FaultDisputeGame) L2SequenceNumber() uint64 {
+	return contract.Read(g.game.L2SequenceNumber()).Uint64()
+}
+
+func (g *FaultDisputeGame) StartingL2SequenceNumber() uint64 {
+	return contract.Read(g.game.StartingBlockNumber())
 }
 
 func (g *FaultDisputeGame) ClaimAtIndex(claimIndex uint64) *Claim {
 	claim := g.claimAtIndex(claimIndex)
 	return g.newClaim(claimIndex, claim)
+}
+
+func (g *FaultDisputeGame) absolutePrestate() common.Hash {
+	return contract.Read(g.game.AbsolutePrestate())
+}
+
+func (g *FaultDisputeGame) L1Head() common.Hash {
+	return contract.Read(g.game.L1Head())
 }
 
 func (g *FaultDisputeGame) Attack(eoa *dsl.EOA, claimIdx uint64, newClaim common.Hash) {
@@ -74,8 +102,29 @@ func (g *FaultDisputeGame) Attack(eoa *dsl.EOA, claimIdx uint64, newClaim common
 	g.t.Require().Equal(receipt.Status, types.ReceiptStatusSuccessful)
 }
 
+func (g *FaultDisputeGame) Defend(eoa *dsl.EOA, claimIdx uint64, newClaim common.Hash) {
+	claim := g.claimAtIndex(claimIdx)
+	g.t.Logf("Defending claim %v (depth: %d) with counter-claim %v", claimIdx, claim.Position.Depth(), newClaim)
+	g.require.False(claim.IsRootPosition(), "Cannot defend the root claim")
+
+	requiredBond := g.requiredBond(claim.Position.Defend())
+
+	defendCall := g.game.Defend(claim.Value, new(big.Int).SetUint64(claimIdx), newClaim)
+
+	receipt := contract.Write(eoa, defendCall, txplan.WithValue(requiredBond), txplan.WithGasRatio(2))
+	g.t.Require().Equal(receipt.Status, types.ReceiptStatusSuccessful)
+}
+
 func (g *FaultDisputeGame) PerformMoves(eoa *dsl.EOA, moves ...GameHelperMove) []*Claim {
 	return g.helperProvider(eoa).PerformMoves(eoa, g, moves)
+}
+
+func (g *FaultDisputeGame) DisputeL2SequenceNumber(eoa *dsl.EOA, startClaim *Claim, l2SequenceNumber uint64) *Claim {
+	return g.helperProvider(eoa).DisputeL2SequenceNumber(eoa, g, startClaim, l2SequenceNumber)
+}
+
+func (g *FaultDisputeGame) DisputeToStep(eoa *dsl.EOA, startClaim *Claim, traceIndex uint64) *Claim {
+	return g.helperProvider(eoa).DisputeToStep(eoa, g, startClaim, traceIndex)
 }
 
 func (g *FaultDisputeGame) requiredBond(pos challengerTypes.Position) eth.ETH {
@@ -131,7 +180,6 @@ func (g *FaultDisputeGame) waitForClaim(timeout time.Duration, errorMsg string, 
 		}
 		return false, nil
 	})
-	g.require.NoError(err, errorMsg)
 	if err != nil { // Avoid waiting time capturing game data when there's no error
 		g.require.NoErrorf(err, "%v\n%v", errorMsg, g.GameData())
 	}

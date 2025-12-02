@@ -26,6 +26,7 @@ func NewApp(versionWithMeta string) *cli.App {
 		}
 		return nil
 	}
+
 	app.Commands = []*cli.Command{
 		{
 			Name:   "init",

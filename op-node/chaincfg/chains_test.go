@@ -77,7 +77,7 @@ var mainnetCfg = rollup.Config{
 	GraniteTime:             u64Ptr(1726070401),
 	HoloceneTime:            u64Ptr(1736445601),
 	IsthmusTime:             u64Ptr(1746806401),
-	JovianTime:              u64Ptr(1764086401),
+	JovianTime:              u64Ptr(1764691201),
 	ProtocolVersionsAddress: common.HexToAddress("0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935"),
 	ChainOpConfig:           defaultOpConfig,
 }
@@ -118,7 +118,7 @@ var sepoliaCfg = rollup.Config{
 	HoloceneTime:            u64Ptr(1732633200),
 	PectraBlobScheduleTime:  u64Ptr(1742486400),
 	IsthmusTime:             u64Ptr(1744905600),
-	JovianTime:              u64Ptr(1762963201),
+	JovianTime:              u64Ptr(1763568001),
 	ProtocolVersionsAddress: common.HexToAddress("0x79ADD5713B383DAa0a138d3C4780C7A1804a8090"),
 	ChainOpConfig:           defaultOpConfig,
 }

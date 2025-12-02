@@ -186,6 +186,10 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 	if err != nil {
 		return nil, err
 	}
+	operatorFeeVaultRecipient, err := addrs.Address(chainOps(devkeys.OperatorFeeVaultRecipientRole))
+	if err != nil {
+		return nil, err
+	}
 	sequencerP2P, err := addrs.Address(chainOps(devkeys.SequencerP2PRole))
 	if err != nil {
 		return nil, err
@@ -228,12 +232,15 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 				BaseFeeVaultRecipient:                    baseFeeVaultRecipient,
 				L1FeeVaultRecipient:                      l1FeeVaultRecipient,
 				SequencerFeeVaultRecipient:               sequencerFeeVaultRecipient,
+				OperatorFeeVaultRecipient:                operatorFeeVaultRecipient,
 				BaseFeeVaultMinimumWithdrawalAmount:      (*hexutil.Big)(Ether(10)),
 				L1FeeVaultMinimumWithdrawalAmount:        (*hexutil.Big)(Ether(10)),
 				SequencerFeeVaultMinimumWithdrawalAmount: (*hexutil.Big)(Ether(10)),
+				OperatorFeeVaultMinimumWithdrawalAmount:  (*hexutil.Big)(Ether(10)),
 				BaseFeeVaultWithdrawalNetwork:            "remote",
 				L1FeeVaultWithdrawalNetwork:              "remote",
 				SequencerFeeVaultWithdrawalNetwork:       "remote",
+				OperatorFeeVaultWithdrawalNetwork:        "remote",
 			},
 			GovernanceDeployConfig: genesis.GovernanceDeployConfig{
 				EnableGovernance: false,
@@ -243,7 +250,10 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 				GasPriceOracleBlobBaseFeeScalar: 810949,
 			},
 			GasTokenDeployConfig: genesis.GasTokenDeployConfig{
-				UseCustomGasToken: false,
+				UseCustomGasToken:          false,
+				GasPayingTokenName:         "",
+				GasPayingTokenSymbol:       "",
+				NativeAssetLiquidityAmount: (*hexutil.Big)(big.NewInt(0)),
 			},
 			OperatorDeployConfig: genesis.OperatorDeployConfig{
 				P2PSequencerAddress: sequencerP2P,
@@ -281,6 +291,10 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 			},
 			AltDADeployConfig: genesis.AltDADeployConfig{
 				UseAltDA: false,
+			},
+			RevenueShareDeployConfig: genesis.RevenueShareDeployConfig{
+				UseRevenueShare:    false,
+				ChainFeesRecipient: common.Address{},
 			},
 		},
 		Prefund:                 make(map[common.Address]*big.Int),

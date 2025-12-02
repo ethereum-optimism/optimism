@@ -263,7 +263,7 @@ func TestL2CLSyncP2P(gt *testing.T) {
 	sys.L2CLA2.Stop()
 
 	logger.Info("Make sure verifier EL does not advance")
-	sys.L2ELA2.NotAdvanced(eth.Unsafe)
+	sys.L2ELA2.NotAdvanced(eth.Unsafe, 5)
 
 	logger.Info("Restart verifier CL")
 	sys.L2CLA2.Start()

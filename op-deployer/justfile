@@ -6,7 +6,7 @@ test args='./...': build-contracts copy-contract-artifacts
     go test -v {{args}}
 
 build-contracts:
-  just ../packages/contracts-bedrock/forge-build
+  just ../packages/contracts-bedrock/build-no-tests
 
 copy-contract-artifacts:
     #!/bin/bash
@@ -19,10 +19,10 @@ copy-contract-artifacts:
         --exclude="*.t.sol"
 
 _LDFLAGSSTRING := "'" + trim(
-    "-X main.GitCommit=" + GITCOMMIT + " " + \
-    "-X main.GitDate=" + GITDATE + " " + \
-    "-X main.Version=" + VERSION + " " + \
-    "-X main.Meta=" + VERSION_META + " " + \
+    "-X github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version.GitCommit=" + GITCOMMIT + " " + \
+    "-X github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version.GitDate=" + GITDATE + " " + \
+    "-X github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version.Version=" + VERSION + " " + \
+    "-X github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version.Meta=" + VERSION_META + " " + \
     "") + "'"
 
 build-go: (go_build "./bin/op-deployer" "./cmd/op-deployer" "-ldflags" _LDFLAGSSTRING)
@@ -30,6 +30,9 @@ build-go: (go_build "./bin/op-deployer" "./cmd/op-deployer" "-ldflags" _LDFLAGSS
 docker-build: build-contracts copy-contract-artifacts
     #!/bin/bash
     cd ..
+    export GIT_VERSION="untagged"
+    export GIT_COMMIT=$(git rev-parse HEAD)
+    export GIT_DATE=$(git show -s --format=%ct HEAD)
     docker buildx bake op-deployer --load --set op-deployer.tags=op-deployer:local
 
 # Updates pkg/deployer/forge/version.json with version and checksum of tarball for each supported OS/arch
@@ -87,17 +90,16 @@ _validate_rpc:
 pre-deploy: build build-contracts
 
 # Run with:
-# PRIVATE_KEY=0x1234.... NETWORK=sepolia just deploy-opcm 'op-contracts/v4.0.0-rc.8'
-deploy-opcm release="dev" locator="$DEFAULT_LOCATOR": _validate_rpc
+# PRIVATE_KEY=0x1234.... NETWORK=sepolia just deploy-opcm
+deploy-opcm locator="$DEFAULT_LOCATOR": _validate_rpc
   #!/bin/bash
   echo "Using artifacts locator: {{locator}}"
-  ./bin/op-deployer bootstrap implementations \
+  go run ./cmd/op-deployer bootstrap implementations \
     --l1-rpc-url $ETH_RPC_URL \
     --private-key $PRIVATE_KEY \
-    --mips-version 7 \
     --protocol-versions-proxy $PROTOCOL_VERSIONS_PROXY \
     --superchain-config-proxy $SUPERCHAIN_CONFIG_PROXY \
-    --l1-proxy-admin-owner $L1_PROXY_ADMIN_OWNER \
+    --upgrade-controller $L1_PROXY_ADMIN_OWNER \
     --superchain-proxy-admin $SUPERCHAIN_PROXY_ADMIN \
     --challenger $CHALLENGER \
     --outfile deploy-${NETWORK}.json
@@ -107,7 +109,7 @@ deploy-opcm release="dev" locator="$DEFAULT_LOCATOR": _validate_rpc
 verify-opcm locator="$DEFAULT_LOCATOR": _validate_rpc
   #!/bin/bash
   echo "Using artifacts locator: {{locator}}"
-  ./bin/op-deployer verify \
+  go run ./cmd/op-deployer verify \
     --artifacts-locator {{locator}} \
     --l1-rpc-url $ETH_RPC_URL \
     --etherscan-api-key $ETHERSCAN_API_KEY \

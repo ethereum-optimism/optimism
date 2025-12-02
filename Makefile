@@ -50,6 +50,10 @@ docker-builder: ## Creates a Docker buildx builder
 		--driver=docker-container --name=buildx-build --bootstrap --use
 .PHONY: docker-builder
 
+compute-git-versions: ## Computes GIT_VERSION for all images and outputs JSON
+	@GIT_COMMIT=$$(git rev-parse HEAD) ./ops/scripts/compute-git-versions.sh
+.PHONY: compute-git-versions
+
 # add --print to dry-run
 cross-op-node: ## Builds cross-platform Docker image for op-node
 	# We don't use a buildx builder here, and just load directly into regular docker, for convenience.
@@ -230,7 +234,8 @@ TEST_PKGS := \
 	./op-deployer/pkg/deployer/standard/... \
 	./op-deployer/pkg/deployer/state/... \
 	./op-deployer/pkg/deployer/verify/... \
-	./op-sync-tester/...
+	./op-sync-tester/... \
+	./op-supernode/...
 
 FRAUD_PROOF_TEST_PKGS := \
 	./op-e2e/faultproofs/...

@@ -18,12 +18,10 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
-var (
-	l2GenesisBlockBaseFeePerGas = hexutil.Big(*(big.NewInt(1000000000)))
-)
+var l2GenesisBlockBaseFeePerGas = hexutil.Big(*(big.NewInt(1000000000)))
 
 func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State, chainState *ChainState) (genesis.DeployConfig, error) {
-	upgradeSchedule := standard.DefaultHardforkScheduleForTag(standard.CurrentTag)
+	upgradeSchedule := standard.DefaultHardforkSchedule()
 
 	cfg := genesis.DeployConfig{
 		L1DependenciesConfig: genesis.L1DependenciesConfig{
@@ -46,12 +44,15 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				BaseFeeVaultWithdrawalNetwork:            "local",
 				L1FeeVaultWithdrawalNetwork:              "local",
 				SequencerFeeVaultWithdrawalNetwork:       "local",
+				OperatorFeeVaultWithdrawalNetwork:        "local",
 				SequencerFeeVaultMinimumWithdrawalAmount: standard.VaultMinWithdrawalAmount,
 				BaseFeeVaultMinimumWithdrawalAmount:      standard.VaultMinWithdrawalAmount,
 				L1FeeVaultMinimumWithdrawalAmount:        standard.VaultMinWithdrawalAmount,
+				OperatorFeeVaultMinimumWithdrawalAmount:  standard.VaultMinWithdrawalAmount,
 				BaseFeeVaultRecipient:                    chainIntent.BaseFeeVaultRecipient,
 				L1FeeVaultRecipient:                      chainIntent.L1FeeVaultRecipient,
 				SequencerFeeVaultRecipient:               chainIntent.SequencerFeeVaultRecipient,
+				OperatorFeeVaultRecipient:                chainIntent.OperatorFeeVaultRecipient,
 			},
 			GovernanceDeployConfig: genesis.GovernanceDeployConfig{
 				EnableGovernance:      false,
@@ -69,6 +70,18 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				EIP1559Denominator:       chainIntent.Eip1559Denominator,
 				EIP1559DenominatorCanyon: 250,
 				EIP1559Elasticity:        chainIntent.Eip1559Elasticity,
+			},
+			RevenueShareDeployConfig: genesis.RevenueShareDeployConfig{
+				UseRevenueShare:    chainIntent.UseRevenueShare,
+				ChainFeesRecipient: chainIntent.ChainFeesRecipient,
+			},
+
+			GasTokenDeployConfig: genesis.GasTokenDeployConfig{
+				UseCustomGasToken:          chainIntent.IsCustomGasTokenEnabled(),
+				GasPayingTokenName:         chainIntent.CustomGasToken.Name,
+				GasPayingTokenSymbol:       chainIntent.CustomGasToken.Symbol,
+				NativeAssetLiquidityAmount: (*hexutil.Big)(chainIntent.GetInitialLiquidity()),
+				LiquidityControllerOwner:   chainIntent.GetLiquidityControllerOwner(),
 			},
 
 			// STOP! This struct sets the _default_ upgrade schedule for all chains.
@@ -112,15 +125,11 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 
 	if chainState.StartBlock == nil {
 		// These are dummy variables - see below for rationale.
-		num := rpc.LatestBlockNumber
-		cfg.L1StartingBlockTag = &genesis.MarshalableRPCBlockNumberOrHash{
-			BlockNumber: &num,
-		}
+		blockNumOrHash := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
+		cfg.L1StartingBlockTag = (*genesis.MarshalableRPCBlockNumberOrHash)(&blockNumOrHash)
 	} else {
-		startHash := chainState.StartBlock.Hash
-		cfg.L1StartingBlockTag = &genesis.MarshalableRPCBlockNumberOrHash{
-			BlockHash: &startHash,
-		}
+		blockNumOrHash := rpc.BlockNumberOrHashWithHash(chainState.StartBlock.Hash, false)
+		cfg.L1StartingBlockTag = (*genesis.MarshalableRPCBlockNumberOrHash)(&blockNumOrHash)
 	}
 
 	if chainIntent.DangerousAltDAConfig.UseAltDA {
@@ -152,7 +161,6 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 		cfg, err = jsonutil.MergeJSON(cfg, intent.GlobalDeployOverrides)
 		if err != nil {
 			return genesis.DeployConfig{}, fmt.Errorf("error merging global L2 overrides: %w", err)
-
 		}
 	}
 

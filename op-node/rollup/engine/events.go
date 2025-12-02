@@ -27,6 +27,15 @@ func (ev ForkchoiceUpdateEvent) String() string {
 	return "forkchoice-update"
 }
 
+// ForkchoiceUpdateInitEvent is only for the sequencer to be signaled during initialization
+type ForkchoiceUpdateInitEvent struct {
+	UnsafeL2Head, SafeL2Head, FinalizedL2Head eth.L2BlockRef
+}
+
+func (ev ForkchoiceUpdateInitEvent) String() string {
+	return "forkchoice-update-init"
+}
+
 // UnsafeUpdateEvent signals that the given block is now considered safe.
 // This is pre-forkchoice update; the change may not be reflected yet in the EL.
 type UnsafeUpdateEvent struct {

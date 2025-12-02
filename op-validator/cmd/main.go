@@ -36,6 +36,8 @@ func main() {
 				versionCmd(standard.ContractsV200Tag),
 				versionCmd(standard.ContractsV300Tag),
 				versionCmd(standard.ContractsV400Tag),
+				versionCmd(standard.ContractsV410Tag),
+				versionCmd(standard.ContractsV500Tag),
 			},
 		},
 	}

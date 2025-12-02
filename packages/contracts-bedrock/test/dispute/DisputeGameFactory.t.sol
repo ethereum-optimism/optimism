@@ -456,12 +456,13 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
     {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
         // values.
-        GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
+        uint32 maxGameType = isDevFeatureEnabled(DevFeatures.CANNON_KONA) ? 8 : 2;
+        GameType gt = GameType.wrap(uint8(bound(gameType, 0, maxGameType)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
         // Set all three implementations to the same `FakeClone` contract.
-        for (uint8 i; i < 3; i++) {
+        for (uint8 i; i < maxGameType + 1; i++) {
             GameType lgt = GameType.wrap(i);
             disputeGameFactory.setImplementation(lgt, IDisputeGame(address(fakeClone)));
             disputeGameFactory.setInitBond(lgt, _value);
@@ -522,7 +523,8 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
         // values. We skip over game type = 0, since the deploy script set the implementation for
         // that game type.
-        GameType gt = GameType.wrap(uint32(bound(gameType, 2, type(uint32).max)));
+        uint32 maxGameType = isDevFeatureEnabled(DevFeatures.CANNON_KONA) ? 8 : 2;
+        GameType gt = GameType.wrap(uint32(bound(gameType, maxGameType + 1, type(uint32).max)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
@@ -535,12 +537,13 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
     function testFuzz_create_sameUUID_reverts(uint32 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
         // values.
-        GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
+        uint32 maxGameType = isDevFeatureEnabled(DevFeatures.CANNON_KONA) ? 8 : 2;
+        GameType gt = GameType.wrap(uint8(bound(gameType, 0, maxGameType)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
         // Set all three implementations to the same `FakeClone` contract.
-        for (uint8 i; i < 3; i++) {
+        for (uint8 i; i < maxGameType + 1; i++) {
             disputeGameFactory.setImplementation(GameType.wrap(i), IDisputeGame(address(fakeClone)));
         }
 

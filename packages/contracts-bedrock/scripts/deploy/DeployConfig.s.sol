@@ -48,6 +48,9 @@ contract DeployConfig is Script {
     address public sequencerFeeVaultRecipient;
     uint256 public sequencerFeeVaultMinimumWithdrawalAmount;
     uint256 public sequencerFeeVaultWithdrawalNetwork;
+    address public operatorFeeVaultRecipient;
+    uint256 public operatorFeeVaultMinimumWithdrawalAmount;
+    uint256 public operatorFeeVaultWithdrawalNetwork;
     address public governanceTokenOwner;
     uint256 public l2GenesisBlockGasLimit;
     uint32 public basefeeScalar;
@@ -76,6 +79,13 @@ contract DeployConfig is Script {
     uint256 public daBondSize;
     uint256 public daResolverRefundPercentage;
 
+    // Custom Gas Token Configuration
+    bool public useCustomGasToken;
+    string public gasPayingTokenName;
+    string public gasPayingTokenSymbol;
+    uint256 public nativeAssetLiquidityAmount;
+    address public liquidityControllerOwner;
+
     // V2 Dispute Game Configuration
     uint256 public faultGameV2MaxGameDepth;
     uint256 public faultGameV2SplitDepth;
@@ -85,6 +95,12 @@ contract DeployConfig is Script {
     bool public useInterop;
     bool public useUpgradedFork;
     bytes32 public devFeatureBitmap;
+
+    bool public useRevenueShare;
+    address public chainFeesRecipient;
+    /// @notice This is not read from JSON because it is hardcoded in the deployer. It is overwritten with its setter
+    ///         for testing.
+    address public l1FeesDepositor;
 
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
@@ -124,10 +140,18 @@ contract DeployConfig is Script {
         sequencerFeeVaultRecipient = stdJson.readAddress(_json, "$.sequencerFeeVaultRecipient");
         sequencerFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.sequencerFeeVaultMinimumWithdrawalAmount");
         sequencerFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.sequencerFeeVaultWithdrawalNetwork");
+        operatorFeeVaultRecipient = stdJson.readAddress(_json, "$.operatorFeeVaultRecipient");
+        operatorFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.operatorFeeVaultMinimumWithdrawalAmount");
+        operatorFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.operatorFeeVaultWithdrawalNetwork");
         governanceTokenOwner = stdJson.readAddress(_json, "$.governanceTokenOwner");
         l2GenesisBlockGasLimit = stdJson.readUint(_json, "$.l2GenesisBlockGasLimit");
         basefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBaseFeeScalar", 1368));
         blobbasefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBlobBaseFeeScalar", 810949));
+        useCustomGasToken = _readOr(_json, "$.useCustomGasToken", false);
+        gasPayingTokenName = _readOr(_json, "$.gasPayingTokenName", "");
+        gasPayingTokenSymbol = _readOr(_json, "$.gasPayingTokenSymbol", "");
+        nativeAssetLiquidityAmount = _readOr(_json, "$.nativeAssetLiquidityAmount", 0);
+        liquidityControllerOwner = _readOr(_json, "$.liquidityControllerOwner", finalSystemOwner);
 
         enableGovernance = _readOr(_json, "$.enableGovernance", false);
         systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");
@@ -160,6 +184,8 @@ contract DeployConfig is Script {
         useInterop = _readOr(_json, "$.useInterop", false);
         devFeatureBitmap = bytes32(_readOr(_json, "$.devFeatureBitmap", 0));
         useUpgradedFork;
+        useRevenueShare = _readOr(_json, "$.useRevenueShare", false);
+        chainFeesRecipient = _readOr(_json, "$.chainFeesRecipient", address(0));
         faultGameV2MaxGameDepth = _readOr(_json, "$.faultGameV2MaxGameDepth", 73);
         faultGameV2SplitDepth = _readOr(_json, "$.faultGameV2SplitDepth", 30);
         faultGameV2ClockExtension = _readOr(_json, "$.faultGameV2ClockExtension", 10800);
@@ -215,6 +241,21 @@ contract DeployConfig is Script {
         useInterop = _useInterop;
     }
 
+    /// @notice Allow the `useRevenueShare` config to be overridden in testing environments
+    function setUseRevenueShare(bool _useRevenueShare) public {
+        useRevenueShare = _useRevenueShare;
+    }
+
+    /// @notice Allow the `l1FeesDepositor` config to be overridden in testing environments
+    function setL1FeesDepositor(address _l1FeesDepositor) public {
+        l1FeesDepositor = _l1FeesDepositor;
+    }
+
+    /// @notice Allow the `chainFeesRecipient` config to be overridden in testing environments
+    function setChainFeesRecipient(address _chainFeesRecipient) public {
+        chainFeesRecipient = _chainFeesRecipient;
+    }
+
     /// @notice Allow the `fundDevAccounts` config to be overridden.
     function setFundDevAccounts(bool _fundDevAccounts) public {
         fundDevAccounts = _fundDevAccounts;
@@ -234,6 +275,46 @@ contract DeployConfig is Script {
     ///      system be deployed in setUp().
     function setUseUpgradedFork(bool _useUpgradedFork) public {
         useUpgradedFork = _useUpgradedFork;
+    }
+
+    /// @notice Allow the `useCustomGasToken` config to be overridden in testing environments
+    function setUseCustomGasToken(bool _useCustomGasToken) public {
+        useCustomGasToken = _useCustomGasToken;
+    }
+
+    /// @notice Allow the `gasPayingTokenName` config to be overridden in testing environments
+    function setGasPayingTokenName(string memory _gasPayingTokenName) public {
+        gasPayingTokenName = _gasPayingTokenName;
+    }
+
+    /// @notice Allow the `gasPayingTokenSymbol` config to be overridden in testing environments
+    function setGasPayingTokenSymbol(string memory _gasPayingTokenSymbol) public {
+        gasPayingTokenSymbol = _gasPayingTokenSymbol;
+    }
+
+    /// @notice Allow the `nativeAssetLiquidityAmount` config to be overridden in testing environments
+    function setNativeAssetLiquidityAmount(uint256 _nativeAssetLiquidityAmount) public {
+        nativeAssetLiquidityAmount = _nativeAssetLiquidityAmount;
+    }
+
+    /// @notice Allow the `baseFeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setBaseFeeVaultWithdrawalNetwork(uint256 _baseFeeVaultWithdrawalNetwork) public {
+        baseFeeVaultWithdrawalNetwork = _baseFeeVaultWithdrawalNetwork;
+    }
+
+    /// @notice Allow the `l1FeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setL1FeeVaultWithdrawalNetwork(uint256 _l1FeeVaultWithdrawalNetwork) public {
+        l1FeeVaultWithdrawalNetwork = _l1FeeVaultWithdrawalNetwork;
+    }
+
+    /// @notice Allow the `sequencerFeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setSequencerFeeVaultWithdrawalNetwork(uint256 _sequencerFeeVaultWithdrawalNetwork) public {
+        sequencerFeeVaultWithdrawalNetwork = _sequencerFeeVaultWithdrawalNetwork;
+    }
+
+    /// @notice Allow the `operatorFeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setOperatorFeeVaultWithdrawalNetwork(uint256 _operatorFeeVaultWithdrawalNetwork) public {
+        operatorFeeVaultWithdrawalNetwork = _operatorFeeVaultWithdrawalNetwork;
     }
 
     function latestGenesisFork() internal view returns (Fork) {

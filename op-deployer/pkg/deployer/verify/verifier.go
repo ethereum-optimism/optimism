@@ -1,51 +1,55 @@
 package verify
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"os"
+	"strings"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
-	"golang.org/x/time/rate"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum/go-ethereum/log"
 )
 
-type Verifier struct {
-	l1ChainID   uint64
-	artifactsFS foundry.StatDirFs
-	log         log.Logger
-	etherscan   *EtherscanClient
-	l1Client    *ethclient.Client
-	numVerified int
-	numSkipped  int
-	numFailed   int
-}
+func printVerificationSummary(logger log.Logger, verified, skipped, partiallyVerified, failed int, partiallyVerifiedContracts, failedContracts map[string][]string) {
+	logger.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	logger.Info("Verification Summary")
+	logger.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	logger.Info("Results", "verified", verified, "skipped", skipped, "partially_verified", partiallyVerified, "failed", failed)
 
-func NewVerifier(apiKey string, l1ChainID uint64, artifactsFS foundry.StatDirFs, l log.Logger, l1Client *ethclient.Client) (*Verifier, error) {
-	etherscanUrl, err := getAPIEndpoint(l1ChainID)
-	if err != nil {
-		return nil, fmt.Errorf("unsupported L1 chain ID: %d", l1ChainID)
+	if len(partiallyVerifiedContracts) > 0 {
+		logger.Info("Partially verified contracts by verifier (forge cannot upgrade to full verification - this is expected behavior per foundry-rs/foundry#8638):")
+		for verifier, contracts := range partiallyVerifiedContracts {
+			logger.Info(fmt.Sprintf("  %s:", verifier))
+			for _, contract := range contracts {
+				logger.Info(fmt.Sprintf("    - %s", contract))
+			}
+		}
 	}
-	l.Info("found etherscan url", "url", etherscanUrl)
 
-	etherscan := NewEtherscanClient(apiKey, etherscanUrl, rate.NewLimiter(rate.Limit(1), 1))
+	if len(failedContracts) > 0 {
+		logger.Warn("Failed contracts by verifier:")
+		for verifier, contracts := range failedContracts {
+			logger.Warn(fmt.Sprintf("  %s:", verifier))
+			for _, contract := range contracts {
+				logger.Warn(fmt.Sprintf("    - %s", contract))
+			}
+		}
+	}
 
-	return &Verifier{
-		l1ChainID:   l1ChainID,
-		artifactsFS: artifactsFS,
-		log:         l,
-		l1Client:    l1Client,
-		etherscan:   etherscan,
-	}, nil
+	if failed > 0 {
+		logger.Warn(fmt.Sprintf("Failed to verify %d contracts", failed))
+	} else if partiallyVerified > 0 && verified == 0 && skipped == 0 {
+		logger.Info("All contracts are partially verified (forge cannot upgrade to full verification - this is expected behavior per foundry-rs/foundry#8638)")
+	} else if skipped > 0 {
+		logger.Info("All contracts verified or already verified")
+	} else {
+		logger.Info("All contracts verified successfully")
+	}
+	logger.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 }
 
 func VerifyCLI(cliCtx *cli.Context) error {
@@ -53,19 +57,35 @@ func VerifyCLI(cliCtx *cli.Context) error {
 	l := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
 	oplog.SetGlobalLogHandler(l.Handler())
 
-	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlagName)
-	etherscanAPIKey := cliCtx.String(deployer.EtherscanAPIKeyFlagName)
-	if etherscanAPIKey == "" {
-		return fmt.Errorf("etherscan-api-key is required")
+	l1RPCUrl := cliCtx.String(flags.L1RPCURLFlagName)
+	verifierAPIKey := cliCtx.String(flags.VerifierAPIKeyFlagName)
+	verifierType := cliCtx.String(flags.VerifierTypeFlagName)
+	verifierUrl := cliCtx.String(flags.VerifierUrlFlagName)
+
+	verifiers := strings.Split(verifierType, ",")
+	for i := range verifiers {
+		verifiers[i] = strings.TrimSpace(verifiers[i])
 	}
 
-	inputFile := cliCtx.String(deployer.InputFileFlagName)
+	needsAPIKey := false
+	for _, v := range verifiers {
+		if v == "etherscan" {
+			needsAPIKey = true
+			break
+		}
+	}
+
+	if needsAPIKey && verifierAPIKey == "" {
+		return fmt.Errorf("verifier-api-key is required for etherscan")
+	}
+
+	inputFile := cliCtx.String(flags.InputFileFlagName)
 	if inputFile == "" {
 		return fmt.Errorf("input-file is required")
 	}
-	contractName := cliCtx.String(deployer.ContractNameFlagName)
+	contractName := cliCtx.String(flags.ContractNameFlagName)
 
-	l1ContractsLocator := cliCtx.String(deployer.ArtifactsLocatorFlagName)
+	l1ContractsLocator := cliCtx.String(flags.ArtifactsLocatorFlagName)
 	if l1ContractsLocator == "" {
 		return fmt.Errorf("artifacts-locator is required")
 	}
@@ -88,108 +108,90 @@ func VerifyCLI(cliCtx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse l1 contracts release locator: %w", err)
 	}
-	artifactsFS, err := artifacts.Download(ctx, locator, nil, deployer.DefaultCacheDir())
+
+	cacheDir := flags.DefaultCacheDir()
+	artifactsFS, err := artifacts.Download(ctx, locator, nil, cacheDir)
 	if err != nil {
 		return fmt.Errorf("failed to get artifacts: %w", err)
 	}
-	l.Info("Downloaded artifacts", "path", artifactsFS)
+	l.Info("Downloaded artifacts")
 
-	v, err := NewVerifier(etherscanAPIKey, l1ChainId, artifactsFS, l, l1Client)
-	if err != nil {
-		return fmt.Errorf("failed to create verifier: %w", err)
-	}
-
-	defer func() {
-		v.log.Info("final results", "numVerified", v.numVerified, "numSkipped", v.numSkipped, "numFailed", v.numFailed)
-	}()
-
-	if err := v.verifyContractBundle(ctx, inputFile, contractName); err != nil {
-		return err
-	}
-	v.log.Info("--- COMPLETE ---")
-	return nil
-}
-
-func (v *Verifier) getContractBundle(filepath string) (map[string]common.Address, error) {
-	_, err := os.Stat(filepath)
-	if err != nil {
-		return nil, fmt.Errorf("input file not found: %s", filepath)
-	}
-
-	bundleData, err := os.ReadFile(filepath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read bundle file %s: %w", filepath, err)
-	}
-
-	var bundle map[string]common.Address
-	if err := json.Unmarshal(bundleData, &bundle); err != nil {
-		return nil, fmt.Errorf("failed to parse superchain bundle: %w", err)
-	}
-
-	return bundle, nil
-}
-
-func (v *Verifier) verifyContractBundle(ctx context.Context, filepath string, contractName string) error {
-	bundle, err := v.getContractBundle(filepath)
+	bundle, err := GetBundleFromFile(inputFile)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve bundle: %w", err)
 	}
 
-	if contractName != "" {
-		addr, ok := bundle[contractName]
-		if !ok {
-			return fmt.Errorf("contract %s not found in bundle", contractName)
-		}
-		if err := v.verifySingleContract(ctx, addr, contractName); err != nil {
-			return fmt.Errorf("failed to verify contract %s: %w", contractName, err)
-		}
-		return nil
-	}
+	l.Info("Starting contract verification", "verifiers", verifierType)
 
-	for contractName, addr := range bundle {
-		if addr != (common.Address{}) { // skip zero addresses
-			if err := v.verifySingleContract(ctx, addr, contractName); err != nil {
-				v.numFailed++
-				v.log.Error("failed to verify contract", "name", contractName, "error", err)
+	totalVerified := 0
+	totalSkipped := 0
+	totalPartiallyVerified := 0
+	totalFailed := 0
+	allFailedContracts := make(map[string][]string)
+	allPartiallyVerifiedContracts := make(map[string][]string)
+
+	for _, vt := range verifiers {
+		l.Info("Verifying contracts", "verifier", vt)
+
+		v, err := NewForgeVerifier(ForgeVerifierOpts{
+			RpcUrl:       l1RPCUrl,
+			VerifierType: vt,
+			VerifierUrl:  verifierUrl,
+			ApiKey:       verifierAPIKey,
+			ChainID:      l1ChainId,
+			ArtifactsFS:  artifactsFS,
+			Logger:       l,
+		})
+		if err != nil {
+			errMsg := fmt.Sprintf("failed to create %s verifier: %v", vt, err)
+			l.Error(errMsg)
+			continue
+		}
+
+		var numVerified, numSkipped, numPartiallyVerified, numFailed int
+		var failedContracts, partiallyVerifiedContracts []string
+
+		if contractName != "" {
+			addr, ok := bundle[contractName]
+			if !ok {
+				return fmt.Errorf("contract %s not found in bundle", contractName)
 			}
+
+			err := v.VerifyContract(ctx, addr, contractName)
+			if err == nil {
+				numVerified++
+			} else if err == ErrAlreadyVerified {
+				numSkipped++
+			} else if err == ErrPartiallyVerified {
+				numPartiallyVerified++
+				partiallyVerifiedContracts = append(partiallyVerifiedContracts, contractName)
+			} else {
+				numFailed++
+				failedContracts = append(failedContracts, contractName)
+			}
+		} else {
+			numVerified, numSkipped, numPartiallyVerified, numFailed, failedContracts, partiallyVerifiedContracts = v.VerifyContracts(ctx, bundle)
+		}
+
+		l.Info("Verification complete", "verifier", vt, "verified", numVerified, "skipped", numSkipped, "partially_verified", numPartiallyVerified, "failed", numFailed)
+
+		totalVerified += numVerified
+		totalSkipped += numSkipped
+		totalPartiallyVerified += numPartiallyVerified
+		totalFailed += numFailed
+
+		if numFailed > 0 {
+			allFailedContracts[vt] = failedContracts
+		}
+		if numPartiallyVerified > 0 {
+			allPartiallyVerifiedContracts[vt] = partiallyVerifiedContracts
 		}
 	}
-	return nil
-}
 
-func (v *Verifier) verifySingleContract(ctx context.Context, address common.Address, contractName string) error {
-	verified, err := v.etherscan.isVerified(address)
-	if err != nil {
-		return fmt.Errorf("failed to check verification status: %w", err)
-	}
-	if verified {
-		v.log.Info("Contract is already verified", "name", contractName, "address", address.Hex())
-		v.numSkipped++
-		return nil
-	}
+	printVerificationSummary(l, totalVerified, totalSkipped, totalPartiallyVerified, totalFailed, allPartiallyVerifiedContracts, allFailedContracts)
 
-	v.log.Info("Formatting etherscan verify request", "name", contractName, "address", address.Hex())
-	artifact, err := v.getContractArtifact(contractName)
-	if err != nil {
-		return fmt.Errorf("failed to get contract source: %w", err)
+	if totalFailed > 0 {
+		return fmt.Errorf("failed to verify %d contracts", totalFailed)
 	}
-
-	constructorArgs, err := v.getConstructorArgs(ctx, address, artifact)
-	if err != nil {
-		return fmt.Errorf("failed to get constructor args: %w", err)
-	}
-
-	reqId, err := v.etherscan.verifySourceCode(address, artifact, constructorArgs)
-	if err != nil {
-		return fmt.Errorf("failed to verify contract: %w", err)
-	}
-	v.log.Info("Verification request submitted", "name", contractName, "address", address.Hex())
-
-	if err = v.etherscan.pollVerificationStatus(reqId); err != nil {
-		return fmt.Errorf("failed when checking verification status: %w", err)
-	}
-
-	v.log.Info("Verification complete", "name", contractName, "address", address.Hex())
-	v.numVerified++
 	return nil
 }

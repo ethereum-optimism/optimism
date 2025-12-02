@@ -329,7 +329,12 @@
               },
               {
                 "internalType": "Claim",
-                "name": "absolutePrestate",
+                "name": "cannonPrestate",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "Claim",
+                "name": "cannonKonaPrestate",
                 "type": "bytes32"
               }
             ],
@@ -402,6 +407,11 @@
   {
     "inputs": [],
     "name": "OPContractsManager_InvalidGameType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PrestateNotSet",
     "type": "error"
   },
   {

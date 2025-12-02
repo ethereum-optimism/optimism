@@ -24,3 +24,16 @@ This section applies to Solidity files ONLY.
 - Do NOT review for missing interface files, CI checks will handle that
 - Do NOT review for discrepancies between interface files and the source files, CI will handle that
 - We do NOT require natspec comments in interface files, only in the source files
+
+### Testing with `vm.expectRevert`
+
+- When `vm.expectRevert` is used with low-level calls (`.call{}`), Foundry inverts the return boolean semantics
+- The boolean indicates whether the expectRevert succeeded (NOT whether the call succeeded)
+- Code that captures and asserts this boolean is CORRECT and should NOT be flagged:
+  ```solidity
+  vm.expectRevert(ExpectedError.selector);
+  (bool revertsAsExpected,) = address(target).call(data);
+  assertTrue(revertsAsExpected, "expectRevert: call did not revert");
+  ```
+- Do NOT suggest removing the return value checking on low-level calls following `vm.expectRevert`
+- DO flag if `vm.expectRevert` is used with low-level calls but the return value is not captured and asserted

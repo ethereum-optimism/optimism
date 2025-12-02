@@ -4,12 +4,9 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"math"
 	"math/big"
 	"time"
-
-	"slices"
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -21,130 +18,7 @@ import (
 var (
 	ErrGameDepthReached   = errors.New("game depth reached")
 	ErrL2BlockNumberValid = errors.New("l2 block number is valid")
-	ErrNotInSync          = errors.New("local node too far behind")
 )
-
-type GameType uint32
-
-const (
-	CannonGameType            GameType = 0
-	PermissionedGameType      GameType = 1
-	AsteriscGameType          GameType = 2
-	AsteriscKonaGameType      GameType = 3
-	SuperCannonGameType       GameType = 4
-	SuperPermissionedGameType GameType = 5
-	OPSuccinctGameType        GameType = 6
-	SuperAsteriscKonaGameType GameType = 7
-	CannonKonaGameType        GameType = 8
-	SuperCannonKonaGameType   GameType = 9
-	FastGameType              GameType = 254
-	AlphabetGameType          GameType = 255
-	KailuaGameType            GameType = 1337
-	UnknownGameType           GameType = math.MaxUint32
-)
-
-func (t GameType) MarshalText() ([]byte, error) {
-	return []byte(t.String()), nil
-}
-
-func (t GameType) String() string {
-	switch t {
-	case CannonGameType:
-		return "cannon"
-	case PermissionedGameType:
-		return "permissioned"
-	case AsteriscGameType:
-		return "asterisc"
-	case AsteriscKonaGameType:
-		return "asterisc-kona"
-	case SuperCannonGameType:
-		return "super-cannon"
-	case SuperPermissionedGameType:
-		return "super-permissioned"
-	case OPSuccinctGameType:
-		return "op-succinct"
-	case SuperAsteriscKonaGameType:
-		return "super-asterisc-kona"
-	case CannonKonaGameType:
-		return "cannon-kona"
-	case SuperCannonKonaGameType:
-		return "super-cannon-kona"
-	case FastGameType:
-		return "fast"
-	case AlphabetGameType:
-		return "alphabet"
-	case KailuaGameType:
-		return "kailua"
-	default:
-		return fmt.Sprintf("<invalid: %d>", t)
-	}
-}
-
-type TraceType string
-
-const (
-	TraceTypeAlphabet          TraceType = "alphabet"
-	TraceTypeFast              TraceType = "fast"
-	TraceTypeCannon            TraceType = "cannon"
-	TraceTypeCannonKona        TraceType = "cannon-kona"
-	TraceTypeAsterisc          TraceType = "asterisc"
-	TraceTypeAsteriscKona      TraceType = "asterisc-kona"
-	TraceTypePermissioned      TraceType = "permissioned"
-	TraceTypeSuperCannon       TraceType = "super-cannon"
-	TraceTypeSuperPermissioned TraceType = "super-permissioned"
-	TraceTypeSuperAsteriscKona TraceType = "super-asterisc-kona"
-)
-
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypeCannonKona, TraceTypePermissioned, TraceTypeAsterisc, TraceTypeAsteriscKona, TraceTypeFast, TraceTypeSuperCannon, TraceTypeSuperPermissioned, TraceTypeSuperAsteriscKona}
-
-func (t TraceType) String() string {
-	return string(t)
-}
-
-// Set implements the Set method required by the [cli.Generic] interface.
-func (t *TraceType) Set(value string) error {
-	if !ValidTraceType(TraceType(value)) {
-		return fmt.Errorf("unknown trace type: %q", value)
-	}
-	*t = TraceType(value)
-	return nil
-}
-
-func (t *TraceType) Clone() any {
-	cpy := *t
-	return &cpy
-}
-
-func ValidTraceType(value TraceType) bool {
-	return slices.Contains(TraceTypes, value)
-}
-
-func (t TraceType) GameType() GameType {
-	switch t {
-	case TraceTypeCannon:
-		return CannonGameType
-	case TraceTypeCannonKona:
-		return CannonKonaGameType
-	case TraceTypePermissioned:
-		return PermissionedGameType
-	case TraceTypeAsterisc:
-		return AsteriscGameType
-	case TraceTypeAsteriscKona:
-		return AsteriscKonaGameType
-	case TraceTypeFast:
-		return FastGameType
-	case TraceTypeAlphabet:
-		return AlphabetGameType
-	case TraceTypeSuperCannon:
-		return SuperCannonGameType
-	case TraceTypeSuperPermissioned:
-		return SuperPermissionedGameType
-	case TraceTypeSuperAsteriscKona:
-		return SuperAsteriscKonaGameType
-	default:
-		return UnknownGameType
-	}
-}
 
 type ClockReader interface {
 	Now() time.Time

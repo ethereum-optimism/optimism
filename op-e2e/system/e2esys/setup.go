@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
@@ -45,6 +46,7 @@ import (
 	batcherCfg "github.com/ethereum-optimism/optimism/op-batcher/config"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
@@ -74,7 +76,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -925,35 +926,23 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	}
 
 	// L2Output Submitter
-	var proposerCLIConfig *l2os.CLIConfig
-	if cfg.AllocType.UsesProofs() {
-		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:          sys.EthInstances[RoleL1].UserRPC().RPC(),
-			RollupRpc:         sys.RollupNodes[RoleSeq].UserRPC().RPC(),
-			DGFAddress:        config.L1Deployments(cfg.AllocType).DisputeGameFactoryProxy.Hex(),
-			ProposalInterval:  6 * time.Second,
-			DisputeGameType:   254, // Fast game type
-			PollInterval:      500 * time.Millisecond,
-			TxMgrConfig:       setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Proposer),
-			AllowNonFinalized: cfg.NonFinalizedProposals,
-			LogConfig: oplog.CLIConfig{
-				Level:  log.LvlInfo,
-				Format: oplog.FormatText,
-			},
-		}
-	} else {
-		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:          sys.EthInstances[RoleL1].UserRPC().RPC(),
-			RollupRpc:         sys.RollupNodes[RoleSeq].UserRPC().RPC(),
-			L2OOAddress:       config.L1Deployments(cfg.AllocType).L2OutputOracleProxy.Hex(),
-			PollInterval:      500 * time.Millisecond,
-			TxMgrConfig:       setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Proposer),
-			AllowNonFinalized: cfg.NonFinalizedProposals,
-			LogConfig: oplog.CLIConfig{
-				Level:  log.LvlInfo,
-				Format: oplog.FormatText,
-			},
-		}
+	respectedGameType := gameTypes.PermissionedGameType
+	if cfg.AllocType == config.AllocTypeFastGame {
+		respectedGameType = gameTypes.FastGameType
+	}
+	proposerCLIConfig := &l2os.CLIConfig{
+		L1EthRpc:          sys.EthInstances[RoleL1].UserRPC().RPC(),
+		RollupRpc:         sys.RollupNodes[RoleSeq].UserRPC().RPC(),
+		DGFAddress:        config.L1Deployments(cfg.AllocType).DisputeGameFactoryProxy.Hex(),
+		ProposalInterval:  6 * time.Second,
+		DisputeGameType:   uint32(respectedGameType),
+		PollInterval:      500 * time.Millisecond,
+		TxMgrConfig:       setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Proposer),
+		AllowNonFinalized: cfg.NonFinalizedProposals,
+		LogConfig: oplog.CLIConfig{
+			Level:  log.LvlInfo,
+			Format: oplog.FormatText,
+		},
 	}
 	proposer, err := l2os.ProposerServiceFromCLIConfig(context.Background(), "0.0.1", proposerCLIConfig, sys.Cfg.Loggers["proposer"])
 	if err != nil {

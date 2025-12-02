@@ -8,6 +8,7 @@ import (
 	"runtime"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -15,23 +16,130 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 )
+
+func WithGameTypeAdded(gameType gameTypes.GameType) stack.Option[*Orchestrator] {
+	if gameType == gameTypes.PermissionedGameType {
+		// Permissioned games are added as part of the initial deployment
+		// so no action required.
+		return stack.Combine[*Orchestrator]()
+	}
+	opts := stack.FnOption[*Orchestrator]{
+		FinallyFn: func(o *Orchestrator) {
+			absolutePrestate := PrestateForGameType(o.P(), gameType)
+			for _, l2ChainID := range o.l2Nets.Keys() {
+				addGameType(o, absolutePrestate, gameType, o.l1ELs.Keys()[0], l2ChainID)
+			}
+		},
+	}
+	return opts
+}
+
+func WithRespectedGameType(gameType gameTypes.GameType) stack.Option[*Orchestrator] {
+	return stack.FnOption[*Orchestrator]{
+		FinallyFn: func(o *Orchestrator) {
+			for _, l2ChainID := range o.l2Nets.Keys() {
+				setRespectedGameType(o, gameType, o.l1ELs.Keys()[0], l2ChainID)
+			}
+		},
+	}
+}
 
 func WithCannonGameTypeAdded(l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) stack.Option[*Orchestrator] {
 	return stack.FnOption[*Orchestrator]{
 		FinallyFn: func(o *Orchestrator) {
 			// TODO(#17867): Rebuild the op-program prestate using the newly minted L2 chain configs before using it.
 			absolutePrestate := getAbsolutePrestate(o.P(), "op-program/bin/prestate-proof-mt64.json")
-			addGameType(o, absolutePrestate, 0 /* CANNON */, l1ELID, l2ChainID)
+			addGameType(o, absolutePrestate, gameTypes.CannonGameType, l1ELID, l2ChainID)
 		},
 	}
 }
 
-func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType uint32, l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) {
+func WithCannonKonaGameTypeAdded() stack.Option[*Orchestrator] {
+	return stack.FnOption[*Orchestrator]{
+		BeforeDeployFn: func(o *Orchestrator) {
+			o.l2ChallengerOpts.useCannonKonaConfig = true
+		},
+		FinallyFn: func(o *Orchestrator) {
+			absolutePrestate := getCannonKonaAbsolutePrestate(o.P())
+			for _, l2ChainID := range o.l2Nets.Keys() {
+				addGameType(o, absolutePrestate, gameTypes.CannonKonaGameType, o.l1ELs.Keys()[0], l2ChainID)
+			}
+		},
+	}
+}
+
+func WithChallengerCannonKonaEnabled() stack.Option[*Orchestrator] {
+	return stack.FnOption[*Orchestrator]{
+		BeforeDeployFn: func(o *Orchestrator) {
+			o.l2ChallengerOpts.useCannonKonaConfig = true
+		},
+	}
+}
+
+func setRespectedGameType(o *Orchestrator, gameType gameTypes.GameType, l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) {
+	t := o.P()
+	require := t.Require()
+	require.NotNil(o.wb, "must have a world builder")
+	l1ChainID := l1ELID.ChainID()
+
+	l2Network, ok := o.l2Nets.Get(l2ChainID)
+	require.True(ok, "l2Net must exist")
+	portalAddr := l2Network.rollupCfg.DepositContractAddress
+
+	l1EL, ok := o.l1ELs.Get(l1ELID)
+	require.True(ok, "l1El must exist")
+
+	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
+	require.NoError(err)
+	defer rpcClient.Close()
+	client := ethclient.NewClient(rpcClient)
+
+	guardianKey, err := o.keys.Secret(devkeys.SuperchainOperatorKeys(l1ChainID.ToBig())(devkeys.SuperchainConfigGuardianKey))
+	require.NoError(err, "failed to get guardian key")
+
+	transactOpts, err := bind.NewKeyedTransactorWithChainID(guardianKey, l1ChainID.ToBig())
+	require.NoError(err, "must have transact opts")
+	transactOpts.Context = t.Ctx()
+
+	portalBindings := bindings.NewBindings[bindings.OptimismPortal2](bindings.WithTo(portalAddr), bindings.WithTest(t))
+	f := portalBindings.AnchorStateRegistry()
+	calldata, err := f.EncodeInput()
+	require.NoError(err, "failed to encode anchorStateRegistry() calldata")
+	result, err := client.CallContract(t.Ctx(), ethereum.CallMsg{
+		To:   &portalAddr,
+		Data: calldata,
+	}, nil)
+	require.NoError(err, "failed to read anchor state registry address from portal")
+	asrAddr, err := f.DecodeOutput(result)
+	require.NoError(err, "failed to decode anchor state registry address from portal")
+
+	txOpts := txplan.Combine(
+		txplan.WithChainID(client),
+		txplan.WithPrivateKey(guardianKey),
+		txplan.WithPendingNonce(client),
+		txplan.WithAgainstLatestBlockEthClient(client),
+		txplan.WithEstimator(client, true),
+		txplan.WithRetrySubmission(client, 5, retry.Exponential()),
+		txplan.WithRetryInclusion(client, 5, retry.Exponential()))
+
+	asrBindings := bindings.NewBindings[bindings.AnchorStateRegistry](bindings.WithTo(asrAddr), bindings.WithTest(t))
+	rcpt, err := contractio.Write(asrBindings.SetRespectedGameType(uint32(gameType)), t.Ctx(), txOpts)
+	require.NoError(err, "failed to set respected game type")
+	require.Equal(rcpt.Status, gethTypes.ReceiptStatusSuccessful, "set respected game type tx did not execute correctly")
+}
+
+func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType gameTypes.GameType, l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) {
 	t := o.P()
 	require := t.Require()
 	require.NotNil(o.wb, "must have a world builder")
@@ -44,6 +152,7 @@ func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType uint32,
 
 	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
 	require.NoError(err)
+	defer rpcClient.Close()
 	client := ethclient.NewClient(rpcClient)
 
 	l1PAO, err := o.keys.Address(devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole))
@@ -58,7 +167,7 @@ func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType uint32,
 		OPCMImpl:                opcmAddr,
 		SystemConfigProxy:       o.wb.outL2Deployment[l2ChainID].SystemConfigProxyAddr(),
 		DelayedWETHProxy:        o.wb.outL2Deployment[l2ChainID].PermissionlessDelayedWETHProxyAddr(),
-		DisputeGameType:         gameType,
+		DisputeGameType:         uint32(gameType),
 		DisputeAbsolutePrestate: absolutePrestate,
 		DisputeMaxGameDepth:     big.NewInt(73),
 		DisputeSplitDepth:       big.NewInt(30),
@@ -99,6 +208,18 @@ func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType uint32,
 	// reset ProxyAdmin ownership transfers
 	transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, OPChainProxyAdmin, l1PAO)
 	transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, dgf, l1PAO)
+}
+
+func PrestateForGameType(t devtest.CommonT, gameType gameTypes.GameType) common.Hash {
+	switch gameType {
+	case gameTypes.CannonGameType:
+		return getAbsolutePrestate(t, "op-program/bin/prestate-proof-mt64.json")
+	case gameTypes.CannonKonaGameType:
+		return getCannonKonaAbsolutePrestate(t)
+	default:
+		t.Require().Fail("no prestate available for game type", gameType)
+		return common.Hash{}
+	}
 }
 
 func LocalArtifacts(t devtest.P) *artifacts.Locator {

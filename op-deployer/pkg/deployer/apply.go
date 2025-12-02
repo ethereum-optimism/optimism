@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
@@ -101,7 +102,7 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 
 		ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
 
-		return Apply(ctx, ApplyConfig{
+		if err := Apply(ctx, ApplyConfig{
 			L1RPCUrl:         l1RPCUrl,
 			Workdir:          workdir,
 			PrivateKey:       privateKey,
@@ -109,7 +110,36 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 			Logger:           l,
 			CacheDir:         cacheDir,
 			PreStateBuilder:  preStateBuilder,
-		})
+		}); err != nil {
+			return err
+		}
+
+		if !cliCtx.Bool(AutoVerifyFlag.Name) {
+			return nil
+		}
+
+		stateFile := fmt.Sprintf("%s/state.json", workdir)
+		chainID, err := ChainIDFromRPC(ctx, l1RPCUrl)
+		if err != nil {
+			return fmt.Errorf("failed to get chain ID: %w", err)
+		}
+
+		intent, err := pipeline.ReadIntent(workdir)
+		if err != nil {
+			return fmt.Errorf("failed to read intent: %w", err)
+		}
+
+		return verify.AutoVerify(
+			ctx,
+			l,
+			l1RPCUrl,
+			chainID.Uint64(),
+			stateFile,
+			intent.L1ContractsLocator,
+			cliCtx.String(VerifierTypeFlagName),
+			cliCtx.String(VerifierUrlFlagName),
+			cliCtx.String(VerifierAPIKeyFlagName),
+		)
 	}
 }
 

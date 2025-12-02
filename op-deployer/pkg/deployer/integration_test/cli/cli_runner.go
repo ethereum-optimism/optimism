@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,6 +22,7 @@ type CLITestRunner struct {
 	workDir       string
 	l1RPC         string
 	privateKeyHex string
+	lgr           log.Logger
 }
 
 // CLITestRunnerOption is a functional option for configuring CLITestRunner
@@ -42,6 +44,7 @@ func NewCLITestRunner(t *testing.T, opts ...CLITestRunnerOption) *CLITestRunner 
 	workDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 	return &CLITestRunner{
 		workDir: workDir,
+		lgr:     testlog.Logger(t, slog.LevelDebug),
 	}
 }
 
@@ -64,7 +67,7 @@ func NewCLITestRunnerWithNetwork(t *testing.T, opts ...CLITestRunnerOption) *CLI
 	for range 25 {
 		if _, err := l1Client.ChainID(ctx); err == nil {
 			anvilReady = true
-			t.Log("Anvil is ready and responding")
+			lgr.Info("Anvil is ready and responding")
 			break
 		}
 		// Exit early if context expired
@@ -79,6 +82,7 @@ func NewCLITestRunnerWithNetwork(t *testing.T, opts ...CLITestRunnerOption) *CLI
 		workDir:       workDir,
 		l1RPC:         l1RPC,
 		privateKeyHex: pkHex,
+		lgr:           lgr,
 	}
 
 	// Apply options to override defaults
@@ -164,7 +168,8 @@ func (r *CLITestRunner) RunWithNetwork(ctx context.Context, args []string, env m
 
 // ExpectSuccess runs a command expecting it to succeed
 func (r *CLITestRunner) ExpectSuccess(t *testing.T, args []string, env map[string]string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	r.lgr.Info("Running cli command, expecting success")
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	output, err := r.Run(ctx, args, env)
@@ -174,7 +179,8 @@ func (r *CLITestRunner) ExpectSuccess(t *testing.T, args []string, env map[strin
 
 // ExpectSuccessWithNetwork runs a command with network parameters expecting it to succeed
 func (r *CLITestRunner) ExpectSuccessWithNetwork(t *testing.T, args []string, env map[string]string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	r.lgr.Info("Running cli command with network, expecting success")
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	output, err := r.RunWithNetwork(ctx, args, env)
@@ -184,7 +190,8 @@ func (r *CLITestRunner) ExpectSuccessWithNetwork(t *testing.T, args []string, en
 
 // ExpectErrorContains runs a command expecting it to fail with specific error text
 func (r *CLITestRunner) ExpectErrorContains(t *testing.T, args []string, env map[string]string, contains string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	r.lgr.Info("Running cli command, expecting error")
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	output, err := r.Run(ctx, args, env)

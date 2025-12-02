@@ -140,7 +140,7 @@ func TestUpdateState(t *testing.T) {
 
 	statedb.SetBalance(unknownAccount, uint256.NewInt(60), tracing.BalanceChangeUnspecified)
 	require.Equal(t, uint256.NewInt(60), statedb.GetBalance(unknownAccount))
-	statedb.SetCode(codeAccount, []byte{1})
+	statedb.SetCode(codeAccount, []byte{1}, tracing.CodeChangeUnspecified)
 	require.Equal(t, []byte{1}, statedb.GetCode(codeAccount))
 
 	// Changes should be available under the new state root after committing

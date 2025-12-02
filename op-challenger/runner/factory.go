@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -24,12 +25,12 @@ func createTraceProvider(
 	m vm.Metricer,
 	cfg *config.Config,
 	prestateSource prestateFetcher,
-	traceType types.TraceType,
+	gameType gameTypes.GameType,
 	localInputs utils.LocalGameInputs,
 	dir string,
 ) (types.TraceProvider, error) {
-	switch traceType {
-	case types.TraceTypeCannon, types.TraceTypeSuperCannon:
+	switch gameType {
+	case gameTypes.CannonGameType, gameTypes.SuperCannonGameType:
 		serverExecutor := vm.NewOpProgramServerExecutor(logger)
 		stateConverter := cannon.NewStateConverter(cfg.Cannon)
 		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState, dir, stateConverter)
@@ -38,7 +39,7 @@ func createTraceProvider(
 		}
 		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
 		return cannon.NewTraceProvider(logger, m, cfg.Cannon, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
-	case types.TraceTypeCannonKona:
+	case gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType:
 		serverExecutor := vm.NewKonaExecutor()
 		stateConverter := cannon.NewStateConverter(cfg.CannonKona)
 		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.CannonKonaAbsolutePreStateBaseURL, cfg.CannonKonaAbsolutePreState, dir, stateConverter)
@@ -47,7 +48,7 @@ func createTraceProvider(
 		}
 		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
 		return cannon.NewTraceProvider(logger, m, cfg.CannonKona, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
-	case types.TraceTypeAsterisc:
+	case gameTypes.AsteriscGameType:
 		serverExecutor := vm.NewOpProgramServerExecutor(logger)
 		stateConverter := asterisc.NewStateConverter(cfg.Asterisc)
 		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.AsteriscAbsolutePreStateBaseURL, cfg.AsteriscAbsolutePreState, dir, stateConverter)
@@ -56,7 +57,7 @@ func createTraceProvider(
 		}
 		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
 		return asterisc.NewTraceProvider(logger, m, cfg.Asterisc, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
-	case types.TraceTypeAsteriscKona:
+	case gameTypes.AsteriscKonaGameType:
 		serverExecutor := vm.NewKonaExecutor()
 		stateConverter := asterisc.NewStateConverter(cfg.AsteriscKona)
 		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.AsteriscKonaAbsolutePreStateBaseURL, cfg.AsteriscKonaAbsolutePreState, dir, stateConverter)
@@ -65,7 +66,7 @@ func createTraceProvider(
 		}
 		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
 		return asterisc.NewTraceProvider(logger, m, cfg.AsteriscKona, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
-	case types.TraceTypeSuperAsteriscKona:
+	case gameTypes.SuperAsteriscKonaGameType:
 		serverExecutor := vm.NewKonaSuperExecutor()
 		stateConverter := asterisc.NewStateConverter(cfg.AsteriscKona)
 		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.AsteriscKonaAbsolutePreStateBaseURL, cfg.AsteriscKonaAbsolutePreState, dir, stateConverter)
@@ -75,5 +76,5 @@ func createTraceProvider(
 		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
 		return asterisc.NewTraceProvider(logger, m, cfg.AsteriscKona, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
 	}
-	return nil, errors.New("invalid trace type")
+	return nil, errors.New("invalid game type")
 }

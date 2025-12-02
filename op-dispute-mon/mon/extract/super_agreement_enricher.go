@@ -63,7 +63,7 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 		wg.Add(1)
 		go func(i int, client SuperRootProvider) {
 			defer wg.Done()
-			response, err := client.SuperRootAtTimestamp(ctx, hexutil.Uint64(game.L2BlockNumber))
+			response, err := client.SuperRootAtTimestamp(ctx, hexutil.Uint64(game.L2SequenceNumber))
 			if errors.Is(err, ethereum.NotFound) {
 				results[i] = superRootResult{notFound: true}
 				return
@@ -87,7 +87,7 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 	foundResults := make([]superRootResult, 0, len(results))
 	for idx, result := range results {
 		if result.err != nil {
-			e.log.Error("Failed to fetch super root", "clientIndex", idx, "l2BlockNum", game.L2BlockNumber, "err", result.err)
+			e.log.Error("Failed to fetch super root", "clientIndex", idx, "l2SequenceNumber", game.L2SequenceNumber, "err", result.err)
 			continue
 		}
 
@@ -130,7 +130,7 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 
 	if diverged {
 		e.log.Warn("Supervisor nodes disagree on super root",
-			"l2BlockNum", game.L2BlockNumber,
+			"l2SequenceNumber", game.L2SequenceNumber,
 			"firstSuperRoot", firstResult.superRoot,
 			"found", len(foundResults),
 			"valid", len(validResults))

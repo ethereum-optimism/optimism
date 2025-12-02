@@ -27,6 +27,7 @@ contract ReadImplementationAddresses is Script {
         address optimismPortalInterop;
         address ethLockbox;
         address systemConfig;
+        address anchorStateRegistry;
         address l1CrossDomainMessenger;
         address l1ERC721Bridge;
         address l1StandardBridge;
@@ -34,6 +35,15 @@ contract ReadImplementationAddresses is Script {
         address disputeGameFactory;
         address mipsSingleton;
         address preimageOracleSingleton;
+        address faultDisputeGameV2;
+        address permissionedDisputeGameV2;
+        address superFaultDisputeGame;
+        address superPermissionedDisputeGame;
+        address opcmDeployer;
+        address opcmUpgrader;
+        address opcmGameTypeAdder;
+        address opcmStandardValidator;
+        address opcmInteropMigrator;
     }
 
     function run(Input memory _input) public returns (Output memory output_) {
@@ -51,10 +61,22 @@ contract ReadImplementationAddresses is Script {
 
         // Get implementations from OPCM
         IOPContractsManager opcm = IOPContractsManager(_input.opcm);
-        output_.mipsSingleton = opcm.implementations().mipsImpl;
-        output_.delayedWETH = opcm.implementations().delayedWETHImpl;
-        output_.ethLockbox = opcm.implementations().ethLockboxImpl;
-        output_.optimismPortalInterop = opcm.implementations().optimismPortalInteropImpl;
+        output_.opcmGameTypeAdder = address(opcm.opcmGameTypeAdder());
+        output_.opcmDeployer = address(opcm.opcmDeployer());
+        output_.opcmUpgrader = address(opcm.opcmUpgrader());
+        output_.opcmInteropMigrator = address(opcm.opcmInteropMigrator());
+        output_.opcmStandardValidator = address(opcm.opcmStandardValidator());
+
+        IOPContractsManager.Implementations memory impls = opcm.implementations();
+        output_.mipsSingleton = impls.mipsImpl;
+        output_.delayedWETH = impls.delayedWETHImpl;
+        output_.ethLockbox = impls.ethLockboxImpl;
+        output_.anchorStateRegistry = impls.anchorStateRegistryImpl;
+        output_.optimismPortalInterop = impls.optimismPortalInteropImpl;
+        output_.faultDisputeGameV2 = impls.faultDisputeGameV2Impl;
+        output_.permissionedDisputeGameV2 = impls.permissionedDisputeGameV2Impl;
+        output_.superFaultDisputeGame = impls.superFaultDisputeGameImpl;
+        output_.superPermissionedDisputeGame = impls.superPermissionedDisputeGameImpl;
 
         // Get L1CrossDomainMessenger from AddressManager
         IAddressManager am = IAddressManager(_input.addressManager);

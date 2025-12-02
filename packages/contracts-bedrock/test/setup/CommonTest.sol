@@ -14,6 +14,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Contracts
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Libraries
 import { console } from "forge-std/console.sol";
@@ -34,12 +35,18 @@ abstract contract CommonTest is Test, Setup, Events {
 
     bool useAltDAOverride;
     bool useInteropOverride;
+    bool useRevenueShareOverride;
+    bool useCustomGasToken;
 
     /// @dev This value is only used in forked tests. During forked tests, the default is to perform the upgrade before
     ///      running the tests.
     ///      This value should only be set to false in forked tests which are specifically testing the upgrade path
     ///      itself, rather than simply ensuring that the tests pass after the upgrade.
     bool useUpgradedFork = true;
+
+    // Needed for testing purposes to check the contracts were properly deployed and setup.
+    address chainFeesRecipient = makeAddr("chainFeesRecipient");
+    address l1FeesDepositor = makeAddr("l1FeesDepositor");
 
     ERC20 L1Token;
     ERC20 BadL1Token;
@@ -71,8 +78,24 @@ abstract contract CommonTest is Test, Setup, Events {
         if (useInteropOverride) {
             deploy.cfg().setUseInterop(true);
         }
+        if (useRevenueShareOverride) {
+            deploy.cfg().setUseRevenueShare(true);
+            deploy.cfg().setChainFeesRecipient(chainFeesRecipient);
+            deploy.cfg().setL1FeesDepositor(l1FeesDepositor);
+        }
         if (useUpgradedFork) {
             deploy.cfg().setUseUpgradedFork(true);
+        }
+        if (isDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN)) {
+            console.log("CommonTest: enabling custom gas token");
+            deploy.cfg().setUseCustomGasToken(true);
+            deploy.cfg().setGasPayingTokenName("Custom Gas Token");
+            deploy.cfg().setGasPayingTokenSymbol("CGT");
+            deploy.cfg().setNativeAssetLiquidityAmount(type(uint248).max);
+            deploy.cfg().setBaseFeeVaultWithdrawalNetwork(1);
+            deploy.cfg().setL1FeeVaultWithdrawalNetwork(1);
+            deploy.cfg().setSequencerFeeVaultWithdrawalNetwork(1);
+            deploy.cfg().setOperatorFeeVaultWithdrawalNetwork(1);
         }
 
         if (isForkTest()) {
@@ -200,6 +223,12 @@ abstract contract CommonTest is Test, Setup, Events {
         useInteropOverride = true;
     }
 
+    /// @dev Enables revenue sharing mode for testing
+    function enableRevenueShare() public {
+        _checkNotDeployed("revenue share");
+        useRevenueShareOverride = true;
+    }
+
     /// @dev Disables upgrade mode for testing. By default the fork testing env will be upgraded to the latest
     ///      implementation. This can be used to disable the upgrade which, is useful for tests targeting the upgrade
     ///      process itself.
@@ -207,5 +236,15 @@ abstract contract CommonTest is Test, Setup, Events {
         _checkNotDeployed("non-upgraded fork");
 
         useUpgradedFork = false;
+    }
+
+    /// @dev Helper function to setup a prank for delegatecall.
+    /// @param _caller The address to prank as the caller.
+    function prankDelegateCall(address _caller) internal {
+        // Foundry fails with "cannot `prank` delegate call from an EOA" if empty
+        if (_caller.code.length == 0) {
+            vm.etch(_caller, hex"00");
+        }
+        vm.prank(_caller, true);
     }
 }

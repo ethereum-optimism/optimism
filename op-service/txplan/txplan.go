@@ -337,6 +337,22 @@ func WithAgainstLatestBlock(cl AgainstLatestBlock) Option {
 	}
 }
 
+type AgainstLatestBlockEthClient interface {
+	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
+}
+
+func WithAgainstLatestBlockEthClient(cl AgainstLatestBlockEthClient) Option {
+	return func(tx *PlannedTx) {
+		tx.AgainstBlock.Fn(func(ctx context.Context) (eth.BlockInfo, error) {
+			header, err := cl.HeaderByNumber(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+			return eth.HeaderBlockInfo(header), nil
+		})
+	}
+}
+
 // Reader uses eth_call to view(read) the blockchain, and does not write persistent changes to the chain.
 // A call will return a byte string (that may be ABI-decoded), and does not have a receipt, as it was only simulated and not a persistent transaction.
 type Reader interface {

@@ -4,18 +4,17 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	transactions "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
-
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func TestDencunL1ForkAfterGenesis(gt *testing.T) {
@@ -125,7 +124,7 @@ func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	require.Zero(t, *dp.DeployConfig.L1CancunTimeOffset)
 	// This test will fork on the second block
-	dp.DeployConfig.ActivateForkAtOffset(rollup.Ecotone, dp.DeployConfig.L2BlockTime*2)
+	dp.DeployConfig.ActivateForkAtOffset(forks.Ecotone, dp.DeployConfig.L2BlockTime*2)
 
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)

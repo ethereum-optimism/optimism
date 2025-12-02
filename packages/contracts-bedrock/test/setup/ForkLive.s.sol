@@ -6,8 +6,7 @@ import { StdAssertions } from "forge-std/StdAssertions.sol";
 
 // Testing
 import { stdToml } from "forge-std/StdToml.sol";
-import { DelegateCaller } from "test/mocks/Callers.sol";
-import { FeatureFlags } from "test/setup/FeatureFlags.sol";
+import { DisputeGames } from "test/setup/DisputeGames.sol";
 
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
@@ -35,6 +34,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.sol";
+import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 
 /// @title ForkLive
 /// @notice This script is called by Setup.sol as a preparation step for the foundry test suite, and is run as an
@@ -46,7 +46,7 @@ import { IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.s
 ///         superchain-registry.
 ///         This contract must not have constructor logic because it is set into state using `etch`.
 
-contract ForkLive is Deployer, StdAssertions, FeatureFlags {
+contract ForkLive is Deployer, StdAssertions, DisputeGames {
     using stdToml for string;
     using LibString for string;
 
@@ -177,9 +177,6 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         artifacts.save("MipsSingleton", vm.parseTomlAddress(opToml, ".addresses.MIPS"));
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        IFaultDisputeGame faultDisputeGame = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
-        artifacts.save("FaultDisputeGame", address(faultDisputeGame));
-        artifacts.save("PermissionlessDelayedWETHProxy", address(faultDisputeGame.weth()));
 
         // The PermissionedDisputeGame and PermissionedDelayedWETHProxy are not listed in the registry for OP, so we
         // look it up onchain
@@ -208,25 +205,20 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         IOPContractsManager.OpChainConfig[] memory opChains = new IOPContractsManager.OpChainConfig[](1);
         opChains[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: systemConfig,
-            absolutePrestate: Claim.wrap(bytes32(keccak256("absolutePrestate")))
+            cannonPrestate: Claim.wrap(bytes32(keccak256("cannonPrestate"))),
+            cannonKonaPrestate: Claim.wrap(bytes32(keccak256("cannonKonaPrestate")))
         });
 
-        // Turn the SuperchainPAO into a DelegateCaller so we can try to upgrade the
-        // SuperchainConfig contract.
+        // Execute the SuperchainConfig upgrade.
+        // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
+        // every time rather than adding or removing this code for each upgrade.
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
         IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
         address superchainPAO = superchainProxyAdmin.owner();
-        bytes memory superchainPAOCode = address(superchainPAO).code;
-        vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-
-        // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
-        // every time rather than adding or removing this code for each upgrade.
-        try DelegateCaller(superchainPAO).dcForward(
-            address(_opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
-        ) {
-            // Great, the upgrade succeeded.
-        } catch (bytes memory reason) {
-            // Only acceptable revert reason is the SuperchainConfig already being up to date.
+        vm.prank(superchainPAO, true);
+        (bool success, bytes memory reason) =
+            address(_opcm).delegatecall(abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig)));
+        if (success == false) {
             assertTrue(
                 bytes4(reason)
                     == IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate.selector,
@@ -234,27 +226,111 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
             );
         }
 
-        // Reset the superchainPAO to the original code.
-        vm.etch(superchainPAO, superchainPAOCode);
-
-        // Temporarily replace the upgrader with a DelegateCaller so we can test the upgrade,
-        // then reset its code to the original code.
-        bytes memory upgraderCode = address(_delegateCaller).code;
-        vm.etch(_delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-
         // Upgrade the chain.
-        DelegateCaller(_delegateCaller).dcForward(
-            address(_opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChains))
-        );
+        vm.prank(_delegateCaller, true);
+        (bool upgradeSuccess,) = address(_opcm).delegatecall(abi.encodeCall(IOPContractsManager.upgrade, (opChains)));
+        assertTrue(upgradeSuccess, "upgrade failed");
+    }
 
-        // Reset the upgrader to the original code.
-        vm.etch(_delegateCaller, upgraderCode);
+    /// @notice Performs a single OPCM V2 upgrade.
+    /// @param _opcm The OPCM V2 contract to upgrade.
+    /// @param _delegateCaller The address of the upgrader to use for the upgrade.
+    function _doUpgradeV2(IOPContractsManagerV2 _opcm, address _delegateCaller) internal {
+        ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
+
+        // Get the SuperchainPAO address.
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
+        address superchainPAO = superchainProxyAdmin.owner();
+
+        // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
+        // every time rather than adding or removing this code for each upgrade.
+        vm.prank(superchainPAO, true);
+        (bool success, bytes memory reason) = address(_opcm).delegatecall(
+            abi.encodeCall(
+                IOPContractsManagerV2.upgradeSuperchain,
+                (
+                    IOPContractsManagerV2.SuperchainUpgradeInput({
+                        superchainConfig: superchainConfig,
+                        extraInstructions: new IOPContractsManagerV2.ExtraInstruction[](0)
+                    })
+                )
+            )
+        );
+        if (success == false) {
+            // Only acceptable revert reason is downgrade not allowed.
+            assertTrue(
+                bytes4(reason) == IOPContractsManagerV2.OPContractsManagerV2_DowngradeNotAllowed.selector,
+                "Revert reason other than DowngradeNotAllowed"
+            );
+        }
+
+        // Grab the existing PermissionedDisputeGame parameters.
+        IDisputeGameFactory disputeGameFactory =
+            IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
+        address challenger = permissionedGameChallenger(disputeGameFactory);
+        address proposer = permissionedGameProposer(disputeGameFactory);
+
+        // Prepare the upgrade input.
+        IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerV2.DisputeGameConfig[](3);
+        disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
+            enabled: true,
+            initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
+            gameType: GameTypes.CANNON,
+            gameArgs: abi.encode(
+                IOPContractsManagerV2.FaultDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate")))
+                })
+            )
+        });
+        disputeGameConfigs[1] = IOPContractsManagerV2.DisputeGameConfig({
+            enabled: true,
+            initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            gameArgs: abi.encode(
+                IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate"))),
+                    proposer: proposer,
+                    challenger: challenger
+                })
+            )
+        });
+        disputeGameConfigs[2] = IOPContractsManagerV2.DisputeGameConfig({
+            enabled: isDevFeatureEnabled(DevFeatures.CANNON_KONA),
+            initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
+            gameType: GameTypes.CANNON_KONA,
+            gameArgs: abi.encode(
+                IOPContractsManagerV2.FaultDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(keccak256("cannonKonaPrestate")))
+                })
+            )
+        });
+
+        // Add extra instructions to allow the DelayedWETH proxy to be deployed.
+        IOPContractsManagerV2.ExtraInstruction[] memory extraInstructions =
+            new IOPContractsManagerV2.ExtraInstruction[](1);
+        extraInstructions[0] =
+            IOPContractsManagerV2.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") });
+
+        vm.prank(_delegateCaller, true);
+        (bool upgradeSuccess,) = address(_opcm).delegatecall(
+            abi.encodeCall(
+                IOPContractsManagerV2.upgrade,
+                (
+                    IOPContractsManagerV2.UpgradeInput({
+                        systemConfig: systemConfig,
+                        disputeGameConfigs: disputeGameConfigs,
+                        extraInstructions: extraInstructions
+                    })
+                )
+            )
+        );
+        assertTrue(upgradeSuccess, "upgrade failed");
     }
 
     /// @notice Upgrades the contracts using the OPCM.
     function _upgrade() internal {
-        IOPContractsManager opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
-
         ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
         IProxyAdmin proxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(systemConfig)));
 
@@ -271,7 +347,13 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         }
 
         // Current upgrade.
-        _doUpgrade(opcm, upgrader);
+        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(artifacts.mustGetAddress("OPContractsManagerV2"));
+            _doUpgradeV2(opcmV2, upgrader);
+        } else {
+            IOPContractsManager opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
+            _doUpgrade(opcm, upgrader);
+        }
 
         console.log("ForkLive: Saving newly deployed contracts");
 
@@ -280,13 +362,6 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
         address permissionedDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON));
         artifacts.save("PermissionedDisputeGame", permissionedDisputeGame);
-
-        address permissionlessDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.CANNON));
-        if (permissionlessDisputeGame != address(0)) {
-            // Both names are used in different places, so we save both.
-            artifacts.save("PermissionlessDisputeGame", address(permissionlessDisputeGame));
-            artifacts.save("FaultDisputeGame", address(permissionlessDisputeGame));
-        }
 
         IAnchorStateRegistry newAnchorStateRegistry;
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {

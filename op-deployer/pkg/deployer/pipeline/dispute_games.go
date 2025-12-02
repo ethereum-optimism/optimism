@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -54,24 +57,6 @@ func deployDisputeGame(
 ) error {
 	lgr := env.Logger.New("gameType", game.DisputeGameType)
 
-	var oracleAddr common.Address
-	if game.UseCustomOracle {
-		lgr.Info("deploying custom oracle")
-
-		out, err := opcm.DeployPreimageOracle(env.L1ScriptHost, opcm.DeployPreimageOracleInput{
-			MinProposalSize: new(big.Int).SetUint64(game.OracleMinProposalSize),
-			ChallengePeriod: new(big.Int).SetUint64(game.OracleChallengePeriodSeconds),
-		})
-		if err != nil {
-			return fmt.Errorf("failed to deploy preimage oracle: %w", err)
-		}
-		oracleAddr = out.PreimageOracle
-		lgr.Info("oracle deployed", "oracleAddr", oracleAddr)
-	} else {
-		lgr.Info("using existing preimage oracle")
-		oracleAddr = st.ImplementationsDeployment.PreimageOracleImpl
-	}
-
 	lgr.Info("deploying VM", "vmType", game.VMType)
 	var vmAddr common.Address
 	switch game.VMType {
@@ -83,7 +68,7 @@ func deployDisputeGame(
 
 		out, err := deployAlphabetVM.Run(opcm.DeployAlphabetVMInput{
 			AbsolutePrestate: game.DisputeAbsolutePrestate,
-			PreimageOracle:   oracleAddr,
+			PreimageOracle:   st.ImplementationsDeployment.PreimageOracleImpl,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to deploy Alphabet VM: %w", err)
@@ -92,7 +77,7 @@ func deployDisputeGame(
 	case state.VMTypeCannon, state.VMTypeCannonNext:
 		out, err := opcm.DeployMIPS(env.L1ScriptHost, opcm.DeployMIPSInput{
 			MipsVersion:    game.VMType.MipsVersion(),
-			PreimageOracle: oracleAddr,
+			PreimageOracle: st.ImplementationsDeployment.PreimageOracleImpl,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to deploy MIPS VM: %w", err)
@@ -103,11 +88,32 @@ func deployDisputeGame(
 	}
 	lgr.Info("vm deployed", "vmAddr", vmAddr)
 
+	useV2 := st.ImplementationsDeployment.PermissionedDisputeGameV2Impl != (common.Address{})
+
+	var gameArgs []byte
+	if useV2 { // Only set game args if V2 contracts are used.
+		args := gameargs.GameArgs{
+			AbsolutePrestate:    game.DisputeAbsolutePrestate,
+			Vm:                  vmAddr,
+			AnchorStateRegistry: thisState.OpChainContracts.AnchorStateRegistryProxy,
+			Weth:                thisState.OpChainContracts.DelayedWethPermissionedGameProxy,
+			L2ChainID:           eth.ChainIDFromBytes32(thisIntent.ID),
+			Proposer:            thisIntent.Roles.Proposer,
+			Challenger:          thisIntent.Roles.Challenger,
+		}
+		if game.DisputeGameType == uint32(gameTypes.PermissionedGameType) {
+			gameArgs = args.PackPermissioned()
+		} else {
+			gameArgs = args.PackPermissionless()
+		}
+	}
+
 	lgr.Info("deploying dispute game")
 
 	out, err := env.Scripts.DeployDisputeGame.Run(
 		opcm.DeployDisputeGameInput{
 			Release:                  "dev",
+			UseV2:                    useV2,
 			VmAddress:                vmAddr,
 			GameKind:                 "FaultDisputeGame",
 			GameType:                 game.DisputeGameType,
@@ -130,9 +136,11 @@ func deployDisputeGame(
 
 	lgr.Info("setting dispute game impl on factory", "respected", game.MakeRespected)
 	sdgiInput := opcm.SetDisputeGameImplInput{
+		UseV2:               useV2,
 		Factory:             thisState.OpChainContracts.DisputeGameFactoryProxy,
 		Impl:                out.DisputeGameImpl,
 		GameType:            game.DisputeGameType,
+		GameArgs:            gameArgs,
 		AnchorStateRegistry: common.Address{},
 	}
 	if game.MakeRespected {
@@ -149,7 +157,7 @@ func deployDisputeGame(
 		GameType:      game.DisputeGameType,
 		VMType:        game.VMType,
 		GameAddress:   out.DisputeGameImpl,
-		OracleAddress: oracleAddr,
+		OracleAddress: st.ImplementationsDeployment.PreimageOracleImpl,
 		VMAddress:     vmAddr,
 	})
 

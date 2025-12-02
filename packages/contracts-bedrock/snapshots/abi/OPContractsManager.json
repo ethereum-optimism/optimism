@@ -312,6 +312,11 @@
             "internalType": "Duration",
             "name": "disputeMaxClockDuration",
             "type": "uint64"
+          },
+          {
+            "internalType": "bool",
+            "name": "useCustomGasToken",
+            "type": "bool"
           }
         ],
         "internalType": "struct OPContractsManager.DeployInput",
@@ -621,7 +626,12 @@
               },
               {
                 "internalType": "Claim",
-                "name": "absolutePrestate",
+                "name": "cannonPrestate",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "Claim",
+                "name": "cannonKonaPrestate",
                 "type": "bytes32"
               }
             ],
@@ -772,7 +782,12 @@
           },
           {
             "internalType": "Claim",
-            "name": "absolutePrestate",
+            "name": "cannonPrestate",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "Claim",
+            "name": "cannonKonaPrestate",
             "type": "bytes32"
           }
         ],

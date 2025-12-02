@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -46,6 +47,41 @@ func (f *fakeBatchQueueInput) NextBatch(ctx context.Context) (Batch, error) {
 	e := f.errors[f.i]
 	f.i += 1
 	return b, e
+}
+
+type fakeSafeBlockFetcher struct {
+	blocks   map[uint64]eth.L2BlockRef
+	payloads map[uint64]*eth.ExecutionPayloadEnvelope
+}
+
+func newFakeSafeBlockFetcher() *fakeSafeBlockFetcher {
+	return &fakeSafeBlockFetcher{
+		blocks:   make(map[uint64]eth.L2BlockRef),
+		payloads: make(map[uint64]*eth.ExecutionPayloadEnvelope),
+	}
+}
+
+func (f *fakeSafeBlockFetcher) addBlock(ref eth.L2BlockRef, payload *eth.ExecutionPayloadEnvelope) {
+	f.blocks[ref.Number] = ref
+	if payload != nil {
+		f.payloads[ref.Number] = payload
+	}
+}
+
+func (f *fakeSafeBlockFetcher) L2BlockRefByNumber(_ context.Context, number uint64) (eth.L2BlockRef, error) {
+	ref, ok := f.blocks[number]
+	if !ok {
+		return eth.L2BlockRef{}, errors.New("unknown L2 block")
+	}
+	return ref, nil
+}
+
+func (f *fakeSafeBlockFetcher) PayloadByNumber(_ context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	payload, ok := f.payloads[number]
+	if !ok || payload == nil {
+		return nil, errors.New("unknown execution payload")
+	}
+	return payload, nil
 }
 
 func mockHash(time uint64, layer uint8) common.Hash {
@@ -151,7 +187,6 @@ func TestBatchQueue(t *testing.T) {
 		{"Shuffle", testBatchQueue_Shuffle},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name+"_SingularBatch", func(t *testing.T) {
 			test.f(t, SingularBatchType)
 		})
@@ -185,19 +220,19 @@ func TestBatchStages(t *testing.T) {
 		{"InvalidInternalAdvance", testBatchStage_InvalidInternalAdvance},
 		{"AdvancedEpoch", testBatchStage_AdvancedEpoch},
 		{"ResetOneBlockBeforeOrigin", testBatchStage_ResetOneBlockBeforeOrigin},
+		{"OverlappingSpanBatch", testBatchStage_OverlappingSpanBatch},
 	}
 	for _, test := range tests {
-		test := test
-		t.Run("BatchQueue_"+test.name+"_SingularBatch", func(t *testing.T) {
+		t.Run("BatchQueue/SingularBatch/"+test.name, func(t *testing.T) {
 			test.f(t, SingularBatchType, newBatchQueue)
 		})
-		t.Run("BatchQueue_"+test.name+"_SpanBatch", func(t *testing.T) {
+		t.Run("BatchQueue/SpanBatch/"+test.name, func(t *testing.T) {
 			test.f(t, SpanBatchType, newBatchQueue)
 		})
-		t.Run("BatchStage_"+test.name+"_SingularBatch", func(t *testing.T) {
+		t.Run("BatchStage/SingularBatch/"+test.name, func(t *testing.T) {
 			test.f(t, SingularBatchType, newBatchStage)
 		})
-		t.Run("BatchStage_"+test.name+"_SpanBatch", func(t *testing.T) {
+		t.Run("BatchStage/SpanBatch/"+test.name, func(t *testing.T) {
 			test.f(t, SpanBatchType, newBatchStage)
 		})
 	}
@@ -408,7 +443,7 @@ func testBatchStage_Eager(t *testing.T, batchType int, newBatchStage testableBat
 // testBatchStage_InvalidInternalAdvance asserts that we do not miss an epoch when generating batches.
 // This is a regression test for CLI-3378.
 func testBatchStage_InvalidInternalAdvance(t *testing.T, batchType int, newBatchStage testableBatchStageFactory) {
-	log := testlog.Logger(t, log.LevelTrace)
+	log := testlog.Logger(t, log.LevelError)
 	l1 := L1Chain([]uint64{5, 10, 15, 20, 25, 30})
 	chainId := big.NewInt(1234)
 	safeHead := eth.L2BlockRef{
@@ -525,6 +560,88 @@ func testBatchStage_InvalidInternalAdvance(t *testing.T, batchType int, newBatch
 	b, _, e = bq.NextBatch(context.Background(), safeHead)
 	require.ErrorIs(t, e, io.EOF)
 	require.Nil(t, b)
+}
+
+// testBatchStage_OverlappingSpanBatch verifies that overlapping span batches
+// with outdated L1 origins are dropped for both the BatchQueue and BatchStage implementations.
+func testBatchStage_OverlappingSpanBatch(t *testing.T, batchType int, newBatchStage testableBatchStageFactory) {
+	if batchType != SpanBatchType {
+		t.Skip("only applicable to span batches")
+	}
+
+	log, logs := testlog.CaptureLogger(t, log.LevelWarn)
+	l1 := L1Chain([]uint64{10, 16, 22, 28})
+	chainId := big.NewInt(1234)
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L2Time: 20,
+		},
+		BlockTime:         2,
+		MaxSequencerDrift: 600,
+		SeqWindowSize:     1000,
+		L2ChainID:         chainId,
+	}
+	// we skip singular batches above, so can always activate Delta
+	cfg.ActivateAtGenesis(forks.Delta)
+
+	parentBatch := b(cfg.L2ChainID, 20, l1[0])
+	parentRef := singularBatchToBlockRef(t, parentBatch, 0)
+	parentPayload := singularBatchToPayload(t, parentBatch, 0)
+	safeBatch := b(cfg.L2ChainID, 22, l1[1])
+	safeHead := singularBatchToBlockRef(t, safeBatch, 1)
+	safePayload := singularBatchToPayload(t, safeBatch, 1)
+
+	fetcher := newFakeSafeBlockFetcher()
+	fetcher.addBlock(parentRef, &parentPayload)
+	fetcher.addBlock(safeHead, &safePayload)
+
+	t.Run("outdated origin", func(t *testing.T) {
+		invalidSpanSingulars := []*SingularBatch{
+			b(cfg.L2ChainID, 22, l1[0]), // same block number as safe head, will be skipped
+			b(cfg.L2ChainID, 24, l1[0]), // first batch after safe head uses outdated origin 0
+			b(cfg.L2ChainID, 26, l1[1]),
+		}
+		invalidSpan := initializedSpanBatch(invalidSpanSingulars, cfg.Genesis.L2Time, chainId)
+		input := &fakeBatchQueueInput{
+			batches: []Batch{invalidSpan},
+			errors:  []error{nil},
+			origin:  l1[2],
+		}
+
+		stage := newBatchStage(log, cfg, input, fetcher)
+		_ = stage.Reset(context.Background(), l1[1], eth.SystemConfig{})
+
+		// The invalid overlapping span batch should be dropped and reported as lacking data.
+		batch, _, err := stage.NextBatch(context.Background(), safeHead)
+		require.ErrorIs(t, err, NotEnoughData)
+		require.Nil(t, batch)
+		switch stage.(type) {
+		case *BatchQueue:
+			logs.RequireMessageContainedOnce(t, "block epoch is too old")
+		case *BatchStage:
+			logs.RequireMessageContainedOnce(t, "Dropping invalid span batch, flushing channel (singular batch extraction)")
+		}
+	})
+
+	t.Run("valid", func(t *testing.T) {
+		validSpanSingulars := []*SingularBatch{
+			safeBatch,
+			b(cfg.L2ChainID, 24, l1[1]),
+		}
+		validSpan := initializedSpanBatch(validSpanSingulars, cfg.Genesis.L2Time, chainId)
+		input := &fakeBatchQueueInput{
+			batches: []Batch{validSpan},
+			errors:  []error{nil},
+			origin:  l1[2],
+		}
+
+		stage := newBatchStage(log, cfg, input, fetcher)
+		_ = stage.Reset(context.Background(), l1[1], eth.SystemConfig{})
+
+		batch, _, err := stage.NextBatch(context.Background(), safeHead)
+		require.NoError(t, err)
+		require.Equal(t, validSpanSingulars[1], batch)
+	})
 }
 
 func testBatchQueue_Missing(t *testing.T, batchType int) {

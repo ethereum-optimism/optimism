@@ -31,8 +31,15 @@ type L2CLConfig struct {
 	// EnableReqRespSync is the flag to enable/disable req-resp sync.
 	EnableReqRespSync bool
 
+	// UseReqRespSync controls whether to use the req-resp sync protocol. EnableReqRespSync == false && UseReqRespSync == true is not allowed, and node will fail to start.
+	UseReqRespSync bool
+
 	// NoDiscovery is the flag to enable/disable discovery
 	NoDiscovery bool
+
+	// UnsafeOnly is the flag to disable derivation
+	SequencerUnsafeOnly bool
+	VerifierUnsafeOnly  bool
 }
 
 func L2CLSequencer() L2CLOption {
@@ -47,15 +54,24 @@ func L2CLIndexing() L2CLOption {
 	})
 }
 
+func L2CLVerifierDisableUnsafeOnly() L2CLOption {
+	return L2CLOptionFn(func(p devtest.P, id stack.L2CLNodeID, cfg *L2CLConfig) {
+		cfg.VerifierUnsafeOnly = false
+	})
+}
+
 func DefaultL2CLConfig() *L2CLConfig {
 	return &L2CLConfig{
-		SequencerSyncMode: nodeSync.CLSync,
-		VerifierSyncMode:  nodeSync.CLSync,
-		SafeDBPath:        "",
-		IsSequencer:       false,
-		IndexingMode:      false,
-		EnableReqRespSync: true,
-		NoDiscovery:       false,
+		SequencerSyncMode:   nodeSync.CLSync,
+		VerifierSyncMode:    nodeSync.CLSync,
+		SafeDBPath:          "",
+		IsSequencer:         false,
+		IndexingMode:        false,
+		EnableReqRespSync:   true,
+		UseReqRespSync:      true,
+		NoDiscovery:         false,
+		SequencerUnsafeOnly: false,
+		VerifierUnsafeOnly:  false,
 	}
 }
 
