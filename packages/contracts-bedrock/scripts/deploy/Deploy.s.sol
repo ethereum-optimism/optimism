@@ -296,14 +296,14 @@ contract Deploy is Deployer {
         // Save the implementation addresses which are needed outside of this function or script.
         // When called in a fork test, this will overwrite the existing implementations.
         artifacts.save("MipsSingleton", address(dio.mipsSingleton));
-        if (DevFeatures.isDevFeatureEnabled(dio.opcm.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
+        if (DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
             artifacts.save("OPContractsManagerV2", address(dio.opcmV2));
         } else {
             artifacts.save("OPContractsManager", address(dio.opcm));
         }
         artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl));
         artifacts.save("PreimageOracle", address(dio.preimageOracleSingleton));
-        if (DevFeatures.isDevFeatureEnabled(dio.opcm.devFeatureBitmap(), DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+        if (DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             artifacts.save("PermissionedDisputeGame", address(dio.permissionedDisputeGameV2Impl));
         }
 
@@ -333,10 +333,16 @@ contract Deploy is Deployer {
             _mips: IMIPS64(address(dio.mipsSingleton)),
             _oracle: IPreimageOracle(address(dio.preimageOracleSingleton))
         });
+        IOPContractsManager _opcm;
+        if (DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
+            _opcm = IOPContractsManager(address(dio.opcmV2));
+        } else {
+            _opcm = IOPContractsManager(address(dio.opcm));
+        }
         ChainAssertions.checkOPContractsManager({
             _impls: impls,
             _proxies: _proxies(),
-            _opcm: IOPContractsManager(address(dio.opcm)),
+            _opcm: _opcm,
             _mips: IMIPS64(address(dio.mipsSingleton))
         });
         ChainAssertions.checkSystemConfigImpls(impls);
@@ -373,7 +379,7 @@ contract Deploy is Deployer {
         artifacts.save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistryProxy));
         artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
         artifacts.save("OptimismPortal2Proxy", address(deployOutput.optimismPortalProxy));
-        if (!DevFeatures.isDevFeatureEnabled(opcm.devFeatureBitmap(), DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+        if (!DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             artifacts.save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
         }
 

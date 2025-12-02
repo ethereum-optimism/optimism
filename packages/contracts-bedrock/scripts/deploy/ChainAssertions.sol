@@ -386,9 +386,10 @@ library ChainAssertions {
         require(address(_opcm) != address(0), "CHECK-OPCM-10");
 
         require(bytes(_opcm.version()).length > 0, "CHECK-OPCM-15");
-        require(address(_opcm.protocolVersions()) == _proxies.ProtocolVersions, "CHECK-OPCM-17");
-        require(address(_opcm.superchainConfig()) == _proxies.SuperchainConfig, "CHECK-OPCM-19");
-
+        if (!_opcm.isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            require(address(_opcm.protocolVersions()) == _proxies.ProtocolVersions, "CHECK-OPCM-17");
+            require(address(_opcm.superchainConfig()) == _proxies.SuperchainConfig, "CHECK-OPCM-19");
+        }
         // Ensure that the OPCM impls are correctly saved
         IOPContractsManager.Implementations memory impls = _opcm.implementations();
         require(impls.l1ERC721BridgeImpl == _impls.L1ERC721Bridge, "CHECK-OPCM-50");
