@@ -2,7 +2,7 @@ name: coverage-op-historical-proof
 
 on:
   push:
-    branches: [ main ]
+    branches: [ unstable, main ]
   pull_request:
   workflow_dispatch:
 
@@ -41,3 +41,4 @@ jobs:
           env_vars: OS,RUST
           name: reth-op-historical-proof-unit-tests
           verbose: true
+          force: true
