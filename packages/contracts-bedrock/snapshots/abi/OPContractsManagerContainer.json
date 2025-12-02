@@ -368,7 +368,7 @@
   },
   {
     "inputs": [],
-    "name": "OPContractsManagerContractsContainer_DevFeatureInProd",
+    "name": "OPContractsManagerContainer_DevFeatureInProd",
     "type": "error"
   }
 ]

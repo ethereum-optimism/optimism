@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -35,23 +34,23 @@ type DisputeGameContract interface {
 }
 
 func NewDisputeGameContractForGame(ctx context.Context, metrics metrics.ContractMetricer, caller *batching.MultiCaller, game gameTypes.GameMetadata) (DisputeGameContract, error) {
-	return NewDisputeGameContract(ctx, metrics, caller, types.GameType(game.GameType), game.Proxy)
+	return NewDisputeGameContract(ctx, metrics, caller, gameTypes.GameType(game.GameType), game.Proxy)
 }
 
-func NewDisputeGameContract(ctx context.Context, metrics metrics.ContractMetricer, caller *batching.MultiCaller, gameType types.GameType, addr common.Address) (DisputeGameContract, error) {
+func NewDisputeGameContract(ctx context.Context, metrics metrics.ContractMetricer, caller *batching.MultiCaller, gameType gameTypes.GameType, addr common.Address) (DisputeGameContract, error) {
 	switch gameType {
-	case types.SuperCannonGameType, types.SuperCannonKonaGameType, types.SuperPermissionedGameType, types.SuperAsteriscKonaGameType:
+	case gameTypes.SuperCannonGameType, gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType, gameTypes.SuperAsteriscKonaGameType:
 		return NewSuperFaultDisputeGameContract(ctx, metrics, addr, caller)
 
-	case types.CannonGameType,
-		types.PermissionedGameType,
-		types.CannonKonaGameType,
-		types.AsteriscGameType,
-		types.AlphabetGameType,
-		types.FastGameType,
-		types.AsteriscKonaGameType:
+	case gameTypes.CannonGameType,
+		gameTypes.PermissionedGameType,
+		gameTypes.CannonKonaGameType,
+		gameTypes.AsteriscGameType,
+		gameTypes.AlphabetGameType,
+		gameTypes.FastGameType,
+		gameTypes.AsteriscKonaGameType:
 		return NewPreInteropFaultDisputeGameContract(ctx, metrics, addr, caller)
-	case types.OptimisticZKGameType:
+	case gameTypes.OptimisticZKGameType:
 		return NewOptimisticZKDisputeGameContract(metrics, addr, caller)
 	default:
 		return nil, ErrUnsupportedGameType

@@ -16,7 +16,12 @@ type L2ELNode interface {
 }
 
 type L2ELConfig struct {
-	SupervisorID *stack.SupervisorID
+	SupervisorID  *stack.SupervisorID
+	P2PAddr       string
+	P2PPort       int
+	P2PNodeKeyHex string
+	StaticPeers   []string
+	TrustedPeers  []string
 }
 
 func L2ELWithSupervisor(supervisorID stack.SupervisorID) L2ELOption {
@@ -25,9 +30,25 @@ func L2ELWithSupervisor(supervisorID stack.SupervisorID) L2ELOption {
 	})
 }
 
+// L2ELWithP2PConfig sets deterministic P2P identity and static peers for the L2 EL.
+func L2ELWithP2PConfig(addr string, port int, nodeKeyHex string, staticPeers, trustedPeers []string) L2ELOption {
+	return L2ELOptionFn(func(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig) {
+		cfg.P2PAddr = addr
+		cfg.P2PPort = port
+		cfg.P2PNodeKeyHex = nodeKeyHex
+		cfg.StaticPeers = staticPeers
+		cfg.TrustedPeers = trustedPeers
+	})
+}
+
 func DefaultL2ELConfig() *L2ELConfig {
 	return &L2ELConfig{
-		SupervisorID: nil,
+		SupervisorID:  nil,
+		P2PAddr:       "127.0.0.1",
+		P2PPort:       0,
+		P2PNodeKeyHex: "",
+		StaticPeers:   nil,
+		TrustedPeers:  nil,
 	}
 }
 

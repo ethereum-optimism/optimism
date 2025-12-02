@@ -7,8 +7,7 @@ import (
 	"time"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
@@ -24,7 +23,7 @@ const (
 var zkVersions = []contractVersion{
 	{
 		version:  versZKLatest,
-		gameType: faultTypes.OptimisticZKGameType,
+		gameType: gameTypes.OptimisticZKGameType,
 		loadAbi:  snapshots.LoadZKDisputeGameABI,
 	},
 }
@@ -42,7 +41,7 @@ func TestZKSimpleGetters(t *testing.T) {
 		{
 			methodAlias: "status",
 			method:      methodStatus,
-			result:      types.GameStatusChallengerWon,
+			result:      gameTypes.GameStatusChallengerWon,
 			call: func(game OptimisticZKDisputeGameContract) (any, error) {
 				return game.GetStatus(context.Background())
 			},
@@ -58,7 +57,7 @@ func TestZKSimpleGetters(t *testing.T) {
 		{
 			methodAlias: "resolve",
 			method:      methodResolve,
-			result:      types.GameStatusInProgress,
+			result:      gameTypes.GameStatusInProgress,
 			call: func(game OptimisticZKDisputeGameContract) (any, error) {
 				return game.CallResolve(context.Background())
 			},
@@ -105,7 +104,7 @@ func TestZKGetMetadata(t *testing.T) {
 			expectedL1Head := common.Hash{0x0a, 0x0b}
 			expectedL2BlockNumber := uint64(123)
 			expectedRootClaim := common.Hash{0x01, 0x02}
-			expectedStatus := types.GameStatusChallengerWon
+			expectedStatus := gameTypes.GameStatusChallengerWon
 			block := rpcblock.ByNumber(889)
 			stubRpc.SetResponse(fdgAddr, methodL1Head, block, nil, []interface{}{expectedL1Head})
 			stubRpc.SetResponse(fdgAddr, methodL2SequenceNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})

@@ -10,7 +10,7 @@ import { DisputeGames } from "test/setup/DisputeGames.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Claim } from "src/dispute/lib/LibUDT.sol";
-import { GameTypes } from "src/dispute/lib/Types.sol";
+import { GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
@@ -119,10 +119,12 @@ contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
     /// @param _opcm The OPCM contract to reference for shared components.
     /// @param _delegateCaller The address of the delegate caller to use for superchain upgrade.
     /// @param _revertBytes The bytes of the revert to expect.
+    /// @param _expectedValidatorErrors The StandardValidator errors to expect.
     function _runOpcmV2UpgradeAndChecks(
         IOPContractsManagerV2 _opcm,
         address _delegateCaller,
-        bytes memory _revertBytes
+        bytes memory _revertBytes,
+        string memory _expectedValidatorErrors
     )
         internal
     {
@@ -199,6 +201,19 @@ contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
         // try to apply to this function call instead.
         IOPContractsManagerStandardValidator validator = _opcm.standardValidator();
 
+        // Expect validator errors if the user provides them. We always expect the L1PAOMultisig
+        // and Challenger overrides so we don't need to repeat them here.
+        if (bytes(_expectedValidatorErrors).length > 0) {
+            vm.expectRevert(
+                bytes(
+                    string.concat(
+                        "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,",
+                        _expectedValidatorErrors
+                    )
+                )
+            );
+        }
+
         // Run the StandardValidator checks.
         if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
             validator.validateWithOverrides(
@@ -247,14 +262,28 @@ contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
     /// @notice Executes the current V2 upgrade and checks the results.
     /// @param _delegateCaller The address of the delegate caller to use for the superchain upgrade.
     function runCurrentUpgradeV2(address _delegateCaller) public {
-        _runOpcmV2UpgradeAndChecks(opcmV2, _delegateCaller, bytes(""));
+        _runOpcmV2UpgradeAndChecks(opcmV2, _delegateCaller, bytes(""), "");
     }
 
     /// @notice Executes the current V2 upgrade and expects reverts.
     /// @param _delegateCaller The address of the delegate caller to use for the superchain upgrade.
     /// @param _revertBytes The bytes of the revert to expect.
     function runCurrentUpgradeV2(address _delegateCaller, bytes memory _revertBytes) public {
-        _runOpcmV2UpgradeAndChecks(opcmV2, _delegateCaller, _revertBytes);
+        _runOpcmV2UpgradeAndChecks(opcmV2, _delegateCaller, _revertBytes, "");
+    }
+
+    /// @notice Executes the current V2 upgrade and expects reverts.
+    /// @param _delegateCaller The address of the delegate caller to use for the superchain upgrade.
+    /// @param _revertBytes The bytes of the revert to expect.
+    /// @param _expectedValidatorErrors The StandardValidator errors to expect.
+    function runCurrentUpgradeV2(
+        address _delegateCaller,
+        bytes memory _revertBytes,
+        string memory _expectedValidatorErrors
+    )
+        public
+    {
+        _runOpcmV2UpgradeAndChecks(opcmV2, _delegateCaller, _revertBytes, _expectedValidatorErrors);
     }
 }
 
@@ -442,6 +471,102 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
                 IOPContractsManagerV2.OPContractsManagerV2_ProxyMustLoad.selector, "L1CrossDomainMessenger"
             )
         );
+    }
+
+    /// @notice Tests that repeatedly upgrading can enable a previously disabled game type.
+    function test_upgrade_enableGameType_succeeds() public {
+        uint256 originalBond = disputeGameFactory.initBonds(GameTypes.CANNON);
+
+        // First, disable Cannon and clear its bond so the factory entry is removed.
+        v2UpgradeInput.disputeGameConfigs[0].enabled = false;
+        v2UpgradeInput.disputeGameConfigs[0].initBond = 0;
+        runCurrentUpgradeV2(chainPAO, hex"", "PLDG-10");
+        assertEq(address(disputeGameFactory.gameImpls(GameTypes.CANNON)), address(0), "game impl not cleared");
+
+        // Re-enable Cannon and restore its bond so that it is re-installed.
+        v2UpgradeInput.disputeGameConfigs[0].enabled = true;
+        v2UpgradeInput.disputeGameConfigs[0].initBond = originalBond;
+        runCurrentUpgradeV2(chainPAO);
+        assertEq(
+            address(disputeGameFactory.gameImpls(GameTypes.CANNON)),
+            opcmV2.implementations().faultDisputeGameV2Impl,
+            "game impl not restored"
+        );
+        assertEq(disputeGameFactory.initBonds(GameTypes.CANNON), originalBond, "init bond not restored");
+    }
+
+    /// @notice Tests that disabling a game type removes it from the factory.
+    function test_upgrade_disableGameType_succeeds() public {
+        // Establish the baseline where Cannon is enabled.
+        runCurrentUpgradeV2(chainPAO);
+        assertEq(
+            address(disputeGameFactory.gameImpls(GameTypes.CANNON)),
+            opcmV2.implementations().faultDisputeGameV2Impl,
+            "initial game impl mismatch"
+        );
+
+        // Disable Cannon and zero its bond, then ensure it is removed.
+        v2UpgradeInput.disputeGameConfigs[0].enabled = false;
+        v2UpgradeInput.disputeGameConfigs[0].initBond = 0;
+        runCurrentUpgradeV2(chainPAO, hex"", "PLDG-10");
+        assertEq(address(disputeGameFactory.gameImpls(GameTypes.CANNON)), address(0), "game impl not cleared");
+        assertEq(disputeGameFactory.initBonds(GameTypes.CANNON), 0, "init bond not cleared");
+        assertEq(disputeGameFactory.gameArgs(GameTypes.CANNON), bytes(""), "game args not cleared");
+    }
+
+    /// @notice Tests that the upgrade flow can update the Cannon and Permissioned prestate.
+    function test_upgrade_updatePrestate_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
+
+        // Run baseline upgrade and capture the current prestates.
+        runCurrentUpgradeV2(chainPAO);
+        assertEq(
+            _gameArgsAbsolutePrestate(GameTypes.CANNON),
+            Claim.unwrap(cannonPrestate),
+            "baseline cannon prestate mismatch"
+        );
+        assertEq(
+            _gameArgsAbsolutePrestate(GameTypes.PERMISSIONED_CANNON),
+            Claim.unwrap(cannonPrestate),
+            "baseline permissioned prestate mismatch"
+        );
+
+        // Prepare new prestates.
+        Claim newPrestate = Claim.wrap(bytes32(keccak256("new cannon prestate")));
+        cannonPrestate = newPrestate;
+
+        // Update the dispute game configs to point at the new prestates.
+        v2UpgradeInput.disputeGameConfigs[0].gameArgs =
+            abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: newPrestate }));
+        v2UpgradeInput.disputeGameConfigs[1].gameArgs = abi.encode(
+            IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                absolutePrestate: newPrestate,
+                proposer: permissionedGameProposer(disputeGameFactory),
+                challenger: permissionedGameChallenger(disputeGameFactory)
+            })
+        );
+
+        // Run the upgrade again and ensure prestates updated.
+        runCurrentUpgradeV2(chainPAO);
+        assertEq(_gameArgsAbsolutePrestate(GameTypes.CANNON), Claim.unwrap(newPrestate), "cannon prestate not updated");
+        assertEq(
+            _gameArgsAbsolutePrestate(GameTypes.PERMISSIONED_CANNON),
+            Claim.unwrap(newPrestate),
+            "permissioned prestate not updated"
+        );
+    }
+
+    /// @notice Extracts the absolute prestate embedded in a dispute game config.
+    /// @param _gameType Game type to inspect.
+    /// @return prestate_ The absolute prestate stored in the factory's game args.
+    function _gameArgsAbsolutePrestate(GameType _gameType) internal view returns (bytes32 prestate_) {
+        bytes memory args = disputeGameFactory.gameArgs(_gameType);
+        if (args.length == 0) {
+            return bytes32(0);
+        }
+        assembly {
+            prestate_ := mload(add(args, 0x20))
+        }
     }
 }
 

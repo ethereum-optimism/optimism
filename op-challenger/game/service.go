@@ -7,6 +7,7 @@ import (
 	"io"
 	"sync/atomic"
 
+	challengerClient "github.com/ethereum-optimism/optimism/op-challenger/game/client"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
 	"github.com/ethereum-optimism/optimism/op-challenger/sender"
@@ -38,7 +39,7 @@ type Service struct {
 	monitor *gameMonitor
 	sched   *scheduler.Scheduler
 
-	faultGamesCloser fault.CloseFunc
+	clientProvider *challengerClient.Provider
 
 	preimages *keccak.LargePreimageScheduler
 
@@ -211,9 +212,8 @@ func (s *Service) initBondClaims() error {
 func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
 	oracles := registry.NewOracleRegistry()
-	caller := batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize)
-	closer, err := fault.RegisterGameTypes(ctx, s.systemClock, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, oracles, s.txSender, s.factoryContract, caller, s.l1Client, cfg.SelectiveClaimResolution, s.claimants)
-	s.faultGamesCloser = closer
+	s.clientProvider = challengerClient.NewProvider(ctx, s.logger, cfg, s.l1Client)
+	err := fault.RegisterGameTypes(ctx, s.systemClock, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, oracles, s.txSender, s.factoryContract, s.clientProvider, cfg.SelectiveClaimResolution, s.claimants)
 	if err != nil {
 		return err
 	}
@@ -272,8 +272,8 @@ func (s *Service) Stop(ctx context.Context) error {
 			result = errors.Join(result, fmt.Errorf("failed to close claimer: %w", err))
 		}
 	}
-	if s.faultGamesCloser != nil {
-		s.faultGamesCloser()
+	if s.clientProvider != nil {
+		s.clientProvider.Close()
 	}
 	if s.pprofService != nil {
 		if err := s.pprofService.Stop(ctx); err != nil {

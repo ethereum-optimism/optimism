@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
@@ -926,9 +926,9 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	}
 
 	// L2Output Submitter
-	respectedGameType := faultTypes.PermissionedGameType
+	respectedGameType := gameTypes.PermissionedGameType
 	if cfg.AllocType == config.AllocTypeFastGame {
-		respectedGameType = faultTypes.FastGameType
+		respectedGameType = gameTypes.FastGameType
 	}
 	proposerCLIConfig := &l2os.CLIConfig{
 		L1EthRpc:          sys.EthInstances[RoleL1].UserRPC().RPC(),

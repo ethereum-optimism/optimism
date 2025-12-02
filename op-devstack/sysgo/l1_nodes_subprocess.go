@@ -109,12 +109,12 @@ func (n *ExternalL1Geth) Start() {
 			}
 		}
 	}
-	stdOutLogs := logpipe.LogProcessor(func(line []byte) {
+	stdOutLogs := logpipe.LogCallback(func(line []byte) {
 		e := logpipe.ParseGoStructuredLogs(line)
 		logOut(e)
 		onLogEntry(e)
 	})
-	stdErrLogs := logpipe.LogProcessor(func(line []byte) {
+	stdErrLogs := logpipe.LogCallback(func(line []byte) {
 		e := logpipe.ParseGoStructuredLogs(line)
 		logErr(e)
 		onLogEntry(e)

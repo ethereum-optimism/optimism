@@ -992,3 +992,14 @@ func (n *OpNode) getP2PNodeIfEnabled() *p2p.NodeP2P {
 	defer n.p2pMu.Unlock()
 	return n.p2pNode
 }
+
+func (n *OpNode) SafeDB() SafeDBReader {
+	return n.safeDB
+}
+
+func (n *OpNode) SyncStatus() *eth.SyncStatus {
+	if n.l2Driver == nil || n.l2Driver.StatusTracker == nil {
+		return &eth.SyncStatus{}
+	}
+	return n.l2Driver.StatusTracker.SyncStatus()
+}

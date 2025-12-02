@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -49,7 +50,7 @@ type Metricer interface {
 }
 
 type RunConfig struct {
-	TraceType        types.TraceType
+	GameType         gameTypes.GameType
 	Name             string
 	Prestate         common.Hash
 	PrestateFilename string
@@ -138,44 +139,44 @@ func (r *Runner) loop(ctx context.Context, runConfig RunConfig, rollupClient *so
 }
 
 func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfig RunConfig, rollupClient *sources.RollupClient, supervisorClient *sources.SupervisorClient, caller *batching.MultiCaller) {
-	recordError := func(err error, traceType string, m Metricer, log log.Logger) {
+	recordError := func(err error, configName string, m Metricer, log log.Logger) {
 		if errors.Is(err, ErrUnexpectedStatusCode) {
 			log.Error("Incorrect status code", "type", runConfig.Name, "err", err)
-			m.RecordInvalid(traceType)
+			m.RecordInvalid(configName)
 		} else if errors.Is(err, trace.ErrVMPanic) {
 			log.Error("VM panicked", "type", runConfig.Name)
-			m.RecordPanic(traceType)
+			m.RecordPanic(configName)
 		} else if err != nil {
 			log.Error("Failed to run", "type", runConfig.Name, "err", err)
-			m.RecordFailure(traceType)
+			m.RecordFailure(configName)
 		} else {
 			log.Info("Successfully verified output root", "type", runConfig.Name)
-			m.RecordSuccess(traceType)
+			m.RecordSuccess(configName)
 		}
 	}
 
 	var prestateSource prestateFetcher
 	if strings.HasPrefix(runConfig.PrestateFilename, "file:") {
 		path := runConfig.PrestateFilename[len("file:"):]
-		rlog.Info("Using local file prestate", "type", runConfig.TraceType, "path", path)
+		rlog.Info("Using local file prestate", "type", runConfig.GameType, "path", path)
 		prestateSource = &LocalPrestateFetcher{path: path}
 	} else if runConfig.PrestateFilename != "" {
-		rlog.Info("Using named prestate", "type", runConfig.TraceType, "filename", runConfig.PrestateFilename)
+		rlog.Info("Using named prestate", "type", runConfig.GameType, "filename", runConfig.PrestateFilename)
 		prestateSource = &NamedPrestateFetcher{filename: runConfig.PrestateFilename}
 	} else if runConfig.Prestate == (common.Hash{}) {
-		rlog.Info("Using on chain prestate", "type", runConfig.TraceType)
+		rlog.Info("Using on chain prestate", "type", runConfig.GameType)
 		prestateSource = &OnChainPrestateFetcher{
 			m:                  r.m,
 			gameFactoryAddress: r.cfg.GameFactoryAddress,
-			gameType:           runConfig.TraceType.GameType(),
+			gameType:           runConfig.GameType,
 			caller:             caller,
 		}
 	} else {
-		rlog.Info("Using specific prestate", "type", runConfig.TraceType, "hash", runConfig.Prestate)
+		rlog.Info("Using specific prestate", "type", runConfig.GameType, "hash", runConfig.Prestate)
 		prestateSource = &HashPrestateFetcher{prestateHash: runConfig.Prestate}
 	}
 
-	localInputs, err := createGameInputs(ctx, rlog, rollupClient, supervisorClient, runConfig.Name, runConfig.TraceType)
+	localInputs, err := createGameInputs(ctx, rlog, rollupClient, supervisorClient, runConfig.Name, runConfig.GameType)
 	if err != nil {
 		recordError(err, runConfig.Name, r.m, rlog)
 		return
@@ -189,12 +190,12 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfi
 		recordError(err, runConfig.Name, r.m, rlog)
 		return
 	}
-	err = r.runOnce(ctx, inputsLogger.With("type", runConfig.Name), runConfig.Name, runConfig.TraceType, prestateSource, localInputs, dir)
+	err = r.runOnce(ctx, inputsLogger.With("type", runConfig.Name), runConfig.Name, runConfig.GameType, prestateSource, localInputs, dir)
 	recordError(err, runConfig.Name, r.m, rlog)
 }
 
-func (r *Runner) runOnce(ctx context.Context, logger log.Logger, name string, traceType types.TraceType, prestateSource prestateFetcher, localInputs utils.LocalGameInputs, dir string) error {
-	provider, err := createTraceProvider(ctx, logger, metrics.NewTypedVmMetrics(r.m, name), r.cfg, prestateSource, traceType, localInputs, dir)
+func (r *Runner) runOnce(ctx context.Context, logger log.Logger, name string, gameType gameTypes.GameType, prestateSource prestateFetcher, localInputs utils.LocalGameInputs, dir string) error {
+	provider, err := createTraceProvider(ctx, logger, metrics.NewTypedVmMetrics(r.m, name), r.cfg, prestateSource, gameType, localInputs, dir)
 	if err != nil {
 		return fmt.Errorf("failed to create trace provider: %w", err)
 	}
