@@ -65,7 +65,7 @@ contract OPContractsManagerUtils {
     ///         https://specs.optimism.io/protocol/configurability.html#consensus-parameters
     /// @param _l2ChainId The L2 chain ID to map to an L1 batch inbox address.
     /// @return Chain ID mapped to an L1 batch inbox address.
-    function chainIdToBatchInboxAddress(uint256 _l2ChainId) public pure returns (address) {
+    function chainIdToBatchInboxAddress(uint256 _l2ChainId) external pure returns (address) {
         bytes1 versionByte = 0x00;
         bytes32 hashedChainId = keccak256(bytes.concat(bytes32(_l2ChainId)));
         bytes19 first19Bytes = bytes19(hashedChainId);
@@ -145,7 +145,7 @@ contract OPContractsManagerUtils {
         string memory _name,
         ExtraInstruction[] memory _instructions
     )
-        public
+        external
         view
         returns (bytes memory)
     {
@@ -182,7 +182,7 @@ contract OPContractsManagerUtils {
         string memory _contractName,
         ExtraInstruction[] memory _instructions
     )
-        public
+        external
         returns (address payable)
     {
         // Loads are allowed to fail ONLY if the user explicitly permitted it (or if this is a
@@ -259,7 +259,7 @@ contract OPContractsManagerUtils {
         bytes32 _slot,
         uint8 _offset
     )
-        public
+        external
     {
         // Check to make sure that we're not downgrading. Downgrades aren't inherently dangerous
         // but we also don't test for them so we don't really know if a specific downgrade will be
