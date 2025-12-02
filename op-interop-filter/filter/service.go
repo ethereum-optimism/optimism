@@ -145,11 +145,24 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 }
 
 func (s *Service) initRPCServer(cfg *Config) error {
+	opts := []oprpc.Option{
+		oprpc.WithLogger(s.log),
+	}
+
+	// Load JWT secret if path is provided
+	if cfg.JWTSecretPath != "" {
+		secret, err := oprpc.ObtainJWTSecret(s.log, cfg.JWTSecretPath, cfg.RPC.EnableAdmin)
+		if err != nil {
+			return fmt.Errorf("failed to obtain JWT secret: %w", err)
+		}
+		opts = append(opts, oprpc.WithJWTSecret(secret[:]))
+	}
+
 	server := oprpc.NewServer(
 		cfg.RPC.ListenAddr,
 		cfg.RPC.ListenPort,
 		s.version,
-		oprpc.WithLogger(s.log),
+		opts...,
 	)
 
 	// Register supervisor query API

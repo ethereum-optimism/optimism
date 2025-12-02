@@ -36,6 +36,11 @@ var (
 		EnvVars: prefixEnvVars("BACKFILL_DURATION"),
 		Value:   "24h",
 	}
+	JWTSecretFlag = &cli.StringFlag{
+		Name:    "rpc.jwt-secret",
+		Usage:   "Path to JWT secret file for admin RPC authentication",
+		EnvVars: prefixEnvVars("RPC_JWT_SECRET"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -45,6 +50,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	DataDirFlag,
 	BackfillDurationFlag,
+	JWTSecretFlag,
 }
 
 func init() {

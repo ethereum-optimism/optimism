@@ -18,6 +18,7 @@ type Config struct {
 	L2RPCs           []string
 	DataDir          string
 	BackfillDuration time.Duration
+	JWTSecretPath    string
 	Version          string
 
 	LogConfig     oplog.CLIConfig
@@ -47,6 +48,7 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		L2RPCs:           ctx.StringSlice(flags.L2RPCsFlag.Name),
 		DataDir:          ctx.String(flags.DataDirFlag.Name),
 		BackfillDuration: backfillDuration,
+		JWTSecretPath:    ctx.String(flags.JWTSecretFlag.Name),
 		Version:          version,
 		LogConfig:        oplog.ReadCLIConfig(ctx),
 		MetricsConfig:    opmetrics.ReadCLIConfig(ctx),

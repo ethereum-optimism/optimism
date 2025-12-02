@@ -32,7 +32,7 @@ func main() {
 	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, "")
 	app.Name = "op-interop-filter"
 	app.Usage = "Interop transaction filter service"
-	app.Description = "Validates interop executing messages for op-geth transaction filtering"
+	app.Description = "Validates interop executing messages for transaction filtering"
 	app.Action = cliapp.LifecycleCmd(filter.Main(app.Version))
 	app.Commands = []*cli.Command{
 		{
