@@ -21,7 +21,7 @@ reth-provider.workspace = true
 
 # op-reth
 # proofs exex handles `TrieUpdates` in notifications
-reth-optimism-trie = { workspace = true, features = ["serde-bincode-compat"] }
+reth-optimism-trie = { workspace = true, features = ["serde-bincode-compat", "metrics"] }
 
 # alloy
 alloy-consensus.workspace = true
