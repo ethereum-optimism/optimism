@@ -1,0 +1,78 @@
+# Node Design Overview
+
+The entry-point for the `kona-node` is the [`RollupNodeService`][trait]
+trait which encapsulates the core wiring for the node. The default
+implementation of the trait [`start` method][start] handles connecting
+all the different components of the node, running each in a spawned
+thread. As such, each node component is considered an actor.
+
+The [`RollupNodeService`][trait] abstracts individual actors through
+the [`NodeActor` trait][actor]. With the `NodeActor` trait, the
+`RollupNodeService` builds the actor and then starts it.
+
+Kona provides implementations for all `NodeActor`s required
+to run a `RollupNodeService`. Actors are defined in the
+[actors][actors] module of the `kona-node-service` crate.
+
+The `kona-node` is an implementation of the `RollupNodeService`
+that lives in the [standard][standard] module.
+
+
+### Actors
+
+The architecture of `kona-node` is a web of actors that share
+state through message passing, using channels, rather than using
+shared memory.
+
+The [`RollupNodeService`][trait] defines the set of required
+actors using associated types. These are subject to change,
+but are currently defined as follows.
+
+- **Derivation Actor**: Orchestrates the derivation pipeline,
+  deriving L2 payload attributes from l1 blocks. Payload
+  attributes prepared this way are forwarded to the Engine
+  Actor to be executed. The [derivation][derivation] docs
+  dive deeper into how the derivation actor works.
+- **Engine Actor**: Brokers the connection to the execution
+  layer client (or "execution engine"). The engine actor
+  turns messages from other actors into engine "tasks"
+  that are executed in a round-robin against the EL client.
+  The [engine][engine] docs expand on this.
+- **Network Actor**: Manages the P2P Network for the rollup
+  node. The P2P stack consists of `discv5` peer discovery
+  and block gossip through libp2p. Visit the [network][p2p]
+  docs for more detail.
+- **Supervisor Actor (beta)**: The supervisor actor is an
+  interop feature that allows the `kona-node` to be
+  "managed" (or "indexed") by the supervisor - a new
+  component in the OP Stack. A detailed overview of
+  interop and the supervisor's role is provided in the
+  [supervisor][supervisor] docs.
+- **Runtime Actor**: Loads runtime values from the contracts
+  on the L1 chain for the OP Stack. This is a very
+  light-weight actor described in [runtime][runtime] docs.
+- **Sequencer Actor**: The sequencer actor extends the
+  `kona-node` to be run as a sequencer. Sequencing is
+  periphery to the basic rollup node operation. See
+  the [sequencer][sequencer].
+- **RPC Actor**: The RPC actor spins up and serves an
+  RPC server that exposes the rpc methods required by
+  the [OP Stack Specs][specs].
+
+
+
+
+[p2p]: ./p2p
+[engine]: ./engine
+[derivation]: ./derivation
+[supervisor]: #TODO
+[runtime]: #TODO
+[sequencer]: ./sequencer
+
+[specs]: https://specs.optimism.io/protocol/rollup-node.html
+
+[standard]: https://github.com/op-rs/kona/blob/main/crates/node/service/src/service/standard/node.rs
+[actors]: https://github.com/op-rs/kona/tree/main/crates/node/service/src/actors
+[actor]: https://github.com/op-rs/kona/blob/main/crates/node/service/src/actors/traits.rs#L19
+[start]: https://github.com/op-rs/kona/blob/main/crates/node/service/src/service/core.rs#L161-L162
+[trait]: https://github.com/op-rs/kona/blob/main/crates/node/service/src/service/core.rs#L56

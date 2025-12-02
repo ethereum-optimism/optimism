@@ -1,0 +1,93 @@
+import { Callout } from 'vocs/components'
+
+# Kona  [Documentation for Kona users and developers]
+
+Kona is an implementation of the [OP Stack][op-stack] written in Rust,
+designed to be modular and extensible. `no_std` support is prioritized
+to provide the building blocks for fault proofs.
+
+<Callout type="warning">
+Kona is in active development and should be considered experimental.
+</Callout>
+
+<Callout type="note">
+These docs may contain inaccuracies as it evolves.
+
+Please [open an issue][new-issue] if you find any errors or have any suggestions
+for improvements, and also feel free to [contribute][contributing] to the project!
+</Callout>
+
+
+## Introduction
+
+Originally a suite of portable implementations of the OP Stack rollup state transition,
+Kona has been extended to be _the monorepo_ for <a href="https://specs.optimism.io/">OP Stack</a>
+types, components, and services built in Rust. Kona provides an ecosystem of extensible, low-level
+crates that compose into components and services required for the OP Stack.
+
+Protocol crates are `no_std` compatible for use within the Fault Proof. Types defined in these
+libraries are shared by other components of the OP Stack including the rollup node.
+
+Proof crates are available for developing verifiable Rust programs targeting
+[Fault Proof VMs](/glossary#fault-proof-vm).
+These libraries provide tooling and abstractions around low-level syscalls, memory management,
+and other common structures that authors of verifiable programs will need to interact with.
+It also provides build pipelines for compiling `no_std` Rust programs to a format that can be
+executed by supported Fault Proof VM targets.
+
+Kona is built and maintained by open source contributors and is licensed under the MIT License.
+
+## Goals of Kona
+
+**1. Composability**
+
+Kona provides a common set of tools and abstractions for developing verifiable Rust programs
+on top of several supported Fault Proof VM targets. This is done to ensure that programs
+written for one supported FPVM can be easily ported to another supported FPVM, and that the
+ecosystem of programs built on top of these targets can be easily shared and reused.
+
+**2. Safety**
+
+Through standardization of these low-level system interfaces and build pipelines, Kona seeks
+to increase coverage over the low-level operations that are required to build on top of a FPVM.
+
+**3. Developer Experience**
+
+Building on top of custom Rust targets can be difficult, especially when the target is
+nascent and tooling is not yet mature. Kona seeks to improve this experience by standardizing
+and streamlining the process of developing and compiling verifiable Rust programs, targeted
+at supported FPVMs.
+
+**4. Performance**
+
+Kona is opinionated in that it favors `no_std` Rust programs for embedded FPVM development,
+for both performance and portability. In contrast with alternative approaches, such as the
+[`op-program`][op-program] using the Golang `MIPS64` target, `no_std` Rust programs produce
+much smaller binaries, resulting in fewer instructions that need to be executed on the FPVM.
+In addition, this offers developers more low-level control over interactions with the FPVM
+kernel, which can be useful for optimizing performance-critical code.
+
+## Contributing
+
+Contributors are welcome! Please see the [contributing guide][contributing] for more information.
+
+[op-stack]: https://github.com/ethereum-optimism/optimism
+[op-program]: https://github.com/ethereum-optimism/optimism/tree/develop/op-program
+[cannon]: https://github.com/ethereum-optimism/optimism/tree/develop/cannon
+[cannon-rs]: https://github.com/op-rs/cannon-rs
+[asterisc]: https://github.com/ethereum-optimism/asterisc
+[fp-specs]: https://specs.optimism.io/experimental/fault-proof/index.html
+[fpp-specs]: https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program
+[preimage-specs]: https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle
+[cannon-specs]: https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine
+[l2-output-root]: https://specs.optimism.io/protocol/proposals.html#l2-output-commitment-construction
+[op-succinct]: https://github.com/succinctlabs/op-succinct
+[revm]: https://github.com/bluealloy/revm
+
+[kona]: https://github.com/op-rs/kona
+[issues]: https://github.com/op-rs/kona/issues
+[new-issue]: https://github.com/op-rs/kona/issues/new
+[contributing]: https://github.com/op-rs/kona/tree/main/CONTRIBUTING.md
+
+[op-labs]: https://github.com/ethereum-optimism
+[bad-boi-labs]: https://github.com/BadBoiLabs

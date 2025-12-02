@@ -1,0 +1,30 @@
+[
+  {
+    "bytes": "1",
+    "label": "isEcotone",
+    "offset": 0,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "1",
+    "label": "isFjord",
+    "offset": 1,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "1",
+    "label": "isIsthmus",
+    "offset": 2,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "1",
+    "label": "isJovian",
+    "offset": 3,
+    "slot": "0",
+    "type": "bool"
+  }
+]

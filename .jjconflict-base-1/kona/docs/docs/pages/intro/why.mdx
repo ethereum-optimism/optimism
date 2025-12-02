@@ -1,0 +1,45 @@
+import { Callout } from 'vocs/components'
+
+# Why Kona?
+
+Kona leverages the abstractions of the Rust Ethereum ecosystem
+providing a modular, extensible implementation of the OP Stack.
+By re-implementing the OP Stack in Rust, Kona brings the
+superchain into a robust, multi-client future.
+
+## Abstractions
+
+Building off learnings from the [optimism monorepo][optimism], Kona
+is trait abstracted and customizable. Entire components can be swapped
+out, and new behavior easily injected.
+
+- **Components**: Kona is built and grouped into modular components
+   that can be used independently or together. This allows developers to
+   pick and choose the parts they need for their specific use case.
+- **Trait Abstractions**: Kona uses trait abstractions between and inside
+   components to allow for easy customization and extension.
+- **Public Crates**: Using Rust's crate system, Kona benefits from upstream
+   improvements through crate re-use. It also means, custom components for
+   Kona can be easily shared and reused across the ecosystem.
+
+
+## Adoption
+
+Kona is being adopted and customized through its [abstractions](#abstractions)
+across the OP Stack ecosystem. Further, Kona's OP Stack components are
+continuously being tested against the reference implementations in the
+[Optimism Monorepo][optimism] to ensure compatibility and correctness
+(in both implementations). Continuous testing happens across different
+repository CI sets as well as long-lived testnets and periphery nodes.
+
+
+## Community
+
+Contributions are highly praised and appreciated. It's extremely difficult
+to build a thriving contributor community. Kona isn't where we'd like to be
+just yet, but we aspire to be like Reth.
+
+That said, come join us and leave a lasting impact on the OP Stack!
+
+
+[optimism]: https://github.com/ethereum-optimism/optimism

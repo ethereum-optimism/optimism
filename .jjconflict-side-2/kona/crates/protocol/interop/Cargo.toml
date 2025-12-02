@@ -1,0 +1,90 @@
+[package]
+name = "kona-interop"
+description = "Core functionality and primitives for the Interop feature of the OP Stack."
+version = "0.4.5"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Workspace
+kona-genesis.workspace = true
+kona-registry.workspace = true
+kona-protocol.workspace = true
+
+# General
+thiserror.workspace = true
+async-trait.workspace = true
+tracing.workspace = true
+derive_more = { workspace = true, features = ["from", "as_ref", "constructor"] }
+
+# Alloy
+alloy-serde = { workspace = true, optional = true }
+alloy-rlp.workspace = true
+alloy-eips.workspace = true
+alloy-sol-types.workspace = true
+alloy-consensus.workspace = true
+alloy-primitives = { workspace = true, features = ["rlp"] }
+op-alloy-consensus.workspace = true
+
+# Arbitrary
+arbitrary = { version = "1.4", features = ["derive"], optional = true }
+
+# Serde
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true
+tokio = { workspace = true, features = ["full"] }
+alloy-primitives = { workspace = true, features = ["rlp", "arbitrary"] }
+arbitrary = { version = "1.4", features = ["derive"] }
+rand = { workspace = true, features = ["thread_rng"] }
+
+[features]
+default = []
+std = [
+	"alloy-consensus/std",
+	"alloy-eips/std",
+	"alloy-primitives/std",
+	"alloy-rlp/std",
+	"alloy-serde?/std",
+	"alloy-sol-types/std",
+	"derive_more/display",
+	"derive_more/std",
+	"kona-genesis/std",
+	"kona-protocol/std",
+	"kona-registry/std",
+	"op-alloy-consensus/std",
+	"serde?/std",
+	"thiserror/std",
+	"tracing/std",
+]
+arbitrary = [
+	"alloy-consensus/arbitrary",
+	"alloy-eips/arbitrary",
+	"alloy-primitives/arbitrary",
+	"alloy-serde?/arbitrary",
+	"alloy-sol-types/arbitrary",
+	"dep:arbitrary",
+	"kona-genesis/arbitrary",
+	"kona-protocol/arbitrary",
+	"op-alloy-consensus/arbitrary",
+	"std",
+]
+serde = [
+	"alloy-consensus/serde",
+	"alloy-eips/serde",
+	"alloy-primitives/serde",
+	"dep:alloy-serde",
+	"dep:serde",
+	"kona-genesis/serde",
+	"kona-protocol/serde",
+	"op-alloy-consensus/serde",
+]
+test-utils = [ "kona-protocol/test-utils", "std" ]
+

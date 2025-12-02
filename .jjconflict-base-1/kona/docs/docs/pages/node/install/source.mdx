@@ -1,0 +1,83 @@
+# Building from Source
+
+:::note
+
+Building from source requires that the Rust toolchain is installed, as well as the `just` command runner.
+
+Visit the [Prerequisites](/node/install/overview) for details on installing Rust and `just`.
+
+:::
+
+First clone the repository:
+
+```bash
+git clone https://github.com/op-rs/kona.git
+cd kona
+```
+
+Then, install the `kona-node` binary into your PATH directly via:
+
+```bash
+cargo install --locked --path bin/node --bin kona-node
+```
+
+The binary will now be accessible as `kona-node` via the command line,
+and exist under your default .cargo/bin folder.
+
+Alternatively, you can build yourself with:
+
+```bash
+cargo build --release --bin kona-node
+```
+
+This will place the reth binary under `./target/release/kona-node`, and
+you can copy it to your directory of preference after that.
+
+## Update Kona
+
+You can update the `kona-node` to a specific version by running the
+commands below.
+
+`${VERSION}` is the version you wish to build in the format `vX.X.X`.
+
+```bash
+git fetch
+git checkout ${VERSION}
+cargo build --release --bin kona-node
+```
+
+## Troubleshooting
+
+### Command is not found
+
+Reth will be installed to `CARGO_HOME` or `$HOME/.cargo`.
+This directory needs to be on your `PATH` before you can run the
+`kona-node` binary.
+
+See ["Configuring the PATH environment variable"][path] for more information.
+
+[path]: https://www.rust-lang.org/tools/install
+
+### Compilation error
+
+Make sure you are running the latest version of Rust.
+If you have installed Rust using rustup, simply run `rustup update`.
+
+If you can't install the latest version of Rust you can instead compile
+using the Minimum Supported Rust Version (MSRV) which is listed under
+the `rust-version` key in kona's [Cargo.toml](https://github.com/op-rs/kona/blob/main/Cargo.toml).
+
+If compilation fails with `(signal: 9, SIGKILL: kill)`, this could mean
+your machine ran out of memory during compilation. If you are on Docker,
+consider increasing the memory of the container, or use a [pre-built
+binary](/node/install/binaries).
+
+If compilation fails with `error: linking with cc failed: exit code: 1`,
+try running `cargo clean`.
+
+
+## Next Steps
+
+- Read the [Overview](/intro/overview) to understand Kona's architecture
+- Check out the [Binaries](/node/run/binary) documentation
+- Explore the [Examples](/sdk/examples/intro)

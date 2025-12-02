@@ -1,0 +1,7 @@
+apiVersion: 1
+
+providers:
+  - name: 'Kona Supervisor'
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

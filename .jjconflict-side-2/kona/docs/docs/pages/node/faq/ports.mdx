@@ -1,0 +1,10 @@
+# Node Ports
+
+| Service         | Default Port | Flag/Env                                 |
+|-----------------|--------------|------------------------------------------|
+| RPC HTTP        | 9545         | `--port` / `KONA_NODE_RPC_PORT`      |
+| RPC WebSocket   | 9545         | (same as HTTP, enabled with `--rpc.ws-enabled`) |
+| P2P TCP         | 9222         | `--p2p.listen.tcp` / `KONA_NODE_P2P_LISTEN_TCP_PORT` |
+| P2P UDP         | 9223         | `--p2p.listen.udp` / `KONA_NODE_P2P_LISTEN_UDP_PORT` |
+| Supervisor RPC  | 9333         | `--supervisor.port` / `KONA_NODE_SEQUENCER_PORT`     |
+| Conductor RPC   | 8547         | `--conductor.rpc` / `KONA_NODE_CONDUCTOR_RPC`        |

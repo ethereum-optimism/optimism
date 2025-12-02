@@ -1,0 +1,211 @@
+# `kona-executor` Extensions
+
+The `kona-executor` crate offers a to-spec, stateless implementation of the OP Stack STF. However, due to the
+power of [`alloy-evm`][alloy-evm]'s factory abstractions, the logic of the STF can be easily customized.
+
+To customize the EVM behavior, for example to add a custom precompile, modify the behavior of an EVM opcode,
+or change the fee handling, you can implement a custom [`EvmFactory`][evm-factory]. The factory is responsible
+for creating EVM instances with your desired customizations.
+
+## Example - Custom Precompile
+
+```rust
+use alloy_evm::{Database, EvmEnv, EvmFactory};
+use alloy_op_evm::OpEvm;
+use alloy_primitives::{Address, Bytes, u64_to_address};
+use kona_executor::StatelessL2Builder;
+use kona_genesis::RollupConfig;
+use op_revm::{
+    DefaultOp, OpContext, OpEvm as RevmOpEvm, OpHaltReason, OpSpecId, OpTransaction,
+    OpTransactionError,
+};
+use revm::{
+    Context, Inspector,
+    context::{Evm as RevmEvm, FrameStack, TxEnv, result::EVMError},
+    handler::instructions::EthInstructions,
+    inspector::NoOpInspector,
+    precompile::{PrecompileResult, PrecompileOutput, Precompiles},
+};
+
+const MY_PRECOMPILE_ADDRESS: Address = u64_to_address(0xFF);
+
+fn my_precompile(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+   Ok(PrecompileOutput::new(50, "hello, world!".as_bytes().into()))
+}
+
+#[derive(Debug, Clone)]
+pub struct CustomEvmFactory;
+
+impl EvmFactory for CustomEvmFactory {
+    type Evm<DB: Database, I: Inspector<OpContext<DB>>> = OpEvm<DB, I, CustomPrecompiles>;
+    type Context<DB: Database> = OpContext<DB>;
+    type Tx = OpTransaction<TxEnv>;
+    type Error<DBError: core::error::Error + Send + Sync + 'static> =
+        EVMError<DBError, OpTransactionError>;
+    type HaltReason = OpHaltReason;
+    type Spec = OpSpecId;
+    type Precompiles = CustomPrecompiles;
+
+    fn create_evm<DB: Database>(
+        &self,
+        db: DB,
+        input: EvmEnv<OpSpecId>,
+    ) -> Self::Evm<DB, NoOpInspector> {
+        let spec_id = *input.spec_id();
+        let ctx = Context::op().with_db(db).with_block(input.block_env).with_cfg(input.cfg_env);
+        
+        // Create custom precompiles with our added precompile
+        let mut precompiles = op_revm::precompiles::granite();
+        precompiles.insert(MY_PRECOMPILE_ADDRESS, my_precompile);
+        let custom_precompiles = CustomPrecompiles { precompiles };
+
+        let revm_evm = RevmOpEvm(RevmEvm {
+            ctx,
+            inspector: NoOpInspector {},
+            instruction: EthInstructions::new_mainnet(),
+            precompiles: custom_precompiles,
+            frame_stack: FrameStack::new(),
+        });
+
+        OpEvm::new(revm_evm, false)
+    }
+
+    fn create_evm_with_inspector<DB: Database, I: Inspector<Self::Context<DB>>>(
+        &self,
+        db: DB,
+        input: EvmEnv<OpSpecId>,
+        inspector: I,
+    ) -> Self::Evm<DB, I> {
+        let spec_id = *input.spec_id();
+        let ctx = Context::op().with_db(db).with_block(input.block_env).with_cfg(input.cfg_env);
+        
+        // Create custom precompiles with our added precompile
+        let mut precompiles = op_revm::precompiles::granite();
+        precompiles.insert(MY_PRECOMPILE_ADDRESS, my_precompile);
+        let custom_precompiles = CustomPrecompiles { precompiles };
+
+        let revm_evm = RevmOpEvm(RevmEvm {
+            ctx,
+            inspector,
+            instruction: EthInstructions::new_mainnet(),
+            precompiles: custom_precompiles,
+            frame_stack: FrameStack::new(),
+        });
+
+        OpEvm::new(revm_evm, true)
+    }
+}
+
+// Custom precompiles wrapper
+#[derive(Debug)]
+pub struct CustomPrecompiles {
+    precompiles: Precompiles,
+}
+
+impl<CTX> revm::handler::PrecompileProvider<CTX> for CustomPrecompiles
+where
+    CTX: revm::context::ContextTr<Cfg: revm::context::Cfg<Spec = OpSpecId>>,
+{
+    type Output = revm::interpreter::InterpreterResult;
+
+    fn set_spec(&mut self, spec: OpSpecId) -> bool {
+        // Update precompiles based on spec if needed
+        false
+    }
+
+    fn run(
+        &mut self,
+        _context: &mut CTX,
+        address: &Address,
+        inputs: &revm::interpreter::InputsImpl,
+        _is_static: bool,
+        gas_limit: u64,
+    ) -> Result<Option<Self::Output>, String> {
+        use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
+        
+        let input = match &inputs.input {
+            revm::interpreter::CallInput::Bytes(bytes) => bytes.clone(),
+            revm::interpreter::CallInput::SharedBuffer(range) => {
+                // Handle shared buffer case - simplified for example
+                Bytes::new()
+            }
+        };
+
+        if let Some(precompile) = self.precompiles.get(address) {
+            let result = (*precompile)(&input, gas_limit);
+            match result {
+                Ok(output) => Ok(Some(InterpreterResult {
+                    result: InstructionResult::Return,
+                    gas: Gas::new(gas_limit - output.gas_used),
+                    output: output.bytes,
+                })),
+                Err(_) => Ok(Some(InterpreterResult {
+                    result: InstructionResult::PrecompileError,
+                    gas: Gas::new(0),
+                    output: Bytes::new(),
+                })),
+            }
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+// - snip -
+
+let cfg = RollupConfig::default();
+let provider = ...;
+let hinter = ...;
+let parent_header = ...;
+
+let executor = StatelessL2Builder::new(
+    &cfg,
+    CustomEvmFactory,
+    provider,
+    hinter,
+    parent_header,
+);
+```
+
+## Migration from the old API
+
+Prior to the integration of `alloy-evm`, `kona-executor` used a builder pattern with `StatelessL2BlockExecutorBuilder::with_handle_register` for EVM customization. The new approach using `EvmFactory` provides better composability and aligns with the broader Alloy ecosystem.
+
+### Key Changes:
+
+1. **Direct construction**: Use `StatelessL2Builder::new()` instead of a builder pattern
+2. **Factory-based customization**: Implement `EvmFactory` instead of registering handlers
+3. **Type safety**: The factory approach provides better compile-time guarantees
+4. **Ecosystem alignment**: Leverages the standard `alloy-evm` interfaces
+
+### Benefits:
+
+- **Composability**: Custom EVM factories can be easily shared and reused
+- **Flexibility**: Full control over EVM creation and configuration
+- **Performance**: Reduced indirection compared to the handler approach
+- **Maintainability**: Cleaner separation of concerns between execution and customization
+
+For more complex customizations involving multiple precompiles, custom opcodes, or specialized execution logic, refer to the [`FpvmOpEvmFactory`](https://github.com/op-rs/kona/blob/main/bin/client/src/fpvm_evm/factory.rs) implementation in the `kona-client` for a comprehensive example.
+
+[op-stack]: https://github.com/ethereum-optimism/optimism
+[op-program]: https://github.com/ethereum-optimism/optimism/tree/develop/op-program
+[cannon]: https://github.com/ethereum-optimism/optimism/tree/develop/cannon
+[cannon-rs]: https://github.com/op-rs/cannon-rs
+[asterisc]: https://github.com/ethereum-optimism/asterisc
+[fp-specs]: https://specs.optimism.io/experimental/fault-proof/index.html
+[fpp-specs]: https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program
+[preimage-specs]: https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle
+[cannon-specs]: https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine
+[l2-output-root]: https://specs.optimism.io/protocol/proposals.html#l2-output-commitment-construction
+[op-succinct]: https://github.com/succinctlabs/op-succinct
+[revm]: https://github.com/bluealloy/revm
+[alloy-evm]: https://github.com/alloy-rs/evm
+[evm-factory]: https://docs.rs/alloy-evm/latest/alloy_evm/eth/struct.EthEvmFactory.html
+
+[kona]: https://github.com/op-rs/kona
+[issues]: https://github.com/op-rs/kona/issues
+[new-issue]: https://github.com/op-rs/kona/issues/new
+[contributing]: https://github.com/op-rs/kona/tree/main/CONTRIBUTING.md
+
+[op-labs]: https://github.com/ethereum-optimism
+[bad-boi-labs]: https://github.com/BadBoiLabs

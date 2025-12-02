@@ -1,0 +1,174 @@
+{{- $local_images := dict
+  "op_node" (localDockerImage "op-node")
+  "op_batcher" (localDockerImage "op-batcher")
+  "op_challenger" (localDockerImage "op-challenger")
+  "op_conductor" (localDockerImage "op-conductor")
+  "op_proposer" (localDockerImage "op-proposer")
+  "op_deployer" (localDockerImage "op-deployer")
+  "op_supervisor" (localDockerImage "op-supervisor")
+  "op_faucet" (localDockerImage "op-faucet")
+  "op_interop_mon" (localDockerImage "op-interop-mon")
+-}}
+{{- $urls := dict
+  "prestate" (localPrestate.URL)
+  "l1_artifacts" (localContractArtifacts "l1")
+  "l2_artifacts" (localContractArtifacts "l2")
+-}}
+{{- $flags := dict
+  "log_level" "--log.level=info"
+  "log_format" "--log.format=logfmtms"
+  "interop_mempool_filtering" "--rollup.interopmempoolfiltering"
+  "experimental_sequencer_api" "--experimental.sequencer-api"
+-}}
+---
+optimism_package:
+  faucet:
+    enabled: true
+    image: {{ $local_images.op_faucet }}
+  interop_mon:
+    enabled: true
+    image: {{ $local_images.op_interop_mon }}
+  superchains:
+    superchain:
+      enabled: true
+  supervisors:
+    supervisor:
+      superchain: superchain
+      image: {{ $local_images.op_supervisor }}
+      extra_params:
+      - {{ $flags.log_level }}
+      - {{ $flags.log_format }}
+  test-sequencers:
+    sequencer:
+      enabled: true
+  chains:
+    op-kurtosis1:
+      participants:
+        node0: &x-node
+          el:
+            type: op-geth
+            image: "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:v1.101602.1-rc.1"
+            log_level: ""
+            extra_env_vars: {}
+            extra_labels: {}
+            extra_params:
+            - {{ $flags.interop_mempool_filtering }}
+            tolerations: []
+            volume_size: 0
+            min_cpu: 0
+            max_cpu: 0
+            min_mem: 0
+            max_mem: 0
+          cl:
+            type: op-node
+            image: {{ $local_images.op_node }}
+            log_level: ""
+            extra_env_vars: {}
+            extra_labels: {}
+            extra_params:
+              - {{ $flags.log_format }}
+              - {{ $flags.experimental_sequencer_api }}
+            tolerations: []
+            volume_size: 0
+            min_cpu: 0
+            max_cpu: 0
+            min_mem: 0
+            max_mem: 0
+          mev_params:
+            image: ""
+            builder_host: ""
+            builder_port: ""
+      network_params:
+        network: "kurtosis"
+        network_id: "2151908"
+        seconds_per_slot: 2
+        fjord_time_offset: 0
+        granite_time_offset: 0
+        holocene_time_offset: 0
+        isthmus_time_offset: 0
+        jovian_time_offset: 0
+        interop_time_offset: 0
+        fund_dev_accounts: true
+      batcher_params:
+        image: {{ $local_images.op_batcher }}
+        extra_params:
+        - {{ $flags.log_level }}
+        - {{ $flags.log_format }}
+      proposer_params:
+        image: {{ $local_images.op_proposer }}
+        extra_params:
+        - {{ $flags.log_level }}
+        - {{ $flags.log_format }}
+        game_type: 1
+        proposal_interval: 10m
+    op-kurtosis2:
+      participants:
+        node0: *x-node
+      network_params:
+        network: "kurtosis"
+        network_id: "2151909"
+        seconds_per_slot: 2
+        fjord_time_offset: 0
+        granite_time_offset: 0
+        holocene_time_offset: 0
+        isthmus_time_offset: 0
+        jovian_time_offset: 0
+        interop_time_offset: 0
+        fund_dev_accounts: true
+      batcher_params:
+        image: {{ $local_images.op_batcher }}
+        extra_params:
+        - {{ $flags.log_level }}
+        - {{ $flags.log_format }}
+      proposer_params:
+        image: {{ $local_images.op_proposer }}
+        extra_params:
+        - {{ $flags.log_level }}
+        - {{ $flags.log_format }}
+        game_type: 1
+        proposal_interval: 10m
+  challengers:
+    challenger:
+      enabled: true
+      image: {{ $local_images.op_challenger }}
+      participants: "*"
+      cannon_prestates_url: {{ localPrestate.URL }}
+      cannon_trace_types: ["super-cannon", "super-permissioned"]
+      extra_params:
+      - {{ $flags.log_level }}
+      - {{ $flags.log_format }}
+  op_contract_deployer_params:
+    image: {{ $local_images.op_deployer }}
+    l1_artifacts_locator: {{ $urls.l1_artifacts }}
+    l2_artifacts_locator: {{ $urls.l2_artifacts }}
+    overrides:
+      faultGameAbsolutePrestate: {{ localPrestate.Hashes.prestate_interop }}
+  global_log_level: "info"
+  global_node_selectors: {}
+  global_tolerations: []
+  persistent: false
+  observability:
+    grafana_params:
+      dashboard_sources:
+        - github.com/ethereum-optimism/grafana-dashboards-public/resources
+        - github.com/op-rs/kona/docker/recipes/kona-node/grafana
+        - github.com/paradigmxyz/reth/etc/grafana
+        - github.com/geoknee/grafana-dashboards/
+        - github.com/nonsense/op-stack-grafana-dashboards/resources
+ethereum_package:
+  participants:
+    - el_type: geth
+      cl_type: teku
+      cl_image: consensys/teku:25.7.1
+  network_params:
+    preset: minimal
+    genesis_delay: 5
+    additional_preloaded_contracts: |
+      {
+        "0x4e59b44847b379578588920cA78FbF26c0B4956C": {
+          "balance": "0ETH",
+          "code": "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3",
+          "storage": {},
+          "nonce": "1"
+        }
+      }

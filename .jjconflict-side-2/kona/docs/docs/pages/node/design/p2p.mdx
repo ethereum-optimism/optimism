@@ -1,0 +1,177 @@
+import { Callout } from 'vocs/components'
+
+# P2P Networking
+
+<Callout type="info">
+
+Partly adapted from the [OP Stack P2P Specs][p2p-specs].
+Please reference the specs for up-to-date OP Stack requirements.
+
+</Callout>
+
+The OP Stack uses P2P networking on the consensus layer to share
+the sequencer's view of the L2 chain with other nodes on the
+network. L2 blocks shared via P2P are considered "unsafe", and
+will be reorganized to match the canonical chain, prioritizing L1.
+
+This means that behavior on the P2P layer does not affect the
+rollup security. As such, rules around banning and scoring peers
+based on their P2P gossip is policy - it is up to the user to
+ultimately choose a configuration best for them.
+
+To understand how the P2P is hooked up to the `kona-node`, jump
+to the [P2P Actor](#-p2p-actor) section below. Otherwise, read
+on to learn more about the details of the P2P stack.
+
+
+### Topography
+
+The P2P stack topography consists of the following.
+
+- Discovery of peers via [discv5][discv5].
+- Gossip and peer connection management through [libp2p][libp2p].
+- Publishing and validation of gossip by the node.
+
+In the `kona-node`, these layers are split up into modular
+components either as modules or distinct crates.
+
+
+#### Discovery
+
+Kona's discovery layer is encapsulated in a "driver" called
+the [`Discv5Driver`][driver]. When started, the driver spawns a
+new thread to handle [`discv5::Discv5`][discv5-service] events
+from its event stream as well as metrics requests from the
+`kona-node`. A "handler" is returned by the consumed
+[`Discv5Driver`][driver] which allows other components of
+the `kona-node` to communicate through channels to the
+spawned [`discv5::Discv5`][discv5-service] service.
+
+When peers are discovered by kona's discovery service, their
+"ENR"s need to be validated to ensure those peers are
+participating in the right network gossip. Ethereum Node
+Records (ENRs) and how they are validated is discussed in a
+[later section](#-node-identification). After their ENRs are
+validated, they are forwarded to the consumer (in kona's case
+libp2p) which establishes and manages the connection to the
+node.
+
+There are also a few more notable functions of Kona's discovery
+driver.
+
+- Every X seconds it attempts to discover random ENRs. This is
+  configurable using `Discv5Builder::with_interval`
+- Every Y seconds it evicts a random ENR from the discovery
+  table to keep peer discovery fresh. This is configurable
+  using `Discv5Builder::with_discovery_randomize`.
+- Every Z seconds it stores its ENR table at a configurable
+  location so if the service is restarted, it doesn't need to
+  rediscover peers, it can just use the stored peers. The
+  interval is configurable using
+  `Discv5Builder::with_store_interval`.
+
+
+#### Gossip
+
+L2 blocks on the OP Stack not otherwise derived from L1 are
+shared over TCP in the P2P network of nodes. Unsafe L2 blocks
+shared this way originate from the sequencer.
+
+In the `kona-node`, L2 block gossip is handled through the
+[libp2p Swarm][swarm]. The `GossipDriver` is the component
+in the `kona-node` that manages the libp2p swarm, including
+any interfacing with the swarm like dialing peers, publishing
+payloads (L2 blocks), handling events from the swarm, and more.
+
+<Callout type="info">
+
+The libp2p swarm must be polled via Swarm as Stream
+in order to make progress.
+Through kona's `GossipDriver`, this can be done by looping
+over and consuming events from `GossipDriver::next`.
+
+</Callout>
+
+The `GossipDriver` provides the methods to handle events
+from the [libp2p Swarm][swarm]. Events should be consumed
+this way in order to use the connection gater as well as peer
+store and fields on the `GossipDriver`.
+
+The [libp2p Swarm][swarm] listens on a specified
+[`Multiaddr`][multiaddr].
+
+
+#### L2 Block Publishing
+
+As mentioned in [the previous section](#-gossip), L2 blocks
+are published as payloads through the [libp2p Swarm][swarm],
+which is done using the `GossipDriver`. The actual payload
+type that is published is an [`OpNetworkPayloadEnvelope`][env],
+which is well documented in the [OP Stack P2P Specs][p2p-specs].
+
+L2 blocks published through the `GossipDriver` are published on
+a "topic". The topic is used by the gossipsub protocol to publish
+the message on that given topic, allowing peers to choose which
+topics they wish to subscribe to.
+
+
+#### L2 Block Validation
+
+L2 blocks are validated in kona through a trait-abstracted
+"block handler". Since messages in the libp2p mesh network are
+snappy compressed, they need to be decompressed and then decoded
+for the correct [block topic][block-topic] those messages are
+published on.
+
+Only once the [`OpNetworkPayloadEnvelope`][env] is successfully
+decoded for the corresponding block topic, is the block validated.
+
+<Callout type="info">
+
+Block validity in kona follows the [OP Stack block validation specs][validation].
+
+</Callout>
+
+As of writing these docs, block validation follows a few rules.
+
+- The timestamp is between 60 seconds in the past and at most 5 seconds in the future.
+- The block hash is valid. This is checked by transforming the payload into a block
+  and then hashing the block header to produce the payload hash.
+- The contents of the payload envelope are correct for its version. Since different
+  versions introduce new contents to the payload from hardforks, the
+  forwards-compatible payload envelope cannot have fields with content that don't exist
+  for previous versions.
+- The block signature is valid.
+
+
+### Node Identification
+
+TODO
+
+
+### P2P Actor
+
+TODO
+
+
+
+
+
+[validation]: https://specs.optimism.io/protocol/rollup-node-p2p.html#block-validation
+
+[block-topic]: https://specs.optimism.io/protocol/rollup-node-p2p.html#gossip-topics
+
+[multiaddr]: https://docs.rs/libp2p/0.56.0/libp2p/struct.Multiaddr.html
+
+[env]: https://docs.rs/op-alloy-rpc-types-engine/latest/op_alloy_rpc_types_engine/struct.OpNetworkPayloadEnvelope.html
+
+[swarm]: https://docs.rs/libp2p/latest/libp2p/struct.Swarm.html
+
+[discv5-service]: https://docs.rs/discv5/latest/discv5/struct.Discv5.html
+
+[driver]: https://docs.rs/kona-p2p/latest/kona_p2p/struct.Discv5Driver.html
+
+[discv5]: https://github.com/ethereum/devp2p/blob/master/discv5/discv5.md
+[libp2p]: https://libp2p.io/
+
+[p2p-specs]: https://specs.optimism.io/protocol/rollup-node-p2p.html

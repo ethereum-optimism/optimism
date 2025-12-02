@@ -1,0 +1,34 @@
+# System Config
+
+The system configuration is a set of configurable chain parameters
+defined in a contract on L1. These parameters can be changed through
+the system config contract, emitting events that are picked up by
+the [rollup node derivation process][derivation]. To dive deeper
+into the System Config, visit the
+[OP Stack Specifications][specs].
+
+## `SystemConfig` Type
+
+The [`SystemConfig`][system-config] type is defined in
+[`kona-genesis`][genesis].
+
+Parameters defined in the [`SystemConfig`][system-config] are expected to be
+updated through L1 receipts, using the [`update_with_receipts`][update] method.
+
+## Holocene Updates
+
+The [Holocene Hardfork][holocene] introduced an update to the
+[`SystemConfig`][system-config] type, adding EIP-1559 parameters to the config.
+
+The [`SystemConfig`][system-config] type in [`kona-genesis`][genesis] provides
+a method called [`eip_1559_params`][eip] that returns the EIP-1559 parameters
+encoded as a [`B64`][b64].
+
+
+[specs]: https://specs.optimism.io/
+[genesis]: https://docs.rs/kona-genesis/latest/kona_genesis/index.html
+[system-config]: https://docs.rs/kona-genesis/latest/kona_genesis/struct.SystemConfig.html
+[update]: https://docs.rs/kona-genesis/latest/kona_genesis/struct.SystemConfig.html#method.update_with_receipts
+[holocene]: https://specs.optimism.io/protocol/holocene/overview.html
+[eip]: https://docs.rs/kona-genesis/latest/kona_genesis/struct.SystemConfig.html#method.eip_1559_params
+[b64]: https://docs.rs/kona-registry/latest/kona_registry/index.html
