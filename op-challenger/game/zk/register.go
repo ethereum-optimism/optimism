@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/client"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/generic"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
@@ -22,6 +23,7 @@ type ClockReader interface {
 
 type Registry interface {
 	RegisterGameType(gameType gameTypes.GameType, creator scheduler.PlayerCreator)
+	RegisterBondContract(gameType gameTypes.GameType, creator claims.BondContractCreator)
 }
 
 type TxSender interface {
@@ -59,6 +61,9 @@ func RegisterGameTypes(
 				clients.L1Client(),
 				ActorCreator(l1Clock, rollupClient, gameStatusProvider, contract, txSender),
 			)
+		})
+		registry.RegisterBondContract(gameTypes.OptimisticZKGameType, func(game gameTypes.GameMetadata) (claims.BondContract, error) {
+			return contracts.NewOptimisticZKDisputeGameContract(m, game.Proxy, clients.MultiCaller())
 		})
 	}
 	return nil

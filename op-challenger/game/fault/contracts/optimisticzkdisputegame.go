@@ -3,6 +3,7 @@ package contracts
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
@@ -44,6 +45,8 @@ type OptimisticZKDisputeGameContract interface {
 	ChallengeTx(ctx context.Context) (txmgr.TxCandidate, error)
 	GetProposal(ctx context.Context) (common.Hash, uint64, error)
 	GetChallengerMetadata(ctx context.Context, block rpcblock.Block) (ChallengerMetadata, error)
+	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error)
+	ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error)
 }
 
 type OptimisticZKDisputeGameContractLatest struct {
@@ -51,6 +54,37 @@ type OptimisticZKDisputeGameContractLatest struct {
 	multiCaller *batching.MultiCaller
 	contract    *batching.BoundContract
 }
+
+func (g *OptimisticZKDisputeGameContractLatest) GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error) {
+	defer g.metrics.StartContractRequest("GetCredit")()
+	results, err := g.multiCaller.Call(ctx, rpcblock.Latest,
+		g.contract.Call(methodCredit, recipient),
+		g.contract.Call(methodStatus))
+	if err != nil {
+		return nil, gameTypes.GameStatusInProgress, err
+	}
+	if len(results) != 2 {
+		return nil, gameTypes.GameStatusInProgress, fmt.Errorf("expected 2 results but got %v", len(results))
+	}
+	credit := results[0].GetBigInt(0)
+	status, err := gameTypes.GameStatusFromUint8(results[1].GetUint8(0))
+	if err != nil {
+		return nil, gameTypes.GameStatusInProgress, fmt.Errorf("invalid game status %v: %w", status, err)
+	}
+	return credit, status, nil
+}
+
+func (g *OptimisticZKDisputeGameContractLatest) ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error) {
+	defer g.metrics.StartContractRequest("ClaimCredit")()
+	call := g.contract.Call(methodClaimCredit, recipient)
+	_, err := g.multiCaller.SingleCall(ctx, rpcblock.Latest, call)
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("%w: %w", ErrSimulationFailed, err)
+	}
+	return call.ToTxCandidate()
+}
+
+var _ OptimisticZKDisputeGameContract = (*OptimisticZKDisputeGameContractLatest)(nil)
 
 func NewOptimisticZKDisputeGameContract(
 	m metrics.ContractMetricer,

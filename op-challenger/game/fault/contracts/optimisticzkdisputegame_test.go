@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -219,6 +221,52 @@ func TestZKGetProposal(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, rootClaim, actualClaim)
 			require.Equal(t, l2SequenceNumber.Uint64(), actualSeqNum)
+		})
+	}
+}
+
+func TestZKGame_GetCredit(t *testing.T) {
+	for _, version := range zkVersions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, game := setupZKDisputeGameTest(t, version)
+			addr := common.Address{0x01}
+			expectedCredit := big.NewInt(4284)
+			expectedStatus := gameTypes.GameStatusChallengerWon
+			stubRpc.SetResponse(zkGameAddr, methodCredit, rpcblock.Latest, []interface{}{addr}, []interface{}{expectedCredit})
+			stubRpc.SetResponse(zkGameAddr, methodStatus, rpcblock.Latest, nil, []interface{}{expectedStatus})
+
+			actualCredit, actualStatus, err := game.GetCredit(context.Background(), addr)
+			require.NoError(t, err)
+			require.Equal(t, expectedCredit, actualCredit)
+			require.Equal(t, expectedStatus, actualStatus)
+		})
+	}
+}
+
+func TestZKGame_ClaimCreditTx(t *testing.T) {
+	for _, version := range zkVersions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			t.Run("Success", func(t *testing.T) {
+				stubRpc, game := setupZKDisputeGameTest(t, version)
+				addr := common.Address{0xaa}
+
+				stubRpc.SetResponse(zkGameAddr, methodClaimCredit, rpcblock.Latest, []interface{}{addr}, nil)
+				tx, err := game.ClaimCreditTx(context.Background(), addr)
+				require.NoError(t, err)
+				stubRpc.VerifyTxCandidate(tx)
+			})
+
+			t.Run("SimulationFails", func(t *testing.T) {
+				stubRpc, game := setupZKDisputeGameTest(t, version)
+				addr := common.Address{0xaa}
+
+				stubRpc.SetError(zkGameAddr, methodClaimCredit, rpcblock.Latest, []interface{}{addr}, errors.New("still locked"))
+				tx, err := game.ClaimCreditTx(context.Background(), addr)
+				require.ErrorIs(t, err, ErrSimulationFailed)
+				require.Equal(t, txmgr.TxCandidate{}, tx)
+			})
 		})
 	}
 }
