@@ -12,7 +12,7 @@ version: '3.4'
 
 services:
   l2:
-    image: us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-geth:${GETH_VERSION:-v1.101411.0}
+    image: us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-geth:${GETH_VERSION:-v1.101603.5}
     command: >
       --datadir=/db
       --networkid=28882
@@ -43,7 +43,7 @@ services:
   op-node:
     depends_on:
       - l2
-    image: us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-node:${OP_NODE_VERSION:-latest}
+    image: us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-node:${OP_NODE_VERSION:-v1.16.2}
     command: >
       op-node
       --l1=${ETH1_HTTP:-https://sepolia.gateway.tenderly.co}
