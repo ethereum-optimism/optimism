@@ -1,0 +1,65 @@
+[
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "20",
+    "label": "systemConfig",
+    "offset": 2,
+    "slot": "0",
+    "type": "contract ISystemConfig"
+  },
+  {
+    "bytes": "20",
+    "label": "disputeGameFactory",
+    "offset": 0,
+    "slot": "1",
+    "type": "contract IDisputeGameFactory"
+  },
+  {
+    "bytes": "20",
+    "label": "anchorGame",
+    "offset": 0,
+    "slot": "2",
+    "type": "contract IFaultDisputeGame"
+  },
+  {
+    "bytes": "64",
+    "label": "startingAnchorRoot",
+    "offset": 0,
+    "slot": "3",
+    "type": "struct Proposal"
+  },
+  {
+    "bytes": "32",
+    "label": "disputeGameBlacklist",
+    "offset": 0,
+    "slot": "5",
+    "type": "mapping(contract IDisputeGame => bool)"
+  },
+  {
+    "bytes": "4",
+    "label": "respectedGameType",
+    "offset": 0,
+    "slot": "6",
+    "type": "GameType"
+  },
+  {
+    "bytes": "8",
+    "label": "retirementTimestamp",
+    "offset": 4,
+    "slot": "6",
+    "type": "uint64"
+  }
+]
