@@ -499,6 +499,7 @@ contract OPContractsManagerV2 is ISemver {
     {
         // Load the full config.
         return FullConfig({
+            disputeGameConfigs: _upgradeInput.disputeGameConfigs,
             saltMixer: string(bytes.concat(bytes32(uint256(uint160(address(_chainContracts.systemConfig)))))),
             superchainConfig: abi.decode(
                 _loadBytes(
@@ -608,7 +609,6 @@ contract OPContractsManagerV2 is ISemver {
                 ),
                 (GameType)
             ),
-            disputeGameConfigs: _upgradeInput.disputeGameConfigs,
             useCustomGasToken: abi.decode(
                 _loadBytes(
                     address(_chainContracts.systemConfig),
