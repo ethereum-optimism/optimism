@@ -1,0 +1,34 @@
+[submodule "packages/contracts-bedrock/lib/openzeppelin-contracts-upgradeable"]
+	path = packages/contracts-bedrock/lib/openzeppelin-contracts-upgradeable
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable
+[submodule "packages/contracts-bedrock/lib/openzeppelin-contracts"]
+	path = packages/contracts-bedrock/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "packages/contracts-bedrock/lib/solmate"]
+	path = packages/contracts-bedrock/lib/solmate
+	url = https://github.com/transmissions11/solmate
+[submodule "packages/contracts-bedrock/lib/forge-std"]
+	path = packages/contracts-bedrock/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "packages/contracts-bedrock/lib/safe-contracts"]
+	path = packages/contracts-bedrock/lib/safe-contracts
+	url = https://github.com/safe-global/safe-contracts
+	branch = v1.4.1
+[submodule "packages/contracts-bedrock/lib/kontrol-cheatcodes"]
+	path = packages/contracts-bedrock/lib/kontrol-cheatcodes
+	url = https://github.com/runtimeverification/kontrol-cheatcodes
+[submodule "packages/contracts-bedrock/lib/solady"]
+	path = packages/contracts-bedrock/lib/solady
+	url = https://github.com/Vectorized/solady
+[submodule "packages/contracts-bedrock/lib/lib-keccak"]
+	path = packages/contracts-bedrock/lib/lib-keccak
+	url = https://github.com/ethereum-optimism/lib-keccak
+[submodule "packages/contracts-bedrock/lib/openzeppelin-contracts-v5"]
+	path = packages/contracts-bedrock/lib/openzeppelin-contracts-v5
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "packages/contracts-bedrock/lib/solady-v0.0.245"]
+	path = packages/contracts-bedrock/lib/solady-v0.0.245
+	url = https://github.com/vectorized/solady
+[submodule "packages/contracts-bedrock/lib/superchain-registry"]
+	path = packages/contracts-bedrock/lib/superchain-registry
+	url = https://github.com/ethereum-optimism/superchain-registry

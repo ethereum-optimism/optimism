@@ -1,0 +1,9 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = []
+extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
+ast = true
+bytecode_hash = 'none'
+evm_version = 'cancun'
+use_literal_content = true

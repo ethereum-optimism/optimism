@@ -1,0 +1,88 @@
+[package]
+name = "kona-genesis"
+version = "0.4.5"
+description = "Optimism genesis types"
+
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Alloy
+alloy-sol-types.workspace = true
+alloy-primitives.workspace = true
+alloy-consensus.workspace = true
+alloy-eips.workspace = true
+alloy-hardforks.workspace = true
+alloy-op-hardforks.workspace = true
+alloy-chains.workspace = true
+alloy-genesis.workspace = true
+
+# Misc
+thiserror.workspace = true
+derive_more = { workspace = true, features = ["from", "try_from"] }
+
+# `revm` feature
+op-revm = { workspace = true, optional = true }
+
+# `arbitrary` feature
+arbitrary = { workspace = true, features = ["derive"], optional = true }
+
+# `serde` feature
+serde = { workspace = true, optional = true }
+serde_repr = { workspace = true, optional = true }
+
+# `tabled` feature
+tabled = { workspace = true, features = ["derive"], optional = true }
+
+[dev-dependencies]
+toml = { workspace = true, features = ["parse", "serde"] }
+rand = { workspace = true, features = ["thread_rng"] }
+serde_json.workspace = true
+arbitrary = { workspace = true, features = ["derive"] }
+alloy-primitives = { workspace = true, features = ["rand", "arbitrary"] }
+
+[features]
+default = []
+revm = [ "dep:op-revm" ]
+tabled = [ "dep:tabled", "std" ]
+std = [
+	"alloy-chains/std",
+	"alloy-consensus/std",
+	"alloy-eips/std",
+	"alloy-genesis/std",
+	"alloy-primitives/std",
+	"alloy-sol-types/std",
+	"derive_more/std",
+	"op-revm?/std",
+	"serde?/std",
+	"thiserror/std",
+]
+arbitrary = [
+	"alloy-chains/arbitrary",
+	"alloy-consensus/arbitrary",
+	"alloy-eips/arbitrary",
+	"alloy-primitives/arbitrary",
+	"alloy-primitives/rand",
+	"alloy-sol-types/arbitrary",
+	"dep:arbitrary",
+	"std",
+]
+serde = [
+	"alloy-chains/serde",
+	"alloy-consensus/serde",
+	"alloy-eips/serde",
+	"alloy-hardforks/serde",
+	"alloy-op-hardforks/serde",
+	"alloy-primitives/serde",
+	"dep:serde",
+	"dep:serde_repr",
+	"op-revm?/serde",
+]

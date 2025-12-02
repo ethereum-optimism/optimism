@@ -1,0 +1,331 @@
+[
+  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "stateMutability": "payable",
+    "type": "receive"
+  },
+  {
+    "inputs": [],
+    "name": "gasLimit",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "initVersion",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint96",
+        "name": "_minDepositAmount",
+        "type": "uint96"
+      },
+      {
+        "internalType": "address",
+        "name": "_l2Recipient",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IL1CrossDomainMessenger",
+        "name": "_messenger",
+        "type": "address"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_gasLimit",
+        "type": "uint32"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "l2Recipient",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "messenger",
+    "outputs": [
+      {
+        "internalType": "contract IL1CrossDomainMessenger",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "minDepositAmount",
+    "outputs": [
+      {
+        "internalType": "uint96",
+        "name": "",
+        "type": "uint96"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "proxyAdmin",
+    "outputs": [
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "proxyAdminOwner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "_newGasLimit",
+        "type": "uint32"
+      }
+    ],
+    "name": "setGasLimit",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_newL2Recipient",
+        "type": "address"
+      }
+    ],
+    "name": "setL2Recipient",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint96",
+        "name": "_newMinDepositAmount",
+        "type": "uint96"
+      }
+    ],
+    "name": "setMinDepositAmount",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "l2Recipient",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "FeesDeposited",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newBalance",
+        "type": "uint256"
+      }
+    ],
+    "name": "FundsReceived",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "oldGasLimit",
+        "type": "uint32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "newGasLimit",
+        "type": "uint32"
+      }
+    ],
+    "name": "GasLimitUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "oldL2Recipient",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "newL2Recipient",
+        "type": "address"
+      }
+    ],
+    "name": "L2RecipientUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint96",
+        "name": "oldMinDepositAmount",
+        "type": "uint96"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint96",
+        "name": "newMinDepositAmount",
+        "type": "uint96"
+      }
+    ],
+    "name": "MinDepositAmountUpdated",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotProxyAdmin",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotResolvedDelegateProxy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotSharedProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_ProxyAdminNotFound",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReinitializableBase_ZeroInitVersion",
+    "type": "error"
+  }
+]

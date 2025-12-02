@@ -1,0 +1,994 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
+
+// Libraries
+import { LibString } from "@solady/utils/LibString.sol";
+import { GameType, Claim, GameTypes } from "src/dispute/lib/Types.sol";
+import { Duration } from "src/dispute/lib/LibUDT.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "src/libraries/Constants.sol";
+import { Hash } from "src/dispute/lib/Types.sol";
+import { Features } from "src/libraries/Features.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
+
+// Interfaces
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
+import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
+import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
+import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
+
+/// @title OPContractsManagerStandardValidator
+/// @notice This contract is used to validate the configuration of the L1 contracts of an OP Stack chain.
+/// It is a stateless contract that can be used to ensure that the L1 contracts are configured correctly.
+/// It is intended to be used by the L1 PAO multisig to validate the configuration of the L1 contracts
+/// before and after an upgrade.
+contract OPContractsManagerStandardValidator is ISemver {
+    /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
+    /// @custom:semver 2.3.0
+    string public constant version = "2.3.0";
+
+    /// @notice The SuperchainConfig contract.
+    ISuperchainConfig public superchainConfig;
+
+    /// @notice The L1 PAO multisig address.
+    address public l1PAOMultisig;
+
+    /// @notice The challenger address for permissioned dispute games.
+    address public challenger;
+
+    /// @notice The withdrawal delay in seconds for the DelayedWETH contract.
+    uint256 public withdrawalDelaySeconds;
+
+    // Implementation addresses as state variables
+
+    /// @notice The L1ERC721Bridge implementation address.
+    address public l1ERC721BridgeImpl;
+
+    /// @notice The OptimismPortal implementation address.
+    address public optimismPortalImpl;
+
+    /// @notice The OptimismPortalInterop implementation address.
+    address public optimismPortalInteropImpl;
+
+    /// @notice The ETHLockbox implementation address.
+    address public ethLockboxImpl;
+
+    /// @notice The SystemConfig implementation address.
+    address public systemConfigImpl;
+
+    /// @notice The OptimismMintableERC20Factory implementation address.
+    address public optimismMintableERC20FactoryImpl;
+
+    /// @notice The L1CrossDomainMessenger implementation address.
+    address public l1CrossDomainMessengerImpl;
+
+    /// @notice The L1StandardBridge implementation address.
+    address public l1StandardBridgeImpl;
+
+    /// @notice The DisputeGameFactory implementation address.
+    address public disputeGameFactoryImpl;
+
+    /// @notice The AnchorStateRegistry implementation address.
+    address public anchorStateRegistryImpl;
+
+    /// @notice The DelayedWETH implementation address.
+    address public delayedWETHImpl;
+
+    /// @notice The MIPS implementation address.
+    address public mipsImpl;
+
+    /// @notice The FaultDisputeGame implementation address.
+    address public faultDisputeGameImpl;
+
+    /// @notice The PermissionedFaultDisputeGame implementation address.
+    address public permissionedDisputeGameImpl;
+
+    /// @notice Bitmap of development features, verification may depend on these features.
+    bytes32 public devFeatureBitmap;
+
+    /// @notice Struct containing the implementation addresses of the L1 contracts.
+    struct Implementations {
+        address l1ERC721BridgeImpl;
+        address optimismPortalImpl;
+        address optimismPortalInteropImpl;
+        address ethLockboxImpl;
+        address systemConfigImpl;
+        address optimismMintableERC20FactoryImpl;
+        address l1CrossDomainMessengerImpl;
+        address l1StandardBridgeImpl;
+        address disputeGameFactoryImpl;
+        address anchorStateRegistryImpl;
+        address delayedWETHImpl;
+        address mipsImpl;
+        address faultDisputeGameImpl;
+        address permissionedDisputeGameImpl;
+    }
+
+    /// @notice Struct containing the input parameters for the validation process.
+    struct ValidationInput {
+        ISystemConfig sysCfg;
+        bytes32 absolutePrestate;
+        uint256 l2ChainID;
+        address proposer;
+    }
+
+    /// @notice Struct containing the input parameters for the validation process when dev features are enabled.
+    struct ValidationInputDev {
+        ISystemConfig sysCfg;
+        bytes32 cannonPrestate;
+        bytes32 cannonKonaPrestate;
+        uint256 l2ChainID;
+        address proposer;
+    }
+
+    /// @notice Struct containing override parameters for the validation process.
+    struct ValidationOverrides {
+        address l1PAOMultisig;
+        address challenger;
+    }
+
+    /// @notice Struct containing the unified game args for a dispute game implementation.
+    struct DisputeGameImplementation {
+        address gameAddress;
+        uint256 maxGameDepth;
+        uint256 splitDepth;
+        Duration maxClockDuration;
+        Duration clockExtension;
+        GameType gameType;
+        // extra args
+        uint256 l2SequenceNumber;
+        // dispute-game v2 game args
+        Claim absolutePrestate;
+        IBigStepper vm;
+        IAnchorStateRegistry asr;
+        IDelayedWETH weth;
+        uint256 l2ChainId;
+        address challenger;
+        address proposer;
+    }
+
+    /// @notice Constructor for the OPContractsManagerStandardValidator contract.
+    constructor(
+        Implementations memory _implementations,
+        ISuperchainConfig _superchainConfig,
+        address _l1PAOMultisig,
+        address _challenger,
+        uint256 _withdrawalDelaySeconds,
+        bytes32 _devFeatureBitmap
+    ) {
+        superchainConfig = _superchainConfig;
+        l1PAOMultisig = _l1PAOMultisig;
+        challenger = _challenger;
+        withdrawalDelaySeconds = _withdrawalDelaySeconds;
+        devFeatureBitmap = _devFeatureBitmap;
+
+        // Set implementation addresses from struct
+        l1ERC721BridgeImpl = _implementations.l1ERC721BridgeImpl;
+        optimismPortalImpl = _implementations.optimismPortalImpl;
+        optimismPortalInteropImpl = _implementations.optimismPortalInteropImpl;
+        ethLockboxImpl = _implementations.ethLockboxImpl;
+        systemConfigImpl = _implementations.systemConfigImpl;
+        optimismMintableERC20FactoryImpl = _implementations.optimismMintableERC20FactoryImpl;
+        l1CrossDomainMessengerImpl = _implementations.l1CrossDomainMessengerImpl;
+        l1StandardBridgeImpl = _implementations.l1StandardBridgeImpl;
+        disputeGameFactoryImpl = _implementations.disputeGameFactoryImpl;
+        anchorStateRegistryImpl = _implementations.anchorStateRegistryImpl;
+        delayedWETHImpl = _implementations.delayedWETHImpl;
+        mipsImpl = _implementations.mipsImpl;
+        faultDisputeGameImpl = _implementations.faultDisputeGameImpl;
+        permissionedDisputeGameImpl = _implementations.permissionedDisputeGameImpl;
+    }
+
+    /// @notice Returns a string representing the overrides that are set.
+    function getOverridesString(ValidationOverrides memory _overrides) private pure returns (string memory) {
+        string memory overridesError;
+
+        if (_overrides.l1PAOMultisig != address(0)) {
+            overridesError = string.concat(overridesError, "OVERRIDES-L1PAOMULTISIG");
+        }
+
+        if (_overrides.challenger != address(0)) {
+            if (bytes(overridesError).length > 0) overridesError = string.concat(overridesError, ",");
+            overridesError = string.concat(overridesError, "OVERRIDES-CHALLENGER");
+        }
+
+        return overridesError;
+    }
+
+    /// @notice Returns the expected L1 PAO multisig address.
+    function expectedL1PAOMultisig(ValidationOverrides memory _overrides) internal view returns (address) {
+        if (_overrides.l1PAOMultisig != address(0)) {
+            return _overrides.l1PAOMultisig;
+        }
+        return l1PAOMultisig;
+    }
+
+    /// @notice Returns the expected challenger address.
+    function expectedChallenger(ValidationOverrides memory _overrides) internal view returns (address) {
+        if (_overrides.challenger != address(0)) {
+            return _overrides.challenger;
+        }
+        return challenger;
+    }
+
+    /// @notice Returns the expected PreimageOracle version.
+    function preimageOracleVersion() public pure returns (string memory) {
+        return "1.1.4";
+    }
+
+    /// @notice Internal function to get version from any contract implementing ISemver.
+    function getVersion(address _contract) private view returns (string memory) {
+        return ISemver(_contract).version();
+    }
+
+    /// @notice Internal function to get the ProxyAdmin contract from any contract implementing IProxyAdminOwnedBase.
+    function getProxyAdmin(address _contract) private view returns (IProxyAdmin) {
+        return IProxyAdminOwnedBase(_contract).proxyAdmin();
+    }
+
+    /// @notice Internal function to get the implementation address of any contract via the ProxyAdmin contract.
+    function getProxyImplementation(IProxyAdmin _admin, address _contract) private view returns (address) {
+        return _admin.getProxyImplementation(_contract);
+    }
+
+    /// @notice Asserts that the SuperchainConfig contract is valid.
+    function assertValidSuperchainConfig(string memory _errors) internal view returns (string memory) {
+        _errors = internalRequire(!superchainConfig.paused(address(0)), "SPRCFG-10", _errors);
+        return _errors;
+    }
+
+    /// @notice Asserts that the ProxyAdmin contract is valid.
+    function assertValidProxyAdmin(
+        string memory _errors,
+        IProxyAdmin _admin,
+        ValidationOverrides memory _overrides
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        address _l1PAOMultisig = expectedL1PAOMultisig(_overrides);
+        _errors = internalRequire(_admin.owner() == _l1PAOMultisig, "PROXYA-10", _errors);
+        return _errors;
+    }
+
+    /// @notice Asserts that the SystemConfig contract is valid.
+    function assertValidSystemConfig(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IProxyAdmin _admin
+    )
+        internal
+        view
+        virtual
+        returns (string memory)
+    {
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_sysCfg)), getVersion(systemConfigImpl)), "SYSCON-10", _errors
+        );
+        _errors = internalRequire(_sysCfg.gasLimit() <= uint64(500_000_000), "SYSCON-20", _errors);
+        _errors = internalRequire(_sysCfg.scalar() != 0, "SYSCON-30", _errors);
+        _errors =
+            internalRequire(getProxyImplementation(_admin, address(_sysCfg)) == systemConfigImpl, "SYSCON-40", _errors);
+
+        IResourceMetering.ResourceConfig memory outputConfig = _sysCfg.resourceConfig();
+        _errors = internalRequire(outputConfig.maxResourceLimit == 20_000_000, "SYSCON-50", _errors);
+        _errors = internalRequire(outputConfig.elasticityMultiplier == 10, "SYSCON-60", _errors);
+        _errors = internalRequire(outputConfig.baseFeeMaxChangeDenominator == 8, "SYSCON-70", _errors);
+        _errors = internalRequire(outputConfig.systemTxMaxGas == 1_000_000, "SYSCON-80", _errors);
+        _errors = internalRequire(outputConfig.minimumBaseFee == 1 gwei, "SYSCON-90", _errors);
+        _errors = internalRequire(outputConfig.maximumBaseFee == type(uint128).max, "SYSCON-100", _errors);
+        _errors = internalRequire(_sysCfg.operatorFeeScalar() == 0, "SYSCON-110", _errors);
+        _errors = internalRequire(_sysCfg.operatorFeeConstant() == 0, "SYSCON-120", _errors);
+        _errors = internalRequire(_sysCfg.superchainConfig() == superchainConfig, "SYSCON-130", _errors);
+        return _errors;
+    }
+
+    /// @notice Asserts that the L1CrossDomainMessenger contract is valid.
+    function assertValidL1CrossDomainMessenger(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IProxyAdmin _admin
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        IL1CrossDomainMessenger _messenger = IL1CrossDomainMessenger(_sysCfg.l1CrossDomainMessenger());
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_messenger)), getVersion(l1CrossDomainMessengerImpl)), "L1xDM-10", _errors
+        );
+        _errors = internalRequire(
+            getProxyImplementation(_admin, address(_messenger)) == l1CrossDomainMessengerImpl, "L1xDM-20", _errors
+        );
+
+        IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
+
+        _errors = internalRequire(
+            address(_messenger.OTHER_MESSENGER()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L1xDM-30", _errors
+        );
+        _errors = internalRequire(
+            address(_messenger.otherMessenger()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L1xDM-40", _errors
+        );
+        _errors = internalRequire(address(_messenger.PORTAL()) == address(_portal), "L1xDM-50", _errors);
+        _errors = internalRequire(address(_messenger.portal()) == address(_portal), "L1xDM-60", _errors);
+        _errors = internalRequire(address(_messenger.systemConfig()) == address(_sysCfg), "L1xDM-70", _errors);
+        _errors = internalRequire(getProxyAdmin(address(_messenger)) == _admin, "L1xDM-80", _errors);
+        return _errors;
+    }
+
+    /// @notice Asserts that the L1StandardBridge contract is valid.
+    function assertValidL1StandardBridge(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IProxyAdmin _admin
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        IL1StandardBridge _bridge = IL1StandardBridge(payable(_sysCfg.l1StandardBridge()));
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_bridge)), getVersion(l1StandardBridgeImpl)), "L1SB-10", _errors
+        );
+        _errors = internalRequire(
+            getProxyImplementation(_admin, address(_bridge)) == l1StandardBridgeImpl, "L1SB-20", _errors
+        );
+
+        IL1CrossDomainMessenger _messenger = IL1CrossDomainMessenger(_sysCfg.l1CrossDomainMessenger());
+
+        _errors = internalRequire(address(_bridge.MESSENGER()) == address(_messenger), "L1SB-30", _errors);
+        _errors = internalRequire(address(_bridge.messenger()) == address(_messenger), "L1SB-40", _errors);
+        _errors = internalRequire(address(_bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-50", _errors);
+        _errors = internalRequire(address(_bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-60", _errors);
+        _errors = internalRequire(address(_bridge.systemConfig()) == address(_sysCfg), "L1SB-70", _errors);
+        _errors = internalRequire(getProxyAdmin(address(_bridge)) == _admin, "L1SB-80", _errors);
+        return _errors;
+    }
+
+    /// @notice Asserts that the OptimismMintableERC20Factory contract is valid.
+    function assertValidOptimismMintableERC20Factory(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IProxyAdmin _admin
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        IOptimismMintableERC20Factory _factory = IOptimismMintableERC20Factory(_sysCfg.optimismMintableERC20Factory());
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_factory)), getVersion(optimismMintableERC20FactoryImpl)),
+            "MERC20F-10",
+            _errors
+        );
+        _errors = internalRequire(
+            getProxyImplementation(_admin, address(_factory)) == optimismMintableERC20FactoryImpl, "MERC20F-20", _errors
+        );
+
+        IL1StandardBridge _bridge = IL1StandardBridge(payable(_sysCfg.l1StandardBridge()));
+        _errors = internalRequire(_factory.BRIDGE() == address(_bridge), "MERC20F-30", _errors);
+        _errors = internalRequire(_factory.bridge() == address(_bridge), "MERC20F-40", _errors);
+        return _errors;
+    }
+
+    /// @notice Asserts that the L1ERC721Bridge contract is valid.
+    function assertValidL1ERC721Bridge(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IProxyAdmin _admin
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        IL1ERC721Bridge _bridge = IL1ERC721Bridge(_sysCfg.l1ERC721Bridge());
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_bridge)), getVersion(l1ERC721BridgeImpl)), "L721B-10", _errors
+        );
+        _errors =
+            internalRequire(getProxyImplementation(_admin, address(_bridge)) == l1ERC721BridgeImpl, "L721B-20", _errors);
+
+        IL1CrossDomainMessenger _l1XDM = IL1CrossDomainMessenger(_sysCfg.l1CrossDomainMessenger());
+        _errors = internalRequire(address(_bridge.OTHER_BRIDGE()) == Predeploys.L2_ERC721_BRIDGE, "L721B-30", _errors);
+        _errors = internalRequire(address(_bridge.otherBridge()) == Predeploys.L2_ERC721_BRIDGE, "L721B-40", _errors);
+        _errors = internalRequire(address(_bridge.MESSENGER()) == address(_l1XDM), "L721B-50", _errors);
+        _errors = internalRequire(address(_bridge.messenger()) == address(_l1XDM), "L721B-60", _errors);
+        _errors = internalRequire(address(_bridge.systemConfig()) == address(_sysCfg), "L721B-70", _errors);
+        _errors = internalRequire(getProxyAdmin(address(_bridge)) == _admin, "L721B-80", _errors);
+        return _errors;
+    }
+
+    /// @notice Asserts that the OptimismPortal contract is valid.
+    function assertValidOptimismPortal(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IProxyAdmin _admin
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
+
+        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            _errors = internalRequire(
+                LibString.eq(getVersion(address(_portal)), string.concat(getVersion(optimismPortalInteropImpl))),
+                "PORTAL-10",
+                _errors
+            );
+            _errors = internalRequire(
+                getProxyImplementation(_admin, address(_portal)) == optimismPortalInteropImpl, "PORTAL-20", _errors
+            );
+        } else {
+            _errors = internalRequire(
+                LibString.eq(getVersion(address(_portal)), getVersion(optimismPortalImpl)), "PORTAL-10", _errors
+            );
+            _errors = internalRequire(
+                getProxyImplementation(_admin, address(_portal)) == optimismPortalImpl, "PORTAL-20", _errors
+            );
+        }
+
+        IDisputeGameFactory _dgf = IDisputeGameFactory(_sysCfg.disputeGameFactory());
+        _errors = internalRequire(address(_portal.disputeGameFactory()) == address(_dgf), "PORTAL-30", _errors);
+        _errors = internalRequire(address(_portal.systemConfig()) == address(_sysCfg), "PORTAL-40", _errors);
+        _errors = internalRequire(_portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "PORTAL-80", _errors);
+        _errors = internalRequire(getProxyAdmin(address(_portal)) == _admin, "PORTAL-90", _errors);
+        return _errors;
+    }
+
+    /// @notice Asserts that the ETHLockbox contract is valid.
+    function assertValidETHLockbox(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IProxyAdmin _admin
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
+        IETHLockbox _lockbox = IETHLockbox(_portal.ethLockbox());
+
+        // If this chain isn't using the ETHLockbox, skip the validation.
+        if (!_sysCfg.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            return _errors;
+        }
+
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_lockbox)), getVersion(ethLockboxImpl)), "LOCKBOX-10", _errors
+        );
+        _errors =
+            internalRequire(getProxyImplementation(_admin, address(_lockbox)) == ethLockboxImpl, "LOCKBOX-20", _errors);
+        _errors = internalRequire(getProxyAdmin(address(_lockbox)) == _admin, "LOCKBOX-30", _errors);
+        _errors = internalRequire(_lockbox.systemConfig() == _sysCfg, "LOCKBOX-40", _errors);
+        _errors = internalRequire(_lockbox.authorizedPortals(_portal), "LOCKBOX-50", _errors);
+        return _errors;
+    }
+
+    /// @notice Asserts that the DisputeGameFactory contract is valid.
+    function assertValidDisputeGameFactory(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IProxyAdmin _admin,
+        ValidationOverrides memory _overrides
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        address _l1PAOMultisig = expectedL1PAOMultisig(_overrides);
+        IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_factory)), getVersion(disputeGameFactoryImpl)), "DF-10", _errors
+        );
+        _errors = internalRequire(
+            getProxyImplementation(_admin, address(_factory)) == disputeGameFactoryImpl, "DF-20", _errors
+        );
+        _errors = internalRequire(_factory.owner() == _l1PAOMultisig, "DF-30", _errors);
+        _errors = internalRequire(getProxyAdmin(address(_factory)) == _admin, "DF-40", _errors);
+        return _errors;
+    }
+
+    /// @notice Asserts that the PermissionedDisputeGame contract is valid.
+    function assertValidPermissionedDisputeGame(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        bytes32 _absolutePrestate,
+        uint256 _l2ChainID,
+        IProxyAdmin _admin,
+        address _proposer,
+        ValidationOverrides memory _overrides
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        GameType gameType = GameTypes.PERMISSIONED_CANNON;
+        string memory errorPrefix = "PDDG";
+
+        // Collect game implementation parameters
+        DisputeGameImplementation memory gameImpl;
+        bool failedToGetImpl = false;
+        (gameImpl, _errors, failedToGetImpl) = getGameImplementation(_errors, gameType, _sysCfg, errorPrefix);
+        if (failedToGetImpl) {
+            // Return early on failure to avoid trying to validate an invalid dispute game
+            return _errors;
+        }
+
+        _errors = assertValidDisputeGame(
+            DisputeGameValidationArgs({
+                errors: _errors,
+                sysCfg: _sysCfg,
+                game: gameImpl,
+                absolutePrestate: _absolutePrestate,
+                l2ChainID: _l2ChainID,
+                admin: _admin,
+                gameType: gameType,
+                overrides: _overrides,
+                errorPrefix: errorPrefix
+            })
+        );
+
+        // Challenger is specific to the PermissionedDisputeGame contract.
+        address _challenger = expectedChallenger(_overrides);
+        _errors = internalRequire(gameImpl.challenger == _challenger, "PDDG-130", _errors);
+        _errors = internalRequire(gameImpl.proposer == _proposer, "PDDG-140", _errors);
+
+        return _errors;
+    }
+
+    /// @notice Asserts that the PermissionlessDisputeGame contract is valid.
+    function assertValidPermissionlessDisputeGame(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        GameType _gameType,
+        bytes32 _absolutePrestate,
+        uint256 _l2ChainID,
+        IProxyAdmin _admin,
+        ValidationOverrides memory _overrides,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        // Collect game implementation parameters
+        DisputeGameImplementation memory gameImpl;
+        bool failedToGetImpl = false;
+        (gameImpl, _errors, failedToGetImpl) = getGameImplementation(_errors, _gameType, _sysCfg, _errorPrefix);
+        if (failedToGetImpl) {
+            // Return early on failure to avoid trying to validate an invalid dispute game
+            return _errors;
+        }
+
+        _errors = assertValidDisputeGame(
+            DisputeGameValidationArgs({
+                errors: _errors,
+                sysCfg: _sysCfg,
+                game: gameImpl,
+                absolutePrestate: _absolutePrestate,
+                l2ChainID: _l2ChainID,
+                admin: _admin,
+                gameType: _gameType,
+                overrides: _overrides,
+                errorPrefix: _errorPrefix
+            })
+        );
+
+        return _errors;
+    }
+
+    function getGameImplementation(
+        string memory _initialErrors,
+        GameType _gameType,
+        ISystemConfig _sysCfg,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        returns (DisputeGameImplementation memory gameImpl_, string memory errors_, bool failed_)
+    {
+        errors_ = _initialErrors;
+        bool isPermissioned = _gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw();
+        IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
+        IPermissionedDisputeGame _game = IPermissionedDisputeGame(address(_factory.gameImpls(_gameType)));
+
+        if (address(_game) == address(0)) {
+            errors_ = internalRequire(false, string.concat(_errorPrefix, "-10"), errors_);
+            // Return early to avoid reverting, since this means that there is no valid game impl
+            // for this game type.
+            failed_ = true;
+            return (gameImpl_, errors_, failed_);
+        }
+
+        bytes memory _gameArgs = _factory.gameArgs(_gameType);
+        bool lenCheckFailed;
+        (errors_, lenCheckFailed) = assertGameArgsLength(errors_, _gameArgs, isPermissioned, _errorPrefix);
+        if (lenCheckFailed) {
+            // Return early to avoid decoding invalid game args
+            failed_ = true;
+            return (gameImpl_, errors_, failed_);
+        }
+        gameImpl_ = _decodeDisputeGameImpl(_game, _gameArgs, _gameType);
+
+        return (gameImpl_, errors_, failed_);
+    }
+
+    struct DisputeGameValidationArgs {
+        string errors;
+        ISystemConfig sysCfg;
+        DisputeGameImplementation game;
+        bytes32 absolutePrestate;
+        uint256 l2ChainID;
+        IProxyAdmin admin;
+        GameType gameType;
+        ValidationOverrides overrides;
+        string errorPrefix;
+    }
+
+    /// @notice Asserts that a DisputeGame contract is valid.
+    function assertValidDisputeGame(DisputeGameValidationArgs memory _args)
+        internal
+        view
+        returns (string memory errors_)
+    {
+        errors_ = _args.errors;
+        string memory errorPrefix = _args.errorPrefix;
+        DisputeGameImplementation memory game = _args.game;
+        (Hash anchorRoot,) = game.asr.getAnchorRoot();
+        IDisputeGameFactory dgf = IDisputeGameFactory(_args.sysCfg.disputeGameFactory());
+
+        errors_ = internalRequire(
+            LibString.eq(
+                getVersion(game.gameAddress),
+                _args.gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
+                    ? getVersion(permissionedDisputeGameImpl)
+                    : getVersion(faultDisputeGameImpl)
+            ),
+            string.concat(errorPrefix, "-20"),
+            errors_
+        );
+
+        errors_ = internalRequire(
+            GameType.unwrap(game.gameType) == GameType.unwrap(_args.gameType),
+            string.concat(errorPrefix, "-30"),
+            errors_
+        );
+        errors_ = internalRequire(
+            Claim.unwrap(game.absolutePrestate) == _args.absolutePrestate, string.concat(errorPrefix, "-40"), errors_
+        );
+        errors_ = internalRequire(game.l2ChainId == _args.l2ChainID, string.concat(errorPrefix, "-60"), errors_);
+        errors_ = internalRequire(game.l2SequenceNumber == 0, string.concat(errorPrefix, "-70"), errors_);
+        errors_ =
+            internalRequire(Duration.unwrap(game.clockExtension) == 10800, string.concat(errorPrefix, "-80"), errors_);
+        errors_ = internalRequire(game.splitDepth == 30, string.concat(errorPrefix, "-90"), errors_);
+        errors_ = internalRequire(game.maxGameDepth == 73, string.concat(errorPrefix, "-100"), errors_);
+        errors_ = internalRequire(
+            Duration.unwrap(game.maxClockDuration) == 302400, string.concat(errorPrefix, "-110"), errors_
+        );
+        errors_ = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(errorPrefix, "-120"), errors_);
+
+        errors_ = assertValidDelayedWETH(errors_, _args.sysCfg, game.weth, _args.admin, _args.overrides, errorPrefix);
+        errors_ = assertValidAnchorStateRegistry(errors_, _args.sysCfg, dgf, game.asr, _args.admin, errorPrefix);
+
+        errors_ = assertValidMipsVm(errors_, IMIPS64(address(game.vm)), errorPrefix);
+
+        // Only assert valid preimage oracle if the game VM is valid, since otherwise
+        // the contract is likely to revert.
+        if (address(game.vm) == mipsImpl) {
+            errors_ = assertValidPreimageOracle(errors_, game.vm.oracle(), errorPrefix);
+        }
+
+        return errors_;
+    }
+
+    /// @notice Asserts that the DelayedWETH contract is valid.
+    function assertValidDelayedWETH(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IDelayedWETH _weth,
+        IProxyAdmin _admin,
+        ValidationOverrides memory _overrides,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        _errorPrefix = string.concat(_errorPrefix, "-DWETH");
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_weth)), getVersion(delayedWETHImpl)),
+            string.concat(_errorPrefix, "-10"),
+            _errors
+        );
+        _errors = internalRequire(
+            getProxyImplementation(_admin, address(_weth)) == delayedWETHImpl,
+            string.concat(_errorPrefix, "-20"),
+            _errors
+        );
+        address _l1PAOMultisig = expectedL1PAOMultisig(_overrides);
+        _errors =
+            internalRequire(_weth.proxyAdminOwner() == _l1PAOMultisig, string.concat(_errorPrefix, "-30"), _errors);
+        _errors = internalRequire(_weth.delay() == withdrawalDelaySeconds, string.concat(_errorPrefix, "-40"), _errors);
+        _errors = internalRequire(_weth.systemConfig() == _sysCfg, string.concat(_errorPrefix, "-50"), _errors);
+        _errors = internalRequire(getProxyAdmin(address(_weth)) == _admin, string.concat(_errorPrefix, "-60"), _errors);
+        return _errors;
+    }
+
+    /// @notice Asserts that the AnchorStateRegistry contract is valid.
+    function assertValidAnchorStateRegistry(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IDisputeGameFactory _dgf,
+        IAnchorStateRegistry _asr,
+        IProxyAdmin _admin,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        virtual
+        returns (string memory)
+    {
+        _errorPrefix = string.concat(_errorPrefix, "-ANCHORP");
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_asr)), getVersion(anchorStateRegistryImpl)),
+            string.concat(_errorPrefix, "-10"),
+            _errors
+        );
+        _errors = internalRequire(
+            getProxyImplementation(_admin, address(_asr)) == anchorStateRegistryImpl,
+            string.concat(_errorPrefix, "-20"),
+            _errors
+        );
+        _errors = internalRequire(
+            address(_asr.disputeGameFactory()) == address(_dgf), string.concat(_errorPrefix, "-30"), _errors
+        );
+        _errors = internalRequire(_asr.systemConfig() == _sysCfg, string.concat(_errorPrefix, "-40"), _errors);
+        _errors = internalRequire(getProxyAdmin(address(_asr)) == _admin, string.concat(_errorPrefix, "-50"), _errors);
+        _errors = internalRequire(_asr.retirementTimestamp() > 0, string.concat(_errorPrefix, "-60"), _errors);
+        return _errors;
+    }
+
+    /// @notice Asserts that the MipsVm contract is valid.
+    function assertValidMipsVm(
+        string memory _errors,
+        IMIPS64 _mips,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        _errorPrefix = string.concat(_errorPrefix, "-VM");
+        _errors = internalRequire(address(_mips) == mipsImpl, string.concat(_errorPrefix, "-10"), _errors);
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_mips)), getVersion(mipsImpl)), string.concat(_errorPrefix, "-20"), _errors
+        );
+        _errors = internalRequire(_mips.stateVersion() == 8, string.concat(_errorPrefix, "-30"), _errors);
+        return _errors;
+    }
+
+    /// @notice Asserts that the PreimageOracle contract is valid.
+    function assertValidPreimageOracle(
+        string memory _errors,
+        IPreimageOracle _oracle,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        _errorPrefix = string.concat(_errorPrefix, "-PIMGO");
+        // The preimage oracle's address is correct if the MIPS address is correct.
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_oracle)), preimageOracleVersion()),
+            string.concat(_errorPrefix, "-10"),
+            _errors
+        );
+        _errors = internalRequire(_oracle.challengePeriod() == 86400, string.concat(_errorPrefix, "-20"), _errors);
+        _errors = internalRequire(_oracle.minProposalSize() == 126000, string.concat(_errorPrefix, "-30"), _errors);
+        return _errors;
+    }
+
+    /// @notice Internal function to require a condition to be true, otherwise append an error message.
+    function internalRequire(
+        bool _condition,
+        string memory _message,
+        string memory _errors
+    )
+        internal
+        pure
+        returns (string memory)
+    {
+        if (_condition) {
+            return _errors;
+        }
+        if (bytes(_errors).length == 0) {
+            _errors = _message;
+        } else {
+            _errors = string.concat(_errors, ",", _message);
+        }
+        return _errors;
+    }
+
+    /// @notice Validates the configuration of the L1 contracts.
+    function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory) {
+        ValidationInputDev memory devInput = _toValidationInputDev(_input);
+        return validate(devInput, _allowFailure);
+    }
+
+    /// @notice Validates the configuration of the L1 contracts when dev features are enabled.
+    function validate(ValidationInputDev memory _input, bool _allowFailure) public view returns (string memory) {
+        return validateWithOverrides(
+            _input, _allowFailure, ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) })
+        );
+    }
+
+    /// @notice Validates the configuration of the L1 contracts. Supports overrides of certain storage values denoted in
+    /// the ValidationOverrides struct.
+    function validateWithOverrides(
+        ValidationInput memory _input,
+        bool _allowFailure,
+        ValidationOverrides memory _overrides
+    )
+        public
+        view
+        returns (string memory)
+    {
+        ValidationInputDev memory devInput = _toValidationInputDev(_input);
+        return validateWithOverrides(devInput, _allowFailure, _overrides);
+    }
+
+    /// @notice Validates the configuration of the L1 contracts. Supports overrides of certain storage values denoted in
+    /// the ValidationOverrides struct. Includes validation fields relevant for dev features.
+    function validateWithOverrides(
+        ValidationInputDev memory _input,
+        bool _allowFailure,
+        ValidationOverrides memory _overrides
+    )
+        public
+        view
+        returns (string memory)
+    {
+        string memory _errors = "";
+
+        IProxyAdmin _proxyAdmin = _input.sysCfg.proxyAdmin();
+
+        _errors = assertValidSuperchainConfig(_errors);
+        _errors = assertValidProxyAdmin(_errors, _proxyAdmin, _overrides);
+        _errors = assertValidSystemConfig(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidL1CrossDomainMessenger(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidL1StandardBridge(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidOptimismMintableERC20Factory(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidL1ERC721Bridge(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidOptimismPortal(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _proxyAdmin, _overrides);
+        _errors = assertValidPermissionedDisputeGame(
+            _errors, _input.sysCfg, _input.cannonPrestate, _input.l2ChainID, _proxyAdmin, _input.proposer, _overrides
+        );
+        _errors = assertValidPermissionlessDisputeGame(
+            _errors,
+            _input.sysCfg,
+            GameTypes.CANNON,
+            _input.cannonPrestate,
+            _input.l2ChainID,
+            _proxyAdmin,
+            _overrides,
+            "PLDG"
+        );
+        _errors = assertValidPermissionlessDisputeGame(
+            _errors,
+            _input.sysCfg,
+            GameTypes.CANNON_KONA,
+            _input.cannonKonaPrestate,
+            _input.l2ChainID,
+            _proxyAdmin,
+            _overrides,
+            "CKDG"
+        );
+
+        _errors = assertValidETHLockbox(_errors, _input.sysCfg, _proxyAdmin);
+
+        string memory overridesString = getOverridesString(_overrides);
+        string memory finalErrors = _errors;
+
+        // Handle overrides if present
+        if (bytes(overridesString).length > 0) {
+            // If we have both overrides and errors, combine them
+            if (bytes(_errors).length > 0) {
+                finalErrors = string.concat(overridesString, ",", _errors);
+            } else {
+                // If we only have overrides, use them as the final message
+                finalErrors = overridesString;
+            }
+        }
+
+        // Handle validation failure
+        if (bytes(_errors).length > 0 && !_allowFailure) {
+            revert(string.concat("OPContractsManagerStandardValidator: ", finalErrors));
+        }
+
+        return finalErrors;
+    }
+
+    /// @notice Transforms current ValidationInput structs into the dev feature format.
+    function _toValidationInputDev(ValidationInput memory _input) internal pure returns (ValidationInputDev memory) {
+        return ValidationInputDev({
+            sysCfg: _input.sysCfg,
+            cannonPrestate: _input.absolutePrestate,
+            cannonKonaPrestate: bytes32(0),
+            l2ChainID: _input.l2ChainID,
+            proposer: _input.proposer
+        });
+    }
+
+    function assertGameArgsLength(
+        string memory _errors,
+        bytes memory _gameArgsBytes,
+        bool _isPermissioned,
+        string memory _errorPrefix
+    )
+        internal
+        pure
+        returns (string memory errors_, bool failed_)
+    {
+        _errorPrefix = string.concat(_errorPrefix, "-GARGS");
+        if (_isPermissioned) {
+            bool ok = LibGameArgs.isValidPermissionedArgs(_gameArgsBytes);
+            _errors = internalRequire(ok, string.concat(_errorPrefix, "-10"), _errors);
+            return (_errors, !ok);
+        } else {
+            bool ok = LibGameArgs.isValidPermissionlessArgs(_gameArgsBytes);
+            _errors = internalRequire(ok, string.concat(_errorPrefix, "-10"), _errors);
+            return (_errors, !ok);
+        }
+    }
+
+    // @notice Internal function to read all information from a dispute game while supporting both v1 and v2 dispute
+    /// games.
+    function _decodeDisputeGameImpl(
+        IPermissionedDisputeGame _game,
+        bytes memory _gameArgsBytes,
+        GameType _gameType
+    )
+        internal
+        view
+        returns (DisputeGameImplementation memory gameImpl_)
+    {
+        LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(_gameArgsBytes);
+
+        gameImpl_ = DisputeGameImplementation({
+            gameAddress: address(_game),
+            maxGameDepth: _game.maxGameDepth(),
+            splitDepth: _game.splitDepth(),
+            maxClockDuration: _game.maxClockDuration(),
+            clockExtension: _game.clockExtension(),
+            gameType: _gameType,
+            l2SequenceNumber: _game.l2SequenceNumber(),
+            absolutePrestate: Claim.wrap(gameArgs.absolutePrestate),
+            vm: IBigStepper(gameArgs.vm),
+            asr: IAnchorStateRegistry(gameArgs.anchorStateRegistry),
+            weth: IDelayedWETH(payable(gameArgs.weth)),
+            l2ChainId: gameArgs.l2ChainId,
+            challenger: gameArgs.challenger,
+            proposer: gameArgs.proposer
+        });
+    }
+}

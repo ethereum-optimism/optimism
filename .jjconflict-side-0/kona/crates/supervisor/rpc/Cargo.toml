@@ -1,0 +1,71 @@
+[package]
+name = "kona-supervisor-rpc"
+description = "Kona Supervisor RPC"
+version = "0.1.1"
+
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Workspace
+kona-interop.workspace = true
+kona-protocol.workspace = true
+kona-supervisor-types.workspace = true
+
+# jsonrpsee
+serde.workspace = true
+serde_json.workspace = true
+jsonrpsee = { workspace = true, optional = true, features = ["macros", "server"] }
+async-trait.workspace = true
+
+# Alloy
+alloy-eips.workspace = true
+alloy-serde.workspace = true
+alloy-primitives = { workspace = true, features = ["map", "rlp", "serde"] }
+op-alloy-consensus.workspace = true
+alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde", "std"], optional = true }
+tokio = { workspace = true, features = ["time", "sync"], optional = true }
+derive_more = { workspace = true, default-features = false, features = ["display", "from", "constructor", "std"], optional = true }
+
+# `reqwest` feature dependencies
+alloy-rpc-client = { workspace = true, features = ["reqwest"], optional = true }
+thiserror = { workspace = true, optional = true }
+
+[features]
+serde = [
+	"alloy-eips/serde",
+	"alloy-primitives/serde",
+	"alloy-rpc-types-engine?/serde",
+	"kona-interop/serde",
+	"kona-protocol/serde",
+	"op-alloy-consensus/serde",
+]
+# The `jsonrpsee` feature enables the core RPC functionality.
+# When it's active, we also need the `serde` feature.
+jsonrpsee = [ "dep:jsonrpsee", "serde" ]
+# Client feature builds upon the base jsonrpsee feature
+client = [ "jsonrpsee", "jsonrpsee/client" ]
+# Server feature for supervisor RPC server functionality
+server = [
+	"dep:alloy-rpc-types-engine",
+	"dep:derive_more",
+	"dep:tokio",
+	"jsonrpsee",
+]
+# reqwest client feature
+reqwest = [
+	"client",
+	"dep:alloy-rpc-client",
+	"dep:derive_more",
+	"dep:thiserror",
+]

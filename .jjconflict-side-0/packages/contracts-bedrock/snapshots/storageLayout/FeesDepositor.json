@@ -1,0 +1,44 @@
+[
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "20",
+    "label": "messenger",
+    "offset": 2,
+    "slot": "0",
+    "type": "contract IL1CrossDomainMessenger"
+  },
+  {
+    "bytes": "12",
+    "label": "minDepositAmount",
+    "offset": 0,
+    "slot": "1",
+    "type": "uint96"
+  },
+  {
+    "bytes": "20",
+    "label": "l2Recipient",
+    "offset": 12,
+    "slot": "1",
+    "type": "address"
+  },
+  {
+    "bytes": "4",
+    "label": "gasLimit",
+    "offset": 0,
+    "slot": "2",
+    "type": "uint32"
+  }
+]
