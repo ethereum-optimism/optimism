@@ -345,7 +345,7 @@ func (cl *L1BeaconClient) beaconBlobs(ctx context.Context, slot uint64, hashes [
 		}
 		got := eth.KZGToVersionedHash(commitment)
 		idx := slices.IndexFunc(hashes, func(indexedHash eth.IndexedBlobHash) bool {
-			return got == indexedHash.Hash
+			return got == indexedHash.Hash && blobs[indexedHash.Index] == nil
 		})
 		if idx == -1 {
 			return nil, fmt.Errorf("received a blob hash that does not match any expected hash: %s", got)
