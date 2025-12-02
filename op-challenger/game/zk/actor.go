@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
@@ -120,13 +121,19 @@ func (a *Actor) tryResolve(ctx context.Context, gameState contracts.ChallengerMe
 	}
 	deadlineExpired := gameState.Deadline.Before(a.l1Clock.Now())
 
-	parentStatus, err := a.gameStatusProvider.GetGameStatus(ctx, uint64(gameState.ParentIndex))
-	if err != nil {
-		return false, fmt.Errorf("failed to get parent game status: %w", err)
-	}
-	if parentStatus == gameTypes.GameStatusInProgress {
-		a.logger.Trace("Skipping resolution of zk game with parent in progress")
-		return deadlineExpired, nil // skip challenging if deadline already expired
+	if gameState.ParentIndex != math.MaxUint32 {
+		parentStatus, err := a.gameStatusProvider.GetGameStatus(ctx, uint64(gameState.ParentIndex))
+		if err != nil {
+			return false, fmt.Errorf("failed to get parent game status: %w", err)
+		}
+		if parentStatus == gameTypes.GameStatusInProgress {
+			a.logger.Trace("Skipping resolution of zk game with parent in progress")
+			return deadlineExpired, nil // skip challenging if deadline already expired
+		}
+		if parentStatus == gameTypes.GameStatusChallengerWon {
+			// Resolve if the parent game is invalid
+			return a.resolve()
+		}
 	}
 
 	if gameState.ProposalStatus == contracts.ProposalStatusChallengedAndValidProofProvided ||
@@ -136,10 +143,6 @@ func (a *Actor) tryResolve(ctx context.Context, gameState contracts.ChallengerMe
 	}
 	if deadlineExpired {
 		// Resolve if the deadline has expired (either for challenging or proving)
-		return a.resolve()
-	}
-	if parentStatus == gameTypes.GameStatusChallengerWon {
-		// Resolve if the parent game is invalid
 		return a.resolve()
 	}
 	return false, nil

@@ -3,6 +3,7 @@ package zk
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -50,7 +51,20 @@ func TestActor_ChallengeProposalBeyondCurrentUnsafeHead(t *testing.T) {
 }
 
 func TestActor_Resolve(t *testing.T) {
-	// Could just call `gameOver()` and check parent.
+	t.Run("NoParent-NotResolvable", func(t *testing.T) {
+		actor, _, contract, sender := setupActorTest(t)
+		contract.proposalHash = common.Hash{0xba, 0xd0}
+		contract.parentIndex = math.MaxUint32
+		// Not resolvable but should challenge
+		verifyChallenge(t, actor, contract, sender)
+	})
+	t.Run("NoParent-Resolvable", func(t *testing.T) {
+		actor, _, contract, sender := setupActorTest(t)
+		contract.setDeadlineExpired()
+		contract.proposalHash = common.Hash{0xba, 0xd0}
+		contract.parentIndex = math.MaxUint32
+		verifyResolved(t, actor, sender)
+	})
 	t.Run("ParentNotResolved", func(t *testing.T) {
 		actor, _, contract, sender := setupActorTest(t)
 		// Child is resolvable but still has to wait until the parent is resolved.
@@ -231,6 +245,9 @@ func (s *stubContract) setParentStatus(status types.GameStatus) {
 func (s *stubContract) GetGameStatus(_ context.Context, idx uint64) (types.GameStatus, error) {
 	if idx != uint64(s.parentIndex) {
 		return 0, errors.New("unexpected parent index")
+	}
+	if idx == math.MaxUint32 {
+		return 0, errors.New("execution reverted") // no such game
 	}
 	return s.parentStatus, nil
 }
