@@ -379,25 +379,25 @@ func TestOriginSelectorHandlesReorg(t *testing.T) {
 	s := NewL1OriginSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 
-	next, err := s.FindL1Origin(ctx, l2Head)
-	require.Nil(t, err)
-	require.Equal(t, a, next)
+	requireFindl1OriginEqual := func(l1ref eth.L1BlockRef) {
+		next, err := s.FindL1Origin(ctx, l2Head)
+		require.NoError(t, err)
+		require.Equal(t, l1ref, next)
+	}
+
+	requireFindl1OriginEqual(a)
 
 	// Selection is stable until the next origin is fetched
-	next, err = s.FindL1Origin(ctx, l2Head)
-	require.Nil(t, err)
-	require.Equal(t, a, next)
+	requireFindl1OriginEqual(a)
 
 	// Trigger the background fetch via a forkchoice update
 	handled := s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
 	require.True(t, handled)
 
 	// The next origin should be `b` now.
-	next, err = s.FindL1Origin(ctx, l2Head)
-	require.Nil(t, err)
-	require.Equal(t, b, next)
+	requireFindl1OriginEqual(b)
 
-	// A reorg happens and `b` is replaced by `bNew`
+	// A reorg happens and `b` is replaced by a block with a different hash
 	c := eth.L1BlockRef{
 		Hash:       common.Hash{'c'},
 		Number:     12,
@@ -416,9 +416,7 @@ func TestOriginSelectorHandlesReorg(t *testing.T) {
 
 	// The next origin should be `c` now, otherwise an upstream service cannot detect the reorg
 	// and the origin will be stuck at `b`
-	next, err = s.FindL1Origin(ctx, l2Head)
-	require.Nil(t, err)
-	require.Equal(t, c, next)
+	requireFindl1OriginEqual(c)
 }
 
 // TestOriginSelectorRespectsOriginTiming ensures that the origin selector
