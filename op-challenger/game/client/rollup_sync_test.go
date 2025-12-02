@@ -1,11 +1,10 @@
-package fault
+package client
 
 import (
 	"context"
 	"errors"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +34,7 @@ func TestSyncStatusProvider(t *testing.T) {
 				},
 			},
 			statusReqErr: nil,
-			expected:     types.ErrNotInSync,
+			expected:     ErrNotInSync,
 		},
 		{
 			name:       "CurrentL1EqualToGameL1Head",
@@ -46,7 +45,7 @@ func TestSyncStatusProvider(t *testing.T) {
 				},
 			},
 			statusReqErr: nil,
-			expected:     types.ErrNotInSync,
+			expected:     ErrNotInSync,
 		},
 		{
 			name:       "CurrentL1AboveGameL1Head",
@@ -67,7 +66,7 @@ func TestSyncStatusProvider(t *testing.T) {
 				status: test.syncStatus,
 				err:    test.statusReqErr,
 			}
-			validator := newSyncStatusValidator(provider)
+			validator := NewRollupSyncStatusValidator(provider)
 			err := validator.ValidateNodeSynced(context.Background(), test.gameL1Head)
 			require.ErrorIs(t, err, test.expected)
 		})

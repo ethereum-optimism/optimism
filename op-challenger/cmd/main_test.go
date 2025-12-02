@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/superchain"
 	"github.com/stretchr/testify/require"
 
@@ -14,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -41,13 +41,13 @@ var (
 
 func TestLogLevel(t *testing.T) {
 	t.Run("RejectInvalid", func(t *testing.T) {
-		verifyArgsInvalid(t, "unknown level: foo", addRequiredArgs(types.TraceTypeAlphabet, "--log.level=foo"))
+		verifyArgsInvalid(t, "unknown level: foo", addRequiredArgs(gameTypes.AlphabetGameType, "--log.level=foo"))
 	})
 
 	for _, lvl := range []string{"trace", "debug", "info", "error", "crit"} {
 		lvl := lvl
 		t.Run("AcceptValid_"+lvl, func(t *testing.T) {
-			logger, _, err := dryRunWithArgs(addRequiredArgs(types.TraceTypeAlphabet, "--log.level", lvl))
+			logger, _, err := dryRunWithArgs(addRequiredArgs(gameTypes.AlphabetGameType, "--log.level", lvl))
 			require.NoError(t, err)
 			require.NotNil(t, logger)
 		})
@@ -57,30 +57,30 @@ func TestLogLevel(t *testing.T) {
 func TestL2Experimental(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		url := "http://example.com:8888"
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet, "--l2-experimental-eth-rpc="+url))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType, "--l2-experimental-eth-rpc="+url))
 		require.Equal(t, url, cfg.Cannon.L2Experimental)
 	})
 }
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
-	cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet))
-	defaultCfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, l1Beacon, rollupRpc, l2EthRpc, datadir, types.TraceTypeAlphabet)
+	cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType))
+	defaultCfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, l1Beacon, rollupRpc, l2EthRpc, datadir, gameTypes.AlphabetGameType)
 	require.Equal(t, defaultCfg, cfg)
 }
 
 func TestDefaultConfigIsValid(t *testing.T) {
-	cfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, l1Beacon, rollupRpc, l2EthRpc, datadir, types.TraceTypeAlphabet)
+	cfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, l1Beacon, rollupRpc, l2EthRpc, datadir, gameTypes.AlphabetGameType)
 	require.NoError(t, cfg.Check())
 }
 
 func TestL1ETHRPCAddress(t *testing.T) {
 	t.Run("Required", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag l1-eth-rpc is required", addRequiredArgsExcept(types.TraceTypeAlphabet, "--l1-eth-rpc"))
+		verifyArgsInvalid(t, "flag l1-eth-rpc is required", addRequiredArgsExcept(gameTypes.AlphabetGameType, "--l1-eth-rpc"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
 		url := "http://example.com:8888"
-		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--l1-eth-rpc", "--l1-eth-rpc="+url))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--l1-eth-rpc", "--l1-eth-rpc="+url))
 		require.Equal(t, url, cfg.L1EthRpc)
 		require.Equal(t, url, cfg.TxMgrConfig.L1RPCURL)
 	})
@@ -88,145 +88,154 @@ func TestL1ETHRPCAddress(t *testing.T) {
 
 func TestL1Beacon(t *testing.T) {
 	t.Run("Required", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag l1-beacon is required", addRequiredArgsExcept(types.TraceTypeAlphabet, "--l1-beacon"))
+		verifyArgsInvalid(t, "flag l1-beacon is required", addRequiredArgsExcept(gameTypes.AlphabetGameType, "--l1-beacon"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
 		url := "http://example.com:8888"
-		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--l1-beacon", "--l1-beacon="+url))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--l1-beacon", "--l1-beacon="+url))
 		require.Equal(t, url, cfg.L1Beacon)
 	})
 }
 
 func TestOpSupervisor(t *testing.T) {
 	t.Run("RequiredForSuperCannon", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag supervisor-rpc is required", addRequiredArgsExcept(types.TraceTypeSuperCannon, "--supervisor-rpc"))
+		verifyArgsInvalid(t, "flag supervisor-rpc is required", addRequiredArgsExcept(gameTypes.SuperCannonGameType, "--supervisor-rpc"))
 	})
 	t.Run("RequiredForSuperPermissioned", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag supervisor-rpc is required", addRequiredArgsExcept(types.TraceTypeSuperPermissioned, "--supervisor-rpc"))
+		verifyArgsInvalid(t, "flag supervisor-rpc is required", addRequiredArgsExcept(gameTypes.SuperPermissionedGameType, "--supervisor-rpc"))
 	})
 	t.Run("RequiredForSuperCannonKona", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag supervisor-rpc is required", addRequiredArgsExcept(types.TraceTypeSuperCannonKona, "--supervisor-rpc"))
+		verifyArgsInvalid(t, "flag supervisor-rpc is required", addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--supervisor-rpc"))
 	})
 	t.Run("RequiredForSuperAsteriscKona", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag supervisor-rpc is required", addRequiredArgsExcept(types.TraceTypeSuperAsteriscKona, "--supervisor-rpc"))
+		verifyArgsInvalid(t, "flag supervisor-rpc is required", addRequiredArgsExcept(gameTypes.SuperAsteriscKonaGameType, "--supervisor-rpc"))
 	})
 
-	for _, traceType := range types.TraceTypes {
-		traceType := traceType
-		if traceType == types.TraceTypeSuperCannon || traceType == types.TraceTypeSuperPermissioned || traceType == types.TraceTypeSuperAsteriscKona || traceType == types.TraceTypeSuperCannonKona {
+	for _, gameType := range gameTypes.SupportedGameTypes {
+		gameType := gameType
+		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperAsteriscKonaGameType || gameType == gameTypes.SuperCannonKonaGameType {
 			continue
 		}
 
-		t.Run("NotRequiredForTraceType-"+traceType.String(), func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(traceType, "--supervisor-rpc"))
+		t.Run("NotRequiredForGameType-"+gameType.String(), func(t *testing.T) {
+			configForArgs(t, addRequiredArgsExcept(gameType, "--supervisor-rpc"))
 		})
 	}
 
 	t.Run("Valid-SuperCannon", func(t *testing.T) {
 		url := "http://localhost/supervisor"
-		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeSuperCannon, "--supervisor-rpc", "--supervisor-rpc", url))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperCannonGameType, "--supervisor-rpc", "--supervisor-rpc", url))
 		require.Equal(t, url, cfg.SupervisorRPC)
 	})
 
 	t.Run("Valid-SuperPermissioned", func(t *testing.T) {
 		url := "http://localhost/supervisor"
-		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeSuperPermissioned, "--supervisor-rpc", "--supervisor-rpc", url))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperPermissionedGameType, "--supervisor-rpc", "--supervisor-rpc", url))
 		require.Equal(t, url, cfg.SupervisorRPC)
 	})
 
 	t.Run("Valid-SuperCannonKona", func(t *testing.T) {
 		url := "http://localhost/supervisor"
-		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeSuperCannonKona, "--supervisor-rpc", "--supervisor-rpc", url))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--supervisor-rpc", "--supervisor-rpc", url))
 		require.Equal(t, url, cfg.SupervisorRPC)
 	})
 
 	t.Run("Valid-SuperAsteriscKona", func(t *testing.T) {
 		url := "http://localhost/supervisor"
-		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeSuperAsteriscKona, "--supervisor-rpc", "--supervisor-rpc", url))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperAsteriscKonaGameType, "--supervisor-rpc", "--supervisor-rpc", url))
 		require.Equal(t, url, cfg.SupervisorRPC)
 	})
 }
 
-func TestTraceType(t *testing.T) {
+func TestGameTypes(t *testing.T) {
 	t.Run("Default", func(t *testing.T) {
-		expectedDefault := []types.TraceType{types.TraceTypeCannon, types.TraceTypeAsteriscKona, types.TraceTypeCannonKona}
-		cfg := configForArgs(t, addRequiredArgsForMultipleTracesExcept(expectedDefault, "--trace-type"))
-		require.Equal(t, expectedDefault, cfg.TraceTypes)
+		expectedDefault := []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.AsteriscKonaGameType, gameTypes.CannonKonaGameType}
+		cfg := configForArgs(t, addRequiredArgsForMultipleGameTypesExcept(expectedDefault, "--game-types"))
+		require.Equal(t, expectedDefault, cfg.GameTypes)
 	})
 
-	for _, traceType := range types.TraceTypes {
-		traceType := traceType
-		t.Run("Valid_"+traceType.String(), func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgs(traceType))
-			require.Equal(t, []types.TraceType{traceType}, cfg.TraceTypes)
+	for _, gameType := range gameTypes.SupportedGameTypes {
+		gameType := gameType
+		t.Run("Valid_"+gameType.String(), func(t *testing.T) {
+			cfg := configForArgs(t, addRequiredArgs(gameType))
+			require.Equal(t, []gameTypes.GameType{gameType}, cfg.GameTypes)
 		})
 	}
 
 	t.Run("Invalid", func(t *testing.T) {
-		verifyArgsInvalid(t, "unknown trace type: \"foo\"", addRequiredArgsExcept(types.TraceTypeAlphabet, "--trace-type", "--trace-type=foo"))
+		verifyArgsInvalid(t, "unknown game type: \"foo\"", addRequiredArgsExcept(gameTypes.AlphabetGameType, "--game-types", "--game-types=foo"))
 	})
+
+	// Check we provide an alias for --trace-type to preserve backwards compatibility
+	for _, gameType := range gameTypes.SupportedGameTypes {
+		gameType := gameType
+		t.Run("TraceTypeAlias-"+gameType.String(), func(t *testing.T) {
+			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--game-types", "--trace-type", gameType.String()))
+			require.Equal(t, []gameTypes.GameType{gameType}, cfg.GameTypes)
+		})
+	}
 }
 
-func TestMultipleTraceTypes(t *testing.T) {
+func TestMultipleGameTypes(t *testing.T) {
 	t.Run("WithAllOptions", func(t *testing.T) {
-		argsMap := requiredArgs(types.TraceTypeCannon)
+		argsMap := requiredArgs(gameTypes.CannonGameType)
 		// Add Asterisc required flags
 		addRequiredAsteriscArgs(argsMap)
 		args := toArgList(argsMap)
-		// Add extra trace types (cannon is already specified)
+		// Add extra game types (cannon is already specified)
 		args = append(args,
-			"--trace-type", types.TraceTypeAlphabet.String())
+			"--game-types", gameTypes.AlphabetGameType.String())
 		args = append(args,
-			"--trace-type", types.TraceTypePermissioned.String())
+			"--game-types", gameTypes.PermissionedGameType.String())
 		args = append(args,
-			"--trace-type", types.TraceTypeAsterisc.String())
+			"--game-types", gameTypes.AsteriscGameType.String())
 		cfg := configForArgs(t, args)
-		require.Equal(t, []types.TraceType{types.TraceTypeCannon, types.TraceTypeAlphabet, types.TraceTypePermissioned, types.TraceTypeAsterisc}, cfg.TraceTypes)
+		require.Equal(t, []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.AlphabetGameType, gameTypes.PermissionedGameType, gameTypes.AsteriscGameType}, cfg.GameTypes)
 	})
 	t.Run("WithSomeOptions", func(t *testing.T) {
-		argsMap := requiredArgs(types.TraceTypeCannon)
+		argsMap := requiredArgs(gameTypes.CannonGameType)
 		args := toArgList(argsMap)
-		// Add extra trace types (cannon is already specified)
+		// Add extra game types (cannon is already specified)
 		args = append(args,
-			"--trace-type", types.TraceTypeAlphabet.String())
+			"--game-types", gameTypes.AlphabetGameType.String())
 		cfg := configForArgs(t, args)
-		require.Equal(t, []types.TraceType{types.TraceTypeCannon, types.TraceTypeAlphabet}, cfg.TraceTypes)
+		require.Equal(t, []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.AlphabetGameType}, cfg.GameTypes)
 	})
 
 	t.Run("SpecifySameOptionMultipleTimes", func(t *testing.T) {
-		argsMap := requiredArgs(types.TraceTypeCannon)
+		argsMap := requiredArgs(gameTypes.CannonGameType)
 		args := toArgList(argsMap)
-		// Add cannon trace type again
-		args = append(args, "--trace-type", types.TraceTypeCannon.String())
+		// Add cannon game type again
+		args = append(args, "--game-types", gameTypes.CannonGameType.String())
 		// We're fine with the same option being listed multiple times, just deduplicate them.
 		cfg := configForArgs(t, args)
-		require.Equal(t, []types.TraceType{types.TraceTypeCannon}, cfg.TraceTypes)
+		require.Equal(t, []gameTypes.GameType{gameTypes.CannonGameType}, cfg.GameTypes)
 	})
 }
 
 func TestGameFactoryAddress(t *testing.T) {
 	t.Run("RequiredWhenNetworkNotSupplied", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag game-factory-address or network is required", addRequiredArgsExcept(types.TraceTypeAlphabet, "--game-factory-address"))
+		verifyArgsInvalid(t, "flag game-factory-address or network is required", addRequiredArgsExcept(gameTypes.AlphabetGameType, "--game-factory-address"))
 	})
 
 	t.Run("RequiredWhenMultipleNetworksSuppliedWithDifferentFactories", func(t *testing.T) {
-		verifyArgsInvalid(t, "specified networks use different dispute game factories, flag game-factory-address required", addRequiredArgsExcept(types.TraceTypeAlphabet, "--game-factory-address", "--network", "op-sepolia,op-mainnet"))
+		verifyArgsInvalid(t, "specified networks use different dispute game factories, flag game-factory-address required", addRequiredArgsExcept(gameTypes.AlphabetGameType, "--game-factory-address", "--network", "op-sepolia,op-mainnet"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
 		addr := common.Address{0xbb, 0xcc, 0xdd}
-		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--game-factory-address", "--game-factory-address="+addr.Hex()))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--game-factory-address", "--game-factory-address="+addr.Hex()))
 		require.Equal(t, addr, cfg.GameFactoryAddress)
 	})
 
 	t.Run("Invalid", func(t *testing.T) {
-		verifyArgsInvalid(t, "invalid address: foo", addRequiredArgsExcept(types.TraceTypeAlphabet, "--game-factory-address", "--game-factory-address=foo"))
+		verifyArgsInvalid(t, "invalid address: foo", addRequiredArgsExcept(gameTypes.AlphabetGameType, "--game-factory-address", "--game-factory-address=foo"))
 	})
 
 	t.Run("OverridesNetwork", func(t *testing.T) {
 		addr := common.Address{0xbb, 0xcc, 0xdd}
-		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--game-factory-address", "--game-factory-address", addr.Hex(), "--network", "op-sepolia"))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--game-factory-address", "--game-factory-address", addr.Hex(), "--network", "op-sepolia"))
 		require.Equal(t, addr, cfg.GameFactoryAddress)
 	})
 }
@@ -238,17 +247,17 @@ func TestNetwork(t *testing.T) {
 		require.NoError(t, err)
 		opSepoliaCfg, err := opSepolia.Config()
 		require.NoError(t, err)
-		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--game-factory-address", "--network=op-sepolia"))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--game-factory-address", "--network=op-sepolia"))
 		require.EqualValues(t, *opSepoliaCfg.Addresses.DisputeGameFactoryProxy, cfg.GameFactoryAddress)
 	})
 
 	t.Run("UnknownNetwork", func(t *testing.T) {
-		verifyArgsInvalid(t, "unknown chain: not-a-network", addRequiredArgsExcept(types.TraceTypeAlphabet, "--game-factory-address", "--network=not-a-network"))
+		verifyArgsInvalid(t, "unknown chain: not-a-network", addRequiredArgsExcept(gameTypes.AlphabetGameType, "--game-factory-address", "--network=not-a-network"))
 	})
 
 	t.Run("ChainIDAllowedWhenGameFactoryAddressSupplied", func(t *testing.T) {
 		addr := common.Address{0xbb, 0xcc, 0xdd}
-		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--game-factory-address", "--network=1234", "--game-factory-address="+addr.Hex()))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--game-factory-address", "--network=1234", "--game-factory-address="+addr.Hex()))
 		require.Equal(t, addr, cfg.GameFactoryAddress)
 		require.Equal(t, []string{"1234"}, cfg.Cannon.Networks)
 	})
@@ -256,31 +265,31 @@ func TestNetwork(t *testing.T) {
 
 func TestGameAllowlist(t *testing.T) {
 	t.Run("Optional", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--game-allowlist"))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--game-allowlist"))
 		require.NoError(t, cfg.Check())
 	})
 
 	t.Run("Valid", func(t *testing.T) {
 		addr := common.Address{0xbb, 0xcc, 0xdd}
-		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--game-allowlist", "--game-allowlist="+addr.Hex()))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--game-allowlist", "--game-allowlist="+addr.Hex()))
 		require.Contains(t, cfg.GameAllowlist, addr)
 	})
 
 	t.Run("Invalid", func(t *testing.T) {
-		verifyArgsInvalid(t, "invalid address: foo", addRequiredArgsExcept(types.TraceTypeAlphabet, "--game-allowlist", "--game-allowlist=foo"))
+		verifyArgsInvalid(t, "invalid address: foo", addRequiredArgsExcept(gameTypes.AlphabetGameType, "--game-allowlist", "--game-allowlist=foo"))
 	})
 }
 
 func TestTxManagerFlagsSupported(t *testing.T) {
 	// Not a comprehensive list of flags, just enough to sanity check the txmgr.CLIFlags were defined
-	cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet, "--"+txmgr.NumConfirmationsFlagName, "7"))
+	cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType, "--"+txmgr.NumConfirmationsFlagName, "7"))
 	require.Equal(t, uint64(7), cfg.TxMgrConfig.NumConfirmations)
 }
 
 func TestMaxConcurrency(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		expected := uint(345)
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet, "--max-concurrency", "345"))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType, "--max-concurrency", "345"))
 		require.Equal(t, expected, cfg.MaxConcurrency)
 	})
 
@@ -288,26 +297,26 @@ func TestMaxConcurrency(t *testing.T) {
 		verifyArgsInvalid(
 			t,
 			"invalid value \"abc\" for flag -max-concurrency",
-			addRequiredArgs(types.TraceTypeAlphabet, "--max-concurrency", "abc"))
+			addRequiredArgs(gameTypes.AlphabetGameType, "--max-concurrency", "abc"))
 	})
 
 	t.Run("Zero", func(t *testing.T) {
 		verifyArgsInvalid(
 			t,
 			"max-concurrency must not be 0",
-			addRequiredArgs(types.TraceTypeAlphabet, "--max-concurrency", "0"))
+			addRequiredArgs(gameTypes.AlphabetGameType, "--max-concurrency", "0"))
 	})
 }
 
 func TestMaxPendingTx(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		expected := uint64(345)
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet, "--max-pending-tx", "345"))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType, "--max-pending-tx", "345"))
 		require.Equal(t, expected, cfg.MaxPendingTx)
 	})
 
 	t.Run("Zero", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet, "--max-pending-tx", "0"))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType, "--max-pending-tx", "0"))
 		require.Equal(t, uint64(0), cfg.MaxPendingTx)
 	})
 
@@ -315,19 +324,19 @@ func TestMaxPendingTx(t *testing.T) {
 		verifyArgsInvalid(
 			t,
 			"invalid value \"abc\" for flag -max-pending-tx",
-			addRequiredArgs(types.TraceTypeAlphabet, "--max-pending-tx", "abc"))
+			addRequiredArgs(gameTypes.AlphabetGameType, "--max-pending-tx", "abc"))
 	})
 }
 
 func TestPollInterval(t *testing.T) {
 	t.Run("UsesDefault", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeCannon))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonGameType))
 		require.Equal(t, config.DefaultPollInterval, cfg.PollInterval)
 	})
 
 	t.Run("Valid", func(t *testing.T) {
 		expected := 100 * time.Second
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet, "--http-poll-interval", "100s"))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType, "--http-poll-interval", "100s"))
 		require.Equal(t, expected, cfg.PollInterval)
 	})
 
@@ -335,18 +344,18 @@ func TestPollInterval(t *testing.T) {
 		verifyArgsInvalid(
 			t,
 			"invalid value \"abc\" for flag -http-poll-interval",
-			addRequiredArgs(types.TraceTypeAlphabet, "--http-poll-interval", "abc"))
+			addRequiredArgs(gameTypes.AlphabetGameType, "--http-poll-interval", "abc"))
 	})
 }
 
 func TestMinUpdateInterval(t *testing.T) {
 	t.Run("DefaultsToZero", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeCannon))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonGameType))
 		require.Equal(t, time.Duration(0), cfg.MinUpdateInterval)
 	})
 
 	t.Run("Valid", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet, "--min-update-interval", "10m"))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType, "--min-update-interval", "10m"))
 		require.Equal(t, 10*time.Minute, cfg.MinUpdateInterval)
 	})
 
@@ -354,175 +363,175 @@ func TestMinUpdateInterval(t *testing.T) {
 		verifyArgsInvalid(
 			t,
 			"invalid value \"abc\" for flag -min-update-interval",
-			addRequiredArgs(types.TraceTypeAlphabet, "--min-update-interval", "abc"))
+			addRequiredArgs(gameTypes.AlphabetGameType, "--min-update-interval", "abc"))
 	})
 }
 
 func TestAsteriscOpProgramRequiredArgs(t *testing.T) {
-	traceType := types.TraceTypeAsterisc
-	t.Run(fmt.Sprintf("TestAsteriscServer-%v", traceType), func(t *testing.T) {
+	gameType := gameTypes.AsteriscGameType
+	t.Run(fmt.Sprintf("TestAsteriscServer-%v", gameType), func(t *testing.T) {
 		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--asterisc-server"))
+			configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-server"))
 		})
 
 		t.Run("Required", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag asterisc-server is required", addRequiredArgsExcept(traceType, "--asterisc-server"))
+			verifyArgsInvalid(t, "flag asterisc-server is required", addRequiredArgsExcept(gameType, "--asterisc-server"))
 		})
 
 		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-server", "--asterisc-server=./op-program"))
+			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--asterisc-server", "--asterisc-server=./op-program"))
 			require.Equal(t, "./op-program", cfg.Asterisc.Server)
 		})
 	})
 
-	t.Run(fmt.Sprintf("TestAsteriscAbsolutePrestate-%v", traceType), func(t *testing.T) {
+	t.Run(fmt.Sprintf("TestAsteriscAbsolutePrestate-%v", gameType), func(t *testing.T) {
 		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--asterisc-prestate"))
+			configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-prestate"))
 		})
 
 		t.Run("Required", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag prestates-url/asterisc-prestates-url or asterisc-prestate is required", addRequiredArgsExcept(traceType, "--asterisc-prestate"))
+			verifyArgsInvalid(t, "flag prestates-url/asterisc-prestates-url or asterisc-prestate is required", addRequiredArgsExcept(gameType, "--asterisc-prestate"))
 		})
 
 		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-prestate", "--asterisc-prestate=./pre.json"))
+			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--asterisc-prestate", "--asterisc-prestate=./pre.json"))
 			require.Equal(t, "./pre.json", cfg.AsteriscAbsolutePreState)
 		})
 	})
 
-	t.Run(fmt.Sprintf("TestPrestateBaseURL-%v", traceType), func(t *testing.T) {
+	t.Run(fmt.Sprintf("TestPrestateBaseURL-%v", gameType), func(t *testing.T) {
 		allPrestateOptions := []string{"--prestates-url", "--asterisc-prestates-url", "--asterisc-prestate"}
 		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExceptArr(types.TraceTypeAlphabet, allPrestateOptions))
+			configForArgs(t, addRequiredArgsExceptArr(gameTypes.AlphabetGameType, allPrestateOptions))
 		})
 
 		t.Run("NotRequiredIfAsteriscPrestatesBaseURLSet", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExceptArr(traceType, allPrestateOptions, "--asterisc-prestates-url=http://localhost/foo"))
+			configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions, "--asterisc-prestates-url=http://localhost/foo"))
 		})
 
 		t.Run("AsteriscPrestatesBaseURLTakesPrecedence", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExceptArr(traceType, allPrestateOptions, "--asterisc-prestates-url=http://localhost/foo", "--prestates-url=http://localhost/bar"))
+			cfg := configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions, "--asterisc-prestates-url=http://localhost/foo", "--prestates-url=http://localhost/bar"))
 			require.Equal(t, "http://localhost/foo", cfg.AsteriscAbsolutePreStateBaseURL.String())
 		})
 
 		t.Run("RequiredIfAsteriscPrestatesBaseURLNotSet", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag prestates-url/asterisc-prestates-url or asterisc-prestate is required", addRequiredArgsExceptArr(traceType, allPrestateOptions))
+			verifyArgsInvalid(t, "flag prestates-url/asterisc-prestates-url or asterisc-prestate is required", addRequiredArgsExceptArr(gameType, allPrestateOptions))
 		})
 
 		t.Run("Invalid", func(t *testing.T) {
-			verifyArgsInvalid(t, "invalid prestates-url (:foo/bar)", addRequiredArgsExceptArr(traceType, allPrestateOptions, "--prestates-url=:foo/bar"))
+			verifyArgsInvalid(t, "invalid prestates-url (:foo/bar)", addRequiredArgsExceptArr(gameType, allPrestateOptions, "--prestates-url=:foo/bar"))
 		})
 
 		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExceptArr(traceType, allPrestateOptions, "--prestates-url=http://localhost/foo"))
+			cfg := configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions, "--prestates-url=http://localhost/foo"))
 			require.Equal(t, "http://localhost/foo", cfg.AsteriscAbsolutePreStateBaseURL.String())
 		})
 	})
 
-	t.Run(fmt.Sprintf("TestAsteriscAbsolutePrestateBaseURL-%v", traceType), func(t *testing.T) {
+	t.Run(fmt.Sprintf("TestAsteriscAbsolutePrestateBaseURL-%v", gameType), func(t *testing.T) {
 		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--asterisc-prestates-url"))
+			configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-prestates-url"))
 		})
 
 		t.Run("Required", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag prestates-url/asterisc-prestates-url or asterisc-prestate is required", addRequiredArgsExcept(traceType, "--asterisc-prestate"))
+			verifyArgsInvalid(t, "flag prestates-url/asterisc-prestates-url or asterisc-prestate is required", addRequiredArgsExcept(gameType, "--asterisc-prestate"))
 		})
 
 		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-prestates-url", "--asterisc-prestates-url=http://localhost/bar"))
+			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--asterisc-prestates-url", "--asterisc-prestates-url=http://localhost/bar"))
 			require.Equal(t, "http://localhost/bar", cfg.AsteriscAbsolutePreStateBaseURL.String())
 		})
 	})
 }
 
 func TestAsteriscKonaRequiredArgs(t *testing.T) {
-	traceType := types.TraceTypeAsteriscKona
-	t.Run(fmt.Sprintf("TestAsteriscServer-%v", traceType), func(t *testing.T) {
+	gameType := gameTypes.AsteriscKonaGameType
+	t.Run(fmt.Sprintf("TestAsteriscServer-%v", gameType), func(t *testing.T) {
 		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--asterisc-kona-server"))
+			configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-kona-server"))
 		})
 
 		t.Run("Required", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag asterisc-kona-server is required", addRequiredArgsExcept(traceType, "--asterisc-kona-server"))
+			verifyArgsInvalid(t, "flag asterisc-kona-server is required", addRequiredArgsExcept(gameType, "--asterisc-kona-server"))
 		})
 
 		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-kona-server", "--asterisc-kona-server=./kona-host"))
+			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--asterisc-kona-server", "--asterisc-kona-server=./kona-host"))
 			require.Equal(t, "./kona-host", cfg.AsteriscKona.Server)
 		})
 	})
 
-	t.Run(fmt.Sprintf("TestAsteriscAbsolutePrestate-%v", traceType), func(t *testing.T) {
+	t.Run(fmt.Sprintf("TestAsteriscAbsolutePrestate-%v", gameType), func(t *testing.T) {
 		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--asterisc-kona-prestate"))
+			configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-kona-prestate"))
 		})
 
 		t.Run("Required", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag prestates-url/asterisc-kona-prestates-url or asterisc-kona-prestate is required", addRequiredArgsExcept(traceType, "--asterisc-kona-prestate"))
+			verifyArgsInvalid(t, "flag prestates-url/asterisc-kona-prestates-url or asterisc-kona-prestate is required", addRequiredArgsExcept(gameType, "--asterisc-kona-prestate"))
 		})
 
 		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-kona-prestate", "--asterisc-kona-prestate=./pre.json"))
+			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--asterisc-kona-prestate", "--asterisc-kona-prestate=./pre.json"))
 			require.Equal(t, "./pre.json", cfg.AsteriscKonaAbsolutePreState)
 		})
 	})
 
-	t.Run(fmt.Sprintf("TestAsteriscAbsolutePrestateBaseURL-%v", traceType), func(t *testing.T) {
+	t.Run(fmt.Sprintf("TestAsteriscAbsolutePrestateBaseURL-%v", gameType), func(t *testing.T) {
 		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--asterisc-kona-prestates-url"))
+			configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-kona-prestates-url"))
 		})
 
 		t.Run("Required", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag prestates-url/asterisc-kona-prestates-url or asterisc-kona-prestate is required", addRequiredArgsExcept(traceType, "--asterisc-kona-prestate"))
+			verifyArgsInvalid(t, "flag prestates-url/asterisc-kona-prestates-url or asterisc-kona-prestate is required", addRequiredArgsExcept(gameType, "--asterisc-kona-prestate"))
 		})
 
 		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-kona-prestates-url", "--asterisc-kona-prestates-url=http://localhost/bar"))
+			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--asterisc-kona-prestates-url", "--asterisc-kona-prestates-url=http://localhost/bar"))
 			require.Equal(t, "http://localhost/bar", cfg.AsteriscKonaAbsolutePreStateBaseURL.String())
 		})
 	})
 
-	t.Run(fmt.Sprintf("TestPrestateBaseURL-%v", traceType), func(t *testing.T) {
+	t.Run(fmt.Sprintf("TestPrestateBaseURL-%v", gameType), func(t *testing.T) {
 		allPrestateOptions := []string{"--prestates-url", "--asterisc-kona-prestates-url", "--asterisc-kona-prestate"}
 		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExceptArr(types.TraceTypeAlphabet, allPrestateOptions))
+			configForArgs(t, addRequiredArgsExceptArr(gameTypes.AlphabetGameType, allPrestateOptions))
 		})
 
 		t.Run("NotRequiredIfAsteriscKonaPrestatesBaseURLSet", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExceptArr(traceType, allPrestateOptions, "--asterisc-kona-prestates-url=http://localhost/foo"))
+			configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions, "--asterisc-kona-prestates-url=http://localhost/foo"))
 		})
 
 		t.Run("AsteriscKonaPrestatesBaseURLTakesPrecedence", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExceptArr(traceType, allPrestateOptions, "--asterisc-kona-prestates-url=http://localhost/foo", "--prestates-url=http://localhost/bar"))
+			cfg := configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions, "--asterisc-kona-prestates-url=http://localhost/foo", "--prestates-url=http://localhost/bar"))
 			require.Equal(t, "http://localhost/foo", cfg.AsteriscKonaAbsolutePreStateBaseURL.String())
 		})
 
 		t.Run("RequiredIfAsteriscKonaPrestatesBaseURLNotSet", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag prestates-url/asterisc-kona-prestates-url or asterisc-kona-prestate is required", addRequiredArgsExceptArr(traceType, allPrestateOptions))
+			verifyArgsInvalid(t, "flag prestates-url/asterisc-kona-prestates-url or asterisc-kona-prestate is required", addRequiredArgsExceptArr(gameType, allPrestateOptions))
 		})
 
 		t.Run("Invalid", func(t *testing.T) {
-			verifyArgsInvalid(t, "invalid prestates-url (:foo/bar)", addRequiredArgsExceptArr(traceType, allPrestateOptions, "--prestates-url=:foo/bar"))
+			verifyArgsInvalid(t, "invalid prestates-url (:foo/bar)", addRequiredArgsExceptArr(gameType, allPrestateOptions, "--prestates-url=:foo/bar"))
 		})
 
 		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExceptArr(traceType, allPrestateOptions, "--prestates-url=http://localhost/foo"))
+			cfg := configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions, "--prestates-url=http://localhost/foo"))
 			require.Equal(t, "http://localhost/foo", cfg.AsteriscKonaAbsolutePreStateBaseURL.String())
 		})
 	})
 }
 
 // validateCustomNetworkFlagsProhibitedWithNetworkFlag ensures custom network flags are not used simultaneously with the network flag.
-// It validates disallowed flag combinations for a given trace type and trace type prefix configuration.
-func validateCustomNetworkFlagsProhibitedWithNetworkFlag(t *testing.T, traceType types.TraceType, traceTypeForFlagPrefix types.TraceType, customNetworkFlag string) {
-	expectedError := fmt.Sprintf("flag network can not be used with rollup-config/%v-rollup-config, l2-genesis/%v-l2-genesis, l1-genesis/%v-l1-genesis or %v", traceTypeForFlagPrefix, traceTypeForFlagPrefix, traceTypeForFlagPrefix, customNetworkFlag)
+// It validates disallowed flag combinations for a given game type and game type prefix configuration.
+func validateCustomNetworkFlagsProhibitedWithNetworkFlag(t *testing.T, gameType gameTypes.GameType, gameTypeForFlagPrefix gameTypes.GameType, customNetworkFlag string) {
+	expectedError := fmt.Sprintf("flag network can not be used with rollup-config/%v-rollup-config, l2-genesis/%v-l2-genesis, l1-genesis/%v-l1-genesis or %v", gameTypeForFlagPrefix, gameTypeForFlagPrefix, gameTypeForFlagPrefix, customNetworkFlag)
 
 	// Test the custom l2 flag
-	t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndCustomL2Flag-%v", traceType), func(t *testing.T) {
+	t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndCustomL2Flag-%v", gameType), func(t *testing.T) {
 		verifyArgsInvalid(
 			t,
 			expectedError,
-			addRequiredArgs(traceType, fmt.Sprintf("--%v=true", customNetworkFlag)))
+			addRequiredArgs(gameType, fmt.Sprintf("--%v=true", customNetworkFlag)))
 	})
 
 	// Now test flags with trace-specific permutations
@@ -538,114 +547,114 @@ func validateCustomNetworkFlagsProhibitedWithNetworkFlag(t *testing.T, traceType
 				postFix = "-withTraceSpecificPrefix"
 			}
 
-			t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAnd%v-%v%v", testName, traceType, postFix), func(t *testing.T) {
+			t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAnd%v-%v%v", testName, gameType, postFix), func(t *testing.T) {
 				var prefix string
 				if withTraceSpecificPrefix {
-					prefix = fmt.Sprintf("%v-", traceTypeForFlagPrefix)
+					prefix = fmt.Sprintf("%v-", gameTypeForFlagPrefix)
 				}
 				flagName := fmt.Sprintf("%v%v", prefix, flag)
 
 				verifyArgsInvalid(
 					t,
 					expectedError,
-					addRequiredArgs(traceType, fmt.Sprintf("--%v=somevalue.json", flagName)))
+					addRequiredArgs(gameType, fmt.Sprintf("--%v=somevalue.json", flagName)))
 			})
 		}
 	}
 }
 
 func TestAsteriscBaseRequiredArgs(t *testing.T) {
-	for _, traceType := range []types.TraceType{types.TraceTypeAsterisc, types.TraceTypeAsteriscKona} {
-		traceType := traceType
-		t.Run(fmt.Sprintf("TestAsteriscBin-%v", traceType), func(t *testing.T) {
+	for _, gameType := range []gameTypes.GameType{gameTypes.AsteriscGameType, gameTypes.AsteriscKonaGameType} {
+		gameType := gameType
+		t.Run(fmt.Sprintf("TestAsteriscBin-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--asterisc-bin"))
+				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-bin"))
 			})
 
 			t.Run("Required", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag asterisc-bin is required", addRequiredArgsExcept(traceType, "--asterisc-bin"))
+				verifyArgsInvalid(t, "flag asterisc-bin is required", addRequiredArgsExcept(gameType, "--asterisc-bin"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--asterisc-bin", "--asterisc-bin=./asterisc"))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--asterisc-bin", "--asterisc-bin=./asterisc"))
 				require.Equal(t, "./asterisc", cfg.Asterisc.VmBin)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestL2Rpc-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestL2Rpc-%v", gameType), func(t *testing.T) {
 			t.Run("RequiredForAsteriscTrace", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag l2-eth-rpc is required", addRequiredArgsExcept(traceType, "--l2-eth-rpc"))
+				verifyArgsInvalid(t, "flag l2-eth-rpc is required", addRequiredArgsExcept(gameType, "--l2-eth-rpc"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgs(traceType))
+				cfg := configForArgs(t, addRequiredArgs(gameType))
 				require.Equal(t, []string{l2EthRpc}, cfg.L2Rpcs)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscSnapshotFreq-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestAsteriscSnapshotFreq-%v", gameType), func(t *testing.T) {
 			t.Run("UsesDefault", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgs(traceType))
+				cfg := configForArgs(t, addRequiredArgs(gameType))
 				require.Equal(t, config.DefaultAsteriscSnapshotFreq, cfg.Asterisc.SnapshotFreq)
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgs(traceType, "--asterisc-snapshot-freq=1234"))
+				cfg := configForArgs(t, addRequiredArgs(gameType, "--asterisc-snapshot-freq=1234"))
 				require.Equal(t, uint(1234), cfg.Asterisc.SnapshotFreq)
 			})
 
 			t.Run("Invalid", func(t *testing.T) {
 				verifyArgsInvalid(t, "invalid value \"abc\" for flag -asterisc-snapshot-freq",
-					addRequiredArgs(traceType, "--asterisc-snapshot-freq=abc"))
+					addRequiredArgs(gameType, "--asterisc-snapshot-freq=abc"))
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscInfoFreq-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestAsteriscInfoFreq-%v", gameType), func(t *testing.T) {
 			t.Run("UsesDefault", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgs(traceType))
+				cfg := configForArgs(t, addRequiredArgs(gameType))
 				require.Equal(t, config.DefaultAsteriscInfoFreq, cfg.Asterisc.InfoFreq)
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgs(traceType, "--asterisc-info-freq=1234"))
+				cfg := configForArgs(t, addRequiredArgs(gameType, "--asterisc-info-freq=1234"))
 				require.Equal(t, uint(1234), cfg.Asterisc.InfoFreq)
 			})
 
 			t.Run("Invalid", func(t *testing.T) {
 				verifyArgsInvalid(t, "invalid value \"abc\" for flag -asterisc-info-freq",
-					addRequiredArgs(traceType, "--asterisc-info-freq=abc"))
+					addRequiredArgs(gameType, "--asterisc-info-freq=abc"))
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestRequireEitherNetworkOrRollupAndGenesis-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestRequireEitherNetworkOrRollupAndGenesis-%v", gameType), func(t *testing.T) {
 			verifyArgsInvalid(
 				t,
-				fmt.Sprintf("flag network or rollup-config/%s-rollup-config and l2-genesis/%s-l2-genesis is required", traceType, traceType),
-				addRequiredArgsExcept(traceType, "--network"))
+				fmt.Sprintf("flag network or rollup-config/%s-rollup-config and l2-genesis/%s-l2-genesis is required", gameType, gameType),
+				addRequiredArgsExcept(gameType, "--network"))
 			verifyArgsInvalid(
 				t,
-				fmt.Sprintf("flag network or rollup-config/%s-rollup-config and l2-genesis/%s-l2-genesis is required", traceType, traceType),
-				addRequiredArgsExcept(traceType, "--network", "--rollup-config=rollup.json"))
+				fmt.Sprintf("flag network or rollup-config/%s-rollup-config and l2-genesis/%s-l2-genesis is required", gameType, gameType),
+				addRequiredArgsExcept(gameType, "--network", "--rollup-config=rollup.json"))
 			verifyArgsInvalid(
 				t,
-				fmt.Sprintf("flag network or rollup-config/%s-rollup-config and l2-genesis/%s-l2-genesis is required", traceType, traceType),
-				addRequiredArgsExcept(traceType, "--network", "--l2-genesis=gensis.json"))
+				fmt.Sprintf("flag network or rollup-config/%s-rollup-config and l2-genesis/%s-l2-genesis is required", gameType, gameType),
+				addRequiredArgsExcept(gameType, "--network", "--l2-genesis=gensis.json"))
 		})
 
-		validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, traceType, types.TraceTypeAsteriscKona, "asterisc-kona-l2-custom")
+		validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, gameType, gameTypes.AsteriscKonaGameType, "asterisc-kona-l2-custom")
 
-		t.Run(fmt.Sprintf("TestNetwork-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestNetwork-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--network"))
+				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--network"))
 			})
 
 			t.Run("NotRequiredWhenRollupAndGenesisSpecified", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(traceType, "--network",
+				configForArgs(t, addRequiredArgsExcept(gameType, "--network",
 					"--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
 			})
 
 			t.Run("NotRequiredWhenNetworkSpecified", func(t *testing.T) {
-				args := requiredArgs(traceType)
+				args := requiredArgs(gameType)
 				delete(args, "--network")
 				delete(args, "--game-factory-address")
 				args["--network"] = "op-sepolia"
@@ -654,29 +663,29 @@ func TestAsteriscBaseRequiredArgs(t *testing.T) {
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--network", testNetwork))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--network", testNetwork))
 				require.Equal(t, []string{testNetwork}, cfg.Asterisc.Networks)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscRollupConfig-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestAsteriscRollupConfig-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--asterisc-rollup-config"))
+				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-rollup-config"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
 				require.Equal(t, []string{"rollup.json"}, cfg.Asterisc.RollupConfigPaths)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestL2Genesis-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestL2Genesis-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--l2-genesis"))
+				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--l2-genesis"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
 				require.Equal(t, []string{"genesis.json"}, cfg.Asterisc.L2GenesisPaths)
 			})
 		})
@@ -684,77 +693,77 @@ func TestAsteriscBaseRequiredArgs(t *testing.T) {
 }
 
 func TestAlphabetRequiredArgs(t *testing.T) {
-	t.Run(fmt.Sprintf("TestL2Rpc-%v", types.TraceTypeAlphabet), func(t *testing.T) {
+	t.Run(fmt.Sprintf("TestL2Rpc-%v", gameTypes.AlphabetGameType), func(t *testing.T) {
 		t.Run("RequiredForAlphabetTrace", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag l2-eth-rpc is required", addRequiredArgsExcept(types.TraceTypeAlphabet, "--l2-eth-rpc"))
+			verifyArgsInvalid(t, "flag l2-eth-rpc is required", addRequiredArgsExcept(gameTypes.AlphabetGameType, "--l2-eth-rpc"))
 		})
 
 		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet))
+			cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType))
 			require.Equal(t, []string{l2EthRpc}, cfg.L2Rpcs)
 		})
 	})
 }
 
 func TestCannonCustomConfigArgs(t *testing.T) {
-	for _, traceType := range []types.TraceType{types.TraceTypeCannon, types.TraceTypePermissioned} {
-		traceType := traceType
+	for _, gameType := range []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType} {
+		gameType := gameType
 
-		t.Run(fmt.Sprintf("TestRequireEitherCannonNetworkOrRollupAndGenesis-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestRequireEitherCannonNetworkOrRollupAndGenesis-%v", gameType), func(t *testing.T) {
 			verifyArgsInvalid(
 				t,
 				"flag network or rollup-config/cannon-rollup-config and l2-genesis/cannon-l2-genesis is required",
-				addRequiredArgsExcept(traceType, "--network"))
+				addRequiredArgsExcept(gameType, "--network"))
 			verifyArgsInvalid(
 				t,
 				"flag network or rollup-config/cannon-rollup-config and l2-genesis/cannon-l2-genesis is required",
-				addRequiredArgsExcept(traceType, "--network", "--cannon-rollup-config=rollup.json"))
+				addRequiredArgsExcept(gameType, "--network", "--cannon-rollup-config=rollup.json"))
 			verifyArgsInvalid(
 				t,
 				"flag network or rollup-config/cannon-rollup-config and l2-genesis/cannon-l2-genesis is required",
-				addRequiredArgsExcept(traceType, "--network", "--cannon-l2-genesis=gensis.json"))
+				addRequiredArgsExcept(gameType, "--network", "--cannon-l2-genesis=gensis.json"))
 		})
 
-		validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, traceType, types.TraceTypeCannon, "cannon-l2-custom")
+		validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, gameType, gameTypes.CannonGameType, "cannon-l2-custom")
 
-		t.Run(fmt.Sprintf("TestNetwork-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestNetwork-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredWhenRollupAndGenesIsSpecified", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(traceType, "--network",
+				configForArgs(t, addRequiredArgsExcept(gameType, "--network",
 					"--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--network", testNetwork))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--network", testNetwork))
 				require.Equal(t, []string{testNetwork}, cfg.Cannon.Networks)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestSetCannonL2ChainId-%v", traceType), func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network",
+		t.Run(fmt.Sprintf("TestSetCannonL2ChainId-%v", gameType), func(t *testing.T) {
+			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network",
 				"--cannon-rollup-config=rollup.json",
 				"--cannon-l2-genesis=genesis.json",
 				"--cannon-l2-custom"))
 			require.True(t, cfg.Cannon.L2Custom)
 		})
 
-		t.Run(fmt.Sprintf("TestCannonRollupConfig-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonRollupConfig-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--cannon-rollup-config"))
+				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--cannon-rollup-config"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json"))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json"))
 				require.Equal(t, []string{"rollup.json"}, cfg.Cannon.RollupConfigPaths)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestCannonL2Genesis-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonL2Genesis-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--cannon-l2-genesis"))
+				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--cannon-l2-genesis"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json"))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json"))
 				require.Equal(t, []string{"genesis.json"}, cfg.Cannon.L2GenesisPaths)
 			})
 		})
@@ -762,49 +771,49 @@ func TestCannonCustomConfigArgs(t *testing.T) {
 }
 
 func TestSuperCannonCustomConfigArgs(t *testing.T) {
-	for _, traceType := range []types.TraceType{types.TraceTypeSuperCannon, types.TraceTypeSuperPermissioned} {
-		traceType := traceType
+	for _, gameType := range []gameTypes.GameType{gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType} {
+		gameType := gameType
 
-		t.Run(fmt.Sprintf("TestRequireEitherCannonNetworkOrRollupAndGenesisAndDepset-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestRequireEitherCannonNetworkOrRollupAndGenesisAndDepset-%v", gameType), func(t *testing.T) {
 			expectedErrorMessage := "flag network or rollup-config/cannon-rollup-config, l2-genesis/cannon-l2-genesis and depset-config/cannon-depset-config is required"
 			// Missing all
 			verifyArgsInvalid(
 				t,
 				expectedErrorMessage,
-				addRequiredArgsExcept(traceType, "--network"))
+				addRequiredArgsExcept(gameType, "--network"))
 			// Missing l2-genesis
 			verifyArgsInvalid(
 				t,
 				expectedErrorMessage,
-				addRequiredArgsExcept(traceType, "--network", "--cannon-rollup-config=rollup.json", "--cannon-depset-config=depset.json"))
+				addRequiredArgsExcept(gameType, "--network", "--cannon-rollup-config=rollup.json", "--cannon-depset-config=depset.json"))
 			// Missing rollup-config
 			verifyArgsInvalid(
 				t,
 				expectedErrorMessage,
-				addRequiredArgsExcept(traceType, "--network", "--cannon-l2-genesis=gensis.json", "--cannon-depset-config=depset.json"))
+				addRequiredArgsExcept(gameType, "--network", "--cannon-l2-genesis=gensis.json", "--cannon-depset-config=depset.json"))
 			// Missing depset-config
 			verifyArgsInvalid(
 				t,
 				expectedErrorMessage,
-				addRequiredArgsExcept(traceType, "--network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=gensis.json"))
+				addRequiredArgsExcept(gameType, "--network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=gensis.json"))
 		})
 
-		validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, traceType, types.TraceTypeCannon, "cannon-l2-custom")
+		validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, gameType, gameTypes.CannonGameType, "cannon-l2-custom")
 
-		t.Run(fmt.Sprintf("TestNetwork-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestNetwork-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredWhenRollupGenesisAndDepsetIsSpecified", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(traceType, "--network",
+				configForArgs(t, addRequiredArgsExcept(gameType, "--network",
 					"--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json", "--cannon-depset-config=depset.json"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--network", testNetwork))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--network", testNetwork))
 				require.Equal(t, []string{testNetwork}, cfg.Cannon.Networks)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestSetCannonL2ChainId-%v", traceType), func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network",
+		t.Run(fmt.Sprintf("TestSetCannonL2ChainId-%v", gameType), func(t *testing.T) {
+			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network",
 				"--cannon-rollup-config=rollup.json",
 				"--cannon-l2-genesis=genesis.json",
 				"--cannon-depset-config=depset.json",
@@ -812,36 +821,36 @@ func TestSuperCannonCustomConfigArgs(t *testing.T) {
 			require.True(t, cfg.Cannon.L2Custom)
 		})
 
-		t.Run(fmt.Sprintf("TestCannonRollupConfig-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonRollupConfig-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--cannon-rollup-config"))
+				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--cannon-rollup-config"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network",
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network",
 					"--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json", "--cannon-depset-config=depset.json"))
 				require.Equal(t, []string{"rollup.json"}, cfg.Cannon.RollupConfigPaths)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestCannonL2Genesis-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonL2Genesis-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--cannon-l2-genesis"))
+				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--cannon-l2-genesis"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json", "--cannon-depset-config=depset.json"))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json", "--cannon-depset-config=depset.json"))
 				require.Equal(t, []string{"genesis.json"}, cfg.Cannon.L2GenesisPaths)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestCannonDepsetConfig-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonDepsetConfig-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--cannon-depset-config"))
+				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--cannon-depset-config"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json", "--cannon-depset-config=depset.json"))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=genesis.json", "--cannon-depset-config=depset.json"))
 				require.Equal(t, "depset.json", cfg.Cannon.DepsetConfigPath)
 			})
 		})
@@ -849,48 +858,48 @@ func TestSuperCannonCustomConfigArgs(t *testing.T) {
 }
 
 func TestSuperCannonKonaCustomConfigArgs(t *testing.T) {
-	traceType := types.TraceTypeSuperCannonKona
+	gameType := gameTypes.SuperCannonKonaGameType
 
-	t.Run(fmt.Sprintf("TestRequireEitherCannonKonaNetworkOrRollupAndGenesisAndDepset-%v", traceType), func(t *testing.T) {
+	t.Run(fmt.Sprintf("TestRequireEitherCannonKonaNetworkOrRollupAndGenesisAndDepset-%v", gameType), func(t *testing.T) {
 		expectedErrorMessage := "flag network or rollup-config/cannon-kona-rollup-config, l2-genesis/cannon-kona-l2-genesis and depset-config/cannon-kona-depset-config is required"
 		// Missing all
 		verifyArgsInvalid(
 			t,
 			expectedErrorMessage,
-			addRequiredArgsExcept(traceType, "--network"))
+			addRequiredArgsExcept(gameType, "--network"))
 		// Missing l2-genesis
 		verifyArgsInvalid(
 			t,
 			expectedErrorMessage,
-			addRequiredArgsExcept(traceType, "--network", "--cannon-kona-rollup-config=rollup.json", "--cannon-kona-depset-config=depset.json"))
+			addRequiredArgsExcept(gameType, "--network", "--cannon-kona-rollup-config=rollup.json", "--cannon-kona-depset-config=depset.json"))
 		// Missing rollup-config
 		verifyArgsInvalid(
 			t,
 			expectedErrorMessage,
-			addRequiredArgsExcept(traceType, "--network", "--cannon-kona-l2-genesis=gensis.json", "--cannon-kona-depset-config=depset.json"))
+			addRequiredArgsExcept(gameType, "--network", "--cannon-kona-l2-genesis=gensis.json", "--cannon-kona-depset-config=depset.json"))
 		// Missing depset-config
 		verifyArgsInvalid(
 			t,
 			expectedErrorMessage,
-			addRequiredArgsExcept(traceType, "--network", "--cannon-kona-rollup-config=rollup.json", "--cannon-kona-l2-genesis=gensis.json"))
+			addRequiredArgsExcept(gameType, "--network", "--cannon-kona-rollup-config=rollup.json", "--cannon-kona-l2-genesis=gensis.json"))
 	})
 
-	validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, traceType, types.TraceTypeCannonKona, "cannon-kona-l2-custom")
+	validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, gameType, gameTypes.CannonKonaGameType, "cannon-kona-l2-custom")
 
-	t.Run(fmt.Sprintf("TestNetwork-%v", traceType), func(t *testing.T) {
+	t.Run(fmt.Sprintf("TestNetwork-%v", gameType), func(t *testing.T) {
 		t.Run("NotRequiredWhenRollupGenesisAndDepsetIsSpecified", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(traceType, "--network",
+			configForArgs(t, addRequiredArgsExcept(gameType, "--network",
 				"--cannon-kona-rollup-config=rollup.json", "--cannon-kona-l2-genesis=genesis.json", "--cannon-kona-depset-config=depset.json"))
 		})
 
 		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--network", testNetwork))
+			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--network", testNetwork))
 			require.Equal(t, []string{testNetwork}, cfg.CannonKona.Networks)
 		})
 	})
 
-	t.Run(fmt.Sprintf("TestSetCannonKonaL2ChainId-%v", traceType), func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network",
+	t.Run(fmt.Sprintf("TestSetCannonKonaL2ChainId-%v", gameType), func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network",
 			"--cannon-kona-rollup-config=rollup.json",
 			"--cannon-kona-l2-genesis=genesis.json",
 			"--cannon-kona-depset-config=depset.json",
@@ -898,85 +907,85 @@ func TestSuperCannonKonaCustomConfigArgs(t *testing.T) {
 		require.True(t, cfg.CannonKona.L2Custom)
 	})
 
-	t.Run(fmt.Sprintf("TestCannonKonaRollupConfig-%v", traceType), func(t *testing.T) {
+	t.Run(fmt.Sprintf("TestCannonKonaRollupConfig-%v", gameType), func(t *testing.T) {
 		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--cannon-kona-rollup-config"))
+			configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--cannon-kona-rollup-config"))
 		})
 
 		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network",
+			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network",
 				"--cannon-kona-rollup-config=rollup.json", "--cannon-kona-l2-genesis=genesis.json", "--cannon-kona-depset-config=depset.json"))
 			require.Equal(t, []string{"rollup.json"}, cfg.CannonKona.RollupConfigPaths)
 		})
 	})
 
-	t.Run(fmt.Sprintf("TestCannonKonaL2Genesis-%v", traceType), func(t *testing.T) {
+	t.Run(fmt.Sprintf("TestCannonKonaL2Genesis-%v", gameType), func(t *testing.T) {
 		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--cannon-kona-l2-genesis"))
+			configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--cannon-kona-l2-genesis"))
 		})
 
 		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--cannon-kona-rollup-config=rollup.json", "--cannon-kona-l2-genesis=genesis.json", "--cannon-kona-depset-config=depset.json"))
+			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--cannon-kona-rollup-config=rollup.json", "--cannon-kona-l2-genesis=genesis.json", "--cannon-kona-depset-config=depset.json"))
 			require.Equal(t, []string{"genesis.json"}, cfg.CannonKona.L2GenesisPaths)
 		})
 	})
 
-	t.Run(fmt.Sprintf("TestCannonKonaDepsetConfig-%v", traceType), func(t *testing.T) {
+	t.Run(fmt.Sprintf("TestCannonKonaDepsetConfig-%v", gameType), func(t *testing.T) {
 		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--cannon-kona-depset-config"))
+			configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--cannon-kona-depset-config"))
 		})
 
 		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--cannon-kona-rollup-config=rollup.json", "--cannon-kona-l2-genesis=genesis.json", "--cannon-kona-depset-config=depset.json"))
+			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--cannon-kona-rollup-config=rollup.json", "--cannon-kona-l2-genesis=genesis.json", "--cannon-kona-depset-config=depset.json"))
 			require.Equal(t, "depset.json", cfg.CannonKona.DepsetConfigPath)
 		})
 	})
 }
 
 func TestSuperAsteriscKonaCustomConfigArgs(t *testing.T) {
-	for _, traceType := range []types.TraceType{types.TraceTypeSuperAsteriscKona} {
-		traceType := traceType
+	for _, gameType := range []gameTypes.GameType{gameTypes.SuperAsteriscKonaGameType} {
+		gameType := gameType
 
-		t.Run(fmt.Sprintf("TestRequireEitherAsteriscKonaNetworkOrRollupAndGenesisAndDepset-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestRequireEitherAsteriscKonaNetworkOrRollupAndGenesisAndDepset-%v", gameType), func(t *testing.T) {
 			expectedErrorMessage := "flag network or rollup-config/asterisc-kona-rollup-config, l2-genesis/asterisc-kona-l2-genesis and depset-config/asterisc-kona-depset-config is required"
 			// Missing all
 			verifyArgsInvalid(
 				t,
 				expectedErrorMessage,
-				addRequiredArgsExcept(traceType, "--network"))
+				addRequiredArgsExcept(gameType, "--network"))
 			// Missing l2-genesis
 			verifyArgsInvalid(
 				t,
 				expectedErrorMessage,
-				addRequiredArgsExcept(traceType, "--network", "--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-depset-config=depset.json"))
+				addRequiredArgsExcept(gameType, "--network", "--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-depset-config=depset.json"))
 			// Missing rollup-config
 			verifyArgsInvalid(
 				t,
 				expectedErrorMessage,
-				addRequiredArgsExcept(traceType, "--network", "--asterisc-kona-l2-genesis=gensis.json", "--asterisc-kona-depset-config=depset.json"))
+				addRequiredArgsExcept(gameType, "--network", "--asterisc-kona-l2-genesis=gensis.json", "--asterisc-kona-depset-config=depset.json"))
 			// Missing depset-config
 			verifyArgsInvalid(
 				t,
 				expectedErrorMessage,
-				addRequiredArgsExcept(traceType, "--network", "--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-l2-genesis=gensis.json"))
+				addRequiredArgsExcept(gameType, "--network", "--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-l2-genesis=gensis.json"))
 		})
 
-		validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, traceType, types.TraceTypeAsteriscKona, "asterisc-kona-l2-custom")
+		validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, gameType, gameTypes.AsteriscKonaGameType, "asterisc-kona-l2-custom")
 
-		t.Run(fmt.Sprintf("TestNetwork-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestNetwork-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredWhenRollupGenesisAndDepsetIsSpecified", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(traceType, "--network",
+				configForArgs(t, addRequiredArgsExcept(gameType, "--network",
 					"--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-l2-genesis=genesis.json", "--asterisc-kona-depset-config=depset.json"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--network", testNetwork))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--network", testNetwork))
 				require.Equal(t, []string{testNetwork}, cfg.AsteriscKona.Networks)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestSetAsteriscL2ChainId-%v", traceType), func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network",
+		t.Run(fmt.Sprintf("TestSetAsteriscL2ChainId-%v", gameType), func(t *testing.T) {
+			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network",
 				"--asterisc-kona-rollup-config=rollup.json",
 				"--asterisc-kona-l2-genesis=genesis.json",
 				"--asterisc-kona-depset-config=depset.json",
@@ -984,36 +993,36 @@ func TestSuperAsteriscKonaCustomConfigArgs(t *testing.T) {
 			require.True(t, cfg.AsteriscKona.L2Custom)
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscRollupConfig-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestAsteriscRollupConfig-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--asterisc-kona-rollup-config"))
+				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-kona-rollup-config"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network",
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network",
 					"--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-l2-genesis=genesis.json", "--asterisc-kona-depset-config=depset.json"))
 				require.Equal(t, []string{"rollup.json"}, cfg.AsteriscKona.RollupConfigPaths)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscL2Genesis-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestAsteriscL2Genesis-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--asterisc-kona-l2-genesis"))
+				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-kona-l2-genesis"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-l2-genesis=genesis.json", "--asterisc-kona-depset-config=depset.json"))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-l2-genesis=genesis.json", "--asterisc-kona-depset-config=depset.json"))
 				require.Equal(t, []string{"genesis.json"}, cfg.AsteriscKona.L2GenesisPaths)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscDepsetConfig-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestAsteriscDepsetConfig-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--asterisc-kona-depset-config"))
+				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-kona-depset-config"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-l2-genesis=genesis.json", "--asterisc-kona-depset-config=depset.json"))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-l2-genesis=genesis.json", "--asterisc-kona-depset-config=depset.json"))
 				require.Equal(t, "depset.json", cfg.AsteriscKona.DepsetConfigPath)
 			})
 		})
@@ -1021,167 +1030,167 @@ func TestSuperAsteriscKonaCustomConfigArgs(t *testing.T) {
 }
 
 func TestCannonRequiredArgs(t *testing.T) {
-	for _, traceType := range []types.TraceType{types.TraceTypeCannon, types.TraceTypePermissioned, types.TraceTypeSuperCannon, types.TraceTypeSuperPermissioned} {
-		traceType := traceType
-		t.Run(fmt.Sprintf("TestCannonBin-%v", traceType), func(t *testing.T) {
+	for _, gameType := range []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType, gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType} {
+		gameType := gameType
+		t.Run(fmt.Sprintf("TestCannonBin-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--cannon-bin"))
+				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--cannon-bin"))
 			})
 
 			t.Run("Required", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag cannon-bin is required", addRequiredArgsExcept(traceType, "--cannon-bin"))
+				verifyArgsInvalid(t, "flag cannon-bin is required", addRequiredArgsExcept(gameType, "--cannon-bin"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-bin", "--cannon-bin=./cannon"))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--cannon-bin", "--cannon-bin=./cannon"))
 				require.Equal(t, "./cannon", cfg.Cannon.VmBin)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestCannonServer-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonServer-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--cannon-server"))
+				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--cannon-server"))
 			})
 
 			t.Run("Required", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag cannon-server is required", addRequiredArgsExcept(traceType, "--cannon-server"))
+				verifyArgsInvalid(t, "flag cannon-server is required", addRequiredArgsExcept(gameType, "--cannon-server"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-server", "--cannon-server=./op-program"))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--cannon-server", "--cannon-server=./op-program"))
 				require.Equal(t, "./op-program", cfg.Cannon.Server)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestCannonAbsolutePrestate-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonAbsolutePrestate-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--cannon-prestate"))
+				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--cannon-prestate"))
 			})
 
 			t.Run("Required", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExcept(traceType, "--cannon-prestate"))
+				verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExcept(gameType, "--cannon-prestate"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-prestate", "--cannon-prestate=./pre.json"))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--cannon-prestate", "--cannon-prestate=./pre.json"))
 				require.Equal(t, "./pre.json", cfg.CannonAbsolutePreState)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestCannonPrestatesBaseURL-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonPrestatesBaseURL-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--cannon-prestates-url"))
+				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--cannon-prestates-url"))
 			})
 
 			t.Run("Required", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExcept(traceType, "--cannon-prestate"))
+				verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExcept(gameType, "--cannon-prestate"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--cannon-prestates-url", "--cannon-prestates-url=http://localhost/foo"))
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--cannon-prestates-url", "--cannon-prestates-url=http://localhost/foo"))
 				require.Equal(t, "http://localhost/foo", cfg.CannonAbsolutePreStateBaseURL.String())
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestPrestateBaseURL-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestPrestateBaseURL-%v", gameType), func(t *testing.T) {
 			allPrestateOptions := []string{"--prestates-url", "--cannon-prestates-url", "--cannon-prestate"}
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExceptArr(types.TraceTypeAlphabet, allPrestateOptions))
+				configForArgs(t, addRequiredArgsExceptArr(gameTypes.AlphabetGameType, allPrestateOptions))
 			})
 
 			t.Run("NotRequiredIfCannonPrestatesBaseURLSet", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExceptArr(traceType, allPrestateOptions, "--cannon-prestates-url=http://localhost/foo"))
+				configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions, "--cannon-prestates-url=http://localhost/foo"))
 			})
 
 			t.Run("CannonPrestatesBaseURLTakesPrecedence", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExceptArr(traceType, allPrestateOptions, "--cannon-prestates-url=http://localhost/foo", "--prestates-url=http://localhost/bar"))
+				cfg := configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions, "--cannon-prestates-url=http://localhost/foo", "--prestates-url=http://localhost/bar"))
 				require.Equal(t, "http://localhost/foo", cfg.CannonAbsolutePreStateBaseURL.String())
 			})
 
 			t.Run("RequiredIfCannonPrestatesBaseURLNotSet", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExceptArr(traceType, allPrestateOptions))
+				verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExceptArr(gameType, allPrestateOptions))
 			})
 
 			t.Run("Invalid", func(t *testing.T) {
-				verifyArgsInvalid(t, "invalid prestates-url (:foo/bar)", addRequiredArgsExceptArr(traceType, allPrestateOptions, "--prestates-url=:foo/bar"))
+				verifyArgsInvalid(t, "invalid prestates-url (:foo/bar)", addRequiredArgsExceptArr(gameType, allPrestateOptions, "--prestates-url=:foo/bar"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExceptArr(traceType, allPrestateOptions, "--prestates-url=http://localhost/foo"))
+				cfg := configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions, "--prestates-url=http://localhost/foo"))
 				require.Equal(t, "http://localhost/foo", cfg.CannonAbsolutePreStateBaseURL.String())
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestL2Rpc-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestL2Rpc-%v", gameType), func(t *testing.T) {
 			t.Run("RequiredForCannonTrace", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag l2-eth-rpc is required", addRequiredArgsExcept(traceType, "--l2-eth-rpc"))
+				verifyArgsInvalid(t, "flag l2-eth-rpc is required", addRequiredArgsExcept(gameType, "--l2-eth-rpc"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgs(traceType))
+				cfg := configForArgs(t, addRequiredArgs(gameType))
 				require.Equal(t, []string{l2EthRpc}, cfg.L2Rpcs)
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestCannonSnapshotFreq-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonSnapshotFreq-%v", gameType), func(t *testing.T) {
 			t.Run("UsesDefault", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgs(traceType))
+				cfg := configForArgs(t, addRequiredArgs(gameType))
 				require.Equal(t, config.DefaultCannonSnapshotFreq, cfg.Cannon.SnapshotFreq)
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgs(traceType, "--cannon-snapshot-freq=1234"))
+				cfg := configForArgs(t, addRequiredArgs(gameType, "--cannon-snapshot-freq=1234"))
 				require.Equal(t, uint(1234), cfg.Cannon.SnapshotFreq)
 			})
 
 			t.Run("Invalid", func(t *testing.T) {
 				verifyArgsInvalid(t, "invalid value \"abc\" for flag -cannon-snapshot-freq",
-					addRequiredArgs(traceType, "--cannon-snapshot-freq=abc"))
+					addRequiredArgs(gameType, "--cannon-snapshot-freq=abc"))
 			})
 		})
 
-		t.Run(fmt.Sprintf("TestCannonInfoFreq-%v", traceType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonInfoFreq-%v", gameType), func(t *testing.T) {
 			t.Run("UsesDefault", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgs(traceType))
+				cfg := configForArgs(t, addRequiredArgs(gameType))
 				require.Equal(t, config.DefaultCannonInfoFreq, cfg.Cannon.InfoFreq)
 			})
 
 			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgs(traceType, "--cannon-info-freq=1234"))
+				cfg := configForArgs(t, addRequiredArgs(gameType, "--cannon-info-freq=1234"))
 				require.Equal(t, uint(1234), cfg.Cannon.InfoFreq)
 			})
 
 			t.Run("Invalid", func(t *testing.T) {
 				verifyArgsInvalid(t, "invalid value \"abc\" for flag -cannon-info-freq",
-					addRequiredArgs(traceType, "--cannon-info-freq=abc"))
+					addRequiredArgs(gameType, "--cannon-info-freq=abc"))
 			})
 		})
 	}
 }
 
 func TestDepsetConfig(t *testing.T) {
-	for _, traceType := range types.TraceTypes {
-		if traceType == types.TraceTypeSuperCannon || traceType == types.TraceTypeSuperPermissioned {
-			t.Run("Required-"+traceType.String(), func(t *testing.T) {
+	for _, gameType := range gameTypes.SupportedGameTypes {
+		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType {
+			t.Run("Required-"+gameType.String(), func(t *testing.T) {
 				verifyArgsInvalid(t,
 					"flag network or rollup-config/cannon-rollup-config, l2-genesis/cannon-l2-genesis and depset-config/cannon-depset-config is required",
-					addRequiredArgsExcept(traceType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
+					addRequiredArgsExcept(gameType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
 			})
-		} else if traceType == types.TraceTypeSuperCannonKona {
-			t.Run("Required-"+traceType.String(), func(t *testing.T) {
+		} else if gameType == gameTypes.SuperCannonKonaGameType {
+			t.Run("Required-"+gameType.String(), func(t *testing.T) {
 				verifyArgsInvalid(t,
 					"flag network or rollup-config/cannon-kona-rollup-config, l2-genesis/cannon-kona-l2-genesis and depset-config/cannon-kona-depset-config is required",
-					addRequiredArgsExcept(traceType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
+					addRequiredArgsExcept(gameType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
 			})
-		} else if traceType == types.TraceTypeSuperAsteriscKona {
-			t.Run("Required-"+traceType.String(), func(t *testing.T) {
+		} else if gameType == gameTypes.SuperAsteriscKonaGameType {
+			t.Run("Required-"+gameType.String(), func(t *testing.T) {
 				verifyArgsInvalid(t,
 					"flag network or rollup-config/asterisc-kona-rollup-config, l2-genesis/asterisc-kona-l2-genesis and depset-config/asterisc-kona-depset-config is required",
-					addRequiredArgsExcept(traceType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
+					addRequiredArgsExcept(gameType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
 			})
 		} else {
-			t.Run("NotRequired-"+traceType.String(), func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(traceType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
+			t.Run("NotRequired-"+gameType.String(), func(t *testing.T) {
+				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
 				require.Equal(t, "", cfg.Cannon.DepsetConfigPath)
 			})
 		}
@@ -1189,89 +1198,89 @@ func TestDepsetConfig(t *testing.T) {
 }
 
 func TestDataDir(t *testing.T) {
-	for _, traceType := range types.TraceTypes {
-		traceType := traceType
+	for _, gameType := range gameTypes.SupportedGameTypes {
+		gameType := gameType
 
-		t.Run(fmt.Sprintf("RequiredFor-%v", traceType), func(t *testing.T) {
-			verifyArgsInvalid(t, "flag datadir is required", addRequiredArgsExcept(traceType, "--datadir"))
+		t.Run(fmt.Sprintf("RequiredFor-%v", gameType), func(t *testing.T) {
+			verifyArgsInvalid(t, "flag datadir is required", addRequiredArgsExcept(gameType, "--datadir"))
 		})
 	}
 
 	t.Run("Valid", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeCannon, "--datadir", "--datadir=/foo/bar/cannon"))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.CannonGameType, "--datadir", "--datadir=/foo/bar/cannon"))
 		require.Equal(t, "/foo/bar/cannon", cfg.Datadir)
 	})
 }
 
 func TestRollupRpc(t *testing.T) {
-	for _, traceType := range types.TraceTypes {
-		traceType := traceType
+	for _, gameType := range gameTypes.SupportedGameTypes {
+		gameType := gameType
 
-		if traceType == types.TraceTypeSuperCannon || traceType == types.TraceTypeSuperPermissioned || traceType == types.TraceTypeSuperAsteriscKona || traceType == types.TraceTypeSuperCannonKona {
-			t.Run(fmt.Sprintf("NotRequiredFor-%v", traceType), func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(traceType, "--rollup-rpc"))
+		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperAsteriscKonaGameType || gameType == gameTypes.SuperCannonKonaGameType {
+			t.Run(fmt.Sprintf("NotRequiredFor-%v", gameType), func(t *testing.T) {
+				configForArgs(t, addRequiredArgsExcept(gameType, "--rollup-rpc"))
 			})
 		} else {
-			t.Run(fmt.Sprintf("RequiredFor-%v", traceType), func(t *testing.T) {
-				verifyArgsInvalid(t, "flag rollup-rpc is required", addRequiredArgsExcept(traceType, "--rollup-rpc"))
+			t.Run(fmt.Sprintf("RequiredFor-%v", gameType), func(t *testing.T) {
+				verifyArgsInvalid(t, "flag rollup-rpc is required", addRequiredArgsExcept(gameType, "--rollup-rpc"))
 			})
 		}
 	}
 
 	t.Run("Valid", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeCannon))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonGameType))
 		require.Equal(t, rollupRpc, cfg.RollupRpc)
 	})
 }
 
 func TestGameWindow(t *testing.T) {
 	t.Run("UsesDefault", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType))
 		require.Equal(t, config.DefaultGameWindow, cfg.GameWindow)
 	})
 
 	t.Run("Valid", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet, "--game-window=1m"))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType, "--game-window=1m"))
 		require.Equal(t, time.Minute, cfg.GameWindow)
 	})
 
 	t.Run("ParsesDefault", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet, "--game-window=672h"))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType, "--game-window=672h"))
 		require.Equal(t, config.DefaultGameWindow, cfg.GameWindow)
 	})
 }
 
 func TestUnsafeAllowInvalidPrestate(t *testing.T) {
 	t.Run("DefaultsToFalse", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--unsafe-allow-invalid-prestate"))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--unsafe-allow-invalid-prestate"))
 		require.False(t, cfg.AllowInvalidPrestate)
 	})
 
 	t.Run("EnabledWithNoValue", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeCannon, "--unsafe-allow-invalid-prestate"))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonGameType, "--unsafe-allow-invalid-prestate"))
 		require.True(t, cfg.AllowInvalidPrestate)
 	})
 
 	t.Run("EnabledWithTrue", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeCannon, "--unsafe-allow-invalid-prestate=true"))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonGameType, "--unsafe-allow-invalid-prestate=true"))
 		require.True(t, cfg.AllowInvalidPrestate)
 	})
 
 	t.Run("DisabledWithFalse", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeCannon, "--unsafe-allow-invalid-prestate=false"))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonGameType, "--unsafe-allow-invalid-prestate=false"))
 		require.False(t, cfg.AllowInvalidPrestate)
 	})
 }
 
 func TestAdditionalBondClaimants(t *testing.T) {
 	t.Run("DefaultsToEmpty", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgsExcept(types.TraceTypeAlphabet, "--additional-bond-claimants"))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--additional-bond-claimants"))
 		require.Empty(t, cfg.AdditionalBondClaimants)
 	})
 
 	t.Run("Valid-Single", func(t *testing.T) {
 		claimant := common.Address{0xaa}
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet, "--additional-bond-claimants", claimant.Hex()))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType, "--additional-bond-claimants", claimant.Hex()))
 		require.Contains(t, cfg.AdditionalBondClaimants, claimant)
 		require.Len(t, cfg.AdditionalBondClaimants, 1)
 	})
@@ -1280,7 +1289,7 @@ func TestAdditionalBondClaimants(t *testing.T) {
 		claimant1 := common.Address{0xaa}
 		claimant2 := common.Address{0xbb}
 		claimant3 := common.Address{0xcc}
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet,
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType,
 			"--additional-bond-claimants", fmt.Sprintf("%v,%v,%v", claimant1.Hex(), claimant2.Hex(), claimant3.Hex())))
 		require.Contains(t, cfg.AdditionalBondClaimants, claimant1)
 		require.Contains(t, cfg.AdditionalBondClaimants, claimant2)
@@ -1290,25 +1299,25 @@ func TestAdditionalBondClaimants(t *testing.T) {
 
 	t.Run("Invalid-Single", func(t *testing.T) {
 		verifyArgsInvalid(t, "invalid additional claimant",
-			addRequiredArgs(types.TraceTypeAlphabet, "--additional-bond-claimants", "nope"))
+			addRequiredArgs(gameTypes.AlphabetGameType, "--additional-bond-claimants", "nope"))
 	})
 
 	t.Run("Invalid-Multiple", func(t *testing.T) {
 		claimant1 := common.Address{0xaa}
 		claimant2 := common.Address{0xbb}
 		verifyArgsInvalid(t, "invalid additional claimant",
-			addRequiredArgs(types.TraceTypeAlphabet, "--additional-bond-claimants", fmt.Sprintf("%v,nope,%v", claimant1.Hex(), claimant2.Hex())))
+			addRequiredArgs(gameTypes.AlphabetGameType, "--additional-bond-claimants", fmt.Sprintf("%v,nope,%v", claimant1.Hex(), claimant2.Hex())))
 	})
 }
 
 func TestSignerTLS(t *testing.T) {
 	t.Run("EnabledByDefault", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType))
 		require.True(t, cfg.TxMgrConfig.SignerCLIConfig.TLSConfig.Enabled)
 	})
 
 	t.Run("Disabled", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet, "--signer.tls.enabled=false"))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType, "--signer.tls.enabled=false"))
 		require.False(t, cfg.TxMgrConfig.SignerCLIConfig.TLSConfig.Enabled)
 	})
 }
@@ -1340,35 +1349,35 @@ func dryRunWithArgs(cliArgs []string) (log.Logger, config.Config, error) {
 	return logger, *cfg, err
 }
 
-func addRequiredArgs(traceType types.TraceType, args ...string) []string {
-	req := requiredArgs(traceType)
+func addRequiredArgs(gameType gameTypes.GameType, args ...string) []string {
+	req := requiredArgs(gameType)
 	combined := toArgList(req)
 	return append(combined, args...)
 }
 
-func addRequiredArgsExcept(traceType types.TraceType, name string, optionalArgs ...string) []string {
-	req := requiredArgs(traceType)
+func addRequiredArgsExcept(gameType gameTypes.GameType, name string, optionalArgs ...string) []string {
+	req := requiredArgs(gameType)
 	delete(req, name)
 	return append(toArgList(req), optionalArgs...)
 }
 
-func addRequiredArgsForMultipleTracesExcept(traceType []types.TraceType, name string, optionalArgs ...string) []string {
-	req := requiredArgsMultiple(traceType)
+func addRequiredArgsForMultipleGameTypesExcept(gameType []gameTypes.GameType, name string, optionalArgs ...string) []string {
+	req := requiredArgsMultiple(gameType)
 	delete(req, name)
 	return append(toArgList(req), optionalArgs...)
 }
 
-func addRequiredArgsExceptArr(traceType types.TraceType, names []string, optionalArgs ...string) []string {
-	req := requiredArgs(traceType)
+func addRequiredArgsExceptArr(gameType gameTypes.GameType, names []string, optionalArgs ...string) []string {
+	req := requiredArgs(gameType)
 	for _, name := range names {
 		delete(req, name)
 	}
 	return append(toArgList(req), optionalArgs...)
 }
 
-func requiredArgsMultiple(traceType []types.TraceType) map[string]string {
+func requiredArgsMultiple(gameType []gameTypes.GameType) map[string]string {
 	args := make(map[string]string)
-	for _, t := range traceType {
+	for _, t := range gameType {
 		for name, value := range requiredArgs(t) {
 			args[name] = value
 		}
@@ -1376,31 +1385,31 @@ func requiredArgsMultiple(traceType []types.TraceType) map[string]string {
 	return args
 }
 
-func requiredArgs(traceType types.TraceType) map[string]string {
+func requiredArgs(gameType gameTypes.GameType) map[string]string {
 	args := map[string]string{
 		"--l1-eth-rpc":           l1EthRpc,
 		"--l1-beacon":            l1Beacon,
 		"--l2-eth-rpc":           l2EthRpc,
 		"--game-factory-address": gameFactoryAddressValue,
-		"--trace-type":           traceType.String(),
+		"--game-types":           gameType.String(),
 		"--datadir":              datadir,
 	}
-	switch traceType {
-	case types.TraceTypeCannon, types.TraceTypePermissioned:
+	switch gameType {
+	case gameTypes.CannonGameType, gameTypes.PermissionedGameType:
 		addRequiredCannonArgs(args)
-	case types.TraceTypeCannonKona:
+	case gameTypes.CannonKonaGameType:
 		addRequiredCannonKonaArgs(args)
-	case types.TraceTypeAsterisc:
+	case gameTypes.AsteriscGameType:
 		addRequiredAsteriscArgs(args)
-	case types.TraceTypeAsteriscKona:
+	case gameTypes.AsteriscKonaGameType:
 		addRequiredAsteriscKonaArgs(args)
-	case types.TraceTypeSuperCannon, types.TraceTypeSuperPermissioned:
+	case gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType:
 		addRequiredSuperCannonArgs(args)
-	case types.TraceTypeSuperCannonKona:
+	case gameTypes.SuperCannonKonaGameType:
 		addRequiredSuperCannonKonaArgs(args)
-	case types.TraceTypeSuperAsteriscKona:
+	case gameTypes.SuperAsteriscKonaGameType:
 		addRequiredSuperAsteriscKonaArgs(args)
-	case types.TraceTypeAlphabet, types.TraceTypeFast:
+	case gameTypes.AlphabetGameType, gameTypes.FastGameType:
 		addRequiredOutputRootArgs(args)
 	}
 	return args

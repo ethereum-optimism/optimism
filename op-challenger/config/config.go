@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	ErrMissingTraceType                  = errors.New("no supported trace types specified")
+	ErrMissingGameType                   = errors.New("no supported game types specified")
 	ErrMissingDatadir                    = errors.New("missing datadir")
 	ErrMaxConcurrencyZero                = errors.New("max concurrency must not be 0")
 	ErrMissingL2Rpc                      = errors.New("missing L2 rpc url")
@@ -80,7 +80,7 @@ type Config struct {
 
 	SelectiveClaimResolution bool // Whether to only resolve claims for the claimants in AdditionalBondClaimants union [TxSender.From()]
 
-	TraceTypes []types.TraceType // Type of traces supported
+	GameTypes []gameTypes.GameType // Type of games supported
 
 	RollupRpc     string   // L2 Rollup RPC Url
 	SupervisorRPC string   // L2 supervisor RPC URL
@@ -129,7 +129,7 @@ func NewInteropConfig(
 	supervisorRpc string,
 	l2Rpcs []string,
 	datadir string,
-	supportedTraceTypes ...types.TraceType,
+	supportedGameTypes ...gameTypes.GameType,
 ) Config {
 	return Config{
 		L1EthRpc:           l1EthRpc,
@@ -140,7 +140,7 @@ func NewInteropConfig(
 		MaxConcurrency:     uint(runtime.NumCPU()),
 		PollInterval:       DefaultPollInterval,
 
-		TraceTypes: supportedTraceTypes,
+		GameTypes: supportedGameTypes,
 
 		MaxPendingTx: DefaultMaxPendingTx,
 
@@ -151,7 +151,7 @@ func NewInteropConfig(
 		Datadir: datadir,
 
 		Cannon: vm.Config{
-			VmType:          types.TraceTypeCannon,
+			VmType:          gameTypes.CannonGameType,
 			L1:              l1EthRpc,
 			L1Beacon:        l1BeaconApi,
 			L2s:             l2Rpcs,
@@ -161,7 +161,7 @@ func NewInteropConfig(
 			BinarySnapshots: true,
 		},
 		CannonKona: vm.Config{
-			VmType:          types.TraceTypeCannonKona,
+			VmType:          gameTypes.CannonKonaGameType,
 			L1:              l1EthRpc,
 			L1Beacon:        l1BeaconApi,
 			L2s:             l2Rpcs,
@@ -171,7 +171,7 @@ func NewInteropConfig(
 			BinarySnapshots: true,
 		},
 		Asterisc: vm.Config{
-			VmType:          types.TraceTypeAsterisc,
+			VmType:          gameTypes.AsteriscGameType,
 			L1:              l1EthRpc,
 			L1Beacon:        l1BeaconApi,
 			L2s:             l2Rpcs,
@@ -180,7 +180,7 @@ func NewInteropConfig(
 			BinarySnapshots: true,
 		},
 		AsteriscKona: vm.Config{
-			VmType:          types.TraceTypeAsteriscKona,
+			VmType:          gameTypes.AsteriscKonaGameType,
 			L1:              l1EthRpc,
 			L1Beacon:        l1BeaconApi,
 			L2s:             l2Rpcs,
@@ -199,7 +199,7 @@ func NewConfig(
 	l2RollupRpc string,
 	l2EthRpc string,
 	datadir string,
-	supportedTraceTypes ...types.TraceType,
+	supportedGameTypes ...gameTypes.GameType,
 ) Config {
 	return Config{
 		L1EthRpc:           l1EthRpc,
@@ -210,7 +210,7 @@ func NewConfig(
 		MaxConcurrency:     uint(runtime.NumCPU()),
 		PollInterval:       DefaultPollInterval,
 
-		TraceTypes: supportedTraceTypes,
+		GameTypes: supportedGameTypes,
 
 		MaxPendingTx: DefaultMaxPendingTx,
 
@@ -221,7 +221,7 @@ func NewConfig(
 		Datadir: datadir,
 
 		Cannon: vm.Config{
-			VmType:          types.TraceTypeCannon,
+			VmType:          gameTypes.CannonGameType,
 			L1:              l1EthRpc,
 			L1Beacon:        l1BeaconApi,
 			L2s:             []string{l2EthRpc},
@@ -231,7 +231,7 @@ func NewConfig(
 			BinarySnapshots: true,
 		},
 		CannonKona: vm.Config{
-			VmType:          types.TraceTypeCannonKona,
+			VmType:          gameTypes.CannonKonaGameType,
 			L1:              l1EthRpc,
 			L1Beacon:        l1BeaconApi,
 			L2s:             []string{l2EthRpc},
@@ -241,7 +241,7 @@ func NewConfig(
 			BinarySnapshots: true,
 		},
 		Asterisc: vm.Config{
-			VmType:          types.TraceTypeAsterisc,
+			VmType:          gameTypes.AsteriscGameType,
 			L1:              l1EthRpc,
 			L1Beacon:        l1BeaconApi,
 			L2s:             []string{l2EthRpc},
@@ -250,7 +250,7 @@ func NewConfig(
 			BinarySnapshots: true,
 		},
 		AsteriscKona: vm.Config{
-			VmType:          types.TraceTypeAsteriscKona,
+			VmType:          gameTypes.AsteriscKonaGameType,
 			L1:              l1EthRpc,
 			L1Beacon:        l1BeaconApi,
 			L2s:             []string{l2EthRpc},
@@ -262,8 +262,8 @@ func NewConfig(
 	}
 }
 
-func (c Config) TraceTypeEnabled(t types.TraceType) bool {
-	return slices.Contains(c.TraceTypes, t)
+func (c Config) GameTypeEnabled(t gameTypes.GameType) bool {
+	return slices.Contains(c.GameTypes, t)
 }
 
 func (c Config) Check() error {
@@ -279,8 +279,8 @@ func (c Config) Check() error {
 	if c.GameFactoryAddress == (common.Address{}) {
 		return ErrMissingGameFactoryAddress
 	}
-	if len(c.TraceTypes) == 0 {
-		return ErrMissingTraceType
+	if len(c.GameTypes) == 0 {
+		return ErrMissingGameType
 	}
 	if c.Datadir == "" {
 		return ErrMissingDatadir
@@ -288,7 +288,7 @@ func (c Config) Check() error {
 	if c.MaxConcurrency == 0 {
 		return ErrMaxConcurrencyZero
 	}
-	if c.TraceTypeEnabled(types.TraceTypeSuperCannon) || c.TraceTypeEnabled(types.TraceTypeSuperPermissioned) {
+	if c.GameTypeEnabled(gameTypes.SuperCannonGameType) || c.GameTypeEnabled(gameTypes.SuperPermissionedGameType) {
 		if c.SupervisorRPC == "" {
 			return ErrMissingSupervisorRpc
 		}
@@ -300,7 +300,7 @@ func (c Config) Check() error {
 			return err
 		}
 	}
-	if c.TraceTypeEnabled(types.TraceTypeCannon) || c.TraceTypeEnabled(types.TraceTypePermissioned) {
+	if c.GameTypeEnabled(gameTypes.CannonGameType) || c.GameTypeEnabled(gameTypes.PermissionedGameType) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}
@@ -308,7 +308,7 @@ func (c Config) Check() error {
 			return err
 		}
 	}
-	if c.TraceTypeEnabled(types.TraceTypeSuperCannonKona) {
+	if c.GameTypeEnabled(gameTypes.SuperCannonKonaGameType) {
 		if c.SupervisorRPC == "" {
 			return ErrMissingSupervisorRpc
 		}
@@ -320,7 +320,7 @@ func (c Config) Check() error {
 			return err
 		}
 	}
-	if c.TraceTypeEnabled(types.TraceTypeCannonKona) {
+	if c.GameTypeEnabled(gameTypes.CannonKonaGameType) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}
@@ -328,7 +328,7 @@ func (c Config) Check() error {
 			return err
 		}
 	}
-	if c.TraceTypeEnabled(types.TraceTypeAsterisc) {
+	if c.GameTypeEnabled(gameTypes.AsteriscGameType) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}
@@ -345,7 +345,7 @@ func (c Config) Check() error {
 			return ErrMissingAsteriscInfoFreq
 		}
 	}
-	if c.TraceTypeEnabled(types.TraceTypeAsteriscKona) {
+	if c.GameTypeEnabled(gameTypes.AsteriscKonaGameType) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}
@@ -353,7 +353,7 @@ func (c Config) Check() error {
 			return err
 		}
 	}
-	if c.TraceTypeEnabled(types.TraceTypeSuperAsteriscKona) {
+	if c.GameTypeEnabled(gameTypes.SuperAsteriscKonaGameType) {
 		if c.SupervisorRPC == "" {
 			return ErrMissingSupervisorRpc
 		}
@@ -365,7 +365,7 @@ func (c Config) Check() error {
 			return err
 		}
 	}
-	if c.TraceTypeEnabled(types.TraceTypeAlphabet) || c.TraceTypeEnabled(types.TraceTypeFast) {
+	if c.GameTypeEnabled(gameTypes.AlphabetGameType) || c.GameTypeEnabled(gameTypes.FastGameType) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}

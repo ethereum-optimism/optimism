@@ -61,7 +61,7 @@ jobs:
           - cannon
           - op-dripper
           - op-interop-mon
-    uses: ethereum-optimism/factory/.github/workflows/docker-bake.yaml@2ff3f9bba03d59a6ad10fdf660ed253f53956188
+    uses: ethereum-optimism/factory/.github/workflows/docker-bake.yaml@753bcd4284a6d36eac6e31df2492015ab8650331
     with:
       image_name: ${{ matrix.image_name }}
       bake_file: docker-bake.hcl
@@ -69,6 +69,7 @@ jobs:
       tag: ${{ needs.prep.outputs.sanitised_ref_name }}
       gcp_project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
       registry: us-docker.pkg.dev/oplabs-tools-artifacts/oss
+      attest: true
       env: |
         GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[matrix.image_name] }}
         KONA_VERSION=${{ needs.prep.outputs.kona_version }}

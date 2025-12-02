@@ -8,7 +8,7 @@ import (
 	"runtime"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -28,8 +28,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-func WithGameTypeAdded(gameType types.GameType) stack.Option[*Orchestrator] {
-	if gameType == types.PermissionedGameType {
+func WithGameTypeAdded(gameType gameTypes.GameType) stack.Option[*Orchestrator] {
+	if gameType == gameTypes.PermissionedGameType {
 		// Permissioned games are added as part of the initial deployment
 		// so no action required.
 		return stack.Combine[*Orchestrator]()
@@ -45,7 +45,7 @@ func WithGameTypeAdded(gameType types.GameType) stack.Option[*Orchestrator] {
 	return opts
 }
 
-func WithRespectedGameType(gameType types.GameType) stack.Option[*Orchestrator] {
+func WithRespectedGameType(gameType gameTypes.GameType) stack.Option[*Orchestrator] {
 	return stack.FnOption[*Orchestrator]{
 		FinallyFn: func(o *Orchestrator) {
 			for _, l2ChainID := range o.l2Nets.Keys() {
@@ -60,7 +60,7 @@ func WithCannonGameTypeAdded(l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) sta
 		FinallyFn: func(o *Orchestrator) {
 			// TODO(#17867): Rebuild the op-program prestate using the newly minted L2 chain configs before using it.
 			absolutePrestate := getAbsolutePrestate(o.P(), "op-program/bin/prestate-proof-mt64.json")
-			addGameType(o, absolutePrestate, types.CannonGameType, l1ELID, l2ChainID)
+			addGameType(o, absolutePrestate, gameTypes.CannonGameType, l1ELID, l2ChainID)
 		},
 	}
 }
@@ -73,7 +73,7 @@ func WithCannonKonaGameTypeAdded() stack.Option[*Orchestrator] {
 		FinallyFn: func(o *Orchestrator) {
 			absolutePrestate := getCannonKonaAbsolutePrestate(o.P())
 			for _, l2ChainID := range o.l2Nets.Keys() {
-				addGameType(o, absolutePrestate, types.CannonKonaGameType, o.l1ELs.Keys()[0], l2ChainID)
+				addGameType(o, absolutePrestate, gameTypes.CannonKonaGameType, o.l1ELs.Keys()[0], l2ChainID)
 			}
 		},
 	}
@@ -87,7 +87,7 @@ func WithChallengerCannonKonaEnabled() stack.Option[*Orchestrator] {
 	}
 }
 
-func setRespectedGameType(o *Orchestrator, gameType types.GameType, l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) {
+func setRespectedGameType(o *Orchestrator, gameType gameTypes.GameType, l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) {
 	t := o.P()
 	require := t.Require()
 	require.NotNil(o.wb, "must have a world builder")
@@ -139,7 +139,7 @@ func setRespectedGameType(o *Orchestrator, gameType types.GameType, l1ELID stack
 	require.Equal(rcpt.Status, gethTypes.ReceiptStatusSuccessful, "set respected game type tx did not execute correctly")
 }
 
-func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType types.GameType, l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) {
+func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType gameTypes.GameType, l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) {
 	t := o.P()
 	require := t.Require()
 	require.NotNil(o.wb, "must have a world builder")
@@ -210,11 +210,11 @@ func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType types.G
 	transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, dgf, l1PAO)
 }
 
-func PrestateForGameType(t devtest.CommonT, gameType types.GameType) common.Hash {
+func PrestateForGameType(t devtest.CommonT, gameType gameTypes.GameType) common.Hash {
 	switch gameType {
-	case types.CannonGameType:
+	case gameTypes.CannonGameType:
 		return getAbsolutePrestate(t, "op-program/bin/prestate-proof-mt64.json")
-	case types.CannonKonaGameType:
+	case gameTypes.CannonKonaGameType:
 		return getCannonKonaAbsolutePrestate(t)
 	default:
 		t.Require().Fail("no prestate available for game type", gameType)
