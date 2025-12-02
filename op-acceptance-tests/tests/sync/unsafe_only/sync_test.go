@@ -42,7 +42,7 @@ func TestUnsafeOnly_ReorgRecovery(gt *testing.T) {
 		l1head := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 		l2Unsafe := sys.L2EL.BlockRefByLabel(eth.Unsafe)
 
-		logger.Info("l1 info", "l1_head", l1head, "l1_origin", l2Unsafe.L1Origin, "l2Safe", l2Unsafe)
+		logger.Info("l1 info", "l1_head", l1head, "l1_origin", l2Unsafe.L1Origin, "l2Unsafe", l2Unsafe)
 		// Wait until unsafe L2 block has L1 origin point after the startL1Block
 		return l2Unsafe.Number > 0 && l2Unsafe.L1Origin.Number > startL1Block.Number
 	}, 120*time.Second, 2*time.Second)
