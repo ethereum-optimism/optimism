@@ -1,0 +1,43 @@
+name: coverage-op-historical-proof
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  reth-op-historical-proof-unit-tests:
+    name: coverage op-historical-proof unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.23'
+
+      - name: Install llvm
+        run: |
+          sudo apt-get update 
+          sudo apt-get install -y llvm
+          cargo install cargo-llvm-cov
+
+      - name: Coverage
+        run: |
+          cargo llvm-cov --package reth-optimism-exex --package reth-optimism-trie --lcov --output-path unit.lcov
+
+      - name: Upload coverage to codecov.io
+        uses: codecov/codecov-action@v5
+        with:
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: unit.lcov
+          flags: e2e
+          env_vars: OS,RUST
+          name: reth-op-historical-proof-unit-tests
+          verbose: true

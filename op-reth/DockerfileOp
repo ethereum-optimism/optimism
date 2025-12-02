@@ -4,31 +4,43 @@ WORKDIR /app
 LABEL org.opencontainers.image.source=https://github.com/paradigmxyz/reth
 LABEL org.opencontainers.image.licenses="MIT OR Apache-2.0"
 
-RUN apt-get update && apt-get -y upgrade && apt-get install -y libclang-dev pkg-config
+RUN apt-get update && apt-get -y upgrade && \
+    apt-get install -y libclang-dev pkg-config llvm llvm-dev clang
 
-# Builds a cargo-chef plan
+# ============================================================
+#   Stage 1: cargo-chef planner
+# ============================================================
 FROM chef AS planner
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
+# ============================================================
+#   Stage 2: cargo-chef builder
+# ============================================================
 FROM chef AS builder
 COPY --from=planner /app/recipe.json recipe.json
 
 ARG BUILD_PROFILE=maxperf
 ENV BUILD_PROFILE=$BUILD_PROFILE
 
+ARG FEATURES=""
+ENV FEATURES=$FEATURES
+
 ARG RUSTFLAGS=""
 ENV RUSTFLAGS="$RUSTFLAGS"
 
-ARG FEATURES=""
-ENV FEATURES=$FEATURES
+ARG CARGO_INCREMENTAL=""
+ENV CARGO_INCREMENTAL="$CARGO_INCREMENTAL"
+
+ARG LLVM_PROFILE_FILE=""
+ENV LLVM_PROFILE_FILE="$LLVM_PROFILE_FILE"
 
 # Build deps with cargo-chef
 RUN cargo chef cook \
         --profile $BUILD_PROFILE \
         --features "$FEATURES" \
         --recipe-path recipe.json \
-        --manifest-path /app/crates/optimism/bin/op-reth/Cargo.toml
+        --manifest-path /app/op-reth/crates/bin/op-reth/Cargo.toml
 
 # Build op-reth
 COPY . .
@@ -36,21 +48,33 @@ RUN cargo build \
         --profile $BUILD_PROFILE \
         --features "$FEATURES" \
         --bin op-reth \
-        --manifest-path /app/crates/optimism/bin/op-reth/Cargo.toml
+        --manifest-path /app/op-reth/crates/bin/op-reth/Cargo.toml
 
+# Copy resulting binary
 RUN ls -la /app/target/$BUILD_PROFILE/op-reth
 RUN cp /app/target/$BUILD_PROFILE/op-reth /app/op-reth
 
+# ============================================================
+#   Stage 3: runtime container
+# ============================================================
 FROM ubuntu AS runtime
 
 RUN apt-get update && \
-    apt-get install -y ca-certificates libssl-dev pkg-config strace && \
+    apt-get install -y ca-certificates libssl-dev pkg-config strace llvm && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
+# Copy op-reth binary
 COPY --from=builder /app/op-reth /usr/local/bin/
 RUN chmod +x /usr/local/bin/op-reth
+
 COPY LICENSE-* ./
 
+# Coverage output directory
+ENV LLVM_PROFILE_FILE="/coverage/%m-%p.profraw"
+RUN mkdir -p /coverage
+
 EXPOSE 30303 30303/udp 9001 8545 8546 7545 8551
+
 ENTRYPOINT ["/usr/local/bin/op-reth"]

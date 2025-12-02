@@ -17,6 +17,16 @@ build:
 	@echo "Building $(DOCKER_IMAGE_NAME):$(DOCKER_TAG) Docker image..."
 	cd ../../../ && docker build -f $(notdir $(DOCKERFILE_PATH)) -t $(DOCKER_IMAGE_NAME):$(DOCKER_TAG) .
 
+# Build coverage-enabled op-reth Docker image
+build-with-cov:
+	@echo "Building coverage-enabled $(DOCKER_IMAGE_NAME):cov Docker image..."
+	cd ../../../ && docker build \
+	  --build-arg RUSTFLAGS="-Cinstrument-coverage" \
+	  --build-arg CARGO_INCREMENTAL=0 \
+	  --build-arg LLVM_PROFILE_FILE="/coverage/%m-%p.profraw" \
+	  -f $(notdir $(DOCKERFILE_PATH)) \
+	  -t $(DOCKER_IMAGE_NAME):$(DOCKER_TAG) .
+
 # Run Kurtosis with the optimism devnet
 run:
 	@echo "Starting Optimism devnet with historical proof configuration..."

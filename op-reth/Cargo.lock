@@ -5549,6 +5549,8 @@ dependencies = [
  "reth-optimism-primitives",
  "reth-optimism-rpc",
  "reth-optimism-trie",
+ "reth-tasks",
+ "tokio",
  "tracing",
 ]
 
@@ -8369,6 +8371,7 @@ dependencies = [
  "reth-optimism-evm",
  "reth-optimism-node",
  "reth-optimism-primitives",
+ "reth-optimism-trie",
  "reth-primitives-traits",
  "reth-provider",
  "reth-prune",
@@ -8453,7 +8456,6 @@ dependencies = [
  "eyre",
  "futures",
  "futures-util",
- "reth-chainspec",
  "reth-db",
  "reth-exex",
  "reth-node-api",
