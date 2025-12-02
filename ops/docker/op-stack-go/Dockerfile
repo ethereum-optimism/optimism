@@ -223,7 +223,7 @@ CMD ["op-node"]
 # Make the kona docker image published by upstream available as a source to copy kona from.
 FROM ghcr.io/op-rs/kona/kona-host:$KONA_VERSION AS kona
 # Make the asterisc docker image published by upstream available as a source to copy asterisc from.
-FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/asterisc:$ASTERISC_VERSION AS asterisc
+FROM ttl.sh/a0562c85de6b9dc0ea69b374389359d763716632/asterisc:160-merge AS asterisc
 
 # Also produce an op-challenger loaded with kona and asterisc using ubuntu
 FROM $UBUNTU_TARGET_BASE_IMAGE AS op-challenger-target
