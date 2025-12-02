@@ -698,7 +698,13 @@
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_key",
+        "type": "string"
+      }
+    ],
     "name": "OPContractsManagerV2_InvalidUpgradeInstruction",
     "type": "error"
   },

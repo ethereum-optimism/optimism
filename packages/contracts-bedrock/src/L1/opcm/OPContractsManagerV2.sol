@@ -145,7 +145,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     error OPContractsManagerV2_InvalidUpgradeInput();
 
     /// @notice Thrown when an invalid upgrade instruction is provided.
-    error OPContractsManagerV2_InvalidUpgradeInstruction();
+    error OPContractsManagerV2_InvalidUpgradeInstruction(string _key);
 
     /// @notice Container of blueprint and implementation contract addresses.
     IOPContractsManagerContainer public immutable contractsContainer;
@@ -265,7 +265,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     {
         for (uint256 i = 0; i < _extraInstructions.length; i++) {
             if (!_isPermittedInstruction(_extraInstructions[i])) {
-                revert OPContractsManagerV2_InvalidUpgradeInstruction();
+                revert OPContractsManagerV2_InvalidUpgradeInstruction(_extraInstructions[i].key);
             }
         }
     }
