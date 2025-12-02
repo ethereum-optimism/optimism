@@ -35,3 +35,6 @@
 [submodule "op-rbuilder"]
 	path = op-rbuilder
 	url = git@github.com:flashbots/op-rbuilder.git
+[submodule "rollup-boost"]
+	path = rollup-boost
+	url = git@github.com:flashbots/rollup-boost.git
