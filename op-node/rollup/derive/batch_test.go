@@ -70,7 +70,7 @@ func RandomRawSpanBatch(rng *rand.Rand, chainId *big.Int) *RawSpanBatch {
 		spanBatchPayload: spanBatchPayload{
 			blockCount:    blockCount,
 			originBits:    originBits,
-			blockTxCounts: blockTxCounts,
+			BlockTxCounts: blockTxCounts,
 			txs:           spanBatchTxs,
 		},
 	}

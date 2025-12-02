@@ -51,6 +51,12 @@ type RawSpanBatch struct {
 	spanBatchPayload
 }
 
+func (b *RawSpanBatch) SetBlockTxCount(blockIndex, txCount uint64) {
+	if blockIndex < uint64(len(b.blockTxCounts)) {
+		b.blockTxCounts[blockIndex] = txCount
+	}
+}
+
 // GetBatchType returns its batch type (batch_version)
 func (b *RawSpanBatch) GetBatchType() int {
 	return SpanBatchType

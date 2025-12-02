@@ -76,7 +76,7 @@ func TestEmptySpanBatch(t *testing.T) {
 		spanBatchPayload: spanBatchPayload{
 			blockCount:    0,
 			originBits:    big.NewInt(0),
-			blockTxCounts: []uint64{},
+			BlockTxCounts: []uint64{},
 			txs:           spanTxs,
 		},
 	}
@@ -286,7 +286,7 @@ func TestSpanBatchBlockTxCounts(t *testing.T) {
 	err = sb.decodeBlockTxCounts(r)
 	require.NoError(t, err)
 
-	require.Equal(t, rawSpanBatch.blockTxCounts, sb.blockTxCounts)
+	require.Equal(t, rawSpanBatch.BlockTxCounts, sb.BlockTxCounts)
 }
 
 func TestSpanBatchTxs(t *testing.T) {
@@ -303,7 +303,7 @@ func TestSpanBatchTxs(t *testing.T) {
 	r := bytes.NewReader(result)
 	var sb RawSpanBatch
 
-	sb.blockTxCounts = rawSpanBatch.blockTxCounts
+	sb.BlockTxCounts = rawSpanBatch.BlockTxCounts
 	err = sb.decodeTxs(r)
 	require.NoError(t, err)
 
@@ -425,7 +425,7 @@ func TestSpanBatchMerge(t *testing.T) {
 		}
 		for i := 0; i < len(singularBatches); i++ {
 			txCount := len(singularBatches[i].Transactions)
-			require.Equal(t, txCount, int(rawSpanBatch.blockTxCounts[i]))
+			require.Equal(t, txCount, int(rawSpanBatch.BlockTxCounts[i]))
 		}
 
 		// check invariants
@@ -568,7 +568,7 @@ func TestSpanBatchMaxBlockTxCount(t *testing.T) {
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
-	rawSpanBatch.blockTxCounts[0] = math.MaxUint64
+	rawSpanBatch.BlockTxCounts[0] = math.MaxUint64
 
 	var buf bytes.Buffer
 	err := rawSpanBatch.encodeBlockTxCounts(&buf)
@@ -587,8 +587,8 @@ func TestSpanBatchTotalBlockTxCountNotOverflow(t *testing.T) {
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
-	rawSpanBatch.blockTxCounts[0] = MaxSpanBatchElementCount - 1
-	rawSpanBatch.blockTxCounts[1] = MaxSpanBatchElementCount - 1
+	rawSpanBatch.BlockTxCounts[0] = MaxSpanBatchElementCount - 1
+	rawSpanBatch.BlockTxCounts[1] = MaxSpanBatchElementCount - 1
 	// we are sure that totalBlockTxCount will overflow on uint64
 
 	var buf bytes.Buffer
@@ -598,7 +598,7 @@ func TestSpanBatchTotalBlockTxCountNotOverflow(t *testing.T) {
 	result := buf.Bytes()
 	r := bytes.NewReader(result)
 	var sb RawSpanBatch
-	sb.blockTxCounts = rawSpanBatch.blockTxCounts
+	sb.BlockTxCounts = rawSpanBatch.BlockTxCounts
 	err = sb.decodeTxs(r)
 
 	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)

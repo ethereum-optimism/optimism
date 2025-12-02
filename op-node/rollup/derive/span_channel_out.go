@@ -49,7 +49,7 @@ type SpanChannelOut struct {
 
 	// for testing purposes, this can be overridden to modify the raw span batch
 	// before rlp encoding.
-	rawSpanBatchRLPEncoder func(*RawSpanBatch) rlp.Encoder
+	RawSpanBatchRLPEncoder func(*RawSpanBatch) rlp.Encoder
 }
 
 func (co *SpanChannelOut) ID() ChannelID {
@@ -71,7 +71,7 @@ func WithMaxBlocksPerSpanBatch(maxBlock int) SpanChannelOutOption {
 
 func withRawSpanBatchMod(mod func(*RawSpanBatch) *RawSpanBatch) SpanChannelOutOption {
 	return func(co *SpanChannelOut) {
-		co.rawSpanBatchRLPEncoder = func(rsb *RawSpanBatch) rlp.Encoder {
+		co.RawSpanBatchRLPEncoder = func(rsb *RawSpanBatch) rlp.Encoder {
 			cpy := *rsb // create at least a shallow copy...
 			return NewBatchData(mod(&cpy))
 		}
@@ -95,7 +95,7 @@ func NewSpanChannelOut(targetOutputSize uint64, compressionAlgo CompressionAlgo,
 		chainSpec: chainSpec,
 
 		// default rlp encoder for raw span batches
-		rawSpanBatchRLPEncoder: func(rsb *RawSpanBatch) rlp.Encoder {
+		RawSpanBatchRLPEncoder: func(rsb *RawSpanBatch) rlp.Encoder {
 			return NewBatchData(rsb)
 		},
 	}
@@ -168,6 +168,10 @@ func (co *SpanChannelOut) AddBlock(rollupCfg *rollup.Config, block *types.Block)
 	return l1Info, co.addSingularBatch(batch, l1Info.SequenceNumber)
 }
 
+func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) error {
+	return co.addSingularBatch(batch, seqNum)
+}
+
 // addSingularBatch adds a SingularBatch to the channel, compressing the data if necessary.
 // if the new batch would make the channel exceed the target size, the last batch is reverted,
 // and the compression happens on the previous RLP buffer instead
@@ -198,7 +202,7 @@ func (co *SpanChannelOut) addSingularBatch(batch *SingularBatch, seqNum uint64) 
 	co.swapRLP()
 	active := co.activeRLP()
 	active.Truncate(co.sealedRLPBytes)
-	if err = rlp.Encode(active, co.rawSpanBatchRLPEncoder(rawSpanBatch)); err != nil {
+	if err = rlp.Encode(active, co.RawSpanBatchRLPEncoder(rawSpanBatch)); err != nil {
 		return fmt.Errorf("failed to encode RawSpanBatch into bytes: %w", err)
 	}
 

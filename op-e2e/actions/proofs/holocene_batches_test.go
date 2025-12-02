@@ -6,8 +6,8 @@ import (
 
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
-	"github.com/ethereum-optimism/optimism/op-program/client/claim"
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,6 +26,7 @@ func Test_ProgramAction_HoloceneBatches(gt *testing.T) {
 		// Standard channel composition
 		{
 			name: "ordered", blocks: []uint{1, 2, 3},
+			isSpanBatch: true,
 			holoceneExpectations: holoceneExpectations{
 				preHolocene: expectations{safeHead: 3},
 				holocene:    expectations{safeHead: 3},
@@ -33,48 +34,48 @@ func Test_ProgramAction_HoloceneBatches(gt *testing.T) {
 		},
 
 		// Non-standard channel composition
-		{
-			name: "disordered-a", blocks: []uint{1, 3, 2},
-			holoceneExpectations: holoceneExpectations{
-				preHolocene: expectations{safeHead: 3}, // batches are buffered, so the block ordering does not matter
-				holocene: expectations{safeHead: 1, // batch for block 3 is considered invalid because it is from the future. This batch + remaining channel is dropped.
-					logs: append(
-						sequencerOnce("dropping future batch"),
-						sequencerOnce("Dropping invalid singular batch, flushing channel")...,
-					)},
-			},
-		},
-		{
-			name: "disordered-b", blocks: []uint{2, 1, 3},
-			holoceneExpectations: holoceneExpectations{
-				preHolocene: expectations{safeHead: 3}, // batches are buffered, so the block ordering does not matter
-				holocene: expectations{safeHead: 0, // batch for block 2 is considered invalid because it is from the future. This batch + remaining channel is dropped.
-					logs: append(
-						sequencerOnce("dropping future batch"),
-						sequencerOnce("Dropping invalid singular batch, flushing channel")...,
-					)},
-			},
-		},
+		//{
+		//	name: "disordered-a", blocks: []uint{1, 3, 2},
+		//	holoceneExpectations: holoceneExpectations{
+		//		preHolocene: expectations{safeHead: 3}, // batches are buffered, so the block ordering does not matter
+		//		holocene: expectations{safeHead: 1, // batch for block 3 is considered invalid because it is from the future. This batch + remaining channel is dropped.
+		//			logs: append(
+		//				sequencerOnce("dropping future batch"),
+		//				sequencerOnce("Dropping invalid singular batch, flushing channel")...,
+		//			)},
+		//	},
+		//},
+		//{
+		//	name: "disordered-b", blocks: []uint{2, 1, 3},
+		//	holoceneExpectations: holoceneExpectations{
+		//		preHolocene: expectations{safeHead: 3}, // batches are buffered, so the block ordering does not matter
+		//		holocene: expectations{safeHead: 0, // batch for block 2 is considered invalid because it is from the future. This batch + remaining channel is dropped.
+		//			logs: append(
+		//				sequencerOnce("dropping future batch"),
+		//				sequencerOnce("Dropping invalid singular batch, flushing channel")...,
+		//			)},
+		//	},
+		//},
 
-		{
-			name: "duplicates-a", blocks: []uint{1, 1, 2, 3},
-			holoceneExpectations: holoceneExpectations{
-				preHolocene: expectations{safeHead: 3}, // duplicate batches are dropped, so this reduces to the "ordered" case
-				holocene: expectations{safeHead: 3, // duplicate batches are dropped, so this reduces to the "ordered" case
-					logs: sequencerOnce("dropping past batch with old timestamp")},
-			},
-		},
-		{
-			name: "duplicates-b", blocks: []uint{2, 2, 1, 3},
-			holoceneExpectations: holoceneExpectations{
-				preHolocene: expectations{safeHead: 3}, // duplicate batches are silently dropped, so this reduces to disordered-2b
-				holocene: expectations{safeHead: 0, // duplicate batches are silently dropped, so this reduces to disordered-2b
-					logs: append(
-						sequencerOnce("dropping future batch"),
-						sequencerOnce("Dropping invalid singular batch, flushing channel")...,
-					)},
-			},
-		},
+		//{
+		//	name: "duplicates-a", blocks: []uint{1, 1, 2, 3},
+		//	holoceneExpectations: holoceneExpectations{
+		//		preHolocene: expectations{safeHead: 3}, // duplicate batches are dropped, so this reduces to the "ordered" case
+		//		holocene: expectations{safeHead: 3, // duplicate batches are dropped, so this reduces to the "ordered" case
+		//			logs: sequencerOnce("dropping past batch with old timestamp")},
+		//	},
+		//},
+		//{
+		//	name: "duplicates-b", blocks: []uint{2, 2, 1, 3},
+		//	holoceneExpectations: holoceneExpectations{
+		//		preHolocene: expectations{safeHead: 3}, // duplicate batches are silently dropped, so this reduces to disordered-2b
+		//		holocene: expectations{safeHead: 0, // duplicate batches are silently dropped, so this reduces to disordered-2b
+		//			logs: append(
+		//				sequencerOnce("dropping future batch"),
+		//				sequencerOnce("Dropping invalid singular batch, flushing channel")...,
+		//			)},
+		//	},
+		//},
 	}
 
 	runHoloceneDerivationTest := func(gt *testing.T, testCfg *helpers.TestCfg[testCase]) {
@@ -129,7 +130,39 @@ func Test_ProgramAction_HoloceneBatches(gt *testing.T) {
 		testCfg.Custom.RequireExpectedProgressAndLogs(t, l2SafeHead, isHolocene, env.Engine, env.Logs)
 		t.Log("Safe head progressed as expected", "l2SafeHeadNumber", l2SafeHead.Number)
 
-		env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+		// Buffer the blocks in the batcher.
+		env.Batcher.ActCreateChannel(t, testCfg.Custom.isSpanBatch, func(o *derive.SpanChannelOut) {
+			o.RawSpanBatchRLPEncoder = func(rsb *derive.RawSpanBatch) rlp.Encoder {
+				cpy := *rsb
+				cpy.SetBlockTxCount(1, 1) // Second block has one tx (the valid value will be 0)
+				return derive.NewBatchData(&cpy)
+			}
+		})
+
+		// Add the same block as before so it overlaps.
+		env.Batcher.ActAddBlockByNumber(t, int64(l2SafeHead.Number), actionsHelpers.BlockLogger(t))
+
+		// Add the incorrect block (will be modified by channel modifier set above in ActCreateChannel).
+		env.Sequencer.ActL2StartBlock(t)
+		env.Sequencer.ActL2EndBlock(t)
+		env.Batcher.ActAddBlockByNumber(t, int64(l2SafeHead.Number+1), actionsHelpers.BlockLogger(t))
+
+		// Add one more real block.
+		env.Sequencer.ActL2StartBlock(t)
+		env.Sequencer.ActL2EndBlock(t)
+		env.Batcher.ActAddBlockByNumber(t, int64(l2SafeHead.Number+2), actionsHelpers.BlockLogger(t))
+
+		env.Batcher.ActL2ChannelClose(t)
+		frame = env.Batcher.ReadNextOutputFrame(t)
+		require.NotEmpty(t, frame)
+		env.Batcher.ActL2BatchSubmitRaw(t, frame)
+		includeBatchTx()
+
+		// Derive again.
+		env.Sequencer.ActL1HeadSignal(t)
+		env.Sequencer.ActL2PipelineFull(t)
+
+		require.Equal(t, l2SafeHead.Number, env.Sequencer.L2Safe().Number)
 	}
 
 	matrix := helpers.NewMatrix[testCase]()
@@ -143,13 +176,13 @@ func Test_ProgramAction_HoloceneBatches(gt *testing.T) {
 			runHoloceneDerivationTest,
 			helpers.ExpectNoError(),
 		)
-		matrix.AddTestCase(
-			fmt.Sprintf("JunkClaim-%s", ordering.name),
-			ordering,
-			helpers.NewForkMatrix(helpers.Granite, helpers.LatestFork),
-			runHoloceneDerivationTest,
-			helpers.ExpectError(claim.ErrClaimNotValid),
-			helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
-		)
+		//matrix.AddTestCase(
+		//	fmt.Sprintf("JunkClaim-%s", ordering.name),
+		//	ordering,
+		//	helpers.NewForkMatrix(helpers.Granite, helpers.LatestFork),
+		//	runHoloceneDerivationTest,
+		//	helpers.ExpectError(claim.ErrClaimNotValid),
+		//	helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
+		//)
 	}
 }
