@@ -14,12 +14,13 @@ import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Types } from "src/libraries/Types.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
+import { IL2ToL1MessagePasserCGT } from "interfaces/L2/IL2ToL1MessagePasserCGT.sol";
 import { IL2StandardBridge } from "interfaces/L2/IL2StandardBridge.sol";
 
 /// @title L2StandardBridge_TestInit
@@ -232,7 +233,7 @@ contract L2StandardBridge_Initialize_Test is L2StandardBridge_TestInit {
 contract L2StandardBridge_Receive_Test is L2StandardBridge_TestInit {
     /// @notice Tests that the bridge receives ETH and successfully initiates a withdrawal.
     function test_receive_succeeds() external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         assertEq(address(l2ToL1MessagePasser).balance, 0);
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
 
@@ -299,6 +300,20 @@ contract L2StandardBridge_Receive_Test is L2StandardBridge_TestInit {
         assertEq(success, true);
         assertEq(address(l2ToL1MessagePasser).balance, 100);
     }
+
+    /// @notice Tests that receive reverts when custom gas token is enabled and value is sent.
+    function testFuzz_receive_withCustomGasToken_reverts(uint256 _value) external {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        _value = bound(_value, 1, type(uint128).max);
+        vm.deal(alice, _value);
+
+        vm.prank(alice, alice);
+        vm.expectRevert(IL2ToL1MessagePasserCGT.L2ToL1MessagePasserCGT_NotAllowedOnCGTMode.selector);
+
+        (bool revertsAsExpected,) = address(l2StandardBridge).call{ value: _value }(hex"");
+        assertTrue(revertsAsExpected, "expectRevert: call did not revert");
+    }
 }
 
 /// @title L2StandardBridge_Withdraw_Test
@@ -325,7 +340,7 @@ contract L2StandardBridge_Withdraw_Test is L2StandardBridge_TestInit {
     /// @notice Tests that the legacy `withdraw` interface on the L2StandardBridge sucessfully
     ///         initiates a withdrawal.
     function test_withdraw_ether_succeeds() external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         assertTrue(alice.balance >= 100);
         assertEq(Predeploys.L2_TO_L1_MESSAGE_PASSER.balance, 0);
 
@@ -375,6 +390,18 @@ contract L2StandardBridge_Withdraw_Test is L2StandardBridge_TestInit {
 
         vm.expectRevert("StandardBridge: function can only be called from an EOA");
         l2StandardBridge.withdraw(address(L2Token), 100, 1000, hex"");
+    }
+
+    /// @notice Tests that withdraw reverts when custom gas token is enabled and value is sent.
+    function testFuzz_withdraw_withCustomGasToken_reverts(uint256 _value, uint32 _minGasLimit) external {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        _value = bound(_value, 1, type(uint128).max);
+        vm.deal(alice, _value);
+
+        vm.prank(alice, alice);
+        vm.expectRevert(IL2ToL1MessagePasserCGT.L2ToL1MessagePasserCGT_NotAllowedOnCGTMode.selector);
+        l2StandardBridge.withdraw{ value: _value }(Predeploys.LEGACY_ERC20_ETH, _value, _minGasLimit, hex"");
     }
 }
 
@@ -468,7 +495,7 @@ contract L2StandardBridge_Uncategorized_Test is L2StandardBridge_TestInit {
 
     /// @notice Tests that bridging ETH succeeds.
     function testFuzz_bridgeETH_succeeds(uint256 _value, uint32 _minGasLimit, bytes calldata _extraData) external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
 
         bytes memory message = abi.encodeCall(IStandardBridge.finalizeBridgeETH, (alice, alice, _value, _extraData));
@@ -502,7 +529,7 @@ contract L2StandardBridge_Uncategorized_Test is L2StandardBridge_TestInit {
 
     /// @notice Tests that bridging ETH to a different address succeeds.
     function testFuzz_bridgeETHTo_succeeds(uint256 _value, uint32 _minGasLimit, bytes calldata _extraData) external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
 
         vm.expectCall(
@@ -594,5 +621,43 @@ contract L2StandardBridge_Uncategorized_Test is L2StandardBridge_TestInit {
 
         vm.expectRevert("StandardBridge: wrong remote token for Optimism Mintable ERC20 local token");
         l2StandardBridge.finalizeBridgeERC20(localToken, remoteToken, alice, alice, 100, hex"");
+    }
+
+    /// @notice Tests that bridgeETH reverts when custom gas token is enabled and value is sent.
+    function testFuzz_bridgeETH_withCustomGasToken_reverts(
+        uint256 _value,
+        uint32 _minGasLimit,
+        bytes calldata _extraData
+    )
+        external
+    {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        _value = bound(_value, 1, type(uint128).max);
+        vm.deal(alice, _value);
+
+        vm.prank(alice, alice);
+        vm.expectRevert(IL2ToL1MessagePasserCGT.L2ToL1MessagePasserCGT_NotAllowedOnCGTMode.selector);
+        l2StandardBridge.bridgeETH{ value: _value }(_minGasLimit, _extraData);
+    }
+
+    /// @notice Tests that bridgeETHTo reverts when custom gas token is enabled and value is sent.
+    function testFuzz_bridgeETHTo_withCustomGasToken_reverts(
+        address _to,
+        uint256 _value,
+        uint32 _minGasLimit,
+        bytes calldata _extraData
+    )
+        external
+    {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        vm.assume(_to != address(0));
+        _value = bound(_value, 1, type(uint128).max);
+        vm.deal(alice, _value);
+
+        vm.prank(alice, alice);
+        vm.expectRevert(IL2ToL1MessagePasserCGT.L2ToL1MessagePasserCGT_NotAllowedOnCGTMode.selector);
+        l2StandardBridge.bridgeETHTo{ value: _value }(_to, _minGasLimit, _extraData);
     }
 }

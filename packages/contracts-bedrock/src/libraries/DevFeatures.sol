@@ -22,9 +22,8 @@ library DevFeatures {
     bytes32 public constant DEPLOY_V2_DISPUTE_GAMES =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000100);
 
-    /// @notice The feature that enables the custom gas token.
-    bytes32 public constant CUSTOM_GAS_TOKEN =
-        bytes32(0x0000000000000000000000000000000000000000000000000000000000001000);
+    /// @notice The feature that enables the OPContractsManagerV2 contract.
+    bytes32 public constant OPCM_V2 = bytes32(0x0000000000000000000000000000000000000000000000000000000000010000);
 
     /// @notice Checks if a feature is enabled in a bitmap. Note that this function does not check
     ///         that the input feature represents a single feature and the bitwise AND operation
