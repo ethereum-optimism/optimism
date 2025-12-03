@@ -3,6 +3,7 @@ package withdrawal
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/custom_gas_token"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -13,6 +14,10 @@ import (
 func TestWithdrawalRoot(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t)
+
+	// Skip this test if CGT is enabled
+	custom_gas_token.SkipIfCGT(t, sys)
+
 	require := sys.T.Require()
 
 	require.True(sys.L2Chain.IsForkActive(forks.Isthmus), "Isthmus fork must be active for this test")
