@@ -2,7 +2,7 @@ use alloy::providers::ProviderBuilder;
 use clap::Parser;
 use env_logger;
 use log::info;
-mod extra;
+mod block_header;
 mod gpo;
 mod l1block;
 
@@ -41,7 +41,7 @@ async fn main() {
         Err(error) => panic!("Could not check GPO: {error:?}"),
     };
 
-    match extra::check(&provider).await {
+    match block_header::check(&provider).await {
         Ok(()) => (),
         Err(error) => panic!("Could not check extra data: {error:?}"),
     };
