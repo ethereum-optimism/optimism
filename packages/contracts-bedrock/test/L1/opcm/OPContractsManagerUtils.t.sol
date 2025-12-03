@@ -582,11 +582,29 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
     }
 }
 
-/// @title OPContractsManagerUtils_Constructor_Test
-/// @notice Tests the constructor of OPContractsManagerUtils.
-contract OPContractsManagerUtils_Constructor_Test is OPContractsManagerUtils_TestInit {
-    /// @notice Tests that the constructor sets the contractsContainer correctly.
-    function test_constructor_succeeds() public view {
+/// @title OPContractsManagerUtils_Blueprints_Test
+/// @notice Tests the blueprints() getter.
+contract OPContractsManagerUtils_Blueprints_Test is OPContractsManagerUtils_TestInit {
+    /// @notice Tests that blueprints() returns the struct from the container.
+    function test_blueprints_succeeds() public view {
+        assertEq(abi.encode(utils.blueprints()), abi.encode(blueprints));
+    }
+}
+
+/// @title OPContractsManagerUtils_Implementations_Test
+/// @notice Tests the implementations() getter.
+contract OPContractsManagerUtils_Implementations_Test is OPContractsManagerUtils_TestInit {
+    /// @notice Tests that implementations() returns the struct from the container.
+    function test_implementations_succeeds() public view {
+        assertEq(abi.encode(utils.implementations()), abi.encode(implementations));
+    }
+}
+
+/// @title OPContractsManagerUtils_ContractsContainer_Test
+/// @notice Tests the contractsContainer() getter.
+contract OPContractsManagerUtils_ContractsContainer_Test is OPContractsManagerUtils_TestInit {
+    /// @notice Tests that contractsContainer() returns the container provided at construction.
+    function test_contractsContainer_succeeds() public view {
         assertEq(address(utils.contractsContainer()), address(container));
     }
 }
