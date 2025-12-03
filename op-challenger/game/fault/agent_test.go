@@ -236,6 +236,10 @@ func (s *stubClaimLoader) IsL2BlockNumberChallenged(_ context.Context, _ rpcbloc
 	return s.blockNumChallenged, nil
 }
 
+func (s *stubClaimLoader) GetClaimCount(_ context.Context) (uint64, error) {
+	return uint64(len(s.claims)), nil
+}
+
 func (s *stubClaimLoader) GetAllClaims(_ context.Context, _ rpcblock.Block) ([]types.Claim, error) {
 	s.callCount++
 	if s.callCount > s.maxLoads && s.maxLoads != 0 {

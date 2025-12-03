@@ -321,10 +321,6 @@ func TestEndToEndApply(t *testing.T) {
 			Symbol:           "CGT",
 			InitialLiquidity: (*hexutil.Big)(amount),
 		}
-		// CGT config for OPCM
-		intent.GlobalDeployOverrides = map[string]interface{}{
-			"devFeatureBitmap": deployer.CustomGasTokenDevFlag,
-		}
 
 		require.NoError(t, deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
 			DeploymentTarget:   deployer.DeploymentTargetLive,

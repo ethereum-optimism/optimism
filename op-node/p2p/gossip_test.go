@@ -12,6 +12,7 @@ import (
 	"github.com/golang/snappy"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
@@ -156,14 +157,14 @@ func TestBlockValidator(t *testing.T) {
 
 	// Create a mock gossip configuration for testing
 	mockGossipConf := &mockGossipSetupConfigurablesWithThreshold{threshold: 60 * time.Second}
-	v2Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2, mockGossipConf)
-	v3Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV3, mockGossipConf)
-	v4Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelDebug), cfg, runCfg, eth.BlockV4, mockGossipConf)
+	v2Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2, mockGossipConf, clock.SystemClock)
+	v3Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV3, mockGossipConf, clock.SystemClock)
+	v4Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelDebug), cfg, runCfg, eth.BlockV4, mockGossipConf, clock.SystemClock)
 	jovianCfg := &rollup.Config{
 		L2ChainID:  big.NewInt(100),
 		JovianTime: ptr.New(uint64(0)),
 	}
-	v4JovianValidator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), jovianCfg, runCfg, eth.BlockV4, mockGossipConf)
+	v4JovianValidator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), jovianCfg, runCfg, eth.BlockV4, mockGossipConf, clock.SystemClock)
 
 	zero, one := uint64(0), uint64(1)
 	beaconHash, withdrawalsRoot := common.HexToHash("0x1234"), common.HexToHash("0x9876")
@@ -263,7 +264,7 @@ func TestGossipTimestampThreshold(t *testing.T) {
 			mockConfig := &mockGossipSetupConfigurablesWithThreshold{threshold: tc.threshold}
 
 			// Create validator with the mock config
-			validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2, mockConfig)
+			validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2, mockConfig, clock.SystemClock)
 
 			// Create payload with the specific timestamp
 			payload := createExecutionPayload(types.Withdrawals{}, nil, nil, nil)

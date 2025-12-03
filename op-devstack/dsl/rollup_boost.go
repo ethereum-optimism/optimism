@@ -1,6 +1,10 @@
 package dsl
 
-import "github.com/ethereum-optimism/optimism/op-devstack/stack"
+import (
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
+
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+)
 
 type RollupBoostNodesSet []*RollupBoostNode
 
@@ -30,6 +34,6 @@ func NewRollupBoostNode(inner stack.RollupBoostNode, control stack.ControlPlane)
 	}
 }
 
-func (r *RollupBoostNode) FlashblocksClient() *FlashblocksWSClient {
-	return NewFlashblocksWSClient(r.inner.FlashblocksClient())
+func (r *RollupBoostNode) FlashblocksClient() *opclient.WSClient {
+	return r.inner.FlashblocksClient()
 }

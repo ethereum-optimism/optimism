@@ -1,4 +1,4 @@
-package fault
+package generic
 
 import (
 	"context"
@@ -33,7 +33,7 @@ func TestProgressGame_LogErrorFromAct(t *testing.T) {
 	msgFilter = testlog.NewMessageFilter("Game info")
 	msg := handler.FindLog(levelFilter, msgFilter)
 	require.NotNil(t, msg)
-	require.Equal(t, uint64(1), msg.AttrValue("claims"))
+	require.Equal(t, "statusValue", msg.AttrValue("extra"))
 }
 
 func TestProgressGame_LogGameStatus(t *testing.T) {
@@ -93,7 +93,7 @@ func TestDoNotActOnCompleteGame(t *testing.T) {
 
 			// Should have replaced the act function with a noop so callCount doesn't update even when called directly
 			// This allows the agent resources to be GC'd
-			require.NoError(t, game.act(context.Background()))
+			require.NoError(t, game.actor.Act(context.Background()))
 			require.Equal(t, 1, gameState.callCount)
 		})
 	}
@@ -113,27 +113,27 @@ func TestValidateLocalNodeSync(t *testing.T) {
 func TestValidatePrestate(t *testing.T) {
 	tests := []struct {
 		name       string
-		validators []Validator
+		validators []PrestateValidator
 		errors     bool
 	}{
 		{
 			name:       "SingleValidator",
-			validators: []Validator{&mockValidator{}},
+			validators: []PrestateValidator{&mockValidator{}},
 			errors:     false,
 		},
 		{
 			name:       "MultipleValidators",
-			validators: []Validator{&mockValidator{}, &mockValidator{}},
+			validators: []PrestateValidator{&mockValidator{}, &mockValidator{}},
 			errors:     false,
 		},
 		{
 			name:       "SingleValidator_Errors",
-			validators: []Validator{&mockValidator{true}},
+			validators: []PrestateValidator{&mockValidator{true}},
 			errors:     true,
 		},
 		{
 			name:       "MultipleValidators_Errors",
-			validators: []Validator{&mockValidator{}, &mockValidator{true}},
+			validators: []PrestateValidator{&mockValidator{}, &mockValidator{true}},
 			errors:     true,
 		},
 	}
@@ -153,7 +153,7 @@ func TestValidatePrestate(t *testing.T) {
 	}
 }
 
-var _ Validator = (*mockValidator)(nil)
+var _ PrestateValidator = (*mockValidator)(nil)
 
 type mockValidator struct {
 	err bool
@@ -171,7 +171,7 @@ func setupProgressGameTest(t *testing.T) (*testlog.CapturingHandler, *GamePlayer
 	gameState := &stubGameState{claimCount: 1}
 	syncValidator := &stubSyncValidator{}
 	game := &GamePlayer{
-		act:           gameState.Act,
+		actor:         gameState,
 		loader:        gameState,
 		logger:        logger,
 		syncValidator: syncValidator,
@@ -199,19 +199,27 @@ type stubGameState struct {
 	Err        error
 }
 
-func (s *stubGameState) Act(ctx context.Context) error {
+func (s *stubGameState) AdditionalStatus(_ context.Context) ([]any, error) {
+	return []any{"extra", "statusValue"}, nil
+}
+
+func (s *stubGameState) Act(_ context.Context) error {
 	s.callCount++
 	return s.actErr
 }
 
-func (s *stubGameState) GetStatus(ctx context.Context) (types.GameStatus, error) {
+func (s *stubGameState) GetL1Head(_ context.Context) (common.Hash, error) {
+	return common.Hash{0x1a}, nil
+}
+
+func (s *stubGameState) GetStatus(_ context.Context) (types.GameStatus, error) {
 	return s.status, nil
 }
 
-func (s *stubGameState) GetClaimCount(ctx context.Context) (uint64, error) {
+func (s *stubGameState) GetClaimCount(_ context.Context) (uint64, error) {
 	return s.claimCount, nil
 }
 
-func (s *stubGameState) GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
+func (s *stubGameState) GetAbsolutePrestateHash(_ context.Context) (common.Hash, error) {
 	return common.Hash{}, s.Err
 }
