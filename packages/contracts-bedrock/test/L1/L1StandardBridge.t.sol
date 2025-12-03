@@ -15,7 +15,6 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Features } from "src/libraries/Features.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -333,7 +332,7 @@ contract L1StandardBridge_Paused_Test is CommonTest {
 contract L1StandardBridge_Receive_Test is CommonTest {
     /// @notice Tests receive bridges ETH successfully.
     function test_receive_succeeds() external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
 
@@ -377,6 +376,20 @@ contract L1StandardBridge_Receive_Test is CommonTest {
         (bool revertsAsExpected,) = address(l1StandardBridge).call{ value: 100 }(hex"");
         assertTrue(revertsAsExpected, "expectRevert: call did not revert");
     }
+
+    /// @notice Tests that receive reverts when custom gas token is enabled and value is sent.
+    function testFuzz_receive_withCustomGasToken_reverts(uint256 _value) external {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        _value = bound(_value, 1, type(uint128).max);
+        vm.deal(alice, _value);
+
+        vm.prank(alice, alice);
+        vm.expectRevert(IOptimismPortal2.OptimismPortal_NotAllowedOnCGTMode.selector);
+
+        (bool revertsAsExpected,) = address(l1StandardBridge).call{ value: _value }(hex"");
+        assertTrue(revertsAsExpected, "expectRevert: call did not revert");
+    }
 }
 
 /// @title L1StandardBridge_DepositETH_Test
@@ -388,7 +401,7 @@ contract L1StandardBridge_DepositETH_Test is L1StandardBridge_TestInit {
     ///         Only EOA can call depositETH.
     ///         ETH ends up in the optimismPortal.
     function test_depositETH_fromEOA_succeeds() external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         _preBridgeETH({ isLegacy: true, value: 500 });
         uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
@@ -404,7 +417,7 @@ contract L1StandardBridge_DepositETH_Test is L1StandardBridge_TestInit {
 
     /// @notice Tests that depositing ETH succeeds for an EOA using 7702 delegation.
     function test_depositETH_fromEOA7702_succeeds() external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         // Set alice to have 7702 code.
         vm.etch(alice, abi.encodePacked(hex"EF0100", address(0)));
 
@@ -428,6 +441,32 @@ contract L1StandardBridge_DepositETH_Test is L1StandardBridge_TestInit {
         vm.prank(alice);
         l1StandardBridge.depositETH{ value: 1 }(300, hex"");
     }
+
+    /// @notice Tests that depositETH reverts when custom gas token is enabled and value is sent.
+    function testFuzz_depositETH_withCustomGasToken_reverts(uint256 _value, uint32 _minGasLimit) external {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        _value = bound(_value, 1, type(uint128).max);
+        vm.deal(alice, _value);
+
+        vm.prank(alice, alice);
+        vm.expectRevert(IOptimismPortal2.OptimismPortal_NotAllowedOnCGTMode.selector);
+        l1StandardBridge.depositETH{ value: _value }(_minGasLimit, hex"dead");
+    }
+
+    /// @notice Tests that depositETH reverts when custom gas token is enabled for EOA with 7702 delegation.
+    function testFuzz_depositETH_fromEOA7702WithCustomGasToken_reverts(uint256 _value, uint32 _minGasLimit) external {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+        _value = bound(_value, 1, type(uint128).max);
+
+        // Set alice to have 7702 code.
+        vm.etch(alice, abi.encodePacked(hex"EF0100", address(0)));
+
+        vm.deal(alice, _value);
+        vm.prank(alice, alice);
+        vm.expectRevert(IOptimismPortal2.OptimismPortal_NotAllowedOnCGTMode.selector);
+        l1StandardBridge.depositETH{ value: _value }(_minGasLimit, hex"dead");
+    }
 }
 
 /// @title L1StandardBridge_DepositETHTo_Test
@@ -439,7 +478,7 @@ contract L1StandardBridge_DepositETHTo_Test is L1StandardBridge_TestInit {
     ///         EOA or contract can call depositETHTo.
     ///         ETH ends up in the optimismPortal.
     function test_depositETHTo_succeeds() external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         _preBridgeETHTo({ isLegacy: true, value: 600 });
         uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
@@ -457,7 +496,7 @@ contract L1StandardBridge_DepositETHTo_Test is L1StandardBridge_TestInit {
     /// @param _to Random recipient address
     /// @param _amount Random ETH amount to deposit
     function testFuzz_depositETHTo_randomRecipient_succeeds(address _to, uint256 _amount) external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         vm.assume(_to != address(0));
         _amount = bound(_amount, 1, 10 ether);
 
@@ -474,6 +513,23 @@ contract L1StandardBridge_DepositETHTo_Test is L1StandardBridge_TestInit {
         } else {
             assertEq(address(optimismPortal2).balance, portalBalanceBefore + _amount);
         }
+    }
+
+    /// @notice Tests that depositETHTo reverts when custom gas token is enabled and value is sent.
+    function testFuzz_depositETHTo_withCustomGasToken_reverts(
+        address _to,
+        uint256 _value,
+        uint32 _minGasLimit
+    )
+        external
+    {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+        vm.assume(_to != address(0));
+        _value = bound(_value, 1, type(uint128).max);
+        vm.deal(alice, _value);
+        vm.prank(alice);
+        vm.expectRevert(IOptimismPortal2.OptimismPortal_NotAllowedOnCGTMode.selector);
+        l1StandardBridge.depositETHTo{ value: _value }(_to, _minGasLimit, hex"dead");
     }
 }
 
@@ -786,7 +842,7 @@ contract L1StandardBridge_Uncategorized_Test is L1StandardBridge_TestInit {
     ///         Only EOA can call bridgeETH.
     ///         ETH ends up in the optimismPortal.
     function test_bridgeETH_succeeds() external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         _preBridgeETH({ isLegacy: false, value: 500 });
         uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
@@ -806,7 +862,7 @@ contract L1StandardBridge_Uncategorized_Test is L1StandardBridge_TestInit {
     ///         Only EOA can call bridgeETHTo.
     ///         ETH ends up in the optimismPortal.
     function test_bridgeETHTo_succeeds() external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         _preBridgeETHTo({ isLegacy: false, value: 600 });
         uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
@@ -877,5 +933,36 @@ contract L1StandardBridge_Uncategorized_Test is L1StandardBridge_TestInit {
         vm.prank(messenger);
         vm.expectRevert("StandardBridge: cannot send to messenger");
         l1StandardBridge.finalizeBridgeETH{ value: 100 }(alice, messenger, 100, hex"");
+    }
+
+    /// @notice Tests that bridgeETH reverts when custom gas token is enabled and value is sent.
+    function testFuzz_bridgeETH_withCustomGasToken_reverts(uint256 _value, uint32 _minGasLimit) external {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        _value = bound(_value, 1, type(uint128).max);
+        vm.deal(alice, _value);
+
+        vm.prank(alice, alice);
+        vm.expectRevert(IOptimismPortal2.OptimismPortal_NotAllowedOnCGTMode.selector);
+        l1StandardBridge.bridgeETH{ value: _value }(_minGasLimit, hex"dead");
+    }
+
+    /// @notice Tests that bridgeETHTo reverts when custom gas token is enabled and value is sent.
+    function testFuzz_bridgeETHTo_withCustomGasToken_reverts(
+        address _to,
+        uint256 _value,
+        uint32 _minGasLimit
+    )
+        external
+    {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        vm.assume(_to != address(0));
+        _value = bound(_value, 1, type(uint128).max);
+        vm.deal(alice, _value);
+
+        vm.prank(alice);
+        vm.expectRevert(IOptimismPortal2.OptimismPortal_NotAllowedOnCGTMode.selector);
+        l1StandardBridge.bridgeETHTo{ value: _value }(_to, _minGasLimit, hex"dead");
     }
 }

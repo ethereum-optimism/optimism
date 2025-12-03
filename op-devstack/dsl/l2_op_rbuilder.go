@@ -1,11 +1,9 @@
 package dsl
 
 import (
-	"context"
-	"time"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type OPRBuilderNodeSet []*OPRBuilderNode
@@ -21,7 +19,7 @@ func NewOPRBuilderNodeSet(inner []stack.OPRBuilderNode, control stack.ControlPla
 type OPRBuilderNode struct {
 	commonImpl
 	inner    stack.OPRBuilderNode
-	wsClient *FlashblocksWSClient
+	wsClient *opclient.WSClient
 	control  stack.ControlPlane
 }
 
@@ -29,7 +27,7 @@ func NewOPRBuilderNode(inner stack.OPRBuilderNode, control stack.ControlPlane) *
 	return &OPRBuilderNode{
 		commonImpl: commonFromT(inner.T()),
 		inner:      inner,
-		wsClient:   NewFlashblocksWSClient(inner.FlashblocksClient()),
+		wsClient:   inner.FlashblocksClient(),
 		control:    control,
 	}
 }
@@ -42,8 +40,8 @@ func (c *OPRBuilderNode) Escape() stack.OPRBuilderNode {
 	return c.inner
 }
 
-func (c *OPRBuilderNode) ListenFor(ctx context.Context, logger log.Logger, duration time.Duration, output chan<- []byte, done chan<- struct{}) error {
-	return c.wsClient.ListenFor(ctx, logger, duration, output, done)
+func (c *OPRBuilderNode) FlashblocksClient() *opclient.WSClient {
+	return c.wsClient
 }
 
 func (el *OPRBuilderNode) Stop() {
@@ -53,8 +51,4 @@ func (el *OPRBuilderNode) Stop() {
 
 func (el *OPRBuilderNode) Start() {
 	el.control.OPRBuilderNodeState(el.inner.ID(), stack.Start)
-}
-
-func (el *OPRBuilderNode) FlashblocksClient() *FlashblocksWSClient {
-	return NewFlashblocksWSClient(el.inner.FlashblocksClient())
 }

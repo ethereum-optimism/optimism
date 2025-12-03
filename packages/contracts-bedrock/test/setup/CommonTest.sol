@@ -14,9 +14,9 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Contracts
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Libraries
+import { Config } from "scripts/libraries/Config.sol";
 import { console } from "forge-std/console.sol";
 
 // Interfaces
@@ -79,6 +79,12 @@ abstract contract CommonTest is Test, Setup, Events {
             deploy.cfg().setUseInterop(true);
         }
         if (useRevenueShareOverride) {
+            // Revenue share is not supported when custom gas token is enabled
+            if (Config.sysFeatureCustomGasToken()) {
+                vm.skip(true);
+            }
+
+            console.log("CommonTest: enabling revenue share");
             deploy.cfg().setUseRevenueShare(true);
             deploy.cfg().setChainFeesRecipient(chainFeesRecipient);
             deploy.cfg().setL1FeesDepositor(l1FeesDepositor);
@@ -86,7 +92,7 @@ abstract contract CommonTest is Test, Setup, Events {
         if (useUpgradedFork) {
             deploy.cfg().setUseUpgradedFork(true);
         }
-        if (isDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN)) {
+        if (Config.sysFeatureCustomGasToken()) {
             console.log("CommonTest: enabling custom gas token");
             deploy.cfg().setUseCustomGasToken(true);
             deploy.cfg().setGasPayingTokenName("Custom Gas Token");

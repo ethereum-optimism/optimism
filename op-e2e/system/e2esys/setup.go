@@ -612,10 +612,10 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	// Automatically stop the system at the end of the test
 	t.Cleanup(sys.Close)
 
-	c := clock.SystemClock
+	clk := clock.SystemClock
 	if cfg.SupportL1TimeTravel {
 		sys.TimeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
-		c = sys.TimeTravelClock
+		clk = sys.TimeTravelClock
 	}
 
 	if err := cfg.DeployConfig.Check(testlog.Logger(t, log.LevelInfo)); err != nil {
@@ -747,7 +747,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 
 	// Initialize nodes
 	l1Geth, _, err := geth.InitL1(
-		cfg.DeployConfig.L1BlockTime, cfg.L1FinalizedDistance, l1Genesis, c,
+		cfg.DeployConfig.L1BlockTime, cfg.L1FinalizedDistance, l1Genesis, clk,
 		path.Join(cfg.BlobsPath, "l1_el"), bcn, cfg.GethOptions[RoleL1]...)
 	if err != nil {
 		return nil, err
@@ -887,7 +887,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		c.Rollup.LogDescription(cfg.Loggers[name], chaincfg.L2ChainIDToNetworkDisplayName)
 		l := cfg.Loggers[name]
 
-		n, err := opnode.NewOpnode(l, &c, func(err error) {
+		n, err := opnode.NewOpnode(l, &c, clk, func(err error) {
 			t.Error(err)
 		})
 		require.NoError(t, err)

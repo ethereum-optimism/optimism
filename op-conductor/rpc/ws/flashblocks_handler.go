@@ -10,6 +10,7 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/log"
@@ -54,7 +55,7 @@ type Handler struct {
 	log                 log.Logger
 	isLeaderFn          func(context.Context) bool
 	metrics             metrics.Metricer
-	rollupBoostConn     *websocket.Conn
+	rollupBoostConn     *opclient.WSClient
 	rollupBoostCtx      context.Context
 	rollupBoostWsCancel context.CancelFunc
 	httpServer          *httputil.HTTPServer
@@ -83,18 +84,14 @@ func NewHandler(cfg Config, log log.Logger, isLeaderFn func(context.Context) boo
 
 	// Try to establish initial connection to rollup boost WebSocket
 	maxConnectionAttempts := 5
-	var err error
-	handler.rollupBoostConn, err = retry.Do(context.Background(), maxConnectionAttempts, retry.Fixed(reconnectDelay), func() (*websocket.Conn, error) {
-		log.Info("attempting to connect to rollup boost WebSocket", "url", cfg.RollupBoostWsURL)
-		dialCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		conn, resp, err := websocket.Dial(dialCtx, cfg.RollupBoostWsURL, nil)
-		if resp != nil && resp.Body != nil {
-			resp.Body.Close()
-		}
-		return conn, err
+	conn, err := opclient.DialWS(context.Background(), opclient.WSConfig{
+		URL:         cfg.RollupBoostWsURL,
+		DialTimeout: 5 * time.Second,
+		MaxAttempts: maxConnectionAttempts,
+		Backoff:     retry.Fixed(reconnectDelay),
+		Log:         log,
 	})
-
+	handler.rollupBoostConn = conn
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to rollup boost WebSocket: %w", err)
 	}
@@ -204,13 +201,12 @@ func (h *Handler) listenToRollupBoost(ctx context.Context) {
 				h.log.Info("reconnecting to rollup boost WebSocket", "url", h.cfg.RollupBoostWsURL)
 
 				// Connect with timeout
-				dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-				defer cancel()
-				conn, resp, err := websocket.Dial(dialCtx, h.cfg.RollupBoostWsURL, nil)
-				if resp != nil && resp.Body != nil {
-					resp.Body.Close()
-				}
-
+				conn, err := opclient.DialWS(ctx, opclient.WSConfig{
+					URL:         h.cfg.RollupBoostWsURL,
+					DialTimeout: 5 * time.Second,
+					MaxAttempts: 1,
+					Log:         h.log,
+				})
 				if err != nil {
 					h.log.Warn("failed to connect to rollup boost WebSocket, will retry",
 						"err", err, "retryIn", reconnectDelay)
@@ -227,8 +223,8 @@ func (h *Handler) listenToRollupBoost(ctx context.Context) {
 
 			// Read with timeout
 			readCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			defer cancel()
 			_, message, err := h.rollupBoostConn.Read(readCtx)
+			cancel()
 
 			if err != nil {
 				h.log.Warn("error reading from rollup boost WebSocket", "err", err)
