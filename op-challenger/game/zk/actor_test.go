@@ -26,135 +26,174 @@ var (
 	l1Time        = time.Unix(9892842, 0)
 )
 
-func TestActor_DoNothingIfAlreadyChallenged(t *testing.T) {
-	actor, rootProvider, contract, sender := setupActorTest(t)
-	rootProvider.root = common.Hash{0xba, 0xd0} // Disagree but already challenged
-	contract.challenge(t)
-	verifyNoChallenge(t, actor, contract, sender)
+type zkTestStubs struct {
+	rootProvider *stubRootProvider
+	contract     *stubContract
+	sender       *stubTxSender
 }
 
-func TestActor_ChallengeIncorrectProposal(t *testing.T) {
-	actor, rootProvider, contract, sender := setupActorTest(t)
-	rootProvider.root = common.Hash{0xba, 0xd0}
-	contract.proposalHash = common.Hash{0x11}
-	contract.l2SequenceNumber = uint64(28492)
-	verifyChallenge(t, actor, contract, sender)
+func TestActor(t *testing.T) {
+	// Output root: Valid, Invalid
+	// Safety: Safe, Unsafe, Beyond unsafe
+	// In challenge period, ChallengePeriodExpired, In proof period, ProvenWithoutChallenge, ProvenAfterChallenge, ProofPeriodExpired, Resolved
+	// No parent, parent in progress, parent valid, parent invalid
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T, stubs *zkTestStubs)
+		challenge bool
+		resolve   bool
+	}{
+		{
+			name: "DoNotChallengeCorrectProposal",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.setDeadlineNotReached()
+				stubs.contract.proposalHash = stubs.rootProvider.root
+				stubs.contract.l2SequenceNumber = stubs.rootProvider.rootBlockNum
+			},
+		},
+		{
+			name: "ChallengeIncorrectProposal",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.proposalHash = common.Hash{0xba, 0xd0}
+			},
+			challenge: true,
+		},
+		{
+			name: "DoNothingIfAlreadyChallenged",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.rootProvider.root = common.Hash{0xba, 0xd0} // Disagree but already challenged
+				stubs.contract.challenge(t)
+			},
+		},
+		{
+			name: "ChallengeProposalBeyondCurrentUnsafeHead",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.rootProvider.root = common.Hash{0xba, 0xd0}
+				stubs.rootProvider.outputErr = mockNotFoundRPCError()
+				stubs.contract.proposalHash = stubs.rootProvider.root
+				stubs.contract.l2SequenceNumber = stubs.rootProvider.rootBlockNum
+			},
+			challenge: true,
+		},
+		{
+			name: "ChallengeUnresolvableGameWithNoParent",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.proposalHash = common.Hash{0xba, 0xd0}
+				stubs.contract.parentIndex = math.MaxUint32
+			},
+			challenge: true,
+		},
+		{
+			name: "ResolveGameWithNoParent",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.setDeadlineExpired()
+				stubs.contract.proposalHash = common.Hash{0xba, 0xd0}
+				stubs.contract.parentIndex = math.MaxUint32
+			},
+			resolve: true,
+		},
+		{
+			name: "DoNothingWhenDeadlineExpiredButParentNotResolved",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.setDeadlineExpired()
+				// Proposal is invalid but can't challenge because the deadline is expired
+				stubs.contract.proposalHash = common.Hash{0xba, 0xd0}
+				// And can't resolve because the parent is still unresolved
+				stubs.contract.setParentStatus(types.GameStatusInProgress)
+			},
+		},
+		{
+			name: "InChallengePeriodWithInvalidParent",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				// Game should be challenged
+				stubs.contract.proposalHash = common.Hash{0xba, 0xd0}
+				stubs.contract.setDeadlineNotReached()
+				// And is immediately resolvable because the parent is invalid
+				stubs.contract.setParentStatus(types.GameStatusChallengerWon)
+			},
+			challenge: true,
+			resolve:   true,
+		},
+		{
+			name: "UnchallengedWithDeadlineExpired",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.setDeadlineExpired()
+			},
+			resolve: true,
+		},
+		{
+			name: "ChallengedWithDeadlineExpired",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.setDeadlineExpired()
+				stubs.contract.challenge(t)
+			},
+			resolve: true,
+		},
+		{
+			name: "ChallengedAndProvenWithDeadlineExpired",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.setDeadlineExpired()
+				stubs.contract.challenge(t)
+				stubs.contract.prove(t)
+			},
+			resolve: true,
+		},
+		{
+			name: "ChallengedAndProvenWithDeadlineNotReached",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.setDeadlineNotReached()
+				stubs.contract.challenge(t)
+				stubs.contract.prove(t)
+			},
+			resolve: true,
+		},
+		{
+			name: "UnchallengedAndProvenWithDeadlineExpired",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.setDeadlineExpired()
+				stubs.contract.prove(t)
+			},
+			resolve: true,
+		},
+		{
+			name: "UnchallengedAndProvenWithDeadlineNotReached",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.setDeadlineNotReached()
+				stubs.contract.prove(t)
+			},
+			resolve: true,
+		},
+		{
+			name: "AlreadyResolved",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.setDeadlineNotReached()
+				stubs.contract.markResolved()
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actor, stubs := setupActorTest(t)
+			if tt.setup != nil {
+				tt.setup(t, stubs)
+			}
+			err := actor.Act(context.Background())
+			require.NoError(t, err)
+			expectedTxCount := 0
+			if tt.challenge {
+				require.Contains(t, stubs.sender.sentData, challengeData)
+				expectedTxCount++
+			}
+			if tt.resolve {
+				require.Contains(t, stubs.sender.sentData, resolveData)
+				expectedTxCount++
+			}
+			require.Len(t, stubs.sender.sentData, expectedTxCount)
+		})
+	}
 }
 
-func TestActor_ChallengeProposalBeyondCurrentUnsafeHead(t *testing.T) {
-	actor, rootProvider, contract, sender := setupActorTest(t)
-	rootProvider.root = common.Hash{0xba, 0xd0}
-	rootProvider.outputErr = mockNotFoundRPCError()
-	contract.proposalHash = rootProvider.root
-	contract.l2SequenceNumber = rootProvider.rootBlockNum
-	verifyChallenge(t, actor, contract, sender)
-}
-
-func TestActor_Resolve(t *testing.T) {
-	t.Run("NoParent-NotResolvable", func(t *testing.T) {
-		actor, _, contract, sender := setupActorTest(t)
-		contract.proposalHash = common.Hash{0xba, 0xd0}
-		contract.parentIndex = math.MaxUint32
-		// Not resolvable but should challenge
-		verifyChallenge(t, actor, contract, sender)
-	})
-	t.Run("NoParent-Resolvable", func(t *testing.T) {
-		actor, _, contract, sender := setupActorTest(t)
-		contract.setDeadlineExpired()
-		contract.proposalHash = common.Hash{0xba, 0xd0}
-		contract.parentIndex = math.MaxUint32
-		verifyResolved(t, actor, sender)
-	})
-	t.Run("ParentNotResolved", func(t *testing.T) {
-		actor, _, contract, sender := setupActorTest(t)
-		// Child is resolvable but still has to wait until the parent is resolved.
-		contract.setDeadlineExpired()
-		contract.setParentStatus(types.GameStatusInProgress)
-		// Invalid proposal hash but shouldn't challenge as deadline has expired
-		contract.proposalHash = common.Hash{0xba, 0xd0}
-		err := actor.Act(context.Background())
-		require.NoError(t, err)
-		require.Empty(t, sender.sentData, "should not resolve game before parent")
-	})
-
-	t.Run("InChallengePeriodButParentInvalid", func(t *testing.T) {
-		actor, _, contract, sender := setupActorTest(t)
-		// Child is resolvable but still has to wait until the parent is resolved.
-		contract.setDeadlineNotReached()
-		contract.setParentStatus(types.GameStatusChallengerWon)
-		// Invalid proposal hash but shouldn't challenge as game can be resolved
-		contract.proposalHash = common.Hash{0xba, 0xd0}
-		verifyResolved(t, actor, sender)
-	})
-
-	t.Run("Unchallenged-DeadlinePassed", func(t *testing.T) {
-		actor, _, contract, sender := setupActorTest(t)
-		contract.setDeadlineExpired()
-		verifyResolved(t, actor, sender)
-	})
-
-	t.Run("Challenged-DeadlinePassed", func(t *testing.T) {
-		actor, _, contract, sender := setupActorTest(t)
-		contract.challenge(t)
-		// When challenged, the deadline is set to the deadline for proving which has expired
-		contract.setDeadlineExpired()
-		verifyResolved(t, actor, sender)
-	})
-
-	t.Run("Proven-Challenged", func(t *testing.T) {
-		actor, _, contract, sender := setupActorTest(t)
-		contract.challenge(t)
-		contract.prove(t, common.Address{0xaa})
-		contract.setDeadlineNotReached()
-		verifyResolved(t, actor, sender)
-	})
-
-	t.Run("Proven-Unchallenged", func(t *testing.T) {
-		actor, _, contract, sender := setupActorTest(t)
-		contract.prove(t, common.Address{0xaa})
-		contract.setDeadlineNotReached()
-		verifyResolved(t, actor, sender)
-	})
-
-	t.Run("Resolved", func(t *testing.T) {
-		actor, _, contract, sender := setupActorTest(t)
-		contract.markResolved()
-		err := actor.Act(context.Background())
-		require.NoError(t, err)
-		require.Empty(t, sender.sentData, "should not act on resolved game")
-	})
-}
-
-func verifyResolved(t *testing.T, actor *Actor, sender *stubTxSender) {
-	err := actor.Act(context.Background())
-	require.NoError(t, err)
-	require.Len(t, sender.sentData, 1, "should have sent resolve tx")
-	require.Equal(t, resolveData, sender.sentData[0], "tx should have used resolve data")
-}
-
-func TestActor_DoNotChallengeCorrectProposal(t *testing.T) {
-	actor, rootProvider, contract, sender := setupActorTest(t)
-	contract.proposalHash = rootProvider.root
-	contract.l2SequenceNumber = rootProvider.rootBlockNum
-	verifyNoChallenge(t, actor, contract, sender)
-}
-
-func verifyNoChallenge(t *testing.T, actor *Actor, contract *stubContract, sender *stubTxSender) {
-	err := actor.Act(context.Background())
-	require.NoError(t, err)
-	require.False(t, contract.txCreated, "should not challenge already challenged game")
-	require.Empty(t, sender.sentData, "should not send challenge tx")
-}
-
-func verifyChallenge(t *testing.T, actor *Actor, contract *stubContract, sender *stubTxSender) {
-	err := actor.Act(context.Background())
-	require.NoError(t, err)
-	require.True(t, contract.txCreated, "should not challenge already challenged game")
-	require.Len(t, sender.sentData, 1, "should not send challenge tx")
-	require.Equal(t, challengeData, sender.sentData[0], "should have sent expected challenge transaction")
-}
-
-func setupActorTest(t *testing.T) (*Actor, *stubRootProvider, *stubContract, *stubTxSender) {
+func setupActorTest(t *testing.T) (*Actor, *zkTestStubs) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	l1Head := eth.BlockID{
 		Hash:   common.Hash{0x12},
@@ -181,7 +220,11 @@ func setupActorTest(t *testing.T) (*Actor, *stubRootProvider, *stubContract, *st
 	require.NoError(t, err, "failed to create actor")
 	actor, ok := genericActor.(*Actor)
 	require.True(t, ok, "actor is not of expected type")
-	return actor, rootProvider, contract, txSender
+	return actor, &zkTestStubs{
+		rootProvider: rootProvider,
+		contract:     contract,
+		sender:       txSender,
+	}
 }
 
 type stubRootProvider struct {
@@ -217,7 +260,7 @@ func (s *stubContract) challenge(t *testing.T) {
 	s.proposalStatus = contracts.ProposalStatusChallenged
 }
 
-func (s *stubContract) prove(t *testing.T, prover common.Address) {
+func (s *stubContract) prove(t *testing.T) {
 	if s.proposalStatus == contracts.ProposalStatusUnchallenged {
 		s.proposalStatus = contracts.ProposalStatusUnchallengedAndValidProofProvided
 		return
