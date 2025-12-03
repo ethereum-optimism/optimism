@@ -8,4 +8,6 @@ alloy = "1.1.2"
 clap = { version = "4.5.53", features = ["derive"] }
 env_logger = "0.11.8"
 log = "0.4.28"
+op-alloy = "0.22.4"
+op-alloy-consensus = "0.22.4"
 tokio = "1.48.0"
