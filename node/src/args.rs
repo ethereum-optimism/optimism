@@ -72,7 +72,7 @@ pub struct RollupArgs {
     ///
     /// If given, the flashblocks are received to build pending block. All request with "pending"
     /// block tag will use the pending state based on flashblocks.
-    #[arg(long)]
+    #[arg(long, alias = "websocket-url")]
     pub flashblocks_url: Option<Url>,
 
     /// Enable flashblock consensus client to drive the chain forward
