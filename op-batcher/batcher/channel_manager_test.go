@@ -1042,3 +1042,55 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 		})
 	})
 }
+
+func TestChannelManager_SingleBlockBiggerThanMaxFrameSize(t *testing.T) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	a := derivetest.RandomL2BlockWithChainId(rng, 4, defaultTestRollupConfig.L2ChainID)
+	l1BlockID := eth.BlockID{
+		Hash:   a.Hash(),
+		Number: a.NumberU64(),
+	}
+
+	type testCase struct {
+		name            string
+		compressionAlgo derive.CompressionAlgo
+	}
+
+	for _, tc := range []testCase{
+		{
+			name:            "zlib",
+			compressionAlgo: derive.Zlib,
+		},
+		{
+			name:            "brotli",
+			compressionAlgo: derive.Brotli,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+			log := testlog.Logger(t, log.LevelCrit)
+			// use an extremely low frame size that will definitely not be enough for the random block
+			cfg := channelManagerTestConfig(derive.FrameV0OverHeadSize, derive.SingularBatchType)
+			cfg.UseBlobs = true
+			// Need to set the channel timeout here so we don't clear pending
+			// channels on confirmation. This would result in [TxConfirmed]
+			// clearing confirmed transactions, and resetting the pendingChannels map
+			cfg.ChannelTimeout = 10
+			cfg.InitShadowCompressor(tc.compressionAlgo)
+			m := NewChannelManager(log, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+
+			require.NoError(m.AddL2Block(a))
+
+			// Make sure there is a channel
+			require.NoError(m.ensureChannelWithSpace(l1BlockID))
+			require.NotNil(m.currentChannel)
+			require.Len(m.currentChannel.confirmedTransactions, 0)
+
+			// Process the blocks
+			// We should have a pending channel with 1 frame
+			require.Equal(m.pendingBlocks(), 1)
+			require.NoError(m.processBlocks())
+			require.Equal(m.pendingBlocks(), 0)
+		})
+	}
+}

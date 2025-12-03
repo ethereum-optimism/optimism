@@ -19,6 +19,7 @@ type ChannelCompressor interface {
 	Close() error
 	Reset()
 	Len() int
+	StaticBytesLen() int
 	Read([]byte) (int, error)
 	GetCompressed() *bytes.Buffer
 }
@@ -56,6 +57,10 @@ func (zc *ZlibCompressor) Reset() {
 	zc.CompressorWriter.Reset(zc.compressed)
 }
 
+func (bc *ZlibCompressor) StaticBytesLen() int {
+	return 0
+}
+
 type BrotliCompressor struct {
 	BaseChannelCompressor
 }
@@ -64,6 +69,10 @@ func (bc *BrotliCompressor) Reset() {
 	bc.compressed.Reset()
 	bc.compressed.WriteByte(ChannelVersionBrotli)
 	bc.CompressorWriter.Reset(bc.compressed)
+}
+
+func (bc *BrotliCompressor) StaticBytesLen() int {
+	return 1
 }
 
 func NewChannelCompressor(algo CompressionAlgo) (ChannelCompressor, error) {
