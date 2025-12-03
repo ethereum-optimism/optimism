@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/node/runcfg"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -54,7 +55,7 @@ func (o *Opnode) P2P() p2p.Node {
 
 var _ services.RollupNode = (*Opnode)(nil)
 
-func NewOpnode(l log.Logger, c *config.Config, errFn func(error)) (*Opnode, error) {
+func NewOpnode(l log.Logger, c *config.Config, clk clock.Clock, errFn func(error)) (*Opnode, error) {
 	if err := c.Check(); err != nil {
 		return nil, err
 	}
@@ -70,7 +71,7 @@ func NewOpnode(l log.Logger, c *config.Config, errFn func(error)) (*Opnode, erro
 			l.Warn("closed op-node!")
 		}()
 	}
-	node, err := rollupNode.New(context.Background(), c, l, "", metrics.NewMetrics(""))
+	node, err := rollupNode.New(context.Background(), c, l, "", metrics.NewMetrics(""), clk)
 	if err != nil {
 		return nil, err
 	}

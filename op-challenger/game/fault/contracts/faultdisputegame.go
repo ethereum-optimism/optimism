@@ -162,6 +162,10 @@ func mustParseAbi(json []byte) *abi.ABI {
 	return &loaded
 }
 
+func (f *FaultDisputeGameContractLatest) Addr() common.Address {
+	return f.contract.Addr()
+}
+
 // GetBalanceAndDelay returns the total amount of ETH controlled by this contract.
 // Note that the ETH is actually held by the DelayedWETH contract which may be shared by multiple games.
 // Returns the balance and the address of the contract that actually holds the balance.

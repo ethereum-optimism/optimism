@@ -365,6 +365,11 @@ func (c Config) Check() error {
 			return err
 		}
 	}
+	if c.GameTypeEnabled(gameTypes.OptimisticZKGameType) {
+		if c.RollupRpc == "" {
+			return ErrMissingRollupRpc
+		}
+	}
 	if c.GameTypeEnabled(gameTypes.AlphabetGameType) || c.GameTypeEnabled(gameTypes.FastGameType) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc

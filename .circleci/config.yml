@@ -160,7 +160,6 @@ commands:
             pip3 install -r requirements.txt
             python3 main.py "<<parameters.patterns>>"
 
-
   install-solc-compilers:
     description: "Install the solc compilers"
     parameters:
@@ -245,33 +244,46 @@ commands:
             echo "Resolved TARGET_BRANCH=$TARGET_BRANCH"
             echo "export TARGET_BRANCH=$TARGET_BRANCH" >> "$BASH_ENV"
 
-  setup-dev-features:
-    description: "Set up dev feature environment variables from comma-separated list"
+  setup-features:
+    description: "Set up dev and system feature environment variables. Features are auto-classified based on system_features registry."
     parameters:
-      dev_features:
-        description: "Comma-separated list of dev features to enable"
+      features:
+        description: "Comma-separated list of features (can mix dev and system features, e.g., 'OPTIMISM_PORTAL_INTEROP,CUSTOM_GAS_TOKEN')"
         type: string
         default: ""
+      system_features:
+        description: "Registry of system features (others treated as dev features)"
+        type: string
+        default: "CUSTOM_GAS_TOKEN"
     steps:
       - run:
-          name: Set dev feature environment variables
+          name: Set feature environment variables
           command: |
-            # Set dev feature environment variables if provided
-            if [ -n "<<parameters.dev_features>>" ]; then
-              DEV_FEATURES_STRING="<<parameters.dev_features>>"
+            # Define which features are system features (registry)
+            SYSTEM_FEATURES="<<parameters.system_features>>"
 
-              # Check if this is just "main" (baseline with no dev features)
-              if [ "$(echo "$DEV_FEATURES_STRING" | tr '[:upper:]' '[:lower:]')" = "main" ]; then
-                echo "Running with baseline configuration (no dev features enabled)"
+            if [ -n "<<parameters.features>>" ]; then
+              FEATURES_STRING="<<parameters.features>>"
+
+              # Check if this is just "main" (baseline with no features)
+              if [ "$(echo "$FEATURES_STRING" | tr '[:upper:]' '[:lower:]')" = "main" ]; then
+                echo "Running with baseline configuration (no features enabled)"
               else
-                echo "Enabling dev features: <<parameters.dev_features>>"
+                echo "Processing features: <<parameters.features>>"
                 IFS=','
-                for feature in $DEV_FEATURES_STRING; do
+                for feature in $FEATURES_STRING; do
                   feature=$(echo "$feature" | xargs)  # trim whitespace
                   if [ -n "$feature" ] && [ "$(echo "$feature" | tr '[:upper:]' '[:lower:]')" != "main" ]; then
-                    env_var="DEV_FEATURE__${feature}"
-                    echo "Setting ${env_var}=true"
-                    echo "export ${env_var}=true" >> $BASH_ENV
+                    # Check if this feature is in the system features registry
+                    if echo "$SYSTEM_FEATURES" | grep -qw "$feature"; then
+                      env_var="SYS_FEATURE__${feature}"
+                      echo "Setting ${env_var}=true (system feature)"
+                      echo "export ${env_var}=true" >> $BASH_ENV
+                    else
+                      env_var="DEV_FEATURE__${feature}"
+                      echo "Setting ${env_var}=true (dev feature)"
+                      echo "export ${env_var}=true" >> $BASH_ENV
+                    fi
                   fi
                 done
                 unset IFS
@@ -492,7 +504,7 @@ jobs:
         default: false
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - attach_workspace:
           at: .
       - check-changed:
@@ -544,7 +556,7 @@ jobs:
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - run:
           name: Check `RISCV.sol` bytecode
           working_directory: packages/contracts-bedrock
@@ -594,7 +606,7 @@ jobs:
         default: ci
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - install-zstd
       - install-contracts-dependencies
       - run:
@@ -692,7 +704,7 @@ jobs:
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - run:
           command: mkdir -p /tmp/docker_images
       - when:
@@ -913,13 +925,13 @@ jobs:
         description: List of changed files to run tests on
         type: string
         default: contracts-bedrock
-      dev_features:
-        description: Comma-separated list of dev features to enable (e.g., "OPTIMISM_PORTAL_INTEROP,ANOTHER_FEATURE")
+      features:
+        description: Comma-separated list of features to enable (e.g., "OPTIMISM_PORTAL_INTEROP", "CUSTOM_GAS_TOKEN")
         type: string
         default: ""
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - install-zstd
       - run:
           name: Check if test list is empty
@@ -949,8 +961,8 @@ jobs:
           working_directory: packages/contracts-bedrock
       - go-save-cache:
           namespace: packages/contracts-bedrock/scripts/go-ffi
-      - setup-dev-features:
-          dev_features: <<parameters.dev_features>>
+      - setup-features:
+          features: <<parameters.features>>
       - run:
           name: Run tests
           command: |
@@ -983,7 +995,7 @@ jobs:
     resource_class: 2xlarge
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - install-contracts-dependencies
       - install-zstd
       - run:
@@ -1032,7 +1044,7 @@ jobs:
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - run:
           name: Check Python version
           command: python3 --version
@@ -1086,13 +1098,13 @@ jobs:
         description: Profile to use for testing
         type: string
         default: ci
-      dev_features:
-        description: Comma-separated list of dev features to enable (e.g., "OPTIMISM_PORTAL_INTEROP,ANOTHER_FEATURE")
+      features:
+        description: Comma-separated list of features to enable (e.g., "OPTIMISM_PORTAL_INTEROP", "CUSTOM_GAS_TOKEN")
         type: string
         default: ""
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - install-contracts-dependencies
       - install-zstd
       - attach_workspace:
@@ -1123,8 +1135,8 @@ jobs:
       - restore_cache:
           name: Restore forked state
           key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
-      - setup-dev-features:
-          dev_features: <<parameters.dev_features>>
+      - setup-features:
+          features: <<parameters.features>>
       - run:
           name: Build go-ffi
           command: just build-go-ffi
@@ -1178,8 +1190,8 @@ jobs:
       fork_base_rpc:
         description: Fork Base RPC
         type: string
-      dev_features:
-        description: Comma-separated list of dev features to enable (e.g., "OPTIMISM_PORTAL_INTEROP,ANOTHER_FEATURE")
+      features:
+        description: Comma-separated list of features to enable (e.g., "OPTIMISM_PORTAL_INTEROP", "CUSTOM_GAS_TOKEN")
         type: string
         default: ""
     docker:
@@ -1214,8 +1226,8 @@ jobs:
       - restore_cache:
           name: Restore forked state
           key: forked-state-contracts-bedrock-tests-upgrade-<<parameters.fork_op_chain>>-<<parameters.fork_base_chain>>-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
-      - setup-dev-features:
-          dev_features: <<parameters.dev_features>>
+      - setup-features:
+          features: <<parameters.features>>
       - run:
           name: Run tests
           command: just test-upgrade
@@ -1353,7 +1365,7 @@ jobs:
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - check-changed:
           patterns: "<<parameters.package_name>>"
       - attach_workspace:
@@ -1385,7 +1397,7 @@ jobs:
     resource_class: large
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - restore_cache:
           key: golangci-v1-{{ checksum ".golangci.yaml" }}
       - run:
@@ -1434,7 +1446,7 @@ jobs:
     parallelism: <<parameters.parallelism>>
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - attach_workspace:
           at: .
       - restore_cache:
@@ -1509,7 +1521,7 @@ jobs:
     resource_class: <<parameters.resource_class>>
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - attach_workspace:
           at: .
       - run:
@@ -1573,7 +1585,7 @@ jobs:
     circleci_ip_ranges: true
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       # Restore cached Go modules
       - restore_cache:
           keys:
@@ -1671,7 +1683,7 @@ jobs:
     resource_class: 2xlarge+
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - attach_workspace:
           at: .
       # Restore cached Go modules
@@ -1765,7 +1777,7 @@ jobs:
     parallelism: << pipeline.parameters.flake-shake-workers >>
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
@@ -1812,7 +1824,7 @@ jobs:
     resource_class: large
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - attach_workspace:
           at: .
       - run:
@@ -1863,7 +1875,7 @@ jobs:
     resource_class: large
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - run:
           name: Lint/Vet/Build op-acceptance-tests/cmd
           working_directory: op-acceptance-tests
@@ -1942,7 +1954,7 @@ jobs:
     resource_class: large
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - run:
           name: Install tools
           command: |
@@ -1965,7 +1977,7 @@ jobs:
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - restore_cache:
           name: Restore cannon prestate cache
           key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
@@ -1993,7 +2005,7 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - setup_remote_docker
       - run:
           name: Build prestates
@@ -2009,7 +2021,7 @@ jobs:
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - restore_cache:
           name: Restore kona cache
           key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
@@ -2032,7 +2044,7 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - restore_cache:
           name: Restore kona host cache
           key: kona-host-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
@@ -2205,7 +2217,7 @@ jobs:
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - setup_remote_docker
       - run:
           name: Run Analyzer
@@ -2219,7 +2231,7 @@ jobs:
     resource_class: large
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - run:
           name: Verify Compatibility
           command: |
@@ -2232,7 +2244,7 @@ jobs:
     resource_class: large
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - check-changed:
           patterns: op-node
       - run:
@@ -2245,7 +2257,7 @@ jobs:
     resource_class: large
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - check-changed:
           patterns: op-service
       - run:
@@ -2257,7 +2269,7 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - run:
           command: just check-forge-version
           working_directory: op-deployer
@@ -2361,7 +2373,7 @@ jobs:
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
-         checkout-method: blobless
+          checkout-method: blobless
       - install-contracts-dependencies
       - run:
           name: Build contracts
@@ -2552,51 +2564,51 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
-          name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.dev_features>>
+          name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.features>>
           test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
           test_profile: ciheavy
-          dev_features: <<matrix.dev_features>>
+          features: <<matrix.features>>
           matrix:
             parameters:
-              dev_features: &dev_features_matrix
+              features: &features_matrix
                 - main
                 - OPTIMISM_PORTAL_INTEROP
                 - CANNON_KONA,DEPLOY_V2_DISPUTE_GAMES
-                - CUSTOM_GAS_TOKEN
                 - OPCM_V2
+                - CUSTOM_GAS_TOKEN
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests:
-          name: contracts-bedrock-tests <<matrix.dev_features>>
+          name: contracts-bedrock-tests <<matrix.features>>
           test_list: find test -name "*.t.sol"
-          dev_features: <<matrix.dev_features>>
+          features: <<matrix.features>>
           matrix:
             parameters:
-              dev_features: *dev_features_matrix
+              features: *features_matrix
           context:
             - circleci-repo-readonly-authenticated-github-token
           check_changed_patterns: contracts-bedrock,op-node
       - contracts-bedrock-coverage:
           # Generate coverage reports.
-          name: contracts-bedrock-coverage <<matrix.dev_features>>
+          name: contracts-bedrock-coverage <<matrix.features>>
           test_timeout: 1h
           test_profile: cicoverage
-          dev_features: <<matrix.dev_features>>
+          features: <<matrix.features>>
           matrix:
             parameters:
-              dev_features: *dev_features_matrix
+              features: *features_matrix
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests-upgrade:
-          name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.dev_features>>
+          name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.features>>
           fork_op_chain: op
           fork_base_chain: mainnet
           fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
-          dev_features: <<matrix.dev_features>>
+          features: <<matrix.features>>
           matrix:
             parameters:
-              dev_features: *dev_features_matrix
+              features: *features_matrix
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests-upgrade:

@@ -623,7 +623,7 @@ func singleChainSystemWithFlashblocksOpts(ids *SingleChainSystemWithFlashblocksI
 	opt := stack.Combine[*Orchestrator]()
 	// Precompute deterministic P2P identity and peering between sequencer EL and op-rbuilder EL.
 	seqID := NewELNodeIdentity("127.0.0.1", 0)
-	builderID := NewELNodeIdentity("127.0.0.1", 30303) // use default reth p2p port
+	builderID := NewELNodeIdentity("127.0.0.1", 0) // allocate dynamic port for builder
 
 	var missingEnv []string
 	if os.Getenv("OP_RBUILDER_EXEC_PATH") == "" {

@@ -1,37 +1,35 @@
-package fault
+package generic
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/client"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/responder"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type actor func(ctx context.Context) error
+type PrestateValidator interface {
+	Validate(ctx context.Context) error
+}
 
-type GameInfo interface {
+type Actor interface {
+	Act(ctx context.Context) error
+	AdditionalStatus(ctx context.Context) ([]any, error)
+}
+
+type GenericGameLoader interface {
+	GetL1Head(context.Context) (common.Hash, error)
 	GetStatus(context.Context) (gameTypes.GameStatus, error)
-	GetClaimCount(context.Context) (uint64, error)
 }
 
 type SyncValidator interface {
 	// ValidateNodeSynced checks that the local node is sufficiently up to date to play the game.
-	// It returns types.ErrNotInSync if the node is too far behind.
+	// It returns client.ErrNotInSync if the node is too far behind.
 	ValidateNodeSynced(ctx context.Context, gameL1Head eth.BlockID) error
 }
 
@@ -39,58 +37,32 @@ type L1HeaderSource interface {
 	HeaderByHash(context.Context, common.Hash) (*gethTypes.Header, error)
 }
 
-type TxSender interface {
-	From() common.Address
-	SendAndWaitSimple(txPurpose string, txs ...txmgr.TxCandidate) error
-}
+type ActorCreator func(ctx context.Context, logger log.Logger, l1Head eth.BlockID) (Actor, error)
 
 type GamePlayer struct {
-	act                actor
-	loader             GameInfo
+	actor              Actor
+	loader             GenericGameLoader
 	logger             log.Logger
 	syncValidator      SyncValidator
-	prestateValidators []Validator
+	prestateValidators []PrestateValidator
 	status             gameTypes.GameStatus
 	gameL1Head         eth.BlockID
 }
 
-type GameContract interface {
-	preimages.PreimageGameContract
-	responder.GameContract
-	claims.BondContract
-	GameInfo
-	ClaimLoader
-	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
-	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
-	GetMaxClockDuration(ctx context.Context) (time.Duration, error)
-	GetOracle(ctx context.Context) (contracts.PreimageOracleContract, error)
-	GetL1Head(ctx context.Context) (common.Hash, error)
-}
+type actNoop struct{}
 
-var actNoop = func(ctx context.Context) error {
-	return nil
-}
+func (a *actNoop) Act(_ context.Context) error                       { return nil }
+func (a *actNoop) AdditionalStatus(_ context.Context) ([]any, error) { return nil, nil }
 
-type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth types.Depth, dir string) (types.TraceAccessor, error)
-
-func NewGamePlayer(
+func NewGenericGamePlayer(
 	ctx context.Context,
-	systemClock clock.Clock,
-	l1Clock types.ClockReader,
 	logger log.Logger,
-	m metrics.Metricer,
-	dir string,
 	addr common.Address,
-	txSender TxSender,
-	loader GameContract,
+	loader GenericGameLoader,
 	syncValidator SyncValidator,
-	validators []Validator,
-	creator resourceCreator,
+	validators []PrestateValidator,
 	l1HeaderSource L1HeaderSource,
-	selective bool,
-	claimants []common.Address,
-	responseDelay time.Duration,
-	responseDelayAfter uint64,
+	createActor ActorCreator,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
 
@@ -107,30 +79,9 @@ func NewGamePlayer(
 			prestateValidators: validators,
 			status:             status,
 			// Act function does nothing because the game is already complete
-			act: actNoop,
+			actor: &actNoop{},
 		}, nil
 	}
-
-	maxClockDuration, err := loader.GetMaxClockDuration(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch the game duration: %w", err)
-	}
-
-	gameDepth, err := loader.GetMaxGameDepth(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
-	}
-
-	accessor, err := creator(ctx, logger, gameDepth, dir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create trace accessor: %w", err)
-	}
-
-	oracle, err := loader.GetOracle(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load oracle: %w", err)
-	}
-
 	l1HeadHash, err := loader.GetL1Head(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load game L1 head: %w", err)
@@ -141,21 +92,13 @@ func NewGamePlayer(
 	}
 	l1Head := eth.HeaderBlockID(l1Header)
 
-	minLargePreimageSize, err := oracle.MinLargePreimageSize(ctx)
+	actor, err := createActor(ctx, logger, l1Head)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load min large preimage size: %w", err)
-	}
-	direct := preimages.NewDirectPreimageUploader(logger, txSender, loader)
-	large := preimages.NewLargePreimageUploader(logger, l1Clock, txSender, oracle)
-	uploader := preimages.NewSplitPreimageUploader(direct, large, minLargePreimageSize)
-	responder, err := responder.NewFaultResponder(logger, txSender, loader, uploader, oracle)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create the responder: %w", err)
+		return nil, fmt.Errorf("failed to create actor: %w", err)
 	}
 
-	agent := NewAgent(m, systemClock, l1Clock, loader, gameDepth, maxClockDuration, accessor, responder, logger, selective, claimants, responseDelay, responseDelayAfter)
 	return &GamePlayer{
-		act:                agent.Act,
+		actor:              actor,
 		loader:             loader,
 		logger:             logger,
 		status:             status,
@@ -192,7 +135,7 @@ func (g *GamePlayer) ProgressGame(ctx context.Context) gameTypes.GameStatus {
 		return g.status
 	}
 	g.logger.Trace("Checking if actions are required")
-	if err := g.act(ctx); err != nil {
+	if err := g.actor.Act(ctx); err != nil {
 		g.logger.Error("Error when acting on game", "err", err)
 	}
 	status, err := g.loader.GetStatus(ctx)
@@ -204,19 +147,20 @@ func (g *GamePlayer) ProgressGame(ctx context.Context) gameTypes.GameStatus {
 	g.status = status
 	if status != gameTypes.GameStatusInProgress {
 		// Release the agent as we will no longer need to act on this game.
-		g.act = actNoop
+		g.actor = &actNoop{}
 	}
 	return status
 }
 
 func (g *GamePlayer) logGameStatus(ctx context.Context, status gameTypes.GameStatus) {
 	if status == gameTypes.GameStatusInProgress {
-		claimCount, err := g.loader.GetClaimCount(ctx)
+		additionalStatus, err := g.actor.AdditionalStatus(ctx)
 		if err != nil {
-			g.logger.Error("Failed to get claim count for in progress game", "err", err)
+			g.logger.Error("Failed to get additional status info for in progress game", "err", err)
 			return
 		}
-		g.logger.Info("Game info", "claims", claimCount, "status", status)
+		additionalStatus = append(additionalStatus, "status", g.status)
+		g.logger.Info("Game info", additionalStatus...)
 		return
 	}
 	g.logger.Info("Game resolved", "status", status)

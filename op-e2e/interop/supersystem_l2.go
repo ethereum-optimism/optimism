@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -198,7 +199,7 @@ func (s *interopE2ESystem) newNodeForL2(
 		ConfigPersistence: config.DisabledConfigPersistence{},
 	}
 	opNode, err := opnode.NewOpnode(logger.New("service", "op-node"),
-		nodeCfg, func(err error) {
+		nodeCfg, clock.SystemClock, func(err error) {
 			s.t.Error(err)
 		})
 	require.NoError(s.t, err)

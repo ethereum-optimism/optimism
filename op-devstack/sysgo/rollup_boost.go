@@ -21,7 +21,7 @@ import (
 
 // RollupBoostNode is a lightweight sysgo-managed process wrapper around a rollup-boost
 // WebSocket stream source. It exposes a stable proxied ws URL and hydrates the L2
-// network with a FlashblocksWSClient shim that points at it.
+// network with a shared WSClient that points at it.
 type RollupBoostNode struct {
 	mu sync.Mutex
 
@@ -51,6 +51,14 @@ func (r *RollupBoostNode) hydrate(system stack.ExtensibleSystem) {
 	system.T().Require().NoError(err)
 	system.T().Cleanup(elRPC.Close)
 
+	// Create a shared websocket client for flashblocks traffic over the proxy.
+	wsClient, err := client.DialWS(system.T().Ctx(), client.WSConfig{
+		URL:     r.wsProxyURL,
+		Headers: r.header,
+		Log:     system.Logger(),
+	})
+	system.T().Require().NoError(err)
+
 	node := shim.NewRollupBoostNode(shim.RollupBoostNodeConfig{
 		ID: r.id,
 		ELNodeConfig: shim.ELNodeConfig{
@@ -58,13 +66,8 @@ func (r *RollupBoostNode) hydrate(system stack.ExtensibleSystem) {
 			Client:       elRPC,
 			ChainID:      r.id.ChainID(),
 		},
-		RollupCfg: system.L2Network(stack.L2NetworkID(r.id.ChainID())).RollupConfig(),
-		FlashblocksWsClient: shim.NewFlashblocksWSClient(shim.FlashblocksWSClientConfig{
-			CommonConfig: shim.NewCommonConfig(system.T()),
-			ID:           stack.NewFlashblocksWSClientID(r.id.Key(), r.id.ChainID()),
-			WsUrl:        r.wsProxyURL,
-			WsHeaders:    r.header,
-		}),
+		RollupCfg:         system.L2Network(stack.L2NetworkID(r.id.ChainID())).RollupConfig(),
+		FlashblocksClient: wsClient,
 	})
 	system.L2Network(stack.L2NetworkID(r.id.ChainID())).(stack.ExtensibleL2Network).AddRollupBoostNode(node)
 }
@@ -149,7 +152,7 @@ func (r *RollupBoostNode) Stop() {
 }
 
 // WithRollupBoost starts a rollup-boost process using the provided options
-// and registers a FlashblocksWSClient on the target L2 chain.
+// and registers a WSClient on the target L2 chain.
 // l2ELID is required to link the proxy to the L2 EL it serves.
 func WithRollupBoost(id stack.RollupBoostNodeID, l2ELID stack.L2ELNodeID, opts ...RollupBoostOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {

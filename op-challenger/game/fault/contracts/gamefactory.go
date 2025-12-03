@@ -106,13 +106,27 @@ func (f *DisputeGameFactoryContract) GetGameCount(ctx context.Context, blockHash
 	return result.GetBigInt(0).Uint64(), nil
 }
 
-func (f *DisputeGameFactoryContract) GetGame(ctx context.Context, idx uint64, blockHash common.Hash) (gameTypes.GameMetadata, error) {
+func (f *DisputeGameFactoryContract) GetGame(ctx context.Context, idx uint64, block rpcblock.Block) (gameTypes.GameMetadata, error) {
 	defer f.metrics.StartContractRequest("GetGame")()
-	result, err := f.multiCaller.SingleCall(ctx, rpcblock.ByHash(blockHash), f.contract.Call(methodGameAtIndex, new(big.Int).SetUint64(idx)))
+	result, err := f.multiCaller.SingleCall(ctx, block, f.contract.Call(methodGameAtIndex, new(big.Int).SetUint64(idx)))
 	if err != nil {
 		return gameTypes.GameMetadata{}, fmt.Errorf("failed to load game %v: %w", idx, err)
 	}
 	return f.decodeGame(idx, result), nil
+}
+
+func (f *DisputeGameFactoryContract) GetGameStatus(ctx context.Context, idx uint64) (gameTypes.GameStatus, error) {
+	defer f.metrics.StartContractRequest("GetGameStatus")()
+	game, err := f.GetGame(ctx, idx, rpcblock.Latest)
+	if err != nil {
+		return 0, fmt.Errorf("failed to load game status: %w", err)
+	}
+
+	gameContract, err := NewDisputeGameContract(ctx, f.metrics, f.multiCaller, gameTypes.GameType(game.GameType), game.Proxy)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create contract bindings for game %s: %w", game.Proxy, err)
+	}
+	return gameContract.GetStatus(ctx)
 }
 
 func (f *DisputeGameFactoryContract) getGameImpl(ctx context.Context, gameType gameTypes.GameType) (common.Address, error) {

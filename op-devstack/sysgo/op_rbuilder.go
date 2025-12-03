@@ -312,6 +312,13 @@ func (b *OPRBuilderNode) hydrate(system stack.ExtensibleSystem) {
 	system.T().Require().NoError(err)
 	system.T().Cleanup(elRPC.Close)
 
+	// Create a shared websocket client for flashblocks traffic over the proxy.
+	wsClient, err := client.DialWS(system.T().Ctx(), client.WSConfig{
+		URL: b.wsProxyURL,
+		Log: system.Logger(),
+	})
+	system.T().Require().NoError(err)
+
 	node := shim.NewOPRBuilderNode(shim.OPRBuilderNodeConfig{
 		ID: b.id,
 		ELNodeConfig: shim.ELNodeConfig{
@@ -319,13 +326,8 @@ func (b *OPRBuilderNode) hydrate(system stack.ExtensibleSystem) {
 			Client:       elRPC,
 			ChainID:      b.id.ChainID(),
 		},
-		RollupCfg: b.rollupCfg,
-		FlashblocksWsClient: shim.NewFlashblocksWSClient(shim.FlashblocksWSClientConfig{
-			CommonConfig: shim.NewCommonConfig(system.T()),
-			ID:           stack.NewFlashblocksWSClientID(b.id.Key(), b.id.ChainID()),
-			WsUrl:        b.wsProxyURL,
-			WsHeaders:    nil,
-		}),
+		RollupCfg:         b.rollupCfg,
+		FlashblocksClient: wsClient,
 	})
 	system.L2Network(stack.L2NetworkID(b.id.ChainID())).(stack.ExtensibleL2Network).AddOPRBuilderNode(node)
 }
