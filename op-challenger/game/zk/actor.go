@@ -175,6 +175,10 @@ func (a *Actor) createResolveTx(ctx context.Context, gameState contracts.Challen
 	return txmgr.TxCandidate{}, errNoResolutionRequired
 }
 
-func (a *Actor) AdditionalStatus(_ context.Context) ([]any, error) {
-	return nil, nil
+func (a *Actor) AdditionalStatus(ctx context.Context) ([]any, error) {
+	metadata, err := a.contract.GetChallengerMetadata(ctx, rpcblock.Latest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get challenger metadata: %w", err)
+	}
+	return []any{"proposalStatus", metadata.ProposalStatus}, nil
 }

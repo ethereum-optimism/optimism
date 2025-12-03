@@ -25,6 +25,23 @@ const (
 	ProposalStatusResolved
 )
 
+func (p ProposalStatus) String() string {
+	switch p {
+	case ProposalStatusUnchallenged:
+		return "Unchallenged"
+	case ProposalStatusChallenged:
+		return "Challenged"
+	case ProposalStatusUnchallengedAndValidProofProvided:
+		return "UnchallengedAndValidProofProvided"
+	case ProposalStatusChallengedAndValidProofProvided:
+		return "ChallengedAndValidProofProvided"
+	case ProposalStatusResolved:
+		return "Resolved"
+	default:
+		return fmt.Sprintf("ProposalStatus(%d)", uint8(p))
+	}
+}
+
 var (
 	methodChallenge      = "challenge"
 	methodChallengerBond = "challengerBond"
