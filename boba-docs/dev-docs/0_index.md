@@ -19,4 +19,3 @@ Learn more about Boba through the following documentation:
 - [Contract and Token Addresses](./addresses/index) lists all boba-related contract and token addresses.
 - [Testnet Faucets](./faucets) lists the faucets availabe for use on Sepolia and Boba networks.
 - [Notices](./notices/holocene-breaking-changes) lists any breaking changes or other noteworthy events taking place on the network.
-- [FAQ](./faq) has the answers to Boba's frequently asked questions.
