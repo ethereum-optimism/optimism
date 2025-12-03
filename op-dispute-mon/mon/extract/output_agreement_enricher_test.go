@@ -40,7 +40,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 	})
 
 	t.Run("SkipNonOutputRootGameTypes", func(t *testing.T) {
-		gameTypes := []uint32{4, 5, 7, 8, 10, 49812}
+		gameTypes := []uint32{4, 5, 7, 9, 11, 49812}
 		for _, gameType := range gameTypes {
 			gameType := gameType
 			t.Run(fmt.Sprintf("GameType_%d", gameType), func(t *testing.T) {

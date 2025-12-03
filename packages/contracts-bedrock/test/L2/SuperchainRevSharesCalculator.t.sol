@@ -8,9 +8,6 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
 
-// Libraries
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
-
 /// @notice Base setup contract for SuperchainRevSharesCalculator tests.
 contract SuperchainRevSharesCalculator_TestInit is CommonTest {
     uint256 internal constant BASIS_POINT_SCALE = 10_000;
@@ -24,10 +21,6 @@ contract SuperchainRevSharesCalculator_TestInit is CommonTest {
     event RemainderRecipientUpdated(address indexed oldRemainderRecipient, address indexed newRemainderRecipient);
 
     function setUp() public virtual override {
-        // Resolve features and skip whole test suite if custom gas token is enabled
-        resolveFeaturesFromEnv();
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
-
         // Enable revenue sharing before calling parent setUp
         super.enableRevenueShare();
         super.setUp();
