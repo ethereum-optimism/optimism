@@ -184,7 +184,7 @@
     "sourceCodeHash": "0x03c160168986ffc8d26a90c37366e7ad6da03f49d83449e1f8b3de0f4b590f6f"
   },
   "src/dispute/AnchorStateRegistry.sol:AnchorStateRegistry": {
-    "initCodeHash": "0x4795cc818d507942e953f1ed412218f5cdbf5802a98e5fa1c73450dd6dfa39e9",
+    "initCodeHash": "0xc00fdb1a4ae0ec8d7a96ebaad38ffaee9d96b942ab2a56e0ce2f76639f79ae7c",
     "sourceCodeHash": "0xd2837ddf6992926ced31ef1916f95ebb8cc2006e94b82c2287997e5397edfeaf"
   },
   "src/dispute/DelayedWETH.sol:DelayedWETH": {
