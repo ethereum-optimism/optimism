@@ -9,6 +9,7 @@ optimism_package:
       # Will load the dashboards from default branch.
       dashboard_sources:
         - github.com/op-rs/op-reth/etc/grafana
+      image: "grafana/grafana:12.3.0"
   faucet:
     enabled: true
   test-sequencers:
