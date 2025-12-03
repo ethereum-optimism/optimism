@@ -318,9 +318,9 @@ func newFakeDynamicEthChannelConfig(lgr log.Logger,
 	}
 }
 
-// TestChannelManager_PublishingBacklog tests that the channel manager will not time out
-// when publishingBacklog is set to true in the signal struct.
-func TestChannelManager_PublishingBacklog(t *testing.T) {
+// TestChannelManager_IgnoreMaxChannelDuration tests that the channel manager will not time out
+// when ignoreMaxChannelDuration is set to true in the signal struct.
+func TestChannelManager_IgnoreMaxChannelDuration(t *testing.T) {
 	l := testlog.Logger(t, log.LevelCrit)
 
 	cfg := channelManagerTestConfig(10000, derive.SingularBatchType)
@@ -336,8 +336,8 @@ func TestChannelManager_PublishingBacklog(t *testing.T) {
 		m.blocks.Enqueue(SizedBlock{Block: block})
 	}
 
-	// Call TxData a first time - if `publishingBacklog` is `false`, channel would be timed out,
-	// but since `publishingBacklog` is `true`, we expect it to be not timed out.
+	// Call TxData a first time - if `ignoreMaxChannelDuration` is `false`, channel would be timed out,
+	// but since `ignoreMaxChannelDuration` is `true`, we expect it to be not timed out.
 	_, err := m.TxData(eth.BlockID{Number: 21}, false, false, pubInfo{ignoreMaxChannelDuration: true})
 	require.ErrorIs(t, err, io.EOF)
 
@@ -350,12 +350,12 @@ func TestChannelManager_PublishingBacklog(t *testing.T) {
 	require.NotEmpty(t, m.channelQueue)
 	require.False(t, m.channelQueue[0].IsFull())
 
-	// Call TxData again, with publishingBacklog set to false.
+	// Call TxData again, with ignoreMaxChannelDuration unset.
 	_, err = m.TxData(eth.BlockID{Number: 22}, false, false, pubInfo{})
 	require.NoError(t, err)
 	require.NotEmpty(t, m.channelQueue)
 
-	// Given that `publishingBacklog` is set to false, the channel should be timed out
+	// Given that ignoreMaxChannelDuration was unset, the channel should be timed out
 	require.True(t, m.channelQueue[0].IsFull())
 	require.ErrorIs(t, m.channelQueue[0].FullErr(), ErrMaxDurationReached)
 }
