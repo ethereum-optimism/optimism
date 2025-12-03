@@ -32,31 +32,6 @@ contract RevenueSharingIntegration_Test is CommonTest {
         disbursementInterval = feeSplitter.feeDisbursementInterval();
     }
 
-    /// @notice Configure all vaults to withdraw to FeeSplitter on L2
-    function _configureVaultsForFeeSplitter() private {
-        // Get the ProxyAdmin owner to configure vaults
-        address proxyAdminOwner = proxyAdmin.owner();
-
-        // Configure all vaults to withdraw to FeeSplitter on L2
-        vm.startPrank(proxyAdminOwner);
-        IFeeVault(payable(address(sequencerFeeVault))).setRecipient(address(feeSplitter));
-        IFeeVault(payable(address(sequencerFeeVault))).setWithdrawalNetwork(Types.WithdrawalNetwork.L2);
-        IFeeVault(payable(address(sequencerFeeVault))).setMinWithdrawalAmount(0);
-
-        IFeeVault(payable(address(baseFeeVault))).setRecipient(address(feeSplitter));
-        IFeeVault(payable(address(baseFeeVault))).setWithdrawalNetwork(Types.WithdrawalNetwork.L2);
-        IFeeVault(payable(address(baseFeeVault))).setMinWithdrawalAmount(0);
-
-        IFeeVault(payable(address(l1FeeVault))).setRecipient(address(feeSplitter));
-        IFeeVault(payable(address(l1FeeVault))).setWithdrawalNetwork(Types.WithdrawalNetwork.L2);
-        IFeeVault(payable(address(l1FeeVault))).setMinWithdrawalAmount(0);
-
-        IFeeVault(payable(address(operatorFeeVault))).setRecipient(address(feeSplitter));
-        IFeeVault(payable(address(operatorFeeVault))).setWithdrawalNetwork(Types.WithdrawalNetwork.L2);
-        IFeeVault(payable(address(operatorFeeVault))).setMinWithdrawalAmount(0);
-        vm.stopPrank();
-    }
-
     /// @notice Helper to fund vaults
     function _fundVaults(uint256 _sequencerFees, uint256 _baseFees, uint256 _l1Fees, uint256 _operatorFees) private {
         vm.deal(address(sequencerFeeVault), _sequencerFees);
@@ -134,8 +109,9 @@ contract RevenueSharingIntegration_Test is CommonTest {
     // | 0/0/0/0          | 2.5          | 205.55       | Accumulating                   |
     // |__________________|______________|______________|________________________________|
     function test_revenueSharing_fullFlow_succeeds() public {
-        // Configure vaults to withdraw to FeeSplitter
-        _configureVaultsForFeeSplitter();
+        // Use 10 ETH as the minimum withdrawal amount for this test's hardcoded math
+        vm.prank(proxyAdminOwner);
+        l1Withdrawer.setMinWithdrawalAmount(10 ether);
 
         // Get recipient addresses
         address shareRecipient = superchainRevSharesCalculator.shareRecipient();
@@ -271,9 +247,6 @@ contract RevenueSharingIntegration_Test is CommonTest {
             superchainRevSharesCalculator.getRecipientsAndAmounts(_sequencerFees, _baseFees, _operatorFees, _l1Fees);
             return;
         }
-
-        // Configure vaults for disbursement
-        _configureVaultsForFeeSplitter();
 
         {
             // Get share info from calculator first
