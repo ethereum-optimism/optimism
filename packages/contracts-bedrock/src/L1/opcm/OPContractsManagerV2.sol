@@ -118,8 +118,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         DisputeGameConfig[] disputeGameConfigs;
         // CGT
         bool useCustomGasToken;
-        // CGT
-        bool useCustomGasToken;
     }
 
     /// @notice Partial input required for an upgrade.
@@ -296,7 +294,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         if (SemverComp.lt(version, "7.0.0")) {
             // Unified DelayedWETH is being deployed for the first time.
             // TODO:(#18382): Remove this allowance after unified DelayedWETH is deployed.
-            return _isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH");
+            if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH")) {
+                return true;
+            }
+            if (_isMatchingInstruction(_instruction, "overrides.cfg.useCustomGasToken", abi.encode(true))) {
+                return true;
+            }
         }
 
         // Always return false by default.
@@ -309,6 +312,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @param _saltMixer The salt mixer for creating new proxies if needed.
     /// @param _extraInstructions The extra upgrade instructions for the chain.
     /// @return The chain contracts.
+
     function _loadChainContracts(
         ISystemConfig _systemConfig,
         uint256 _l2ChainId,
@@ -502,7 +506,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     {
         // Load the full config.
         return FullConfig({
-            disputeGameConfigs: _upgradeInput.disputeGameConfigs,
             disputeGameConfigs: _upgradeInput.disputeGameConfigs,
             saltMixer: string(bytes.concat(bytes32(uint256(uint160(address(_chainContracts.systemConfig)))))),
             superchainConfig: abi.decode(
@@ -823,6 +826,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.disputeGameFactory.setInitBond(
                 _cfg.disputeGameConfigs[i].gameType, _cfg.disputeGameConfigs[i].initBond
             );
+        }
+
+        // If the custom gas token feature was requested, enable it in the SystemConfig.
+        if (_cfg.useCustomGasToken && !_cts.systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) {
+            _cts.systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, true);
         }
 
         // If critical transfer is allowed, tranfer ownership of the DisputeGameFactory and
