@@ -294,6 +294,9 @@ contract OPContractsManagerV2 is ISemver {
             ) {
                 // Unified DelayedWETH is being deployed for the first time.
                 // TODO:(#?????): Remove this allowance after unified DelayedWETH is deployed.
+            } else if (LibString.eq(_extraInstructions[i].key, "overrides.cfg.useCustomGasToken")) {
+                // Custom Gas Token is being enabled for the first time.
+                // TODO:(#?????): Remove this allowance after custom gas token is deployed.
             } else {
                 revert OPContractsManagerV2_InvalidUpgradeInstruction();
             }
@@ -822,7 +825,7 @@ contract OPContractsManagerV2 is ISemver {
         }
 
         // If the custom gas token feature was requested, enable it in the SystemConfig.
-        if (_cfg.useCustomGasToken) {
+        if (_cfg.useCustomGasToken && !_cts.systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) {
             _cts.systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, true);
         }
 

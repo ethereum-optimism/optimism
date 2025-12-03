@@ -112,6 +112,13 @@ contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerV2.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") })
         );
+
+        v2UpgradeInput.extraInstructions.push(
+            IOPContractsManagerV2.ExtraInstruction({
+                key: "overrides.cfg.useCustomGasToken",
+                data: abi.encode(Config.sysFeatureCustomGasToken())
+            })
+        );
     }
 
     /// @notice Helper function that runs an OPCM V2 upgrade, asserts that the upgrade was successful,
