@@ -436,7 +436,7 @@ func (l *BatchSubmitter) sendToThrottlingLoop(unsafeBytesUpdated chan int64) {
 	}
 }
 
-// trySignal tries to send an empty struct on the provided channel.
+// trySignal tries to send the provided values on the provided channel.
 // It is not blocking, no signal will be sent if the channel is full.
 func (l *BatchSubmitter) tryPublishSignal(c chan pubInfo, value pubInfo) {
 	select {
@@ -556,7 +556,7 @@ func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGrou
 					l.sendToThrottlingLoop(unsafeBytesUpdated) // we have increased the unsafe data. Signal the throttling loop to check if it should throttle.
 				}
 			}
-			l.tryPublishSignal(publishSignal, pubInfo{forcePublish: false, publishingBacklog: false}) // always signal the write loop to ensure we periodically publish even if we aren't loading blocks
+			l.tryPublishSignal(publishSignal, pubInfo{forcePublish: false, publishingBacklog: false}) // always signal the publishing loop to ensure we periodically publish even if we aren't loading blocks
 		case <-ctx.Done():
 			l.Log.Info("blockLoadingLoop returning")
 			return

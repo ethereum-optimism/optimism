@@ -336,7 +336,8 @@ func TestChannelManager_PublishingBacklog(t *testing.T) {
 		m.blocks.Enqueue(SizedBlock{Block: block})
 	}
 
-	// Call TxData a first time - if `publishingBacklog` is `false`, channel would be timed out.
+	// Call TxData a first time - if `publishingBacklog` is `false`, channel would be timed out,
+	// but since `publishingBacklog` is `true`, we expect it to be not timed out.
 	_, err := m.TxData(eth.BlockID{Number: 21}, false, false, pubInfo{forcePublish: false, publishingBacklog: true})
 	require.ErrorIs(t, err, io.EOF)
 
@@ -349,7 +350,7 @@ func TestChannelManager_PublishingBacklog(t *testing.T) {
 	require.NotEmpty(t, m.channelQueue)
 	require.False(t, m.channelQueue[0].IsFull())
 
-	// Call TxData again, with publishingBacklog set to false
+	// Call TxData again, with publishingBacklog set to false.
 	_, err = m.TxData(eth.BlockID{Number: 22}, false, false, pubInfo{forcePublish: false, publishingBacklog: false})
 	require.NoError(t, err)
 	require.NotEmpty(t, m.channelQueue)
