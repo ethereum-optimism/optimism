@@ -336,7 +336,9 @@ func TestChannelManager_PublishingBacklog(t *testing.T) {
 		m.blocks.Enqueue(SizedBlock{Block: block})
 	}
 
-	// Call TxData a first time - if `publishingBacklog` is `false`, channel would be timed out.
+	// Call TxData a first time - if `publishingBacklog` is `false`, channel would be timed out, but since `publishingBacklog`
+	// is set to true here, we essentially ignore the registering of L1 block, so channel doesn't time out, and
+	// io.EOF is expected here.
 	_, err := m.TxData(eth.BlockID{Number: 21}, false, false, pubInfo{forcePublish: false, publishingBacklog: true})
 	require.ErrorIs(t, err, io.EOF)
 
