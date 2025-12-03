@@ -25,7 +25,7 @@ fi
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 CONTRACTS_DIR="$SCRIPT_DIR/../.."
-DEPLOY_BUCKET="oplabs-contract-artifacts-devnets"
+DEPLOY_BUCKET="oplabs-contract-artifacts"
 BUCKET_URL="https://storage.googleapis.com/$DEPLOY_BUCKET"
 
 # Resolve paths
