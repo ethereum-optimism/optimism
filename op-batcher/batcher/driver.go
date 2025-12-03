@@ -436,7 +436,7 @@ func (l *BatchSubmitter) sendToThrottlingLoop(unsafeBytesUpdated chan int64) {
 	}
 }
 
-// trySignal tries to send the provided values on the provided channel.
+// trySignal tries to send the provided value on the provided channel.
 // It is not blocking, no signal will be sent if the channel is full.
 func (l *BatchSubmitter) tryPublishSignal(c chan pubInfo, value pubInfo) {
 	select {
