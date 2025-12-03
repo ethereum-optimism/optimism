@@ -338,7 +338,7 @@ func TestChannelManager_PublishingBacklog(t *testing.T) {
 
 	// Call TxData a first time - if `publishingBacklog` is `false`, channel would be timed out,
 	// but since `publishingBacklog` is `true`, we expect it to be not timed out.
-	_, err := m.TxData(eth.BlockID{Number: 21}, false, false, pubInfo{publishingBacklog: true})
+	_, err := m.TxData(eth.BlockID{Number: 21}, false, false, pubInfo{ignoreMaxChannelDuration: true})
 	require.ErrorIs(t, err, io.EOF)
 
 	// Add more blocks to the channel manager

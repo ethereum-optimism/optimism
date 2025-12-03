@@ -302,7 +302,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 			// This allows the batcher to start publishing sooner in the
 			// case of a large backlog of blocks to load.
 			l.sendToThrottlingLoop(unsafeBytesUpdated)
-			l.tryPublishSignal(publishSignal, pubInfo{publishingBacklog: i < end})
+			l.tryPublishSignal(publishSignal, pubInfo{ignoreMaxChannelDuration: i < end})
 		}
 
 	}
