@@ -255,6 +255,10 @@ type stubContract struct {
 	l2SequenceNumber uint64
 }
 
+func (s *stubContract) Addr() common.Address {
+	return common.Address{0x67, 0x67, 0x67}
+}
+
 func (s *stubContract) challenge(t *testing.T) {
 	require.Equal(t, contracts.ProposalStatusUnchallenged, s.proposalStatus, "game not in challengable state")
 	s.proposalStatus = contracts.ProposalStatusChallenged

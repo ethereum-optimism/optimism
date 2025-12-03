@@ -65,6 +65,10 @@ func NewOptimisticZKDisputeGameContract(
 	}, nil
 }
 
+func (g *OptimisticZKDisputeGameContractLatest) Addr() common.Address {
+	return g.contract.Addr()
+}
+
 // GetMetadata returns the basic game metadata
 func (g *OptimisticZKDisputeGameContractLatest) GetMetadata(ctx context.Context, block rpcblock.Block) (GenericGameMetadata, error) {
 	defer g.metrics.StartContractRequest("GetMetadata")()
