@@ -631,6 +631,7 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 			// We have a strict requirement that all endpoints must have the SetMaxDASize endpoint,
 			// and shut down if this RPC method is not available or returns another application-level error.
 			l.shutdownOnCriticalError(ErrSetMaxDASizeRPCMethodUnavailable(endpoint, err))
+			return
 		} else if err != nil {
 			// Transport-level errors are retried.
 			l.Log.Warn("SetMaxDASize RPC failed for endpoint, retrying.", "endpoint", endpoint, "err", err)
