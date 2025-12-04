@@ -160,14 +160,27 @@ func (n *OpNode) Stop() {
 	n.opNode = nil
 }
 
-func WithOpNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID, l2ELFollowSourceID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+func fetchFollowSourceRPC(orch *Orchestrator, p devtest.P, l2FollowSourceID stack.IDWithChain) string {
+	require := p.Require()
+	if l2ELFollowSourceID, ok := l2FollowSourceID.(stack.L2ELNodeID); ok {
+		l2ELFollowSource, ok := orch.l2ELs.Get(l2ELFollowSourceID)
+		require.True(ok, "l2 EL Follow Source required")
+		return l2ELFollowSource.UserRPC()
+	}
+	if l2CLFollowSourceID, ok := l2FollowSourceID.(stack.L2CLNodeID); ok {
+		l2CLFollowSource, ok := orch.l2CLs.Get(l2CLFollowSourceID)
+		require.True(ok, "l2 CL Follow Source required")
+		return l2CLFollowSource.UserRPC()
+	}
+	require.Failf("Invalid Follow Source", "l2 Follow Source does not implement L2CL nor L2EL: %s", l2FollowSourceID)
+	return ""
+}
+
+func WithOpNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, l2FollowSourceID stack.IDWithChain, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		followSource := func(orch *Orchestrator) string {
 			p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
-			require := p.Require()
-			l2ELFollowSource, ok := orch.l2ELs.Get(l2ELFollowSourceID)
-			require.True(ok, "l2 EL Follow Source required")
-			return l2ELFollowSource.UserRPC()
+			return fetchFollowSourceRPC(orch, p, l2FollowSourceID)
 		}(orch)
 		opts = append(opts, L2CLFollowSource(followSource))
 		withOpNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)(orch)
