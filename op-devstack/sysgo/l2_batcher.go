@@ -120,8 +120,8 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 		}
 
 		batcher, err := bss.BatcherServiceFromCLIConfig(
-			p.Ctx(), "0.0.1", batcherCLIConfig,
-			logger, closeAppFn)
+			p.Ctx(), closeAppFn, "0.0.1", batcherCLIConfig,
+			logger)
 		require.NoError(err)
 		require.NoError(batcher.Start(p.Ctx()))
 		p.Cleanup(func() {

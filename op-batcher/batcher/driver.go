@@ -83,6 +83,7 @@ type RollupClient interface {
 
 // DriverSetup is the collection of input/output interfaces and configuration that the driver operates on.
 type DriverSetup struct {
+	closeApp          context.CancelCauseFunc
 	Log               log.Logger
 	Metr              metrics.Metricer
 	RollupConfig      *rollup.Config
@@ -99,8 +100,6 @@ type DriverSetup struct {
 // batches to L1 for availability.
 type BatchSubmitter struct {
 	DriverSetup
-	closeApp context.CancelCauseFunc
-
 	wg                               *sync.WaitGroup
 	shutdownCtx, killCtx             context.Context
 	cancelShutdownCtx, cancelKillCtx context.CancelFunc
@@ -122,14 +121,13 @@ type BatchSubmitter struct {
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter driver from a preconfigured DriverSetup
-func NewBatchSubmitter(setup DriverSetup, closeApp context.CancelCauseFunc) *BatchSubmitter {
+func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 	state := NewChannelManager(setup.Log, setup.Metr, setup.ChannelConfig, setup.RollupConfig)
 	if setup.ChannelOutFactory != nil {
 		state.SetChannelOutFactory(setup.ChannelOutFactory)
 	}
 
 	batcher := &BatchSubmitter{
-		closeApp:    closeApp,
 		DriverSetup: setup,
 		channelMgr:  state,
 	}
@@ -676,8 +674,10 @@ func isCriticalThrottlingRPCError(err error) bool {
 
 func (l *BatchSubmitter) shutdownOnCriticalError(err error) {
 	l.Log.Error("Shutting down batcher on critical error", "err", err)
-	// Call closeApp to trigger process to exit (gracefully)
-	l.closeApp(err)
+	if l.closeApp != nil {
+		// Call closeApp to trigger process to exit (gracefully) if l.closeApp is set.
+		l.closeApp(err)
+	}
 }
 
 // throttlingLoop acts as a distributor that spawns individual throttling loops for each endpoint

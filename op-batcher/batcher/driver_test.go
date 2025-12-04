@@ -74,7 +74,7 @@ func setup(t *testing.T, closeAppFn context.CancelCauseFunc) (*BatchSubmitter, *
 		},
 		ChannelConfig:    defaultTestChannelConfig(),
 		EndpointProvider: ep,
-	}, closeAppFn), ep
+	}), ep
 }
 
 func TestBatchSubmitter_SafeL1Origin(t *testing.T) {
