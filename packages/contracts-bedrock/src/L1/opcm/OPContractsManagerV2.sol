@@ -175,6 +175,9 @@ contract OPContractsManagerV2 is ISemver {
     /// @notice Thrown when a config load fails.
     error OPContractsManagerV2_ConfigLoadFailed(string _name);
 
+    /// @notice Thrown when a chain attempts to upgrade to custom gas token after initial deployment.
+    error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
+
     /// @notice Container of blueprint and implementation contract addresses.
     IOPContractsManagerContainer public immutable contractsContainer;
 
@@ -826,6 +829,12 @@ contract OPContractsManagerV2 is ISemver {
 
         // If the custom gas token feature was requested, enable it in the SystemConfig.
         if (_cfg.useCustomGasToken && !_cts.systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) {
+            // NOTE: Enabling the custom gas token feature is only allowed during initial deployment to prevent
+            // chains from enabling it during upgrades. Passing in true for this flag during an upgrade is considered an
+            // error and will revert.
+            if (!_isInitialDeployment) {
+                revert OPContractsManagerV2_CannotUpgradeToCustomGasToken();
+            }
             _cts.systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, true);
         }
 
