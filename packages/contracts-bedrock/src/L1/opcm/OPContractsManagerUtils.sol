@@ -89,6 +89,23 @@ contract OPContractsManagerUtils {
         return keccak256(abi.encode(_l2ChainId, _saltMixer, _contractName));
     }
 
+    /// @notice Helper function to check if an instruction matches a given key and data.
+    /// @param _instruction The instruction to check.
+    /// @param _key The key of the instruction to check for.
+    /// @param _data The data of the instruction to check for.
+    /// @return True if the instruction matches, false otherwise.
+    function isMatchingInstruction(
+        ExtraInstruction memory _instruction,
+        string memory _key,
+        bytes memory _data
+    )
+        public
+        pure
+        returns (bool)
+    {
+        return LibString.eq(_instruction.key, _key) && LibString.eq(string(_instruction.data), string(_data));
+    }
+
     /// @notice Helper function to check if a given instruction is present in a list of extra
     ///         upgrade instructions.
     /// @param _instructions The list of extra upgrade instructions.
@@ -105,8 +122,7 @@ contract OPContractsManagerUtils {
         returns (bool)
     {
         for (uint256 i = 0; i < _instructions.length; i++) {
-            if (LibString.eq(_instructions[i].key, _key) && LibString.eq(string(_instructions[i].data), string(_data)))
-            {
+            if (isMatchingInstruction(_instructions[i], _key, _data)) {
                 return true;
             }
         }

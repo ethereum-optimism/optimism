@@ -5,7 +5,6 @@ pragma solidity 0.8.15;
 import { OPContractsManagerUtilsCaller } from "src/L1/opcm/OPContractsManagerUtilsCaller.sol";
 
 // Libraries
-import { LibString } from "@solady/utils/LibString.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { Claim, GameType, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
@@ -154,8 +153,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     IOPContractsManagerStandardValidator public immutable standardValidator;
 
     /// @notice The version of the OPCM contract.
-    /// @custom:semver 6.2.0
-    string public constant version = "6.2.0";
+    /// @custom:semver 6.3.0
+    string public constant version = "6.3.0";
 
     /// @param _contractsContainer The container of blueprint and implementation contract addresses.
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -261,7 +260,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @param _extraInstructions The extra upgrade instructions for the chain.
     function _assertValidUpgradeInstructions(IOPContractsManagerUtils.ExtraInstruction[] memory _extraInstructions)
         internal
-        pure
+        view
     {
         for (uint256 i = 0; i < _extraInstructions.length; i++) {
             if (!_isPermittedInstruction(_extraInstructions[i])) {
@@ -273,7 +272,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Checks if an upgrade instruction is permitted.
     /// @param _instruction The upgrade instruction to check.
     /// @return True if the instruction is permitted, false otherwise.
-    function _isPermittedInstruction(IOPContractsManagerUtils.ExtraInstruction memory _instruction) internal pure returns (bool) {
+    function _isPermittedInstruction(IOPContractsManagerUtils.ExtraInstruction memory _instruction)
+        internal
+        view
+        returns (bool)
+    {
         // NOTE (IMPORTANT FOR DEVELOPERS): You MAY need to allow permitted instructions here for
         // your specific upgrade. For example, if you are adding a new contract that needs to be
         // deployed you will need to add an allowance so that the proxy can be deployed.
@@ -283,16 +286,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // even if the code is somehow forgotten it will not actually apply to the deployment. Make
         // sure to REMOVE the allowance once the upgrade is complete.
         if (SemverComp.lt(version, "7.0.0")) {
-            if (
-                LibString.eq(_instruction.key, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY)
-                    && LibString.eq(string(_instruction.data), "DelayedWETH")
-            ) {
-                // Unified DelayedWETH is being deployed for the first time.
-                // TODO:(#18382): Remove this allowance after unified DelayedWETH is deployed.
-                return true;
-            } else {
-                return false;
-            }
+            // Unified DelayedWETH is being deployed for the first time.
+            // TODO:(#18382): Remove this allowance after unified DelayedWETH is deployed.
+            return _isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH");
         }
 
         // Always return false by default.
