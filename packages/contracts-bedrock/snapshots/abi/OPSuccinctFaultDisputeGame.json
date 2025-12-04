@@ -47,7 +47,7 @@
         "type": "address"
       },
       {
-        "internalType": "contract AccessManager_Zk",
+        "internalType": "contract AccessManager",
         "name": "_accessManager",
         "type": "address"
       }
@@ -60,7 +60,7 @@
     "name": "accessManager",
     "outputs": [
       {
-        "internalType": "contract AccessManager_Zk",
+        "internalType": "contract AccessManager",
         "name": "accessManager_",
         "type": "address"
       }

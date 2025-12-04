@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.15;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -9,7 +9,7 @@ import { OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE } from "src/dispute/lib/Types.sol";
 
 /// @title AccessManager
 /// @notice Manages permissions for dispute game proposers and challengers.
-contract AccessManager_Zk is Ownable {
+contract AccessManager is Ownable {
     ////////////////////////////////////////////////////////////////
     //                         Events                             //
     ////////////////////////////////////////////////////////////////
