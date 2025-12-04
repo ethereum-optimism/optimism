@@ -2,7 +2,7 @@ name: e2e-op-historical-proof
 
 on:
   push:
-    branches: [ main ]
+    branches: [ unstable, main]
   pull_request:
   workflow_dispatch:
 
@@ -48,15 +48,16 @@ jobs:
         run: |
           kurtosis engine start
 
-      - name: Build op-reth with coverage
-        working-directory: op-reth/tests
-        run: |
-          make build-with-cov
+      # disable coverage for now
+      # - name: Build op-reth with coverage
+      #   working-directory: op-reth/tests
+      #   run: |
+      #     make build-with-cov
 
       - name: Run DEVNET
         working-directory: op-reth/tests
         run: |
-          make run DEVNET=opgeth-seq-opreth-val
+          make all DEVNET=opgeth-seq-opreth-val
 
       - name: Run core e2e tests
         working-directory: op-reth/tests
@@ -68,45 +69,47 @@ jobs:
         run: |
           make test-e2e-kurtosis GO_PKG_NAME=proofs/reorg DEVNET=opgeth-seq-opreth-val
 
-      - name: Flush coverage data
-        working-directory: op-reth/tests
-        run: |
-          mkdir -p ./coverage
-          CONTAINER=$(docker ps -aq --filter "name=op-reth" | head -n 1)
-          if [ -z "$CONTAINER" ]; then
-              echo "No op-reth container found"
-              exit 1
-          fi
-          docker stop "$CONTAINER"
-          sleep 5
-          docker cp "$CONTAINER":/coverage ./coverage
-          docker start "$CONTAINER"
+      # disable coverage for now
+      # - name: Flush coverage data
+      #   working-directory: op-reth/crates/tests
+      #   run: |
+      #     mkdir -p ./coverage
+      #     CONTAINER=$(docker ps -aq --filter "name=op-reth" | head -n 1)
+      #     if [ -z "$CONTAINER" ]; then
+      #         echo "No op-reth container found"
+      #         exit 1
+      #     fi
+      #     docker stop "$CONTAINER"
+      #     sleep 5
+      #     docker cp "$CONTAINER":/coverage .
+      #     docker cp "$CONTAINER":/usr/local/bin/op-reth coverage/
+      #     docker start "$CONTAINER"
 
-      - name: Install llvm
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y llvm
+      # - name: Install llvm
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y llvm
 
-      - name: Merge coverage files
-        working-directory: op-reth/tests
-        run: |
-          llvm-profdata merge -sparse ./coverage/*.profraw -o ./coverage/coverage.profdata
+      # - name: Merge coverage files
+      #   working-directory: op-reth/crates/tests
+      #   run: |
+      #     llvm-profdata merge -sparse ./coverage/*.profraw -o ./coverage/coverage.profdata
 
-      - name: Generate coverage report
-        working-directory: op-reth/tests
-        run: |
-          llvm-cov export ./coverage/op-reth -instr-profile=./coverage/coverage.profdata -format=lcov --path-equivalence=/app/,/Users/arundhyani/Stuff/Project/chainsafe/op-reth/ -ignore-filename-regex="/rustc/|/usr/local/cargo/registry/|/target/release/build/" > ./coverage/coverage.lcov
+      # - name: Generate coverage report
+      #   working-directory: op-reth/crates/tests
+      #   run: |
+      #     llvm-cov export ./coverage/op-reth -instr-profile=./coverage/coverage.profdata -format=lcov --path-equivalence=/app/,/Users/arundhyani/Stuff/Project/chainsafe/op-reth/ -ignore-filename-regex="/rustc/|/usr/local/cargo/registry/|/target/release/build/" > ./coverage/coverage.lcov
 
-      - name: Upload coverage to codecov.io
-        uses: codecov/codecov-action@v5
-        with:
-          fail_ci_if_error: true
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage/coverage.lcov
-          flags: e2e
-          env_vars: OS,RUST
-          name: reth-kurtosis-tests
-          verbose: true
+      # - name: Upload coverage to codecov.io
+      #   uses: codecov/codecov-action@v5
+      #   with:
+      #     fail_ci_if_error: true
+      #     token: ${{ secrets.CODECOV_TOKEN }}
+      #     files: ./coverage/coverage.lcov
+      #     flags: e2e
+      #     env_vars: OS,RUST
+      #     name: reth-kurtosis-tests
+      #     verbose: true
 
   op-reth-as-sequencer:
     name: op-reth as sequencer e2e tests

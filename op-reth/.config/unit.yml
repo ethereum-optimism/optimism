@@ -1,0 +1,122 @@
+# Runs unit tests.
+
+name: unit
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: [unstable, main]
+
+env:
+  CARGO_TERM_COLOR: always
+  SEED: rustethereumethereumrust
+  RUSTC_WRAPPER: "sccache"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test / ${{ matrix.type }} / ${{ matrix.storage }}
+    runs-on: depot-ubuntu-latest-4
+    env:
+      RUST_BACKTRACE: 1
+      EDGE_FEATURES: ${{ matrix.storage == 'edge' && 'edge' || '' }}
+    strategy:
+      matrix:
+        type: [ethereum, optimism]
+        storage: [stable, edge]
+        include:
+          - type: ethereum
+            features: asm-keccak ethereum
+            exclude_args: ""
+          - type: optimism
+            features: asm-keccak
+            exclude_args: --exclude reth --exclude reth-bench --exclude "example-*" --exclude "reth-ethereum-*" --exclude "*-ethereum"
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - uses: taiki-e/install-action@nextest
+      - if: "${{ matrix.type == 'book' }}"
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run tests
+        run: |
+          cargo nextest run \
+            --features "${{ matrix.features }} $EDGE_FEATURES" --locked \
+            ${{ matrix.exclude_args }} --workspace \
+            --exclude ef-tests --no-tests=warn \
+            -E "!kind(test) and not binary(e2e_testsuite)"
+
+  state:
+    name: Ethereum state tests
+    runs-on: depot-ubuntu-latest-4
+    env:
+      RUST_LOG: info,sync=error
+      RUST_BACKTRACE: 1
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Checkout ethereum/tests
+        uses: actions/checkout@v6
+        with:
+          repository: ethereum/tests
+          ref: 81862e4848585a438d64f911a19b3825f0f4cd95
+          path: testing/ef-tests/ethereum-tests
+          submodules: recursive
+          fetch-depth: 1
+      - name: Download & extract EEST fixtures (public)
+        shell: bash
+        env:
+          EEST_TESTS_TAG: v4.5.0
+        run: |
+          set -euo pipefail
+          mkdir -p testing/ef-tests/execution-spec-tests
+          URL="https://github.com/ethereum/execution-spec-tests/releases/download/${EEST_TESTS_TAG}/fixtures_stable.tar.gz"
+          curl -L "$URL" | tar -xz --strip-components=1 -C testing/ef-tests/execution-spec-tests
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@nextest
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - run: cargo nextest run --release -p ef-tests --features "asm-keccak ef-tests"
+
+  doc:
+    name: doc tests
+    runs-on: depot-ubuntu-latest
+    env:
+      RUST_BACKTRACE: 1
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Run doctests
+        run: cargo test --doc --workspace --all-features
+
+  unit-success:
+    name: unit success
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [test, state, doc]
+    timeout-minutes: 30
+    steps:
+      - name: Decide whether the needed jobs succeeded or failed
+        uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}

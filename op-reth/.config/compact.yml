@@ -1,0 +1,48 @@
+# Ensures that `Compact` codec changes are backwards compatible.
+#
+# 1) checkout `main`
+# 2) randomly generate and serialize to disk many different type vectors with `Compact` (eg. Header, Transaction, etc)
+# 3) checkout `pr`
+# 4) deserialize previously generated test vectors
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: [unstable, main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTC_WRAPPER: "sccache"
+
+name: compact-codec
+jobs:
+  compact-codec:
+    runs-on: depot-ubuntu-latest
+    strategy:
+      matrix:
+        bin:
+          - cargo run --bin reth --features "dev"
+          - cargo run --bin op-reth --features "dev" --manifest-path op-reth/crates/bin/op-reth/Cargo.toml
+    steps:
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Checkout base
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.base_ref || 'main' }}
+      # On `main` branch, generates test vectors and serializes them to disk using `Compact`.
+      - name: Generate compact vectors
+        run: |
+          ${{ matrix.bin }} -- test-vectors compact --write
+      - name: Checkout PR
+        uses: actions/checkout@v6
+        with:
+          clean: false
+      # On incoming merge try to read and decode previously generated vectors with `Compact`
+      - name: Read vectors
+        run: ${{ matrix.bin }} -- test-vectors compact --read

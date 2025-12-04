@@ -1,0 +1,314 @@
+name: lint
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: [unstable, main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTC_WRAPPER: "sccache"
+
+jobs:
+  clippy-binaries:
+    name: clippy binaries / ${{ matrix.type }}
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        include:
+          - type: ethereum
+            args: --workspace --lib --examples --tests --benches --locked
+            features: "ethereum asm-keccak jemalloc jemalloc-prof min-error-logs min-warn-logs min-info-logs min-debug-logs min-trace-logs"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@clippy
+        with:
+          components: clippy
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - if: "${{ matrix.type == 'book' }}"
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run clippy on binaries
+        run: cargo clippy ${{ matrix.args }} --features "${{ matrix.features }}"
+        env:
+          RUSTFLAGS: -D warnings
+
+  clippy:
+    name: clippy
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - run: cargo clippy --workspace --lib --examples --tests --benches --all-features --locked
+        env:
+          RUSTFLAGS: -D warnings
+
+  wasm:
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          target: wasm32-wasip1
+      - uses: taiki-e/install-action@cargo-hack
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - uses: dcarbone/install-jq-action@v3
+      - name: Run Wasm checks
+        run: |
+          sudo apt update && sudo apt install gcc-multilib
+          .github/assets/check_wasm.sh
+
+  riscv:
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          target: riscv32imac-unknown-none-elf
+      - uses: taiki-e/install-action@cargo-hack
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - uses: dcarbone/install-jq-action@v3
+      - name: Run RISC-V checks
+        run: .github/assets/check_rv32imac.sh
+
+  crate-checks:
+    name: crate-checks (${{ matrix.partition }}/${{ matrix.total_partitions }})
+    runs-on: depot-ubuntu-latest-4
+    strategy:
+      matrix:
+        partition: [1, 2, 3]
+        total_partitions: [3]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@cargo-hack
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - run: cargo hack check --workspace --partition ${{ matrix.partition }}/${{ matrix.total_partitions }}
+
+  msrv:
+    name: MSRV
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        include:
+          - binary: reth
+          - binary: op-reth
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.88" # MSRV
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - run: cargo build --bin "${{ matrix.binary }}" --workspace
+        env:
+          RUSTFLAGS: -D warnings
+
+  docs:
+    name: docs
+    runs-on: depot-ubuntu-latest-4
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - run: cargo docs --document-private-items
+        env:
+          # Keep in sync with ./book.yml:jobs.build
+          # This should only add `-D warnings`
+          RUSTDOCFLAGS: --cfg docsrs --show-type-layout --generate-link-to-definition --enable-index-page -Zunstable-options -D warnings
+
+  fmt:
+    name: fmt
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Run fmt
+        run: cargo fmt --all --check
+
+  udeps:
+    name: udeps
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - uses: taiki-e/install-action@cargo-udeps
+      - run: cargo udeps --workspace --lib --examples --tests --benches --all-features --locked
+
+  book:
+    name: book
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - run: cargo build --bin reth --workspace
+      - run: cargo build --bin op-reth --workspace
+        env:
+          RUSTFLAGS: -D warnings
+      - run: ./docs/cli/update.sh target/debug/reth target/debug/op-reth
+      - name: Check docs changes
+        run: git diff --exit-code
+
+  typos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: crate-ci/typos@v1
+
+  check-toml:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Run dprint
+        uses: dprint/check@v2.3
+        with:
+          config-path: dprint.json
+
+  grafana:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check dashboard JSON with jq
+        uses: sergeysova/jq-action@v2
+        with:
+          cmd: jq empty etc/grafana/dashboards/overview.json
+
+  no-test-deps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Ensure no arbitrary or proptest dependency on default build
+        run: cargo tree --package reth -e=features,no-dev | grep -Eq "arbitrary|proptest" && exit 1 || exit 0
+
+  # Checks that selected crates can compile with power set of features
+  features:
+    name: features
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@clippy
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: cargo install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
+      - run: |
+          cargo hack check \
+            --package reth-codecs \
+            --package reth-primitives-traits \
+            --package reth-primitives \
+            --feature-powerset \
+            --depth 2
+        env:
+          RUSTFLAGS: -D warnings
+
+  # Check crates correctly propagate features
+  feature-propagation:
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: rui314/setup-mold@v1
+      - uses: taiki-e/cache-cargo-install-action@v3
+        with:
+          tool: zepter
+      - name: Eagerly pull dependencies
+        run: cargo metadata --format-version=1 --locked > /dev/null
+      - run: zepter run check
+
+  deny:
+    uses: tempoxyz/ci/.github/workflows/deny.yml@main
+
+  lint-success:
+    name: lint success
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - clippy-binaries
+      - clippy
+      - wasm
+      - crate-checks
+      - docs
+      - fmt
+      - udeps
+      - book
+      - typos
+      - grafana
+      - no-test-deps
+      - features
+      - feature-propagation
+      - deny
+    timeout-minutes: 30
+    steps:
+      - name: Decide whether the needed jobs succeeded or failed
+        uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}

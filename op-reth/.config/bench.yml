@@ -1,0 +1,45 @@
+# Runs benchmarks.
+
+on:
+  pull_request:
+  # TODO: Disabled temporarily for https://github.com/CodSpeedHQ/runner/issues/55
+  # merge_group:
+  push:
+    branches: [unstable, main]
+
+env:
+  CARGO_TERM_COLOR: always
+  BASELINE: base
+  SEED: reth
+  RUSTC_WRAPPER: "sccache"
+
+name: bench
+jobs:
+  codspeed:
+    runs-on: depot-ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Install cargo-codspeed
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-codspeed
+      - name: Build the benchmark target(s)
+        run: ./.github/scripts/codspeed-build.sh
+      - name: Run the benchmarks
+        uses: CodSpeedHQ/action@v4
+        env:
+          CODSPEED_TOKEN: ${{ secrets.CODSPEED_TOKEN }}
+        # op-reth does not have a codspeed token
+        if: ${{ env.CODSPEED_TOKEN != '' }}
+        with:
+          run: cargo codspeed run --workspace
+          mode: instrumentation
+          token: ${{ secrets.CODSPEED_TOKEN }}

@@ -1,0 +1,84 @@
+# Runs integration tests.
+
+name: integration
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: [unstable, main]
+  schedule:
+    # Run once a day at 3:00 UTC
+    - cron: "0 3 * * *"
+
+env:
+  CARGO_TERM_COLOR: always
+  SEED: rustethereumethereumrust
+  RUSTC_WRAPPER: "sccache"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test / ${{ matrix.network }}
+    if: github.event_name != 'schedule'
+    runs-on: depot-ubuntu-latest-4
+    env:
+      RUST_BACKTRACE: 1
+    strategy:
+      matrix:
+        network: ["ethereum", "optimism"]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Geth
+        run: .github/assets/install_geth.sh
+      - uses: taiki-e/install-action@nextest
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - if: matrix.network == 'ethereum'
+        name: Run tests
+        run: |
+          cargo nextest run \
+            --locked --features "asm-keccak ${{ matrix.network }}" \
+            --workspace --exclude ef-tests \
+            -E "kind(test) and not binary(e2e_testsuite)"
+      - if: matrix.network == 'optimism'
+        name: Run tests
+        run: |
+          cargo nextest run \
+            --locked -p reth-optimism-node
+
+  integration-success:
+    name: integration success
+    runs-on: ubuntu-latest
+    if: always() && github.event_name != 'schedule'
+    needs: [test]
+    timeout-minutes: 30
+    steps:
+      - name: Decide whether the needed jobs succeeded or failed
+        uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}
+
+  era-files:
+    name: era1 file integration tests once a day
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@nextest
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: run era1 files integration tests
+        run: cargo nextest run --release --package reth-era --test it -- --ignored

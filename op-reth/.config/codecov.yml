@@ -22,5 +22,5 @@ component_management:
     - component_id: op-historical-proof
       name: op historical proof
       paths:
-        - crates/optimism/exex/**
-        - crates/optimism/trie/**
+        - op-reth/crates/exex/**
+        - op-reth/crates/trie/**
