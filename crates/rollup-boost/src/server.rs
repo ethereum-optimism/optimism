@@ -184,6 +184,14 @@ impl<T: EngineApiExt> RollupBoostServer<T> {
         handle.spawn()
     }
 
+    pub fn set_execution_mode(&self, execution_mode: ExecutionMode) {
+        *self.execution_mode.lock() = execution_mode;
+    }
+
+    pub fn get_execution_mode(&self) -> ExecutionMode {
+        *self.execution_mode.lock()
+    }
+
     async fn new_payload(&self, new_payload: NewPayload) -> RpcResult<PayloadStatus> {
         let execution_payload = ExecutionPayload::from(new_payload.clone());
         let block_hash = execution_payload.block_hash();
