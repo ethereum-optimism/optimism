@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -30,18 +29,14 @@ func (b *RateLimitingClient) CallContext(ctx context.Context, result any, method
 	if err := b.rl.Wait(ctx); err != nil {
 		return err
 	}
-	cCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	return b.c.CallContext(cCtx, result, method, args...)
+	return b.c.CallContext(ctx, result, method, args...)
 }
 
 func (b *RateLimitingClient) BatchCallContext(ctx context.Context, batch []rpc.BatchElem) error {
 	if err := b.rl.WaitN(ctx, len(batch)); err != nil {
 		return err
 	}
-	cCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
-	defer cancel()
-	return b.c.BatchCallContext(cCtx, batch)
+	return b.c.BatchCallContext(ctx, batch)
 }
 
 func (b *RateLimitingClient) Subscribe(ctx context.Context, namespace string, channel any, args ...any) (ethereum.Subscription, error) {
