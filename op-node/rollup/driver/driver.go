@@ -524,12 +524,12 @@ func (s *Driver) followUpstream() {
 	if !s.followUpstreamSource.CanFollowL2() {
 		return
 	}
-	eFinalized, err := s.followUpstreamSource.L2BlockRefByLabel(s.driverCtx, eth.Finalized)
+	eFinalized, err := s.followUpstreamSource.FinalizedL2(s.driverCtx)
 	if err != nil {
 		s.log.Warn("Follow Upstream: Failed to fetch finalizedRef", "err", err)
 		return
 	}
-	eSafe, err := s.followUpstreamSource.L2BlockRefByLabel(s.driverCtx, eth.Safe)
+	eSafe, err := s.followUpstreamSource.SafeL2(s.driverCtx)
 	if err != nil {
 		s.log.Warn("Follow Upstream: Failed to fetch safeRef", "err", err)
 		return

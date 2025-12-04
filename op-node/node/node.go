@@ -122,7 +122,7 @@ type OpNode struct {
 	p2pSigner p2p.Signer            // p2p gossip application messages will be signed with this signer
 	runCfg    *runcfg.RuntimeConfig // runtime configurables
 
-	l2FollowSource *sources.L2Client // (Optional) L2 Follow source when derivation disabled
+	l2FollowSource *sources.FollowClient // (Optional) L2 Follow source when derivation disabled
 
 	safeDB closableSafeDB
 
@@ -604,7 +604,7 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 
 	var followUpstreamSource driver.FollowUpstreamSource
 	if node.cfg.Sync.UnsafeOnly {
-		followUpstreamSource = driver.NewL2ELFollowSource(node.l2FollowSource, node.l1Source)
+		followUpstreamSource = driver.NewL2FollowSource(node.l2FollowSource, node.l1Source)
 	}
 
 	l2Driver := driver.NewDriver(node.eventSys, node.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.L1ChainConfig, cfg.DependencySet, l2Source, node.l1Source, followUpstreamSource,
@@ -620,14 +620,14 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 	return l2Source, sys, l2Driver, safeDB, nil
 }
 
-func initFollowSource(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.L2Client, error) {
+func initFollowSource(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.FollowClient, error) {
 	rpcClient, rpcCfg, err := cfg.L2FollowSource.Setup(ctx, node.log, &node.cfg.Rollup, node.metrics)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup L2 follow source RPC client: %w", err)
 	}
-	l2FollowSource, err := sources.NewL2Client(rpcClient, node.log, node.metrics.L2FollowSourceCache, rpcCfg)
+	l2FollowSource, err := sources.NewFollowClient(rpcClient, node.log, node.metrics.L2FollowSourceCache, rpcCfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Eth client: %w", err)
+		return nil, fmt.Errorf("failed to create follow client: %w", err)
 	}
 	return l2FollowSource, nil
 }
