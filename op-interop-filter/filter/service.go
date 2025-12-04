@@ -149,9 +149,9 @@ func (s *Service) initRPCServer(cfg *Config) error {
 		oprpc.WithLogger(s.log),
 	}
 
-	// Load JWT secret if path is provided
+	// Load JWT secret if path is provided (generates new secret if file is empty)
 	if cfg.JWTSecretPath != "" {
-		secret, err := oprpc.ObtainJWTSecret(s.log, cfg.JWTSecretPath, cfg.RPC.EnableAdmin)
+		secret, err := oprpc.ObtainJWTSecret(s.log, cfg.JWTSecretPath, true)
 		if err != nil {
 			return fmt.Errorf("failed to obtain JWT secret: %w", err)
 		}
