@@ -67,7 +67,7 @@ jobs:
           - cannon
           - op-dripper
           - op-interop-mon
-    uses: ethereum-optimism/factory/.github/workflows/docker-bake.yaml@753bcd4284a6d36eac6e31df2492015ab8650331
+    uses: ethereum-optimism/factory/.github/workflows/docker-bake.yaml@ffabcb16fc374b727f1cf42346f1b9a9ab23bf4e
     with:
       image_name: ${{ matrix.image_name }}
       bake_file: docker-bake.hcl
