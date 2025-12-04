@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -64,6 +65,7 @@ func setup(t *testing.T, closeAppFn context.CancelCauseFunc) (*BatchSubmitter, *
 	}
 
 	return NewBatchSubmitter(DriverSetup{
+		closeApp:     closeAppFn,
 		Log:          testlog.Logger(t, log.LevelDebug),
 		Metr:         metrics.NoopMetrics,
 		RollupConfig: cfg,
@@ -317,15 +319,8 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			require.Eventually(t,
 				func() bool {
 					// Check that all endpoints were called
-					for i := range healthyCalls {
-						if healthyCalls[i] == 0 {
-							return false
-						}
-					}
-					for i := range unHealthyCalls {
-						if unHealthyCalls[i] == 0 {
-							return false
-						}
+					if slices.Contains(healthyCalls, 0) || slices.Contains(unHealthyCalls, 0) {
+						return false
 					}
 					return true
 				}, time.Second*10, time.Millisecond*10, "All endpoints should have been called within 10s")
