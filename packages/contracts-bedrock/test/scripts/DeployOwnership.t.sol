@@ -1,18 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
+import { Test } from "test/setup/Test.sol";
+
+// Scripts
 import {
     DeployOwnership,
     SafeConfig,
     SecurityCouncilConfig,
     LivenessModuleConfig
 } from "scripts/deploy/DeployOwnership.s.sol";
-import { Test } from "forge-std/Test.sol";
 
+// Contracts
 import { Safe } from "safe-contracts/Safe.sol";
-import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
-
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
+
+// Libraries
+import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 
 contract DeployOwnershipTest is Test, DeployOwnership {
     address internal constant SENTINEL_MODULES = address(0x1);

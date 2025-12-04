@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
 import { TestERC20 } from "test/mocks/TestERC20.sol";
 import { TestERC721 } from "test/mocks/TestERC721.sol";
+
+// Contracts
 import { AssetReceiver } from "src/periphery/AssetReceiver.sol";
 
 /// @title AssetReceiver_TestInit

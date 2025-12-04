@@ -1,16 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.7.0 <0.9.0;
 
-import "forge-std/Test.sol";
-import { LibSort } from "@solady/utils/LibSort.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
+import "./CompatibilityFallbackHandler_1_3_0.sol";
+
+// Contracts
 import { Safe as GnosisSafe } from "safe-contracts/Safe.sol";
+import { SafeProxyFactory as GnosisSafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
+import { SignMessageLib } from "safe-contracts/libraries/SignMessageLib.sol";
+
+// Libraries
+import { LibSort } from "@solady/utils/LibSort.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
-import { SafeProxyFactory as GnosisSafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
-import { SignMessageLib } from "safe-contracts/libraries/SignMessageLib.sol";
-import "./CompatibilityFallbackHandler_1_3_0.sol";
 
 // Tools to simplify testing Safe contracts
 // Author: Colin Nielsen (https://github.com/colinnielsen/safe-tools)
