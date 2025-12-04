@@ -309,9 +309,13 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
 
         // Add extra instructions to allow the DelayedWETH proxy to be deployed.
         IOPContractsManagerV2.ExtraInstruction[] memory extraInstructions =
-            new IOPContractsManagerV2.ExtraInstruction[](1);
+            new IOPContractsManagerV2.ExtraInstruction[](2);
         extraInstructions[0] =
             IOPContractsManagerV2.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") });
+        extraInstructions[1] = IOPContractsManagerV2.ExtraInstruction({
+            key: "overrides.cfg.useCustomGasToken",
+            data: abi.encode(Config.sysFeatureCustomGasToken())
+        });
 
         vm.prank(_delegateCaller, true);
         (bool upgradeSuccess,) = address(_opcm).delegatecall(
