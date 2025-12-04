@@ -1,4 +1,3 @@
-use super::primitives::FlashblocksPayloadV1;
 use core::{
     fmt::{Debug, Formatter},
     net::SocketAddr,
@@ -7,6 +6,7 @@ use core::{
     task::{Context, Poll},
 };
 use futures::{Sink, SinkExt, StreamExt};
+use rollup_boost_types::flashblocks::FlashblocksPayloadV1;
 use std::{io, net::TcpListener, sync::Arc};
 use tokio::{
     net::TcpStream,

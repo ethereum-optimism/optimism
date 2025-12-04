@@ -33,9 +33,6 @@ pub use health::*;
 #[cfg(test)]
 pub mod tests;
 
-mod payload;
-pub use payload::*;
-
 mod selection;
 pub use selection::*;
 
@@ -44,3 +41,7 @@ pub use engine_api::*;
 
 mod version;
 pub use version::*;
+
+// re-export rollup-boost-types flashblocks types
+// this can be removed once dependent crates migrate to using rollup-boost-types directly
+pub use rollup_boost_types::flashblocks::*;

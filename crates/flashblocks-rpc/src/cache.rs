@@ -21,9 +21,9 @@ use reth_primitives_traits::block::body::BlockBody;
 
 use reth_rpc_eth_api::transaction::ConvertReceiptInput;
 use reth_rpc_eth_api::{RpcBlock, RpcReceipt};
-use rollup_boost::{
-    FlashblockBuilder, FlashblocksPayloadV1, OpExecutionPayloadEnvelope, PayloadVersion,
-};
+use rollup_boost::FlashblockBuilder;
+use rollup_boost_types::flashblocks::FlashblocksPayloadV1;
+use rollup_boost_types::payload::{OpExecutionPayloadEnvelope, PayloadVersion};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 

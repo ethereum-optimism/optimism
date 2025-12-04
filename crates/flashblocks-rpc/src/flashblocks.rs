@@ -5,7 +5,7 @@ use jsonrpsee::core::async_trait;
 use op_alloy_network::Optimism;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_rpc_eth_api::{RpcBlock, RpcReceipt};
-use rollup_boost::FlashblocksPayloadV1;
+use rollup_boost_types::flashblocks::FlashblocksPayloadV1;
 use std::{io::Read, sync::Arc};
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};

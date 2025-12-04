@@ -5,6 +5,7 @@ edition = "2024"
 license = "MIT"
 
 [dependencies]
+rollup-boost-types.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 clap.workspace = true
@@ -17,6 +18,7 @@ tokio.workspace = true
 eyre.workspace = true
 url.workspace = true
 sha2.workspace = true
+moka = { workspace = true, features = ["future"] }
 
 reth-optimism-payload-builder.workspace = true
 op-alloy-rpc-types-engine.workspace = true
@@ -29,7 +31,6 @@ tokio-tungstenite.workspace = true
 metrics-derive.workspace = true
 
 jsonrpsee = { workspace = true, features = ["server", "http-client", "macros"] }
-moka = { version = "0.12.10", features = ["future"] }
 http = "1.1.0"
 dotenvy = "0.15.7"
 tower = { version = "0.5.2", features = ["timeout"] }

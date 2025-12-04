@@ -17,7 +17,7 @@ mod tests {
     use reth_optimism_primitives::OpReceipt;
     use reth_provider::providers::BlockchainProvider;
     use reth_tasks::TaskManager;
-    use rollup_boost::{
+    use rollup_boost_types::flashblocks::{
         ExecutionPayloadBaseV1, ExecutionPayloadFlashblockDeltaV1, FlashblocksPayloadV1,
     };
     use std::{any::Any, collections::HashMap, net::SocketAddr, str::FromStr, sync::Arc};

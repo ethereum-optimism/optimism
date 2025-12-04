@@ -6,6 +6,7 @@ license = "MIT"
 
 [dependencies]
 rollup-boost.workspace = true
+rollup-boost-types.workspace = true
 
 reth-optimism-node = { git = "https://github.com/paradigmxyz/reth", tag = "v1.9.3" }
 reth-optimism-cli = { git = "https://github.com/paradigmxyz/reth", tag = "v1.9.3" }

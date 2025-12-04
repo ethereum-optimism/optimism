@@ -6,10 +6,6 @@ use crate::{
 use crate::{
     client::rpc::RpcClient,
     health::HealthHandle,
-    payload::{
-        NewPayload, NewPayloadV3, NewPayloadV4, OpExecutionPayloadEnvelope, PayloadSource,
-        PayloadTraceContext, PayloadVersion,
-    },
     probe::{Health, Probes},
 };
 use alloy_primitives::{B256, Bytes, bytes};
@@ -36,6 +32,10 @@ use op_alloy_rpc_types_engine::{
 };
 use opentelemetry::trace::SpanKind;
 use parking_lot::Mutex;
+use rollup_boost_types::payload::{
+    NewPayload, NewPayloadV3, NewPayloadV4, OpExecutionPayloadEnvelope, PayloadSource,
+    PayloadTraceContext, PayloadVersion,
+};
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;

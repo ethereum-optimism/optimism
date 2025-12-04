@@ -4,26 +4,29 @@ resolver = "3"
 members = [
     "crates/rollup-boost",
     "crates/websocket-proxy",
-    "crates/flashblocks-rpc",
+    "crates/flashblocks-rpc", 
+    "crates/rollup-boost-types",
 ]
 
 [workspace.dependencies]
 rollup-boost = { path = "crates/rollup-boost" }
+rollup-boost-types = { path = "crates/rollup-boost-types" }
 
-tracing = "0.1.4"
-tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
+backoff = "0.4.0"
 clap = { version = "4", features = ["derive", "env"] }
+eyre = "0.6.12"
 futures = "0.3.31"
-thiserror = "2.0.11"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1.0.96"
 metrics = "0.24.0"
 metrics-derive = "0.1"
-tokio = { version = "1", features = ["full"] }
-eyre = "0.6.12"
-url = "2.2.0"
+moka = { version = "0.12.10", features = ["future"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.96"
 sha2 = { version = "0.10", default-features = false }
-backoff = "0.4.0"
+thiserror = "2.0.11"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1.4"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
+url = "2.2.0"
 
 # Reth deps
 reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.9.3" }

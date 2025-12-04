@@ -129,8 +129,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::ClientArgs;
     use crate::probe::ProbeLayer;
-    use crate::{ClientArgs, PayloadSource};
+    use rollup_boost_types::payload::PayloadSource;
 
     use super::*;
     use alloy_primitives::{B256, Bytes, U64, U128, hex};

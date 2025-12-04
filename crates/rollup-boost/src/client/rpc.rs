@@ -1,7 +1,6 @@
 use crate::EngineApiExt;
 use crate::client::auth::AuthLayer;
 use crate::client::http::HttpClient as RollupBoostHttpClient;
-use crate::payload::{NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion};
 use crate::server::EngineApiClient;
 use crate::version::{CARGO_PKG_VERSION, VERGEN_GIT_SHA};
 use alloy_primitives::{B256, Bytes};
@@ -10,7 +9,7 @@ use alloy_rpc_types_engine::{
     PayloadStatus,
 };
 use alloy_rpc_types_eth::{Block, BlockNumberOrTag};
-use clap::{Parser, arg};
+use clap::Parser;
 use eyre::bail;
 use http::{HeaderMap, Uri};
 use jsonrpsee::core::async_trait;
@@ -24,10 +23,13 @@ use op_alloy_rpc_types_engine::{
 };
 use opentelemetry::trace::SpanKind;
 use paste::paste;
+use rollup_boost_types::payload::{
+    NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion,
+};
 use std::path::PathBuf;
 use std::time::Duration;
 use thiserror::Error;
-use tracing::{error, info, instrument};
+use tracing::{info, instrument};
 
 use super::auth::Auth;
 
@@ -476,12 +478,12 @@ pub mod tests {
     use jsonrpsee::core::client::ClientT;
     use parking_lot::Mutex;
 
-    use crate::payload::PayloadSource;
     use alloy_rpc_types_engine::JwtSecret;
     use jsonrpsee::core::client::Error as ClientError;
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::{RpcModule, rpc_params};
     use predicates::prelude::*;
+    use rollup_boost_types::payload::PayloadSource;
     use std::collections::HashSet;
     use std::net::SocketAddr;
     use std::net::TcpListener;
