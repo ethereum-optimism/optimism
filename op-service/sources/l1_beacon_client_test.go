@@ -422,14 +422,8 @@ func TestRequestDuplicateBlobHashes(t *testing.T) {
 	invalidBlob0[10]++
 
 	// construct the mock response for the beacon blobs call
-	var beaconBlobsResponse eth.APIBeaconBlobsResponse
-	var err error
-	if beaconBlobs == nil {
-		err = errors.New("client error")
-	} else {
-		beaconBlobsResponse = eth.APIBeaconBlobsResponse{Data: beaconBlobs}
-	}
-	p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(beaconBlobsResponse, err)
+	beaconBlobsResponse := eth.APIBeaconBlobsResponse{Data: beaconBlobs}
+	p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(beaconBlobsResponse, nil)
 
 	resp, err := client.GetBlobs(ctx, ref, hashes)
 	require.NoError(t, err)
