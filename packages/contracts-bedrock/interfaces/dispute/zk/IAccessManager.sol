@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/// @title IAccessManager_Zk
-/// @notice Interface for the AccessManager_Zk contract that manages permissions for dispute game proposers and challengers.
-interface IAccessManager_Zk {
+/// @title IAccessManager
+/// @notice Interface for the AccessManager contract that manages permissions for dispute game proposers and challengers.
+interface IAccessManager {
     /// @notice Event emitted when proposer permissions are updated.
     event ProposerPermissionUpdated(address indexed proposer, bool allowed);
 

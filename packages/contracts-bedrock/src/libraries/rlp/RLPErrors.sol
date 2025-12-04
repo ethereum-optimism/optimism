@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 /// @notice The length of an RLP item must be greater than zero to be decodable
 error EmptyItem();
