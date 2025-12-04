@@ -14,7 +14,8 @@ use reth_provider::{
     StateRootProvider,
 };
 use reth_revm::database::StateProviderDatabase;
-use std::time::Instant;
+use reth_trie::{updates::TrieUpdates, HashedPostState};
+use std::{sync::Arc, time::Instant};
 use tracing::info;
 
 /// Live trie collector for external proofs storage.
@@ -124,6 +125,48 @@ where
             block_number = block.number(),
             ?operation_durations,
             ?update_result,
+            "Block executed and trie updates stored successfully",
+        );
+
+        Ok(())
+    }
+
+    /// Store trie updates for a given block.
+    pub async fn store_block_updates(
+        &self,
+        block: BlockWithParent,
+        trie_updates: Arc<TrieUpdates>,
+        hashed_state: Arc<HashedPostState>,
+    ) -> eyre::Result<()> {
+        let start = Instant::now();
+        let mut operation_durations = OperationDurations::default();
+
+        let storage_result = self
+            .storage
+            .store_trie_updates(
+                block,
+                BlockStateDiff {
+                    trie_updates: (*trie_updates).clone(),
+                    post_state: (*hashed_state).clone(),
+                },
+            )
+            .await?;
+
+        let write_duration = start.elapsed();
+        operation_durations.total_duration_seconds = write_duration;
+        operation_durations.write_duration_seconds = write_duration;
+
+        #[cfg(feature = "metrics")]
+        {
+            let block_metrics = self.storage.metrics().block_metrics();
+            block_metrics.record_operation_durations(&operation_durations);
+            block_metrics.increment_write_counts(&storage_result);
+        }
+
+        info!(
+            block_number = block.block.number,
+            ?operation_durations,
+            ?storage_result,
             "Trie updates stored successfully",
         );
 
@@ -142,62 +185,43 @@ where
     ///   blocks to be added to the trie storage.
     pub async fn unwind_and_store_block_updates(
         &self,
-        new_blocks: Vec<&RecoveredBlock<BlockTy<Evm::Primitives>>>,
+        block_updates: Vec<(BlockWithParent, Arc<TrieUpdates>, Arc<HashedPostState>)>,
     ) -> eyre::Result<()> {
-        if new_blocks.is_empty() {
+        if block_updates.is_empty() {
             return Ok(());
         }
 
-        let mut operation_durations = OperationDurations::default();
         let start = Instant::now();
-        let latest_common_block_number = new_blocks[0].number().saturating_sub(1);
+        let mut operation_durations = OperationDurations::default();
+        let latest_common_block_number = block_updates[0].0.block.number.saturating_sub(1);
 
         let mut block_trie_updates: HashMap<BlockWithParent, BlockStateDiff> =
-            HashMap::with_capacity_and_hasher(new_blocks.len(), DefaultHashBuilder::default());
+            HashMap::with_capacity_and_hasher(block_updates.len(), DefaultHashBuilder::default());
 
-        for block_ref in &new_blocks {
-            let pb_start = Instant::now();
-            let state_provider = self.provider.state_by_block_hash(block_ref.parent_hash())?;
-            let db = StateProviderDatabase::new(&state_provider);
-            let block_executor = self.evm_config.batch_executor(db);
-            let execution_result =
-                block_executor.execute(block_ref).map_err(|err| eyre::eyre!(err))?;
-
-            let execution_duration = pb_start.elapsed();
-            operation_durations.execution_duration_seconds += execution_duration;
-
-            let hashed_state = state_provider.hashed_post_state(&execution_result.state);
-            let (state_root, trie_updates) =
-                state_provider.state_root_with_updates(hashed_state.clone())?;
-
-            operation_durations.state_root_duration_seconds +=
-                pb_start.elapsed() - execution_duration;
-
-            if state_root != block_ref.state_root() {
-                return Err(OpProofsStorageError::StateRootMismatch {
-                    block_number: block_ref.number(),
-                    current_state_hash: state_root,
-                    expected_state_hash: block_ref.state_root(),
-                }
-                .into());
-            }
-
-            let block_ref = BlockWithParent::new(
-                block_ref.parent_hash(),
-                NumHash::new(block_ref.number(), block_ref.hash()),
+        for (block, trie_updates, hashed_state) in &block_updates {
+            block_trie_updates.insert(
+                *block,
+                BlockStateDiff {
+                    trie_updates: (**trie_updates).clone(),
+                    post_state: (**hashed_state).clone(),
+                },
             );
-            block_trie_updates
-                .insert(block_ref, BlockStateDiff { trie_updates, post_state: hashed_state });
         }
 
-        let st_start = Instant::now();
         self.storage.replace_updates(latest_common_block_number, block_trie_updates).await?;
-        operation_durations.write_duration_seconds += st_start.elapsed();
-        operation_durations.total_duration_seconds = start.elapsed();
+        let write_duration = start.elapsed();
+        operation_durations.total_duration_seconds = write_duration;
+        operation_durations.write_duration_seconds = write_duration;
+
+        #[cfg(feature = "metrics")]
+        {
+            let block_metrics = self.storage.metrics().block_metrics();
+            block_metrics.record_operation_durations(&operation_durations);
+        }
 
         info!(
-            start_block_number = new_blocks.first().map(|b| b.number()),
-            end_block_number = new_blocks.last().map(|b| b.number()),
+            start_block_number = block_updates.first().map(|(b, _, _)| b.block.number),
+            end_block_number = block_updates.last().map(|(b, _, _)| b.block.number),
             ?operation_durations,
             "Trie updates rewound and stored successfully",
         );

@@ -14,9 +14,10 @@ workspace = true
 [dependencies]
 # reth
 reth-exex.workspace = true
+reth-execution-types.workspace = true
 reth-node-types.workspace = true
 reth-node-api.workspace = true
-reth-primitives-traits.workspace = true
+reth-trie.workspace = true
 reth-provider.workspace = true
 
 # op-reth
@@ -25,6 +26,7 @@ reth-optimism-trie = { workspace = true, features = ["serde-bincode-compat", "me
 
 # alloy
 alloy-consensus.workspace = true
+alloy-eips.workspace = true
 
 # misc
 eyre.workspace = true
@@ -44,9 +46,9 @@ tempfile.workspace = true
 [features]
 test-utils = [
     "reth-db/test-utils",
+    "reth-trie/test-utils",
     "reth-node-builder/test-utils",
     "reth-optimism-node/test-utils",
-    "reth-primitives-traits/test-utils",
     "reth-provider/test-utils",
 ]
 
