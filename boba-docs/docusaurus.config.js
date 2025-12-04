@@ -96,6 +96,18 @@ const config = {
           },
       },
     ],
+
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        redirects: [
+          {
+            to: '/dev-docs/*',
+            from: '/*',
+          },
+        ],
+      },
+    ],
   ],
 
   themeConfig:
