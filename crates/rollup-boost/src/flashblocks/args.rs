@@ -36,6 +36,10 @@ pub struct FlashblocksWebsocketConfig {
     #[arg(long, env, default_value = "5000")]
     pub flashblock_builder_ws_max_reconnect_ms: u64,
 
+    /// Timeout for connection attempt
+    #[arg(long, env, default_value = "5000")]
+    pub flashblock_builder_ws_connect_timeout_ms: u64,
+
     /// Interval in milliseconds between ping messages sent to upstream servers to detect unresponsive connections
     #[arg(long, env, default_value = "500")]
     pub flashblock_builder_ws_ping_interval_ms: u64,

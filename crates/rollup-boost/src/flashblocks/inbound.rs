@@ -5,10 +5,13 @@ use backoff::backoff::Backoff;
 use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
 use lru::LruCache;
+use std::io::ErrorKind::TimedOut;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::time::Duration;
 use tokio::{sync::mpsc, time::interval};
+use tokio_tungstenite::tungstenite::Error::Io;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
@@ -69,8 +72,12 @@ impl FlashblocksReceiverService {
 
     pub async fn run(self) {
         let mut backoff = self.websocket_config.backoff();
+        let timeout = Duration::from_millis(
+            self.websocket_config
+                .flashblock_builder_ws_connect_timeout_ms,
+        );
         loop {
-            if let Err(e) = self.connect_and_handle(&mut backoff).await {
+            if let Err(e) = self.connect_and_handle(&mut backoff, timeout).await {
                 let interval = backoff
                     .next_backoff()
                     .expect("max_elapsed_time not set, never None");
@@ -83,7 +90,8 @@ impl FlashblocksReceiverService {
                 self.metrics.connection_status.set(0);
                 tokio::time::sleep(interval).await;
             } else {
-                break;
+                // connect_and_handle should never return Ok(())
+                error!("Builder websocket connection has stopped. Invariant is broken.");
             }
         }
     }
@@ -91,8 +99,12 @@ impl FlashblocksReceiverService {
     async fn connect_and_handle(
         &self,
         backoff: &mut ExponentialBackoff,
+        timeout: Duration,
     ) -> Result<(), FlashblocksReceiverError> {
-        let (ws_stream, _) = connect_async(self.url.as_str()).await?;
+        // Timeout is used to ensure we won't get stuck in case some TCP frames go missing
+        let (ws_stream, _) = tokio::time::timeout(timeout, connect_async(self.url.as_str()))
+            .await
+            .map_err(|_| FlashblocksReceiverError::Connection(Io(TimedOut.into())))??;
         let (mut write, mut read) = ws_stream.split();
 
         info!("Connected to Flashblocks receiver at {}", self.url);
@@ -395,6 +407,7 @@ mod tests {
             flashblock_builder_ws_max_reconnect_ms: 100,
             flashblock_builder_ws_ping_interval_ms: 500,
             flashblock_builder_ws_pong_timeout_ms: 2000,
+            flashblock_builder_ws_connect_timeout_ms: 5000,
         };
         let service = FlashblocksReceiverService::new(url, tx, config);
         let _ = tokio::spawn(async move {
@@ -446,6 +459,7 @@ mod tests {
             flashblock_builder_ws_max_reconnect_ms: 1000,
             flashblock_builder_ws_ping_interval_ms: 500,
             flashblock_builder_ws_pong_timeout_ms: 2000,
+            flashblock_builder_ws_connect_timeout_ms: 5000,
         };
 
         let (tx, _rx) = mpsc::channel(100);
@@ -480,6 +494,90 @@ mod tests {
         // 3 seconds will cause reconnect
         let reconnected = term.has_changed().expect("channel not closed");
         assert!(reconnected, "haven't reconnected after deadline is reached");
+        Ok(())
+    }
+
+    /// Starts a TCP server that accepts connections but never completes the WebSocket handshake.
+    /// This simulates a stuck connection during the handshake phase.
+    async fn start_stuck_server(addr: SocketAddr) -> eyre::Result<(watch::Sender<bool>, url::Url)> {
+        let (term_tx, mut term_rx) = watch::channel(false);
+
+        let listener = TcpListener::bind(addr)?;
+        let url = Url::parse(&format!("ws://{addr}"))?;
+
+        listener
+            .set_nonblocking(true)
+            .expect("can set TcpListener socket to non-blocking");
+
+        let listener = tokio::net::TcpListener::from_std(listener)
+            .expect("can convert TcpListener to tokio TcpListener");
+
+        tokio::spawn(async move {
+            // Store connections to keep them alive without responding
+            let mut held_connections: Vec<tokio::net::TcpStream> = Vec::new();
+            loop {
+                tokio::select! {
+                    _ = term_rx.changed() => {
+                        if *term_rx.borrow() {
+                            return;
+                        }
+                    }
+                    result = listener.accept() => {
+                        if let Ok((connection, _addr)) = result {
+                            // Accept the TCP connection but never complete the WebSocket handshake
+                            // Keep the connection alive by storing it
+                            held_connections.push(connection);
+                        }
+                    }
+                }
+            }
+        });
+
+        Ok((term_tx, url))
+    }
+
+    #[tokio::test]
+    async fn test_flashblocks_receiver_service_connect_timeout() -> eyre::Result<()> {
+        // Test that if the WebSocket handshake hangs, the service will timeout
+        let addr = "127.0.0.1:8082"
+            .parse::<SocketAddr>()
+            .expect("valid socket address");
+
+        let (term, url) = start_stuck_server(addr).await?;
+
+        let config = FlashblocksWebsocketConfig {
+            flashblock_builder_ws_initial_reconnect_ms: 100,
+            flashblock_builder_ws_max_reconnect_ms: 200,
+            flashblock_builder_ws_ping_interval_ms: 500,
+            flashblock_builder_ws_pong_timeout_ms: 2000,
+            // Set a 1 second timeout for connection attempts
+            flashblock_builder_ws_connect_timeout_ms: 1000,
+        };
+
+        let (tx, _rx) = mpsc::channel(100);
+        let service = FlashblocksReceiverService::new(url, tx, config);
+
+        let timeout =
+            std::time::Duration::from_millis(config.flashblock_builder_ws_connect_timeout_ms);
+        let mut backoff = config.backoff();
+
+        // Call connect_and_handle directly - it should timeout and return an error
+        let result = service.connect_and_handle(&mut backoff, timeout).await;
+
+        assert!(
+            result.is_err(),
+            "connect_and_handle should return error on timeout"
+        );
+
+        // Verify it's a connection error (timeout is wrapped as connection error)
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, FlashblocksReceiverError::Connection(_)),
+            "expected Connection error, got: {:?}",
+            err
+        );
+
+        term.send(true).expect("termination signal sent");
         Ok(())
     }
 }
