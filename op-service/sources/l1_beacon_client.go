@@ -350,6 +350,9 @@ func (cl *L1BeaconClient) beaconBlobs(ctx context.Context, slot uint64, hashes [
 		if idx == -1 {
 			return nil, fmt.Errorf("received a blob hash that does not match any expected hash: %s", got)
 		}
+		if blobs[idx] != nil {
+			return nil, fmt.Errorf("discovered duplicate blob with hash: %v", got)
+		}
 		blobs[idx] = blob
 	}
 	return blobs, nil
