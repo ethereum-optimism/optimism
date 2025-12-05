@@ -117,7 +117,7 @@ func TestCLIVerify(t *testing.T) {
 			"--artifacts-locator", "embedded",
 		}, nil)
 
-		require.Contains(t, output, "Contract verified successfully")
+		require.Contains(t, output, "Contract already verified")
 		require.Contains(t, output, "superchainConfigProxyAddress")
 	})
 
@@ -138,7 +138,8 @@ func TestCLIVerify(t *testing.T) {
 
 		require.Contains(t, output, "Starting automatic contract verification")
 		require.Contains(t, output, "Verification Summary")
-		require.Contains(t, output, "verified=5")
+		require.Contains(t, output, "verified=0")
+		require.Contains(t, output, "skipped=5")
 		require.Contains(t, output, "failed=0")
 	})
 
@@ -164,6 +165,19 @@ func TestCLIVerify(t *testing.T) {
 func setupMockBlockscout(t *testing.T) string {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+
+		if strings.HasPrefix(r.URL.Path, "/api/v2/smart-contracts/") {
+			response := map[string]interface{}{
+				"message":                         "OK",
+				"is_verified":                     true,
+				"is_fully_verified":               true,
+				"is_partially_verified":           false,
+				"is_verified_via_eth_bytecode_db": false,
+				"is_verified_via_sourcify":        false,
+			}
+			_ = json.NewEncoder(w).Encode(response)
+			return
+		}
 
 		var action string
 		if r.Method == http.MethodPost {

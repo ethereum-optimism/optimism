@@ -94,7 +94,7 @@ func RollupNodeMain(ctx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.
 		cfg.Rollup.LogDescription(log, chaincfg.L2ChainIDToNetworkDisplayName)
 	}
 
-	n, err := node.New(ctx.Context, cfg, log, VersionWithMeta, m)
+	n, err := node.New(ctx.Context, cfg, log, VersionWithMeta, m, nil)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create the rollup node: %w", err)
 	}

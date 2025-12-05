@@ -9,8 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
@@ -104,31 +103,53 @@ func TestLoadGame(t *testing.T) {
 		t.Run(version.String(), func(t *testing.T) {
 			blockHash := common.Hash{0xbb, 0xce}
 			stubRpc, factory := setupDisputeGameFactoryTest(t, version)
-			game0 := types.GameMetadata{
+			game0 := gameTypes.GameMetadata{
 				Index:     0,
 				GameType:  0,
 				Timestamp: 1234,
 				Proxy:     common.Address{0xaa},
 			}
-			game1 := types.GameMetadata{
+			game1 := gameTypes.GameMetadata{
 				Index:     1,
 				GameType:  1,
 				Timestamp: 5678,
 				Proxy:     common.Address{0xbb},
 			}
-			game2 := types.GameMetadata{
+			game2 := gameTypes.GameMetadata{
 				Index:     2,
 				GameType:  99,
 				Timestamp: 9988,
 				Proxy:     common.Address{0xcc},
 			}
-			expectedGames := []types.GameMetadata{game0, game1, game2}
+			expectedGames := []gameTypes.GameMetadata{game0, game1, game2}
 			for idx, expected := range expectedGames {
-				expectGetGame(stubRpc, idx, blockHash, expected)
-				actual, err := factory.GetGame(context.Background(), uint64(idx), blockHash)
+				expectGetGame(stubRpc, idx, rpcblock.ByHash(blockHash), expected)
+				actual, err := factory.GetGame(context.Background(), uint64(idx), rpcblock.ByHash(blockHash))
 				require.NoError(t, err)
 				require.Equal(t, expected, actual)
 			}
+		})
+	}
+}
+
+func TestGetGameStatus(t *testing.T) {
+	for _, version := range factoryVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, factory := setupDisputeGameFactoryTest(t, version)
+			game0 := gameTypes.GameMetadata{
+				Index:     0,
+				GameType:  0,
+				Timestamp: 1234,
+				Proxy:     common.Address{0xaa},
+			}
+			expectGetGame(stubRpc, 0, rpcblock.Latest, game0)
+			stubRpc.AddContract(game0.Proxy, snapshots.LoadFaultDisputeGameABI())
+			expectedStatus := gameTypes.GameStatusChallengerWon
+			stubRpc.SetResponse(game0.Proxy, methodVersion, rpcblock.Latest, nil, []interface{}{versLatest})
+			stubRpc.SetResponse(game0.Proxy, methodStatus, rpcblock.Latest, nil, []interface{}{expectedStatus})
+			actual, err := factory.GetGameStatus(context.Background(), 0)
+			require.NoError(t, err)
+			require.Equal(t, expectedStatus, actual)
 		})
 	}
 }
@@ -138,29 +159,29 @@ func TestGetAllGames(t *testing.T) {
 		t.Run(version.String(), func(t *testing.T) {
 			blockHash := common.Hash{0xbb, 0xce}
 			stubRpc, factory := setupDisputeGameFactoryTest(t, version)
-			game0 := types.GameMetadata{
+			game0 := gameTypes.GameMetadata{
 				Index:     0,
 				GameType:  0,
 				Timestamp: 1234,
 				Proxy:     common.Address{0xaa},
 			}
-			game1 := types.GameMetadata{
+			game1 := gameTypes.GameMetadata{
 				Index:     1,
 				GameType:  1,
 				Timestamp: 5678,
 				Proxy:     common.Address{0xbb},
 			}
-			game2 := types.GameMetadata{
+			game2 := gameTypes.GameMetadata{
 				Index:     2,
 				GameType:  99,
 				Timestamp: 9988,
 				Proxy:     common.Address{0xcc},
 			}
 
-			expectedGames := []types.GameMetadata{game0, game1, game2}
+			expectedGames := []gameTypes.GameMetadata{game0, game1, game2}
 			stubRpc.SetResponse(factoryAddr, methodGameCount, rpcblock.ByHash(blockHash), nil, []interface{}{big.NewInt(int64(len(expectedGames)))})
 			for idx, expected := range expectedGames {
-				expectGetGame(stubRpc, idx, blockHash, expected)
+				expectGetGame(stubRpc, idx, rpcblock.ByHash(blockHash), expected)
 			}
 			actualGames, err := factory.GetAllGames(context.Background(), blockHash)
 			require.NoError(t, err)
@@ -190,9 +211,9 @@ func TestGetAllGamesAtOrAfter(t *testing.T) {
 				t.Run(fmt.Sprintf("Count_%v_Start_%v", test.gameCount, test.earliestGameIdx), func(t *testing.T) {
 					blockHash := common.Hash{0xbb, 0xce}
 					stubRpc, factory := setupDisputeGameFactoryTest(t, version)
-					var allGames []types.GameMetadata
+					var allGames []gameTypes.GameMetadata
 					for i := 0; i < test.gameCount; i++ {
-						allGames = append(allGames, types.GameMetadata{
+						allGames = append(allGames, gameTypes.GameMetadata{
 							Index:     uint64(i),
 							GameType:  uint32(i),
 							Timestamp: uint64(i),
@@ -202,14 +223,14 @@ func TestGetAllGamesAtOrAfter(t *testing.T) {
 
 					stubRpc.SetResponse(factoryAddr, methodGameCount, rpcblock.ByHash(blockHash), nil, []interface{}{big.NewInt(int64(len(allGames)))})
 					for idx, expected := range allGames {
-						expectGetGame(stubRpc, idx, blockHash, expected)
+						expectGetGame(stubRpc, idx, rpcblock.ByHash(blockHash), expected)
 					}
 					// Set an earliest timestamp that's in the middle of a batch
 					earliestTimestamp := uint64(test.earliestGameIdx)
 					actualGames, err := factory.GetGamesAtOrAfter(context.Background(), blockHash, earliestTimestamp)
 					require.NoError(t, err)
 					// Games come back in descending timestamp order
-					var expectedGames []types.GameMetadata
+					var expectedGames []gameTypes.GameMetadata
 					if test.earliestGameIdx < len(allGames) {
 						expectedGames = slices.Clone(allGames[test.earliestGameIdx:])
 					}
@@ -229,17 +250,17 @@ func TestGetGameFromParameters(t *testing.T) {
 	for _, version := range factoryVersions {
 		t.Run(version.String(), func(t *testing.T) {
 			stubRpc, factory := setupDisputeGameFactoryTest(t, version)
-			traceType := uint32(123)
+			gameType := uint32(123)
 			outputRoot := common.Hash{0x01}
 			l2BlockNum := common.BigToHash(big.NewInt(456)).Bytes()
 			stubRpc.SetResponse(
 				factoryAddr,
 				methodGames,
 				rpcblock.Latest,
-				[]interface{}{traceType, outputRoot, l2BlockNum},
+				[]interface{}{gameType, outputRoot, l2BlockNum},
 				[]interface{}{common.Address{0xaa}, uint64(1)},
 			)
-			addr, err := factory.GetGameFromParameters(context.Background(), traceType, outputRoot, uint64(456))
+			addr, err := factory.GetGameFromParameters(context.Background(), gameType, outputRoot, uint64(456))
 			require.NoError(t, err)
 			require.Equal(t, common.Address{0xaa}, addr)
 		})
@@ -250,7 +271,7 @@ func TestHasGameImpl(t *testing.T) {
 	for _, version := range factoryVersions {
 		t.Run(version.String()+"-set", func(t *testing.T) {
 			stubRpc, factory := setupDisputeGameFactoryTest(t, version)
-			gameType := faultTypes.CannonGameType
+			gameType := gameTypes.CannonGameType
 			gameImplAddr := common.Address{0xaa}
 			stubRpc.SetResponse(
 				factoryAddr,
@@ -258,20 +279,20 @@ func TestHasGameImpl(t *testing.T) {
 				rpcblock.Latest,
 				[]interface{}{gameType},
 				[]interface{}{gameImplAddr})
-			actual, err := factory.HasGameImpl(context.Background(), faultTypes.CannonGameType)
+			actual, err := factory.HasGameImpl(context.Background(), gameTypes.CannonGameType)
 			require.NoError(t, err)
 			require.True(t, actual)
 		})
 		t.Run(version.String()+"-unset", func(t *testing.T) {
 			stubRpc, factory := setupDisputeGameFactoryTest(t, version)
-			gameType := faultTypes.CannonGameType
+			gameType := gameTypes.CannonGameType
 			stubRpc.SetResponse(
 				factoryAddr,
 				methodGameImpls,
 				rpcblock.Latest,
 				[]interface{}{gameType},
 				[]interface{}{common.Address{}})
-			actual, err := factory.HasGameImpl(context.Background(), faultTypes.CannonGameType)
+			actual, err := factory.HasGameImpl(context.Background(), gameTypes.CannonGameType)
 			require.NoError(t, err)
 			require.False(t, actual)
 		})
@@ -283,7 +304,7 @@ func TestGetGameVM(t *testing.T) {
 		t.Run(fmt.Sprintf("GameArgs-%v", usesGameArgs), func(t *testing.T) {
 			for _, version := range factoryVersions {
 				t.Run(version.String(), func(t *testing.T) {
-					gameType := faultTypes.CannonGameType
+					gameType := gameTypes.CannonGameType
 					rpc, factory := setupDisputeGameFactoryTest(t, version)
 
 					if usesGameArgs {
@@ -322,7 +343,7 @@ func TestGetGamePrestate(t *testing.T) {
 		t.Run(fmt.Sprintf("GameArgs-%v", usesGameArgs), func(t *testing.T) {
 			for _, version := range factoryVersions {
 				t.Run(version.String(), func(t *testing.T) {
-					gameType := faultTypes.CannonGameType
+					gameType := gameTypes.CannonGameType
 					prestate := common.Hash{92, 4, 6, 12, 4}
 					rpc, factory := setupDisputeGameFactoryTest(t, version)
 
@@ -428,11 +449,11 @@ func TestDecodeDisputeGameCreatedLog(t *testing.T) {
 	}
 }
 
-func expectGetGame(stubRpc *batchingTest.AbiBasedRpc, idx int, blockHash common.Hash, game types.GameMetadata) {
+func expectGetGame(stubRpc *batchingTest.AbiBasedRpc, idx int, block rpcblock.Block, game gameTypes.GameMetadata) {
 	stubRpc.SetResponse(
 		factoryAddr,
 		methodGameAtIndex,
-		rpcblock.ByHash(blockHash),
+		block,
 		[]interface{}{big.NewInt(int64(idx))},
 		[]interface{}{
 			game.GameType,
@@ -445,13 +466,13 @@ func TestCreateTx(t *testing.T) {
 	for _, version := range factoryVersions {
 		t.Run(version.String(), func(t *testing.T) {
 			stubRpc, factory := setupDisputeGameFactoryTest(t, version)
-			traceType := uint32(123)
+			gameType := uint32(123)
 			outputRoot := common.Hash{0x01}
 			l2BlockNum := common.BigToHash(big.NewInt(456)).Bytes()
 			bond := big.NewInt(49284294829)
-			stubRpc.SetResponse(factoryAddr, methodInitBonds, rpcblock.Latest, []interface{}{traceType}, []interface{}{bond})
-			stubRpc.SetResponse(factoryAddr, methodCreateGame, rpcblock.Latest, []interface{}{traceType, outputRoot, l2BlockNum}, nil)
-			tx, err := factory.CreateTx(context.Background(), traceType, outputRoot, uint64(456))
+			stubRpc.SetResponse(factoryAddr, methodInitBonds, rpcblock.Latest, []interface{}{gameType}, []interface{}{bond})
+			stubRpc.SetResponse(factoryAddr, methodCreateGame, rpcblock.Latest, []interface{}{gameType, outputRoot, l2BlockNum}, nil)
+			tx, err := factory.CreateTx(context.Background(), gameType, outputRoot, uint64(456))
 			require.NoError(t, err)
 			stubRpc.VerifyTxCandidate(tx)
 			require.NotNil(t, tx.Value)
@@ -469,7 +490,7 @@ func setupDisputeGameFactoryTest(t *testing.T, version factoryContractVersion) (
 	return stubRpc, factory
 }
 
-func setupDisputeGame(rpc *batchingTest.AbiBasedRpc, gameAddr common.Address, gameType faultTypes.GameType) {
+func setupDisputeGame(rpc *batchingTest.AbiBasedRpc, gameAddr common.Address, gameType gameTypes.GameType) {
 	rpc.AddContract(gameAddr, snapshots.LoadFaultDisputeGameABI())
 	rpc.SetResponse(gameAddr, methodVersion, rpcblock.Latest, nil, []interface{}{versLatest})
 	rpc.SetResponse(gameAddr, methodGameType, rpcblock.Latest, nil, []interface{}{gameType})

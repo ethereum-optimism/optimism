@@ -9,7 +9,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Fork } from "scripts/libraries/Config.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Features } from "src/libraries/Features.sol";
 
 /// @title Predeploys_TestInit
 /// @notice Reusable test initialization for `Predeploys` tests.
@@ -165,7 +165,7 @@ contract Predeploys_Uncategorized_Test is Predeploys_TestInit {
     /// @notice Tests that the predeploy addresses are set correctly. They have code
     ///         and the proxied accounts have the correct admin. Using custom gas token.
     function test_predeploys_customGasToken_succeeds() external {
-        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
         _test_predeploys(Fork.ISTHMUS, false, true);
     }
 }

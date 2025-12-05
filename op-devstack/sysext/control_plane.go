@@ -42,4 +42,12 @@ func (c *ControlPlane) FakePoSState(id stack.L1CLNodeID, mode stack.ControlActio
 	panic("not implemented: plug in kurtosis wrapper, or gate for the test that uses this method to not run in kurtosis")
 }
 
+func (c *ControlPlane) RollupBoostNodeState(id stack.RollupBoostNodeID, mode stack.ControlAction) {
+	c.setLifecycleState(id.Key(), mode)
+}
+
+func (c *ControlPlane) OPRBuilderNodeState(id stack.OPRBuilderNodeID, mode stack.ControlAction) {
+	c.setLifecycleState(id.Key(), mode)
+}
+
 var _ stack.ControlPlane = (*ControlPlane)(nil)

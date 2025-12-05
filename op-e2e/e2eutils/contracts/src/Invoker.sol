@@ -2,7 +2,7 @@
 pragma solidity ^0.8.15;
 
 contract Invoker {
-    event PrecompileInvoked(address indexed precompile, bytes result);
+    event PrecompileInvoked(address indexed precompile, bytes result, bytes delegateCallResult);
     error PrecompileCallFailed();
 
     function invokePrecompile(address _precompile, bytes memory _input) external {
@@ -11,6 +11,11 @@ contract Invoker {
         if (!success) {
             revert PrecompileCallFailed();
         }
-        emit PrecompileInvoked(_precompile, result);
+        bytes memory delegateCallResult;
+        (success, delegateCallResult) = _precompile.delegatecall(_input);
+        if (!success) {
+            revert PrecompileCallFailed();
+        }
+        emit PrecompileInvoked(_precompile, result, delegateCallResult);
     }
 }

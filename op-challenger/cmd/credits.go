@@ -53,7 +53,7 @@ func listCredits(ctx context.Context, game contracts.FaultDisputeGameContract) e
 	if err != nil {
 		return fmt.Errorf("failed to load claims: %w", err)
 	}
-	metadata, err := game.GetGameMetadata(ctx, rpcblock.Latest)
+	metadata, err := game.GetExtendedMetadata(ctx, rpcblock.Latest)
 	if err != nil {
 		return fmt.Errorf("failed to load metadata: %w", err)
 	}

@@ -25,7 +25,6 @@ type OpReth struct {
 	mu sync.Mutex
 
 	id        stack.L2ELNodeID
-	l2Net     *L2Network
 	jwtPath   string
 	jwtSecret [32]byte
 	authRPC   string
@@ -134,12 +133,12 @@ func (n *OpReth) Start() {
 			metricsTargetChan <- NewPrometheusMetricsTarget(parsedUrl.Hostname(), parsedUrl.Port(), false)
 		}
 	}
-	stdOutLogs := logpipe.LogProcessor(func(line []byte) {
+	stdOutLogs := logpipe.LogCallback(func(line []byte) {
 		e := logpipe.ParseRustStructuredLogs(line)
 		logOut(e)
 		onLogEntry(e)
 	})
-	stdErrLogs := logpipe.LogProcessor(func(line []byte) {
+	stdErrLogs := logpipe.LogCallback(func(line []byte) {
 		e := logpipe.ParseRustStructuredLogs(line)
 		logErr(e)
 	})
@@ -280,7 +279,6 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 
 		l2EL := &OpReth{
 			id:                 id,
-			l2Net:              l2Net,
 			jwtPath:            jwtPath,
 			jwtSecret:          jwtSecret,
 			authRPC:            "",

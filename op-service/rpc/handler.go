@@ -93,6 +93,18 @@ func (b *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	b.outer.ServeHTTP(writer, request)
 }
 
+// DialInProc creates a new in-process RPC client connected to the root RPC server.
+// Useful for components that need to call RPC methods on the embedded server without going over the network.
+func (b *Handler) DialInProc() (*rpc.Client, error) {
+	b.rpcRoutesLock.Lock()
+	defer b.rpcRoutesLock.Unlock()
+	server, ok := b.rpcRoutes[rootRoute]
+	if !ok || server == nil {
+		return nil, fmt.Errorf("root RPC server not available")
+	}
+	return rpc.DialInProc(server), nil
+}
+
 // AddAPI adds a backend to the given RPC namespace, on the default RPC route of the server.
 func (b *Handler) AddAPI(api rpc.API) error {
 	return b.AddAPIToRPC(rootRoute, api)

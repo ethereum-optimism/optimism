@@ -198,6 +198,8 @@ func (d *Sequencer) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.onEngineResetConfirmedEvent(x)
 	case engine.ForkchoiceUpdateEvent:
 		d.onForkchoiceUpdate(x)
+	case engine.ForkchoiceUpdateInitEvent:
+		d.onForkchoiceUpdate(engine.ForkchoiceUpdateEvent(x))
 	default:
 		return false
 	}

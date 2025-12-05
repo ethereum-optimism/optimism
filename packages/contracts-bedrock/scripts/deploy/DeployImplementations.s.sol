@@ -31,6 +31,7 @@ import {
 } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
+import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -77,6 +78,7 @@ contract DeployImplementations is Script {
         IOPContractsManagerUpgrader opcmUpgrader;
         IOPContractsManagerInteropMigrator opcmInteropMigrator;
         IOPContractsManagerStandardValidator opcmStandardValidator;
+        IOPContractsManagerUtils opcmUtils;
         IOPContractsManagerV2 opcmV2;
         IOPContractsManagerContainer opcmContainer; // v2 container
         IDelayedWETH delayedWETHImpl;
@@ -252,6 +254,7 @@ contract DeployImplementations is Script {
         // Deploy OPCM V2 components
         deployOPCMContainer(_input, _output, blueprints, implementations);
         deployOPCMStandardValidatorV2(_input, _output, implementations);
+        deployOPCMUtils(_output);
         opcmV2_ = deployOPCMV2(_output);
 
         // Set OPCM V1 addresses to zero (not deployed)
@@ -797,6 +800,20 @@ contract DeployImplementations is Script {
         _output.opcmStandardValidator = impl;
     }
 
+    function deployOPCMUtils(Output memory _output) private {
+        IOPContractsManagerUtils impl = IOPContractsManagerUtils(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManagerUtils.sol:OPContractsManagerUtils",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IOPContractsManagerUtils.__constructor__, (_output.opcmContainer))
+                ),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "OPContractsManagerUtilsImpl");
+        _output.opcmUtils = impl;
+    }
+
     function deployOPCMStandardValidatorV2(
         Input memory _input,
         Output memory _output,
@@ -847,7 +864,8 @@ contract DeployImplementations is Script {
                 _name: "OPContractsManagerV2",
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
-                        IOPContractsManagerV2.__constructor__, (_output.opcmContainer, _output.opcmStandardValidator)
+                        IOPContractsManagerV2.__constructor__,
+                        (_output.opcmContainer, _output.opcmStandardValidator, _output.opcmUtils)
                     )
                 ),
                 _salt: _salt
