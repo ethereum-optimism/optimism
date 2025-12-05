@@ -28,7 +28,7 @@ import { OPSuccinctFaultDisputeGame } from "src/dispute/zk/OPSuccinctFaultDisput
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { AccessManager } from "src/dispute/zk/AccessManager.sol";
+import { AccessManager2 } from "src/dispute/zk/AccessManager.sol";
 import { SP1MockVerifier } from "./mocks/SP1MockVerifier.sol";
 
 // Interfaces
@@ -70,7 +70,7 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is Test {
     OPSuccinctFaultDisputeGame game;
 
     AnchorStateRegistry anchorStateRegistry;
-    AccessManager accessManager;
+    AccessManager2 accessManager;
 
     address proposer = address(0x123);
     address challenger = address(0x456);
@@ -155,7 +155,7 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is Test {
         );
 
         // Create a new access manager with 1 hour permissionless timeout.
-        accessManager = new AccessManager(2 weeks, IDisputeGameFactory(address(factory)));
+        accessManager = new AccessManager2(2 weeks, IDisputeGameFactory(address(factory)));
         accessManager.setProposer(proposer, true);
         accessManager.setChallenger(challenger, true);
 

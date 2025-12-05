@@ -9,7 +9,7 @@ import { OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE } from "src/dispute/lib/Types.sol";
 
 /// @title AccessManager
 /// @notice Manages permissions for dispute game proposers and challengers.
-contract AccessManager is Ownable {
+contract AccessManager2 is Ownable {
     ////////////////////////////////////////////////////////////////
     //                         Events                             //
     ////////////////////////////////////////////////////////////////
