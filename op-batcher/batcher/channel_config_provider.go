@@ -16,7 +16,7 @@ type (
 	}
 
 	GasPricer interface {
-		SuggestGasPriceCaps(ctx context.Context) (tipCap *big.Int, baseFee *big.Int, blobBaseFee *big.Int, err error)
+		SuggestGasPriceCaps(ctx context.Context) (tipCap *big.Int, baseFee *big.Int, blobTipCap *big.Int, blobBaseFee *big.Int, err error)
 	}
 
 	DynamicEthChannelConfig struct {
@@ -61,7 +61,8 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isPectra, isThrottling bool) C
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), dec.timeout)
 	defer cancel()
-	tipCap, baseFee, blobBaseFee, err := dec.gasPricer.SuggestGasPriceCaps(ctx)
+	tipCap, baseFee, blobTipCap, blobBaseFee, err := dec.gasPricer.SuggestGasPriceCaps(ctx)
+	_ = blobTipCap
 	if err != nil {
 		dec.log.Warn("Error querying gas prices, returning last config", "err", err)
 		return *dec.lastConfig

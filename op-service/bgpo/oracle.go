@@ -24,7 +24,7 @@ import (
 type BlobGasPriceOracle struct {
 	sync.Mutex
 
-	client      client.RPC
+	client      *client.PollingClient
 	chainConfig *params.ChainConfig
 	log         log.Logger
 
@@ -100,9 +100,13 @@ func NewBlobGasPriceOracle(ctx context.Context, rpcClient client.RPC, chainConfi
 		config.Percentile = defaultConfig.Percentile
 	}
 
+	logger := log.With("module", "bgpo")
+
+	pollClient := client.NewPollingClient(ctx, logger, rpcClient, client.WithPollRate(250*time.Millisecond))
+
 	oracleCtx, cancel := context.WithCancel(ctx)
 	return &BlobGasPriceOracle{
-		client:      rpcClient,
+		client:      pollClient,
 		chainConfig: chainConfig,
 		log:         log.With("module", "bgpo"),
 		prices:      caching.NewLRUCache[uint64, *big.Int](config.Metrics, "bgpo_prices", config.PricesCacheSize),
@@ -125,7 +129,11 @@ func (o *BlobGasPriceOracle) Start() error {
 
 	headers := make(chan *types.Header, 10)
 
-	sub, err := o.client.Subscribe(o.ctx, "eth", headers, "newHeads")
+	doSubscribe := func(ch chan<- *types.Header) (ethereum.Subscription, error) {
+		return o.client.Subscribe(o.ctx, "eth", ch, "newHeads")
+	}
+
+	sub, err := doSubscribe(headers)
 	if err != nil {
 		return err
 	}
@@ -198,8 +206,8 @@ func (o *BlobGasPriceOracle) prePopulateCache() error {
 // processHeader calculates and stores the blob base fee for the given header.
 // It also triggers an asynchronous fetch of the full block to extract blob fee caps.
 func (o *BlobGasPriceOracle) processHeader(header *types.Header) error {
-	defer func(now time.Time) {
-		o.log.Debug("Processed header", "block", header.Number.Uint64(), "time", time.Since(now))
+	defer func(start time.Time) {
+		o.log.Info("Processed header", "block", header.Number.Uint64(), "time", time.Since(start))
 	}(time.Now())
 
 	o.Lock()
@@ -208,24 +216,28 @@ func (o *BlobGasPriceOracle) processHeader(header *types.Header) error {
 	blockNum := header.Number.Uint64()
 
 	// Calculate blob base fee from the header
-	var blobBaseFee *big.Int
-	if header.ExcessBlobGas != nil {
-		blobBaseFee = eip4844.CalcBlobFee(o.chainConfig, header)
-	}
+	if _, ok := o.prices.Get(blockNum); ok {
+		o.log.Info("Skipping blob base fee calculation, already processed", "block", blockNum, "latestBlock", o.latestBlock)
+	} else {
+		var blobBaseFee *big.Int
+		if header.ExcessBlobGas != nil {
+			blobBaseFee = eip4844.CalcBlobFee(o.chainConfig, header)
+		}
 
-	o.prices.Add(blockNum, blobBaseFee)
-
-	if blockNum > o.latestBlock {
-		o.latestBlock = blockNum
+		if blobBaseFee != nil {
+			o.log.Info("Adding blob base fee", "block", blockNum, "blobBaseFee", blobBaseFee.String())
+			o.prices.Add(blockNum, blobBaseFee)
+		} else {
+			o.log.Debug("Block does not support blob transactions", "block", blockNum)
+			o.prices.Add(blockNum, big.NewInt(0))
+		}
 	}
 
 	// Fetch full block data and extract blob fee caps
 	o.fetchBlockBlobFeeCaps(blockNum)
 
-	if blobBaseFee != nil {
-		o.log.Debug("Recorded blob base fee", "block", blockNum, "blobBaseFee", blobBaseFee.String())
-	} else {
-		o.log.Debug("Block does not support blob transactions", "block", blockNum)
+	if blockNum > o.latestBlock {
+		o.latestBlock = blockNum
 	}
 
 	return nil
@@ -235,6 +247,7 @@ func (o *BlobGasPriceOracle) processHeader(header *types.Header) error {
 func (o *BlobGasPriceOracle) fetchBlockBlobFeeCaps(blockNum uint64) {
 	// Check if we already have the blob fee caps cached
 	if _, ok := o.blobFeeCaps.Get(blockNum); ok {
+		o.log.Info("Skipping blob fee caps fetch, already processed", "block", blockNum)
 		return
 	}
 
@@ -245,7 +258,7 @@ func (o *BlobGasPriceOracle) fetchBlockBlobFeeCaps(blockNum uint64) {
 	var block rpcBlock
 	blockNumHex := hexutil.EncodeUint64(blockNum)
 	if err := o.client.CallContext(ctx, &block, "eth_getBlockByNumber", blockNumHex, true); err != nil {
-		o.log.Debug("Failed to fetch block for blob fee caps", "block", blockNum, "err", err)
+		o.log.Warn("Failed to fetch block for blob fee caps", "block", blockNum, "err", err)
 		return
 	}
 
@@ -345,7 +358,7 @@ func (o *BlobGasPriceOracle) SuggestBlobTipCap(ctx context.Context, maxBlocks in
 		})
 		idx := (len(blobFeeCaps) - 1) * percentile / 100
 		suggested := new(big.Int).Set(blobFeeCaps[idx])
-		o.log.Debug("Suggested blob tip cap from recent transactions", "suggested", suggested.String(), "samples", len(blobFeeCaps), "percentile", percentile)
+		o.log.Info("Suggested blob tip cap from recent transactions", "suggested", suggested.String(), "samples", len(blobFeeCaps), "percentile", percentile)
 		return suggested, nil
 	}
 
@@ -358,7 +371,7 @@ func (o *BlobGasPriceOracle) SuggestBlobTipCap(ctx context.Context, maxBlocks in
 	// Add 10% buffer to the base fee to ensure competitiveness
 	buffer := new(big.Int).Div(blobBaseFee, big.NewInt(10))
 	suggested := new(big.Int).Add(blobBaseFee, buffer)
-	o.log.Debug("No recent blob transactions found, using blob base fee + buffer", "block", latestBlock, "blobBaseFee", blobBaseFee.String(), "suggested", suggested.String())
+	o.log.Info("No recent blob transactions found, using blob base fee + buffer", "block", latestBlock, "blobBaseFee", blobBaseFee.String(), "suggested", suggested.String())
 	return suggested, nil
 }
 
@@ -370,6 +383,7 @@ func (o *BlobGasPriceOracle) extractBlobFeeCaps(block rpcBlock) []*big.Int {
 		if tx.Type() == types.BlobTxType {
 			if blobFeeCap := tx.BlobGasFeeCap(); blobFeeCap != nil {
 				feeCaps = append(feeCaps, blobFeeCap)
+				o.log.Info("Extracted blob fee cap", "block", uint64(block.Number), "feeCap", blobFeeCap.String())
 			}
 		}
 	}

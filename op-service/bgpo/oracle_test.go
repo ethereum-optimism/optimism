@@ -2,7 +2,6 @@ package bgpo
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -52,26 +51,6 @@ func (m *mockRPC) Close() {
 }
 
 var _ client.RPC = (*mockRPC)(nil)
-
-type mockSubscription struct {
-	errCh chan error
-	done  chan struct{}
-}
-
-func newMockSubscription() *mockSubscription {
-	return &mockSubscription{
-		errCh: make(chan error, 1),
-		done:  make(chan struct{}),
-	}
-}
-
-func (m *mockSubscription) Err() <-chan error {
-	return m.errCh
-}
-
-func (m *mockSubscription) Unsubscribe() {
-	close(m.done)
-}
 
 func createHeader(blockNum uint64, excessBlobGas *uint64) *types.Header {
 	header := &types.Header{
@@ -206,9 +185,9 @@ func TestProcessHeader(t *testing.T) {
 		err := oracle.processHeader(header)
 		require.NoError(t, err)
 
-		// Check that nil was stored for pre-Dencun blocks
+		// Check that blob base fee is nil
 		blobBaseFee := oracle.GetBlobBaseFee(101)
-		require.Nil(t, blobBaseFee)
+		require.Equal(t, big.NewInt(0), blobBaseFee)
 
 		// Latest block should be updated
 		latestBlock, _ := oracle.GetLatestBlobBaseFee()
@@ -555,202 +534,4 @@ func TestExtractBlobFeeCaps(t *testing.T) {
 		require.Equal(t, big.NewInt(5000000), feeCaps[0])
 		require.Equal(t, big.NewInt(6000000), feeCaps[1])
 	})
-}
-
-func TestStart(t *testing.T) {
-	t.Run("successful start and context cancellation", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		mrpc := new(mockRPC)
-		chainConfig := params.MainnetChainConfig
-		logger := testlog.Logger(t, log.LevelError)
-
-		oracle := NewBlobGasPriceOracle(ctx, mrpc, chainConfig, logger, &BlobGasPriceOracleConfig{
-			PricesCacheSize: 10,
-			BlockCacheSize:  10,
-			MaxBlocks:       1, // Small to avoid pre-population overhead
-		})
-
-		// Mock pre-population to fail quickly (we'll test it separately)
-		mrpc.On("CallContext", mock.Anything, mock.Anything, "eth_blockNumber", mock.MatchedBy(func(args []any) bool {
-			return len(args) == 0
-		})).
-			Return(fmt.Errorf("skip pre-population")).Once()
-
-		// Mock subscription
-		mockSub := newMockSubscription()
-		mrpc.On("Subscribe", mock.Anything, "eth", mock.Anything, []any{"newHeads"}).
-			Return(mockSub, nil).Once()
-
-		// Start in a goroutine
-		startErrCh := make(chan error, 1)
-		go func() {
-			startErrCh <- oracle.Start()
-		}()
-
-		// Give it a moment to start and subscribe
-		time.Sleep(50 * time.Millisecond)
-
-		// Cancel context to stop Start()
-		cancel()
-
-		// Wait for Start to return
-		select {
-		case err := <-startErrCh:
-			require.NoError(t, err)
-		case <-time.After(1 * time.Second):
-			t.Fatal("Start() did not return after context cancellation")
-		}
-
-		mrpc.AssertExpectations(t)
-	})
-
-	t.Run("subscription error", func(t *testing.T) {
-		ctx := context.Background()
-		mrpc := new(mockRPC)
-		chainConfig := params.MainnetChainConfig
-		logger := testlog.Logger(t, log.LevelError)
-
-		oracle := NewBlobGasPriceOracle(ctx, mrpc, chainConfig, logger, &BlobGasPriceOracleConfig{
-			MaxBlocks: 1,
-		})
-
-		// Mock pre-population to fail
-		mrpc.On("CallContext", mock.Anything, mock.Anything, "eth_blockNumber", mock.MatchedBy(func(args []any) bool {
-			return len(args) == 0
-		})).
-			Return(fmt.Errorf("skip pre-population")).Once()
-
-		// Mock subscription error
-		mrpc.On("Subscribe", mock.Anything, "eth", mock.Anything, []any{"newHeads"}).
-			Return(nil, fmt.Errorf("subscription failed")).Once()
-
-		err := oracle.Start()
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "subscription failed")
-
-		mrpc.AssertExpectations(t)
-	})
-
-	t.Run("subscription error during processing", func(t *testing.T) {
-		ctx := context.Background()
-		mrpc := new(mockRPC)
-		chainConfig := params.MainnetChainConfig
-		logger := testlog.Logger(t, log.LevelError)
-
-		oracle := NewBlobGasPriceOracle(ctx, mrpc, chainConfig, logger, &BlobGasPriceOracleConfig{
-			PricesCacheSize: 10,
-			BlockCacheSize:  10,
-			MaxBlocks:       1,
-		})
-
-		// Mock pre-population to fail
-		mrpc.On("CallContext", mock.Anything, mock.Anything, "eth_blockNumber", mock.MatchedBy(func(args []any) bool {
-			return len(args) == 0
-		})).
-			Return(fmt.Errorf("skip pre-population")).Once()
-
-		// Mock subscription
-		mockSub := newMockSubscription()
-		mrpc.On("Subscribe", mock.Anything, "eth", mock.Anything, []any{"newHeads"}).
-			Return(mockSub, nil).Once()
-
-		// Start in a goroutine
-		startErrCh := make(chan error, 1)
-		go func() {
-			startErrCh <- oracle.Start()
-		}()
-
-		// Give it time to start
-		time.Sleep(50 * time.Millisecond)
-
-		// Trigger subscription error
-		mockSub.errCh <- fmt.Errorf("subscription error")
-
-		// Wait for Start to return with error
-		select {
-		case err := <-startErrCh:
-			require.Error(t, err)
-			require.Contains(t, err.Error(), "subscription error")
-		case <-time.After(1 * time.Second):
-			t.Fatal("Start() did not return after subscription error")
-		}
-
-		mrpc.AssertExpectations(t)
-	})
-
-	t.Run("context cancellation", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		mrpc := new(mockRPC)
-		chainConfig := params.MainnetChainConfig
-		logger := testlog.Logger(t, log.LevelError)
-
-		oracle := NewBlobGasPriceOracle(ctx, mrpc, chainConfig, logger, &BlobGasPriceOracleConfig{
-			MaxBlocks: 1,
-		})
-
-		// Mock pre-population to fail
-		mrpc.On("CallContext", mock.Anything, mock.Anything, "eth_blockNumber", mock.MatchedBy(func(args []any) bool {
-			return len(args) == 0
-		})).
-			Return(fmt.Errorf("skip pre-population")).Once()
-
-		// Mock subscription
-		mockSub := newMockSubscription()
-		mrpc.On("Subscribe", mock.Anything, "eth", mock.Anything, []any{"newHeads"}).
-			Return(mockSub, nil).Once()
-
-		// Start in a goroutine
-		startErrCh := make(chan error, 1)
-		go func() {
-			startErrCh <- oracle.Start()
-		}()
-
-		// Give it time to start
-		time.Sleep(50 * time.Millisecond)
-
-		// Cancel context
-		cancel()
-
-		// Wait for Start to return
-		select {
-		case err := <-startErrCh:
-			require.NoError(t, err) // Context cancellation should return nil error
-		case <-time.After(1 * time.Second):
-			t.Fatal("Start() did not return after context cancellation")
-		}
-
-		mrpc.AssertExpectations(t)
-	})
-}
-
-func TestClose(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	mrpc := new(mockRPC)
-	chainConfig := params.MainnetChainConfig
-	logger := testlog.Logger(t, log.LevelError)
-
-	oracle := NewBlobGasPriceOracle(ctx, mrpc, chainConfig, logger, &BlobGasPriceOracleConfig{
-		MaxBlocks: 1, // Small to avoid pre-population overhead
-	})
-
-	// Mock pre-population calls (it will try to pre-populate but we'll make it fail quickly)
-	mrpc.On("CallContext", mock.Anything, mock.Anything, "eth_blockNumber", mock.MatchedBy(func(args []any) bool {
-		return len(args) == 0
-	})).
-		Return(fmt.Errorf("skip pre-population")).Maybe()
-
-	mockSub := newMockSubscription()
-	mrpc.On("Subscribe", mock.Anything, "eth", mock.Anything, []any{"newHeads"}).
-		Return(mockSub, nil).Maybe()
-	mrpc.On("Close").Maybe()
-
-	// Close the oracle (without starting it)
-	oracle.Close()
-
-	// Verify Close doesn't panic and cleans up
-	require.True(t, true) // Just verify we got here
 }

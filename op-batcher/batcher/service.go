@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"sync/atomic"
 	"time"
 
@@ -19,7 +20,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/bgpo"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -80,6 +83,10 @@ type BatcherService struct {
 	stopped         atomic.Bool
 
 	NotSubmittingOnStart bool
+
+	// BlobGasPriceOracle tracks blob base gas prices for dynamic pricing
+	blobGasPriceOracle *bgpo.BlobGasPriceOracle
+	oracleStopCh       chan struct{}
 }
 
 type DriverSetupOption func(setup *DriverSetup)
@@ -169,6 +176,9 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, closeApp contex
 	if err := bs.initRollupConfig(ctx); err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)
 	}
+	if err := bs.initBlobGasPriceOracle(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to init blob gas price oracle: %w", err)
+	}
 	if err := bs.initTxManager(cfg); err != nil {
 		return fmt.Errorf("failed to init Tx manager: %w", err)
 	}
@@ -251,6 +261,40 @@ func (bs *BatcherService) initRollupConfig(ctx context.Context) error {
 		return fmt.Errorf("invalid rollup config: %w", err)
 	}
 	bs.RollupConfig.LogDescription(bs.Log, chaincfg.L2ChainIDToNetworkDisplayName)
+	return nil
+}
+
+func (bs *BatcherService) initBlobGasPriceOracle(ctx context.Context, cfg *CLIConfig) error {
+	// Only initialize the oracle if we're using blobs or auto mode
+	if cfg.DataAvailabilityType != flags.BlobsType && cfg.DataAvailabilityType != flags.AutoType {
+		bs.Log.Debug("Skipping blob gas price oracle initialization (not using blobs)")
+		return nil
+	}
+
+	// Get RPC client from L1 client
+	// The ethclient.Client has a Client() method that returns the underlying *rpc.Client
+	rpcClient := bs.L1Client.Client()
+	if rpcClient == nil {
+		return fmt.Errorf("failed to get RPC client from L1 client")
+	}
+
+	// Get L1 chain config from rollup config
+	l1ChainID := eth.ChainIDFromBig(bs.RollupConfig.L1ChainID)
+	l1ChainConfig := eth.L1ChainConfigByChainID(l1ChainID)
+	if l1ChainConfig == nil {
+		bs.Log.Info("Blob gas price oracle not initialized when L1 chain ID is not known (Ethereum mainnet, Sepolia, Holesky, Hoodi)")
+		return nil
+	}
+
+	// Wrap the RPC client to match the client.RPC interface
+	baseRPCClient := client.NewBaseRPCClient(rpcClient)
+
+	// Create the oracle with default config
+	oracleConfig := bgpo.DefaultBlobGasPriceOracleConfig()
+	bs.blobGasPriceOracle = bgpo.NewBlobGasPriceOracle(ctx, baseRPCClient, l1ChainConfig, bs.Log, oracleConfig)
+	bs.oracleStopCh = make(chan struct{})
+
+	bs.Log.Info("Initialized blob gas price oracle")
 	return nil
 }
 
@@ -341,7 +385,46 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 }
 
 func (bs *BatcherService) initTxManager(cfg *CLIConfig) error {
-	txManager, err := txmgr.NewSimpleTxManager("batcher", bs.Log, bs.Metrics, cfg.TxMgrConfig)
+	// Create the base config from CLI config
+	txmgrConfig, err := txmgr.NewConfig(cfg.TxMgrConfig, bs.Log)
+	if err != nil {
+		return err
+	}
+
+	// Create a custom gas price estimator that uses the blob gas price oracle if available
+	if bs.blobGasPriceOracle != nil {
+		txmgrConfig.GasPriceEstimatorFn = func(ctx context.Context, backend txmgr.ETHBackend) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
+			// Get tip and base fee from backend (standard way for execution gas)
+			tip, err := backend.SuggestGasTipCap(ctx)
+			if err != nil {
+				return nil, nil, nil, nil, err
+			}
+
+			head, err := backend.HeaderByNumber(ctx, nil)
+			if err != nil {
+				return nil, nil, nil, nil, err
+			}
+			if head.BaseFee == nil {
+				return nil, nil, nil, nil, errors.New("txmgr does not support pre-london blocks that do not have a base fee")
+			}
+
+			blobBaseFee, err := backend.BlobBaseFee(ctx)
+			if err != nil {
+				return nil, nil, nil, nil, err
+			}
+
+			// Use the oracle's SuggestBlobTipCap for blob tip fee suggestion
+			// This analyzes recent blob transactions to suggest an appropriate blob tip fee
+			suggestedBlobFeeCap, err := bs.blobGasPriceOracle.SuggestBlobTipCap(ctx, 0, 0)
+			if err != nil {
+				return nil, nil, nil, nil, fmt.Errorf("blob gas price oracle failed to suggest blob tip fee: %w", err)
+			}
+
+			return tip, head.BaseFee, suggestedBlobFeeCap, blobBaseFee, nil
+		}
+	}
+
+	txManager, err := txmgr.NewSimpleTxManagerFromConfig("batcher", bs.Log, bs.Metrics, txmgrConfig)
 	if err != nil {
 		return err
 	}
@@ -439,8 +522,19 @@ func (bs *BatcherService) initAltDA(cfg *CLIConfig) error {
 
 // Start runs once upon start of the batcher lifecycle,
 // and starts batch-submission work if the batcher is configured to start submit data on startup.
-func (bs *BatcherService) Start(_ context.Context) error {
+func (bs *BatcherService) Start(ctx context.Context) error {
 	bs.driver.Log.Info("Starting batcher", "notSubmittingOnStart", bs.NotSubmittingOnStart)
+
+	// Start the blob gas price oracle if it's initialized
+	if bs.blobGasPriceOracle != nil {
+		go func() {
+			if err := bs.blobGasPriceOracle.Start(); err != nil {
+				bs.Log.Error("Blob gas price oracle stopped with error", "err", err)
+			}
+			close(bs.oracleStopCh)
+		}()
+		bs.Log.Info("Started blob gas price oracle")
+	}
 
 	if !bs.NotSubmittingOnStart {
 		return bs.driver.StartBatchSubmitting()
@@ -473,6 +567,20 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 	// (transactions which are expected to be confirmed are still waited for)
 	if bs.TxManager != nil {
 		bs.TxManager.Close()
+	}
+
+	// Stop the blob gas price oracle if it's running
+	if bs.blobGasPriceOracle != nil {
+		bs.blobGasPriceOracle.Close()
+		// Wait for the oracle goroutine to finish
+		if bs.oracleStopCh != nil {
+			select {
+			case <-bs.oracleStopCh:
+				// Oracle stopped
+			case <-ctx.Done():
+				// Context cancelled, force stop
+			}
+		}
 	}
 
 	var result error
