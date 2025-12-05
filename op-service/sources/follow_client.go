@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var errFollowSourceCurrentL1NotSupported = errors.New("follow source does not support CurrentL1")
+var ErrFollowSourceCurrentL1NotSupported = errors.New("follow source does not support CurrentL1")
 
 type FollowClient struct {
 	l2Client     *L2Client
@@ -72,5 +72,5 @@ func (s *FollowClient) CurrentL1(ctx context.Context) (eth.L1BlockRef, error) {
 		}
 		return status.CurrentL1, nil
 	}
-	return eth.L1BlockRef{}, errFollowSourceCurrentL1NotSupported
+	return eth.L1BlockRef{}, ErrFollowSourceCurrentL1NotSupported
 }
