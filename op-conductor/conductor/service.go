@@ -213,9 +213,14 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 	}
 	node := sources.NewRollupClient(nc)
 
-	var rb client.RollupBoostClient
+	// Create rollup-boost health checker (either standard or next, mutually exclusive)
+	var rollupBoostHealthChecker client.RollupBoostHealthChecker
 	if c.cfg.RollupBoostEnabled {
-		rb = client.NewRollupBoostClient(c.cfg.ExecutionRPC, &http.Client{
+		rollupBoostHealthChecker = client.NewRollupBoostClient(c.cfg.ExecutionRPC, &http.Client{
+			Timeout: c.cfg.RollupBoostHealthcheckTimeout,
+		})
+	} else if c.cfg.RollupBoostNextEnabled {
+		rollupBoostHealthChecker = client.NewRollupBoostNextClient(c.cfg.RollupBoostNextHealthcheckURL, &http.Client{
 			Timeout: c.cfg.RollupBoostHealthcheckTimeout,
 		})
 	}
@@ -260,7 +265,7 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		node,
 		p2p,
 		supervisor,
-		rb,
+		rollupBoostHealthChecker,
 		elP2p,
 		c.cfg.HealthCheck.ExecutionP2pMinPeerCount,
 		c.cfg.HealthCheck.RollupBoostPartialHealthinessToleranceLimit,
@@ -957,8 +962,8 @@ func (oc *OpConductor) shouldWaitForHealthRecovery() bool {
 		return false
 	}
 
-	// Don't wait if rollup boost is enabled and partially healthy - transfer leadership instead
-	if oc.cfg.RollupBoostEnabled && errors.Is(oc.hcerr, health.ErrRollupBoostPartiallyHealthy) {
+	// Don't wait if rollup boost healthcheck is enabled and partially healthy - transfer leadership instead
+	if (oc.cfg.RollupBoostEnabled || oc.cfg.RollupBoostNextEnabled) && errors.Is(oc.hcerr, health.ErrRollupBoostPartiallyHealthy) {
 		return false
 	}
 
