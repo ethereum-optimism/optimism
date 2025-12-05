@@ -46,7 +46,7 @@ func (s *FollowClient) GetFollowStatus(ctx context.Context) (*FollowStatus, erro
 	if s.followCL {
 		status, err := s.rollupClient.SyncStatus(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to fetch external syncStatus", "err", err)
+			return nil, fmt.Errorf("failed to fetch external syncStatus", "err", err)
 		}
 		return &FollowStatus{
 			FinalizedL2: status.FinalizedL2,
@@ -56,11 +56,11 @@ func (s *FollowClient) GetFollowStatus(ctx context.Context) (*FollowStatus, erro
 	}
 	eFinalized, err := s.l2Client.L2BlockRefByLabel(ctx, eth.Finalized)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch external finalizedRef", "err", err)
+		return nil, fmt.Errorf("failed to fetch external finalizedRef", "err", err)
 	}
 	eSafe, err := s.l2Client.L2BlockRefByLabel(ctx, eth.Safe)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch external safeRef", "err", err)
+		return nil, fmt.Errorf("failed to fetch external safeRef", "err", err)
 	}
 	return &FollowStatus{FinalizedL2: eFinalized, SafeL2: eSafe}, nil
 }
