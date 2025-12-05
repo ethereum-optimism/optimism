@@ -18,9 +18,6 @@ var (
 	// DeployV2DisputeGamesDevFlag enables deployment of V2 dispute game contracts.
 	DeployV2DisputeGamesDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000100")
 
-	// CustomGasTokenDevFlag enables the custom gas token.
-	CustomGasTokenDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000001000")
-
 	// OPCMV2DevFlag enables the OPContractsManagerV2 contract.
 	OPCMV2DevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000010000")
 )
