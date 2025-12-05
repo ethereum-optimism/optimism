@@ -25,12 +25,8 @@ fi
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 CONTRACTS_DIR="$SCRIPT_DIR/../.."
-<<<<<<< HEAD
-DEPLOY_BUCKET="boba-contract-artifacts"
-=======
 DEPLOY_BUCKET="oplabs-contract-artifacts"
 BUCKET_URL="https://storage.googleapis.com/$DEPLOY_BUCKET"
->>>>>>> upstream/develop
 
 # Resolve paths
 ROOT_DIR=$(cd -- "$CONTRACTS_DIR/../.." &> /dev/null && pwd)
@@ -97,13 +93,3 @@ gcloud --verbosity="info" storage cp "gs://$DEPLOY_BUCKET/$archive_name_zst" "gs
 echoerr "> Uploaded to: https://storage.googleapis.com/$DEPLOY_BUCKET/artifacts-v1-latest.tar.zst"
 
 echoerr "> Done."
-<<<<<<< HEAD
-
-echoerr "> Uploading artifacts to GCS..."
-gcloud storage cp "$archive_name" "gs://$DEPLOY_BUCKET/$archive_name"
-echoerr "> Done."
-
-rm "$archive_name"
-rm COMMIT
-=======
->>>>>>> upstream/develop

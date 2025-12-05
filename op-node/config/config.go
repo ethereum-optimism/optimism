@@ -16,11 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-<<<<<<< HEAD:op-node/node/config.go
-	"github.com/ethereum-optimism/optimism/op-service/httputil"
-=======
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
->>>>>>> upstream/develop:op-node/config/config.go
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
@@ -99,38 +95,6 @@ type Config struct {
 // ConductorRPCFunc retrieves the endpoint. The RPC may not immediately be available.
 type ConductorRPCFunc func(ctx context.Context) (string, error)
 
-<<<<<<< HEAD:op-node/node/config.go
-type RPCConfig struct {
-	ListenAddr    string
-	ListenPort    int
-	EnableAdmin   bool
-	ListenTimeout *httputil.HTTPTimeouts
-}
-
-func (cfg *RPCConfig) HttpEndpoint() string {
-	return fmt.Sprintf("http://%s:%d", cfg.ListenAddr, cfg.ListenPort)
-}
-
-type MetricsConfig struct {
-	Enabled    bool
-	ListenAddr string
-	ListenPort int
-}
-
-func (m MetricsConfig) Check() error {
-	if !m.Enabled {
-		return nil
-	}
-
-	if m.ListenPort < 0 || m.ListenPort > math.MaxUint16 {
-		return errors.New("invalid metrics port")
-	}
-
-	return nil
-}
-
-=======
->>>>>>> upstream/develop:op-node/config/config.go
 func (cfg *Config) LoadPersisted(log log.Logger) error {
 	if !cfg.Driver.SequencerEnabled {
 		return nil

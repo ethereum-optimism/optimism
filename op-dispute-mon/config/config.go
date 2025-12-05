@@ -30,10 +30,6 @@ const (
 
 	//DefaultMaxConcurrency is the default number of threads to use when fetching game data
 	DefaultMaxConcurrency = uint(5)
-
-	// Rollup RPC timeouts
-	DefaultRollupRpcTimeout      = time.Second * 15
-	DefaultRollupRpcBatchTimeout = time.Second * 30
 )
 
 // Config is a well typed config that is parsed from the CLI params.
@@ -42,17 +38,6 @@ type Config struct {
 	L1EthRpc           string         // L1 RPC Url
 	GameFactoryAddress common.Address // Address of the dispute game factory
 
-<<<<<<< HEAD
-	HonestActors          []common.Address // List of honest actors to monitor claims for.
-	RollupRpc             string           // The rollup node RPC URL.
-	RollupRpcTimeout      time.Duration    // Timeout for L2 Rollup RPC requests
-	RollupRpcBatchTimeout time.Duration    // Timeout for L2 Rollup RPC batch requests
-	SupervisorRpc         string           // The supervisor RPC URL.
-	MonitorInterval       time.Duration    // Frequency to check for new games to monitor.
-	GameWindow            time.Duration    // Maximum window to look for games to monitor.
-	IgnoredGames          []common.Address // Games to exclude from monitoring
-	MaxConcurrency        uint             // Maximum number of threads to use when fetching game data
-=======
 	HonestActors    []common.Address // List of honest actors to monitor claims for.
 	RollupRpcs      []string         // The rollup node RPC URLs.
 	SupervisorRpcs  []string         // The supervisor RPC URLs.
@@ -60,7 +45,6 @@ type Config struct {
 	GameWindow      time.Duration    // Maximum window to look for games to monitor.
 	IgnoredGames    []common.Address // Games to exclude from monitoring
 	MaxConcurrency  uint             // Maximum number of threads to use when fetching game data
->>>>>>> upstream/develop
 
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
@@ -76,19 +60,10 @@ func NewConfig(gameFactoryAddress common.Address, l1EthRpc string, rollupRpcs []
 
 func NewCombinedConfig(gameFactoryAddress common.Address, l1EthRpc string, rollupRpcs []string, supervisorRpcs []string) Config {
 	return Config{
-<<<<<<< HEAD
-		L1EthRpc:              l1EthRpc,
-		RollupRpc:             rollupRpc,
-		RollupRpcTimeout:      DefaultRollupRpcTimeout,
-		RollupRpcBatchTimeout: DefaultRollupRpcBatchTimeout,
-		SupervisorRpc:         supervisorRpc,
-		GameFactoryAddress:    gameFactoryAddress,
-=======
 		L1EthRpc:           l1EthRpc,
 		RollupRpcs:         rollupRpcs,
 		SupervisorRpcs:     supervisorRpcs,
 		GameFactoryAddress: gameFactoryAddress,
->>>>>>> upstream/develop
 
 		MonitorInterval: DefaultMonitorInterval,
 		GameWindow:      DefaultGameWindow,

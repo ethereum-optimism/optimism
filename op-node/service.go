@@ -27,12 +27,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
-<<<<<<< HEAD
-	"github.com/ethereum-optimism/optimism/op-service/httputil"
-=======
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
->>>>>>> upstream/develop
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -102,31 +98,6 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		log.Warn("Heartbeat functionality is not supported anymore, CLI flags will be removed in following release.")
 	}
 	conductorRPCEndpoint := ctx.String(flags.ConductorRpcFlag.Name)
-<<<<<<< HEAD
-	cfg := &node.Config{
-		L1:            l1Endpoint,
-		L2:            l2Endpoint,
-		Rollup:        *rollupConfig,
-		Driver:        *driverConfig,
-		Beacon:        NewBeaconEndpointConfig(ctx),
-		InteropConfig: NewSupervisorEndpointConfig(ctx),
-		RPC: node.RPCConfig{
-			ListenAddr: ctx.String(flags.RPCListenAddr.Name),
-			ListenPort: ctx.Int(flags.RPCListenPort.Name),
-			ListenTimeout: &httputil.HTTPTimeouts{
-				ReadTimeout:       ctx.Duration(flags.RPCListenReadTimeout.Name),
-				ReadHeaderTimeout: ctx.Duration(flags.RPCListenReadHeaderTimeout.Name),
-				WriteTimeout:      ctx.Duration(flags.RPCListenWriteTimeout.Name),
-				IdleTimeout:       ctx.Duration(flags.RPCListenIdleTimeout.Name),
-			},
-			EnableAdmin: ctx.Bool(flags.RPCEnableAdmin.Name),
-		},
-		Metrics: node.MetricsConfig{
-			Enabled:    ctx.Bool(flags.MetricsEnabledFlag.Name),
-			ListenAddr: ctx.String(flags.MetricsAddrFlag.Name),
-			ListenPort: ctx.Int(flags.MetricsPortFlag.Name),
-		},
-=======
 	cfg := &config.Config{
 		L1:                          l1Endpoint,
 		L2:                          l2Endpoint,
@@ -138,7 +109,6 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		InteropConfig:               NewSupervisorEndpointConfig(ctx),
 		RPC:                         rpc.ReadCLIConfig(ctx),
 		Metrics:                     opmetrics.ReadCLIConfig(ctx),
->>>>>>> upstream/develop
 		Pprof:                       oppprof.ReadCLIConfig(ctx),
 		P2P:                         p2pConfig,
 		P2PSigner:                   p2pSignerSetup,
@@ -221,8 +191,6 @@ func NewL2EndpointConfig(ctx cliiface.Context, logger log.Logger) (*config.L2End
 		L2EngineAddr:        l2Addr,
 		L2EngineJWTSecret:   secret,
 		L2EngineCallTimeout: l2RpcTimeout,
-		L2RpcTimeout:        ctx.Duration(flags.L2RpcTimeout.Name),
-		L2RpcBatchTimeout:   ctx.Duration(flags.L2RpcBatchTimeout.Name),
 	}, nil
 }
 

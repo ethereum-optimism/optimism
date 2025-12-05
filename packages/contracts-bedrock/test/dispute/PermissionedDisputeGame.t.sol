@@ -183,52 +183,10 @@ contract PermissionedDisputeGame_Step_Test is PermissionedDisputeGame_TestInit {
         vm.stopPrank();
     }
 
-<<<<<<< HEAD
-    /// @dev Tests that the proposer can participate in a permissioned dispute game.
-    function test_participateInGame_proposer_succeeds() public {
-        vm.startPrank(PROPOSER, PROPOSER);
-        uint256 firstBond = _getRequiredBond(0);
-        vm.deal(PROPOSER, firstBond);
-        (,,,, Claim disputed,,) = gameProxy.claimData(0);
-        gameProxy.attack{ value: firstBond }(disputed, 0, Claim.wrap(0));
-        uint256 secondBond = _getRequiredBond(1);
-        vm.deal(PROPOSER, secondBond);
-        (,,,, disputed,,) = gameProxy.claimData(1);
-        gameProxy.defend{ value: secondBond }(disputed, 1, Claim.wrap(0));
-        uint256 thirdBond = _getRequiredBond(2);
-        vm.deal(PROPOSER, thirdBond);
-        (,,,, disputed,,) = gameProxy.claimData(2);
-        gameProxy.move{ value: thirdBond }(disputed, 2, Claim.wrap(0), true);
-        vm.stopPrank();
-    }
-
-    /// @dev Tests that addresses that are not the proposer or challenger cannot participate in a permissioned dispute
-    ///      game.
-    function test_participateInGame_notAuthorized_reverts(address _p) public {
-        vm.assume(_p != PROPOSER && _p != CHALLENGER);
-
-        vm.startPrank(_p, _p);
-        (,,,, Claim disputed,,) = gameProxy.claimData(0);
-        vm.expectRevert();
-        gameProxy.attack(disputed, 0, Claim.wrap(0));
-        vm.expectRevert();
-        gameProxy.defend(disputed, 0, Claim.wrap(0));
-        vm.expectRevert();
-        gameProxy.move(disputed, 0, Claim.wrap(0), true);
-        vm.expectRevert();
-        gameProxy.step(0, true, absolutePrestateData, hex"");
-        vm.stopPrank();
-    }
-
-    /// @dev Tests that step works properly.
-    function test_step_succeeds() public {
-        // Give the test contract some ether
-=======
     /// @notice Tests that step reverts for unauthorized addresses.
     function test_step_notAuthorized_reverts(address _unauthorized) internal {
         vm.assume(_unauthorized != PROPOSER && _unauthorized != CHALLENGER);
         vm.deal(_unauthorized, 1_000 ether);
->>>>>>> upstream/develop
         vm.deal(CHALLENGER, 1_000 ether);
 
         // Set up for the step using an authorized actor

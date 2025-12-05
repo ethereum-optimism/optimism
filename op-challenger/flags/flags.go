@@ -6,7 +6,6 @@ import (
 	"runtime"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -67,18 +66,6 @@ var (
 		Name:    "rollup-rpc",
 		Usage:   "HTTP provider URL for the rollup node",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
-	}
-	RollupRpcTimeoutFlag = &cli.DurationFlag{
-		Name:    "rollup-rpc-timeout",
-		Usage:   "Timeout for rollup RPC requests",
-		EnvVars: prefixEnvVars("ROLLUP_RPC_TIMEOUT"),
-		Value:   time.Second * 15,
-	}
-	RollupRpcBatchTimeoutFlag = &cli.DurationFlag{
-		Name:    "rollup-rpc-batch-timeout",
-		Usage:   "Timeout for rollup RPC batch requests",
-		EnvVars: prefixEnvVars("ROLLUP_RPC_BATCH_TIMEOUT"),
-		Value:   time.Second * 30,
 	}
 	NetworkFlag = &cli.StringSliceFlag{
 		Name:    flags.NetworkFlagName,
@@ -356,13 +343,8 @@ var optionalFlags = []cli.Flag{
 	GameWindowFlag,
 	SelectiveClaimResolutionFlag,
 	UnsafeAllowInvalidPrestate,
-<<<<<<< HEAD
-	RollupRpcTimeoutFlag,
-	RollupRpcBatchTimeoutFlag,
-=======
 	ResponseDelayFlag,
 	ResponseDelayAfterFlag,
->>>>>>> upstream/develop
 }
 
 func init() {
@@ -768,8 +750,6 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		MinUpdateInterval:       ctx.Duration(MinUpdateInterval.Name),
 		AdditionalBondClaimants: claimants,
 		RollupRpc:               ctx.String(RollupRpcFlag.Name),
-		RollupRpcTimeout:        ctx.Duration(RollupRpcTimeoutFlag.Name),
-		RollupRpcBatchTimeout:   ctx.Duration(RollupRpcBatchTimeoutFlag.Name),
 		SupervisorRPC:           ctx.String(SupervisorRpcFlag.Name),
 		Cannon: vm.Config{
 			VmType:            gameTypes.CannonGameType,

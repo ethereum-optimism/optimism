@@ -1,27 +1,12 @@
 version: 2.1
 
 parameters:
-  registry:
+  default_docker_image:
     type: string
-    default: "us-docker.pkg.dev"
-  ci_builder_image:
-    type: string
-    default: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:v1.5.4
-  repo:
-    type: string
-    default: ${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images
-  ci_builder_rust_image:
-    type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder-rust:latest
+    default: cimg/base:2024.01
   base_image:
     type: string
     default: default
-  mainnet_rpc_url:
-    type: string
-    default: ${ETH_RPC_URL}
-  sepolia_rpc_url:
-    type: string
-    default: ${SEPOLIA_RPC_URL}
   # The dispatch parameters are used to manually dispatch pipelines that normally only run post-merge on develop
   # from the CircleCI UI. Example configuration:
   #   when:
@@ -109,21 +94,17 @@ orbs:
   slack: circleci/slack@6.0.0
   shellcheck: circleci/shellcheck@3.2.0
   codecov: codecov/codecov@5.0.3
-<<<<<<< HEAD
-  # utils: ethereum-optimism/circleci-utils@1.0.8
-=======
   utils: ethereum-optimism/circleci-utils@1.0.22
   docker: circleci/docker@2.8.2
   github-cli: circleci/github-cli@2.7.0
->>>>>>> upstream/develop
 
 commands:
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
     parameters:
-      project_number:
+      project_id:
         type: env_var_name
-        default: GCP_PROJECT_NUMBER
+        default: GCP_PROJECT_ID
       workload_identity_pool_id:
         type: env_var_name
         default: GCP_WIP_ID
@@ -147,7 +128,7 @@ commands:
             echo $CIRCLE_OIDC_TOKEN > << parameters.oidc_token_file_path >>
             # Create a credential configuration for the generated OIDC ID Token
             gcloud iam workload-identity-pools create-cred-config \
-                "projects/${<< parameters.project_number >>}/locations/global/workloadIdentityPools/${<< parameters.workload_identity_pool_id >>}/providers/${<< parameters.workload_identity_pool_provider_id >>}"\
+                "projects/${<< parameters.project_id >>}/locations/global/workloadIdentityPools/${<< parameters.workload_identity_pool_id >>}/providers/${<< parameters.workload_identity_pool_provider_id >>}"\
                 --output-file="<< parameters.gcp_cred_config_file_path >>" \
                 --service-account="${<< parameters.service_account_email >>}" \
                 --credential-source-file=<< parameters.oidc_token_file_path >>
@@ -507,11 +488,7 @@ jobs:
 
   cannon-go-lint-and-test:
     docker:
-<<<<<<< HEAD
-      - image: <<pipeline.parameters.ci_builder_image>>
-=======
       - image: <<pipeline.parameters.default_docker_image>>
->>>>>>> upstream/develop
     resource_class: xlarge
     parameters:
       skip_slow_tests:
@@ -526,14 +503,10 @@ jobs:
         type: boolean
         default: false
     steps:
-<<<<<<< HEAD
-      - checkout
-=======
       - utils/checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
           at: .
->>>>>>> upstream/develop
       - check-changed:
           patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage,go.mod
       - run:
@@ -579,41 +552,6 @@ jobs:
 
   diff-asterisc-bytecode:
     docker:
-<<<<<<< HEAD
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: large
-    steps:
-      - checkout
-      - check-changed:
-          patterns: cannon/mipsevm/tests/open_mips_tests/test
-      - run:
-          name: Install dependencies
-          command: |
-            apt-get update
-            apt-get install -y binutils-mips-linux-gnu
-            pip install capstone pyelftools
-      - run:
-          name: Build MIPS test vectors
-          command: |
-            python3 maketests.py && git diff --exit-code
-          working_directory: cannon/mipsevm/tests/open_mips_tests
-
-  # diff-asterisc-bytecode:
-  #   machine: true
-  #   resource_class: ethereum-optimism/latitude-1
-  #   steps:
-  #     - checkout
-  #     - run:
-  #         name: Check `RISCV.sol` bytecode
-  #         working_directory: packages/contracts-bedrock
-  #         command: |
-  #           # Clone asterisc @ the pinned version to fetch remote `RISCV.sol`
-  #           ASTERISC_REV="v$(yq '.tools.asterisc' ../../mise.toml)"
-  #           REMOTE_ASTERISC_PATH="./src/vendor/asterisc/RISCV_Remote.sol"
-  #           git clone https://github.com/ethereum-optimism/asterisc \
-  #             -b $ASTERISC_REV && \
-  #             cp ./asterisc/rvsol/src/RISCV.sol $REMOTE_ASTERISC_PATH
-=======
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     steps:
@@ -629,40 +567,34 @@ jobs:
             git clone https://github.com/ethereum-optimism/asterisc \
               -b $ASTERISC_REV && \
               cp ./asterisc/rvsol/src/RISCV.sol $REMOTE_ASTERISC_PATH
->>>>>>> upstream/develop
 
-  #           # Replace import paths
-  #           sed -i -e 's/@optimism\///' $REMOTE_ASTERISC_PATH
-  #           # Replace legacy interface paths
-  #           sed -i -e 's/src\/cannon\/interfaces\//interfaces\/cannon\//g' $REMOTE_ASTERISC_PATH
-  #           sed -i -e 's/src\/dispute\/interfaces\//interfaces\/dispute\//g' $REMOTE_ASTERISC_PATH
-  #           # Replace contract name
-  #           sed -i -e 's/contract RISCV/contract RISCV_Remote/' $REMOTE_ASTERISC_PATH
+            # Replace import paths
+            sed -i -e 's/@optimism\///' $REMOTE_ASTERISC_PATH
+            # Replace legacy interface paths
+            sed -i -e 's/src\/cannon\/interfaces\//interfaces\/cannon\//g' $REMOTE_ASTERISC_PATH
+            sed -i -e 's/src\/dispute\/interfaces\//interfaces\/dispute\//g' $REMOTE_ASTERISC_PATH
+            # Replace contract name
+            sed -i -e 's/contract RISCV/contract RISCV_Remote/' $REMOTE_ASTERISC_PATH
 
-  #           # Install deps
-  #           forge install
+            # Install deps
+            forge install
 
-  #           # Diff bytecode, with both contracts compiled in the local environment.
-  #           REMOTE_ASTERISC_CODE="$(forge inspect RISCV_Remote bytecode | tr -d '\n')"
-  #           LOCAL_ASTERISC_CODE="$(forge inspect RISCV bytecode | tr -d '\n')"
-  #           if [ "$REMOTE_ASTERISC_CODE" != "$LOCAL_ASTERISC_CODE" ]; then
-  #             echo "Asterisc bytecode mismatch. Local version does not match remote. Diff:"
-  #             diff <(echo "$REMOTE_ASTERISC_CODE") <(echo "$LOCAL_ASTERISC_CODE")
-  #           else
-  #             echo "Asterisc version up to date."
-  #           fi
-  #     - notify-failures-on-develop:
-  #         mentions: "@clabby @proofs-team"
+            # Diff bytecode, with both contracts compiled in the local environment.
+            REMOTE_ASTERISC_CODE="$(forge inspect RISCV_Remote bytecode | tr -d '\n')"
+            LOCAL_ASTERISC_CODE="$(forge inspect RISCV bytecode | tr -d '\n')"
+            if [ "$REMOTE_ASTERISC_CODE" != "$LOCAL_ASTERISC_CODE" ]; then
+              echo "Asterisc bytecode mismatch. Local version does not match remote. Diff:"
+              diff <(echo "$REMOTE_ASTERISC_CODE") <(echo "$LOCAL_ASTERISC_CODE")
+            else
+              echo "Asterisc version up to date."
+            fi
+      - notify-failures-on-develop:
+          mentions: "@clabby @proofs-team"
 
   contracts-bedrock-build:
     docker:
-<<<<<<< HEAD
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-=======
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: 2xlarge
->>>>>>> upstream/develop
     parameters:
       build_args:
         description: Forge build arguments
@@ -673,13 +605,9 @@ jobs:
         type: string
         default: ci
     steps:
-<<<<<<< HEAD
-      - checkout
-=======
       - utils/checkout-with-mise:
           checkout-method: blobless
       - install-zstd
->>>>>>> upstream/develop
       - install-contracts-dependencies
       - run:
           name: Print forge version
@@ -710,22 +638,17 @@ jobs:
 
   check-kontrol-build:
     docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
+      - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     steps:
-<<<<<<< HEAD
-      - checkout
-      - attach_workspace: { at: "." }
-=======
       - utils/checkout-with-mise
       - attach_workspace:
           at: .
->>>>>>> upstream/develop
       - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock
-      # - setup_remote_docker:
-          # docker_layer_caching: true
+      - setup_remote_docker:
+          docker_layer_caching: true
       - run:
           name: Run Kontrol build
           command: just kontrol-summary-full
@@ -747,6 +670,14 @@ jobs:
         description: "Docker buildx bake target"
         type: string
         default: ""
+      registry:
+        description: Docker registry
+        type: string
+        default: "us-docker.pkg.dev"
+      repo:
+        description: Docker repo
+        type: string
+        default: "oplabs-tools-artifacts/images"
       save_image_tag:
         description: Save docker image with given tag
         type: string
@@ -772,14 +703,8 @@ jobs:
       resource_class: "<<parameters.resource_class>>"
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
-<<<<<<< HEAD
-      - checkout
-      - attach_workspace:
-          at: /tmp/docker_images
-=======
       - utils/checkout-with-mise:
           checkout-method: blobless
->>>>>>> upstream/develop
       - run:
           command: mkdir -p /tmp/docker_images
       - when:
@@ -805,13 +730,12 @@ jobs:
               echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
             fi
 
-            export REGISTRY="<<pipeline.parameters.registry>>"
-            export REPOSITORY="<< pipeline.parameters.repo >>"
+            export REGISTRY="<<parameters.registry>>"
+            export REPOSITORY="<<parameters.repo>>"
             export IMAGE_TAGS="$(echo -ne "<<parameters.docker_tags>>" | sed "s/[^a-zA-Z0-9\n,]/-/g")"
             export GIT_COMMIT="$(git rev-parse HEAD)"
             export GIT_DATE="$(git show -s --format='%ct')"
             export PLATFORMS="<<parameters.platforms>>"
-            export VERSION="$(echo -ne "<<pipeline.git.tag>>" | sed "s#.*/\(.*\)#\1#")"
 
             echo "Checking git tags pointing at $GIT_COMMIT:"
             tags_at_commit=$(git tag --points-at $GIT_COMMIT)
@@ -844,7 +768,7 @@ jobs:
 
             DOCKER_OUTPUT_DESTINATION=""
             if [ "<<parameters.publish>>" == "true" ]; then
-              gcloud auth configure-docker <<pipeline.parameters.registry>>
+              gcloud auth configure-docker <<parameters.registry>>
               echo "Building for platforms $PLATFORMS and then publishing to registry"
               DOCKER_OUTPUT_DESTINATION="--push"
               if [ "<<parameters.save_image_tag>>" != "" ]; then
@@ -884,7 +808,7 @@ jobs:
             - run:
                 name: Save
                 command: |
-                  IMAGE_NAME="<<pipeline.parameters.registry>>/<<pipeline.parameters.repo>>/<<parameters.docker_name>>:<<parameters.save_image_tag>>"
+                  IMAGE_NAME="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<parameters.save_image_tag>>"
                   docker save -o /tmp/docker_images/<<parameters.docker_name>>.tar $IMAGE_NAME
             - persist_to_workspace:
                 root: /tmp/docker_images
@@ -896,39 +820,41 @@ jobs:
             - run:
                 name: Tag
                 command: |
-                  ./ops/scripts/ci-docker-tag-op-stack-release.sh <<pipeline.parameters.registry>>/<<pipeline.parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
-      # - when:
-      #     condition:
-      #       and:
-      #         - or:
-      #           - "<<parameters.publish>>"
-      #           - "<<parameters.release>>"
-      #         - equal: [develop, << pipeline.git.branch >>]
-      #     steps:
-      #       - gcp-oidc-authenticate:
-      #           service_account_email: GCP_SERVICE_ATTESTOR_ACCOUNT_EMAIL
-      #       - run:
-      #           name: Sign
-      #           command: |
-      #             git clone https://github.com/ethereum-optimism/binary_signer
-      #             cd binary_signer/signer
-      #             git checkout tags/v1.0.3
+                  ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
+      - when:
+          condition:
+            or:
+              - and:
+                  - "<<parameters.publish>>"
+                  - "<<parameters.release>>"
+              - and:
+                  - "<<parameters.publish>>"
+                  - equal: [develop, << pipeline.git.branch >>]
+          steps:
+            - gcp-oidc-authenticate:
+                service_account_email: GCP_SERVICE_ATTESTOR_ACCOUNT_EMAIL
+            - run:
+                name: Sign
+                command: |
+                  VER=$(yq '.tools.binary_signer' mise.toml)
+                  wget -O - "https://github.com/ethereum-optimism/binary_signer/archive/refs/tags/v${VER}.tar.gz" | tar xz
+                  cd "binary_signer-${VER}/signer"
 
-      #             IMAGE_PATH="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<pipeline.git.revision>>"
-      #             echo $IMAGE_PATH
-      #             pip3 install -r requirements.txt
+                  IMAGE_PATH="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<pipeline.git.revision>>"
+                  echo $IMAGE_PATH
+                  pip3 install -r requirements.txt
 
-      #             python3 ./sign_image.py --command="sign"\
-      #                 --attestor-project-name="$ATTESTOR_PROJECT_NAME"\
-      #                 --attestor-name="$ATTESTOR_NAME"\
-      #                 --image-path="$IMAGE_PATH"\
-      #                 --signer-logging-level="INFO"\
-      #                 --attestor-key-id="//cloudkms.googleapis.com/v1/projects/$ATTESTOR_PROJECT_NAME/locations/global/keyRings/$ATTESTOR_NAME-key-ring/cryptoKeys/$ATTESTOR_NAME-key/cryptoKeyVersions/1"
+                  python3 ./sign_image.py --command="sign"\
+                      --attestor-project-name="$ATTESTOR_PROJECT_NAME"\
+                      --attestor-name="$ATTESTOR_NAME"\
+                      --image-path="$IMAGE_PATH"\
+                      --signer-logging-level="INFO"\
+                      --attestor-key-id="//cloudkms.googleapis.com/v1/projects/$ATTESTOR_PROJECT_NAME/locations/global/keyRings/$ATTESTOR_NAME-key-ring/cryptoKeys/$ATTESTOR_NAME-key/cryptoKeyVersions/1"
 
   # Verify newly published images (built on AMD machine) will run on ARM
   check-cross-platform:
     docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
+      - image: <<pipeline.parameters.default_docker_image>>
     resource_class: arm.medium
     parameters:
       registry:
@@ -948,7 +874,7 @@ jobs:
         type: string
         default: "<<pipeline.git.revision>>"
     steps:
-      # - setup_remote_docker
+      - setup_remote_docker
       - run:
           name: "Verify Image Platform"
           command: |
@@ -971,14 +897,10 @@ jobs:
             docker run $image_name <<parameters.op_component>> --version || exit 1
 
   contracts-bedrock-tests:
+    circleci_ip_ranges: true
     docker:
-<<<<<<< HEAD
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-=======
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: 2xlarge
->>>>>>> upstream/develop
     parameters:
       test_list:
         description: List of test files to run
@@ -1008,15 +930,9 @@ jobs:
         type: string
         default: ""
     steps:
-<<<<<<< HEAD
-      - checkout
-      - attach_workspace: { at: "." }
-      - install-contracts-dependencies
-=======
       - utils/checkout-with-mise:
           checkout-method: blobless
       - install-zstd
->>>>>>> upstream/develop
       - run:
           name: Check if test list is empty
           command: |
@@ -1154,13 +1070,8 @@ jobs:
   contracts-bedrock-coverage:
     circleci_ip_ranges: true
     docker:
-<<<<<<< HEAD
-        - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-=======
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: 2xlarge
->>>>>>> upstream/develop
     parameters:
       test_flags:
         description: Additional flags to pass to the test command
@@ -1179,13 +1090,8 @@ jobs:
         type: string
         default: ""
     steps:
-<<<<<<< HEAD
-      - checkout
-      - attach_workspace: { at: "." }
-=======
       - utils/checkout-with-mise:
           checkout-method: blobless
->>>>>>> upstream/develop
       - install-contracts-dependencies
       - install-zstd
       - attach_workspace:
@@ -1205,8 +1111,8 @@ jobs:
       - run:
           name: Install lcov
           command: |
-            apt-get update
-            apt-get install -y lcov
+            sudo apt-get update
+            sudo apt-get install -y lcov
       - run:
           name: Write pinned block number for cache key
           command: |
@@ -1227,13 +1133,11 @@ jobs:
           command: just build-source
           working_directory: packages/contracts-bedrock
       - run:
-          name: Set ETH_RPC_URL
-          command: echo 'export ETH_RPC_URL=<<pipeline.parameters.mainnet_rpc_url>>' >> $BASH_ENV
-      - run:
           name: Run coverage tests
           command: just coverage-lcov-all <<parameters.test_flags>>
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
+            ETH_RPC_URL: https://ci-mainnet-l1-archive.optimism.io
           working_directory: packages/contracts-bedrock
           no_output_timeout: <<parameters.test_timeout>>
       - run:
@@ -1241,6 +1145,7 @@ jobs:
           command: just test-rerun | tee failed-test-traces.log
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
+            ETH_RPC_URL: https://ci-mainnet-l1-archive.optimism.io
           working_directory: packages/contracts-bedrock
           when: on_fail
       - codecov/upload:
@@ -1259,14 +1164,6 @@ jobs:
       - notify-failures-on-develop
 
   contracts-bedrock-tests-upgrade:
-<<<<<<< HEAD
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-=======
     circleci_ip_ranges: true
     parameters:
       fork_op_chain:
@@ -1289,7 +1186,6 @@ jobs:
     resource_class: 2xlarge
     steps:
       - utils/checkout-with-mise
->>>>>>> upstream/develop
       - install-contracts-dependencies
       - install-zstd
       - attach_workspace:
@@ -1311,19 +1207,14 @@ jobs:
           command: |
             just print-pinned-block-number > ./pinnedBlockNumber.txt
             cat pinnedBlockNumber.txt
+          environment:
+            FORK_BASE_CHAIN: <<parameters.fork_base_chain>>
           working_directory: packages/contracts-bedrock
       - restore_cache:
           name: Restore forked state
-<<<<<<< HEAD
-          key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
-      - run:
-          name: Set ETH_RPC_URL
-          command: echo 'export ETH_RPC_URL=<<pipeline.parameters.mainnet_rpc_url>>' >> $BASH_ENV
-=======
           key: forked-state-contracts-bedrock-tests-upgrade-<<parameters.fork_op_chain>>-<<parameters.fork_base_chain>>-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
       - setup-features:
           features: <<parameters.features>>
->>>>>>> upstream/develop
       - run:
           name: Run tests
           command: just test-upgrade
@@ -1331,6 +1222,9 @@ jobs:
             FOUNDRY_FUZZ_SEED: 42424242
             FOUNDRY_FUZZ_RUNS: 1
             FOUNDRY_PROFILE: ci
+            ETH_RPC_URL: <<parameters.fork_base_rpc>>
+            FORK_OP_CHAIN: <<parameters.fork_op_chain>>
+            FORK_BASE_CHAIN: <<parameters.fork_base_chain>>
           working_directory: packages/contracts-bedrock
           no_output_timeout: 15m
       - run:
@@ -1341,6 +1235,9 @@ jobs:
             FOUNDRY_FUZZ_SEED: 42424242
             FOUNDRY_FUZZ_RUNS: 1
             FOUNDRY_PROFILE: ci
+            ETH_RPC_URL: <<parameters.fork_base_rpc>>
+            FORK_OP_CHAIN: <<parameters.fork_op_chain>>
+            FORK_BASE_CHAIN: <<parameters.fork_base_chain>>
           working_directory: packages/contracts-bedrock
           when: on_fail
       - save_cache:
@@ -1350,7 +1247,7 @@ jobs:
             - "~/.cache/go-build"
       - save_cache:
           name: Save forked state
-          key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
+          key: forked-state-contracts-bedrock-tests-upgrade-<<parameters.fork_op_chain>>-<<parameters.fork_base_chain>>-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
           when: always
           paths:
             - "~/.foundry/cache"
@@ -1359,22 +1256,12 @@ jobs:
           when: on_fail
       - notify-failures-on-develop
 
-<<<<<<< HEAD
-  contracts-bedrock-checks:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-=======
   contracts-bedrock-upload:
     machine: true
     resource_class: ethereum-optimism/latitude-1
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
->>>>>>> upstream/develop
       - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock
@@ -1405,18 +1292,16 @@ jobs:
           command: semgrep-test-validity-check
       - run-contracts-check:
           command: semgrep
-      # Somehow the result is different every time
-      # - run-contracts-check:
-      #     command: semver-lock-no-build
+      - run-contracts-check:
+          command: semver-lock-no-build
       - run-contracts-check:
           command: semver-diff-check-no-build
       - run-contracts-check:
           command: validate-deploy-configs
       - run-contracts-check:
           command: lint
-      # Somhow the result is different every time
-      # - run-contracts-check:
-      #     command: snapshots-check-no-build
+      - run-contracts-check:
+          command: snapshots-check-no-build
       - run-contracts-check:
           command: interfaces-check-no-build
       - run-contracts-check:
@@ -1440,12 +1325,8 @@ jobs:
     machine:
       image: <<pipeline.parameters.base_image>>
     steps:
-<<<<<<< HEAD
-      - checkout
-=======
       - utils/checkout-with-mise:
           checkout-method: blobless
->>>>>>> upstream/develop
       - run:
           name: Install ripgrep
           command: sudo apt-get install -y ripgrep
@@ -1467,15 +1348,11 @@ jobs:
         type: boolean
         default: false
     docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: 2xlarge+
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
     steps:
-<<<<<<< HEAD
-      - checkout
-=======
       - utils/checkout-with-mise:
           checkout-method: blobless
->>>>>>> upstream/develop
       - check-changed:
           patterns: "<<parameters.package_name>>"
       - attach_workspace:
@@ -1484,22 +1361,13 @@ jobs:
       - go-restore-cache:
           namespace: fuzz-<<parameters.package_name>>
       - run:
-          name: Install parallel
-          command: |
-            apt-get update
-            apt-get install -y parallel
-      - run:
           name: Fuzz
           no_output_timeout: 15m
           command: |
             make fuzz
           working_directory: "<<parameters.package_name>>"
-<<<<<<< HEAD
-          no_output_timeout: 30m
-=======
       - go-save-cache:
           namespace: fuzz-<<parameters.package_name>>
->>>>>>> upstream/develop
       - run:
           name: Copy fuzz artifacts
           command: |
@@ -1512,11 +1380,6 @@ jobs:
 
   go-lint:
     docker:
-<<<<<<< HEAD
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - checkout
-=======
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: large
     steps:
@@ -1524,7 +1387,6 @@ jobs:
           checkout-method: blobless
       - restore_cache:
           key: golangci-v1-{{ checksum ".golangci.yaml" }}
->>>>>>> upstream/develop
       - run:
           name: run Go linter
           command: |
@@ -1540,10 +1402,6 @@ jobs:
         description: Whether to notify on failure
         type: boolean
         default: false
-      test_parallelism:
-        description: Number of test jobs to run in parallel
-        type: integer
-        default: 4
       mentions:
         description: Slack user or group to mention when notifying of failures
         type: string
@@ -1563,14 +1421,6 @@ jobs:
       rule:
         description: Rule to run the tests
         type: string
-<<<<<<< HEAD
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-    parallelism: <<parameters.test_parallelism>>
-    steps:
-      - checkout
-=======
         default: "go-tests-short-ci"
       parallelism:
         description: Number machines to distribute the tests across
@@ -1659,7 +1509,6 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
->>>>>>> upstream/develop
       - attach_workspace:
           at: .
       - run:
@@ -1677,30 +1526,6 @@ jobs:
           name: run tests
           no_output_timeout: <<parameters.no_output_timeout>>
           command: |
-<<<<<<< HEAD
-            mkdir -p ./tmp/test-results && mkdir -p ./tmp/testlogs
-            cd op-e2e && make pre-test && cd ..
-
-            packages=(
-              <<parameters.packages>>
-            )
-            formatted_packages=""
-            for package in "${packages[@]}"; do
-              formatted_packages="$formatted_packages ./$package/..."
-            done
-
-            export ENABLE_KURTOSIS=true
-            export OP_E2E_CANNON_ENABLED="false"
-            export OP_E2E_SKIP_SLOW_TEST=true
-            export OP_E2E_USE_HTTP=true
-            export ENABLE_ANVIL=true
-            export SEPOLIA_RPC_URL=<<pipeline.parameters.sepolia_rpc_url>>
-            export MAINNET_RPC_URL=<<pipeline.parameters.mainnet_rpc_url>>
-            export PARALLEL=$(nproc)
-            export OP_TESTLOG_FILE_LOGGER_OUTDIR=$(realpath ./tmp/testlogs)
-
-=======
->>>>>>> upstream/develop
             <<parameters.environment_overrides>>
             export TEST_TIMEOUT=<<parameters.test_timeout>>
             make go-tests-fraud-proofs-ci
@@ -2112,20 +1937,16 @@ jobs:
 
   sanitize-op-program:
     docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
+      - image: <<pipeline.parameters.default_docker_image>>
     resource_class: large
     steps:
-<<<<<<< HEAD
-      - checkout
-=======
       - utils/checkout-with-mise:
           checkout-method: blobless
->>>>>>> upstream/develop
       - run:
           name: Install tools
           command: |
-            apt-get update
-            apt-get install -y binutils-mips-linux-gnu
+            sudo apt-get update
+            sudo apt-get install -y binutils-mips-linux-gnu
       - run:
           name: Build cannon
           command: make cannon
@@ -2137,88 +1958,6 @@ jobs:
           command: make sanitize-program GUEST_PROGRAM=../op-program/bin/op-program-client64.elf
           working_directory: cannon
 
-<<<<<<< HEAD
-  go-e2e-test:
-    parameters:
-      module:
-        description: Go Module Name
-        type: string
-      target:
-        description: The make target to execute
-        type: string
-      parallelism:
-        description: Number of parallel test runs
-        type: integer
-        default: 6
-      notify:
-        description: Whether to notify on failure
-        type: boolean
-        default: false
-      mentions:
-        description: Slack user or group to mention when notifying of failures
-        type: string
-        default: ""
-      resource_class:
-        description: Machine resource class
-        type: string
-        default: ethereum-optimism/latitude-1
-      skip_slow_tests:
-        description: Indicates that slow tests should be skipped
-        type: boolean
-        default: false
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-    parallelism: <<parameters.parallelism>>
-    steps:
-      - checkout
-      - attach_workspace:
-          at: ./tmp/workspace
-      - install-contracts-dependencies
-      - run:
-          name: Build contracts
-          command: |
-            forge build
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: print go's available MIPS targets
-          command: go tool dist list | grep mips
-      - run:
-          name: run tests
-          no_output_timeout: 20m
-          command: |
-            mkdir -p ./tmp/testlogs
-            mkdir -p ./tmp/test-results
-
-            # The below env var gets overridden when running make test-cannon, but we
-            # need to explicitly set it here to prevent Cannon from running when we don't
-            # want it to.
-            export OP_E2E_CANNON_ENABLED="false"
-            export OP_E2E_SKIP_SLOW_TEST=<<parameters.skip_slow_tests>>
-            # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
-            # constraint that gotestsum does not currently (nor likely will) accept files from different packages when building.
-            JUNIT_FILE=../tmp/test-results/<<parameters.module>>_<<parameters.target>>.xml JSON_LOG_FILE=../tmp/testlogs/test.log make <<parameters.target>>
-          working_directory: <<parameters.module>>
-      - store_artifacts:
-          path: ./tmp/testlogs
-          when: always
-      - store_artifacts:
-          path: ./tmp/test-results
-          when: always
-      - store_test_results:
-          path: ./tmp/test-results
-      - when:
-          condition: "<<parameters.notify>>"
-          steps:
-            - notify-failures-on-develop:
-                mentions: "<<parameters.mentions>>"
-
-  cannon-prestate-quick:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - checkout
-=======
   cannon-prestate-quick:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
@@ -2226,7 +1965,6 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
->>>>>>> upstream/develop
       - restore_cache:
           name: Restore cannon prestate cache
           key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
@@ -2251,16 +1989,11 @@ jobs:
 
   cannon-prestate:
     docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
+      - image: <<pipeline.parameters.default_docker_image>>
     steps:
-<<<<<<< HEAD
-      - checkout
-      # - setup_remote_docker
-=======
       - utils/checkout-with-mise:
           checkout-method: blobless
       - setup_remote_docker
->>>>>>> upstream/develop
       - run:
           name: Build prestates
           command: make reproducible-prestate
@@ -2270,13 +2003,6 @@ jobs:
             - "op-program/bin/prestate*"
             - "op-program/bin/meta*"
 
-<<<<<<< HEAD
-  publish-cannon-prestates:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - checkout
-=======
   cannon-kona-prestate:
     machine:
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
@@ -2335,7 +2061,6 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
->>>>>>> upstream/develop
       - attach_workspace:
           at: "."
       - gcp-cli/install
@@ -2392,14 +2117,6 @@ jobs:
           mentions: "@proofs-team"
 
   preimage-reproducibility:
-<<<<<<< HEAD
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - checkout
-      # - setup_remote_docker
-      - run: make -C op-program verify-reproducibility
-=======
     machine: true
     resource_class: large
     steps:
@@ -2411,22 +2128,16 @@ jobs:
       - store_artifacts:
           path: ./op-program/temp/logs
           when: always
->>>>>>> upstream/develop
       - notify-failures-on-develop:
           mentions: "@proofs-team"
 
   cannon-stf-verify:
     docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
+      - image: <<pipeline.parameters.default_docker_image>>
     steps:
-<<<<<<< HEAD
-      - checkout
-      # - setup_remote_docker
-=======
       - utils/checkout-with-mise:
           checkout-method: blobless
       - setup_remote_docker
->>>>>>> upstream/develop
       - run:
           name: Build cannon
           command: make cannon
@@ -2482,32 +2193,11 @@ jobs:
 
   bedrock-go-tests: # just a helper, that depends on all the actual test jobs
     docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
+      - image: <<pipeline.parameters.default_docker_image>>
     resource_class: medium
     steps:
       - run: echo Done
 
-<<<<<<< HEAD
-  fpp-verify:
-    circleci_ip_ranges: true
-    docker:
-      - image: cimg/go:1.21
-    steps:
-      - checkout
-      - run:
-          name: verify-sepolia
-          command: |
-            make verify-sepolia
-          working_directory: op-program
-      - notify-failures-on-develop:
-          mentions: "@proofs-team"
-
-  op-program-compat:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - checkout
-=======
   analyze-op-program-client:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
@@ -2516,7 +2206,6 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
       - setup_remote_docker
->>>>>>> upstream/develop
       - run:
           name: Run Analyzer
           command: |
@@ -2538,17 +2227,11 @@ jobs:
 
   check-generated-mocks-op-node:
     docker:
-<<<<<<< HEAD
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - checkout
-=======
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: large
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
->>>>>>> upstream/develop
       - check-changed:
           patterns: op-node
       - run:
@@ -2557,17 +2240,11 @@ jobs:
 
   check-generated-mocks-op-service:
     docker:
-<<<<<<< HEAD
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - checkout
-=======
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: large
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
->>>>>>> upstream/develop
       - check-changed:
           patterns: op-service
       - run:
@@ -2586,21 +2263,17 @@ jobs:
 
   kontrol-tests:
     docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
+      - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     steps:
-<<<<<<< HEAD
-      - checkout
-=======
       - utils/checkout-with-mise:
           checkout-method: blobless
->>>>>>> upstream/develop
       - install-contracts-dependencies
       - check-changed:
           no_go_deps: "true"
           patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol,contracts-bedrock/src/L1/OptimismPortal2\.sol,contracts-bedrock/src/L1/L1CrossDomainMessenger\.sol,contracts-bedrock/src/L1/L1ERC721Bridge\.sol,contracts-bedrock/src/L1/L1StandardBridge\.sol,contracts-bedrock/src/L1/ResourceMetering\.sol,contracts-bedrock/src/universal/StandardBridge\.sol,contracts-bedrock/src/universal/ERC721Bridge\.sol,contracts-bedrock/src/universal/CrossDomainMessenger\.sol
-      # - setup_remote_docker:
-          # docker_layer_caching: true
+      - setup_remote_docker:
+          docker_layer_caching: true
       - run:
           name: Run Kontrol Tests
           command: |
@@ -2623,15 +2296,6 @@ jobs:
 
   publish-contract-artifacts:
     docker:
-<<<<<<< HEAD
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - gcp-cli/install
-      - gcp-oidc-authenticate:
-          gcp_cred_config_file_path: /root/gcp_cred_config.json
-          oidc_token_file_path: /root/oidc_token.json
-      - checkout
-=======
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: 2xlarge
     steps:
@@ -2643,7 +2307,6 @@ jobs:
           service_account_email: GCP_CONTRACTS_PUBLISHER_SERVICE_ACCOUNT_EMAIL
       - utils/checkout-with-mise:
           checkout-method: blobless
->>>>>>> upstream/develop
       - install-contracts-dependencies
       - install-zstd
       - run:
@@ -2671,25 +2334,17 @@ jobs:
         default: .goreleaser.yaml
         type: string
     docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: large
     steps:
-<<<<<<< HEAD
-      # - setup_remote_docker
-=======
       - setup_remote_docker:
           docker_layer_caching: true
->>>>>>> upstream/develop
       - gcp-cli/install
       - gcp-oidc-authenticate:
           gcp_cred_config_file_path: /tmp/gcp_cred_config.json
           oidc_token_file_path: /tmp/oidc_token.json
-<<<<<<< HEAD
-      - checkout
-=======
       - utils/checkout-with-mise
       - attach_workspace: { at: "." }
->>>>>>> upstream/develop
       - run:
           name: Configure Docker
           command: |
@@ -2887,18 +2542,6 @@ workflows:
           name: contracts-bedrock-build
           # Build with just core + script contracts.
           build_args: --deny-warnings --skip test
-<<<<<<< HEAD
-      - contracts-bedrock-tests:
-          # Test everything except PreimageOracle.t.sol since it's slow.
-          name: contracts-bedrock-tests
-          test_list: find test -name "*.t.sol" -not -name "PreimageOracle.t.sol"
-          context: circleci-repo-readonly-authenticated-github-token
-      - contracts-bedrock-tests:
-          # PreimageOracle test is slow, run it separately to unblock CI.
-          name: contracts-bedrock-tests-preimage-oracle
-          test_list: find test -name "PreimageOracle.t.sol"
-          context: circleci-repo-readonly-authenticated-github-token
-=======
           context:
             - circleci-repo-readonly-authenticated-github-token
       - check-kontrol-build:
@@ -2906,7 +2549,6 @@ workflows:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
->>>>>>> upstream/develop
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
           name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.features>>
@@ -2946,19 +2588,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests-upgrade:
-<<<<<<< HEAD
-          name: contracts-bedrock-tests-upgrade
-      - contracts-bedrock-checks:
-          requires:
-            - contracts-bedrock-build
-          context: circleci-repo-readonly-authenticated-github-token
-      # - contracts-bedrock-frozen-code:
-      #     requires:
-      #       - contracts-bedrock-build
-      #     context: circleci-repo-readonly-authenticated-github-token
-      # - diff-asterisc-bytecode:
-      #     context: circleci-repo-readonly-authenticated-github-token
-=======
           name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.features>>
           fork_op_chain: op
           fork_base_chain: mainnet
@@ -3000,7 +2629,6 @@ workflows:
       - diff-asterisc-bytecode:
           context:
             - circleci-repo-readonly-authenticated-github-token
->>>>>>> upstream/develop
       - semgrep-scan:
           name: semgrep-scan-local
           scan_command: semgrep scan --timeout=100 --config .semgrep/rules/ --error .
@@ -3080,19 +2708,8 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - op-program-compat:
-<<<<<<< HEAD
-          context: circleci-repo-readonly-authenticated-github-token
-      - go-e2e-test:
-          name: op-e2e-ext-erigon-tests
-          module: op-e2e
-          target: test-external-erigon
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
-=======
           context:
             - circleci-repo-readonly-authenticated-github-token
->>>>>>> upstream/develop
       - bedrock-go-tests:
           requires:
             - go-lint
@@ -3156,18 +2773,6 @@ workflows:
             - contracts-bedrock-build
           skip_slow_tests: true
           notify: true
-<<<<<<< HEAD
-          matrix:
-            parameters:
-              mips_word_size: [32, 64]
-          context: circleci-repo-readonly-authenticated-github-token
-      - cannon-build-test-vectors:
-          context: circleci-repo-readonly-authenticated-github-token
-      # - todo-issues:
-      #     name: todo-issues-check
-      #     check_closed: false
-      #     context: circleci-repo-readonly-authenticated-github-token
-=======
           context:
             - circleci-repo-readonly-authenticated-github-token
       - todo-issues:
@@ -3175,7 +2780,6 @@ workflows:
           check_closed: false
           context:
             - circleci-repo-readonly-authenticated-github-token
->>>>>>> upstream/develop
       - shellcheck/check:
           name: shell-check
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`

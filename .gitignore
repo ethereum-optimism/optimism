@@ -50,13 +50,12 @@ __pycache__
 # Ignore echidna artifacts
 crytic-export
 
-<<<<<<< HEAD
+# ignore local asdf config
+.tool-versions
+
 # ignore yarn.lock
 boba-community/*/yarn.lock
 
 # local data
 packages/boba/subgraphs/local/data
-=======
-# ignore local asdf config
-.tool-versions
->>>>>>> upstream/develop
+

@@ -2,13 +2,7 @@
 include ./justfiles/flags.mk
 
 BEDROCK_TAGS_REMOTE?=origin
-GCP_PROJECT_ID?=local
-GCP_ARTIFACT_REPOSITORY?=local
-OP_STACK_GO_BUILDER?=us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op-stack-go:latest
-
-export GCP_PROJECT_ID
-export GCP_ARTIFACT_REPOSITORY
-export OP_STACK_GO_BUILDER
+OP_STACK_GO_BUILDER?=us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:latest
 
 # Requires at least Python v3.9; specify a minor version below if needed
 PYTHON?=python3
@@ -19,11 +13,7 @@ help: ## Prints this help message
 build: build-go build-contracts ## Builds Go components and contracts-bedrock
 .PHONY: build
 
-<<<<<<< HEAD
-build-go: submodules op-node op-proposer op-batcher op-erigon
-=======
 build-go: submodules op-node op-proposer op-batcher op-challenger op-dispute-mon op-program cannon ## Builds main Go components
->>>>>>> upstream/develop
 .PHONY: build-go
 
 build-contracts:
@@ -142,11 +132,7 @@ op-program: ## Builds op-program binary
 	make -C ./op-program op-program
 .PHONY: op-program
 
-op-erigon:
-	make -C ./op-erigon erigon
-.PHONY: op-erigon
-
-cannon:
+cannon:  ## Builds cannon binary
 	make -C ./cannon cannon
 .PHONY: cannon
 
@@ -164,13 +150,12 @@ mod-tidy: ## Cleans up unused dependencies in Go modules
 	# can take a while to index new versions.
 	#
 	# See https://proxy.golang.org/ for more info.
-	export GOPRIVATE="github.com/ethereum-optimism,github.com/bobanetwork" && go mod tidy
+	export GOPRIVATE="github.com/ethereum-optimism" && go mod tidy
 .PHONY: mod-tidy
 
 clean: ## Removes all generated files under bin/
 	rm -rf ./bin
 	cd packages/contracts-bedrock/ && forge clean
-	make -C ./op-erigon clean
 .PHONY: clean
 
 nuke: clean ## Completely clean the project directory

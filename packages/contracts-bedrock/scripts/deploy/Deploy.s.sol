@@ -19,12 +19,6 @@ import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.so
 import { DeployAltDA } from "scripts/deploy/DeployAltDA.s.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
-// Contracts
-import { OPContractsManager } from "src/L1/OPContractsManager.sol";
-import { Chains } from "scripts/libraries/Chains.sol";
-import { Config } from "scripts/libraries/Config.sol";
-import { BOBA } from "src/boba/BOBA.sol";
-
 // Libraries
 import { Types } from "scripts/libraries/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
@@ -220,12 +214,6 @@ contract Deploy is Deployer {
             }
         }
 
-<<<<<<< HEAD
-        transferProxyAdminOwnership();
-
-        deployBOBA();
-=======
->>>>>>> upstream/develop
         console.log("set up op chain!");
     }
 
@@ -445,23 +433,6 @@ contract Deploy is Deployer {
         artifacts.save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistry));
         artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortal));
         artifacts.save("OptimismPortal2Proxy", address(deployOutput.optimismPortal));
-    }
-
-    ////////////////////////////////////////////////////////////////
-    //              Non-Proxied Deployment Functions              //
-    ////////////////////////////////////////////////////////////////
-
-    /// @notice Deploy the BOBA
-    function deployBOBA() public broadcast returns (address addr_) {
-        BOBA bobaToken = new BOBA();
-
-        artifacts.save("BOBA", address(bobaToken));
-        console.log("BOBA deployed at %s", address(bobaToken));
-
-        addr_ = address(bobaToken);
-
-        address owner = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-        bobaToken.transfer(owner, 10000e18);
     }
 
     ////////////////////////////////////////////////////////////////

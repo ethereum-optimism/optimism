@@ -71,19 +71,6 @@ var (
 		Destination: new(string),
 		Category:    RollupCategory,
 	}
-	L2RpcTimeout = &cli.DurationFlag{
-		Name:    "l2.rpc-timeout",
-		Usage:   "Timeout for L2 RPC requests",
-		EnvVars: prefixEnvVars("L2_RPC_TIMEOUT"),
-		Value:   time.Second * 10,
-	}
-	L2RpcBatchTimeout = &cli.DurationFlag{
-		Name:    "l2.rpc-batch-timeout",
-		Usage:   "Timeout for L2 RPC batch requests",
-		EnvVars: prefixEnvVars("L2_RPC_BATCH_TIMEOUT"),
-		Value:   time.Second * 20,
-	}
-	/* Optional Flags */
 	BeaconAddr = &cli.StringFlag{
 		Name:     "l1.beacon",
 		Usage:    "Address of L1 Beacon-node HTTP endpoint to use.",
@@ -129,58 +116,12 @@ var (
 		Value:    ptr.New(sync.CLSync),
 		Category: RollupCategory,
 	}
-<<<<<<< HEAD
-	RPCListenAddr = &cli.StringFlag{
-		Name:     "rpc.addr",
-		Usage:    "RPC listening address",
-		EnvVars:  prefixEnvVars("RPC_ADDR"),
-		Value:    "127.0.0.1",
-		Category: OperationsCategory,
-	}
-	RPCListenPort = &cli.IntFlag{
-		Name:     "rpc.port",
-		Usage:    "RPC listening port",
-		EnvVars:  prefixEnvVars("RPC_PORT"),
-		Value:    9545, // Note: op-service/rpc/cli.go uses 8545 as the default.
-		Category: OperationsCategory,
-	}
-	RPCListenReadTimeout = &cli.DurationFlag{
-		Name:    "rpc.read-timeout",
-		Usage:   "RPC read timeout",
-		EnvVars: prefixEnvVars("RPC_READ_TIMEOUT"),
-		Value:   time.Second * 30,
-	}
-	RPCListenReadHeaderTimeout = &cli.DurationFlag{
-		Name:    "rpc.read-header-timeout",
-		Usage:   "RPC read header timeout",
-		EnvVars: prefixEnvVars("RPC_READ_HEADER_TIMEOUT"),
-		Value:   time.Second * 30,
-	}
-	RPCListenWriteTimeout = &cli.DurationFlag{
-		Name:    "rpc.write-timeout",
-		Usage:   "RPC write timeout",
-		EnvVars: prefixEnvVars("RPC_WRITE_TIMEOUT"),
-		Value:   time.Second * 30,
-	}
-	RPCListenIdleTimeout = &cli.DurationFlag{
-		Name:    "rpc.idle-timeout",
-		Usage:   "RPC idle timeout",
-		EnvVars: prefixEnvVars("RPC_IDLE_TIMEOUT"),
-		Value:   time.Second * 120,
-	}
-	RPCEnableAdmin = &cli.BoolFlag{
-		Name:     "rpc.enable-admin",
-		Usage:    "Enable the admin API (experimental)",
-		EnvVars:  prefixEnvVars("RPC_ENABLE_ADMIN"),
-		Category: OperationsCategory,
-=======
 	SyncModeReqRespFlag = &cli.BoolFlag{
 		Name:     "syncmode.req-resp",
 		Required: false,
 		Value:    true,
 		EnvVars:  prefixEnvVars("SYNCMODE_REQ_RESP"),
 		Category: RollupCategory,
->>>>>>> upstream/develop
 	}
 	RPCAdminPersistence = &cli.StringFlag{
 		Name:     "rpc.admin-state",
@@ -526,17 +467,8 @@ var optionalFlags = []cli.Flag{
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
 	SyncModeFlag,
-<<<<<<< HEAD
-	RPCListenAddr,
-	RPCListenPort,
-	RPCListenReadTimeout,
-	RPCListenReadHeaderTimeout,
-	RPCListenWriteTimeout,
-	RPCListenIdleTimeout,
-=======
 	SyncModeReqRespFlag,
 	FetchWithdrawalRootFromState,
->>>>>>> upstream/develop
 	L1TrustRPC,
 	L1RPCProviderKind,
 	L1RPCRateLimit,
@@ -544,8 +476,6 @@ var optionalFlags = []cli.Flag{
 	L1RPCMaxConcurrency,
 	L1HTTPPollInterval,
 	L1CacheSize,
-	L2RpcTimeout,
-	L2RpcBatchTimeout,
 	VerifierL1Confs,
 	SequencerEnabledFlag,
 	SequencerStoppedFlag,

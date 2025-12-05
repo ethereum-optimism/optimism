@@ -337,9 +337,6 @@ abstract contract Setup is FeatureFlags {
                 l1CrossDomainMessengerProxy: payable(address(l1CrossDomainMessenger)),
                 l1StandardBridgeProxy: payable(address(l1StandardBridge)),
                 l1ERC721BridgeProxy: payable(address(l1ERC721Bridge)),
-<<<<<<< HEAD
-                l1BobaToken: address(0)
-=======
                 opChainProxyAdminOwner: deploy.cfg().proxyAdminOwner(),
                 sequencerFeeVaultRecipient: deploy.cfg().sequencerFeeVaultRecipient(),
                 sequencerFeeVaultMinimumWithdrawalAmount: deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount(),
@@ -366,7 +363,6 @@ abstract contract Setup is FeatureFlags {
                 gasPayingTokenSymbol: deploy.cfg().gasPayingTokenSymbol(),
                 nativeAssetLiquidityAmount: deploy.cfg().nativeAssetLiquidityAmount(),
                 liquidityControllerOwner: deploy.cfg().liquidityControllerOwner()
->>>>>>> upstream/develop
             })
         );
 

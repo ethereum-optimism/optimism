@@ -10,9 +10,6 @@ import { SetPreinstalls } from "scripts/SetPreinstalls.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { OutputMode, OutputModeUtils, Fork, ForkUtils } from "scripts/libraries/Config.sol";
 
-// Contracts
-import { LegacyMintableERC20 } from "src/legacy/LegacyMintableERC20.sol";
-
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
@@ -29,15 +26,6 @@ import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenge
 import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.sol";
 import { IGasPriceOracle } from "interfaces/L2/IGasPriceOracle.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
-<<<<<<< HEAD
-
-struct L1Dependencies {
-    address payable l1CrossDomainMessengerProxy;
-    address payable l1StandardBridgeProxy;
-    address payable l1ERC721BridgeProxy;
-    address l1BobaToken;
-}
-=======
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
@@ -45,7 +33,6 @@ import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
 import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
->>>>>>> upstream/develop
 
 /// @title L2Genesis
 /// @notice Generates the genesis state for the L2 network.
@@ -141,72 +128,9 @@ contract L2Genesis is Script {
         0x9DCCe783B6464611f38631e6C851bf441907c710 // 29
     ];
 
-<<<<<<< HEAD
-    /// @notice The address of the deployer account.
-    address internal deployer;
-
-    /// @notice Sets up the script and ensures the deployer account is used to make calls.
-    function setUp() public override {
-        deployer = makeAddr("deployer");
-        super.setUp();
-    }
-
-    function artifactDependencies() internal view returns (L1Dependencies memory l1Dependencies_) {
-        return L1Dependencies({
-            l1CrossDomainMessengerProxy: artifacts.mustGetAddress("L1CrossDomainMessengerProxy"),
-            l1StandardBridgeProxy: artifacts.mustGetAddress("L1StandardBridgeProxy"),
-            l1ERC721BridgeProxy: artifacts.mustGetAddress("L1ERC721BridgeProxy"),
-            l1BobaToken: artifacts.mustGetAddress("BOBA")
-        });
-    }
-
-    /// @notice The alloc object is sorted numerically by address.
-    ///         Sets the precompiles, proxies, and the implementation accounts to be `vm.dumpState`
-    ///         to generate a L2 genesis alloc.
-    function runWithStateDump() public {
-        runWithOptions(Config.outputMode(), cfg.fork(), artifactDependencies());
-    }
-
-    /// @notice Alias for `runWithStateDump` so that no `--sig` needs to be specified.
-    function run() public {
-        runWithStateDump();
-    }
-
-    /// @notice This is used by op-e2e to have a version of the L2 allocs for each upgrade.
-    function runWithAllUpgrades() public {
-        runWithOptions(OutputMode.ALL, LATEST_FORK, artifactDependencies());
-    }
-
-    /// @notice This is used by new experimental interop deploy tooling.
-    function runWithEnv() public {
-        //  The setUp() is skipped (since we insert a custom DeployConfig, and do not use Artifacts)
-        deployer = makeAddr("deployer");
-        runWithOptions(
-            OutputMode.NONE,
-            Config.fork(),
-            L1Dependencies({
-                l1CrossDomainMessengerProxy: payable(vm.envAddress("L2GENESIS_L1CrossDomainMessengerProxy")),
-                l1StandardBridgeProxy: payable(vm.envAddress("L2GENESIS_L1StandardBridgeProxy")),
-                l1ERC721BridgeProxy: payable(vm.envAddress("L2GENESIS_L1ERC721BridgeProxy")),
-                l1BobaToken: address(0)
-            })
-        );
-    }
-
-    /// @notice This is used by foundry tests to enable the latest fork with the
-    ///         given L1 dependencies.
-    function runWithLatestLocal(L1Dependencies memory _l1Dependencies) public {
-        runWithOptions(OutputMode.NONE, LATEST_FORK, _l1Dependencies);
-    }
-
-    /// @notice Build the L2 genesis.
-    function runWithOptions(OutputMode _mode, Fork _fork, L1Dependencies memory _l1Dependencies) public {
-        console.log("L2Genesis: outputMode: %s, fork: %s", _mode.toString(), _fork.toString());
-=======
     /// @notice Alias for `runWithStateDump` so that no `--sig` needs to be specified.
     function run(Input memory _input) public {
         address deployer = makeAddr("deployer");
->>>>>>> upstream/develop
         vm.startPrank(deployer);
         vm.chainId(_input.l2ChainID);
 
@@ -308,27 +232,13 @@ contract L2Genesis is Script {
     /// @notice Sets all the implementations for the predeploy proxies. For contracts without proxies,
     ///      sets the deployed bytecode at their expected predeploy address.
     ///      LEGACY_ERC20_ETH and L1_MESSAGE_SENDER are deprecated and are not set.
-<<<<<<< HEAD
-    function setPredeployImplementations(L1Dependencies memory _l1Dependencies) internal {
-        console.log("Setting predeploy implementations with L1 contract dependencies:");
-        console.log("- L1CrossDomainMessengerProxy: %s", _l1Dependencies.l1CrossDomainMessengerProxy);
-        console.log("- L1StandardBridgeProxy: %s", _l1Dependencies.l1StandardBridgeProxy);
-        console.log("- L1ERC721BridgeProxy: %s", _l1Dependencies.l1ERC721BridgeProxy);
-        console.log("- L1BOBAToken: %s", _l1Dependencies.l1BobaToken);
-=======
     function setPredeployImplementations(Input memory _input) internal {
->>>>>>> upstream/develop
         setLegacyMessagePasser(); // 0
         // 01: legacy, not used in OP-Stack
         setDeployerWhitelist(); // 2
         // 3,4,5: legacy, not used in OP-Stack.
-<<<<<<< HEAD
-        setLegacyERC20ETH(); // 6 (not behind a proxy)
-        setL2CrossDomainMessenger(_l1Dependencies.l1CrossDomainMessengerProxy); // 7
-=======
         setWETH(); // 6: WETH (not behind a proxy)
         setL2CrossDomainMessenger(_input.l1CrossDomainMessengerProxy); // 7
->>>>>>> upstream/develop
         // 8,9,A,B,C,D,E: legacy, not used in OP-Stack.
         setGasPriceOracle(); // f
         setL2StandardBridge(_input.l1StandardBridgeProxy); // 10
@@ -358,8 +268,6 @@ contract L2Genesis is Script {
             setLiquidityController(_input); // 29
             setNativeAssetLiquidity(_input); // 2A
         }
-        setBOBA(_l1Dependencies.l1BobaToken);
-        setWETH();
     }
 
     function setInteropPredeployProxies() internal { }
@@ -488,11 +396,6 @@ contract L2Genesis is Script {
         _setImplementationCode(Predeploys.DEPLOYER_WHITELIST);
     }
 
-    function setLegacyERC20ETH() public {
-        console.log("Setting %s implementation at: %s", "LegacyERC20ETH", Predeploys.LEGACY_ERC20_ETH);
-        vm.etch(Predeploys.LEGACY_ERC20_ETH, vm.getDeployedCode("LegacyERC20ETH.sol:LegacyERC20ETH"));
-    }
-
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract is NOT proxied and the state that is set
     ///         in the constructor is set manually.
@@ -501,38 +404,7 @@ contract L2Genesis is Script {
     }
 
     /// @notice This predeploy is following the safety invariant #1.
-<<<<<<< HEAD
-    ///         This contract is NOT proxied and the state that is set
-    ///         in the constructor is set manually.
-    function setBOBA(address _l1Boba) public {
-        LegacyMintableERC20 boba = new LegacyMintableERC20({
-            _l2Bridge: Predeploys.L2_STANDARD_BRIDGE,
-            _l1Token: _l1Boba,
-            _name: "BOBA Network",
-            _symbol: "BOBA"
-        });
-        vm.etch(Predeploys.L2_BOBA, address(boba).code);
-
-        bytes32 _nameSlot = hex"0000000000000000000000000000000000000000000000000000000000000003";
-        bytes32 _symbolSlot = hex"0000000000000000000000000000000000000000000000000000000000000004";
-        bytes32 _l1Token = hex"0000000000000000000000000000000000000000000000000000000000000005";
-        bytes32 _l2Bridge = hex"0000000000000000000000000000000000000000000000000000000000000006";
-
-        vm.store(Predeploys.L2_BOBA, _nameSlot, vm.load(address(boba), _nameSlot));
-        vm.store(Predeploys.L2_BOBA, _symbolSlot, vm.load(address(boba), _symbolSlot));
-        vm.store(Predeploys.L2_BOBA, _l1Token, bytes32(uint256(uint160(_l1Boba))));
-        vm.store(Predeploys.L2_BOBA, _l2Bridge, bytes32(uint256(uint160(Predeploys.L2_STANDARD_BRIDGE))));
-
-        /// Reset so its not included state dump
-        vm.etch(address(boba), "");
-        vm.resetNonce(address(boba));
-    }
-
-    /// @notice This predeploy is following the safety invariant #1.
-    function setL1BlockNumber() public {
-=======
     function setL1BlockNumber() internal {
->>>>>>> upstream/develop
         _setImplementationCode(Predeploys.L1_BLOCK_NUMBER);
     }
 

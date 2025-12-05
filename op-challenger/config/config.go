@@ -55,18 +55,10 @@ const (
 	// The default value is 28 days. The worst case duration for a game is 16 days
 	// (due to clock extension), plus 7 days WETH withdrawal delay leaving a 5 day
 	// buffer to monitor games to ensure bonds are claimed.
-<<<<<<< HEAD
-	DefaultGameWindow   = 28 * 24 * time.Hour
-	DefaultMaxPendingTx = 10
-	// Rollup RPC timeouts
-	DefaultRollupRpcTimeout      = time.Second * 15
-	DefaultRollupRpcBatchTimeout = time.Second * 30
-=======
 	DefaultGameWindow         = 28 * 24 * time.Hour
 	DefaultMaxPendingTx       = 10
 	DefaultResponseDelay      = 0 // No delay by default
 	DefaultResponseDelayAfter = 0 // Apply delay from first response by default
->>>>>>> upstream/develop
 )
 
 // Config is a well typed config that is parsed from the CLI params.
@@ -90,11 +82,9 @@ type Config struct {
 
 	GameTypes []gameTypes.GameType // Type of games supported
 
-	RollupRpc             string        // L2 Rollup RPC Url
-	RollupRpcTimeout      time.Duration // Timeout for L2 Rollup RPC requests
-	RollupRpcBatchTimeout time.Duration // Timeout for L2 Rollup RPC batch requests
-	SupervisorRPC         string        // L2 supervisor RPC URL
-	L2Rpcs                []string      // L2 RPC Url
+	RollupRpc     string   // L2 Rollup RPC Url
+	SupervisorRPC string   // L2 supervisor RPC URL
+	L2Rpcs        []string // L2 RPC Url
 
 	// Specific to the cannon trace provider
 	Cannon                            vm.Config
@@ -142,17 +132,6 @@ func NewInteropConfig(
 	supportedGameTypes ...gameTypes.GameType,
 ) Config {
 	return Config{
-<<<<<<< HEAD
-		L1EthRpc:              l1EthRpc,
-		L1Beacon:              l1BeaconApi,
-		RollupRpc:             l2RollupRpc,
-		RollupRpcTimeout:      DefaultRollupRpcTimeout,
-		RollupRpcBatchTimeout: DefaultRollupRpcBatchTimeout,
-		L2Rpcs:                []string{l2EthRpc},
-		GameFactoryAddress:    gameFactoryAddress,
-		MaxConcurrency:        uint(runtime.NumCPU()),
-		PollInterval:          DefaultPollInterval,
-=======
 		L1EthRpc:           l1EthRpc,
 		L1Beacon:           l1BeaconApi,
 		SupervisorRPC:      supervisorRpc,
@@ -160,7 +139,6 @@ func NewInteropConfig(
 		GameFactoryAddress: gameFactoryAddress,
 		MaxConcurrency:     uint(runtime.NumCPU()),
 		PollInterval:       DefaultPollInterval,
->>>>>>> upstream/develop
 
 		GameTypes: supportedGameTypes,
 

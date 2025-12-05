@@ -26,7 +26,7 @@ library Predeploys {
     address internal constant DEPLOYER_WHITELIST = 0x4200000000000000000000000000000000000002;
 
     /// @notice Address of the canonical WETH contract.
-    address internal constant WETH = 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000;
+    address internal constant WETH = 0x4200000000000000000000000000000000000006;
 
     /// @notice Address of the L2CrossDomainMessenger predeploy.
     address internal constant L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000007;
@@ -86,7 +86,7 @@ library Predeploys {
     /// @notice Address of the LegacyERC20ETH predeploy. Deprecated. Balances are migrated to the
     ///         state trie as of the Bedrock upgrade. Contract has been locked and write functions
     ///         can no longer be accessed.
-    address internal constant LEGACY_ERC20_ETH = 0x4200000000000000000000000000000000000006;
+    address internal constant LEGACY_ERC20_ETH = 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000;
 
     /// @notice Address of the CrossL2Inbox predeploy.
     address internal constant CROSS_L2_INBOX = 0x4200000000000000000000000000000000000022;
@@ -113,10 +113,6 @@ library Predeploys {
     /// @notice Address of the SuperchainTokenBridge predeploy.
     address internal constant SUPERCHAIN_TOKEN_BRIDGE = 0x4200000000000000000000000000000000000028;
 
-<<<<<<< HEAD
-    /// @notice Address of the L2Boba predeploy.
-    address internal constant L2_BOBA = 0xa18bF3994C0Cc6E3b63ac420308E5383f53120D7;
-=======
     /// @notice Address of the NativeAssetLiquidity predeploy.
     address internal constant NATIVE_ASSET_LIQUIDITY = 0x4200000000000000000000000000000000000029;
 
@@ -125,16 +121,14 @@ library Predeploys {
 
     /// @notice Address of the FeeSplitter predeploy.
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
->>>>>>> upstream/develop
 
     /// @notice Returns the name of the predeploy at the given address.
     function getName(address _addr) internal pure returns (string memory out_) {
-        if (_addr == WETH) return "WETH";
-        if (_addr == L2_BOBA) return "LegacyMintableERC20";
         require(isPredeployNamespace(_addr), "Predeploys: address must be a predeploy");
         if (_addr == LEGACY_MESSAGE_PASSER) return "LegacyMessagePasser";
         if (_addr == L1_MESSAGE_SENDER) return "L1MessageSender";
         if (_addr == DEPLOYER_WHITELIST) return "DeployerWhitelist";
+        if (_addr == WETH) return "WETH";
         if (_addr == L2_CROSS_DOMAIN_MESSENGER) return "L2CrossDomainMessenger";
         if (_addr == GAS_PRICE_ORACLE) return "GasPriceOracle";
         if (_addr == L2_STANDARD_BRIDGE) return "L2StandardBridge";
@@ -168,7 +162,7 @@ library Predeploys {
 
     /// @notice Returns true if the predeploy is not proxied.
     function notProxied(address _addr) internal pure returns (bool) {
-        return _addr == GOVERNANCE_TOKEN || _addr == WETH || _addr == LEGACY_ERC20_ETH || _addr == L2_BOBA;
+        return _addr == GOVERNANCE_TOKEN || _addr == WETH;
     }
 
     /// @notice Returns true if the address is a defined predeploy that is embedded into new OP-Stack chains.

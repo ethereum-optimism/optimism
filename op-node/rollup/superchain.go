@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -12,12 +11,6 @@ import (
 )
 
 var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 9, Minor: 0, Patch: 0, PreRelease: 0}.Encode()
-
-const (
-	bobaMainnet    = 288
-	bobaSepolia    = 28882
-	bobaBnbTestnet = 9728
-)
 
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
 // Some chains may require a SystemConfigProvider to retrieve any values not part of the registry.
@@ -63,22 +56,6 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		}
 	}
 
-<<<<<<< HEAD
-	hardforks := chConfig.Hardforks
-	regolithTime := uint64(0)
-	// three goerli testnets test-ran Bedrock and later upgraded to Regolith.
-	// All other OP-Stack chains have Regolith enabled from the start.
-	switch chainID {
-	case bobaMainnet:
-		regolithTime = 1713302879
-	case bobaSepolia:
-		regolithTime = 1705600788
-	case bobaBnbTestnet:
-		regolithTime = 1718920167
-	}
-
-=======
->>>>>>> upstream/develop
 	cfg := &Config{
 		Genesis: Genesis{
 			L1: eth.BlockID{
@@ -111,27 +88,6 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	applyHardforks(cfg, chConfig.Hardforks)
 
 	cfg.ProtocolVersionsAddress = superConfig.ProtocolVersionsAddr
-
-	if chainID == bobaSepolia {
-		cfg.ProtocolVersionsAddress = common.Address{}
-	}
-	if chainID == bobaMainnet {
-		cfg.ProtocolVersionsAddress = common.Address{}
-	}
-	if chainID == bobaBnbTestnet {
-		cfg.MaxSequencerDrift = 900
-		cfg.ProtocolVersionsAddress = common.Address{}
-	}
-	if chainID == bobaSepolia {
-		cfg.ProtocolVersionsAddress = common.Address{}
-	}
-	if chainID == bobaMainnet {
-		cfg.ProtocolVersionsAddress = common.Address{}
-	}
-	if chainID == bobaBnbTestnet {
-		cfg.MaxSequencerDrift = 900
-		cfg.ProtocolVersionsAddress = common.Address{}
-	}
 	return cfg, nil
 }
 

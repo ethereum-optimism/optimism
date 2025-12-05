@@ -60,45 +60,22 @@ CONTRACTS_DIR="$SCRIPT_DIR/../.."
 
 cd "$CONTRACTS_DIR"
 
-<<<<<<< HEAD
-checksum=$(bash scripts/ops/calculate-checksum.sh)
-archive_name="artifacts-v1-$checksum.tar.gz"
-
-echoerr "> Checking for existing artifacts..."
-exists=$(curl -s -o /dev/null --fail -LI "https://storage.googleapis.com/boba-contract-artifacts/$archive_name" || echo "fail")
-
-if [ "$exists" == "fail" ]; then
-  echoerr "> No existing artifacts found, exiting."
-  exit 0
-=======
 if command -v zstd > /dev/null 2>&1; then
   HAS_ZSTD=true
   echoerr "> zstd found, will prefer .tar.zst files"
 else
   HAS_ZSTD=false
   echoerr "> zstd not found, will prefer .tar.gz files"
->>>>>>> upstream/develop
 fi
 
 checksum=$(bash scripts/ops/calculate-checksum.sh)
 
-<<<<<<< HEAD
-echoerr "> Found existing artifacts. Downloading..."
-curl -o "$archive_name" "https://storage.googleapis.com/boba-contract-artifacts/$archive_name"
-echoerr "> Done."
-=======
 echoerr "> Checking for existing artifacts..."
->>>>>>> upstream/develop
 
 if [ "$HAS_ZSTD" = true ]; then
   archive_name_zst="artifacts-v1-$checksum.tar.zst"
   exists_zst=$(curl -s -o /dev/null --fail -LI "https://storage.googleapis.com/oplabs-contract-artifacts/$archive_name_zst" || echo "fail")
 
-<<<<<<< HEAD
-echoerr "> Cleaning up."
-rm "$archive_name"
-echoerr "> Done."
-=======
   if [ "$exists_zst" != "fail" ]; then
     download_and_extract "$archive_name_zst"
   fi
@@ -138,4 +115,3 @@ if [ "$exists_gz" == "fail" ]; then
 fi
 
 download_and_extract "$archive_name_gz"
->>>>>>> upstream/develop

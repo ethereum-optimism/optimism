@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -47,16 +46,7 @@ const (
 	TxNotInMempoolTimeoutFlagName      = "txmgr.not-in-mempool-timeout"
 	ReceiptQueryIntervalFlagName       = "txmgr.receipt-query-interval"
 	AlreadyPublishedCustomErrsFlagName = "txmgr.already-published-custom-errs"
-<<<<<<< HEAD
-	// Kms
-	KmsProductionName = "kms.production"
-	KmsProfileName    = "kms.profile"
-	KmsKeyIDName      = "kms.key.id"
-	KmsEndpointName   = "kms.endpoint"
-	KmsRegionName     = "kms.region"
-=======
 	CellProofTimeFlagName              = "txmgr.cell-proof-time"
->>>>>>> upstream/develop
 )
 
 var (
@@ -255,40 +245,11 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 			Usage:   "List of custom RPC error messages that indicate that a transaction has already been published.",
 			EnvVars: prefixEnvVars("TXMGR_ALREADY_PUBLISHED_CUSTOM_ERRS"),
 		},
-<<<<<<< HEAD
-		&cli.BoolFlag{
-			Name: KmsProductionName,
-			Usage: "Whether to use the production KMS. If false, the KMS will be " +
-				"initialized in development mode.",
-			Value:   false,
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "KMS_PRODUCTION"),
-		},
-		&cli.StringFlag{
-			Name:    KmsProfileName,
-			Usage:   "The profile to use when initializing the KMS. If not set, the default profile will be used.",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "KMS_PROFILE"),
-		},
-		&cli.StringFlag{
-			Name:    KmsKeyIDName,
-			Usage:   "KMS Key ID.",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "KMS_KEY_ID"),
-		},
-		&cli.StringFlag{
-			Name:    KmsEndpointName,
-			Usage:   "KMS Endpoint.",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "KMS_ENDPOINT"),
-		},
-		&cli.StringFlag{
-			Name:    KmsRegionName,
-			Usage:   "KMS Region",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "KMS_REGION"),
-=======
 		&cli.Uint64Flag{
 			Name:    CellProofTimeFlagName,
 			Usage:   "Enables cell proofs in blob transactions for Fusaka (EIP-7742) compatibility from the provided unix timestamp. Should be set to the L1 Fusaka time. May be left blank for Ethereum Mainnet, Sepolia, Holesky, or Hoodi L1s.",
 			EnvVars: prefixEnvVars("TXMGR_CELL_PROOF_TIME"),
 			Value:   defaults.CellProofTime,
->>>>>>> upstream/develop
 		},
 	}, opsigner.CLIFlags(envPrefix, "")...)
 }
@@ -318,15 +279,7 @@ type CLIConfig struct {
 	TxSendTimeout              time.Duration
 	TxNotInMempoolTimeout      time.Duration
 	AlreadyPublishedCustomErrs []string
-<<<<<<< HEAD
-	KmsProduction              bool
-	KmsProfile                 string
-	KmsKeyID                   string
-	KmsEndpoint                string
-	KmsRegion                  string
-=======
 	CellProofTime              uint64
->>>>>>> upstream/develop
 }
 
 func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
@@ -383,16 +336,6 @@ func (m CLIConfig) Check() error {
 	if err := m.SignerCLIConfig.Check(); err != nil {
 		return err
 	}
-<<<<<<< HEAD
-	if m.KmsKeyID != "" {
-		if !m.KmsProduction && m.KmsEndpoint == "" {
-			return errors.New("KMS Endpoint must be provided")
-		}
-		if m.KmsRegion == "" {
-			return errors.New("KMS Region must be provided")
-		}
-	}
-=======
 	atMostOneIsSet := func(options ...bool) bool {
 		boolToInt := func(b bool) int {
 			if b {
@@ -411,7 +354,6 @@ func (m CLIConfig) Check() error {
 		return errors.New("can only provide at most one of: [private key, mnemonic, remote signer]")
 	}
 
->>>>>>> upstream/develop
 	return nil
 }
 
@@ -441,15 +383,7 @@ func ReadCLIConfig(ctx cliiface.Context) CLIConfig {
 		TxSendTimeout:              ctx.Duration(TxSendTimeoutFlagName),
 		TxNotInMempoolTimeout:      ctx.Duration(TxNotInMempoolTimeoutFlagName),
 		AlreadyPublishedCustomErrs: ctx.StringSlice(AlreadyPublishedCustomErrsFlagName),
-<<<<<<< HEAD
-		KmsProduction:              ctx.Bool(KmsProductionName),
-		KmsProfile:                 ctx.String(KmsProfileName),
-		KmsKeyID:                   ctx.String(KmsKeyIDName),
-		KmsEndpoint:                ctx.String(KmsEndpointName),
-		KmsRegion:                  ctx.String(KmsRegionName),
-=======
 		CellProofTime:              ctx.Uint64(CellProofTimeFlagName),
->>>>>>> upstream/develop
 	}
 }
 
@@ -480,31 +414,9 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 		hdPath = cfg.L2OutputHDPath
 	}
 
-	var (
-		from          common.Address
-		signerFactory opcrypto.SignerFactory
-		kmsManager    KmsManager
-	)
-
-	if cfg.KmsKeyID != "" {
-		kmsManager, err = NewKmsConfig(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("could not init kms: %w", err)
-		}
-		from, err = kmsManager.GetAddr()
-		if err != nil {
-			return nil, fmt.Errorf("could not get address from kms: %w", err)
-		}
-		signerFactory = func(chainID *big.Int) opcrypto.SignerFn {
-			return func(ctx context.Context, address common.Address, tx *types.Transaction) (*types.Transaction, error) {
-				return kmsManager.Sign(chainID, tx)
-			}
-		}
-	} else {
-		signerFactory, from, err = opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, hdPath, cfg.SignerCLIConfig)
-		if err != nil {
-			return nil, fmt.Errorf("could not init signer: %w", err)
-		}
+	signerFactory, from, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, hdPath, cfg.SignerCLIConfig)
+	if err != nil {
+		return nil, fmt.Errorf("could not init signer: %w", err)
 	}
 
 	feeLimitThreshold, err := eth.GweiToWei(cfg.FeeLimitThresholdGwei)
@@ -542,11 +454,10 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 	cellProofTime := fallbackToOsakaCellProofTimeIfKnown(chainID, cfg.CellProofTime)
 
 	res := Config{
-		Backend:    l1,
-		ChainID:    chainID,
-		Signer:     signerFactory(chainID),
-		From:       from,
-		KmsManager: kmsManager,
+		Backend: l1,
+		ChainID: chainID,
+		Signer:  signerFactory(chainID),
+		From:    from,
 
 		TxSendTimeout:              cfg.TxSendTimeout,
 		TxNotInMempoolTimeout:      cfg.TxNotInMempoolTimeout,
@@ -670,13 +581,8 @@ type Config struct {
 	// already been published.
 	AlreadyPublishedCustomErrs []string
 
-<<<<<<< HEAD
-	// Kms structure for signing transactions
-	KmsManager KmsManager
-=======
 	// CellProofTime is the time at which cell proofs are enabled in blob transaction (for Fusaka (EIP-7742) compatibility).
 	CellProofTime uint64
->>>>>>> upstream/develop
 }
 
 func (m *Config) Check() error {
