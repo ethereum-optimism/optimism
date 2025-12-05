@@ -5,7 +5,6 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { DisputeGames } from "../setup/DisputeGames.sol";
-import { DelegateCaller } from "test/mocks/Callers.sol";
 
 // Libraries
 import { GameType, Hash } from "src/dispute/lib/LibUDT.sol";
@@ -46,6 +45,7 @@ import { DisputeGames } from "../setup/DisputeGames.sol";
 import { IStaticERC1967Proxy } from "interfaces/universal/IStaticERC1967Proxy.sol";
 import { IDelayedWETH } from "../../interfaces/dispute/IDelayedWETH.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 
 /// @title BadDisputeGameFactoryReturner
 /// @notice Used to return a bad DisputeGameFactory address to the OPContractsManagerStandardValidator. Far easier
@@ -207,9 +207,8 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
                     addGameType(GameTypes.CANNON_KONA, cannonKonaPrestate);
                 }
             } else {
-                // Set the ProxyAdmin owner to be a delegatecaller.
+                // Get the ProxyAdmin owner.
                 address owner = proxyAdmin.owner();
-                vm.etch(owner, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
                 // Prepare the upgrade input.
                 IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
@@ -242,19 +241,20 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
                 });
 
                 // Call upgrade to all games to be enabled.
-                DelegateCaller(owner).dcForward(
-                    address(opcmV2),
+                prankDelegateCall(owner);
+                (bool success,) = address(opcmV2).delegatecall(
                     abi.encodeCall(
                         IOPContractsManagerV2.upgrade,
                         (
                             IOPContractsManagerV2.UpgradeInput({
                                 systemConfig: systemConfig,
                                 disputeGameConfigs: disputeGameConfigs,
-                                extraInstructions: new IOPContractsManagerV2.ExtraInstruction[](0)
+                                extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
                             })
                         )
                     )
                 );
+                assertTrue(success, "upgrade failed");
 
                 // Grab the FaultDisputeGame implementation.
                 fdgImpl = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));

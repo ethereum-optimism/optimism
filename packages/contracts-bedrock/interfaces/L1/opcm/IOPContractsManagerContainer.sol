@@ -36,7 +36,7 @@ interface IOPContractsManagerContainer {
         address storageSetterImpl;
     }
 
-    error OPContractsManagerContractsContainer_DevFeatureInProd();
+    error OPContractsManagerContainer_DevFeatureInProd();
 
     function blueprints() external view returns (Blueprints memory);
     function implementations() external view returns (Implementations memory);

@@ -7,7 +7,6 @@ import { VmSafe } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { FeatureFlags } from "test/setup/FeatureFlags.sol";
 import { DeployOPChain_TestBase } from "test/opcm/DeployOPChain.t.sol";
-import { DelegateCaller } from "test/mocks/Callers.sol";
 
 // Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
@@ -149,9 +148,6 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         upgrader = proxyAdmin.owner();
         vm.label(upgrader, "ProxyAdmin Owner");
 
-        // Set the upgrader to be a DelegateCaller so we can test the upgrade
-        vm.etch(upgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-
         opChainConfigs.push(
             IOPContractsManager.OpChainConfig({
                 systemConfigProxy: systemConfig,
@@ -213,18 +209,13 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         address initialProposer = permissionedGameProposer(disputeGameFactory);
 
         // Always start by upgrading the SuperchainConfig contract.
-        // Temporarily replace the superchainPAO with a DelegateCaller.
         address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
-        bytes memory superchainPAOCode = address(superchainPAO).code;
-        vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         // Execute the SuperchainConfig upgrade.
-        // nosemgrep: sol-safety-trycatch-eip150
-        try DelegateCaller(superchainPAO).dcForward(
-            address(_opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
-        ) {
-            // Great, the upgrade succeeded.
-        } catch (bytes memory reason) {
+        prankDelegateCall(superchainPAO);
+        (bool success, bytes memory reason) =
+            address(_opcm).delegatecall(abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig)));
+        if (success == false) {
             // Only acceptable revert reason is the SuperchainConfig already being up to date. This
             // try/catch is better than checking the version via the implementations struct because
             // the implementations struct interface can change between OPCM versions which would
@@ -236,22 +227,16 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
             );
         }
 
-        // Reset the superchainPAO to the original code.
-        vm.etch(superchainPAO, superchainPAOCode);
-
-        // Temporarily replace the upgrader with a DelegateCaller.
-        bytes memory delegateCallerCode = address(_delegateCaller).code;
-        vm.etch(_delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-
         // Expect the revert if one is specified.
         if (_revertBytes.length > 0) {
             vm.expectRevert(_revertBytes);
         }
 
         // Execute the chain upgrade.
-        DelegateCaller(_delegateCaller).dcForward(
-            address(_opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
-        );
+        prankDelegateCall(_delegateCaller);
+        (bool upgradeSuccess,) =
+            address(_opcm).delegatecall(abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
+        assertTrue(upgradeSuccess, "upgrade failed");
 
         // Return early if a revert was expected. Otherwise we'll get errors below.
         if (_revertBytes.length > 0) {
@@ -263,9 +248,6 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         uint256 fusakaLimit = 2 ** 24;
         VmSafe.Gas memory gas = vm.lastCallGas();
         assertLt(gas.gasTotalUsed, fusakaLimit * 9 / 10, "Upgrade exceeds gas target of 90% of 2**24 (EIP-7825)");
-
-        // Reset the upgrader to the original code.
-        vm.etch(_delegateCaller, delegateCallerCode);
 
         // We expect there to only be one chain config for these tests, you will have to rework
         // this test if you add more.
@@ -1079,21 +1061,20 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
             cannonKonaArgsBefore = _getParsedGameArgs(dgf, GameTypes.CANNON_KONA);
         }
 
-        // Turn the ProxyAdmin owner into a DelegateCaller.
-        address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
-        vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-
         IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
         inputs[0] = _input;
 
+        // make the call to cache the proxy admin owner before setting expectRevert
+        address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
         if (_revertBytes.length > 0) {
             vm.expectRevert(_revertBytes);
         }
 
         // Trigger the updatePrestate function.
-        DelegateCaller(proxyAdminOwner).dcForward(
-            address(prestateUpdater), abi.encodeCall(IOPContractsManager.updatePrestate, (inputs))
-        );
+        prankDelegateCall(proxyAdminOwner);
+        (bool success,) =
+            address(prestateUpdater).delegatecall(abi.encodeCall(IOPContractsManager.updatePrestate, (inputs)));
+        assertTrue(success, "updatePrestate failed");
 
         // Return early if a revert was expected. Otherwise we'll get errors below.
         if (_revertBytes.length > 0) {
@@ -1215,14 +1196,12 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
             chainDeployOutput1.systemConfigProxy, prestate, Claim.wrap(bytes32(0))
         );
 
-        // Turn the ProxyAdmin owner into a DelegateCaller.
-        address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
-        vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-
         // Trigger the updatePrestate function.
-        DelegateCaller(proxyAdminOwner).dcForward(
-            address(prestateUpdater), abi.encodeCall(IOPContractsManager.updatePrestate, (inputs))
-        );
+        address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
+        prankDelegateCall(proxyAdminOwner);
+        (bool success,) =
+            address(prestateUpdater).delegatecall(abi.encodeCall(IOPContractsManager.updatePrestate, (inputs)));
+        assertTrue(success, "updatePrestate failed");
 
         LibGameArgs.GameArgs memory permissionedGameArgs = LibGameArgs.decode(
             IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameArgs(
@@ -1345,14 +1324,12 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
             cannonKonaPrestate: cannonKonaPrestate
         });
 
-        // Turn the ProxyAdmin owner into a DelegateCaller.
-        address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
-        vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-
         // Trigger the updatePrestate function.
-        DelegateCaller(proxyAdminOwner).dcForward(
-            address(prestateUpdater), abi.encodeCall(IOPContractsManager.updatePrestate, (inputs))
-        );
+        address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
+        prankDelegateCall(proxyAdminOwner);
+        (bool success,) =
+            address(prestateUpdater).delegatecall(abi.encodeCall(IOPContractsManager.updatePrestate, (inputs)));
+        assertTrue(success, "updatePrestate failed");
 
         LibGameArgs.GameArgs memory permissionedGameArgs =
             LibGameArgs.decode(chainDeployOutput1.disputeGameFactoryProxy.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
@@ -1693,7 +1670,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 
     function test_upgrade_notProxyAdminOwner_reverts() public {
         address delegateCaller = makeAddr("delegateCaller");
-        vm.etch(delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         assertNotEq(superchainProxyAdmin.owner(), delegateCaller);
         assertNotEq(proxyAdmin.owner(), delegateCaller);
@@ -1756,13 +1732,13 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
 
         address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
-        vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         vm.expectEmit(address(superchainConfig));
         emit Upgraded(impls.superchainConfigImpl);
-        DelegateCaller(superchainPAO).dcForward(
-            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
-        );
+        prankDelegateCall(superchainPAO);
+        (bool success,) =
+            address(opcm).delegatecall(abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig)));
+        assertTrue(success, "upgradeSuperchainConfig failed");
     }
 
     /// @notice Tests that the upgradeSuperchainConfig function reverts when it is not called via delegatecall.
@@ -1779,15 +1755,15 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
 
         address delegateCaller = makeAddr("delegateCaller");
-        vm.etch(delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         assertNotEq(superchainProxyAdmin.owner(), delegateCaller);
         assertNotEq(proxyAdmin.owner(), delegateCaller);
 
         vm.expectRevert("Ownable: caller is not the owner");
-        DelegateCaller(delegateCaller).dcForward(
-            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
-        );
+        prankDelegateCall(delegateCaller);
+        (bool success,) =
+            address(opcm).delegatecall(abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig)));
+        assertTrue(success, "upgradeSuperchainConfig failed");
     }
 
     /// @notice Tests that the upgradeSuperchainConfig function reverts when the superchainConfig version is the same or
@@ -1803,9 +1779,10 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
 
         // Try to upgrade the SuperchainConfig contract again, should fail.
         vm.expectRevert(IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate.selector);
-        DelegateCaller(upgrader).dcForward(
-            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
-        );
+        prankDelegateCall(upgrader);
+        (bool success,) =
+            address(opcm).delegatecall(abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig)));
+        assertTrue(success, "upgradeSuperchainConfig failed");
     }
 }
 
@@ -1870,7 +1847,6 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
     {
         // Set the proxy admin owner to be a delegate caller.
         address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
-        vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         // Execute a delegatecall to the OPCM migration function.
         // Check gas usage of the migration function.
@@ -1878,7 +1854,9 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         if (_revertSelector != bytes4(0)) {
             vm.expectRevert(_revertSelector);
         }
-        DelegateCaller(proxyAdminOwner).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.migrate, (_input)));
+        prankDelegateCall(proxyAdminOwner);
+        (bool success,) = address(opcm).delegatecall(abi.encodeCall(IOPContractsManager.migrate, (_input)));
+        assertTrue(success, "migrate failed");
         uint256 gasAfter = gasleft();
 
         // Make sure the gas usage is less than 20 million so we can definitely fit in a block.

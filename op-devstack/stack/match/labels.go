@@ -20,13 +20,13 @@ const (
 type Vendor string
 
 const (
-	Geth                      Vendor = "geth"
-	OpReth                    Vendor = "op-reth"
-	OpGeth                    Vendor = "op-geth"
-	Proxyd                    Vendor = "proxyd"
-	FlashblocksWebsocketProxy Vendor = "flashblocks-websocket-proxy"
-	OpNode                    Vendor = "op-node"
-	KonaNode                  Vendor = "kona-node"
+	Geth                Vendor = "geth"
+	OpReth              Vendor = "op-reth"
+	OpGeth              Vendor = "op-geth"
+	Proxyd              Vendor = "proxyd"
+	FlashblocksWSClient Vendor = "flashblocks-websocket-proxy"
+	OpNode              Vendor = "op-node"
+	KonaNode            Vendor = "kona-node"
 )
 
 func (v Vendor) Match(elems []stack.L2ELNode) []stack.L2ELNode {

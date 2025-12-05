@@ -230,10 +230,18 @@ func (s *SyncDeriver) SyncStep() {
 	s.Engine.TryUpdateEngine(s.Ctx)
 
 	if s.Engine.IsEngineInitialELSyncing() {
-		// The pipeline cannot move forwards if doing EL sync.
-		s.Log.Debug("Rollup driver is backing off because execution engine is syncing.",
+		// The pipeline cannot move forwards if doing initial EL sync.
+		s.Log.Debug("Rollup driver is backing off because execution engine is performing initial EL sync.",
 			"unsafe_head", s.Engine.UnsafeL2Head())
 		s.StepDeriver.ResetStepBackoff(s.Ctx)
+		return
+	}
+
+	if s.SyncCfg.UnsafeOnly {
+		if s.SyncCfg.NeedInitialResetEngine {
+			// May need a single reset to trigger sequencer block building
+			s.Engine.TryInitialResetEngineForSequencer(s.Ctx)
+		}
 		return
 	}
 

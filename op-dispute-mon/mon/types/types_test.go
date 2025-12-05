@@ -13,7 +13,7 @@ func TestEnrichedGameData_UsesOutputRoots(t *testing.T) {
 		gameType := gameType
 		t.Run(fmt.Sprintf("GameType-%v", gameType), func(t *testing.T) {
 			data := EnrichedGameData{
-				GameMetadata: types.GameMetadata{GameType: gameType},
+				GameMetadata: types.GameMetadata{GameType: uint32(gameType)},
 			}
 			require.True(t, data.UsesOutputRoots())
 		})
@@ -174,6 +174,25 @@ func TestEnrichedGameData_HasMixedSafety(t *testing.T) {
 			}
 			result := data.HasMixedSafety()
 			require.Equal(t, test.expected, result)
+		})
+	}
+}
+
+func TestAllSupportedGameTypesAreOutputOrSuperRootType(t *testing.T) {
+	for _, gameType := range types.SupportedGameTypes {
+		t.Run(gameType.String(), func(t *testing.T) {
+			data := EnrichedGameData{
+				GameMetadata: types.GameMetadata{
+					GameType: uint32(gameType),
+				},
+			}
+			if data.UsesOutputRoots() {
+				require.Contains(t, outputRootGameTypes, gameType)
+				require.NotContains(t, superRootGameTypes, gameType)
+			} else {
+				require.Contains(t, superRootGameTypes, gameType)
+				require.NotContains(t, outputRootGameTypes, gameType)
+			}
 		})
 	}
 }

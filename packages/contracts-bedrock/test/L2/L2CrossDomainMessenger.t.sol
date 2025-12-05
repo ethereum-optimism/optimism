@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { Reverter, GasBurner } from "test/mocks/Callers.sol";
+import { GasBurner } from "test/mocks/GasBurner.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { stdError } from "forge-std/StdError.sol";
 
@@ -398,7 +398,7 @@ contract L2CrossDomainMessenger_Uncategorized_Test is L2CrossDomainMessenger_Tes
         bytes32 hash =
             Hashing.hashCrossDomainMessage(Encoding.encodeVersionedNonce(0, 1), sender, target, value, 0, hex"1111");
 
-        vm.etch(target, address(new Reverter()).code);
+        vm.mockCallRevert(target, bytes(hex"1111"), bytes(hex""));
         vm.deal(address(caller), value);
         vm.prank(caller);
         l2CrossDomainMessenger.relayMessage{ value: value }(
@@ -419,7 +419,7 @@ contract L2CrossDomainMessenger_Uncategorized_Test is L2CrossDomainMessenger_Tes
 
         emit RelayedMessage(hash);
 
-        vm.etch(target, address(0).code);
+        vm.clearMockedCalls();
         vm.prank(address(sender));
         l2CrossDomainMessenger.relayMessage(
             Encoding.encodeVersionedNonce(0, 1), // nonce

@@ -22,11 +22,13 @@ type L2CLNodeConfig struct {
 
 type rpcL2CLNode struct {
 	commonImpl
-	id           stack.L2CLNodeID
-	client       client.RPC
-	rollupClient apis.RollupClient
-	p2pClient    apis.P2PClient
-	els          locks.RWMap[stack.L2ELNodeID, stack.L2ELNode]
+	id               stack.L2CLNodeID
+	client           client.RPC
+	rollupClient     apis.RollupClient
+	p2pClient        apis.P2PClient
+	els              locks.RWMap[stack.L2ELNodeID, stack.L2ELNode]
+	rollupBoostNodes locks.RWMap[stack.RollupBoostNodeID, stack.RollupBoostNode]
+	oprbuilderNodes  locks.RWMap[stack.OPRBuilderNodeID, stack.OPRBuilderNode]
 
 	userRPC string
 
@@ -74,8 +76,36 @@ func (r *rpcL2CLNode) LinkEL(el stack.L2ELNode) {
 	r.els.Set(el.ID(), el)
 }
 
+func (r *rpcL2CLNode) LinkRollupBoostNode(rollupBoostNode stack.RollupBoostNode) {
+	r.rollupBoostNodes.Set(rollupBoostNode.ID(), rollupBoostNode)
+}
+
+func (r *rpcL2CLNode) LinkOPRBuilderNode(oprb stack.OPRBuilderNode) {
+	r.oprbuilderNodes.Set(oprb.ID(), oprb)
+}
+
 func (r *rpcL2CLNode) ELs() []stack.L2ELNode {
 	return stack.SortL2ELNodes(r.els.Values())
+}
+
+func (r *rpcL2CLNode) ELClient() apis.EthClient {
+	var ethclient apis.EthClient
+	if len(r.els.Values()) > 0 {
+		ethclient = r.els.Values()[0].EthClient()
+	} else if len(r.rollupBoostNodes.Values()) > 0 {
+		ethclient = r.rollupBoostNodes.Values()[0].EthClient()
+	} else if len(r.oprbuilderNodes.Values()) > 0 {
+		ethclient = r.oprbuilderNodes.Values()[0].EthClient()
+	}
+	return ethclient
+}
+
+func (r *rpcL2CLNode) RollupBoostNodes() []stack.RollupBoostNode {
+	return stack.SortRollupBoostNodes(r.rollupBoostNodes.Values())
+}
+
+func (r *rpcL2CLNode) OPRBuilderNodes() []stack.OPRBuilderNode {
+	return stack.SortOPRBuilderNodes(r.oprbuilderNodes.Values())
 }
 
 func (r *rpcL2CLNode) UserRPC() string {

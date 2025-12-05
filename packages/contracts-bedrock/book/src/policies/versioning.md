@@ -64,7 +64,10 @@ Individual contract versioning could be deprecated when the following conditions
 
 Versioning for monorepo releases works as follows:
 
-- Monorepo releases continue to follow the `op-contracts/vX.Y.Z` naming convention.
+- Monorepo releases follow the `op-contracts/vX.Y.Z` naming convention for core protocol contracts.
+- Additional release namespaces exist for specialized contract categories:
+  - `op-safe-contracts/vX.Y.Z`: Safe multisig extensions (SaferSafes, LivenessModule2, TimelockGuard, DeputyPauseModule, etc.)
+- Each namespace maintains its own independent semver versioning.
 - The version used for the next release is determined by the highest version bump of any individual contract in the release.
   - Example 1: The monorepo is at `op-contracts/v1.5.0`. Clarifying comments are made in contracts, so all contracts only bump the patch version. The next monorepo release will be `op-contracts/v1.5.1`.
   - Example 2: The monorepo is at `op-contracts/v1.5.1`. Various tech debt and code is cleaned up in contracts, but no features are added, so at most, contracts bumped the minor version. The next monorepo release will be `op-contracts/v1.6.0`.

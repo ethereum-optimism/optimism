@@ -35,6 +35,7 @@ type DeployImplementationsOutput struct {
 	OpcmUpgrader                     common.Address `json:"opcmUpgraderAddress"`
 	OpcmInteropMigrator              common.Address `json:"opcmInteropMigratorAddress"`
 	OpcmStandardValidator            common.Address `json:"opcmStandardValidatorAddress"`
+	OpcmUtils                        common.Address `json:"opcmUtilsAddress"`
 	OpcmV2                           common.Address `json:"opcmV2Address"`
 	OpcmContainer                    common.Address `json:"opcmContainerAddress"`
 	DelayedWETHImpl                  common.Address `json:"delayedWETHImplAddress"`

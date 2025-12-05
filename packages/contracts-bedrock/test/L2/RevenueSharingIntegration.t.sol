@@ -8,7 +8,6 @@ import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "src/libraries/Types.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title RevenueSharingIntegration_Test
 /// @notice Integration tests for the complete revenue sharing system including
@@ -26,10 +25,6 @@ contract RevenueSharingIntegration_Test is CommonTest {
     event FundsReceived(address indexed sender, uint256 amount, uint256 newBalance);
 
     function setUp() public override {
-        // Resolve features and skip whole test suite if custom gas token is enabled
-        resolveFeaturesFromEnv();
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
-
         // Enable revenue sharing before calling parent setUp
         super.enableRevenueShare();
         super.setUp();

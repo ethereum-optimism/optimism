@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
@@ -23,7 +24,6 @@ import (
 
 	challenger "github.com/ethereum-optimism/optimism/op-challenger"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -135,33 +135,33 @@ func handleOptError(t *testing.T, opt shared.Option) Option {
 func WithCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
-		handleOptError(t, shared.WithCannonTraceType())(c)
+		handleOptError(t, shared.WithCannonGameType())(c)
 	}
 }
 
 func WithPermissioned(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
-		handleOptError(t, shared.WithPermissionedTraceType())(c)
+		handleOptError(t, shared.WithPermissionedGameType())(c)
 	}
 }
 
 func WithSuperCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
-		handleOptError(t, shared.WithSuperCannonTraceType())(c)
+		handleOptError(t, shared.WithSuperCannonGameType())(c)
 	}
 }
 
 func WithAlphabet() Option {
 	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypeAlphabet)
+		c.GameTypes = append(c.GameTypes, gameTypes.AlphabetGameType)
 	}
 }
 
 func WithFastGames() Option {
 	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypeFast)
+		c.GameTypes = append(c.GameTypes, gameTypes.FastGameType)
 	}
 }
 

@@ -21,3 +21,6 @@ var FirstCluster = First[stack.ClusterID, stack.Cluster]()
 
 var FirstFaucet = First[stack.FaucetID, stack.Faucet]()
 var FirstSyncTester = First[stack.SyncTesterID, stack.SyncTester]()
+
+var FirstOPRBuilderNode = First[stack.OPRBuilderNodeID, stack.OPRBuilderNode]()
+var FirstRollupBoostNode = First[stack.RollupBoostNodeID, stack.RollupBoostNode]()
