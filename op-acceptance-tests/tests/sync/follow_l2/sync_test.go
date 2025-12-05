@@ -86,17 +86,19 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 	)
 }
 
-func TestFollowL2_SafeAndFinalized(gt *testing.T) {
+func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainTwoVerifiersWithoutCheck(t)
 	logger := t.Logger()
+	require := t.Require()
+
 	// Takes about 2 minutes for L1 finalization
 	attempts := 70
 	target := uint64(3)
 
-	// L2CL is the sequencer with follow source, derivation disabled
+	// L2CL is the sequencer with EL follow source, derivation disabled
 	// L2CLB is the verifier without follow source, derivation enabled
-	// L2CLC is the verifier with follow source, derivation disabled
+	// L2CLC is the verifier with CL follow source, derivation disabled
 	// All verifiers must eventually advance unsafe, safe, finalized
 	checkMatchedAll := func(lvl types.SafetyLevel) {
 		dsl.CheckAll(t,
@@ -118,6 +120,15 @@ func TestFollowL2_SafeAndFinalized(gt *testing.T) {
 
 	checkMatchedAll(types.Finalized)
 	logger.Info("Finalized head followed source", "target", target)
+
+	// EL Following CL does not gain CurrentL1
+	require.Equal(sys.L2CL.SyncStatus().CurrentL1, eth.L1BlockRef{})
+	// CL Following CL passed genesis
+	require.NotEqual(sys.L2CLC.SyncStatus().CurrentL1, eth.L1BlockRef{})
+	// CL Following CL gain CurrentL1
+	attempts = 10
+	sys.L2CLC.CurrentL1Matched(sys.L2CLB, attempts)
+	logger.Info("CurrentL1 followed source", "currentL1", sys.L2CLC.SyncStatus().CurrentL1)
 }
 
 func TestFollowL2_WithoutCLP2P(gt *testing.T) {
