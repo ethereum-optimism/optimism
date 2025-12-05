@@ -2,13 +2,10 @@ package driver
 
 import (
 	"context"
-	"errors"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
-
-var errL2FollowSourceNotEnabled = errors.New("L2 follow source not enabled")
 
 // L1FollowSource provides access to L1 block references for upstream following.
 type L1FollowSource interface {
