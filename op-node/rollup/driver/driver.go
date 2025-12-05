@@ -546,6 +546,7 @@ func (s *Driver) followUpstream() {
 		s.log.Warn("Follow Upstream: Failed to fetch currentL1", "err", err)
 		return
 	} else {
+		s.log.Debug("Follow Upstream: Inject CurrentL1", "currentL1", eCurrentL1)
 		s.emitter.Emit(s.driverCtx, derive.DeriverL1StatusEvent{Origin: eCurrentL1})
 	}
 	s.SyncDeriver.Engine.FollowSource(eSafe, eFinalized)
