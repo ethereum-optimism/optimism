@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -537,6 +538,15 @@ func (s *Driver) followUpstream() {
 	if eFinalized.Number > eSafe.Number {
 		s.log.Warn("Follow Upstream: Invalid external state, finalized is ahead of safe", "safe", eSafe, "finalized", eFinalized)
 		return
+	}
+	eCurrentL1, err := s.upstreamFollowSource.CurrentL1(s.driverCtx)
+	if errors.Is(err, sources.ErrFollowSourceCurrentL1NotSupported) {
+		s.log.Debug("Follow Upstream: CurrentL1 not supported")
+	} else if err != nil {
+		s.log.Warn("Follow Upstream: Failed to fetch currentL1", "err", err)
+		return
+	} else {
+		s.emitter.Emit(s.driverCtx, derive.DeriverL1StatusEvent{Origin: eCurrentL1})
 	}
 	s.SyncDeriver.Engine.FollowSource(eSafe, eFinalized)
 }
