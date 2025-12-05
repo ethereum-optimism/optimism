@@ -488,6 +488,8 @@ func TestBreakTimestampInvariant(gt *testing.T) {
 	// chain A progressed single unsafe block
 	eventLoggerAddress := DeployEventLogger(t, optsA)
 
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+
 	// Intent to initiate message(or emit event) on chain A
 	txA := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](optsA)
 	randomInitTrigger := interop.RandomInitTrigger(rng, eventLoggerAddress, 3, 10)
