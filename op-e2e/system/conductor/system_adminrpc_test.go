@@ -46,7 +46,7 @@ func TestStopStartSequencer(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_, err = rollupClient.StopSequencer(ctx)
+	blockHash, err := rollupClient.StopSequencer(ctx)
 	require.Nil(t, err, "Error stopping sequencer")
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
@@ -55,10 +55,6 @@ func TestStopStartSequencer(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, active, "sequencer should be inactive")
 
-	// Not sure why this test is flaky in Cricle CI
-	// Stablize the test
-	time.Sleep(time.Duration(time.Second))
-
 	blockBefore := latestBlock(t, l2Seq)
 	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
 	blockAfter := latestBlock(t, l2Seq)
@@ -66,13 +62,7 @@ func TestStopStartSequencer(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	// Not sure why this test is flaky in Cricle CI
-	// This is a hack to stablize the test.
-	latestBlock, err := l2Seq.BlockByNumber(ctx, big.NewInt(int64(blockAfter)))
-	require.NoError(t, err)
-
-	err = rollupClient.StartSequencer(ctx, latestBlock.Hash())
+	err = rollupClient.StartSequencer(ctx, blockHash)
 	require.Nil(t, err, "Error starting sequencer")
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)

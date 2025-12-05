@@ -107,8 +107,6 @@ func WithAllocType(allocType config.AllocType) SystemConfigOpt {
 }
 
 func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
-	config.ExternalL2TestParms.SkipIfNecessary(t)
-
 	sco := &SystemConfigOpts{
 		AllocType: config.DefaultAllocType,
 	}
@@ -194,7 +192,6 @@ func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 		GethOptions:                   map[string][]geth.GethOption{},
 		P2PTopology:                   nil, // no P2P connectivity by default
 		NonFinalizedProposals:         false,
-		ExternalL2Shim:                config.ExternalL2Shim,
 		DataAvailabilityType:          batcherFlags.CalldataType,
 		BatcherMaxPendingTransactions: 1,
 		BatcherTargetNumFrames:        1,
@@ -781,7 +778,6 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 
 	for _, name := range l2Nodes {
 		var ethClient services.EthInstance
-
 		if name != RoleSeq && !cfg.DisableTxForwarder {
 			cfg.GethOptions[name] = append(cfg.GethOptions[name], func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
 				ethCfg.RollupSequencerHTTP = sys.EthInstances[RoleSeq].UserRPC().RPC()
@@ -789,25 +785,16 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			})
 		}
 
-		if cfg.ExternalL2Shim == "" {
-			l2Geth, err := geth.InitL2(name, l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
-			if err != nil {
-				return nil, err
-			}
-			err = l2Geth.Node.Start()
-			if err != nil {
-				return nil, err
-			}
-			ethClient = l2Geth
-		} else {
-			ethClient = (&ExternalRunner{
-				Name:     name,
-				BinPath:  cfg.ExternalL2Shim,
-				Genesis:  l2Genesis,
-				GasLimit: l2Genesis.GasLimit,
-				JWTPath:  cfg.JWTFilePath,
-			}).Run(t)
+		l2Geth, err := geth.InitL2(name, l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
+		if err != nil {
+			return nil, err
 		}
+		if err := l2Geth.Node.Start(); err != nil {
+			return nil, err
+		}
+
+		ethClient = l2Geth
+
 		sys.EthInstances[name] = ethClient
 	}
 
@@ -1026,11 +1013,6 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		}
 	}
 
-	// Increase network timeout to stablize external tests
-	if cfg.ExternalL2Shim != "" {
-		batcherCLIConfig.TxMgrConfig.NetworkTimeout = 30 * time.Second
-	}
-
 	// Batch Submitter
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])
 	if err != nil {
@@ -1127,8 +1109,6 @@ func ConfigureL2(rollupNodeCfg *config2.Config, l2Node services.EthInstance, jwt
 	rollupNodeCfg.L2 = &config2.L2EndpointConfig{
 		L2EngineAddr:      endpoint.SelectRPC(EnvRPCPreference(), l2Node.AuthRPC()),
 		L2EngineJWTSecret: jwtSecret,
-		L2RpcTimeout:      10 * time.Second,
-		L2RpcBatchTimeout: 20 * time.Second,
 	}
 }
 

@@ -108,9 +108,6 @@ func ForNextSafeBlock(ctx context.Context, client BlockCaller) (*types.Block, er
 			if strings.Contains(err.Error(), "block not found") {
 				continue
 			}
-			if strings.Contains(err.Error(), "Unknown block") {
-				continue
-			}
 			return nil, err
 		}
 		break
@@ -129,9 +126,6 @@ func ForNextSafeBlock(ctx context.Context, client BlockCaller) (*types.Block, er
 				// If block is not found (e.g. upon startup of chain, when there is no "safe block" yet)
 				// then it may be found later. Keep wait loop running.
 				if strings.Contains(err.Error(), "block not found") {
-					continue
-				}
-				if strings.Contains(err.Error(), "Unknown block") {
 					continue
 				}
 				return nil, err

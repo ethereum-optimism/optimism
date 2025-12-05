@@ -77,6 +77,8 @@ github.com/bits-and-blooms/bitset v1.20.0 h1:2F+rfL86jE2d/bmw7OhqUg2Sj/1rURkBn3M
 github.com/bits-and-blooms/bitset v1.20.0/go.mod h1:7hO7Gc7Pp1vODcmWvKMRA9BNmbv6a/7QIWpPxHddWR8=
 github.com/bmatcuk/doublestar/v4 v4.8.1 h1:54Bopc5c2cAvhLRAzqOGCYHYyhcDHsFF4wWIR5wKP38=
 github.com/bmatcuk/doublestar/v4 v4.8.1/go.mod h1:xBQ8jztBU6kakFMg+8WGxn0c6z1fTSPVIjEY1Wr7jzc=
+github.com/bobanetwork/op-geth v0.0.0-20251205145516-6f01645ad891 h1:xrt1qc04BQWlf08cqe2nb3Qe9xEYGs5gZ3szx5j+eWk=
+github.com/bobanetwork/op-geth v0.0.0-20251205145516-6f01645ad891/go.mod h1:3U1FnsVUGf8S6MSR2KeToM2c/gfbMNrsRaxhY1AAxgY=
 github.com/boltdb/bolt v1.3.1 h1:JQmyP4ZBrce+ZQu0dY660FMfatumYDLun9hBCUVIkF4=
 github.com/boltdb/bolt v1.3.1/go.mod h1:clJnj/oiGkjum5o1McbSZDSLxVThjynRyGBgiAx27Ps=
 github.com/bradfitz/go-smtpd v0.0.0-20170404230938-deb6d6237625/go.mod h1:HYsPBTaaSFSlLx/70C2HPIMNZpVV8+vt/A+FMnYP11g=
@@ -238,8 +240,6 @@ github.com/emicklei/dot v1.6.2 h1:08GN+DD79cy/tzN6uLCT84+2Wk9u+wvqP+Hkx/dIR8A=
 github.com/emicklei/dot v1.6.2/go.mod h1:DeV7GvQtIw4h2u73RKBkkFdvVAz0D9fzeJrgPW6gy/s=
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.4-0.20251001155152-4eb15ccedf7e h1:iy1vBIzACYUyOVyoADUwvAiq2eOPC0yVsDUdolPwQjk=
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.4-0.20251001155152-4eb15ccedf7e/go.mod h1:DYj7+vYJ4cIB7zera9mv4LcAynCL5u4YVfoeUu6Wa+w=
-github.com/ethereum-optimism/op-geth v1.101604.0-synctest.0 h1:cWnKry8Cgworpw3X+TDEr57DCYefjN9Tmy2eJ9elMzE=
-github.com/ethereum-optimism/op-geth v1.101604.0-synctest.0/go.mod h1:fCNAwDynfAP6EKsmLqwSDUDgi+GtJIir74Ui3fXXMps=
 github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20251009180028-9b4658b9b7af h1:WWz0gJM/boaUImtJnROecPirAerKCLpAU4m6Tx0ArOg=
 github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20251009180028-9b4658b9b7af/go.mod h1:NZ816PzLU1TLv1RdAvYAb6KWOj4Zm5aInT0YpDVml2Y=
 github.com/ethereum/c-kzg-4844/v2 v2.1.5 h1:aVtoLK5xwJ6c5RiqO8g8ptJ5KU+2Hdquf6G3aXiHh5s=

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
@@ -80,22 +79,10 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 	}
 
 	var node services.EthInstance
-	if cfg.ExternalL2Shim == "" {
-		gethNode, err := geth.InitL2("l2", l2Genesis, cfg.JWTFilePath)
-		require.NoError(t, err)
-		require.NoError(t, gethNode.Node.Start())
-		node = gethNode
-	} else {
-		safeName := strings.ReplaceAll(t.Name(), "/", "_")
-		externalNode := (&e2esys.ExternalRunner{
-			Name:     fmt.Sprintf("%s-l2", safeName),
-			BinPath:  cfg.ExternalL2Shim,
-			Genesis:  l2Genesis,
-			JWTPath:  cfg.JWTFilePath,
-			GasLimit: uint64(cfg.DeployConfig.L2GenesisBlockGasLimit),
-		}).Run(t)
-		node = externalNode
-	}
+	gethNode, err := geth.InitL2("l2", l2Genesis, cfg.JWTFilePath)
+	require.NoError(t, err)
+	require.NoError(t, gethNode.Node.Start())
+	node = gethNode
 
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.JWTSecret))
 	l2Node, err := client.NewRPC(ctx, logger, node.AuthRPC().RPC(), client.WithGethRPCOptions(auth))

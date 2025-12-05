@@ -15,9 +15,9 @@ endif
 test: pre-test test-ws
 .PHONY: test
 
-test-external-erigon: pre-test
-	make -C ./external_erigon/
-	$(go_test) $(go_test_flags) ./system/... ./e2eutils/... ./opgeth/... ./interop/... --externalL2 external_erigon
+test-external-%: pre-test
+	make -C ./external_$*/
+	$(go_test) $(go_test_flags) --externalL2 ./external_$*/
 
 test-ws: pre-test
 	$(go_test) $(go_test_flags) ./system/... ./e2eutils/... ./opgeth/... ./interop/...

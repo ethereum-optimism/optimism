@@ -142,7 +142,7 @@ func L2Semvers(cfg L2SemversConfig) (*L2PredeploySemvers, error) {
 	contracts := []contractToCheck{
 		{predeploys.L2ToL1MessagePasserAddr, &ps.L2ToL1MessagePasser, "L2ToL1MessagePasser"},
 		{predeploys.DeployerWhitelistAddr, &ps.DeployerWhitelist, "DeployerWhitelist"},
-		{predeploys.OpWETHAddr, &ps.WETH, "WETH"},
+		{predeploys.WETHAddr, &ps.WETH, "WETH"},
 		{predeploys.L2CrossDomainMessengerAddr, &ps.L2CrossDomainMessenger, "L2CrossDomainMessenger"},
 		{predeploys.L2StandardBridgeAddr, &ps.L2StandardBridge, "L2StandardBridge"},
 		{predeploys.SequencerFeeVaultAddr, &ps.SequencerFeeVault, "SequencerFeeVault"},

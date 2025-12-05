@@ -1003,6 +1003,7 @@ func (l *BatchSubmitter) sendTx(txdata txData, isCancel bool, candidate *txmgr.T
 	} else {
 		candidate.GasLimit = floorDataGas
 	}
+
 	queue.Send(txRef{id: txdata.ID(), isCancel: isCancel, isBlob: txdata.asBlob}, *candidate, receiptsCh)
 }
 

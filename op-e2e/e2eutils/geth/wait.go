@@ -222,9 +222,6 @@ func waitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Dur
 				if strings.Contains(err.Error(), "block not found") {
 					continue
 				}
-				if strings.Contains(err.Error(), "Unknown block") {
-					continue
-				}
 				return nil, err
 			}
 			if block != nil && block.NumberU64() >= number.Uint64() {
