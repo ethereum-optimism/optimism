@@ -29,3 +29,7 @@ ai-contracts-test:
 
     # Step 3: Send to Devin
     just devin
+
+# Prepare Slack notification based on log.json results
+prepare-slack-notification:
+    cd contracts-test-maintenance/components/slack-notifier && ./prepare_notification.sh

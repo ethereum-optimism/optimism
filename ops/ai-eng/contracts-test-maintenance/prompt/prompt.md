@@ -28,6 +28,46 @@ Only make changes you're confident about - analyze code behavior before testing.
 Don't guess or assume - if unsure, examine the source contract carefully.
 </critical_requirement>
 
+<structured_output>
+You MUST maintain a `structured_output` field to communicate task completion status. Please update the structured output immediately after completing your analysis (Phases 1-2) to indicate whether changes are needed.
+
+**Required Format:**
+```json
+{
+  "analysis_complete": boolean,
+  "changes_needed": boolean,
+  "reason": string
+}
+```
+
+**When to Update:**
+- Update immediately after completing Phases 1-2 (Enhancement Analysis & Coverage Gap Analysis)
+- Set `analysis_complete: true` as soon as you determine the outcome
+- Set `changes_needed: true` if you will create or modify tests
+- Set `changes_needed: false` if no changes are needed after thorough analysis
+- Set `reason` with a brief explanation of the outcome
+
+**Examples:**
+
+No changes needed:
+```json
+{
+  "analysis_complete": true,
+  "changes_needed": false,
+  "reason": "Test coverage is already comprehensive with all functions and code paths tested"
+}
+```
+
+Changes needed:
+```json
+{
+  "analysis_complete": true,
+  "changes_needed": true,
+  "reason": "Converting 3 tests to fuzz tests and adding coverage for 2 untested functions"
+}
+```
+</structured_output>
+
 <zero_tolerance_rules>
 1. NO creating NEW tests for inherited functions - only test functions declared in target contract
 2. NO creating test contracts for constructor parameters - use Constructor_Test instead

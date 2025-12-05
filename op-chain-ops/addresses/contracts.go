@@ -34,6 +34,7 @@ type ImplementationsContracts struct {
 	OpcmUpgraderImpl                 common.Address
 	OpcmInteropMigratorImpl          common.Address
 	OpcmStandardValidatorImpl        common.Address
+	OpcmUtilsImpl                    common.Address
 	OpcmV2Impl                       common.Address
 	OpcmContainerImpl                common.Address
 	DelayedWethImpl                  common.Address

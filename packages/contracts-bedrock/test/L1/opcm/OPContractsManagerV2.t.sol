@@ -19,6 +19,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 
 /// @title OPContractsManagerV2_Upgrade_TestInit
 /// @notice Test initialization contract for OPContractsManagerV2 upgrade functions.
@@ -110,12 +111,12 @@ contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
 
         // Allow the DelayedWETH proxy to be (re)deployed during upgrades if it is missing.
         v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerV2.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") })
+            IOPContractsManagerUtils.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") })
         );
 
         // TODO(#18502): Remove the extra instruction for custom gas token after U18 ships.
         v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerV2.ExtraInstruction({ key: "overrides.cfg.useCustomGasToken", data: abi.encode(false) })
+            IOPContractsManagerUtils.ExtraInstruction({ key: "overrides.cfg.useCustomGasToken", data: abi.encode(false) })
         );
     }
 
@@ -145,7 +146,7 @@ contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
                 (
                     IOPContractsManagerV2.SuperchainUpgradeInput({
                         superchainConfig: superchainConfig,
-                        extraInstructions: new IOPContractsManagerV2.ExtraInstruction[](0)
+                        extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
                     })
                 )
             )
@@ -156,7 +157,7 @@ contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
             // the implementations struct interface can change between OPCM versions which would
             // cause the test to break and be a pain to resolve.
             assertTrue(
-                bytes4(reason) == IOPContractsManagerV2.OPContractsManagerV2_DowngradeNotAllowed.selector,
+                bytes4(reason) == IOPContractsManagerUtils.OPContractsManagerUtils_DowngradeNotAllowed.selector,
                 "Revert reason other than DowngradeNotAllowed"
             );
         }
@@ -392,7 +393,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     function test_upgrade_allPermittedProxyDeployments_reverts() public {
         delete v2UpgradeInput.extraInstructions;
         v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerV2.ExtraInstruction({ key: "PermitProxyDeployment", data: abi.encode("ALL") })
+            IOPContractsManagerUtils.ExtraInstruction({ key: "PermitProxyDeployment", data: abi.encode("ALL") })
         );
 
         // Expect upgrade to revert due to invalid upgrade input.
@@ -417,7 +418,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         // nosemgrep: sol-style-use-abi-encodecall
         runCurrentUpgradeV2(
             chainPAO,
-            abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_ProxyMustLoad.selector, "DelayedWETH")
+            abi.encodeWithSelector(
+                IOPContractsManagerUtils.OPContractsManagerUtils_ProxyMustLoad.selector, "DelayedWETH"
+            )
         );
     }
 
@@ -436,7 +439,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         }
 
         // Mock the first proxy load source call to succeed but return a payload with a length
-        // not equal to 32 bytes, triggering OPContractsManagerV2_ProxyLoadMustLoad.
+        // not equal to 32 bytes, triggering OPContractsManagerUtils_ProxyLoadMustLoad.
         vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), bad);
 
         // Expect a revert without any data (due to abi decoding failure).
@@ -447,7 +450,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     ///         an existing proxy returns the zero address but we asked it to load.
     function test_upgrade_proxyMustLoadButZeroAddress_reverts() public {
         // Mock the first proxy load to succeed and return address(0) with 32 bytes,
-        // which triggers OPContractsManagerV2_ProxyMustLoad since _mustLoad is true in upgrade.
+        // which triggers OPContractsManagerUtils_ProxyMustLoad since _mustLoad is true in upgrade.
         vm.mockCall(
             address(systemConfig), abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), abi.encode(address(0))
         );
@@ -456,7 +459,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(
             chainPAO,
             abi.encodeWithSelector(
-                IOPContractsManagerV2.OPContractsManagerV2_ProxyMustLoad.selector, "L1CrossDomainMessenger"
+                IOPContractsManagerUtils.OPContractsManagerUtils_ProxyMustLoad.selector, "L1CrossDomainMessenger"
             )
         );
     }
@@ -465,7 +468,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     ///         an existing proxy returns an error but we asked it to load.
     function test_upgrade_proxyMustLoadButReverts_reverts() public {
         // Mock the first proxy load source to revert, which with _mustLoad=true triggers
-        // OPContractsManagerV2_ProxyMustLoad.
+        // OPContractsManagerUtils_ProxyMustLoad.
         // nosemgrep: sol-style-use-abi-encodecall
         vm.mockCallRevert(address(systemConfig), abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), bytes(""));
 
@@ -473,7 +476,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(
             chainPAO,
             abi.encodeWithSelector(
-                IOPContractsManagerV2.OPContractsManagerV2_ProxyMustLoad.selector, "L1CrossDomainMessenger"
+                IOPContractsManagerUtils.OPContractsManagerUtils_ProxyMustLoad.selector, "L1CrossDomainMessenger"
             )
         );
     }
@@ -482,8 +485,10 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     ///         after initial deployment.
     function test_upgrade_enableCustomGasTokenAfterInitialDeployment_reverts() public {
         // Override the extra instruction for custom gas token to attempt to enable it.
-        v2UpgradeInput.extraInstructions[1] =
-            IOPContractsManagerV2.ExtraInstruction({ key: "overrides.cfg.useCustomGasToken", data: abi.encode(true) });
+        v2UpgradeInput.extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
+            key: "overrides.cfg.useCustomGasToken",
+            data: abi.encode(true)
+        });
 
         // nosemgrep: sol-style-use-abi-encodecall
         runCurrentUpgradeV2(
@@ -660,7 +665,7 @@ contract OPContractsManagerV2_UpgradeSuperchain_Test is OPContractsManagerV2_Upg
         // nosemgrep: sol-style-use-abi-encodecall
         vm.expectRevert(
             abi.encodeWithSelector(
-                IOPContractsManagerV2.OPContractsManagerV2_DowngradeNotAllowed.selector, address(superchainConfig)
+                IOPContractsManagerUtils.OPContractsManagerUtils_DowngradeNotAllowed.selector, address(superchainConfig)
             )
         );
         prankDelegateCall(superchainPAO);
