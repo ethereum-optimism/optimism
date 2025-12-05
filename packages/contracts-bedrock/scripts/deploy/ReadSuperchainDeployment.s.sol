@@ -13,6 +13,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 contract ReadSuperchainDeployment is Script {
     struct Input {
         IOPContractsManager opcmAddress;
+        ISuperchainConfig superchainConfigProxy;
     }
 
     struct Output {
@@ -29,29 +30,51 @@ contract ReadSuperchainDeployment is Script {
     }
 
     function run(Input memory _input) public returns (Output memory output_) {
-        require(address(_input.opcmAddress) != address(0), "ReadSuperchainDeployment: opcmAddress not set");
+        // OPCM v2 is active when superchainConfigProxy is provided (non-zero)
+        bool isOPCMV2 = address(_input.superchainConfigProxy) != address(0);
 
-        IOPContractsManager opcm = IOPContractsManager(_input.opcmAddress);
+        if (isOPCMV2) {
+            // OPCM v2: Use provided SuperchainConfigProxy, leave protocol versions unfilled
+            output_.superchainConfigProxy = _input.superchainConfigProxy;
+            output_.superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(output_.superchainConfigProxy)));
 
-        output_.protocolVersionsProxy = IProtocolVersions(opcm.protocolVersions());
-        output_.superchainConfigProxy = ISuperchainConfig(opcm.superchainConfig());
-        output_.superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(output_.superchainConfigProxy)));
+            IProxy superchainConfigProxy = IProxy(payable(address(output_.superchainConfigProxy)));
 
-        IProxy protocolVersionsProxy = IProxy(payable(address(output_.protocolVersionsProxy)));
-        IProxy superchainConfigProxy = IProxy(payable(address(output_.superchainConfigProxy)));
+            vm.startPrank(address(0));
+            output_.superchainConfigImpl = ISuperchainConfig(address(superchainConfigProxy.implementation()));
+            vm.stopPrank();
 
-        vm.startPrank(address(0));
-        output_.protocolVersionsImpl = IProtocolVersions(address(protocolVersionsProxy.implementation()));
-        output_.superchainConfigImpl = ISuperchainConfig(address(superchainConfigProxy.implementation()));
-        output_.protocolVersionsImpl = IProtocolVersions(protocolVersionsProxy.implementation());
-        output_.superchainConfigImpl = ISuperchainConfig(superchainConfigProxy.implementation());
-        vm.stopPrank();
+            output_.guardian = output_.superchainConfigProxy.guardian();
+            output_.superchainProxyAdminOwner = output_.superchainProxyAdmin.owner();
 
-        output_.guardian = output_.superchainConfigProxy.guardian();
-        output_.protocolVersionsOwner = output_.protocolVersionsProxy.owner();
-        output_.superchainProxyAdminOwner = output_.superchainProxyAdmin.owner();
-        output_.recommendedProtocolVersion =
-            bytes32(ProtocolVersion.unwrap(output_.protocolVersionsProxy.recommended()));
-        output_.requiredProtocolVersion = bytes32(ProtocolVersion.unwrap(output_.protocolVersionsProxy.required()));
+            // Protocol versions fields remain zero/unfilled in OPCM v2
+            output_.protocolVersionsImpl = IProtocolVersions(address(0));
+        } else {
+            // OPCM v1: Original logic using OPCM address
+            require(address(_input.opcmAddress) != address(0), "ReadSuperchainDeployment: opcmAddress not set");
+
+            IOPContractsManager opcm = IOPContractsManager(_input.opcmAddress);
+
+            output_.protocolVersionsProxy = IProtocolVersions(opcm.protocolVersions());
+            output_.superchainConfigProxy = ISuperchainConfig(opcm.superchainConfig());
+            output_.superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(output_.superchainConfigProxy)));
+
+            IProxy protocolVersionsProxy = IProxy(payable(address(output_.protocolVersionsProxy)));
+            IProxy superchainConfigProxy = IProxy(payable(address(output_.superchainConfigProxy)));
+
+            vm.startPrank(address(0));
+            output_.protocolVersionsImpl = IProtocolVersions(address(protocolVersionsProxy.implementation()));
+            output_.superchainConfigImpl = ISuperchainConfig(address(superchainConfigProxy.implementation()));
+            output_.protocolVersionsImpl = IProtocolVersions(protocolVersionsProxy.implementation());
+            output_.superchainConfigImpl = ISuperchainConfig(superchainConfigProxy.implementation());
+            vm.stopPrank();
+
+            output_.guardian = output_.superchainConfigProxy.guardian();
+            output_.protocolVersionsOwner = output_.protocolVersionsProxy.owner();
+            output_.superchainProxyAdminOwner = output_.superchainProxyAdmin.owner();
+            output_.recommendedProtocolVersion =
+                bytes32(ProtocolVersion.unwrap(output_.protocolVersionsProxy.recommended()));
+            output_.requiredProtocolVersion = bytes32(ProtocolVersion.unwrap(output_.protocolVersionsProxy.required()));
+        }
     }
 }

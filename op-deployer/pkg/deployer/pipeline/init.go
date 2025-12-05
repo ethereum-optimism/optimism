@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -28,7 +29,13 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 
 	hasPredeployedOPCM := intent.OPCMAddress != nil
 
-	if hasPredeployedOPCM {
+	var opcmV2Enabled bool
+	if devFeatureBitmap, ok := intent.GlobalDeployOverrides["devFeatureBitmap"].(common.Hash); ok {
+		opcmV2Flag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000010000")
+		opcmV2Enabled = isDevFeatureEnabled(devFeatureBitmap, opcmV2Flag)
+	}
+
+	if hasPredeployedOPCM && !opcmV2Enabled {
 		if intent.SuperchainConfigProxy != nil {
 			return fmt.Errorf("cannot set superchain config proxy for predeployed OPCM")
 		}
@@ -37,7 +44,7 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 			return fmt.Errorf("cannot set superchain roles for predeployed OPCM")
 		}
 
-		superDeployment, superRoles, err := PopulateSuperchainState(env.L1ScriptHost, *intent.OPCMAddress)
+		superDeployment, superRoles, err := PopulateSuperchainState(env.L1ScriptHost, *intent.OPCMAddress, *intent.SuperchainConfigProxy)
 		if err != nil {
 			return fmt.Errorf("error populating superchain state: %w", err)
 		}
@@ -48,6 +55,19 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 				OpcmImpl: *intent.OPCMAddress,
 			}
 		}
+	}
+	hasSuperchainConfigProxy := intent.SuperchainConfigProxy != nil
+	if hasSuperchainConfigProxy && opcmV2Enabled {
+		if intent.SuperchainRoles != nil {
+			return fmt.Errorf("cannot set superchain roles for superchain config proxy")
+		}
+		OPCMAddress := common.Address{}
+		superDeployment, superRoles, err := PopulateSuperchainState(env.L1ScriptHost, OPCMAddress, *intent.SuperchainConfigProxy)
+		if err != nil {
+			return fmt.Errorf("error populating superchain state: %w", err)
+		}
+		st.SuperchainDeployment = superDeployment
+		st.SuperchainRoles = superRoles
 	}
 
 	l1ChainID, err := env.L1Client.ChainID(ctx)
@@ -125,14 +145,15 @@ func immutableErr(field string, was, is any) error {
 	return fmt.Errorf("%s is immutable: was %v, is %v", field, was, is)
 }
 
-func PopulateSuperchainState(host *script.Host, opcmAddr common.Address) (*addresses.SuperchainContracts, *addresses.SuperchainRoles, error) {
+func PopulateSuperchainState(host *script.Host, opcmAddr common.Address, superchainConfigProxy common.Address) (*addresses.SuperchainContracts, *addresses.SuperchainRoles, error) {
 	readScript, err := opcm.NewReadSuperchainDeploymentScript(host)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error generating read superchain deployment script: %w", err)
 	}
 
 	out, err := readScript.Run(opcm.ReadSuperchainDeploymentInput{
-		OPCMAddress: opcmAddr,
+		OPCMAddress:           opcmAddr,
+		SuperchainConfigProxy: superchainConfigProxy,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("error reading superchain deployment: %w", err)
@@ -151,4 +172,15 @@ func PopulateSuperchainState(host *script.Host, opcmAddr common.Address) (*addre
 		ProtocolVersionsOwner:     out.ProtocolVersionsOwner,
 	}
 	return deployment, roles, nil
+}
+
+// isDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.
+// This mirrors the function in devfeatures.go to avoid import cycles.
+func isDevFeatureEnabled(bitmap, flag common.Hash) bool {
+	b := new(big.Int).SetBytes(bitmap[:])
+	f := new(big.Int).SetBytes(flag[:])
+
+	featuresIsNonZero := f.Cmp(big.NewInt(0)) != 0
+	bitmapContainsFeatures := new(big.Int).And(b, f).Cmp(f) == 0
+	return featuresIsNonZero && bitmapContainsFeatures
 }

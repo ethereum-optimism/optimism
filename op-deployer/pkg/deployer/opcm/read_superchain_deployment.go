@@ -6,7 +6,8 @@ import (
 )
 
 type ReadSuperchainDeploymentInput struct {
-	OPCMAddress common.Address `abi:"opcmAddress"`
+	OPCMAddress           common.Address `abi:"opcmAddress"`
+	SuperchainConfigProxy common.Address `abi:"superchainConfigProxy"`
 }
 
 type ReadSuperchainDeploymentOutput struct {
