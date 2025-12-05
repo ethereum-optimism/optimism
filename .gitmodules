@@ -13,7 +13,7 @@
 [submodule "packages/contracts-bedrock/lib/safe-contracts"]
 	path = packages/contracts-bedrock/lib/safe-contracts
 	url = https://github.com/safe-global/safe-contracts
-	branch = v1.4.0
+	branch = v1.4.1
 [submodule "packages/contracts-bedrock/lib/kontrol-cheatcodes"]
 	path = packages/contracts-bedrock/lib/kontrol-cheatcodes
 	url = https://github.com/runtimeverification/kontrol-cheatcodes

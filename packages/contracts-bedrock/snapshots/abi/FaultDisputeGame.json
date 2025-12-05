@@ -1030,6 +1030,11 @@
   },
   {
     "inputs": [],
+    "name": "BadExtraData",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "BlockNumberMatches",
     "type": "error"
   },
@@ -1101,6 +1106,11 @@
   {
     "inputs": [],
     "name": "GameNotResolved",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GamePaused",
     "type": "error"
   },
   {

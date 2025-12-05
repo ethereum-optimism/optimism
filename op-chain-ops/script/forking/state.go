@@ -278,8 +278,8 @@ func (fst *ForkableState) GetCode(address common.Address) []byte {
 	return fst.stateFor(address).GetCode(address)
 }
 
-func (fst *ForkableState) SetCode(address common.Address, bytes []byte) []byte {
-	return fst.stateFor(address).SetCode(address, bytes)
+func (fst *ForkableState) SetCode(address common.Address, bytes []byte, reason tracing.CodeChangeReason) []byte {
+	return fst.stateFor(address).SetCode(address, bytes, reason)
 }
 
 func (fst *ForkableState) GetCodeSize(address common.Address) int {
@@ -298,8 +298,8 @@ func (fst *ForkableState) GetRefund() uint64 {
 	return fst.selected.GetRefund()
 }
 
-func (fst *ForkableState) GetCommittedState(address common.Address, hash common.Hash) common.Hash {
-	return fst.stateFor(address).GetCommittedState(address, hash)
+func (fst *ForkableState) GetStateAndCommittedState(address common.Address, hash common.Hash) (common.Hash, common.Hash) {
+	return fst.stateFor(address).GetStateAndCommittedState(address, hash)
 }
 
 func (fst *ForkableState) GetState(address common.Address, k common.Hash) common.Hash {

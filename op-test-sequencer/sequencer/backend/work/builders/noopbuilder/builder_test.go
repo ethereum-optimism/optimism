@@ -14,7 +14,7 @@ func TestNoopBuilder(t *testing.T) {
 	id := seqtypes.BuilderID("foobar")
 	x := NewBuilder(id, work.NewJobRegistry())
 
-	job, err := x.NewJob(context.Background(), nil)
+	job, err := x.NewJob(context.Background(), seqtypes.BuildOpts{})
 	require.NoError(t, err)
 	require.Contains(t, job.String(), "noop-job-")
 	require.NotEmpty(t, job.ID())

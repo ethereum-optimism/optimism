@@ -163,55 +163,6 @@ func TestRetryingL1BlobSource(t *testing.T) {
 		require.Equal(t, len(result), 1)
 		require.Equal(t, blob[:], result[0][:])
 	})
-
-	t.Run("GetBlobSidecars Success", func(t *testing.T) {
-		source, mock := createL1BlobSource(t)
-		defer mock.AssertExpectations(t)
-		mock.ExpectOnGetBlobSidecars(
-			ctx,
-			l1BlockRef,
-			[]eth.IndexedBlobHash{blobHash},
-			(eth.Bytes48)(commitment),
-			[]*eth.Blob{(*eth.Blob)(&blob)},
-			nil,
-		)
-
-		result, err := source.GetBlobSidecars(ctx, l1BlockRef, []eth.IndexedBlobHash{blobHash})
-		require.NoError(t, err)
-		require.Equal(t, len(result), 1)
-		require.Equal(t, blob[:], result[0].Blob[:])
-		require.Equal(t, blobHash.Index, uint64(result[0].Index))
-		require.Equal(t, (eth.Bytes48)(commitment), result[0].KZGCommitment)
-	})
-
-	t.Run("GetBlobSidecars Error", func(t *testing.T) {
-		source, mock := createL1BlobSource(t)
-		defer mock.AssertExpectations(t)
-		expectedErr := errors.New("boom")
-		mock.ExpectOnGetBlobSidecars(
-			ctx,
-			l1BlockRef,
-			[]eth.IndexedBlobHash{blobHash},
-			(eth.Bytes48)(commitment),
-			[]*eth.Blob{(*eth.Blob)(&blob)},
-			expectedErr,
-		)
-		mock.ExpectOnGetBlobSidecars(
-			ctx,
-			l1BlockRef,
-			[]eth.IndexedBlobHash{blobHash},
-			(eth.Bytes48)(commitment),
-			[]*eth.Blob{(*eth.Blob)(&blob)},
-			nil,
-		)
-
-		result, err := source.GetBlobSidecars(ctx, l1BlockRef, []eth.IndexedBlobHash{blobHash})
-		require.NoError(t, err)
-		require.Equal(t, len(result), 1)
-		require.Equal(t, blob[:], result[0].Blob[:])
-		require.Equal(t, blobHash.Index, uint64(result[0].Index))
-		require.Equal(t, (eth.Bytes48)(commitment), result[0].KZGCommitment)
-	})
 }
 
 func createL1BlobSource(t *testing.T) (*RetryingL1BlobSource, *testutils.MockBlobsFetcher) {

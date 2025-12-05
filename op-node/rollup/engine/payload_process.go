@@ -24,15 +24,15 @@ func (ev PayloadProcessEvent) String() string {
 	return "payload-process"
 }
 
-func (eq *EngDeriver) onPayloadProcess(ev PayloadProcessEvent) {
-	ctx, cancel := context.WithTimeout(eq.ctx, payloadProcessTimeout)
+func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProcessEvent) {
+	rpcCtx, cancel := context.WithTimeout(e.ctx, payloadProcessTimeout)
 	defer cancel()
 
 	insertStart := time.Now()
-	status, err := eq.ec.engine.NewPayload(ctx,
+	status, err := e.engine.NewPayload(rpcCtx,
 		ev.Envelope.ExecutionPayload, ev.Envelope.ParentBeaconBlockRoot)
 	if err != nil {
-		eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{
+		e.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
 			Err: fmt.Errorf("failed to insert execution payload: %w", err),
 		})
 		return
@@ -41,18 +41,18 @@ func (eq *EngDeriver) onPayloadProcess(ev PayloadProcessEvent) {
 	case eth.ExecutionInvalid, eth.ExecutionInvalidBlockHash:
 		// Depending on execution engine, not all block-validity checks run immediately on build-start
 		// at the time of the forkchoiceUpdated engine-API call, nor during getPayload.
-		if ev.DerivedFrom != (eth.L1BlockRef{}) && eq.cfg.IsHolocene(ev.DerivedFrom.Time) {
-			eq.emitDepositsOnlyPayloadAttributesRequest(ev.Ref.ParentID(), ev.DerivedFrom)
+		if ev.DerivedFrom != (eth.L1BlockRef{}) && e.rollupCfg.IsHolocene(ev.DerivedFrom.Time) {
+			e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom)
 			return
 		}
 
-		eq.emitter.Emit(PayloadInvalidEvent{
+		e.emitter.Emit(ctx, PayloadInvalidEvent{
 			Envelope: ev.Envelope,
 			Err:      eth.NewPayloadErr(ev.Envelope.ExecutionPayload, status),
 		})
 		return
 	case eth.ExecutionValid:
-		eq.emitter.Emit(PayloadSuccessEvent{
+		e.emitter.Emit(ctx, PayloadSuccessEvent{
 			Concluding:    ev.Concluding,
 			DerivedFrom:   ev.DerivedFrom,
 			BuildStarted:  ev.BuildStarted,
@@ -62,7 +62,7 @@ func (eq *EngDeriver) onPayloadProcess(ev PayloadProcessEvent) {
 		})
 		return
 	default:
-		eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{
+		e.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
 			Err: eth.NewPayloadErr(ev.Envelope.ExecutionPayload, status),
 		})
 		return

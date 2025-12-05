@@ -313,7 +313,7 @@ func SpanChannelOutCompressionUndo(t *testing.T, algo CompressionAlgo) {
 	// confirm that the second compression was not skipped
 	require.Greater(t, cout.compressor.Len(), 0)
 
-	// confirm that the second rlp is tht same size as the first (because the second batch was not added)
+	// confirm that the second rlp is that same size as the first (because the second batch was not added)
 	require.Equal(t, rlp1, cout.activeRLP().Len())
 }
 

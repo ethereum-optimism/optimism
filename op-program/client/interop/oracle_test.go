@@ -251,3 +251,6 @@ func (o *OracleHinterStub) HintBlockExecution(parentBlockHash common.Hash, attr 
 
 func (o *OracleHinterStub) HintWithdrawalsRoot(blockHash common.Hash, chainID eth.ChainID) {
 }
+
+func (o *OracleHinterStub) HintBlockHashLookup(blockNumber uint64, headBlockHash common.Hash, l2ChainID eth.ChainID) {
+}

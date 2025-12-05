@@ -5,11 +5,13 @@ import (
 	"time"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 type NoopMetricsImpl struct {
 	contractMetrics.NoopMetrics
+	opmetrics.NoopRPCMetrics
 }
 
 var NoopMetrics Metricer = new(NoopMetricsImpl)
@@ -51,3 +53,15 @@ func (*NoopMetricsImpl) RecordFailedGames(_ int) {}
 func (*NoopMetricsImpl) RecordBondCollateral(_ common.Address, _, _ *big.Int) {}
 
 func (*NoopMetricsImpl) RecordL2Challenges(_ bool, _ int) {}
+
+func (*NoopMetricsImpl) RecordNodeEndpointErrors(_ int) {}
+
+func (*NoopMetricsImpl) RecordNodeEndpointErrorCount(_ int) {}
+
+func (*NoopMetricsImpl) RecordNodeEndpointOutOfSyncCount(_ int) {}
+
+func (*NoopMetricsImpl) RecordMixedAvailabilityGames(_ int) {}
+
+func (*NoopMetricsImpl) RecordMixedSafetyGames(_ int) {}
+
+func (*NoopMetricsImpl) RecordDifferentOutputRootGames(_ int) {}

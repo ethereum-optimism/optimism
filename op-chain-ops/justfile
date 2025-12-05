@@ -12,7 +12,7 @@ _LDFLAGSSTRING := "'" + trim(
 # Build ecotone-scalar binary
 ecotone-scalar: (go_build "./bin/ecotone-scalar" "./cmd/ecotone-scalar" "-ldflags" _LDFLAGSSTRING)
 
-# Build receipt-reference-builder binary  
+# Build receipt-reference-builder binary
 receipt-reference-builder: (go_build "./bin/receipt-reference-builder" "./cmd/receipt-reference-builder" "-ldflags" _LDFLAGSSTRING)
 
 # Run tests
@@ -33,4 +33,4 @@ fuzz:
         "FuzzEncodeDecodeLegacyWithdrawal" \
         "FuzzAliasing" \
         "FuzzVersionedNonce" \
-    | parallel -j {{PARALLEL_JOBS}} {{just_executable()}} fuzz_task {}
+    | parallel --tag -j {{PARALLEL_JOBS}} {{just_executable()}} fuzz_task {}

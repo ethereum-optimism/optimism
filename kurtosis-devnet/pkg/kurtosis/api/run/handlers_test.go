@@ -12,6 +12,7 @@ import (
 
 func TestHandleProgress(t *testing.T) {
 	ctx := context.Background()
+	d := newDefaultHandler()
 	tests := []struct {
 		name     string
 		response interfaces.StarlarkResponse
@@ -33,7 +34,7 @@ func TestHandleProgress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handled, err := handleProgress(ctx, tt.response)
+			handled, err := d.handleProgress(ctx, tt.response)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.want, handled)
 		})
@@ -42,6 +43,7 @@ func TestHandleProgress(t *testing.T) {
 
 func TestHandleInstruction(t *testing.T) {
 	ctx := context.Background()
+	d := newDefaultHandler()
 	tests := []struct {
 		name     string
 		response interfaces.StarlarkResponse
@@ -63,7 +65,7 @@ func TestHandleInstruction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handled, err := handleInstruction(ctx, tt.response)
+			handled, err := d.handleInstruction(ctx, tt.response)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.want, handled)
 		})
@@ -72,6 +74,7 @@ func TestHandleInstruction(t *testing.T) {
 
 func TestHandleWarning(t *testing.T) {
 	ctx := context.Background()
+	d := newDefaultHandler()
 	tests := []struct {
 		name     string
 		response interfaces.StarlarkResponse
@@ -93,7 +96,7 @@ func TestHandleWarning(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handled, err := handleWarning(ctx, tt.response)
+			handled, err := d.handleWarning(ctx, tt.response)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.want, handled)
 		})
@@ -102,6 +105,7 @@ func TestHandleWarning(t *testing.T) {
 
 func TestHandleInfo(t *testing.T) {
 	ctx := context.Background()
+	d := newDefaultHandler()
 	tests := []struct {
 		name     string
 		response interfaces.StarlarkResponse
@@ -123,7 +127,7 @@ func TestHandleInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handled, err := handleInfo(ctx, tt.response)
+			handled, err := d.handleInfo(ctx, tt.response)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.want, handled)
 		})
@@ -132,6 +136,7 @@ func TestHandleInfo(t *testing.T) {
 
 func TestHandleResult(t *testing.T) {
 	ctx := context.Background()
+	d := newDefaultHandler()
 	tests := []struct {
 		name     string
 		response interfaces.StarlarkResponse
@@ -162,7 +167,7 @@ func TestHandleResult(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handled, err := handleResult(ctx, tt.response)
+			handled, err := d.handleResult(ctx, tt.response)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.want, handled)
 		})
@@ -171,6 +176,7 @@ func TestHandleResult(t *testing.T) {
 
 func TestHandleError(t *testing.T) {
 	ctx := context.Background()
+	d := newDefaultHandler()
 	testErr := fmt.Errorf("test error")
 	tests := []struct {
 		name      string
@@ -211,7 +217,7 @@ func TestHandleError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handled, err := handleError(ctx, tt.response)
+			handled, err := d.handleError(ctx, tt.response)
 			if tt.wantError {
 				assert.Error(t, err)
 			} else {
@@ -224,6 +230,7 @@ func TestHandleError(t *testing.T) {
 
 func TestFirstMatchHandler(t *testing.T) {
 	ctx := context.Background()
+	d := newDefaultHandler()
 	testErr := fmt.Errorf("test error")
 	tests := []struct {
 		name      string
@@ -235,8 +242,8 @@ func TestFirstMatchHandler(t *testing.T) {
 		{
 			name: "first handler matches",
 			handlers: []MessageHandler{
-				MessageHandlerFunc(handleInfo),
-				MessageHandlerFunc(handleWarning),
+				MessageHandlerFunc(d.handleInfo),
+				MessageHandlerFunc(d.handleWarning),
 			},
 			response: &fake.StarlarkResponse{
 				Info: "test info",
@@ -246,8 +253,8 @@ func TestFirstMatchHandler(t *testing.T) {
 		{
 			name: "second handler matches",
 			handlers: []MessageHandler{
-				MessageHandlerFunc(handleInfo),
-				MessageHandlerFunc(handleWarning),
+				MessageHandlerFunc(d.handleInfo),
+				MessageHandlerFunc(d.handleWarning),
 			},
 			response: &fake.StarlarkResponse{
 				Warning: "test warning",
@@ -257,8 +264,8 @@ func TestFirstMatchHandler(t *testing.T) {
 		{
 			name: "no handlers match",
 			handlers: []MessageHandler{
-				MessageHandlerFunc(handleInfo),
-				MessageHandlerFunc(handleWarning),
+				MessageHandlerFunc(d.handleInfo),
+				MessageHandlerFunc(d.handleWarning),
 			},
 			response: &fake.StarlarkResponse{
 				Result: "test result", HasResult: true,
@@ -268,7 +275,7 @@ func TestFirstMatchHandler(t *testing.T) {
 		{
 			name: "handler returns error",
 			handlers: []MessageHandler{
-				MessageHandlerFunc(handleError),
+				MessageHandlerFunc(d.handleError),
 			},
 			response: &fake.StarlarkResponse{
 				Err: &fake.StarlarkError{InterpretationErr: testErr},
@@ -294,6 +301,7 @@ func TestFirstMatchHandler(t *testing.T) {
 
 func TestAllHandlers(t *testing.T) {
 	ctx := context.Background()
+	d := newDefaultHandler()
 	testErr := fmt.Errorf("test error")
 	tests := []struct {
 		name      string
@@ -318,8 +326,8 @@ func TestAllHandlers(t *testing.T) {
 		{
 			name: "some handlers match",
 			handlers: []MessageHandler{
-				MessageHandlerFunc(handleInfo),
-				MessageHandlerFunc(handleWarning),
+				MessageHandlerFunc(d.handleInfo),
+				MessageHandlerFunc(d.handleWarning),
 			},
 			response: &fake.StarlarkResponse{
 				Info: "test info",
@@ -329,8 +337,8 @@ func TestAllHandlers(t *testing.T) {
 		{
 			name: "no handlers match",
 			handlers: []MessageHandler{
-				MessageHandlerFunc(handleInfo),
-				MessageHandlerFunc(handleWarning),
+				MessageHandlerFunc(d.handleInfo),
+				MessageHandlerFunc(d.handleWarning),
 			},
 			response: &fake.StarlarkResponse{
 				Result: "test result", HasResult: true,
@@ -340,8 +348,8 @@ func TestAllHandlers(t *testing.T) {
 		{
 			name: "handler returns error",
 			handlers: []MessageHandler{
-				MessageHandlerFunc(handleInfo),
-				MessageHandlerFunc(handleError),
+				MessageHandlerFunc(d.handleInfo),
+				MessageHandlerFunc(d.handleError),
 			},
 			response: &fake.StarlarkResponse{
 				Err: &fake.StarlarkError{InterpretationErr: testErr},

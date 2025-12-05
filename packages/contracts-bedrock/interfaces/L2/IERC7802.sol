@@ -9,7 +9,7 @@ interface IERC7802 is IERC165 {
     /// @notice Emitted when a crosschain transfer mints tokens.
     /// @param to       Address of the account tokens are being minted for.
     /// @param amount   Amount of tokens minted.
-    /// @param sender   Address of the account that finilized the crosschain transfer.
+    /// @param sender   Address of the account that finalized the crosschain transfer.
     event CrosschainMint(address indexed to, uint256 amount, address indexed sender);
 
     /// @notice Emitted when a crosschain transfer burns tokens.

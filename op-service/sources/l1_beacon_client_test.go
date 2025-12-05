@@ -13,12 +13,21 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+
 	client_mocks "github.com/ethereum-optimism/optimism/op-service/client/mocks"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/mocks"
-	"github.com/ethereum/go-ethereum/crypto/kzg4844"
-	"github.com/stretchr/testify/require"
 )
+
+//go:generate mockery --srcpkg=github.com/ethereum-optimism/optimism/op-service/apis --name BlobSideCarsClient --with-expecter=true
+
+//go:generate mockery --srcpkg=github.com/ethereum-optimism/optimism/op-service/apis --name BeaconClient --with-expecter=true
 
 func makeTestBlobSidecar(index uint64) (eth.IndexedBlobHash, *eth.BlobSidecar) {
 	blob := kzg4844.Blob{}
@@ -91,6 +100,40 @@ func TestBlobsFromSidecars(t *testing.T) {
 	hashes[2].Hash[17]++
 	_, err = blobsFromSidecars(sidecars, hashes)
 	require.Error(t, err)
+
+}
+
+func KZGProofFromHex(s string) (kzg4844.Proof, error) {
+	var out kzg4844.Proof // underlying size is 48 bytes
+	b, err := hexutil.Decode(s)
+	if err != nil {
+		return out, err
+	}
+	if len(b) != 48 {
+		return out, fmt.Errorf("want 48 bytes, got %d", len(b))
+	}
+	copy(out[:], b)
+	return out, nil
+}
+
+var badProof, _ = KZGProofFromHex("0xc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
+
+func TestBlobsFromSidecars_BadProof(t *testing.T) {
+	indices := []uint64{5, 7, 2}
+	index0, sidecar0 := makeTestBlobSidecar(indices[0])
+	index1, sidecar1 := makeTestBlobSidecar(indices[1])
+	index2, sidecar2 := makeTestBlobSidecar(indices[2])
+	hashes := []eth.IndexedBlobHash{index0, index1, index2}
+
+	sidecars := []*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}
+
+	// Set proof to a bad / stubbed value
+	sidecars[1].KZGProof = eth.Bytes48(badProof)
+
+	// Check that verification succeeds, the proof is not required
+	_, err := blobsFromSidecars(sidecars, hashes)
+	require.NoError(t, err)
+
 }
 
 func TestBlobsFromSidecars_EmptySidecarList(t *testing.T) {
@@ -127,7 +170,7 @@ func TestBeaconClientNoErrorPrimary(t *testing.T) {
 
 	ctx := context.Background()
 	p := mocks.NewBeaconClient(t)
-	f := mocks.NewBlobSideCarsFetcher(t)
+	f := mocks.NewBlobSideCarsClient(t)
 	c := NewL1BeaconClient(p, L1BeaconClientConfig{}, f)
 	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
 	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
@@ -151,7 +194,7 @@ func TestBeaconClientFallback(t *testing.T) {
 
 	ctx := context.Background()
 	p := mocks.NewBeaconClient(t)
-	f := mocks.NewBlobSideCarsFetcher(t)
+	f := mocks.NewBlobSideCarsClient(t)
 	c := NewL1BeaconClient(p, L1BeaconClientConfig{}, f)
 	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
 	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
@@ -180,7 +223,46 @@ func TestBeaconClientFallback(t *testing.T) {
 	resp, err = c.GetBlobSidecars(ctx, eth.L1BlockRef{Time: 14}, hashes)
 	require.Equal(t, sidecars, resp)
 	require.NoError(t, err)
+}
 
+func TestBeaconClientBadProof(t *testing.T) {
+	indices := []uint64{5, 7, 2}
+	index0, sidecar0 := makeTestBlobSidecar(indices[0])
+	index1, sidecar1 := makeTestBlobSidecar(indices[1])
+	index2, sidecar2 := makeTestBlobSidecar(indices[2])
+
+	hashes := []eth.IndexedBlobHash{index0, index1, index2}
+	sidecars := []*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}
+	blobs := []*eth.Blob{&sidecar0.Blob, &sidecar1.Blob, &sidecar2.Blob}
+
+	// invalidate proof
+	sidecar1.KZGProof = eth.Bytes48(badProof)
+	apiSidecars := toAPISideCars(sidecars)
+
+	t.Run("fallback to BeaconBlobSideCars", func(t *testing.T) {
+		ctx := context.Background()
+		p := mocks.NewBeaconClient(t)
+		p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
+		p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
+		client := NewL1BeaconClient(p, L1BeaconClientConfig{})
+		ref := eth.L1BlockRef{Time: 12}
+		p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(eth.APIBeaconBlobsResponse{}, errors.New("the sky is falling"))
+		p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
+		_, err := client.GetBlobs(ctx, ref, hashes)
+		assert.NoError(t, err)
+	})
+
+	t.Run("BeaconBlobs", func(t *testing.T) {
+		ctx := context.Background()
+		p := mocks.NewBeaconClient(t)
+		p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
+		p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
+		client := NewL1BeaconClient(p, L1BeaconClientConfig{})
+		ref := eth.L1BlockRef{Time: 12}
+		p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(eth.APIBeaconBlobsResponse{Data: blobs}, nil)
+		_, err := client.GetBlobs(ctx, ref, hashes)
+		assert.NoError(t, err)
+	})
 }
 
 func TestBeaconHTTPClient(t *testing.T) {
@@ -227,4 +309,123 @@ func TestClientPoolSeveral(t *testing.T) {
 		require.Equal(t, i%4, p.Get())
 		p.MoveToNext()
 	}
+}
+
+func TestVerifyBlob(t *testing.T) {
+	blob := eth.Blob{}
+	blob[0] = byte(7)
+	versionedHash := common.HexToHash("0x0164e32184169f11528f72aeb318f94d958aa28fba0731a52aead6df0104a98e")
+	require.NoError(t, verifyBlob(&blob, versionedHash))
+
+	differentBlob := eth.Blob{}
+	differentBlob[0] = byte(8)
+	require.Error(t, verifyBlob(&differentBlob, versionedHash))
+}
+
+func TestGetBlobs(t *testing.T) {
+	hash0, sidecar0 := makeTestBlobSidecar(0)
+	hash1, sidecar1 := makeTestBlobSidecar(1)
+	hash2, sidecar2 := makeTestBlobSidecar(2)
+
+	hashes := []eth.IndexedBlobHash{hash0, hash2, hash1} // Mix up the order.
+
+	invalidBlob0 := sidecar0.Blob
+	invalidBlob0[10]++
+
+	cases := []struct {
+		name           string
+		beaconBlobs    []*eth.Blob
+		expectFallback bool
+	}{
+		{
+			name: "happy path",
+			// From the /blobs/ spec:
+			//   Blobs are returned as an ordered list matching the order of their corresponding
+			//   KZG commitments in the block.
+			beaconBlobs:    []*eth.Blob{&sidecar0.Blob, &sidecar1.Blob, &sidecar2.Blob},
+			expectFallback: false,
+		},
+		{
+			name:           "fallback on client error",
+			beaconBlobs:    nil,
+			expectFallback: true,
+		},
+		{
+			name:           "fallback on invalid number of blobs",
+			beaconBlobs:    []*eth.Blob{&sidecar0.Blob},
+			expectFallback: true,
+		},
+		{
+			name:           "fallback on invalid blob",
+			beaconBlobs:    []*eth.Blob{&invalidBlob0, &sidecar1.Blob, &sidecar2.Blob},
+			expectFallback: true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ctx := context.Background()
+			p := mocks.NewBeaconClient(t)
+			p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
+			p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
+			client := NewL1BeaconClient(p, L1BeaconClientConfig{})
+			ref := eth.L1BlockRef{Time: 12}
+
+			// construct the mock response for the beacon blobs call
+			var beaconBlobsResponse eth.APIBeaconBlobsResponse
+			var err error
+			if c.beaconBlobs == nil {
+				err = errors.New("client error")
+			} else {
+				beaconBlobsResponse = eth.APIBeaconBlobsResponse{Data: c.beaconBlobs}
+			}
+			p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(beaconBlobsResponse, err)
+
+			if c.expectFallback {
+				p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{
+					Data: toAPISideCars([]*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}),
+				}, nil)
+			}
+
+			resp, err := client.GetBlobs(ctx, ref, hashes)
+			require.NoError(t, err)
+			require.Equal(t, []*eth.Blob{&sidecar0.Blob, &sidecar2.Blob, &sidecar1.Blob}, resp)
+		})
+	}
+}
+
+func TestRequestDuplicateBlobHashes(t *testing.T) {
+	ctx := context.Background()
+	p := mocks.NewBeaconClient(t)
+	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
+	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
+	client := NewL1BeaconClient(p, L1BeaconClientConfig{})
+	ref := eth.L1BlockRef{Time: 12}
+
+	hash0, sidecar0 := makeTestBlobSidecar(0)
+	hash1, sidecar1 := makeTestBlobSidecar(1)
+	hash2, sidecar2 := makeTestBlobSidecar(2)
+	sameHash := eth.IndexedBlobHash{
+		Index: 3,
+		Hash:  hash0.Hash,
+	}
+	sameHashSidecar := &eth.BlobSidecar{
+		Blob:          sidecar0.Blob,
+		Index:         eth.Uint64String(sameHash.Index),
+		KZGCommitment: sidecar0.KZGCommitment,
+		KZGProof:      sidecar0.KZGProof,
+	}
+	hashes := []eth.IndexedBlobHash{hash0, hash2, hash1, sameHash} // Mix up the order.
+	beaconBlobs := []*eth.Blob{&sidecar0.Blob, &sidecar1.Blob, &sidecar2.Blob, &sameHashSidecar.Blob}
+
+	// construct the mock response for the beacon blobs call
+	beaconBlobsResponse := eth.APIBeaconBlobsResponse{Data: beaconBlobs}
+	p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(beaconBlobsResponse, nil)
+
+	resp, err := client.GetBlobs(ctx, ref, hashes)
+	require.NoError(t, err)
+	for i, blob := range resp {
+		require.NotNil(t, blob, fmt.Sprintf("blob at index %d should not be nil", i))
+	}
+	require.Equal(t, []*eth.Blob{&sidecar0.Blob, &sidecar2.Blob, &sidecar1.Blob, &sameHashSidecar.Blob}, resp)
 }

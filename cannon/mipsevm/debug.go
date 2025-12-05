@@ -3,11 +3,13 @@ package mipsevm
 import "github.com/ethereum/go-ethereum/common/hexutil"
 
 type DebugInfo struct {
-	Pages               int            `json:"pages"`
-	MemoryUsed          hexutil.Uint64 `json:"memory_used"`
-	NumPreimageRequests int            `json:"num_preimage_requests"`
-	TotalPreimageSize   int            `json:"total_preimage_size"`
-	TotalSteps          uint64         `json:"total_steps"`
+	Pages                     int            `json:"pages"`
+	MemoryUsed                hexutil.Uint64 `json:"memory_used"`
+	NumPreimageRequests       int            `json:"num_preimage_requests"`
+	TotalPreimageSize         int            `json:"total_preimage_size"`
+	TotalSteps                uint64         `json:"total_steps"`
+	InstructionCacheMissCount uint64         `json:"instruction_cache_miss_count"`
+	HighestICacheMissPC       hexutil.Uint64 `json:"highest_icache_miss_pc"`
 	//  Multithreading-related stats below
 	RmwSuccessCount              uint64 `json:"rmw_success_count"`
 	RmwFailCount                 uint64 `json:"rmw_fail_count"`

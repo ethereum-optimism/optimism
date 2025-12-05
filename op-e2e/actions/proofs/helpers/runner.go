@@ -57,6 +57,7 @@ func WithPreInteropDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpe
 	}
 }
 
+// RunFaultProofProgram runs the fault proof program for the transition to the given L2 block number from the preceding one.
 func RunFaultProofProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	l1Head := l1.L1Chain().CurrentBlock()
 
@@ -77,18 +78,20 @@ func RunFaultProofProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Mi
 			l1.BlobStore(),
 			l1.L1Chain().Genesis().Time(),
 			12,
+			l1.L1Chain().Config().OsakaTime,
 		)
 		require.NoError(t, fakeBeacon.Start("127.0.0.1:0"))
 		defer fakeBeacon.Close()
 
 		rollupCfgs := make([]*rollup.Config, 0, len(fixtureInputs.L2Sources))
+		l1chainConfig := l1.L1Chain().Config()
 		l2Endpoints := make([]string, 0, len(fixtureInputs.L2Sources))
 		for _, source := range fixtureInputs.L2Sources {
 			rollupCfgs = append(rollupCfgs, source.Node.RollupCfg)
 			l2Endpoints = append(l2Endpoints, source.Engine.HTTPEndpoint())
 		}
 
-		err = RunKonaNative(t, workDir, rollupCfgs, l1.HTTPEndpoint(), fakeBeacon.BeaconAddr(), l2Endpoints, *fixtureInputs)
+		err = RunKonaNative(t, workDir, rollupCfgs, l1chainConfig, l1.HTTPEndpoint(), fakeBeacon.BeaconAddr(), l2Endpoints, *fixtureInputs)
 		checkResult(t, err)
 	} else {
 		programCfg := NewOpProgramCfg(fixtureInputs)

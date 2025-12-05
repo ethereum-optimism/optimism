@@ -1,7 +1,15 @@
 package memory
 
 import (
+	"fmt"
 	"math/bits"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
+)
+
+const (
+	defaultCodeSize = 128 * 1024 * 1024 // 128 MiB
+	defaultHeapSize = 512 * 1024 * 1024 // 512 MiB
 )
 
 // BinaryTreeIndex is a representation of the state of the memory in a binary merkle tree.
@@ -12,13 +20,39 @@ type BinaryTreeIndex struct {
 	pageTable map[Word]*CachedPage
 }
 
-func NewBinaryTreeMemory() *Memory {
-	pages := make(map[Word]*CachedPage)
+func NewBinaryTreeMemory(codeSize, heapSize arch.Word) *Memory {
+	pages := make(map[arch.Word]*CachedPage)
 	index := NewBinaryTreeIndex(pages)
+
+	if codeSize == 0 {
+		codeSize = defaultCodeSize
+	}
+	if heapSize == 0 {
+		heapSize = defaultHeapSize
+	}
+
+	// Defensive bounds: code region must not overlap heap start
+	if codeSize > arch.ProgramHeapStart {
+		panic(fmt.Sprintf("codeSize (0x%x) overlaps heap start (0x%x)", codeSize, arch.ProgramHeapStart))
+	}
+
+	indexedRegions := make([]MappedMemoryRegion, 2)
+	indexedRegions[0] = MappedMemoryRegion{
+		startAddr: 0,
+		endAddr:   codeSize,
+		Data:      make([]byte, codeSize),
+	}
+	indexedRegions[1] = MappedMemoryRegion{
+		startAddr: arch.ProgramHeapStart,
+		endAddr:   arch.ProgramHeapStart + heapSize,
+		Data:      make([]byte, heapSize),
+	}
+
 	return &Memory{
-		merkleIndex:  index,
-		pageTable:    pages,
-		lastPageKeys: [2]Word{^Word(0), ^Word(0)}, // default to invalid keys, to not match any pages
+		merkleIndex:   index,
+		pageTable:     pages,
+		lastPageKeys:  [2]arch.Word{^arch.Word(0), ^arch.Word(0)},
+		MappedRegions: indexedRegions,
 	}
 }
 
@@ -40,6 +74,10 @@ func (m *BinaryTreeIndex) Invalidate(addr Word) {
 	gindex := (uint64(1) << (WordSize - PageAddrSize)) | uint64(addr>>PageAddrSize)
 
 	for gindex > 0 {
+		n := m.nodes[gindex]
+		if n != nil {
+			ReleaseByte32(n)
+		}
 		m.nodes[gindex] = nil
 		gindex >>= 1
 	}
@@ -70,9 +108,10 @@ func (m *BinaryTreeIndex) MerkleizeSubtree(gindex uint64) [32]byte {
 	}
 	left := m.MerkleizeSubtree(gindex << 1)
 	right := m.MerkleizeSubtree((gindex << 1) | 1)
-	r := HashPair(left, right)
-	m.nodes[gindex] = &r
-	return r
+	r := GetByte32()
+	HashPairNodes(r, &left, &right)
+	m.nodes[gindex] = r
+	return *r
 }
 
 func (m *BinaryTreeIndex) MerkleProof(addr Word) (out [MemProofSize]byte) {
@@ -112,6 +151,10 @@ func (m *BinaryTreeIndex) AddPage(pageIndex Word) {
 	// make nodes to root
 	k := (1 << PageKeySize) | uint64(pageIndex)
 	for k > 0 {
+		n := m.nodes[k]
+		if n != nil {
+			ReleaseByte32(n)
+		}
 		m.nodes[k] = nil
 		k >>= 1
 	}

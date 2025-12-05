@@ -4,11 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sort"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"golang.org/x/exp/maps"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -16,8 +17,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/beacondeposit"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/deployers"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 var (
@@ -46,13 +51,26 @@ func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMap
 		return nil, nil, fmt.Errorf("failed to enable cheats in L1 state: %w", err)
 	}
 
+	//
+	// Gather all the deployment scripts
+	//
+	// Loading all deployment scripts should happen before we start deploying anything
+	// and after we have access to the contract artifacts.
+	//
+	// If done this way, any errors (such as ABI mismatches) will be caught before the first transaction is sent.
+	//
+	opcmScripts, err := opcm.NewScripts(l1Host)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to load OPCM script: %w", err)
+	}
+
 	l1Deployment, err := PrepareInitialL1(l1Host, cfg.L1)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to deploy initial L1 content: %w", err)
 	}
 	deployments.L1 = l1Deployment
 
-	superDeployment, err := DeploySuperchainToL1(l1Host, cfg.Superchain)
+	superDeployment, err := DeploySuperchainToL1(l1Host, opcmScripts, cfg.Superchain)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to deploy superchain to L1: %w", err)
 	}
@@ -70,6 +88,12 @@ func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMap
 		}
 		deployments.L2s[l2ChainID] = l2Deployment
 	}
+
+	interopDeployment, err := MigrateInterop(l1Host, uint64(cfg.L1.L1GenesisBlockTimestamp), cfg.Superchain, superDeployment, cfg.L2s, deployments.L2s)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to migrate interop: %w", err)
+	}
+	deployments.Interop = interopDeployment
 
 	out := &WorldOutput{
 		L2s: make(map[string]*L2Output),
@@ -89,7 +113,7 @@ func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMap
 		if err := l2Host.EnableCheats(); err != nil {
 			return nil, nil, fmt.Errorf("failed to enable cheats in L2 state %s: %w", l2ChainID, err)
 		}
-		if err := GenesisL2(l2Host, l2Cfg, deployments.L2s[l2ChainID]); err != nil {
+		if err := GenesisL2(l2Host, l2Cfg, deployments.L2s[l2ChainID], len(cfg.L2s) > 1); err != nil {
 			return nil, nil, fmt.Errorf("failed to apply genesis data to L2 %s: %w", l2ChainID, err)
 		}
 		l2Out, err := CompleteL2(l2Host, l2Cfg, l1GenesisBlock, deployments.L2s[l2ChainID])
@@ -131,7 +155,7 @@ func CreateL2(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceM
 	}
 	l2Host := script.NewHost(logger.New("role", "l2", "chain", l2Cfg.L2ChainID), fa, srcFS, l2Context)
 	l2Host.SetEnvVar("OUTPUT_MODE", "none") // we don't use the cheatcode, but capture the state outside of EVM execution
-	l2Host.SetEnvVar("FORK", "holocene")    // latest fork
+	l2Host.SetEnvVar("FORK", "jovian")      // latest fork
 	return l2Host
 }
 
@@ -139,7 +163,7 @@ func CreateL2(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceM
 func PrepareInitialL1(l1Host *script.Host, cfg *L1Config) (*L1Deployment, error) {
 	l1Host.SetTxOrigin(sysGenesisDeployer)
 
-	if err := deployers.InsertPreinstalls(l1Host); err != nil {
+	if err := opcm.InsertPreinstalls(l1Host); err != nil {
 		return nil, fmt.Errorf("failed to install preinstalls in L1: %w", err)
 	}
 	// No global contracts inserted at this point.
@@ -147,10 +171,10 @@ func PrepareInitialL1(l1Host *script.Host, cfg *L1Config) (*L1Deployment, error)
 	return &L1Deployment{}, nil
 }
 
-func DeploySuperchainToL1(l1Host *script.Host, superCfg *SuperchainConfig) (*SuperchainDeployment, error) {
+func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superCfg *SuperchainConfig) (*SuperchainDeployment, error) {
 	l1Host.SetTxOrigin(superCfg.Deployer)
 
-	superDeployment, err := opcm.DeploySuperchain(l1Host, opcm.DeploySuperchainInput{
+	superDeployment, err := opcmScripts.DeploySuperchain.Run(opcm.DeploySuperchainInput{
 		SuperchainProxyAdminOwner:  superCfg.ProxyAdminOwner,
 		ProtocolVersionsOwner:      superCfg.ProtocolVersionsOwner,
 		Guardian:                   superCfg.SuperchainConfigGuardian,
@@ -162,18 +186,23 @@ func DeploySuperchainToL1(l1Host *script.Host, superCfg *SuperchainConfig) (*Sup
 		return nil, fmt.Errorf("failed to deploy Superchain contracts: %w", err)
 	}
 
-	implementationsDeployment, err := opcm.DeployImplementations(l1Host, opcm.DeployImplementationsInput{
+	implementationsDeployment, err := opcmScripts.DeployImplementations.Run(opcm.DeployImplementationsInput{
 		WithdrawalDelaySeconds:          superCfg.Implementations.FaultProof.WithdrawalDelaySeconds,
 		MinProposalSizeBytes:            superCfg.Implementations.FaultProof.MinProposalSizeBytes,
 		ChallengePeriodSeconds:          superCfg.Implementations.FaultProof.ChallengePeriodSeconds,
 		ProofMaturityDelaySeconds:       superCfg.Implementations.FaultProof.ProofMaturityDelaySeconds,
 		DisputeGameFinalityDelaySeconds: superCfg.Implementations.FaultProof.DisputeGameFinalityDelaySeconds,
 		MipsVersion:                     superCfg.Implementations.FaultProof.MipsVersion,
-		L1ContractsRelease:              superCfg.Implementations.L1ContractsRelease,
+		DevFeatureBitmap:                deployer.OptimismPortalInteropDevFlag,
+		FaultGameV2MaxGameDepth:         big.NewInt(73),
+		FaultGameV2SplitDepth:           big.NewInt(30),
+		FaultGameV2ClockExtension:       big.NewInt(10800),
+		FaultGameV2MaxClockDuration:     big.NewInt(302400),
+		SuperchainProxyAdmin:            superDeployment.SuperchainProxyAdmin,
 		SuperchainConfigProxy:           superDeployment.SuperchainConfigProxy,
 		ProtocolVersionsProxy:           superDeployment.ProtocolVersionsProxy,
-		UpgradeController:               superCfg.ProxyAdminOwner,
-		UseInterop:                      superCfg.Implementations.UseInterop,
+		L1ProxyAdminOwner:               superCfg.ProxyAdminOwner,
+		Challenger:                      superCfg.Challenger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy Implementations contracts: %w", err)
@@ -198,25 +227,34 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 
 	l1Host.SetTxOrigin(cfg.Deployer)
 
-	output, err := opcm.DeployOPChain(l1Host, opcm.DeployOPChainInput{
-		OpChainProxyAdminOwner:  cfg.ProxyAdminOwner,
-		SystemConfigOwner:       cfg.SystemConfigOwner,
-		Batcher:                 cfg.BatchSenderAddress,
-		UnsafeBlockSigner:       cfg.P2PSequencerAddress,
-		Proposer:                cfg.Proposer,
-		Challenger:              cfg.Challenger,
-		BasefeeScalar:           cfg.GasPriceOracleBaseFeeScalar,
-		BlobBaseFeeScalar:       cfg.GasPriceOracleBlobBaseFeeScalar,
-		L2ChainId:               new(big.Int).SetUint64(cfg.L2ChainID),
-		Opcm:                    superDeployment.Opcm,
-		SaltMixer:               cfg.SaltMixer,
-		GasLimit:                cfg.GasLimit,
-		DisputeGameType:         cfg.DisputeGameType,
-		DisputeAbsolutePrestate: cfg.DisputeAbsolutePrestate,
-		DisputeMaxGameDepth:     cfg.DisputeMaxGameDepth,
-		DisputeSplitDepth:       cfg.DisputeSplitDepth,
-		DisputeClockExtension:   cfg.DisputeClockExtension,
-		DisputeMaxClockDuration: cfg.DisputeMaxClockDuration,
+	deployOPChainScript, err := opcm.NewDeployOPChainScript(l1Host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load DeployOPChain script: %w", err)
+	}
+
+	output, err := deployOPChainScript.Run(opcm.DeployOPChainInput{
+		OpChainProxyAdminOwner:       superCfg.ProxyAdminOwner,
+		SystemConfigOwner:            cfg.SystemConfigOwner,
+		Batcher:                      cfg.BatchSenderAddress,
+		UnsafeBlockSigner:            cfg.P2PSequencerAddress,
+		Proposer:                     cfg.Proposer,
+		Challenger:                   cfg.Challenger,
+		BasefeeScalar:                cfg.GasPriceOracleBaseFeeScalar,
+		BlobBaseFeeScalar:            cfg.GasPriceOracleBlobBaseFeeScalar,
+		L2ChainId:                    new(big.Int).SetUint64(cfg.L2ChainID),
+		Opcm:                         superDeployment.Opcm,
+		SaltMixer:                    cfg.SaltMixer,
+		GasLimit:                     cfg.GasLimit,
+		DisputeGameType:              cfg.DisputeGameType,
+		DisputeAbsolutePrestate:      cfg.DisputeAbsolutePrestate,
+		DisputeMaxGameDepth:          new(big.Int).SetUint64(cfg.DisputeMaxGameDepth),
+		DisputeSplitDepth:            new(big.Int).SetUint64(cfg.DisputeSplitDepth),
+		DisputeClockExtension:        cfg.DisputeClockExtension,
+		DisputeMaxClockDuration:      cfg.DisputeMaxClockDuration,
+		AllowCustomDisputeParameters: true,
+		OperatorFeeScalar:            cfg.GasPriceOracleOperatorFeeScalar,
+		OperatorFeeConstant:          cfg.GasPriceOracleOperatorFeeConstant,
+		UseCustomGasToken:            cfg.UseCustomGasToken,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy L2 OP chain: %w", err)
@@ -224,18 +262,91 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 
 	// Collect deployment addresses
 	return &L2Deployment{
-		L2OpchainDeployment: L2OpchainDeployment(output),
+		L2OpchainDeployment: NewL2OPChainDeploymentFromDeployOPChainOutput(output),
 	}, nil
 }
 
-func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment) error {
-	if err := opcm.L2Genesis(l2Host, &opcm.L2GenesisInput{
-		L1Deployments: opcm.L1Deployments{
-			L1CrossDomainMessengerProxy: deployment.L1CrossDomainMessengerProxy,
-			L1StandardBridgeProxy:       deployment.L1StandardBridgeProxy,
-			L1ERC721BridgeProxy:         deployment.L1ERC721BridgeProxy,
-		},
-		L2Config: cfg.L2InitializationConfig,
+func MigrateInterop(
+	l1Host *script.Host, l1GenesisTimestamp uint64, superCfg *SuperchainConfig, superDeployment *SuperchainDeployment, l2Cfgs map[string]*L2Config, l2Deployments map[string]*L2Deployment,
+) (*InteropDeployment, error) {
+	l2ChainIDs := maps.Keys(l2Deployments)
+	sort.Strings(l2ChainIDs)
+	chainConfigs := make([]manage.OPChainConfig, len(l2Deployments))
+	for i, l2ChainID := range l2ChainIDs {
+		l2Deployment := l2Deployments[l2ChainID]
+		chainConfigs[i] = manage.OPChainConfig{
+			SystemConfigProxy: l2Deployment.SystemConfigProxy,
+			CannonPrestate:    l2Cfgs[l2ChainID].DisputeAbsolutePrestate,
+		}
+	}
+
+	// For now get the fault game parameters from the first chain
+	l2ChainID := l2ChainIDs[0]
+	// We don't have a super root at genesis. But stub the starting anchor root anyways to facilitate super DG testing.
+	startingAnchorRoot := common.Hash(opcm.PermissionedGameStartingAnchorRoot)
+	imi := manage.InteropMigrationInput{
+		Prank:                          superCfg.ProxyAdminOwner,
+		Opcm:                           superDeployment.Opcm,
+		UsePermissionlessGame:          true,
+		StartingAnchorRoot:             startingAnchorRoot,
+		StartingAnchorL2SequenceNumber: big.NewInt(int64(l1GenesisTimestamp)),
+		Proposer:                       l2Cfgs[l2ChainID].Proposer,
+		Challenger:                     l2Cfgs[l2ChainID].Challenger,
+		MaxGameDepth:                   l2Cfgs[l2ChainID].DisputeMaxGameDepth,
+		SplitDepth:                     l2Cfgs[l2ChainID].DisputeSplitDepth,
+		InitBond:                       big.NewInt(0),
+		ClockExtension:                 l2Cfgs[l2ChainID].DisputeClockExtension,
+		MaxClockDuration:               l2Cfgs[l2ChainID].DisputeMaxClockDuration,
+		EncodedChainConfigs:            chainConfigs,
+	}
+	output, err := manage.Migrate(l1Host, imi)
+	if err != nil {
+		return nil, fmt.Errorf("failed to migrate interop: %w", err)
+	}
+
+	return &InteropDeployment{
+		DisputeGameFactory: output.DisputeGameFactory,
+	}, nil
+}
+
+func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, multichainDepSet bool) error {
+	genesisScript, err := opcm.NewL2GenesisScript(l2Host)
+	if err != nil {
+		return fmt.Errorf("failed to create L2 genesis script: %w", err)
+	}
+
+	if err := genesisScript.Run(opcm.L2GenesisInput{
+		L1ChainID:                                new(big.Int).SetUint64(cfg.L1ChainID),
+		L2ChainID:                                new(big.Int).SetUint64(cfg.L2ChainID),
+		L1CrossDomainMessengerProxy:              deployment.L1CrossDomainMessengerProxy,
+		L1StandardBridgeProxy:                    deployment.L1StandardBridgeProxy,
+		L1ERC721BridgeProxy:                      deployment.L1ERC721BridgeProxy,
+		OpChainProxyAdminOwner:                   cfg.ProxyAdminOwner,
+		SequencerFeeVaultRecipient:               cfg.SequencerFeeVaultRecipient,
+		SequencerFeeVaultMinimumWithdrawalAmount: cfg.SequencerFeeVaultMinimumWithdrawalAmount.ToInt(),
+		SequencerFeeVaultWithdrawalNetwork:       big.NewInt(int64(cfg.SequencerFeeVaultWithdrawalNetwork.ToUint8())),
+		BaseFeeVaultRecipient:                    cfg.BaseFeeVaultRecipient,
+		BaseFeeVaultMinimumWithdrawalAmount:      cfg.BaseFeeVaultMinimumWithdrawalAmount.ToInt(),
+		BaseFeeVaultWithdrawalNetwork:            big.NewInt(int64(cfg.BaseFeeVaultWithdrawalNetwork.ToUint8())),
+		L1FeeVaultRecipient:                      cfg.L1FeeVaultRecipient,
+		L1FeeVaultMinimumWithdrawalAmount:        cfg.L1FeeVaultMinimumWithdrawalAmount.ToInt(),
+		L1FeeVaultWithdrawalNetwork:              big.NewInt(int64(cfg.L1FeeVaultWithdrawalNetwork.ToUint8())),
+		OperatorFeeVaultRecipient:                cfg.OperatorFeeVaultRecipient,
+		OperatorFeeVaultMinimumWithdrawalAmount:  cfg.OperatorFeeVaultMinimumWithdrawalAmount.ToInt(),
+		OperatorFeeVaultWithdrawalNetwork:        big.NewInt(int64(cfg.OperatorFeeVaultWithdrawalNetwork.ToUint8())),
+		GovernanceTokenOwner:                     cfg.GovernanceTokenOwner,
+		Fork:                                     big.NewInt(cfg.SolidityForkNumber(1)),
+		DeployCrossL2Inbox:                       multichainDepSet,
+		EnableGovernance:                         cfg.EnableGovernance,
+		FundDevAccounts:                          cfg.FundDevAccounts,
+		UseRevenueShare:                          cfg.UseRevenueShare,
+		ChainFeesRecipient:                       cfg.ChainFeesRecipient,
+		L1FeesDepositor:                          standard.L1FeesDepositor,
+		UseCustomGasToken:                        cfg.UseCustomGasToken,
+		GasPayingTokenName:                       cfg.GasPayingTokenName,
+		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
+		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
+		LiquidityControllerOwner:                 cfg.LiquidityControllerOwner,
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
 	}
@@ -248,6 +359,9 @@ func CompleteL1(l1Host *script.Host, cfg *L1Config) (*L1Output, error) {
 		L2InitializationConfig: genesis.L2InitializationConfig{
 			L2CoreDeployConfig: genesis.L2CoreDeployConfig{
 				L1ChainID: cfg.ChainID.Uint64(),
+			},
+			UpgradeScheduleDeployConfig: genesis.UpgradeScheduleDeployConfig{
+				L1CancunTimeOffset: new(hexutil.Uint64),
 			},
 		},
 		DevL1DeployConfig: cfg.DevL1DeployConfig,

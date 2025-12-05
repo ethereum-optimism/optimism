@@ -1,15 +1,14 @@
-//go:build cannon64
-// +build cannon64
-
 package tests
 
 import (
-	"fmt"
-	"os"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
 func TestEVM_SingleStep_Operators64(t *testing.T) {
@@ -98,14 +97,21 @@ func TestEVM_SingleStep_Bitwise64(t *testing.T) {
 }
 
 func TestEVM_SingleStep_Shift64(t *testing.T) {
-	cases := []struct {
+
+	type testCase struct {
 		name      string
 		rd        Word
 		rt        Word
 		sa        uint32
 		funct     uint32
 		expectRes Word
-	}{
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
 		{name: "dsll", funct: 0x38, rd: Word(0xAA_BB_CC_DD_A1_B1_C1_D1), rt: Word(0x1), sa: 0, expectRes: Word(0x1)},                                              // dsll t8, s2, 0
 		{name: "dsll", funct: 0x38, rd: Word(0xAA_BB_CC_DD_A1_B1_C1_D1), rt: Word(0x1), sa: 1, expectRes: Word(0x2)},                                              // dsll t8, s2, 1
 		{name: "dsll", funct: 0x38, rd: Word(0xAA_BB_CC_DD_A1_B1_C1_D1), rt: Word(0x1), sa: 31, expectRes: Word(0x80_00_00_00)},                                   // dsll t8, s2, 31
@@ -144,37 +150,27 @@ func TestEVM_SingleStep_Shift64(t *testing.T) {
 		{name: "dsra32", funct: 0x3f, rd: Word(0xAA_BB_CC_DD_A1_B1_C1_D1), rt: Word(0x7F_FF_FF_FF_FF_FF_FF_FF), sa: 31, expectRes: Word(0x0)},                      // dsra32 t8, s2, 1
 	}
 
-	v := GetMultiThreadedTestCase(t)
-	for i, tt := range cases {
-		testName := fmt.Sprintf("%v %v", v.Name, tt.name)
-		t.Run(testName, func(t *testing.T) {
-			pc := Word(0x0)
-			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPCAndNextPC(pc))
-			state := goVm.GetState()
-			var insn uint32
-			var rtReg uint32
-			var rdReg uint32
-			rtReg = 18
-			rdReg = 8
-			insn = rtReg<<16 | rdReg<<11 | tt.sa<<6 | tt.funct
-			state.GetRegistersRef()[rdReg] = tt.rd
-			state.GetRegistersRef()[rtReg] = tt.rt
-			testutil.StoreInstruction(state.GetMemory(), pc, insn)
-			step := state.GetStep()
-
-			// Setup expectations
-			expected := testutil.NewExpectedState(state)
-			expected.ExpectStep()
-			expected.Registers[rdReg] = tt.expectRes
-
-			stepWitness, err := goVm.Step(true)
-			require.NoError(t, err)
-
-			// Check expectations
-			expected.Validate(t, state)
-			testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-		})
+	pc := Word(0x0)
+	rdReg := uint32(8)
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
+		rtReg := uint32(18)
+		insn := rtReg<<16 | rdReg<<11 | tt.sa<<6 | tt.funct
+		state.GetRegistersRef()[rdReg] = tt.rd
+		state.GetRegistersRef()[rtReg] = tt.rt
+		storeInsnWithCache(state, goVm, pc, insn)
 	}
+
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		expected.ActiveThread().Registers[rdReg] = tt.expectRes
+
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState, mtutil.WithPCAndNextPC(pc)).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 func TestEVM_SingleStep_LoadStore64(t *testing.T) {
@@ -508,4 +504,55 @@ func TestEVM_SingleStep_Branch64(t *testing.T) {
 	}
 
 	testBranch(t, cases)
+}
+
+func TestEVM_SingleStep_DCloDClz64(t *testing.T) {
+	rsReg := uint32(7)
+	rdReg := uint32(8)
+
+	type testCase struct {
+		name           string
+		rs             Word
+		funct          uint32
+		expectedResult Word
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	insnFn := func(tt testCase) uint32 {
+		return 0b01_1100<<26 | rsReg<<21 | rdReg<<11 | tt.funct
+	}
+
+	cases := []testCase{
+		// dclo
+		{name: "dclo", rs: Word(0xFF_FF_FF_FF_FF_FF_FF_FF), expectedResult: Word(64), funct: 0b10_0101},
+		{name: "dclo", rs: Word(0xFF_FF_FF_FF_FF_FF_FF_FE), expectedResult: Word(63), funct: 0b10_0101},
+		{name: "dclo", rs: Word(0xFF_FF_FF_FF_00_00_00_00), expectedResult: Word(32), funct: 0b10_0101},
+		{name: "dclo", rs: Word(0x80_00_00_00_00_00_00_00), expectedResult: Word(1), funct: 0b10_0101},
+		{name: "dclo", rs: Word(0x0), expectedResult: Word(0), funct: 0b10_0101},
+		// dclz
+		{name: "dclz", rs: Word(0x0), expectedResult: Word(64), funct: 0b10_0100},
+		{name: "dclz", rs: Word(0x1), expectedResult: Word(63), funct: 0b10_0100},
+		{name: "dclz", rs: Word(0x10_00_00_00), expectedResult: Word(35), funct: 0b10_0100},
+		{name: "dclz", rs: Word(0x80_00_00_00), expectedResult: Word(32), funct: 0b10_0100},
+		{name: "dclz", rs: Word(0x80_00_00_00_00_00_00_00), expectedResult: Word(0), funct: 0b10_0100},
+	}
+
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
+		storeInsnWithCache(state, goVm, state.GetPC(), insnFn(tt))
+		state.GetRegistersRef()[rsReg] = tt.rs
+	}
+
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		expected.ActiveThread().Registers[rdReg] = tt.expectedResult
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }

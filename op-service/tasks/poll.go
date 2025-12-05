@@ -56,7 +56,7 @@ func (pd *Poller) Start() {
 			case <-pd.ticker.Ch():
 				pd.fn()
 			case <-pd.ctx.Done():
-				return // quiting
+				return // quitting
 			}
 		}
 	}()

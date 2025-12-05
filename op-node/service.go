@@ -5,37 +5,57 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli/v2"
+	"github.com/ethereum/go-ethereum/params"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
-	"github.com/ethereum-optimism/optimism/op-node/node"
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/cliiface"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
+<<<<<<< HEAD
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+=======
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+>>>>>>> upstream/develop
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 // NewConfig creates a Config from the provided flags or environment variables.
-func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
+func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 	if err := flags.CheckRequired(ctx); err != nil {
 		return nil, err
 	}
 
 	rollupConfig, err := NewRollupConfigFromCLI(log, ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	l1ChainConfig, err := NewL1ChainConfig(rollupConfig.L1ChainID, ctx, log)
+	if err != nil {
+		return nil, err
+	}
+
+	depSet, err := NewDependencySetFromCLI(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +74,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, fmt.Errorf("failed to load p2p signer: %w", err)
 	}
 
-	p2pConfig, err := p2pcli.NewConfig(ctx, rollupConfig)
+	p2pConfig, err := p2pcli.NewConfig(ctx, rollupConfig.BlockTime)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load p2p config: %w", err)
 	}
@@ -82,6 +102,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		log.Warn("Heartbeat functionality is not supported anymore, CLI flags will be removed in following release.")
 	}
 	conductorRPCEndpoint := ctx.String(flags.ConductorRpcFlag.Name)
+<<<<<<< HEAD
 	cfg := &node.Config{
 		L1:            l1Endpoint,
 		L2:            l2Endpoint,
@@ -105,6 +126,19 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 			ListenAddr: ctx.String(flags.MetricsAddrFlag.Name),
 			ListenPort: ctx.Int(flags.MetricsPortFlag.Name),
 		},
+=======
+	cfg := &config.Config{
+		L1:                          l1Endpoint,
+		L2:                          l2Endpoint,
+		L1ChainConfig:               l1ChainConfig,
+		Rollup:                      *rollupConfig,
+		DependencySet:               depSet,
+		Driver:                      *driverConfig,
+		Beacon:                      NewBeaconEndpointConfig(ctx),
+		InteropConfig:               NewSupervisorEndpointConfig(ctx),
+		RPC:                         rpc.ReadCLIConfig(ctx),
+		Metrics:                     opmetrics.ReadCLIConfig(ctx),
+>>>>>>> upstream/develop
 		Pprof:                       oppprof.ReadCLIConfig(ctx),
 		P2P:                         p2pConfig,
 		P2PSigner:                   p2pSignerSetup,
@@ -124,6 +158,9 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		AltDA: altda.ReadCLIConfig(ctx),
 
 		IgnoreMissingPectraBlobSchedule: ctx.Bool(flags.IgnoreMissingPectraBlobSchedule.Name),
+		FetchWithdrawalRootFromState:    ctx.Bool(flags.FetchWithdrawalRootFromState.Name),
+
+		ExperimentalOPStackAPI: ctx.Bool(flags.ExperimentalOPStackAPI.Name),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {
@@ -141,17 +178,16 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	return cfg, nil
 }
 
-func NewSupervisorEndpointConfig(ctx *cli.Context) *interop.Config {
+func NewSupervisorEndpointConfig(ctx cliiface.Context) *interop.Config {
 	return &interop.Config{
-		SupervisorAddr:   ctx.String(flags.InteropSupervisor.Name),
 		RPCAddr:          ctx.String(flags.InteropRPCAddr.Name),
 		RPCPort:          ctx.Int(flags.InteropRPCPort.Name),
 		RPCJwtSecretPath: ctx.String(flags.InteropJWTSecret.Name),
 	}
 }
 
-func NewBeaconEndpointConfig(ctx *cli.Context) node.L1BeaconEndpointSetup {
-	return &node.L1BeaconEndpointConfig{
+func NewBeaconEndpointConfig(ctx cliiface.Context) config.L1BeaconEndpointSetup {
+	return &config.L1BeaconEndpointConfig{
 		BeaconAddr:             ctx.String(flags.BeaconAddr.Name),
 		BeaconHeader:           ctx.String(flags.BeaconHeader.Name),
 		BeaconFallbackAddrs:    ctx.StringSlice(flags.BeaconFallbackAddrs.Name),
@@ -160,8 +196,8 @@ func NewBeaconEndpointConfig(ctx *cli.Context) node.L1BeaconEndpointSetup {
 	}
 }
 
-func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
-	return &node.L1EndpointConfig{
+func NewL1EndpointConfig(ctx cliiface.Context) *config.L1EndpointConfig {
+	return &config.L1EndpointConfig{
 		L1NodeAddr:       ctx.String(flags.L1NodeAddr.Name),
 		L1TrustRPC:       ctx.Bool(flags.L1TrustRPC.Name),
 		L1RPCKind:        sources.RPCProviderKind(strings.ToLower(ctx.String(flags.L1RPCProviderKind.Name))),
@@ -173,7 +209,7 @@ func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
 	}
 }
 
-func NewL2EndpointConfig(ctx *cli.Context, logger log.Logger) (*node.L2EndpointConfig, error) {
+func NewL2EndpointConfig(ctx cliiface.Context, logger log.Logger) (*config.L2EndpointConfig, error) {
 	l2Addr := ctx.String(flags.L2EngineAddr.Name)
 	fileName := ctx.String(flags.L2EngineJWTSecret.Name)
 	secret, err := rpc.ObtainJWTSecret(logger, fileName, true)
@@ -181,7 +217,7 @@ func NewL2EndpointConfig(ctx *cli.Context, logger log.Logger) (*node.L2EndpointC
 		return nil, err
 	}
 	l2RpcTimeout := ctx.Duration(flags.L2EngineRpcTimeout.Name)
-	return &node.L2EndpointConfig{
+	return &config.L2EndpointConfig{
 		L2EngineAddr:        l2Addr,
 		L2EngineJWTSecret:   secret,
 		L2EngineCallTimeout: l2RpcTimeout,
@@ -190,25 +226,40 @@ func NewL2EndpointConfig(ctx *cli.Context, logger log.Logger) (*node.L2EndpointC
 	}, nil
 }
 
-func NewConfigPersistence(ctx *cli.Context) node.ConfigPersistence {
+func NewConfigPersistence(ctx cliiface.Context) config.ConfigPersistence {
 	stateFile := ctx.String(flags.RPCAdminPersistence.Name)
 	if stateFile == "" {
-		return node.DisabledConfigPersistence{}
+		return config.DisabledConfigPersistence{}
 	}
-	return node.NewConfigPersistence(stateFile)
+	return config.NewConfigPersistence(stateFile)
 }
 
-func NewDriverConfig(ctx *cli.Context) *driver.Config {
-	return &driver.Config{
+func NewDriverConfig(ctx cliiface.Context) *driver.Config {
+	cfg := &driver.Config{
 		VerifierConfDepth:   ctx.Uint64(flags.VerifierL1Confs.Name),
 		SequencerConfDepth:  ctx.Uint64(flags.SequencerL1Confs.Name),
 		SequencerEnabled:    ctx.Bool(flags.SequencerEnabledFlag.Name),
 		SequencerStopped:    ctx.Bool(flags.SequencerStoppedFlag.Name),
 		SequencerMaxSafeLag: ctx.Uint64(flags.SequencerMaxSafeLagFlag.Name),
+		RecoverMode:         ctx.Bool(flags.SequencerRecoverMode.Name),
 	}
+
+	// Populate finality config from flags. A finality config with null fields
+	// is handled the same way as a null finality config.
+	cfg.Finalizer = &finality.Config{}
+	if ctx.IsSet(flags.FinalityLookbackFlag.Name) {
+		lookback := ctx.Uint64(flags.FinalityLookbackFlag.Name)
+		cfg.Finalizer.FinalityLookback = &lookback
+	}
+	if ctx.IsSet(flags.FinalityDelayFlag.Name) {
+		delay := ctx.Uint64(flags.FinalityDelayFlag.Name)
+		cfg.Finalizer.FinalityDelay = &delay
+	}
+
+	return cfg
 }
 
-func NewRollupConfigFromCLI(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
+func NewRollupConfigFromCLI(log log.Logger, ctx cliiface.Context) (*rollup.Config, error) {
 	network := ctx.String(opflags.NetworkFlagName)
 	rollupConfigPath := ctx.String(opflags.RollupConfigFlagName)
 	if ctx.Bool(flags.BetaExtraNetworks.Name) {
@@ -252,57 +303,119 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 	return &rollupConfig, nil
 }
 
-func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
-	if ctx.IsSet(opflags.CanyonOverrideFlagName) {
-		canyon := ctx.Uint64(opflags.CanyonOverrideFlagName)
-		rollupConfig.CanyonTime = &canyon
-	}
-	if ctx.IsSet(opflags.DeltaOverrideFlagName) {
-		delta := ctx.Uint64(opflags.DeltaOverrideFlagName)
-		rollupConfig.DeltaTime = &delta
-	}
-	if ctx.IsSet(opflags.EcotoneOverrideFlagName) {
-		ecotone := ctx.Uint64(opflags.EcotoneOverrideFlagName)
-		rollupConfig.EcotoneTime = &ecotone
-	}
-	if ctx.IsSet(opflags.FjordOverrideFlagName) {
-		fjord := ctx.Uint64(opflags.FjordOverrideFlagName)
-		rollupConfig.FjordTime = &fjord
-	}
-	if ctx.IsSet(opflags.GraniteOverrideFlagName) {
-		granite := ctx.Uint64(opflags.GraniteOverrideFlagName)
-		rollupConfig.GraniteTime = &granite
-	}
-	if ctx.IsSet(opflags.HoloceneOverrideFlagName) {
-		holocene := ctx.Uint64(opflags.HoloceneOverrideFlagName)
-		rollupConfig.HoloceneTime = &holocene
-	}
-	if ctx.IsSet(opflags.PectraBlobScheduleOverrideFlagName) {
-		pectrablobschedule := ctx.Uint64(opflags.PectraBlobScheduleOverrideFlagName)
-		rollupConfig.PectraBlobScheduleTime = &pectrablobschedule
+func applyOverrides(ctx cliiface.Context, rollupConfig *rollup.Config) {
+	for _, fork := range opflags.OverridableForks {
+		flagName := opflags.OverrideName(fork)
+		if ctx.IsSet(flagName) {
+			timestamp := ctx.Uint64(flagName)
+			rollupConfig.SetActivationTime(fork, &timestamp)
+		}
 	}
 }
 
-func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {
+func NewL1ChainConfig(chainId *big.Int, ctx cliiface.Context, log log.Logger) (*params.ChainConfig, error) {
+	if chainId == nil {
+		panic("l1 chain id is nil")
+	}
+
+	if cfg := eth.L1ChainConfigByChainID(eth.ChainIDFromBig(chainId)); cfg != nil {
+		return cfg, nil
+	}
+
+	// if the chain id is not known, we fallback to the CLI config
+	cf, err := NewL1ChainConfigFromCLI(log, ctx)
+	if err != nil {
+		return nil, err
+	}
+	if cf.ChainID.Cmp(chainId) != 0 {
+		return nil, fmt.Errorf("l1 chain config chain ID mismatch: %v != %v", cf.ChainID, chainId)
+	}
+	if !cf.IsOptimism() && cf.BlobScheduleConfig == nil {
+		// No error if the chain config is an OP-Stack chain and doesn't have a blob schedule config
+		return nil, fmt.Errorf("L1 chain config does not have a blob schedule config")
+	}
+	return cf, nil
+}
+
+func NewL1ChainConfigFromCLI(log log.Logger, ctx cliiface.Context) (*params.ChainConfig, error) {
+	l1ChainConfigPath := ctx.String(flags.L1ChainConfig.Name)
+	file, err := os.Open(l1ChainConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read chain spec: %w", err)
+	}
+	defer file.Close()
+
+	// Attempt to decode directly as a ChainConfig
+	var chainConfig params.ChainConfig
+	dec := json.NewDecoder(file)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&chainConfig); err == nil {
+		return &chainConfig, nil
+	}
+
+	// If that fails, try to load the config from the .config property.
+	// This should work if the provided file is a genesis file / chainspec
+	return jsonutil.LoadJSONFieldStrict[params.ChainConfig](l1ChainConfigPath, "config")
+}
+
+func NewDependencySetFromCLI(cli cliiface.Context) (depset.DependencySet, error) {
+	if !cli.IsSet(flags.InteropDependencySet.Name) {
+		return nil, nil
+	}
+	loader := &depset.JSONDependencySetLoader{Path: cli.Path(flags.InteropDependencySet.Name)}
+	return loader.LoadDependencySet()
+}
+
+func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 	if ctx.IsSet(flags.L2EngineSyncEnabled.Name) && ctx.IsSet(flags.SyncModeFlag.Name) {
 		return nil, errors.New("cannot set both --l2.engine-sync and --syncmode at the same time")
 	} else if ctx.IsSet(flags.L2EngineSyncEnabled.Name) {
 		log.Error("l2.engine-sync is deprecated and will be removed in a future release. Use --syncmode=execution-layer instead.")
 	}
+	unsafeOnly := ctx.Bool(flags.L2UnsafeOnly.Name)
+	l2FollowSourceEndpoint := ctx.String(flags.L2FollowSource.Name)
+	if !unsafeOnly && l2FollowSourceEndpoint != "" {
+		return nil, errors.New("cannot follow external safe/finalized with derivation enabled (--l2.unsafe-only=false): " +
+			"Either remove --l2.follow.source or set --l2.unsafe-only=true to disable derivation")
+	}
+	rrSyncEnabled := ctx.Bool(flags.SyncModeReqRespFlag.Name)
+	// p2p.sync.req-resp=false && syncmode.req-resp=true is not allowed
+	if !ctx.Bool(flags.SyncReqRespName) && rrSyncEnabled {
+		return nil, errors.New("cannot set --p2p.sync.req-resp=false and --syncmode.req-resp=true at the same time")
+	}
 	mode, err := sync.StringToMode(ctx.String(flags.SyncModeFlag.Name))
 	if err != nil {
 		return nil, err
 	}
-
+	isSequencer := ctx.Bool(flags.SequencerEnabledFlag.Name)
+	if unsafeOnly && !isSequencer {
+		// The verifier node initially gains payloads from the sequencer via CLP2P.
+		// To sync to the chain tip, the verifier must close the gap between its current
+		// unsafe view and the sequencer's latest unsafe payloads.
+		// With derivation disabled, the node can only rely on RR Sync or EL Sync to close this gap.
+		if rrSyncEnabled {
+			// Allowing RR Sync technically works, but it is impractical for a verifier to
+			// rely solely on RR Syncing - bootstrapping would take too long.
+			// Since RR Sync is also being deprecated, fail early for clarity.
+			return nil, errors.New("derivation disabled (--l2.unsafe-only=true) and RR sync enabled (--syncmode.req-resp=true): " +
+				"reaching the unsafe tip would rely solely on RR sync, " +
+				"which is infeasible for bootstrap. Disable RR sync or enable derivation")
+		}
+		// If RR Sync is not used, EL Sync will fill in the unsafe gap.
+		// This path is much faster and more practical for closing the gap.
+	}
 	engineKind := engine.Kind(ctx.String(flags.L2EngineKind.Name))
 	cfg := &sync.Config{
 		SyncMode:                       mode,
+		SyncModeReqResp:                ctx.Bool(flags.SyncModeReqRespFlag.Name),
 		SkipSyncStartCheck:             ctx.Bool(flags.SkipSyncStartCheck.Name),
 		SupportsPostFinalizationELSync: engineKind.SupportsPostFinalizationELSync(),
+		UnsafeOnly:                     unsafeOnly,
+		L2FollowSourceEndpoint:         l2FollowSourceEndpoint,
+		NeedInitialResetEngine:         isSequencer && unsafeOnly,
 	}
 	if ctx.Bool(flags.L2EngineSyncEnabled.Name) {
 		cfg.SyncMode = sync.ELSync
 	}
-
 	return cfg, nil
 }

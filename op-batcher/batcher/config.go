@@ -3,7 +3,6 @@ package batcher
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/params"
@@ -11,6 +10,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -24,15 +24,55 @@ import (
 // blob config.
 var maxBlobsPerBlock = params.DefaultPragueBlobConfig.Max
 
+type ThrottleConfig struct {
+	AdditionalEndpoints []string
+
+	TxSizeLowerLimit    uint64
+	TxSizeUpperLimit    uint64
+	BlockSizeLowerLimit uint64
+	BlockSizeUpperLimit uint64
+
+	ControllerType config.ThrottleControllerType
+	LowerThreshold uint64
+	UpperThreshold uint64
+
+	// PID Controller specific parameters
+	PidKp          float64
+	PidKi          float64
+	PidKd          float64
+	PidIntegralMax float64
+	PidOutputMax   float64
+	PidSampleTime  time.Duration
+}
+
+func (c *ThrottleConfig) Check() error {
+	if !config.ValidThrottleControllerType(c.ControllerType) {
+		return fmt.Errorf("invalid throttle controller type: %s (must be one of: %v)", c.ControllerType, config.ThrottleControllerTypes)
+	}
+
+	if c.LowerThreshold != 0 && c.UpperThreshold <= c.LowerThreshold {
+		return fmt.Errorf("throttle.upper-threshold must be greater than throttle.lower-threshold")
+	}
+
+	if c.BlockSizeLowerLimit > 0 && c.BlockSizeLowerLimit >= c.BlockSizeUpperLimit {
+		return fmt.Errorf("throttle.block-size-lower-limit must be less than throttle.block-size-upper-limit")
+	}
+
+	if c.TxSizeLowerLimit > 0 && c.ControllerType != config.StepControllerType && c.TxSizeLowerLimit >= c.TxSizeUpperLimit {
+		return fmt.Errorf("throttle.tx-size-lower-limit must be less than throttle.tx-size-upper-limit")
+	}
+	return nil
+}
+
 type CLIConfig struct {
 	// L1EthRpc is the HTTP provider URL for L1.
 	L1EthRpc string
 
 	// L2EthRpc is the HTTP provider URL for the L2 execution engine. A comma-separated list enables the active L2 provider. Such a list needs to match the number of RollupRpcs provided.
-	L2EthRpc string
+	L2EthRpc []string
 
 	// RollupRpc is the HTTP provider URL for the L2 rollup node. A comma-separated list enables the active L2 provider. Such a list needs to match the number of L2EthRpcs provided.
-	RollupRpc string
+	RollupRpc []string
 
 	// MaxChannelDuration is the maximum duration (in #L1-blocks) to keep a
 	// channel open. This allows to more eagerly send batcher transactions
@@ -100,22 +140,11 @@ type CLIConfig struct {
 	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
 	ActiveSequencerCheckDuration time.Duration
 
-	// ThrottleThreshold is the number of pending bytes beyond which the batcher will start throttling future bytes. Set to 0 to
-	// disable sequencer throttling entirely (only recommended for testing).
-	ThrottleThreshold uint64
-	// ThrottleTxSize is the DA size of a transaction to start throttling when we are over the throttling threshold.
-	ThrottleTxSize uint64
-	// ThrottleBlockSize is the total per-block DA limit to start imposing on block building when we are over the throttling threshold.
-	ThrottleBlockSize uint64
-	// ThrottleAlwaysBlockSize is the total per-block DA limit to always imposing on block building.
-	ThrottleAlwaysBlockSize uint64
-
-	// PreferLocalSafeL2 triggers the batcher to load blocks from the sequencer based on the LocalSafeL2 SyncStatus field (instead of the SafeL2 field).
-	PreferLocalSafeL2 bool
-
 	// TestUseMaxTxSizeForBlobs allows to set the blob size with MaxL1TxSize.
 	// Should only be used for testing purposes.
 	TestUseMaxTxSizeForBlobs bool
+
+	ThrottleConfig ThrottleConfig
 
 	TxMgrConfig   txmgr.CLIConfig
 	LogConfig     oplog.CLIConfig
@@ -129,13 +158,13 @@ func (c *CLIConfig) Check() error {
 	if c.L1EthRpc == "" {
 		return errors.New("empty L1 RPC URL")
 	}
-	if c.L2EthRpc == "" {
+	if len(c.L2EthRpc) == 0 {
 		return errors.New("empty L2 RPC URL")
 	}
-	if c.RollupRpc == "" {
+	if len(c.RollupRpc) == 0 {
 		return errors.New("empty rollup RPC URL")
 	}
-	if strings.Count(c.RollupRpc, ",") != strings.Count(c.L2EthRpc, ",") {
+	if len(c.RollupRpc) != len(c.L2EthRpc) {
 		return errors.New("number of rollup and eth URLs must match")
 	}
 	if c.PollInterval == 0 {
@@ -168,6 +197,11 @@ func (c *CLIConfig) Check() error {
 	if c.DataAvailabilityType != flags.CalldataType && c.TargetNumFrames > maxBlobsPerBlock {
 		return fmt.Errorf("too many frames for blob transactions, max %d", maxBlobsPerBlock)
 	}
+
+	if err := c.ThrottleConfig.Check(); err != nil {
+		return err
+	}
+
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
 	}
@@ -188,8 +222,8 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 	return &CLIConfig{
 		/* Required Flags */
 		L1EthRpc:        ctx.String(flags.L1EthRpcFlag.Name),
-		L2EthRpc:        ctx.String(flags.L2EthRpcFlag.Name),
-		RollupRpc:       ctx.String(flags.RollupRpcFlag.Name),
+		L2EthRpc:        ctx.StringSlice(flags.L2EthRpcFlag.Name),
+		RollupRpc:       ctx.StringSlice(flags.RollupRpcFlag.Name),
 		SubSafetyMargin: ctx.Uint64(flags.SubSafetyMarginFlag.Name),
 		PollInterval:    ctx.Duration(flags.PollIntervalFlag.Name),
 
@@ -214,10 +248,21 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
 		RPC:                          oprpc.ReadCLIConfig(ctx),
 		AltDA:                        altda.ReadCLIConfig(ctx),
-		ThrottleThreshold:            ctx.Uint64(flags.ThrottleThresholdFlag.Name),
-		ThrottleTxSize:               ctx.Uint64(flags.ThrottleTxSizeFlag.Name),
-		ThrottleBlockSize:            ctx.Uint64(flags.ThrottleBlockSizeFlag.Name),
-		ThrottleAlwaysBlockSize:      ctx.Uint64(flags.ThrottleAlwaysBlockSizeFlag.Name),
-		PreferLocalSafeL2:            ctx.Bool(flags.PreferLocalSafeL2Flag.Name),
+		ThrottleConfig: ThrottleConfig{
+			AdditionalEndpoints: ctx.StringSlice(flags.AdditionalThrottlingEndpointsFlag.Name),
+			TxSizeLowerLimit:    ctx.Uint64(flags.ThrottleTxSizeLowerLimitFlag.Name),
+			TxSizeUpperLimit:    ctx.Uint64(flags.ThrottleTxSizeUpperLimitFlag.Name),
+			BlockSizeLowerLimit: ctx.Uint64(flags.ThrottleBlockSizeLowerLimitFlag.Name),
+			BlockSizeUpperLimit: ctx.Uint64(flags.ThrottleBlockSizeUpperLimitFlag.Name),
+			ControllerType:      config.ThrottleControllerType(ctx.String(flags.ThrottleControllerTypeFlag.Name)),
+			LowerThreshold:      ctx.Uint64(flags.ThrottleUsafeDABytesLowerThresholdFlag.Name),
+			UpperThreshold:      ctx.Uint64(flags.ThrottleUsafeDABytesUpperThresholdFlag.Name),
+			PidKp:               ctx.Float64(flags.ThrottlePidKpFlag.Name),
+			PidKi:               ctx.Float64(flags.ThrottlePidKiFlag.Name),
+			PidKd:               ctx.Float64(flags.ThrottlePidKdFlag.Name),
+			PidIntegralMax:      ctx.Float64(flags.ThrottlePidIntegralMaxFlag.Name),
+			PidOutputMax:        ctx.Float64(flags.ThrottlePidOutputMaxFlag.Name),
+			PidSampleTime:       ctx.Duration(flags.ThrottlePidSampleTimeFlag.Name),
+		},
 	}
 }

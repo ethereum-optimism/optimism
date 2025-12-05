@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-validator/pkg/validations"
 	"github.com/ethereum/go-ethereum/log"
@@ -44,19 +46,30 @@ func Validate(ctx context.Context, lgr log.Logger, release string, cfg *Config) 
 	}
 
 	var validator validations.Validator
+
 	switch release {
-	case validations.VersionV180:
+	case standard.ContractsV180Tag:
 		validator = validations.NewV180Validator(l1Client)
-	case validations.VersionV200:
+	case standard.ContractsV200Tag:
 		validator = validations.NewV200Validator(l1Client)
+	case standard.ContractsV300Tag:
+		validator = validations.NewV300Validator(l1Client)
+	case standard.ContractsV400Tag:
+		validator = validations.NewV400Validator(l1Client)
+	case standard.ContractsV410Tag:
+		validator = validations.NewV410Validator(l1Client)
+	case standard.ContractsV500Tag:
+		validator = validations.NewV500Validator(l1Client)
 	default:
 		return nil, fmt.Errorf("invalid release: %s", release)
 	}
+	lgr.Info("Using Validator", "version", release)
 
 	return validator.Validate(ctx, validations.BaseValidatorInput{
 		ProxyAdminAddress:   cfg.ProxyAdmin,
 		SystemConfigAddress: cfg.SystemConfig,
 		AbsolutePrestate:    cfg.AbsolutePrestate,
 		L2ChainID:           cfg.L2ChainID,
+		Proposer:            cfg.Proposer,
 	})
 }

@@ -1,5 +1,6 @@
 optimism_package:
   chains:
-    - whatakey:
+    op-kurtosis:
+      whatakey:
       - el_type: op-geth
         cl_type: op-node

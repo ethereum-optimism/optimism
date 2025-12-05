@@ -72,11 +72,6 @@ func GetBlockFromTag(chain ethereum.ChainReader, tag *rpc.BlockNumberOrHash) (*t
 	}
 }
 
-// uint642Big creates a new *big.Int from a uint64.
-func uint642Big(in uint64) *big.Int {
-	return new(big.Int).SetUint64(in)
-}
-
 func newHexBig(in uint64) *hexutil.Big {
 	b := new(big.Int).SetUint64(in)
 	hb := hexutil.Big(*b)

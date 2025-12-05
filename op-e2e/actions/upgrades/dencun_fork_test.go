@@ -4,20 +4,22 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	transactions "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
-
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func TestDencunL1ForkAfterGenesis(gt *testing.T) {
+	gt.Skip("Cancun is activated in the contracts-build, rendering this test technically invalid")
+
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	offset := hexutil.Uint64(24)
@@ -121,13 +123,8 @@ func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	require.Zero(t, *dp.DeployConfig.L1CancunTimeOffset)
-	// This test wil fork on the second block
-	offset := hexutil.Uint64(dp.DeployConfig.L2BlockTime * 2)
-	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
-	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
-	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
-	dp.DeployConfig.L2GenesisHoloceneTimeOffset = nil
-	// New forks have to be added here, after changing the default deploy config!
+	// This test will fork on the second block
+	dp.DeployConfig.ActivateForkAtOffset(forks.Ecotone, dp.DeployConfig.L2BlockTime*2)
 
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)

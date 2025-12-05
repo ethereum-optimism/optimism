@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/deployer"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/inspect"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/jwt"
@@ -24,4 +25,8 @@ type EnclaveObserver interface {
 
 type JWTExtractor interface {
 	ExtractData(context.Context, string) (*jwt.Data, error)
+}
+
+type DepsetExtractor interface {
+	ExtractData(context.Context, string) (map[string]descriptors.DepSet, error)
 }

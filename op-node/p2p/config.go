@@ -120,6 +120,9 @@ type Config struct {
 	// FloodPublish publishes messages from ourselves to peers outside of the gossip topic mesh but supporting the same topic.
 	FloodPublish bool
 
+	// GossipTimestampThreshold is the threshold for rejecting gossip messages with payload timestamps older than this duration
+	GossipTimestampThreshold time.Duration
+
 	// If true a NAT manager will host a NAT port mapping that is updated with PMP and UPNP by libp2p/go-nat
 	NAT bool
 
@@ -176,6 +179,10 @@ func (conf *Config) BanDuration() time.Duration {
 
 func (conf *Config) ReqRespSyncEnabled() bool {
 	return conf.EnableReqRespSync
+}
+
+func (conf *Config) GetGossipTimestampThreshold() time.Duration {
+	return conf.GossipTimestampThreshold
 }
 
 const maxMeshParam = 1000

@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/scripts/checks/common"
 )
 
+// excludeContracts is a list of contracts whose interfaces do not need to match perfectly.
 var excludeContracts = []string{
 	// External dependencies
 	"IERC20", "IERC721", "IERC5267", "IERC721Enumerable", "IERC721Upgradeable", "IERC721Metadata",
@@ -32,6 +33,24 @@ var excludeContracts = []string{
 	// TODO: Interfaces that need to be fixed
 	"IInitializable", "IOptimismMintableERC20", "ILegacyMintableERC20",
 	"KontrolCheatsBase", "IResolvedDelegateProxy",
+}
+
+// excludeSourceContracts is a list of contracts that are allowed to not have interfaces
+var excludeSourceContracts = []string{
+	// Base contracts with no external functions
+	"CrossDomainOwnable", "CrossDomainOwnable2", "CrossDomainOwnable3", "CrossDomainMessengerLegacySpacer0", "CrossDomainMessengerLegacySpacer1",
+
+	// Helper contracts
+	"SafeSend", "EventLogger", "StorageSetter", "DisputeMonitorHelper", "GameHelper",
+
+	// Periphery
+	"TransferOnion", "AssetReceiver", "AdminFaucetAuthModule", "CheckSecrets", "CheckBalanceLow", "CheckTrue", "Drippie", "Transactor", "Faucet",
+
+	// Errors because they should be in their own contracts but are in a shared one
+	"OPContractsManagerDeployer", "OPContractsManagerUpgrader", "OPContractsManagerBase", "OPContractsManagerInteropMigrator", "OPContractsManagerContractsContainer", "OPContractsManagerGameTypeAdder", "OPContractsManagerStandardValidator",
+
+	// FIXME
+	"WETH", "MIPS64",
 }
 
 type ContractDefinition struct {
@@ -72,9 +91,9 @@ func processFile(artifactPath string) (*common.Void, []error) {
 	}
 	artifactsDir := filepath.Join(cwd, "forge-artifacts")
 
+	// Check if this is an excluded contract, skip if so
 	contractName := strings.Split(filepath.Base(artifactPath), ".")[0]
-
-	if isExcluded(contractName) {
+	if checkExclusion(contractName, excludeContracts) {
 		return nil, nil
 	}
 
@@ -88,7 +107,49 @@ func processFile(artifactPath string) (*common.Void, []error) {
 		return nil, nil // Skip processing if contract definition is not found
 	}
 
+	// If this is not an interface, make sure that it has a corresponding interface
 	if contractDef.ContractKind != "interface" {
+		// Grab the forge artifact, better api but doesn't work well for other
+		// interface check work because it's a struct and not a json object.
+		forgeArtifact, err := common.ReadForgeArtifact(artifactPath)
+		if err != nil {
+			return nil, []error{fmt.Errorf("failed to read forge artifact: %w", err)}
+		}
+
+		// If this isn't a contract, skip
+		if contractDef.ContractKind != "contract" {
+			return nil, nil
+		}
+
+		// Skip if it's not in the src directory
+		if !strings.HasPrefix(forgeArtifact.Ast.AbsolutePath, "src/") {
+			return nil, nil
+		}
+
+		// Create an array of the folders to exclude
+		excludeFolders := []string{"src/libraries", "src/vendor"}
+		for _, folder := range excludeFolders {
+			if strings.HasPrefix(forgeArtifact.Ast.AbsolutePath, folder) {
+				return nil, nil
+			}
+		}
+
+		// If this is another excluded contract, skip
+		if checkExclusion(contractName, excludeSourceContracts) {
+			return nil, nil
+		}
+
+		// Otherwise, expect that this file has a corresponding interface
+		dirPath := filepath.Dir(strings.TrimPrefix(forgeArtifact.Ast.AbsolutePath, "src/"))
+		newFileName := "I" + contractName + ".sol"
+		interfacePath := filepath.Join(cwd, "interfaces", dirPath, newFileName)
+		_, err = os.Stat(interfacePath)
+		if os.IsNotExist(err) {
+			return nil, []error{fmt.Errorf("Contract %s in %s does not have a corresponding interface at %s",
+				contractName, forgeArtifact.Ast.AbsolutePath, interfacePath)}
+		}
+
+		// Ok we can return now
 		return nil, nil
 	}
 
@@ -366,8 +427,9 @@ func formatABIItem(item map[string]interface{}) string {
 	}
 }
 
-func isExcluded(contractName string) bool {
-	for _, exclude := range excludeContracts {
+// checkExclusion returns true if the contract is in the exclude list
+func checkExclusion(contractName string, excludeList []string) bool {
+	for _, exclude := range excludeList {
 		if exclude == contractName {
 			return true
 		}

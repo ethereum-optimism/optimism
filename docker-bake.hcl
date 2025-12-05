@@ -7,7 +7,7 @@ variable "REPOSITORY" {
 }
 
 variable "KONA_VERSION" {
-  default = "kona-client-v0.1.0-beta.8"
+  default = "none"
 }
 
 variable "GIT_COMMIT" {
@@ -65,6 +65,14 @@ variable "OP_SUPERVISOR_VERSION" {
   default = "${GIT_VERSION}"
 }
 
+variable "OP_SUPERNODE_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
+variable "OP_TEST_SEQUENCER_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
 variable "CANNON_VERSION" {
   default = "${GIT_VERSION}"
 }
@@ -78,6 +86,14 @@ variable "OP_DEPLOYER_VERSION" {
 }
 
 variable "OP_DRIPPER_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
+variable "OP_FAUCET_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
+variable "OP_INTEROP_MON_VERSION" {
   default = "${GIT_VERSION}"
 }
 
@@ -199,6 +215,32 @@ target "op-supervisor" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-supervisor:${tag}"]
 }
 
+target "op-supernode" {
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
+  context = "."
+  args = {
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
+    OP_SUPERNODE_VERSION = "${OP_SUPERNODE_VERSION}"
+  }
+  target = "op-supernode-target"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-supernode:${tag}"]
+}
+
+target "op-test-sequencer" {
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
+  context = "."
+  args = {
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
+    OP_TEST_SEQUENCER_VERSION = "${OP_TEST_SEQUENCER_VERSION}"
+  }
+  target = "op-test-sequencer-target"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-test-sequencer:${tag}"]
+}
+
 target "cannon" {
   dockerfile = "ops/docker/op-stack-go/Dockerfile"
   context = "."
@@ -210,18 +252,6 @@ target "cannon" {
   target = "cannon-target"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon:${tag}"]
-}
-
-target "proofs-tools" {
-  dockerfile = "./ops/docker/proofs-tools/Dockerfile"
-  context = "."
-  args = {
-    CHALLENGER_VERSION="b46bffed42db3442d7484f089278d59f51503049"
-    KONA_VERSION="${KONA_VERSION}"
-  }
-  target="proofs-tools"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/proofs-tools:${tag}"]
 }
 
 target "holocene-deployer" {
@@ -259,4 +289,30 @@ target "op-dripper" {
   target = "op-dripper-target"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-dripper:${tag}"]
+}
+
+target "op-faucet" {
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
+  context = "."
+  args = {
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
+    OP_FAUCET_VERSION = "${OP_FAUCET_VERSION}"
+  }
+  target = "op-faucet-target"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-faucet:${tag}"]
+}
+
+target "op-interop-mon" {
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
+  context = "."
+  args = {
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
+    OP_INTEROP_MON_VERSION = "${OP_INTEROP_MON_VERSION}"
+  }
+  target = "op-interop-mon-target"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-interop-mon:${tag}"]
 }

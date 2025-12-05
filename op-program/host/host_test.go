@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,7 +26,7 @@ func TestServerMode(t *testing.T) {
 
 	l1Head := common.Hash{0x11}
 	l2OutputRoot := common.Hash{0x33}
-	cfg := config.NewSingleChainConfig(chaincfg.OPSepolia(), chainconfig.OPSepoliaChainConfig(), l1Head, common.Hash{0x22}, l2OutputRoot, common.Hash{0x44}, 1000)
+	cfg := config.NewSingleChainConfig(chaincfg.OPSepolia(), params.SepoliaChainConfig, chainconfig.OPSepoliaChainConfig(), l1Head, common.Hash{0x22}, l2OutputRoot, common.Hash{0x44}, 1000)
 	cfg.DataDir = dir
 	cfg.ServerMode = true
 
@@ -38,7 +39,7 @@ func TestServerMode(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelTrace)
 	result := make(chan error)
 	go func() {
-		result <- hostcommon.PreimageServer(context.Background(), logger, cfg, preimageServer, hintServer, makeDefaultPrefetcher)
+		result <- hostcommon.RunPreimageServer(context.Background(), logger, cfg, preimageServer, hintServer, makeDefaultPrefetcher)
 	}()
 
 	pClient := preimage.NewOracleClient(preimageClient)

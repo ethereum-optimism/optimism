@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -89,6 +91,17 @@ func TestCanyonTimeOffset(t *testing.T) {
 	require.Equal(t, uint64(1234+1500), *config.CanyonTime(1234))
 }
 
+func TestForksCantActivateAtSamePostGenesisBlock(t *testing.T) {
+	postGenesisOffset := uint64(1500)
+	config := &UpgradeScheduleDeployConfig{}
+	for _, fork := range config.forks() {
+		config.SetForkTimeOffset(forks.Name(fork.Name), &postGenesisOffset)
+	}
+	err := config.Check(testlog.Logger(t, log.LevelDebug))
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "Forks in general cannot activate at the same post-Genesis block"))
+}
+
 // TestCopy will copy a DeployConfig and ensure that the copy is equal to the original.
 func TestCopy(t *testing.T) {
 	b, err := os.ReadFile("testdata/test-deploy-config-full.json")
@@ -141,7 +154,7 @@ func TestL1Deployments(t *testing.T) {
 // This test guarantees that getters and setters for all forks are present.
 func TestUpgradeScheduleDeployConfig_ForkGettersAndSetters(t *testing.T) {
 	var d UpgradeScheduleDeployConfig
-	for i, fork := range rollup.ForksFrom(rollup.Regolith) {
+	for i, fork := range forks.From(forks.Regolith) {
 		require.Nil(t, d.ForkTimeOffset(fork))
 		offset := uint64(i * 42)
 		d.SetForkTimeOffset(fork, &offset)
@@ -153,11 +166,11 @@ func TestUpgradeScheduleDeployConfig_ActivateForkAtOffset(t *testing.T) {
 	var d UpgradeScheduleDeployConfig
 	ts := uint64(42)
 	t.Run("invalid", func(t *testing.T) {
-		require.Panics(t, func() { d.ActivateForkAtOffset(rollup.Bedrock, ts) })
+		require.Panics(t, func() { d.ActivateForkAtOffset(forks.Bedrock, ts) })
 	})
 
 	t.Run("regolith", func(t *testing.T) {
-		d.ActivateForkAtOffset(rollup.Regolith, ts)
+		d.ActivateForkAtOffset(forks.Regolith, ts)
 		require.EqualValues(t, &ts, d.L2GenesisRegolithTimeOffset)
 		for _, fork := range scheduleableForks[1:] {
 			require.Nil(t, d.ForkTimeOffset(fork))
@@ -165,7 +178,7 @@ func TestUpgradeScheduleDeployConfig_ActivateForkAtOffset(t *testing.T) {
 	})
 
 	t.Run("ecotone", func(t *testing.T) {
-		d.ActivateForkAtOffset(rollup.Ecotone, ts)
+		d.ActivateForkAtOffset(forks.Ecotone, ts)
 		require.EqualValues(t, &ts, d.L2GenesisEcotoneTimeOffset)
 		for _, fork := range scheduleableForks[:3] {
 			require.Zero(t, *d.ForkTimeOffset(fork))
@@ -174,4 +187,33 @@ func TestUpgradeScheduleDeployConfig_ActivateForkAtOffset(t *testing.T) {
 			require.Nil(t, d.ForkTimeOffset(fork))
 		}
 	})
+}
+
+func TestUpgradeScheduleDeployConfig_SolidityForkNumber(t *testing.T) {
+	// Iterate over all of them in case more are added
+	for i, fork := range scheduleableForks[2:] {
+		var d UpgradeScheduleDeployConfig
+		d.ActivateForkAtOffset(fork, 0)
+		require.EqualValues(t, i+1, d.SolidityForkNumber(uint64(42)))
+	}
+
+	// Also validate that each fork manually, for sanity
+	tests := []struct {
+		fork     rollup.ForkName
+		expected int64
+	}{
+		{forks.Delta, 1},
+		{forks.Ecotone, 2},
+		{forks.Fjord, 3},
+		{forks.Granite, 4},
+		{forks.Holocene, 5},
+		{forks.Isthmus, 6},
+		{forks.Jovian, 7},
+		{forks.Interop, 8},
+	}
+	for _, tt := range tests {
+		var d UpgradeScheduleDeployConfig
+		d.ActivateForkAtGenesis(tt.fork)
+		require.EqualValues(t, tt.expected, d.SolidityForkNumber(uint64(42)))
+	}
 }

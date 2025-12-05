@@ -3,25 +3,29 @@ package health
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-conductor/client"
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 )
 
 var (
-	ErrSequencerNotHealthy     = errors.New("sequencer is not healthy")
-	ErrSequencerConnectionDown = errors.New("cannot connect to sequencer rpc endpoints")
+	ErrSequencerNotHealthy         = errors.New("sequencer is not healthy")
+	ErrSequencerConnectionDown     = errors.New("cannot connect to sequencer rpc endpoints")
+	ErrSupervisorConnectionDown    = errors.New("cannot connect to supervisor rpc endpoint")
+	ErrRollupBoostConnectionDown   = errors.New("cannot connect to rollup boost rpc endpoints")
+	ErrRollupBoostPartiallyHealthy = errors.New("rollup boost is partially healthy, meaning that rbuilder is not healthy but the execution client is healthy")
+	ErrRollupBoostNotHealthy       = errors.New("rollup boost is not healthy")
 )
 
 // HealthMonitor defines the interface for monitoring the health of the sequencer.
-//
-//go:generate mockery --name HealthMonitor --output mocks/ --with-expecter=true
 type HealthMonitor interface {
 	// Subscribe returns a channel that will be notified for every health check.
 	Subscribe() <-chan error
@@ -35,8 +39,8 @@ type HealthMonitor interface {
 // interval is the interval between health checks measured in seconds.
 // safeInterval is the interval between safe head progress measured in seconds.
 // minPeerCount is the minimum number of peers required for the sequencer to be healthy.
-func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p p2p.API) HealthMonitor {
-	return &SequencerHealthMonitor{
+func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient, supervisor SupervisorHealthAPI, rb client.RollupBoostClient, elP2pClient client.ElP2PClient, minElP2pPeers uint64, rollupBoostToleratePartialHealthinessToleranceLimit uint64, rollupBoostToleratePartialHealthinessToleranceIntervalSeconds uint64) HealthMonitor {
+	hm := &SequencerHealthMonitor{
 		log:            log,
 		metrics:        metrics,
 		interval:       interval,
@@ -46,10 +50,36 @@ func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interva
 		safeEnabled:    safeEnabled,
 		safeInterval:   safeInterval,
 		minPeerCount:   minPeerCount,
-		timeProviderFn: currentTimeProvicer,
+		timeProviderFn: currentTimeProvider,
 		node:           node,
 		p2p:            p2p,
+		supervisor:     supervisor,
+		rb:             rb,
 	}
+
+	if elP2pClient != nil {
+		hm.elP2p = &ElP2pHealthMonitor{
+			log:          log,
+			minPeerCount: minElP2pPeers,
+			elP2pClient:  elP2pClient,
+		}
+	}
+	if rollupBoostToleratePartialHealthinessToleranceLimit != 0 {
+		hm.rollupBoostPartialHealthinessToleranceLimit = rollupBoostToleratePartialHealthinessToleranceLimit
+		var err error
+		hm.rollupBoostPartialHealthinessToleranceCounter, err = NewTimeBoundedRotatingCounter(rollupBoostToleratePartialHealthinessToleranceIntervalSeconds)
+		if err != nil {
+			panic(fmt.Errorf("failed to setup health monitor: %w", err))
+		}
+	}
+
+	return hm
+}
+
+type ElP2pHealthMonitor struct {
+	log          log.Logger
+	minPeerCount uint64
+	elP2pClient  client.ElP2PClient
 }
 
 // SequencerHealthMonitor monitors sequencer health.
@@ -71,8 +101,13 @@ type SequencerHealthMonitor struct {
 
 	timeProviderFn func() uint64
 
-	node dial.RollupClientInterface
-	p2p  p2p.API
+	node                                          dial.RollupClientInterface
+	p2p                                           apis.P2PClient
+	supervisor                                    SupervisorHealthAPI
+	rb                                            client.RollupBoostClient
+	elP2p                                         *ElP2pHealthMonitor
+	rollupBoostPartialHealthinessToleranceLimit   uint64
+	rollupBoostPartialHealthinessToleranceCounter *timeBoundedRotatingCounter
 }
 
 var _ HealthMonitor = (*SequencerHealthMonitor)(nil)
@@ -135,10 +170,67 @@ func (hm *SequencerHealthMonitor) loop(ctx context.Context) {
 // 2. safe head is progressing every configured batch submission interval
 // 3. peer count is above the configured minimum
 func (hm *SequencerHealthMonitor) healthCheck(ctx context.Context) error {
+	err := hm.checkNode(ctx)
+	if err != nil {
+		return err
+	}
+
+	if hm.elP2p != nil {
+		err = hm.elP2p.checkElP2p(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = hm.checkRollupBoost(ctx)
+	if err != nil {
+		return err
+	}
+
+	hm.log.Info("sequencer is healthy")
+	return nil
+}
+
+func (hm *ElP2pHealthMonitor) checkElP2p(ctx context.Context) error {
+	peerCount, err := hm.elP2pClient.PeerCount(ctx)
+	if err != nil {
+		return err
+	}
+
+	if peerCount < int(hm.minPeerCount) {
+		hm.log.Error("el p2p peer count is below minimum", "peerCount", peerCount, "minPeerCount", hm.minPeerCount)
+		return ErrSequencerNotHealthy
+	}
+
+	return nil
+}
+func (hm *SequencerHealthMonitor) checkNode(ctx context.Context) error {
+	err := hm.checkNodeSyncStatus(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = hm.checkNodePeerCount(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (hm *SequencerHealthMonitor) checkNodeSyncStatus(ctx context.Context) error {
 	status, err := hm.node.SyncStatus(ctx)
 	if err != nil {
 		hm.log.Error("health monitor failed to get sync status", "err", err)
 		return ErrSequencerConnectionDown
+	}
+
+	if hm.supervisor != nil {
+		_, err := hm.supervisor.SyncStatus(ctx)
+		if err != nil {
+			hm.log.Error("health monitor failed to get supervisor sync status", "err", err)
+			return ErrSupervisorConnectionDown
+		}
 	}
 
 	now := hm.timeProviderFn()
@@ -172,6 +264,10 @@ func (hm *SequencerHealthMonitor) healthCheck(ctx context.Context) error {
 		return ErrSequencerNotHealthy
 	}
 
+	return nil
+}
+
+func (hm *SequencerHealthMonitor) checkNodePeerCount(ctx context.Context) error {
 	stats, err := hm.p2p.PeerStats(ctx)
 	if err != nil {
 		hm.log.Error("health monitor failed to get peer stats", "err", err)
@@ -182,8 +278,41 @@ func (hm *SequencerHealthMonitor) healthCheck(ctx context.Context) error {
 		return ErrSequencerNotHealthy
 	}
 
-	hm.log.Info("sequencer is healthy")
 	return nil
+}
+
+func (hm *SequencerHealthMonitor) checkRollupBoost(ctx context.Context) error {
+	// Skip the check if rollup boost client is not configured
+	if hm.rb == nil {
+		hm.log.Info("rollup boost client is not configured, skipping health check")
+		return nil
+	}
+
+	status, err := hm.rb.Healthcheck(ctx)
+	if err != nil {
+		hm.log.Error("health monitor failed to get rollup boost status", "err", err)
+		return ErrRollupBoostConnectionDown
+	}
+
+	switch status {
+	case client.HealthStatusHealthy:
+		return nil
+	case client.HealthStatusPartial:
+		if hm.rollupBoostPartialHealthinessToleranceCounter != nil && hm.rollupBoostPartialHealthinessToleranceCounter.CurrentValue() < hm.rollupBoostPartialHealthinessToleranceLimit {
+			latestValue := hm.rollupBoostPartialHealthinessToleranceCounter.Increment()
+			hm.log.Debug("Rollup boost partial unhealthiness failure tolerated", "currentValue", latestValue, "limit", hm.rollupBoostPartialHealthinessToleranceLimit)
+			return nil
+		}
+		hm.log.Error("Rollup boost is partial failure, builder is down but fallback execution client is up", "err", ErrRollupBoostPartiallyHealthy)
+		return ErrRollupBoostPartiallyHealthy
+
+	case client.HealthStatusUnhealthy:
+		hm.log.Error("Rollup boost total failure, both builder and fallback execution client are down", "err", ErrRollupBoostNotHealthy)
+		return ErrRollupBoostNotHealthy
+	default:
+		hm.log.Error("Received unexpected health status from rollup boost", "status", status)
+		return fmt.Errorf("unexpected rollup boost health status: %s", status)
+	}
 }
 
 func calculateTimeDiff(now, then uint64) uint64 {
@@ -193,6 +322,6 @@ func calculateTimeDiff(now, then uint64) uint64 {
 	return now - then
 }
 
-func currentTimeProvicer() uint64 {
+func currentTimeProvider() uint64 {
 	return uint64(time.Now().Unix())
 }

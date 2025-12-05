@@ -20,7 +20,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
-const EnvVarPrefix = "OP_BATCHER"
+const (
+	EnvVarPrefix = "OP_BATCHER"
+)
 
 func prefixEnvVars(name string) []string {
 	return opservice.PrefixEnvVar(EnvVarPrefix, name)
@@ -33,12 +35,12 @@ var (
 		Usage:   "HTTP provider URL for L1",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
-	L2EthRpcFlag = &cli.StringFlag{
+	L2EthRpcFlag = &cli.StringSliceFlag{
 		Name:    "l2-eth-rpc",
 		Usage:   "HTTP provider URL for L2 execution engine. A comma-separated list enables the active L2 endpoint provider. Such a list needs to match the number of rollup-rpcs provided.",
 		EnvVars: prefixEnvVars("L2_ETH_RPC"),
 	}
-	RollupRpcFlag = &cli.StringFlag{
+	RollupRpcFlag = &cli.StringSliceFlag{
 		Name:    "rollup-rpc",
 		Usage:   "HTTP provider URL for Rollup node. A comma-separated list enables the active L2 endpoint provider. Such a list needs to match the number of l2-eth-rpcs provided.",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
@@ -156,36 +158,7 @@ var (
 		Value:   false,
 		EnvVars: prefixEnvVars("WAIT_NODE_SYNC"),
 	}
-	ThrottleThresholdFlag = &cli.IntFlag{
-		Name:    "throttle-threshold",
-		Usage:   "The threshold on pending-blocks-bytes-current beyond which the batcher will instruct the block builder to start throttling transactions with larger DA demands. Zero disables throttling.",
-		Value:   1_000_000,
-		EnvVars: prefixEnvVars("THROTTLE_THRESHOLD"),
-	}
-	ThrottleTxSizeFlag = &cli.IntFlag{
-		Name:    "throttle-tx-size",
-		Usage:   "The DA size of transactions to start throttling when we are over the throttle threshold",
-		Value:   5000, // less than 1% of all transactions should be affected by this limit
-		EnvVars: prefixEnvVars("THROTTLE_TX_SIZE"),
-	}
-	ThrottleBlockSizeFlag = &cli.IntFlag{
-		Name:    "throttle-block-size",
-		Usage:   "The total DA limit to start imposing on block building when we are over the throttle threshold",
-		Value:   21_000, // at least 70 transactions per block of up to 300 compressed bytes each.
-		EnvVars: prefixEnvVars("THROTTLE_BLOCK_SIZE"),
-	}
-	ThrottleAlwaysBlockSizeFlag = &cli.IntFlag{
-		Name:    "throttle-always-block-size",
-		Usage:   "The total DA limit to start imposing on block building at all times",
-		Value:   130_000, // should be larger than the builder's max-l2-tx-size to prevent endlessly throttling some txs
-		EnvVars: prefixEnvVars("THROTTLE_ALWAYS_BLOCK_SIZE"),
-	}
-	PreferLocalSafeL2Flag = &cli.BoolFlag{
-		Name:    "prefer-local-safe-l2",
-		Usage:   "Load unsafe blocks higher than the sequencer's LocalSafeL2 instead of SafeL2",
-		Value:   false,
-		EnvVars: prefixEnvVars("PREFER_LOCAL_SAFE_L2"),
-	}
+
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
 )
@@ -214,14 +187,10 @@ var optionalFlags = []cli.Flag{
 	DataAvailabilityTypeFlag,
 	ActiveSequencerCheckDurationFlag,
 	CompressionAlgoFlag,
-	ThrottleThresholdFlag,
-	ThrottleTxSizeFlag,
-	ThrottleBlockSizeFlag,
-	ThrottleAlwaysBlockSizeFlag,
-	PreferLocalSafeL2Flag,
 }
 
 func init() {
+	optionalFlags = append(optionalFlags, ThrottleFlags...)
 	optionalFlags = append(optionalFlags, oprpc.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)

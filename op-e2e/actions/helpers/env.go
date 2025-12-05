@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	e2ecfg "github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -52,7 +53,7 @@ func WithActiveGenesisFork(fork rollup.ForkName) EnvOpt {
 // DefaultFork specifies the default fork to use when setting up the action test environment.
 // Currently manually set to Holocene.
 // Replace with `var DefaultFork = func() rollup.ForkName { return rollup.AllForks[len(rollup.AllForks)-1] }()` after Interop launch.
-const DefaultFork = rollup.Holocene
+const DefaultFork = forks.Holocene
 
 // SetupEnv sets up a default action test environment. If no fork is specified, the default fork as
 // specified by the package variable [defaultFork] is used.
@@ -81,7 +82,7 @@ func SetupEnv(t Testing, opts ...EnvOpt) (env Env) {
 	env.Batcher = NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
 		rollupSeqCl, env.Miner.EthClient(), env.SeqEngine.EthClient(), env.SeqEngine.EngineClient(t, sd.RollupCfg))
 
-	alice := NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)), e2ecfg.AllocTypeStandard)
+	alice := NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)), e2ecfg.DefaultAllocType)
 	alice.L1.SetUserEnv(env.L1UserEnv(t))
 	alice.L2.SetUserEnv(env.L2UserEnv(t))
 	env.Alice = alice
@@ -95,7 +96,7 @@ func (env Env) L1UserEnv(t Testing) *BasicUserEnv[*L1Bindings] {
 		EthCl:          l1EthCl,
 		Signer:         types.LatestSigner(env.SetupData.L1Cfg.Config),
 		AddressCorpora: env.AddressCorpora,
-		Bindings:       NewL1Bindings(t, l1EthCl, e2ecfg.AllocTypeStandard),
+		Bindings:       NewL1Bindings(t, l1EthCl, e2ecfg.DefaultAllocType),
 	}
 }
 

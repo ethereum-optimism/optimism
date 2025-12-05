@@ -9,7 +9,6 @@ import (
 	"sort"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
-	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/exp/maps"
 )
 
@@ -28,20 +27,19 @@ const (
 
 type Word = arch.Word
 
-func HashPair(left, right [32]byte) [32]byte {
-	out := crypto.Keccak256Hash(left[:], right[:])
-	//fmt.Printf("0x%x 0x%x -> 0x%x\n", left, right, out)
-	return out
+type MappedMemoryRegion struct {
+	startAddr Word
+	endAddr   Word
+	Data      []byte
 }
 
-var zeroHashes = func() [256][32]byte {
-	// empty parts of the tree are all zero. Precompute the hash of each full-zero range sub-tree level.
-	var out [256][32]byte
-	for i := 1; i < 256; i++ {
-		out[i] = HashPair(out[i-1], out[i-1])
-	}
-	return out
-}()
+func (m *MappedMemoryRegion) AddrInRegion(addr Word) bool {
+	return addr >= m.startAddr && addr < m.endAddr
+}
+
+func (m *MappedMemoryRegion) PageIndexInRegion(pageIndex Word) bool {
+	return pageIndex >= m.startAddr>>PageAddrSize && pageIndex < m.endAddr>>PageAddrSize
+}
 
 type Memory struct {
 	merkleIndex PageIndex
@@ -54,6 +52,8 @@ type Memory struct {
 	// this prevents map lookups each instruction
 	lastPageKeys [2]Word
 	lastPage     [2]*CachedPage
+
+	MappedRegions []MappedMemoryRegion
 }
 
 type PageIndex interface {
@@ -66,8 +66,51 @@ type PageIndex interface {
 	New(pages map[Word]*CachedPage) PageIndex
 }
 
+func NewMemoryWithLargeRegions() *Memory {
+	return NewBinaryTreeMemory(defaultCodeSize, defaultHeapSize)
+}
+
 func NewMemory() *Memory {
-	return NewBinaryTreeMemory()
+	return NewBinaryTreeMemory(4096, 4096)
+}
+
+// start end size gap
+func (m *Memory) GetAllocatedRanges() [][4]Word {
+	var ranges [][4]Word
+	if len(m.pageTable) == 0 {
+		return ranges
+	}
+
+	// Extract and sort page addresses
+	keys := make([]Word, 0, len(m.pageTable))
+	for key := range m.pageTable {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+
+	// Find contiguous ranges and gaps
+	start := keys[0]
+	prev := start
+	var lastEnd Word = start - 1
+
+	for i := 1; i < len(keys); i++ {
+		if keys[i] != prev+1 {
+			gap := start - lastEnd - 1 // Gap is calculated from end of prev range to start of new one
+			ranges = append(ranges, [4]Word{start, prev, prev - start + 1, gap})
+			lastEnd = prev
+			start = keys[i]
+		}
+		prev = keys[i]
+	}
+
+	// Append last range
+	gap := start - lastEnd - 1
+	ranges = append(ranges, [4]Word{start, prev, prev - start + 1, gap})
+	for i := 0; i < len(ranges); i++ {
+		ranges[i][0] <<= PageAddrSize
+		ranges[i][1] <<= PageAddrSize
+	}
+	return ranges
 }
 
 func (m *Memory) MerkleRoot() [32]byte {
@@ -82,7 +125,7 @@ func (m *Memory) PageCount() int {
 	return len(m.pageTable)
 }
 
-func (m *Memory) ForEachPage(fn func(pageIndex Word, page *Page) error) error {
+func (m *Memory) ForEachPage(fn func(pageIndex Word, page Page) error) error {
 	for pageIndex, cachedPage := range m.pageTable {
 		if err := fn(pageIndex, cachedPage.Data); err != nil {
 			return err
@@ -90,7 +133,6 @@ func (m *Memory) ForEachPage(fn func(pageIndex Word, page *Page) error) error {
 	}
 	return nil
 }
-
 func (m *Memory) MerkleizeSubtree(gindex uint64) [32]byte {
 	return m.merkleIndex.MerkleizeSubtree(gindex)
 }
@@ -155,7 +197,7 @@ func (m *Memory) SetWord(addr Word, v Word) {
 		// Go may mmap relatively large ranges, but we only allocate the pages just in time.
 		p = m.AllocPage(pageIndex)
 	} else {
-		prevValid := p.Ok[1]
+		prevValid := p.getBit(1)
 		p.invalidate(pageAddr)
 		if prevValid {
 			m.merkleIndex.Invalidate(addr) // invalidate this branch of memory, now that the value changed
@@ -171,17 +213,35 @@ func (m *Memory) GetWord(addr Word) Word {
 	if addr&arch.ExtMask != 0 {
 		panic(fmt.Errorf("unaligned memory access: %x", addr))
 	}
+	for _, region := range m.MappedRegions {
+		if ok := region.AddrInRegion(addr); ok {
+			offset := addr - region.startAddr
+			return arch.ByteOrderWord.Word(region.Data[offset : offset+arch.WordSizeBytes : offset+arch.WordSizeBytes])
+		}
+	}
+
 	pageIndex := addr >> PageAddrSize
+
 	p, ok := m.PageLookup(pageIndex)
 	if !ok {
 		return 0
 	}
 	pageAddr := addr & PageAddrMask
-	return arch.ByteOrderWord.Word(p.Data[pageAddr : pageAddr+arch.WordSizeBytes])
+	return arch.ByteOrderWord.Word(p.Data[pageAddr : pageAddr+arch.WordSizeBytes : pageAddr+arch.WordSizeBytes])
 }
 
 func (m *Memory) AllocPage(pageIndex Word) *CachedPage {
-	p := &CachedPage{Data: new(Page)}
+	p := new(CachedPage)
+	for _, region := range m.MappedRegions {
+		if region.PageIndexInRegion(pageIndex) {
+			indexAdjusted := pageIndex - region.startAddr>>PageAddrSize
+			p.Data = region.Data[indexAdjusted*PageSize : (indexAdjusted+1)*PageSize : (indexAdjusted+1)*PageSize]
+			break
+		}
+	}
+	if p.Data == nil {
+		p.Data = make(Page, PageSize)
+	}
 	m.pageTable[pageIndex] = p
 	m.merkleIndex.AddPage(pageIndex)
 	return p
@@ -253,8 +313,9 @@ func (m *Memory) Copy() *Memory {
 	}
 
 	for k, page := range m.pageTable {
-		data := new(Page)
-		*data = *page.Data
+		data := make(Page, PageSize)
+		// *data = *page.Data
+		copy(data, page.Data)
 		out.AllocPage(k).Data = data
 	}
 	return out
@@ -303,20 +364,23 @@ func (m *Memory) Deserialize(in io.Reader) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
 type pageEntry struct {
-	Index Word  `json:"index"`
-	Data  *Page `json:"data"`
+	Index Word            `json:"index"`
+	Data  *[PageSize]byte `json:"data"`
 }
 
 func (m *Memory) MarshalJSON() ([]byte, error) { // nosemgrep
 	pages := make([]pageEntry, 0, len(m.pageTable))
 	for k, p := range m.pageTable {
+		data := new([PageSize]byte)
+		copy(data[:], p.Data)
 		pages = append(pages, pageEntry{
 			Index: k,
-			Data:  p.Data,
+			Data:  data,
 		})
 	}
 	sort.Slice(pages, func(i, j int) bool {
@@ -334,7 +398,8 @@ func (m *Memory) UnmarshalJSON(data []byte) error {
 		if _, ok := m.pageTable[p.Index]; ok {
 			return fmt.Errorf("cannot load duplicate page, entry %d, page index %d", i, p.Index)
 		}
-		m.AllocPage(p.Index).Data = p.Data
+		page := m.AllocPage(p.Index)
+		copy(page.Data, p.Data[:])
 	}
 	return nil
 }

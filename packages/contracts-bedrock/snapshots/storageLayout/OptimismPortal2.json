@@ -57,10 +57,10 @@
   },
   {
     "bytes": "20",
-    "label": "superchainConfig",
+    "label": "spacer_53_1_20",
     "offset": 1,
     "slot": "53",
-    "type": "contract ISuperchainConfig"
+    "type": "address"
   },
   {
     "bytes": "20",
@@ -141,7 +141,7 @@
   },
   {
     "bytes": "1",
-    "label": "superRootsActive",
+    "label": "spacer_63_20_1",
     "offset": 20,
     "slot": "63",
     "type": "bool"

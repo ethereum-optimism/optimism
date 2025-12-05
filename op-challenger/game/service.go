@@ -7,8 +7,10 @@ import (
 	"io"
 	"sync/atomic"
 
+	challengerClient "github.com/ethereum-optimism/optimism/op-challenger/game/client"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/zk"
 	"github.com/ethereum-optimism/optimism/op-challenger/sender"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -38,7 +40,7 @@ type Service struct {
 	monitor *gameMonitor
 	sched   *scheduler.Scheduler
 
-	faultGamesCloser fault.CloseFunc
+	clientProvider *challengerClient.Provider
 
 	preimages *keccak.LargePreimageScheduler
 
@@ -100,7 +102,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initMetricsServer(&cfg.MetricsConfig); err != nil {
 		return fmt.Errorf("failed to init metrics server: %w", err)
 	}
-	if err := s.initFactoryContract(cfg); err != nil {
+	if err := s.initFactoryContract(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to create factory contract bindings: %w", err)
 	}
 	if err := s.registerGameTypes(ctx, cfg); err != nil {
@@ -192,9 +194,12 @@ func (s *Service) initMetricsServer(cfg *opmetrics.CLIConfig) error {
 	return nil
 }
 
-func (s *Service) initFactoryContract(cfg *config.Config) error {
-	factoryContract := contracts.NewDisputeGameFactoryContract(s.metrics, cfg.GameFactoryAddress,
+func (s *Service) initFactoryContract(ctx context.Context, cfg *config.Config) error {
+	factoryContract, err := contracts.NewDisputeGameFactoryContract(ctx, s.metrics, cfg.GameFactoryAddress,
 		batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
+	if err != nil {
+		return fmt.Errorf("failed to create factory contract: %w", err)
+	}
 	s.factoryContract = factoryContract
 	return nil
 }
@@ -208,9 +213,12 @@ func (s *Service) initBondClaims() error {
 func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
 	oracles := registry.NewOracleRegistry()
-	caller := batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize)
-	closer, err := fault.RegisterGameTypes(ctx, s.systemClock, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, oracles, s.txSender, s.factoryContract, caller, s.l1Client, cfg.SelectiveClaimResolution, s.claimants)
-	s.faultGamesCloser = closer
+	s.clientProvider = challengerClient.NewProvider(ctx, s.logger, cfg, s.l1Client)
+	err := fault.RegisterGameTypes(ctx, s.systemClock, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, oracles, s.txSender, s.factoryContract, s.clientProvider, cfg.SelectiveClaimResolution, s.claimants)
+	if err != nil {
+		return err
+	}
+	err = zk.RegisterGameTypes(ctx, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, s.txSender, s.clientProvider, s.factoryContract)
 	if err != nil {
 		return err
 	}
@@ -234,7 +242,7 @@ func (s *Service) initLargePreimages() error {
 }
 
 func (s *Service) initMonitor(cfg *config.Config) {
-	s.monitor = newGameMonitor(s.logger, s.l1Clock, s.factoryContract, s.sched, s.preimages, cfg.GameWindow, s.claimer, cfg.GameAllowlist, s.pollClient)
+	s.monitor = newGameMonitor(s.logger, s.l1Clock, s.factoryContract, s.sched, s.preimages, cfg.GameWindow, s.claimer, cfg.GameAllowlist, s.pollClient, cfg.MinUpdateInterval)
 }
 
 func (s *Service) Start(ctx context.Context) error {
@@ -269,8 +277,8 @@ func (s *Service) Stop(ctx context.Context) error {
 			result = errors.Join(result, fmt.Errorf("failed to close claimer: %w", err))
 		}
 	}
-	if s.faultGamesCloser != nil {
-		s.faultGamesCloser()
+	if s.clientProvider != nil {
+		s.clientProvider.Close()
 	}
 	if s.pprofService != nil {
 		if err := s.pprofService.Stop(ctx); err != nil {

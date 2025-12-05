@@ -39,8 +39,6 @@ type ServerInfo struct {
 }
 
 // Consensus defines the consensus interface for leadership election.
-//
-//go:generate mockery --name Consensus --output mocks/ --with-expecter=true
 type Consensus interface {
 	// Addr returns the address of this consensus server.
 	// Internally the server may override what is advertised, or fall back to the address it listens to.

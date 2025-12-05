@@ -2,157 +2,30 @@ package driver
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	gosync "sync"
+
+	"github.com/ethereum-optimism/optimism/op-node/metrics/metered"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/clsync"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/confdepth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/ethereum/go-ethereum/params"
 )
-
-// aliases to not disrupt op-conductor code
-var (
-	ErrSequencerAlreadyStarted = sequencing.ErrSequencerAlreadyStarted
-	ErrSequencerAlreadyStopped = sequencing.ErrSequencerAlreadyStopped
-)
-
-type Metrics interface {
-	RecordPipelineReset()
-	RecordPublishingError()
-	RecordDerivationError()
-
-	RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
-
-	RecordL1Ref(name string, ref eth.L1BlockRef)
-	RecordL2Ref(name string, ref eth.L2BlockRef)
-	RecordChannelInputBytes(inputCompressedBytes int)
-	RecordHeadChannelOpened()
-	RecordChannelTimedOut()
-	RecordFrame()
-
-	RecordDerivedBatches(batchType string)
-
-	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
-
-	SetDerivationIdle(idle bool)
-	SetSequencerState(active bool)
-
-	RecordL1ReorgDepth(d uint64)
-
-	engine.Metrics
-	L1FetcherMetrics
-	event.Metrics
-	sequencing.Metrics
-}
-
-type L1Chain interface {
-	derive.L1Fetcher
-	L1BlockRefByLabel(context.Context, eth.BlockLabel) (eth.L1BlockRef, error)
-}
-
-type L2Chain interface {
-	engine.Engine
-	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
-	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
-	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
-}
-
-type DerivationPipeline interface {
-	Reset()
-	Step(ctx context.Context, pendingSafeHead eth.L2BlockRef) (*derive.AttributesWithParent, error)
-	Origin() eth.L1BlockRef
-	DerivationReady() bool
-	ConfirmEngineReset()
-}
-
-type EngineController interface {
-	engine.LocalEngineControl
-	IsEngineSyncing() bool
-	InsertUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error
-	TryUpdateEngine(ctx context.Context) error
-	TryBackupUnsafeReorg(ctx context.Context) (bool, error)
-}
-
-type CLSync interface {
-	LowestQueuedUnsafeBlock() eth.L2BlockRef
-}
-
-type AttributesHandler interface {
-	// HasAttributes returns if there are any block attributes to process.
-	// HasAttributes is for EngineQueue testing only, and can be removed when attribute processing is fully independent.
-	HasAttributes() bool
-	// SetAttributes overwrites the set of attributes. This may be nil, to clear what may be processed next.
-	SetAttributes(attributes *derive.AttributesWithParent)
-	// Proceed runs one attempt of processing attributes, if any.
-	// Proceed returns io.EOF if there are no attributes to process.
-	Proceed(ctx context.Context) error
-}
-
-type Finalizer interface {
-	FinalizedL1() eth.L1BlockRef
-	event.Deriver
-}
-
-type AltDAIface interface {
-	// Notify L1 finalized head so AltDA finality is always behind L1
-	Finalize(ref eth.L1BlockRef)
-	// Set the engine finalization signal callback
-	OnFinalizedHeadSignal(f altda.HeadSignalFn)
-
-	derive.AltDAInputFetcher
-}
-
-type SyncStatusTracker interface {
-	event.Deriver
-	SyncStatus() *eth.SyncStatus
-	L1Head() eth.L1BlockRef
-}
-
-type Network interface {
-	// PublishL2Payload is called by the driver whenever there is a new payload to publish, synchronously with the driver main loop.
-	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
-}
-
-type AltSync interface {
-	// RequestL2Range informs the sync source that the given range of L2 blocks is missing,
-	// and should be retrieved from any available alternative syncing source.
-	// The start and end of the range are exclusive:
-	// the start is the head we already have, the end is the first thing we have queued up.
-	// It's the task of the alt-sync mechanism to use this hint to fetch the right payloads.
-	// Note that the end and start may not be consistent: in this case the sync method should fetch older history
-	//
-	// If the end value is zeroed, then the sync-method may determine the end free of choice,
-	// e.g. sync till the chain head meets the wallclock time. This functionality is optional:
-	// a fixed target to sync towards may be determined by picking up payloads through P2P gossip or other sources.
-	//
-	// The sync results should be returned back to the driver via the OnUnsafeL2Payload(ctx, payload) method.
-	// The latest requested range should always take priority over previous requests.
-	// There may be overlaps in requested ranges.
-	// An error may be returned if the scheduling fails immediately, e.g. a context timeout.
-	RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error
-}
-
-type SequencerStateListener interface {
-	SequencerStarted() error
-	SequencerStopped() error
-}
-
-type Drain interface {
-	Drain() error
-}
 
 // NewDriver composes an events handler that tracks L1 state, triggers L2 Derivation, and optionally sequences new L2 blocks.
 func NewDriver(
@@ -160,6 +33,8 @@ func NewDriver(
 	drain Drain,
 	driverCfg *Config,
 	cfg *rollup.Config,
+	l1ChainConfig *params.ChainConfig,
+	depSet derive.DependencySet,
 	l2 L2Chain,
 	l1 L1Chain,
 	l1Blobs derive.L1BlobsFetcher,
@@ -172,103 +47,401 @@ func NewDriver(
 	syncCfg *sync.Config,
 	sequencerConductor conductor.SequencerConductor,
 	altDA AltDAIface,
-	managedMode bool,
+	indexingMode bool,
 ) *Driver {
 	driverCtx, driverCancel := context.WithCancel(context.Background())
 
-	opts := event.DefaultRegisterOpts()
-
 	statusTracker := status.NewStatusTracker(log, metrics)
-	sys.Register("status", statusTracker, opts)
+	sys.Register("status", statusTracker)
 
 	l1Tracker := status.NewL1Tracker(l1)
-	sys.Register("l1-blocks", l1Tracker, opts)
 
-	l1 = NewMeteredL1Fetcher(l1Tracker, metrics)
+	l1 = metered.NewMeteredL1Fetcher(l1Tracker, metrics)
 	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 
-	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg,
-		sys.Register("engine-controller", nil, opts))
-
-	sys.Register("engine-reset",
-		engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg), opts)
-
-	clSync := clsync.NewCLSync(log, cfg, metrics) // alt-sync still uses cl-sync state to determine what to sync to
-	sys.Register("cl-sync", clSync, opts)
+	ec := engine.NewEngineController(driverCtx, l2, log, metrics, cfg, syncCfg, l1, sys.Register("engine-controller", nil))
+	// TODO(#17115): Refactor dependency cycles
+	ec.SetCrossUpdateHandler(statusTracker)
 
 	var finalizer Finalizer
 	if cfg.AltDAEnabled() {
-		finalizer = finality.NewAltDAFinalizer(driverCtx, log, cfg, l1, altDA)
+		finalizer = finality.NewAltDAFinalizer(driverCtx, log, cfg, driverCfg.Finalizer, l1, altDA, ec)
 	} else {
-		finalizer = finality.NewFinalizer(driverCtx, log, cfg, l1)
+		finalizer = finality.NewFinalizer(driverCtx, log, cfg, driverCfg.Finalizer, l1, ec)
 	}
-	sys.Register("finalizer", finalizer, opts)
+	sys.Register("finalizer", finalizer)
 
-	sys.Register("attributes-handler",
-		attributes.NewAttributesHandler(log, cfg, driverCtx, l2), opts)
+	attrHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2, ec)
+	sys.Register("attributes-handler", attrHandler)
 
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, altDA, l2, metrics, managedMode)
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, indexingMode, l1ChainConfig)
 
-	sys.Register("pipeline",
-		derive.NewPipelineDeriver(driverCtx, derivationPipeline), opts)
+	pipelineDeriver := derive.NewPipelineDeriver(driverCtx, derivationPipeline)
+	sys.Register("pipeline", pipelineDeriver)
 
-	syncDeriver := &SyncDeriver{
-		Derivation:     derivationPipeline,
-		SafeHeadNotifs: safeHeadListener,
-		CLSync:         clSync,
-		Engine:         ec,
-		SyncCfg:        syncCfg,
-		Config:         cfg,
-		L1:             l1,
-		L2:             l2,
-		Log:            log,
-		Ctx:            driverCtx,
-		Drain:          drain.Drain,
-		ManagedMode:    managedMode,
-	}
-	sys.Register("sync", syncDeriver, opts)
-
-	sys.Register("engine", engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec), opts)
+	// Connect components that need force reset notifications to the engine controller
+	ec.SetAttributesResetter(attrHandler)
+	ec.SetPipelineResetter(pipelineDeriver)
 
 	schedDeriv := NewStepSchedulingDeriver(log)
-	sys.Register("step-scheduler", schedDeriv, opts)
+	sys.Register("step-scheduler", schedDeriv)
+
+	syncDeriver := &SyncDeriver{
+		Derivation:          derivationPipeline,
+		SafeHeadNotifs:      safeHeadListener,
+		Engine:              ec,
+		SyncCfg:             syncCfg,
+		Config:              cfg,
+		L1:                  l1,
+		L1Tracker:           l1Tracker,
+		L2:                  l2,
+		Log:                 log,
+		Ctx:                 driverCtx,
+		ManagedBySupervisor: indexingMode,
+		StepDeriver:         schedDeriv,
+	}
+	// TODO(#16917) Remove Event System Refactor Comments
+	//  Couple SyncDeriver and EngineController for event refactoring
+	//  Couple EngDeriver and NewAttributesHandler for event refactoring
+	ec.SyncDeriver = syncDeriver
+	sys.Register("sync", syncDeriver)
+	sys.Register("engine", ec)
 
 	var sequencer sequencing.SequencerIface
 	if driverCfg.SequencerEnabled {
 		asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
-		attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
+		attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1ChainConfig, depSet, l1, l2)
 		sequencerConfDepth := confdepth.NewConfDepth(driverCfg.SequencerConfDepth, statusTracker.L1Head, l1)
 		findL1Origin := sequencing.NewL1OriginSelector(driverCtx, log, cfg, sequencerConfDepth)
-		sys.Register("origin-selector", findL1Origin, opts)
+		sys.Register("origin-selector", findL1Origin)
+
+		// Connect origin selector to the engine controller for force reset notifications
+		ec.SetOriginSelectorResetter(findL1Origin)
+
 		sequencer = sequencing.NewSequencer(driverCtx, log, cfg, attrBuilder, findL1Origin,
-			sequencerStateListener, sequencerConductor, asyncGossiper, metrics)
-		sys.Register("sequencer", sequencer, opts)
+			sequencerStateListener, sequencerConductor, asyncGossiper, metrics, ec)
+		sys.Register("sequencer", sequencer)
 	} else {
 		sequencer = sequencing.DisabledSequencer{}
 	}
 
-	driverEmitter := sys.Register("driver", nil, opts)
+	driverEmitter := sys.Register("driver", nil)
 	driver := &Driver{
-		statusTracker:    statusTracker,
-		SyncDeriver:      syncDeriver,
-		sched:            schedDeriv,
-		emitter:          driverEmitter,
-		drain:            drain.Drain,
-		stateReq:         make(chan chan struct{}),
-		forceReset:       make(chan chan struct{}, 10),
-		driverConfig:     driverCfg,
-		driverCtx:        driverCtx,
-		driverCancel:     driverCancel,
-		log:              log,
-		sequencer:        sequencer,
-		network:          network,
-		metrics:          metrics,
-		l1HeadSig:        make(chan eth.L1BlockRef, 10),
-		l1SafeSig:        make(chan eth.L1BlockRef, 10),
-		l1FinalizedSig:   make(chan eth.L1BlockRef, 10),
-		unsafeL2Payloads: make(chan *eth.ExecutionPayloadEnvelope, 10),
-		altSync:          altSync,
+		StatusTracker: statusTracker,
+		Finalizer:     finalizer,
+		SyncDeriver:   syncDeriver,
+		sched:         schedDeriv,
+		emitter:       driverEmitter,
+		drain:         drain,
+		stateReq:      make(chan chan struct{}),
+		forceReset:    make(chan chan struct{}, 10),
+		driverConfig:  driverCfg,
+		syncConfig:    syncCfg,
+		driverCtx:     driverCtx,
+		driverCancel:  driverCancel,
+		log:           log,
+		sequencer:     sequencer,
+		metrics:       metrics,
+		altSync:       altSync,
 	}
 
 	return driver
+}
+
+type Driver struct {
+	StatusTracker SyncStatusTracker
+	Finalizer     Finalizer
+
+	SyncDeriver *SyncDeriver
+
+	sched *StepSchedulingDeriver
+
+	emitter event.Emitter
+	drain   Drain
+
+	// Requests to block the event loop for synchronous execution to avoid reading an inconsistent state
+	stateReq chan chan struct{}
+
+	// Upon receiving a channel in this channel, the derivation pipeline is forced to be reset.
+	// It tells the caller that the reset occurred by closing the passed in channel.
+	forceReset chan chan struct{}
+
+	// Driver config: verifier and sequencer settings.
+	// May not be modified after starting the Driver.
+	driverConfig *Config
+
+	syncConfig *sync.Config
+
+	// Interface to signal the L2 block range to sync.
+	altSync AltSync
+
+	sequencer sequencing.SequencerIface
+
+	metrics Metrics
+	log     log.Logger
+
+	wg gosync.WaitGroup
+
+	driverCtx    context.Context
+	driverCancel context.CancelFunc
+}
+
+// Start starts up the state loop.
+// The loop will have been started iff err is not nil.
+func (s *Driver) Start() error {
+	s.log.Info("Starting driver", "sequencerEnabled", s.driverConfig.SequencerEnabled,
+		"sequencerStopped", s.driverConfig.SequencerStopped, "recoverMode", s.driverConfig.RecoverMode)
+	if s.driverConfig.SequencerEnabled {
+		if s.driverConfig.RecoverMode {
+			s.log.Warn("sequencer is in recover mode")
+			s.sequencer.SetRecoverMode(true)
+		}
+		if err := s.sequencer.SetMaxSafeLag(s.driverCtx, s.driverConfig.SequencerMaxSafeLag); err != nil {
+			return fmt.Errorf("failed to set sequencer max safe lag: %w", err)
+		}
+		if err := s.sequencer.Init(s.driverCtx, !s.driverConfig.SequencerStopped); err != nil {
+			return fmt.Errorf("persist initial sequencer state: %w", err)
+		}
+	}
+
+	s.wg.Add(1)
+	go s.eventLoop()
+
+	return nil
+}
+
+func (s *Driver) Close() error {
+	s.driverCancel()
+	s.wg.Wait()
+	s.sequencer.Close()
+	return nil
+}
+
+// the eventLoop responds to L1 changes and internal timers to produce L2 blocks.
+func (s *Driver) eventLoop() {
+	defer s.wg.Done()
+	s.log.Info("State loop started")
+	defer s.log.Info("State loop returned")
+
+	defer s.driverCancel()
+
+	// reqStep requests a derivation step nicely, with a delay if this is a reattempt, or not at all if we already scheduled a reattempt.
+	reqStep := func() {
+		s.sched.RequestStep(s.driverCtx, false)
+	}
+
+	// We call reqStep right away to finish syncing to the tip of the chain if we're behind.
+	// reqStep will also be triggered when the L1 head moves forward or if there was a reorg on the
+	// L1 chain that we need to handle.
+	reqStep()
+
+	sequencerTimer := time.NewTimer(0)
+	var sequencerCh <-chan time.Time
+	var prevTime time.Time
+	// planSequencerAction updates the sequencerTimer with the next action, if any.
+	// The sequencerCh is nil (indefinitely blocks on read) if no action needs to be performed,
+	// or set to the timer channel if there is an action scheduled.
+	planSequencerAction := func() {
+		nextAction, ok := s.sequencer.NextAction()
+		if !ok {
+			if sequencerCh != nil {
+				s.log.Info("Sequencer paused until new events")
+			}
+			sequencerCh = nil
+			return
+		}
+		// avoid unnecessary timer resets
+		if nextAction == prevTime {
+			return
+		}
+		prevTime = nextAction
+		sequencerCh = sequencerTimer.C
+		if len(sequencerCh) > 0 { // empty if not already drained before resetting
+			<-sequencerCh
+		}
+		delta := time.Until(nextAction)
+		s.log.Info("Scheduled sequencer action", "delta", delta)
+		sequencerTimer.Reset(delta)
+	}
+
+	// Create a ticker to check if there is a gap in the engine queue. Whenever
+	// there is, we send requests to sync source to retrieve the missing payloads.
+	syncCheckInterval := time.Duration(s.SyncDeriver.Config.BlockTime) * time.Second * 2
+	altSyncTicker := time.NewTicker(syncCheckInterval)
+	defer altSyncTicker.Stop()
+
+	lastUnsafeL2 := s.SyncDeriver.Engine.UnsafeL2Head()
+
+	unsafeOnly := s.SyncDeriver.SyncCfg.UnsafeOnly
+
+	resetAltSync := func(newHead eth.L2BlockRef, derivationReady bool) {
+		s.log.Debug(
+			"altSyncTicker reset",
+			"head", newHead,
+			"lastUnsafeL2", lastUnsafeL2,
+			"derivationReady", derivationReady,
+			"unsafeOnly", unsafeOnly,
+		)
+		lastUnsafeL2 = newHead
+		altSyncTicker.Reset(syncCheckInterval)
+	}
+
+	for {
+		if s.driverCtx.Err() != nil { // don't try to schedule/handle more work when we are closing.
+			return
+		}
+
+		planSequencerAction()
+
+		head := s.SyncDeriver.Engine.UnsafeL2Head()
+		derivationReady := s.SyncDeriver.Derivation.DerivationReady()
+
+		if lastUnsafeL2 != head {
+			// Unsafe head changed: reset alt-sync to avoid redundant L2 requests while syncing.
+			resetAltSync(head, derivationReady)
+		} else if !unsafeOnly && !derivationReady {
+			// Derivation enabled but not yet ready: reset alt-sync while it catches up.
+			resetAltSync(head, derivationReady)
+		}
+
+		select {
+		case <-sequencerCh:
+			s.emitter.Emit(s.driverCtx, sequencing.SequencerActionEvent{})
+		case <-altSyncTicker.C:
+			// Check if there is a gap in the current unsafe payload queue.
+			ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*2)
+			err := s.checkForGapInUnsafeQueue(ctx)
+			cancel()
+			if err != nil {
+				s.log.Warn("failed to check for unsafe L2 blocks to sync", "err", err)
+			}
+		case <-s.sched.NextDelayedStep():
+			s.sched.AttemptStep(s.driverCtx)
+		case <-s.sched.NextStep():
+			s.sched.AttemptStep(s.driverCtx)
+		case respCh := <-s.stateReq:
+			respCh <- struct{}{}
+		case respCh := <-s.forceReset:
+			s.log.Warn("Derivation pipeline is manually reset")
+			s.SyncDeriver.Derivation.Reset()
+			s.metrics.RecordPipelineReset()
+			close(respCh)
+		case <-s.drain.Await():
+			if err := s.drain.Drain(); err != nil {
+				if s.driverCtx.Err() != nil {
+					return
+				} else {
+					s.log.Error("unexpected error from event-draining", "err", err)
+					s.emitter.Emit(s.driverCtx, rollup.CriticalErrorEvent{
+						Err: fmt.Errorf("unexpected error: %w", err),
+					})
+				}
+			}
+		case <-s.driverCtx.Done():
+			return
+		}
+	}
+}
+
+// ResetDerivationPipeline forces a reset of the derivation pipeline.
+// It waits for the reset to occur. It simply unblocks the caller rather
+// than fully cancelling the reset request upon a context cancellation.
+func (s *Driver) ResetDerivationPipeline(ctx context.Context) error {
+	respCh := make(chan struct{}, 1)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case s.forceReset <- respCh:
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-respCh:
+			return nil
+		}
+	}
+}
+
+func (s *Driver) StartSequencer(ctx context.Context, blockHash common.Hash) error {
+	return s.sequencer.Start(ctx, blockHash)
+}
+
+func (s *Driver) StopSequencer(ctx context.Context) (common.Hash, error) {
+	return s.sequencer.Stop(ctx)
+}
+
+func (s *Driver) SequencerActive(ctx context.Context) (bool, error) {
+	return s.sequencer.Active(), nil
+}
+
+func (s *Driver) OverrideLeader(ctx context.Context) error {
+	return s.sequencer.OverrideLeader(ctx)
+}
+
+func (s *Driver) ConductorEnabled(ctx context.Context) (bool, error) {
+	return s.sequencer.ConductorEnabled(ctx), nil
+}
+
+func (s *Driver) SetRecoverMode(ctx context.Context, mode bool) error {
+	s.sequencer.SetRecoverMode(mode)
+	return nil
+}
+
+// SyncStatus blocks the driver event loop and captures the syncing status.
+func (s *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	return s.StatusTracker.SyncStatus(), nil
+}
+
+// BlockRefWithStatus blocks the driver event loop and captures the syncing status,
+// along with an L2 block reference by number consistent with that same status.
+// If the event loop is too busy and the context expires, a context error is returned.
+func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
+	resp := s.StatusTracker.SyncStatus()
+	if resp.FinalizedL2.Number >= num { // If finalized, we are certain it does not reorg, and don't have to lock.
+		ref, err := s.SyncDeriver.L2.L2BlockRefByNumber(ctx, num)
+		return ref, resp, err
+	}
+	wait := make(chan struct{})
+	select {
+	case s.stateReq <- wait:
+		resp := s.StatusTracker.SyncStatus()
+		ref, err := s.SyncDeriver.L2.L2BlockRefByNumber(ctx, num)
+		<-wait
+		return ref, resp, err
+	case <-ctx.Done():
+		return eth.L2BlockRef{}, nil, ctx.Err()
+	}
+}
+
+// checkForGapInUnsafeQueue checks if there is a gap in the unsafe queue and attempts to retrieve the missing payloads
+func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) error {
+	start := s.SyncDeriver.Engine.UnsafeL2Head()
+	payload, end := s.SyncDeriver.Engine.PeekUnsafePayload()
+
+	if s.syncConfig.SyncModeReqResp {
+		if end == (eth.L2BlockRef{}) {
+			s.log.Debug("requesting rrsync with open-end range", "start", start)
+			return s.altSync.RequestL2Range(ctx, start, eth.L2BlockRef{})
+		} else if end.Number > start.Number+1 {
+			s.log.Debug("requesting rrsync missing unsafe L2 block range", "start", start, "end", end, "size", end.Number-start.Number)
+			return s.altSync.RequestL2Range(ctx, start, end)
+		}
+	} else {
+		if end == (eth.L2BlockRef{}) {
+			s.log.Debug("checkForGapInUnsafeQueue: no unsafe payload in queue", "start", start)
+			return nil
+		} else if end.Number > start.Number+1 {
+			s.log.Info("requesting engine missing unsafe L2 block range", "start", start, "end", end, "size", end.Number-start.Number)
+			err := s.SyncDeriver.Engine.InsertUnsafePayload(ctx, payload, end)
+			if err != nil {
+				s.log.Error("failed to insert unsafe payload", "err", err)
+			}
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) {
+	s.SyncDeriver.OnUnsafeL2Payload(ctx, payload)
 }

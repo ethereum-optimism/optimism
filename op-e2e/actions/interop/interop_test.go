@@ -10,11 +10,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/interop/dsl"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/emit"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/emit"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/managed"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -23,7 +23,7 @@ func TestFullInterop(gt *testing.T) {
 
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
+	actors.PrepareAndVerifyInitialState(t)
 
 	// sync the supervisor, handle initial events emitted by the nodes
 	actors.ChainA.Sequencer.SyncSupervisor(t)
@@ -80,7 +80,7 @@ func TestFullInterop(gt *testing.T) {
 			chain.Sequencer.ActL2PipelineFull(t) // node to complete syncing to L1 head.
 		}
 
-		// TODO(#13972): two sources of L1 head
+		// Theoretically shouldn't require this ActL1HeadSignal in managed mode, but currently it is required.
 		chain.Sequencer.ActL1HeadSignal(t)
 		status = chain.Sequencer.SyncStatus()
 		require.Equal(t, head, status.UnsafeL2.ID())
@@ -163,8 +163,7 @@ func TestFinality(gt *testing.T) {
 	testFinality := func(t helpers.StatefulTesting, extraBlocks int) {
 		is := dsl.SetupInterop(t)
 		actors := is.CreateActors()
-		actors.PrepareChainState(t)
-
+		actors.PrepareAndVerifyInitialState(t)
 		actors.Supervisor.ProcessFull(t)
 
 		// Build L2 block on chain A
@@ -242,8 +241,7 @@ func TestInteropLocalSafeInvalidation(gt *testing.T) {
 
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
-
+	actors.PrepareAndVerifyInitialState(t)
 	genesisB := actors.ChainB.Sequencer.SyncStatus()
 
 	// build L2 block on chain B with invalid executing message pointing to A.
@@ -328,9 +326,20 @@ func TestInteropLocalSafeInvalidation(gt *testing.T) {
 	replacementBlock, err := actors.ChainB.SequencerEngine.EthClient().BlockByHash(t.Ctx(), status.SafeL2.Hash)
 	require.NoError(t, err)
 	txs := replacementBlock.Transactions()
-	out, err := managed.DecodeInvalidatedBlockTx(txs[len(txs)-1])
+	out, err := indexing.DecodeInvalidatedBlockTx(txs[len(txs)-1])
 	require.NoError(t, err)
 	require.Equal(t, originalOutput.OutputRoot, eth.OutputRoot(out))
+
+	// supervisor should have the new chain indexed now
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	actors.Supervisor.ProcessFull(t)
+	localUnsafe, err = actors.Supervisor.LocalUnsafe(t.Ctx(), actors.ChainB.ChainID)
+	require.NoError(t, err)
+	require.Equal(t, crossSafe.Derived, localUnsafe)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	status = actors.ChainB.Sequencer.SyncStatus()
+	require.Equal(t, status.LocalSafeL2, status.UnsafeL2, "block follows on replacement block, derived to deconflict from previous empty block on L1")
+	require.Equal(t, crossSafe.Derived, status.UnsafeL2.ParentID(), "builds on the new post-replacement chain")
 
 	// Now check if we can continue to build L2 blocks on top of the new chain.
 	// Build a new L2 block
@@ -342,14 +351,22 @@ func TestInteropLocalSafeInvalidation(gt *testing.T) {
 	actors.L1Miner.ActL1StartBlock(12)(t)
 	actors.L1Miner.ActL1IncludeTx(actors.ChainB.BatcherAddr)(t)
 	actors.L1Miner.ActL1EndBlock(t)
-	// Sync the sequencer / supervisor, so the indexing, local-safe, cross-safe changes all propagate.
+
+	// Takes a while to become local safe
+	actors.Supervisor.SignalLatestL1(t)
 	actors.ChainB.Sequencer.ActL2PipelineFull(t)
 	actors.ChainB.Sequencer.SyncSupervisor(t)
-	actors.Supervisor.SignalLatestL1(t)
 	actors.Supervisor.ProcessFull(t)
 	actors.ChainB.Sequencer.ActL2PipelineFull(t)
 	status = actors.ChainB.Sequencer.SyncStatus()
-	require.Equal(t, uint64(2), status.SafeL2.Number)
+	require.Equal(t, uint64(3), status.LocalSafeL2.Number)
+
+	// And now cross-safe
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	actors.Supervisor.ProcessFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	status = actors.ChainB.Sequencer.SyncStatus()
+	require.Equal(t, uint64(3), status.SafeL2.Number)
 }
 
 func TestInteropCrossSafeDependencyDelay(gt *testing.T) {
@@ -357,8 +374,7 @@ func TestInteropCrossSafeDependencyDelay(gt *testing.T) {
 
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
-
+	actors.PrepareAndVerifyInitialState(t)
 	// We create a batch with some empty blocks before and after the cross-chain message,
 	// so multiple L2 blocks are all derived from the same L1 block.
 	actors.ChainA.Sequencer.ActL2EmptyBlock(t)
@@ -430,7 +446,7 @@ func TestInteropCrossSafeDependencyDelay(gt *testing.T) {
 
 	// Assert that the executing message in chain A only
 	// became cross-safe when the dependency of chain B became cross safe later.
-	source, err := actors.Supervisor.CrossDerivedFrom(t.Ctx(), actors.ChainA.ChainID, execTxIncludedIn.ID())
+	source, err := actors.Supervisor.CrossDerivedToSource(t.Ctx(), actors.ChainA.ChainID, execTxIncludedIn.ID())
 	require.NoError(t, err)
 	require.Equal(t, chainBSubmittedIn.NumberU64(), source.Number)
 }
@@ -439,7 +455,7 @@ func TestInteropExecutingMessageOutOfRangeLogIndex(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
+	actors.PrepareAndVerifyInitialState(t)
 	aliceA := setupUser(t, is, actors.ChainA, 0)
 
 	// Execute a fake log on chain A
@@ -466,4 +482,111 @@ func TestInteropExecutingMessageOutOfRangeLogIndex(gt *testing.T) {
 	// Assert that chainA's block is not cross-safe but chainB's is.
 	assertHeads(t, actors.ChainA, 1, 0, 0, 0)
 	assertHeads(t, actors.ChainB, 1, 0, 1, 0)
+}
+
+func TestInteropIntraBlockReferenceReplacementChainBIsInvalid(gt *testing.T) {
+	testInteropIntraBlockReferenceReplacement(gt, false)
+}
+
+func TestInteropIntraBlockReferenceReplacementChainAIsInvalid(gt *testing.T) {
+	testInteropIntraBlockReferenceReplacement(gt, true)
+}
+
+func testInteropIntraBlockReferenceReplacement(gt *testing.T, reverse bool) {
+	t := helpers.NewDefaultTesting(gt)
+	system := dsl.NewInteropDSL(t)
+	actors := system.Actors
+	alice := system.CreateUser()
+	emitterContract := dsl.NewEmitterContract(t)
+	system.AddL2Block(actors.ChainA, dsl.WithL2BlockTransactions(
+		emitterContract.Deploy(alice),
+	))
+	system.AddL2Block(actors.ChainB, dsl.WithL2BlockTransactions(
+		emitterContract.Deploy(alice),
+	))
+	assertHeads(t, actors.ChainA, 1, 0, 1, 0)
+	assertHeads(t, actors.ChainB, 1, 0, 1, 0)
+
+	// Determine which chain is the invalid chain and which is the other chain
+	// We'll perform all operations on chains A and B in the same order but will
+	// include the invalid message on one chain or the other.
+	initialInvalidChain := actors.ChainB
+	otherChain := actors.ChainA
+	if reverse {
+		initialInvalidChain = actors.ChainA
+		otherChain = actors.ChainB
+	}
+
+	// Create a scenario where ChainB has a block with an invalid message and ChainA references it.
+	// The blocks on both chains should be marked as invalid and replaced.
+	var (
+		otherChainExecTx   *dsl.GeneratedTransaction
+		invalidExecTx      *dsl.GeneratedTransaction
+		invalidChainInitTx *dsl.GeneratedTransaction
+	)
+	{
+		actors.ChainA.Sequencer.ActL2StartBlock(t)
+		actors.ChainB.Sequencer.ActL2StartBlock(t)
+
+		otherChainInitTx := emitterContract.EmitMessage(alice, "valid message on other chain")(otherChain)
+		otherChainInitTx.Include()
+
+		// Create messages with a conflicting payload on chain B, while also emitting an initiating message
+		invalidExecTx = system.InboxContract.Execute(alice, otherChainInitTx,
+			dsl.WithPayload([]byte("this message was never emitted")))(initialInvalidChain)
+		invalidExecTx.Include()
+		invalidChainInitTx = emitterContract.EmitMessage(alice, "valid message on invalid chain")(initialInvalidChain)
+		invalidChainInitTx.Include()
+
+		// Create a message with a valid message on chain A, pointing to the initiating message on B from the same block
+		// as an invalid message.
+		otherChainExecTx = system.InboxContract.Execute(alice, invalidChainInitTx)(otherChain)
+		otherChainExecTx.Include()
+
+		actors.ChainA.Sequencer.ActL2EndBlock(t)
+		actors.ChainB.Sequencer.ActL2EndBlock(t)
+		assertHeads(t, actors.ChainA, 2, 0, 1, 0)
+		assertHeads(t, actors.ChainB, 2, 0, 1, 0)
+	}
+
+	// Submit the data to the L1
+	// Now the local-safe head of both chains is 1 but the cross-safe head is still 0
+	system.SubmitBatchData(func(opts *dsl.SubmitBatchDataOpts) {
+		opts.SkipCrossSafeUpdate = true
+	})
+	assertHeads(t, actors.ChainA, 2, 2, 1, 0)
+	assertHeads(t, actors.ChainB, 2, 2, 1, 0)
+
+	// Get the current local-safe blocks on both chains; these should be the invalid blocks
+	statusA, statusB := actors.ChainA.Sequencer.SyncStatus(), actors.ChainB.Sequencer.SyncStatus()
+	initialChainABlock := statusA.LocalSafeL2
+	initialChainBBlock := statusB.LocalSafeL2
+
+	// Sync the supervisor and process the full state
+	actors.ChainA.Sequencer.SyncSupervisor(t)
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	actors.Supervisor.ProcessFull(t)
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainA.Sequencer.SyncSupervisor(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+
+	// Process the full state again to ensure all events have been processed
+	actors.Supervisor.ProcessFull(t)
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+
+	// Assert that the local-safe blocks have been replaced on both chains and all heads are synced
+	// The blocks should have the same number but different hashes
+	statusA, statusB = actors.ChainA.Sequencer.SyncStatus(), actors.ChainB.Sequencer.SyncStatus()
+	require.Equal(t, initialChainABlock.Number, statusA.LocalSafeL2.Number)
+	require.Equal(t, initialChainBBlock.Number, statusB.LocalSafeL2.Number)
+	require.NotEqual(t, initialChainABlock.Hash, statusA.LocalSafeL2.Hash)
+	require.NotEqual(t, initialChainBBlock.Hash, statusB.LocalSafeL2.Hash)
+	assertHeads(t, actors.ChainA, 2, 2, 2, 2)
+	assertHeads(t, actors.ChainB, 2, 2, 2, 2)
+
+	// Assert that the invalid message txs were reorged out
+	invalidExecTx.CheckNotIncluded()
+	invalidChainInitTx.CheckNotIncluded() // Should have been reorged out with chainBExecTx
+	otherChainExecTx.CheckNotIncluded()   // Reorged out because chainBInitTx was reorged out
 }

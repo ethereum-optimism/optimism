@@ -8,11 +8,9 @@ src = 'src'
 out = 'forge-artifacts'
 script = 'scripts'
 build_info_path = 'artifacts/build-info'
-snapshots = 'notarealpath' # workaround for foundry#9477
 
 optimizer = true
 optimizer_runs = 999999
-use_literal_content = true
 
 # IMPORTANT:
 # When adding any new compiler profiles or compilation restrictions, you must
@@ -24,12 +22,17 @@ additional_compiler_profiles = [
 ]
 compilation_restrictions = [
   { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 5000 },
+  { paths = "src/dispute/v2/FaultDisputeGameV2.sol", optimizer_runs = 5000 },
   { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 5000 },
-  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 5000 },
-  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 5000 },
+  { paths = "src/dispute/v2/PermissionedDisputeGameV2.sol", optimizer_runs = 5000 },
+  { paths = "src/dispute/zk/OPSuccinctFaultDisputeGame.sol", optimizer_runs = 5000 },
   { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/StandardValidator.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 5000 }
+  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 5000 },
+  { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 5000 },
+  { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 5000 },
+  { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 5000 },
+  { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 5000 },
+  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 5000 }
 ]
 
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
@@ -68,7 +71,8 @@ fs_permissions = [
 ]
 
 # 5159 error code is selfdestruct error code
-ignored_error_codes = ["transient-storage", "code-size", "init-code-size", 5159]
+ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159]
+deny_warnings = true
 ffi = true
 
 # We set the gas limit to max int64 to avoid running out of gas during testing, since the default
@@ -133,6 +137,14 @@ timeout = 300
 
 [profile.lite]
 optimizer = false
+optimizer_runs = 0
+
+[profile.lite.fuzz]
+runs = 8
+
+[profile.lite.invariant]
+runs = 8
+depth = 8
 
 # IMPORTANT:
 # See the info in the "DEFAULT" profile to understand this section.
@@ -141,12 +153,16 @@ additional_compiler_profiles = [
 ]
 compilation_restrictions = [
   { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 0 },
+  { paths = "src/dispute/v2/FaultDisputeGameV2.sol", optimizer_runs = 0 },
   { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 0 },
+  { paths = "src/dispute/v2/PermissionedDisputeGameV2.sol", optimizer_runs = 0 },
+  { paths = "src/dispute/zk/OPSuccinctFaultDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 0 },
-  { paths = "src/L1/StandardValidator.sol", optimizer_runs = 0 },
+  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 0 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },
+  { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 0 },
 ]
 
 ################################################################

@@ -63,6 +63,15 @@ type Config struct {
 	// ExecutionRPC is the HTTP provider URL for execution layer.
 	ExecutionRPC string
 
+	// SupervisorRPC is the HTTP provider URL for supervisor.
+	SupervisorRPC string
+
+	// RollupBoostEnabled is true if the rollup boost is enabled.
+	RollupBoostEnabled bool
+
+	// RollupBoostHealthcheckTimeout is the timeout for rollup boost healthcheck.
+	RollupBoostHealthcheckTimeout time.Duration
+
 	// Paused is true if the conductor should start in a paused state.
 	Paused bool
 
@@ -74,6 +83,13 @@ type Config struct {
 
 	// RPCEnableProxy is true if the sequencer RPC proxy should be enabled.
 	RPCEnableProxy bool
+
+	// The following fields are used to configure the websocket server that op-conductor exposes to get flashblocks from rollup boost and send them to clients.
+	// RollupBoostWsURL is the URL of the rollup boost websocket proxy.
+	RollupBoostWsURL string
+
+	// WebsocketServerPort is the port at which op-conductor exposes its websocket server from which clients can read streams sourced from rollupBoostWsUrl.
+	WebsocketServerPort int
 
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -130,36 +146,56 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		return nil, errors.Wrap(err, "failed to load rollup config")
 	}
 
+	executionP2pRpcUrl := ctx.String(flags.HealthcheckExecutionP2pRPCUrl.Name)
+	if executionP2pRpcUrl == "" {
+		executionP2pRpcUrl = ctx.String(flags.ExecutionRPC.Name)
+	}
+	executionP2pCheckApi := ctx.String(flags.HealthcheckExecutionP2pCheckApi.Name)
+	if executionP2pCheckApi == "" {
+		executionP2pCheckApi = "net"
+	}
+
 	return &Config{
 		ConsensusAddr: ctx.String(flags.ConsensusAddr.Name),
 		ConsensusPort: ctx.Int(flags.ConsensusPort.Name),
 		// The consensus server will advertise the address it binds to if this is empty/unspecified.
 		ConsensusAdvertisedAddr: ctx.String(flags.AdvertisedFullAddr.Name),
 
-		RaftBootstrap:          ctx.Bool(flags.RaftBootstrap.Name),
-		RaftServerID:           ctx.String(flags.RaftServerID.Name),
-		RaftStorageDir:         ctx.String(flags.RaftStorageDir.Name),
-		RaftSnapshotInterval:   ctx.Duration(flags.RaftSnapshotInterval.Name),
-		RaftSnapshotThreshold:  ctx.Uint64(flags.RaftSnapshotThreshold.Name),
-		RaftTrailingLogs:       ctx.Uint64(flags.RaftTrailingLogs.Name),
-		RaftHeartbeatTimeout:   ctx.Duration(flags.RaftHeartbeatTimeout.Name),
-		RaftLeaderLeaseTimeout: ctx.Duration(flags.RaftLeaderLeaseTimeout.Name),
-		NodeRPC:                ctx.String(flags.NodeRPC.Name),
-		ExecutionRPC:           ctx.String(flags.ExecutionRPC.Name),
-		Paused:                 ctx.Bool(flags.Paused.Name),
+		RaftBootstrap:                 ctx.Bool(flags.RaftBootstrap.Name),
+		RaftServerID:                  ctx.String(flags.RaftServerID.Name),
+		RaftStorageDir:                ctx.String(flags.RaftStorageDir.Name),
+		RaftSnapshotInterval:          ctx.Duration(flags.RaftSnapshotInterval.Name),
+		RaftSnapshotThreshold:         ctx.Uint64(flags.RaftSnapshotThreshold.Name),
+		RaftTrailingLogs:              ctx.Uint64(flags.RaftTrailingLogs.Name),
+		RaftHeartbeatTimeout:          ctx.Duration(flags.RaftHeartbeatTimeout.Name),
+		RaftLeaderLeaseTimeout:        ctx.Duration(flags.RaftLeaderLeaseTimeout.Name),
+		NodeRPC:                       ctx.String(flags.NodeRPC.Name),
+		ExecutionRPC:                  ctx.String(flags.ExecutionRPC.Name),
+		SupervisorRPC:                 ctx.String(flags.SupervisorRPC.Name),
+		RollupBoostEnabled:            ctx.Bool(flags.RollupBoostEnabled.Name),
+		RollupBoostHealthcheckTimeout: ctx.Duration(flags.RollupBoostHealthcheckTimeout.Name),
+		Paused:                        ctx.Bool(flags.Paused.Name),
 		HealthCheck: HealthCheckConfig{
-			Interval:       ctx.Uint64(flags.HealthCheckInterval.Name),
-			UnsafeInterval: ctx.Uint64(flags.HealthCheckUnsafeInterval.Name),
-			SafeEnabled:    ctx.Bool(flags.HealthCheckSafeEnabled.Name),
-			SafeInterval:   ctx.Uint64(flags.HealthCheckSafeInterval.Name),
-			MinPeerCount:   ctx.Uint64(flags.HealthCheckMinPeerCount.Name),
+			Interval:                 ctx.Uint64(flags.HealthCheckInterval.Name),
+			UnsafeInterval:           ctx.Uint64(flags.HealthCheckUnsafeInterval.Name),
+			SafeEnabled:              ctx.Bool(flags.HealthCheckSafeEnabled.Name),
+			SafeInterval:             ctx.Uint64(flags.HealthCheckSafeInterval.Name),
+			MinPeerCount:             ctx.Uint64(flags.HealthCheckMinPeerCount.Name),
+			ExecutionP2pEnabled:      ctx.Bool(flags.HealthcheckExecutionP2pEnabled.Name),
+			ExecutionP2pMinPeerCount: ctx.Uint64(flags.HealthcheckExecutionP2pMinPeerCount.Name),
+			ExecutionP2pRPCUrl:       executionP2pRpcUrl,
+			ExecutionP2pCheckApi:     executionP2pCheckApi,
+			RollupBoostPartialHealthinessToleranceLimit:           ctx.Uint64(flags.HealthCheckRollupBoostPartialHealthinessToleranceLimit.Name),
+			RollupBoostPartialHealthinessToleranceIntervalSeconds: ctx.Uint64(flags.HealthCheckRollupBoostPartialHealthinessToleranceIntervalSeconds.Name),
 		},
-		RollupCfg:      *rollupCfg,
-		RPCEnableProxy: ctx.Bool(flags.RPCEnableProxy.Name),
-		LogConfig:      oplog.ReadCLIConfig(ctx),
-		MetricsConfig:  opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:    oppprof.ReadCLIConfig(ctx),
-		RPC:            oprpc.ReadCLIConfig(ctx),
+		RollupCfg:           *rollupCfg,
+		RPCEnableProxy:      ctx.Bool(flags.RPCEnableProxy.Name),
+		RollupBoostWsURL:    ctx.String(flags.RollupBoostWsURL.Name),
+		WebsocketServerPort: ctx.Int(flags.WebsocketServerPort.Name),
+		LogConfig:           oplog.ReadCLIConfig(ctx),
+		MetricsConfig:       opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:         oppprof.ReadCLIConfig(ctx),
+		RPC:                 oprpc.ReadCLIConfig(ctx),
 	}, nil
 }
 
@@ -179,6 +215,24 @@ type HealthCheckConfig struct {
 
 	// MinPeerCount is the minimum number of peers required for the sequencer to be healthy.
 	MinPeerCount uint64
+
+	// ExecutionP2pEnabled is whether to enable EL P2P checks.
+	ExecutionP2pEnabled bool
+
+	// ExecutionP2pRPC is the HTTP provider URL for EL P2P.
+	ExecutionP2pRPCUrl string
+
+	// ExecutionP2pCheckApi is the API to use for EL P2P checks.
+	ExecutionP2pCheckApi string
+
+	// ExecutionP2pMinPeerCount is the minimum number of EL P2P peers required for the sequencer to be healthy.
+	ExecutionP2pMinPeerCount uint64
+
+	// RollupBoostPartialHealthinessToleranceLimit is the amount of rollup-boost partial unhealthiness failures to tolerate within a configurable time frame
+	RollupBoostPartialHealthinessToleranceLimit uint64
+
+	// RollupBoostPartialHealthinessToleranceIntervalSeconds is the time frame within which `RollupBoostToleratePartialHealthinessToleranceIntervalLimit` is evaluated
+	RollupBoostPartialHealthinessToleranceIntervalSeconds uint64
 }
 
 func (c *HealthCheckConfig) Check() error {
@@ -190,6 +244,23 @@ func (c *HealthCheckConfig) Check() error {
 	}
 	if c.MinPeerCount == 0 {
 		return fmt.Errorf("missing minimum peer count")
+	}
+	if c.ExecutionP2pEnabled {
+		if c.ExecutionP2pMinPeerCount == 0 {
+			return fmt.Errorf("missing minimum el p2p peers")
+		}
+		if c.ExecutionP2pRPCUrl == "" {
+			return fmt.Errorf("missing el p2p rpc")
+		}
+		if c.ExecutionP2pCheckApi == "" {
+			return fmt.Errorf("missing el p2p check api")
+		}
+		if c.ExecutionP2pCheckApi != "net" && c.ExecutionP2pCheckApi != "admin" {
+			return fmt.Errorf("invalid el p2p check api")
+		}
+	}
+	if (c.RollupBoostPartialHealthinessToleranceLimit != 0 && c.RollupBoostPartialHealthinessToleranceIntervalSeconds == 0) || (c.RollupBoostPartialHealthinessToleranceLimit == 0 && c.RollupBoostPartialHealthinessToleranceIntervalSeconds != 0) {
+		return fmt.Errorf("only one of RollupBoostPartialHealthinessToleranceLimit or RollupBoostPartialHealthinessToleranceIntervalSeconds found to be defined. Either define both of them or none.")
 	}
 	return nil
 }

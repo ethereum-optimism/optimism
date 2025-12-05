@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
 func TestWriteDefaultJWT(t *testing.T) {
@@ -24,7 +24,7 @@ func TestSetup(t *testing.T) {
 		SequencerWindowSize: 120,
 		ChannelTimeout:      120,
 		L1BlockTime:         15,
-		AllocType:           config.AllocTypeStandard,
+		AllocType:           config.DefaultAllocType,
 	}
 	dp := MakeDeployParams(t, tp)
 	alloc := &AllocParams{PrefundTestUsers: true}
@@ -35,7 +35,7 @@ func TestSetup(t *testing.T) {
 	require.Contains(t, sd.L2Cfg.Alloc, dp.Addresses.Alice)
 	require.Equal(t, sd.L2Cfg.Alloc[dp.Addresses.Alice].Balance, Ether(1e12))
 
-	expAllocs := config.L1Deployments(config.DefaultAllocType)
+	expAllocs := config.L1Deployments(tp.AllocType)
 	require.Contains(t, sd.L1Cfg.Alloc, expAllocs.AddressManager)
 	require.Contains(t, sd.L2Cfg.Alloc, predeploys.L1BlockAddr)
 }

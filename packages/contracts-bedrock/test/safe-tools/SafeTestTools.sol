@@ -3,13 +3,13 @@ pragma solidity >=0.7.0 <0.9.0;
 
 import "forge-std/Test.sol";
 import { LibSort } from "@solady/utils/LibSort.sol";
-import { GnosisSafe } from "safe-contracts/GnosisSafe.sol";
+import { Safe as GnosisSafe } from "safe-contracts/Safe.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
-import { GnosisSafeProxyFactory } from "safe-contracts/proxies/GnosisSafeProxyFactory.sol";
+import { SafeProxyFactory as GnosisSafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
-import { SignMessageLib } from "safe-contracts/examples/libraries/SignMessage.sol";
+import { SignMessageLib } from "safe-contracts/libraries/SignMessageLib.sol";
 import "./CompatibilityFallbackHandler_1_3_0.sol";
 
 // Tools to simplify testing Safe contracts
@@ -82,7 +82,7 @@ library SafeTestLib {
         keys = new uint256[](num);
         addrs = new address[](num);
         for (uint256 i; i < num; i++) {
-            uint256 key = uint256(keccak256(abi.encodePacked(i)));
+            uint256 key = uint256(keccak256(abi.encodePacked(prefix, i)));
             keys[i] = key;
         }
 
@@ -360,8 +360,8 @@ library SafeTestLib {
         );
     }
 
-    /// @dev Removes an owner from the safe. If not provided explictly, the identification of the prevOwner is handled
-    ///     automatically.
+    /// @dev Removes an owner from the safe. If not provided explicitly, the identification of the prevOwner is handled
+    ///      automatically.
     function removeOwner(SafeInstance memory instance, address prevOwner, address owner, uint256 threshold) internal {
         prevOwner = prevOwner > address(0) ? prevOwner : SafeTestLib.getPrevOwner(instance, owner);
         execTransaction(
@@ -369,8 +369,8 @@ library SafeTestLib {
         );
     }
 
-    /// @dev Replaces an old owner with a new owner. If not provided explictly, the identification of the prevOwner is
-    /// handled automatically.
+    /// @dev Replaces an old owner with a new owner. If not provided explicitly, the identification of the prevOwner is
+    ///      handled automatically.
     function swapOwner(SafeInstance memory instance, address prevOwner, address oldOwner, address newOwner) internal {
         prevOwner = prevOwner > address(0) ? prevOwner : SafeTestLib.getPrevOwner(instance, oldOwner);
         execTransaction(
@@ -379,7 +379,7 @@ library SafeTestLib {
     }
 
     /// @dev A wrapper for the full execTransaction method, if no signatures are provided it will
-    ///         generate them for all owners.
+    ///      generate them for all owners.
     function execTransaction(
         SafeInstance memory instance,
         address to,

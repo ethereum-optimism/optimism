@@ -107,6 +107,9 @@ func computePayloadId(headBlockHash common.Hash, attrs *eth.PayloadAttributes) e
 	if attrs.EIP1559Params != nil {
 		hasher.Write(attrs.EIP1559Params[:])
 	}
+	if attrs.MinBaseFee != nil {
+		_ = binary.Write(hasher, binary.BigEndian, *attrs.MinBaseFee)
+	}
 	var out engine.PayloadID
 	copy(out[:], hasher.Sum(nil)[:8])
 	return out
@@ -188,6 +191,7 @@ func (ea *L2EngineAPI) startBlock(parent common.Hash, attrs *eth.PayloadAttribut
 	return nil
 }
 
+//nolint:err113 // Do not use non-dynamic errors here to keep this function very similar to op-geth
 func (ea *L2EngineAPI) endBlock() (*types.Block, error) {
 	if ea.blockProcessor == nil {
 		return nil, fmt.Errorf("no block is being built currently (id %s)", ea.payloadID)
@@ -240,9 +244,11 @@ func (ea *L2EngineAPI) config() *params.ChainConfig {
 func (ea *L2EngineAPI) ForkchoiceUpdatedV1(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	if attr != nil {
 		if attr.Withdrawals != nil {
+			//nolint:err113 // Do not use non-dynamic errors here to keep this function very similar to op-geth
 			return STATUS_INVALID, engine.InvalidParams.With(errors.New("withdrawals not supported in V1"))
 		}
 		if ea.config().IsShanghai(ea.config().LondonBlock, uint64(attr.Timestamp)) {
+			//nolint:err113 // Do not use non-dynamic errors here to keep this function very similar to op-geth
 			return STATUS_INVALID, engine.InvalidParams.With(errors.New("forkChoiceUpdateV1 called post-shanghai"))
 		}
 	}
@@ -286,12 +292,14 @@ func (ea *L2EngineAPI) verifyPayloadAttributes(attr *eth.PayloadAttributes) erro
 	// Verify EIP-1559 params for Holocene.
 	if c.IsHolocene(t) {
 		if attr.EIP1559Params == nil {
+			//nolint:err113 // Do not use non-dynamic errors here to keep this function very similar to op-geth
 			return errors.New("got nil eip-1559 params while Holocene is active")
 		}
 		if err := eip1559.ValidateHolocene1559Params(attr.EIP1559Params[:]); err != nil {
 			return fmt.Errorf("invalid Holocene params: %w", err)
 		}
 	} else if attr.EIP1559Params != nil {
+		//nolint:err113 // Do not use non-dynamic errors here to keep this function very similar to op-geth
 		return errors.New("got Holocene params though fork not active")
 	}
 
@@ -300,9 +308,11 @@ func (ea *L2EngineAPI) verifyPayloadAttributes(attr *eth.PayloadAttributes) erro
 
 func checkAttribute(active func(*big.Int, uint64) bool, exists bool, block *big.Int, time uint64) error {
 	if active(block, time) && !exists {
+		//nolint:err113 // Do not use non-dynamic errors here to keep this function very similar to op-geth
 		return errors.New("fork active, missing expected attribute")
 	}
 	if !active(block, time) && exists {
+		//nolint:err113 // Do not use non-dynamic errors here to keep this function very similar to op-geth
 		return errors.New("fork inactive, unexpected attribute set")
 	}
 	return nil
@@ -310,6 +320,7 @@ func checkAttribute(active func(*big.Int, uint64) bool, exists bool, block *big.
 
 func (ea *L2EngineAPI) NewPayloadV1(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
 	if payload.Withdrawals != nil {
+		//nolint:err113 // Do not use non-dynamic errors here to keep this function very similar to op-geth
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("withdrawals not supported in V1"))
 	}
 
@@ -319,9 +330,11 @@ func (ea *L2EngineAPI) NewPayloadV1(ctx context.Context, payload *eth.ExecutionP
 func (ea *L2EngineAPI) NewPayloadV2(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
 	if ea.config().IsShanghai(new(big.Int).SetUint64(uint64(payload.BlockNumber)), uint64(payload.Timestamp)) {
 		if payload.Withdrawals == nil {
+			//nolint:err113 // Do not use non-dynamic errors here to keep this function very similar to op-geth
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawals post-shanghai"))
 		}
 	} else if payload.Withdrawals != nil {
+		//nolint:err113 // Do not use non-dynamic errors here to keep this function very similar to op-geth
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("non-nil withdrawals pre-shanghai"))
 	}
 
@@ -329,6 +342,8 @@ func (ea *L2EngineAPI) NewPayloadV2(ctx context.Context, payload *eth.ExecutionP
 }
 
 // Ported from: https://github.com/ethereum-optimism/op-geth/blob/c50337a60a1309a0f1dca3bf33ed1bb38c46cdd7/eth/catalyst/api.go#L486C1-L507
+//
+//nolint:err113 // Do not use non-dynamic errors here to keep this function very similar to op-geth
 func (ea *L2EngineAPI) NewPayloadV3(ctx context.Context, params *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash) (*eth.PayloadStatusV1, error) {
 	if params.ExcessBlobGas == nil {
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil excessBlobGas post-cancun"))
@@ -343,19 +358,18 @@ func (ea *L2EngineAPI) NewPayloadV3(ctx context.Context, params *eth.ExecutionPa
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil parentBeaconBlockRoot post-cancun"))
 	}
 
-	if !ea.config().IsCancun(new(big.Int).SetUint64(uint64(params.BlockNumber)), uint64(params.Timestamp)) {
+	cfg := ea.config()
+
+	if !cfg.IsCancun(new(big.Int).SetUint64(uint64(params.BlockNumber)), uint64(params.Timestamp)) {
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.UnsupportedFork.With(errors.New("newPayloadV3 called pre-cancun"))
 	}
 
-	// Payload must have eip-1559 params in ExtraData after Holocene
-	if ea.config().IsHolocene(uint64(params.Timestamp)) {
-		if err := eip1559.ValidateHoloceneExtraData(params.ExtraData); err != nil {
-			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.UnsupportedFork.With(errors.New("invalid holocene extraData post-holocene"))
-		}
+	if err := eip1559.ValidateOptimismExtraData(cfg, uint64(params.Timestamp), params.ExtraData); err != nil {
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.UnsupportedFork.With(err)
 	}
 
 	// Payload must have WithdrawalsRoot after Isthmus
-	if ea.config().IsIsthmus(uint64(params.Timestamp)) {
+	if cfg.IsIsthmus(uint64(params.Timestamp)) {
 		if params.WithdrawalsRoot == nil {
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.UnsupportedFork.With(errors.New("nil withdrawalsRoot post-isthmus"))
 		}
@@ -365,6 +379,8 @@ func (ea *L2EngineAPI) NewPayloadV3(ctx context.Context, params *eth.ExecutionPa
 }
 
 // Ported from: https://github.com/ethereum-optimism/op-geth/blob/94bb3f660f770afd407280055e7f58c0d89a01af/eth/catalyst/api.go#L646
+//
+//nolint:err113 // Do not use non-dynamic errors here to keep this function very similar to op-geth
 func (ea *L2EngineAPI) NewPayloadV4(ctx context.Context, params *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (*eth.PayloadStatusV1, error) {
 	if params.Withdrawals == nil {
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawals post-shanghai"))
@@ -413,6 +429,7 @@ func (ea *L2EngineAPI) getPayload(_ context.Context, payloadId eth.PayloadID) (*
 	return eth.BlockAsPayloadEnv(bl, ea.config())
 }
 
+//nolint:err113 // Do not use non-dynamic errors here to keep this function very similar to op-geth
 func (ea *L2EngineAPI) forkchoiceUpdated(_ context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	ea.log.Trace("L2Engine API request received", "method", "ForkchoiceUpdated", "head", state.HeadBlockHash, "finalized", state.FinalizedBlockHash, "safe", state.SafeBlockHash)
 	if state.HeadBlockHash == (common.Hash{}) {
@@ -581,6 +598,7 @@ func (ea *L2EngineAPI) newPayload(_ context.Context, payload *eth.ExecutionPaylo
 
 	if block.Time() <= parent.Time() {
 		log.Warn("Invalid timestamp", "parent", block.Time(), "block", block.Time())
+		//nolint:err113 // Do not use non-dynamic errors here to keep this function very similar to op-geth
 		return ea.invalid(errors.New("invalid timestamp"), parent.Header()), nil
 	}
 

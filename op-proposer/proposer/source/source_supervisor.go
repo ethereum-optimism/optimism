@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+var ErrNilL1View = errors.New("every supervisor node L1 block view is nil")
+
 type SupervisorClient interface {
 	SyncStatus(ctx context.Context) (eth.SupervisorSyncStatus, error)
 	SuperRootAtTimestamp(ctx context.Context, timestamp hexutil.Uint64) (eth.SuperRootResponse, error)
@@ -67,6 +69,10 @@ func (s *SupervisorProposalSource) SyncStatus(ctx context.Context) (SyncStatus, 
 			continue
 		}
 		if earliestResponse.MinSyncedL1 == (eth.L1BlockRef{}) || result.status.MinSyncedL1.Number < earliestResponse.MinSyncedL1.Number {
+			if result.status.MinSyncedL1 == (eth.L1BlockRef{}) {
+				errs = append(errs, ErrNilL1View)
+				continue
+			}
 			earliestResponse = result.status
 		}
 	}

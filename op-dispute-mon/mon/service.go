@@ -38,15 +38,9 @@ type Service struct {
 
 	cl clock.Clock
 
-	extractor        *extract.Extractor
-	forecast         *Forecast
-	bonds            *bonds.Bonds
-	game             *extract.GameCallerCreator
-	resolutions      *ResolutionMonitor
-	claims           *ClaimMonitor
-	withdrawals      *WithdrawalMonitor
-	rollupClient     *sources.RollupClient
-	supervisorClient *sources.SupervisorClient
+	game              *extract.GameCallerCreator
+	rollupClients     []*sources.RollupClient
+	supervisorClients []*sources.SupervisorClient
 
 	l1RPC    rpcclient.RPC
 	l1Client *sources.L1Client
@@ -84,26 +78,17 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initMetricsServer(&cfg.MetricsConfig); err != nil {
 		return fmt.Errorf("failed to init metrics server: %w", err)
 	}
-	if err := s.initFactoryContract(cfg); err != nil {
+	if err := s.initFactoryContract(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to create factory contract bindings: %w", err)
 	}
 	if err := s.initOutputRollupClient(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
-	if err := s.initSupervisorClient(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init supervisor client: %w", err)
+	if err := s.initSupervisorClients(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to init supervisor clients: %w", err)
 	}
 
-	s.initClaimMonitor(cfg)
-	s.initResolutionMonitor()
-	s.initWithdrawalMonitor()
-
 	s.initGameCallerCreator() // Must be called before initForecast
-
-	s.initExtractor(cfg)
-
-	s.initForecast(cfg)
-	s.initBonds()
 
 	s.initMonitor(ctx, cfg) // Monitor must be initialized last
 
@@ -113,75 +98,56 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	return nil
 }
 
-func (s *Service) initClaimMonitor(cfg *config.Config) {
-	s.claims = NewClaimMonitor(s.logger, s.cl, s.honestActors, s.metrics)
-}
-
-func (s *Service) initResolutionMonitor() {
-	s.resolutions = NewResolutionMonitor(s.logger, s.metrics, s.cl)
-}
-
-func (s *Service) initWithdrawalMonitor() {
-	s.withdrawals = NewWithdrawalMonitor(s.logger, s.cl, s.metrics, s.honestActors)
-}
-
 func (s *Service) initGameCallerCreator() {
 	s.game = extract.NewGameCallerCreator(s.metrics, s.l1Caller)
 }
 
-func (s *Service) initExtractor(cfg *config.Config) {
-	s.extractor = extract.NewExtractor(
-		s.logger,
-		s.cl,
-		s.game.CreateContract,
-		s.factoryContract.GetGamesAtOrAfter,
-		cfg.IgnoredGames,
-		cfg.MaxConcurrency,
-		extract.NewClaimEnricher(),
-		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher and BondEnricher
-		extract.NewWithdrawalsEnricher(),
-		extract.NewBondEnricher(),
-		extract.NewBalanceEnricher(),
-		extract.NewL1HeadBlockNumEnricher(s.l1Client),
-		extract.NewSuperAgreementEnricher(s.logger, s.metrics, s.supervisorClient, clock.SystemClock),
-		extract.NewOutputAgreementEnricher(s.logger, s.metrics, s.rollupClient, clock.SystemClock),
-	)
+func (s *Service) outputRollupClients() []extract.OutputRollupClient {
+	clients := make([]extract.OutputRollupClient, len(s.rollupClients))
+	for i, client := range s.rollupClients {
+		clients[i] = client
+	}
+	return clients
 }
 
-func (s *Service) initForecast(cfg *config.Config) {
-	s.forecast = NewForecast(s.logger, s.metrics)
-}
-
-func (s *Service) initBonds() {
-	s.bonds = bonds.NewBonds(s.logger, s.metrics, s.cl)
+func (s *Service) asSuperRootProviders() []extract.SuperRootProvider {
+	clients := make([]extract.SuperRootProvider, len(s.supervisorClients))
+	for i, client := range s.supervisorClients {
+		clients[i] = client
+	}
+	return clients
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {
-	if cfg.RollupRpc == "" {
+	if len(cfg.RollupRpcs) == 0 {
 		return nil
 	}
-	outputRollupClient, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, cfg.RollupRpc)
-	if err != nil {
-		return fmt.Errorf("failed to dial rollup client: %w", err)
+	for _, rpc := range cfg.RollupRpcs {
+		client, err := dial.DialRollupClientWithTimeout(ctx, s.logger, rpc, rpcclient.WithLazyDial())
+		if err != nil {
+			return fmt.Errorf("failed to dial rollup client %s: %w", rpc, err)
+		}
+		s.rollupClients = append(s.rollupClients, client)
 	}
-	s.rollupClient = outputRollupClient
 	return nil
 }
 
-func (s *Service) initSupervisorClient(ctx context.Context, cfg *config.Config) error {
-	if cfg.SupervisorRpc == "" {
+func (s *Service) initSupervisorClients(ctx context.Context, cfg *config.Config) error {
+	if len(cfg.SupervisorRpcs) == 0 {
 		return nil
 	}
-	rpcClient, err := dial.DialRPCClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, cfg.SupervisorRpc)
-	if err != nil {
-		return fmt.Errorf("failed to dial supervisor client: %w", err)
+	for _, rpc := range cfg.SupervisorRpcs {
+		client, err := dial.DialSupervisorClientWithTimeout(ctx, s.logger, rpc, rpcclient.WithLazyDial())
+		if err != nil {
+			return fmt.Errorf("failed to dial supervisor client %s: %w", rpc, err)
+		}
+		s.supervisorClients = append(s.supervisorClients, client)
 	}
-	s.supervisorClient = sources.NewSupervisorClient(rpcclient.NewBaseRPCClient(rpcClient))
 	return nil
 }
 
 func (s *Service) initL1Client(ctx context.Context, cfg *config.Config) error {
-	l1RPC, err := dial.DialRPCClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, cfg.L1EthRpc)
+	l1RPC, err := dial.DialRPCClientWithTimeout(ctx, s.logger, cfg.L1EthRpc)
 	if err != nil {
 		return fmt.Errorf("failed to dial L1: %w", err)
 	}
@@ -234,8 +200,11 @@ func (s *Service) initMetricsServer(cfg *opmetrics.CLIConfig) error {
 	return nil
 }
 
-func (s *Service) initFactoryContract(cfg *config.Config) error {
-	factoryContract := contracts.NewDisputeGameFactoryContract(s.metrics, cfg.GameFactoryAddress, s.l1Caller)
+func (s *Service) initFactoryContract(ctx context.Context, cfg *config.Config) error {
+	factoryContract, err := contracts.NewDisputeGameFactoryContract(ctx, s.metrics, cfg.GameFactoryAddress, s.l1Caller)
+	if err != nil {
+		return fmt.Errorf("failed to create dispute game factory contract: %w", err)
+	}
 	s.factoryContract = factoryContract
 	return nil
 }
@@ -244,17 +213,50 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 	headBlockFetcher := func(ctx context.Context) (eth.L1BlockRef, error) {
 		return s.l1Client.L1BlockRefByLabel(ctx, "latest")
 	}
+	extractor := extract.NewExtractor(
+		s.logger,
+		s.cl,
+		s.game.CreateContract,
+		s.factoryContract.GetGamesAtOrAfter,
+		cfg.IgnoredGames,
+		cfg.MaxConcurrency,
+		extract.NewClaimEnricher(),
+		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher and BondEnricher
+		extract.NewWithdrawalsEnricher(),
+		extract.NewBondEnricher(),
+		extract.NewBalanceEnricher(),
+		extract.NewL1HeadBlockNumEnricher(s.l1Client),
+		extract.NewOutputAgreementEnricher(s.logger, s.metrics, s.outputRollupClients(), clock.SystemClock),
+		extract.NewSuperAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
+	)
+	forecast := NewForecast(s.logger, s.metrics)
+	bonds := bonds.NewBonds(s.logger, s.metrics, s.cl)
+	resolutions := NewResolutionMonitor(s.logger, s.metrics, s.cl)
+	claims := NewClaimMonitor(s.logger, s.cl, s.honestActors, s.metrics)
+	withdrawals := NewWithdrawalMonitor(s.logger, s.cl, s.metrics, s.honestActors)
 	l2ChallengesMonitor := NewL2ChallengesMonitor(s.logger, s.metrics)
 	updateTimeMonitor := NewUpdateTimeMonitor(s.cl, s.metrics)
+	nodeEndpointErrorsMonitor := NewNodeEndpointErrorsMonitor(s.logger, s.metrics)
+	nodeEndpointErrorCountMonitor := NewNodeEndpointErrorCountMonitor(s.logger, s.metrics)
+	nodeEndpointOutOfSyncMonitor := NewNodeEndpointOutOfSyncMonitor(s.logger, s.metrics)
+	mixedAvailabilityMonitor := NewMixedAvailability(s.logger, s.metrics)
+	mixedSafetyMonitor := NewMixedSafetyMonitor(s.logger, s.metrics)
+	differentOutputRootMonitor := NewDifferentOutputRootMonitor(s.logger, s.metrics)
 	s.monitor = newGameMonitor(ctx, s.logger, s.cl, s.metrics, cfg.MonitorInterval, cfg.GameWindow, headBlockFetcher,
-		s.extractor.Extract,
-		s.forecast.Forecast,
-		s.bonds.CheckBonds,
-		s.resolutions.CheckResolutions,
-		s.claims.CheckClaims,
-		s.withdrawals.CheckWithdrawals,
+		extractor.Extract,
+		forecast.Forecast,
+		bonds.CheckBonds,
+		resolutions.CheckResolutions,
+		claims.CheckClaims,
+		withdrawals.CheckWithdrawals,
 		l2ChallengesMonitor.CheckL2Challenges,
-		updateTimeMonitor.CheckUpdateTimes)
+		updateTimeMonitor.CheckUpdateTimes,
+		nodeEndpointErrorsMonitor.CheckNodeEndpointErrors,
+		nodeEndpointErrorCountMonitor.CheckNodeEndpointErrorCount,
+		nodeEndpointOutOfSyncMonitor.CheckNodeEndpointOutOfSync,
+		mixedAvailabilityMonitor.CheckMixedAvailability,
+		mixedSafetyMonitor.CheckMixedSafety,
+		differentOutputRootMonitor.CheckDifferentOutputRoots)
 }
 
 func (s *Service) Start(ctx context.Context) error {

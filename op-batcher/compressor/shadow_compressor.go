@@ -83,6 +83,10 @@ func (t *ShadowCompressor) Write(p []byte) (int, error) {
 }
 
 func (t *ShadowCompressor) Close() error {
+	err := t.shadowCompressor.Close()
+	if err != nil {
+		return err
+	}
 	return t.compressor.Close()
 }
 

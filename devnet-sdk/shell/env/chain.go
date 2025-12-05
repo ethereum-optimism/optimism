@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/url"
 	"path/filepath"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 )
@@ -13,7 +14,9 @@ import (
 const (
 	EnvURLVar              = "DEVNET_ENV_URL"
 	ChainNameVar           = "DEVNET_CHAIN_NAME"
+	NodeIndexVar           = "DEVNET_NODE_INDEX"
 	ExpectPreconditionsMet = "DEVNET_EXPECT_PRECONDITIONS_MET"
+	EnvCtrlVar             = "DEVNET_ENV_CTRL"
 )
 
 type ChainConfig struct {
@@ -27,23 +30,33 @@ type ChainEnv struct {
 	envVars map[string]string
 }
 
-func (c *ChainConfig) getRpcUrl() (string, error) {
-	if len(c.chain.Nodes) == 0 {
-		return "", fmt.Errorf("chain '%s' has no nodes", c.chain.Name)
-	}
+func (c *ChainConfig) getRpcUrl(nodeIndex int) func() (string, error) {
+	return func() (string, error) {
+		if len(c.chain.Nodes) == 0 {
+			return "", fmt.Errorf("chain '%s' has no nodes", c.chain.Name)
+		}
 
-	// Get RPC endpoint from the first node's execution layer service
-	elService, ok := c.chain.Nodes[0].Services["el"]
-	if !ok {
-		return "", fmt.Errorf("no execution layer service found for chain '%s'", c.chain.Name)
-	}
+		if nodeIndex >= len(c.chain.Nodes) {
+			return "", fmt.Errorf("node index %d is out of bounds for chain '%s'", nodeIndex, c.chain.Name)
+		}
 
-	rpcEndpoint, ok := elService.Endpoints["rpc"]
-	if !ok {
-		return "", fmt.Errorf("no RPC endpoint found for chain '%s'", c.chain.Name)
-	}
+		// Get RPC endpoint from the first node's execution layer service
+		elService, ok := c.chain.Nodes[nodeIndex].Services["el"]
+		if !ok {
+			return "", fmt.Errorf("no execution layer service found for chain '%s'", c.chain.Name)
+		}
 
-	return fmt.Sprintf("http://%s:%d", rpcEndpoint.Host, rpcEndpoint.Port), nil
+		rpcEndpoint, ok := elService.Endpoints["rpc"]
+		if !ok {
+			return "", fmt.Errorf("no RPC endpoint found for chain '%s'", c.chain.Name)
+		}
+
+		scheme := rpcEndpoint.Scheme
+		if scheme == "" {
+			scheme = "http"
+		}
+		return fmt.Sprintf("%s://%s:%d", scheme, rpcEndpoint.Host, rpcEndpoint.Port), nil
+	}
 }
 
 func (c *ChainConfig) getJwtSecret() (string, error) {
@@ -80,10 +93,10 @@ type chainConfigOpts struct {
 	extraEnvVars map[string]string
 }
 
-func WithCastIntegration(cast bool) ChainConfigOption {
+func WithCastIntegration(cast bool, nodeIndex int) ChainConfigOption {
 	return func(c *ChainConfig, o *chainConfigOpts) error {
 		mapping := map[string]func() (string, error){
-			"ETH_RPC_URL":        c.getRpcUrl,
+			"ETH_RPC_URL":        c.getRpcUrl(nodeIndex),
 			"ETH_RPC_JWT_SECRET": c.getJwtSecret,
 		}
 
@@ -144,10 +157,29 @@ func (c *ChainConfig) GetEnv(opts ...ChainConfigOption) (*ChainEnv, error) {
 }
 
 func (e *ChainEnv) ApplyToEnv(env []string) []string {
-	for key, value := range e.envVars {
-		env = append(env, fmt.Sprintf("%s=%s", key, value))
+	// first identify which env vars to clear
+	clearEnv := make(map[string]interface{})
+	for key := range e.envVars {
+		clearEnv[key] = nil
 	}
-	return env
+
+	// then actually remove these from the env
+	cleanEnv := make([]string, 0)
+	for _, s := range env {
+		key := strings.SplitN(s, "=", 2)[0]
+		if _, ok := clearEnv[key]; !ok {
+			cleanEnv = append(cleanEnv, s)
+		}
+	}
+
+	// then add the remaining env vars
+	for key, value := range e.envVars {
+		if value == "" {
+			continue
+		}
+		cleanEnv = append(cleanEnv, fmt.Sprintf("%s=%s", key, value))
+	}
+	return cleanEnv
 }
 
 func (e *ChainEnv) GetMotd() string {

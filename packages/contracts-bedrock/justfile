@@ -16,8 +16,27 @@ dep-status:
 ########################################################
 
 # Core forge build command.
+
 forge-build *ARGS:
   forge build {{ARGS}}
+
+  @# Forge build compiles only the src/ graph; the scripts/ graph is compiled by `forge script`.
+  @# On the first invocation, `forge script` may compile a small set of dependencies.
+  @# To avoid paying this cost in every CI test, we pre‑warm the script cache once here.
+  @#
+  @# Notes:
+  @# - A single `forge script <any script> --skip-simulation` is sufficient to compile the script
+  @#   dependency graph into the cache. Subsequent `forge script` runs (including other scripts)
+  @#   will typically print "No files changed, compilation skipped".
+  @# - We pass `--skip "/**/test/**"` to keep tests out of the graph and suppress warnings.
+  @# - Providing a signature/args is not required for compilation; compilation happens before
+  @#   argument validation and before execution. We still use `--skip-simulation` to guarantee
+  @#   nothing runs in any case.
+  @forge script "scripts/deploy/Deploy.s.sol" \
+    --skip "/**/test/**" \
+    --sig "idonotexist()" \
+    --skip-simulation \
+    2>/dev/null || true
 
 # Developer build command (faster).
 forge-build-dev *ARGS:
@@ -40,14 +59,8 @@ build-dev *ARGS: lint-fix-no-fail
   just forge-build-dev {{ARGS}}
 
 # Builds the go-ffi tool for contract tests.
-build-go-ffi-default:
+build-go-ffi:
   cd ./scripts/go-ffi && go build
-
-# Builds the go-ffi tool for MIPS64 contract tests.
-build-go-ffi-cannon64:
-  cd ./scripts/go-ffi && go build -tags=cannon64 -o ./go-ffi-cannon64
-
-build-go-ffi: build-go-ffi-default build-go-ffi-cannon64
 
 # Cleans build artifacts and deployments.
 clean:
@@ -68,8 +81,8 @@ test-dev *ARGS: build-go-ffi
 
 # Default block number for the forked upgrade path.
 
-export sepoliaBlockNumber := "7701807"
-export mainnetBlockNumber := "21983965"
+export sepoliaBlockNumber := "9366100"
+export mainnetBlockNumber := "23530400"
 
 export pinnedBlockNumber := if env_var_or_default("FORK_BASE_CHAIN", "") == "mainnet" {
     mainnetBlockNumber
@@ -94,8 +107,9 @@ prepare-upgrade-env *ARGS : build-go-ffi
   export FORK_BLOCK_NUMBER=$pinnedBlockNumber
   echo "Running upgrade tests at block $FORK_BLOCK_NUMBER"
   export FORK_RPC_URL=$ETH_RPC_URL
+  export FORK_RETRIES=10
+  export FORK_BACKOFF=1000
   export FORK_TEST=true
-  export USE_MT_CANNON=true
   {{ARGS}} \
   --match-path "test/{L1,dispute,cannon}/**"
 
@@ -156,7 +170,7 @@ coverage-lcov-upgrade *ARGS: build-go-ffi
 # Runs coverage-lcov and coverage-lcov-upgrade and merges their output files info one file
 coverage-lcov-all *ARGS:
   just coverage-lcov {{ARGS}} && \
-  just coverage-lcov-upgrade --match-contract OPContractsManager_Upgrade_Test {{ARGS}} && \
+  just coverage-lcov-upgrade --match-contract "OPContractsManager.*_Upgrade_Test" {{ARGS}} && \
   lcov -a lcov.info -a lcov-upgrade.info -o lcov-all.info
 
 ########################################################
@@ -222,15 +236,25 @@ snapshots-check: build snapshots-check-no-build
 interfaces-check-no-build:
   go run ./scripts/checks/interfaces
 
+# Checks that, if any L1 source contracts that have an upgrade method,
+# that upgrade method is called in the OPContractsManagerUpgrader.upgrade method.
+# Build the contracts first.
+opcm-upgrade-checks: clean build-dev opcm-upgrade-checks-no-build
+
+# Checks that, if any L1 source contracts that have an upgrade method,
+# that upgrade method is called in the OPContractsManagerUpgrader.upgrade method.
+opcm-upgrade-checks-no-build:
+  go run ./scripts/checks/opcm-upgrade-checks/
+
 # Checks that all interfaces are appropriately named and accurately reflect the corresponding
 # contract that they're meant to represent. We run "clean" before building because leftover
 # artifacts can cause the script to detect issues incorrectly.
 interfaces-check: clean build interfaces-check-no-build
 
-# Checks that all upgrade/initialize funcitons have proper reinitializer modifiers.
+# Checks that all upgrade/initialize functions have proper reinitializer modifiers.
 reinitializer-check: build-source reinitializer-check-no-build
 
-# Checks that all upgrade/initialize funcitons have proper reinitializer modifiers.
+# Checks that all upgrade/initialize functions have proper reinitializer modifiers.
 # Does not build contracts.
 reinitializer-check-no-build:
   go run ./scripts/checks/reinitializer
@@ -251,16 +275,20 @@ semver-diff-check: build semver-diff-check-no-build
 semgrep-test-validity-check:
   forge fmt ../../.semgrep/tests/sol-rules.t.sol --check
 
-# Checks that forge test names are correctly formatted. Does not build contracts.
+# Validates forge test conventions and structure. Does not build contracts.
 lint-forge-tests-check-no-build:
-  go run ./scripts/checks/test-names
+  go run ./scripts/checks/test-validation
 
-# Checks that forge test names are correctly formatted.
+# Validates forge test conventions and structure.
 lint-forge-tests-check: build lint-forge-tests-check-no-build
 
 # Checks that contracts are properly linted.
 lint-check:
   forge fmt --check
+
+# Updates the selectors for the contracts
+update-selectors:
+  forge selectors up --all
 
 # Checks for unused imports in Solidity contracts. Does not build contracts.
 unused-imports-check-no-build:
@@ -268,6 +296,20 @@ unused-imports-check-no-build:
 
 # Checks for unused imports in Solidity contracts.
 unused-imports-check: build unused-imports-check-no-build
+
+# Checks that contracts use strict pragma versions. Does not build contracts.
+strict-pragma-check-no-build:
+  go run ./scripts/checks/strict-pragma
+
+# Checks that contracts use strict pragma versions.
+strict-pragma-check: build strict-pragma-check-no-build
+
+# Checks that the semver of contracts are valid. Does not build contracts.
+valid-semver-check-no-build:
+  go run ./scripts/checks/valid-semver-check/main.go
+
+# Checks that the semver of contracts are valid.
+valid-semver-check: build valid-semver-check-no-build
 
 # Checks that the deploy configs are valid.
 validate-deploy-configs:
@@ -294,16 +336,15 @@ semgrep:
 semgrep-test:
   cd ../../ && semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
 
-# Checks that the frozen code has not been modified.
-check-frozen-code:
-  ./scripts/checks/check-frozen-files.sh
-
 # Runs all checks.
 check:
   @just semgrep-test-validity-check \
+  semgrep \
   lint-check \
   snapshots-check-no-build \
   unused-imports-check-no-build \
+  strict-pragma-check-no-build \
+  valid-semver-check-no-build \
   semver-diff-check-no-build \
   validate-deploy-configs \
   validate-spacers-no-build \
@@ -323,6 +364,7 @@ pre-commit *ARGS:
 # Cleans, builds, lints, and runs all checks.
 pre-pr *ARGS:
   #!/bin/bash
+  set -e
   # Optionally clean the previous build.
   # --clean is typically not needed but can force a clean build if you suspect cache issues.
   if [[ "{{ARGS}}" == *"--clean"* ]]; then
@@ -349,6 +391,7 @@ pre-pr *ARGS:
   just lint
   just build-source
   just check
+
 
   # Restore build artifacts after running checks.
   if [ -d "$TEMP_BUILD_DIR" ]; then

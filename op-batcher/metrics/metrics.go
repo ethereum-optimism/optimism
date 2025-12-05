@@ -3,14 +3,15 @@ package metrics
 import (
 	"io"
 	"sync/atomic"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -37,12 +38,22 @@ type Metricer interface {
 	RecordL2BlocksLoaded(l2ref eth.L2BlockRef)
 	RecordChannelOpened(id derive.ChannelID, numPendingBlocks int)
 	RecordL2BlocksAdded(l2ref eth.L2BlockRef, numBlocksAdded, numPendingBlocks, inputBytes, outputComprBytes int)
-	RecordL2BlockInPendingQueue(block *types.Block)
-	RecordL2BlockInChannel(block *types.Block)
+	RecordL2BlockInPendingQueue(rawSize, daSize uint64)
+	RecordL2BlockInChannel(rawSize, daSize uint64)
 	RecordChannelClosed(id derive.ChannelID, numPendingBlocks int, numFrames int, inputBytes int, outputComprBytes int, reason error)
 	RecordChannelFullySubmitted(id derive.ChannelID)
 	RecordChannelTimedOut(id derive.ChannelID)
 	RecordChannelQueueLength(len int)
+	RecordThrottleIntensity(intensity float64, controllerType config.ThrottleControllerType)
+	RecordThrottleParams(maxTxSize, maxBlockSize uint64)
+	RecordThrottleControllerType(controllerType config.ThrottleControllerType)
+	RecordUnsafeBytesVsThreshold(unsafeBytes, threshold uint64, controllerType config.ThrottleControllerType)
+	RecordUnsafeDABytes(int64)
+	RecordPendingBlockPruned(rawSize, daSize uint64)
+
+	// PID Controller specific metrics
+	RecordThrottleControllerState(error, integral, derivative float64)
+	RecordThrottleResponseTime(duration time.Duration)
 
 	// ClearAllStateMetrics resets any metrics that track current ChannelManager state
 	// It should be called when clearing the ChannelManager state.
@@ -81,6 +92,8 @@ type Metrics struct {
 	pendingDABytes          int64
 	pendingDABytesGaugeFunc prometheus.GaugeFunc
 
+	unsafeDABytesGauge prometheus.Gauge
+
 	blocksAddedCount prometheus.Gauge
 
 	channelInputBytes       prometheus.GaugeVec
@@ -96,6 +109,19 @@ type Metrics struct {
 	batcherTxEvs opmetrics.EventVec
 
 	blobUsedBytes prometheus.Histogram
+
+	throttleIntensity      prometheus.GaugeVec
+	throttleMaxTxSize      prometheus.Gauge
+	throttleMaxBlockSize   prometheus.Gauge
+	throttleControllerType prometheus.GaugeVec
+	unsafeBytesRatio       prometheus.GaugeVec
+	throttleHistory        prometheus.Summary
+
+	// PID Controller specific metrics
+	pidControllerError      prometheus.Gauge
+	pidControllerIntegral   prometheus.Gauge
+	pidControllerDerivative prometheus.Gauge
+	pidResponseTime         prometheus.Histogram
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -210,6 +236,68 @@ func NewMetrics(procName string) *Metrics {
 		}),
 
 		batcherTxEvs: opmetrics.NewEventVec(factory, ns, "", "batcher_tx", "BatcherTx", []string{"stage"}),
+
+		throttleIntensity: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "throttle_intensity",
+			Help:      "Current throttling intensity (0.0 = no throttling, 1.0 = max throttling)",
+		}, []string{"type"}),
+		throttleMaxTxSize: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "throttle_max_tx_size",
+			Help:      "Current maximum transaction size when throttling (0 = no limit)",
+		}),
+		throttleMaxBlockSize: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "throttle_max_block_size",
+			Help:      "Current maximum block size when throttling",
+		}),
+		throttleControllerType: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "throttle_controller_type",
+			Help:      "Type of throttle controller in use",
+		}, []string{"type"}),
+		unsafeBytesRatio: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "unsafe_bytes_ratio",
+			Help:      "Ratio of unsafe bytes to threshold",
+		}, []string{"type"}),
+		throttleHistory: factory.NewSummary(prometheus.SummaryOpts{
+			Namespace: ns,
+			Name:      "throttle_intensity_history",
+			Help:      "Historical throttle intensity values",
+			Objectives: map[float64]float64{
+				0.5:  0.05,  // 50th percentile with 5% error
+				0.9:  0.01,  // 90th percentile with 1% error
+				0.99: 0.001, // 99th percentile with 0.1% error
+			},
+		}),
+		pidControllerError: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "pid_controller_error",
+			Help:      "Error term of the PID controller",
+		}),
+		pidControllerIntegral: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "pid_controller_integral",
+			Help:      "Integral term of the PID controller",
+		}),
+		pidControllerDerivative: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "pid_controller_derivative",
+			Help:      "Derivative term of the PID controller",
+		}),
+		pidResponseTime: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "pid_response_time",
+			Help:      "Response time of the PID controller",
+			Buckets:   prometheus.DefBuckets,
+		}),
+		unsafeDABytesGauge: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "unsafe_da_bytes",
+			Help:      "The estimated number of unsafe DA bytes",
+		}),
 	}
 	m.pendingDABytesGaugeFunc = factory.NewGaugeFunc(prometheus.GaugeOpts{
 		Namespace: ns,
@@ -306,15 +394,22 @@ func (m *Metrics) RecordChannelClosed(id derive.ChannelID, numPendingBlocks int,
 	m.channelClosedReason.Set(float64(ClosedReasonToNum(reason)))
 }
 
-func (m *Metrics) RecordL2BlockInPendingQueue(block *types.Block) {
-	daSize, rawSize := estimateBatchSize(block)
+func (m *Metrics) RecordL2BlockInPendingQueue(rawSize, daSize uint64) {
 	m.pendingBlocksBytesTotal.Add(float64(rawSize))
 	m.pendingBlocksBytesCurrent.Add(float64(rawSize))
 	atomic.AddInt64(&m.pendingDABytes, int64(daSize))
 }
 
-func (m *Metrics) RecordL2BlockInChannel(block *types.Block) {
-	daSize, rawSize := estimateBatchSize(block)
+// This method is called when a pending block is pruned.
+// It is a rare edge case where a block is loaded and pruned before it gets into a channel.
+// This may happen if a previous batcher instance build a channel with that block
+// which was confirmed _after_ the current batcher pulled it from the sequencer.
+func (m *Metrics) RecordPendingBlockPruned(rawSize, daSize uint64) {
+	m.pendingBlocksBytesCurrent.Add(-1.0 * float64(rawSize))
+	atomic.AddInt64(&m.pendingDABytes, -1*int64(daSize))
+}
+
+func (m *Metrics) RecordL2BlockInChannel(rawSize, daSize uint64) {
 	m.pendingBlocksBytesCurrent.Add(-1.0 * float64(rawSize))
 	atomic.AddInt64(&m.pendingDABytes, -1*int64(daSize))
 	// Refer to RecordL2BlocksAdded to see the current + count of bytes added to a channel
@@ -353,6 +448,47 @@ func (m *Metrics) RecordChannelQueueLength(len int) {
 	m.channelQueueLength.Set(float64(len))
 }
 
+func (m *Metrics) RecordThrottleIntensity(intensity float64, controllerType config.ThrottleControllerType) {
+	for _, t := range config.ThrottleControllerTypes {
+		if t == controllerType {
+			m.throttleIntensity.WithLabelValues(string(t)).Set(intensity)
+		} else {
+			m.throttleIntensity.WithLabelValues(string(t)).Set(0)
+		}
+	}
+	m.throttleHistory.Observe(intensity)
+}
+
+func (m *Metrics) RecordThrottleParams(maxTxSize, maxBlockSize uint64) {
+	m.throttleMaxTxSize.Set(float64(maxTxSize))
+	m.throttleMaxBlockSize.Set(float64(maxBlockSize))
+}
+
+func (m *Metrics) RecordThrottleControllerType(controllerType config.ThrottleControllerType) {
+	for _, t := range config.ThrottleControllerTypes {
+		if t == controllerType {
+			m.throttleControllerType.WithLabelValues(string(t)).Set(1)
+		} else {
+			m.throttleControllerType.WithLabelValues(string(t)).Set(0)
+		}
+	}
+}
+
+func (m *Metrics) RecordUnsafeBytesVsThreshold(unsafeBytes, threshold uint64, controllerType config.ThrottleControllerType) {
+	ratio := float64(unsafeBytes) / float64(threshold)
+	for _, t := range config.ThrottleControllerTypes {
+		if t == controllerType {
+			m.unsafeBytesRatio.WithLabelValues(string(t)).Set(ratio)
+		} else {
+			m.unsafeBytesRatio.WithLabelValues(string(t)).Set(0)
+		}
+	}
+}
+
+func (m *Metrics) RecordUnsafeDABytes(unsafeDABytes int64) {
+	m.unsafeDABytesGauge.Set(float64(unsafeDABytes))
+}
+
 // ClearAllStateMetrics clears all state metrics.
 //
 // This should cover any metric which is a Gauge and is incremented / decremented rather than "set".
@@ -364,22 +500,14 @@ func (m *Metrics) ClearAllStateMetrics() {
 	m.pendingBlocksBytesCurrent.Set(0)
 }
 
-// estimateBatchSize returns the estimated size of the block in a batch both with compression ('daSize') and without
-// ('rawSize').
-func estimateBatchSize(block *types.Block) (daSize, rawSize uint64) {
-	daSize = uint64(70) // estimated overhead of batch metadata
-	rawSize = uint64(70)
-	for _, tx := range block.Transactions() {
-		// Deposit transactions are not included in batches
-		if tx.IsDepositTx() {
-			continue
-		}
-		bigSize := tx.RollupCostData().EstimatedDASize()
-		if bigSize.IsUint64() { // this should always be true, but if not just ignore
-			daSize += bigSize.Uint64()
-		}
-		// Add 2 for the overhead of encoding the tx bytes in a RLP list
-		rawSize += tx.Size() + 2
-	}
-	return
+// RecordThrottleControllerState records the state of the PID controller
+func (m *Metrics) RecordThrottleControllerState(error, integral, derivative float64) {
+	m.pidControllerError.Set(error)
+	m.pidControllerIntegral.Set(integral)
+	m.pidControllerDerivative.Set(derivative)
+}
+
+// RecordThrottleResponseTime records the response time of the PID controller
+func (m *Metrics) RecordThrottleResponseTime(duration time.Duration) {
+	m.pidResponseTime.Observe(duration.Seconds())
 }

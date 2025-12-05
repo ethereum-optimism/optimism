@@ -8,8 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/shell/env"
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 )
 
 type system struct {
@@ -27,7 +26,7 @@ func NewSystemFromURL(url string) (System, error) {
 		return nil, fmt.Errorf("failed to load devnet from URL: %w", err)
 	}
 
-	sys, err := systemFromDevnet(devnetEnv.Config, devnetEnv.Name)
+	sys, err := systemFromDevnet(devnetEnv.Env)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create system from devnet: %w", err)
 	}
@@ -46,7 +45,7 @@ func (s *system) Identifier() string {
 	return s.identifier
 }
 
-func systemFromDevnet(dn descriptors.DevnetEnvironment, identifier string) (System, error) {
+func systemFromDevnet(dn *descriptors.DevnetEnvironment) (System, error) {
 	l1, err := newChainFromDescriptor(dn.L1)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add L1 chain: %w", err)
@@ -61,7 +60,7 @@ func systemFromDevnet(dn descriptors.DevnetEnvironment, identifier string) (Syst
 	}
 
 	sys := &system{
-		identifier: identifier,
+		identifier: dn.Name,
 		l1:         l1,
 		l2s:        l2s,
 	}
@@ -69,7 +68,7 @@ func systemFromDevnet(dn descriptors.DevnetEnvironment, identifier string) (Syst
 	if slices.Contains(dn.Features, "interop") {
 		// TODO(14849): this will break as soon as we have a dependency set that
 		// doesn't include all L2s.
-		supervisorRPC := dn.L2[0].Services["supervisor"].Endpoints["rpc"]
+		supervisorRPC := dn.L2[0].Services["supervisor"][0].Endpoints["rpc"]
 		return &interopSystem{
 			system:        sys,
 			supervisorRPC: fmt.Sprintf("http://%s:%d", supervisorRPC.Host, supervisorRPC.Port),
@@ -102,11 +101,10 @@ func (i *interopSystem) Supervisor(ctx context.Context) (Supervisor, error) {
 		return i.supervisor, nil
 	}
 
-	cl, err := client.NewRPC(ctx, nil, i.supervisorRPC)
+	supervisor, err := dial.DialSupervisorClientWithTimeout(ctx, nil, i.supervisorRPC)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial supervisor RPC: %w", err)
 	}
-	supervisor := sources.NewSupervisorClient(cl)
 	i.supervisor = supervisor
 	return supervisor, nil
 }

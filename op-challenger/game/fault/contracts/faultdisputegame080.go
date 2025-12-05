@@ -29,8 +29,8 @@ type FaultDisputeGameContract080 struct {
 }
 
 // GetGameMetadata returns the game's L1 head, L2 block number, root claim, status, and max clock duration.
-func (f *FaultDisputeGameContract080) GetGameMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error) {
-	defer f.metrics.StartContractRequest("GetGameMetadata")()
+func (f *FaultDisputeGameContract080) GetExtendedMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error) {
+	defer f.metrics.StartContractRequest("GetExtendedMetadata")()
 	results, err := f.multiCaller.Call(ctx, block,
 		f.contract.Call(methodL1Head),
 		f.contract.Call(methodL2BlockNumber),

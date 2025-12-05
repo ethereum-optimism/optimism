@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -31,7 +32,7 @@ func TestBatchMux_LaterHolocene(t *testing.T) {
 	require.IsType(t, new(BatchQueue), b.SingularBatchProvider)
 	require.Equal(t, l1A, b.SingularBatchProvider.(*BatchQueue).origin)
 
-	b.Transform(rollup.Holocene)
+	b.Transform(forks.Holocene)
 	require.IsType(t, new(BatchStage), b.SingularBatchProvider)
 	require.Equal(t, l1A, b.SingularBatchProvider.(*BatchStage).origin)
 
@@ -64,5 +65,5 @@ func TestBatchMux_ActiveHolocene(t *testing.T) {
 	require.IsType(t, new(BatchStage), b.SingularBatchProvider)
 	require.Equal(t, l1A, b.SingularBatchProvider.(*BatchStage).origin)
 
-	require.Panics(t, func() { b.Transform(rollup.Holocene) })
+	require.Panics(t, func() { b.Transform(forks.Holocene) })
 }

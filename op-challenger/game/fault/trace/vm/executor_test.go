@@ -27,7 +27,7 @@ func TestGenerateProof(t *testing.T) {
 	tempDir := t.TempDir()
 	dir := filepath.Join(tempDir, "gameDir")
 	cfg := Config{
-		VmType:       "test",
+		VmType:       7248992,
 		L1:           "http://localhost:8888",
 		L1Beacon:     "http://localhost:9000",
 		L2s:          []string{"http://localhost:9999", "http://localhost:9999/two"},
@@ -229,19 +229,24 @@ func newMetrics() *capturingVmMetrics {
 }
 
 type capturingVmMetrics struct {
-	executionTimeRecordCount int
-	memoryUsed               hexutil.Uint64
-	steps                    uint64
-	rmwSuccessCount          uint64
-	rmwFailCount             uint64
-	maxStepsBetweenLLAndSC   uint64
-	reservationInvalidations uint64
-	forcedPreemptions        uint64
-	idleStepsThread0         uint64
+	executionTimeRecordCount  int
+	memoryUsed                hexutil.Uint64
+	steps                     uint64
+	instructionCacheMissCount uint64
+	rmwSuccessCount           uint64
+	rmwFailCount              uint64
+	maxStepsBetweenLLAndSC    uint64
+	reservationInvalidations  uint64
+	forcedPreemptions         uint64
+	idleStepsThread0          uint64
 }
 
 func (c *capturingVmMetrics) RecordSteps(val uint64) {
 	c.steps = val
+}
+
+func (c *capturingVmMetrics) RecordInstructionCacheMissCount(val uint64) {
+	c.instructionCacheMissCount = val
 }
 
 func (c *capturingVmMetrics) RecordExecutionTime(t time.Duration) {

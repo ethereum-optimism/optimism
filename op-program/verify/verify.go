@@ -36,6 +36,7 @@ type Runner struct {
 	dataDir      string
 	network      string
 	chainCfg     *params.ChainConfig
+	l1ChainCfg   *params.ChainConfig
 	l2Client     *sources.L2Client
 	logCfg       oplog.CLIConfig
 	setupLog     log.Logger
@@ -50,7 +51,7 @@ func NewRunner(l1RpcUrl string, l1RpcKind string, l1BeaconUrl string, l2RpcUrl s
 
 	setupLog := oplog.NewLogger(os.Stderr, logCfg)
 
-	l2RawRpc, err := dial.DialRPCClientWithTimeout(ctx, dial.DefaultDialTimeout, setupLog, l2RpcUrl)
+	l2RawRpc, err := dial.DialRPCClientWithTimeout(ctx, setupLog, l2RpcUrl)
 	if err != nil {
 		return nil, fmt.Errorf("dial L2 client: %w", err)
 	}
@@ -60,9 +61,14 @@ func NewRunner(l1RpcUrl string, l1RpcKind string, l1BeaconUrl string, l2RpcUrl s
 		return nil, fmt.Errorf("failed to load rollup config: %w", err)
 	}
 
-	chainCfg, err := chainconfig.ChainConfigByChainID(chainID)
+	chainCfg, err := chainconfig.L2ChainConfigByChainID(chainID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load chain config: %w", err)
+	}
+
+	l1ChainCfg, err := chainconfig.L1ChainConfigByChainID(eth.ChainIDFromBig(rollupCfg.L1ChainID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to load l1 chain config: %w", err)
 	}
 
 	l2ClientCfg := sources.L2ClientDefaultConfig(rollupCfg, false)
@@ -84,6 +90,7 @@ func NewRunner(l1RpcUrl string, l1RpcKind string, l1BeaconUrl string, l2RpcUrl s
 		setupLog:     setupLog,
 		l2Client:     l2Client,
 		rollupCfg:    rollupCfg,
+		l1ChainCfg:   l1ChainCfg,
 		runInProcess: runInProcess,
 	}, nil
 }
@@ -112,7 +119,7 @@ func (r *Runner) RunBetweenBlocks(ctx context.Context, l1Head common.Hash, start
 }
 
 func (r *Runner) createL2Client(ctx context.Context) (*sources.L2Client, error) {
-	l2RawRpc, err := dial.DialRPCClientWithTimeout(ctx, dial.DefaultDialTimeout, r.setupLog, r.l2RpcUrl)
+	l2RawRpc, err := dial.DialRPCClientWithTimeout(ctx, r.setupLog, r.l2RpcUrl)
 	if err != nil {
 		return nil, fmt.Errorf("dial L2 client: %w", err)
 	}
@@ -210,7 +217,7 @@ func (r *Runner) run(ctx context.Context, l1Head common.Hash, agreedBlockInfo et
 
 	if r.runInProcess {
 		offlineCfg := config.NewSingleChainConfig(
-			r.rollupCfg, r.chainCfg, l1Head, agreedBlockInfo.Hash(), agreedOutputRoot, claimedOutputRoot, claimedBlockInfo.NumberU64())
+			r.rollupCfg, r.chainCfg, r.l1ChainCfg, l1Head, agreedBlockInfo.Hash(), agreedOutputRoot, claimedOutputRoot, claimedBlockInfo.NumberU64())
 		offlineCfg.DataDir = r.dataDir
 
 		onlineCfg := *offlineCfg

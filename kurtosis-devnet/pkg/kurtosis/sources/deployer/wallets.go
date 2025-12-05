@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 	"gopkg.in/yaml.v3"
 )
 
@@ -70,19 +71,19 @@ func (d *Deployer) getL1ValidatorWallets(deployerArtifact *ktfs.Artifact) ([]*Wa
 	return knownWallets, nil
 }
 
-func (d *Deployer) getL1ChainID(genesisArtifact *ktfs.Artifact) (string, error) {
+func (d *Deployer) getConfig(genesisArtifact *ktfs.Artifact) (*params.ChainConfig, error) {
 	genesisBuffer := bytes.NewBuffer(nil)
 	if err := genesisArtifact.ExtractFiles(
 		ktfs.NewArtifactFileWriter(d.l1GenesisName, genesisBuffer),
 	); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// Parse the genesis file JSON into a core.Genesis struct
 	var genesis core.Genesis
 	if err := json.NewDecoder(genesisBuffer).Decode(&genesis); err != nil {
-		return "", fmt.Errorf("failed to parse genesis file %s in artifact %s: %w", d.l1GenesisName, d.genesisArtifactName, err)
+		return nil, fmt.Errorf("failed to parse genesis file %s in artifact %s: %w", d.l1GenesisName, d.genesisArtifactName, err)
 	}
 
-	return genesis.Config.ChainID.String(), nil
+	return genesis.Config, nil
 }

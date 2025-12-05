@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
@@ -14,11 +15,12 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -26,7 +28,7 @@ import (
 type L1Miner struct {
 	L1Replica
 
-	blobStore *e2eutils.BlobsStore
+	blobStore *blobstore.Store
 
 	// L1 block building preferences
 	prefCoinbase common.Address
@@ -49,7 +51,7 @@ func NewL1Miner(t Testing, log log.Logger, genesis *core.Genesis) *L1Miner {
 	rep := NewL1Replica(t, log, genesis)
 	return &L1Miner{
 		L1Replica: *rep,
-		blobStore: e2eutils.NewBlobStore(),
+		blobStore: blobstore.New(),
 	}
 }
 
@@ -57,7 +59,7 @@ func (s *L1Miner) BlobSource() prefetcher.L1BlobSource {
 	return s.blobStore
 }
 
-func (s *L1Miner) BlobStore() *e2eutils.BlobsStore {
+func (s *L1Miner) BlobStore() *blobstore.Store {
 	return s.blobStore
 }
 
@@ -120,6 +122,10 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			}
 			vmenv := vm.NewEVM(context, statedb, s.l1Chain.Config(), vm.Config{PrecompileOverrides: precompileOverrides})
 			core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, vmenv)
+
+			if s.l1Chain.Config().IsPrague(header.Number, header.Time) {
+				core.ProcessParentBlockHash(header.ParentHash, vmenv)
+			}
 		}
 
 		s.l1Building = true
@@ -141,6 +147,7 @@ func (s *L1Miner) ActL1IncludeTx(from common.Address) Action {
 			t.InvalidAction("no tx inclusion when not building l1 block")
 			return
 		}
+		require.NoError(t, s.Eth.TxPool().Sync(), "must sync tx-pool to get accurate pending txs")
 		getPendingIndex := func(from common.Address) uint64 {
 			return s.pendingIndices[from]
 		}
@@ -191,12 +198,48 @@ func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) *types.Receipt {
 	if tx.Type() == types.BlobTxType {
 		require.True(t, s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time), "L1 must be cancun to process blob tx")
 		sidecar := tx.BlobTxSidecar()
-		if sidecar != nil {
-			s.l1BuildingBlobSidecars = append(s.l1BuildingBlobSidecars, sidecar)
+		require.NotNil(t, sidecar, "missing sidecar in blob transaction")
+		hashes := tx.BlobHashes()
+		require.Greater(t, len(hashes), 0, "blobless blob transaction")
+		require.NoError(t, sidecar.ValidateBlobCommitmentHashes(hashes))
+		if s.l1Cfg.Config.IsOsaka(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
+			require.NoError(t, validateBlobSidecarOsaka(sidecar, hashes))
+		} else {
+			require.NoError(t, validateBlobSidecarLegacy(sidecar, hashes))
 		}
+		s.l1BuildingBlobSidecars = append(s.l1BuildingBlobSidecars, sidecar)
 		*s.l1BuildingHeader.BlobGasUsed += receipt.BlobGasUsed
 	}
 	return receipt
+}
+
+// validateBlobSidecarLegacy implements pre-Osaka sidecar validation.
+// Copied and adapted from op-geth core/txpool/validation.go
+func validateBlobSidecarLegacy(sidecar *types.BlobTxSidecar, hashes []common.Hash) error {
+	if sidecar.Version != types.BlobSidecarVersion0 {
+		return fmt.Errorf("invalid sidecar version pre-osaka: %v", sidecar.Version)
+	}
+	if len(sidecar.Proofs) != len(hashes) {
+		return fmt.Errorf("invalid number of %d blob proofs expected %d", len(sidecar.Proofs), len(hashes))
+	}
+	for i := range sidecar.Blobs {
+		if err := kzg4844.VerifyBlobProof(&sidecar.Blobs[i], sidecar.Commitments[i], sidecar.Proofs[i]); err != nil {
+			return fmt.Errorf("invalid blob %d: %w", i, err)
+		}
+	}
+	return nil
+}
+
+// validateBlobSidecarOsaka implements Osaka sidecar validation.
+// Copied and adapted from op-geth core/txpool/validation.go
+func validateBlobSidecarOsaka(sidecar *types.BlobTxSidecar, hashes []common.Hash) error {
+	if sidecar.Version != types.BlobSidecarVersion1 {
+		return fmt.Errorf("invalid sidecar version post-osaka: %v", sidecar.Version)
+	}
+	if len(sidecar.Proofs) != len(hashes)*kzg4844.CellProofsPerBlob {
+		return fmt.Errorf("invalid number of %d blob proofs expected %d", len(sidecar.Proofs), len(hashes)*kzg4844.CellProofsPerBlob)
+	}
+	return kzg4844.VerifyCellProofs(sidecar.Blobs, sidecar.Commitments, sidecar.Proofs)
 }
 
 func (s *L1Miner) ActL1SetFeeRecipient(coinbase common.Address) {
@@ -228,14 +271,15 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 		s.l1BuildingHeader.RequestsHash = &types.EmptyRequestsHash
 	}
 
-	block := types.NewBlock(s.l1BuildingHeader, &types.Body{Transactions: s.L1Transactions, Withdrawals: withdrawals}, s.l1Receipts, trie.NewStackTrie(nil), types.DefaultBlockConfig)
-
 	isCancun := s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time)
 	// Write state changes to db
 	root, err := s.l1BuildingState.Commit(s.l1BuildingHeader.Number.Uint64(), s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number), isCancun)
 	if err != nil {
 		t.Fatalf("l1 state write error: %v", err)
 	}
+	require.Equal(t, s.l1BuildingHeader.Root, root, "no unexpected change in state-root")
+	block := types.NewBlock(s.l1BuildingHeader, &types.Body{Transactions: s.L1Transactions, Withdrawals: withdrawals}, s.l1Receipts, trie.NewStackTrie(nil), types.DefaultBlockConfig)
+
 	if err := s.l1BuildingState.Database().TrieDB().Commit(root, false); err != nil {
 		t.Fatalf("l1 trie write error: %v", err)
 	}
@@ -258,6 +302,17 @@ func (s *L1Miner) ActEmptyBlock(t Testing) *types.Block {
 	t.Helper()
 	s.ActL1StartBlock(12)(t)
 	return s.ActL1EndBlock(t)
+}
+
+func (s *L1Miner) ActBuildToOsaka(t Testing) *types.Block {
+	t.Helper()
+	require.NotNil(t, s.l1Cfg.Config.OsakaTime, "cannot activate OsakaTime when it is not scheduled")
+	h := s.L1Chain().CurrentHeader()
+	for h.Time < *s.l1Cfg.Config.OsakaTime {
+		h = s.ActEmptyBlock(t).Header()
+	}
+	require.True(t, s.l1Cfg.Config.IsOsaka(h.Number, h.Time), "Osaka not active at block", h.Number)
+	return s.L1Chain().GetBlockByHash(h.Hash())
 }
 
 func (s *L1Miner) Close() error {

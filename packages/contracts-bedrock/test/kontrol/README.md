@@ -181,7 +181,7 @@ We commit the `DeploymentSummary.sol` and `DeploymentSummaryCode.sol` contracts,
 To execute compute intensive Symbolic Kontrol proofs in a CI pipeline, we leverage KaaS (Kontrol as a Service) & CircleCI.
 On each execution a status is returned to the commit checks the execution was run from. The checks for a commit provides a "Details" link to the execution KCFG artifacts and kontrol proof summary results. See below for further information on how to fetch these artifacts from the summary using the Github API.
 
-A high level overview of the CI Setup is defined in CircleCI and configured within [.circleci/config.yml](../../../../.circleci/config.yml). The CirlceCI flow calls on the Github API to execute Kontrol test proofs utilizing the [test scripts](scripts/run-kontrol.sh) in this repo. CircleCI is configured with a Github fine-grained token provided by Runtime Verification to leverage better machines than available in CircleCI to run Kontrol proofs. The token needed is stored in the CircleCI project as a secret.
+A high level overview of the CI Setup is defined in CircleCI and configured within [.circleci/config.yml](../../../../.circleci/config.yml). The CircleCI flow calls on the Github API to execute Kontrol test proofs utilizing the [test scripts](scripts/run-kontrol.sh) in this repo. CircleCI is configured with a Github fine-grained token provided by Runtime Verification to leverage better machines than available in CircleCI to run Kontrol proofs. The token needed is stored in the CircleCI project as a secret.
 
 The proofs can be run manually using the Github Fine-grained token and providing the appropriate parameters outlined in the below Github API call.
 ```bash
@@ -219,7 +219,7 @@ Method 1: GitHub's `gh` CLI tool
 
 Method 2: [Github API](https://docs.github.com/en/rest/actions/artifacts?apiVersion=2022-11-28)
 List the artifacts for a run:
-- GET /repos/{owner}/{repo}/actions/runs/{run_id}/artifacts -- See [documentaiton](httpshttps://docs.github.com/en/rest/actions/artifacts?apiVersion=2022-11-28#list-workflow-run-artifacts) for more details
+- GET /repos/{owner}/{repo}/actions/runs/{run_id}/artifacts -- See [documentation](httpshttps://docs.github.com/en/rest/actions/artifacts?apiVersion=2022-11-28#list-workflow-run-artifacts) for more details
 ```bash
 curl -L \
   -H "Accept: application/vnd.github+json" \
@@ -228,7 +228,7 @@ curl -L \
   https://api.github.com/repos/runtimeverification/optimism-ci/actions/runs/RUN_ID/artifacts
 ```
 Then Download the artifacts:
-- GET /repos/{owner}/{repo}/actions/artifacts/{artifact_id} -- See [documentaiton](https://docs.github.com/en/rest/actions/artifacts?apiVersion=2022-11-28#download-an-artifact) for more details
+- GET /repos/{owner}/{repo}/actions/artifacts/{artifact_id} -- See [documentation](https://docs.github.com/en/rest/actions/artifacts?apiVersion=2022-11-28#download-an-artifact) for more details
 ```bash
 curl -L \
   -H "Accept: application/vnd.github+json" \

@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 )
 
 const (
@@ -99,20 +100,9 @@ func (c CLIConfig) TLSEnabled() bool {
 	return c.Enabled
 }
 
-// ReadCLIConfig reads tls cli configs
-// This should be used for server TLS configs, or when client and server tls configs are the same
-func ReadCLIConfig(ctx *cli.Context) CLIConfig {
-	return CLIConfig{
-		TLSCaCert: ctx.String(TLSCaCertFlagName),
-		TLSCert:   ctx.String(TLSCertFlagName),
-		TLSKey:    ctx.String(TLSKeyFlagName),
-		Enabled:   ctx.Bool(TLSEnabledFlagName),
-	}
-}
-
 // ReadCLIConfigWithPrefix reads tls cli configs with flag prefix
 // Should be used for client TLS configs when different from server on the same process
-func ReadCLIConfigWithPrefix(ctx *cli.Context, flagPrefix string) CLIConfig {
+func ReadCLIConfigWithPrefix(ctx cliiface.Context, flagPrefix string) CLIConfig {
 	prefixFunc := func(flagName string) string {
 		return strings.Trim(fmt.Sprintf("%s.%s", flagPrefix, flagName), ".")
 	}

@@ -560,7 +560,7 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 	}()
 
 	log := s.log.New("peer", id)
-	log.Info("Starting P2P sync client event loop")
+	log.Debug("Starting P2P sync client event loop")
 
 	// Implement the same rate limits as the server does per-peer,
 	// so we don't be too aggressive to the server.
@@ -717,7 +717,7 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 	select {
 	case s.results <- syncResult{payload: envelope, peer: id}:
 	case <-ctx.Done():
-		return fmt.Errorf("failed to process response, sync client is too busy: %w", err)
+		return fmt.Errorf("failed to process response, sync client is too busy")
 	}
 	return nil
 }
@@ -881,6 +881,7 @@ func (srv *ReqRespServer) handleSyncRequest(ctx context.Context, stream network.
 		// We'll disconnect ourselves only when failing to read/write,
 		// if the work is invalid (range validation), or when individual sub tasks timeout.
 		if err := ps.Requests.Wait(ctx); err != nil {
+			srv.peerStatsLock.Unlock()
 			return 0, fmt.Errorf("timed out waiting for global sync rate limit: %w", err)
 		}
 	}

@@ -34,6 +34,11 @@ var (
 		Usage:   "Rollup chain parameters",
 		EnvVars: prefixEnvVars("ROLLUP_CONFIG"),
 	}
+	L1ChainConfig = &cli.StringFlag{
+		Name:    "l1.chainconfig",
+		Usage:   "L1 chain config file (path to genesis.json)",
+		EnvVars: prefixEnvVars("L1_CHAINCONFIG"),
+	}
 	Network = &cli.StringSliceFlag{
 		Name:    "network",
 		Usage:   fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
@@ -155,6 +160,7 @@ var programFlags = []cli.Flag{
 	L2AgreedPrestate,
 	L2Custom,
 	RollupConfig,
+	L1ChainConfig,
 	Network,
 	DataDir,
 	DataFormat,

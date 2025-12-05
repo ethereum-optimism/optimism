@@ -31,12 +31,28 @@ library Constants {
     /// @dev `bytes32(uint256(keccak256('eip1967.proxy.admin')) - 1)`
     bytes32 internal constant PROXY_OWNER_ADDRESS = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
+    /// @notice The storage slot that holds the guard address in Safe contracts.
+    /// @dev `keccak256("guard_manager.guard.address")`
+    bytes32 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
+
     /// @notice The address that represents ether when dealing with ERC20 token addresses.
     address internal constant ETHER = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /// @notice The address that represents the system caller responsible for L1 attributes
     ///         transactions.
     address internal constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
+
+    /// @notice The address used by OPCM to check if the contract is running in a testing
+    ///         environment. This address doesn't have any code on production networks but can be
+    ///         made to have code in tests with cheatcodes.
+    address internal constant TESTING_ENVIRONMENT_ADDRESS = address(0xbeefcafe);
+
+    /// @notice Special constant key for the PermittedProxyDeployment instruction.
+    string internal constant PERMITTED_PROXY_DEPLOYMENT_KEY = "PermittedProxyDeployment";
+
+    /// @notice Special constant value for the PermittedProxyDeployment instruction to permit all
+    ///         contracts to be deployed. Only to be used for deployments.
+    bytes internal constant PERMIT_ALL_CONTRACTS_INSTRUCTION = bytes("ALL");
 
     /// @notice Returns the default values for the ResourceConfig. These are the recommended values
     ///         for a production network.

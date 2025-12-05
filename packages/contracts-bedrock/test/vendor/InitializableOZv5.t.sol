@@ -5,6 +5,9 @@ import { Test } from "forge-std/Test.sol";
 import { IOptimismSuperchainERC20 } from "interfaces/L2/IOptimismSuperchainERC20.sol";
 import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
+import { Types } from "src/libraries/Types.sol";
+
 /// @title InitializerOZv5_Test
 /// @dev Ensures that the `initialize()` function on contracts cannot be called more than
 ///      once. Tests the contracts inheriting from `Initializable` from OpenZeppelin Contracts v5.
@@ -39,6 +42,58 @@ contract InitializerOZv5_Test is Test {
                     })
                 ),
                 initCalldata: abi.encodeCall(IOptimismSuperchainERC20.initialize, (address(0), "", "", 18))
+            })
+        );
+
+        // BaseFeeVault
+        contracts.push(
+            InitializeableContract({
+                target: address(
+                    DeployUtils.create1({
+                        _name: "BaseFeeVault",
+                        _args: DeployUtils.encodeConstructor(abi.encodeCall(IFeeVault.__constructor__, ()))
+                    })
+                ),
+                initCalldata: abi.encodeCall(IFeeVault.initialize, (address(0), 0, Types.WithdrawalNetwork.L1))
+            })
+        );
+
+        // OperatorFeeVault
+        contracts.push(
+            InitializeableContract({
+                target: address(
+                    DeployUtils.create1({
+                        _name: "OperatorFeeVault",
+                        _args: DeployUtils.encodeConstructor(abi.encodeCall(IFeeVault.__constructor__, ()))
+                    })
+                ),
+                initCalldata: abi.encodeCall(IFeeVault.initialize, (address(0), 0, Types.WithdrawalNetwork.L1))
+            })
+        );
+
+        // SequencerFeeVault
+        contracts.push(
+            InitializeableContract({
+                target: address(
+                    DeployUtils.create1({
+                        _name: "SequencerFeeVault",
+                        _args: DeployUtils.encodeConstructor(abi.encodeCall(IFeeVault.__constructor__, ()))
+                    })
+                ),
+                initCalldata: abi.encodeCall(IFeeVault.initialize, (address(0), 0, Types.WithdrawalNetwork.L1))
+            })
+        );
+
+        // L1FeeVault
+        contracts.push(
+            InitializeableContract({
+                target: address(
+                    DeployUtils.create1({
+                        _name: "L1FeeVault",
+                        _args: DeployUtils.encodeConstructor(abi.encodeCall(IFeeVault.__constructor__, ()))
+                    })
+                ),
+                initCalldata: abi.encodeCall(IFeeVault.initialize, (address(0), 0, Types.WithdrawalNetwork.L1))
             })
         );
     }

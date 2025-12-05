@@ -9,10 +9,16 @@ import (
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
+// These constants should be in sync with op-program/chainconfig/chaincfg.go
 const (
-	InteropDepSetName = "depsets.json"
+	InteropDepSetName    = "depsets.json"
+	rollupConfigSuffix   = "-rollup.json"
+	genensisConfigSuffix = "-genesis-l2.json"
 )
 
 // PrestateManifest maps prestate identifiers to their hashes
@@ -60,30 +66,22 @@ func WithInteropDepSet(content io.Reader) PrestateBuilderOption {
 	}
 }
 
-type dependency struct {
-	ChainIndex     uint32 `json:"chainIndex"`
-	ActivationTime uint64 `json:"activationTime"`
-	HistoryMinTime uint64 `json:"historyMinTime"`
-}
-
-type dependencySet struct {
-	Dependencies map[string]dependency `json:"dependencies"`
-}
-
 func generateInteropDepSet(chains []string) ([]byte, error) {
-	deps := dependencySet{
-		Dependencies: make(map[string]dependency),
-	}
-
-	for i, chain := range chains {
-		deps.Dependencies[chain] = dependency{
-			ChainIndex:     uint32(i),
-			ActivationTime: 0,
-			HistoryMinTime: 0,
+	deps := make(map[eth.ChainID]*depset.StaticConfigDependency)
+	for _, chain := range chains {
+		id, err := eth.ParseDecimalChainID(chain)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse chain ID: %w", err)
 		}
+		deps[id] = &depset.StaticConfigDependency{}
 	}
 
-	json, err := json.Marshal(deps)
+	interopDepSet, err := depset.NewStaticConfigDependencySet(deps)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create interop dependency set: %w", err)
+	}
+
+	json, err := json.Marshal(interopDepSet)
 	if err != nil {
 		return nil, err
 	}
@@ -102,12 +100,12 @@ func WithChainConfig(chainId string, rollupContent io.Reader, genesisContent io.
 		c.chains = append(c.chains, chainId)
 		c.files = append(c.files,
 			FileInput{
-				Name:    chainId + "-rollup.json",
+				Name:    chainId + rollupConfigSuffix,
 				Content: rollupContent,
 				Type:    "rollup-config",
 			},
 			FileInput{
-				Name:    chainId + "-genesis.json",
+				Name:    chainId + genensisConfigSuffix,
 				Content: genesisContent,
 				Type:    "genesis-config",
 			},

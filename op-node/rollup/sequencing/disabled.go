@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 var ErrSequencerNotEnabled = errors.New("sequencer is not enabled")
@@ -16,7 +16,7 @@ type DisabledSequencer struct{}
 
 var _ SequencerIface = DisabledSequencer{}
 
-func (ds DisabledSequencer) OnEvent(ev event.Event) bool {
+func (ds DisabledSequencer) OnEvent(ctx context.Context, ev event.Event) bool {
 	return false
 }
 
@@ -51,5 +51,7 @@ func (ds DisabledSequencer) OverrideLeader(ctx context.Context) error {
 func (ds DisabledSequencer) ConductorEnabled(ctx context.Context) bool {
 	return false
 }
+
+func (ds DisabledSequencer) SetRecoverMode(mode bool) {}
 
 func (ds DisabledSequencer) Close() {}

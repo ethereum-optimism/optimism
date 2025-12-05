@@ -23,9 +23,12 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 )
 
@@ -101,6 +104,9 @@ func (c *EthClientConfig) Check() error {
 	if c.PayloadsCacheSize < 0 {
 		return fmt.Errorf("invalid payloads cache size: %d", c.PayloadsCacheSize)
 	}
+	if c.BlockRefsCacheSize < 0 {
+		return fmt.Errorf("invalid blockrefs cache size: %d", c.BlockRefsCacheSize)
+	}
 	if c.MaxConcurrentRequests < 1 {
 		return fmt.Errorf("expected at least 1 concurrent request, but max is %d", c.MaxConcurrentRequests)
 	}
@@ -141,6 +147,8 @@ type EthClient struct {
 	// common.Hash -> eth.BlockRef
 	blockRefsCache *caching.LRUCache[common.Hash, eth.BlockRef]
 }
+
+var _ apis.EthClient = (*EthClient)(nil)
 
 // NewEthClient returns an [EthClient], wrapping an RPC with bindings to fetch ethereum data with added error logging,
 // metric tracking, and caching. The [EthClient] uses a [LimitRPC] wrapper to limit the number of concurrent RPC requests.
@@ -208,7 +216,7 @@ func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID
 	var header *RPCHeader
 	err := s.client.CallContext(ctx, &header, method, id.Arg(), false) // headers are just blocks without txs
 	if err != nil {
-		return nil, err
+		return nil, eth.MaybeAsNotFoundErr(err)
 	}
 	if header == nil {
 		return nil, ethereum.NotFound
@@ -228,7 +236,7 @@ func (s *EthClient) blockCall(ctx context.Context, method string, id rpcBlockID)
 	var block *RPCBlock
 	err := s.client.CallContext(ctx, &block, method, id.Arg(), true)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, eth.MaybeAsNotFoundErr(err)
 	}
 	if block == nil {
 		return nil, nil, ethereum.NotFound
@@ -249,7 +257,7 @@ func (s *EthClient) payloadCall(ctx context.Context, method string, id rpcBlockI
 	var block *RPCBlock
 	err := s.client.CallContext(ctx, &block, method, id.Arg(), true)
 	if err != nil {
-		return nil, err
+		return nil, eth.MaybeAsNotFoundErr(err)
 	}
 	if block == nil {
 		return nil, ethereum.NotFound
@@ -326,6 +334,16 @@ func (s *EthClient) PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*
 	return s.payloadCall(ctx, "eth_getBlockByNumber", label)
 }
 
+// FetchReceiptsByNumber returns a block info and all of the receipts associated with transactions in the block.
+// It fetches the block hash and calls FetchReceipts.
+func (s *EthClient) FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Receipts, error) {
+	blockHash, err := s.InfoByNumber(ctx, number)
+	if err != nil {
+		return nil, nil, fmt.Errorf("querying block: %w", err)
+	}
+	return s.FetchReceipts(ctx, blockHash.Hash())
+}
+
 // FetchReceipts returns a block info and all of the receipts associated with transactions in the block.
 // It verifies the receipt hash in the block header against the receipt hash of the fetched receipts
 // to ensure that the execution engine did not fail to return any receipts.
@@ -343,8 +361,8 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 	return info, receipts, nil
 }
 
-// FetchReceipt returns a receipt associated with transaction.
-func (s *EthClient) FetchReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
+// TransactionReceipt returns a receipt associated with transaction.
+func (s *EthClient) TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
 	var r *types.Receipt
 	err := s.client.CallContext(ctx, &r, "eth_getTransactionReceipt", txHash)
 	if err == nil && r == nil {
@@ -507,9 +525,9 @@ func (s *EthClient) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
 }
 
 // Call executes a message call transaction but never mined into the blockchain.
-func (s *EthClient) Call(ctx context.Context, msg ethereum.CallMsg) ([]byte, error) {
+func (s *EthClient) Call(ctx context.Context, msg ethereum.CallMsg, blockNumber rpc.BlockNumber) ([]byte, error) {
 	var hex hexutil.Bytes
-	err := s.client.CallContext(ctx, &hex, "eth_call", ToCallArg(msg), "pending")
+	err := s.client.CallContext(ctx, &hex, "eth_call", ToCallArg(msg), blockNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -542,14 +560,47 @@ func (s *EthClient) PendingNonceAt(ctx context.Context, account common.Address) 
 	return uint64(result), err
 }
 
+// NonceAt returns the account nonce of the given account in the state at the given block number.
+// A nil block number may be used to get the latest state.
+func (s *EthClient) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
+	var result hexutil.Uint64
+	err := s.client.CallContext(ctx, &result, "eth_getTransactionCount", account, toBlockNumArg(blockNumber))
+	return uint64(result), err
+}
+
+func toBlockNumArg(number *big.Int) string {
+	if number == nil {
+		return "latest"
+	}
+	if number.Sign() >= 0 {
+		return hexutil.EncodeBig(number)
+	}
+	// It's negative.
+	if number.IsInt64() {
+		return rpc.BlockNumber(number.Int64()).String()
+	}
+	// It's negative and large, which is invalid.
+	return fmt.Sprintf("<invalid %d>", number)
+}
+
 // BalanceAt returns the wei balance of the given account.
 func (s *EthClient) BalanceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
 	var result hexutil.Big
-	var err error
-	if blockNumber != nil {
-		err = s.client.CallContext(ctx, &result, "eth_getBalance", account, blockNumber)
-	} else {
-		err = s.client.CallContext(ctx, &result, "eth_getBalance", account, "latest")
-	}
+	err := s.client.CallContext(ctx, &result, "eth_getBalance", account, toBlockNumArg(blockNumber))
 	return (*big.Int)(&result), err
+}
+
+// CodeAtHash returns the contract code of the given account.
+func (s *EthClient) CodeAtHash(ctx context.Context, account common.Address, blockHash common.Hash) ([]byte, error) {
+	var result hexutil.Bytes
+	err := s.client.CallContext(ctx, &result, "eth_getCode", account, blockHash)
+	return result, err
+}
+
+func (s *EthClient) NewMultiCaller(batchSize int) *batching.MultiCaller {
+	return batching.NewMultiCaller(s.client, batchSize)
+}
+
+func (s *EthClient) RPC() client.RPC {
+	return s.client
 }

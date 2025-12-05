@@ -2,8 +2,10 @@ package cliutil
 
 import (
 	"encoding"
+	"encoding/hex"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
@@ -99,6 +101,32 @@ func handleSpecialTypes(fieldValue reflect.Value, fieldType reflect.Type, ctx *c
 		}
 		addr := common.HexToAddress(addrStr)
 		fieldValue.Set(reflect.ValueOf(addr))
+		return nil
+	}
+
+	// Handle common.Hash
+	if fieldType == reflect.TypeOf(common.Hash{}) {
+		if !ctx.IsSet(flag) {
+			return nil
+		}
+
+		hashStr := strings.TrimPrefix(ctx.String(flag), "0x")
+
+		// Validate hex format and length
+		if hashStr != "" {
+			// Check length - common.Hash is 32 bytes = 64 hex chars + "0x" prefix = 66 total
+			if len(hashStr) != 64 {
+				return fmt.Errorf("invalid hash: length must be 64 characters")
+			}
+
+			// Validate hex characters
+			if _, err := hex.DecodeString(hashStr); err != nil {
+				return fmt.Errorf("invalid hash: non-hex characters in hash")
+			}
+		}
+
+		hash := common.HexToHash(hashStr)
+		fieldValue.Set(reflect.ValueOf(hash))
 		return nil
 	}
 

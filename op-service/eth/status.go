@@ -22,20 +22,24 @@ func ForkchoiceUpdateErr(payloadStatus PayloadStatusV1) error {
 }
 
 func NewPayloadErr(payload *ExecutionPayload, payloadStatus *PayloadStatusV1) error {
+	vErr := "<nil>"
+	if payloadStatus.ValidationError != nil {
+		vErr = *payloadStatus.ValidationError
+	}
 	switch payloadStatus.Status {
 	case ExecutionValid:
 		return nil
 	case ExecutionSyncing:
 		return fmt.Errorf("failed to execute payload %s, node is syncing", payload.ID())
 	case ExecutionInvalid:
-		return fmt.Errorf("execution payload %s was INVALID! Latest valid hash is %s, ignoring bad block: %v", payload.ID(), payloadStatus.LatestValidHash, payloadStatus.ValidationError)
+		return fmt.Errorf("execution payload %s was INVALID! Latest valid hash is %s, ignoring bad block: %s", payload.ID(), payloadStatus.LatestValidHash, vErr)
 	case ExecutionInvalidBlockHash:
-		return fmt.Errorf("execution payload %s has INVALID BLOCKHASH! %v", payload.BlockHash, payloadStatus.ValidationError)
+		return fmt.Errorf("execution payload %s has INVALID BLOCKHASH! %s", payload.BlockHash, vErr)
 	case ExecutionInvalidTerminalBlock:
-		return fmt.Errorf("engine is misconfigured. Received invalid-terminal-block error while engine API should be active at genesis. err: %v", payloadStatus.ValidationError)
+		return fmt.Errorf("engine is misconfigured. Received invalid-terminal-block error while engine API should be active at genesis. err: %s", vErr)
 	case ExecutionAccepted:
 		return fmt.Errorf("execution payload cannot be validated yet, latest valid hash is %s", payloadStatus.LatestValidHash)
 	default:
-		return fmt.Errorf("unknown execution status on %s: %q, ", payload.ID(), string(payloadStatus.Status))
+		return fmt.Errorf("unknown execution status on %s: %q; err: %s", payload.ID(), string(payloadStatus.Status), vErr)
 	}
 }

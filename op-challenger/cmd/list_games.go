@@ -71,7 +71,10 @@ func ListGames(ctx *cli.Context) error {
 	defer l1Client.Close()
 
 	caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
-	contract := contracts.NewDisputeGameFactoryContract(metrics.NoopContractMetrics, factoryAddr, caller)
+	contract, err := contracts.NewDisputeGameFactoryContract(ctx.Context, metrics.NoopContractMetrics, factoryAddr, caller)
+	if err != nil {
+		return fmt.Errorf("failed to create dispute game factory contract: %w", err)
+	}
 	head, err := l1Client.HeaderByNumber(ctx.Context, nil)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve current head block: %w", err)
@@ -99,31 +102,32 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 	infos := make([]gameInfo, len(games))
 	var wg sync.WaitGroup
 	for idx, game := range games {
-		gameContract, err := contracts.NewFaultDisputeGameContract(ctx, metrics.NoopContractMetrics, game.Proxy, caller)
+		idx := idx
+		gameContract, err := contracts.NewDisputeGameContractForGame(ctx, metrics.NoopContractMetrics, caller, game)
 		if err != nil {
 			return fmt.Errorf("failed to create dispute game contract: %w", err)
 		}
-		info := gameInfo{GameMetadata: game}
-		infos[idx] = info
+		infos[idx] = gameInfo{GameMetadata: game}
 		gameProxy := game.Proxy
-		currIndex := idx
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			metadata, err := gameContract.GetGameMetadata(ctx, rpcblock.ByHash(block))
+			metadata, err := gameContract.GetMetadata(ctx, rpcblock.ByHash(block))
 			if err != nil {
-				info.err = fmt.Errorf("failed to retrieve metadata for game %v: %w", gameProxy, err)
+				infos[idx].err = fmt.Errorf("failed to retrieve metadata for game %v: %w", gameProxy, err)
 				return
 			}
-			infos[currIndex].status = metadata.Status
-			infos[currIndex].l2BlockNum = metadata.L2SequenceNum
-			infos[currIndex].rootClaim = metadata.RootClaim
-			claimCount, err := gameContract.GetClaimCount(ctx)
-			if err != nil {
-				info.err = fmt.Errorf("failed to retrieve claim count for game %v: %w", gameProxy, err)
-				return
+			infos[idx].status = metadata.Status
+			infos[idx].l2BlockNum = metadata.L2SequenceNum
+			infos[idx].rootClaim = metadata.ProposedRoot
+			if fdg, ok := gameContract.(contracts.FaultDisputeGameContract); ok {
+				claimCount, err := fdg.GetClaimCount(ctx)
+				if err != nil {
+					infos[idx].err = fmt.Errorf("failed to retrieve claim count for game %v: %w", gameProxy, err)
+					return
+				}
+				infos[idx].claimCount = claimCount
 			}
-			infos[currIndex].claimCount = claimCount
 		}()
 	}
 	wg.Wait()

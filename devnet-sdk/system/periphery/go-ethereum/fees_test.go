@@ -49,7 +49,7 @@ func TestMultiplyBigInt(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		t.Run(fmt.Sprintf("should return %d for %d multplied by %f", testCase.expected.Int64(), testCase.value.Int64(), testCase.multiplier), func(t *testing.T) {
+		t.Run(fmt.Sprintf("should return %d for %d multiplied by %f", testCase.expected.Int64(), testCase.value.Int64(), testCase.multiplier), func(t *testing.T) {
 			result := multiplyBigInt(testCase.value, testCase.multiplier)
 			require.Equal(t, testCase.expected, result)
 		})
@@ -114,7 +114,7 @@ func TestEstimateEIP1559Fees(t *testing.T) {
 		})
 
 		t.Run("with custom tip multiplier", func(t *testing.T) {
-			t.Run("should set the GasTipCap to the client's suggested tip cap multplied by the tip multiplier", func(t *testing.T) {
+			t.Run("should set the GasTipCap to the client's suggested tip cap multiplied by the tip multiplier", func(t *testing.T) {
 				tipCapValue := big.NewInt(5)
 				tipMultiplier := 10.0
 				// The expected tip is a product of the tip cap and the tip multiplier
@@ -210,7 +210,7 @@ func TestEstimateEIP1559Fees(t *testing.T) {
 		})
 
 		t.Run("with custom base multiplier", func(t *testing.T) {
-			t.Run("should set the GasFeeCap to the block base fee multplied by the base multiplier", func(t *testing.T) {
+			t.Run("should set the GasFeeCap to the block base fee multiplied by the base multiplier", func(t *testing.T) {
 				baseMultiplier := 1.2
 				baseFeeValue := big.NewInt(9)
 				blockValue := types.NewBlock(&types.Header{

@@ -22,8 +22,8 @@ func NewGameCreator(contract *contracts.DisputeGameFactoryContract, txMgr txmgr.
 	}
 }
 
-func (g *GameCreator) CreateGame(ctx context.Context, outputRoot common.Hash, traceType uint64, l2BlockNum uint64) (common.Address, error) {
-	txCandidate, err := g.contract.CreateTx(ctx, uint32(traceType), outputRoot, l2BlockNum)
+func (g *GameCreator) CreateGame(ctx context.Context, outputRoot common.Hash, gameType uint64, l2BlockNum uint64) (common.Address, error) {
+	txCandidate, err := g.contract.CreateTx(ctx, uint32(gameType), outputRoot, l2BlockNum)
 	if err != nil {
 		return common.Address{}, fmt.Errorf("failed to create tx: %w", err)
 	}

@@ -1,115 +1,182 @@
 package build
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"log"
+	"sync"
 	"testing"
+	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// mockDockerClient implements the dockerClient interface for testing
-type mockDockerClient struct {
-	inspectFunc func(ctx context.Context, imageID string) (types.ImageInspect, []byte, error)
-	tagFunc     func(ctx context.Context, source, target string) error
+// --- Helper to capture log output ---
+func captureLogs(t *testing.T) (*bytes.Buffer, func()) {
+	var logBuf bytes.Buffer
+	originalLogger := log.Writer()
+	log.SetOutput(&logBuf)
+	t.Cleanup(func() {
+		log.SetOutput(originalLogger)
+	})
+	return &logBuf, func() { log.SetOutput(originalLogger) }
 }
 
-func (m *mockDockerClient) ImageInspectWithRaw(ctx context.Context, imageID string) (types.ImageInspect, []byte, error) {
-	return m.inspectFunc(ctx, imageID)
+// --- Tests ---
+
+func TestDockerBuilder_Build_Success(t *testing.T) {
+	logBuf, cleanup := captureLogs(t)
+	defer cleanup()
+
+	projectName := "test-project"
+	initialTag := "test-project:enclave1"
+
+	// Create a builder in dry run mode
+	builder := NewDockerBuilder(
+		WithDockerDryRun(true),
+		WithDockerConcurrency(1),
+	)
+
+	// Execute build
+	resultTag, err := builder.Build(context.Background(), projectName, initialTag)
+
+	// Verify results
+	require.NoError(t, err)
+	assert.Equal(t, initialTag, resultTag)
+
+	// Verify log output
+	logs := logBuf.String()
+	assert.Contains(t, logs, fmt.Sprintf("Build started for project: %s (tag: %s)", projectName, initialTag))
+	assert.Contains(t, logs, fmt.Sprintf("Dry run: Skipping build for project %s", projectName))
 }
 
-func (m *mockDockerClient) ImageTag(ctx context.Context, source, target string) error {
-	return m.tagFunc(ctx, source, target)
+func TestDockerBuilder_Build_CommandFailure(t *testing.T) {
+	// Create a builder in dry run mode
+	builder := NewDockerBuilder(
+		WithDockerDryRun(true),
+		WithDockerConcurrency(1),
+	)
+
+	// Try to build a project
+	result, err := builder.Build(context.Background(), "test-project", "test-tag")
+
+	// Verify the result
+	require.NoError(t, err)
+	assert.Equal(t, "test-tag", result)
 }
 
-// mockDockerProvider implements the dockerProvider interface for testing
-type mockDockerProvider struct {
-	client dockerClient
-}
+func TestDockerBuilder_Build_ConcurrencyLimit(t *testing.T) {
+	logBuf, cleanup := captureLogs(t)
+	defer cleanup()
 
-func (p *mockDockerProvider) newClient() (dockerClient, error) {
-	return p.client, nil
-}
+	concurrencyLimit := 2
+	numBuilds := 5
 
-// mockCmd is a mock for command execution that always succeeds
-type mockCmd struct {
-	output []byte
-}
+	// Create a builder in dry run mode with concurrency limit
+	builder := NewDockerBuilder(
+		WithDockerDryRun(true),
+		WithDockerConcurrency(concurrencyLimit),
+	)
 
-func (m *mockCmd) CombinedOutput() ([]byte, error) {
-	return m.output, nil
-}
+	// Execute builds concurrently
+	var wg sync.WaitGroup
+	wg.Add(numBuilds)
+	startTime := time.Now()
 
-// mockCmdFactory creates mock commands for testing
-func mockCmdFactory(output []byte) cmdFactory {
-	return func(name string, arg ...string) cmdRunner {
-		return &mockCmd{output: output}
+	for i := 0; i < numBuilds; i++ {
+		go func(idx int) {
+			defer wg.Done()
+			projectName := fmt.Sprintf("concurrent-project-%d", idx)
+			initialTag := fmt.Sprintf("%s:enclave1", projectName)
+			_, err := builder.Build(context.Background(), projectName, initialTag)
+			assert.NoError(t, err, "Build %d failed", idx)
+		}(i)
 	}
+
+	wg.Wait()
+	totalDuration := time.Since(startTime)
+
+	// Verify logs show dry run messages
+	logs := logBuf.String()
+	for i := 0; i < numBuilds; i++ {
+		projectName := fmt.Sprintf("concurrent-project-%d", i)
+		assert.Contains(t, logs, fmt.Sprintf("Dry run: Skipping build for project %s", projectName))
+	}
+	assert.NotContains(t, logs, "Build failed")
+
+	// Basic check: total time should be reasonable
+	assert.Less(t, totalDuration, 1*time.Second, "Total duration too long, indicates potential blocking")
 }
 
-// TestDockerBuilderNaming tests the image naming logic in the DockerBuilder
-func TestDockerBuilderNaming(t *testing.T) {
-	tests := []struct {
-		name        string
-		projectName string
-		imageTag    string
-		mockInspect types.ImageInspect
-		mockTagErr  error
-		wantTag     string
-		wantErr     bool
-	}{
-		{
-			name:        "successful image build and tag",
-			projectName: "test-project",
-			imageTag:    "test-image:latest",
-			mockInspect: types.ImageInspect{
-				ID: "sha256:abcdef123456789abcdef123456789abcdef1234",
-			},
-			wantTag: "test-project:abcdef123456",
-			wantErr: false,
-		},
-		{
-			name:        "tag error",
-			projectName: "test-project",
-			imageTag:    "test-image:latest",
-			mockInspect: types.ImageInspect{
-				ID: "sha256:abcdef123456789abcdef123456789abcdef1234",
-			},
-			mockTagErr: assert.AnError,
-			wantErr:    true,
-		},
+func TestDockerBuilder_Build_DryRun(t *testing.T) {
+	logBuf, cleanup := captureLogs(t)
+	defer cleanup()
+
+	projectName := "dry-run-project"
+	initialTag := "dry-run-project:enclave-dry"
+
+	// Create a builder in dry run mode
+	builder := NewDockerBuilder(
+		WithDockerDryRun(true),
+		WithDockerConcurrency(1),
+	)
+
+	// Execute build
+	resultTag, err := builder.Build(context.Background(), projectName, initialTag)
+
+	// Verify results
+	require.NoError(t, err)
+	assert.Equal(t, initialTag, resultTag)
+
+	// Verify log output
+	logs := logBuf.String()
+	assert.Contains(t, logs, fmt.Sprintf("Build started for project: %s", projectName))
+	assert.Contains(t, logs, fmt.Sprintf("Dry run: Skipping build for project %s", projectName))
+	assert.NotContains(t, logs, "Executing build command")
+	assert.NotContains(t, logs, "Build successful")
+	assert.NotContains(t, logs, "Build failed")
+}
+
+func TestDockerBuilder_Build_DuplicateCalls(t *testing.T) {
+	logBuf, cleanup := captureLogs(t)
+	defer cleanup()
+
+	projectName := "duplicate-project"
+	initialTag := "duplicate:enclave1"
+
+	// Create a builder in dry run mode
+	builder := NewDockerBuilder(
+		WithDockerDryRun(true),
+		WithDockerConcurrency(2),
+	)
+
+	// Execute multiple concurrent builds
+	var wg sync.WaitGroup
+	numCalls := 3
+	results := make([]string, numCalls)
+	errors := make([]error, numCalls)
+	wg.Add(numCalls)
+
+	for i := 0; i < numCalls; i++ {
+		go func(idx int) {
+			defer wg.Done()
+			results[idx], errors[idx] = builder.Build(context.Background(), projectName, initialTag)
+		}(i)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockClient := &mockDockerClient{
-				inspectFunc: func(ctx context.Context, imageID string) (types.ImageInspect, []byte, error) {
-					return tt.mockInspect, nil, nil
-				},
-				tagFunc: func(ctx context.Context, source, target string) error {
-					return tt.mockTagErr
-				},
-			}
+	wg.Wait()
 
-			mockProvider := &mockDockerProvider{
-				client: mockClient,
-			}
-
-			// Create a builder with our mocks
-			builder := NewDockerBuilder(
-				withDockerProvider(mockProvider),
-				withCmdFactory(mockCmdFactory([]byte("mock build output"))),
-			)
-
-			tag, err := builder.Build(tt.projectName, tt.imageTag)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantTag, tag)
-		})
+	// Verify all calls returned the same result
+	for i := 0; i < numCalls; i++ {
+		require.NoError(t, errors[i], "Call %d returned an error", i)
+		assert.Equal(t, initialTag, results[i], "Call %d returned wrong tag", i)
 	}
+
+	// Verify logs show dry run messages
+	logs := logBuf.String()
+	assert.Contains(t, logs, fmt.Sprintf("Build started for project: %s", projectName))
+	assert.Contains(t, logs, fmt.Sprintf("Dry run: Skipping build for project %s", projectName))
+	assert.NotContains(t, logs, "Build failed")
 }

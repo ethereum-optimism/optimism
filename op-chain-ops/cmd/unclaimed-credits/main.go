@@ -72,7 +72,10 @@ func unclaimedCreditsApp(ctx *cli.Context) error {
 	defer l1Client.Close()
 
 	caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
-	contract := contracts.NewDisputeGameFactoryContract(metrics.NoopContractMetrics, factoryAddr, caller)
+	contract, err := contracts.NewDisputeGameFactoryContract(ctx.Context, metrics.NoopContractMetrics, factoryAddr, caller)
+	if err != nil {
+		return fmt.Errorf("failed to create dispute game factory contract: %w", err)
+	}
 	head, err := l1Client.HeaderByNumber(ctx.Context, nil)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve current head block: %w", err)
