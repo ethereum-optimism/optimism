@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Testing
 import "forge-std/Test.sol";
-import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 // Libraries
 import { Claim, Duration, GameStatus, GameType, Hash, Timestamp, Proposal } from "src/dispute/lib/Types.sol";
@@ -43,13 +42,29 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 /// @title OPSuccinctFaultDisputeGame_TestInit
 /// @notice Base test contract with shared setup for OPSuccinctFaultDisputeGame tests.
 abstract contract OPSuccinctFaultDisputeGame_TestInit is Test {
+    /// @notice Deploys a transparent proxy with the given admin and implementation.
+    /// @dev Uses vm.getCode to avoid importing Proxy which causes artifact conflicts.
+    function _deployProxy(address _admin, address _impl) internal returns (address proxy_) {
+        // Get Proxy bytecode using path-qualified name to avoid conflicts
+        bytes memory proxyCode = abi.encodePacked(
+            vm.getCode("universal/Proxy.sol:Proxy"),
+            abi.encode(_admin)
+        );
+        assembly {
+            proxy_ := create(0, add(proxyCode, 0x20), mload(proxyCode))
+        }
+        require(proxy_ != address(0), "Proxy deployment failed");
+        // Call upgradeTo on the proxy to set implementation
+        (bool success,) = proxy_.call(abi.encodeWithSignature("upgradeTo(address)", _impl));
+        require(success, "upgradeTo failed");
+    }
     // Events
     event Challenged(address indexed challenger);
     event Proved(address indexed prover);
     event Resolved(GameStatus indexed status);
 
     DisputeGameFactory factory;
-    ERC1967Proxy factoryProxy;
+    address factoryProxy;
 
     OPSuccinctFaultDisputeGame gameImpl;
     OPSuccinctFaultDisputeGame parentGame;
@@ -83,14 +98,11 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is Test {
         DisputeGameFactory factoryImpl = new DisputeGameFactory();
 
         // Deploy a proxy pointing to the factory implementation.
-        factoryProxy = new ERC1967Proxy(address(factoryImpl), new bytes(0));
-
-        // Set the ProxyAdmin in the reserved storage slot so ProxyAdminOwnedBase can find it.
-        // The test contract itself acts as the ProxyAdmin for simplicity.
-        vm.store(address(factoryProxy), Constants.PROXY_OWNER_ADDRESS, bytes32(uint256(uint160(address(this)))));
+        // Using _deployProxy helper to avoid importing Proxy which causes forge artifact conflicts.
+        factoryProxy = _deployProxy(address(this), address(factoryImpl));
 
         // Now initialize the factory.
-        factory = DisputeGameFactory(address(factoryProxy));
+        factory = DisputeGameFactory(factoryProxy);
         factory.initialize(address(this));
 
         // Create a mock verifier.
@@ -98,18 +110,14 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is Test {
 
         // Deploy real SuperchainConfig.
         SuperchainConfig superchainConfigImpl = new SuperchainConfig();
-        ERC1967Proxy superchainConfigProxy = new ERC1967Proxy(address(superchainConfigImpl), new bytes(0));
-        vm.store(
-            address(superchainConfigProxy), Constants.PROXY_OWNER_ADDRESS, bytes32(uint256(uint160(address(this))))
-        );
-        ISuperchainConfig superchainConfig = ISuperchainConfig(address(superchainConfigProxy));
-        SuperchainConfig(address(superchainConfigProxy)).initialize(guardian);
+        address superchainConfigProxy = _deployProxy(address(this), address(superchainConfigImpl));
+        ISuperchainConfig superchainConfig = ISuperchainConfig(superchainConfigProxy);
+        SuperchainConfig(superchainConfigProxy).initialize(guardian);
 
         // Deploy real SystemConfig.
         SystemConfig systemConfigImpl = new SystemConfig();
-        ERC1967Proxy systemConfigProxy = new ERC1967Proxy(address(systemConfigImpl), new bytes(0));
-        vm.store(address(systemConfigProxy), Constants.PROXY_OWNER_ADDRESS, bytes32(uint256(uint160(address(this)))));
-        ISystemConfig systemConfig = ISystemConfig(address(systemConfigProxy));
+        address systemConfigProxy = _deployProxy(address(this), address(systemConfigImpl));
+        ISystemConfig systemConfig = ISystemConfig(systemConfigProxy);
         SystemConfig(address(systemConfigProxy)).initialize(
             address(this), // owner
             1368, // basefeeScalar
@@ -136,15 +144,10 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is Test {
         AnchorStateRegistry anchorStateRegistryImpl = new AnchorStateRegistry(disputeGameFinalityDelaySeconds);
 
         // Deploy a proxy for AnchorStateRegistry.
-        ERC1967Proxy anchorStateRegistryProxy = new ERC1967Proxy(address(anchorStateRegistryImpl), new bytes(0));
-
-        // Set the ProxyAdmin in the reserved storage slot.
-        vm.store(
-            address(anchorStateRegistryProxy), Constants.PROXY_OWNER_ADDRESS, bytes32(uint256(uint160(address(this))))
-        );
+        address anchorStateRegistryProxy = _deployProxy(address(this), address(anchorStateRegistryImpl));
 
         // Initialize the real AnchorStateRegistry.
-        anchorStateRegistry = AnchorStateRegistry(address(anchorStateRegistryProxy));
+        anchorStateRegistry = AnchorStateRegistry(anchorStateRegistryProxy);
         anchorStateRegistry.initialize(
             systemConfig,
             IDisputeGameFactory(address(factory)),
@@ -368,13 +371,10 @@ contract OPSuccinctFaultDisputeGame_Initialize_Test is OPSuccinctFaultDisputeGam
         DisputeGameFactory newFactoryImpl = new DisputeGameFactory();
 
         // Deploy a proxy pointing to the new factory implementation.
-        ERC1967Proxy newFactoryProxy = new ERC1967Proxy(address(newFactoryImpl), new bytes(0));
-
-        // Set the ProxyAdmin in the reserved storage slot so ProxyAdminOwnedBase can find it.
-        vm.store(address(newFactoryProxy), Constants.PROXY_OWNER_ADDRESS, bytes32(uint256(uint160(address(this)))));
+        address newFactoryProxy = _deployProxy(address(this), address(newFactoryImpl));
 
         // Cast the proxy to the DisputeGameFactory interface and initialize it.
-        DisputeGameFactory newFactory = DisputeGameFactory(address(newFactoryProxy));
+        DisputeGameFactory newFactory = DisputeGameFactory(newFactoryProxy);
         newFactory.initialize(address(this));
 
         // Set the implementation with the same implementation as the old factory.
