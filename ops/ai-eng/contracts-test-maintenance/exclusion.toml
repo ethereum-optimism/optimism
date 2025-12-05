@@ -1,7 +1,5 @@
 # Exclusion configuration for contract test maintenance
-# Separate configuration for directories and individual files
 
-[exclusions]
 # Directory exclusions (exclude all files within these directories)
 directories = [
     "test/invariants/",
@@ -23,4 +21,9 @@ files = [
     "test/universal/ExtendedPause.t.sol",
     "test/vendor/Initializable.t.sol",
     "test/vendor/InitializableOZv5.t.sol"
+]
+
+# Files with open PRs - automatically removed when PR is merged/closed
+opened_PRs = [
+
 ]

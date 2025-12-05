@@ -2,9 +2,17 @@
 
 # Contract Test Maintenance
 
-# Run the contract test ranking script
+# Clean temporary exclusions (remove files without open PRs)
+clean-exclusions:
+    cd contracts-test-maintenance/components/exclusion_cleaner && python3 clean_exclusions.py
+
+# Run the contract test ranking script (uses exclusions from TOML)
 rank:
     cd contracts-test-maintenance/components/tests_ranker && python3 test_ranker.py
+
+# Clean exclusions and rank tests with piped data
+clean-and-rank:
+    cd contracts-test-maintenance/components/exclusion_cleaner && python3 clean_exclusions.py | (cd ../tests_ranker && python3 test_ranker.py)
 
 # Render prompt with the first ranked test and contract
 render:
@@ -19,10 +27,10 @@ prompt:
 devin:
     cd contracts-test-maintenance/components/devin-api && python3 devin_client.py
 
-# Run the complete cycle: rank, render, and send to Devin
+# Run the complete cycle: clean exclusions, rank, render, and send to Devin
 ai-contracts-test:
-    # Step 1: Rank tests
-    just rank
+    # Step 1: Clean exclusions and rank tests
+    just clean-and-rank
 
     # Step 2: Render prompt
     just render

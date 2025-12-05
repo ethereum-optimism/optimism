@@ -7,14 +7,10 @@ calculating staleness metrics, and generating ranked output.
 
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
 import subprocess
 import time
-import tomllib
 from typing import Optional
-import urllib.request
-import urllib.error
 
 
 # === Git Utilities ===
@@ -151,201 +147,26 @@ def find_source_contract(
 # === Exclusion Utilities ===
 
 
-def _get_test_path_from_artifact(artifact_url: str, headers: dict) -> Optional[str]:
-    """Download and parse log.json artifact to extract test path."""
-    try:
-        req = urllib.request.Request(artifact_url, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode())
-            return data.get("selected_files", {}).get("test_path")
-    except (urllib.error.URLError, json.JSONDecodeError, KeyError):
-        return None
-
-
-def _get_job_artifacts(project_slug: str, job_number: int, headers: dict) -> list[dict]:
-    """Get artifacts list for a specific job."""
-    try:
-        artifacts_url = f"https://circleci.com/api/v2/project/{project_slug}/{job_number}/artifacts"
-        req = urllib.request.Request(artifacts_url, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            return json.loads(response.read().decode()).get("items", [])
-    except urllib.error.HTTPError as e:
-        print(f"Error fetching artifacts (job {job_number}): {e.code} {e.reason}")
-        print(f"Tried URL: {artifacts_url}")
-        return []
-
-
-def _get_successful_job_number(workflow_id: str, headers: dict) -> Optional[int]:
-    """Get job number for successful ai-contracts-test job in a workflow."""
-    try:
-        jobs_url = f"https://circleci.com/api/v2/workflow/{workflow_id}/job"
-        req = urllib.request.Request(jobs_url, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            jobs_data = json.loads(response.read().decode())
-
-        for job in jobs_data.get("items", []):
-            if job.get("name") == "ai-contracts-test" and job.get("status") == "success":
-                return job["job_number"]
-        return None
-    except urllib.error.HTTPError as e:
-        print(f"Error fetching jobs (workflow {workflow_id}): {e.code} {e.reason}")
-        return None
-
-
-def _get_workflow_id(pipeline_id: str, headers: dict) -> Optional[str]:
-    """Get workflow ID from pipeline if successful."""
-    try:
-        workflows_url = f"https://circleci.com/api/v2/pipeline/{pipeline_id}/workflow"
-        req = urllib.request.Request(workflows_url, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            workflows_data = json.loads(response.read().decode())
-
-        workflows = workflows_data.get("items", [])
-        if workflows and workflows[0].get("status") == "success":
-            return workflows[0]["id"]
-        return None
-    except urllib.error.HTTPError as e:
-        print(f"Error fetching workflow (pipeline {pipeline_id}): {e.code} {e.reason}")
-        return None
-
-
-def fetch_last_processed_from_circleci() -> list[Path]:
-    """Fetch recently processed test files from CircleCI artifacts.
-
-    Returns:
-        List of test file paths from the last 3 successful runs.
-    """
-    circleci_token = os.getenv("CIRCLE_API_TOKEN")
-    if not circleci_token:
-        print("CIRCLE_API_TOKEN not found - skipping artifact check")
-        return []
-
-    print("Checking CircleCI for previous run artifacts...")
-    excluded_paths = []
-
-    try:
-        headers = {"Circle-Token": circleci_token}
-        project_slug = "gh/ethereum-optimism/optimism"
-        # Always check develop branch for previous successful runs
-        branch = "develop"
-        two_weeks_ago = time.time() - (14 * 24 * 3600)
-
-        # Get recent pipelines with pagination (API returns max 20 by default)
-        # Keep fetching until we've checked enough pipelines within the 2-week window
-        all_pipelines = []
-        next_page_token = None
-
-        while True:
-            pipelines_url = f"https://circleci.com/api/v2/project/{project_slug}/pipeline?branch={branch}"
-            if next_page_token:
-                pipelines_url += f"&page-token={next_page_token}"
-
-            req = urllib.request.Request(pipelines_url, headers=headers)
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode())
-                pipelines = data.get("items", [])
-                next_page_token = data.get("next_page_token")
-
-                if not pipelines:
-                    break
-
-                all_pipelines.extend(pipelines)
-
-                # Stop paginating if we have no more pages or we've collected enough
-                if not next_page_token or len(all_pipelines) >= 600:
-                    break
-
-        if not all_pipelines:
-            print("No previous pipelines found")
-            return []
-
-        print(f"Found {len(all_pipelines)} pipelines on {branch}, checking for successful runs...")
-
-        # Process recent pipelines (within 2 weeks)
-        from datetime import datetime as dt
-        pipelines_checked = 0
-        for pipeline in all_pipelines:
-            pipelines_checked += 1
-            # Check age
-            if pipeline.get("created_at"):
-                pipeline_time = dt.fromisoformat(pipeline["created_at"].replace("Z", "+00:00")).timestamp()
-                if pipeline_time < two_weeks_ago:
-                    print("Reached pipelines older than 2 weeks, stopping search")
-                    break
-
-            # Get workflow → job → artifacts → test path
-            workflow_id = _get_workflow_id(pipeline["id"], headers)
-            if not workflow_id:
-                continue
-
-            job_number = _get_successful_job_number(workflow_id, headers)
-            if not job_number:
-                continue
-
-            print(f"Found successful job {job_number}, checking for artifacts...")
-            artifacts = _get_job_artifacts(project_slug, job_number, headers)
-            for artifact in artifacts:
-                if artifact["path"].endswith("log.json"):
-                    test_path = _get_test_path_from_artifact(artifact["url"], headers)
-                    if test_path:
-                        print(f"Excluding recently processed file: {test_path}")
-                        excluded_paths.append(Path(test_path))
-                    break
-
-        print(f"Checked {pipelines_checked} pipelines")
-
-        if excluded_paths:
-            print(f"Excluded {len(excluded_paths)} recently processed file(s)")
-        else:
-            print("No recent successful runs found")
-
-        return excluded_paths
-
-    except (urllib.error.URLError, json.JSONDecodeError, ValueError, KeyError) as e:
-        print(f"Could not fetch CircleCI artifacts: {e}")
-        return []
-
-
-def load_exclusions(contracts_bedrock: Path) -> tuple[list[Path], set[Path]]:
-    """Load and normalize exclusion paths from TOML configuration.
+def load_exclusions(exclusions_data: dict) -> tuple[list[Path], set[Path]]:
+    """Normalize exclusion paths from exclusions dictionary.
 
     Args:
-        contracts_bedrock: Path to the contracts-bedrock directory.
+        exclusions_data: Dictionary containing exclusions data.
 
     Returns:
         Tuple of (excluded_dirs, excluded_files) as normalized Path objects.
-
-    Raises:
-        FileNotFoundError: If exclusions.toml file is not found.
-        tomllib.TOMLDecodeError: If TOML file is malformed.
     """
-    exclusions_file = Path(__file__).parent.parent.parent / "exclusion.toml"
-
-    with exclusions_file.open("rb") as f:
-        exclusions = tomllib.load(f)
-
     excluded_dirs: list[Path] = []
     excluded_files: set[Path] = set()
 
-    # Get exclusion directories and files
-    exclusion_config = exclusions.get("exclusions", {})
-    exclusion_directories = exclusion_config.get("directories", [])
-    exclusion_files = exclusion_config.get("files", [])
-
-    # Process directory exclusions
-    for directory in exclusion_directories:
-        # Directory exclusion - store as Path object without trailing slash
-        excluded_dirs.append(Path(directory.rstrip("/")))
-
-    # Process file exclusions
-    for file_path in exclusion_files:
-        # File exclusion - store as Path object in set for O(1) lookup
-        excluded_files.add(Path(file_path))
-
-    # Add recently processed files from CircleCI artifacts (avoid immediate duplicates)
-    last_processed_files = fetch_last_processed_from_circleci()
-    for test_file in last_processed_files:
-        excluded_files.add(test_file)
+    # Process all exclusion lists
+    for items in exclusions_data.values():
+        if isinstance(items, list):
+            for item in items:
+                if item.endswith("/"):
+                    excluded_dirs.append(Path(item.rstrip("/")))
+                else:
+                    excluded_files.add(Path(item))
 
     return excluded_dirs, excluded_files
 
@@ -529,8 +350,12 @@ def collect_test_entries(
     return entries
 
 
-def main() -> None:
-    """Main function to generate test ranking JSON."""
+def main(exclusions_data: dict) -> None:
+    """Main function to generate test ranking JSON.
+
+    Args:
+        exclusions_data: Dictionary containing exclusions data (from exclusion_cleaner).
+    """
     try:
         # Generate unique run ID
         run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -539,8 +364,8 @@ def main() -> None:
         # Get base paths
         repo_root, contracts_bedrock, output_dir = get_base_paths()
 
-        # Load exclusions
-        excluded_dirs, excluded_files = load_exclusions(contracts_bedrock)
+        # Load exclusions from provided dict
+        excluded_dirs, excluded_files = load_exclusions(exclusions_data)
 
         # Collect test entries
         entries = collect_test_entries(
@@ -559,4 +384,23 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    # Accept exclusions from stdin (JSON) or fall back to TOML file
+    # Try to read from stdin first, fall back to TOML on any error
+    try:
+        stdin_content = sys.stdin.read()
+        if stdin_content.strip():
+            # We have content, try to parse as JSON
+            exclusions_data = json.loads(stdin_content)
+        else:
+            # Empty stdin, use TOML
+            raise ValueError("Empty stdin")
+    except (json.JSONDecodeError, ValueError):
+        # Fall back to reading TOML file directly
+        import tomllib
+        exclusions_file = Path(__file__).parent.parent.parent / "exclusion.toml"
+        with exclusions_file.open("rb") as f:
+            exclusions_data = tomllib.load(f)
+
+    main(exclusions_data)
