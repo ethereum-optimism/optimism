@@ -46,10 +46,7 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is Test {
     /// @dev Uses vm.getCode to avoid importing Proxy which causes artifact conflicts.
     function _deployProxy(address _admin, address _impl) internal returns (address proxy_) {
         // Get Proxy bytecode using path-qualified name to avoid conflicts
-        bytes memory proxyCode = abi.encodePacked(
-            vm.getCode("universal/Proxy.sol:Proxy"),
-            abi.encode(_admin)
-        );
+        bytes memory proxyCode = abi.encodePacked(vm.getCode("universal/Proxy.sol:Proxy"), abi.encode(_admin));
         assembly {
             proxy_ := create(0, add(proxyCode, 0x20), mload(proxyCode))
         }
@@ -59,6 +56,7 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is Test {
         require(success, "upgradeTo failed");
     }
     // Events
+
     event Challenged(address indexed challenger);
     event Proved(address indexed prover);
     event Resolved(GameStatus indexed status);
