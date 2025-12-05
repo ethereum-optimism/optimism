@@ -10,7 +10,7 @@ abstract contract Test is ForgeTest {
     /// @notice Makes an address without a private key, labels it, and cleans it.
     /// @param _name The name of the address.
     /// @return The address.
-    function makeAddr(string memory _name) public override returns (address) {
+    function makeAddr(string memory _name) internal virtual override returns (address) {
         address addr = address(uint160(uint256(keccak256(abi.encode(_name)))));
         destroyAccount(addr, address(0));
         vm.label(addr, _name);

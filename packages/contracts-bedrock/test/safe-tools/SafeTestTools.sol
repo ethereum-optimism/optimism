@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.7.0 <0.9.0;
 
+// Forge
+import { console2 as console } from "forge-std/console2.sol";
+import { Vm } from "forge-std/Vm.sol";
+
 // Testing
-import { Test } from "test/setup/Test.sol";
 import "./CompatibilityFallbackHandler_1_3_0.sol";
 
 // Contracts

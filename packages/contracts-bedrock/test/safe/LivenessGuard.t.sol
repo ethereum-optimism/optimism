@@ -3,8 +3,6 @@ pragma solidity 0.8.15;
 
 // Testing
 import { Test } from "test/setup/Test.sol";
-import { StdUtils } from "forge-std/StdUtils.sol";
-import { StdCheats } from "forge-std/StdCheats.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
 // Contracts
@@ -169,7 +167,7 @@ contract LivenessGuard_ShowLiveness_Test is LivenessGuard_TestInit {
 /// @title LivenessGuard_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `LivenessGuard`
 ///         contract or are testing multiple functions at once.
-contract LivenessGuard_Uncategorized_Test is StdCheats, StdUtils, LivenessGuard_TestInit {
+contract LivenessGuard_Uncategorized_Test is LivenessGuard_TestInit {
     using SafeTestLib for SafeInstance;
 
     /// @notice Enumerates the possible owner management operations
