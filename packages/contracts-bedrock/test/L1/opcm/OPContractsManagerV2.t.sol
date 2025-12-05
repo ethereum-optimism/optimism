@@ -874,7 +874,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.disputeGameConfigs.push(
             IOPContractsManagerV2.DisputeGameConfig({
                 enabled: true,
-                initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
+                initBond: 0.08 ether, // Standard init bond
                 gameType: GameTypes.CANNON,
                 gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
             })
@@ -882,7 +882,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.disputeGameConfigs.push(
             IOPContractsManagerV2.DisputeGameConfig({
                 enabled: true,
-                initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
+                initBond: 0.08 ether, // Standard init bond
                 gameType: GameTypes.PERMISSIONED_CANNON,
                 gameArgs: abi.encode(
                     IOPContractsManagerV2.PermissionedDisputeGameConfig({
@@ -896,7 +896,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.disputeGameConfigs.push(
             IOPContractsManagerV2.DisputeGameConfig({
                 enabled: isDevFeatureEnabled(DevFeatures.CANNON_KONA),
-                initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
+                initBond: isDevFeatureEnabled(DevFeatures.CANNON_KONA) ? 0.08 ether : 0, // Standard init bond
                 gameType: GameTypes.CANNON_KONA,
                 gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
             })
