@@ -20,9 +20,9 @@ type L2FollowSource interface {
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 }
 
-// FollowUpstreamSource combines L1 and L2 follow sources.
+// UpstreamFollowSource combines L1 and L2 follow sources.
 // L2 following may be optionally disabled.
-type FollowUpstreamSource interface {
+type UpstreamFollowSource interface {
 	L2FollowSource
 	L1FollowSource
 	CanFollowL2() bool
@@ -33,7 +33,7 @@ type L2ELFollowSource struct {
 	l1Source L1FollowSource
 }
 
-var _ FollowUpstreamSource = (*L2ELFollowSource)(nil)
+var _ UpstreamFollowSource = (*L2ELFollowSource)(nil)
 
 func NewL2ELFollowSource(client *sources.L2Client, l1Source L1FollowSource) *L2ELFollowSource {
 	if l1Source == nil {
