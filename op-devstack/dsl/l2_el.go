@@ -170,6 +170,10 @@ func (el *L2ELNode) NotAdvanced(label eth.BlockLabel, attempts int) {
 	el.require.NoError(el.NotAdvancedFn(label, attempts)())
 }
 
+func (el *L2ELNode) NotAdvancedUnsafe(attempts int) {
+	el.NotAdvanced(eth.Unsafe, attempts)
+}
+
 func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) {
 	el.require.NoError(el.ReorgTriggeredFn(target, attempts)())
 }
@@ -349,6 +353,10 @@ func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl types.SafetyLevel, a
 	el.require.NoError(el.MatchedFn(refNode, lvl, attempts)())
 }
 
+func (el *L2ELNode) MatchedUnsafe(refNode SyncStatusProvider, attempts int) {
+	el.Matched(refNode, types.LocalUnsafe, attempts)
+}
+
 func (el *L2ELNode) UnsafeHead() *BlockRefResult {
 	return &BlockRefResult{T: el.t, BlockRef: el.BlockRefByLabel(eth.Unsafe)}
 }
@@ -365,4 +373,8 @@ type BlockRefResult struct {
 func (r *BlockRefResult) NumEqualTo(num uint64) *BlockRefResult {
 	r.T.Require().Equal(num, r.BlockRef.Number)
 	return r
+}
+
+func (r *BlockRefResult) IsGenesis() *BlockRefResult {
+	return r.NumEqualTo(0)
 }

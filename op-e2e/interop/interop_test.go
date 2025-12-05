@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -442,7 +443,7 @@ func TestProposals(t *testing.T) {
 
 		head, err := ethClient.BlockByNumber(context.Background(), nil)
 		require.NoError(t, err)
-		game, err := factory.GetGame(context.Background(), 0, head.Hash())
+		game, err := factory.GetGame(context.Background(), 0, rpcblock.ByHash(head.Hash()))
 		require.NoError(t, err)
 		require.Equal(t, uint32(4) /* super permissionless */, game.GameType)
 	}

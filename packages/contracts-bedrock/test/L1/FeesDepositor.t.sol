@@ -9,7 +9,6 @@ import { FeesDepositor } from "src/L1/FeesDepositor.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { Features } from "src/libraries/Features.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title FeesDepositor_TestInit
 /// @notice Base test contract with initialization for `FeesDepositor` tests.
@@ -98,7 +97,7 @@ contract FeesDepositor_Receive_Test is FeesDepositor_TestInit {
     }
 
     function testFuzz_receive_atOrAboveThreshold_succeeds(uint256 _sendAmount) external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
 
         // Handling the fork tests scenario case for the fork tests
         uint256 depositFeesRecipientBalanceBefore = depositFeesRecipient.balance;
@@ -126,7 +125,7 @@ contract FeesDepositor_Receive_Test is FeesDepositor_TestInit {
     }
 
     function testFuzz_receive_multipleDeposits_succeeds(uint256 _firstAmount, uint256 _secondAmount) external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
 
         // Handling the fork tests scenario
         uint256 depositFeesRecipientBalanceBefore = depositFeesRecipient.balance;

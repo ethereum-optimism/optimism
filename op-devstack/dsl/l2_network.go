@@ -1,7 +1,9 @@
 package dsl
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"math"
 	"time"
 
@@ -12,9 +14,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/common"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 )
 
 // L2Network wraps a stack.L2Network interface for DSL operations
@@ -260,4 +264,263 @@ func (n *L2Network) DisputeGameFactoryProxyAddr() common.Address {
 
 func (n *L2Network) DepositContractAddr() common.Address {
 	return n.inner.RollupConfig().DepositContractAddress
+}
+
+func (n *L2Network) DeriveData(blocks int) (channels []derive.ChannelID, channelFrames map[derive.ChannelID][]derive.Frame, l2Txs map[common.Address][]*ethtypes.Transaction) {
+	l := n.log
+	ctx := n.ctx
+
+	channelFrames = make(map[derive.ChannelID][]derive.Frame)
+	channels = make([]derive.ChannelID, 0)
+	l2Txs = make(map[common.Address][]*ethtypes.Transaction)
+
+	rollupCfg := n.inner.RollupConfig()
+	batchInboxAddr := rollupCfg.BatchInboxAddress
+
+	l1EC := n.inner.L1().L1ELNode(match.FirstL1EL).EthClient()
+
+	// Get current L1 block number before starting to monitor
+	startBlockRef, err := l1EC.BlockRefByLabel(ctx, eth.Unsafe)
+	n.require.NoError(err, "Failed to get start block number")
+
+	seenChannels := make(map[derive.ChannelID]bool)
+	lastBlockRef := startBlockRef
+
+	// Monitor L1 blocks for batch transactions
+	for range blocks {
+		NewL1ELNode(n.inner.L1().L1ELNode(match.FirstL1EL)).WaitForBlock()
+
+		// Get current block number
+		currentBlockRef, err := l1EC.BlockRefByLabel(ctx, eth.Unsafe)
+		n.require.NoError(err, "Failed to get current block number")
+		blockNum := currentBlockRef.Number
+		lastBlockRef = currentBlockRef
+
+		_, txs, err := l1EC.InfoAndTxsByNumber(ctx, blockNum)
+		n.require.NoError(err, "Failed to get block %d", blockNum)
+
+		// Process transactions in this block
+		for _, tx := range txs {
+			// Check if transaction is targeted to BatchInbox
+			if tx.To() != nil && *tx.To() == batchInboxAddr {
+				// Get transaction sender
+				chainID := n.inner.L1().ChainID()
+				chainIDBig := chainID.ToBig()
+				signer := ethtypes.LatestSignerForChainID(chainIDBig)
+				sender, err := signer.Sender(tx)
+				n.require.NoError(err, "Failed to get transaction sender")
+
+				l.Debug("Found batch transaction",
+					"txHash", tx.Hash(),
+					"block", blockNum,
+					"sender", sender)
+
+				var datas [][]byte
+				if tx.Type() != ethtypes.BlobTxType {
+					// Regular transaction - data is in tx.Data()
+					datas = append(datas, tx.Data())
+				} else {
+					// Blob transaction - need to fetch blobs from beacon
+					// For now, log that we found a blob tx but skip detailed parsing
+					// as it requires beacon API access
+					l.Error("Found blob transaction (skipping blob fetch for now)",
+						"txHash", tx.Hash(),
+						"blobHashes", tx.BlobHashes())
+					continue
+				}
+
+				// Parse frames from transaction data
+				for _, data := range datas {
+					frames, err := derive.ParseFrames(data)
+					if err != nil {
+						l.Warn("Failed to parse frames from transaction",
+							"txHash", tx.Hash(),
+							"error", err)
+						n.require.NoError(err)
+					}
+
+					l.Debug("Parsed frames from transaction",
+						"txHash", tx.Hash(),
+						"frameCount", len(frames))
+
+					// Process each frame
+					for _, frame := range frames {
+						channelID := frame.ID
+						if !seenChannels[channelID] {
+							seenChannels[channelID] = true
+							l.Debug("Found new channel",
+								"channelID", channelID.String(),
+								"txHash", tx.Hash(),
+								"block", blockNum)
+							channels = append(channels, channelID)
+						}
+						channelFrames[channelID] = append(channelFrames[channelID], frame)
+						l.Debug("Frame added to channel",
+							"channelID", channelID.String(),
+							"frameNumber", frame.FrameNumber,
+							"dataLength", len(frame.Data),
+							"isLast", frame.IsLast,
+							"txHash", tx.Hash())
+					}
+				}
+			}
+		}
+	}
+
+	// Reassemble channels and extract batches
+	for channelID, frames := range channelFrames {
+		l.Debug("Processing channel",
+			"channelID", channelID.String(),
+			"frameCount", len(frames))
+
+		// Sort frames by frame number
+		sortedFrames := make([]derive.Frame, len(frames))
+		copy(sortedFrames, frames)
+		for i := 0; i < len(sortedFrames); i++ {
+			for j := i + 1; j < len(sortedFrames); j++ {
+				if sortedFrames[i].FrameNumber > sortedFrames[j].FrameNumber {
+					sortedFrames[i], sortedFrames[j] = sortedFrames[j], sortedFrames[i]
+				}
+			}
+		}
+
+		// Create a channel and add frames to it
+		// We need an L1 block ref for the channel - use the last processed block as the origin
+		originBlock := lastBlockRef
+		ch := derive.NewChannel(channelID, originBlock, false)
+
+		for _, frame := range sortedFrames {
+			err := ch.AddFrame(frame, originBlock)
+			if err != nil {
+				l.Warn("Failed to add frame to channel",
+					"channelID", channelID.String(),
+					"frameNumber", frame.FrameNumber,
+					"error", err)
+				continue
+			}
+		}
+
+		l.Debug("Channel is ready, extracting batches",
+			"channelID", channelID.String(),
+			"size", ch.Size())
+
+		channelReader := ch.Reader()
+		channelData, err := io.ReadAll(channelReader)
+		if err != nil {
+			l.Warn("Failed to read channel data",
+				"channelID", channelID.String(),
+				"error", err)
+			continue
+		}
+
+		l.Debug("Read channel data",
+			"channelID", channelID.String(),
+			"dataLength", len(channelData))
+
+		spec := rollup.NewChainSpec(rollupCfg)
+		maxRLPBytes := spec.MaxRLPBytesPerChannel(originBlock.Time)
+		isFjord := rollupCfg.IsFjord(originBlock.Time)
+		batchReader, err := derive.BatchReader(bytes.NewReader(channelData), maxRLPBytes, isFjord)
+		if err != nil {
+			l.Warn("Failed to create batch reader",
+				"channelID", channelID.String(),
+				"error", err)
+			continue
+		}
+
+		// Read all batches from the channel
+		batchCount := 0
+		for {
+			batchData, err := batchReader()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				l.Warn("Failed to read batch from channel",
+					"channelID", channelID.String(),
+					"batchCount", batchCount,
+					"error", err)
+				break
+			}
+
+			batchCount++
+			batchType := batchData.GetBatchType()
+
+			l.Debug("Found batch in channel",
+				"channelID", channelID.String(),
+				"batchNumber", batchCount,
+				"batchType", batchType,
+				"compressionAlgo", batchData.ComprAlgo)
+
+			// Decode the batch based on type
+			if batchType == derive.SingularBatchType {
+				singularBatch, err := derive.GetSingularBatch(batchData)
+				if err != nil {
+					l.Warn("Failed to decode singular batch",
+						"channelID", channelID.String(),
+						"batchNumber", batchCount,
+						"error", err)
+					n.require.NoError(err)
+				}
+
+				for _, txData := range singularBatch.Transactions {
+					var tx ethtypes.Transaction
+					n.require.NoError(tx.UnmarshalBinary(txData))
+
+					signer := ethtypes.LatestSignerForChainID(rollupCfg.L2ChainID)
+					fromAddr, err := signer.Sender(&tx)
+					n.require.NoError(err)
+
+					l2Txs[fromAddr] = append(l2Txs[fromAddr], &tx)
+				}
+
+			} else if batchType == derive.SpanBatchType {
+				spanBatch, err := derive.DeriveSpanBatch(
+					batchData,
+					rollupCfg.BlockTime,
+					rollupCfg.Genesis.L2Time,
+					rollupCfg.L2ChainID,
+				)
+				if err != nil {
+					l.Warn("Failed to decode span batch",
+						"channelID", channelID.String(),
+						"batchNumber", batchCount,
+						"error", err)
+					continue
+				}
+
+				for blockIdx, batchElement := range spanBatch.Batches {
+					l.Debug("L2 block in span batch",
+						"channelID", channelID.String(),
+						"batchNumber", batchCount,
+						"blockIndex", blockIdx,
+						"epochNum", batchElement.EpochNum,
+						"timestamp", batchElement.Timestamp,
+						"txCount", len(batchElement.Transactions))
+
+					for _, txData := range batchElement.Transactions {
+						var tx ethtypes.Transaction
+						n.require.NoError(tx.UnmarshalBinary(txData))
+
+						signer := ethtypes.LatestSignerForChainID(rollupCfg.L2ChainID)
+						fromAddr, err := signer.Sender(&tx)
+						n.require.NoError(err)
+
+						l2Txs[fromAddr] = append(l2Txs[fromAddr], &tx)
+					}
+				}
+			} else {
+				l.Warn("Unknown batch type",
+					"channelID", channelID.String(),
+					"batchNumber", batchCount,
+					"batchType", batchType)
+			}
+		}
+
+		l.Debug("Finished processing channel",
+			"channelID", channelID.String(),
+			"totalBatches", batchCount)
+	}
+
+	return channels, channelFrames, l2Txs
 }

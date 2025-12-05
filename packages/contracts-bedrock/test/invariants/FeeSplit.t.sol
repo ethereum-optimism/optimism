@@ -10,7 +10,6 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
 import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @notice A struct to keep track of the state when a disburse call fails
 struct DisburseFailureState {
@@ -215,10 +214,6 @@ contract FeeSplitter_Invariant is CommonTest {
 
     /// @notice Setup: enable the revenue share, deploy handlers and target them.
     function setUp() public override {
-        // Resolve features and skip whole test suite if custom gas token is enabled
-        resolveFeaturesFromEnv();
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
-
         super.enableRevenueShare();
         super.setUp();
 

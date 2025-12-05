@@ -7,8 +7,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/registry"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -35,7 +35,7 @@ func TestRegisterOracle_MissingGameImpl(t *testing.T) {
 
 			logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
 			oracles := registry.NewOracleRegistry()
-			gameType := faultTypes.CannonGameType
+			gameType := gameTypes.CannonGameType
 
 			rpc.SetResponse(gameFactoryAddr, "gameImpls", rpcblock.Latest, []interface{}{gameType}, []interface{}{common.Address{}})
 
@@ -76,7 +76,7 @@ func TestRegisterOracle_AddsOracle(t *testing.T) {
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			for _, gameType := range []faultTypes.GameType{faultTypes.CannonGameType, faultTypes.SuperCannonGameType, faultTypes.SuperAsteriscKonaGameType} {
+			for _, gameType := range []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.SuperCannonGameType, gameTypes.SuperAsteriscKonaGameType} {
 				t.Run(fmt.Sprintf("%v", gameType), func(t *testing.T) {
 					gameFactoryAddr := common.Address{0xaa}
 					gameImplAddr := common.Address{0xbb}
@@ -84,9 +84,9 @@ func TestRegisterOracle_AddsOracle(t *testing.T) {
 					oracleAddr := common.Address{0xdd}
 					rpc := test.NewAbiBasedRpc(t, gameFactoryAddr, snapshots.LoadDisputeGameFactoryABI())
 					rpc.SetResponse(gameFactoryAddr, "version", rpcblock.Latest, nil, []interface{}{testCase.version})
-					if gameType == faultTypes.CannonGameType {
+					if gameType == gameTypes.CannonGameType {
 						rpc.AddContract(gameImplAddr, snapshots.LoadFaultDisputeGameABI())
-					} else if gameType == faultTypes.SuperCannonGameType || gameType == faultTypes.SuperAsteriscKonaGameType {
+					} else if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperAsteriscKonaGameType {
 						rpc.AddContract(gameImplAddr, snapshots.LoadSuperFaultDisputeGameABI())
 					} else {
 						t.Fatalf("game type %v not supported", gameType)

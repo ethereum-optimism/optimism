@@ -32,6 +32,12 @@
         "type": "bytes",
         "indexed": false,
         "internalType": "bytes"
+      },
+      {
+        "name": "delegateCallResult",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
       }
     ],
     "anonymous": false

@@ -21,6 +21,7 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
+import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 
 interface IOPContractsManagerV2 {
     /// @notice Configuration for the FaultDisputeGame.
@@ -82,32 +83,22 @@ interface IOPContractsManagerV2 {
         DisputeGameConfig[] disputeGameConfigs;
     }
 
-    struct ExtraInstruction {
-        string key;
-        bytes data;
-    }
-
     struct UpgradeInput {
         ISystemConfig systemConfig;
         DisputeGameConfig[] disputeGameConfigs;
-        ExtraInstruction[] extraInstructions;
+        IOPContractsManagerUtils.ExtraInstruction[] extraInstructions;
     }
 
     struct SuperchainUpgradeInput {
         ISuperchainConfig superchainConfig;
-        ExtraInstruction[] extraInstructions;
+        IOPContractsManagerUtils.ExtraInstruction[] extraInstructions;
     }
-
-    event ProxyCreation(string name, address proxy);
 
     error OPContractsManagerV2_InvalidGameConfigs();
     error OPContractsManagerV2_InvalidUpgradeInput();
     error OPContractsManagerV2_SuperchainConfigNeedsUpgrade();
     error OPContractsManagerV2_UnsupportedGameType();
-    error OPContractsManagerV2_ProxyMustLoad(string _name);
-    error OPContractsManagerV2_DowngradeNotAllowed(address _contract);
     error OPContractsManagerV2_InvalidUpgradeInstruction();
-    error OPContractsManagerV2_ConfigLoadFailed(string _name);
     error IdentityPrecompileCallFailed();
     error ReservedBitsSet();
     error BytesArrayTooLong();
@@ -120,7 +111,8 @@ interface IOPContractsManagerV2 {
 
     function __constructor__(
         IOPContractsManagerContainer _contractsContainer,
-        IOPContractsManagerStandardValidator _standardValidator
+        IOPContractsManagerStandardValidator _standardValidator,
+        IOPContractsManagerUtils _utils
     )
         external;
 
@@ -131,6 +123,8 @@ interface IOPContractsManagerV2 {
     function contractsContainer() external view returns (IOPContractsManagerContainer);
 
     function standardValidator() external view returns (IOPContractsManagerStandardValidator);
+
+    function utils() external view returns (IOPContractsManagerUtils);
 
     function version() external view returns (string memory);
 

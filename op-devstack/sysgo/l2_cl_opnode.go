@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -51,6 +52,7 @@ type OpNode struct {
 	el               *stack.L2ELNodeID // Optional: nil when using SyncTester
 	userProxy        *tcpproxy.Proxy
 	interopProxy     *tcpproxy.Proxy
+	clock            clock.Clock
 }
 
 var _ L2CLNode = (*OpNode)(nil)
@@ -73,7 +75,26 @@ func (n *OpNode) hydrate(system stack.ExtensibleSystem) {
 	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
 	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
 	if n.el != nil {
-		sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(n.el))
+		for _, el := range l2Net.L2ELNodes() {
+			if el.ID() == *n.el {
+				sysL2CL.(stack.LinkableL2CLNode).LinkEL(el)
+				return
+			}
+		}
+		rbID := stack.RollupBoostNodeID(*n.el)
+		for _, rb := range l2Net.RollupBoostNodes() {
+			if rb.ID() == rbID {
+				sysL2CL.(stack.LinkableL2CLNode).LinkRollupBoostNode(rb)
+				return
+			}
+		}
+		oprbID := stack.OPRBuilderNodeID(*n.el)
+		for _, oprb := range l2Net.OPRBuilderNodes() {
+			if oprb.ID() == oprbID {
+				sysL2CL.(stack.LinkableL2CLNode).LinkOPRBuilderNode(oprb)
+				return
+			}
+		}
 	}
 }
 
@@ -111,7 +132,7 @@ func (n *OpNode) Start() {
 		n.interopEndpoint = "ws://" + n.interopProxy.Addr()
 	}
 	n.logger.Info("Starting op-node")
-	opNode, err := opnode.NewOpnode(n.logger, n.cfg, func(err error) {
+	opNode, err := opnode.NewOpnode(n.logger, n.cfg, n.clock, func(err error) {
 		n.p.Require().NoError(err, "op-node critical error")
 	})
 	n.p.Require().NoError(err, "op-node failed to start")
@@ -160,7 +181,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		require.True(ok, "l1 CL node required")
 
 		// Get the L2EL node (which can be a regular EL node or a SyncTesterEL)
-		l2EL, ok := orch.l2ELs.Get(l2ELID)
+		l2EL, ok := orch.GetL2EL(l2ELID)
 		require.True(ok, "l2 EL node required")
 
 		// Get dependency set from cluster if available
@@ -174,12 +195,16 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		L2CLOptionBundle(opts).Apply(p, l2CLID, cfg) // apply specific options
 
 		syncMode := cfg.VerifierSyncMode
+		unsafeOnly := false
 		if cfg.IsSequencer {
 			syncMode = cfg.SequencerSyncMode
 			// Sanity check, to navigate legacy sync-mode test assumptions.
 			// Can't enable ELSync on the sequencer or it will never start sequencing because
 			// ELSync needs to receive gossip from the sequencer to drive the sync
 			p.Require().NotEqual(nodeSync.ELSync, syncMode, "sequencer cannot use EL sync")
+			unsafeOnly = cfg.SequencerUnsafeOnly
+		} else {
+			unsafeOnly = cfg.VerifierUnsafeOnly
 		}
 
 		jwtPath, jwtSecret := orch.writeDefaultJWT()
@@ -245,9 +270,6 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		// Set the req-resp sync flag as per config
 		p2pConfig.EnableReqRespSync = cfg.EnableReqRespSync
 
-		// Get the L2 engine address from the EL node (which can be a regular EL node or a SyncTesterEL)
-		l2EngineAddr := l2EL.EngineRPC()
-
 		nodeCfg := &config.Config{
 			L1: &config.L1EndpointConfig{
 				L1NodeAddr:       l1EL.UserRPC(),
@@ -261,7 +283,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			},
 			L1ChainConfig: l1Net.genesis.Config,
 			L2: &config.L2EndpointConfig{
-				L2EngineAddr:      l2EngineAddr,
+				L2EngineAddr:      l2EL.EngineRPC(),
 				L2EngineJWTSecret: jwtSecret,
 			},
 			Beacon: &config.L1BeaconEndpointConfig{
@@ -291,6 +313,9 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				SyncModeReqResp:                cfg.UseReqRespSync,
 				SkipSyncStartCheck:             false,
 				SupportsPostFinalizationELSync: false,
+				UnsafeOnly:                     unsafeOnly,
+				L2FollowSourceEndpoint:         "",
+				NeedInitialResetEngine:         cfg.IsSequencer && unsafeOnly,
 			},
 			ConfigPersistence:               config.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
@@ -314,6 +339,10 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			cfg:    nodeCfg,
 			logger: logger,
 			p:      p,
+		}
+
+		if orch.timeTravelClock != nil {
+			l2CLNode.clock = orch.timeTravelClock
 		}
 
 		// Set the EL field to link to the L2EL node

@@ -81,7 +81,7 @@ func NewFaultDisputeGameContract(ctx context.Context, metrics metrics.ContractMe
 		return nil, fmt.Errorf("failed to detect game type: %w", err)
 	}
 	switch gameType {
-	case types.SuperCannonGameType, types.SuperCannonKonaGameType, types.SuperPermissionedGameType, types.SuperAsteriscKonaGameType:
+	case gameTypes.SuperCannonGameType, gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType, gameTypes.SuperAsteriscKonaGameType:
 		return NewSuperFaultDisputeGameContract(ctx, metrics, addr, caller)
 	default:
 		return NewPreInteropFaultDisputeGameContract(ctx, metrics, addr, caller)
@@ -160,6 +160,10 @@ func mustParseAbi(json []byte) *abi.ABI {
 		panic(err)
 	}
 	return &loaded
+}
+
+func (f *FaultDisputeGameContractLatest) Addr() common.Address {
+	return f.contract.Addr()
 }
 
 // GetBalanceAndDelay returns the total amount of ETH controlled by this contract.

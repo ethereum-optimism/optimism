@@ -82,12 +82,12 @@ func (s *KonaSupervisor) Start() {
 			userRPC <- "http://" + e.FieldValue("addr").(string)
 		}
 	}
-	stdOutLogs := logpipe.LogProcessor(func(line []byte) {
+	stdOutLogs := logpipe.LogCallback(func(line []byte) {
 		e := logpipe.ParseRustStructuredLogs(line)
 		logOut(e)
 		onLogEntry(e)
 	})
-	stdErrLogs := logpipe.LogProcessor(func(line []byte) {
+	stdErrLogs := logpipe.LogCallback(func(line []byte) {
 		e := logpipe.ParseRustStructuredLogs(line)
 		logErr(e)
 	})

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/custom_gas_token"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -18,6 +19,9 @@ func TestL1ToL2Deposit(gt *testing.T) {
 	// Create a test environment using op-devstack
 	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t)
+
+	// Skip this test if CGT is enabled
+	custom_gas_token.SkipIfCGT(t, sys)
 
 	// Wait for L1 node to be responsive
 	sys.L1Network.WaitForOnline()

@@ -67,14 +67,14 @@ jobs:
           - cannon
           - op-dripper
           - op-interop-mon
-    uses: ethereum-optimism/factory/.github/workflows/docker-bake.yaml@2ff3f9bba03d59a6ad10fdf660ed253f53956188
+    uses: ethereum-optimism/factory/.github/workflows/docker-bake.yaml@f08b1f0c47f15b3c95dc9811fb09c1d8ed3436bd
     with:
       image_name: ${{ matrix.image_name }}
       bake_file: docker-bake.hcl
       target: ${{ matrix.image_name }}
       tag: 24h
       registry: ttl.sh/${{ github.sha }}
-      push_provenance: false
+      attest: false
       env: |
         GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[matrix.image_name] }}
         KONA_VERSION=${{ needs.prep.outputs.kona_version }}

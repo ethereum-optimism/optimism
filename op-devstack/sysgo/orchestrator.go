@@ -37,19 +37,21 @@ type Orchestrator struct {
 	SyncTesterELOptions     SyncTesterELOptionBundle
 	deployerPipelineOptions []DeployerPipelineOption
 
-	superchains    locks.RWMap[stack.SuperchainID, *Superchain]
-	clusters       locks.RWMap[stack.ClusterID, *Cluster]
-	l1Nets         locks.RWMap[eth.ChainID, *L1Network]
-	l2Nets         locks.RWMap[eth.ChainID, *L2Network]
-	l1ELs          locks.RWMap[stack.L1ELNodeID, L1ELNode]
-	l1CLs          locks.RWMap[stack.L1CLNodeID, *L1CLNode]
-	l2ELs          locks.RWMap[stack.L2ELNodeID, L2ELNode]
-	l2CLs          locks.RWMap[stack.L2CLNodeID, L2CLNode]
-	supervisors    locks.RWMap[stack.SupervisorID, Supervisor]
-	testSequencers locks.RWMap[stack.TestSequencerID, *TestSequencer]
-	batchers       locks.RWMap[stack.L2BatcherID, *L2Batcher]
-	challengers    locks.RWMap[stack.L2ChallengerID, *L2Challenger]
-	proposers      locks.RWMap[stack.L2ProposerID, *L2Proposer]
+	superchains     locks.RWMap[stack.SuperchainID, *Superchain]
+	clusters        locks.RWMap[stack.ClusterID, *Cluster]
+	l1Nets          locks.RWMap[eth.ChainID, *L1Network]
+	l2Nets          locks.RWMap[eth.ChainID, *L2Network]
+	l1ELs           locks.RWMap[stack.L1ELNodeID, L1ELNode]
+	l1CLs           locks.RWMap[stack.L1CLNodeID, *L1CLNode]
+	l2ELs           locks.RWMap[stack.L2ELNodeID, L2ELNode]
+	l2CLs           locks.RWMap[stack.L2CLNodeID, L2CLNode]
+	supervisors     locks.RWMap[stack.SupervisorID, Supervisor]
+	testSequencers  locks.RWMap[stack.TestSequencerID, *TestSequencer]
+	batchers        locks.RWMap[stack.L2BatcherID, *L2Batcher]
+	challengers     locks.RWMap[stack.L2ChallengerID, *L2Challenger]
+	proposers       locks.RWMap[stack.L2ProposerID, *L2Proposer]
+	rollupBoosts    locks.RWMap[stack.RollupBoostNodeID, *RollupBoostNode]
+	oprbuilderNodes locks.RWMap[stack.OPRBuilderNodeID, *OPRBuilderNode]
 
 	// service name => prometheus endpoints to scrape
 	l2MetricsEndpoints locks.RWMap[string, []PrometheusMetricsTarget]
@@ -91,6 +93,29 @@ func (o *Orchestrator) EnableTimeTravel() {
 	}
 }
 
+// GetL2EL attempts to find an L2 EL node by checking various collections of EL-like nodes.
+// It returns the L2ELNode interface if found in the standard L2ELs collection,
+// or the raw node object if found in other collections (e.g. RollupBoostNode).
+func (o *Orchestrator) GetL2EL(id stack.L2ELNodeID) (L2ELNode, bool) {
+	if el, ok := o.l2ELs.Get(id); ok {
+		return el, true
+	}
+
+	// Check RollupBoost
+	rbID := stack.NewRollupBoostNodeID(id.Key(), id.ChainID())
+	if rb, ok := o.rollupBoosts.Get(rbID); ok {
+		return rb, true
+	}
+
+	// Check op-rbuilder
+	oprbID := stack.NewOPRBuilderNodeID(id.Key(), id.ChainID())
+	if oprbuilder, ok := o.oprbuilderNodes.Get(oprbID); ok {
+		return oprbuilder, true
+	}
+
+	return nil, false
+}
+
 var _ stack.Orchestrator = (*Orchestrator)(nil)
 
 func NewOrchestrator(p devtest.P, hook stack.SystemHook) *Orchestrator {
@@ -129,6 +154,8 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	o.l1ELs.Range(rangeHydrateFn[stack.L1ELNodeID, L1ELNode](sys))
 	o.l1CLs.Range(rangeHydrateFn[stack.L1CLNodeID, *L1CLNode](sys))
 	o.l2ELs.Range(rangeHydrateFn[stack.L2ELNodeID, L2ELNode](sys))
+	o.oprbuilderNodes.Range(rangeHydrateFn[stack.OPRBuilderNodeID, *OPRBuilderNode](sys))
+	o.rollupBoosts.Range(rangeHydrateFn[stack.RollupBoostNodeID, *RollupBoostNode](sys))
 	o.l2CLs.Range(rangeHydrateFn[stack.L2CLNodeID, L2CLNode](sys))
 	o.supervisors.Range(rangeHydrateFn[stack.SupervisorID, Supervisor](sys))
 	o.testSequencers.Range(rangeHydrateFn[stack.TestSequencerID, *TestSequencer](sys))

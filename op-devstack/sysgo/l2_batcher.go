@@ -89,7 +89,7 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			L1EthRpc:                 l1EL.UserRPC(),
 			L2EthRpc:                 []string{l2EL.UserRPC()},
 			RollupRpc:                []string{l2CL.UserRPC()},
-			MaxPendingTransactions:   1,
+			MaxPendingTransactions:   7,
 			MaxChannelDuration:       1,
 			MaxL1TxSize:              120_000,
 			TestUseMaxTxSizeForBlobs: false,

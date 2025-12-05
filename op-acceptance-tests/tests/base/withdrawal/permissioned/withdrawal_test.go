@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/withdrawal"
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 )
 
 func TestWithdrawal_Permissioned(gt *testing.T) {
-	withdrawal.TestWithdrawal(gt, faultTypes.PermissionedGameType)
+	withdrawal.TestWithdrawal(gt, gameTypes.PermissionedGameType)
 }
