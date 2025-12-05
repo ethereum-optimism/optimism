@@ -35,6 +35,7 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 
 /// @title ForkLive
 /// @notice This script is called by Setup.sol as a preparation step for the foundry test suite, and is run as an
@@ -252,7 +253,7 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
                 (
                     IOPContractsManagerV2.SuperchainUpgradeInput({
                         superchainConfig: superchainConfig,
-                        extraInstructions: new IOPContractsManagerV2.ExtraInstruction[](0)
+                        extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
                     })
                 )
             )
@@ -260,7 +261,7 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
         if (success == false) {
             // Only acceptable revert reason is downgrade not allowed.
             assertTrue(
-                bytes4(reason) == IOPContractsManagerV2.OPContractsManagerV2_DowngradeNotAllowed.selector,
+                bytes4(reason) == IOPContractsManagerUtils.OPContractsManagerUtils_DowngradeNotAllowed.selector,
                 "Revert reason other than DowngradeNotAllowed"
             );
         }
@@ -309,12 +310,14 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
 
         // Add extra instructions to allow the DelayedWETH proxy to be deployed.
         // TODO(#18502): Remove the extra instruction for custom gas token after U18 ships.
-        IOPContractsManagerV2.ExtraInstruction[] memory extraInstructions =
-            new IOPContractsManagerV2.ExtraInstruction[](2);
+        IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
+            new IOPContractsManagerUtils.ExtraInstruction[](2);
         extraInstructions[0] =
-            IOPContractsManagerV2.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") });
-        extraInstructions[1] =
-            IOPContractsManagerV2.ExtraInstruction({ key: "overrides.cfg.useCustomGasToken", data: abi.encode(false) });
+            IOPContractsManagerUtils.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") });
+        extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
+            key: "overrides.cfg.useCustomGasToken",
+            data: abi.encode(false)
+        });
 
         vm.prank(_delegateCaller, true);
         (bool upgradeSuccess,) = address(_opcm).delegatecall(

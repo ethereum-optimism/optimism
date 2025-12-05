@@ -76,6 +76,15 @@ func TestActor(t *testing.T) {
 			challenge: true,
 		},
 		{
+			name: "ChallengeCurrentlyUnsafeProposal",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.proposalHash = stubs.rootProvider.root
+				stubs.contract.l2SequenceNumber = stubs.rootProvider.rootBlockNum
+				stubs.rootProvider.safeBlockNum = stubs.rootProvider.rootBlockNum - 1
+			},
+			challenge: true,
+		},
+		{
 			name: "ChallengeUnresolvableGameWithNoParent",
 			setup: func(t *testing.T, stubs *zkTestStubs) {
 				stubs.contract.proposalHash = common.Hash{0xba, 0xd0}
@@ -203,6 +212,7 @@ func setupActorTest(t *testing.T) (*Actor, *zkTestStubs) {
 	rootProvider := &stubRootProvider{
 		root:         common.Hash{0x11},
 		rootBlockNum: rootBlockNum,
+		safeBlockNum: rootBlockNum + 10,
 	}
 	// Default to a valid proposal
 	contract := &stubContract{
@@ -231,6 +241,7 @@ type stubRootProvider struct {
 	outputErr    error
 	rootBlockNum uint64
 	root         common.Hash
+	safeBlockNum uint64
 }
 
 func (s *stubRootProvider) OutputAtBlock(_ context.Context, blockNum uint64) (*eth.OutputResponse, error) {
@@ -242,6 +253,11 @@ func (s *stubRootProvider) OutputAtBlock(_ context.Context, blockNum uint64) (*e
 	}
 	return &eth.OutputResponse{
 		OutputRoot: eth.Bytes32(s.root),
+		Status: &eth.SyncStatus{
+			SafeL2: eth.L2BlockRef{
+				Number: s.safeBlockNum,
+			},
+		},
 	}, nil
 }
 
