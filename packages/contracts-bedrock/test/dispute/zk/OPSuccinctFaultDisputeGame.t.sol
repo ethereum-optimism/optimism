@@ -38,6 +38,7 @@ import { ISP1Verifier } from "src/dispute/zk/ISP1Verifier.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IProxy } from "interfaces/universal/IProxy.sol";
 
 /// @title OPSuccinctFaultDisputeGame_TestInit
 /// @notice Base test contract with shared setup for OPSuccinctFaultDisputeGame tests.
@@ -50,10 +51,10 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is Test {
         assembly {
             proxy_ := create(0, add(proxyCode, 0x20), mload(proxyCode))
         }
-        require(proxy_ != address(0), "Proxy deployment failed");
+        require(proxy_ != address(0), "OPSuccinctFaultDisputeGame_TestInit: proxy deployment failed");
         // Call upgradeTo on the proxy to set implementation
-        (bool success,) = proxy_.call(abi.encodeWithSignature("upgradeTo(address)", _impl));
-        require(success, "upgradeTo failed");
+        (bool success,) = proxy_.call(abi.encodeCall(IProxy.upgradeTo, (_impl)));
+        require(success, "OPSuccinctFaultDisputeGame_TestInit: upgradeTo failed");
     }
     // Events
 
