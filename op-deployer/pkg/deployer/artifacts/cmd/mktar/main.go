@@ -6,9 +6,11 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/klauspost/compress/zstd"
 )
@@ -150,6 +152,13 @@ func main() {
 		log.Fatalf("walk: %v", err)
 	}
 
+	// Add COMMIT file if git is available
+	if commit := getGitCommit(absBase); commit != "" {
+		if err := addCommitFile(tw, commit); err != nil {
+			log.Fatalf("failed to add COMMIT file: %v", err)
+		}
+	}
+
 	if err := tw.Flush(); err != nil {
 		log.Fatalf("flush tar: %v", err)
 	}
@@ -215,4 +224,37 @@ func linkTarget(path string, info os.FileInfo) string {
 		log.Fatalf("readlink %s: %v", path, err)
 	}
 	return target
+}
+
+func getGitCommit(baseDir string) string {
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = baseDir
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
+
+func addCommitFile(tw *tar.Writer, commit string) error {
+	hdr := &tar.Header{
+		Name:       "COMMIT",
+		Size:       int64(len(commit)),
+		Mode:       0644,
+		ModTime:    time.Now(),
+		AccessTime: time.Now(),
+		ChangeTime: time.Now(),
+		Typeflag:   tar.TypeReg,
+	}
+
+	if err := tw.WriteHeader(hdr); err != nil {
+		return err
+	}
+
+	if _, err := tw.Write([]byte(commit)); err != nil {
+		return err
+	}
+
+	log.Printf("a COMMIT")
+	return nil
 }

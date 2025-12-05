@@ -34,6 +34,11 @@ var (
 		Usage:    "L2 chain ID",
 		Required: true,
 	}
+	ProposerFlag = &cli.StringFlag{
+		Name:     "proposer",
+		Usage:    "Proposer address as hex string (required for OPCMStandardValidator)",
+		Required: false,
+	}
 	FailOnErrorFlag = &cli.BoolFlag{
 		Name:  "fail",
 		Usage: "Exit with non-zero code if validation errors are found",
@@ -48,6 +53,7 @@ var ValidateFlags = []cli.Flag{
 	ProxyAdminFlag,
 	SystemConfigFlag,
 	L2ChainIDFlag,
+	ProposerFlag,
 	FailOnErrorFlag,
 }
 
@@ -58,6 +64,7 @@ type Config struct {
 	ProxyAdmin       common.Address
 	SystemConfig     common.Address
 	L2ChainID        *big.Int
+	Proposer         common.Address
 }
 
 // NewConfig creates a new Config from CLI context
@@ -70,11 +77,17 @@ func NewConfig(ctx *cli.Context) (*Config, error) {
 		return nil, fmt.Errorf("invalid L2 chain ID: %s", ctx.String(L2ChainIDFlag.Name))
 	}
 
+	var proposer common.Address
+	if proposerStr := ctx.String(ProposerFlag.Name); proposerStr != "" {
+		proposer = common.HexToAddress(proposerStr)
+	}
+
 	return &Config{
 		L1RPCURL:         ctx.String(L1RPCURLFlag.Name),
 		AbsolutePrestate: absolutePrestate,
 		ProxyAdmin:       proxyAdmin,
 		SystemConfig:     systemConfig,
 		L2ChainID:        l2ChainID,
+		Proposer:         proposer,
 	}, nil
 }

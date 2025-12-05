@@ -204,13 +204,13 @@ func TestHasProposedSince(t *testing.T) {
 
 func TestProposalTx(t *testing.T) {
 	stubRpc, factory := setupDisputeGameFactoryTest(t)
-	traceType := uint32(123)
+	gameType := uint32(123)
 	outputRoot := common.Hash{0x01}
 	l2BlockNum := common.BigToHash(big.NewInt(456)).Bytes()
 	bond := big.NewInt(49284294829)
-	stubRpc.SetResponse(factoryAddr, methodInitBonds, rpcblock.Latest, []interface{}{traceType}, []interface{}{bond})
-	stubRpc.SetResponse(factoryAddr, methodCreateGame, rpcblock.Latest, []interface{}{traceType, outputRoot, l2BlockNum}, nil)
-	tx, err := factory.ProposalTx(context.Background(), traceType, outputRoot, uint64(456))
+	stubRpc.SetResponse(factoryAddr, methodInitBonds, rpcblock.Latest, []interface{}{gameType}, []interface{}{bond})
+	stubRpc.SetResponse(factoryAddr, methodCreateGame, rpcblock.Latest, []interface{}{gameType, outputRoot, l2BlockNum}, nil)
+	tx, err := factory.ProposalTx(context.Background(), gameType, outputRoot, uint64(456))
 	require.NoError(t, err)
 	stubRpc.VerifyTxCandidate(tx)
 	require.NotNil(t, tx.Value)

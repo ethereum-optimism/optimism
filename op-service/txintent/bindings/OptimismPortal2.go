@@ -64,6 +64,7 @@ type OptimismPortal2 struct {
 	RespectedGameTypeUpdatedAt func() TypedCall[uint64]                                                                   `sol:"respectedGameTypeUpdatedAt"`
 	SuperchainConfig           func() TypedCall[common.Address]                                                           `sol:"superchainConfig"`
 	SystemConfig               func() TypedCall[common.Address]                                                           `sol:"systemConfig"`
+	AnchorStateRegistry        func() TypedCall[common.Address]                                                           `sol:"anchorStateRegistry"`
 	Version                    func() TypedCall[string]                                                                   `sol:"version"`
 
 	// Write functions

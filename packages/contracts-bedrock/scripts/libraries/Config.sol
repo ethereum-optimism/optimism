@@ -129,6 +129,41 @@ library Config {
         env_ = vm.envString("ETHERSCAN_API_KEY");
     }
 
+    /// @notice Returns the block explorer to use for fetching creation code.
+    function blockExplorer() internal view returns (string memory env_) {
+        env_ = vm.envOr("BLOCK_EXPLORER", string("blockscout"));
+    }
+
+    /// @notice Returns the base URL for the Blockscout API.
+    function blockscoutApiUrl() internal view returns (string memory) {
+        string memory envUrl = vm.envOr("BLOCKSCOUT_API_URL", string(""));
+        if (bytes(envUrl).length > 0) {
+            return envUrl;
+        }
+
+        if (block.chainid == 1) {
+            // Ethereum
+            return "https://eth.blockscout.com";
+        } else if (block.chainid == 10) {
+            // OP Mainnet
+            return "https://explorer.optimism.io";
+        } else if (block.chainid == 11155111) {
+            // Sepolia
+            return "https://eth-sepolia.blockscout.com";
+        } else if (block.chainid == 8453) {
+            // Base
+            return "https://base.blockscout.com";
+        } else if (block.chainid == 84532) {
+            // Base Sepolia
+            return "https://base-sepolia.blockscout.com";
+        } else if (block.chainid == 11155420) {
+            // OP Sepolia
+            return "https://optimism-sepolia.blockscout.com";
+        } else {
+            return "";
+        }
+    }
+
     /// @notice Returns the OutputMode for genesis allocs generation.
     ///         It reads the mode from the environment variable OUTPUT_MODE.
     ///         If it is unset, OutputMode.ALL is returned.
@@ -249,5 +284,15 @@ library Config {
     /// @notice Returns true if the development feature deploy_v2_dispute_games is enabled.
     function devFeatureDeployV2DisputeGames() internal view returns (bool) {
         return vm.envOr("DEV_FEATURE__DEPLOY_V2_DISPUTE_GAMES", false);
+    }
+
+    /// @notice Returns true if the development feature opcm_v2 is enabled.
+    function devFeatureOpcmV2() internal view returns (bool) {
+        return vm.envOr("DEV_FEATURE__OPCM_V2", false);
+    }
+
+    /// @notice Returns true if the system feature custom_gas_token is enabled.
+    function sysFeatureCustomGasToken() internal view returns (bool) {
+        return vm.envOr("SYS_FEATURE__CUSTOM_GAS_TOKEN", false);
     }
 }

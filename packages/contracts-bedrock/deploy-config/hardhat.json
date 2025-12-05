@@ -67,5 +67,10 @@
   "daBondSize": 1000,
   "daResolverRefundPercentage": 50,
   "useRevenueShare": false,
-  "chainFeesRecipient": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+  "chainFeesRecipient": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+  "useCustomGasToken": false,
+  "gasPayingTokenName": "",
+  "gasPayingTokenSymbol": "",
+  "nativeAssetLiquidityAmount": null,
+  "liquidityControllerOwner": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
 }

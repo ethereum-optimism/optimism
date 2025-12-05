@@ -12,5 +12,5 @@ fi
 echo -n "dt,author,commit"
 cd "$DIRECTORY"
 git ls-files | while read -r file; do
-  git --no-pager log --pretty=format:"%ad,%ae,%H%n" --date=format:"%Y-%m-%d %H:%M:%S" -- "$file" 2>/dev/null
+  git --no-pager log --pretty=format:"%ad,%ae,%H%n" --date=format:"%Y-%m-%d %H:%M:%S" -- "$file" 2> /dev/null
 done | sort | uniq

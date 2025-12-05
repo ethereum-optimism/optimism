@@ -10,21 +10,22 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources.RollupClient, supervisorClient *sources.SupervisorClient, typeName string, traceType types.TraceType) (utils.LocalGameInputs, error) {
-	switch traceType {
-	case types.TraceTypeSuperCannon, types.TraceTypeSuperPermissioned, types.TraceTypeSuperAsteriscKona, types.TraceTypeSuperCannonKona:
+func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources.RollupClient, supervisorClient *sources.SupervisorClient, typeName string, gameType gameTypes.GameType) (utils.LocalGameInputs, error) {
+	switch gameType {
+	case gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType, gameTypes.SuperAsteriscKonaGameType, gameTypes.SuperCannonKonaGameType:
 		if supervisorClient == nil {
-			return utils.LocalGameInputs{}, fmt.Errorf("trace type %s requires supervisor rpc to be set", traceType)
+			return utils.LocalGameInputs{}, fmt.Errorf("game type %s requires supervisor rpc to be set", gameType)
 		}
 		return createGameInputsInterop(ctx, log, supervisorClient, typeName)
 	default:
 		if rollupClient == nil {
-			return utils.LocalGameInputs{}, fmt.Errorf("trace type %s requires rollup rpc to be set", traceType)
+			return utils.LocalGameInputs{}, fmt.Errorf("game type %s requires rollup rpc to be set", gameType)
 		}
 		return createGameInputsSingle(ctx, log, rollupClient, typeName)
 	}

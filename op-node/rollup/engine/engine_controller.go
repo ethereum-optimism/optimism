@@ -184,7 +184,6 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 	}
 }
-
 func (e *EngineController) UnsafeL2Head() eth.L2BlockRef {
 	return e.unsafeHead
 }
@@ -867,11 +866,11 @@ func (e *EngineController) SetOriginSelectorResetter(resetter OriginSelectorForc
 func (e *EngineController) ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.forceReset(ctx, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
+	e.forceReset(ctx, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized, false)
 }
 
 // forceReset performs a forced reset to the specified block references
-func (e *EngineController) forceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
+func (e *EngineController) forceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef, signalOnlySeq bool) {
 	// Reset other components before resetting the engine
 	if e.attributesResetter != nil {
 		e.attributesResetter.ForceReset(ctx, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
@@ -890,8 +889,19 @@ func (e *EngineController) forceReset(ctx context.Context, localUnsafe, crossUns
 		e.emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})
 	}
 
-	// Time to apply the changes to the underlying engine
-	e.tryUpdateEngine(ctx)
+	if signalOnlySeq {
+		// Intentionally not propagating ForkchoiceUpdateEvent to other event Deriver avoiding side effects.
+		// If we do tryUpdateEngine instead, it will eventually emit ForkchoiceUpdateEvent, causing block building
+		// to never begin. Use fine grained ForkchoiceUpdateInitEvent to only propagate info to the sequencer component.
+		e.emitter.Emit(ctx, ForkchoiceUpdateInitEvent{
+			UnsafeL2Head:    e.unsafeHead,
+			SafeL2Head:      e.safeHead,
+			FinalizedL2Head: e.finalizedHead,
+		})
+	} else {
+		// Time to apply the changes to the underlying engine
+		e.tryUpdateEngine(ctx)
+	}
 
 	v := EngineResetConfirmedEvent{
 		LocalUnsafe: e.unsafeHead,
@@ -1035,7 +1045,28 @@ func (e *EngineController) onResetEngineRequest(ctx context.Context) {
 		})
 		return
 	}
-	e.forceReset(ctx, result.Unsafe, result.Unsafe, result.Safe, result.Safe, result.Finalized)
+	e.forceReset(ctx, result.Unsafe, result.Unsafe, result.Safe, result.Safe, result.Finalized, false)
+}
+
+// TryInitialResetEngineForSequencer resets engine controller with the info from FindL2Heads and only propagates
+// ForkchoiceUpdateEvent info to the sequencer to trigger sequencer block building, but not propagating
+// ForkchoiceUpdateEvent to other event Deriver avoiding side effects
+func (e *EngineController) TryInitialResetEngineForSequencer(ctx context.Context) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.unsafeHead != (eth.L2BlockRef{}) {
+		// Engine already initialized unsafe head. Early return
+		return
+	}
+	e.log.Info("EngineController Unsafe head was not initialized at the start of the reset")
+	result, err := sync.FindL2Heads(e.ctx, e.rollupCfg, e.l1, e.engine, e.log, e.syncCfg)
+	if err != nil {
+		e.log.Warn("Failed to find L2 Heads to start from while initial reset: %w", err)
+		// Do not emit ResetEvent because it will end propagating ForkchoiceUpdateEvent
+		// Because the engine controller failed to initialize, the next SyncStep will retry this method
+		return
+	}
+	e.forceReset(ctx, result.Unsafe, result.Unsafe, result.Safe, result.Safe, result.Finalized, true)
 }
 
 var ErrEngineSyncing = errors.New("engine is syncing")

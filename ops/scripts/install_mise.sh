@@ -2,8 +2,8 @@
 set -eu
 
 if command -v mise; then
-    echo "mise already installed at $(command -v mise)"
-    exit 0
+  echo "mise already installed at $(command -v mise)"
+  exit 0
 fi
 
 #region logging setup
@@ -47,7 +47,7 @@ get_os() {
 
 get_arch() {
   musl=""
-  if type ldd >/dev/null 2>/dev/null; then
+  if type ldd > /dev/null 2> /dev/null; then
     libc=$(ldd /bin/ls | grep 'musl' | head -1 | cut -d ' ' -f1)
     if [ -n "$libc" ]; then
       musl="-musl"
@@ -73,7 +73,7 @@ get_ext() {
     echo "tar.gz"
   elif tar_supports_zstd; then
     echo "tar.zst"
-  elif command -v zstd >/dev/null 2>&1; then
+  elif command -v zstd > /dev/null 2>&1; then
     echo "tar.zst"
   else
     echo "tar.gz"
@@ -82,7 +82,7 @@ get_ext() {
 
 tar_supports_zstd() {
   # tar is bsdtar or version is >= 1.31
-  if tar --version | grep -q 'bsdtar' && command -v zstd >/dev/null 2>&1; then
+  if tar --version | grep -q 'bsdtar' && command -v zstd > /dev/null 2>&1; then
     true
   elif tar --version | grep -q '1\.(3[1-9]|[4-9][0-9]'; then
     true
@@ -92,9 +92,9 @@ tar_supports_zstd() {
 }
 
 shasum_bin() {
-  if command -v shasum >/dev/null 2>&1; then
+  if command -v shasum > /dev/null 2>&1; then
     echo "shasum"
-  elif command -v sha256sum >/dev/null 2>&1; then
+  elif command -v sha256sum > /dev/null 2>&1; then
     echo "sha256sum"
   else
     error "mise install requires shasum or sha256sum but neither is installed. Aborting."
@@ -187,11 +187,11 @@ get_checksum() {
       fi
     fi
   else
-    if command -v curl >/dev/null 2>&1; then
+    if command -v curl > /dev/null 2>&1; then
       debug ">" curl -fsSL "$url"
       checksums="$(curl --compressed -fsSL "$url")"
     else
-      if command -v wget >/dev/null 2>&1; then
+      if command -v wget > /dev/null 2>&1; then
         debug ">" wget -qO - "$url"
         stderr=$(mktemp)
         checksums="$(wget -qO - "$url")"
@@ -220,14 +220,14 @@ download_file() {
 
   info "mise: installing mise..."
 
-  if command -v curl >/dev/null 2>&1; then
+  if command -v curl > /dev/null 2>&1; then
     debug ">" curl -#fLo "$file" "$url"
     curl -#fLo "$file" "$url"
   else
-    if command -v wget >/dev/null 2>&1; then
+    if command -v wget > /dev/null 2>&1; then
       debug ">" wget -qO "$file" "$url"
       stderr=$(mktemp)
-      wget -O "$file" "$url" >"$stderr" 2>&1 || error "wget failed: $(cat "$stderr")"
+      wget -O "$file" "$url" > "$stderr" 2>&1 || error "wget failed: $(cat "$stderr")"
     else
       error "mise standalone install requires curl or wget but neither is installed. Aborting."
     fi
@@ -256,7 +256,7 @@ install_mise() {
   debug "mise-setup: tarball=$cache_file"
 
   debug "validating checksum"
-  cd "$(dirname "$cache_file")" && get_checksum "$version" | "$(shasum_bin)" -c >/dev/null
+  cd "$(dirname "$cache_file")" && get_checksum "$version" | "$(shasum_bin)" -c > /dev/null
 
   # extract tarball
   mkdir -p "$install_dir"
@@ -273,27 +273,27 @@ install_mise() {
 
 after_finish_help() {
   case "${SHELL:-}" in
-  */zsh)
-    info "mise: run the following to activate mise in your shell:"
-    info "echo \"eval \\\"\\\$($install_path activate zsh)\\\"\" >> \"${ZDOTDIR-$HOME}/.zshrc\""
-    info ""
-    info "mise: run \`mise doctor\` to verify this is setup correctly"
-    ;;
-  */bash)
-    info "mise: run the following to activate mise in your shell:"
-    info "echo \"eval \\\"\\\$($install_path activate bash)\\\"\" >> ~/.bashrc"
-    info ""
-    info "mise: run \`mise doctor\` to verify this is setup correctly"
-    ;;
-  */fish)
-    info "mise: run the following to activate mise in your shell:"
-    info "echo \"$install_path activate fish | source\" >> ~/.config/fish/config.fish"
-    info ""
-    info "mise: run \`mise doctor\` to verify this is setup correctly"
-    ;;
-  *)
-    info "mise: run \`$install_path --help\` to get started"
-    ;;
+    */zsh)
+      info "mise: run the following to activate mise in your shell:"
+      info "echo \"eval \\\"\\\$($install_path activate zsh)\\\"\" >> \"${ZDOTDIR-$HOME}/.zshrc\""
+      info ""
+      info "mise: run \`mise doctor\` to verify this is setup correctly"
+      ;;
+    */bash)
+      info "mise: run the following to activate mise in your shell:"
+      info "echo \"eval \\\"\\\$($install_path activate bash)\\\"\" >> ~/.bashrc"
+      info ""
+      info "mise: run \`mise doctor\` to verify this is setup correctly"
+      ;;
+    */fish)
+      info "mise: run the following to activate mise in your shell:"
+      info "echo \"$install_path activate fish | source\" >> ~/.config/fish/config.fish"
+      info ""
+      info "mise: run \`mise doctor\` to verify this is setup correctly"
+      ;;
+    *)
+      info "mise: run \`$install_path --help\` to get started"
+      ;;
   esac
 }
 

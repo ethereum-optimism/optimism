@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	safetyTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -150,13 +151,13 @@ func (f *DisputeGameFactory) GameAtIndex(idx int64) *FaultDisputeGame {
 	return NewFaultDisputeGame(f.t, f.require, gameInfo.Proxy, f.getGameHelper, f.honestTraceForGame, game)
 }
 
-func (f *DisputeGameFactory) GameImpl(gameType challengerTypes.GameType) *FaultDisputeGame {
+func (f *DisputeGameFactory) GameImpl(gameType gameTypes.GameType) *FaultDisputeGame {
 	implAddr := contract.Read(f.dgf.GameImpls(uint32(gameType)))
 	game := bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(implAddr), bindings.WithTest(f.t))
 	return NewFaultDisputeGame(f.t, f.require, implAddr, f.getGameHelper, f.honestTraceForGame, game)
 }
 
-func (f *DisputeGameFactory) GameArgs(gameType challengerTypes.GameType) []byte {
+func (f *DisputeGameFactory) GameArgs(gameType gameTypes.GameType) []byte {
 	return contract.Read(f.dgf.GameArgs(uint32(gameType)))
 }
 
@@ -175,10 +176,10 @@ func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
 	f.require.NotNil(f.supervisor, "supervisor is required to start super games")
 
-	return f.startSuperCannonGameOfType(eoa, challengerTypes.SuperCannonGameType, opts...)
+	return f.startSuperCannonGameOfType(eoa, gameTypes.SuperCannonGameType, opts...)
 }
 
-func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType challengerTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
+func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType gameTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
 	cfg := NewGameCfg(opts...)
 	timestamp := cfg.l2SequenceNumber
 	if !cfg.l2SequenceNumberSet {
@@ -207,11 +208,11 @@ func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *Gam
 }
 
 func (f *DisputeGameFactory) StartCannonGame(eoa *dsl.EOA, opts ...GameOpt) *FaultDisputeGame {
-	return f.startOutputRootGameOfType(eoa, challengerTypes.CannonGameType, f.honestTraceForGame, opts...)
+	return f.startOutputRootGameOfType(eoa, gameTypes.CannonGameType, f.honestTraceForGame, opts...)
 }
 
 func (f *DisputeGameFactory) StartCannonKonaGame(eoa *dsl.EOA, opts ...GameOpt) *FaultDisputeGame {
-	return f.startOutputRootGameOfType(eoa, challengerTypes.CannonKonaGameType, f.honestTraceForGame, opts...)
+	return f.startOutputRootGameOfType(eoa, gameTypes.CannonKonaGameType, f.honestTraceForGame, opts...)
 }
 
 func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challengerTypes.TraceAccessor {
@@ -220,7 +221,7 @@ func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challeng
 	}
 	f.require.NotNil(f.challengerCfg, "Challenger config is required to create honest trace")
 	switch game.GameType() {
-	case challengerTypes.CannonGameType:
+	case gameTypes.CannonGameType:
 		return f.honestOutputCannonTrace(
 			game,
 			f.challengerCfg.CannonAbsolutePreStateBaseURL,
@@ -228,7 +229,7 @@ func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challeng
 			f.challengerCfg.Cannon,
 			vm.NewOpProgramServerExecutor(f.log),
 		)
-	case challengerTypes.CannonKonaGameType:
+	case gameTypes.CannonKonaGameType:
 		return f.honestOutputCannonTrace(
 			game,
 			f.challengerCfg.CannonKonaAbsolutePreStateBaseURL,
@@ -288,7 +289,7 @@ func (f *DisputeGameFactory) honestOutputCannonTrace(
 
 func (f *DisputeGameFactory) startOutputRootGameOfType(
 	eoa *dsl.EOA,
-	gameType challengerTypes.GameType,
+	gameType gameTypes.GameType,
 	honestTraceProvider func(game *FaultDisputeGame) challengerTypes.TraceAccessor,
 	opts ...GameOpt) *FaultDisputeGame {
 	cfg := NewGameCfg(opts...)
@@ -318,7 +319,7 @@ func (f *DisputeGameFactory) createOutputGameExtraData(blockNum uint64, cfg *Gam
 	return extraData
 }
 
-func (f *DisputeGameFactory) createNewGame(eoa *dsl.EOA, gameType challengerTypes.GameType, claim common.Hash, extraData []byte) (*bindings.FaultDisputeGame, common.Address) {
+func (f *DisputeGameFactory) createNewGame(eoa *dsl.EOA, gameType gameTypes.GameType, claim common.Hash, extraData []byte) (*bindings.FaultDisputeGame, common.Address) {
 	f.log.Info("Creating dispute game", "gameType", gameType, "claim", claim.Hex(), "extradata", common.Bytes2Hex(extraData))
 
 	// Pull some metadata we need to construct a new game
@@ -337,7 +338,7 @@ func (f *DisputeGameFactory) createNewGame(eoa *dsl.EOA, gameType challengerType
 	return bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(gameAddr), bindings.WithTest(f.t)), gameAddr
 }
 
-func (f *DisputeGameFactory) initBond(gameType challengerTypes.GameType) eth.ETH {
+func (f *DisputeGameFactory) initBond(gameType gameTypes.GameType) eth.ETH {
 	return eth.WeiBig(contract.Read(f.dgf.InitBonds(uint32(gameType))))
 }
 

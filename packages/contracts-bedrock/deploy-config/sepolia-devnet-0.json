@@ -84,5 +84,10 @@
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000005000000000000000000000000",
   "recommendedProtocolVersion": "0x0000000000000000000000000000000000000005000000000000000000000000",
   "useRevenueShare": true,
-  "chainFeesRecipient": "0x8c20c40180751d93e939dddee3517ae0d1ebead2"
+  "chainFeesRecipient": "0x8c20c40180751d93e939dddee3517ae0d1ebead2",
+  "useCustomGasToken": false,
+  "gasPayingTokenName": "",
+  "gasPayingTokenSymbol": "",
+  "nativeAssetLiquidityAmount": null,
+  "liquidityControllerOwner": "0x8c20c40180751d93e939dddee3517ae0d1ebead2"
 }

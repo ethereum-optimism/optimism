@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
-import { CallRecorder, Reverter } from "test/mocks/Callers.sol";
 import { Transactor } from "src/periphery/Transactor.sol";
 
 /// @title Transactor_TestInit
@@ -13,14 +12,8 @@ abstract contract Transactor_TestInit is Test {
     address bob = address(256);
 
     Transactor transactor;
-    Reverter reverter;
-    CallRecorder callRecorded;
 
     function setUp() public {
-        // Deploy Reverter and CallRecorder helper contracts
-        reverter = new Reverter();
-        callRecorded = new CallRecorder();
-
         // Deploy Transactor contract
         transactor = new Transactor(address(alice));
         vm.label(address(transactor), "Transactor");
@@ -48,22 +41,24 @@ contract Transactor_Constructor_Test is Transactor_TestInit {
 contract Transactor_Call_Test is Transactor_TestInit {
     /// @notice Tests CALL, should do a call to target
     function test_call_succeeds() external {
+        address target = makeAddr("target");
         // Initialize call data
-        bytes memory data = abi.encodeCall(CallRecorder.record, ());
+        bytes memory data = hex"aabbccdd";
         // Run CALL
         vm.prank(alice);
-        vm.expectCall(address(callRecorded), 200_000 wei, data);
-        transactor.CALL(address(callRecorded), data, 200_000 wei);
+        vm.expectCall(target, 200_000 wei, data);
+        transactor.CALL(target, data, 200_000 wei);
     }
 
     /// @notice It should revert if called by non-owner
     function test_call_unauthorized_reverts() external {
         // Initialize call data
-        bytes memory data = abi.encodeCall(CallRecorder.record, ());
+        address target = makeAddr("target");
+        bytes memory data = hex"aabbccdd";
         // Run CALL
         vm.prank(bob);
         vm.expectRevert("UNAUTHORIZED");
-        transactor.CALL(address(callRecorded), data, 200_000 wei);
+        transactor.CALL(target, data, 200_000 wei);
     }
 }
 
@@ -72,21 +67,23 @@ contract Transactor_Call_Test is Transactor_TestInit {
 contract Transactor_DelegateCall_Test is Transactor_TestInit {
     /// @notice Deletate call succeeds.
     function test_delegateCall_succeeds() external {
-        // Initialize call data
-        bytes memory data = abi.encodeCall(Reverter.doRevert, ());
+        // Initialize call data and target
+        address target = address(0x1234);
+        bytes memory data = hex"aabbccdd";
         // Run CALL
         vm.prank(alice);
-        vm.expectCall(address(reverter), data);
-        transactor.DELEGATECALL(address(reverter), data);
+        vm.expectCall(target, data);
+        transactor.DELEGATECALL(target, data);
     }
 
     /// @notice It should revert if called by non-owner
     function test_delegateCall_unauthorized_reverts() external {
-        // Initialize call data
-        bytes memory data = abi.encodeCall(Reverter.doRevert, ());
+        // Initialize call data and target
+        address target = address(0x1234);
+        bytes memory data = hex"aabbccdd";
         // Run CALL
         vm.prank(bob);
         vm.expectRevert("UNAUTHORIZED");
-        transactor.DELEGATECALL(address(reverter), data);
+        transactor.DELEGATECALL(target, data);
     }
 }

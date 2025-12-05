@@ -866,7 +866,16 @@ contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
 contract SystemConfig_IsFeatureEnabled_Test is SystemConfig_TestInit {
     /// @notice Tests that `isFeatureEnabled` returns false for unset features.
     /// @param _feature The feature to check.
-    function testFuzz_isFeatureEnabled_unsetFeature_succeeds(bytes32 _feature) external view {
+    function testFuzz_isFeatureEnabled_unsetFeature_succeeds(bytes32 _feature) external {
+        vm.startPrank(address(systemConfig.proxyAdmin()));
+
+        // Normalize CUSTOM_GAS_TOKEN to avoid environment-dependent state
+        if (systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) {
+            systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, false);
+        }
+
+        vm.stopPrank();
+
         assertFalse(systemConfig.isFeatureEnabled(_feature));
     }
 
@@ -948,5 +957,21 @@ contract SystemConfig_SetDAFootprintGasScalar_Test is SystemConfig_TestInit {
         vm.prank(systemConfig.owner());
         systemConfig.setDAFootprintGasScalar(newScalar);
         assertEq(systemConfig.daFootprintGasScalar(), newScalar);
+    }
+}
+
+/// @title SystemConfig_IsCustomGasToken_Test
+/// @notice Test contract for SystemConfig `isCustomGasToken` function.
+contract SystemConfig_IsCustomGasToken_Test is SystemConfig_TestInit {
+    /// @notice Tests that `isCustomGasToken` returns the correct value.
+    function test_isCustomGasToken_enabled_succeeds() external {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+        assertTrue(systemConfig.isCustomGasToken());
+    }
+
+    /// @notice Tests that `isCustomGasToken` returns the correct value.
+    function test_isCustomGasToken_disabled_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        assertFalse(systemConfig.isCustomGasToken());
     }
 }

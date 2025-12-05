@@ -53,8 +53,8 @@ func NewFaultDisputeGame(
 	return fdg
 }
 
-func (g *FaultDisputeGame) GameType() challengerTypes.GameType {
-	return challengerTypes.GameType(contract.Read(g.game.GameType()))
+func (g *FaultDisputeGame) GameType() gameTypes.GameType {
+	return gameTypes.GameType(contract.Read(g.game.GameType()))
 }
 
 func (g *FaultDisputeGame) MaxDepth() challengerTypes.Depth {

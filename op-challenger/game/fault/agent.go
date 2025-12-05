@@ -9,16 +9,40 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/responder"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/solver"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/generic"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+type TxSender interface {
+	From() common.Address
+	SendAndWaitSimple(txPurpose string, txs ...txmgr.TxCandidate) error
+}
+
+type GameContract interface {
+	generic.GenericGameLoader
+	preimages.PreimageGameContract
+	responder.GameContract
+	claims.BondContract
+	ClaimLoader
+	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
+	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
+	GetMaxClockDuration(ctx context.Context) (time.Duration, error)
+	GetOracle(ctx context.Context) (contracts.PreimageOracleContract, error)
+	GetL1Head(ctx context.Context) (common.Hash, error)
+}
 
 // Responder takes a response action & executes.
 // For full op-challenger this means executing the transaction on chain.
@@ -31,6 +55,7 @@ type Responder interface {
 }
 
 type ClaimLoader interface {
+	GetClaimCount(ctx context.Context) (uint64, error)
 	GetAllClaims(ctx context.Context, block rpcblock.Block) ([]types.Claim, error)
 	IsL2BlockNumberChallenged(ctx context.Context, block rpcblock.Block) (bool, error)
 	GetClockExtension(ctx context.Context) (time.Duration, error)
@@ -38,6 +63,8 @@ type ClaimLoader interface {
 	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
 	GetOracle(ctx context.Context) (contracts.PreimageOracleContract, error)
 }
+
+type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth types.Depth, l1Head eth.BlockID, dir string) (types.TraceAccessor, error)
 
 type Agent struct {
 	metrics            metrics.Metricer
@@ -54,6 +81,71 @@ type Agent struct {
 	responseDelay      time.Duration
 	responseDelayAfter uint64
 	responseCount      atomic.Uint64 // Number of responses made in this game
+}
+
+func AgentCreator(
+	systemClock clock.Clock,
+	l1Clock types.ClockReader,
+	m metrics.Metricer,
+	dir string,
+	txSender TxSender,
+	loader GameContract,
+	creator resourceCreator,
+	selective bool,
+	claimants []common.Address,
+	responseDelay time.Duration,
+	responseDelayAfter uint64,
+) generic.ActorCreator {
+	return func(ctx context.Context, logger log.Logger, l1Head eth.BlockID) (generic.Actor, error) {
+		maxClockDuration, err := loader.GetMaxClockDuration(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch the game duration: %w", err)
+		}
+
+		gameDepth, err := loader.GetMaxGameDepth(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
+		}
+
+		accessor, err := creator(ctx, logger, gameDepth, l1Head, dir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create trace accessor: %w", err)
+		}
+
+		oracle, err := loader.GetOracle(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load oracle: %w", err)
+		}
+
+		minLargePreimageSize, err := oracle.MinLargePreimageSize(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load min large preimage size: %w", err)
+		}
+		direct := preimages.NewDirectPreimageUploader(logger, txSender, loader)
+		large := preimages.NewLargePreimageUploader(logger, l1Clock, txSender, oracle)
+		uploader := preimages.NewSplitPreimageUploader(direct, large, minLargePreimageSize)
+		responder, err := responder.NewFaultResponder(logger, txSender, loader, uploader, oracle)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create the responder: %w", err)
+		}
+
+		agent := NewAgent(
+			m,
+			systemClock,
+			l1Clock,
+			loader,
+			gameDepth,
+			maxClockDuration,
+			accessor,
+			responder,
+			logger,
+			selective,
+			claimants,
+			responseDelay,
+			responseDelayAfter,
+		)
+		return agent, nil
+	}
 }
 
 func NewAgent(
@@ -124,6 +216,14 @@ func (a *Agent) Act(ctx context.Context) error {
 	}
 	wg.Wait()
 	return nil
+}
+
+func (a *Agent) AdditionalStatus(ctx context.Context) ([]any, error) {
+	claimCount, err := a.loader.GetClaimCount(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return []any{"claims", claimCount}, nil
 }
 
 func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, game types.Game, action types.Action) {

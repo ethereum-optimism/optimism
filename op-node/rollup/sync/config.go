@@ -77,8 +77,5 @@ type Config struct {
 
 	UnsafeOnly             bool   `json:"unsafe_only"`
 	L2FollowSourceEndpoint string `json:"l2_follow_source_endpoint"`
-}
-
-func (c *Config) L2FollowSourceEnabled() bool {
-	return c.L2FollowSourceEndpoint != ""
+	NeedInitialResetEngine bool   `json:"need_initial_reset_engine"`
 }

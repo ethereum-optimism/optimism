@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"strings"
 
 	mipsVersion "github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
@@ -13,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/cliutil"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
@@ -154,7 +156,43 @@ func ImplementationsCLI(cliCtx *cli.Context) error {
 	if err := jsonutil.WriteJSON(dio, ioutil.ToStdOutOrFileOrNoop(outfile, 0o755)); err != nil {
 		return fmt.Errorf("failed to write output: %w", err)
 	}
-	return nil
+
+	if !cliCtx.Bool(deployer.AutoVerifyFlag.Name) {
+		return nil
+	}
+
+	verifyFile := outfile
+	if verifyFile == "" || verifyFile == "-" {
+		tmpFile, err := os.CreateTemp("", "op-deployer-implementations-*.json")
+		if err != nil {
+			return fmt.Errorf("failed to create temp file for verification: %w", err)
+		}
+		tmpPath := tmpFile.Name()
+		tmpFile.Close()
+		defer os.Remove(tmpPath)
+		verifyFile = tmpPath
+		if err := jsonutil.WriteJSON(dio, ioutil.ToBasicFile(tmpPath, 0o644)); err != nil {
+			return fmt.Errorf("failed to write temp file for verification: %w", err)
+		}
+	}
+
+	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlagName)
+	chainID, err := deployer.ChainIDFromRPC(ctx, l1RPCUrl)
+	if err != nil {
+		return fmt.Errorf("failed to get chain ID: %w", err)
+	}
+
+	return verify.AutoVerify(
+		ctx,
+		l,
+		l1RPCUrl,
+		chainID.Uint64(),
+		verifyFile,
+		cfg.ArtifactsLocator,
+		cliCtx.String(deployer.VerifierTypeFlagName),
+		cliCtx.String(deployer.VerifierUrlFlagName),
+		cliCtx.String(deployer.VerifierAPIKeyFlagName),
+	)
 }
 
 func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.DeployImplementationsOutput, error) {

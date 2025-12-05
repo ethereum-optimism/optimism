@@ -5,7 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -101,7 +101,7 @@ func deployDisputeGame(
 			Proposer:            thisIntent.Roles.Proposer,
 			Challenger:          thisIntent.Roles.Challenger,
 		}
-		if game.DisputeGameType == uint32(types.PermissionedGameType) {
+		if game.DisputeGameType == uint32(gameTypes.PermissionedGameType) {
 			gameArgs = args.PackPermissioned()
 		} else {
 			gameArgs = args.PackPermissionless()

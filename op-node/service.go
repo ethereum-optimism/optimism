@@ -380,6 +380,7 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 		SupportsPostFinalizationELSync: engineKind.SupportsPostFinalizationELSync(),
 		UnsafeOnly:                     unsafeOnly,
 		L2FollowSourceEndpoint:         l2FollowSourceEndpoint,
+		NeedInitialResetEngine:         isSequencer && unsafeOnly,
 	}
 	if ctx.Bool(flags.L2EngineSyncEnabled.Name) {
 		cfg.SyncMode = sync.ELSync

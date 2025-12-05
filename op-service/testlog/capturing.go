@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/logmods"
 )
@@ -212,8 +213,23 @@ func (c *CapturingHandler) FindLogs(filters ...LogFilter) []*CapturedRecord {
 	return logs
 }
 
-func (h *CapturedRecord) AttrValue(name string) (v any) {
-	h.Attrs(func(a slog.Attr) bool {
+func (c *CapturingHandler) RequireMessageContained(t require.TestingT, message string, filters ...LogFilter) {
+	filters = append(filters, NewMessageContainsFilter(message))
+	require.NotNil(t, c.FindLog(filters...), "expected message %s in logs", message)
+}
+
+func (c *CapturingHandler) RequireMessageContainedOnce(t require.TestingT, message string, filters ...LogFilter) {
+	filters = append(filters, NewMessageContainsFilter(message))
+	require.Len(t, c.FindLogs(filters...), 1, "expected message %s exactly once in logs", message)
+}
+
+func (c *CapturingHandler) RequireMessageContainedNTimes(t require.TestingT, message string, n int, filters ...LogFilter) {
+	filters = append(filters, NewMessageContainsFilter(message))
+	require.Len(t, c.FindLogs(filters...), n, "expected message %s %d times in logs", message, n)
+}
+
+func (r *CapturedRecord) AttrValue(name string) (v any) {
+	r.Attrs(func(a slog.Attr) bool {
 		if a.Key == name {
 			v = a.Value.Any()
 			return false

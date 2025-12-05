@@ -24,6 +24,8 @@ type ControlPlane interface {
 	L2CLNodeState(id L2CLNodeID, action ControlAction)
 	L2ELNodeState(id L2ELNodeID, action ControlAction)
 	FakePoSState(id L1CLNodeID, action ControlAction)
+	RollupBoostNodeState(id RollupBoostNodeID, action ControlAction)
+	OPRBuilderNodeState(id OPRBuilderNodeID, action ControlAction)
 }
 
 // Orchestrator is the base interface for all system orchestrators.

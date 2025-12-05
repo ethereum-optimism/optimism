@@ -368,15 +368,6 @@ func WithSequencingWindow(n uint64) DeployerOption {
 	}
 }
 
-// WithAdditionalDisputeGames adds additional dispute games to all L2s.
-func WithAdditionalDisputeGames(games []state.AdditionalDisputeGame) DeployerOption {
-	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
-		for _, l2Cfg := range builder.L2s() {
-			l2Cfg.WithAdditionalDisputeGames(games)
-		}
-	}
-}
-
 func WithDeployerMatchL1PAO() DeployerPipelineOption {
 	return func(wb *worldBuilder, intent *state.Intent, cfg *deployer.ApplyPipelineOpts) {
 		l1ChainID := new(big.Int).SetUint64(intent.L1ChainID)
@@ -404,6 +395,14 @@ func WithProofMaturityDelaySeconds(n uint64) DeployerOption {
 func WithDisputeGameFinalityDelaySeconds(seconds uint64) DeployerOption {
 	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
 		builder.WithGlobalOverride("disputeGameFinalityDelaySeconds", seconds)
+	}
+}
+
+func WithCustomGasToken(name, symbol string, initialLiquidity *big.Int, liquidityControllerOwner common.Address) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithCustomGasToken(name, symbol, initialLiquidity, liquidityControllerOwner)
+		}
 	}
 }
 

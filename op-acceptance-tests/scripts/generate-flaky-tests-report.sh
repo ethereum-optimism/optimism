@@ -90,7 +90,6 @@ fi
 echo "Filtering for acceptance tests only..."
 API_RESPONSE=$(echo "$API_RESPONSE" | jq '.flaky_tests = (.flaky_tests | map(select(.classname | startswith("github.com/ethereum-optimism/optimism/op-acceptance-tests/tests"))))')
 
-
 # Save the raw response for debugging
 echo "$API_RESPONSE" > "$OUTPUT_DIR/flaky_tests.json"
 echo "Raw API response saved to $OUTPUT_DIR/flaky_tests.json"

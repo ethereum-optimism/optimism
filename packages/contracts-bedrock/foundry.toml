@@ -11,7 +11,6 @@ build_info_path = 'artifacts/build-info'
 
 optimizer = true
 optimizer_runs = 999999
-use_literal_content = true
 
 # IMPORTANT:
 # When adding any new compiler profiles or compilation restrictions, you must
@@ -26,10 +25,14 @@ compilation_restrictions = [
   { paths = "src/dispute/v2/FaultDisputeGameV2.sol", optimizer_runs = 5000 },
   { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 5000 },
   { paths = "src/dispute/v2/PermissionedDisputeGameV2.sol", optimizer_runs = 5000 },
+  { paths = "src/dispute/zk/OPSuccinctFaultDisputeGame.sol", optimizer_runs = 5000 },
   { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 5000 },
   { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 5000 },
+  { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 5000 },
+  { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 5000 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 5000 }
+  { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 5000 },
+  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 5000 }
 ]
 
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
@@ -152,8 +155,11 @@ compilation_restrictions = [
   { paths = "src/dispute/v2/FaultDisputeGameV2.sol", optimizer_runs = 0 },
   { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/dispute/v2/PermissionedDisputeGameV2.sol", optimizer_runs = 0 },
+  { paths = "src/dispute/zk/OPSuccinctFaultDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 0 },
   { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 0 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },
   { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 0 },
 ]

@@ -1,0 +1,72 @@
+[
+  {
+    "bytes": "8",
+    "label": "createdAt",
+    "offset": 0,
+    "slot": "0",
+    "type": "Timestamp"
+  },
+  {
+    "bytes": "8",
+    "label": "resolvedAt",
+    "offset": 8,
+    "slot": "0",
+    "type": "Timestamp"
+  },
+  {
+    "bytes": "1",
+    "label": "status",
+    "offset": 16,
+    "slot": "0",
+    "type": "enum GameStatus"
+  },
+  {
+    "bytes": "1",
+    "label": "initialized",
+    "offset": 17,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "128",
+    "label": "claimData",
+    "offset": 0,
+    "slot": "1",
+    "type": "struct OPSuccinctFaultDisputeGame.ClaimData"
+  },
+  {
+    "bytes": "32",
+    "label": "normalModeCredit",
+    "offset": 0,
+    "slot": "5",
+    "type": "mapping(address => uint256)"
+  },
+  {
+    "bytes": "32",
+    "label": "refundModeCredit",
+    "offset": 0,
+    "slot": "6",
+    "type": "mapping(address => uint256)"
+  },
+  {
+    "bytes": "64",
+    "label": "startingProposal",
+    "offset": 0,
+    "slot": "7",
+    "type": "struct Proposal"
+  },
+  {
+    "bytes": "1",
+    "label": "wasRespectedGameTypeWhenCreated",
+    "offset": 0,
+    "slot": "9",
+    "type": "bool"
+  },
+  {
+    "bytes": "1",
+    "label": "bondDistributionMode",
+    "offset": 1,
+    "slot": "9",
+    "type": "enum BondDistributionMode"
+  }
+]

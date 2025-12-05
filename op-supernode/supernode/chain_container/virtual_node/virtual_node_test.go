@@ -12,6 +12,7 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -24,6 +25,9 @@ type mockInnerNode struct {
 	stopErr   error
 	startFunc func(ctx context.Context)
 	started   bool
+	safeTs    uint64
+	haveSafe  bool
+	db        rollupNode.SafeDBReader
 }
 
 func newMockInnerNode() *mockInnerNode {
@@ -50,6 +54,16 @@ func (m *mockInnerNode) Stop(ctx context.Context) error {
 	}
 	return m.stopErr
 }
+
+// SafeL2Timestamp implements the innerNode interface method used by VirtualNode for safety checks
+func (m *mockInnerNode) SafeL2Timestamp() (uint64, bool) {
+	return m.safeTs, m.haveSafe
+}
+
+// SafeDB implements innerNode interface method used by VirtualNode
+func (m *mockInnerNode) SafeDB() rollupNode.SafeDBReader { return m.db }
+
+func (m *mockInnerNode) SyncStatus() *eth.SyncStatus { return &eth.SyncStatus{} }
 
 // Test helpers
 func createTestConfig() *opnodecfg.Config {

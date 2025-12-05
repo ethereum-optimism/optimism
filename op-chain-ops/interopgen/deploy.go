@@ -254,6 +254,7 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 		AllowCustomDisputeParameters: true,
 		OperatorFeeScalar:            cfg.GasPriceOracleOperatorFeeScalar,
 		OperatorFeeConstant:          cfg.GasPriceOracleOperatorFeeConstant,
+		UseCustomGasToken:            cfg.UseCustomGasToken,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy L2 OP chain: %w", err)
@@ -341,6 +342,11 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		UseRevenueShare:                          cfg.UseRevenueShare,
 		ChainFeesRecipient:                       cfg.ChainFeesRecipient,
 		L1FeesDepositor:                          standard.L1FeesDepositor,
+		UseCustomGasToken:                        cfg.UseCustomGasToken,
+		GasPayingTokenName:                       cfg.GasPayingTokenName,
+		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
+		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
+		LiquidityControllerOwner:                 cfg.LiquidityControllerOwner,
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
 	}

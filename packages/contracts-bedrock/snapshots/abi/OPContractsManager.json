@@ -312,6 +312,11 @@
             "internalType": "Duration",
             "name": "disputeMaxClockDuration",
             "type": "uint64"
+          },
+          {
+            "internalType": "bool",
+            "name": "useCustomGasToken",
+            "type": "bool"
           }
         ],
         "internalType": "struct OPContractsManager.DeployInput",
