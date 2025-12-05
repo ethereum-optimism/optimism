@@ -20,9 +20,7 @@ type L1FollowSource interface {
 type UpstreamFollowSource interface {
 	L1FollowSource
 	CanFollowL2() bool
-	SafeL2(ctx context.Context) (eth.L2BlockRef, error)
-	FinalizedL2(ctx context.Context) (eth.L2BlockRef, error)
-	CurrentL1(ctx context.Context) (eth.L1BlockRef, error)
+	GetFollowStatus(ctx context.Context) (*sources.FollowStatus, error)
 }
 
 type L2FollowSource struct {
@@ -43,25 +41,8 @@ func (fs *L2FollowSource) CanFollowL2() bool {
 	return fs.l2Source != nil
 }
 
-func (fs *L2FollowSource) SafeL2(ctx context.Context) (eth.L2BlockRef, error) {
-	if fs.l2Source == nil {
-		return eth.L2BlockRef{}, errL2FollowSourceNotEnabled
-	}
-	return fs.l2Source.SafeL2(ctx)
-}
-
-func (fs *L2FollowSource) FinalizedL2(ctx context.Context) (eth.L2BlockRef, error) {
-	if fs.l2Source == nil {
-		return eth.L2BlockRef{}, errL2FollowSourceNotEnabled
-	}
-	return fs.l2Source.FinalizedL2(ctx)
-}
-
-func (fs *L2FollowSource) CurrentL1(ctx context.Context) (eth.L1BlockRef, error) {
-	if fs.l2Source == nil {
-		return eth.L1BlockRef{}, errL2FollowSourceNotEnabled
-	}
-	return fs.l2Source.CurrentL1(ctx)
+func (fs *L2FollowSource) GetFollowStatus(ctx context.Context) (*sources.FollowStatus, error) {
+	return fs.l2Source.GetFollowStatus(ctx)
 }
 
 func (fs *L2FollowSource) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error) {

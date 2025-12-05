@@ -26,7 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -525,29 +524,20 @@ func (s *Driver) followUpstream() {
 	if !s.upstreamFollowSource.CanFollowL2() {
 		return
 	}
-	eFinalized, err := s.upstreamFollowSource.FinalizedL2(s.driverCtx)
+	status, err := s.upstreamFollowSource.GetFollowStatus(s.driverCtx)
 	if err != nil {
-		s.log.Warn("Follow Upstream: Failed to fetch finalizedRef", "err", err)
+		s.log.Warn("Follow Upstream: Failed to fetch status", "err", err)
 		return
 	}
-	eSafe, err := s.upstreamFollowSource.SafeL2(s.driverCtx)
-	if err != nil {
-		s.log.Warn("Follow Upstream: Failed to fetch safeRef", "err", err)
+	if status.FinalizedL2.Number > status.SafeL2.Number {
+		s.log.Warn("Follow Upstream: Invalid external state, finalized is ahead of safe", "safe", status.SafeL2.Number, "finalized", status.FinalizedL2.Number)
 		return
 	}
-	if eFinalized.Number > eSafe.Number {
-		s.log.Warn("Follow Upstream: Invalid external state, finalized is ahead of safe", "safe", eSafe, "finalized", eFinalized)
-		return
-	}
-	eCurrentL1, err := s.upstreamFollowSource.CurrentL1(s.driverCtx)
-	if errors.Is(err, sources.ErrFollowSourceCurrentL1NotSupported) {
+	if (status.CurrentL1 == eth.L1BlockRef{}) {
 		s.log.Debug("Follow Upstream: CurrentL1 not supported")
-	} else if err != nil {
-		s.log.Warn("Follow Upstream: Failed to fetch currentL1", "err", err)
-		return
 	} else {
-		s.log.Debug("Follow Upstream: Inject CurrentL1", "currentL1", eCurrentL1)
-		s.emitter.Emit(s.driverCtx, derive.DeriverL1StatusEvent{Origin: eCurrentL1})
+		s.log.Debug("Follow Upstream: Inject L1 Info", "currentL1", status.CurrentL1)
+		s.emitter.Emit(s.driverCtx, derive.DeriverL1StatusEvent{Origin: status.CurrentL1})
 	}
-	s.SyncDeriver.Engine.FollowSource(eSafe, eFinalized)
+	s.SyncDeriver.Engine.FollowSource(status.SafeL2, status.FinalizedL2)
 }

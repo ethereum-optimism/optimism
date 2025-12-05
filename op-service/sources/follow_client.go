@@ -2,18 +2,14 @@ package sources
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum/go-ethereum/log"
 )
-
-var ErrFollowSourceCurrentL1NotSupported = errors.New("follow source does not support CurrentL1")
 
 type FollowClient struct {
 	l2Client     *L2Client
@@ -21,7 +17,11 @@ type FollowClient struct {
 	followCL     bool
 }
 
-var _ apis.L2FollowClient = (*FollowClient)(nil)
+type FollowStatus struct {
+	SafeL2      eth.L2BlockRef
+	FinalizedL2 eth.L2BlockRef
+	CurrentL1   eth.L1BlockRef
+}
 
 func NewFollowClient(client client.RPC, log log.Logger, metrics caching.Metrics, config *L2ClientConfig) (*FollowClient, error) {
 	l2Client, err := NewL2Client(client, log, metrics, config)
@@ -42,35 +42,25 @@ func NewFollowClient(client client.RPC, log log.Logger, metrics caching.Metrics,
 	return &FollowClient{l2Client: l2Client, rollupClient: rollupClient, followCL: followCL}, nil
 }
 
-func (s *FollowClient) SafeL2(ctx context.Context) (eth.L2BlockRef, error) {
+func (s *FollowClient) GetFollowStatus(ctx context.Context) (*FollowStatus, error) {
 	if s.followCL {
 		status, err := s.rollupClient.SyncStatus(ctx)
 		if err != nil {
-			return eth.L2BlockRef{}, err
+			return nil, fmt.Errorf("Failed to fetch external syncStatus", "err", err)
 		}
-		return status.SafeL2, nil
+		return &FollowStatus{
+			FinalizedL2: status.FinalizedL2,
+			SafeL2:      status.SafeL2,
+			CurrentL1:   status.CurrentL1,
+		}, nil
 	}
-	return s.l2Client.L2BlockRefByLabel(ctx, eth.Safe)
-}
-
-func (s *FollowClient) FinalizedL2(ctx context.Context) (eth.L2BlockRef, error) {
-	if s.followCL {
-		status, err := s.rollupClient.SyncStatus(ctx)
-		if err != nil {
-			return eth.L2BlockRef{}, err
-		}
-		return status.FinalizedL2, nil
+	eFinalized, err := s.l2Client.L2BlockRefByLabel(ctx, eth.Finalized)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to fetch external finalizedRef", "err", err)
 	}
-	return s.l2Client.L2BlockRefByLabel(ctx, eth.Finalized)
-}
-
-func (s *FollowClient) CurrentL1(ctx context.Context) (eth.L1BlockRef, error) {
-	if s.followCL {
-		status, err := s.rollupClient.SyncStatus(ctx)
-		if err != nil {
-			return eth.L1BlockRef{}, err
-		}
-		return status.CurrentL1, nil
+	eSafe, err := s.l2Client.L2BlockRefByLabel(ctx, eth.Safe)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to fetch external safeRef", "err", err)
 	}
-	return eth.L1BlockRef{}, ErrFollowSourceCurrentL1NotSupported
+	return &FollowStatus{FinalizedL2: eFinalized, SafeL2: eSafe}, nil
 }
