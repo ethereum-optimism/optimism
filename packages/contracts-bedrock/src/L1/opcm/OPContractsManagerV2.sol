@@ -153,6 +153,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     IOPContractsManagerStandardValidator public immutable standardValidator;
 
     /// @notice The version of the OPCM contract.
+    ///         OPCM versioning rules:
+    ///         - Major bump: New required sequential upgrade
+    ///         - Minor bump: Replacement OPCM for same upgrade
+    ///         - Patch bump: Development changes (expected for normal dev work)
     /// @custom:semver 6.3.0
     string public constant version = "6.3.0";
 
