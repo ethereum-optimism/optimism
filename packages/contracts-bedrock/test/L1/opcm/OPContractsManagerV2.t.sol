@@ -21,6 +21,10 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
+import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+
+import { Proposal, Hash } from "src/dispute/lib/Types.sol";
 
 /// @title OPContractsManagerV2_TestInit
 /// @notice Base test initialization contract for OPContractsManagerV2.
@@ -445,6 +449,40 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
     {
         _runOpcmV2UpgradeAndChecks(opcmV2, _delegateCaller, _revertBytes, _expectedValidatorErrors);
     }
+
+    function _getDisputeGameConfigs(IDisputeGameFactory _disputeGameFactory)
+        internal
+        view
+        returns (IOPContractsManagerV2.DisputeGameConfig[] memory)
+    {
+        IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerV2.DisputeGameConfig[](3);
+        disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
+            gameType: GameTypes.CANNON,
+            enabled: address(_disputeGameFactory.gameImpls(GameTypes.CANNON)) != address(0),
+            initBond: _disputeGameFactory.initBonds(GameTypes.CANNON),
+            gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
+        });
+        disputeGameConfigs[1] = IOPContractsManagerV2.DisputeGameConfig({
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            enabled: address(_disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)) != address(0),
+            initBond: _disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
+            gameArgs: abi.encode(
+                IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                    absolutePrestate: cannonPrestate,
+                    proposer: permissionedGameProposer(_disputeGameFactory),
+                    challenger: permissionedGameChallenger(_disputeGameFactory)
+                })
+            )
+        });
+        disputeGameConfigs[2] = IOPContractsManagerV2.DisputeGameConfig({
+            gameType: GameTypes.CANNON_KONA,
+            enabled: address(_disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)) != address(0),
+            initBond: _disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
+            gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+        });
+        return disputeGameConfigs;
+    }
 }
 
 /// @title OPContractsManagerV2_Upgrade_Test
@@ -747,6 +785,127 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assembly {
             prestate_ := mload(add(args, 0x20))
         }
+    }
+}
+
+// TODO: combine this contract with the Upgrade_Test contract.
+contract OPContractsManagerV2_InteropMigration_Test is OPContractsManagerV2_Upgrade_TestInit {
+    // Define some prestates we want around
+    Claim cannonPrestate1 = Claim.wrap(bytes32(hex"ABBA"));
+    Claim cannonPrestate2 = Claim.wrap(bytes32(hex"DEAD"));
+    Claim cannonKonaPrestate1 = Claim.wrap(bytes32(hex"ABBACADABA"));
+    Claim cannonKonaPrestate2 = Claim.wrap(bytes32(hex"DEADBEEF"));
+    Claim emptyPrestate = Claim.wrap(bytes32(0));
+
+    // Define some chain contracts we want around
+    IOPContractsManagerV2.ChainContracts chainContracts1;
+    IOPContractsManagerV2.ChainContracts chainContracts2;
+
+    /// @notice Function requires interop portal.
+    function setUp() public override {
+        super.setUp();
+        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
+        chainContracts1 = opcmV2.deploy(_getDefaultFullConfig());
+        chainContracts2 = opcmV2.deploy(_getDefaultFullConfig());
+    }
+
+    /// @notice Helper function to get a default full config
+    function _getDefaultFullConfig() internal view returns (IOPContractsManagerV2.FullConfig memory) {
+        IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerV2.DisputeGameConfig[](2);
+        disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
+            gameType: GameTypes.CANNON,
+            enabled: true,
+            initBond: 1 ether,
+            gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate1 }))
+        });
+        disputeGameConfigs[1] = IOPContractsManagerV2.DisputeGameConfig({
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            enabled: true,
+            initBond: 1 ether,
+            gameArgs: abi.encode(
+                IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                    absolutePrestate: cannonPrestate1,
+                    proposer: permissionedGameProposer(disputeGameFactory),
+                    challenger: permissionedGameChallenger(disputeGameFactory)
+                })
+            )
+        });
+        return IOPContractsManagerV2.FullConfig({
+            saltMixer: "0x0000000000000000000000000000000000000000000000000000000000000000",
+            superchainConfig: superchainConfig,
+            proxyAdminOwner: address(this),
+            systemConfigOwner: address(this),
+            unsafeBlockSigner: address(this),
+            batcher: address(this),
+            startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(hex"ABBA")), l2SequenceNumber: 1234 }),
+            startingRespectedGameType: GameTypes.CANNON,
+            basefeeScalar: 1,
+            blobBasefeeScalar: 1,
+            gasLimit: 1000000,
+            l2ChainId: 100,
+            resourceConfig: IResourceMetering.ResourceConfig({
+                maxResourceLimit: 1000000,
+                elasticityMultiplier: 10,
+                baseFeeMaxChangeDenominator: 8,
+                minimumBaseFee: 1000000,
+                systemTxMaxGas: 1000000,
+                maximumBaseFee: 100000000000
+            }),
+            disputeGameConfigs: disputeGameConfigs
+        });
+    }
+
+    /// @notice Helper function to create the default upgrade input to migrate to interop
+    function _getDefaultUpgradeInput(IOPContractsManagerV2.ChainContracts memory _chainContracts)
+        internal
+        view
+        returns (IOPContractsManagerV2.UpgradeInput memory)
+    {
+        return IOPContractsManagerV2.UpgradeInput({
+            systemConfig: _chainContracts.systemConfig,
+            disputeGameConfigs: _getDisputeGameConfigs(_chainContracts.disputeGameFactory),
+            extraInstructions: new IOPContractsManagerV2.ExtraInstruction[](0)
+        });
+    }
+
+    /// @notice Helper function to execute a migration.
+    /// @param _input The input to the migration function.
+    function _doUpgradeToInterop(IOPContractsManagerV2.UpgradeInput memory _input) internal {
+        _doUpgradeToInterop(_input, bytes4(0));
+    }
+
+    /// @notice Helper function to execute a migration with a revert selector.
+    /// @param _input The input to the migration function.
+    /// @param _revertSelector The selector of the revert to expect.
+    function _doUpgradeToInterop(IOPContractsManagerV2.UpgradeInput memory _input, bytes4 _revertSelector) internal {
+        // Set the proxy admin owner to be a delegate caller.
+        address proxyAdminOwner = chainContracts1.proxyAdmin.owner();
+
+        // Execute a delegatecall to the OPCM migration function.
+        // Check gas usage of the migration function.
+        uint256 gasBefore = gasleft();
+        if (_revertSelector != bytes4(0)) {
+            vm.expectRevert(_revertSelector);
+        }
+        prankDelegateCall(proxyAdminOwner);
+        (bool success,) = address(opcm).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_input)));
+        assertTrue(success, "migrate failed");
+        uint256 gasAfter = gasleft();
+
+        // Make sure the gas usage is less than 20 million so we can definitely fit in a block.
+        assertLt(gasBefore - gasAfter, 20_000_000, "Gas usage too high");
+    }
+
+    function test_upgradeToInterop_singleChain_succeeds() public {
+        IOPContractsManagerV2.UpgradeInput memory input = IOPContractsManagerV2.UpgradeInput({
+            systemConfig: systemConfig,
+            disputeGameConfigs: new IOPContractsManagerV2.DisputeGameConfig[](0),
+            extraInstructions: new IOPContractsManagerV2.ExtraInstruction[](0)
+        });
+
+        _doUpgradeToInterop(input);
     }
 }
 
