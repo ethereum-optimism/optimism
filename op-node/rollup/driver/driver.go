@@ -39,7 +39,7 @@ func NewDriver(
 	depSet derive.DependencySet,
 	l2 L2Chain,
 	l1 L1Chain,
-	followUpstreamSource FollowUpstreamSource,
+	upstreamFollowSource UpstreamFollowSource,
 	l1Blobs derive.L1BlobsFetcher,
 	altSync AltSync,
 	network Network,
@@ -146,7 +146,7 @@ func NewDriver(
 		sequencer:            sequencer,
 		metrics:              metrics,
 		altSync:              altSync,
-		followUpstreamSource: followUpstreamSource,
+		upstreamFollowSource: upstreamFollowSource,
 	}
 
 	return driver
@@ -189,7 +189,7 @@ type Driver struct {
 	driverCtx    context.Context
 	driverCancel context.CancelFunc
 
-	followUpstreamSource FollowUpstreamSource
+	upstreamFollowSource UpstreamFollowSource
 }
 
 // Start starts up the state loop.
@@ -499,7 +499,7 @@ func (s *Driver) followUpstream() {
 			"unsafe", localUnsafe,
 			"l1Origin", localUnsafe.L1Origin,
 		)
-		l1Ref, err := s.followUpstreamSource.L1BlockRefByNumber(s.driverCtx, localUnsafe.L1Origin.Number)
+		l1Ref, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, localUnsafe.L1Origin.Number)
 		if errors.Is(err, ethereum.NotFound) {
 			s.log.Warn("Follow Upstream: Reset: L1 origin of unsafe head not found (L1 reorg)")
 			s.emitter.Emit(s.driverCtx, rollup.ResetEvent{
@@ -521,15 +521,15 @@ func (s *Driver) followUpstream() {
 			return
 		}
 	}
-	if !s.followUpstreamSource.CanFollowL2() {
+	if !s.upstreamFollowSource.CanFollowL2() {
 		return
 	}
-	eFinalized, err := s.followUpstreamSource.L2BlockRefByLabel(s.driverCtx, eth.Finalized)
+	eFinalized, err := s.upstreamFollowSource.L2BlockRefByLabel(s.driverCtx, eth.Finalized)
 	if err != nil {
 		s.log.Warn("Follow Upstream: Failed to fetch finalizedRef", "err", err)
 		return
 	}
-	eSafe, err := s.followUpstreamSource.L2BlockRefByLabel(s.driverCtx, eth.Safe)
+	eSafe, err := s.upstreamFollowSource.L2BlockRefByLabel(s.driverCtx, eth.Safe)
 	if err != nil {
 		s.log.Warn("Follow Upstream: Failed to fetch safeRef", "err", err)
 		return
