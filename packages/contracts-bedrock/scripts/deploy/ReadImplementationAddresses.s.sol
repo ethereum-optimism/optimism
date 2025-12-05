@@ -63,7 +63,7 @@ contract ReadImplementationAddresses is Script {
         output_.l1StandardBridge = IStaticL1ChugSplashProxy(_input.l1StandardBridgeProxy).getImplementation();
 
         // Check if OPCM v2 is being used
-        bool useV2 = isDevFeatureOpcmV2Enabled(_input.opcm);
+        bool useV2 = IOPContractsManager(_input.opcm).isDevFeatureEnabled(DevFeatures.OPCM_V2);
 
         if (useV2) {
             // Get implementations from OPCM V2
@@ -116,12 +116,6 @@ contract ReadImplementationAddresses is Script {
 
         // Get PreimageOracle from MIPS singleton
         output_.preimageOracleSingleton = address(IMIPS64(output_.mipsSingleton).oracle());
-    }
-
-    /// @notice Checks if OPCM v2 dev feature flag is enabled from the contract's dev feature bitmap.
-    function isDevFeatureOpcmV2Enabled(address _opcmAddr) internal view returns (bool) {
-        // Both v1 and v2 share the same interface for this function.
-        return IOPContractsManager(_opcmAddr).isDevFeatureEnabled(DevFeatures.OPCM_V2);
     }
 
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
