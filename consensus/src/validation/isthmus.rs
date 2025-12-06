@@ -2,16 +2,13 @@
 
 use crate::OpConsensusError;
 use alloy_consensus::BlockHeader;
-use alloy_primitives::{address, Address, B256};
+use alloy_primitives::B256;
 use alloy_trie::EMPTY_ROOT_HASH;
+use reth_optimism_primitives::ADDRESS_L2_TO_L1_MESSAGE_PASSER;
 use reth_storage_api::{errors::ProviderResult, StorageRootProvider};
 use reth_trie_common::HashedStorage;
 use revm::database::BundleState;
 use tracing::warn;
-
-/// The L2 contract `L2ToL1MessagePasser`, stores commitments to withdrawal transactions.
-pub const ADDRESS_L2_TO_L1_MESSAGE_PASSER: Address =
-    address!("0x4200000000000000000000000000000000000016");
 
 /// Verifies that `withdrawals_root` (i.e. `l2tol1-msg-passer` storage root since Isthmus) field is
 /// set in block header.
@@ -138,7 +135,6 @@ mod test {
     use reth_db_common::init::init_genesis;
     use reth_optimism_chainspec::OpChainSpecBuilder;
     use reth_optimism_node::OpNode;
-    use reth_optimism_primitives::ADDRESS_L2_TO_L1_MESSAGE_PASSER;
     use reth_provider::{
         providers::BlockchainProvider, test_utils::create_test_provider_factory_with_node_types,
         StateWriter,
