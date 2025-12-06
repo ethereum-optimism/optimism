@@ -140,6 +140,21 @@ commands:
             # Configure ADC
             echo "export GOOGLE_APPLICATION_CREDENTIALS='<< parameters.gcp_cred_config_file_path >>'" | tee -a "$BASH_ENV"
 
+  clean-old-acceptor-logs:
+    description: "Delete op-acceptor testrun logs older than 60 days (prevents disk bloat across workspace attaches/reruns)."
+    steps:
+      - run:
+          name: Cleanup old op-acceptor testrun logs (>60 days)
+          command: |
+            set -eu
+            for base in "op-acceptor/logs" "op-acceptance-tests/logs"; do
+              if [ -d "$base" ]; then
+                echo "Scanning $base for old testrun-* directories..."
+                # Remove any testrun-* directories older than 60 days
+                find "$base" -type d -name 'testrun-*' -mtime +60 -print -exec rm -rf {} +
+              fi
+            done
+
   check-changed:
     description: "Conditionally halts a step if certain modules change"
     parameters:
@@ -1814,6 +1829,7 @@ jobs:
           checkout-method: blobless
       - attach_workspace:
           at: .
+      - clean-old-acceptor-logs
       - run:
           name: Lint/Vet/Build op-acceptance-tests/cmd
           working_directory: op-acceptance-tests
