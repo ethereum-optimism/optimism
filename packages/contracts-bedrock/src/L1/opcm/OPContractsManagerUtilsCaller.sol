@@ -93,6 +93,68 @@ abstract contract OPContractsManagerUtilsCaller {
         );
     }
 
+    /// @notice Helper for checking if an instruction with a given key is present.
+    /// @param _instructions The list of extra upgrade instructions.
+    /// @param _key The key of the instruction to check for.
+    /// @return True if the instruction is present, false otherwise.
+    function _hasInstructionByKey(
+        IOPContractsManagerUtils.ExtraInstruction[] memory _instructions,
+        string memory _key
+    )
+        internal
+        view
+        returns (bool)
+    {
+        return abi.decode(
+            _staticcall(abi.encodeCall(IOPContractsManagerUtils.hasInstructionByKey, (_instructions, _key))), (bool)
+        );
+    }
+
+    /// @notice Helper for getting an instruction by key.
+    /// @param _instructions The list of extra upgrade instructions.
+    /// @param _key The key of the instruction to get.
+    /// @return The instruction, or an empty instruction if not found.
+    function _getInstructionByKey(
+        IOPContractsManagerUtils.ExtraInstruction[] memory _instructions,
+        string memory _key
+    )
+        internal
+        view
+        returns (IOPContractsManagerUtils.ExtraInstruction memory)
+    {
+        return abi.decode(
+            _staticcall(abi.encodeCall(IOPContractsManagerUtils.getInstructionByKey, (_instructions, _key))),
+            (IOPContractsManagerUtils.ExtraInstruction)
+        );
+    }
+
+    /// @notice Helper for checking if interop migration addresses are present.
+    /// @param _instructions The list of extra upgrade instructions.
+    /// @return True if interop migration addresses instruction exists, false otherwise.
+    function _hasInteropMigrationAddresses(IOPContractsManagerUtils.ExtraInstruction[] memory _instructions)
+        internal
+        view
+        returns (bool)
+    {
+        return abi.decode(
+            _staticcall(abi.encodeCall(IOPContractsManagerUtils.hasInteropMigrationAddresses, (_instructions))), (bool)
+        );
+    }
+
+    /// @notice Helper for validating and decoding interop migration addresses.
+    /// @param _instructions The list of extra upgrade instructions.
+    /// @return The decoded interop migration addresses struct.
+    function _checkInteropMigrationAddresses(IOPContractsManagerUtils.ExtraInstruction[] memory _instructions)
+        internal
+        view
+        returns (IOPContractsManagerUtils.InteropMigrationAddresses memory)
+    {
+        return abi.decode(
+            _staticcall(abi.encodeCall(IOPContractsManagerUtils.checkInteropMigrationAddresses, (_instructions))),
+            (IOPContractsManagerUtils.InteropMigrationAddresses)
+        );
+    }
+
     /// @notice Helper function to load data from a source contract as bytes.
     /// @param _source The source contract to load the data from.
     /// @param _selector The selector of the function to call on the source contract.

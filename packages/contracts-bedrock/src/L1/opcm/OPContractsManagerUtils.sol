@@ -13,6 +13,9 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
+import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @title OPContractsManagerUtils
 /// @notice OPContractsManagerUtils is a contract that provides utility functions for the OPContractsManager.
@@ -33,6 +36,13 @@ contract OPContractsManagerUtils {
         bytes data;
     }
 
+    /// @notice Struct containing shared interop contract addresses for migration.
+    struct InteropMigrationAddresses {
+        IDisputeGameFactory disputeGameFactory;
+        IAnchorStateRegistry anchorStateRegistry;
+        IETHLockbox ethLockbox;
+    }
+
     /// @notice Emitted when a proxy is created by this contract.
     /// @param name  The name of the proxy.
     /// @param proxy The address of the proxy.
@@ -49,6 +59,9 @@ contract OPContractsManagerUtils {
     /// @notice Thrown when a proxy must be loaded but couldn't be.
     /// @param _name The name of the proxy that couldn't be loaded.
     error OPContractsManagerUtils_ProxyMustLoad(string _name);
+
+    /// @notice Thrown when interop migration addresses are invalid (zero address or missing).
+    error OPContractsManagerUtils_InvalidInteropMigrationAddresses();
 
     /// @notice Container of blueprint and implementation contract addresses.
     IOPContractsManagerContainer public immutable contractsContainer;
@@ -144,6 +157,26 @@ contract OPContractsManagerUtils {
         return false;
     }
 
+    /// @notice Helper function to check if an instruction with a given key is present.
+    /// @param _instructions The list of extra upgrade instructions.
+    /// @param _key The key of the instruction to check for.
+    /// @return True if the instruction with the given key exists, false otherwise.
+    function hasInstructionByKey(
+        ExtraInstruction[] memory _instructions,
+        string memory _key
+    )
+        public
+        pure
+        returns (bool)
+    {
+        for (uint256 i = 0; i < _instructions.length; i++) {
+            if (LibString.eq(_instructions[i].key, _key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// @notice Helper function to get an instruction by key.
     /// @param _instructions The list of extra upgrade instructions.
     /// @param _key The key of the instruction to get.
@@ -162,6 +195,40 @@ contract OPContractsManagerUtils {
             }
         }
         return ExtraInstruction({ key: "", data: bytes("") });
+    }
+
+    /// @notice Checks if interop migration addresses instruction is present.
+    /// @param _instructions The list of extra upgrade instructions.
+    /// @return True if the INTEROP_MIGRATION_ADDRESSES instruction exists, false otherwise.
+    function hasInteropMigrationAddresses(ExtraInstruction[] memory _instructions) public pure returns (bool) {
+        ExtraInstruction memory instruction = getInstructionByKey(_instructions, Constants.INTEROP_MIGRATION_ADDRESSES);
+        return bytes(instruction.key).length > 0;
+    }
+
+    /// @notice Validates and decodes interop migration addresses.
+    /// @param _instructions The list of extra upgrade instructions.
+    /// @return The decoded interop migration addresses struct.
+    /// @dev Reverts if addresses are invalid (zero address).
+    /// @dev TODO: Check that all addresses use the same OptimismPortal (found on the ASR).
+    function checkInteropMigrationAddresses(ExtraInstruction[] memory _instructions)
+        public
+        pure
+        returns (InteropMigrationAddresses memory)
+    {
+        ExtraInstruction memory instruction = getInstructionByKey(_instructions, Constants.INTEROP_MIGRATION_ADDRESSES);
+
+        // Decode the addresses
+        InteropMigrationAddresses memory addrs = abi.decode(instruction.data, (InteropMigrationAddresses));
+
+        // Validate that all addresses are non-zero
+        if (
+            address(addrs.disputeGameFactory) == address(0) || address(addrs.anchorStateRegistry) == address(0)
+                || address(addrs.ethLockbox) == address(0)
+        ) {
+            revert OPContractsManagerUtils_InvalidInteropMigrationAddresses();
+        }
+
+        return addrs;
     }
 
     /// @notice Helper function to load data from a source contract as bytes.

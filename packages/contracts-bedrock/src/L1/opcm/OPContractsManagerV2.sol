@@ -118,6 +118,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         DisputeGameConfig[] disputeGameConfigs;
         // CGT
         bool useCustomGasToken;
+        // Extra instructions
+        IOPContractsManagerUtils.ExtraInstruction[] extraInstructions;
     }
 
     /// @notice Partial input required for an upgrade.
@@ -150,6 +152,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
     /// @notice Thrown when a chain attempts to upgrade to custom gas token after initial deployment.
     error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
+
+    /// @notice Thrown when interop migration is attempted without the interop dev feature enabled.
+    error OPContractsManagerV2_InteropMigrationRequiresDevFeature();
 
     /// @notice Container of blueprint and implementation contract addresses.
     IOPContractsManagerContainer public immutable contractsContainer;
@@ -634,7 +639,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                     _upgradeInput.extraInstructions
                 ),
                 (bool)
-            )
+            ),
+            extraInstructions: _upgradeInput.extraInstructions
         });
     }
 
@@ -642,10 +648,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @param _cfg The full config.
     function _assertValidFullConfig(FullConfig memory _cfg) internal pure {
         // Start validating the dispute game configs. Put allowed game types here.
-        GameType[] memory validGameTypes = new GameType[](3);
+        GameType[] memory validGameTypes = new GameType[](5);
         validGameTypes[0] = GameTypes.CANNON;
         validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
         validGameTypes[2] = GameTypes.CANNON_KONA;
+        validGameTypes[3] = GameTypes.SUPER_CANNON;
+        validGameTypes[4] = GameTypes.SUPER_PERMISSIONED_CANNON;
 
         // We must have a config for each valid game type.
         if (_cfg.disputeGameConfigs.length != validGameTypes.length) {
@@ -666,10 +674,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             }
         }
 
-        // We currently REQUIRE that the PermissionedDisputeGame is enabled. We may be able to
-        // remove this check at some point in the future if we stop making this assumption, but for
+        // We currently require that either the PermissionedDisputeGame or the SuperPermissionedDisputeGame
+        // is enabled. We may be able to remove this check at some point in the future if we stop making this
+        // assumption, but for
         // now we explicitly assert that it is enabled.
-        if (!_cfg.disputeGameConfigs[1].enabled) {
+        // TODO(#?????): Consider moving this to the StandardValidator.
+        if (!_cfg.disputeGameConfigs[1].enabled && !_cfg.disputeGameConfigs[4].enabled) {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
     }
@@ -707,29 +717,20 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // shared lockbox address. If this is not an interop migration then we won't end up using
         // this variable.
         IETHLockbox oldLockbox = _cts.ethLockbox;
-        if (_hasInstructionByKey(_cfg.extraInstructions, INTEROP_MIGRATION_LOCKBOX)) {
+        if (_hasInteropMigrationAddresses(_cfg.extraInstructions)) {
+            // Enforce that the interop dev feature is enabled.
+            if (!isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+                revert OPContractsManagerV2_InteropMigrationRequiresDevFeature();
+            }
+
+            // Validate and decode the addresses.
+            IOPContractsManagerUtils.InteropMigrationAddresses memory interopAddrs =
+                _checkInteropMigrationAddresses(_cfg.extraInstructions);
+
             // Replace existing contract references with the shared interop references.
-            _cts.ethLockbox = IETHLockbox(
-                address(abi.decode(_getInstructionByKey(_cfg.extraInstructions, INTEROP_MIGRATION_LOCKBOX), address))
-            );
-            _cts.disputeGameFactory = IDisputeGameFactory(
-                address(abi.decode(_getInstructionByKey(_cfg.extraInstructions, INTEROP_MIGRATION_DGF), address))
-            );
-            _cts.anchorStateRegistry = IAnchorStateRegistry(
-                address(abi.decode(_getInstructionByKey(_cfg.extraInstructions, INTEROP_MIGRATION_ASR), address))
-            );
-
-            // Authorize the OptimismPortal for this chain to use the new ETHLockbox.
-            _cts.ethLockbox.authorizePortal(_cts.optimismPortal);
-
-            // TODO(#?????): Need to enforce that the interop dev flag is enabled.
-
-            // TODO(#?????): We can't call OptimismPortal.migrateLiquidity() here because the
-            // portal may not already be upgraded to the interop version of the contract. Once the
-            // core OptimismPortal contract has been upgraded so that it natively supports interop
-            // functionality, we can just do the liquidity migration here and save ourselves some
-            // unnecessary mess in this function. Generally lots of small tweaks to be made once
-            // we merge the interop functionality into the core OptimismPortal contract.
+            _cts.ethLockbox = interopAddrs.ethLockbox;
+            _cts.disputeGameFactory = interopAddrs.disputeGameFactory;
+            _cts.anchorStateRegistry = interopAddrs.anchorStateRegistry;
         }
 
         // Update the SystemConfig.
@@ -758,38 +759,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             );
         }
 
+        // TODO(#?????): Is there a reason we need to do this here? Seems like it should be done
+        // below with the other isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP) block.
         // If we haven't already enabled the ETHLockbox, enable it.
         if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
                 _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-            }
-        }
-
-        // We upgrade/initialize the ETHLockbox if this is an initial deployment or if it's an
-        // upgrade and the ETH_LOCKBOX feature is enabled.
-        // TODO(#?????): Maybe just initialize this every time?
-        if (_isInitialDeployment || _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-            IOptimismPortal[] memory portals = new IOptimismPortal[](1);
-            portals[0] = _cts.optimismPortal;
-            _upgrade(
-                _cts.proxyAdmin,
-                address(_cts.ethLockbox),
-                impls.ethLockboxImpl,
-                abi.encodeCall(IETHLockbox.initialize, (_cts.systemConfig, portals))
-            );
-        }
-
-        // Now we can migrate any liquidity into the ETHLockbox.
-        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            // Start by migrating any portal liquidity into the ETHLockbox.
-            IOptimismPortalInterop(payable(_cts.optimismPortal)).migrateLiquidity();
-
-            // If we have an old lockbox (we're doing an interop migration) then also migrate any
-            // liquidity from the old lockbox into the new one. Requires that we first authorize
-            // the old lockbox and then migrate liquidity to the new one.
-            if (oldLockbox != IETHLockbox(address(0))) {
-                oldLockbox.authorizeLockbox(_cts.ethLockbox);
-                oldLockbox.migrateLiquidity(_cts.ethLockbox);
             }
         }
 
@@ -828,14 +803,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             abi.encodeCall(IOptimismMintableERC20Factory.initialize, (address(_cts.l1StandardBridge)))
         );
 
-        // Update the DisputeGameFactory.
-        _upgrade(
-            _cts.proxyAdmin,
-            address(_cts.disputeGameFactory),
-            impls.disputeGameFactoryImpl,
-            abi.encodeCall(IDisputeGameFactory.initialize, (address(this)))
-        );
-
         // Update the DelayedWETH.
         _upgrade(
             _cts.proxyAdmin,
@@ -844,16 +811,71 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             abi.encodeCall(IDelayedWETH.initialize, (_cts.systemConfig))
         );
 
-        // Update the AnchorStateRegistry.
-        _upgrade(
-            _cts.proxyAdmin,
-            address(_cts.anchorStateRegistry),
-            impls.anchorStateRegistryImpl,
-            abi.encodeCall(
-                IAnchorStateRegistry.initialize,
-                (_cts.systemConfig, _cts.disputeGameFactory, _cfg.startingAnchorRoot, _cfg.startingRespectedGameType)
-            )
-        );
+        // Update shared interop contracts (ETHLockbox, DisputeGameFactory, AnchorStateRegistry).
+        // Skip if using shared contracts from interop migration because:
+        // 1. They're already deployed and initialized on the shared chain
+        // 2. The current chain's ProxyAdmin doesn't own them and cannot upgrade them
+        if (!_hasInteropMigrationAddresses(_cfg.extraInstructions)) {
+            // We upgrade/initialize the ETHLockbox if this is an initial deployment or if it's an
+            // upgrade and the ETH_LOCKBOX feature is enabled.
+            // TODO(#?????): Maybe just initialize this every time?
+            if (_isInitialDeployment || _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+                IOptimismPortal[] memory portals = new IOptimismPortal[](1);
+                portals[0] = _cts.optimismPortal;
+                _upgrade(
+                    _cts.proxyAdmin,
+                    address(_cts.ethLockbox),
+                    impls.ethLockboxImpl,
+                    abi.encodeCall(IETHLockbox.initialize, (_cts.systemConfig, portals))
+                );
+            }
+
+            // Update the DisputeGameFactory.
+            _upgrade(
+                _cts.proxyAdmin,
+                address(_cts.disputeGameFactory),
+                impls.disputeGameFactoryImpl,
+                abi.encodeCall(IDisputeGameFactory.initialize, (address(this)))
+            );
+
+            // Update the AnchorStateRegistry.
+            _upgrade(
+                _cts.proxyAdmin,
+                address(_cts.anchorStateRegistry),
+                impls.anchorStateRegistryImpl,
+                abi.encodeCall(
+                    IAnchorStateRegistry.initialize,
+                    (
+                        _cts.systemConfig,
+                        _cts.disputeGameFactory,
+                        _cfg.startingAnchorRoot,
+                        _cfg.startingRespectedGameType
+                    )
+                )
+            );
+        }
+
+        // Now we can migrate any liquidity into the ETHLockbox.
+        if (_hasInteropMigrationAddresses(_cfg.extraInstructions)) {
+            // Authorize the portal to use the shared ETHLockbox.
+            _cts.ethLockbox.authorizePortal(_cts.optimismPortal);
+
+            // Start by migrating any portal liquidity into the ETHLockbox.
+            // There may or may not be ETH in the portal, but we can call migrateLiquidity() safely
+            // either way.
+            IOptimismPortalInterop(payable(_cts.optimismPortal)).migrateLiquidity();
+
+            // If we have an old lockbox (we're doing an interop migration) then also migrate any
+            // liquidity from the old lockbox into the new one. Requires that we first authorize
+            // the old lockbox and then migrate liquidity to the new one.
+            if (oldLockbox != IETHLockbox(address(0))) {
+                // Authorize the old lockbox to migrate liquidity to the new one.
+                _cts.ethLockbox.authorizeLockbox(oldLockbox);
+
+                // Migrate liquidity from the old lockbox to the new one.
+                oldLockbox.migrateLiquidity(_cts.ethLockbox);
+            }
+        }
 
         // Update the DisputeGame config and implementations.
         // NOTE: We assert in _assertValidFullConfig that we have a configuration for all valid game

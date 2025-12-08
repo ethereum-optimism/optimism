@@ -12,6 +12,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Claim, Hash } from "src/dispute/lib/LibUDT.sol";
 import { GameType, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -23,6 +24,9 @@ import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 
 import { Proposal, Hash } from "src/dispute/lib/Types.sol";
 
@@ -456,7 +460,7 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         returns (IOPContractsManagerV2.DisputeGameConfig[] memory)
     {
         IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerV2.DisputeGameConfig[](3);
+            new IOPContractsManagerV2.DisputeGameConfig[](5);
         disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
             gameType: GameTypes.CANNON,
             enabled: address(_disputeGameFactory.gameImpls(GameTypes.CANNON)) != address(0),
@@ -480,6 +484,24 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
             enabled: address(_disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)) != address(0),
             initBond: _disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
             gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+        });
+        disputeGameConfigs[3] = IOPContractsManagerV2.DisputeGameConfig({
+            gameType: GameTypes.SUPER_CANNON,
+            enabled: address(_disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON)) != address(0),
+            initBond: _disputeGameFactory.initBonds(GameTypes.SUPER_CANNON),
+            gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
+        });
+        disputeGameConfigs[4] = IOPContractsManagerV2.DisputeGameConfig({
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            enabled: address(_disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) != address(0),
+            initBond: _disputeGameFactory.initBonds(GameTypes.SUPER_PERMISSIONED_CANNON),
+            gameArgs: abi.encode(
+                IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                    absolutePrestate: cannonPrestate,
+                    proposer: permissionedGameProposer(_disputeGameFactory),
+                    challenger: permissionedGameChallenger(_disputeGameFactory)
+                })
+            )
         });
         return disputeGameConfigs;
     }
@@ -806,14 +828,26 @@ contract OPContractsManagerV2_InteropMigration_Test is OPContractsManagerV2_Upgr
         super.setUp();
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
+        // Upgrade the SuperchainConfig first
+        IOPContractsManagerV2.SuperchainUpgradeInput memory superchainUpgradeInput;
+        superchainUpgradeInput.superchainConfig = superchainConfig;
+        prankDelegateCall(superchainPAO);
+        (bool success,) = address(opcmV2).delegatecall(
+            abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
+        );
+        require(success, "SuperchainConfig upgrade failed");
+
         chainContracts1 = opcmV2.deploy(_getDefaultFullConfig());
-        chainContracts2 = opcmV2.deploy(_getDefaultFullConfig());
+
+        IOPContractsManagerV2.FullConfig memory fullConfig2 = _getDefaultFullConfig();
+        fullConfig2.l2ChainId = 101;
+        chainContracts2 = opcmV2.deploy(fullConfig2);
     }
 
     /// @notice Helper function to get a default full config
     function _getDefaultFullConfig() internal view returns (IOPContractsManagerV2.FullConfig memory) {
         IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerV2.DisputeGameConfig[](2);
+            new IOPContractsManagerV2.DisputeGameConfig[](5);
         disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
             gameType: GameTypes.CANNON,
             enabled: true,
@@ -824,6 +858,30 @@ contract OPContractsManagerV2_InteropMigration_Test is OPContractsManagerV2_Upgr
             gameType: GameTypes.PERMISSIONED_CANNON,
             enabled: true,
             initBond: 1 ether,
+            gameArgs: abi.encode(
+                IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                    absolutePrestate: cannonPrestate1,
+                    proposer: permissionedGameProposer(disputeGameFactory),
+                    challenger: permissionedGameChallenger(disputeGameFactory)
+                })
+            )
+        });
+        disputeGameConfigs[2] = IOPContractsManagerV2.DisputeGameConfig({
+            gameType: GameTypes.CANNON_KONA,
+            enabled: true,
+            initBond: 1 ether,
+            gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate1 }))
+        });
+        disputeGameConfigs[3] = IOPContractsManagerV2.DisputeGameConfig({
+            gameType: GameTypes.SUPER_CANNON,
+            enabled: false,
+            initBond: 0,
+            gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate1 }))
+        });
+        disputeGameConfigs[4] = IOPContractsManagerV2.DisputeGameConfig({
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            enabled: false,
+            initBond: 0,
             gameArgs: abi.encode(
                 IOPContractsManagerV2.PermissionedDisputeGameConfig({
                     absolutePrestate: cannonPrestate1,
@@ -843,17 +901,11 @@ contract OPContractsManagerV2_InteropMigration_Test is OPContractsManagerV2_Upgr
             startingRespectedGameType: GameTypes.CANNON,
             basefeeScalar: 1,
             blobBasefeeScalar: 1,
-            gasLimit: 1000000,
+            gasLimit: 30000000,
             l2ChainId: 100,
-            resourceConfig: IResourceMetering.ResourceConfig({
-                maxResourceLimit: 1000000,
-                elasticityMultiplier: 10,
-                baseFeeMaxChangeDenominator: 8,
-                minimumBaseFee: 1000000,
-                systemTxMaxGas: 1000000,
-                maximumBaseFee: 100000000000
-            }),
-            disputeGameConfigs: disputeGameConfigs
+            resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
+            disputeGameConfigs: disputeGameConfigs,
+            extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
         });
     }
 
@@ -866,7 +918,7 @@ contract OPContractsManagerV2_InteropMigration_Test is OPContractsManagerV2_Upgr
         return IOPContractsManagerV2.UpgradeInput({
             systemConfig: _chainContracts.systemConfig,
             disputeGameConfigs: _getDisputeGameConfigs(_chainContracts.disputeGameFactory),
-            extraInstructions: new IOPContractsManagerV2.ExtraInstruction[](0)
+            extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
         });
     }
 
@@ -890,7 +942,7 @@ contract OPContractsManagerV2_InteropMigration_Test is OPContractsManagerV2_Upgr
             vm.expectRevert(_revertSelector);
         }
         prankDelegateCall(proxyAdminOwner);
-        (bool success,) = address(opcm).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_input)));
+        (bool success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_input)));
         assertTrue(success, "migrate failed");
         uint256 gasAfter = gasleft();
 
@@ -899,13 +951,66 @@ contract OPContractsManagerV2_InteropMigration_Test is OPContractsManagerV2_Upgr
     }
 
     function test_upgradeToInterop_singleChain_succeeds() public {
-        IOPContractsManagerV2.UpgradeInput memory input = IOPContractsManagerV2.UpgradeInput({
-            systemConfig: systemConfig,
-            disputeGameConfigs: new IOPContractsManagerV2.DisputeGameConfig[](0),
-            extraInstructions: new IOPContractsManagerV2.ExtraInstruction[](0)
+        // Step 1: Deploy shared interop infrastructure that both chains will use
+        IOPContractsManagerV2.FullConfig memory sharedConfig = _getDefaultFullConfig();
+        sharedConfig.l2ChainId = 999; // Use a different chain ID to prevent CREATE2 collisions
+        IOPContractsManagerV2.ChainContracts memory sharedContracts = opcmV2.deploy(sharedConfig);
+
+        // Step 2: Record old state before migration
+        IETHLockbox oldLockbox1 = chainContracts1.ethLockbox;
+        IETHLockbox oldLockbox2 = chainContracts2.ethLockbox;
+        IDisputeGameFactory oldDGF1 = chainContracts1.disputeGameFactory;
+        IDisputeGameFactory oldDGF2 = chainContracts2.disputeGameFactory;
+
+        // Step 3: Fund the old lockboxes with some ETH for the migration
+        vm.deal(address(oldLockbox1), 10 ether);
+        vm.deal(address(oldLockbox2), 5 ether);
+
+        // Step 4: Create the InteropMigrationAddresses instruction
+        IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
+            new IOPContractsManagerUtils.ExtraInstruction[](1);
+        extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
+            key: Constants.INTEROP_MIGRATION_ADDRESSES,
+            data: abi.encode(
+                IOPContractsManagerUtils.InteropMigrationAddresses({
+                    disputeGameFactory: sharedContracts.disputeGameFactory,
+                    anchorStateRegistry: sharedContracts.anchorStateRegistry,
+                    ethLockbox: sharedContracts.ethLockbox
+                })
+            )
         });
 
-        _doUpgradeToInterop(input);
+        // Step 5: Upgrade chain 1 to interop
+        IOPContractsManagerV2.UpgradeInput memory input1 = IOPContractsManagerV2.UpgradeInput({
+            systemConfig: chainContracts1.systemConfig,
+            disputeGameConfigs: _getDisputeGameConfigs(chainContracts1.disputeGameFactory),
+            extraInstructions: extraInstructions
+        });
+        _doUpgradeToInterop(input1);
+
+        // Step 6: Upgrade chain 2 to interop
+        IOPContractsManagerV2.UpgradeInput memory input2 = IOPContractsManagerV2.UpgradeInput({
+            systemConfig: chainContracts2.systemConfig,
+            disputeGameConfigs: _getDisputeGameConfigs(chainContracts2.disputeGameFactory),
+            extraInstructions: extraInstructions
+        });
+        _doUpgradeToInterop(input2);
+
+        // Step 7: Verify both chains now point to the shared DisputeGameFactory
+        address chain1DGFAddr = chainContracts1.systemConfig.disputeGameFactory();
+        address chain2DGFAddr = chainContracts2.systemConfig.disputeGameFactory();
+
+        assertEq(chain1DGFAddr, address(sharedContracts.disputeGameFactory), "Chain 1 should use shared DGF");
+        assertEq(chain2DGFAddr, address(sharedContracts.disputeGameFactory), "Chain 2 should use shared DGF");
+
+        // Step 8: Verify liquidity was migrated from old lockboxes to shared lockbox
+        assertEq(address(oldLockbox1).balance, 0, "Old lockbox 1 should be empty");
+        assertEq(address(oldLockbox2).balance, 0, "Old lockbox 2 should be empty");
+        assertEq(address(sharedContracts.ethLockbox).balance, 15 ether, "Shared lockbox should have all migrated ETH");
+
+        // Step 9: Verify old infrastructure is no longer in use
+        assertNotEq(address(oldDGF1), address(sharedContracts.disputeGameFactory), "Should have migrated from old DGF");
+        assertNotEq(address(oldDGF2), address(sharedContracts.disputeGameFactory), "Should have migrated from old DGF");
     }
 }
 

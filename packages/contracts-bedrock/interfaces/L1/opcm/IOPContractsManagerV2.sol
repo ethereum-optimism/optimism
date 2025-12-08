@@ -82,11 +82,7 @@ interface IOPContractsManagerV2 {
         IResourceMetering.ResourceConfig resourceConfig;
         DisputeGameConfig[] disputeGameConfigs;
         bool useCustomGasToken;
-    }
-
-    struct ExtraInstruction {
-        string key;
-        bytes data;
+        IOPContractsManagerUtils.ExtraInstruction[] extraInstructions;
     }
 
     struct UpgradeInput {

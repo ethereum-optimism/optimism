@@ -29,6 +29,7 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -409,6 +410,7 @@ contract Deploy is Deployer {
         IOPContractsManagerV2 opcm = IOPContractsManagerV2(artifacts.mustGetAddress("OPContractsManagerV2"));
 
         IOPContractsManagerV2.FullConfig memory deployInput = getDeployInputV2();
+        console.log("Deploying");
         IOPContractsManagerV2.ChainContracts memory deployOutput = opcm.deploy(deployInput);
 
         // Save all deploy outputs from the OPCM, in the order they are declared in the DeployOutput struct
@@ -491,7 +493,7 @@ contract Deploy is Deployer {
 
     function getDeployInputV2() public view returns (IOPContractsManagerV2.FullConfig memory) {
         IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerV2.DisputeGameConfig[](3);
+            new IOPContractsManagerV2.DisputeGameConfig[](5);
         disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
             enabled: false,
             initBond: 0,
@@ -524,6 +526,28 @@ contract Deploy is Deployer {
                 })
             )
         });
+        disputeGameConfigs[3] = IOPContractsManagerV2.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON,
+            gameArgs: abi.encode(
+                IOPContractsManagerV2.FaultDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()))
+                })
+            )
+        });
+        disputeGameConfigs[4] = IOPContractsManagerV2.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameArgs: abi.encode(
+                IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate())),
+                    proposer: cfg.l2OutputOracleProposer(),
+                    challenger: cfg.l2OutputOracleChallenger()
+                })
+            )
+        });
 
         return IOPContractsManagerV2.FullConfig({
             saltMixer: "salt mixer",
@@ -543,7 +567,8 @@ contract Deploy is Deployer {
             l2ChainId: cfg.l2ChainID(),
             resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
             disputeGameConfigs: disputeGameConfigs,
-            useCustomGasToken: cfg.useCustomGasToken()
+            useCustomGasToken: cfg.useCustomGasToken(),
+            extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
         });
     }
 }

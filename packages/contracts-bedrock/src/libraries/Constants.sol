@@ -54,6 +54,9 @@ library Constants {
     ///         contracts to be deployed. Only to be used for deployments.
     bytes internal constant PERMIT_ALL_CONTRACTS_INSTRUCTION = bytes("ALL");
 
+    /// @notice Special constant key for the InteropMigration instruction containing shared contract addresses.
+    string internal constant INTEROP_MIGRATION_ADDRESSES = "InteropMigrationAddresses";
+
     /// @notice Returns the default values for the ResourceConfig. These are the recommended values
     ///         for a production network.
     function DEFAULT_RESOURCE_CONFIG() internal pure returns (IResourceMetering.ResourceConfig memory) {

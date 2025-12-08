@@ -4,6 +4,9 @@ pragma solidity ^0.8.0;
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
+import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 interface IOPContractsManagerUtils {
     struct ProxyDeployArgs {
@@ -18,11 +21,18 @@ interface IOPContractsManagerUtils {
         bytes data;
     }
 
+    struct InteropMigrationAddresses {
+        IDisputeGameFactory disputeGameFactory;
+        IAnchorStateRegistry anchorStateRegistry;
+        IETHLockbox ethLockbox;
+    }
+
     event ProxyCreation(string name, address proxy);
 
     error OPContractsManagerUtils_DowngradeNotAllowed(address _contract);
     error OPContractsManagerUtils_ConfigLoadFailed(string _name);
     error OPContractsManagerUtils_ProxyMustLoad(string _name);
+    error OPContractsManagerUtils_InvalidInteropMigrationAddresses();
     error ReservedBitsSet();
     error UnsupportedERCVersion(uint8 version);
     error SemverComp_InvalidSemverParts();
@@ -72,6 +82,14 @@ interface IOPContractsManagerUtils {
         pure
         returns (bool);
 
+    function hasInstructionByKey(
+        ExtraInstruction[] memory _instructions,
+        string memory _key
+    )
+        external
+        pure
+        returns (bool);
+
     function getInstructionByKey(
         ExtraInstruction[] memory _instructions,
         string memory _key
@@ -79,6 +97,16 @@ interface IOPContractsManagerUtils {
         external
         pure
         returns (ExtraInstruction memory);
+
+    function hasInteropMigrationAddresses(ExtraInstruction[] memory _instructions)
+        external
+        pure
+        returns (bool);
+
+    function checkInteropMigrationAddresses(ExtraInstruction[] memory _instructions)
+        external
+        pure
+        returns (InteropMigrationAddresses memory);
 
     function loadBytes(
         address _source,
