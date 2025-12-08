@@ -252,6 +252,10 @@ func TestPopulateSuperchainState(t *testing.T) {
 	}, *roles)
 }
 
+// TestPopulateSuperchainState_OPCMV2 validates that PopulateSuperchainState handles the OPCM v2 flow, where only a SuperchainConfigProxy
+// is provided. This test uses a forked script host configured to a pinned Sepolia block to guarantee deterministic results.
+// It asserts that returned roles and addresses are correct for the superchain config under OPCM v2, and that ProtocolVersions
+// contract fields—which are not present in OPCM v2—are zeroed out as expected.
 func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 	t.Parallel()
 
@@ -283,6 +287,7 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 
 	superchain, err := standard.SuperchainFor(11155111)
 	require.NoError(t, err)
+	// opcmAddr is set to 0, all config is provided in the superchainConfigProxy
 	dep, roles, err := PopulateSuperchainState(host, common.Address{}, superchain.SuperchainConfigAddr)
 	require.NoError(t, err)
 
@@ -290,12 +295,14 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 		SuperchainProxyAdminImpl: common.HexToAddress("0x189aBAAaa82DfC015A588A7dbaD6F13b1D3485Bc"),
 		SuperchainConfigProxy:    superchain.SuperchainConfigAddr,
 		SuperchainConfigImpl:     common.HexToAddress("0x4da82a327773965b8d4D85Fa3dB8249b387458E7"),
-		ProtocolVersionsProxy:    common.Address{},
-		ProtocolVersionsImpl:     common.Address{},
+		// TODO: Remove ProtocolVersions fields when OPCMv1 gets deprecated
+		ProtocolVersionsProxy: common.Address{},
+		ProtocolVersionsImpl:  common.Address{},
 	}, *dep)
 	require.Equal(t, addresses.SuperchainRoles{
 		SuperchainProxyAdminOwner: common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2"),
-		ProtocolVersionsOwner:     common.Address{},
-		SuperchainGuardian:        common.HexToAddress("0x7a50f00e8D05b95F98fE38d8BeE366a7324dCf7E"),
+		// TODO: Remove ProtocolVersions fields when OPCMv1 gets deprecated
+		ProtocolVersionsOwner: common.Address{},
+		SuperchainGuardian:    common.HexToAddress("0x7a50f00e8D05b95F98fE38d8BeE366a7324dCf7E"),
 	}, *roles)
 }

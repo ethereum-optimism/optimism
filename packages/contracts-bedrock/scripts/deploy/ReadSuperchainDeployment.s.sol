@@ -12,21 +12,23 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 contract ReadSuperchainDeployment is Script {
     struct Input {
-        IOPContractsManager opcmAddress;
+        IOPContractsManager opcmAddress; // TODO: Remove OPCMAddress field when OPCMv1 gets deprecated
         ISuperchainConfig superchainConfigProxy;
     }
 
     struct Output {
+        // TODO: Remove ProtocolVersions fields when OPCMv1 gets deprecated
         IProtocolVersions protocolVersionsImpl;
         IProtocolVersions protocolVersionsProxy;
+        address protocolVersionsOwner;
+        bytes32 recommendedProtocolVersion;
+        bytes32 requiredProtocolVersion;
+        // Superchain config
         ISuperchainConfig superchainConfigImpl;
         ISuperchainConfig superchainConfigProxy;
         IProxyAdmin superchainProxyAdmin;
         address guardian;
-        address protocolVersionsOwner;
         address superchainProxyAdminOwner;
-        bytes32 recommendedProtocolVersion;
-        bytes32 requiredProtocolVersion;
     }
 
     function run(Input memory _input) public returns (Output memory output_) {
@@ -48,7 +50,6 @@ contract ReadSuperchainDeployment is Script {
             output_.superchainProxyAdminOwner = output_.superchainProxyAdmin.owner();
 
             // Protocol versions fields remain zero/unfilled in OPCM v2
-            output_.protocolVersionsImpl = IProtocolVersions(address(0));
         } else {
             // OPCM v1: Original logic using OPCM address
             require(address(_input.opcmAddress) != address(0), "ReadSuperchainDeployment: opcmAddress not set");

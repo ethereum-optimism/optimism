@@ -114,6 +114,7 @@ func (c *ImplementationsConfig) Check() error {
 	if c.SuperchainConfigProxy == (common.Address{}) {
 		return errors.New("superchain config proxy must be specified")
 	}
+	opcmV2Enabled := deployer.IsDevFeatureEnabled(c.DevFeatureBitmap, deployer.OPCMV2DevFlag)
 	if c.ProtocolVersionsProxy == (common.Address{}) {
 		return errors.New("protocol versions proxy must be specified")
 	}

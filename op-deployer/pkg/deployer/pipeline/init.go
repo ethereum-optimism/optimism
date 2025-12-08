@@ -44,7 +44,8 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 			return fmt.Errorf("cannot set superchain roles for predeployed OPCM")
 		}
 
-		superDeployment, superRoles, err := PopulateSuperchainState(env.L1ScriptHost, *intent.OPCMAddress, *intent.SuperchainConfigProxy)
+		// Use OPCMv1 to populate superchain state
+		superDeployment, superRoles, err := PopulateSuperchainState(env.L1ScriptHost, *intent.OPCMAddress, common.Address{})
 		if err != nil {
 			return fmt.Errorf("error populating superchain state: %w", err)
 		}
@@ -61,8 +62,9 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 		if intent.SuperchainRoles != nil {
 			return fmt.Errorf("cannot set superchain roles for superchain config proxy")
 		}
-		OPCMAddress := common.Address{}
-		superDeployment, superRoles, err := PopulateSuperchainState(env.L1ScriptHost, OPCMAddress, *intent.SuperchainConfigProxy)
+
+		// Use SuperchainConfigProxy to populate superchain state
+		superDeployment, superRoles, err := PopulateSuperchainState(env.L1ScriptHost, common.Address{}, *intent.SuperchainConfigProxy)
 		if err != nil {
 			return fmt.Errorf("error populating superchain state: %w", err)
 		}
@@ -145,6 +147,8 @@ func immutableErr(field string, was, is any) error {
 	return fmt.Errorf("%s is immutable: was %v, is %v", field, was, is)
 }
 
+// TODO: Remove OPCMAddress field when OPCMv1 gets deprecated
+// TODO: Remove ProtocolVersions fields when OPCMv1 gets deprecated
 func PopulateSuperchainState(host *script.Host, opcmAddr common.Address, superchainConfigProxy common.Address) (*addresses.SuperchainContracts, *addresses.SuperchainRoles, error) {
 	readScript, err := opcm.NewReadSuperchainDeploymentScript(host)
 	if err != nil {
