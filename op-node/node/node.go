@@ -761,7 +761,12 @@ func (n *OpNode) onEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case rollup.CriticalErrorEvent:
 		n.log.Error("Critical error", "err", x.Err)
-		n.cancel(fmt.Errorf("critical error: %w", x.Err))
+		// Cancel may be nil when the caller did not provide a shutdown hook.
+		if n.cancel != nil {
+			n.cancel(fmt.Errorf("critical error: %w", x.Err))
+		} else {
+			n.log.Error("no cancel hook configured; critical error cannot trigger shutdown", "err", x.Err)
+		}
 		return true
 	default:
 		return false
