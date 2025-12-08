@@ -40,9 +40,11 @@ alloy-consensus.workspace = true
 alloy-genesis.workspace = true
 alloy-rpc-client.workspace = true
 alloy-provider.workspace = true
-op-alloy-network.workspace = true
-op-alloy-consensus.workspace = true
-op-alloy-rpc-types.workspace = true
+
+# TODO: once reth cuts a new release compatible with `0.23.0`, update those deps
+op-alloy-network = "0.22.4"
+op-alloy-consensus = "0.22.4"
+op-alloy-rpc-types = "0.22.4"
 
 tokio.workspace = true
 tokio-tungstenite.workspace = true

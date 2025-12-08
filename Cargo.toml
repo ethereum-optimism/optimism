@@ -28,9 +28,6 @@ tracing = "0.1.4"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
 url = "2.2.0"
 
-# Reth deps
-reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.9.3" }
-
 # Alloy libraries
 alloy-rpc-types-engine = "1.0.41"
 alloy-rpc-types-eth = "1.0.41"
@@ -43,10 +40,10 @@ alloy-rpc-types = "1.0.41"
 alloy-genesis = "1.0.41"
 alloy-rpc-client = "1.0.41"
 alloy-provider = "1.0.41"
-op-alloy-network = "0.22.0"
-op-alloy-rpc-types-engine = "0.22.0"
-op-alloy-consensus = "0.22.0"
-op-alloy-rpc-types = "0.22.0"
+op-alloy-network = "0.23.0"
+op-alloy-rpc-types-engine = "0.23.0"
+op-alloy-consensus = "0.23.0"
+op-alloy-rpc-types = "0.23.0"
 tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
 testcontainers = "0.23"
 jsonrpsee = "0.26.0"

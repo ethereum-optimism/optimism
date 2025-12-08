@@ -20,7 +20,6 @@ url.workspace = true
 sha2.workspace = true
 moka = { workspace = true, features = ["future"] }
 
-reth-optimism-payload-builder.workspace = true
 op-alloy-rpc-types-engine.workspace = true
 alloy-rpc-types-engine.workspace = true
 alloy-rpc-types-eth.workspace = true

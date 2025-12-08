@@ -13,7 +13,6 @@ use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
     OpPayloadAttributes,
 };
-use reth_optimism_payload_builder::payload_id_optimism;
 use rollup_boost_types::flashblocks::{
     ExecutionPayloadBaseV1, ExecutionPayloadFlashblockDeltaV1, FlashblocksPayloadV1,
 };
@@ -315,7 +314,7 @@ impl EngineApiExt for FlashblocksService {
     ) -> ClientResult<ForkchoiceUpdated> {
         // Calculate and set expected payload_id
         if let Some(attr) = &payload_attributes {
-            let payload_id = payload_id_optimism(&fork_choice_state.head_block_hash, attr, 3);
+            let payload_id = attr.payload_id(&fork_choice_state.head_block_hash, 3);
             self.set_current_payload_id(payload_id).await;
         }
 
