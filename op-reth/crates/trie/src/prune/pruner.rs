@@ -1,15 +1,17 @@
 use crate::{
-    prune::error::{OpProofStoragePrunerResult, PrunerError, PrunerOutput},
+    prune::{
+        error::{OpProofStoragePrunerResult, PrunerError, PrunerOutput},
+        metrics::Metrics,
+    },
     BlockStateDiff, OpProofsStore,
 };
 use alloy_eips::{eip1898::BlockWithParent, BlockNumHash};
-use derive_more::Constructor;
 use reth_provider::BlockHashReader;
 use tokio::time::Instant;
 use tracing::{error, info, trace};
 
 /// Prunes the proof storage by calling `prune_earliest_state` on the storage provider.
-#[derive(Debug, Constructor)]
+#[derive(Debug)]
 pub struct OpProofStoragePruner<P, H> {
     // Database provider for the prune
     provider: P,
@@ -18,7 +20,15 @@ pub struct OpProofStoragePruner<P, H> {
     /// Keep at least these many recent blocks
     min_block_interval: u64,
     // TODO: add timeout - Maximum time for one pruner run. If `None`, no timeout.
-    // TODO: metrics
+    #[doc(hidden)]
+    metrics: Metrics,
+}
+
+impl<P, H> OpProofStoragePruner<P, H> {
+    /// Create a new pruner.
+    pub fn new(provider: P, block_hash_reader: H, min_block_interval: u64) -> Self {
+        Self { provider, block_hash_reader, min_block_interval, metrics: Metrics::default() }
+    }
 }
 
 impl<P, H> OpProofStoragePruner<P, H>
@@ -70,6 +80,7 @@ where
             let diff = self.provider.fetch_trie_updates(i).await?;
             final_diff.extend(diff);
         }
+        let stat_diff_fetch_duration = t.elapsed();
 
         let new_earliest_block_hash = self
             .block_hash_reader
@@ -89,12 +100,18 @@ where
 
         self.provider.prune_earliest_state(block_with_parent, final_diff).await?;
 
-        Ok(PrunerOutput {
-            duration: t.elapsed(),
+        let total_duration = t.elapsed();
+        let prune_output = PrunerOutput {
+            duration: total_duration,
+            fetch_duration: stat_diff_fetch_duration,
+            prune_duration: total_duration.saturating_sub(stat_diff_fetch_duration),
             start_block: earliest_block,
-            end_block: new_earliest_block - 1,
+            end_block: new_earliest_block.saturating_sub(1),
             total_entries_pruned: 0, // TODO: get it from the prune_earliest_state
-        })
+        };
+        self.metrics.record_prune_result(prune_output.clone());
+
+        Ok(prune_output)
     }
 
     /// Run the pruner

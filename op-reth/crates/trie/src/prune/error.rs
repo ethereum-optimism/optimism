@@ -16,6 +16,10 @@ pub type OpProofStoragePrunerResult = Result<PrunerOutput, PrunerError>;
 pub struct PrunerOutput {
     /// Total elapsed wall time for this run (fetch + apply).
     pub duration: Duration,
+    /// Time elapsed during the stat diff fetch phase(non-blocking).
+    pub fetch_duration: Duration,
+    /// Time elapsed during the prune phase.
+    pub prune_duration: Duration,
     /// Earliest block at the start of the run.
     pub start_block: u64,
     /// New earliest block at the end of the run.
@@ -64,6 +68,8 @@ mod tests {
     fn test_pruner_output_display() {
         let pruner_output = PrunerOutput {
             duration: Duration::from_secs(10),
+            fetch_duration: Duration::from_secs(5),
+            prune_duration: Duration::from_secs(5),
             start_block: 1,
             end_block: 2,
             total_entries_pruned: 3,
