@@ -1936,14 +1936,15 @@ jobs:
           name: Slack - Sending Notification
           command: |
             set -euo pipefail
-            # The Slack orb conditionals evaluate at compile time; guard at runtime instead.
             if [ -z "${SLACK_BLOCKS_PAYLOAD:-}" ] || [ "${SLACK_BLOCKS_PAYLOAD}" = "[]" ]; then
-              echo "SLACK_BLOCKS is empty or doesn't exist. Skipping it..."
-              exit 0
+              echo "SLACK_BLOCKS is empty or doesn't exist. Skipping Slack notification."
+              # Halt this job here to avoid invoking the Slack orb step.
+              circleci-agent step halt
+            else
+              printf '%s' "$SLACK_BLOCKS_PAYLOAD" | jq '.' > /tmp/blocks.json
+              jq -c '{blocks: .}' /tmp/blocks.json > /tmp/slack_template.json
             fi
-            echo "$SLACK_BLOCKS_PAYLOAD" | jq '.' > /tmp/blocks.json
-            jq -c '{blocks: .}' /tmp/blocks.json > /tmp/slack_template.json
-            echo 'export SLACK_TEMPLATE=$(cat /tmp/slack_template.json)' >> $BASH_ENV
+            echo 'export SLACK_TEMPLATE=$(cat /tmp/slack_template.json)' >> "$BASH_ENV"
       - slack/notify:
           channel: C03N11M0BBN # "notify-ci" channel
           event: always
