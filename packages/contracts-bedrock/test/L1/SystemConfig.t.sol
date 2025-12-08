@@ -873,14 +873,16 @@ contract SystemConfig_IsFeatureEnabled_Test is SystemConfig_TestInit {
     /// @notice Tests that `isFeatureEnabled` returns false for unset features.
     /// @param _feature The feature to check.
     function testFuzz_isFeatureEnabled_unsetFeature_succeeds(bytes32 _feature) external {
-        vm.startPrank(address(systemConfig.proxyAdmin()));
+        if (_feature == Features.ETH_LOCKBOX && systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            // Needs to be anything but ETH_LOCKBOX because we can't turn that feature off if it's on.
+            vm.skip(true);
+        }
 
         // Normalize CUSTOM_GAS_TOKEN to avoid environment-dependent state
         if (systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) {
+            vm.prank(address(systemConfig.proxyAdmin()));
             systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, false);
         }
-
-        vm.stopPrank();
 
         assertFalse(systemConfig.isFeatureEnabled(_feature));
     }
