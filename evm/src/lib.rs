@@ -16,7 +16,7 @@ use alloy_consensus::{BlockHeader, Header};
 use alloy_eips::Decodable2718;
 use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded};
 use alloy_op_evm::block::{receipt_builder::OpReceiptBuilder, OpTxEnv};
-use alloy_primitives::U256;
+use alloy_primitives::{Bytes, U256};
 use core::fmt::Debug;
 use op_alloy_consensus::EIP1559ParamError;
 use op_alloy_rpc_types_engine::OpExecutionData;
@@ -265,12 +265,15 @@ where
         &self,
         payload: &OpExecutionData,
     ) -> Result<impl ExecutableTxIterator<Self>, Self::Error> {
-        Ok(payload.payload.transactions().clone().into_iter().map(|encoded| {
+        let transactions = payload.payload.transactions().clone().into_iter();
+        let convert = |encoded: Bytes| {
             let tx = TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref())
                 .map_err(AnyError::new)?;
             let signer = tx.try_recover().map_err(AnyError::new)?;
             Ok::<_, AnyError>(WithEncoded::new(encoded, tx.with_signer(signer)))
-        }))
+        };
+
+        Ok((transactions, convert))
     }
 }
 
