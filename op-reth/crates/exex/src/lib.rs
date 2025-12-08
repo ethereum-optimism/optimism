@@ -207,31 +207,42 @@ where
         collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
     ) -> eyre::Result<()> {
         // Try to get block data from the chain first
+        // 1. Fast Path: Try to use pre-computed state from the notification
         if let Some(block) = chain.blocks().get(&block_number) {
-            let trie_updates = chain
-                .trie_updates_at(block_number)
-                .ok_or_else(|| eyre::eyre!("Missing trie updates for block {}", block_number))?;
+            // Check if we have BOTH trie updates and hashed state.
+            // If either is missing, we fall back to execution to ensure data integrity.
+            if let (Some(trie_updates), Some(hashed_state)) =
+                (chain.trie_updates_at(block_number), chain.hashed_state_at(block_number))
+            {
+                debug!(
+                    target: "optimism::exex",
+                    block_number,
+                    "Using pre-computed state updates from notification"
+                );
 
-            let hashed_state = chain
-                .hashed_state_at(block_number)
-                .ok_or_else(|| eyre::eyre!("Missing hashed state for block {}", block_number))?;
+                collector
+                    .store_block_updates(
+                        block.block_with_parent(),
+                        trie_updates.clone(),
+                        hashed_state.clone(),
+                    )
+                    .await?;
 
-            collector
-                .store_block_updates(
-                    block.block_with_parent(),
-                    trie_updates.clone(),
-                    hashed_state.clone(),
-                )
-                .await?;
+                return Ok(());
+            }
 
-            return Ok(());
+            debug!(
+                target: "optimism::exex",
+                block_number,
+                "Block present in notification but state updates missing, falling back to execution"
+            );
         }
 
-        // Block not in chain, fetch from provider and execute
+        // 2. Slow Path: Block not in chain (or state missing), fetch from provider and execute
         debug!(
             target: "optimism::exex",
             block_number,
-            "Block not in chain, fetching from provider",
+            "Fetching block from provider for execution",
         );
 
         let block = self
