@@ -34,8 +34,13 @@ optimism_package:
             type: op-reth
             # Note: we use the local image for now. This allows us to run the tests in CI pipelines without publishing new docker images every time.
             image: op-reth:local
-            extra_params: [--proofs-history, --proofs-history.storage-path=/data/proofs-history]
-          cl:
+            extra_params: [
+              --proofs-history,
+              --proofs-history.window=10000,
+              --proofs-history.prune-interval=1m,
+              --proofs-history.storage-path=/data/proofs-history
+            ]
+          cl: 
             type: op-node
             log_level: "debug"
             extra_params: [--experimental.sequencer-api=true]
@@ -44,6 +49,7 @@ optimism_package:
         network: "kurtosis"
         network_id: "2151908"
         seconds_per_slot: 2
+
   global_log_level: "info"
   global_node_selectors: {}
   global_tolerations: []

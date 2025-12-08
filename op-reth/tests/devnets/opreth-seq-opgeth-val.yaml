@@ -25,7 +25,12 @@ optimism_package:
             type: op-reth
             # Note: we use the local image for now. This allows us to run the tests in CI pipelines without publishing new docker images every time.
             image: op-reth:local
-            extra_params: [--proofs-history, --proofs-history.storage-path=/data/proofs-history]
+            extra_params: [
+              --proofs-history,
+              --proofs-history.window=10000,
+              --proofs-history.prune-interval=1m,
+              --proofs-history.storage-path=/data/proofs-history
+            ]
           cl:
             type: op-node
             log_level: "debug"

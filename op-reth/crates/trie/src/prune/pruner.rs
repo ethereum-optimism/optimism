@@ -26,7 +26,7 @@ where
     P: OpProofsStore,
     H: BlockHashReader,
 {
-    async fn run_inner(self) -> OpProofStoragePrunerResult {
+    async fn run_inner(&self) -> OpProofStoragePrunerResult {
         let t = Instant::now();
         // TODO: handle timeout
 
@@ -98,7 +98,7 @@ where
     }
 
     /// Run the pruner
-    pub async fn run(self) {
+    pub async fn run(&self) {
         let res = self.run_inner().await;
         if let Err(e) = res {
             error!(target: "trie::pruner", err=%e, "Pruner failed");

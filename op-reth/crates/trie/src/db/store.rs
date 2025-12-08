@@ -156,12 +156,21 @@ impl MdbxProofsStorage {
         let (to_delete, to_append): (Vec<_>, Vec<_>) =
             pairs.into_iter().partition(|(_, vv)| vv.value.0.is_none());
 
-        self.delete_dup_sorted::<T, _, V>(tx, block_number, to_delete.into_iter().map(|(k, _)| k))?;
-
         for (k, vv) in to_append {
             // For block 0, we need to update the existing entries.
+
+            // Dupsort upsert doesn't delete the old entry - We need to manually remove the existing
+            // entries.
+            let val = cur.seek_by_key_subkey(k.clone(), 0)?;
+            if val.is_some() && val.unwrap().block_number == 0 {
+                cur.delete_current()?;
+            }
             cur.upsert(k, &vv)?;
         }
+
+        // Deletion must be called after the update otherwise deleted entries will be overwritten by
+        // the update.
+        self.delete_dup_sorted::<T, _, V>(tx, block_number, to_delete.into_iter().map(|(k, _)| k))?;
 
         Ok(keys)
     }
@@ -304,7 +313,7 @@ impl MdbxProofsStorage {
         let mut storage_trie_keys = Vec::<StorageTrieKey>::with_capacity(storage_trie_len);
         for (hashed_address, nodes) in sorted_storage_nodes {
             // Handle wiped - mark all storage trie as deleted at the current block number
-            if nodes.is_deleted {
+            if nodes.is_deleted && soft_delete {
                 // Yet to have any update for the current block number - So just using up to
                 // previous block number
                 let mut ro = self.storage_trie_cursor(hashed_address, block_number - 1)?;
@@ -329,7 +338,7 @@ impl MdbxProofsStorage {
         let mut hashed_storage_keys = Vec::<HashedStorageKey>::with_capacity(hashed_storage_len);
         for (hashed_address, storage) in sorted_storage {
             // Handle wiped - mark all storage slots as deleted at the current block number
-            if storage.is_wiped() {
+            if soft_delete && storage.is_wiped() {
                 // Yet to have any update for the current block number - So just using up to
                 // previous block number
                 let mut ro = self.storage_hashed_cursor(hashed_address, block_number - 1)?;
@@ -691,15 +700,14 @@ impl OpProofsStore for MdbxProofsStorage {
         }
 
         self.env.update(|tx| {
-            // First, delete the old entries for the block range excluding block 0
+            // Update the initial state (block zero)
+            self.store_trie_updates_for_block(tx, 0, diff, false)?;
+
+            // Delete the old entries for the block range excluding block 0
             self.delete_history_ranged(
                 tx,
                 max(old_earliest_block_number, 1)..new_earliest_block_number,
             )?;
-
-            // Then, store the new entries for block 0.
-            // The removed entries in diff from block 0 will also be removed(hard-delete) by this
-            self.store_trie_updates_for_block(tx, 0, diff, false)?;
 
             // Set the earliest block number to the new value
             Self::inner_set_earliest_block_number(

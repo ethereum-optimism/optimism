@@ -20,6 +20,7 @@ reth-primitives-traits.workspace = true
 reth-provider.workspace = true
 reth-revm.workspace = true
 reth-trie = { workspace = true, features = ["serde"] }
+reth-tasks.workspace = true
 
 # metrics
 metrics.workspace = true
