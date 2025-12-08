@@ -32,6 +32,7 @@ tracing.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
 tokio.workspace = true
+humantime.workspace = true
 
 [lints]
 workspace = true

@@ -72,6 +72,26 @@ struct Args {
         value_name = "PROOFS_HISTORY_WINDOW"
     )]
     pub proofs_history_window: u64,
+
+    /// Interval between proof-storage prune runs. Accepts human-friendly durations
+    /// like "100s", "5m", "1h". Defaults to 1h.
+    ///
+    /// - Shorter intervals prune smaller batches more often, so each prune run tends to be faster
+    ///   and the blocking pause for writes is shorter, at the cost of more frequent pauses.
+    /// - Longer intervals prune larger batches less often, which reduces how often pruning runs,
+    ///   but each run can take longer and block writes for longer.
+    ///
+    /// A shorter interval is preferred so that prune
+    /// runs stay small and don’t stall writes for too long.
+    ///
+    /// CLI: `--proofs-history.prune-interval 10m`
+    #[arg(
+        long = "proofs-history.prune-interval",
+        value_name = "PROOFS_HISTORY_PRUNE_INTERVAL",
+        default_value = "1h",
+        value_parser = humantime::parse_duration
+    )]
+    pub proofs_history_prune_interval: Duration,
 }
 
 /// Single entry that handles:
@@ -85,6 +105,7 @@ async fn launch_node(
     let proofs_history_enabled = args.proofs_history;
     let rollup_args = args.rollup_args.clone();
     let proofs_history_window = args.proofs_history_window;
+    let proofs_history_prune_interval = args.proofs_history_prune_interval;
 
     // Start from a plain OpNode builder
     let mut node_builder = builder.node(OpNode::new(rollup_args));
@@ -99,9 +120,14 @@ async fn launch_node(
 
             node_builder = node_builder
                 .install_exex("proofs-history", async move |exex_context| {
-                    Ok(OpProofsExEx::new(exex_context, storage_exec, proofs_history_window)
-                        .run()
-                        .boxed())
+                    Ok(OpProofsExEx::new(
+                        exex_context,
+                        storage_exec,
+                        proofs_history_window,
+                        proofs_history_prune_interval,
+                    )
+                    .run()
+                    .boxed())
                 })
                 .extend_rpc_modules(move |ctx| {
                     let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
@@ -141,9 +167,14 @@ async fn launch_node(
                     Ok(())
                 })
                 .install_exex("proofs-history", async move |exex_context| {
-                    Ok(OpProofsExEx::new(exex_context, storage_exec, proofs_history_window)
-                        .run()
-                        .boxed())
+                    Ok(OpProofsExEx::new(
+                        exex_context,
+                        storage_exec,
+                        proofs_history_window,
+                        proofs_history_prune_interval,
+                    )
+                    .run()
+                    .boxed())
                 })
                 .extend_rpc_modules(move |ctx| {
                     let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
