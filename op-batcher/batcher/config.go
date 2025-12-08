@@ -104,6 +104,9 @@ type CLIConfig struct {
 	// Maximum number of blocks to add to a span batch. Default is 0 - no maximum.
 	MaxBlocksPerSpanBatch int
 
+	// MultiFrame controls whether to put all frames of a channel inside a single tx.
+	MultiFrame bool
+
 	// The target number of frames to create per channel. Controls number of blobs
 	// per blob tx, if using Blob DA.
 	TargetNumFrames int
@@ -232,6 +235,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		MaxChannelDuration:           ctx.Uint64(flags.MaxChannelDurationFlag.Name),
 		MaxL1TxSize:                  ctx.Uint64(flags.MaxL1TxSizeBytesFlag.Name),
 		MaxBlocksPerSpanBatch:        ctx.Int(flags.MaxBlocksPerSpanBatch.Name),
+		MultiFrame:                   ctx.Bool(flags.MultiFrameTxsFlag.Name),
 		TargetNumFrames:              ctx.Int(flags.TargetNumFramesFlag.Name),
 		ApproxComprRatio:             ctx.Float64(flags.ApproxComprRatioFlag.Name),
 		Compressor:                   ctx.String(flags.CompressorFlag.Name),

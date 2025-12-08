@@ -270,6 +270,10 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		BatchType:             cfg.BatchType,
 	}
 
+	if cfg.MultiFrame {
+		cc.MultiFrame = true
+	}
+
 	switch cfg.DataAvailabilityType {
 	case flags.BlobsType, flags.AutoType:
 		if !cfg.TestUseMaxTxSizeForBlobs {

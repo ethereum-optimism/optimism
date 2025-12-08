@@ -83,6 +83,12 @@ var (
 		Usage:   "Maximum number of blocks to add to a span batch. Default is 0 - no maximum.",
 		EnvVars: prefixEnvVars("MAX_BLOCKS_PER_SPAN_BATCH"),
 	}
+	MultiFrameTxsFlag = &cli.BoolFlag{
+		Name:    "multi-frame-txs",
+		Usage:   "Whether to put all frames of a channel inside a single tx. Ignored for blobs, where true will be used.",
+		Value:   false,
+		EnvVars: prefixEnvVars("MULTI_FRAME_TXS"),
+	}
 	TargetNumFramesFlag = &cli.IntFlag{
 		Name:    "target-num-frames",
 		Usage:   "The target number of frames to create per channel. Controls number of blobs per blob tx, if using Blob DA.",
@@ -178,6 +184,7 @@ var optionalFlags = []cli.Flag{
 	MaxChannelDurationFlag,
 	MaxL1TxSizeBytesFlag,
 	MaxBlocksPerSpanBatch,
+	MultiFrameTxsFlag,
 	TargetNumFramesFlag,
 	ApproxComprRatioFlag,
 	CompressorFlag,

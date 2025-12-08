@@ -133,7 +133,7 @@ func (c *channel) NextTxData() txData {
 
 func (c *channel) HasTxData() bool {
 	if c.IsFull() || // If the channel is full, we should start to submit it
-		!c.cfg.UseBlobs { // If using calldata, we only send one frame per tx
+		!c.cfg.UseBlobs && !c.cfg.MultiFrame { // If not using blobs or multiframe, we only send one frame per tx
 		return c.HasPendingFrame()
 	}
 	// Collect enough frames if channel is not full yet
