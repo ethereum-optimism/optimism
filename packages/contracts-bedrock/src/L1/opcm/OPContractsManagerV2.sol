@@ -756,6 +756,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                     IOptimismPortalInterop.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, _cts.ethLockbox)
                 )
             );
+
+            // Enable the ETHLockbox feature in the SystemConfig (if it's not already enabled).
+            if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+                _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+            }
         } else {
             _upgrade(
                 _cts.proxyAdmin,
@@ -763,15 +768,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 impls.optimismPortalImpl,
                 abi.encodeCall(IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry))
             );
-        }
-
-        // TODO(#?????): Is there a reason we need to do this here? Seems like it should be done
-        // below with the other isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP) block.
-        // If we haven't already enabled the ETHLockbox, enable it.
-        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-                _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-            }
         }
 
         // Update the L1CrossDomainMessenger.
