@@ -48,7 +48,7 @@
     "sourceCodeHash": "0xbf344c4369b8cb00ec7a3108f72795747f3bc59ab5b37ac18cf21e72e2979dbf"
   },
   "src/L1/SystemConfig.sol:SystemConfig": {
-    "initCodeHash": "0x5ff0f79914999b54daeb3e3f38a1e2275f286e005a9e52055d169282605fec81",
+    "initCodeHash": "0x4ead3c8081612e7eab9626a2bdb6b7e6e6075ec37cdd8007df7f455b13375055",
     "sourceCodeHash": "0xc2b530bf529ac23d1ba1adf67eedcc5d95e25c2919e1d97f4f2bba4823303b17"
   },
   "src/L1/opcm/OPContractsManagerV2.sol:OPContractsManagerV2": {
@@ -192,7 +192,7 @@
     "sourceCodeHash": "0xdebf2ab3af4d5549c40e9dd9db6b2458af286f323b6891f3b0c4e89f3c8928db"
   },
   "src/dispute/DisputeGameFactory.sol:DisputeGameFactory": {
-    "initCodeHash": "0x820e876839f94564a9d5d1fa131781c40126aed76fbbd348f49f318ae3e12aae",
+    "initCodeHash": "0x70c90a1774d6b5463cc13830f0aa3bbb4e55dac6e550fb91db0b28c09ddb4eaa",
     "sourceCodeHash": "0xf19216b7943479af87a01ab8935e68561853e8e333d09719c917228bc7a01a3a"
   },
   "src/dispute/FaultDisputeGame.sol:FaultDisputeGame": {
@@ -221,7 +221,7 @@
   },
   "src/dispute/zk/OPSuccinctFaultDisputeGame.sol:OPSuccinctFaultDisputeGame": {
     "initCodeHash": "0xb9d0d9ca4df242f188b2d5be7d692459a12409a67a6504ef44ef589c6ca2c1a9",
-    "sourceCodeHash": "0x54fe6db82f686e5d6a29210bdb86ca826007fb123feee2c13f611f88099601b1"
+    "sourceCodeHash": "0x85f80adb845f59e9137d462e219c0cdba27058be77d855075e286aa316735aa0"
   },
   "src/legacy/DeployerWhitelist.sol:DeployerWhitelist": {
     "initCodeHash": "0x2e0ef4c341367eb59cc6c25190c64eff441d3fe130189da91d4d126f6bdbc9b5",
