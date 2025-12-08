@@ -2318,6 +2318,11 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase, DisputeGames {
     using stdStorage for StdStorage;
 
+    function setUp() public override {
+        super.setUp();
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+    }
+
     // This helper function is used to convert the input struct type defined in DeployOPChain.s.sol
     // to the input struct type defined in OPContractsManager.sol.
     function toOPCMDeployInput(Types.DeployOPChainInput memory _doi)
