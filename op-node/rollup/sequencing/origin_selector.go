@@ -91,6 +91,8 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 		return nextOrigin, nil
 	}
 
+	los.log.Info("next origin is foo and l2head", "next_origin", nextOrigin, "l2_head_time", l2Head.Time, "next_origin_time", nextOrigin.Time)
+
 	msd := los.spec.MaxSequencerDrift(currentOrigin.Time)
 	log := los.log.New("current", currentOrigin, "current_time", currentOrigin.Time,
 		"l2_head", l2Head, "l2_head_time", l2Head.Time, "max_seq_drift", msd)
@@ -99,6 +101,7 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 
 	// If we are not past the max sequencer drift, we can just return the current origin.
 	if !pastSeqDrift {
+		log.Info("not pass seq drift")
 		return currentOrigin, nil
 	}
 
@@ -131,12 +134,14 @@ func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head et
 	if los.recoverMode.Load() {
 		currentOrigin, err := los.l1.L1BlockRefByHash(ctx, l2Head.L1Origin.Hash)
 		if err != nil {
+			los.log.Error("failed to fetch current L1 origin", "error", err)
 			return eth.L1BlockRef{}, eth.L1BlockRef{},
 				derive.NewTemporaryError(fmt.Errorf("failed to fetch current L1 origin: %w", err))
 		}
 		los.currentOrigin = currentOrigin
 		nextOrigin, err := los.l1.L1BlockRefByNumber(ctx, currentOrigin.Number+1)
 		if err != nil {
+			los.log.Error("failed to fetch next L1 origin", "error", err)
 			return eth.L1BlockRef{}, eth.L1BlockRef{},
 				derive.NewTemporaryError(fmt.Errorf("failed to fetch next L1 origin: %w", err))
 		}

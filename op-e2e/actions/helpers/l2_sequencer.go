@@ -40,8 +40,8 @@ func (m *MockL1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bl
 	return m.actual.FindL1Origin(ctx, l2Head)
 }
 
-func (m *MockL1OriginSelector) SetRecoverMode(bool) {
-	// noop
+func (m *MockL1OriginSelector) SetRecoverMode(b bool) {
+	m.actual.SetRecoverMode(b)
 }
 
 // L2Sequencer is an actor that functions like a rollup node,
@@ -87,6 +87,7 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc deri
 	ver.eventSys.Register("sequencer", seq, opts)
 	ver.eventSys.Register("origin-selector", originSelector, opts)
 	require.NoError(t, seq.Init(t.Ctx(), true))
+
 	return &L2Sequencer{
 		L2Verifier:              ver,
 		sequencer:               seq,
@@ -271,4 +272,8 @@ func (s *L2Sequencer) ActBuildL2ToInterop(t Testing) {
 	for s.L2Unsafe().Time < *s.RollupCfg.InteropTime {
 		s.ActL2EmptyBlock(t)
 	}
+}
+
+func (s *L2Sequencer) ActSetRecoverMode(t Testing, b bool) {
+	s.sequencer.SetRecoverMode(b)
 }

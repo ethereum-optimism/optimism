@@ -1,3 +1,4 @@
+@include 
 # Checks that TODO comments have corresponding issues.
 todo-checker:
   ./ops/scripts/todo-checker.sh
@@ -40,3 +41,6 @@ update-op-geth ref:
 	go mod tidy; \
 	echo "Updated op-geth to $ver"
 
+
+build-contracts:
+    JUSTFILE=$(pwd)/packages/contracts-bedrock/justfile just build-dev
