@@ -146,8 +146,8 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
     AccessManager internal immutable ACCESS_MANAGER;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.0
-    string public constant version = "0.0.0";
+    /// @custom:semver 0.0.1
+    string public constant version = "0.0.1";
 
     /// @notice The starting timestamp of the game.
     Timestamp public createdAt;
