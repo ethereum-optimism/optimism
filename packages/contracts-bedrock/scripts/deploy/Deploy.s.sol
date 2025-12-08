@@ -410,7 +410,6 @@ contract Deploy is Deployer {
         IOPContractsManagerV2 opcm = IOPContractsManagerV2(artifacts.mustGetAddress("OPContractsManagerV2"));
 
         IOPContractsManagerV2.FullConfig memory deployInput = getDeployInputV2();
-        console.log("Deploying");
         IOPContractsManagerV2.ChainContracts memory deployOutput = opcm.deploy(deployInput);
 
         // Save all deploy outputs from the OPCM, in the order they are declared in the DeployOutput struct

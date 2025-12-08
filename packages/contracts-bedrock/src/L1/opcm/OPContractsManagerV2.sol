@@ -11,6 +11,7 @@ import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -296,6 +297,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         view
         returns (bool)
     {
+        // The interop migration instruction should always be permitted regardless of the OPCM version.
+        if (LibString.eq(_instruction.key, Constants.INTEROP_MIGRATION_ADDRESSES)) {
+            return true;
+        }
+
         // NOTE (IMPORTANT FOR DEVELOPERS): You MAY need to allow permitted instructions here for
         // your specific upgrade. For example, if you are adding a new contract that needs to be
         // deployed you will need to add an allowance so that the proxy can be deployed.
@@ -857,22 +863,18 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Now we can migrate any liquidity into the ETHLockbox.
         if (_hasInteropMigrationAddresses(_cfg.extraInstructions)) {
-            // Authorize the portal to use the shared ETHLockbox.
-            _cts.ethLockbox.authorizePortal(_cts.optimismPortal);
-
-            // Start by migrating any portal liquidity into the ETHLockbox.
+            // First we migrate any portal liquidity into the ETHLockbox.
             // There may or may not be ETH in the portal, but we can call migrateLiquidity() safely
             // either way.
+            // Authorize the portal to use the new shared ETHLockbox, then migrate the portal's liquidity into the new lockbox.
+            _cts.ethLockbox.authorizePortal(_cts.optimismPortal);
             IOptimismPortalInterop(payable(_cts.optimismPortal)).migrateLiquidity();
 
-            // If we have an old lockbox (we're doing an interop migration) then also migrate any
-            // liquidity from the old lockbox into the new one. Requires that we first authorize
-            // the old lockbox and then migrate liquidity to the new one.
+            // Second, if we have an old lockbox, migrate any liquidity from the old lockbox into the new one.
             if (oldLockbox != IETHLockbox(address(0))) {
-                // Authorize the old lockbox to migrate liquidity to the new one.
+                // Authorize the old lockbox to migrate liquidity to the new one, then migrate the old lockbox's
+                // liquidity into the new lockbox.
                 _cts.ethLockbox.authorizeLockbox(oldLockbox);
-
-                // Migrate liquidity from the old lockbox to the new one.
                 oldLockbox.migrateLiquidity(_cts.ethLockbox);
             }
         }
