@@ -159,8 +159,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     IOPContractsManagerStandardValidator public immutable standardValidator;
 
     /// @notice The version of the OPCM contract.
-    /// @custom:semver 6.2.0
-    string public constant version = "6.2.0";
+    /// @custom:semver 6.3.0
+    string public constant version = "6.3.0";
 
     /// @param _contractsContainer The container of blueprint and implementation contract addresses.
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -805,10 +805,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
 
         // If the custom gas token feature was requested, enable it in the SystemConfig.
-        if (_cfg.useCustomGasToken) {
+        // If the cgt is enabled, we skip this step.
+        if (_cfg.useCustomGasToken && !_cts.systemConfig.isCustomGasToken()) {
             // NOTE: Enabling the custom gas token feature is only allowed during initial deployment to prevent
             // chains from enabling it during upgrades. Passing in true for this flag during an upgrade is considered an
             // error and will revert.
+            // Revert only if trying to upgrade from CGT disabled to CGT enabled.
             if (!_isInitialDeployment) {
                 revert OPContractsManagerV2_CannotUpgradeToCustomGasToken();
             }
