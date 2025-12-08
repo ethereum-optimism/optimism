@@ -1584,7 +1584,8 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             l1StandardBridge: address(_output.l1StandardBridgeProxy),
             optimismPortal: address(_output.optimismPortalProxy),
             optimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryProxy),
-            delayedWETH: address(0) // Will be used in OPCMv2.
+            delayedWETH: address(0), // Will be used in OPCMv2.
+            opcm: address(0) // Unsupported for V1.
          });
 
         assertValidContractAddress(opChainAddrs_.l1CrossDomainMessenger);
@@ -2236,9 +2237,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 5.7.1
+    /// @custom:semver 5.8.0
     function version() public pure virtual returns (string memory) {
-        return "5.7.1";
+        return "5.8.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

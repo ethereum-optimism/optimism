@@ -455,6 +455,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "thisOPCM",
+    "outputs": [
+      {
+        "internalType": "contract OPContractsManagerV2",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "components": [
