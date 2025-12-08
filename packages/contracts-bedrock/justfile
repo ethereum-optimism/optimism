@@ -60,7 +60,7 @@ build-dev *ARGS: lint-fix-no-fail
 
 # Builds the go-ffi tool for contract tests.
 build-go-ffi:
-  cd ./scripts/go-ffi && go build
+  cd ./scripts/go-ffi && go build -buildvcs=false
 
 # Cleans build artifacts and deployments.
 clean:

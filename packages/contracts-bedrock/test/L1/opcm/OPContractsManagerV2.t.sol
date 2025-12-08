@@ -9,11 +9,12 @@ import { DisputeGames } from "test/setup/DisputeGames.sol";
 // Libraries
 import { Config } from "scripts/libraries/Config.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { Claim } from "src/dispute/lib/LibUDT.sol";
-import { GameType, GameTypes } from "src/dispute/lib/Types.sol";
+import { Claim, Hash } from "src/dispute/lib/LibUDT.sol";
+import { GameType, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -21,9 +22,188 @@ import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContracts
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 
+/// @title OPContractsManagerV2_TestInit
+/// @notice Base test initialization contract for OPContractsManagerV2.
+contract OPContractsManagerV2_TestInit is CommonTest, DisputeGames {
+    /// @notice Fake prestate for Cannon games.
+    Claim cannonPrestate = Claim.wrap(bytes32(keccak256("cannonPrestate")));
+
+    /// @notice Fake prestate for Cannon Kona games.
+    Claim cannonKonaPrestate = Claim.wrap(bytes32(keccak256("cannonKonaPrestate")));
+
+    /// @notice Special string constant used to indicate that we expect a revert without any data.
+    bytes public constant EXPECT_REVERT_WITHOUT_DATA = bytes("EXPECT_REVERT_WITHOUT_DATA");
+
+    /// @notice Buffer percentage (relative to EIP-7825 gas limit) allowed for deployments.
+    uint256 public constant DEPLOY_GAS_BUFFER_PERCENTAGE = 80; // 80%
+
+    /// @notice Sets up the test suite.
+    function setUp() public virtual override {
+        super.setUp();
+        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
+    }
+
+    /// @notice Helper function that runs an OPCM V2 deploy, asserts that the deploy was successful,
+    ///         and runs post-deploy standard validator checks.
+    /// @param _opcm The OPCM contract to use for deployment.
+    /// @param _deployConfig The full config for the deployment.
+    /// @param _revertBytes The bytes of the revert to expect (empty if no revert expected).
+    /// @param _expectedValidatorErrors The StandardValidator errors to expect.
+    /// @return cts_ The deployed chain contracts.
+    function _runOpcmV2DeployAndChecks(
+        IOPContractsManagerV2 _opcm,
+        IOPContractsManagerV2.FullConfig memory _deployConfig,
+        bytes memory _revertBytes,
+        string memory _expectedValidatorErrors
+    )
+        internal
+        returns (IOPContractsManagerV2.ChainContracts memory cts_)
+    {
+        // Grab the proposer and challenger from deploy config for validator.
+        address deployProposer;
+        address deployChallenger;
+        for (uint256 i = 0; i < _deployConfig.disputeGameConfigs.length; i++) {
+            if (_deployConfig.disputeGameConfigs[i].gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
+                IOPContractsManagerV2.PermissionedDisputeGameConfig memory parsedArgs = abi.decode(
+                    _deployConfig.disputeGameConfigs[i].gameArgs, (IOPContractsManagerV2.PermissionedDisputeGameConfig)
+                );
+                deployProposer = parsedArgs.proposer;
+                deployChallenger = parsedArgs.challenger;
+                break;
+            }
+        }
+
+        // Expect the revert if one is specified.
+        if (_revertBytes.length > 0) {
+            if (keccak256(_revertBytes) == keccak256(EXPECT_REVERT_WITHOUT_DATA)) {
+                // nosemgrep: sol-safety-expectrevert-no-args
+                vm.expectRevert();
+            } else {
+                vm.expectRevert(_revertBytes);
+            }
+        }
+
+        // Execute the V2 deploy.
+        cts_ = _opcm.deploy(_deployConfig);
+
+        // Return early if a revert was expected. Otherwise we'll get errors below.
+        if (_revertBytes.length > 0) {
+            return cts_;
+        }
+
+        // Less than the buffer percentage of the EIP-7825 gas limit to account for the gas used
+        // by using Safe.
+        uint256 fusakaLimit = 2 ** 24;
+        VmSafe.Gas memory gas = vm.lastCallGas();
+        assertLt(
+            gas.gasTotalUsed,
+            fusakaLimit * DEPLOY_GAS_BUFFER_PERCENTAGE / 100,
+            string.concat(
+                "Deploy exceeds gas target of ", vm.toString(DEPLOY_GAS_BUFFER_PERCENTAGE), "% of 2**24 (EIP-7825)"
+            )
+        );
+
+        // Coverage changes bytecode, so we get various errors. We can safely ignore the result of
+        // the standard validator in the coverage case.
+        if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
+            return cts_;
+        }
+
+        // Create validationOverrides for the newly deployed chain.
+        IOPContractsManagerStandardValidator.ValidationOverrides memory validationOverrides =
+        IOPContractsManagerStandardValidator.ValidationOverrides({
+            l1PAOMultisig: _deployConfig.proxyAdminOwner,
+            challenger: deployChallenger
+        });
+
+        // Grab the validator before we do the error assertion.
+        IOPContractsManagerStandardValidator validator = _opcm.standardValidator();
+
+        // Expect validator errors if the user provides them.
+        if (bytes(_expectedValidatorErrors).length > 0) {
+            vm.expectRevert(
+                bytes(
+                    string.concat(
+                        "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,",
+                        _expectedValidatorErrors
+                    )
+                )
+            );
+        }
+
+        // Run the StandardValidator checks on the newly deployed chain.
+        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+            validator.validateWithOverrides(
+                IOPContractsManagerStandardValidator.ValidationInputDev({
+                    sysCfg: cts_.systemConfig,
+                    cannonPrestate: cannonPrestate.raw(),
+                    cannonKonaPrestate: cannonKonaPrestate.raw(),
+                    l2ChainID: _deployConfig.l2ChainId,
+                    proposer: deployProposer
+                }),
+                false,
+                validationOverrides
+            );
+        } else {
+            validator.validateWithOverrides(
+                IOPContractsManagerStandardValidator.ValidationInput({
+                    sysCfg: cts_.systemConfig,
+                    absolutePrestate: cannonPrestate.raw(),
+                    l2ChainID: _deployConfig.l2ChainId,
+                    proposer: deployProposer
+                }),
+                false,
+                validationOverrides
+            );
+        }
+
+        return cts_;
+    }
+
+    /// @notice Executes a V2 deploy and checks the results.
+    /// @param _deployConfig The full config for the deployment.
+    /// @return The deployed chain contracts.
+    function runDeployV2(IOPContractsManagerV2.FullConfig memory _deployConfig)
+        public
+        returns (IOPContractsManagerV2.ChainContracts memory)
+    {
+        return _runOpcmV2DeployAndChecks(opcmV2, _deployConfig, bytes(""), "");
+    }
+
+    /// @notice Executes a V2 deploy and expects reverts.
+    /// @param _deployConfig The full config for the deployment.
+    /// @param _revertBytes The bytes of the revert to expect.
+    /// @return The deployed chain contracts.
+    function runDeployV2(
+        IOPContractsManagerV2.FullConfig memory _deployConfig,
+        bytes memory _revertBytes
+    )
+        public
+        returns (IOPContractsManagerV2.ChainContracts memory)
+    {
+        return _runOpcmV2DeployAndChecks(opcmV2, _deployConfig, _revertBytes, "");
+    }
+
+    /// @notice Executes a V2 deploy and expects reverts with validator errors.
+    /// @param _deployConfig The full config for the deployment.
+    /// @param _revertBytes The bytes of the revert to expect.
+    /// @param _expectedValidatorErrors The StandardValidator errors to expect.
+    /// @return The deployed chain contracts.
+    function runDeployV2(
+        IOPContractsManagerV2.FullConfig memory _deployConfig,
+        bytes memory _revertBytes,
+        string memory _expectedValidatorErrors
+    )
+        public
+        returns (IOPContractsManagerV2.ChainContracts memory)
+    {
+        return _runOpcmV2DeployAndChecks(opcmV2, _deployConfig, _revertBytes, _expectedValidatorErrors);
+    }
+}
+
 /// @title OPContractsManagerV2_Upgrade_TestInit
 /// @notice Test initialization contract for OPContractsManagerV2 upgrade functions.
-contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
+contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit {
     // The Upgraded event emitted by the Proxy contract.
     event Upgraded(address indexed implementation);
 
@@ -36,20 +216,14 @@ contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
     /// @notice Address of the Superchain ProxyAdmin owner.
     address superchainPAO;
 
-    /// @notice Fake prestate for Cannon games.
-    Claim cannonPrestate = Claim.wrap(bytes32(keccak256("cannonPrestate")));
-
-    /// @notice Fake prestate for Cannon Kona games.
-    Claim cannonKonaPrestate = Claim.wrap(bytes32(keccak256("cannonKonaPrestate")));
-
     /// @notice Name of the chain being forked.
     string public opChain = Config.forkOpChain();
 
     /// @notice Default v2 upgrade input.
     IOPContractsManagerV2.UpgradeInput v2UpgradeInput;
 
-    /// @notice Special string constant used to indicate that we expect a revert without any data.
-    bytes public constant EXPECT_REVERT_WITHOUT_DATA = bytes("EXPECT_REVERT_WITHOUT_DATA");
+    /// @notice Buffer percentage (relative to EIP-7825 gas limit) allowed for upgrades.
+    uint256 public constant UPGRADE_GAS_BUFFER_PERCENTAGE = 50; // 50%
 
     /// @notice Thrown when trying to run past upgrades on an unsupported chain.
     error UnsupportedChainId();
@@ -59,7 +233,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
         super.disableUpgradedFork();
         super.setUp();
 
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
         skipIfNotForkTest("OPContractsManagerV2_Upgrade_TestInit: only runs in forked tests");
         skipIfOpsRepoTest("OPContractsManagerV2_Upgrade_TestInit: skipped in superchain-ops");
 
@@ -178,10 +351,17 @@ contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
             return;
         }
 
-        // Less than 90% of the gas target of 2**24 (EIP-7825) to account for the gas used by using Safe.
+        // Less than the buffer percentage of the EIP-7825 gas limit to account for the gas used
+        // by using Safe.
         uint256 fusakaLimit = 2 ** 24;
         VmSafe.Gas memory gas = vm.lastCallGas();
-        assertLt(gas.gasTotalUsed, fusakaLimit * 9 / 10, "Upgrade exceeds gas target of 90% of 2**24 (EIP-7825)");
+        assertLt(
+            gas.gasTotalUsed,
+            fusakaLimit * UPGRADE_GAS_BUFFER_PERCENTAGE / 100,
+            string.concat(
+                "Upgrade exceeds gas target of ", vm.toString(UPGRADE_GAS_BUFFER_PERCENTAGE), "% of 2**24 (EIP-7825)"
+            )
+        );
 
         // Coverage changes bytecode, so we get various errors. We can safely ignore the result of
         // the standard validator in the coverage case, if the validator is failing in coverage
@@ -652,5 +832,151 @@ contract OPContractsManagerV2_UpgradeSuperchain_Test is OPContractsManagerV2_Upg
             abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
         );
         assertTrue(success, "upgradeSuperchain failed");
+    }
+}
+
+/// @title OPContractsManagerV2_Deploy_Test
+/// @notice Tests OPContractsManagerV2.deploy
+contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
+    /// @notice Default deploy config.
+    IOPContractsManagerV2.FullConfig deployConfig;
+
+    /// @notice Sets up the test.
+    function setUp() public override {
+        super.setUp();
+
+        // Set up default deploy config.
+        // We can't set storage structs directly, so we need to set each field individually.
+        deployConfig.saltMixer = "test-salt-mixer";
+        deployConfig.superchainConfig = superchainConfig;
+        deployConfig.proxyAdminOwner = makeAddr("proxyAdminOwner");
+        deployConfig.systemConfigOwner = makeAddr("systemConfigOwner");
+        deployConfig.unsafeBlockSigner = makeAddr("unsafeBlockSigner");
+        deployConfig.batcher = makeAddr("batcher");
+        deployConfig.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(hex"1234")), l2SequenceNumber: 123 });
+        deployConfig.startingRespectedGameType = GameTypes.PERMISSIONED_CANNON;
+        deployConfig.basefeeScalar = 1368;
+        deployConfig.blobBasefeeScalar = 801949;
+        deployConfig.gasLimit = 60_000_000;
+        deployConfig.l2ChainId = 999_999_999;
+        deployConfig.resourceConfig = IResourceMetering.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            minimumBaseFee: 1 gwei,
+            systemTxMaxGas: 1_000_000,
+            maximumBaseFee: type(uint128).max
+        });
+
+        // Set up dispute game configs using the same pattern as upgrade tests.
+        address initialChallenger = permissionedGameChallenger(disputeGameFactory);
+        address initialProposer = permissionedGameProposer(disputeGameFactory);
+        deployConfig.disputeGameConfigs.push(
+            IOPContractsManagerV2.DisputeGameConfig({
+                enabled: true,
+                initBond: 0.08 ether, // Standard init bond
+                gameType: GameTypes.CANNON,
+                gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
+            })
+        );
+        deployConfig.disputeGameConfigs.push(
+            IOPContractsManagerV2.DisputeGameConfig({
+                enabled: true,
+                initBond: 0.08 ether, // Standard init bond
+                gameType: GameTypes.PERMISSIONED_CANNON,
+                gameArgs: abi.encode(
+                    IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                        absolutePrestate: cannonPrestate,
+                        proposer: initialProposer,
+                        challenger: initialChallenger
+                    })
+                )
+            })
+        );
+        deployConfig.disputeGameConfigs.push(
+            IOPContractsManagerV2.DisputeGameConfig({
+                enabled: isDevFeatureEnabled(DevFeatures.CANNON_KONA),
+                initBond: isDevFeatureEnabled(DevFeatures.CANNON_KONA) ? 0.08 ether : 0, // Standard init bond
+                gameType: GameTypes.CANNON_KONA,
+                gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+            })
+        );
+    }
+
+    /// @notice Tests that the deploy function succeeds and passes standard validation.
+    function test_deploy_succeeds() public {
+        // Run the deploy and standard validator checks.
+        IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig);
+
+        // Verify key contracts are deployed.
+        assertTrue(address(cts.systemConfig) != address(0), "systemConfig not deployed");
+        assertTrue(address(cts.proxyAdmin) != address(0), "proxyAdmin not deployed");
+        assertTrue(address(cts.optimismPortal) != address(0), "optimismPortal not deployed");
+        assertTrue(address(cts.disputeGameFactory) != address(0), "disputeGameFactory not deployed");
+        assertTrue(address(cts.anchorStateRegistry) != address(0), "anchorStateRegistry not deployed");
+        assertTrue(address(cts.delayedWETH) != address(0), "delayedWETH not deployed");
+
+        // Verify ownership is transferred to proxyAdminOwner.
+        assertEq(cts.proxyAdmin.owner(), deployConfig.proxyAdminOwner, "proxyAdmin owner mismatch");
+        assertEq(cts.disputeGameFactory.owner(), deployConfig.proxyAdminOwner, "disputeGameFactory owner mismatch");
+    }
+
+    /// @notice Tests that deploy reverts when the superchainConfig needs upgrade.
+    function test_deploy_superchainConfigNeedsUpgrade_reverts() public {
+        // Force the SuperchainConfig to return an obviously outdated version.
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("0.0.0"));
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig,
+            abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_SuperchainConfigNeedsUpgrade.selector)
+        );
+    }
+
+    /// @notice Tests that deploy reverts when missing game configs.
+    function test_deploy_missingGameConfigs_reverts() public {
+        // Delete the Cannon Kona game configuration.
+        delete deployConfig.disputeGameConfigs[2];
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Tests that deploy reverts when game configs are in wrong order.
+    function test_deploy_wrongGameConfigOrder_reverts() public {
+        // Swap the game config order.
+        IOPContractsManagerV2.DisputeGameConfig memory temp = deployConfig.disputeGameConfigs[0];
+        deployConfig.disputeGameConfigs[0] = deployConfig.disputeGameConfigs[1];
+        deployConfig.disputeGameConfigs[1] = temp;
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Tests that deploy reverts when the PermissionedDisputeGame is disabled.
+    function test_deploy_disabledPermissionedGame_reverts() public {
+        // Disable the PermissionedDisputeGame.
+        deployConfig.disputeGameConfigs[1].enabled = false;
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Tests that deploy reverts when a disabled game has non-zero init bond.
+    function test_deploy_disabledGameNonZeroBond_reverts() public {
+        // Disable Cannon but keep a non-zero init bond.
+        deployConfig.disputeGameConfigs[0].enabled = false;
+        deployConfig.disputeGameConfigs[0].initBond = 1 ether;
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
     }
 }
