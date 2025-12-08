@@ -87,6 +87,7 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 	// of slack. For simplicity, we implement our Sequencer to always start building on the latest
 	// L1 block when we can.
 	if nextOrigin != (eth.L1BlockRef{}) && l2Head.Time+los.cfg.BlockTime >= nextOrigin.Time {
+		los.log.Info("Starting to build on top of the next origin", "next_origin", nextOrigin)
 		return nextOrigin, nil
 	}
 
