@@ -55,6 +55,26 @@ abstract contract OPContractsManagerUtilsCaller {
         );
     }
 
+    /// @notice Helper function to check if an instruction matches a given key and data.
+    /// @param _instruction The instruction to check.
+    /// @param _key The key of the instruction to check for.
+    /// @param _data The data of the instruction to check for.
+    /// @return True if the instruction matches, false otherwise.
+    function _isMatchingInstruction(
+        IOPContractsManagerUtils.ExtraInstruction memory _instruction,
+        string memory _key,
+        bytes memory _data
+    )
+        internal
+        view
+        returns (bool)
+    {
+        return abi.decode(
+            _staticcall(abi.encodeCall(IOPContractsManagerUtils.isMatchingInstruction, (_instruction, _key, _data))),
+            (bool)
+        );
+    }
+
     /// @notice Helper function to load data from a source contract as bytes.
     /// @param _source The source contract to load the data from.
     /// @param _selector The selector of the function to call on the source contract.

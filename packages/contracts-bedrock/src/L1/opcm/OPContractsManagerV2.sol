@@ -5,7 +5,6 @@ pragma solidity 0.8.15;
 import { OPContractsManagerUtilsCaller } from "src/L1/opcm/OPContractsManagerUtilsCaller.sol";
 
 // Libraries
-import { LibString } from "@solady/utils/LibString.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { Claim, GameType, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
@@ -147,10 +146,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     error OPContractsManagerV2_InvalidUpgradeInput();
 
     /// @notice Thrown when an invalid upgrade instruction is provided.
-    error OPContractsManagerV2_InvalidUpgradeInstruction();
-
-    /// @notice Thrown when a chain attempts to upgrade to custom gas token after initial deployment.
-    error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
+    error OPContractsManagerV2_InvalidUpgradeInstruction(string _key);
 
     /// @notice Container of blueprint and implementation contract addresses.
     IOPContractsManagerContainer public immutable contractsContainer;
@@ -159,8 +155,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     IOPContractsManagerStandardValidator public immutable standardValidator;
 
     /// @notice The version of the OPCM contract.
-    /// @custom:semver 6.3.0
-    string public constant version = "6.3.0";
+    ///         WARNING: OPCM versioning rules differ from other contracts:
+    ///         - Major bump: New required sequential upgrade
+    ///         - Minor bump: Replacement OPCM for same upgrade
+    ///         - Patch bump: Development changes (expected for normal dev work)
+    /// @custom:semver 6.0.3
+    string public constant version = "6.0.3";
 
     /// @param _contractsContainer The container of blueprint and implementation contract addresses.
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -262,25 +262,43 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///////////////////////////////////////////////////////////////////////////
 
     /// @notice Asserts that the upgrade instructions array is valid.
+    /// @dev Developers don't need to touch this function, modify _isPermittedInstruction instead.
     /// @param _extraInstructions The extra upgrade instructions for the chain.
     function _assertValidUpgradeInstructions(IOPContractsManagerUtils.ExtraInstruction[] memory _extraInstructions)
         internal
-        pure
+        view
     {
         for (uint256 i = 0; i < _extraInstructions.length; i++) {
-            if (
-                LibString.eq(_extraInstructions[i].key, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY)
-                    && LibString.eq(string(_extraInstructions[i].data), "DelayedWETH")
-            ) {
-                // Unified DelayedWETH is being deployed for the first time.
-                // TODO:(#?????): Remove this allowance after unified DelayedWETH is deployed.
-            } else if (LibString.eq(_extraInstructions[i].key, "overrides.cfg.useCustomGasToken")) {
-                // Custom Gas Token is being enabled for the first time.
-                // TODO:(#18502): Remove this allowance after U18 ships.
-            } else {
-                revert OPContractsManagerV2_InvalidUpgradeInstruction();
+            if (!_isPermittedInstruction(_extraInstructions[i])) {
+                revert OPContractsManagerV2_InvalidUpgradeInstruction(_extraInstructions[i].key);
             }
         }
+    }
+
+    /// @notice Checks if an upgrade instruction is permitted.
+    /// @param _instruction The upgrade instruction to check.
+    /// @return True if the instruction is permitted, false otherwise.
+    function _isPermittedInstruction(IOPContractsManagerUtils.ExtraInstruction memory _instruction)
+        internal
+        view
+        returns (bool)
+    {
+        // NOTE (IMPORTANT FOR DEVELOPERS): You MAY need to allow permitted instructions here for
+        // your specific upgrade. For example, if you are adding a new contract that needs to be
+        // deployed you will need to add an allowance so that the proxy can be deployed.
+        // Allowances MUST always be restricted to one specific upgrade. Here we maintain this
+        // restriction by checking that the version is less than the NEXT release version. Once
+        // developers start working on the next release this will automatically become false so
+        // even if the code is somehow forgotten it will not actually apply to the deployment. Make
+        // sure to REMOVE the allowance once the upgrade is complete.
+        if (SemverComp.lt(version, "7.0.0")) {
+            // Unified DelayedWETH is being deployed for the first time.
+            // TODO:(#18382): Remove this allowance after unified DelayedWETH is deployed.
+            return _isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH");
+        }
+
+        // Always return false by default.
+        return false;
     }
 
     /// @notice Loads (or builds) the chain contracts from whatever exists.
