@@ -140,6 +140,21 @@ commands:
             # Configure ADC
             echo "export GOOGLE_APPLICATION_CREDENTIALS='<< parameters.gcp_cred_config_file_path >>'" | tee -a "$BASH_ENV"
 
+  clean-old-acceptor-logs:
+    description: "Delete op-acceptor testrun logs older than 60 days (prevents disk bloat across workspace attaches/reruns)."
+    steps:
+      - run:
+          name: Cleanup old op-acceptor testrun logs (>60 days)
+          command: |
+            set -eu
+            for base in "op-acceptor/logs" "op-acceptance-tests/logs"; do
+              if [ -d "$base" ]; then
+                echo "Scanning $base for old testrun-* directories..."
+                # Remove any testrun-* directories older than 60 days
+                find "$base" -type d -name 'testrun-*' -mtime +60 -print -exec rm -rf {} +
+              fi
+            done
+
   check-changed:
     description: "Conditionally halts a step if certain modules change"
     parameters:
@@ -705,6 +720,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      - attach_workspace:
+          at: .
       - run:
           command: mkdir -p /tmp/docker_images
       - when:
@@ -931,7 +948,7 @@ jobs:
         default: ""
     steps:
       - utils/checkout-with-mise:
-          checkout-method: blobless
+          checkout-method: full
       - install-zstd
       - run:
           name: Check if test list is empty
@@ -995,7 +1012,7 @@ jobs:
     resource_class: 2xlarge
     steps:
       - utils/checkout-with-mise:
-          checkout-method: blobless
+          checkout-method: full
       - install-contracts-dependencies
       - install-zstd
       - run:
@@ -1091,7 +1108,7 @@ jobs:
         default: ""
     steps:
       - utils/checkout-with-mise:
-          checkout-method: blobless
+          checkout-method: full
       - install-contracts-dependencies
       - install-zstd
       - attach_workspace:
@@ -1814,6 +1831,7 @@ jobs:
           checkout-method: blobless
       - attach_workspace:
           at: .
+      - clean-old-acceptor-logs
       - run:
           name: Lint/Vet/Build op-acceptance-tests/cmd
           working_directory: op-acceptance-tests
@@ -1920,14 +1938,15 @@ jobs:
           name: Slack - Sending Notification
           command: |
             set -euo pipefail
-            # The Slack orb conditionals evaluate at compile time; guard at runtime instead.
             if [ -z "${SLACK_BLOCKS_PAYLOAD:-}" ] || [ "${SLACK_BLOCKS_PAYLOAD}" = "[]" ]; then
-              echo "SLACK_BLOCKS is empty or doesn't exist. Skipping it..."
-              exit 0
+              echo "SLACK_BLOCKS is empty or doesn't exist. Skipping Slack notification."
+              # Halt this job here to avoid invoking the Slack orb step.
+              circleci-agent step halt
+            else
+              printf '%s' "$SLACK_BLOCKS_PAYLOAD" | jq '.' > /tmp/blocks.json
+              jq -c '{blocks: .}' /tmp/blocks.json > /tmp/slack_template.json
             fi
-            echo "$SLACK_BLOCKS_PAYLOAD" | jq '.' > /tmp/blocks.json
-            jq -c '{blocks: .}' /tmp/blocks.json > /tmp/slack_template.json
-            echo 'export SLACK_TEMPLATE=$(cat /tmp/slack_template.json)' >> $BASH_ENV
+            echo 'export SLACK_TEMPLATE=$(cat /tmp/slack_template.json)' >> "$BASH_ENV"
       - slack/notify:
           channel: C03N11M0BBN # "notify-ci" channel
           event: always
@@ -2563,6 +2582,7 @@ workflows:
                 - OPTIMISM_PORTAL_INTEROP
                 - CANNON_KONA,DEPLOY_V2_DISPUTE_GAMES
                 - OPCM_V2
+                - OPCM_V2,OPTIMISM_PORTAL_INTEROP
                 - CUSTOM_GAS_TOKEN
           context:
             - circleci-repo-readonly-authenticated-github-token

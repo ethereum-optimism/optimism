@@ -605,7 +605,7 @@ func gasCost(rcpt *types.Receipt, rollupCfg *rollup.Config, blockTimestamp *uint
 		}
 		operatorCost := new(big.Int).SetUint64(rcpt.GasUsed)
 		operatorCost.Mul(operatorCost, new(big.Int).SetUint64(*rcpt.OperatorFeeScalar))
-		if rollupCfg.IsOperatorFeeFix(*blockTimestamp) {
+		if rollupCfg.IsJovian(*blockTimestamp) {
 			operatorCost.Mul(operatorCost, big.NewInt(100))
 		} else {
 			operatorCost.Div(operatorCost, big.NewInt(1_000_000))
