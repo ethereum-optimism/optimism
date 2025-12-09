@@ -14,7 +14,7 @@ use reth_optimism_rpc::{
     debug::{DebugApiExt, DebugApiOverrideServer},
     eth::proofs::{EthApiExt, EthApiOverrideServer},
 };
-use reth_optimism_trie::{db::MdbxProofsStorage, InMemoryProofsStorage, OpProofsStorage};
+use reth_optimism_trie::{db::MdbxProofsStorage, OpProofsStorage};
 use reth_tasks::TaskExecutor;
 use std::{path::PathBuf, sync::Arc, time::Duration};
 use tokio::time::sleep;
@@ -39,27 +39,13 @@ struct Args {
         long = "proofs-history",
         value_name = "PROOFS_HISTORY",
         default_value_ifs([
-            ("proofs-history.in_mem", ArgPredicate::IsPresent, "true"),
             ("proofs-history.storage-path", ArgPredicate::IsPresent, "true")
         ])
     )]
     pub proofs_history: bool,
 
-    /// The storage DB for proofs history.
-    #[arg(
-        long = "proofs-history.in_mem",
-        value_name = "PROOFS_HISTORY_STORAGE_IN_MEM",
-        conflicts_with = "proofs-history.storage-path",
-        default_value_if("proofs-history", "true", Some("false"))
-    )]
-    pub proofs_history_storage_in_mem: bool,
-
     /// The path to the storage DB for proofs history.
-    #[arg(
-        long = "proofs-history.storage-path",
-        value_name = "PROOFS_HISTORY_STORAGE_PATH",
-        required_if_eq("proofs-history.in_mem", "false")
-    )]
+    #[arg(long = "proofs-history.storage-path", value_name = "PROOFS_HISTORY_STORAGE_PATH")]
     pub proofs_history_storage_path: Option<PathBuf>,
 
     /// The window to span blocks for proofs history. Value is the number of blocks.
@@ -111,85 +97,52 @@ async fn launch_node(
     let mut node_builder = builder.node(OpNode::new(rollup_args));
 
     if proofs_history_enabled {
-        // Choose storage backend
-        if args.proofs_history_storage_in_mem {
-            info!(target: "reth::cli", "Using in-memory storage for proofs history");
-            let storage: OpProofsStorage<_> = Arc::new(InMemoryProofsStorage::new()).into();
+        let path = args
+            .proofs_history_storage_path
+            .clone()
+            .expect("Path must be provided if not using in-memory storage");
+        info!(target: "reth::cli", "Using on-disk storage for proofs history");
 
-            let storage_exec = storage.clone();
+        let mdbx = Arc::new(
+            MdbxProofsStorage::new(&path)
+                .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
+        );
+        let storage: OpProofsStorage<_> = Arc::new(mdbx.clone()).into();
 
-            node_builder = node_builder
-                .install_exex("proofs-history", async move |exex_context| {
-                    Ok(OpProofsExEx::new(
-                        exex_context,
-                        storage_exec,
-                        proofs_history_window,
-                        proofs_history_prune_interval,
-                    )
-                    .run()
-                    .boxed())
-                })
-                .extend_rpc_modules(move |ctx| {
-                    let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
-                    let debug_ext = DebugApiExt::new(
-                        ctx.node().provider().clone(),
-                        ctx.registry.eth_api().clone(),
-                        storage,
-                        Box::new(ctx.node().task_executor().clone()),
-                        ctx.node().evm_config().clone(),
-                    );
-                    ctx.modules.replace_configured(api_ext.into_rpc())?;
-                    ctx.modules.replace_configured(debug_ext.into_rpc())?;
-                    Ok(())
-                });
-        } else {
-            let path = args
-                .proofs_history_storage_path
-                .clone()
-                .expect("Path must be provided if not using in-memory storage");
-            info!(target: "reth::cli", "Using on-disk storage for proofs history");
+        let storage_exec = storage.clone();
 
-            let mdbx = Arc::new(
-                MdbxProofsStorage::new(&path)
-                    .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
-            );
-            let storage: OpProofsStorage<_> = Arc::new(mdbx.clone()).into();
-
-            let storage_exec = storage.clone();
-
-            node_builder = node_builder
-                .on_node_started(move |node| {
-                    spawn_proofs_db_metrics(
-                        node.task_executor,
-                        mdbx,
-                        node.config.metrics.push_gateway_interval,
-                    );
-                    Ok(())
-                })
-                .install_exex("proofs-history", async move |exex_context| {
-                    Ok(OpProofsExEx::new(
-                        exex_context,
-                        storage_exec,
-                        proofs_history_window,
-                        proofs_history_prune_interval,
-                    )
-                    .run()
-                    .boxed())
-                })
-                .extend_rpc_modules(move |ctx| {
-                    let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
-                    let debug_ext = DebugApiExt::new(
-                        ctx.node().provider().clone(),
-                        ctx.registry.eth_api().clone(),
-                        storage,
-                        Box::new(ctx.node().task_executor().clone()),
-                        ctx.node().evm_config().clone(),
-                    );
-                    ctx.modules.replace_configured(api_ext.into_rpc())?;
-                    ctx.modules.replace_configured(debug_ext.into_rpc())?;
-                    Ok(())
-                });
-        }
+        node_builder = node_builder
+            .on_node_started(move |node| {
+                spawn_proofs_db_metrics(
+                    node.task_executor,
+                    mdbx,
+                    node.config.metrics.push_gateway_interval,
+                );
+                Ok(())
+            })
+            .install_exex("proofs-history", async move |exex_context| {
+                Ok(OpProofsExEx::new(
+                    exex_context,
+                    storage_exec,
+                    proofs_history_window,
+                    proofs_history_prune_interval,
+                )
+                .run()
+                .boxed())
+            })
+            .extend_rpc_modules(move |ctx| {
+                let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
+                let debug_ext = DebugApiExt::new(
+                    ctx.node().provider().clone(),
+                    ctx.registry.eth_api().clone(),
+                    storage,
+                    Box::new(ctx.node().task_executor().clone()),
+                    ctx.node().evm_config().clone(),
+                );
+                ctx.modules.replace_configured(api_ext.into_rpc())?;
+                ctx.modules.replace_configured(debug_ext.into_rpc())?;
+                Ok(())
+            });
     }
 
     // In all cases (with or without proofs), launch the node.
