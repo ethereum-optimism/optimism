@@ -102,8 +102,8 @@ const config = {
       {
         redirects: [
           {
-            to: '/dev-docs/*',
-            from: '/*',
+            to: '/dev-docs',
+            from: '/',
           },
         ],
       },
