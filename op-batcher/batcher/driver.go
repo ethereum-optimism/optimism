@@ -674,10 +674,12 @@ func isCriticalThrottlingRPCError(err error) bool {
 }
 
 func (l *BatchSubmitter) shutdownOnCriticalError(err error) {
-	l.Log.Error("Shutting down batcher on critical error", "err", err)
+	l.Log.Error("Critical error detected, attempting batcher shut down", "err", err)
 	if l.closeApp != nil {
 		// Call closeApp to trigger process to exit (gracefully) if l.closeApp is set.
 		l.closeApp(err)
+	} else {
+		l.Log.Warn("No closeApp function set, cannot shut down batcher on critical error", "err", err)
 	}
 }
 
