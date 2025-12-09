@@ -1,6 +1,7 @@
 package proofs
 
 import (
+	"strconv"
 	"testing"
 
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
@@ -8,19 +9,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testCase struct {
+	recoverMode bool
+	spanBatches bool
+}
+
 // Run a test that proves a deposit-only block generated due to sequence window expiry.
-func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
+func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[testCase]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	tp := helpers.NewTestParams()
 	bc := helpers.NewBatcherCfg()
 
-	// It seems more difficult to recover with span batches, since the singular batches within are invalidated atomically.
-	// That is to say, if the oldest batch in the span batch fails the sequencing window check (l1 origin + seq window < l1 inclusion)
-	// All following batches are invalidated / dropped as well.
-	// Although, if the same blocks were batched with singular batches, wouldn't the older blocks being rejected invalidate that later batches anyway?
-	// Perhaps not in the case of recover mode since the noTxPool mode means autoderviation actually fills the gap with identical blocks anyway.
-	// It seems like this is actually just a problem with derivation, it would be possible to consider modifying the rules to allow for recovery from span batches too.
-	bc.ForceSubmitSingularBatch = true
+	if testCfg.Custom.spanBatches {
+		// It seems more difficult to recover with span batches, since the singular batches within are invalidated atomically.
+		// That is to say, if the oldest batch in the span batch fails the sequencing window check (l1 origin + seq window < l1 inclusion)
+		// All following batches are invalidated / dropped as well.
+		// Although, if the same blocks were batched with singular batches, wouldn't the older blocks being rejected invalidate that later batches anyway?
+		// Perhaps not in the case of recover mode since the noTxPool mode means autoderviation actually fills the gap with identical blocks anyway.
+		// It seems like this is actually just a problem with derivation, it would be possible to consider modifying the rules to allow for recovery from span batches too.
+		bc.ForceSubmitSpanBatch = true
+	} else {
+		bc.ForceSubmitSingularBatch = true
+	}
+
 	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, bc)
 
 	// Mine an empty L1 block for gas estimation purposes.
@@ -55,24 +66,36 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	require.Greater(t, l2SafeHead.Number.Uint64(), uint64(0))
 
 	// Run the FPP on one of the auto-derived blocks.
-	// env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64()/2, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64()/2, testCfg.CheckResult, testCfg.InputParams...)
 
 	// Set recover mode on the sequencer:
 	// I am not actually convinced we need this...
-	env.Sequencer.ActSetRecoverMode(t, true)
+	// and I think it does more harm than good when
+	// the lag approaches zero
+	env.Sequencer.ActSetRecoverMode(t, testCfg.Custom.recoverMode)
 
-	// Allow the l1 origin to catch up to the l1 head
-	lag := tp.SequencerWindowSize
-	for i := 0; i < int(tp.SequencerWindowSize)*100; i++ {
-		env.Sequencer.ActL2StartBlock(t)
-		env.Sequencer.ActL2EndBlock(t)
-		if i%30 == 0 {
+	// Build both chains and assert the l1 origin catches back up with the tip of the L1 chain.
+	numL1Blocks := 0
+	timeout := tp.SequencerWindowSize * 5
+	ss := env.Sequencer.SyncStatus()
+	lag := ss.CurrentL1.Number - ss.SafeL2.L1Origin.Number
+	require.GreaterOrEqual(t, lag, tp.SequencerWindowSize, "Lag is less than sequencing window size")
+	for numL1Blocks < int(timeout) {
+		for range tp.L1BlockTime / env.Sd.RollupCfg.BlockTime {
+			env.Sequencer.ActL2StartBlock(t)
+			env.Alice.L2.ActMakeTx(t)
+			env.Engine.ActL2IncludeTx(env.Alice.Address())
+			// RecoverMode will ensure no user transactions, so don't mess with that here.
+			env.Sequencer.ActL2EndBlock(t)
+		}
+		if numL1Blocks%2 == 0 {
 			env.BatchMineAndSync(t)
-		} else if i%15 == 0 {
+		} else {
 			env.Miner.ActEmptyBlock(t)
 		}
+		numL1Blocks++
 		l1Head := env.Miner.UnsafeNum()
-		ss := env.Sequencer.SyncStatus()
+		ss = env.Sequencer.SyncStatus()
 		t.Log(
 			"unsafeL2.Number", ss.UnsafeL2.Number,
 			"safeL2.Number", ss.SafeL2.Number,
@@ -81,17 +104,18 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 			"l1_origin_safe", ss.SafeL2.L1Origin.Number,
 			"l1_head", l1Head)
 		lag = ss.CurrentL1.Number - ss.SafeL2.L1Origin.Number
-		t.Log("lag", lag) // TODO this lag starts out equal to the sequencing window, and eventually decreases to a lower value
-		if lag < 5 {      // What is a reasonable exit condition here? Let's say half the sequencing window
+		t.Log("lag", lag) // This lag starts out equal to the sequencing window, and eventually decreases to a lower value
+		if lag <= 1 {     // We can't expect to get a lag of 0, so a lag of 1 is the best we can hope for.
 			break
 		}
 	}
 
-	// env.Sequencer.ActWaitForUserTransactions(t)
+	if uint64(numL1Blocks) > timeout {
+		t.Fatal("L1 Origin did not catch up to tip within % L1 blocks", numL1Blocks)
+	} else {
+		t.Logf("L1 Origin caught up to within %d blocks of the tip within %d L1 blocks (sequencing window size %d)", lag, numL1Blocks, tp.SequencerWindowSize)
+	}
 
-	// Run the test until the l1 origin is close to tip, to cover any residual issues with recover mode
-	//
-	// Asser that the unsafe chain keeps progressing (and we don't e.g. violate sequencer drift.)
 }
 
 // Runs a that proves a block in a chain where the batcher opens a channel, the sequence window expires, and then the
@@ -175,17 +199,24 @@ func runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test(gt *testing.T, t
 }
 
 func Test_ProgramAction_SequenceWindowExpired(gt *testing.T) {
-	matrix := helpers.NewMatrix[any]()
+	matrix := helpers.NewMatrix[testCase]()
 	defer matrix.Run(gt)
 
 	forks := helpers.ForkMatrix{helpers.LatestFork}
-	matrix.AddTestCase(
-		"HonestClaim",
-		nil,
-		forks,
-		runSequenceWindowExpireTest,
-		helpers.ExpectNoError(),
-	)
+	// TODO add recoverMode=true test case
+	for _, testCase := range []testCase{
+		{recoverMode: false, spanBatches: false},
+		{recoverMode: false, spanBatches: true},
+	} {
+		matrix.AddTestCase(
+			"HonestClaim-recoverMode-"+strconv.FormatBool(testCase.recoverMode)+"-spanBatches-"+strconv.FormatBool(testCase.spanBatches),
+			testCase,
+			forks,
+			runSequenceWindowExpireTest,
+			helpers.ExpectNoError(),
+		)
+	}
+
 	// matrix.AddTestCase(
 	// 	"JunkClaim",
 	// 	nil,
