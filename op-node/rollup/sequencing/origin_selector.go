@@ -140,7 +140,12 @@ func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head et
 		}
 		los.currentOrigin = currentOrigin
 		nextOrigin, err := los.l1.L1BlockRefByNumber(ctx, currentOrigin.Number+1)
-		if err != nil {
+		if errors.Is(err, ethereum.NotFound) {
+			// If the next origin is not found, it means we are at the end of the chain.
+			// In this case, we set the next origin to an empty block reference.
+			los.nextOrigin = eth.L1BlockRef{}
+			return los.currentOrigin, los.nextOrigin, nil
+		} else if err != nil {
 			los.log.Error("failed to fetch next L1 origin", "error", err)
 			return eth.L1BlockRef{}, eth.L1BlockRef{},
 				derive.NewTemporaryError(fmt.Errorf("failed to fetch next L1 origin: %w", err))
