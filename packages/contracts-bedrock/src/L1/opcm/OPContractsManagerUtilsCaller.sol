@@ -55,6 +55,24 @@ abstract contract OPContractsManagerUtilsCaller {
         );
     }
 
+    /// @notice Helper function to check if an instruction matches a given key.
+    /// @param _instruction The instruction to check.
+    /// @param _key The key of the instruction to check for.
+    /// @return True if the instruction matches, false otherwise.
+    function _isMatchingInstructionByKey(
+        IOPContractsManagerUtils.ExtraInstruction memory _instruction,
+        string memory _key
+    )
+        internal
+        view
+        returns (bool)
+    {
+        return abi.decode(
+            _staticcall(abi.encodeCall(IOPContractsManagerUtils.isMatchingInstructionByKey, (_instruction, _key))),
+            (bool)
+        );
+    }
+
     /// @notice Helper function to check if an instruction matches a given key and data.
     /// @param _instruction The instruction to check.
     /// @param _key The key of the instruction to check for.

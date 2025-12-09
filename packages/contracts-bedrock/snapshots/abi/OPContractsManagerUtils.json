@@ -374,6 +374,42 @@
   {
     "inputs": [
       {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "key",
+            "type": "string"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct OPContractsManagerUtils.ExtraInstruction",
+        "name": "_instruction",
+        "type": "tuple"
+      },
+      {
+        "internalType": "string",
+        "name": "_key",
+        "type": "string"
+      }
+    ],
+    "name": "isMatchingInstructionByKey",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "_source",
         "type": "address"

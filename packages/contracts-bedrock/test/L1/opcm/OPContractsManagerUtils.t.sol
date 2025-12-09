@@ -608,3 +608,65 @@ contract OPContractsManagerUtils_ContractsContainer_Test is OPContractsManagerUt
         assertEq(address(utils.contractsContainer()), address(container));
     }
 }
+
+/// @title OPContractsManagerUtils_IsMatchingInstruction_Test
+/// @notice Tests the isMatchingInstruction function.
+contract OPContractsManagerUtils_IsMatchingInstruction_Test is OPContractsManagerUtils_TestInit {
+    /// @notice Tests that isMatchingInstruction returns true when the instruction matches the key and data.
+    function testFuzz_isMatchingInstruction_succeeds(OPContractsManagerUtils.ExtraInstruction memory _instruction)
+        public
+        view
+    {
+        assertTrue(utils.isMatchingInstruction(_instruction, _instruction.key, _instruction.data));
+    }
+
+    /// @notice Tests that isMatchingInstruction returns false when the instruction does not match the key.
+    function testFuzz_isMatchingInstruction_notMatchingKey_fails(
+        OPContractsManagerUtils.ExtraInstruction memory _instruction
+    )
+        public
+        view
+    {
+        // Create a key that is not the same as the instruction key.
+        string memory _key = string.concat("not:", _instruction.key);
+
+        assertFalse(utils.isMatchingInstruction(_instruction, _key, _instruction.data));
+    }
+
+    /// @notice Tests that isMatchingInstruction returns false when the instruction does not match the data.
+    function testFuzz_isMatchingInstruction_notMatchingData_fails(
+        OPContractsManagerUtils.ExtraInstruction memory _instruction
+    )
+        public
+        view
+    {
+        // Create a data that is not the same as the instruction data.
+        bytes memory _data = bytes.concat("not:", _instruction.data);
+
+        assertFalse(utils.isMatchingInstruction(_instruction, _instruction.key, _data));
+    }
+}
+
+/// @title OPContractsManagerUtils_IsMatchingInstructionByKey_Test
+/// @notice Tests the isMatchingInstructionByKey function.
+contract OPContractsManagerUtils_IsMatchingInstructionByKey_Test is OPContractsManagerUtils_TestInit {
+    /// @notice Tests that isMatchingInstructionByKey returns true when the instruction matches the key.
+    function testFuzz_isMatchingInstructionByKey_succeeds(OPContractsManagerUtils.ExtraInstruction memory _instruction)
+        public
+        view
+    {
+        assertTrue(utils.isMatchingInstructionByKey(_instruction, _instruction.key));
+    }
+
+    /// @notice Tests that isMatchingInstructionKey returns false when the instruction does not match the key.
+    function testFuzz_isMatchingInstructionByKey_notMatchingKey_fails(
+        OPContractsManagerUtils.ExtraInstruction memory _instruction
+    )
+        public
+        view
+    {
+        // Create a key that is not the same as the instruction key.
+        string memory _key = string.concat("not:", _instruction.key);
+        assertFalse(utils.isMatchingInstructionByKey(_instruction, _key));
+    }
+}

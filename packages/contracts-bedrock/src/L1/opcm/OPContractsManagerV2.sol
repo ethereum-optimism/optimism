@@ -167,7 +167,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
     /// @custom:semver 6.0.4
-    string public constant version = "6.0.4";
+    string public constant version = "6.0.5";
 
     /// @param _contractsContainer The container of blueprint and implementation contract addresses.
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -307,10 +307,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             }
             // Custom Gas Token is being enabled for the first time.
             // TODO:(#18502): Remove this allowance after U18 ships.
-            if (
-                _isMatchingInstruction(_instruction, "overrides.cfg.useCustomGasToken", abi.encode(true))
-                    || _isMatchingInstruction(_instruction, "overrides.cfg.useCustomGasToken", abi.encode(false))
-            ) {
+            if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.useCustomGasToken")) {
                 return true;
             }
         }
