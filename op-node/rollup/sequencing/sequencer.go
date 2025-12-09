@@ -377,7 +377,6 @@ func (d *Sequencer) onSequencerAction(ev SequencerActionEvent) {
 		d.latest.Ref = ref
 	} else {
 		if d.latest.Info != (eth.PayloadInfo{}) {
-			d.log.Debug("Payload is known, we must have resumed sequencer-actions after a temporary error, meaning that we have seen BuildSealedEvent already.")
 			// We should not repeat the seal request.
 			d.nextActionOK = false
 			// No known payload for block building job,
@@ -389,7 +388,6 @@ func (d *Sequencer) onSequencerAction(ev SequencerActionEvent) {
 				DerivedFrom:  eth.L1BlockRef{},
 			})
 		} else if d.latest == (BuildingState{}) {
-			d.log.Debug("foobar.")
 			// If we have not started building anything, start building.
 			d.startBuildingBlock()
 		}

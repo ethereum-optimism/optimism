@@ -87,11 +87,8 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 	// of slack. For simplicity, we implement our Sequencer to always start building on the latest
 	// L1 block when we can.
 	if nextOrigin != (eth.L1BlockRef{}) && l2Head.Time+los.cfg.BlockTime >= nextOrigin.Time {
-		los.log.Info("Starting to build on top of the next origin", "next_origin", nextOrigin)
 		return nextOrigin, nil
 	}
-
-	los.log.Info("next origin is foo and l2head", "next_origin", nextOrigin, "l2_head_time", l2Head.Time, "next_origin_time", nextOrigin.Time)
 
 	msd := los.spec.MaxSequencerDrift(currentOrigin.Time)
 	log := los.log.New("current", currentOrigin, "current_time", currentOrigin.Time,
@@ -101,7 +98,6 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 
 	// If we are not past the max sequencer drift, we can just return the current origin.
 	if !pastSeqDrift {
-		log.Info("not pass seq drift")
 		return currentOrigin, nil
 	}
 
@@ -134,7 +130,6 @@ func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head et
 	if los.recoverMode.Load() {
 		currentOrigin, err := los.l1.L1BlockRefByHash(ctx, l2Head.L1Origin.Hash)
 		if err != nil {
-			los.log.Error("failed to fetch current L1 origin", "error", err)
 			return eth.L1BlockRef{}, eth.L1BlockRef{},
 				derive.NewTemporaryError(fmt.Errorf("failed to fetch current L1 origin: %w", err))
 		}
@@ -143,10 +138,10 @@ func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head et
 		if errors.Is(err, ethereum.NotFound) {
 			// If the next origin is not found, it means we are at the end of the chain.
 			// In this case, we set the next origin to an empty block reference.
+			los.log.Error("next L1 origin not found, recover mode likely brought L1 origin up to the tip of the chain", "error", err)
 			los.nextOrigin = eth.L1BlockRef{}
 			return los.currentOrigin, los.nextOrigin, nil
 		} else if err != nil {
-			los.log.Error("failed to fetch next L1 origin", "error", err)
 			return eth.L1BlockRef{}, eth.L1BlockRef{},
 				derive.NewTemporaryError(fmt.Errorf("failed to fetch next L1 origin: %w", err))
 		}

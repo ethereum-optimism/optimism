@@ -87,7 +87,6 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc deri
 	ver.eventSys.Register("sequencer", seq, opts)
 	ver.eventSys.Register("origin-selector", originSelector, opts)
 	require.NoError(t, seq.Init(t.Ctx(), true))
-
 	return &L2Sequencer{
 		L2Verifier:              ver,
 		sequencer:               seq,

@@ -40,12 +40,11 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.Miner.ActEmptyBlock(t)
 
 	// Expire the sequence window by building `SequenceWindow + 1` empty blocks on L1.
-	// note that tp.SequencerWindowSize is 10.
 	for i := 0; i < int(tp.SequencerWindowSize)+1; i++ {
 		env.Alice.L1.ActResetTxOpts(t)
 		env.Alice.ActDeposit(t)
 
-		env.Miner.ActL1StartBlock(15)(t)
+		env.Miner.ActL1StartBlock(tp.L1BlockTime)(t)
 		env.Miner.ActL1IncludeTx(env.Alice.Address())(t)
 		env.Miner.ActL1EndBlock(t)
 
@@ -107,7 +106,7 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 		numL1Blocks++
 		lag = computeLag()
 		t.Log("lag", lag) // This lag starts out equal to the sequencing window, and eventually decreases to 1.
-		if lag <= 1 {     // A lag of 1 is the minimum possible.
+		if lag == 1 {     // A lag of 1 is the minimum possible.
 			break
 		}
 	}
@@ -223,16 +222,14 @@ func Test_ProgramAction_SequenceWindowExpired(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 	defer matrix.Run(gt)
 
-	forks := helpers.ForkMatrix{helpers.LatestFork}
-	{
-		matrix.AddTestCase(
-			"HonestClaim",
-			nil,
-			forks,
-			runSequenceWindowExpireTest,
-			helpers.ExpectNoError(),
-		)
-	}
+	forks := helpers.ForkMatrix{helpers.Granite, helpers.LatestFork}
+	matrix.AddTestCase(
+		"HonestClaim",
+		nil,
+		forks,
+		runSequenceWindowExpireTest,
+		helpers.ExpectNoError(),
+	)
 	matrix.AddTestCase(
 		"JunkClaim",
 		nil,

@@ -13,7 +13,7 @@ import (
 func DefaultRollupTestParams() *e2eutils.TestParams {
 	return &e2eutils.TestParams{
 		MaxSequencerDrift:   40,
-		SequencerWindowSize: 10,
+		SequencerWindowSize: 120,
 		ChannelTimeout:      120,
 		L1BlockTime:         15,
 		AllocType:           config.DefaultAllocType,
