@@ -3,15 +3,19 @@ package proofs
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"math/big"
 	"net/url"
 	"path"
 	"time"
 
 	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -46,6 +50,7 @@ type DisputeGameFactory struct {
 	challengerCfg *challengerConfig.Config
 
 	honestTraces map[common.Address]challengerTypes.TraceAccessor
+	topOnly      bool
 }
 
 func NewDisputeGameFactory(
@@ -57,6 +62,7 @@ func NewDisputeGameFactory(
 	l2EL *dsl.L2ELNode,
 	supervisor *dsl.Supervisor,
 	challengerCfg *challengerConfig.Config,
+	usesOutputsOnlyProvider bool,
 ) *DisputeGameFactory {
 	dgf := bindings.NewDisputeGameFactory(bindings.WithClient(ethClient), bindings.WithTo(dgfAddr), bindings.WithTest(t))
 
@@ -74,6 +80,7 @@ func NewDisputeGameFactory(
 		challengerCfg: challengerCfg,
 
 		honestTraces: make(map[common.Address]challengerTypes.TraceAccessor),
+		topOnly:      usesOutputsOnlyProvider,
 	}
 }
 
@@ -219,6 +226,10 @@ func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challeng
 	if existing, ok := f.honestTraces[game.Address]; ok {
 		return existing
 	}
+	if f.topOnly {
+		return f.topOnlyTraceProvider(game)
+	}
+
 	f.require.NotNil(f.challengerCfg, "Challenger config is required to create honest trace")
 	switch game.GameType() {
 	case gameTypes.CannonGameType:
@@ -283,6 +294,30 @@ func (f *DisputeGameFactory) honestOutputCannonTrace(
 		game.L2SequenceNumber(),
 	)
 	f.require.NoError(err, "Failed to create trace accessor")
+	f.honestTraces[game.Address] = accessor
+	return accessor
+}
+
+func (f *DisputeGameFactory) topOnlyTraceProvider(
+	game *FaultDisputeGame,
+) challengerTypes.TraceAccessor {
+	logger := f.t.Logger().New("role", "honestTrace")
+	prestateBlock := game.StartingL2SequenceNumber()
+	rollupClient := f.l2CL.Escape().RollupAPI()
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
+	l1HeadHash := game.L1Head()
+	l1Head, err := f.ethClient.BlockRefByHash(f.t.Ctx(), l1HeadHash)
+	f.require.NoError(err, "Failed to fetch L1 Head")
+	l2ElClient := f.l2EL.Escape().L2EthClient()
+
+	outputProvider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, &ethClientHeaderProvider{client: l2ElClient}, l1Head.ID(), game.SplitDepth(), prestateBlock, game.L2SequenceNumber())
+
+	invalidCreator := func(ctx context.Context, localContext common.Hash, depth challengerTypes.Depth, agreed utils.Proposal, claimed utils.Proposal) (challengerTypes.TraceProvider, error) {
+		return nil, errors.New("bottom trace provider is unavailable")
+	}
+	cache := outputs.NewProviderCache(metrics.NoopMetrics, "top_only_provider", invalidCreator)
+	selector := split.NewSplitProviderSelector(outputProvider, game.SplitDepth(), outputs.OutputRootSplitAdapter(outputProvider, cache.GetOrCreate))
+	accessor := trace.NewAccessor(selector)
 	f.honestTraces[game.Address] = accessor
 	return accessor
 }

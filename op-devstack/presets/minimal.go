@@ -51,7 +51,9 @@ func (m *Minimal) StandardBridge() *dsl.StandardBridge {
 }
 
 func (m *Minimal) DisputeGameFactory() *proofs.DisputeGameFactory {
-	return proofs.NewDisputeGameFactory(m.T, m.L1Network, m.L1EL.EthClient(), m.L2Chain.DisputeGameFactoryProxyAddr(), m.L2CL, m.L2EL, nil, m.challengerConfig)
+	// TODO(inphi): Hack to detect sysext in use
+	usesOutputsOnlyProvider := m.challengerConfig == nil
+	return proofs.NewDisputeGameFactory(m.T, m.L1Network, m.L1EL.EthClient(), m.L2Chain.DisputeGameFactoryProxyAddr(), m.L2CL, m.L2EL, nil, m.challengerConfig, usesOutputsOnlyProvider)
 }
 
 func (m *Minimal) AdvanceTime(amount time.Duration) {
