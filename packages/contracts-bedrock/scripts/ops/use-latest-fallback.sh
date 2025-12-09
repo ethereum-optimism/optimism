@@ -21,7 +21,7 @@ if [ "${CIRCLE_BRANCH:-}" != "develop" ]; then
     PR_NUMBER=$(echo "${CIRCLE_PULL_REQUEST}" | grep -o '[0-9]*$')
   # For external PRs, find PR via commit SHA
   elif [ -n "${CIRCLE_SHA1:-}" ]; then
-    if PR_SEARCH=$(curl -sS --fail --connect-timeout 10 --max-time 30 -H "Authorization: token ${MISE_GITHUB_TOKEN}" \
+    if PR_SEARCH=$(curl -sS --fail --connect-timeout 10 --max-time 30 \
       "https://api.github.com/repos/ethereum-optimism/optimism/commits/${CIRCLE_SHA1}/pulls" 2>/dev/null); then
       # Get the first PR number from the response
       PR_NUMBER=$(echo "$PR_SEARCH" | jq -r '.[0].number // empty' 2>/dev/null)
@@ -30,7 +30,7 @@ if [ "${CIRCLE_BRANCH:-}" != "develop" ]; then
 
   if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
     # Query GitHub API for PR details (fail safe: proceed with fallback on error)
-    if PR_DATA=$(curl -sS --fail --connect-timeout 10 --max-time 30 -H "Authorization: token ${MISE_GITHUB_TOKEN}" \
+    if PR_DATA=$(curl -sS --fail --connect-timeout 10 --max-time 30 \
       "https://api.github.com/repos/ethereum-optimism/optimism/pulls/${PR_NUMBER}" 2>/dev/null); then
 
       if echo "$PR_DATA" | jq -e 'any(.labels[]; .name == "force-use-fresh-artifacts")' >/dev/null 2>&1; then
