@@ -102,9 +102,9 @@ type Runner struct {
 	buildError   string // Build failure output to show at end
 
 	// Signal handling
-	interrupted  atomic.Bool
-	sigCount     atomic.Int32
-	cancelFunc   context.CancelFunc
+	interrupted atomic.Bool
+	sigCount    atomic.Int32
+	cancelFunc  context.CancelFunc
 }
 
 func main() {
@@ -405,6 +405,7 @@ func evictOldCaches(phaseName string) {
 // Main Run Logic
 // ============================================================================
 
+// Run executes the configured checks, optionally filtering to selectedChecks.
 func (r *Runner) Run(selectedChecks map[string]bool) bool {
 	// Check if any phase has a build
 	hasBuilds := false
