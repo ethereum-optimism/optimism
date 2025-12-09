@@ -20,9 +20,9 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 		p.SequencerWindowSize = SEQUENCER_WINDOW_SIZE
 	})
 
-	// It seems more difficult (almost impossible)to recover from sequencing window expiry with span batches,
+	// It seems more difficult (almost impossible) to recover from sequencing window expiry with span batches,
 	// since the singular batches within are invalidated _atomically_.
-	// That is to say, if the oldest batch in the span batch fails the sequencing window chec
+	// That is to say, if the oldest batch in the span batch fails the sequencing window check
 	// (l1 origin + seq window < l1 inclusion)
 	// All following batches are invalidated / dropped as well.
 	// https://github.com/ethereum-optimism/optimism/blob/73339162d78a1ebf2daadab01736382eed6f4527/op-node/rollup/derive/batches.go#L96-L100
@@ -65,6 +65,8 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
 	require.Greater(t, l2SafeHead.Number.Uint64(), uint64(0))
 
+	env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64()/2, testCfg.CheckResult, testCfg.InputParams...)
+
 	// Set recover mode on the sequencer:
 	env.Sequencer.ActSetRecoverMode(t, true)
 	// Since recover mode only affects the L2 CL (op-node),
@@ -90,7 +92,7 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 			env.Bob.L2.ActResetTxOpts(t)
 			env.Bob.L2.ActMakeTx(t)
 			env.Engine.ActL2IncludeTx(env.Bob.Address())(t)
-			// RecoverMode (above, if enabled) should prevent this
+			// RecoverMode (enabled above) should prevent this
 			// transaction from being included in the block, which
 			// is critical for recover mode to work.
 			env.Sequencer.ActL2EndBlock(t)
@@ -113,7 +115,8 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	if uint64(numL1Blocks) >= timeout {
 		t.Fatal("L1 Origin did not catch up to tip within %d L1 blocks (lag is %d)", numL1Blocks, lag)
 	} else {
-		t.Logf("L1 Origin caught up to within %d blocks of the tip within %d L1 blocks (sequencing window size %d)", lag, numL1Blocks, tp.SequencerWindowSize)
+		t.Logf("L1 Origin caught up to within %d blocks of the tip within %d L1 blocks (sequencing window size %d)",
+			lag, numL1Blocks, tp.SequencerWindowSize)
 	}
 
 	// Disable recover mode so we can get some user transactions in again.
@@ -133,7 +136,7 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	// Assert safe block has at least two transactions
 	require.GreaterOrEqual(t, len(l2SafeBlock.Transactions()), 2, "safe block did not have at least two transactions")
 
-	// env.RunFaultProofProgramFromGenesis(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgram(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 // Runs a that proves a block in a chain where the batcher opens a channel, the sequence window expires, and then the
