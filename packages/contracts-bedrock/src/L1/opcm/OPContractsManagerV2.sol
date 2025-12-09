@@ -652,14 +652,18 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
     /// @notice Validates the deployment/upgrade config.
     /// @param _cfg The full config.
-    function _assertValidFullConfig(FullConfig memory _cfg) internal pure {
+    function _assertValidFullConfig(FullConfig memory _cfg) internal view {
         // Start validating the dispute game configs. Put allowed game types here.
-        GameType[] memory validGameTypes = new GameType[](5);
+        uint256 numValidGameTypes = isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP) ? 5 : 3;
+        GameType[] memory validGameTypes = new GameType[](numValidGameTypes);
         validGameTypes[0] = GameTypes.CANNON;
         validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
         validGameTypes[2] = GameTypes.CANNON_KONA;
-        validGameTypes[3] = GameTypes.SUPER_CANNON;
-        validGameTypes[4] = GameTypes.SUPER_PERMISSIONED_CANNON;
+
+        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            validGameTypes[3] = GameTypes.SUPER_CANNON;
+            validGameTypes[4] = GameTypes.SUPER_PERMISSIONED_CANNON;
+        }
 
         // We must have a config for each valid game type.
         if (_cfg.disputeGameConfigs.length != validGameTypes.length) {
@@ -862,7 +866,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             // First we migrate any portal liquidity into the ETHLockbox.
             // There may or may not be ETH in the portal, but we can call migrateLiquidity() safely
             // either way.
-            // Authorize the portal to use the new shared ETHLockbox, then migrate the portal's liquidity into the new lockbox.
+            // Authorize the portal to use the new shared ETHLockbox, then migrate the portal's liquidity into the new
+            // lockbox.
             _cts.ethLockbox.authorizePortal(_cts.optimismPortal);
             IOptimismPortalInterop(payable(_cts.optimismPortal)).migrateLiquidity();
 
@@ -985,6 +990,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             return IDisputeGame(impls.permissionedDisputeGameV2Impl);
         } else if (_gameType.raw() == GameTypes.CANNON_KONA.raw()) {
             return IDisputeGame(impls.faultDisputeGameV2Impl);
+        } else if (_gameType.raw() == GameTypes.SUPER_CANNON.raw()) {
+            return IDisputeGame(impls.superFaultDisputeGameImpl);
+        } else if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+            return IDisputeGame(impls.superPermissionedDisputeGameImpl);
         } else {
             // Since we assert in _assertValidFullConfig that we only have valid configs, this
             // should never happen, but we'll be defensive and revert if it does.
