@@ -1,0 +1,183 @@
+name: Proof
+on:
+  push:
+    branches: [main]
+  merge_group:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  action-tests:
+    name: FPP actions (${{ matrix.kind }})
+    runs-on: kona-8cores
+    timeout-minutes: 90
+    strategy:
+      fail-fast: true
+      matrix:
+        kind: ["single", "interop"]
+        parallel: [4]
+        index: [0, 1, 2, 3]  # Remember to update step 'Merge reports' as well.
+        exclude:
+          - kind: "interop"  # See https://github.com/op-rs/kona/issues/3010
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          large-packages: false
+      - uses: ./.github/actions/setup
+        with:
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Setup Go toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.8"
+          cache-dependency-path: |
+            tests/go.sum
+            tests/optimism/go.sum
+      - name: Unzip contract artifacts
+        run: |
+          echo "Building contract artifacts for the optimism"
+          just unzip-contract-artifacts tests/optimism/packages/contracts-bedrock
+      - name: Setup gotestsum
+        uses: autero1/action-gotestsum@v2.0.0
+        with:
+          gotestsum_version: 1.12.1
+
+      - name: Split Action Tests
+        id: test_split
+        uses: hashicorp-forge/go-test-split-action@v2.0.0
+        with:
+          total: ${{ matrix.parallel }}
+          index: ${{ matrix.index }}
+          working-directory: ./tests/optimism/op-e2e/actions/proofs
+
+      - name: Build and Run Action Tests
+        run: |
+          source <(cargo llvm-cov show-env --export-prefix)
+
+          echo "Building host program for the native target"
+          just build-native --bin kona-host
+
+          echo "Running action tests"
+          just "action-tests-${{ matrix.kind }}-run" "${{ steps.test_split.outputs.run }}"
+
+          cargo llvm-cov report --lcov --output-path actions_cov.lcov
+
+      - name: Upload coverage to codecov.io
+        uses: codecov/codecov-action@v5
+        with:
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          env_vars: OS,RUST
+          files: actions_cov.lcov
+          flags: proof
+          verbose: true
+
+  host-client-offline-runs:
+    name: FPP e2e - ${{ matrix.target}} | ${{ matrix.name }}
+    strategy:
+      matrix:
+        target: ["native", "asterisc", "cannon"]
+        name: ["OP Sepolia (Holocene) - Block #26215604"]
+    runs-on: kona-8cores
+    timeout-minutes: 40
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v6
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          large-packages: false
+      - uses: ./.github/actions/setup
+        with:
+          components: llvm-tools-preview
+          prefix-key: ${{ matrix.target }}-${{ matrix.name }}
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Log into ghcr
+        if: "!contains(matrix.target, 'native')"
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Clone `asterisc` repository
+        if: "contains(matrix.target, 'asterisc')"
+        run: |
+          git clone https://github.com/ethereum-optimism/asterisc.git
+      - name: Clone `optimism` repository
+        if: "contains(matrix.target, 'cannon')"
+        run: |
+          git clone https://github.com/ethereum-optimism/optimism.git
+      - name: Setup Go toolchain (asterisc cache)
+        if: "contains(matrix.target, 'asterisc')"
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.8"
+          cache-dependency-path: |
+            asterisc/go.sum
+      - name: Setup Go toolchain (cannon cache)
+        if: "contains(matrix.target, 'cannon')"
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.8"
+          cache-dependency-path: |
+            optimism/go.sum
+      - name: Build `asterisc`
+        if: "contains(matrix.target, 'asterisc')"
+        run: |
+          cd asterisc && git checkout v1.3.0 && make build-rvgo
+          mv ./rvgo/bin/asterisc /usr/local/bin/
+      - name: Build `cannon`
+        if: "contains(matrix.target, 'cannon')"
+        run: |
+          cd optimism/cannon && make && mv ./bin/cannon /usr/local/bin/
+      - name: Set run environment
+        run: |
+          if [[ ${{ contains(matrix.name, 26215604) }} == true ]]; then
+            BLOCK_NUMBER=26215604
+            echo "BLOCK_NUMBER=$BLOCK_NUMBER" >> $GITHUB_ENV
+            echo "L2_CLAIM=0x7415d942f80a34f77d344e4bccb7050f14e593f5ea33669d27ea01dce273d72d" >> $GITHUB_ENV
+            echo "L2_OUTPUT_ROOT=0xaa34b62993bd888d7a2ad8541935374e39948576fce12aa8179a0aa5b5bc787b" >> $GITHUB_ENV
+            echo "L2_HEAD=0xf4adf5790bad1ffc9eee315dc163df9102473c5726a2743da27a8a10dc16b473" >> $GITHUB_ENV
+            echo "L1_HEAD=0x010cfdb22eaa13e8cdfbf66403f8de2a026475e96a6635d53c31f853a0e3ae25" >> $GITHUB_ENV
+            echo "L2_CHAIN_ID=11155420" >> $GITHUB_ENV
+            echo "WITNESS_TAR_NAME=holocene-op-sepolia-$BLOCK_NUMBER-witness.tar.zst" >> $GITHUB_ENV
+          fi
+      - name: Decompress witness data directory
+        run: |
+          tar --zstd -xvf ./bin/client/testdata/$WITNESS_TAR_NAME -C .
+      - name: Run host + client offline
+        working-directory: ./bin/client
+        run: |
+          source <(cargo llvm-cov show-env --export-prefix)
+
+          mkdir -p ../../target
+          just run-client-${{ matrix.target }}-offline \
+            $BLOCK_NUMBER \
+            $L2_CLAIM \
+            $L2_OUTPUT_ROOT \
+            $L2_HEAD \
+            $L1_HEAD \
+            $L2_CHAIN_ID
+
+          cargo llvm-cov report --lcov --output-path client_host_cov.lcov
+      - name: Upload coverage to codecov.io
+        uses: codecov/codecov-action@v5
+        with:
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          env_vars: OS,RUST
+          files: client_host_cov.lcov
+          flags: proof
+          verbose: true

@@ -1,0 +1,51 @@
+[package]
+name = "kona-sources"
+version = "0.1.2"
+description = "Data source types and utilities for the kona-node"
+
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+authors.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Workspace
+
+# Alloy
+alloy-transport.workspace = true
+alloy-primitives.workspace = true
+alloy-rpc-client.workspace = true
+alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls"] }
+
+alloy-signer.workspace = true
+alloy-signer-local.workspace = true
+
+# OP Alloy
+op-alloy-rpc-types-engine.workspace = true
+
+# Misc
+tracing.workspace = true
+thiserror.workspace = true
+derive_more.workspace = true
+
+# HTTP client and TLS for remote signer
+reqwest = { workspace = true, features = ["json", "rustls-tls", "stream"] }
+url.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rustls.workspace = true
+tokio = { workspace = true, features = ["full"] }
+notify.workspace = true
+
+[features]
+default = []
+
+[dev-dependencies]
+tokio.workspace = true
+serde_json.workspace = true

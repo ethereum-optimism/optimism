@@ -1,0 +1,194 @@
+# Sequencer Mode
+
+The Kona node can operate in **sequencer mode** to build and produce new L2 blocks. In this mode, the node acts as the sequencer for an OP Stack rollup, building L2 blocks on top of the current unsafe head and extending the L2 chain.
+
+:::info
+Sequencer mode is an advanced configuration primarily used by rollup operators. Most users will run nodes in the default validator mode.
+:::
+
+## Overview
+
+When running in sequencer mode, the Kona node:
+
+- **Builds L2 blocks** by collecting transactions from the mempool and constructing new blocks
+- **Selects L1 origins** for new L2 blocks based on finalized L1 data
+- **Manages block production timing** and ensures proper sequencing constraints
+- **Integrates with conductor services** for leader election in multi-sequencer setups
+- **Handles recovery scenarios** when the sequencer needs to catch up with L1
+
+The sequencer uses the same core derivation pipeline as validator nodes but operates in reverse - instead of deriving L2 blocks from L1 data, it produces L2 blocks that will later be derivable from L1.
+
+## Trait Abstractions
+
+### Core Interfaces
+
+The sequencer functionality is built around several key trait abstractions:
+
+#### `RollupNodeService`
+The main service trait that defines the node's operational mode and actor types:
+
+```rust
+pub trait RollupNodeService {
+    type SequencerActor: NodeActor<
+        Error: Display,
+        OutboundData = SequencerContext,
+        Builder: AttributesBuilderConfig<AB = Self::AttributesBuilder>,
+        InboundData = SequencerInboundData,
+    >;
+
+    fn mode(&self) -> NodeMode;
+    // ... other methods
+}
+```
+
+#### `AttributesBuilderConfig`
+Configures how L2 block attributes are constructed:
+
+```rust
+pub trait AttributesBuilderConfig {
+    type AB: AttributesBuilder;
+    fn build(self) -> Self::AB;
+}
+```
+
+#### `SequencerActor`
+The core actor responsible for block production:
+
+- Builds L2 blocks using the `AttributesBuilder`
+- Manages timing and L1 origin selection
+- Handles admin RPC commands for sequencer control
+- Coordinates with conductor services for leader election
+
+## Programmatic Configuration
+
+### Using the RollupNodeBuilder
+
+To configure a Kona node programmatically for sequencer mode:
+
+```rust
+use kona_node_service::{NodeMode, RollupNode, SequencerConfig};
+use url::Url;
+
+// Configure sequencer settings
+let sequencer_config = SequencerConfig {
+    sequencer_stopped: false,           // Start sequencer immediately
+    sequencer_recovery_mode: false,     // Normal operation mode
+    conductor_rpc_url: Some(            // Optional conductor integration
+        Url::parse("http://conductor:8080").unwrap()
+    ),
+};
+
+// Build and start the sequencer node
+let node = RollupNode::builder(rollup_config)
+    .with_mode(NodeMode::Sequencer)                    // Enable sequencer mode
+    .with_sequencer_config(sequencer_config)           // Apply sequencer settings
+    .with_l1_provider_rpc_url(l1_rpc_url)             // L1 data source
+    .with_l2_engine_rpc_url(l2_engine_url)            // L2 execution engine
+    .with_jwt_secret(jwt_secret)                       // Engine API authentication
+    // ... other configuration
+    .build()
+    .start()
+    .await?;
+```
+
+### Configuration Options
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `sequencer_stopped` | Start sequencer in stopped state | `false` |
+| `sequencer_recovery_mode` | Enable recovery mode for catch-up | `false` |
+| `conductor_rpc_url` | Conductor service endpoint for leader election | `None` |
+
+## CLI Usage
+
+### Basic Sequencer Setup
+
+To run a Kona node in sequencer mode:
+
+```bash
+kona-node node \
+  --mode=Sequencer \
+  --l1-eth-rpc=http://l1-node:8545 \
+  --l1-beacon=http://l1-beacon:5052 \
+  --l2-engine-rpc=http://l2-execution:8551 \
+  --l2.jwt-secret=./jwt.hex \
+  --chain=123456
+```
+
+### Required Arguments
+
+:::warning
+Required Configuration
+
+Sequencer mode requires all standard node arguments plus the `--mode=Sequencer` flag. Missing any required argument will prevent the node from starting.
+:::
+
+| Argument | Flag | Environment Variable | Description |
+|----------|------|---------------------|-------------|
+| **Mode** | `--mode` | `KONA_NODE_MODE` | Must be set to `Sequencer` |
+| **L1 RPC** | `--l1-eth-rpc` | `KONA_NODE_L1_ETH_RPC` | L1 execution client RPC URL |
+| **L1 Beacon** | `--l1-beacon` | `KONA_NODE_L1_BEACON` | L1 beacon API URL |
+| **L2 Engine** | `--l2-engine-rpc` | `KONA_NODE_L2_ENGINE_RPC` | L2 engine API endpoint |
+| **JWT Secret** | `--l2.jwt-secret` | `KONA_NODE_L2_ENGINE_AUTH` | Path to JWT secret file |
+| **Chain ID** | `--chain` | `KONA_NODE_L2_CHAIN_ID` | L2 chain identifier |
+
+### Sequencer-Specific Flags
+
+| Flag | Environment Variable | Default | Description |
+|------|---------------------|---------|-------------|
+| `--sequencer.stopped` | `KONA_NODE_SEQUENCER_STOPPED` | `false` | Start sequencer in stopped state |
+| `--sequencer.max-safe-lag` | `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` | `0` | Max L2 blocks between safe and unsafe heads |
+| `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | L1 confirmations for origin selection |
+| `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | `false` | Force recovery mode operation |
+| `--conductor.rpc` | `KONA_NODE_CONDUCTOR_RPC` | - | Conductor service RPC endpoint |
+| `--conductor.rpc.timeout` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | `1` | Conductor RPC timeout (seconds) |
+
+### Example Configurations
+
+#### Basic Sequencer
+```bash
+kona-node node \
+  --mode=Sequencer \
+  --l1-eth-rpc=http://localhost:8545 \
+  --l1-beacon=http://localhost:5052 \
+  --l2-engine-rpc=http://localhost:8551 \
+  --chain=42161
+```
+
+#### Sequencer with Conductor
+```bash
+kona-node node \
+  --mode=Sequencer \
+  --conductor.rpc=http://conductor:8080 \
+  --conductor.rpc.timeout=5 \
+  --sequencer.l1-confs=6 \
+  --l1-eth-rpc=http://l1-node:8545 \
+  --l1-beacon=http://l1-beacon:5052 \
+  --l2-engine-rpc=http://l2-execution:8551 \
+  --chain=123456
+```
+
+#### Recovery Mode Sequencer
+```bash
+kona-node node \
+  --mode=Sequencer \
+  --sequencer.recover=true \
+  --sequencer.max-safe-lag=100 \
+  --l1-eth-rpc=http://localhost:8545 \
+  --l1-beacon=http://localhost:5052 \
+  --l2-engine-rpc=http://localhost:8551 \
+  --chain=42161
+```
+
+## Key Considerations
+
+:::tip
+Sequencer Operation
+
+- **L1 Confirmations**: The `--sequencer.l1-confs` setting determines how many L1 blocks the sequencer waits before using an L1 block as an origin. Higher values provide more safety but increase latency.
+- **Recovery Mode**: Use `--sequencer.recover=true` when the sequencer needs to catch up after being offline.
+- **Conductor Integration**: For multi-sequencer deployments, configure the conductor service for proper leader election.
+:::
+
+
+Running a sequencer in production requires careful consideration of infrastructure, monitoring, and failover procedures. Ensure proper JWT secret management and secure network configuration.

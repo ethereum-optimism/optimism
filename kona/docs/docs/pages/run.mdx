@@ -1,0 +1,56 @@
+import { Callout } from 'vocs/components'
+
+# Run a Node
+
+<Callout type="info">
+This tutorial walks through running the `kona-node` as
+a binary. To use docker, head over to the
+[Docker Guide](/node/install/docker) which uses a `docker-compose`
+setup provided by `kona`. The `docker-compose` setup
+automatically bootstraps the `kona-node` with `op-reth`,
+provisioning grafana dashboards and a default Prometheus
+data source.
+</Callout>
+
+## Prerequisites
+
+In order to follow this tutorial, you'll need:
+
+1. An L1 Archive node (e.g., `op-geth`) with enough history for the rollup network you want to run.
+2. A `kona-node` binary. See [installation](/node/install/binaries) for instructions.
+3. A rollup configuration file. See [rollup configuration](/sdk/protocol/genesis/rollup-config) for more information.
+
+## Quick Start
+
+The fastest way to get started is to use one of the pre-built configurations:
+
+```bash
+# Download a rollup configuration
+curl -o rollup.json https://raw.githubusercontent.com/op-rs/kona/main/configs/base-mainnet.json
+
+# Run the node
+kona-node --rollup-config rollup.json --l1-rpc-url http://localhost:8545
+```
+
+## Configuration
+
+The `kona-node` can be configured using command-line flags or environment variables. For a complete list of options, run:
+
+```bash
+kona-node --help
+```
+
+### Key Configuration Options
+
+- `--rollup-config`: Path to the rollup configuration file
+- `--l1-rpc-url`: L1 RPC endpoint URL
+- `--l2-rpc-url`: L2 RPC endpoint URL (optional)
+- `--data-dir`: Directory for storing node data
+- `--log-level`: Logging level (debug, info, warn, error)
+
+## Next Steps
+
+- [Docker Support](/node/run/docker) - Run with Docker
+- [Monitoring](/node/monitoring) - Set up monitoring and metrics
+- [CLI Reference](/node/configuration) - Complete CLI documentation
+- [Subcommands](/node/subcommands) - Available subcommands
