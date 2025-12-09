@@ -1,36 +1,38 @@
 package proofs
 
 import (
-	"strconv"
 	"testing"
 
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-program/client/claim"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
-type testCase struct {
-	recoverMode bool
-	spanBatches bool
-}
-
-// Run a test that proves a deposit-only block generated due to sequence window expiry.
-func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[testCase]) {
+// Run a test that proves a deposit-only block generated due to sequence window expiry,
+// and then recovers the chain using sequencer recover mode.
+func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
-	tp := helpers.NewTestParams()
-	bc := helpers.NewBatcherCfg()
+	const SEQUENCER_WINDOW_SIZE = 10 // (short, to keep test fast)
+	tp := helpers.NewTestParams(func(p *e2eutils.TestParams) {
+		p.SequencerWindowSize = SEQUENCER_WINDOW_SIZE
+	})
 
-	if testCfg.Custom.spanBatches {
-		// It seems more difficult to recover with span batches, since the singular batches within are invalidated atomically.
-		// That is to say, if the oldest batch in the span batch fails the sequencing window check (l1 origin + seq window < l1 inclusion)
-		// All following batches are invalidated / dropped as well.
-		// Although, if the same blocks were batched with singular batches, wouldn't the older blocks being rejected invalidate that later batches anyway?
-		// Perhaps not in the case of recover mode since the noTxPool mode means autoderviation actually fills the gap with identical blocks anyway.
-		// It seems like this is actually just a problem with derivation, it would be possible to consider modifying the rules to allow for recovery from span batches too.
-		bc.ForceSubmitSpanBatch = true
-	} else {
-		bc.ForceSubmitSingularBatch = true
-	}
+	// It seems more difficult (almost impossible)to recover from sequencing window expiry with span batches,
+	// since the singular batches within are invalidated _atomically_.
+	// That is to say, if the oldest batch in the span batch fails the sequencing window chec
+	// (l1 origin + seq window < l1 inclusion)
+	// All following batches are invalidated / dropped as well.
+	// https://github.com/ethereum-optimism/optimism/blob/73339162d78a1ebf2daadab01736382eed6f4527/op-node/rollup/derive/batches.go#L96-L100
+	//
+	// If the same blocks were batched with singular batches, the validation rules are different
+	// https://github.com/ethereum-optimism/optimism/blob/73339162d78a1ebf2daadab01736382eed6f4527/op-node/rollup/derive/batches.go#L83-L86
+	// In the case of recover mode, the noTxPool=true condition means autoderviation actually fills
+	// the gap with identical blocks anyway, meaning the following batches are actually still valid.
+	bc := helpers.NewBatcherCfg()
+	bc.ForceSubmitSingularBatch = true
 
 	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, bc)
 
@@ -39,8 +41,6 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[testCas
 
 	// Expire the sequence window by building `SequenceWindow + 1` empty blocks on L1.
 	// note that tp.SequencerWindowSize is 10.
-	// If we were sequencing properly, we would expect the unsafe head to be up to 15*10 = 150
-	// because l2 block time is 1s, l1 block time is 15s, and sequence window is 10 blocks.
 	for i := 0; i < int(tp.SequencerWindowSize)+1; i++ {
 		env.Alice.L1.ActResetTxOpts(t)
 		env.Alice.ActDeposit(t)
@@ -65,57 +65,75 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[testCas
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
 	require.Greater(t, l2SafeHead.Number.Uint64(), uint64(0))
 
-	// Run the FPP on one of the auto-derived blocks.
-	env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64()/2, testCfg.CheckResult, testCfg.InputParams...)
-
 	// Set recover mode on the sequencer:
-	// I am not actually convinced we need this...
-	// and I think it does more harm than good when
-	// the lag approaches zero
-	env.Sequencer.ActSetRecoverMode(t, testCfg.Custom.recoverMode)
+	env.Sequencer.ActSetRecoverMode(t, true)
+	// Since recover mode only affects the L2 CL (op-node),
+	// it won't stop the test environment injecting transactions
+	// directly into the engine. So we will force the engine
+	// to ignore such injections if recover mode is enabled.
+	env.Engine.EngineApi.SetForceEmpty(true)
 
-	// Build both chains and assert the l1 origin catches back up with the tip of the L1 chain.
+	// Define "lag" as the difference between the current L1 block number and the safe L2 block's L1 origin number.
+	computeLag := func() int {
+		ss := env.Sequencer.SyncStatus()
+		return int(ss.CurrentL1.Number - ss.SafeL2.L1Origin.Number)
+	}
+
+	// Build both chains and assert the L1 origin catches back up with the tip of the L1 chain.
+	lag := computeLag()
+	require.GreaterOrEqual(t, uint64(lag), tp.SequencerWindowSize, "Lag is less than sequencing window size")
 	numL1Blocks := 0
 	timeout := tp.SequencerWindowSize * 5
-	ss := env.Sequencer.SyncStatus()
-	lag := ss.CurrentL1.Number - ss.SafeL2.L1Origin.Number
-	require.GreaterOrEqual(t, lag, tp.SequencerWindowSize, "Lag is less than sequencing window size")
 	for numL1Blocks < int(timeout) {
 		for range tp.L1BlockTime / env.Sd.RollupCfg.BlockTime {
 			env.Sequencer.ActL2StartBlock(t)
-			env.Alice.L2.ActMakeTx(t)
-			env.Engine.ActL2IncludeTx(env.Alice.Address())
-			// RecoverMode will ensure no user transactions, so don't mess with that here.
+			env.Bob.L2.ActResetTxOpts(t)
+			env.Bob.L2.ActMakeTx(t)
+			env.Engine.ActL2IncludeTx(env.Bob.Address())(t)
+			// RecoverMode (above, if enabled) should prevent this
+			// transaction from being included in the block, which
+			// is critical for recover mode to work.
 			env.Sequencer.ActL2EndBlock(t)
 		}
 		if numL1Blocks%2 == 0 {
+			// Simulate batching every 2 L1 blocks
 			env.BatchMineAndSync(t)
 		} else {
+			// Keep the L1 chain moving forward
 			env.Miner.ActEmptyBlock(t)
 		}
 		numL1Blocks++
-		l1Head := env.Miner.UnsafeNum()
-		ss = env.Sequencer.SyncStatus()
-		t.Log(
-			"unsafeL2.Number", ss.UnsafeL2.Number,
-			"safeL2.Number", ss.SafeL2.Number,
-			"currentL1", ss.CurrentL1.Number,
-			"l1_origin_unsafe", ss.UnsafeL2.L1Origin.Number,
-			"l1_origin_safe", ss.SafeL2.L1Origin.Number,
-			"l1_head", l1Head)
-		lag = ss.CurrentL1.Number - ss.SafeL2.L1Origin.Number
-		t.Log("lag", lag) // This lag starts out equal to the sequencing window, and eventually decreases to a lower value
-		if lag <= 1 {     // We can't expect to get a lag of 0, so a lag of 1 is the best we can hope for.
+		lag = computeLag()
+		t.Log("lag", lag) // This lag starts out equal to the sequencing window, and eventually decreases to 1.
+		if lag <= 1 {     // A lag of 1 is the minimum possible.
 			break
 		}
 	}
 
-	if uint64(numL1Blocks) > timeout {
-		t.Fatal("L1 Origin did not catch up to tip within % L1 blocks", numL1Blocks)
+	if uint64(numL1Blocks) >= timeout {
+		t.Fatal("L1 Origin did not catch up to tip within %d L1 blocks (lag is %d)", numL1Blocks, lag)
 	} else {
 		t.Logf("L1 Origin caught up to within %d blocks of the tip within %d L1 blocks (sequencing window size %d)", lag, numL1Blocks, tp.SequencerWindowSize)
 	}
 
+	// Disable recover mode so we can get some user transactions in again.
+	env.Sequencer.ActSetRecoverMode(t, false)
+	env.Engine.EngineApi.SetForceEmpty(false)
+	l2SafeBefore := env.Sequencer.L2Safe()
+	env.Sequencer.ActL2StartBlock(t)
+	env.Bob.L2.ActResetTxOpts(t)
+	env.Bob.L2.ActMakeTx(t)
+	env.Engine.ActL2IncludeTx(env.Bob.Address())(t)
+	env.Sequencer.ActL2EndBlock(t)
+	env.BatchMineAndSync(t)
+	l2Safe := env.Sequencer.L2Safe()
+	require.Equal(t, l2Safe.Number, l2SafeBefore.Number+1, "safe chain did not progress with user transactions")
+	l2SafeBlock, err := env.Engine.EthClient().BlockByHash(t.Ctx(), l2Safe.Hash)
+	require.NoError(t, err)
+	// Assert safe block has at least two transactions
+	require.GreaterOrEqual(t, len(l2SafeBlock.Transactions()), 2, "safe block did not have at least two transactions")
+
+	// env.RunFaultProofProgramFromGenesis(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 // Runs a that proves a block in a chain where the batcher opens a channel, the sequence window expires, and then the
@@ -199,45 +217,40 @@ func runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test(gt *testing.T, t
 }
 
 func Test_ProgramAction_SequenceWindowExpired(gt *testing.T) {
-	matrix := helpers.NewMatrix[testCase]()
+	matrix := helpers.NewMatrix[any]()
 	defer matrix.Run(gt)
 
 	forks := helpers.ForkMatrix{helpers.LatestFork}
-	// TODO add recoverMode=true test case
-	for _, testCase := range []testCase{
-		{recoverMode: false, spanBatches: false},
-		{recoverMode: false, spanBatches: true},
-	} {
+	{
 		matrix.AddTestCase(
-			"HonestClaim-recoverMode-"+strconv.FormatBool(testCase.recoverMode)+"-spanBatches-"+strconv.FormatBool(testCase.spanBatches),
-			testCase,
+			"HonestClaim",
+			nil,
 			forks,
 			runSequenceWindowExpireTest,
 			helpers.ExpectNoError(),
 		)
 	}
-
-	// matrix.AddTestCase(
-	// 	"JunkClaim",
-	// 	nil,
-	// 	forks,
-	// 	runSequenceWindowExpireTest,
-	// 	helpers.ExpectError(claim.ErrClaimNotValid),
-	// 	helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
-	// )
-	// matrix.AddTestCase(
-	// 	"ChannelCloseAfterWindowExpiry-HonestClaim",
-	// 	nil,
-	// 	forks,
-	// 	runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test,
-	// 	helpers.ExpectNoError(),
-	// )
-	// matrix.AddTestCase(
-	// 	"ChannelCloseAfterWindowExpiry-JunkClaim",
-	// 	nil,
-	// 	forks,
-	// 	runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test,
-	// 	helpers.ExpectError(claim.ErrClaimNotValid),
-	// 	helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
-	// )
+	matrix.AddTestCase(
+		"JunkClaim",
+		nil,
+		forks,
+		runSequenceWindowExpireTest,
+		helpers.ExpectError(claim.ErrClaimNotValid),
+		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
+	)
+	matrix.AddTestCase(
+		"ChannelCloseAfterWindowExpiry-HonestClaim",
+		nil,
+		forks,
+		runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test,
+		helpers.ExpectNoError(),
+	)
+	matrix.AddTestCase(
+		"ChannelCloseAfterWindowExpiry-JunkClaim",
+		nil,
+		forks,
+		runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test,
+		helpers.ExpectError(claim.ErrClaimNotValid),
+		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
+	)
 }
