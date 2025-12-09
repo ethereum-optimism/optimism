@@ -9,12 +9,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
+	corelogs "github.com/ethereum-optimism/optimism/op-core/persistence/logsdb"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum-optimism/optimism/op-supervisor/metrics"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/fromda"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
@@ -50,7 +50,7 @@ type LogStorage interface {
 	// This seal may be fully zeroed, without error, if the block isn't fully known yet.
 	Contains(query types.ContainsQuery) (includedIn types.BlockSeal, err error)
 
-	IteratorStartingAt(sealedNum uint64, logsSince uint32) (logs.Iterator, error)
+	IteratorStartingAt(sealedNum uint64, logsSince uint32) (corelogs.Iterator, error)
 
 	// OpenBlock accumulates the ExecutingMessage events for a block and returns them
 	OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
@@ -100,7 +100,7 @@ type DerivationStorage interface {
 
 var _ DerivationStorage = (*fromda.DB)(nil)
 
-var _ LogStorage = (*logs.DB)(nil)
+var _ LogStorage = (*coreLogDBAdapter)(nil)
 
 type Metrics interface {
 	RecordCrossUnsafe(chainID eth.ChainID, seal types.BlockSeal)

@@ -1,11 +1,11 @@
 package backend
 
 import (
+	corelogs "github.com/ethereum-optimism/optimism/op-core/persistence/logsdb"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -78,4 +78,4 @@ func (c *chainMetrics) RecordAccessListVerifyFailure() {
 }
 
 var _ caching.Metrics = (*chainMetrics)(nil)
-var _ logs.Metrics = (*chainMetrics)(nil)
+var _ corelogs.Metrics = (*chainMetrics)(nil)

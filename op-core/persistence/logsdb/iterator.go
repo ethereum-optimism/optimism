@@ -1,4 +1,4 @@
-package logs
+package logsdb
 
 import (
 	"errors"
@@ -7,8 +7,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	interoptypes "github.com/ethereum-optimism/optimism/op-core/interop/types"
+	"github.com/ethereum-optimism/optimism/op-core/persistence/dberrors"
+	"github.com/ethereum-optimism/optimism/op-core/persistence/entrydb"
 )
 
 type IteratorState interface {
@@ -16,7 +17,7 @@ type IteratorState interface {
 	SealedBlock() (hash common.Hash, num uint64, ok bool)
 	SealedTimestamp() (timestamp uint64, ok bool)
 	InitMessage() (hash common.Hash, logIndex uint32, ok bool)
-	ExecMessage() *types.ExecutingMessage
+	ExecMessage() *interoptypes.ExecutingMessage
 }
 
 type Iterator interface {
@@ -41,7 +42,7 @@ type traverseConditionalFn func(state IteratorState) error
 func (i *iterator) End() error {
 	for {
 		_, err := i.next()
-		if errors.Is(err, types.ErrFuture) {
+		if errors.Is(err, dberrors.ErrFuture) {
 			return nil
 		} else if err != nil {
 			return err
@@ -62,10 +63,10 @@ func (i *iterator) NextInitMsg() error {
 			seenLog = true
 		}
 		if !i.current.hasCompleteBlock() {
-			continue // must know the block we're building on top of
+			continue
 		}
 		if i.current.hasIncompleteLog() {
-			continue // didn't finish processing the log yet
+			continue
 		}
 		if seenLog {
 			return nil
@@ -74,7 +75,6 @@ func (i *iterator) NextInitMsg() error {
 }
 
 // NextExecMsg advances the iterator until it reads the next Executing Message into the current state.
-// It scans forward until it finds and fully reads an initiating event, skipping any blocks.
 func (i *iterator) NextExecMsg() error {
 	for {
 		err := i.NextInitMsg()
@@ -82,13 +82,12 @@ func (i *iterator) NextExecMsg() error {
 			return err
 		}
 		if i.current.execMsg != nil {
-			return nil // found a new executing message!
+			return nil
 		}
 	}
 }
 
 // NextBlock advances the iterator until it reads the next block into the current state.
-// It scans forward until it finds and fully reads a block, skipping any events.
 func (i *iterator) NextBlock() error {
 	seenBlock := false
 	for {
@@ -100,7 +99,7 @@ func (i *iterator) NextBlock() error {
 			seenBlock = true
 		}
 		if !i.current.hasCompleteBlock() {
-			continue // need the full block content
+			continue
 		}
 		if seenBlock {
 			return nil
@@ -111,18 +110,17 @@ func (i *iterator) NextBlock() error {
 func (i *iterator) TraverseConditional(fn traverseConditionalFn) error {
 	var snapshot logContext
 	for {
-		snapshot = i.current // copy the iterator state
+		snapshot = i.current
 		_, err := i.next()
 		if err != nil {
 			i.current = snapshot
 			return err
 		}
-		if i.current.need != 0 { // skip intermediate states
+		if i.current.need != 0 {
 			continue
 		}
 		if err := fn(&i.current); err != nil {
-			// don't rewind to the snapshot if the error is ErrStop
-			if errors.Is(err, types.ErrStop) {
+			if errors.Is(err, dberrors.ErrStop) {
 				return err
 			}
 			i.current = snapshot
@@ -137,7 +135,7 @@ func (i *iterator) next() (EntryType, error) {
 	entry, err := i.db.store.Read(index)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			return 0, types.ErrFuture
+			return 0, dberrors.ErrFuture
 		}
 		return 0, fmt.Errorf("failed to read entry %d: %w", index, err)
 	}
@@ -153,23 +151,18 @@ func (i *iterator) NextIndex() entrydb.EntryIdx {
 	return i.current.NextIndex()
 }
 
-// SealedBlock returns the sealed block that we are appending logs after, if any is available.
-// I.e. the block is the parent block of the block containing the logs that are currently appending to it.
 func (i *iterator) SealedBlock() (hash common.Hash, num uint64, ok bool) {
 	return i.current.SealedBlock()
 }
 
-// SealedTimestamp returns the timestamp of SealedBlock
 func (i *iterator) SealedTimestamp() (timestamp uint64, ok bool) {
 	return i.current.SealedTimestamp()
 }
 
-// InitMessage returns the current initiating message, if any is available.
 func (i *iterator) InitMessage() (hash common.Hash, logIndex uint32, ok bool) {
 	return i.current.InitMessage()
 }
 
-// ExecMessage returns the current executing message, if any is available.
-func (i *iterator) ExecMessage() *types.ExecutingMessage {
+func (i *iterator) ExecMessage() *interoptypes.ExecutingMessage {
 	return i.current.ExecMessage()
 }

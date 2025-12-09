@@ -6,20 +6,20 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
 
+	corelogs "github.com/ethereum-optimism/optimism/op-core/persistence/logsdb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/fromda"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 )
 
-func OpenLogDB(logger log.Logger, chainID eth.ChainID, dataDir string, m logs.Metrics) (*logs.DB, error) {
+func OpenLogDB(logger log.Logger, chainID eth.ChainID, dataDir string, m corelogs.Metrics) (LogStorage, error) {
 	path, err := prepLogDBPath(chainID, dataDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create datadir for chain %s: %w", chainID, err)
 	}
-	logDB, err := logs.NewFromFile(logger, m, chainID, path, true)
+	logDB, err := corelogs.NewFromFile(logger, m, chainID, path, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create logdb for chain %s at %v: %w", chainID, path, err)
 	}
-	return logDB, nil
+	return NewCoreLogDBAdapter(logDB), nil
 }
 
 func OpenLocalDerivationDB(logger log.Logger, chainID eth.ChainID, dataDir string, m fromda.ChainMetrics) (*fromda.DB, error) {

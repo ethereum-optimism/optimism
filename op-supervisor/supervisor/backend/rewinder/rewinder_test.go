@@ -12,13 +12,13 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
+	corelogs "github.com/ethereum-optimism/optimism/op-core/persistence/logsdb"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/metrics"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/fromda"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -1411,7 +1411,7 @@ type testSetup struct {
 
 type testChainSetup struct {
 	chainID  eth.ChainID
-	logDB    *logs.DB
+	logDB    *corelogs.DB
 	localDB  *fromda.DB
 	crossDB  *fromda.DB
 	syncNode *mockSyncNode
@@ -1451,9 +1451,9 @@ func setupTestChains(t *testing.T, chainIDs ...eth.ChainID) *testSetup {
 		require.NoError(t, err)
 
 		// Create and open the log DB
-		logDB, err := logs.NewFromFile(logger, &stubMetrics{}, chainID, filepath.Join(chainDir, "log.db"), true)
+		logDB, err := corelogs.NewFromFile(logger, &stubMetrics{}, chainID, filepath.Join(chainDir, "log.db"), true)
 		require.NoError(t, err)
-		chainsDB.AddLogDB(chainID, logDB)
+		chainsDB.AddLogDB(chainID, db.NewCoreLogDBAdapter(logDB))
 
 		// Create and open the local derived-from DB
 		localDB, err := fromda.NewFromFile(logger, &stubMetrics{}, filepath.Join(chainDir, "local_safe.db"))
@@ -1661,7 +1661,7 @@ func (s *stubMetrics) RecordDBDerivedEntryCount(count int64) {
 	s.derivedEntryCount = count
 }
 
-var _ logs.Metrics = (*stubMetrics)(nil)
+var _ corelogs.Metrics = (*stubMetrics)(nil)
 
 type mockL1Node struct {
 	blocks map[uint64]eth.BlockRef

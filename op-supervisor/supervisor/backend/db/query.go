@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	corelogs "github.com/ethereum-optimism/optimism/op-core/persistence/logsdb"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -420,7 +420,7 @@ func (db *ChainsDB) NextSource(chain eth.ChainID, source eth.BlockID) (after eth
 	return v.MustWithParent(source), nil
 }
 
-func (db *ChainsDB) IteratorStartingAt(chain eth.ChainID, sealedNum uint64, logIndex uint32) (logs.Iterator, error) {
+func (db *ChainsDB) IteratorStartingAt(chain eth.ChainID, sealedNum uint64, logIndex uint32) (corelogs.Iterator, error) {
 	logDB, ok := db.logDBs.Get(chain)
 	if !ok {
 		return nil, fmt.Errorf("%w: %v", types.ErrUnknownChain, chain)

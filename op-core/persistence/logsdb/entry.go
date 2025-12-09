@@ -1,4 +1,4 @@
-package logs
+package logsdb
 
 import (
 	"fmt"
@@ -49,7 +49,7 @@ const (
 
 func (x EntryTypeFlag) String() string {
 	var out []string
-	for i := EntryTypeFlag(1); i != 0; i <<= 1 { // iterate to bitmask
+	for i := EntryTypeFlag(1); i != 0; i <<= 1 {
 		if x.Any(i) {
 			out = append(out, i.String())
 		}
@@ -101,3 +101,5 @@ func (x EntryType) String() string {
 		return fmt.Sprintf("unknown-%d", uint8(x))
 	}
 }
+
+

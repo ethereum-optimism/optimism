@@ -1,4 +1,4 @@
-package logs
+package logsdb
 
 import (
 	"encoding/binary"
@@ -6,15 +6,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
+	interoptypes "github.com/ethereum-optimism/optimism/op-core/interop/types"
+	"github.com/ethereum-optimism/optimism/op-core/persistence/dberrors"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // searchCheckpoint is both a checkpoint for searching, as well as a checkpoint for sealing blocks.
 type searchCheckpoint struct {
 	blockNum uint64
-	// seen logs *after* the seal of the mentioned block, i.e. not part of this block, but building on top of it.
-	// There is at least one checkpoint per L2 block with logsSince == 0, i.e. the exact block boundary.
+	// seen logs after the seal of the mentioned block
 	logsSince uint32
 	timestamp uint64
 }
@@ -29,7 +29,7 @@ func newSearchCheckpoint(blockNum uint64, logsSince uint32, timestamp uint64) se
 
 func newSearchCheckpointFromEntry(data Entry) (searchCheckpoint, error) {
 	if data.Type() != TypeSearchCheckpoint {
-		return searchCheckpoint{}, fmt.Errorf("%w: attempting to decode search checkpoint but was type %s", types.ErrDataCorruption, data.Type())
+		return searchCheckpoint{}, fmt.Errorf("%w: attempting to decode search checkpoint but was type %s", dberrors.ErrDataCorruption, data.Type())
 	}
 	return searchCheckpoint{
 		blockNum:  binary.LittleEndian.Uint64(data[1:9]),
@@ -59,7 +59,7 @@ func newCanonicalHash(hash common.Hash) canonicalHash {
 
 func newCanonicalHashFromEntry(data Entry) (canonicalHash, error) {
 	if data.Type() != TypeCanonicalHash {
-		return canonicalHash{}, fmt.Errorf("%w: attempting to decode canonical hash but was type %s", types.ErrDataCorruption, data.Type())
+		return canonicalHash{}, fmt.Errorf("%w: attempting to decode canonical hash but was type %s", dberrors.ErrDataCorruption, data.Type())
 	}
 	return newCanonicalHash(common.Hash(data[1:33])), nil
 }
@@ -78,7 +78,7 @@ type initiatingEvent struct {
 
 func newInitiatingEventFromEntry(data Entry) (initiatingEvent, error) {
 	if data.Type() != TypeInitiatingEvent {
-		return initiatingEvent{}, fmt.Errorf("%w: attempting to decode initiating event but was type %s", types.ErrDataCorruption, data.Type())
+		return initiatingEvent{}, fmt.Errorf("%w: attempting to decode initiating event but was type %s", dberrors.ErrDataCorruption, data.Type())
 	}
 	flags := data[1]
 	return initiatingEvent{
@@ -112,7 +112,7 @@ type execChainID struct {
 	chainID eth.ChainID
 }
 
-func newExecChainID(msg types.ExecutingMessage) (execChainID, error) {
+func newExecChainID(msg interoptypes.ExecutingMessage) (execChainID, error) {
 	return execChainID{
 		chainID: msg.ChainID,
 	}, nil
@@ -120,7 +120,7 @@ func newExecChainID(msg types.ExecutingMessage) (execChainID, error) {
 
 func newExecChainIDFromEntry(data Entry) (execChainID, error) {
 	if data.Type() != TypeExecChainID {
-		return execChainID{}, fmt.Errorf("%w: attempting to decode execChainID but was type %s", types.ErrDataCorruption, data.Type())
+		return execChainID{}, fmt.Errorf("%w: attempting to decode execChainID but was type %s", dberrors.ErrDataCorruption, data.Type())
 	}
 	return execChainID{
 		chainID: eth.ChainIDFromBytes32([32]byte(data[1:33])),
@@ -143,7 +143,7 @@ type execPosition struct {
 	timestamp uint64
 }
 
-func newExecPosition(msg types.ExecutingMessage) (execPosition, error) {
+func newExecPosition(msg interoptypes.ExecutingMessage) (execPosition, error) {
 	return execPosition{
 		blockNum:  msg.BlockNum,
 		logIdx:    msg.LogIdx,
@@ -153,7 +153,7 @@ func newExecPosition(msg types.ExecutingMessage) (execPosition, error) {
 
 func newExecPositionFromEntry(data Entry) (execPosition, error) {
 	if data.Type() != TypeExecPosition {
-		return execPosition{}, fmt.Errorf("%w: attempting to decode execPosition but was type %s", types.ErrDataCorruption, data.Type())
+		return execPosition{}, fmt.Errorf("%w: attempting to decode execPosition but was type %s", dberrors.ErrDataCorruption, data.Type())
 	}
 	return execPosition{
 		blockNum:  binary.LittleEndian.Uint64(data[1:9]),
@@ -174,18 +174,18 @@ func (e execPosition) encode() Entry {
 }
 
 type execChecksum struct {
-	checksum types.MessageChecksum
+	checksum interoptypes.MessageChecksum
 }
 
-func newExecChecksum(checksum types.MessageChecksum) execChecksum {
+func newExecChecksum(checksum interoptypes.MessageChecksum) execChecksum {
 	return execChecksum{checksum: checksum}
 }
 
 func newExecChecksumFromEntry(data Entry) (execChecksum, error) {
 	if data.Type() != TypeExecChecksum {
-		return execChecksum{}, fmt.Errorf("%w: attempting to decode execChecksum but was type %s", types.ErrDataCorruption, data.Type())
+		return execChecksum{}, fmt.Errorf("%w: attempting to decode execChecksum but was type %s", dberrors.ErrDataCorruption, data.Type())
 	}
-	return newExecChecksum(types.MessageChecksum(data[1:33])), nil
+	return newExecChecksum(interoptypes.MessageChecksum(data[1:33])), nil
 }
 
 // encode creates an executing check entry
