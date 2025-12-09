@@ -302,7 +302,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             }
             // Custom Gas Token is being enabled for the first time.
             // TODO:(#18502): Remove this allowance after U18 ships.
-            if (_isMatchingInstruction(_instruction, "overrides.cfg.useCustomGasToken", abi.encode(true))) {
+            if (
+                _isMatchingInstruction(_instruction, "overrides.cfg.useCustomGasToken", abi.encode(true))
+                    || _isMatchingInstruction(_instruction, "overrides.cfg.useCustomGasToken", abi.encode(false))
+            ) {
                 return true;
             }
         }
