@@ -1,3 +1,24 @@
+// check-runner is a parallel check execution tool for contracts-bedrock.
+//
+// It reads a checks.yaml configuration file that defines phases of checks to run.
+// Each phase can optionally require a build step, and checks within a phase run
+// in parallel by default (with dependency support for ordering).
+//
+// Key features:
+//   - Parallel execution of independent checks within each phase
+//   - Build caching based on source file hashes (SHA256 of all .sol files)
+//   - Automatic artifact preservation and restoration
+//   - Graceful shutdown on Ctrl+C (restores artifacts before exit)
+//   - Dependency-based ordering within phases
+//   - Pretty terminal output with spinners and colors
+//
+// Usage:
+//
+//	go run ./scripts/check-runner -config checks.yaml
+//	go run ./scripts/check-runner -run lint,snapshots
+//	go run ./scripts/check-runner -list
+//	go run ./scripts/check-runner -no-build
+//	go run ./scripts/check-runner -clean
 package main
 
 import (
@@ -24,7 +45,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ANSI color codes
+// =============================================================================
+// ANSI Color Codes
+// =============================================================================
+
+// Terminal color codes for pretty output.
 const (
 	Reset     = "\033[0m"
 	Bold      = "\033[1m"
@@ -39,73 +64,101 @@ const (
 	BoldCyan  = "\033[1;36m"
 )
 
-// Cache settings
+// =============================================================================
+// Cache Configuration
+// =============================================================================
+
 const (
-	CacheDir      = "/tmp/check-runner-cache"
+	// CacheDir is where build artifacts are cached between runs.
+	// Keyed by phase name and source hash.
+	CacheDir = "/tmp/check-runner-cache"
+
+	// MaxCacheCount is the maximum number of cached builds to keep per phase.
+	// Older caches are evicted using LRU.
 	MaxCacheCount = 5
 )
 
-// Artifact directories to cache/restore
+// artifactDirs are the directories containing build artifacts.
+// These are saved/restored for caching and preserved across check runs.
 var artifactDirs = []string{"artifacts", "forge-artifacts", "cache"}
 
-// Check represents a single check configuration
+// =============================================================================
+// Configuration Types
+// =============================================================================
+
+// Check represents a single check to run.
 type Check struct {
-	Name        string   `yaml:"name"`
-	Description string   `yaml:"description"`
-	Command     string   `yaml:"command"`
-	Depends     []string `yaml:"depends"`
+	Name        string   `yaml:"name"`        // Unique identifier for the check
+	Description string   `yaml:"description"` // Human-readable description
+	Command     string   `yaml:"command"`     // Shell command to execute
+	Depends     []string `yaml:"depends"`     // Names of checks that must pass first
 }
 
-// Phase represents a phase of checks
+// Phase represents a group of related checks.
+// Checks within a phase run in parallel by default.
 type Phase struct {
-	Name     string  `yaml:"name"`
-	Build    string  `yaml:"build"`    // optional build command
-	Parallel *bool   `yaml:"parallel"` // default true
-	Checks   []Check `yaml:"checks"`
+	Name     string  `yaml:"name"`     // Phase identifier (e.g., "setup", "source", "dev")
+	Build    string  `yaml:"build"`    // Optional build command to run before checks
+	Parallel *bool   `yaml:"parallel"` // Whether to run checks in parallel (default: true)
+	Checks   []Check `yaml:"checks"`   // Checks to run in this phase
 }
 
-// Config represents the check runner configuration
+// Config is the top-level configuration loaded from checks.yaml.
 type Config struct {
 	Phases []Phase `yaml:"phases"`
 }
 
-// CheckResult holds the result of a check execution
+// =============================================================================
+// Execution State Types
+// =============================================================================
+
+// CheckResult holds the outcome of running a single check.
 type CheckResult struct {
 	Name     string
 	Success  bool
-	Output   string
+	Output   string // Combined stdout/stderr
 	Duration time.Duration
 }
 
-// checkState tracks state during execution
+// checkState tracks the execution state of a check during parallel runs.
 type checkState struct {
 	status  string // "pending", "queued", "running", "pass", "fail", "skipped"
 	spinner *ysmrr.Spinner
 }
 
-// Runner orchestrates check execution
+// Runner orchestrates the execution of all checks.
 type Runner struct {
-	config       *Config
-	results      map[string]*CheckResult
-	states       map[string]*checkState
-	mu           sync.Mutex
-	noBuild      bool
-	verbose      bool
-	noCache      bool
-	clean        bool
-	tempDir      string
-	sourceHash   string
+	config  *Config
+	results map[string]*CheckResult
+	states  map[string]*checkState
+	mu      sync.Mutex
+
+	// Configuration flags
+	noBuild bool // Skip phases that require builds
+	verbose bool // Show output for all checks, not just failures
+	noCache bool // Disable build caching
+	clean   bool // Clean artifacts before each build
+
+	// Build state
+	tempDir    string // Temp directory for preserving working artifacts
+	sourceHash string // SHA256 hash of source files for cache key
+
+	// Results tracking
 	totalPassed  int
 	totalFailed  int
 	totalSkipped int
 	failedChecks []string
-	buildError   string // Build failure output to show at end
+	buildError   string // Build failure output to display at end
 
-	// Signal handling
-	interrupted atomic.Bool
-	sigCount    atomic.Int32
+	// Graceful shutdown support
+	interrupted atomic.Bool  // Set to true on first Ctrl+C
+	sigCount    atomic.Int32 // Number of times Ctrl+C pressed
 	cancelFunc  context.CancelFunc
 }
+
+// =============================================================================
+// Entry Point
+// =============================================================================
 
 func main() {
 	var (
@@ -181,6 +234,11 @@ func main() {
 	}
 }
 
+// =============================================================================
+// Configuration Loading
+// =============================================================================
+
+// loadConfig reads and parses the checks.yaml configuration file.
 func loadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -195,6 +253,7 @@ func loadConfig(path string) (*Config, error) {
 	return &config, nil
 }
 
+// printCheckList displays all available checks grouped by phase.
 func printCheckList(config *Config) {
 	fmt.Println("Available checks:")
 	fmt.Println()
@@ -227,6 +286,7 @@ func printCheckList(config *Config) {
 	}
 }
 
+// checkExists returns true if a check with the given name exists.
 func (r *Runner) checkExists(name string) bool {
 	for _, phase := range r.config.Phases {
 		for _, c := range phase.Checks {
@@ -238,6 +298,7 @@ func (r *Runner) checkExists(name string) bool {
 	return false
 }
 
+// getCheck returns the Check with the given name, or nil if not found.
 func (r *Runner) getCheck(name string) *Check {
 	for _, phase := range r.config.Phases {
 		for i := range phase.Checks {
@@ -249,21 +310,25 @@ func (r *Runner) getCheck(name string) *Check {
 	return nil
 }
 
-// ============================================================================
-// Build Cache Functions
-// ============================================================================
+// =============================================================================
+// Build Caching
+// =============================================================================
 
+// computeSourceHash calculates a SHA256 hash of all Solidity source files
+// and foundry.toml. This hash is used as the cache key for build artifacts.
 func computeSourceHash() (string, error) {
 	h := sha256.New()
 
 	var files []string
 
+	// Walk the directory tree, skipping non-source directories
 	err := filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if info.IsDir() {
 			base := filepath.Base(path)
+			// Skip hidden dirs, node_modules, and build output directories
 			if strings.HasPrefix(base, ".") || base == "node_modules" || base == "forge-artifacts" || base == "artifacts" || base == "cache" || base == "out" {
 				return filepath.SkipDir
 			}
@@ -278,12 +343,15 @@ func computeSourceHash() (string, error) {
 		return "", err
 	}
 
+	// Include foundry.toml as it affects compilation
 	if _, err := os.Stat("foundry.toml"); err == nil {
 		files = append(files, "foundry.toml")
 	}
 
+	// Sort for deterministic hashing
 	sort.Strings(files)
 
+	// Hash each file's path and contents
 	for _, path := range files {
 		h.Write([]byte(path))
 		data, err := os.ReadFile(path)
@@ -293,23 +361,28 @@ func computeSourceHash() (string, error) {
 		h.Write(data)
 	}
 
+	// Return first 16 hex chars (64 bits) - enough for cache uniqueness
 	return hex.EncodeToString(h.Sum(nil))[:16], nil
 }
 
+// getCachePath returns the filesystem path for a cached build.
 func getCachePath(phaseName, hash string) string {
 	return filepath.Join(CacheDir, phaseName, hash)
 }
 
+// cacheExists checks if a cached build exists for the given phase and hash.
 func cacheExists(phaseName, hash string) bool {
 	path := getCachePath(phaseName, hash)
 	_, err := os.Stat(path)
 	return err == nil
 }
 
+// getLatestCachePath returns the path to the "latest" symlink for a phase.
 func getLatestCachePath(phaseName string) string {
 	return filepath.Join(CacheDir, phaseName, "latest")
 }
 
+// getLatestCache returns the hash of the most recent cached build for a phase.
 func getLatestCache(phaseName string) string {
 	latestPath := getLatestCachePath(phaseName)
 	target, err := os.Readlink(latestPath)
@@ -319,6 +392,7 @@ func getLatestCache(phaseName string) string {
 	return filepath.Base(target)
 }
 
+// restoreFromCache restores build artifacts from a cached build.
 func restoreFromCache(phaseName, hash string) error {
 	cachePath := getCachePath(phaseName, hash)
 	if _, err := os.Stat(cachePath); err != nil {
@@ -337,6 +411,7 @@ func restoreFromCache(phaseName, hash string) error {
 	return nil
 }
 
+// saveToCache saves current build artifacts to the cache.
 func saveToCache(phaseName, hash string) error {
 	cachePath := getCachePath(phaseName, hash)
 
@@ -353,17 +428,20 @@ func saveToCache(phaseName, hash string) error {
 		}
 	}
 
+	// Update "latest" symlink to point to this cache
 	latestPath := getLatestCachePath(phaseName)
 	os.Remove(latestPath)
 	if err := os.Symlink(hash, latestPath); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not update latest symlink: %v\n", err)
 	}
 
+	// Clean up old caches to stay under MaxCacheCount
 	evictOldCaches(phaseName)
 
 	return nil
 }
 
+// evictOldCaches removes old cached builds, keeping only the MaxCacheCount most recent.
 func evictOldCaches(phaseName string) {
 	cacheTypeDir := filepath.Join(CacheDir, phaseName)
 	entries, err := os.ReadDir(cacheTypeDir)
@@ -379,7 +457,7 @@ func evictOldCaches(phaseName string) {
 
 	for _, entry := range entries {
 		if entry.Name() == "latest" {
-			continue
+			continue // Skip the symlink
 		}
 		info, err := entry.Info()
 		if err != nil {
@@ -391,23 +469,26 @@ func evictOldCaches(phaseName string) {
 		})
 	}
 
+	// Sort by modification time, newest first
 	sort.Slice(caches, func(i, j int) bool {
 		return caches[i].modTime.After(caches[j].modTime)
 	})
 
+	// Remove caches beyond the limit
 	for i := MaxCacheCount; i < len(caches); i++ {
 		path := filepath.Join(cacheTypeDir, caches[i].name)
 		os.RemoveAll(path)
 	}
 }
 
-// ============================================================================
-// Main Run Logic
-// ============================================================================
+// =============================================================================
+// Main Execution
+// =============================================================================
 
-// Run executes the configured checks, optionally filtering to selectedChecks.
+// Run executes all configured checks, optionally filtering to selectedChecks.
+// Returns true if all checks passed, false otherwise.
 func (r *Runner) Run(selectedChecks map[string]bool) bool {
-	// Check if any phase has a build
+	// Check if any phase has a build step
 	hasBuilds := false
 	for _, phase := range r.config.Phases {
 		if phase.Build != "" {
@@ -416,7 +497,8 @@ func (r *Runner) Run(selectedChecks map[string]bool) bool {
 		}
 	}
 
-	// Save current artifacts (to restore after all checks)
+	// Save current working artifacts so we can restore them after checks complete.
+	// This ensures the user's build state is preserved even if checks modify artifacts.
 	if hasBuilds && !r.noBuild {
 		if err := r.saveWorkingArtifacts(); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: could not save artifacts: %v\n", err)
@@ -424,7 +506,9 @@ func (r *Runner) Run(selectedChecks map[string]bool) bool {
 		defer r.restoreWorkingArtifacts()
 	}
 
-	// Set up signal handling for graceful shutdown
+	// Set up signal handling for graceful shutdown.
+	// First Ctrl+C sets interrupted flag and restores artifacts.
+	// Third Ctrl+C force exits immediately.
 	ctx, cancel := context.WithCancel(context.Background())
 	r.cancelFunc = cancel
 	defer cancel()
@@ -451,15 +535,16 @@ func (r *Runner) Run(selectedChecks map[string]bool) bool {
 	defer signal.Stop(sigChan)
 
 	hashComputed := false
-	_ = ctx // Used by signal handler
+	_ = ctx // Used by signal handler via cancel()
 
+	// Execute each phase in order
 	for _, phase := range r.config.Phases {
 		// Check for interruption at start of each phase
 		if r.interrupted.Load() {
 			break
 		}
 
-		// Filter checks for this phase if specific checks requested
+		// Filter checks for this phase if specific checks were requested
 		var checksToRun []Check
 		for _, c := range phase.Checks {
 			if selectedChecks == nil || selectedChecks[c.Name] {
@@ -471,7 +556,7 @@ func (r *Runner) Run(selectedChecks map[string]bool) bool {
 			continue
 		}
 
-		// Skip phases with builds if -no-build
+		// Skip phases with builds if -no-build flag was passed
 		if phase.Build != "" && r.noBuild {
 			fmt.Printf("%s⊘ %s%s %s(skipped - no build)%s\n", Yellow, phase.Name, Reset, Dim, Reset)
 			continue
@@ -480,7 +565,7 @@ func (r *Runner) Run(selectedChecks map[string]bool) bool {
 		// Print phase header
 		fmt.Printf("\n%s→ %s%s\n", BoldCyan, phase.Name, Reset)
 
-		// Compute source hash before first build phase
+		// Compute source hash before first build phase (for cache key)
 		if phase.Build != "" && !hashComputed && !r.noCache {
 			hash, err := computeSourceHash()
 			if err != nil {
@@ -491,7 +576,7 @@ func (r *Runner) Run(selectedChecks map[string]bool) bool {
 			hashComputed = true
 		}
 
-		// Run build if specified
+		// Run build step if this phase requires it
 		if phase.Build != "" {
 			if err := r.doBuildWithCache(phase.Name, phase.Build); err != nil {
 				if r.interrupted.Load() {
@@ -508,7 +593,7 @@ func (r *Runner) Run(selectedChecks map[string]bool) bool {
 			break
 		}
 
-		// Run checks
+		// Run the checks (parallel by default)
 		parallel := phase.Parallel == nil || *phase.Parallel
 		r.runPhaseChecks(checksToRun, parallel)
 	}
@@ -517,16 +602,17 @@ func (r *Runner) Run(selectedChecks map[string]bool) bool {
 	return r.totalFailed == 0 && !r.interrupted.Load()
 }
 
+// printFinalSummary displays the final results including any failures.
 func (r *Runner) printFinalSummary() {
 	fmt.Println()
 
-	// If interrupted, just show that we're done restoring
+	// If interrupted, just confirm artifacts were restored
 	if r.interrupted.Load() {
 		fmt.Printf("%s✓ Artifacts restored%s\n", Green, Reset)
 		return
 	}
 
-	// Print build error with box drawing
+	// Print build error with box drawing characters
 	if r.buildError != "" {
 		fmt.Printf("%s┌─ build%s\n", Red, Reset)
 		lines := strings.Split(strings.TrimSpace(r.buildError), "\n")
@@ -537,7 +623,7 @@ func (r *Runner) printFinalSummary() {
 		fmt.Println()
 	}
 
-	// Print failed check details with box drawing
+	// Print failed check details with box drawing characters
 	if len(r.failedChecks) > 0 {
 		for _, name := range r.failedChecks {
 			result := r.results[name]
@@ -553,7 +639,7 @@ func (r *Runner) printFinalSummary() {
 		}
 	}
 
-	// Print final status
+	// Print final status line
 	total := r.totalPassed + r.totalFailed + r.totalSkipped
 	if r.buildError != "" {
 		fmt.Printf("%s✗ Build failed%s\n", BoldRed, Reset)
@@ -566,16 +652,24 @@ func (r *Runner) printFinalSummary() {
 	}
 }
 
+// =============================================================================
+// Build Execution
+// =============================================================================
+
+// doBuildWithCache runs a build command, using caching when possible.
+// It handles cache restoration, incremental builds, and cache saving.
 func (r *Runner) doBuildWithCache(phaseName, buildCmd string) error {
 	hash := r.sourceHash
 	cacheHit := false
 
 	if r.clean {
+		// Clean build: remove all artifacts first
 		fmt.Printf("%s⟳ Cleaning artifacts...%s\n", Dim, Reset)
 		for _, dir := range artifactDirs {
 			os.RemoveAll(dir)
 		}
 	} else {
+		// Try to restore from exact cache match
 		if hash != "" && !r.noCache && cacheExists(phaseName, hash) {
 			fmt.Printf("%s⟳ Restoring from cache %s...%s\n", Dim, hash[:8], Reset)
 			if err := restoreFromCache(phaseName, hash); err != nil {
@@ -585,6 +679,7 @@ func (r *Runner) doBuildWithCache(phaseName, buildCmd string) error {
 			}
 		}
 
+		// If no exact match, try to restore latest cache for incremental build
 		if !cacheHit && hash != "" && !r.noCache {
 			latest := getLatestCache(phaseName)
 			if latest != "" && latest != hash {
@@ -596,7 +691,7 @@ func (r *Runner) doBuildWithCache(phaseName, buildCmd string) error {
 		}
 	}
 
-	// Run build with spinner
+	// Run the build with a spinner
 	sm := ysmrr.NewSpinnerManager(
 		ysmrr.WithSpinnerColor(colors.FgHiBlue),
 	)
@@ -615,7 +710,7 @@ func (r *Runner) doBuildWithCache(phaseName, buildCmd string) error {
 		spinner.UpdateMessage(fmt.Sprintf("%sBuild failed%s (%s) %s%.1fs%s", Red, Reset, buildCmd, Dim, duration.Seconds(), Reset))
 		spinner.Error()
 		sm.Stop()
-		// Store build output for display at end
+		// Store build output for display in final summary
 		output := stdout.String() + stderr.String()
 		if output != "" {
 			r.buildError = output
@@ -627,6 +722,7 @@ func (r *Runner) doBuildWithCache(phaseName, buildCmd string) error {
 	spinner.Complete()
 	sm.Stop()
 
+	// Save to cache if this was a fresh build
 	if !cacheHit && hash != "" && !r.noCache {
 		fmt.Printf("%s⟳ Saving to cache %s...%s\n", Dim, hash[:8], Reset)
 		if err := saveToCache(phaseName, hash); err != nil {
@@ -637,6 +733,12 @@ func (r *Runner) doBuildWithCache(phaseName, buildCmd string) error {
 	return nil
 }
 
+// =============================================================================
+// Artifact Preservation
+// =============================================================================
+
+// saveWorkingArtifacts copies current build artifacts to a temp directory.
+// This preserves the user's working state before checks potentially modify artifacts.
 func (r *Runner) saveWorkingArtifacts() error {
 	tempDir, err := os.MkdirTemp("", "check-runner-working-")
 	if err != nil {
@@ -655,6 +757,8 @@ func (r *Runner) saveWorkingArtifacts() error {
 	return nil
 }
 
+// restoreWorkingArtifacts restores the user's original build artifacts.
+// Called after checks complete or on interrupt.
 func (r *Runner) restoreWorkingArtifacts() {
 	if r.tempDir == "" {
 		return
@@ -672,15 +776,17 @@ func (r *Runner) restoreWorkingArtifacts() {
 	}
 }
 
+// copyDir copies a directory recursively using cp -r.
 func copyDir(src, dst string) error {
 	cmd := exec.Command("cp", "-r", src, dst)
 	return cmd.Run()
 }
 
-// ============================================================================
+// =============================================================================
 // Check Execution
-// ============================================================================
+// =============================================================================
 
+// runPhaseChecks runs all checks for a phase, either in parallel or sequentially.
 func (r *Runner) runPhaseChecks(checks []Check, parallel bool) {
 	if len(checks) == 0 {
 		return
@@ -693,9 +799,10 @@ func (r *Runner) runPhaseChecks(checks []Check, parallel bool) {
 	}
 }
 
+// runChecksSequential runs checks one at a time in order.
 func (r *Runner) runChecksSequential(checks []Check) {
 	for _, check := range checks {
-		// Check for interruption
+		// Check for interruption before each check
 		if r.interrupted.Load() {
 			return
 		}
@@ -740,11 +847,14 @@ func (r *Runner) runChecksSequential(checks []Check) {
 	}
 }
 
+// runChecksParallel runs checks concurrently with dependency ordering.
+// Uses a worker pool and respects check dependencies.
 func (r *Runner) runChecksParallel(checks []Check) {
 	sm := ysmrr.NewSpinnerManager(
 		ysmrr.WithSpinnerColor(colors.FgHiBlue),
 	)
 
+	// Initialize state for each check with a spinner
 	checkNames := make([]string, len(checks))
 	for i, c := range checks {
 		checkNames[i] = c.Name
@@ -754,9 +864,11 @@ func (r *Runner) runChecksParallel(checks []Check) {
 
 	sm.Start()
 
+	// Channel for checks ready to run (dependencies satisfied)
 	ready := make(chan string, len(checks))
 	var wg sync.WaitGroup
 
+	// Queue checks with no dependencies
 	r.mu.Lock()
 	for _, name := range checkNames {
 		if r.depsReady(name, checkNames) {
@@ -766,6 +878,7 @@ func (r *Runner) runChecksParallel(checks []Check) {
 	}
 	r.mu.Unlock()
 
+	// Start worker pool
 	numWorkers := 8
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
@@ -781,6 +894,7 @@ func (r *Runner) runChecksParallel(checks []Check) {
 		}()
 	}
 
+	// Monitor loop: queue checks as their dependencies complete
 	go func() {
 		for {
 			// Check for interruption
@@ -794,6 +908,7 @@ func (r *Runner) runChecksParallel(checks []Check) {
 			for _, name := range checkNames {
 				state := r.states[name]
 				if state.status == "pending" {
+					// Skip checks whose dependencies failed
 					if r.depsFailed(name, checkNames) {
 						state.status = "skipped"
 						state.spinner.UpdateMessage(fmt.Sprintf("  %s %s(skipped)%s", name, Dim, Reset))
@@ -801,6 +916,7 @@ func (r *Runner) runChecksParallel(checks []Check) {
 						r.totalSkipped++
 						continue
 					}
+					// Queue checks whose dependencies passed
 					if r.depsReady(name, checkNames) {
 						state.status = "queued"
 						ready <- name
@@ -824,7 +940,7 @@ func (r *Runner) runChecksParallel(checks []Check) {
 	wg.Wait()
 	sm.Stop()
 
-	// Count results
+	// Tally results
 	r.mu.Lock()
 	for _, name := range checkNames {
 		state := r.states[name]
@@ -842,20 +958,23 @@ func (r *Runner) runChecksParallel(checks []Check) {
 	r.mu.Unlock()
 }
 
+// depsReady returns true if all dependencies of a check have passed.
 func (r *Runner) depsReady(name string, checkNames []string) bool {
 	check := r.getCheck(name)
 	if check == nil || len(check.Depends) == 0 {
 		return true
 	}
 
+	// Build set of checks in this phase
 	inPhase := make(map[string]bool)
 	for _, n := range checkNames {
 		inPhase[n] = true
 	}
 
+	// Check each dependency
 	for _, dep := range check.Depends {
 		if !inPhase[dep] {
-			continue
+			continue // Dependency not in this phase, ignore
 		}
 		state := r.states[dep]
 		if state == nil || state.status != "pass" {
@@ -865,20 +984,23 @@ func (r *Runner) depsReady(name string, checkNames []string) bool {
 	return true
 }
 
+// depsFailed returns true if any dependency of a check has failed.
 func (r *Runner) depsFailed(name string, checkNames []string) bool {
 	check := r.getCheck(name)
 	if check == nil || len(check.Depends) == 0 {
 		return false
 	}
 
+	// Build set of checks in this phase
 	inPhase := make(map[string]bool)
 	for _, n := range checkNames {
 		inPhase[n] = true
 	}
 
+	// Check each dependency
 	for _, dep := range check.Depends {
 		if !inPhase[dep] {
-			continue
+			continue // Dependency not in this phase, ignore
 		}
 		state := r.states[dep]
 		if state != nil && state.status == "fail" {
@@ -888,6 +1010,7 @@ func (r *Runner) depsFailed(name string, checkNames []string) bool {
 	return false
 }
 
+// runCheckParallel executes a single check and updates its spinner.
 func (r *Runner) runCheckParallel(name string) {
 	check := r.getCheck(name)
 	if check == nil {
@@ -932,7 +1055,7 @@ func (r *Runner) runCheckParallel(name string) {
 	}
 	r.mu.Unlock()
 
-	// Format: "✓ name 0.5s" or "✗ name 0.5s"
+	// Update spinner with result
 	// Note: spinner.Complete() and spinner.Error() add ✓/✗ prefix automatically
 	timeStr := fmt.Sprintf("%s%.1fs%s", Dim, duration.Seconds(), Reset)
 	if result.Success {
@@ -944,5 +1067,5 @@ func (r *Runner) runCheckParallel(name string) {
 	}
 }
 
-// Unused but keeping for interface compatibility
-var _ io.Reader // silence unused import warning if needed
+// Ensure io package is used (for potential future extensions)
+var _ io.Reader
