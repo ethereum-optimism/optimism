@@ -32,6 +32,10 @@ func (c *Config) Check() error {
 	if len(c.L2RPCs) == 0 {
 		result = errors.Join(result, errors.New("at least one L2 RPC is required"))
 	}
+	// Admin API requires JWT authentication
+	if c.RPC.EnableAdmin && c.JWTSecretPath == "" {
+		result = errors.Join(result, errors.New("admin RPC requires JWT setup, but no JWT path was specified"))
+	}
 	result = errors.Join(result, c.MetricsConfig.Check())
 	result = errors.Join(result, c.PprofConfig.Check())
 	result = errors.Join(result, c.RPC.Check())
