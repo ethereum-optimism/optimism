@@ -27,6 +27,9 @@
 /op-e2e/actions/proofs @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
 /op-e2e/faultproofs    @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
 
+# Kona
+/kona                  @BioMark3r @emhane @theochap @op-will @einar-oplabs
+
 # Ops
 /.cursor/rules/solidity-styles.mdc @ethereum-optimism/contract-reviewers
 

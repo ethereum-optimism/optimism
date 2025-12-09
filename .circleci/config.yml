@@ -62,6 +62,9 @@ parameters:
   ai_contracts_test_dispatch:
     type: boolean
     default: false
+  kona_dispatch:
+    type: boolean
+    default: false
   github-event-type:
     type: string
     default: "__not_set__"
@@ -374,6 +377,79 @@ commands:
           name: Pull artifacts
           command: bash scripts/ops/use-latest-fallback.sh
           working_directory: packages/contracts-bedrock
+
+  # Kona Rust setup commands (migrated from kona/.github/actions/setup)
+  kona-rust-setup:
+    description: "Setup Rust environment for Kona builds"
+    parameters:
+      channel:
+        description: The Rust channel release to use
+        type: string
+        default: "stable"
+      components:
+        description: Components to install in the rust toolchain
+        type: string
+        default: ""
+      toolchain_version:
+        description: The specific toolchain version for stable
+        type: string
+        default: "1.88"
+    steps:
+      - run:
+          name: Install mold linker
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y mold
+      - run:
+          name: Install Rust toolchain
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain <<parameters.channel>>
+            source ~/.cargo/env
+            if [ "<<parameters.channel>>" = "stable" ]; then
+              rustup default <<parameters.toolchain_version>>
+            fi
+            if [ -n "<<parameters.components>>" ]; then
+              rustup component add <<parameters.components>>
+            fi
+      - run:
+          name: Install just
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> $BASH_ENV
+      - restore_cache:
+          name: Restore Cargo cache
+          keys:
+            - kona-cargo-{{ checksum "kona/Cargo.lock" }}
+            - kona-cargo-
+
+  kona-rust-save-cache:
+    description: "Save Rust/Cargo cache for Kona builds"
+    steps:
+      - save_cache:
+          name: Save Cargo cache
+          key: kona-cargo-{{ checksum "kona/Cargo.lock" }}
+          paths:
+            - ~/.cargo/registry
+            - ~/.cargo/git
+            - kona/target
+
+  kona-install-go:
+    description: "Install Go for Kona tests"
+    parameters:
+      version:
+        description: Go version to install
+        type: string
+        default: "1.23.8"
+    steps:
+      - run:
+          name: Install Go <<parameters.version>>
+          command: |
+            wget -q https://go.dev/dl/go<<parameters.version>>.linux-amd64.tar.gz
+            sudo rm -rf /usr/local/go
+            sudo tar -C /usr/local -xzf go<<parameters.version>>.linux-amd64.tar.gz
+            echo 'export PATH="/usr/local/go/bin:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
+            go version
 
 jobs:
   # Kurtosis-based acceptance tests
@@ -2491,6 +2567,735 @@ jobs:
           path: ./op-acceptance-tests/reports
           destination: flaky-test-reports
 
+  # ============================================================================
+  # Kona Jobs (migrated from kona/.github/workflows)
+  # ============================================================================
+
+  # Kona Node E2E Sysgo Tests (from node_e2e_sysgo_tests.yaml)
+  kona-node-e2e-sysgo-tests:
+    parameters:
+      devnet_config:
+        description: The devnet configuration to test
+        type: string
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - kona-rust-setup:
+          channel: stable
+          components: llvm-tools-preview
+      - kona-install-go
+      - run:
+          name: Install cargo-llvm-cov
+          command: |
+            source ~/.cargo/env
+            cargo install cargo-llvm-cov
+      - run:
+          name: Run common tests for node with sysgo orchestrator
+          working_directory: kona
+          no_output_timeout: 60m
+          command: |
+            source ~/.cargo/env
+            echo "Building op-reth..."
+            just build-reth
+            echo "Building kona-node with llvm-cov..."
+            source <(cargo llvm-cov show-env --export-prefix)
+            just build-kona
+            echo "Running tests..."
+            just test-e2e-sysgo-run node node/common "<<parameters.devnet_config>>"
+            cargo llvm-cov report --lcov --output-path node_common_cov.lcov
+      - codecov/upload:
+          disable_search: true
+          files: kona/node_common_cov.lcov
+          flags: e2e
+      - run:
+          name: Run reorg tests for node with sysgo orchestrator
+          working_directory: kona
+          no_output_timeout: 60m
+          command: |
+            source ~/.cargo/env
+            echo "Building kona-node with llvm-cov..."
+            source <(cargo llvm-cov show-env --export-prefix)
+            just build-kona
+            just test-e2e-sysgo-run node node/reorgs "<<parameters.devnet_config>>"
+            cargo llvm-cov report --lcov --output-path node_reorgs_cov.lcov
+      - codecov/upload:
+          disable_search: true
+          files: kona/node_reorgs_cov.lcov
+          flags: e2e
+      - kona-rust-save-cache
+
+  # Kona Node Restart Tests (from node_e2e_sysgo_tests.yaml)
+  kona-node-restart-sysgo-tests:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - kona-rust-setup:
+          channel: stable
+          components: llvm-tools-preview
+      - kona-install-go
+      - run:
+          name: Install cargo-llvm-cov
+          command: |
+            source ~/.cargo/env
+            cargo install cargo-llvm-cov
+      - run:
+          name: Run restart tests for node with sysgo orchestrator
+          working_directory: kona
+          no_output_timeout: 60m
+          command: |
+            source ~/.cargo/env
+            echo "Building op-reth..."
+            just build-reth
+            echo "Building kona-node with llvm-cov..."
+            source <(cargo llvm-cov show-env --export-prefix)
+            just build-kona
+            echo "Running tests..."
+            just test-e2e-sysgo node node/restart
+            cargo llvm-cov report --lcov --output-path node_restart_cov.lcov
+      - codecov/upload:
+          disable_search: true
+          files: kona/node_restart_cov.lcov
+          flags: e2e
+      - kona-rust-save-cache
+
+  # Kona Proof Action Tests (from proof.yaml)
+  kona-proof-action-tests:
+    parameters:
+      kind:
+        description: The kind of action test (single or interop)
+        type: string
+      parallel:
+        description: Number of parallel test shards
+        type: integer
+        default: 4
+      index:
+        description: The shard index
+        type: integer
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - kona-rust-setup:
+          components: llvm-tools-preview
+      - kona-install-go
+      - run:
+          name: Install cargo-llvm-cov and gotestsum
+          command: |
+            source ~/.cargo/env
+            cargo install cargo-llvm-cov
+            go install gotest.tools/gotestsum@v1.12.1
+      - run:
+          name: Split and run action tests
+          working_directory: kona
+          no_output_timeout: 90m
+          command: |
+            source ~/.cargo/env
+            source <(cargo llvm-cov show-env --export-prefix)
+            echo "Building host program for the native target"
+            just build-native --bin kona-host
+            echo "Running action tests (shard <<parameters.index>> of <<parameters.parallel>>)"
+            # Get all test names and split them
+            cd tests/optimism/op-e2e/actions/proofs
+            ALL_TESTS=$(go test -list '.*' ./... 2>/dev/null | grep -E '^Test' || true)
+            TOTAL=$(echo "$ALL_TESTS" | wc -l)
+            CHUNK_SIZE=$(( (TOTAL + <<parameters.parallel>> - 1) / <<parameters.parallel>> ))
+            START=$(( <<parameters.index>> * CHUNK_SIZE + 1 ))
+            TESTS_TO_RUN=$(echo "$ALL_TESTS" | sed -n "${START},$(( START + CHUNK_SIZE - 1 ))p" | tr '\n' '|' | sed 's/|$//')
+            cd -
+            if [ -n "$TESTS_TO_RUN" ]; then
+              just "action-tests-<<parameters.kind>>-run" "$TESTS_TO_RUN"
+            fi
+            cargo llvm-cov report --lcov --output-path actions_cov.lcov
+      - codecov/upload:
+          disable_search: true
+          files: kona/actions_cov.lcov
+          flags: proof
+      - kona-rust-save-cache
+
+  # Kona Host Client Offline Runs (from proof.yaml)
+  kona-host-client-offline:
+    parameters:
+      target:
+        description: The target platform (native, asterisc, cannon)
+        type: string
+      block_number:
+        description: The block number to verify
+        type: string
+        default: "26215604"
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - kona-rust-setup:
+          components: llvm-tools-preview
+      - kona-install-go
+      - run:
+          name: Install cargo-llvm-cov
+          command: |
+            source ~/.cargo/env
+            cargo install cargo-llvm-cov
+      - when:
+          condition:
+            not:
+              equal: [native, <<parameters.target>>]
+          steps:
+            - run:
+                name: Log into ghcr
+                command: |
+                  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - when:
+          condition:
+            equal: [asterisc, <<parameters.target>>]
+          steps:
+            - run:
+                name: Clone and build asterisc
+                command: |
+                  git clone https://github.com/ethereum-optimism/asterisc.git
+                  cd asterisc && git checkout v1.3.0 && make build-rvgo
+                  sudo mv ./rvgo/bin/asterisc /usr/local/bin/
+      - when:
+          condition:
+            equal: [cannon, <<parameters.target>>]
+          steps:
+            - run:
+                name: Clone and build cannon
+                command: |
+                  git clone https://github.com/ethereum-optimism/optimism.git optimism-cannon
+                  cd optimism-cannon/cannon && make
+                  sudo mv ./bin/cannon /usr/local/bin/
+      - run:
+          name: Set run environment
+          command: |
+            echo 'export BLOCK_NUMBER=<<parameters.block_number>>' >> $BASH_ENV
+            echo 'export L2_CLAIM=0x7415d942f80a34f77d344e4bccb7050f14e593f5ea33669d27ea01dce273d72d' >> $BASH_ENV
+            echo 'export L2_OUTPUT_ROOT=0xaa34b62993bd888d7a2ad8541935374e39948576fce12aa8179a0aa5b5bc787b' >> $BASH_ENV
+            echo 'export L2_HEAD=0xf4adf5790bad1ffc9eee315dc163df9102473c5726a2743da27a8a10dc16b473' >> $BASH_ENV
+            echo 'export L1_HEAD=0x010cfdb22eaa13e8cdfbf66403f8de2a026475e96a6635d53c31f853a0e3ae25' >> $BASH_ENV
+            echo 'export L2_CHAIN_ID=11155420' >> $BASH_ENV
+            echo 'export WITNESS_TAR_NAME=holocene-op-sepolia-<<parameters.block_number>>-witness.tar.zst' >> $BASH_ENV
+      - run:
+          name: Decompress witness data
+          working_directory: kona
+          command: |
+            tar --zstd -xvf ./bin/client/testdata/$WITNESS_TAR_NAME -C .
+      - run:
+          name: Run host + client offline
+          working_directory: kona/bin/client
+          no_output_timeout: 40m
+          command: |
+            source ~/.cargo/env
+            source <(cargo llvm-cov show-env --export-prefix)
+            mkdir -p ../../target
+            just run-client-<<parameters.target>>-offline \
+              $BLOCK_NUMBER \
+              $L2_CLAIM \
+              $L2_OUTPUT_ROOT \
+              $L2_HEAD \
+              $L1_HEAD \
+              $L2_CHAIN_ID
+            cargo llvm-cov report --lcov --output-path client_host_cov.lcov
+      - codecov/upload:
+          disable_search: true
+          files: kona/bin/client/client_host_cov.lcov
+          flags: proof
+      - kona-rust-save-cache
+
+  # Kona Rust CI - Tests (from rust_ci.yaml)
+  kona-cargo-tests:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - kona-rust-setup:
+          components: rustfmt
+      - run:
+          name: Install nextest
+          command: |
+            source ~/.cargo/env
+            cargo install cargo-nextest
+      - run:
+          name: Run cargo tests
+          working_directory: kona
+          no_output_timeout: 40m
+          command: |
+            source ~/.cargo/env
+            just test
+      - kona-rust-save-cache
+
+  # Kona Rust CI - Lint (from rust_ci.yaml)
+  kona-cargo-lint:
+    parameters:
+      target:
+        description: The lint target (native, cannon, asterisc)
+        type: string
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - kona-rust-setup:
+          channel: stable
+          components: clippy
+      - run:
+          name: Install nightly with rustfmt
+          command: |
+            source ~/.cargo/env
+            rustup install nightly
+            rustup component add rustfmt --toolchain nightly
+      - when:
+          condition:
+            not:
+              equal: [native, <<parameters.target>>]
+          steps:
+            - run:
+                name: Log into ghcr
+                command: |
+                  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - run:
+          name: Run fmt + lint for <<parameters.target>>
+          working_directory: kona
+          no_output_timeout: 40m
+          command: |
+            source ~/.cargo/env
+            just lint-<<parameters.target>>
+      - run:
+          name: Fix target ownership
+          command: |
+            sudo chown -R $(id -u):$(id -g) ./kona/target || true
+      - kona-rust-save-cache
+
+  # Kona Rust CI - Build (from rust_ci.yaml)
+  kona-cargo-build:
+    parameters:
+      target:
+        description: The build target (native, cannon-client, asterisc-client)
+        type: string
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - kona-rust-setup:
+          channel: nightly
+      - when:
+          condition:
+            not:
+              equal: [native, <<parameters.target>>]
+          steps:
+            - run:
+                name: Log into ghcr
+                command: |
+                  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - run:
+          name: Build <<parameters.target>>
+          working_directory: kona
+          no_output_timeout: 40m
+          command: |
+            source ~/.cargo/env
+            just build-<<parameters.target>>
+      - run:
+          name: Fix target ownership
+          command: |
+            sudo chown -R $(id -u):$(id -g) ./kona/target || true
+      - kona-rust-save-cache
+
+  # Kona Rust CI - Build Benchmarks (from rust_ci.yaml)
+  kona-cargo-build-benches:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - kona-rust-setup
+      - run:
+          name: Build benchmarks
+          working_directory: kona
+          no_output_timeout: 40m
+          command: |
+            source ~/.cargo/env
+            just benches
+      - run:
+          name: Fix target ownership
+          command: |
+            sudo chown -R $(id -u):$(id -g) ./kona/target || true
+      - kona-rust-save-cache
+
+  # Kona Rust CI - Check unused dependencies (from rust_ci.yaml)
+  kona-cargo-udeps:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - kona-rust-setup:
+          channel: nightly
+      - run:
+          name: Install nextest and cargo-udeps
+          command: |
+            source ~/.cargo/env
+            cargo install cargo-nextest cargo-udeps
+      - run:
+          name: Check unused dependencies
+          working_directory: kona
+          no_output_timeout: 40m
+          command: |
+            source ~/.cargo/env
+            just check-udeps
+      - kona-rust-save-cache
+
+  # Kona Rust CI - Doc lint (from rust_ci.yaml)
+  kona-cargo-doc-lint:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - kona-rust-setup
+      - run:
+          name: Lint documentation
+          working_directory: kona
+          no_output_timeout: 40m
+          command: |
+            source ~/.cargo/env
+            just lint-docs
+      - kona-rust-save-cache
+
+  # Kona Rust CI - Doc tests (from rust_ci.yaml)
+  kona-cargo-doc-test:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - kona-rust-setup
+      - run:
+          name: Run doc tests
+          working_directory: kona
+          no_output_timeout: 40m
+          command: |
+            source ~/.cargo/env
+            just test-docs
+      - kona-rust-save-cache
+
+  # Kona Rust CI - Typos (from rust_ci.yaml)
+  kona-typos:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Install typos-cli
+          command: |
+            cargo install typos-cli
+      - run:
+          name: Check for typos
+          working_directory: kona
+          command: |
+            typos
+
+  # Kona Rust CI - Cargo hack (from rust_ci.yaml)
+  kona-cargo-hack:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - kona-rust-setup
+      - run:
+          name: Install clang and cargo-hack
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y clang libclang-dev
+            source ~/.cargo/env
+            cargo install cargo-hack
+      - run:
+          name: Run cargo hack
+          working_directory: kona
+          no_output_timeout: 40m
+          command: |
+            source ~/.cargo/env
+            just hack
+      - kona-rust-save-cache
+
+  # Kona Rust CI - Check no_std (from rust_ci.yaml)
+  kona-check-no-std:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Install mold linker
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y mold
+      - run:
+          name: Install Rust with RISC-V target
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+            source ~/.cargo/env
+            rustup target add riscv32imac-unknown-none-elf
+            cargo install cargo-hack
+      - run:
+          name: Check no_std compatibility
+          working_directory: kona
+          no_output_timeout: 30m
+          command: |
+            source ~/.cargo/env
+            bash ../.circleci/scripts/kona_check_no_std.sh
+
+  # Kona Rust CI - Coverage (from rust_ci.yaml)
+  kona-coverage:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - kona-rust-setup:
+          components: llvm-tools-preview
+      - run:
+          name: Install cargo-llvm-cov and nextest
+          command: |
+            source ~/.cargo/env
+            cargo install cargo-llvm-cov cargo-nextest
+      - run:
+          name: Generate lockfile if needed
+          working_directory: kona
+          command: |
+            source ~/.cargo/env
+            [ -f Cargo.lock ] || cargo generate-lockfile
+      - run:
+          name: Run coverage
+          working_directory: kona
+          no_output_timeout: 40m
+          command: |
+            source ~/.cargo/env
+            just llvm-cov-tests && mv ./target/nextest/ci/junit.xml ./junit.xml || true
+      - codecov/upload:
+          disable_search: true
+          files: kona/lcov.info
+          flags: unit
+      - store_test_results:
+          path: kona/junit.xml
+      - kona-rust-save-cache
+
+  # Kona Rust CI - Deny (from rust_ci.yaml)
+  kona-cargo-deny:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Install cargo-deny
+          command: |
+            cargo install cargo-deny
+      - run:
+          name: Run cargo deny
+          working_directory: kona
+          command: |
+            cargo deny check
+
+  # Kona Rust CI - Zepter (from rust_ci.yaml)
+  kona-zepter:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Install zepter
+          command: |
+            cargo install zepter -f --locked
+            zepter --version
+      - run:
+          name: Format and lint features
+          working_directory: kona
+          command: |
+            zepter format features
+            zepter
+
+  # Kona Docs Build (from docs.yaml)
+  kona-docs-build:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Install Node.js and Bun
+          command: |
+            curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+            curl -fsSL https://bun.sh/install | bash
+            echo 'export BUN_INSTALL="$HOME/.bun"' >> $BASH_ENV
+            echo 'export PATH="$BUN_INSTALL/bin:$PATH"' >> $BASH_ENV
+      - run:
+          name: Install nightly Rust (for docs build)
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly
+      - run:
+          name: Install dependencies and Playwright browsers
+          working_directory: kona/docs
+          command: |
+            source $BASH_ENV
+            bun i
+            npx playwright install --with-deps chromium
+      - run:
+          name: Build Vocs documentation
+          working_directory: kona/docs
+          no_output_timeout: 60m
+          command: |
+            source $BASH_ENV
+            bun run build
+            echo "Vocs Build Complete"
+      - store_artifacts:
+          path: kona/docs/docs/dist
+          destination: kona-docs
+
+  # Kona Link Checker (from lychee.yaml)
+  kona-link-checker:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Install lychee
+          command: |
+            curl -sSfL https://github.com/lycheeverse/lychee/releases/download/v0.15.1/lychee-v0.15.1-x86_64-unknown-linux-gnu.tar.gz | tar xz
+            sudo mv lychee /usr/local/bin/
+      - run:
+          name: Check links
+          working_directory: kona
+          command: |
+            lychee --config ./lychee.toml --cache-exclude-status 429 '**/README.md' './docs/**/*.md' './docs/**/*.mdx' './docs/**/*.html' './docs/**/*.json' || true
+          # Note: Not failing the build on broken links, just reporting
+
+  # Kona Supervisor E2E Tests (from supervisor_e2e_sysgo.yaml)
+  kona-supervisor-e2e-tests:
+    parameters:
+      test_pkg:
+        description: The test package to run
+        type: string
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - kona-rust-setup:
+          channel: stable
+      - kona-install-go
+      - run:
+          name: Run supervisor tests for <<parameters.test_pkg>>
+          working_directory: kona
+          no_output_timeout: 40m
+          command: |
+            source ~/.cargo/env
+            just test-e2e-sysgo supervisor "/supervisor/<<parameters.test_pkg>>"
+      - kona-rust-save-cache
+
+  # Kona Sync - Update Superchain Registry (from sync.yaml)
+  kona-update-scr:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - kona-rust-setup
+      - run:
+          name: Update superchain-registry
+          working_directory: kona
+          command: |
+            source ~/.cargo/env
+            just source-registry && just bind-registry
+      - run:
+          name: Check for changes
+          command: |
+            if git diff --quiet; then
+              echo "No changes to superchain-registry"
+              circleci-agent step halt
+            fi
+            echo "Changes detected - would create PR in GitHub Actions"
+
+  # Kona Publish Prestate Artifacts (from publish_artifacts.yaml)
+  kona-publish-prestate-artifacts:
+    parameters:
+      kind:
+        description: The kind of prestate (cannon)
+        type: string
+        default: "cannon"
+      version:
+        description: The version to build (kona-client, kona-client-int)
+        type: string
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - kona-rust-setup:
+          components: llvm-tools-preview
+      - gcp-cli/install
+      - gcp-oidc-authenticate:
+          gcp_cred_config_file_path: /tmp/gcp_cred_config.json
+          oidc_token_file_path: /tmp/oidc_token.json
+      - run:
+          name: Generate prestate artifacts
+          working_directory: kona
+          no_output_timeout: 60m
+          command: |
+            source ~/.cargo/env
+            CANNON_TAG="$(cat .config/cannon_tag)"
+            cd docker/fpvm-prestates
+            just "<<parameters.kind>>" "<<parameters.version>>" "<< pipeline.git.branch >>" "$CANNON_TAG"
+      - run:
+          name: Upload prestates to GCS
+          command: |
+            PRESTATE_HASH=$(jq -r .pre ./prestate-artifacts-<<parameters.kind>>/prestate-proof.json)
+            BRANCH_NAME=$(echo "<< pipeline.git.branch >>" | tr '/' '-')
+            echo "Publishing ${PRESTATE_HASH} as ${BRANCH_NAME}"
+            if [ -n "<< pipeline.git.branch >>" ]; then
+              echo "Publishing commit hash data"
+              INFO_FILE=$(mktemp)
+              (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_HASH}") > "${INFO_FILE}"
+              gsutil cp "${INFO_FILE}" "gs://kona-proof-prestates/<<parameters.kind>>/${BRANCH_NAME}-<<parameters.version>>-prestate.bin.gz.txt"
+              rm "${INFO_FILE}"
+              PRESTATE_HASH="${BRANCH_NAME}-<<parameters.version>>"
+            fi
+            gsutil cp ./prestate-artifacts-<<parameters.kind>>/prestate.bin.gz "gs://kona-proof-prestates/<<parameters.kind>>/${PRESTATE_HASH}.bin.gz"
+            echo "Successfully published prestates artifacts to GCS"
+      - kona-rust-save-cache
+
 workflows:
   # Nightly Kurtosis acceptance tests
   scheduled-kurtosis-acceptance-tests:
@@ -3342,3 +4147,197 @@ workflows:
             - circleci-api-token
             - devin-api
             - slack
+
+  # ============================================================================
+  # Kona Workflows (migrated from kona/.github/workflows)
+  # ============================================================================
+
+  # Kona main CI workflow (runs on push to main, merge_group, pull_request)
+  kona-ci:
+    when:
+      or:
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        - and:
+            - equal: [true, <<pipeline.parameters.kona_dispatch>>]
+            - equal: ["api", << pipeline.trigger_source >>]
+    jobs:
+      # Rust CI jobs (from rust_ci.yaml)
+      - kona-cargo-tests:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-cargo-lint:
+          name: kona-lint-<<matrix.target>>
+          matrix:
+            parameters:
+              target: ["native", "cannon", "asterisc"]
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-cargo-build:
+          name: kona-build-<<matrix.target>>
+          matrix:
+            parameters:
+              target: ["native", "cannon-client", "asterisc-client"]
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-cargo-build-benches:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-cargo-udeps:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-cargo-doc-lint:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-cargo-doc-test:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-typos:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-cargo-hack:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-check-no-std:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-coverage:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-cargo-deny:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-zepter:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Acceptance tests (from acceptance-tests.yaml)
+      - kona-acceptance-tests:
+          name: kona-acceptance-op-node-op-reth
+          devnet_config: op-node-op-reth
+          client: op-node
+          engine: op-reth
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-acceptance-tests:
+          name: kona-acceptance-kona-node-op-geth
+          devnet_config: kona-node-op-geth
+          client: kona
+          engine: op-geth
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-acceptance-tests:
+          name: kona-acceptance-kona-node-op-reth
+          devnet_config: kona-node-op-reth
+          client: kona
+          engine: op-reth
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Node E2E tests (from node_e2e_sysgo_tests.yaml)
+      - kona-node-e2e-sysgo-tests:
+          name: kona-node-e2e-<<matrix.devnet_config>>
+          matrix:
+            parameters:
+              devnet_config: ["simple-kona", "simple-kona-geth", "simple-kona-sequencer", "large-kona-sequencer"]
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-node-restart-sysgo-tests:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Proof tests (from proof.yaml) - single kind only, interop excluded per original config
+      - kona-proof-action-tests:
+          name: kona-proof-action-single-0
+          kind: single
+          index: 0
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-proof-action-tests:
+          name: kona-proof-action-single-1
+          kind: single
+          index: 1
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-proof-action-tests:
+          name: kona-proof-action-single-2
+          kind: single
+          index: 2
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-proof-action-tests:
+          name: kona-proof-action-single-3
+          kind: single
+          index: 3
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-host-client-offline:
+          name: kona-host-client-native
+          target: native
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-host-client-offline:
+          name: kona-host-client-asterisc
+          target: asterisc
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-host-client-offline:
+          name: kona-host-client-cannon
+          target: cannon
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Docs build (from docs.yaml)
+      - kona-docs-build:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+  # Kona scheduled workflows
+  scheduled-kona-link-checker:
+    when:
+      equal: [build_weekly, <<pipeline.schedule.name>>]
+    jobs:
+      - kona-link-checker:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+  scheduled-kona-sync:
+    when:
+      equal: [build_weekly, <<pipeline.schedule.name>>]
+    jobs:
+      - kona-update-monorepo:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - kona-update-scr:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+  # Kona supervisor E2E tests (from supervisor_e2e_sysgo.yaml) - manual dispatch only
+  kona-supervisor-e2e:
+    when:
+      and:
+        - equal: [true, <<pipeline.parameters.kona_dispatch>>]
+        - equal: ["api", << pipeline.trigger_source >>]
+    jobs:
+      - kona-supervisor-e2e-tests:
+          name: kona-supervisor-<<matrix.test_pkg>>
+          matrix:
+            parameters:
+              test_pkg: ["pre_interop", "l1reorg/sysgo"]
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+  # Kona publish prestate artifacts (from publish_artifacts.yaml) - on push to main or tags
+  kona-publish-prestates:
+    when:
+      or:
+        - equal: ["develop", <<pipeline.git.branch>>]
+        - equal: ["main", <<pipeline.git.branch>>]
+    jobs:
+      - kona-publish-prestate-artifacts:
+          name: kona-publish-<<matrix.version>>
+          matrix:
+            parameters:
+              version: ["kona-client", "kona-client-int"]
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - oplabs-gcr

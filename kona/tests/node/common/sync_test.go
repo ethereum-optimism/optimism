@@ -3,10 +3,10 @@ package node
 import (
 	"testing"
 
+	node_utils "github.com/ethereum-optimism/optimism/kona/tests/node/utils"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	node_utils "github.com/op-rs/kona/node/utils"
 )
 
 // Check that all the nodes in the network are synced to the local safe block and can catch up to the sequencer node.

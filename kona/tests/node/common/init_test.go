@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	node_utils "github.com/ethereum-optimism/optimism/kona/tests/node/utils"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	node_utils "github.com/op-rs/kona/node/utils"
 )
 
 // TestMain creates the test-setups against the shared backend
