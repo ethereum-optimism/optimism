@@ -98,7 +98,7 @@ interface IOPContractsManagerV2 {
     error OPContractsManagerV2_InvalidUpgradeInput();
     error OPContractsManagerV2_SuperchainConfigNeedsUpgrade();
     error OPContractsManagerV2_UnsupportedGameType();
-    error OPContractsManagerV2_InvalidUpgradeInstruction();
+    error OPContractsManagerV2_InvalidUpgradeInstruction(string _key);
     error IdentityPrecompileCallFailed();
     error ReservedBitsSet();
     error BytesArrayTooLong();
@@ -123,6 +123,8 @@ interface IOPContractsManagerV2 {
     function contractsContainer() external view returns (IOPContractsManagerContainer);
 
     function standardValidator() external view returns (IOPContractsManagerStandardValidator);
+
+    function thisOPCM() external view returns (IOPContractsManagerV2);
 
     function utils() external view returns (IOPContractsManagerUtils);
 
