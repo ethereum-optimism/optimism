@@ -22,9 +22,9 @@ reth-revm.workspace = true
 reth-trie = { workspace = true, features = ["serde"] }
 reth-tasks.workspace = true
 
-# metrics
-metrics.workspace = true
-reth-metrics = { workspace = true, features = ["common"] }
+# `metrics` feature
+metrics = { workspace = true, optional = true }
+reth-metrics = { workspace = true, features = ["common"], optional = true }
 
 # ethereum
 alloy-primitives.workspace = true
@@ -81,4 +81,8 @@ serde-bincode-compat = [
     "alloy-genesis/serde-bincode-compat",
     "reth-ethereum-primitives/serde-bincode-compat",
 ]
-metrics = ["reth-trie/metrics"]
+metrics = [
+    "reth-trie/metrics",
+    "dep:reth-metrics",
+    "dep:metrics",
+]

@@ -22,7 +22,7 @@ reth-provider.workspace = true
 
 # op-reth
 # proofs exex handles `TrieUpdates` in notifications
-reth-optimism-trie = { workspace = true, features = ["serde-bincode-compat", "metrics"] }
+reth-optimism-trie = { workspace = true, features = ["serde-bincode-compat"] }
 
 # alloy
 alloy-consensus.workspace = true
@@ -51,6 +51,7 @@ test-utils = [
     "reth-optimism-node/test-utils",
     "reth-provider/test-utils",
 ]
+metrics = ["reth-optimism-trie/metrics"]
 
 [package.metadata.cargo-udeps.ignore]
 development = [
