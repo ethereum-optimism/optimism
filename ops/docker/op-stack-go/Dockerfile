@@ -16,10 +16,6 @@ ARG UBUNTU_TARGET_BASE_IMAGE=ubuntu:22.04
 # The only build that uses this is `op-challenger-target`.
 ARG KONA_VERSION=none
 
-# The version of asterisc to use.
-# The only build that uses this is `op-challenger-target`.
-ARG ASTERISC_VERSION=none
-
 # builder_foundry does not need to be built on $BUILDPLATFORM, as foundry produces static binaries.
 FROM alpine:3.21 AS builder_foundry
 
@@ -222,25 +218,20 @@ CMD ["op-node"]
 
 # Make the kona docker image published by upstream available as a source to copy kona from.
 FROM ghcr.io/op-rs/kona/kona-host:$KONA_VERSION AS kona
-# Make the asterisc docker image published by upstream available as a source to copy asterisc from.
-FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/asterisc:$ASTERISC_VERSION AS asterisc
 
-# Also produce an op-challenger loaded with kona and asterisc using ubuntu
+# Also produce an op-challenger loaded with kona using ubuntu
 FROM $UBUNTU_TARGET_BASE_IMAGE AS op-challenger-target
 RUN apt-get update && apt-get install -y --no-install-recommends musl openssl ca-certificates
 COPY --from=op-challenger-builder /app/op-challenger/bin/op-challenger /usr/local/bin/
 # Copy in op-program and cannon
 COPY --from=op-program-builder /app/op-program/bin/op-program /usr/local/bin/
-ENV OP_CHALLENGER_ASTERISC_SERVER=/usr/local/bin/op-program
 ENV OP_CHALLENGER_CANNON_SERVER=/usr/local/bin/op-program
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/
 ENV OP_CHALLENGER_CANNON_BIN=/usr/local/bin/cannon
-# Copy in kona and asterisc
+# Copy in kona
 COPY --from=kona /usr/local/bin/kona-host /usr/local/bin/
 ENV OP_CHALLENGER_ASTERISC_KONA_SERVER=/usr/local/bin/kona-host
 ENV OP_CHALLENGER_CANNON_KONA_SERVER=/usr/local/bin/kona-host
-COPY --from=asterisc /usr/local/bin/asterisc /usr/local/bin/
-ENV OP_CHALLENGER_ASTERISC_BIN=/usr/local/bin/asterisc
 CMD ["op-challenger"]
 
 FROM $TARGET_BASE_IMAGE AS op-dispute-mon-target

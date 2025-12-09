@@ -38,7 +38,7 @@ func (el *elNode) WaitForBlock() eth.BlockRef {
 
 func (el *elNode) WaitForLabel(label eth.BlockLabel, predicate func(eth.BlockInfo) (bool, error)) eth.BlockInfo {
 	var block eth.BlockInfo
-	err := wait.For(el.ctx, 500*time.Millisecond, func() (bool, error) {
+	err := wait.For(el.ctx, 200*time.Millisecond, func() (bool, error) {
 		var err error
 		block, err = el.inner.EthClient().InfoByLabel(el.ctx, label)
 		if err != nil {

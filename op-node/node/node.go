@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -103,6 +104,7 @@ type OpNode struct {
 	// Retain the config to test for active features rather than test for runtime state.
 	cfg        *config.Config
 	log        log.Logger
+	clock      clock.Clock
 	appVersion string
 	metrics    *metrics.Metrics
 
@@ -153,15 +155,15 @@ type OpNode struct {
 // New creates a new OpNode instance.
 // The provided ctx argument is for the span of initialization only;
 // the node will immediately Stop(ctx) before finishing initialization if the context is canceled during initialization.
-func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion string, m *metrics.Metrics) (*OpNode, error) {
-	return NewWithOverride(ctx, cfg, log, appVersion, m, InitializationOverrides{})
+func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion string, m *metrics.Metrics, clk clock.Clock) (*OpNode, error) {
+	return NewWithOverride(ctx, cfg, log, appVersion, m, clk, InitializationOverrides{})
 }
 
 // NewWithOverride creates a new OpNode instance with optional initialization overrides.
 // This allows callers to override specific initialization steps, enabling resource sharing
 // (e.g., shared L1Client across multiple nodes) without duplicating connections or caches.
 // If override is nil or any of its fields are nil, the default initialization is used for those steps.
-func NewWithOverride(ctx context.Context, cfg *config.Config, log log.Logger, appVersion string, m *metrics.Metrics, override InitializationOverrides) (*OpNode, error) {
+func NewWithOverride(ctx context.Context, cfg *config.Config, log log.Logger, appVersion string, m *metrics.Metrics, clk clock.Clock, override InitializationOverrides) (*OpNode, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
@@ -169,6 +171,7 @@ func NewWithOverride(ctx context.Context, cfg *config.Config, log log.Logger, ap
 	n := &OpNode{
 		cfg:        cfg,
 		log:        log,
+		clock:      clk,
 		appVersion: appVersion,
 		metrics:    m,
 		rollupHalt: cfg.RollupHalt,
@@ -712,7 +715,7 @@ func initP2P(cfg *config.Config, node *OpNode) (*p2p.NodeP2P, error) {
 		}
 		// embed syncDeriver and tracer(optional) to the blockReceiver to handle unsafe payloads via p2p
 		rec := p2p.NewBlockReceiver(node.log, node.metrics, node.l2Driver.SyncDeriver, node.cfg.Tracer)
-		p2pNode, err := p2p.NewNodeP2P(node.resourcesCtx, &cfg.Rollup, node.log, cfg.P2P, rec, node.l2Source, node.runCfg, node.metrics)
+		p2pNode, err := p2p.NewNodeP2P(node.resourcesCtx, &cfg.Rollup, node.log, cfg.P2P, rec, node.l2Source, node.runCfg, node.metrics, node.clock)
 		if err != nil {
 			return nil, err
 		}

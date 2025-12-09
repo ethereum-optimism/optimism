@@ -82,7 +82,7 @@ func TestFlashblocksStream(gt *testing.T) {
 	defer close(builderOutput)
 	builderDone := make(chan struct{})
 	go func() {
-		err := oprbuilderNode.FlashblocksClient().ListenFor(ctx, logger.With("stream_source", "op-rbuilder"), testDuration, builderOutput, builderDone)
+		err := oprbuilderNode.FlashblocksClient().ReadAll(ctx, logger.With("stream_source", "op-rbuilder"), testDuration, builderOutput, builderDone)
 		require.NoError(t, err)
 	}()
 	builderMessages := make([]string, 0)
@@ -92,7 +92,7 @@ func TestFlashblocksStream(gt *testing.T) {
 	doneListening := make(chan struct{})
 	streamedMessages := make([]string, 0)
 	go func() {
-		err := rollupBoostNode.FlashblocksClient().ListenFor(ctx, logger.With("stream_source", "rollup-boost"), testDuration, output, doneListening)
+		err := rollupBoostNode.FlashblocksClient().ReadAll(ctx, logger.With("stream_source", "rollup-boost"), testDuration, output, doneListening)
 		require.NoError(t, err)
 	}()
 

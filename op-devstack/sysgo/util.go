@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/websocket"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -79,14 +79,8 @@ func waitWSReady(p devtest.P, rawURL string, timeout time.Duration) {
 	waitWSMsg := fmt.Sprintf("WebSocket endpoint %s not ready within %v", rawURL, timeout)
 	p.Require().EventuallyWithT(func(c *assert.CollectT) {
 		ctx, cancel := context.WithTimeout(context.Background(), 750*time.Millisecond)
-		conn, resp, err := websocket.Dial(ctx, rawURL, nil)
+		err := opclient.ProbeWS(ctx, rawURL)
 		cancel()
-		if resp != nil && resp.Body != nil {
-			_ = resp.Body.Close()
-		}
-		if conn != nil {
-			_ = conn.Close(websocket.StatusNormalClosure, "")
-		}
 		assert.NoError(c, err, "WebSocket handshake to %s should succeed", rawURL)
 	}, timeout, 100*time.Millisecond, waitWSMsg)
 }

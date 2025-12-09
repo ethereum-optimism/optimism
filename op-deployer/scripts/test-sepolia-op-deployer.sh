@@ -10,6 +10,7 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 OUTPUT_DIR="$REPO_ROOT/.deployer-output"
+OP_DEPLOYER_BASE_CMD=("go" "run" "./cmd/op-deployer")
 mkdir -p "$OUTPUT_DIR"
 cd "$REPO_ROOT"
 
@@ -34,6 +35,51 @@ read_env_var() {
         echo -e "${GREEN}✓ Using $env_name${NC}" >&2
     fi
     echo "$value"
+}
+
+download_op_deployer_binary() {
+    local version="$1"
+    local os
+    os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+    local arch
+    arch="$(uname -m)"
+    case "$arch" in
+        x86_64) arch="amd64" ;;
+        arm64|aarch64) arch="arm64" ;;
+        *) echo -e "${RED}Unsupported arch: $arch${NC}" >&2; exit 1 ;;
+    esac
+
+    local name="op-deployer-${version}-${os}-${arch}"
+    local url="https://github.com/ethereum-optimism/optimism/releases/download/op-deployer%2Fv${version}/${name}.tar.gz"
+    local dest_dir
+    dest_dir="$(mktemp -d "${TMPDIR:-/tmp}/op-deployer.XXXXXX")"
+    local tar_path="$dest_dir/${name}.tar.gz"
+    local extract_dir="$dest_dir/${name}"
+    local bin_path="$extract_dir/op-deployer"
+
+    echo -e "${BLUE}Downloading op-deployer ${version} (${os}/${arch})...${NC}"
+    if ! curl -L --fail --retry 3 "$url" -o "$tar_path"; then
+        echo -e "${RED}Download failed from:${NC} $url" >&2
+        exit 1
+    fi
+
+    if ! tar -xzf "$tar_path" -C "$dest_dir"; then
+        echo -e "${RED}Failed to extract:${NC} $tar_path" >&2
+        exit 1
+    fi
+
+    if [ ! -x "$bin_path" ]; then
+        echo -e "${RED}Binary not found after extract:${NC} $bin_path" >&2
+        exit 1
+    fi
+
+    chmod +x "$bin_path"
+    if [ "$os" = "darwin" ] && command -v xattr >/dev/null 2>&1; then
+        xattr -d com.apple.quarantine "$bin_path" 2>/dev/null || true
+    fi
+
+    OP_DEPLOYER_BASE_CMD=("$bin_path")
+    echo -e "${GREEN}✓ Using downloaded binary:${NC} $bin_path"
 }
 
 select_verifier() {
@@ -111,7 +157,7 @@ select_verifier() {
 
 build_verify_cmd() {
     local input_file="$1"
-    local cmd=("go" "run" "./cmd/op-deployer" "verify"
+    local cmd=("${OP_DEPLOYER_BASE_CMD[@]}" "verify"
         "--l1-rpc-url" "$L1_RPC_URL"
         "--input-file" "$input_file"
         "--verifier" "$VERIFIER_TYPE"
@@ -125,7 +171,7 @@ build_verify_cmd() {
 
 build_validate_cmd() {
     local workdir="$1"
-    local cmd=("go" "run" "./cmd/op-deployer" "validate" "auto"
+    local cmd=("${OP_DEPLOYER_BASE_CMD[@]}" "validate" "auto"
         "--l1-rpc-url" "$L1_RPC_URL"
         "--workdir" "$workdir"
         "--fail"
@@ -162,6 +208,58 @@ $field = \"$value\"
     fi
 }
 
+select_runner() {
+    local prefill="${DEPLOYER_RUNNER:-}"
+    local prefill_choice=""
+    if [ "$prefill" == "docker" ]; then
+        prefill_choice="2"
+        echo -e "${GREEN}  (Pre-filled from DEPLOYER_RUNNER: docker - auto-selecting option 2)${NC}"
+    elif [ "$prefill" == "go" ]; then
+        prefill_choice="1"
+        echo -e "${GREEN}  (Pre-filled from DEPLOYER_RUNNER: go - auto-selecting option 1)${NC}"
+    elif [ "$prefill" == "binary" ]; then
+        prefill_choice="3"
+        echo -e "${GREEN}  (Pre-filled from DEPLOYER_RUNNER: binary - auto-selecting option 3)${NC}"
+    fi
+    
+    echo ""
+    echo -e "${BLUE}How would you like to run op-deployer?${NC}"
+    echo "  1) Local go run (default)"
+    echo "  2) Docker image"
+    echo "  3) Prebuilt binary (download from GitHub release)"
+    echo ""
+    
+    local choice="$prefill_choice"
+    if [ -z "$choice" ]; then
+        read -r -p "Enter choice [1-3]: " choice
+    fi
+    
+    case "$choice" in
+        2)
+            local default_tag="${DEPLOYER_IMAGE_TAG:-latest}"
+            if [ -n "${DEPLOYER_IMAGE:-}" ]; then
+                OP_DEPLOYER_IMAGE="$DEPLOYER_IMAGE"
+            else
+                read -r -p "Docker image tag [${default_tag}]: " selected_tag
+                selected_tag="${selected_tag:-$default_tag}"
+                OP_DEPLOYER_IMAGE="us-docker.pkg.dev/oplabs-tools-artifacts/images/op-deployer:${selected_tag}"
+            fi
+            OP_DEPLOYER_BASE_CMD=("docker" "run" "--rm" "-v" "$REPO_ROOT:$REPO_ROOT" "-w" "$REPO_ROOT" "$OP_DEPLOYER_IMAGE" "op-deployer")
+            echo -e "${GREEN}✓ Using docker image:${NC} $OP_DEPLOYER_IMAGE"
+            ;;
+        3)
+            local default_version="${DEPLOYER_VERSION:-0.5.1}"
+            read -r -p "Release version [${default_version}]: " selected_version
+            selected_version="${selected_version:-$default_version}"
+            download_op_deployer_binary "$selected_version"
+            ;;
+        *)
+            OP_DEPLOYER_BASE_CMD=("go" "run" "./cmd/op-deployer")
+            echo -e "${GREEN}✓ Using local go run (./cmd/op-deployer)${NC}"
+            ;;
+    esac
+}
+
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}   OP Deployer - Sepolia Deployment & Verification Script${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
@@ -181,6 +279,8 @@ echo -e "${BLUE}━━━ Required Inputs ━━━${NC}"
 echo ""
 
 L1_RPC_URL=$(read_env_var "L1_RPC_URL" "Enter Sepolia RPC URL: ")
+
+select_runner
 
 if [ "$DEPLOY_TYPE" != "4" ] && [ "$DEPLOY_TYPE" != "5" ]; then
     if [ -z "$DEPLOYER_PRIVATE_KEY" ]; then
@@ -353,7 +453,7 @@ case "$DEPLOY_TYPE" in
             echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
             echo ""
             
-            INIT_CMD=("go" "run" "./cmd/op-deployer" "init"
+            INIT_CMD=("${OP_DEPLOYER_BASE_CMD[@]}" "init"
                 "--l1-chain-id" "$L1_CHAIN_ID"
                 "--l2-chain-ids" "$L2_CHAIN_ID"
                 "--workdir" "$WORKDIR"
@@ -524,7 +624,7 @@ case "$DEPLOY_TYPE" in
         echo "  - Or there's an issue with the OPCM contract configuration"
         echo ""
         
-        APPLY_CMD=("go" "run" "./cmd/op-deployer" "apply"
+        APPLY_CMD=("${OP_DEPLOYER_BASE_CMD[@]}" "apply"
             "--l1-rpc-url" "$L1_RPC_URL"
             "--workdir" "$WORKDIR"
             "--private-key" "$PRIVATE_KEY"
@@ -696,7 +796,7 @@ if [ "$DEPLOY_TYPE" == "1" ] || [ "$DEPLOY_TYPE" == "2" ]; then
     echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
     echo ""
     
-    CMD=("go" "run" "./cmd/op-deployer")
+    CMD=("${OP_DEPLOYER_BASE_CMD[@]}")
     
     if [ "$DEPLOY_TYPE" == "1" ]; then
         CMD+=(

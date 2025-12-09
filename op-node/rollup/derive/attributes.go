@@ -146,7 +146,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	}
 
 	if ba.rollupCfg.IsJovianActivationBlock(nextL2Time) {
-		jovian, err := JovianNetworkUpgradeTransactions(ba.rollupCfg.IsDAFootprintBlockLimit(nextL2Time), ba.rollupCfg.IsOperatorFeeFix(nextL2Time))
+		jovian, err := JovianNetworkUpgradeTransactions()
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to build jovian network upgrade txs: %w", err))
 		}
@@ -206,7 +206,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		r.EIP1559Params = new(eth.Bytes8)
 		*r.EIP1559Params = sysConfig.EIP1559Params
 	}
-	if ba.rollupCfg.IsMinBaseFee(nextL2Time) {
+	if ba.rollupCfg.IsJovian(nextL2Time) {
 		r.MinBaseFee = &sysConfig.MinBaseFee
 	}
 	return r, nil

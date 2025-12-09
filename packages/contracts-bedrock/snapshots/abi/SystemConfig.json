@@ -71,6 +71,19 @@
   },
   {
     "inputs": [],
+    "name": "OPCM_SLOT",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT",
     "outputs": [
       {
@@ -299,6 +312,11 @@
             "internalType": "address",
             "name": "delayedWETH",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "opcm",
+            "type": "address"
           }
         ],
         "internalType": "struct SystemConfig.Addresses",
@@ -440,6 +458,11 @@
             "internalType": "address",
             "name": "delayedWETH",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "opcm",
+            "type": "address"
           }
         ],
         "internalType": "struct SystemConfig.Addresses",
@@ -541,6 +564,32 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "lastUsedOPCM",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "addr_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "lastUsedOPCMVersion",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "version_",
+        "type": "string"
       }
     ],
     "stateMutability": "view",

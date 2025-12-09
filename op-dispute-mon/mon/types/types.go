@@ -13,7 +13,25 @@ import (
 
 // outputRootGameTypes lists the set of legacy game types that use output roots
 // It is assumed that all other game types use super roots
-var outputRootGameTypes = []uint32{0, 1, 2, 3, 6, 254, 255, 1337}
+var outputRootGameTypes = []types.GameType{
+	types.CannonGameType,
+	types.PermissionedGameType,
+	types.AsteriscGameType,
+	types.AsteriscKonaGameType,
+	types.OPSuccinctGameType,
+	types.CannonKonaGameType,
+	types.OptimisticZKGameType,
+	types.FastGameType,
+	types.AlphabetGameType,
+	types.KailuaGameType,
+}
+
+var superRootGameTypes = []types.GameType{
+	types.SuperCannonGameType,
+	types.SuperPermissionedGameType,
+	types.SuperAsteriscKonaGameType,
+	types.SuperCannonKonaGameType,
+}
 
 // EnrichedClaim extends the faultTypes.Claim with additional context.
 type EnrichedClaim struct {
@@ -87,7 +105,7 @@ type EnrichedGameData struct {
 
 // UsesOutputRoots returns true if the game type is one of the known types that use output roots as proposals.
 func (g EnrichedGameData) UsesOutputRoots() bool {
-	return slices.Contains(outputRootGameTypes, g.GameType)
+	return slices.Contains(outputRootGameTypes, types.GameType(g.GameType))
 }
 
 // HasMixedAvailability returns true if some rollup endpoints returned "not found" while others succeeded

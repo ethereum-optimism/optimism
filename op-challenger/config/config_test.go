@@ -150,6 +150,10 @@ func applyValidConfigForSuperAsteriscKona(t *testing.T, cfg *Config) {
 	applyValidConfigForAsteriscKona(t, cfg)
 }
 
+func applyValidConfigForOptimisticZK(cfg *Config) {
+	cfg.RollupRpc = validRollupRpc
+}
+
 func validConfig(t *testing.T, gameType gameTypes.GameType) Config {
 	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validL1BeaconUrl, validRollupRpc, validL2Rpc, validDatadir, gameType)
 	if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType {
@@ -172,6 +176,9 @@ func validConfig(t *testing.T, gameType gameTypes.GameType) Config {
 	}
 	if gameType == gameTypes.SuperAsteriscKonaGameType {
 		applyValidConfigForSuperAsteriscKona(t, &cfg)
+	}
+	if gameType == gameTypes.OptimisticZKGameType {
+		applyValidConfigForOptimisticZK(&cfg)
 	}
 	return cfg
 }
