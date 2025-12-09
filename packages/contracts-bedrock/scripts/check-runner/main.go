@@ -321,26 +321,27 @@ func computeSourceHash() (string, error) {
 
 	var files []string
 
-	// Walk the directory tree, skipping non-source directories
-	err := filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			base := filepath.Base(path)
-			// Skip hidden dirs, node_modules, and build output directories
-			if strings.HasPrefix(base, ".") || base == "node_modules" || base == "forge-artifacts" || base == "artifacts" || base == "cache" || base == "out" {
-				return filepath.SkipDir
+	// Walk src/ and interfaces/ directories for .sol files
+	sourceDirs := []string{"src", "interfaces"}
+	for _, dir := range sourceDirs {
+		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				if os.IsNotExist(err) {
+					return nil // Directory doesn't exist, skip
+				}
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			if strings.HasSuffix(path, ".sol") {
+				files = append(files, path)
 			}
 			return nil
+		})
+		if err != nil && !os.IsNotExist(err) {
+			return "", err
 		}
-		if strings.HasSuffix(path, ".sol") {
-			files = append(files, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return "", err
 	}
 
 	// Include foundry.toml as it affects compilation
@@ -722,8 +723,9 @@ func (r *Runner) doBuildWithCache(phaseName, buildCmd string) error {
 	spinner.Complete()
 	sm.Stop()
 
-	// Save to cache if this was a fresh build
-	if !cacheHit && hash != "" && !r.noCache {
+	// Always save to cache after successful build.
+	// Even on cache hit, tests/scripts may have changed and we want the latest artifacts cached.
+	if hash != "" && !r.noCache {
 		fmt.Printf("%s⟳ Saving to cache %s...%s\n", Dim, hash[:8], Reset)
 		if err := saveToCache(phaseName, hash); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: could not save to cache: %v\n", err)
