@@ -1334,6 +1334,29 @@ jobs:
       - run-contracts-check:
           command: opcm-upgrade-checks-no-build
 
+  contracts-bedrock-checks-fast:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: 2xlarge
+    steps:
+      - utils/checkout-with-mise
+      - install-zstd
+      - install-contracts-dependencies
+      - check-changed:
+          patterns: contracts-bedrock
+      - run:
+          name: Print forge version
+          command: forge --version
+      - run:
+          name: Pull cached artifacts
+          command: bash scripts/ops/pull-artifacts.sh --fallback-to-latest
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Run checks
+          command: just check-fast
+          working_directory: packages/contracts-bedrock
+      - notify-failures-on-develop
+
   todo-issues:
     parameters:
       check_closed:
@@ -2631,6 +2654,9 @@ workflows:
       - contracts-bedrock-checks:
           requires:
             - contracts-bedrock-build
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - contracts-bedrock-checks-fast:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-upload:
