@@ -72,6 +72,7 @@ interface IOptimisticZkGame is IDisputeGame, ISemver {
     function gameType() external view returns (GameType gameType_);
     function gameCreator() external pure returns (address creator_);
     function rootClaim() external pure returns (Claim rootClaim_);
+    function rootClaimByChainId(uint256) external pure returns (Claim rootClaim_);
     function l1Head() external pure returns (Hash l1Head_);
     function extraData() external pure returns (bytes memory extraData_);
     function gameData() external view returns (GameType gameType_, Claim rootClaim_, bytes memory extraData_);

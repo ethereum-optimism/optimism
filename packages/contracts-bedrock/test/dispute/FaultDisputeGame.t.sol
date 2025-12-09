@@ -2078,6 +2078,11 @@ contract FaultDisputeGame_RootClaim_Test is FaultDisputeGame_TestInit {
     function test_rootClaim_succeeds() public view {
         assertEq(gameProxy.rootClaim().raw(), ROOT_CLAIM.raw());
     }
+
+    /// @notice Tests that rootClaimByChainId returns the same value as rootClaim().
+    function test_rootClaimByChainId_succeeds() public view {
+        assertEq(gameProxy.rootClaimByChainId(1).raw(), gameProxy.rootClaim().raw());
+    }
 }
 
 /// @title FaultDisputeGame_ExtraData_Test

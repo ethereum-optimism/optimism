@@ -592,6 +592,13 @@ contract OptimisticZkGame is Clone, ISemver, IDisputeGame {
         rootClaim_ = Claim.wrap(_getArgBytes32(0x14));
     }
 
+    /// @notice Getter for the root claim for a given L2 chain ID.
+    /// @dev For pre-interop games, returns the root claim regardless of chain ID.
+    /// @return rootClaim_ The root claim of the DisputeGame.
+    function rootClaimByChainId(uint256) public pure returns (Claim rootClaim_) {
+        rootClaim_ = rootClaim();
+    }
+
     /// @notice Getter for the parent hash of the L1 block when the dispute game was created.
     /// @dev `clones-with-immutable-args` argument #3
     /// @return l1Head_ The parent hash of the L1 block when the dispute game was created.

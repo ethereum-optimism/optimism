@@ -105,6 +105,7 @@ interface ISuperFaultDisputeGame is IDisputeGame {
     function normalModeCredit(address) external view returns (uint256);
     function l2SequenceNumber() external pure returns (uint256 l2SequenceNumber_);
     function refundModeCredit(address) external view returns (uint256);
+    function rootClaimByChainId(uint256) external pure returns (Claim);
     function resolutionCheckpoints(uint256)
         external
         view
