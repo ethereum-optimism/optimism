@@ -109,7 +109,6 @@ func (s *channelManager) TxFailed(_id txID) {
 // TxConfirmed marks a transaction as confirmed on L1. Only if the channel timed out
 // the channelManager's state is modified.
 func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
-
 	id := _id.String()
 	if channel, ok := s.txChannels[id]; ok {
 		delete(s.txChannels, id)
@@ -225,8 +224,8 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // It will decide whether to switch DA type automatically.
 // When switching DA type, the channelManager state will be rebuilt
 // with a new ChannelConfig.
-func (s *channelManager) TxData(l1Head eth.BlockID, isPectra, isThrottling, forcePublish bool) (txData, error) {
-	channel, err := s.getReadyChannel(l1Head, forcePublish)
+func (s *channelManager) TxData(l1Head eth.BlockID, isPectra bool, isThrottling bool, pi pubInfo) (txData, error) {
+	channel, err := s.getReadyChannel(l1Head, pi)
 	if err != nil {
 		return emptyTxData, err
 	}
@@ -260,11 +259,21 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isPectra, isThrottling, forc
 	s.defaultCfg = newCfg
 
 	// Try again to get data to send on chain.
-	channel, err = s.getReadyChannel(l1Head, forcePublish)
+	channel, err = s.getReadyChannel(l1Head, pi)
 	if err != nil {
 		return emptyTxData, err
 	}
 	return s.nextTxData(channel)
+}
+
+// pubInfo is a struct that contains signal information sent on the publishSignal channel
+type pubInfo struct {
+	// forcePublish is set to true if the current channel should be force-closed and submitted now.
+	forcePublish bool
+
+	// ignoreMaxChannelDuration is set to true if we should keep the current channel open even if it's duration is exceeded.
+	// For example, if we know there are more blocks to load and we want to pack those into the current channel before sending it.
+	ignoreMaxChannelDuration bool
 }
 
 // getReadyChannel returns the next channel ready to submit data, or an error.
@@ -275,9 +284,8 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isPectra, isThrottling, forc
 // there is no channel with txData
 // If forcePublish is true, it will force close channels and
 // generate frames for them.
-func (s *channelManager) getReadyChannel(l1Head eth.BlockID, forcePublish bool) (*channel, error) {
-
-	if forcePublish && s.currentChannel.TotalFrames() == 0 {
+func (s *channelManager) getReadyChannel(l1Head eth.BlockID, pi pubInfo) (*channel, error) {
+	if pi.forcePublish && s.currentChannel.TotalFrames() == 0 {
 		s.log.Info("Force-closing channel and creating frames", "channel_id", s.currentChannel.ID())
 		s.currentChannel.Close()
 		if err := s.currentChannel.OutputFrames(); err != nil {
@@ -315,10 +323,14 @@ func (s *channelManager) getReadyChannel(l1Head eth.BlockID, forcePublish bool) 
 		return nil, err
 	}
 
-	// Register current L1 head only after all pending blocks have been
-	// processed. Even if a timeout will be triggered now, it is better to have
-	// all pending blocks be included in this channel for submission.
-	s.registerL1Block(l1Head)
+	if !pi.ignoreMaxChannelDuration {
+		// Register current L1 head (which checks for the max duration timeout)
+		// only after all blocks in the manager's state have been
+		// processed, and only if we weren't told to ignore the max channel duration.
+		// The aim is to prefer to optimally pack blocks into channels when
+		// instead of timing out the channel when more blocks soon to be processed.
+		s.registerL1Block(l1Head)
+	}
 
 	if err := s.outputFrames(); err != nil {
 		return nil, err
@@ -461,6 +473,8 @@ func (s *channelManager) outputFrames() error {
 	s.log.Info("Channel closed",
 		"id", s.currentChannel.ID(),
 		"blocks_pending", s.pendingBlocks(),
+		"block_cursor", s.blockCursor,
+		"blocks_len", s.blocks.Len(),
 		"num_frames", s.currentChannel.TotalFrames(),
 		"input_bytes", inBytes,
 		"output_bytes", outBytes,
@@ -540,7 +554,6 @@ func (s *channelManager) PruneChannels(num int) {
 	if clearCurrentChannel {
 		s.currentChannel = nil
 	}
-
 }
 
 // PendingDABytes returns the current number of bytes pending to be written to the DA layer (from blocks fetched from L2

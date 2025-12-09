@@ -123,11 +123,33 @@ func TestLoadGame(t *testing.T) {
 			}
 			expectedGames := []gameTypes.GameMetadata{game0, game1, game2}
 			for idx, expected := range expectedGames {
-				expectGetGame(stubRpc, idx, blockHash, expected)
-				actual, err := factory.GetGame(context.Background(), uint64(idx), blockHash)
+				expectGetGame(stubRpc, idx, rpcblock.ByHash(blockHash), expected)
+				actual, err := factory.GetGame(context.Background(), uint64(idx), rpcblock.ByHash(blockHash))
 				require.NoError(t, err)
 				require.Equal(t, expected, actual)
 			}
+		})
+	}
+}
+
+func TestGetGameStatus(t *testing.T) {
+	for _, version := range factoryVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, factory := setupDisputeGameFactoryTest(t, version)
+			game0 := gameTypes.GameMetadata{
+				Index:     0,
+				GameType:  0,
+				Timestamp: 1234,
+				Proxy:     common.Address{0xaa},
+			}
+			expectGetGame(stubRpc, 0, rpcblock.Latest, game0)
+			stubRpc.AddContract(game0.Proxy, snapshots.LoadFaultDisputeGameABI())
+			expectedStatus := gameTypes.GameStatusChallengerWon
+			stubRpc.SetResponse(game0.Proxy, methodVersion, rpcblock.Latest, nil, []interface{}{versLatest})
+			stubRpc.SetResponse(game0.Proxy, methodStatus, rpcblock.Latest, nil, []interface{}{expectedStatus})
+			actual, err := factory.GetGameStatus(context.Background(), 0)
+			require.NoError(t, err)
+			require.Equal(t, expectedStatus, actual)
 		})
 	}
 }
@@ -159,7 +181,7 @@ func TestGetAllGames(t *testing.T) {
 			expectedGames := []gameTypes.GameMetadata{game0, game1, game2}
 			stubRpc.SetResponse(factoryAddr, methodGameCount, rpcblock.ByHash(blockHash), nil, []interface{}{big.NewInt(int64(len(expectedGames)))})
 			for idx, expected := range expectedGames {
-				expectGetGame(stubRpc, idx, blockHash, expected)
+				expectGetGame(stubRpc, idx, rpcblock.ByHash(blockHash), expected)
 			}
 			actualGames, err := factory.GetAllGames(context.Background(), blockHash)
 			require.NoError(t, err)
@@ -201,7 +223,7 @@ func TestGetAllGamesAtOrAfter(t *testing.T) {
 
 					stubRpc.SetResponse(factoryAddr, methodGameCount, rpcblock.ByHash(blockHash), nil, []interface{}{big.NewInt(int64(len(allGames)))})
 					for idx, expected := range allGames {
-						expectGetGame(stubRpc, idx, blockHash, expected)
+						expectGetGame(stubRpc, idx, rpcblock.ByHash(blockHash), expected)
 					}
 					// Set an earliest timestamp that's in the middle of a batch
 					earliestTimestamp := uint64(test.earliestGameIdx)
@@ -427,11 +449,11 @@ func TestDecodeDisputeGameCreatedLog(t *testing.T) {
 	}
 }
 
-func expectGetGame(stubRpc *batchingTest.AbiBasedRpc, idx int, blockHash common.Hash, game gameTypes.GameMetadata) {
+func expectGetGame(stubRpc *batchingTest.AbiBasedRpc, idx int, block rpcblock.Block, game gameTypes.GameMetadata) {
 	stubRpc.SetResponse(
 		factoryAddr,
 		methodGameAtIndex,
-		rpcblock.ByHash(blockHash),
+		block,
 		[]interface{}{big.NewInt(int64(idx))},
 		[]interface{}{
 			game.GameType,

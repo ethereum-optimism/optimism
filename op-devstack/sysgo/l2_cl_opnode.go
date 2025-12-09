@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -51,6 +52,7 @@ type OpNode struct {
 	el               *stack.L2ELNodeID // Optional: nil when using SyncTester
 	userProxy        *tcpproxy.Proxy
 	interopProxy     *tcpproxy.Proxy
+	clock            clock.Clock
 }
 
 var _ L2CLNode = (*OpNode)(nil)
@@ -130,7 +132,7 @@ func (n *OpNode) Start() {
 		n.interopEndpoint = "ws://" + n.interopProxy.Addr()
 	}
 	n.logger.Info("Starting op-node")
-	opNode, err := opnode.NewOpnode(n.logger, n.cfg, func(err error) {
+	opNode, err := opnode.NewOpnode(n.logger, n.cfg, n.clock, func(err error) {
 		n.p.Require().NoError(err, "op-node critical error")
 	})
 	n.p.Require().NoError(err, "op-node failed to start")
@@ -337,6 +339,10 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			cfg:    nodeCfg,
 			logger: logger,
 			p:      p,
+		}
+
+		if orch.timeTravelClock != nil {
+			l2CLNode.clock = orch.timeTravelClock
 		}
 
 		// Set the EL field to link to the L2EL node

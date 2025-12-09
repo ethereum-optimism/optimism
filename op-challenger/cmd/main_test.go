@@ -150,7 +150,7 @@ func TestOpSupervisor(t *testing.T) {
 
 func TestGameTypes(t *testing.T) {
 	t.Run("Default", func(t *testing.T) {
-		expectedDefault := []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.AsteriscKonaGameType, gameTypes.CannonKonaGameType}
+		expectedDefault := []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.CannonKonaGameType}
 		cfg := configForArgs(t, addRequiredArgsForMultipleGameTypesExcept(expectedDefault, "--game-types"))
 		require.Equal(t, expectedDefault, cfg.GameTypes)
 	})
@@ -1409,7 +1409,7 @@ func requiredArgs(gameType gameTypes.GameType) map[string]string {
 		addRequiredSuperCannonKonaArgs(args)
 	case gameTypes.SuperAsteriscKonaGameType:
 		addRequiredSuperAsteriscKonaArgs(args)
-	case gameTypes.AlphabetGameType, gameTypes.FastGameType:
+	case gameTypes.OptimisticZKGameType, gameTypes.AlphabetGameType, gameTypes.FastGameType:
 		addRequiredOutputRootArgs(args)
 	}
 	return args

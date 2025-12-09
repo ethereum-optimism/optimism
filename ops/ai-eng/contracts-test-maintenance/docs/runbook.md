@@ -26,7 +26,7 @@ The system uses a **two-branch scoring algorithm**:
 contracts-test-maintenance/
 ├── VERSION                          # System version
 ├── exclusion.toml                   # Static exclusions configuration
-├── log.jsonl                        # Execution history and results
+├── log.json                         # Latest execution log
 ├── prompt/
 │   └── prompt.md                   # AI instruction template (~2000 lines)
 ├── components/
@@ -36,8 +36,10 @@ contracts-test-maintenance/
 │   ├── prompt-renderer/            # Stage 2: Prompt generation
 │   │   ├── render.py
 │   │   └── output/{run_id}_prompt.md
-│   └── devin-api/                  # Stage 3: AI execution
-│       └── devin_client.py
+│   ├── devin-api/                  # Stage 3: AI execution
+│   │   └── devin_client.py
+│   └── slack-notifier/             # Slack notification preparation
+│       └── prepare_notification.sh
 └── docs/
     └── runbook.md                  # This document
 ```
@@ -237,7 +239,7 @@ All Devin sessions are automatically logged to `log.json` with:
 - `run_time` - Human-readable timestamp of the run
 - `devin_session_id` - Unique Devin session identifier
 - `selected_files` - The test-contract pair that was worked on
-- `status` - Final session status ("finished", "blocked", "expired", "failed")
+- `status` - Final session status ("finished", "finished_no_changes", "blocked", "expired")
 - `pull_request_url` - GitHub PR URL (only present if status is "finished")
 
 #### Duplicate Prevention
@@ -368,7 +370,8 @@ else:
 
 **Logged Status Values** (what gets written to `log.json`):
 - `finished`: Devin status was "blocked" AND PR was successfully created
-- `blocked`: Devin status was "blocked" but no PR URL found
+- `finished_no_changes`: Devin completed analysis and determined no changes needed (uses structured output)
+- `blocked`: Devin status was "blocked" without PR URL or completion signal
 - `expired`: Session timed out
 - Note: User-stopped sessions are not logged
 

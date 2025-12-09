@@ -198,17 +198,28 @@ def monitor_session(session_id):
                     print("Session stopped by user")
                     return
 
-                # Blocked = PR created successfully (can't auto-merge due to review policy)
+                # Blocked = PR created or analysis completed without changes
                 if current_status == "blocked":
+                    structured_output = status.get("structured_output") or {}
                     pr_data = status.get("pull_request") or {}
+
+                    # Check if analysis completed without changes
+                    if structured_output.get("analysis_complete") and not structured_output.get("changes_needed"):
+                        reason = structured_output.get("reason", "no changes needed")
+                        print(f"Session completed - {reason}")
+                        write_log(session_id, "finished_no_changes", status)
+                        return
+
+                    # Check if PR was created
                     if pr_data.get("url"):
                         print("Session completed successfully - PR created")
                         write_log(session_id, "finished", status)
                         return
-                    else:
-                        print(f"Session blocked without PR - check Devin web interface")
-                        # Don't write log.json so artifact won't be stored for failed sessions
-                        sys.exit(1)  # Exit with error code to mark job as failed
+
+                    # Blocked without completion signal
+                    print(f"Session blocked without PR - check Devin web interface")
+                    # Don't write log.json so artifact won't be stored for failed sessions
+                    sys.exit(1)  # Exit with error code to mark job as failed
 
                 # Expired = session timed out
                 if current_status == "expired":

@@ -45,6 +45,7 @@ import { DisputeGames } from "../setup/DisputeGames.sol";
 import { IStaticERC1967Proxy } from "interfaces/universal/IStaticERC1967Proxy.sol";
 import { IDelayedWETH } from "../../interfaces/dispute/IDelayedWETH.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 
 /// @title BadDisputeGameFactoryReturner
 /// @notice Used to return a bad DisputeGameFactory address to the OPContractsManagerStandardValidator. Far easier
@@ -248,7 +249,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
                             IOPContractsManagerV2.UpgradeInput({
                                 systemConfig: systemConfig,
                                 disputeGameConfigs: disputeGameConfigs,
-                                extraInstructions: new IOPContractsManagerV2.ExtraInstruction[](0)
+                                extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
                             })
                         )
                     )

@@ -61,7 +61,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	})
 
 	t.Run("FetchAllNonOutputRootGameTypes", func(t *testing.T) {
-		gameTypes := []uint32{4, 5, 7, 8, 10, 49812} // Treat unknown game types as using super roots
+		gameTypes := []uint32{4, 5, 7, 9, 11, 49812} // Treat unknown game types as using super roots
 		for _, gameType := range gameTypes {
 			gameType := gameType
 			t.Run(fmt.Sprintf("GameType_%d", gameType), func(t *testing.T) {

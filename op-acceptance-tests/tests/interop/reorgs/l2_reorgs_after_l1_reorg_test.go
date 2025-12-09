@@ -8,10 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -66,7 +64,6 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	ctx := t.Ctx()
 
 	sys := presets.NewSimpleInterop(t)
-	ts := sys.TestSequencer.Escape().ControlAPI(sys.L1Network.ChainID())
 
 	cl := sys.L1Network.Escape().L1CLNode(match.FirstL1CL)
 
@@ -76,7 +73,7 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 
 	// sequence a few L1 and L2 blocks
 	for range n + 1 {
-		sequenceL1Block(t, ts, common.Hash{})
+		sys.TestSequencer.SequenceBlock(t, sys.L1Network.ChainID(), common.Hash{})
 
 		sys.L2ChainA.WaitForBlock()
 		sys.L2ChainA.WaitForBlock()
@@ -101,7 +98,7 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	tipL2_preReorg := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
 
 	// reorg the L1 chain -- sequence an alternative L1 block from divergence block parent
-	sequenceL1Block(t, ts, divergence.ParentHash)
+	sys.TestSequencer.SequenceBlock(t, sys.L1Network.ChainID(), divergence.ParentHash)
 
 	// continue building on the alternative L1 chain
 	sys.ControlPlane.FakePoSState(cl.ID(), stack.Start)
@@ -159,9 +156,4 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 
 	// post reorg test validations and checks
 	postChecks(t, sys)
-}
-
-func sequenceL1Block(t devtest.T, ts apis.TestSequencerControlAPI, parent common.Hash) {
-	require.NoError(t, ts.New(t.Ctx(), seqtypes.BuildOpts{Parent: parent}))
-	require.NoError(t, ts.Next(t.Ctx()))
 }

@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -72,7 +73,7 @@ type RollupBoostNode interface {
 	ID() RollupBoostNodeID
 	L2EthClient() apis.L2EthClient
 	L2EngineClient() apis.EngineClient
-	FlashblocksClient() FlashblocksWSClient
+	FlashblocksClient() *client.WSClient
 
 	ELNode
 }

@@ -1,18 +1,20 @@
 package shim
 
 import (
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/stretchr/testify/require"
 )
 
 type RollupBoostNodeConfig struct {
 	ELNodeConfig
-	RollupCfg           *rollup.Config
-	ID                  stack.RollupBoostNodeID
-	FlashblocksWsClient stack.FlashblocksWSClient
+	RollupCfg         *rollup.Config
+	ID                stack.RollupBoostNodeID
+	FlashblocksClient *opclient.WSClient
 }
 
 type RollupBoostNode struct {
@@ -21,7 +23,7 @@ type RollupBoostNode struct {
 
 	id stack.RollupBoostNodeID
 
-	flashblocksWsClient stack.FlashblocksWSClient
+	flashblocksClient *opclient.WSClient
 }
 
 var _ stack.RollupBoostNode = (*RollupBoostNode)(nil)
@@ -34,10 +36,10 @@ func NewRollupBoostNode(cfg RollupBoostNodeConfig) *RollupBoostNode {
 	require.NoError(cfg.T, err)
 
 	return &RollupBoostNode{
-		rpcELNode:           newRpcELNode(cfg.ELNodeConfig),
-		engineClient:        l2EngineClient,
-		id:                  cfg.ID,
-		flashblocksWsClient: cfg.FlashblocksWsClient,
+		rpcELNode:         newRpcELNode(cfg.ELNodeConfig),
+		engineClient:      l2EngineClient,
+		id:                cfg.ID,
+		flashblocksClient: cfg.FlashblocksClient,
 	}
 }
 
@@ -49,8 +51,8 @@ func (r *RollupBoostNode) L2EthClient() apis.L2EthClient {
 	return r.engineClient.L2Client
 }
 
-func (r *RollupBoostNode) FlashblocksClient() stack.FlashblocksWSClient {
-	return r.flashblocksWsClient
+func (r *RollupBoostNode) FlashblocksClient() *opclient.WSClient {
+	return r.flashblocksClient
 }
 
 func (r *RollupBoostNode) L2EngineClient() apis.EngineClient {

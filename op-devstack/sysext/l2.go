@@ -206,6 +206,13 @@ func (o *Orchestrator) hydrateRollupBoostNodeMaybe(node *descriptors.Node, l2Net
 	flashblocksWsUrl, flashblocksWsHeaders, err := o.findProtocolService(rollupBoostService, WebsocketFlashblocksProtocol)
 	require.NoError(err, "failed to find websocket service for rollup-boost")
 
+	wsClient, err := client.DialWS(l2Net.T().Ctx(), client.WSConfig{
+		URL:     flashblocksWsUrl,
+		Headers: flashblocksWsHeaders,
+		Log:     l2Net.Logger(),
+	})
+	require.NoError(err, "failed to create rollup-boost websocket client")
+
 	rollupBoost := shim.NewRollupBoostNode(shim.RollupBoostNodeConfig{
 		ID: stack.NewRollupBoostNodeID(rollupBoostService.Name, l2ID.ChainID()),
 		ELNodeConfig: shim.ELNodeConfig{
@@ -213,13 +220,8 @@ func (o *Orchestrator) hydrateRollupBoostNodeMaybe(node *descriptors.Node, l2Net
 			Client:       o.rpcClient(l2Net.T(), rollupBoostService, RPCProtocol, "/", opts...),
 			ChainID:      l2ID.ChainID(),
 		},
-		RollupCfg: l2Net.RollupConfig(),
-		FlashblocksWsClient: shim.NewFlashblocksWSClient(shim.FlashblocksWSClientConfig{
-			CommonConfig: shim.NewCommonConfig(l2Net.T()),
-			ID:           stack.NewFlashblocksWSClientID(rollupBoostService.Name, l2ID.ChainID()),
-			WsUrl:        flashblocksWsUrl,
-			WsHeaders:    flashblocksWsHeaders,
-		}),
+		RollupCfg:         l2Net.RollupConfig(),
+		FlashblocksClient: wsClient,
 	})
 
 	l2Net.AddRollupBoostNode(rollupBoost)
@@ -264,6 +266,13 @@ func (o *Orchestrator) hydrateOPRBuilderMaybe(node *descriptors.Node, l2Net stac
 	flashblocksWsUrl, flashblocksWsHeaders, err := o.findProtocolService(rbuilderService, WebsocketFlashblocksProtocol)
 	require.NoError(err, "failed to find websocket service for rbuilder")
 
+	wsClient, err := client.DialWS(l2Net.T().Ctx(), client.WSConfig{
+		URL:     flashblocksWsUrl,
+		Headers: flashblocksWsHeaders,
+		Log:     l2Net.Logger(),
+	})
+	require.NoError(err, "failed to create rbuilder websocket client")
+
 	flashblocksBuilder := shim.NewOPRBuilderNode(shim.OPRBuilderNodeConfig{
 		ID: stack.NewOPRBuilderNodeID(rbuilderService.Name, l2ID.ChainID()),
 		ELNodeConfig: shim.ELNodeConfig{
@@ -271,12 +280,7 @@ func (o *Orchestrator) hydrateOPRBuilderMaybe(node *descriptors.Node, l2Net stac
 			Client:       o.rpcClient(l2Net.T(), rbuilderService, RPCProtocol, "/", opts...),
 			ChainID:      l2ID.ChainID(),
 		},
-		FlashblocksWsClient: shim.NewFlashblocksWSClient(shim.FlashblocksWSClientConfig{
-			CommonConfig: shim.NewCommonConfig(l2Net.T()),
-			ID:           stack.NewFlashblocksWSClientID(rbuilderService.Name, l2ID.ChainID()),
-			WsUrl:        flashblocksWsUrl,
-			WsHeaders:    flashblocksWsHeaders,
-		}),
+		FlashblocksClient: wsClient,
 	})
 
 	l2Net.AddOPRBuilderNode(flashblocksBuilder)
