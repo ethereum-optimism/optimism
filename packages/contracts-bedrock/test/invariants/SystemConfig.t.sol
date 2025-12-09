@@ -45,7 +45,8 @@ contract SystemConfig_GasLimitBoundaries_Invariant is Test {
                         l1StandardBridge: address(0),
                         optimismPortal: address(0),
                         optimismMintableERC20Factory: address(0),
-                        delayedWETH: address(0)
+                        delayedWETH: address(0),
+                        opcm: address(0)
                     }),
                     1234, // _l2ChainId
                     ISuperchainConfig(address(0)) // _superchainConfig
