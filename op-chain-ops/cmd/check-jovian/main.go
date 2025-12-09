@@ -248,12 +248,12 @@ func checkExtraData(ctx context.Context, env *actionEnv) error {
 	extra := latest.Extra
 
 	// Validate using op-geth's validation function
-	if err := eip1559.ValidateMinBaseFeeExtraData(extra); err != nil {
+	if err := eip1559.ValidateJovianExtraData(extra); err != nil {
 		return fmt.Errorf("invalid extraData format: %w", err)
 	}
 
 	// Decode the validated extra data using op-geth's decode function
-	denominator, elasticity, minBaseFee := eip1559.DecodeMinBaseFeeExtraData(extra)
+	denominator, elasticity, minBaseFee := eip1559.DecodeJovianExtraData(extra)
 
 	env.log.Info("ExtraData format test: success",
 		"blockNumber", latest.Number,
