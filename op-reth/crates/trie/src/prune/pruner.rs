@@ -53,14 +53,10 @@ where
         }
 
         let latest_block = latest_block_opt.unwrap().0;
-        let mut earliest_block = earliest_block_opt.unwrap().0;
-        if earliest_block == 0 {
-            // block 0 is reserved
-            earliest_block = 1
-        }
+        let earliest_block = earliest_block_opt.unwrap().0;
 
         let interval = latest_block.saturating_sub(earliest_block);
-        if interval < self.min_block_interval {
+        if interval <= self.min_block_interval {
             trace!(target: "trie::pruner", "Nothing to prune");
             return Ok(PrunerOutput::default())
         }
@@ -71,26 +67,52 @@ where
         info!(
             target: "trie::pruner",
             from_block = earliest_block,
-            to_block = new_earliest_block - 1,
+            to_block = new_earliest_block,
            "Starting pruning proof storage",
         );
 
         let mut final_diff = BlockStateDiff::default();
-        for i in earliest_block..new_earliest_block {
-            let diff = self.provider.fetch_trie_updates(i).await?;
+        // Fetch all diffs from (earliest_block + 1) to new_earliest_block (inclusive)
+        // initial proof data contains the state at `earliest_block`, so we start from
+        // earliest_block + 1
+        for i in (earliest_block + 1)..=new_earliest_block {
+            let diff = self.provider.fetch_trie_updates(i).await.inspect_err(|err| {
+                error!(
+                    target: "trie::pruner",
+                    block = i,
+                    ?err,
+                    "Failed to fetch trie updates for block during pruning"
+                )
+            })?;
             final_diff.extend(diff);
         }
         let stat_diff_fetch_duration = t.elapsed();
 
         let new_earliest_block_hash = self
             .block_hash_reader
-            .block_hash(new_earliest_block)?
+            .block_hash(new_earliest_block)
+            .inspect_err(|err| {
+                error!(
+                    target: "trie::pruner",
+                    block = new_earliest_block,
+                    ?err,
+                    "Failed to fetch block hash for new earliest block during pruning"
+                )
+            })?
             .ok_or(PrunerError::BlockNotFound(new_earliest_block))?;
 
         let parent_block_num = new_earliest_block - 1;
         let parent_block_hash = self
             .block_hash_reader
-            .block_hash(parent_block_num)?
+            .block_hash(parent_block_num)
+            .inspect_err(|err| {
+                error!(
+                    target: "trie::pruner",
+                    block = parent_block_num,
+                    ?err,
+                    "Failed to fetch block hash for parent block during pruning"
+                )
+            })?
             .ok_or(PrunerError::BlockNotFound(parent_block_num))?;
 
         let block_with_parent = BlockWithParent {
@@ -106,7 +128,7 @@ where
             fetch_duration: stat_diff_fetch_duration,
             prune_duration: total_duration.saturating_sub(stat_diff_fetch_duration),
             start_block: earliest_block,
-            end_block: new_earliest_block.saturating_sub(1),
+            end_block: new_earliest_block,
             total_entries_pruned: 0, // TODO: get it from the prune_earliest_state
         };
         self.metrics.record_prune_result(prune_output.clone());
@@ -346,8 +368,8 @@ mod tests {
 
         let pruner = OpProofStoragePruner::new(store.clone(), block_hash_reader, 1);
         let out = pruner.run_inner().await.expect("pruner ok");
-        assert_eq!(out.start_block, 1);
-        assert_eq!(out.end_block, 3, "pruned up to 3 (inclusive); new earliest is 4");
+        assert_eq!(out.start_block, 0);
+        assert_eq!(out.end_block, 4, "pruned up to 4 (inclusive); new earliest is 4");
 
         // proof window moved: earliest=4, latest=5
         {
