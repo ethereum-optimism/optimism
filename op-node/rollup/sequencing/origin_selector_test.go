@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/confdepth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -213,9 +212,7 @@ func TestOriginSelectorAdvances(t *testing.T) {
 			// is not ready yet by simulating a NotFound error.
 			l1.ExpectL1BlockRefByHash(c.Hash, c, nil)
 			l1.ExpectL1BlockRefByNumber(d.Number, eth.BlockRef{}, ethereum.NotFound)
-			_, err := s.FindL1Origin(ctx, l2Head)
-			require.ErrorIs(t, err, derive.ErrTemporary)
-			require.ErrorIs(t, err, ethereum.NotFound)
+			requireL1OriginAt(l2Head, c)
 
 			// Now, simulate the block being ready, and ensure
 			// that the origin advances to the next block.
