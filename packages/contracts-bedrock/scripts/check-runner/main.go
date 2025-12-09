@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"flag"
@@ -9,10 +10,13 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/chelnak/ysmrr"
@@ -20,11 +24,19 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Build types
+// ANSI color codes
 const (
-	BuildNone   = "none"
-	BuildSource = "source"
-	BuildDev    = "dev"
+	Reset     = "\033[0m"
+	Bold      = "\033[1m"
+	Dim       = "\033[2m"
+	Red       = "\033[31m"
+	Green     = "\033[32m"
+	Yellow    = "\033[33m"
+	Blue      = "\033[34m"
+	Cyan      = "\033[36m"
+	BoldGreen = "\033[1;32m"
+	BoldRed   = "\033[1;31m"
+	BoldCyan  = "\033[1;36m"
 )
 
 // Cache settings
@@ -41,13 +53,20 @@ type Check struct {
 	Name        string   `yaml:"name"`
 	Description string   `yaml:"description"`
 	Command     string   `yaml:"command"`
-	Build       string   `yaml:"build"`   // none, source, dev
-	Depends     []string `yaml:"depends"` // checks that must complete first
+	Depends     []string `yaml:"depends"`
+}
+
+// Phase represents a phase of checks
+type Phase struct {
+	Name     string  `yaml:"name"`
+	Build    string  `yaml:"build"`    // optional build command
+	Parallel *bool   `yaml:"parallel"` // default true
+	Checks   []Check `yaml:"checks"`
 }
 
 // Config represents the check runner configuration
 type Config struct {
-	Checks []Check `yaml:"checks"`
+	Phases []Phase `yaml:"phases"`
 }
 
 // CheckResult holds the result of a check execution
@@ -66,23 +85,33 @@ type checkState struct {
 
 // Runner orchestrates check execution
 type Runner struct {
-	config     *Config
-	results    map[string]*CheckResult
-	states     map[string]*checkState
-	mu         sync.Mutex
-	noBuild    bool
-	verbose    bool
-	noCache    bool
-	clean      bool
-	tempDir    string
-	sourceHash string
+	config       *Config
+	results      map[string]*CheckResult
+	states       map[string]*checkState
+	mu           sync.Mutex
+	noBuild      bool
+	verbose      bool
+	noCache      bool
+	clean        bool
+	tempDir      string
+	sourceHash   string
+	totalPassed  int
+	totalFailed  int
+	totalSkipped int
+	failedChecks []string
+	buildError   string // Build failure output to show at end
+
+	// Signal handling
+	interrupted  atomic.Bool
+	sigCount     atomic.Int32
+	cancelFunc   context.CancelFunc
 }
 
 func main() {
 	var (
 		configPath string
 		listChecks bool
-		runCheck   string
+		runChecks  string
 		noBuild    bool
 		verbose    bool
 		noCache    bool
@@ -91,8 +120,8 @@ func main() {
 
 	flag.StringVar(&configPath, "config", "", "Path to checks.yaml config file")
 	flag.BoolVar(&listChecks, "list", false, "List available checks")
-	flag.StringVar(&runCheck, "run", "", "Run specific check(s), comma-separated")
-	flag.BoolVar(&noBuild, "no-build", false, "Skip builds and checks that require them")
+	flag.StringVar(&runChecks, "run", "", "Run specific check(s), comma-separated")
+	flag.BoolVar(&noBuild, "no-build", false, "Skip phases that have builds")
 	flag.BoolVar(&verbose, "verbose", false, "Show output for all checks, not just failures")
 	flag.BoolVar(&noCache, "no-cache", false, "Disable build caching")
 	flag.BoolVar(&clean, "clean", false, "Clean build artifacts before each build (forces fresh compilation)")
@@ -100,18 +129,11 @@ func main() {
 
 	// Find config file
 	if configPath == "" {
-		candidates := []string{
-			"scripts/check-runner/checks.yaml",
-			"checks.yaml",
-		}
-		for _, c := range candidates {
-			if _, err := os.Stat(c); err == nil {
-				configPath = c
-				break
-			}
-		}
-		if configPath == "" {
-			fmt.Fprintf(os.Stderr, "Error: could not find checks.yaml config file\n")
+		// Default to checks.yaml in current directory
+		if _, err := os.Stat("checks.yaml"); err == nil {
+			configPath = "checks.yaml"
+		} else {
+			fmt.Fprintf(os.Stderr, "Error: could not find checks.yaml (use -config to specify path)\n")
 			os.Exit(1)
 		}
 	}
@@ -128,37 +150,32 @@ func main() {
 	}
 
 	runner := &Runner{
-		config:  config,
-		results: make(map[string]*CheckResult),
-		states:  make(map[string]*checkState),
-		noBuild: noBuild,
-		verbose: verbose,
-		noCache: noCache,
-		clean:   clean,
+		config:       config,
+		results:      make(map[string]*CheckResult),
+		states:       make(map[string]*checkState),
+		noBuild:      noBuild,
+		verbose:      verbose,
+		noCache:      noCache,
+		clean:        clean,
+		failedChecks: []string{},
 	}
 
-	// Determine which checks to run
-	var checksToRun []string
-	if runCheck != "" {
-		checksToRun = strings.Split(runCheck, ",")
-		for i, name := range checksToRun {
-			checksToRun[i] = strings.TrimSpace(name)
-		}
-		// Validate check names
-		for _, name := range checksToRun {
+	// Parse which checks to run (if specified)
+	var selectedChecks map[string]bool
+	if runChecks != "" {
+		selectedChecks = make(map[string]bool)
+		for _, name := range strings.Split(runChecks, ",") {
+			name = strings.TrimSpace(name)
 			if !runner.checkExists(name) {
 				fmt.Fprintf(os.Stderr, "Error: unknown check '%s'\n", name)
 				fmt.Fprintf(os.Stderr, "Run with -list to see available checks\n")
 				os.Exit(1)
 			}
-		}
-	} else {
-		for _, c := range config.Checks {
-			checksToRun = append(checksToRun, c.Name)
+			selectedChecks[name] = true
 		}
 	}
 
-	success := runner.Run(checksToRun)
+	success := runner.Run(selectedChecks)
 	if !success {
 		os.Exit(1)
 	}
@@ -175,89 +192,76 @@ func loadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	// Default build type to "none"
-	for i := range config.Checks {
-		if config.Checks[i].Build == "" {
-			config.Checks[i].Build = BuildNone
-		}
-	}
-
 	return &config, nil
 }
 
 func printCheckList(config *Config) {
 	fmt.Println("Available checks:")
 	fmt.Println()
-	maxNameLen := 0
-	for _, c := range config.Checks {
-		if len(c.Name) > maxNameLen {
-			maxNameLen = len(c.Name)
+
+	for _, phase := range config.Phases {
+		fmt.Printf("%s%s%s", BoldCyan, phase.Name, Reset)
+		if phase.Build != "" {
+			fmt.Printf(" %s(builds)%s", Dim, Reset)
 		}
-	}
-	for _, c := range config.Checks {
-		info := ""
-		if c.Build != "" && c.Build != BuildNone {
-			info += fmt.Sprintf(" [build: %s]", c.Build)
+		if phase.Parallel != nil && !*phase.Parallel {
+			fmt.Printf(" %s(sequential)%s", Dim, Reset)
 		}
-		if len(c.Depends) > 0 {
-			info += fmt.Sprintf(" [depends: %s]", strings.Join(c.Depends, ", "))
+		fmt.Println()
+
+		maxNameLen := 0
+		for _, c := range phase.Checks {
+			if len(c.Name) > maxNameLen {
+				maxNameLen = len(c.Name)
+			}
 		}
-		fmt.Printf("  %-*s  %s%s\n", maxNameLen, c.Name, c.Description, info)
+
+		for _, c := range phase.Checks {
+			info := ""
+			if len(c.Depends) > 0 {
+				info = fmt.Sprintf(" %s→ %s%s", Dim, strings.Join(c.Depends, ", "), Reset)
+			}
+			fmt.Printf("  %-*s  %s%s%s%s\n", maxNameLen, c.Name, Dim, c.Description, Reset, info)
+		}
+		fmt.Println()
 	}
 }
 
 func (r *Runner) checkExists(name string) bool {
-	for _, c := range r.config.Checks {
-		if c.Name == name {
-			return true
+	for _, phase := range r.config.Phases {
+		for _, c := range phase.Checks {
+			if c.Name == name {
+				return true
+			}
 		}
 	}
 	return false
 }
 
 func (r *Runner) getCheck(name string) *Check {
-	for i := range r.config.Checks {
-		if r.config.Checks[i].Name == name {
-			return &r.config.Checks[i]
+	for _, phase := range r.config.Phases {
+		for i := range phase.Checks {
+			if phase.Checks[i].Name == name {
+				return &phase.Checks[i]
+			}
 		}
 	}
 	return nil
-}
-
-// groupByBuild groups checks by their build requirement
-func (r *Runner) groupByBuild(checkNames []string) map[string][]string {
-	groups := make(map[string][]string)
-	for _, name := range checkNames {
-		check := r.getCheck(name)
-		if check == nil {
-			continue
-		}
-		build := check.Build
-		if build == "" {
-			build = BuildNone
-		}
-		groups[build] = append(groups[build], name)
-	}
-	return groups
 }
 
 // ============================================================================
 // Build Cache Functions
 // ============================================================================
 
-// computeSourceHash computes SHA256 hash of all .sol files and foundry.toml
 func computeSourceHash() (string, error) {
 	h := sha256.New()
 
-	// Collect all files to hash
 	var files []string
 
-	// Add all .sol files
 	err := filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		// Skip hidden dirs and common non-source dirs
 		if info.IsDir() {
 			base := filepath.Base(path)
 			if strings.HasPrefix(base, ".") || base == "node_modules" || base == "forge-artifacts" || base == "artifacts" || base == "cache" || base == "out" {
@@ -274,19 +278,14 @@ func computeSourceHash() (string, error) {
 		return "", err
 	}
 
-	// Add foundry.toml
 	if _, err := os.Stat("foundry.toml"); err == nil {
 		files = append(files, "foundry.toml")
 	}
 
-	// Sort for determinism
 	sort.Strings(files)
 
-	// Hash each file
 	for _, path := range files {
-		// Include path in hash
 		h.Write([]byte(path))
-
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return "", err
@@ -294,29 +293,25 @@ func computeSourceHash() (string, error) {
 		h.Write(data)
 	}
 
-	return hex.EncodeToString(h.Sum(nil))[:16], nil // Use first 16 chars
+	return hex.EncodeToString(h.Sum(nil))[:16], nil
 }
 
-// getCachePath returns the cache directory for a build type and hash
-func getCachePath(buildType, hash string) string {
-	return filepath.Join(CacheDir, buildType, hash)
+func getCachePath(phaseName, hash string) string {
+	return filepath.Join(CacheDir, phaseName, hash)
 }
 
-// cacheExists checks if a cache entry exists
-func cacheExists(buildType, hash string) bool {
-	path := getCachePath(buildType, hash)
+func cacheExists(phaseName, hash string) bool {
+	path := getCachePath(phaseName, hash)
 	_, err := os.Stat(path)
 	return err == nil
 }
 
-// getLatestCachePath returns the path to the "latest" cache for a build type
-func getLatestCachePath(buildType string) string {
-	return filepath.Join(CacheDir, buildType, "latest")
+func getLatestCachePath(phaseName string) string {
+	return filepath.Join(CacheDir, phaseName, "latest")
 }
 
-// getLatestCache resolves the "latest" symlink and returns the hash
-func getLatestCache(buildType string) string {
-	latestPath := getLatestCachePath(buildType)
+func getLatestCache(phaseName string) string {
+	latestPath := getLatestCachePath(phaseName)
 	target, err := os.Readlink(latestPath)
 	if err != nil {
 		return ""
@@ -324,9 +319,8 @@ func getLatestCache(buildType string) string {
 	return filepath.Base(target)
 }
 
-// restoreFromCache restores artifacts from cache to working directory
-func restoreFromCache(buildType, hash string) error {
-	cachePath := getCachePath(buildType, hash)
+func restoreFromCache(phaseName, hash string) error {
+	cachePath := getCachePath(phaseName, hash)
 	if _, err := os.Stat(cachePath); err != nil {
 		return fmt.Errorf("cache not found: %s", cachePath)
 	}
@@ -334,7 +328,6 @@ func restoreFromCache(buildType, hash string) error {
 	for _, dir := range artifactDirs {
 		src := filepath.Join(cachePath, dir)
 		if _, err := os.Stat(src); err == nil {
-			// Remove existing and copy from cache
 			os.RemoveAll(dir)
 			if err := copyDir(src, dir); err != nil {
 				return fmt.Errorf("failed to restore %s: %w", dir, err)
@@ -344,16 +337,13 @@ func restoreFromCache(buildType, hash string) error {
 	return nil
 }
 
-// saveToCache saves current artifacts to cache
-func saveToCache(buildType, hash string) error {
-	cachePath := getCachePath(buildType, hash)
+func saveToCache(phaseName, hash string) error {
+	cachePath := getCachePath(phaseName, hash)
 
-	// Create cache directory
 	if err := os.MkdirAll(cachePath, 0755); err != nil {
 		return err
 	}
 
-	// Copy each artifact directory
 	for _, dir := range artifactDirs {
 		if _, err := os.Stat(dir); err == nil {
 			dst := filepath.Join(cachePath, dir)
@@ -363,29 +353,24 @@ func saveToCache(buildType, hash string) error {
 		}
 	}
 
-	// Update "latest" symlink
-	latestPath := getLatestCachePath(buildType)
-	os.Remove(latestPath) // Remove old symlink
+	latestPath := getLatestCachePath(phaseName)
+	os.Remove(latestPath)
 	if err := os.Symlink(hash, latestPath); err != nil {
-		// Non-fatal
 		fmt.Fprintf(os.Stderr, "Warning: could not update latest symlink: %v\n", err)
 	}
 
-	// Evict old caches
-	evictOldCaches(buildType)
+	evictOldCaches(phaseName)
 
 	return nil
 }
 
-// evictOldCaches keeps only the most recent MaxCacheCount caches
-func evictOldCaches(buildType string) {
-	cacheTypeDir := filepath.Join(CacheDir, buildType)
+func evictOldCaches(phaseName string) {
+	cacheTypeDir := filepath.Join(CacheDir, phaseName)
 	entries, err := os.ReadDir(cacheTypeDir)
 	if err != nil {
 		return
 	}
 
-	// Collect cache entries (excluding "latest" symlink)
 	type cacheEntry struct {
 		name    string
 		modTime time.Time
@@ -406,12 +391,10 @@ func evictOldCaches(buildType string) {
 		})
 	}
 
-	// Sort by mod time (newest first)
 	sort.Slice(caches, func(i, j int) bool {
 		return caches[i].modTime.After(caches[j].modTime)
 	})
 
-	// Remove oldest entries beyond MaxCacheCount
 	for i := MaxCacheCount; i < len(caches); i++ {
 		path := filepath.Join(cacheTypeDir, caches[i].name)
 		os.RemoveAll(path)
@@ -422,48 +405,82 @@ func evictOldCaches(buildType string) {
 // Main Run Logic
 // ============================================================================
 
-func (r *Runner) Run(checkNames []string) bool {
-	// Group checks by build type
-	groups := r.groupByBuild(checkNames)
-
-	// Determine build order
-	buildOrder := []string{BuildNone, BuildSource, BuildDev}
-
-	// Check if we need to do any builds
-	needsBuild := false
-	for _, build := range []string{BuildSource, BuildDev} {
-		if len(groups[build]) > 0 && !r.noBuild {
-			needsBuild = true
+func (r *Runner) Run(selectedChecks map[string]bool) bool {
+	// Check if any phase has a build
+	hasBuilds := false
+	for _, phase := range r.config.Phases {
+		if phase.Build != "" {
+			hasBuilds = true
 			break
 		}
 	}
 
 	// Save current artifacts (to restore after all checks)
-	if needsBuild {
+	if hasBuilds && !r.noBuild {
 		if err := r.saveWorkingArtifacts(); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: could not save artifacts: %v\n", err)
 		}
 		defer r.restoreWorkingArtifacts()
 	}
 
-	// Run checks in phases
-	allSuccess := true
+	// Set up signal handling for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	r.cancelFunc = cancel
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		for sig := range sigChan {
+			count := r.sigCount.Add(1)
+			if count == 1 {
+				fmt.Printf("\n%s⚠ Interrupted%s - restoring artifacts...%s\n", Yellow, Dim, Reset)
+				r.interrupted.Store(true)
+				cancel()
+			} else if count >= 3 {
+				fmt.Printf("\n%s✗ Force exit%s\n", BoldRed, Reset)
+				os.Exit(130) // Standard exit code for SIGINT
+			} else {
+				fmt.Printf("\n%sPress Ctrl+C %d more time(s) to force exit%s\n", Dim, 3-count, Reset)
+			}
+			_ = sig // acknowledge
+		}
+	}()
+	defer signal.Stop(sigChan)
+
 	hashComputed := false
-	for _, build := range buildOrder {
-		checks := groups[build]
-		if len(checks) == 0 {
+	_ = ctx // Used by signal handler
+
+	for _, phase := range r.config.Phases {
+		// Check for interruption at start of each phase
+		if r.interrupted.Load() {
+			break
+		}
+
+		// Filter checks for this phase if specific checks requested
+		var checksToRun []Check
+		for _, c := range phase.Checks {
+			if selectedChecks == nil || selectedChecks[c.Name] {
+				checksToRun = append(checksToRun, c)
+			}
+		}
+
+		if len(checksToRun) == 0 {
 			continue
 		}
 
-		// Skip build-requiring checks if -no-build
-		if r.noBuild && build != BuildNone {
-			fmt.Printf("Skipping %d checks requiring build-%s (--no-build)\n", len(checks), build)
+		// Skip phases with builds if -no-build
+		if phase.Build != "" && r.noBuild {
+			fmt.Printf("%s⊘ %s%s %s(skipped - no build)%s\n", Yellow, phase.Name, Reset, Dim, Reset)
 			continue
 		}
 
-		// Compute source hash after "none" phase (after lint-fix may have changed files)
-		// but before the first build
-		if build != BuildNone && !hashComputed && !r.noCache {
+		// Print phase header
+		fmt.Printf("\n%s→ %s%s\n", BoldCyan, phase.Name, Reset)
+
+		// Compute source hash before first build phase
+		if phase.Build != "" && !hashComputed && !r.noCache {
 			hash, err := computeSourceHash()
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: could not compute source hash: %v\n", err)
@@ -473,87 +490,145 @@ func (r *Runner) Run(checkNames []string) bool {
 			hashComputed = true
 		}
 
-		// Do the build if needed (with caching)
-		if build != BuildNone {
-			if err := r.doBuildWithCache(build); err != nil {
-				fmt.Fprintf(os.Stderr, "Build failed: %v\n", err)
+		// Run build if specified
+		if phase.Build != "" {
+			if err := r.doBuildWithCache(phase.Name, phase.Build); err != nil {
+				if r.interrupted.Load() {
+					break // Don't print build failed if interrupted
+				}
+				fmt.Fprintf(os.Stderr, "%s✗ Build failed%s\n", BoldRed, Reset)
+				r.printFinalSummary()
 				return false
 			}
 		}
 
-		// Run checks for this phase
-		if build == BuildNone {
-			fmt.Println("▶ Running checks (no build required)...")
-		} else {
-			fmt.Printf("▶ Running checks (build: %s)...\n", build)
+		// Check for interruption after build
+		if r.interrupted.Load() {
+			break
 		}
 
-		if !r.runChecks(checks) {
-			allSuccess = false
+		// Run checks
+		parallel := phase.Parallel == nil || *phase.Parallel
+		r.runPhaseChecks(checksToRun, parallel)
+	}
+
+	r.printFinalSummary()
+	return r.totalFailed == 0 && !r.interrupted.Load()
+}
+
+func (r *Runner) printFinalSummary() {
+	fmt.Println()
+
+	// If interrupted, just show that we're done restoring
+	if r.interrupted.Load() {
+		fmt.Printf("%s✓ Artifacts restored%s\n", Green, Reset)
+		return
+	}
+
+	// Print build error with box drawing
+	if r.buildError != "" {
+		fmt.Printf("%s┌─ build%s\n", Red, Reset)
+		lines := strings.Split(strings.TrimSpace(r.buildError), "\n")
+		for _, line := range lines {
+			fmt.Printf("%s│%s %s\n", Red, Reset, line)
+		}
+		fmt.Printf("%s└%s\n", Red, Reset)
+		fmt.Println()
+	}
+
+	// Print failed check details with box drawing
+	if len(r.failedChecks) > 0 {
+		for _, name := range r.failedChecks {
+			result := r.results[name]
+			if result != nil && result.Output != "" {
+				fmt.Printf("%s┌─ %s%s\n", Red, name, Reset)
+				lines := strings.Split(strings.TrimSpace(result.Output), "\n")
+				for _, line := range lines {
+					fmt.Printf("%s│%s %s\n", Red, Reset, line)
+				}
+				fmt.Printf("%s└%s\n", Red, Reset)
+				fmt.Println()
+			}
 		}
 	}
 
-	return allSuccess
+	// Print final status
+	total := r.totalPassed + r.totalFailed + r.totalSkipped
+	if r.buildError != "" {
+		fmt.Printf("%s✗ Build failed%s\n", BoldRed, Reset)
+	} else if r.totalFailed == 0 {
+		fmt.Printf("%s✓ All checks passed%s", BoldGreen, Reset)
+		fmt.Printf(" %s(%d/%d)%s\n", Dim, r.totalPassed, total, Reset)
+	} else {
+		fmt.Printf("%s✗ %d check(s) failed%s", BoldRed, r.totalFailed, Reset)
+		fmt.Printf(" %s(%d passed, %d failed)%s\n", Dim, r.totalPassed, r.totalFailed, Reset)
+	}
 }
 
-func (r *Runner) doBuildWithCache(buildType string) error {
+func (r *Runner) doBuildWithCache(phaseName, buildCmd string) error {
 	hash := r.sourceHash
 	cacheHit := false
 
-	// If --clean flag is set, remove all artifact directories before building
 	if r.clean {
-		fmt.Printf("▶ Cleaning artifacts for fresh %s build...\n", buildType)
+		fmt.Printf("%s⟳ Cleaning artifacts...%s\n", Dim, Reset)
 		for _, dir := range artifactDirs {
 			os.RemoveAll(dir)
 		}
 	} else {
-		// Check for exact cache hit (only if not doing clean build)
-		if hash != "" && !r.noCache && cacheExists(buildType, hash) {
-			fmt.Printf("▶ Restoring %s build from cache (%s)...\n", buildType, hash)
-			if err := restoreFromCache(buildType, hash); err != nil {
+		if hash != "" && !r.noCache && cacheExists(phaseName, hash) {
+			fmt.Printf("%s⟳ Restoring from cache %s...%s\n", Dim, hash[:8], Reset)
+			if err := restoreFromCache(phaseName, hash); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: cache restore failed: %v\n", err)
 			} else {
 				cacheHit = true
 			}
 		}
 
-		// No exact match - try to restore "latest" for incremental build
 		if !cacheHit && hash != "" && !r.noCache {
-			latest := getLatestCache(buildType)
+			latest := getLatestCache(phaseName)
 			if latest != "" && latest != hash {
-				fmt.Printf("▶ Restoring latest %s cache for incremental build...\n", buildType)
-				if err := restoreFromCache(buildType, latest); err != nil {
-					// Non-fatal, will just do full build
+				fmt.Printf("%s⟳ Restoring latest cache for incremental build...%s\n", Dim, Reset)
+				if err := restoreFromCache(phaseName, latest); err != nil {
 					fmt.Fprintf(os.Stderr, "Warning: could not restore latest cache: %v\n", err)
 				}
 			}
 		}
 	}
 
-	// Always run the build command after restoring cache (or cleaning).
-	// If cache is accurate, forge will report "No files changed" and return quickly.
-	// If cache is stale or cleaned, this ensures we get a correct build.
-	fmt.Printf("▶ Building (%s)...\n", buildType)
-	var cmd *exec.Cmd
-	switch buildType {
-	case BuildSource:
-		cmd = exec.Command("just", "build-source")
-	case BuildDev:
-		cmd = exec.Command("just", "forge-build-dev")
-	default:
-		return fmt.Errorf("unknown build type: %s", buildType)
-	}
+	// Run build with spinner
+	sm := ysmrr.NewSpinnerManager(
+		ysmrr.WithSpinnerColor(colors.FgHiBlue),
+	)
+	spinner := sm.AddSpinner(fmt.Sprintf("Building (%s)", buildCmd))
+	sm.Start()
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	startTime := time.Now()
+	cmd := exec.Command("sh", "-c", buildCmd)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	duration := time.Since(startTime)
+
+	if err != nil {
+		spinner.UpdateMessage(fmt.Sprintf("%sBuild failed%s (%s) %s%.1fs%s", Red, Reset, buildCmd, Dim, duration.Seconds(), Reset))
+		spinner.Error()
+		sm.Stop()
+		// Store build output for display at end
+		output := stdout.String() + stderr.String()
+		if output != "" {
+			r.buildError = output
+		}
 		return err
 	}
 
-	// Save to cache (if we didn't have an exact cache hit)
+	spinner.UpdateMessage(fmt.Sprintf("%sBuilt%s (%s) %s%.1fs%s", Green, Reset, buildCmd, Dim, duration.Seconds(), Reset))
+	spinner.Complete()
+	sm.Stop()
+
 	if !cacheHit && hash != "" && !r.noCache {
-		fmt.Printf("▶ Saving %s build to cache (%s)...\n", buildType, hash)
-		if err := saveToCache(buildType, hash); err != nil {
+		fmt.Printf("%s⟳ Saving to cache %s...%s\n", Dim, hash[:8], Reset)
+		if err := saveToCache(phaseName, hash); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: could not save to cache: %v\n", err)
 		}
 	}
@@ -561,7 +636,6 @@ func (r *Runner) doBuildWithCache(buildType string) error {
 	return nil
 }
 
-// saveWorkingArtifacts saves current artifacts to temp dir
 func (r *Runner) saveWorkingArtifacts() error {
 	tempDir, err := os.MkdirTemp("", "check-runner-working-")
 	if err != nil {
@@ -580,7 +654,6 @@ func (r *Runner) saveWorkingArtifacts() error {
 	return nil
 }
 
-// restoreWorkingArtifacts restores artifacts from temp dir
 func (r *Runner) restoreWorkingArtifacts() {
 	if r.tempDir == "" {
 		return
@@ -607,77 +680,82 @@ func copyDir(src, dst string) error {
 // Check Execution
 // ============================================================================
 
-// depsReady returns true if all dependencies of a check are satisfied (completed successfully)
-func (r *Runner) depsReady(name string, checkNames []string) bool {
-	check := r.getCheck(name)
-	if check == nil || len(check.Depends) == 0 {
-		return true
+func (r *Runner) runPhaseChecks(checks []Check, parallel bool) {
+	if len(checks) == 0 {
+		return
 	}
 
-	// Build set of checks in this phase
-	inPhase := make(map[string]bool)
-	for _, n := range checkNames {
-		inPhase[n] = true
+	if parallel {
+		r.runChecksParallel(checks)
+	} else {
+		r.runChecksSequential(checks)
 	}
-
-	for _, dep := range check.Depends {
-		// Only check deps that are in this phase
-		if !inPhase[dep] {
-			continue
-		}
-		state := r.states[dep]
-		if state == nil || state.status != "pass" {
-			return false
-		}
-	}
-	return true
 }
 
-// depsFailed returns true if any dependency failed (so this check should be skipped)
-func (r *Runner) depsFailed(name string, checkNames []string) bool {
-	check := r.getCheck(name)
-	if check == nil || len(check.Depends) == 0 {
-		return false
-	}
-
-	// Build set of checks in this phase
-	inPhase := make(map[string]bool)
-	for _, n := range checkNames {
-		inPhase[n] = true
-	}
-
-	for _, dep := range check.Depends {
-		if !inPhase[dep] {
-			continue
+func (r *Runner) runChecksSequential(checks []Check) {
+	for _, check := range checks {
+		// Check for interruption
+		if r.interrupted.Load() {
+			return
 		}
-		state := r.states[dep]
-		if state != nil && state.status == "fail" {
-			return true
+
+		startTime := time.Now()
+		cmd := exec.Command("sh", "-c", check.Command)
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		err := cmd.Run()
+		duration := time.Since(startTime)
+
+		// Check for interruption after command completes
+		if r.interrupted.Load() {
+			return
+		}
+
+		output := stdout.String()
+		if stderr.Len() > 0 {
+			if output != "" {
+				output += "\n"
+			}
+			output += stderr.String()
+		}
+
+		result := &CheckResult{
+			Name:     check.Name,
+			Success:  err == nil,
+			Output:   output,
+			Duration: duration,
+		}
+		r.results[check.Name] = result
+
+		if result.Success {
+			fmt.Printf("%s✓%s %s %s%.1fs%s\n", Green, Reset, check.Name, Dim, duration.Seconds(), Reset)
+			r.totalPassed++
+		} else {
+			fmt.Printf("%s✗%s %s %s%.1fs%s\n", Red, Reset, check.Name, Dim, duration.Seconds(), Reset)
+			r.totalFailed++
+			r.failedChecks = append(r.failedChecks, check.Name)
 		}
 	}
-	return false
 }
 
-func (r *Runner) runChecks(checkNames []string) bool {
-	// Create spinner manager
+func (r *Runner) runChecksParallel(checks []Check) {
 	sm := ysmrr.NewSpinnerManager(
 		ysmrr.WithSpinnerColor(colors.FgHiBlue),
 	)
 
-	// Initialize spinners for each check
-	for _, name := range checkNames {
-		spinner := sm.AddSpinner(name)
-		r.states[name] = &checkState{status: "pending", spinner: spinner}
+	checkNames := make([]string, len(checks))
+	for i, c := range checks {
+		checkNames[i] = c.Name
+		spinner := sm.AddSpinner(c.Name)
+		r.states[c.Name] = &checkState{status: "pending", spinner: spinner}
 	}
 
-	// Start spinner manager
 	sm.Start()
 
-	// Channel for ready checks
-	ready := make(chan string, len(checkNames))
+	ready := make(chan string, len(checks))
 	var wg sync.WaitGroup
 
-	// Queue checks with no dependencies initially
 	r.mu.Lock()
 	for _, name := range checkNames {
 		if r.depsReady(name, checkNames) {
@@ -687,34 +765,41 @@ func (r *Runner) runChecks(checkNames []string) bool {
 	}
 	r.mu.Unlock()
 
-	// Worker pool
 	numWorkers := 8
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for name := range ready {
-				r.runCheck(name)
+				// Check for interruption before starting each check
+				if r.interrupted.Load() {
+					return
+				}
+				r.runCheckParallel(name)
 			}
 		}()
 	}
 
-	// Scheduler: watch for completed checks and queue newly-ready ones
 	go func() {
 		for {
+			// Check for interruption
+			if r.interrupted.Load() {
+				close(ready)
+				return
+			}
+
 			r.mu.Lock()
 			allDone := true
 			for _, name := range checkNames {
 				state := r.states[name]
 				if state.status == "pending" {
-					// Check if deps failed -> skip this check
 					if r.depsFailed(name, checkNames) {
 						state.status = "skipped"
-						state.spinner.UpdateMessage(name + " (skipped - dependency failed)")
+						state.spinner.UpdateMessage(fmt.Sprintf("  %s %s(skipped)%s", name, Dim, Reset))
 						state.spinner.Error()
+						r.totalSkipped++
 						continue
 					}
-					// Check if deps are now ready
 					if r.depsReady(name, checkNames) {
 						state.status = "queued"
 						ready <- name
@@ -738,10 +823,71 @@ func (r *Runner) runChecks(checkNames []string) bool {
 	wg.Wait()
 	sm.Stop()
 
-	return r.printResults(checkNames)
+	// Count results
+	r.mu.Lock()
+	for _, name := range checkNames {
+		state := r.states[name]
+		if state == nil {
+			continue
+		}
+		switch state.status {
+		case "pass":
+			r.totalPassed++
+		case "fail":
+			r.totalFailed++
+			r.failedChecks = append(r.failedChecks, name)
+		}
+	}
+	r.mu.Unlock()
 }
 
-func (r *Runner) runCheck(name string) {
+func (r *Runner) depsReady(name string, checkNames []string) bool {
+	check := r.getCheck(name)
+	if check == nil || len(check.Depends) == 0 {
+		return true
+	}
+
+	inPhase := make(map[string]bool)
+	for _, n := range checkNames {
+		inPhase[n] = true
+	}
+
+	for _, dep := range check.Depends {
+		if !inPhase[dep] {
+			continue
+		}
+		state := r.states[dep]
+		if state == nil || state.status != "pass" {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *Runner) depsFailed(name string, checkNames []string) bool {
+	check := r.getCheck(name)
+	if check == nil || len(check.Depends) == 0 {
+		return false
+	}
+
+	inPhase := make(map[string]bool)
+	for _, n := range checkNames {
+		inPhase[n] = true
+	}
+
+	for _, dep := range check.Depends {
+		if !inPhase[dep] {
+			continue
+		}
+		state := r.states[dep]
+		if state != nil && state.status == "fail" {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Runner) runCheckParallel(name string) {
 	check := r.getCheck(name)
 	if check == nil {
 		return
@@ -752,8 +898,6 @@ func (r *Runner) runCheck(name string) {
 	state.status = "running"
 	spinner := state.spinner
 	r.mu.Unlock()
-
-	spinner.UpdateMessage(name + " (running)")
 
 	startTime := time.Now()
 	cmd := exec.Command("sh", "-c", check.Command)
@@ -787,61 +931,16 @@ func (r *Runner) runCheck(name string) {
 	}
 	r.mu.Unlock()
 
+	// Format: "✓ name 0.5s" or "✗ name 0.5s"
+	// Note: spinner.Complete() and spinner.Error() add ✓/✗ prefix automatically
+	timeStr := fmt.Sprintf("%s%.1fs%s", Dim, duration.Seconds(), Reset)
 	if result.Success {
-		spinner.UpdateMessage(fmt.Sprintf("%s (%.1fs)", name, duration.Seconds()))
+		spinner.UpdateMessage(fmt.Sprintf("%s %s", name, timeStr))
 		spinner.Complete()
 	} else {
-		spinner.UpdateMessage(fmt.Sprintf("%s (%.1fs)", name, duration.Seconds()))
+		spinner.UpdateMessage(fmt.Sprintf("%s %s", name, timeStr))
 		spinner.Error()
 	}
-}
-
-func (r *Runner) printResults(checkNames []string) bool {
-	fmt.Println()
-
-	hasFailures := false
-	passCount := 0
-	failCount := 0
-
-	r.mu.Lock()
-	for _, name := range checkNames {
-		state := r.states[name]
-		if state == nil {
-			continue
-		}
-		switch state.status {
-		case "pass":
-			passCount++
-		case "fail":
-			failCount++
-			hasFailures = true
-		}
-	}
-
-	// Print verbose or failure output
-	for _, name := range checkNames {
-		result := r.results[name]
-		if result == nil {
-			continue
-		}
-
-		if r.verbose || !result.Success {
-			if result.Output != "" {
-				fmt.Printf("\033[1m=== %s ===\033[0m\n", name)
-				fmt.Println(strings.TrimSpace(result.Output))
-				fmt.Println()
-			}
-		}
-	}
-	r.mu.Unlock()
-
-	fmt.Printf("\033[1mSummary:\033[0m %d passed", passCount)
-	if failCount > 0 {
-		fmt.Printf(", \033[31m%d failed\033[0m", failCount)
-	}
-	fmt.Println()
-
-	return !hasFailures
 }
 
 // Unused but keeping for interface compatibility
