@@ -26,6 +26,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -69,18 +70,114 @@ const (
 // =============================================================================
 
 const (
-	// CacheDir is where build artifacts are cached between runs.
-	// Keyed by phase name and source hash.
-	CacheDir = "/tmp/check-runner-cache"
-
 	// MaxCacheCount is the maximum number of cached builds to keep per phase.
 	// Older caches are evicted using LRU.
 	MaxCacheCount = 5
+
+	// Baseline times for the old check script (in seconds).
+	// Used to calculate time saved.
+	BaselineCacheHit   = 90.0  // 1.5 minutes when cache hit
+	BaselineNoCacheHit = 180.0 // 3.0 minutes when no cache hit
 )
+
+// Paths are computed at runtime to use user's home directory.
+var (
+	// CacheDir is where build artifacts are cached between runs.
+	// Keyed by phase name and source hash.
+	CacheDir string
+
+	// StatsFile is where cumulative time savings are stored.
+	StatsFile string
+)
+
+func init() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = "/tmp"
+	}
+	CacheDir = filepath.Join(home, ".cache", "check-runner", "builds")
+	StatsFile = filepath.Join(home, ".cache", "check-runner", "stats.json")
+}
 
 // artifactDirs are the directories containing build artifacts.
 // These are saved/restored for caching and preserved across check runs.
 var artifactDirs = []string{"artifacts", "forge-artifacts", "cache"}
+
+// =============================================================================
+// Stats Tracking
+// =============================================================================
+
+// Stats tracks cumulative time savings across runs.
+type Stats struct {
+	TotalRuns      int     `json:"total_runs"`
+	TotalTimeSaved float64 `json:"total_time_saved"` // in seconds
+}
+
+// loadStats reads the stats file from disk.
+func loadStats() Stats {
+	data, err := os.ReadFile(StatsFile)
+	if err != nil {
+		return Stats{}
+	}
+	var stats Stats
+	if err := json.Unmarshal(data, &stats); err != nil {
+		return Stats{}
+	}
+	return stats
+}
+
+// saveStats writes the stats file to disk.
+func saveStats(stats Stats) {
+	data, err := json.Marshal(stats)
+	if err != nil {
+		return
+	}
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(StatsFile), 0755); err != nil {
+		return
+	}
+	_ = os.WriteFile(StatsFile, data, 0644)
+}
+
+// formatDuration formats seconds into a human-readable string.
+func formatDuration(seconds float64) string {
+	secs := int(seconds + 0.5) // Round to nearest second
+	if secs < 60 {
+		return fmt.Sprintf("%d seconds", secs)
+	}
+	minutes := secs / 60
+	secs = secs % 60
+	if minutes < 60 {
+		if secs == 0 {
+			return fmt.Sprintf("%d minutes", minutes)
+		}
+		return fmt.Sprintf("%d minutes %d seconds", minutes, secs)
+	}
+	hours := minutes / 60
+	mins := minutes % 60
+	if mins == 0 {
+		return fmt.Sprintf("%d hours", hours)
+	}
+	return fmt.Sprintf("%d hours %d minutes", hours, mins)
+}
+
+// formatDurationHoursMinutes formats seconds into compact hours and minutes (e.g., "2h15m").
+func formatDurationHoursMinutes(seconds float64) string {
+	minutes := int(seconds) / 60
+	if minutes < 60 {
+		return fmt.Sprintf("%dm", minutes)
+	}
+	hours := minutes / 60
+	mins := minutes % 60
+	if mins == 0 {
+		return fmt.Sprintf("%dh", hours)
+	}
+	return fmt.Sprintf("%dh%dm", hours, mins)
+}
+
+// cacheRestoreDirs are the directories restored from cache before builds.
+// We restore all artifact directories for incremental builds, then clean stale artifacts.
+var cacheRestoreDirs = []string{"artifacts", "forge-artifacts", "cache"}
 
 // =============================================================================
 // Configuration Types
@@ -92,6 +189,7 @@ type Check struct {
 	Description string   `yaml:"description"` // Human-readable description
 	Command     string   `yaml:"command"`     // Shell command to execute
 	Depends     []string `yaml:"depends"`     // Names of checks that must pass first
+	RetryClean  bool     `yaml:"retry-clean"` // If true, retry with clean build on failure
 }
 
 // Phase represents a group of related checks.
@@ -150,10 +248,18 @@ type Runner struct {
 	failedChecks []string
 	buildError   string // Build failure output to display at end
 
+	// Retry-clean tracking
+	retryCleanChecks []string // Checks that failed and have retry-clean enabled
+
 	// Graceful shutdown support
 	interrupted atomic.Bool  // Set to true on first Ctrl+C
 	sigCount    atomic.Int32 // Number of times Ctrl+C pressed
 	cancelFunc  context.CancelFunc
+
+	// Timing and stats
+	startTime   time.Time
+	hadCacheHit bool // Whether any phase had a cache hit
+	isFullRun   bool // Whether this is a full run (no -run filter)
 }
 
 // =============================================================================
@@ -400,7 +506,7 @@ func restoreFromCache(phaseName, hash string) error {
 		return fmt.Errorf("cache not found: %s", cachePath)
 	}
 
-	for _, dir := range artifactDirs {
+	for _, dir := range cacheRestoreDirs {
 		src := filepath.Join(cachePath, dir)
 		if _, err := os.Stat(src); err == nil {
 			os.RemoveAll(dir)
@@ -409,6 +515,7 @@ func restoreFromCache(phaseName, hash string) error {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -423,6 +530,8 @@ func saveToCache(phaseName, hash string) error {
 	for _, dir := range artifactDirs {
 		if _, err := os.Stat(dir); err == nil {
 			dst := filepath.Join(cachePath, dir)
+			// Remove existing cache directory first to ensure clean overwrite
+			os.RemoveAll(dst)
 			if err := copyDir(dir, dst); err != nil {
 				return fmt.Errorf("failed to cache %s: %w", dir, err)
 			}
@@ -489,6 +598,9 @@ func evictOldCaches(phaseName string) {
 // Run executes all configured checks, optionally filtering to selectedChecks.
 // Returns true if all checks passed, false otherwise.
 func (r *Runner) Run(selectedChecks map[string]bool) bool {
+	r.startTime = time.Now()
+	r.isFullRun = selectedChecks == nil // Full run if no filter specified
+
 	// Check if any phase has a build step
 	hasBuilds := false
 	for _, phase := range r.config.Phases {
@@ -599,8 +711,189 @@ func (r *Runner) Run(selectedChecks map[string]bool) bool {
 		r.runPhaseChecks(checksToRun, parallel)
 	}
 
+	// Check if any failed checks have retry-clean enabled
+	if !r.interrupted.Load() && len(r.retryCleanChecks) > 0 {
+		r.runRetryClean()
+	}
+
 	r.printFinalSummary()
 	return r.totalFailed == 0 && !r.interrupted.Load()
+}
+
+// runRetryClean re-runs failed checks that have retry-clean enabled after a clean build.
+func (r *Runner) runRetryClean() {
+	// Group retry checks by their phase's build command
+	checksByBuild := make(map[string][]string)
+	for _, checkName := range r.retryCleanChecks {
+		check := r.getCheck(checkName)
+		if check == nil {
+			continue
+		}
+		// Find the phase this check belongs to
+		for _, phase := range r.config.Phases {
+			for _, c := range phase.Checks {
+				if c.Name == checkName {
+					checksByBuild[phase.Build] = append(checksByBuild[phase.Build], checkName)
+					break
+				}
+			}
+		}
+	}
+
+	fmt.Printf("\n%s→ retry-clean%s\n", BoldCyan, Reset)
+	fmt.Printf("%s⟳ Retrying %d check(s) with clean build...%s\n", Dim, len(r.retryCleanChecks), Reset)
+
+	// Clean all artifacts
+	for _, dir := range artifactDirs {
+		os.RemoveAll(dir)
+	}
+
+	// Re-run builds and checks for each build type that has retry checks
+	for buildCmd, checkNames := range checksByBuild {
+		if r.interrupted.Load() {
+			return
+		}
+
+		// Find phase name for this build
+		phaseName := ""
+		for _, phase := range r.config.Phases {
+			if phase.Build == buildCmd {
+				phaseName = phase.Name
+				break
+			}
+		}
+
+		// Run the build (clean, no cache)
+		if buildCmd != "" {
+			if err := r.doBuildClean(phaseName, buildCmd); err != nil {
+				fmt.Fprintf(os.Stderr, "%s✗ Clean build failed%s\n", BoldRed, Reset)
+				return
+			}
+		}
+
+		// Re-run the failed checks
+		for _, checkName := range checkNames {
+			if r.interrupted.Load() {
+				return
+			}
+			r.runRetryCheck(checkName)
+		}
+	}
+}
+
+// doBuildClean runs a build without using cache (for retry-clean).
+func (r *Runner) doBuildClean(phaseName, buildCmd string) error {
+	sm := ysmrr.NewSpinnerManager(
+		ysmrr.WithSpinnerColor(colors.FgHiBlue),
+	)
+	spinner := sm.AddSpinner(fmt.Sprintf("Clean building (%s)", buildCmd))
+	sm.Start()
+
+	startTime := time.Now()
+	cmd := exec.Command("sh", "-c", buildCmd)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	duration := time.Since(startTime)
+
+	if err != nil {
+		spinner.UpdateMessage(fmt.Sprintf("%sClean build failed%s (%s) %s%.1fs%s", Red, Reset, buildCmd, Dim, duration.Seconds(), Reset))
+		spinner.Error()
+		sm.Stop()
+		output := stdout.String() + stderr.String()
+		if output != "" {
+			r.buildError = output
+		}
+		return err
+	}
+
+	spinner.UpdateMessage(fmt.Sprintf("%sClean built%s (%s) %s%.1fs%s", Green, Reset, buildCmd, Dim, duration.Seconds(), Reset))
+	spinner.Complete()
+	sm.Stop()
+
+	// Save clean build to cache
+	if r.sourceHash != "" && !r.noCache {
+		fmt.Printf("%s⟳ Saving clean build to cache %s...%s\n", Dim, r.sourceHash[:8], Reset)
+		if err := saveToCache(phaseName, r.sourceHash); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not save to cache: %v\n", err)
+		}
+	}
+
+	return nil
+}
+
+// runRetryCheck re-runs a single check and updates the results.
+func (r *Runner) runRetryCheck(name string) {
+	check := r.getCheck(name)
+	if check == nil {
+		return
+	}
+
+	sm := ysmrr.NewSpinnerManager(
+		ysmrr.WithSpinnerColor(colors.FgHiBlue),
+	)
+	spinner := sm.AddSpinner(fmt.Sprintf("%s (retry)", name))
+	sm.Start()
+
+	startTime := time.Now()
+	cmd := exec.Command("sh", "-c", check.Command)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	duration := time.Since(startTime)
+
+	output := stdout.String()
+	if stderr.Len() > 0 {
+		if output != "" {
+			output += "\n"
+		}
+		output += stderr.String()
+	}
+
+	timeStr := fmt.Sprintf("%s%.1fs%s", Dim, duration.Seconds(), Reset)
+
+	if err == nil {
+		// Retry succeeded - update results
+		spinner.UpdateMessage(fmt.Sprintf("%s (retry) %s", name, timeStr))
+		spinner.Complete()
+		sm.Stop()
+
+		// Update totals: was failed, now passed
+		r.totalFailed--
+		r.totalPassed++
+
+		// Remove from failed checks list
+		newFailed := []string{}
+		for _, n := range r.failedChecks {
+			if n != name {
+				newFailed = append(newFailed, n)
+			}
+		}
+		r.failedChecks = newFailed
+
+		// Update result
+		r.results[name] = &CheckResult{
+			Name:     name,
+			Success:  true,
+			Output:   output,
+			Duration: duration,
+		}
+	} else {
+		// Retry also failed
+		spinner.UpdateMessage(fmt.Sprintf("%s (retry) %s", name, timeStr))
+		spinner.Error()
+		sm.Stop()
+
+		// Update result with new output
+		r.results[name] = &CheckResult{
+			Name:     name,
+			Success:  false,
+			Output:   output,
+			Duration: duration,
+		}
+	}
 }
 
 // printFinalSummary displays the final results including any failures.
@@ -651,6 +944,45 @@ func (r *Runner) printFinalSummary() {
 		fmt.Printf("%s✗ %d check(s) failed%s", BoldRed, r.totalFailed, Reset)
 		fmt.Printf(" %s(%d passed, %d failed)%s\n", Dim, r.totalPassed, r.totalFailed, Reset)
 	}
+
+	// Print timing stats
+	r.printTimingStats()
+}
+
+// printTimingStats displays execution time and cumulative time saved.
+func (r *Runner) printTimingStats() {
+	duration := time.Since(r.startTime).Seconds()
+
+	// Print this run's time
+	fmt.Printf("\n%sThis run took %s%s\n", Dim, formatDuration(duration), Reset)
+
+	// Only track stats for full runs
+	if !r.isFullRun {
+		return
+	}
+
+	// Select baseline based on cache hit
+	baseline := BaselineNoCacheHit
+	if r.hadCacheHit {
+		baseline = BaselineCacheHit
+	}
+
+	// Calculate time saved (baseline - actual)
+	timeSaved := baseline - duration
+	if timeSaved < 0 {
+		timeSaved = 0
+	}
+
+	// Load and update stats
+	stats := loadStats()
+	stats.TotalRuns++
+	stats.TotalTimeSaved += timeSaved
+	saveStats(stats)
+
+	// Print cumulative time saved (only if at least 1 minute saved)
+	if stats.TotalTimeSaved >= 60 {
+		fmt.Printf("%sYou've saved ~%s using check-fast%s\n", Green, formatDurationHoursMinutes(stats.TotalTimeSaved), Reset)
+	}
 }
 
 // =============================================================================
@@ -677,6 +1009,7 @@ func (r *Runner) doBuildWithCache(phaseName, buildCmd string) error {
 				fmt.Fprintf(os.Stderr, "Warning: cache restore failed: %v\n", err)
 			} else {
 				cacheHit = true
+				r.hadCacheHit = true
 			}
 		}
 
@@ -841,6 +1174,12 @@ func (r *Runner) runChecksSequential(checks []Check) {
 		if result.Success {
 			fmt.Printf("%s✓%s %s %s%.1fs%s\n", Green, Reset, check.Name, Dim, duration.Seconds(), Reset)
 			r.totalPassed++
+		} else if check.RetryClean {
+			// Show retry indicator for checks that will retry with clean build
+			fmt.Printf("%s↻%s %s %s%.1fs%s %s(will retry with clean build)%s\n", Yellow, Reset, check.Name, Dim, duration.Seconds(), Reset, Yellow, Reset)
+			r.totalFailed++
+			r.failedChecks = append(r.failedChecks, check.Name)
+			r.retryCleanChecks = append(r.retryCleanChecks, check.Name)
 		} else {
 			fmt.Printf("%s✗%s %s %s%.1fs%s\n", Red, Reset, check.Name, Dim, duration.Seconds(), Reset)
 			r.totalFailed++
@@ -955,6 +1294,11 @@ func (r *Runner) runChecksParallel(checks []Check) {
 		case "fail":
 			r.totalFailed++
 			r.failedChecks = append(r.failedChecks, name)
+			// Track checks with retry-clean enabled
+			check := r.getCheck(name)
+			if check != nil && check.RetryClean {
+				r.retryCleanChecks = append(r.retryCleanChecks, name)
+			}
 		}
 	}
 	r.mu.Unlock()
@@ -1062,6 +1406,11 @@ func (r *Runner) runCheckParallel(name string) {
 	timeStr := fmt.Sprintf("%s%.1fs%s", Dim, duration.Seconds(), Reset)
 	if result.Success {
 		spinner.UpdateMessage(fmt.Sprintf("%s %s", name, timeStr))
+		spinner.Complete()
+	} else if check.RetryClean {
+		// Show retry indicator for checks that will retry with clean build
+		spinner.CompleteCharacter(fmt.Sprintf("%s↻%s", Yellow, Reset))
+		spinner.UpdateMessage(fmt.Sprintf("%s %s %s(will retry with clean build)%s", name, timeStr, Yellow, Reset))
 		spinner.Complete()
 	} else {
 		spinner.UpdateMessage(fmt.Sprintf("%s %s", name, timeStr))

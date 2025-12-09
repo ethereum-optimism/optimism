@@ -15,6 +15,7 @@
 #   - description: Human-readable description
 #   - command: Shell command to run
 #   - depends: (optional) Checks that must complete first (within same phase)
+#   - retry-clean: (optional) If true, retry with clean build on failure
 
 phases:
   # Phase 1: Setup - runs sequentially
@@ -74,6 +75,7 @@ phases:
       - name: interfaces
         description: Check interface correctness
         command: go run ./scripts/checks/interfaces
+        retry-clean: true
       - name: size-check
         description: Check contract sizes
         command: forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**"
