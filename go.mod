@@ -12,6 +12,7 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.8.1
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
+	github.com/chelnak/ysmrr v0.6.0
 	github.com/cockroachdb/pebble v1.1.5
 	github.com/coder/websocket v1.8.13
 	github.com/consensys/gnark-crypto v0.18.0
@@ -194,7 +195,7 @@ require (
 	github.com/libp2p/go-yamux/v4 v4.0.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240513124658-fba389f38bae // indirect
 	github.com/marten-seemann/tcp v0.0.0-20210406111302-dfbc87cc63fd // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/mholt/archiver v3.1.1+incompatible // indirect
 	github.com/miekg/dns v1.1.62 // indirect
