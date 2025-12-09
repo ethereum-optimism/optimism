@@ -38,24 +38,11 @@ import { ISP1Verifier } from "src/dispute/zk/ISP1Verifier.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IProxy } from "interfaces/universal/IProxy.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 
 /// @title OPSuccinctFaultDisputeGame_TestInit
 /// @notice Base test contract with shared setup for OPSuccinctFaultDisputeGame tests.
 abstract contract OPSuccinctFaultDisputeGame_TestInit is Test {
-    /// @notice Deploys a transparent proxy with the given admin and implementation.
-    /// @dev Uses vm.getCode to avoid importing Proxy which causes artifact conflicts.
-    function _deployProxy(address _admin, address _impl) internal returns (address proxy_) {
-        // Get Proxy bytecode using path-qualified name to avoid conflicts
-        bytes memory proxyCode = abi.encodePacked(vm.getCode("universal/Proxy.sol:Proxy"), abi.encode(_admin));
-        assembly {
-            proxy_ := create(0, add(proxyCode, 0x20), mload(proxyCode))
-        }
-        require(proxy_ != address(0), "OPSuccinctFaultDisputeGame_TestInit: proxy deployment failed");
-        // Call upgradeTo on the proxy to set implementation
-        (bool success,) = proxy_.call(abi.encodeCall(IProxy.upgradeTo, (_impl)));
-        require(success, "OPSuccinctFaultDisputeGame_TestInit: upgradeTo failed");
-    }
     // Events
 
     event Challenged(address indexed challenger);
@@ -97,8 +84,9 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is Test {
         DisputeGameFactory factoryImpl = new DisputeGameFactory();
 
         // Deploy a proxy pointing to the factory implementation.
-        // Using _deployProxy helper to avoid importing Proxy which causes forge artifact conflicts.
-        factoryProxy = _deployProxy(address(this), address(factoryImpl));
+        Proxy factoryProxyContract = new Proxy(address(this));
+        factoryProxyContract.upgradeTo(address(factoryImpl));
+        factoryProxy = address(factoryProxyContract);
 
         // Now initialize the factory.
         factory = DisputeGameFactory(factoryProxy);
@@ -109,15 +97,17 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is Test {
 
         // Deploy real SuperchainConfig.
         SuperchainConfig superchainConfigImpl = new SuperchainConfig();
-        address superchainConfigProxy = _deployProxy(address(this), address(superchainConfigImpl));
-        ISuperchainConfig superchainConfig = ISuperchainConfig(superchainConfigProxy);
-        SuperchainConfig(superchainConfigProxy).initialize(guardian);
+        Proxy superchainConfigProxyContract = new Proxy(address(this));
+        superchainConfigProxyContract.upgradeTo(address(superchainConfigImpl));
+        ISuperchainConfig superchainConfig = ISuperchainConfig(address(superchainConfigProxyContract));
+        SuperchainConfig(address(superchainConfigProxyContract)).initialize(guardian);
 
         // Deploy real SystemConfig.
         SystemConfig systemConfigImpl = new SystemConfig();
-        address systemConfigProxy = _deployProxy(address(this), address(systemConfigImpl));
-        ISystemConfig systemConfig = ISystemConfig(systemConfigProxy);
-        SystemConfig(address(systemConfigProxy)).initialize(
+        Proxy systemConfigProxyContract = new Proxy(address(this));
+        systemConfigProxyContract.upgradeTo(address(systemConfigImpl));
+        ISystemConfig systemConfig = ISystemConfig(address(systemConfigProxyContract));
+        SystemConfig(address(systemConfigProxyContract)).initialize(
             address(this), // owner
             1368, // basefeeScalar
             810949, // blobbasefeeScalar
@@ -143,10 +133,11 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is Test {
         AnchorStateRegistry anchorStateRegistryImpl = new AnchorStateRegistry(disputeGameFinalityDelaySeconds);
 
         // Deploy a proxy for AnchorStateRegistry.
-        address anchorStateRegistryProxy = _deployProxy(address(this), address(anchorStateRegistryImpl));
+        Proxy anchorStateRegistryProxyContract = new Proxy(address(this));
+        anchorStateRegistryProxyContract.upgradeTo(address(anchorStateRegistryImpl));
 
         // Initialize the real AnchorStateRegistry.
-        anchorStateRegistry = AnchorStateRegistry(anchorStateRegistryProxy);
+        anchorStateRegistry = AnchorStateRegistry(address(anchorStateRegistryProxyContract));
         anchorStateRegistry.initialize(
             systemConfig,
             IDisputeGameFactory(address(factory)),
@@ -370,10 +361,11 @@ contract OPSuccinctFaultDisputeGame_Initialize_Test is OPSuccinctFaultDisputeGam
         DisputeGameFactory newFactoryImpl = new DisputeGameFactory();
 
         // Deploy a proxy pointing to the new factory implementation.
-        address newFactoryProxy = _deployProxy(address(this), address(newFactoryImpl));
+        Proxy newFactoryProxyContract = new Proxy(address(this));
+        newFactoryProxyContract.upgradeTo(address(newFactoryImpl));
 
         // Cast the proxy to the DisputeGameFactory interface and initialize it.
-        DisputeGameFactory newFactory = DisputeGameFactory(newFactoryProxy);
+        DisputeGameFactory newFactory = DisputeGameFactory(address(newFactoryProxyContract));
         newFactory.initialize(address(this));
 
         // Set the implementation with the same implementation as the old factory.
