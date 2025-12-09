@@ -99,13 +99,27 @@ const config = {
 
     [
       '@docusaurus/plugin-client-redirects',
-      {
-        redirects: [
-          {
-            to: '/dev-docs',
-            from: '/',
-          },
-        ],
+       {
+      //   redirects: [
+      //     {
+      //       to: '/dev-docs',
+      //       from: '/',
+      //     },
+      //   ],
+      // },
+      
+      /**
+          * @param {string} existingPath
+          */
+      createRedirects(existingPath) {
+          if (existingPath.match('/')) {
+            // Redirect from /docs/team/X to /community/X and /docs/support/X to /community/X
+            return [
+              existingPath.replace('/', '/dev-docs'),
+            ];
+          }
+          return undefined; // Return a falsy value: no redirect created
+        },
       },
     ],
   ],
