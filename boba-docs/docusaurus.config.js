@@ -86,7 +86,7 @@ const config = {
       {
         id: 'dev',
         path: 'dev-docs',
-        routeBasePath: '/', // when implementing landing page, change this back to dev-docs
+        routeBasePath: 'dev-docs', // if defaulting to dev-docs (not landing page), this should be '/'
         sidebarPath: undefined, //require.resolve('./sidebarsSDK.js'),
         lastVersion: 'current',
           versions: {
@@ -100,27 +100,27 @@ const config = {
     [
       '@docusaurus/plugin-client-redirects',
        {
-      //   redirects: [
-      //     {
-      //       to: '/dev-docs',
-      //       from: '/',
-      //     },
-      //   ],
-      // },
+        redirects: [
+          {
+            to: '/dev-docs',
+            from: '/',
+          },
+        ],
+      },
       
       /**
-          * @param {string} existingPath
+          // * @param {string} existingPath
           */
-      createRedirects(existingPath) {
-          if (existingPath.match('/')) {
-            // Redirect from /docs/team/X to /community/X and /docs/support/X to /community/X
-            return [
-              existingPath.replace('/', '/dev-docs'),
-            ];
-          }
-          return undefined; // Return a falsy value: no redirect created
-        },
-      },
+      // createRedirects(existingPath) {
+      //     if (existingPath.match('/')) {
+      //       // Redirect from /docs/team/X to /community/X and /docs/support/X to /community/X
+      //       return [
+      //         existingPath.replace('/', '/dev-docs'),
+      //       ];
+      //     }
+      //     return undefined; // Return a falsy value: no redirect created
+      //   },
+      // },
     ],
   ],
 
@@ -136,7 +136,7 @@ const config = {
           src: 'img/boba_B.png',
         },
         items: [
-          { to: '/', label: 'Developer', position: 'left' }, //if implementing landing page, change back to dev-docs/index
+          { to: 'dev-docs/index', label: 'Developer', position: 'left' }, // if defaulting to dev-docs (instead of landing page), change to '/'
           { to: 'user-docs/index', label: 'User', position: 'left' },
           // {
           //   type: 'docSidebar',
