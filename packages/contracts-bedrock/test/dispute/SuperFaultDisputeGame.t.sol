@@ -20,6 +20,7 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { RLPWriter } from "src/libraries/rlp/RLPWriter.sol";
 import { LibClock } from "src/dispute/lib/LibUDT.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
@@ -54,6 +55,15 @@ contract ClaimCreditReenter {
         }
         claimCredit(address(this));
     }
+}
+
+/// @notice Helper function to copy bytes from one array to another.
+function copyBytes(bytes memory src, bytes memory dest) pure returns (bytes memory) {
+    uint256 byteCount = src.length < dest.length ? src.length : dest.length;
+    for (uint256 i = 0; i < byteCount; i++) {
+        dest[i] = src[i];
+    }
+    return dest;
 }
 
 /// @title BaseSuperFaultDisputeGame_TestInit
@@ -337,6 +347,152 @@ contract SuperFaultDisputeGame_Constructor_Test is SuperFaultDisputeGame_TestIni
                 )
             )
         });
+    }
+}
+
+/// @title SuperFaultDisputeGameV2_Constructor_Test
+/// @notice Tests the `__constructor__` function of the `SuperFaultDisputeGameV2` contract.
+contract SuperFaultDisputeGameV2_Constructor_Test is SuperFaultDisputeGame_TestInit {
+    function setUp() public virtual override {
+        super.setUp();
+        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+    }
+
+    /// @notice Tests that the constructor of the `SuperFaultDisputeGameV2` reverts when the
+    ///         `MAX_GAME_DEPTH` parameter is greater than `LibPosition.MAX_POSITION_BITLEN - 1`.
+    function testFuzz_constructor_maxDepthTooLarge_reverts(uint256 _maxGameDepth) public {
+        _maxGameDepth = bound(_maxGameDepth, LibPosition.MAX_POSITION_BITLEN, type(uint256).max - 1);
+        vm.expectRevert(MaxDepthTooLarge.selector);
+        DeployUtils.create1({
+            _name: "SuperFaultDisputeGameV2",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    ISuperFaultDisputeGame.__constructor__,
+                    (
+                        ISuperFaultDisputeGame.GameConstructorParams({
+                            maxGameDepth: _maxGameDepth,
+                            splitDepth: _maxGameDepth + 1,
+                            clockExtension: Duration.wrap(3 hours),
+                            maxClockDuration: Duration.wrap(3.5 days)
+                        })
+                    )
+                )
+            )
+        });
+    }
+
+    /// @notice Tests that the constructor of the `SuperFaultDisputeGameV2` reverts when the `_splitDepth`
+    ///         parameter is greater than or equal to the `MAX_GAME_DEPTH`
+    function testFuzz_constructor_invalidSplitDepth_reverts(uint256 _splitDepth) public {
+        uint256 maxGameDepth = 2 ** 3;
+        _splitDepth = bound(_splitDepth, maxGameDepth - 1, type(uint256).max);
+        vm.expectRevert(InvalidSplitDepth.selector);
+        DeployUtils.create1({
+            _name: "SuperFaultDisputeGameV2",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    ISuperFaultDisputeGame.__constructor__,
+                    (
+                        ISuperFaultDisputeGame.GameConstructorParams({
+                            maxGameDepth: maxGameDepth,
+                            splitDepth: _splitDepth,
+                            clockExtension: Duration.wrap(3 hours),
+                            maxClockDuration: Duration.wrap(3.5 days)
+                        })
+                    )
+                )
+            )
+        });
+    }
+
+    /// @notice Tests that the constructor of the `SuperFaultDisputeGameV2` reverts when the `_splitDepth`
+    ///         parameter is less than the minimum split depth (currently 2).
+    function testFuzz_constructor_lowSplitDepth_reverts(uint256 _splitDepth) public {
+        uint256 minSplitDepth = 2;
+        _splitDepth = bound(_splitDepth, 0, minSplitDepth - 1);
+        vm.expectRevert(InvalidSplitDepth.selector);
+        DeployUtils.create1({
+            _name: "SuperFaultDisputeGameV2",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    ISuperFaultDisputeGame.__constructor__,
+                    (
+                        ISuperFaultDisputeGame.GameConstructorParams({
+                            maxGameDepth: 2 ** 3,
+                            splitDepth: _splitDepth,
+                            clockExtension: Duration.wrap(3 hours),
+                            maxClockDuration: Duration.wrap(3.5 days)
+                        })
+                    )
+                )
+            )
+        });
+    }
+
+    /// @notice Tests that the constructor of the `SuperFaultDisputeGameV2` reverts when clock
+    ///         extension * 2 is greater than the max clock duration.
+    function testFuzz_constructor_clockExtensionTooLong_reverts(
+        uint64 _maxClockDuration,
+        uint64 _clockExtension
+    )
+        public
+    {
+        // Force the clock extension * 2 to be greater than the max clock duration, but keep things
+        // within bounds of the uint64 type.
+        _maxClockDuration = uint64(bound(_maxClockDuration, 0, type(uint64).max / 2 - 1));
+        _clockExtension = uint64(bound(_clockExtension, _maxClockDuration / 2 + 1, type(uint64).max / 2));
+
+        vm.expectRevert(InvalidClockExtension.selector);
+        DeployUtils.create1({
+            _name: "SuperFaultDisputeGameV2",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    ISuperFaultDisputeGame.__constructor__,
+                    (
+                        ISuperFaultDisputeGame.GameConstructorParams({
+                            maxGameDepth: 16,
+                            splitDepth: 8,
+                            clockExtension: Duration.wrap(_clockExtension),
+                            maxClockDuration: Duration.wrap(_maxClockDuration)
+                        })
+                    )
+                )
+            )
+        });
+    }
+
+    /// @notice Tests that the game cannot be initialized with extra immutable args bytes.
+    function test_initialize_extraImmutableArgsBytes_reverts() public {
+        // Get the immutable args
+        bytes memory immutableArgs;
+        (immutableArgs,,) = getSuperFaultDisputeGameV2ImmutableArgs(absolutePrestate);
+
+        // Append an extra byte to the immutable args
+        bytes memory newImmutableArgs = new bytes(immutableArgs.length + 1);
+        copyBytes(immutableArgs, newImmutableArgs);
+
+        // Set up dispute game implementation with target immutableArgs
+        setupSuperFaultDisputeGameV2(newImmutableArgs);
+
+        vm.expectRevert(BadExtraData.selector);
+        disputeGameFactory.create{ value: initBond }(GAME_TYPE, ROOT_CLAIM, extraData);
+    }
+
+    /// @notice Tests that the game cannot be initialized with missing immutable args bytes.
+    function test_initialize_missingImmutableArgsBytes_reverts() public {
+        // Get the immutable args
+        bytes memory immutableArgs;
+        (immutableArgs,,) = getSuperFaultDisputeGameV2ImmutableArgs(absolutePrestate);
+
+        // Remove a byte from the immutable args
+        bytes memory newImmutableArgs = new bytes(immutableArgs.length - 1);
+        copyBytes(immutableArgs, newImmutableArgs);
+
+        // Set up dispute game implementation with target immutableArgs
+        setupSuperFaultDisputeGameV2(newImmutableArgs);
+
+        vm.expectRevert(BadExtraData.selector);
+        disputeGameFactory.create{ value: initBond }(GAME_TYPE, ROOT_CLAIM, extraData);
     }
 }
 

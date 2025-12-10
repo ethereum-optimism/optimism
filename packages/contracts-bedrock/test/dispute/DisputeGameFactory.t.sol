@@ -154,6 +154,10 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
+        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            return setupSuperFaultDisputeGameV2(_absolutePrestate);
+        }
+
         bytes memory immutableArgs;
         (immutableArgs, vm_, preimageOracle_) = getSuperFaultDisputeGameV2ImmutableArgs(_absolutePrestate);
 
@@ -243,6 +247,27 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
             delayedWeth, // 20 bytes
             uint256(0) // 32 bytes (l2ChainId)
         );
+    }
+
+    /// @notice Sets up a super fault game v2 implementation
+    function setupSuperFaultDisputeGameV2(Claim _absolutePrestate)
+        internal
+        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
+        bytes memory immutableArgs;
+        (immutableArgs, vm_, preimageOracle_) = getSuperFaultDisputeGameV2ImmutableArgs(_absolutePrestate);
+        gameImpl_ = setupSuperFaultDisputeGameV2(immutableArgs);
+    }
+
+    function setupSuperFaultDisputeGameV2(bytes memory immutableArgs) internal returns (address gameImpl_) {
+        gameImpl_ = DeployUtils.create1({
+            _name: "SuperFaultDisputeGameV2",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(ISuperFaultDisputeGame.__constructor__, (_getSuperGameConstructorParams()))
+            )
+        });
+
+        _setGame(gameImpl_, GameTypes.SUPER_CANNON, immutableArgs);
     }
 
     /// @notice Sets up a fault game v2 implementation

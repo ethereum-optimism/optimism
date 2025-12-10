@@ -219,6 +219,10 @@
     "initCodeHash": "0x9896fd04e9a3f9fe4f1d6e93eb298b37a6bfa33424aa705e68cc58d0ba7f3f90",
     "sourceCodeHash": "0xc0ff6e93b6e2b9111c11e81b5df8948ab71d02b9d2c4dfda982fcb615519f1f7"
   },
+  "src/dispute/v2/SuperFaultDisputeGameV2.sol:SuperFaultDisputeGameV2": {
+    "initCodeHash": "0xb4a51d5819db35363750aad696c91b60704364a2074dcc7831ef93ef064617eb",
+    "sourceCodeHash": "0x62f45ebe56e6003645858dc2594be1cfa60b95170d3aa394bfecae9f54acd26b"
+  },
   "src/dispute/zk/OPSuccinctFaultDisputeGame.sol:OPSuccinctFaultDisputeGame": {
     "initCodeHash": "0xb9d0d9ca4df242f188b2d5be7d692459a12409a67a6504ef44ef589c6ca2c1a9",
     "sourceCodeHash": "0x85f80adb845f59e9137d462e219c0cdba27058be77d855075e286aa316735aa0"
