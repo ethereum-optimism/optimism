@@ -6,6 +6,8 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-program/client/claim"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -93,6 +95,8 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	// Build both chains and assert the L1 origin catches back up with the tip of the L1 chain.
 	lag := computeLag()
 	t.Log("lag", lag)
+	drift := computeDrift()
+	t.Log("drift", drift)
 	require.GreaterOrEqual(t, uint64(lag), tp.SequencerWindowSize, "Lag is less than sequencing window size")
 	numL1Blocks := 0
 	timeout := tp.SequencerWindowSize * 50
@@ -110,12 +114,15 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 			// transaction from being included in the block, which
 			// is critical for recover mode to work.
 			env.Sequencer.ActL2EndBlock(t)
+			drift = computeDrift()
+			t.Log("drift", drift)
 		}
 		env.BatchMineAndSync(t) // Mines 1 block on L1
 		numL1Blocks++
 		lag = computeLag()
 		t.Log("lag", lag)
-		t.Log("drift", computeDrift())
+		drift = computeDrift()
+		t.Log("drift", drift)
 		if lag == 1 { // A lag of 1 is the minimum possible.
 			break
 		}
@@ -126,6 +133,15 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	} else {
 		t.Logf("L1 Origin caught up to within %d blocks of the tip within %d L1 blocks (sequencing window size %d)",
 			lag, numL1Blocks, tp.SequencerWindowSize)
+	}
+
+	switch {
+	case drift == 0:
+		t.Fatal("drift is zero, this implies the unsafe l2 head is pinned to the l1 head")
+	case drift > int(tp.MaxSequencerDrift):
+		t.Fatal("drift is too high")
+	default:
+		t.Log("drift", drift)
 	}
 
 	// Disable recover mode so we can get some user transactions in again.
@@ -232,8 +248,7 @@ func Test_ProgramAction_SequenceWindowExpired(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 	defer matrix.Run(gt)
 
-	// forks := helpers.ForkMatrix{helpers.Granite, helpers.LatestFork}
-	forks := helpers.ForkMatrix{helpers.LatestFork}
+	forks := helpers.ForkMatrix{helpers.Granite, helpers.LatestFork}
 	matrix.AddTestCase(
 		"HonestClaim",
 		nil,
@@ -241,27 +256,27 @@ func Test_ProgramAction_SequenceWindowExpired(gt *testing.T) {
 		runSequenceWindowExpireTest,
 		helpers.ExpectNoError(),
 	)
-	// matrix.AddTestCase(
-	// 	"JunkClaim",
-	// 	nil,
-	// 	forks,
-	// 	runSequenceWindowExpireTest,
-	// 	helpers.ExpectError(claim.ErrClaimNotValid),
-	// 	helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
-	// )
-	// matrix.AddTestCase(
-	// 	"ChannelCloseAfterWindowExpiry-HonestClaim",
-	// 	nil,
-	// 	forks,
-	// 	runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test,
-	// 	helpers.ExpectNoError(),
-	// )
-	// matrix.AddTestCase(
-	// 	"ChannelCloseAfterWindowExpiry-JunkClaim",
-	// 	nil,
-	// 	forks,
-	// 	runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test,
-	// 	helpers.ExpectError(claim.ErrClaimNotValid),
-	// 	helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
-	// )
+	matrix.AddTestCase(
+		"JunkClaim",
+		nil,
+		forks,
+		runSequenceWindowExpireTest,
+		helpers.ExpectError(claim.ErrClaimNotValid),
+		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
+	)
+	matrix.AddTestCase(
+		"ChannelCloseAfterWindowExpiry-HonestClaim",
+		nil,
+		forks,
+		runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test,
+		helpers.ExpectNoError(),
+	)
+	matrix.AddTestCase(
+		"ChannelCloseAfterWindowExpiry-JunkClaim",
+		nil,
+		forks,
+		runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test,
+		helpers.ExpectError(claim.ErrClaimNotValid),
+		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
+	)
 }
