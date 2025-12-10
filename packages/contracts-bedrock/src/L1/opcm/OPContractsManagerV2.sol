@@ -163,6 +163,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when the proxy admin owner of the shared contracts is not the same as the current chain's proxy
     /// admin owner.
     error OPContractsManagerV2_InteropSharedContractsProxyAdminOwnerMismatch();
+
     /// @notice Container of blueprint and implementation contract addresses.
     IOPContractsManagerContainer public immutable contractsContainer;
 
@@ -738,7 +739,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // this variable.
         IETHLockbox oldLockbox = _cts.ethLockbox;
         if (_hasInstructionByKey(_cfg.extraInstructions, Constants.INTEROP_MIGRATION_ADDRESSES)) {
-            // Enforce that the interop dev feature is enabled.
+            // Ensure that the interop dev feature is enabled.
             if (!isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
                 revert OPContractsManagerV2_InteropMigrationRequiresDevFeature();
             }
@@ -751,6 +752,22 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.ethLockbox = interopAddrs.ethLockbox;
             _cts.disputeGameFactory = interopAddrs.disputeGameFactory;
             _cts.anchorStateRegistry = interopAddrs.anchorStateRegistry;
+
+            // Get the proxy admin of the shared contracts.
+            sharedContractsProxyAdmin = interopAddrs.ethLockbox.proxyAdmin();
+
+            // Ensure that the other shared contracts have the same proxy admin as the ETHLockbox.
+            if (
+                interopAddrs.disputeGameFactory.proxyAdmin() != sharedContractsProxyAdmin
+                    || interopAddrs.anchorStateRegistry.proxyAdmin() != sharedContractsProxyAdmin
+            ) {
+                revert OPContractsManagerV2_InteropSharedContractsProxyAdminMismatch();
+            }
+
+            // Ensure that the shared contracts have the same proxy admin owner as the current chain's proxy admin.
+            if (sharedContractsProxyAdmin.owner() != _cts.proxyAdmin.owner()) {
+                revert OPContractsManagerV2_InteropSharedContractsProxyAdminOwnerMismatch();
+            }
         }
 
         // Update the SystemConfig.
