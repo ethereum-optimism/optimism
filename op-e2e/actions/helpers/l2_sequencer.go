@@ -98,20 +98,28 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc deri
 
 // ActL2StartBlock starts building of a new L2 block on top of the head
 func (s *L2Sequencer) ActL2StartBlock(t Testing) {
+	err := s.ActMaybeL2StartBlock(t)
+	require.NoError(t, err, "failed to start block building")
+}
+
+// ActMaybeL2StartBlock tries to start building a new L2 block on top of the head
+func (s *L2Sequencer) ActMaybeL2StartBlock(t Testing) error {
 	require.NoError(t, s.drainer.Drain()) // can't build when other work is still blocking
 	if !s.L2PipelineIdle {
 		t.InvalidAction("cannot start L2 build when derivation is not idle")
-		return
+		return nil
 	}
 	if s.l2Building {
 		t.InvalidAction("already started building L2 block")
-		return
+		return nil
 	}
 	s.synchronousEvents.Emit(t.Ctx(), sequencing.SequencerActionEvent{})
-	require.NoError(t, s.drainer.DrainUntil(event.Is[engine.BuildStartedEvent], false),
-		"failed to start block building")
-
+	err := s.drainer.DrainUntil(event.Is[engine.BuildStartedEvent], false)
+	if err != nil {
+		return err
+	}
 	s.l2Building = true
+	return nil
 }
 
 // ActL2EndBlock completes a new L2 block and applies it to the L2 chain as new canonical unsafe head

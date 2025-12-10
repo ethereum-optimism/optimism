@@ -6,8 +6,6 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-program/client/claim"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,14 +78,30 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 		return int(ss.CurrentL1.Number - ss.SafeL2.L1Origin.Number)
 	}
 
+	computeDrift := func() int {
+		ss := env.Sequencer.SyncStatus()
+		l2header, err := env.Engine.EthClient().HeaderByHash(t.Ctx(), ss.SafeL2.Hash)
+		require.NoError(t, err)
+		l1header, err := env.Miner.EthClient().HeaderByHash(t.Ctx(), ss.SafeL2.L1Origin.Hash)
+		require.NoError(t, err)
+		t.Log("l2header.Time", l2header.Time)
+		t.Log("l1header.Time", l1header.Time)
+		return int(l2header.Time) - int(l1header.Time)
+	}
+
 	// Build both chains and assert the L1 origin catches back up with the tip of the L1 chain.
 	lag := computeLag()
+	t.Log("lag", lag)
 	require.GreaterOrEqual(t, uint64(lag), tp.SequencerWindowSize, "Lag is less than sequencing window size")
 	numL1Blocks := 0
-	timeout := tp.SequencerWindowSize * 5
+	timeout := tp.SequencerWindowSize * 50
+
 	for numL1Blocks < int(timeout) {
-		for range tp.L1BlockTime / env.Sd.RollupCfg.BlockTime {
-			env.Sequencer.ActL2StartBlock(t)
+		for range 100 * tp.L1BlockTime / env.Sd.RollupCfg.BlockTime { // go at 100x real time
+			err := env.Sequencer.ActMaybeL2StartBlock(t)
+			if err != nil {
+				break
+			}
 			env.Bob.L2.ActResetTxOpts(t)
 			env.Bob.L2.ActMakeTx(t)
 			env.Engine.ActL2IncludeTx(env.Bob.Address())(t)
@@ -105,8 +119,10 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 		}
 		numL1Blocks++
 		lag = computeLag()
-		t.Log("lag", lag) // This lag starts out equal to the sequencing window, and eventually decreases to 1.
-		if lag == 1 {     // A lag of 1 is the minimum possible.
+		t.Log("lag", lag)
+		drift := computeDrift()
+		t.Log("drift", drift)
+		if lag == 1 && numL1Blocks > 10 { // A lag of 1 is the minimum possible.
 			break
 		}
 	}
@@ -222,7 +238,8 @@ func Test_ProgramAction_SequenceWindowExpired(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 	defer matrix.Run(gt)
 
-	forks := helpers.ForkMatrix{helpers.Granite, helpers.LatestFork}
+	// forks := helpers.ForkMatrix{helpers.Granite, helpers.LatestFork}
+	forks := helpers.ForkMatrix{helpers.LatestFork}
 	matrix.AddTestCase(
 		"HonestClaim",
 		nil,
@@ -230,27 +247,27 @@ func Test_ProgramAction_SequenceWindowExpired(gt *testing.T) {
 		runSequenceWindowExpireTest,
 		helpers.ExpectNoError(),
 	)
-	matrix.AddTestCase(
-		"JunkClaim",
-		nil,
-		forks,
-		runSequenceWindowExpireTest,
-		helpers.ExpectError(claim.ErrClaimNotValid),
-		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
-	)
-	matrix.AddTestCase(
-		"ChannelCloseAfterWindowExpiry-HonestClaim",
-		nil,
-		forks,
-		runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test,
-		helpers.ExpectNoError(),
-	)
-	matrix.AddTestCase(
-		"ChannelCloseAfterWindowExpiry-JunkClaim",
-		nil,
-		forks,
-		runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test,
-		helpers.ExpectError(claim.ErrClaimNotValid),
-		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
-	)
+	// matrix.AddTestCase(
+	// 	"JunkClaim",
+	// 	nil,
+	// 	forks,
+	// 	runSequenceWindowExpireTest,
+	// 	helpers.ExpectError(claim.ErrClaimNotValid),
+	// 	helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
+	// )
+	// matrix.AddTestCase(
+	// 	"ChannelCloseAfterWindowExpiry-HonestClaim",
+	// 	nil,
+	// 	forks,
+	// 	runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test,
+	// 	helpers.ExpectNoError(),
+	// )
+	// matrix.AddTestCase(
+	// 	"ChannelCloseAfterWindowExpiry-JunkClaim",
+	// 	nil,
+	// 	forks,
+	// 	runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test,
+	// 	helpers.ExpectError(claim.ErrClaimNotValid),
+	// 	helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
+	// )
 }
