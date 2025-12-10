@@ -1,6 +1,6 @@
----
-slug: /
----
+<!-- ---
+slug: / <-- this is for if you want to default to dev-docs instead of having a landing page
+--- -->
 
 # Introduction
 

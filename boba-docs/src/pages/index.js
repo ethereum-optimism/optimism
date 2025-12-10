@@ -17,12 +17,12 @@ function HomepageHeader() {
         </h3>
         <p className="hero__subtitle">{siteConfig.tagline}</p>
         <div className={styles.buttons}>
-          <Link className="button button--secondary button--lg" to="/user-docs">
-            User Docs
+          <Link className="button button--secondary button--lg" to="/dev-docs/index">
+            Developer Docs
           </Link>
           &nbsp; &nbsp; &nbsp;
-          <Link className="button button--secondary button--lg" to="/dev-docs">
-            Developer Docs
+          <Link className="button button--secondary button--lg" to="/user-docs/index">
+            User Docs
           </Link>
         </div>
       </div>
@@ -42,23 +42,23 @@ export default function Home() {
               <div className="col">
                 <img
                   className={styles.featureImage}
-                  alt="User"
+                  alt="dev image"
                   src={useBaseUrl('/img/platonic-icons/platonic-platform.svg')}
                 />
-                <h2 className={clsx(styles.featureHeading)}>User</h2>
+                <h2 className={clsx(styles.featureHeading)}>Developer</h2>
                 <p className="padding-horiz--md">
-                  The user docs are pretty cool
+                  The developer docs are pretty cool
                 </p>
               </div>
               <div className="col">
                 <img
-                  alt="Developer"
+                  alt="user image"
                   className={styles.featureImage}
                   src={useBaseUrl('/img/platonic-icons/SDK.svg')}
                 />
-                <h2 className={clsx(styles.featureHeading)}>Developer</h2>
+                <h2 className={clsx(styles.featureHeading)}>User</h2>
                 <p className="padding-horiz--md">
-                  The developer docs are cool too, I guess
+                  The user docs are cool too, I guess
                 </p>
               </div>
               <div hidden={true}>
