@@ -357,8 +357,7 @@ func (el *L2ELNode) MatchedUnsafe(refNode SyncStatusProvider, attempts int) {
 	el.Matched(refNode, types.LocalUnsafe, attempts)
 }
 
-// PendingNonceMatchedFn returns a lambda that checks that the pending nonce of an account matches between two L2EL nodes
-// Composable with other lambdas to wait in parallel
+// PendingNonceMatchedFn returns a lambda that checks that the pending nonce of an account matches the provided reference nonce
 func (el *L2ELNode) PendingNonceMatchedFn(account common.Address, nonce uint64, attempts int, duration time.Duration) CheckFunc {
 	return func() error {
 		logger := el.log.With("id", el.inner.ID(), "account", account)
@@ -367,7 +366,7 @@ func (el *L2ELNode) PendingNonceMatchedFn(account common.Address, nonce uint64, 
 			func() error {
 				baseNonce, err := el.inner.EthClient().PendingNonceAt(el.ctx, account)
 				if err != nil {
-					return fmt.Errorf("failed to get pending nonce from base node: %w", err)
+					return fmt.Errorf("failed to get pending nonce from node: %w", err)
 				}
 
 				if baseNonce == nonce {
@@ -375,13 +374,13 @@ func (el *L2ELNode) PendingNonceMatchedFn(account common.Address, nonce uint64, 
 					return nil
 				}
 
-				logger.Debug("Pending nonce mismatch", "base", baseNonce, "nonce", nonce)
-				return fmt.Errorf("expected pending nonce to match: base=%d, nonce=%d", baseNonce, nonce)
+				logger.Debug("Pending nonce mismatch", "node nonce", baseNonce, "nonce", nonce)
+				return fmt.Errorf("expected pending nonce to match: node nonce=%d, reference nonce=%d", baseNonce, nonce)
 			})
 	}
 }
 
-// PendingNonceMatched checks that the pending nonce of an account matches between two L2EL nodes
+// PendingNonceMatched checks that the pending nonce of an account matches the reference nonce
 func (el *L2ELNode) PendingNonceMatched(account common.Address, nonce uint64, attempts int, duration time.Duration) {
 	el.require.NoError(el.PendingNonceMatchedFn(account, nonce, attempts, duration)())
 }
