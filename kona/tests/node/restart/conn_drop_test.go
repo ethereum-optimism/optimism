@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"testing"
 
+	node_utils "github.com/ethereum-optimism/optimism/kona/tests/node/utils"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	node_utils "github.com/op-rs/kona/node/utils"
 )
 
 // Ensure that kona-nodes reconnect to the sequencer and sync properly when the connection is dropped.

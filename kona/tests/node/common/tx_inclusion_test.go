@@ -3,10 +3,10 @@ package node
 import (
 	"testing"
 
+	node_utils "github.com/ethereum-optimism/optimism/kona/tests/node/utils"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	node_utils "github.com/op-rs/kona/node/utils"
 )
 
 func TestL2TransactionInclusion(gt *testing.T) {
