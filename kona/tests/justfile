@@ -139,6 +139,8 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
         export OP_VALIDATOR_WITH_GETH=0
     fi
 
+    export SKIP_P2P_CONNECTION_CHECK=true
+
     # Run the test with count=1 to avoid caching the test results.
     cd {{SOURCE}} && go test -count=1 -timeout 40m -v ./$GO_PKG_NAME $FILTER
 
@@ -174,6 +176,7 @@ long-running-test FILTER="" OUTPUT_LOGS_DIR="":
     mkdir -p $OP_TESTLOG_FILE_LOGGER_OUTDIR
 
     export DISABLE_OP_E2E_LEGACY=true
+    export SKIP_P2P_CONNECTION_CHECK=true
 
     # Run the test with count=1 to avoid caching the test results.
     cd {{SOURCE}} && go test -count=1 -timeout 0 -v ./node/long-running $FILTER

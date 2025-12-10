@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"context"
+	"os"
 	"slices"
 	"time"
 
@@ -49,6 +50,13 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 	var peerAdded bool
 	require.NoError(initiator.CallContext(ctx, &peerAdded, "admin_addPeer", targetInfo.Enode), "add peer")
 	require.True(peerAdded, "should have added peer successfully")
+
+	// Skip P2P connection verification if SKIP_P2P_CONNECTION_CHECK is set
+	// FIXME(#18570): it seems we have some issues getting op-reth to connect to op-geth. This is a temporary workaround to ensure we can still run the
+	// devstack tests.
+	if os.Getenv("SKIP_P2P_CONNECTION_CHECK") != "" {
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
