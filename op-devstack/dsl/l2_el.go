@@ -357,8 +357,8 @@ func (el *L2ELNode) MatchedUnsafe(refNode SyncStatusProvider, attempts int) {
 	el.Matched(refNode, types.LocalUnsafe, attempts)
 }
 
-// PendingNonceMatchedFn returns a lambda that checks that the pending nonce of an account matches the provided reference nonce
-func (el *L2ELNode) PendingNonceMatchedFn(account common.Address, nonce uint64, attempts int, duration time.Duration) CheckFunc {
+// WaitForPendingNonceMatchFn returns a lambda that waits for the pending nonce of an account to match the provided reference nonce
+func (el *L2ELNode) WaitForPendingNonceMatchFn(account common.Address, nonce uint64, attempts int, duration time.Duration) CheckFunc {
 	return func() error {
 		logger := el.log.With("id", el.inner.ID(), "account", account)
 		logger.Debug("Expecting pending nonce to match with reference nonce", "nonce", nonce)
@@ -380,9 +380,9 @@ func (el *L2ELNode) PendingNonceMatchedFn(account common.Address, nonce uint64, 
 	}
 }
 
-// PendingNonceMatched checks that the pending nonce of an account matches the reference nonce
-func (el *L2ELNode) PendingNonceMatched(account common.Address, nonce uint64, attempts int, duration time.Duration) {
-	el.require.NoError(el.PendingNonceMatchedFn(account, nonce, attempts, duration)())
+// WaitForPendingNonceMatch waits for the pending nonce of an account to match the reference nonce
+func (el *L2ELNode) WaitForPendingNonceMatch(account common.Address, nonce uint64, attempts int, duration time.Duration) {
+	el.require.NoError(el.WaitForPendingNonceMatchFn(account, nonce, attempts, duration)())
 }
 
 func (el *L2ELNode) UnsafeHead() *BlockRefResult {

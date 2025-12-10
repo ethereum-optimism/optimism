@@ -47,9 +47,7 @@ func TestBatcherFullChannelsAfterDowntime(gt *testing.T) {
 
 			parent = sys.L2CL.HeadBlockRef(types.LocalUnsafe).Hash
 
-			// we need to wait for the nonce for the address on the L2 EL client to be updated
-			// so that we can sequence the next block
-			sys.L2EL.PendingNonceMatched(cathrine.Address(), nonce, 10, 1*time.Second)
+			sys.L2EL.WaitForPendingNonceMatch(cathrine.Address(), nonce, 10, 1*time.Second)
 
 			sys.AdvanceTime(time.Second * 2)
 		}
