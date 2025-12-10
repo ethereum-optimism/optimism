@@ -93,6 +93,12 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The MIPS implementation address.
     address public mipsImpl;
 
+    /// @notice The FaultDisputeGame implementation address.
+    address public faultDisputeGameImpl;
+
+    /// @notice The PermissionedFaultDisputeGame implementation address.
+    address public permissionedDisputeGameImpl;
+
     /// @notice Bitmap of development features, verification may depend on these features.
     bytes32 public devFeatureBitmap;
 
@@ -110,6 +116,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         address anchorStateRegistryImpl;
         address delayedWETHImpl;
         address mipsImpl;
+        address faultDisputeGameImpl;
+        address permissionedDisputeGameImpl;
     }
 
     /// @notice Struct containing the input parameters for the validation process.
@@ -183,6 +191,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         anchorStateRegistryImpl = _implementations.anchorStateRegistryImpl;
         delayedWETHImpl = _implementations.delayedWETHImpl;
         mipsImpl = _implementations.mipsImpl;
+        faultDisputeGameImpl = _implementations.faultDisputeGameImpl;
+        permissionedDisputeGameImpl = _implementations.permissionedDisputeGameImpl;
     }
 
     /// @notice Returns a string representing the overrides that are set.
@@ -215,11 +225,6 @@ contract OPContractsManagerStandardValidator is ISemver {
             return _overrides.challenger;
         }
         return challenger;
-    }
-
-    /// @notice Returns the expected PermissionedDisputeGame version.
-    function permissionedDisputeGameVersion() public pure returns (string memory) {
-        return "2.2.0";
     }
 
     /// @notice Returns the expected PreimageOracle version.
@@ -651,7 +656,12 @@ contract OPContractsManagerStandardValidator is ISemver {
         IDisputeGameFactory dgf = IDisputeGameFactory(_args.sysCfg.disputeGameFactory());
 
         errors_ = internalRequire(
-            LibString.eq(getVersion(game.gameAddress), permissionedDisputeGameVersion()),
+            LibString.eq(
+                getVersion(game.gameAddress),
+                _args.gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
+                    ? getVersion(permissionedDisputeGameImpl)
+                    : getVersion(faultDisputeGameImpl)
+            ),
             string.concat(errorPrefix, "-20"),
             errors_
         );

@@ -84,6 +84,33 @@ contract BadDisputeGameFactoryReturner {
     }
 }
 
+/// @title BadVersionReturner
+contract BadVersionReturner {
+    /// @notice Address of the OPContractsManagerStandardValidator instance.
+    IOPContractsManagerStandardValidator public immutable validator;
+
+    /// @notice Address of the versioned contract.
+    ISemver public immutable versioned;
+
+    /// @notice The mock semver
+    string public mockVersion;
+
+    constructor(IOPContractsManagerStandardValidator _validator, ISemver _versioned, string memory _mockVersion) {
+        validator = _validator;
+        versioned = _versioned;
+        mockVersion = _mockVersion;
+    }
+
+    /// @notice Returns the real or fake semver
+    function version() external view returns (string memory) {
+        if (msg.sender == address(validator)) {
+            return mockVersion;
+        } else {
+            return versioned.version();
+        }
+    }
+}
+
 /// @title OPContractsManagerStandardValidator_TestInit
 /// @notice Base contract for `OPContractsManagerStandardValidator` tests, handles common setup.
 abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, DisputeGames {
@@ -990,7 +1017,10 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame version is invalid.
     function test_validate_permissionedDisputeGameInvalidVersion_succeeds() public {
-        vm.mockCall(address(pdgImpl), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+        BadVersionReturner bad = new BadVersionReturner(standardValidator, ISemver(address(pdgImpl)), "0.0.0");
+        bytes32 slot =
+            bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "permissionedDisputeGameImpl").slot);
+        vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
         assertEq("PDDG-20", _validate(true));
     }
 
@@ -1409,7 +1439,10 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         FaultDisputeGame (permissionless) version is invalid.
     function test_validate_faultDisputeGameInvalidVersion_succeeds() public {
-        vm.mockCall(address(fdgImpl), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+        BadVersionReturner bad = new BadVersionReturner(standardValidator, ISemver(address(pdgImpl)), "0.0.0");
+        bytes32 slot =
+            bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "faultDisputeGameImpl").slot);
+        vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
         assertEq("PLDG-20,CKDG-20", _validate(true));
     }
 
@@ -1698,6 +1731,14 @@ contract OPContractsManagerStandardValidator_Versions_Test is OPContractsManager
         );
         assertTrue(bytes(ISemver(standardValidator.mipsImpl()).version()).length > 0, "mipsVersion empty");
         assertTrue(
+            bytes(ISemver(standardValidator.faultDisputeGameImpl()).version()).length > 0,
+            "faultDisputeGameVersion empty"
+        );
+        assertTrue(
+            bytes(ISemver(standardValidator.permissionedDisputeGameImpl()).version()).length > 0,
+            "permissionedDisputeGameVersion empty"
+        );
+        assertTrue(
             bytes(ISemver(standardValidator.optimismMintableERC20FactoryImpl()).version()).length > 0,
             "optimismMintableERC20FactoryVersion empty"
         );
@@ -1710,9 +1751,6 @@ contract OPContractsManagerStandardValidator_Versions_Test is OPContractsManager
             "anchorStateRegistryVersion empty"
         );
         assertTrue(bytes(ISemver(standardValidator.delayedWETHImpl()).version()).length > 0, "delayedWETHVersion empty");
-        assertTrue(
-            bytes(standardValidator.permissionedDisputeGameVersion()).length > 0, "permissionedDisputeGameVersion empty"
-        );
         assertTrue(bytes(standardValidator.preimageOracleVersion()).length > 0, "preimageOracleVersion empty");
         assertTrue(bytes(ISemver(standardValidator.ethLockboxImpl()).version()).length > 0, "ethLockboxVersion empty");
     }
