@@ -401,9 +401,10 @@ func TestUpdateSystemConfigWithL1Receipts_Atomicity(t *testing.T) {
 			Address: l1Addr,
 			Topics: []common.Hash{
 				ConfigUpdateEventABIHash,
-				common.Hash{31: '1'},
-				common.Hash{0: 'a', 31: 7}, // test assumes this is not a known event type
+				common.Hash{31: 1}, // test assumes this is not a known event version
+				SystemConfigUpdateBatcher,
 			},
+			Data: batcherData,
 		}
 		receipts := []*types.Receipt{
 			{
@@ -432,8 +433,9 @@ func TestUpdateSystemConfigWithL1Receipts_Atomicity(t *testing.T) {
 		require.Equal(t, initial.GasLimit, sysCfg.GasLimit)
 		// Confirm error contains expected messages
 		require.ErrorContains(t, err, "invalid pointer field")
-		require.ErrorContains(t, err, "unrecognized L1 sysCfg update type")
-		require.ErrorContains(t, err, "unrecognized SystemConfig update event version")
+		require.ErrorIs(t, err, ErrParsingSystemConfig)
+		require.ErrorIs(t, err, ErrUnknownEventType)
+		require.ErrorIs(t, err, ErrUnknownEventVersion)
 	})
 
 	t.Run("applies multiple updates within a single receipt", func(t *testing.T) {
