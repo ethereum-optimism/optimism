@@ -378,11 +378,6 @@ commands:
           command: bash scripts/ops/use-latest-fallback.sh
           working_directory: packages/contracts-bedrock
 
-  # NOTE: Kona commands are defined in .circleci/src/kona.yml
-  # To generate a combined config, run:
-  #   yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' .circleci/config.yml .circleci/src/kona.yml > .circleci/combined-config.yml
-  # Or use: circleci config pack .circleci/src > .circleci/config.yml
-
   # Kona Rust setup commands (migrated from kona/.github/actions/setup)
   kona-rust-setup:
     description: "Setup Rust environment for Kona builds"
