@@ -157,6 +157,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when interop migration is attempted without the interop dev feature enabled.
     error OPContractsManagerV2_InteropMigrationRequiresDevFeature();
 
+    /// @notice Thrown when the proxy admin of the shared contracts is not the same as the ETHLockbox.
+    error OPContractsManagerV2_InteropSharedContractsProxyAdminMismatch();
+
+    /// @notice Thrown when the proxy admin owner of the shared contracts is not the same as the current chain's proxy
+    /// admin owner.
+    error OPContractsManagerV2_InteropSharedContractsProxyAdminOwnerMismatch();
     /// @notice Container of blueprint and implementation contract addresses.
     IOPContractsManagerContainer public immutable contractsContainer;
 
@@ -654,13 +660,17 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @param _cfg The full config.
     function _assertValidFullConfig(FullConfig memory _cfg) internal view {
         // Start validating the dispute game configs. Put allowed game types here.
-        uint256 numValidGameTypes = isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP) ? 5 : 3;
-        GameType[] memory validGameTypes = new GameType[](numValidGameTypes);
-        validGameTypes[0] = GameTypes.CANNON;
-        validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
-        validGameTypes[2] = GameTypes.CANNON_KONA;
-
-        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+        GameType[] memory validGameTypes;
+        if (!isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            validGameTypes = new GameType[](3);
+            validGameTypes[0] = GameTypes.CANNON;
+            validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
+            validGameTypes[2] = GameTypes.CANNON_KONA;
+        } else {
+            validGameTypes = new GameType[](5);
+            validGameTypes[0] = GameTypes.CANNON;
+            validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
+            validGameTypes[2] = GameTypes.CANNON_KONA;
             validGameTypes[3] = GameTypes.SUPER_CANNON;
             validGameTypes[4] = GameTypes.SUPER_PERMISSIONED_CANNON;
         }
@@ -1016,7 +1026,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         returns (bytes memory)
     {
         IOPContractsManagerContainer.Implementations memory impls = implementations();
-        if (_gcfg.gameType.raw() == GameTypes.CANNON.raw() || _gcfg.gameType.raw() == GameTypes.CANNON_KONA.raw()) {
+        if (
+            _gcfg.gameType.raw() == GameTypes.CANNON.raw() || _gcfg.gameType.raw() == GameTypes.CANNON_KONA.raw()
+                || _gcfg.gameType.raw() == GameTypes.SUPER_CANNON.raw()
+        ) {
             FaultDisputeGameConfig memory parsedInputArgs = abi.decode(_gcfg.gameArgs, (FaultDisputeGameConfig));
             return abi.encodePacked(
                 parsedInputArgs.absolutePrestate,
@@ -1025,7 +1038,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 address(_cts.delayedWETH),
                 _cfg.l2ChainId
             );
-        } else if (_gcfg.gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
+        } else if (
+            _gcfg.gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
+                || _gcfg.gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+        ) {
             PermissionedDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (PermissionedDisputeGameConfig));
             return abi.encodePacked(
