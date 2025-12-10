@@ -20,7 +20,7 @@ interface IOPContractsManagerStandardValidator {
         address delayedWETHImpl;
         address mipsImpl;
         address faultDisputeGameImpl;
-        address permissionedFaultDisputeGameImpl;
+        address permissionedDisputeGameImpl;
     }
 
     struct ValidationInput {

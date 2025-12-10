@@ -730,7 +730,7 @@ contract DeployImplementations is Script {
         opcmImplementations.delayedWETHImpl = _implementations.delayedWETHImpl;
         opcmImplementations.mipsImpl = _implementations.mipsImpl;
         opcmImplementations.faultDisputeGameImpl = _implementations.faultDisputeGameV2Impl;
-        opcmImplementations.permissionedFaultDisputeGameImpl = _implementations.permissionedDisputeGameV2Impl;
+        opcmImplementations.permissionedDisputeGameImpl = _implementations.permissionedDisputeGameV2Impl;
 
         IOPContractsManagerStandardValidator impl = IOPContractsManagerStandardValidator(
             DeployUtils.createDeterministic({
