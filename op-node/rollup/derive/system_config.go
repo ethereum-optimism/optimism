@@ -34,7 +34,7 @@ var (
 
 var (
 	ErrUnknownEventVersion = errors.New("unknown SystemConfig event version")
-	ErrUnknownEventType    = errors.New("unknown SystemConfig event version")
+	ErrUnknownEventType    = errors.New("unknown SystemConfig event type")
 )
 
 // UpdateSystemConfigWithL1Receipts filters all L1 receipts to find config updates and applies the config updates to the given sysCfg
