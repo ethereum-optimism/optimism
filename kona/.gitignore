@@ -44,3 +44,7 @@ rustc-ice-*
 
 # logfiles
 *.log
+
+bin
+build
+prestates

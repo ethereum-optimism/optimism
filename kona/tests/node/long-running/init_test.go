@@ -4,8 +4,8 @@ import (
 	"flag"
 	"testing"
 
+	node_utils "github.com/ethereum-optimism/optimism/kona/tests/node/utils"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	node_utils "github.com/op-rs/kona/node/utils"
 )
 
 var (

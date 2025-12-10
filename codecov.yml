@@ -7,6 +7,9 @@ comment:
   require_changes: true
   flags:
     - contracts-bedrock-tests
+    - unit
+    - e2e
+    - proof
 
 ignore:
   - "op-e2e"
@@ -15,12 +18,28 @@ ignore:
   - "packages/contracts-bedrock/scripts/**/*.sol"
   - "packages/contracts-bedrock/src/vendor/**/*.sol"
   - "packages/contracts-bedrock/src/interfaces/**/*.sol"
+  # Kona ignores
+  - "kona/examples/**/*"
+  - "kona/**/test_util*"
+  - "kona/**/noop.rs"
 
 coverage:
+  range: 80..100
+  round: down
+  precision: 1
   status:
     project:
       default:
         informational: true
+      # Kona unit tests
+      unit:
+        threshold: 1%
+      # Kona E2E tests
+      e2e:
+        threshold: 1%
+      # Kona proof/action tests
+      proof:
+        threshold: 1%
     patch:
       contracts:
         base: auto
@@ -29,9 +48,47 @@ coverage:
         informational: false
         flags:
           - contracts-bedrock-tests
+      # Kona patch coverage
+      unit:
+        target: auto
+        threshold: 1%
+        base: auto
+        only_pulls: true
+      e2e:
+        target: auto
+        threshold: 1%
+        base: auto
+        only_pulls: true
+      proof:
+        target: auto
+        threshold: 1%
+        base: auto
+        only_pulls: true
 
 flag_management:
   individual_flags:
     - name: contracts-bedrock-tests
       paths:
         - packages/contracts-bedrock/src
+    # Kona flags
+    - name: unit
+      paths:
+        - kona
+      statuses:
+        - type: project
+          target: auto
+          threshold: 1%
+    - name: e2e
+      paths:
+        - kona
+      statuses:
+        - type: project
+          target: auto
+          threshold: 1%
+    - name: proof
+      paths:
+        - kona
+      statuses:
+        - type: project
+          target: auto
+          threshold: 1%
