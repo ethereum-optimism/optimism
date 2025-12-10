@@ -13,7 +13,7 @@ import (
 // and then recovers the chain using sequencer recover mode.
 func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
-	const SEQUENCER_WINDOW_SIZE = 10 // (short, to keep test fast)
+	const SEQUENCER_WINDOW_SIZE = 50 // (short, to keep test fast)
 	tp := helpers.NewTestParams(func(p *e2eutils.TestParams) {
 		p.SequencerWindowSize = SEQUENCER_WINDOW_SIZE
 	})
@@ -78,11 +78,12 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 		return int(ss.CurrentL1.Number - ss.SafeL2.L1Origin.Number)
 	}
 
+	// Define "drift" as the difference between the current L2 block's timestamp and the unsafe L2 block's L1 origin's timestamp.
 	computeDrift := func() int {
 		ss := env.Sequencer.SyncStatus()
-		l2header, err := env.Engine.EthClient().HeaderByHash(t.Ctx(), ss.SafeL2.Hash)
+		l2header, err := env.Engine.EthClient().HeaderByHash(t.Ctx(), ss.UnsafeL2.Hash)
 		require.NoError(t, err)
-		l1header, err := env.Miner.EthClient().HeaderByHash(t.Ctx(), ss.SafeL2.L1Origin.Hash)
+		l1header, err := env.Miner.EthClient().HeaderByHash(t.Ctx(), ss.UnsafeL2.L1Origin.Hash)
 		require.NoError(t, err)
 		t.Log("l2header.Time", l2header.Time)
 		t.Log("l1header.Time", l1header.Time)
@@ -110,19 +111,12 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 			// is critical for recover mode to work.
 			env.Sequencer.ActL2EndBlock(t)
 		}
-		if numL1Blocks%2 == 0 {
-			// Simulate batching every 2 L1 blocks
-			env.BatchMineAndSync(t)
-		} else {
-			// Keep the L1 chain moving forward
-			env.Miner.ActEmptyBlock(t)
-		}
+		env.BatchMineAndSync(t) // Mines 1 block on L1
 		numL1Blocks++
 		lag = computeLag()
 		t.Log("lag", lag)
-		drift := computeDrift()
-		t.Log("drift", drift)
-		if lag == 1 && numL1Blocks > 10 { // A lag of 1 is the minimum possible.
+		t.Log("drift", computeDrift())
+		if lag == 1 { // A lag of 1 is the minimum possible.
 			break
 		}
 	}
