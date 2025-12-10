@@ -86,7 +86,7 @@ const config = {
       {
         id: 'dev',
         path: 'dev-docs',
-        routeBasePath: 'dev-docs', // if defaulting to dev-docs (not landing page), this should be '/'
+        routeBasePath: '/', // if you want a landing page, this should be 'dev-docs'
         sidebarPath: undefined, //require.resolve('./sidebarsSDK.js'),
         lastVersion: 'current',
           versions: {
@@ -97,31 +97,18 @@ const config = {
       },
     ],
 
-    [
-      '@docusaurus/plugin-client-redirects',
-       {
-        redirects: [
-          {
-            to: '/dev-docs',
-            from: '/',
-          },
-        ],
-      },
-      
-      /**
-          // * @param {string} existingPath
-          */
-      // createRedirects(existingPath) {
-      //     if (existingPath.match('/')) {
-      //       // Redirect from /docs/team/X to /community/X and /docs/support/X to /community/X
-      //       return [
-      //         existingPath.replace('/', '/dev-docs'),
-      //       ];
-      //     }
-      //     return undefined; // Return a falsy value: no redirect created
-      //   },
-      // },
-    ],
+    // [
+    //   '@docusaurus/plugin-client-redirects',
+    //    {
+    //     redirects: [
+    //       {
+    //         to: '/dev-docs',
+    //         from: '/',
+    //       },
+    //     ],
+    //   },
+    // ],
+
   ],
 
   themeConfig:
@@ -136,7 +123,7 @@ const config = {
           src: 'img/boba_B.png',
         },
         items: [
-          { to: 'dev-docs/index', label: 'Developer', position: 'left' }, // if defaulting to dev-docs (instead of landing page), change to '/'
+          { to: '/', label: 'Developer', position: 'left' }, // if you want a landing page, change to 'dev-docs/index'
           { to: 'user-docs/index', label: 'User', position: 'left' },
           // {
           //   type: 'docSidebar',
