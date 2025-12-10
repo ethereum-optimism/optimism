@@ -867,12 +867,11 @@ contract DeployImplementations is Script {
             address(_output.optimismMintableERC20FactoryImpl),
             address(_output.disputeGameFactoryImpl),
             address(_output.anchorStateRegistryImpl),
-            address(_output.ethLockboxImpl)
+            address(_output.ethLockboxImpl),
+            address(_output.faultDisputeGameV2Impl),
+            address(_output.permissionedDisputeGameV2Impl)
         );
 
-        address[] memory v2Addrs =
-            Solarray.addresses(address(_output.faultDisputeGameV2Impl), address(_output.permissionedDisputeGameV2Impl));
-        addrs2 = Solarray.extend(addrs2, v2Addrs);
         if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             address[] memory superGameAddrs = Solarray.addresses(
                 address(_output.superFaultDisputeGameImpl), address(_output.superPermissionedDisputeGameImpl)
