@@ -657,7 +657,7 @@
         "type": "string"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -709,6 +709,22 @@
       }
     ],
     "name": "OPContractsManagerV2_InvalidUpgradeInstruction",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_lastVersion",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_thisVersion",
+        "type": "string"
+      }
+    ],
+    "name": "OPContractsManagerV2_InvalidUpgradeSequence",
     "type": "error"
   },
   {

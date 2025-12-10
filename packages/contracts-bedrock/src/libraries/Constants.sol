@@ -47,6 +47,10 @@ library Constants {
     ///         made to have code in tests with cheatcodes.
     address internal constant TESTING_ENVIRONMENT_ADDRESS = address(0xbeefcafe);
 
+    /// @notice The address used by OPCM to check if the contract is currently executing a test of
+    ///         the version() function which mocks the version() function.
+    address internal constant VERSION_TESTING_ADDRESS = address(0xcafecafe);
+
     /// @notice Special constant key for the PermittedProxyDeployment instruction.
     string internal constant PERMITTED_PROXY_DEPLOYMENT_KEY = "PermittedProxyDeployment";
 

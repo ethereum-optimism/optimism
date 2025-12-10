@@ -18,6 +18,7 @@ import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -747,6 +748,168 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assembly {
             prestate_ := mload(add(args, 0x20))
         }
+    }
+
+    /// @notice Tests that the upgrade succeeds when using the same OPCM (re-running upgrade).
+    function test_upgrade_sameOPCM_succeeds() public {
+        // Mock the OPCM version to be >= 7.0.0 so the check activates.
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("7.0.0"));
+
+        // Mock lastUsedOPCM to return the same OPCM address.
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(address(opcmV2)));
+
+        // Should succeed because it's the same OPCM.
+        runCurrentUpgradeV2(chainPAO);
+    }
+
+    /// @notice Tests that the upgrade succeeds when upgrading to the same major but higher minor version.
+    function test_upgrade_sameMajorHigherMinor_succeeds() public {
+        // Create a mock address for the "old" OPCM.
+        address oldOPCM = makeAddr("oldOPCM");
+
+        // Mock the current OPCM version to be 7.1.0.
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("7.1.0"));
+
+        // Mock lastUsedOPCM to return the old OPCM address.
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
+
+        // Mock the old OPCM version to be 7.0.0.
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("7.0.0"));
+
+        // Should succeed because 7.1.0 > 7.0.0 (same major, higher minor).
+        runCurrentUpgradeV2(chainPAO);
+    }
+
+    /// @notice Tests that the upgrade succeeds when upgrading to the next major version.
+    function test_upgrade_nextMajorVersion_succeeds() public {
+        // Create a mock address for the "old" OPCM.
+        address oldOPCM = makeAddr("oldOPCM");
+
+        // Mock the current OPCM version to be 8.0.0.
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("8.0.0"));
+
+        // Mock lastUsedOPCM to return the old OPCM address.
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
+
+        // Mock the old OPCM version to be 7.2.0.
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("7.2.0"));
+
+        // Should succeed because 8.0.0 is the next major after 7.x.x.
+        runCurrentUpgradeV2(chainPAO);
+    }
+
+    /// @notice Tests that the upgrade reverts when trying to downgrade (same major, lower minor).
+    function test_upgrade_sameMajorLowerMinor_reverts() public {
+        // Create a mock address for the "old" OPCM.
+        address oldOPCM = makeAddr("oldOPCM");
+
+        // Mock the current OPCM version to be 7.0.0.
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("7.0.0"));
+
+        // Mock lastUsedOPCM to return the old OPCM address.
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
+
+        // Mock the old OPCM version to be 7.1.0.
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("7.1.0"));
+
+        // Should revert because 7.0.0 < 7.1.0 (downgrade).
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO,
+            abi.encodeWithSelector(
+                IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeSequence.selector, "7.1.0", "7.0.0"
+            )
+        );
+    }
+
+    /// @notice Tests that the upgrade reverts when trying to use the same minor version.
+    function test_upgrade_sameMajorSameMinor_reverts() public {
+        // Create a mock address for the "old" OPCM.
+        address oldOPCM = makeAddr("oldOPCM");
+
+        // Mock the current OPCM version to be 7.1.0.
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("7.1.0"));
+
+        // Mock lastUsedOPCM to return the old OPCM address.
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
+
+        // Mock the old OPCM version to be 7.1.0.
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("7.1.0"));
+
+        // Should revert because 7.1.0 == 7.1.0 (not higher).
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO,
+            abi.encodeWithSelector(
+                IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeSequence.selector, "7.1.0", "7.1.0"
+            )
+        );
+    }
+
+    /// @notice Tests that the upgrade reverts when skipping major versions.
+    function test_upgrade_skipMajorVersion_reverts() public {
+        // Create a mock address for the "old" OPCM.
+        address oldOPCM = makeAddr("oldOPCM");
+
+        // Mock the current OPCM version to be 9.0.0.
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
+
+        // Mock lastUsedOPCM to return the old OPCM address.
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
+
+        // Mock the old OPCM version to be 7.0.0.
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("7.0.0"));
+
+        // Should revert because 9.0.0 skips major version 8.
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO,
+            abi.encodeWithSelector(
+                IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeSequence.selector, "7.0.0", "9.0.0"
+            )
+        );
+    }
+
+    /// @notice Tests that the upgrade reverts when trying to downgrade major versions.
+    function test_upgrade_downgradeMajorVersion_reverts() public {
+        // Create a mock address for the "old" OPCM.
+        address oldOPCM = makeAddr("oldOPCM");
+
+        // Mock the current OPCM version to be 7.0.0.
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("7.0.0"));
+
+        // Mock lastUsedOPCM to return the old OPCM address.
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
+
+        // Mock the old OPCM version to be 8.0.0.
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("8.0.0"));
+
+        // Should revert because 7.0.0 < 8.0.0 (major downgrade).
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO,
+            abi.encodeWithSelector(
+                IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeSequence.selector, "8.0.0", "7.0.0"
+            )
+        );
+    }
+
+    /// @notice Tests that the upgrade sequence check is skipped for OPCM versions < 7.0.0.
+    function test_upgrade_versionBelowThreshold_succeeds() public {
+        // Create a mock address for the "old" OPCM that would fail the check if it ran.
+        address oldOPCM = makeAddr("oldOPCM");
+
+        // Mock the current OPCM version to be 6.0.0 (below threshold).
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("6.0.0"));
+
+        // Mock lastUsedOPCM to return the old OPCM address.
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
+
+        // Mock the old OPCM version to be 9.0.0 (would fail if check ran).
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("9.0.0"));
+
+        // Should succeed because the check is skipped for versions < 7.0.0.
+        runCurrentUpgradeV2(chainPAO);
     }
 }
 
