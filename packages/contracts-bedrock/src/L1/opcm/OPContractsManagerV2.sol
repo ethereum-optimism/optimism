@@ -166,7 +166,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 6.0.4
+    /// @custom:semver 6.0.5
     string public constant version = "6.0.5";
 
     /// @param _contractsContainer The container of blueprint and implementation contract addresses.
