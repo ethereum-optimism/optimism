@@ -738,6 +738,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // shared lockbox address. If this is not an interop migration then we won't end up using
         // this variable.
         IETHLockbox oldLockbox = _cts.ethLockbox;
+        IProxyAdmin sharedContractsProxyAdmin = _cts.proxyAdmin;
         if (_hasInstructionByKey(_cfg.extraInstructions, Constants.INTEROP_MIGRATION_ADDRESSES)) {
             // Ensure that the interop dev feature is enabled.
             if (!isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
@@ -844,19 +845,21 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             abi.encodeCall(IDelayedWETH.initialize, (_cts.systemConfig))
         );
 
-        // Update shared interop contracts (ETHLockbox, DisputeGameFactory, AnchorStateRegistry).
-        // Skip if using shared contracts from interop migration because:
-        // 1. They're already deployed and initialized on the shared chain
-        // 2. The current chain's ProxyAdmin doesn't own them and cannot upgrade them
-        if (!_hasInteropMigrationAddresses(_cfg.extraInstructions)) {
-            // We upgrade/initialize the ETHLockbox if this is an initial deployment or if it's an
-            // upgrade and the ETH_LOCKBOX feature is enabled.
-            // TODO(#?????): Maybe just initialize this every time?
+        // Update the ETHLockbox, DisputeGameFactory, and AnchorStateRegistry.
+        // Depending on whether or not this is an interop migration upgrade, these contracts may have a different
+        // ProxyAdmin, but regardless they MUST have the same ProxyAdmin owner. Therefore in the next upgrades
+        // we use the shared ProxyAdmin which was previously read directly from the the interop shared contracts.
+        // In the deployment and typical upgrade cases, this will be the same as the current chain's proxy admin.
+        // A new scope is created here simply to denote where the modified pattern is being used.
+        {
             if (_isInitialDeployment || _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
                 IOptimismPortal[] memory portals = new IOptimismPortal[](1);
                 portals[0] = _cts.optimismPortal;
+
+
+                // Update the ETHLockbox.
                 _upgrade(
-                    _cts.proxyAdmin,
+                    sharedContractsProxyAdmin,
                     address(_cts.ethLockbox),
                     impls.ethLockboxImpl,
                     abi.encodeCall(IETHLockbox.initialize, (_cts.systemConfig, portals))
@@ -865,7 +868,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
             // Update the DisputeGameFactory.
             _upgrade(
-                _cts.proxyAdmin,
+                sharedContractsProxyAdmin,
                 address(_cts.disputeGameFactory),
                 impls.disputeGameFactoryImpl,
                 abi.encodeCall(IDisputeGameFactory.initialize, (address(this)))
@@ -873,7 +876,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
             // Update the AnchorStateRegistry.
             _upgrade(
-                _cts.proxyAdmin,
+                sharedContractsProxyAdmin,
                 address(_cts.anchorStateRegistry),
                 impls.anchorStateRegistryImpl,
                 abi.encodeCall(
