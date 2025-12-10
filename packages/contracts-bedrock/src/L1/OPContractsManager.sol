@@ -2306,18 +2306,10 @@ contract OPContractsManager is ISemver {
     /// @notice Thrown if logic gated by a dev feature flag is incorrectly accessed.
     error InvalidDevFeatureAccess(bytes32 devFeature);
 
-    /// @notice Thrown when OPCM v1 is disabled via dev feature flag.
-    error OPContractsManager_V1Disabled();
+    /// @notice Thrown when OPCM v2 is enabled via dev feature flag.
+    error OPContractsManager_V2Enabled();
 
     // -------- Methods --------
-
-    /// @notice Modifier that reverts if OPCM v2 is enabled via dev feature flag.
-    modifier revertIfV2Enabled() {
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            revert OPContractsManager_V1Disabled();
-        }
-        _;
-    }
 
     constructor(
         OPContractsManagerGameTypeAdder _opcmGameTypeAdder,
@@ -2400,7 +2392,9 @@ contract OPContractsManager is ISemver {
     /// @notice Deploys a new OP Stack chain.
     /// @param _input The deploy input parameters for the deployment.
     /// @return The deploy output values of the deployment.
-    function deploy(DeployInput calldata _input) external virtual revertIfV2Enabled returns (DeployOutput memory) {
+    function deploy(DeployInput calldata _input) external virtual returns (DeployOutput memory) {
+        _assertV2NotEnabled();
+
         return opcmDeployer.deploy(_input, superchainConfig, msg.sender);
     }
 
@@ -2409,7 +2403,9 @@ contract OPContractsManager is ISemver {
     /// @dev This function is intended to be DELEGATECALLed by an address that is the common owner of every chain in
     ///      `_opChainConfigs`'s ProxyAdmin.
     /// @dev This function requires that each chain's superchainConfig is already upgraded.
-    function upgrade(OpChainConfig[] memory _opChainConfigs) external virtual revertIfV2Enabled {
+    function upgrade(OpChainConfig[] memory _opChainConfigs) external virtual {
+        _assertV2NotEnabled();
+
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
         bytes memory data = abi.encodeCall(OPContractsManagerUpgrader.upgrade, (_opChainConfigs));
@@ -2420,7 +2416,9 @@ contract OPContractsManager is ISemver {
     /// @param _superchainConfig The SuperchainConfig contract to upgrade.
     /// @dev This function is intended to be DELEGATECALLed by the superchainConfig's ProxyAdminOwner.
     /// @dev This function will revert if the SuperchainConfig is already at or above the target version.
-    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig) external revertIfV2Enabled {
+    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig) external {
+        _assertV2NotEnabled();
+
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
         bytes memory data = abi.encodeCall(OPContractsManagerUpgrader.upgradeSuperchainConfig, (_superchainConfig));
@@ -2429,12 +2427,9 @@ contract OPContractsManager is ISemver {
 
     /// @notice addGameType deploys a new dispute game and links it to the DisputeGameFactory. The inputted _gameConfigs
     /// must be added in ascending GameType order.
-    function addGameType(AddGameInput[] memory _gameConfigs)
-        public
-        virtual
-        revertIfV2Enabled
-        returns (AddGameOutput[] memory)
-    {
+    function addGameType(AddGameInput[] memory _gameConfigs) public virtual returns (AddGameOutput[] memory) {
+        _assertV2NotEnabled();
+
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
         bytes memory data = abi.encodeCall(OPContractsManagerGameTypeAdder.addGameType, (_gameConfigs));
@@ -2445,7 +2440,9 @@ contract OPContractsManager is ISemver {
 
     /// @notice Updates the prestate hash for dispute games while keeping all other parameters the same
     /// @param _prestateUpdateInputs The new prestate hashes to use
-    function updatePrestate(UpdatePrestateInput[] memory _prestateUpdateInputs) public revertIfV2Enabled {
+    function updatePrestate(UpdatePrestateInput[] memory _prestateUpdateInputs) public {
+        _assertV2NotEnabled();
+
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
         bytes memory data = abi.encodeCall(OPContractsManagerGameTypeAdder.updatePrestate, (_prestateUpdateInputs));
@@ -2455,11 +2452,9 @@ contract OPContractsManager is ISemver {
 
     /// @notice Migrates the Optimism contracts to the latest version.
     /// @param _input Input parameters for the migration.
-    function migrate(OPContractsManagerInteropMigrator.MigrateInput calldata _input)
-        external
-        virtual
-        revertIfV2Enabled
-    {
+    function migrate(OPContractsManagerInteropMigrator.MigrateInput calldata _input) external virtual {
+        _assertV2NotEnabled();
+
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
         bytes memory data = abi.encodeCall(OPContractsManagerInteropMigrator.migrate, (_input));
@@ -2498,6 +2493,13 @@ contract OPContractsManager is ISemver {
     /// @return True if the feature is enabled, false otherwise.
     function isDevFeatureEnabled(bytes32 _feature) public view returns (bool) {
         return opcmDeployer.isDevFeatureEnabled(_feature);
+    }
+
+    /// @notice Reverts if the dev feature flag for OPCM v2 is enabled.
+    function _assertV2NotEnabled() internal view {
+        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            revert OPContractsManager_V2Enabled();
+        }
     }
 
     /// @notice Helper function to perform a delegatecall to a target contract
