@@ -191,9 +191,8 @@ contract DeployOPChain is Script {
         });
 
         // Check dispute games
-        address expectedPDGImpl = address(_o.permissionedDisputeGame);
         // With v2 game contracts enabled, we use the predeployed pdg implementation
-        expectedPDGImpl = IOPContractsManager(_i.opcm).implementations().permissionedDisputeGameV2Impl;
+        address expectedPDGImpl = IOPContractsManager(_i.opcm).implementations().permissionedDisputeGameV2Impl;
         ChainAssertions.checkDisputeGameFactory(
             _o.disputeGameFactoryProxy, _i.opChainProxyAdminOwner, expectedPDGImpl, true
         );
