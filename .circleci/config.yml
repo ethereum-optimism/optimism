@@ -411,11 +411,6 @@ commands:
             if [ -n "<<parameters.components>>" ]; then
               rustup component add <<parameters.components>>
             fi
-      - run:
-          name: Install just
-          command: |
-            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
-            echo 'export PATH="$HOME/.local/bin:$PATH"' >> $BASH_ENV
       - restore_cache:
           name: Restore Cargo cache
           keys:
@@ -433,23 +428,15 @@ commands:
             - ~/.cargo/git
             - kona/target
 
-  kona-install-go:
-    description: "Install Go for Kona tests"
-    parameters:
-      version:
-        description: Go version to install
-        type: string
-        default: "1.23.8"
+  reth-setup:
+    description: "Setup Reth environment"
     steps:
       - run:
-          name: Install Go <<parameters.version>>
+          name: Checkout reth submodule
           command: |
-            wget -q https://go.dev/dl/go<<parameters.version>>.linux-amd64.tar.gz
-            sudo rm -rf /usr/local/go
-            sudo tar -C /usr/local -xzf go<<parameters.version>>.linux-amd64.tar.gz
-            echo 'export PATH="/usr/local/go/bin:$PATH"' >> $BASH_ENV
-            source $BASH_ENV
-            go version
+            git submodule update --init --recursive --force -j 8
+          working_directory: reth
+
 
 jobs:
   # Kurtosis-based acceptance tests
@@ -2606,15 +2593,15 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      - reth-setup
       - kona-rust-setup:
           channel: stable
           components: llvm-tools-preview
-      - kona-install-go
       - run:
           name: Install cargo-llvm-cov
           command: |
             source ~/.cargo/env
-            cargo install cargo-llvm-cov
+            cargo install --locked cargo-llvm-cov
       - run:
           name: Run common tests for node with sysgo orchestrator
           working_directory: kona
@@ -2658,15 +2645,15 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      - reth-setup
       - kona-rust-setup:
           channel: stable
           components: llvm-tools-preview
-      - kona-install-go
       - run:
           name: Install cargo-llvm-cov
           command: |
             source ~/.cargo/env
-            cargo install cargo-llvm-cov
+            cargo install --locked cargo-llvm-cov
       - run:
           name: Run restart tests for node with sysgo orchestrator
           working_directory: kona
@@ -2706,14 +2693,14 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      - reth-setup
       - kona-rust-setup:
           components: llvm-tools-preview
-      - kona-install-go
       - run:
           name: Install cargo-llvm-cov and gotestsum
           command: |
             source ~/.cargo/env
-            cargo install cargo-llvm-cov
+            cargo install --locked cargo-llvm-cov
             go install gotest.tools/gotestsum@v1.12.1
       - run:
           name: Split and run action tests
@@ -2761,12 +2748,11 @@ jobs:
           checkout-method: blobless
       - kona-rust-setup:
           components: llvm-tools-preview
-      - kona-install-go
       - run:
           name: Install cargo-llvm-cov
           command: |
             source ~/.cargo/env
-            cargo install cargo-llvm-cov
+            cargo install --locked cargo-llvm-cov
       - when:
           condition:
             not:
@@ -2847,7 +2833,7 @@ jobs:
           name: Install nextest
           command: |
             source ~/.cargo/env
-            cargo install cargo-nextest
+            cargo install --locked cargo-nextest
       - run:
           name: Run cargo tests
           working_directory: kona
@@ -2972,7 +2958,7 @@ jobs:
           name: Install nextest and cargo-udeps
           command: |
             source ~/.cargo/env
-            cargo install cargo-nextest cargo-udeps
+            cargo install --locked cargo-nextest cargo-udeps
       - run:
           name: Check unused dependencies
           working_directory: kona
@@ -3029,12 +3015,12 @@ jobs:
       - run:
           name: Install typos-cli
           command: |
-            cargo install typos-cli
+            cargo install --locked typos-cli
       - run:
           name: Check for typos
           working_directory: kona
           command: |
-            typos
+            ~/.cargo/bin/typos
 
   # Kona Rust CI - Cargo hack (from rust_ci.yaml)
   kona-cargo-hack:
@@ -3051,7 +3037,7 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y clang libclang-dev
             source ~/.cargo/env
-            cargo install cargo-hack
+            cargo install --locked cargo-hack
       - run:
           name: Run cargo hack
           working_directory: kona
@@ -3080,7 +3066,7 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
             source ~/.cargo/env
             rustup target add riscv32imac-unknown-none-elf
-            cargo install cargo-hack
+            cargo install --locked cargo-hack
       - run:
           name: Check no_std compatibility
           working_directory: kona
@@ -3103,7 +3089,7 @@ jobs:
           name: Install cargo-llvm-cov and nextest
           command: |
             source ~/.cargo/env
-            cargo install cargo-llvm-cov cargo-nextest
+            cargo install --locked cargo-llvm-cov cargo-nextest
       - run:
           name: Generate lockfile if needed
           working_directory: kona
@@ -3136,7 +3122,7 @@ jobs:
       - run:
           name: Install cargo-deny
           command: |
-            cargo install cargo-deny
+            cargo install --locked cargo-deny
       - run:
           name: Run cargo deny
           working_directory: kona
@@ -3151,10 +3137,11 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      - kona-rust-setup
       - run:
           name: Install zepter
           command: |
-            cargo install zepter -f --locked
+            cargo install --locked zepter -f
             zepter --version
       - run:
           name: Format and lint features
@@ -3171,6 +3158,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      - kona-rust-setup:
+          channel: nightly
       - run:
           name: Install Node.js and Bun
           command: |
@@ -3179,10 +3168,6 @@ jobs:
             curl -fsSL https://bun.sh/install | bash
             echo 'export BUN_INSTALL="$HOME/.bun"' >> $BASH_ENV
             echo 'export PATH="$BUN_INSTALL/bin:$PATH"' >> $BASH_ENV
-      - run:
-          name: Install nightly Rust (for docs build)
-          command: |
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly
       - run:
           name: Install dependencies and Playwright browsers
           working_directory: kona/docs
@@ -3236,7 +3221,6 @@ jobs:
           checkout-method: blobless
       - kona-rust-setup:
           channel: stable
-      - kona-install-go
       - run:
           name: Run supervisor tests for <<parameters.test_pkg>>
           working_directory: kona
