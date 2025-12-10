@@ -59,6 +59,9 @@ interface ISuperPermissionedDisputeGame is IDisputeGame {
     error GameNotResolved();
     error BadAuth();
     error GamePaused();
+    error UnknownChainId();
+    error Encoding_EmptySuperRoot();
+    error Encoding_InvalidSuperRootVersion();
 
     event Move(uint256 indexed parentIndex, Claim indexed claim, address indexed claimant);
     event GameClosed(BondDistributionMode bondDistributionMode);
@@ -115,6 +118,8 @@ interface ISuperPermissionedDisputeGame is IDisputeGame {
     function vm() external view returns (IBigStepper vm_);
     function wasRespectedGameTypeWhenCreated() external view returns (bool);
     function weth() external view returns (IDelayedWETH weth_);
+    // TODO(#18516): Remove once IDisputeGame includes this interface
+    function rootClaimByChainId(uint256 _chainId) external view returns (Claim outputRootClaim_);
 
     function __constructor__(ISuperFaultDisputeGame.GameConstructorParams memory _params) external;
 }

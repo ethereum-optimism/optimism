@@ -19,6 +19,7 @@ import (
 	safetyTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
@@ -84,6 +85,7 @@ type GameCfg struct {
 	l2SequenceNumberSet bool
 	rootClaimSet        bool
 	rootClaim           common.Hash
+	super               eth.Super
 }
 type GameOpt interface {
 	Apply(cfg *GameCfg)
@@ -117,6 +119,12 @@ func WithL2SequenceNumber(seqNum uint64) GameOpt {
 	return gameOptFn(func(c *GameCfg) {
 		c.l2SequenceNumber = seqNum
 		c.l2SequenceNumberSet = true
+	})
+}
+
+func WithSuper(super eth.Super) GameOpt {
+	return gameOptFn(func(c *GameCfg) {
+		c.super = super
 	})
 }
 
@@ -181,6 +189,10 @@ func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, opts ...GameOpt)
 
 func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType gameTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
 	cfg := NewGameCfg(opts...)
+	if cfg.super != nil && cfg.rootClaimSet {
+		f.t.Error("cannot set both super and root claim in super game")
+		f.t.FailNow()
+	}
 	timestamp := cfg.l2SequenceNumber
 	if !cfg.l2SequenceNumberSet {
 		timestamp = f.supervisor.FetchSyncStatus().SafeTimestamp
@@ -192,6 +204,10 @@ func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType g
 		response := f.supervisor.FetchSuperRootAtTimestamp(timestamp)
 		rootClaim = common.Hash(response.SuperRoot)
 	}
+	if cfg.super != nil {
+		extraData = cfg.super.Marshal()
+		rootClaim = crypto.Keccak256Hash(extraData)
+	}
 	game, addr := f.createNewGame(eoa, gameType, rootClaim, extraData)
 
 	return NewSuperFaultDisputeGame(f.t, f.require, addr, f.getGameHelper, game)
@@ -202,7 +218,9 @@ func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *Gam
 	if !cfg.allowFuture {
 		f.supervisor.AwaitMinCrossSafeTimestamp(timestamp)
 	}
-	extraData := make([]byte, 32)
+	super, err := f.supervisor.FetchSuperRootAtTimestamp(timestamp).ToSuper()
+	f.require.NoError(err, "Failed to fetch super root for timestamp %v", timestamp)
+	extraData := super.Marshal()
 	binary.BigEndian.PutUint64(extraData[24:], timestamp)
 	return extraData
 }

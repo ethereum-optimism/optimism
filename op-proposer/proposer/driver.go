@@ -48,7 +48,7 @@ type L2OOContract interface {
 type DGFContract interface {
 	Version(ctx context.Context) (string, error)
 	HasProposedSince(ctx context.Context, proposer common.Address, cutoff time.Time, gameType uint32) (bool, time.Time, common.Hash, error)
-	ProposalTx(ctx context.Context, gameType uint32, outputRoot common.Hash, l2BlockNum uint64) (txmgr.TxCandidate, error)
+	ProposalTx(ctx context.Context, gameType uint32, outputRoot common.Hash, extraData []byte) (txmgr.TxCandidate, error)
 }
 
 type RollupClient interface {
@@ -237,21 +237,23 @@ func (l *L2OutputSubmitter) FetchL2OOOutput(ctx context.Context) (source.Proposa
 		return source.Proposal{}, false, nil
 	}
 
-	output, err := l.FetchOutput(ctx, nextCheckpointBlock)
+	proposal, err := l.FetchOutput(ctx, nextCheckpointBlock)
 	if err != nil {
 		return source.Proposal{}, false, fmt.Errorf("fetching output: %w", err)
 	}
 
 	// Always propose if it's part of the Finalized L2 chain. Or if allowed, if it's part of the safe L2 chain.
-	if output.SequenceNum > output.Legacy.FinalizedL2.Number && (!l.Cfg.AllowNonFinalized || output.SequenceNum > output.Legacy.SafeL2.Number) {
-		l.Log.Debug("Not proposing yet, L2 block is not ready for proposal",
-			"l2_proposal", output.SequenceNum,
-			"l2_safe", output.Legacy.SafeL2,
-			"l2_finalized", output.Legacy.FinalizedL2,
-			"allow_non_finalized", l.Cfg.AllowNonFinalized)
-		return output, false, nil
+	if !proposal.IsSuperRootProposal() {
+		if proposal.SequenceNum > proposal.Legacy.FinalizedL2.Number && (!l.Cfg.AllowNonFinalized || proposal.SequenceNum > proposal.Legacy.SafeL2.Number) {
+			l.Log.Debug("Not proposing yet, L2 block is not ready for proposal",
+				"l2_proposal", proposal.SequenceNum,
+				"l2_safe", proposal.Legacy.SafeL2,
+				"l2_finalized", proposal.Legacy.FinalizedL2,
+				"allow_non_finalized", l.Cfg.AllowNonFinalized)
+			return proposal, false, nil
+		}
 	}
-	return output, true, nil
+	return proposal, true, nil
 }
 
 // FetchDGFOutput queries the DGF for the latest game and infers whether it is time to make another proposal
@@ -313,14 +315,16 @@ func (l *L2OutputSubmitter) FetchCurrentBlockNumber(ctx context.Context) (uint64
 }
 
 func (l *L2OutputSubmitter) FetchOutput(ctx context.Context, block uint64) (source.Proposal, error) {
-	output, err := l.ProposalSource.ProposalAtSequenceNum(ctx, block)
+	proposal, err := l.ProposalSource.ProposalAtSequenceNum(ctx, block)
 	if err != nil {
-		return source.Proposal{}, fmt.Errorf("fetching output at block %d: %w", block, err)
+		return source.Proposal{}, fmt.Errorf("fetching proposal at block %d: %w", block, err)
 	}
-	if onum := output.SequenceNum; onum != block { // sanity check, e.g. in case of bad RPC caching
-		return source.Proposal{}, fmt.Errorf("output block number %d mismatches requested %d", output.SequenceNum, block)
+	if !proposal.IsSuperRootProposal() {
+		if onum := proposal.SequenceNum; onum != block { // sanity check, e.g. in case of bad RPC caching
+			return source.Proposal{}, fmt.Errorf("proposal block number %d mismatches requested %d", proposal.SequenceNum, block)
+		}
 	}
-	return output, nil
+	return proposal, nil
 }
 
 // ProposeL2OutputTxData creates the transaction data for the ProposeL2Output function
@@ -341,7 +345,7 @@ func proposeL2OutputTxData(abi *abi.ABI, output source.Proposal) ([]byte, error)
 func (l *L2OutputSubmitter) ProposeL2OutputDGFTxCandidate(ctx context.Context, output source.Proposal) (txmgr.TxCandidate, error) {
 	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
-	return l.dgfContract.ProposalTx(cCtx, l.Cfg.DisputeGameType, output.Root, output.SequenceNum)
+	return l.dgfContract.ProposalTx(cCtx, l.Cfg.DisputeGameType, output.Root, output.ExtraData())
 }
 
 // We wait until l1head advances beyond blocknum. This is used to make sure proposal tx won't
@@ -374,7 +378,7 @@ func (l *L2OutputSubmitter) waitForL1Head(ctx context.Context, blockNum uint64) 
 
 // sendTransaction creates & sends transactions through the underlying transaction manager.
 func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output source.Proposal) error {
-	l.Log.Info("Proposing output root", "output", output.Root, "block", output.SequenceNum)
+	l.Log.Info("Proposing output root", "output", output.Root, "sequenceNum", output.SequenceNum, "extraData", output.ExtraData())
 	var receipt *types.Receipt
 	if l.Cfg.DisputeGameFactoryAddr != nil {
 		candidate, err := l.ProposeL2OutputDGFTxCandidate(ctx, output)
@@ -495,7 +499,11 @@ func (l *L2OutputSubmitter) proposeOutput(ctx context.Context, output source.Pro
 		l.Log.Error("Failed to send proposal transaction", logCtx...)
 		return
 	}
-	l.Metr.RecordL2Proposal(output.SequenceNum)
+	if output.IsSuperRootProposal() {
+		l.Metr.RecordL2Proposal(output.Super.Timestamp)
+	} else {
+		l.Metr.RecordL2Proposal(output.SequenceNum)
+	}
 	if output.Legacy.BlockRef != (eth.L2BlockRef{}) {
 		// Record legacy metrics when available
 		l.Metr.RecordL2BlocksProposed(output.Legacy.BlockRef)

@@ -26,7 +26,11 @@ func TestChallengerPlaysGame(gt *testing.T) {
 	attacker := sys.FunderL1.NewFundedEOA(eth.Ether(15))
 	dgf := sys.DisputeGameFactory()
 
-	game := dgf.StartSuperCannonGame(attacker, proofs.WithRootClaim(badClaim))
+	super, err := sys.Supervisor.FetchSuperRootAtTimestamp(sys.Supervisor.FetchSyncStatus().SafeTimestamp).ToSuper()
+	t.Require().NoError(err)
+	badSuper := super.(*eth.SuperV1)
+	badSuper.Chains[0].Output = [32]byte(badClaim)
+	game := dgf.StartSuperCannonGame(attacker, proofs.WithSuper(badSuper))
 
 	claim := game.RootClaim()                   // This is the bad claim from attacker
 	counterClaim := claim.WaitForCounterClaim() // This is the counter-claim from the challenger

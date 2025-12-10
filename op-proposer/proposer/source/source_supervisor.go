@@ -95,10 +95,24 @@ func (s *SupervisorProposalSource) ProposalAtSequenceNum(ctx context.Context, ti
 			s.log.Warn("Failed to retrieve proposal from supervisor", "idx", i, "err", err)
 			continue
 		}
+
+		super, err := output.ToSuper()
+		if err != nil {
+			errs = append(errs, err)
+			s.log.Warn("Failed to construct super from supervisor", "idx", i, "err", err)
+			continue
+		}
+		superV1, ok := super.(*eth.SuperV1)
+		if !ok {
+			errs = append(errs, fmt.Errorf("unsupported super type from supervisor idx %d", i))
+			s.log.Warn("Unsupported super type from supervisor", "idx", i)
+			continue
+		}
+
 		return Proposal{
-			Root:        common.Hash(output.SuperRoot),
-			SequenceNum: output.Timestamp,
-			CurrentL1:   output.CrossSafeDerivedFrom,
+			Root:      common.Hash(output.SuperRoot),
+			Super:     superV1,
+			CurrentL1: output.CrossSafeDerivedFrom,
 
 			// Unsupported by super root proposals
 			Legacy: LegacyProposalData{},
