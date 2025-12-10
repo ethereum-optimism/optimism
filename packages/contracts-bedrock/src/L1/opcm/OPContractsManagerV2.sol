@@ -727,7 +727,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // shared lockbox address. If this is not an interop migration then we won't end up using
         // this variable.
         IETHLockbox oldLockbox = _cts.ethLockbox;
-        if (_hasInteropMigrationAddresses(_cfg.extraInstructions)) {
+        if (_hasInstructionByKey(_cfg.extraInstructions, Constants.INTEROP_MIGRATION_ADDRESSES)) {
             // Enforce that the interop dev feature is enabled.
             if (!isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
                 revert OPContractsManagerV2_InteropMigrationRequiresDevFeature();
@@ -862,7 +862,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
 
         // Now we can migrate any liquidity into the ETHLockbox.
-        if (_hasInteropMigrationAddresses(_cfg.extraInstructions)) {
+        if (_hasInstructionByKey(_cfg.extraInstructions, Constants.INTEROP_MIGRATION_ADDRESSES)) {
             // First we migrate any portal liquidity into the ETHLockbox.
             // There may or may not be ETH in the portal, but we can call migrateLiquidity() safely
             // either way.

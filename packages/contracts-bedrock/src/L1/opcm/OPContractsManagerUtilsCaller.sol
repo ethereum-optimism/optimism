@@ -128,19 +128,6 @@ abstract contract OPContractsManagerUtilsCaller {
         );
     }
 
-    /// @notice Helper for checking if interop migration addresses are present.
-    /// @param _instructions The list of extra upgrade instructions.
-    /// @return True if interop migration addresses instruction exists, false otherwise.
-    function _hasInteropMigrationAddresses(IOPContractsManagerUtils.ExtraInstruction[] memory _instructions)
-        internal
-        view
-        returns (bool)
-    {
-        return abi.decode(
-            _staticcall(abi.encodeCall(IOPContractsManagerUtils.hasInteropMigrationAddresses, (_instructions))), (bool)
-        );
-    }
-
     /// @notice Helper for validating and decoding interop migration addresses.
     /// @param _instructions The list of extra upgrade instructions.
     /// @return The decoded interop migration addresses struct.

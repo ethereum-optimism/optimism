@@ -197,14 +197,6 @@ contract OPContractsManagerUtils {
         return ExtraInstruction({ key: "", data: bytes("") });
     }
 
-    /// @notice Checks if interop migration addresses instruction is present.
-    /// @param _instructions The list of extra upgrade instructions.
-    /// @return True if the INTEROP_MIGRATION_ADDRESSES instruction exists, false otherwise.
-    function hasInteropMigrationAddresses(ExtraInstruction[] memory _instructions) public pure returns (bool) {
-        ExtraInstruction memory instruction = getInstructionByKey(_instructions, Constants.INTEROP_MIGRATION_ADDRESSES);
-        return bytes(instruction.key).length > 0;
-    }
-
     /// @notice Validates and decodes interop migration addresses.
     /// @param _instructions The list of extra upgrade instructions.
     /// @return The decoded interop migration addresses struct.
