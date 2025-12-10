@@ -176,7 +176,7 @@ mod tests {
 
         let mut data = Vec::with_capacity(expected.length());
         let receipt = ReceiptWithBloom {
-            receipt: OpReceipt::Legacy(Receipt {
+            receipt: OpReceipt::Legacy(Receipt::<Log> {
                 status: Eip658Value::Eip658(false),
                 cumulative_gas_used: 0x1,
                 logs: vec![Log::new_unchecked(
@@ -207,7 +207,7 @@ mod tests {
 
         // EIP658Receipt
         let expected = ReceiptWithBloom {
-            receipt: OpReceipt::Legacy(Receipt {
+            receipt: OpReceipt::Legacy(Receipt::<Log> {
                 status: Eip658Value::Eip658(false),
                 cumulative_gas_used: 0x1,
                 logs: vec![Log::new_unchecked(
@@ -235,7 +235,7 @@ mod tests {
         // Deposit Receipt (post-regolith)
         let expected = ReceiptWithBloom {
             receipt: OpReceipt::Deposit(OpDepositReceipt {
-                inner: Receipt {
+                inner: Receipt::<Log> {
                     status: Eip658Value::Eip658(true),
                     cumulative_gas_used: 46913,
                     logs: vec![],
@@ -260,10 +260,10 @@ mod tests {
             "b901117ef9010d0182b741b9010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0833d3bbf01"
         );
 
-        // Deposit Receipt (post-regolith)
+        // Deposit Receipt (post-canyon)
         let expected = ReceiptWithBloom {
             receipt: OpReceipt::Deposit(OpDepositReceipt {
-                inner: Receipt {
+                inner: Receipt::<Log> {
                     status: Eip658Value::Eip658(true),
                     cumulative_gas_used: 46913,
                     logs: vec![],
@@ -284,7 +284,7 @@ mod tests {
 
     #[test]
     fn gigantic_receipt() {
-        let receipt = OpReceipt::Legacy(Receipt {
+        let receipt = OpReceipt::Legacy(Receipt::<Log> {
             status: Eip658Value::Eip658(true),
             cumulative_gas_used: 16747627,
             logs: vec![
@@ -314,7 +314,7 @@ mod tests {
     #[test]
     fn test_encode_2718_length() {
         let receipt = ReceiptWithBloom {
-            receipt: OpReceipt::Eip1559(Receipt {
+            receipt: OpReceipt::Eip1559(Receipt::<Log> {
                 status: Eip658Value::Eip658(true),
                 cumulative_gas_used: 21000,
                 logs: vec![],
@@ -331,7 +331,7 @@ mod tests {
 
         // Test for legacy receipt as well
         let legacy_receipt = ReceiptWithBloom {
-            receipt: OpReceipt::Legacy(Receipt {
+            receipt: OpReceipt::Legacy(Receipt::<Log> {
                 status: Eip658Value::Eip658(true),
                 cumulative_gas_used: 21000,
                 logs: vec![],

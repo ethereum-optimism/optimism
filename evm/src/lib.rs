@@ -486,14 +486,14 @@ mod tests {
         block2.set_hash(block2_hash);
 
         // Create a random receipt object, receipt1
-        let receipt1 = OpReceipt::Legacy(Receipt {
+        let receipt1 = OpReceipt::Legacy(Receipt::<Log> {
             cumulative_gas_used: 46913,
             logs: vec![],
             status: true.into(),
         });
 
         // Create another random receipt object, receipt2
-        let receipt2 = OpReceipt::Legacy(Receipt {
+        let receipt2 = OpReceipt::Legacy(Receipt::<Log> {
             cumulative_gas_used: 1325345,
             logs: vec![],
             status: true.into(),
@@ -544,7 +544,7 @@ mod tests {
         );
 
         // Create a Receipts object with a vector of receipt vectors
-        let receipts = vec![vec![Some(OpReceipt::Legacy(Receipt {
+        let receipts = vec![vec![Some(OpReceipt::Legacy(Receipt::<Log> {
             cumulative_gas_used: 46913,
             logs: vec![],
             status: true.into(),
@@ -602,7 +602,7 @@ mod tests {
     #[test]
     fn test_block_number_to_index() {
         // Create a Receipts object with a vector of receipt vectors
-        let receipts = vec![vec![Some(OpReceipt::Legacy(Receipt {
+        let receipts = vec![vec![Some(OpReceipt::Legacy(Receipt::<Log> {
             cumulative_gas_used: 46913,
             logs: vec![],
             status: true.into(),
@@ -633,7 +633,7 @@ mod tests {
     #[test]
     fn test_get_logs() {
         // Create a Receipts object with a vector of receipt vectors
-        let receipts = vec![vec![OpReceipt::Legacy(Receipt {
+        let receipts = vec![vec![OpReceipt::Legacy(Receipt::<Log> {
             cumulative_gas_used: 46913,
             logs: vec![Log::<LogData>::default()],
             status: true.into(),
@@ -661,7 +661,7 @@ mod tests {
     #[test]
     fn test_receipts_by_block() {
         // Create a Receipts object with a vector of receipt vectors
-        let receipts = vec![vec![Some(OpReceipt::Legacy(Receipt {
+        let receipts = vec![vec![Some(OpReceipt::Legacy(Receipt::<Log> {
             cumulative_gas_used: 46913,
             logs: vec![Log::<LogData>::default()],
             status: true.into(),
@@ -685,7 +685,7 @@ mod tests {
         // Assert that the receipts for block number 123 match the expected receipts
         assert_eq!(
             receipts_by_block,
-            vec![&Some(OpReceipt::Legacy(Receipt {
+            vec![&Some(OpReceipt::Legacy(Receipt::<Log> {
                 cumulative_gas_used: 46913,
                 logs: vec![Log::<LogData>::default()],
                 status: true.into(),
@@ -696,7 +696,7 @@ mod tests {
     #[test]
     fn test_receipts_len() {
         // Create a Receipts object with a vector of receipt vectors
-        let receipts = vec![vec![Some(OpReceipt::Legacy(Receipt {
+        let receipts = vec![vec![Some(OpReceipt::Legacy(Receipt::<Log> {
             cumulative_gas_used: 46913,
             logs: vec![Log::<LogData>::default()],
             status: true.into(),
@@ -741,7 +741,7 @@ mod tests {
     #[test]
     fn test_revert_to() {
         // Create a random receipt object
-        let receipt = OpReceipt::Legacy(Receipt {
+        let receipt = OpReceipt::Legacy(Receipt::<Log> {
             cumulative_gas_used: 46913,
             logs: vec![],
             status: true.into(),
@@ -786,7 +786,7 @@ mod tests {
     #[test]
     fn test_extend_execution_outcome() {
         // Create a Receipt object with specific attributes.
-        let receipt = OpReceipt::Legacy(Receipt {
+        let receipt = OpReceipt::Legacy(Receipt::<Log> {
             cumulative_gas_used: 46913,
             logs: vec![],
             status: true.into(),
@@ -826,7 +826,7 @@ mod tests {
     #[test]
     fn test_split_at_execution_outcome() {
         // Create a random receipt object
-        let receipt = OpReceipt::Legacy(Receipt {
+        let receipt = OpReceipt::Legacy(Receipt::<Log> {
             cumulative_gas_used: 46913,
             logs: vec![],
             status: true.into(),

@@ -1,17 +1,16 @@
 //! Loads and formats OP receipt RPC response.
 
 use crate::{eth::RpcNodeCore, OpEthApi, OpEthApiError};
-use alloy_consensus::{BlockHeader, Receipt, TxReceipt};
+use alloy_consensus::{BlockHeader, Receipt, ReceiptWithBloom, TxReceipt};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_rpc_types_eth::{Log, TransactionReceipt};
-use op_alloy_consensus::{OpReceiptEnvelope, OpTransaction};
+use op_alloy_consensus::{OpReceipt, OpTransaction};
 use op_alloy_rpc_types::{L1BlockInfo, OpTransactionReceipt, OpTransactionReceiptFields};
 use op_revm::estimate_tx_compressed_size;
 use reth_chainspec::ChainSpecProvider;
 use reth_node_api::NodePrimitives;
 use reth_optimism_evm::RethL1BlockInfo;
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_primitives::OpReceipt;
 use reth_primitives_traits::SealedBlock;
 use reth_rpc_eth_api::{
     helpers::LoadReceipt,
@@ -270,7 +269,7 @@ impl OpReceiptFieldsBuilder {
 #[derive(Debug)]
 pub struct OpReceiptBuilder {
     /// Core receipt, has all the fields of an L1 receipt and is the basis for the OP receipt.
-    pub core_receipt: TransactionReceipt<OpReceiptEnvelope<Log>>,
+    pub core_receipt: TransactionReceipt<ReceiptWithBloom<OpReceipt<Log>>>,
     /// Additional OP receipt fields.
     pub op_receipt_fields: OpTransactionReceiptFields,
 }
@@ -294,24 +293,14 @@ impl OpReceiptBuilder {
                 let logs = Log::collect_for_receipt(next_log_index, meta, logs);
                 Receipt { status, cumulative_gas_used, logs }
             };
-            match receipt {
-                OpReceipt::Legacy(receipt) => {
-                    OpReceiptEnvelope::Legacy(map_logs(receipt).into_with_bloom())
-                }
-                OpReceipt::Eip2930(receipt) => {
-                    OpReceiptEnvelope::Eip2930(map_logs(receipt).into_with_bloom())
-                }
-                OpReceipt::Eip1559(receipt) => {
-                    OpReceiptEnvelope::Eip1559(map_logs(receipt).into_with_bloom())
-                }
-                OpReceipt::Eip7702(receipt) => {
-                    OpReceiptEnvelope::Eip7702(map_logs(receipt).into_with_bloom())
-                }
-
-                OpReceipt::Deposit(receipt) => {
-                    OpReceiptEnvelope::Deposit(receipt.map_inner(map_logs).into_with_bloom())
-                }
-            }
+            let mapped_receipt: OpReceipt<Log> = match receipt {
+                OpReceipt::Legacy(receipt) => OpReceipt::Legacy(map_logs(receipt)),
+                OpReceipt::Eip2930(receipt) => OpReceipt::Eip2930(map_logs(receipt)),
+                OpReceipt::Eip1559(receipt) => OpReceipt::Eip1559(map_logs(receipt)),
+                OpReceipt::Eip7702(receipt) => OpReceipt::Eip7702(map_logs(receipt)),
+                OpReceipt::Deposit(receipt) => OpReceipt::Deposit(receipt.map_inner(map_logs)),
+            };
+            mapped_receipt.into_with_bloom()
         });
 
         // In jovian, we're using the blob gas used field to store the current da
