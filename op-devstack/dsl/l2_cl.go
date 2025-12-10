@@ -91,6 +91,10 @@ func (cl *L2CLNode) StopSequencer() common.Hash {
 	return unsafeHead
 }
 
+func (cl *L2CLNode) SetSequencerRecoverMode(b bool) error {
+	return cl.inner.RollupAPI().SetRecoverMode(cl.ctx, b)
+}
+
 func (cl *L2CLNode) SyncStatus() *eth.SyncStatus {
 	ctx, cancel := context.WithTimeout(cl.ctx, DefaultTimeout)
 	defer cancel()

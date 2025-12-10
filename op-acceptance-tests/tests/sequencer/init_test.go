@@ -1,6 +1,7 @@
 package sequencer
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/compat"
@@ -11,5 +12,6 @@ import (
 func TestMain(m *testing.M) {
 	presets.DoMain(m, presets.WithMinimal(),
 		presets.WithCompatibleTypes(compat.SysGo),
+		presets.WithLogLevel(slog.LevelDebug),
 	)
 }
