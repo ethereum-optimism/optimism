@@ -18,9 +18,9 @@ import { ISP1Verifier } from "src/dispute/zk/ISP1Verifier.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { AccessManager } from "src/dispute/zk/AccessManager.sol";
 
-/// @title IOPSuccinctFaultDisputeGame
-/// @notice Interface for the OPSuccinctFaultDisputeGame contract.
-interface IOPSuccinctFaultDisputeGame is IDisputeGame, ISemver {
+/// @title IOptimisticZkGame
+/// @notice Interface for the OptimisticZkGame contract.
+interface IOptimisticZkGame is IDisputeGame, ISemver {
     enum ProposalStatus {
         Unchallenged,
         Challenged,

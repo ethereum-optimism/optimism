@@ -19,28 +19,28 @@ import {
     GameNotOver,
     IncorrectDisputeGameFactory
 } from "src/dispute/lib/Errors.sol";
-import { OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE } from "src/dispute/lib/Types.sol";
+import { OPTIMISTIC_ZK_GAME_TYPE } from "src/dispute/lib/Types.sol";
 
 // Contracts
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
-import { OPSuccinctFaultDisputeGame } from "src/dispute/zk/OPSuccinctFaultDisputeGame.sol";
+import { OptimisticZkGame } from "src/dispute/zk/OptimisticZkGame.sol";
 import { AccessManager } from "src/dispute/zk/AccessManager.sol";
 
 // Interfaces
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 
-/// @title OPSuccinctFaultDisputeGame_TestInit
-/// @notice Base test contract with shared setup for OPSuccinctFaultDisputeGame tests.
-abstract contract OPSuccinctFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
+/// @title OptimisticZkGame_TestInit
+/// @notice Base test contract with shared setup for OptimisticZkGame tests.
+abstract contract OptimisticZkGame_TestInit is DisputeGameFactory_TestInit {
     // Events
     event Challenged(address indexed challenger);
     event Proved(address indexed prover);
     event Resolved(GameStatus indexed status);
 
-    OPSuccinctFaultDisputeGame gameImpl;
-    OPSuccinctFaultDisputeGame parentGame;
-    OPSuccinctFaultDisputeGame game;
+    OptimisticZkGame gameImpl;
+    OptimisticZkGame parentGame;
+    OptimisticZkGame game;
     AccessManager accessManager;
 
     address proposer = address(0x123);
@@ -48,7 +48,7 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is DisputeGameFactory_Test
     address prover = address(0x789);
 
     // Fixed parameters.
-    GameType gameType = GameType.wrap(OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE);
+    GameType gameType = GameType.wrap(OPTIMISTIC_ZK_GAME_TYPE);
     Duration maxChallengeDuration = Duration.wrap(12 hours);
     Duration maxProveDuration = Duration.wrap(3 days);
     Claim rootClaim = Claim.wrap(keccak256("rootClaim"));
@@ -58,15 +58,15 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is DisputeGameFactory_Test
     uint32 parentIndex = 0;
 
     // For a new parent game that we manipulate separately in some tests.
-    OPSuccinctFaultDisputeGame separateParentGame;
+    OptimisticZkGame separateParentGame;
 
     function setUp() public virtual override {
         super.setUp();
 
         // Setup game implementation using shared helper
         address impl;
-        (impl, accessManager,) = setupOPSuccinctFaultDisputeGame(
-            OPSuccinctGameParams({
+        (impl, accessManager,) = setupOptimisticZkGame(
+            OptimisticZkGameParams({
                 maxChallengeDuration: maxChallengeDuration,
                 maxProveDuration: maxProveDuration,
                 proposer: proposer,
@@ -77,7 +77,7 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is DisputeGameFactory_Test
                 challengerBond: 1 ether
             })
         );
-        gameImpl = OPSuccinctFaultDisputeGame(impl);
+        gameImpl = OptimisticZkGame(impl);
 
         // Create the first (parent) game – it uses uint32.max as parent index.
         vm.startPrank(proposer);
@@ -87,7 +87,7 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is DisputeGameFactory_Test
         vm.warp(block.timestamp + 1000);
 
         // This parent game will be at index 0.
-        parentGame = OPSuccinctFaultDisputeGame(
+        parentGame = OptimisticZkGame(
             address(
                 disputeGameFactory.create{ value: 1 ether }(
                     gameType, Claim.wrap(keccak256("genesis")), abi.encodePacked(uint256(1000), type(uint32).max)
@@ -105,7 +105,7 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is DisputeGameFactory_Test
         parentGame.claimCredit(proposer);
 
         // Create the child game referencing parent index = 0.
-        game = OPSuccinctFaultDisputeGame(
+        game = OptimisticZkGame(
             address(
                 disputeGameFactory.create{ value: 1 ether }(
                     gameType, rootClaim, abi.encodePacked(l2BlockNumber, parentIndex)
@@ -117,9 +117,9 @@ abstract contract OPSuccinctFaultDisputeGame_TestInit is DisputeGameFactory_Test
     }
 }
 
-/// @title OPSuccinctFaultDisputeGame_Initialize_Test
-/// @notice Tests for initialization of OPSuccinctFaultDisputeGame.
-contract OPSuccinctFaultDisputeGame_Initialize_Test is OPSuccinctFaultDisputeGame_TestInit {
+/// @title OptimisticZkGame_Initialize_Test
+/// @notice Tests for initialization of OptimisticZkGame.
+contract OptimisticZkGame_Initialize_Test is OptimisticZkGame_TestInit {
     function test_initialize_succeeds() public view {
         // Test that the factory is correctly initialized.
         assertEq(address(disputeGameFactory.owner()), address(this));
@@ -153,7 +153,7 @@ contract OPSuccinctFaultDisputeGame_Initialize_Test is OPSuccinctFaultDisputeGam
             address counteredBy_,
             address prover_,
             Claim claim_,
-            OPSuccinctFaultDisputeGame.ProposalStatus status_,
+            OptimisticZkGame.ProposalStatus status_,
             Timestamp deadline_
         ) = game.claimData();
 
@@ -164,7 +164,7 @@ contract OPSuccinctFaultDisputeGame_Initialize_Test is OPSuccinctFaultDisputeGam
         assertEq(claim_.raw(), rootClaim.raw());
 
         // Initially, the status is Unchallenged.
-        assertEq(uint8(status_), uint8(OPSuccinctFaultDisputeGame.ProposalStatus.Unchallenged));
+        assertEq(uint8(status_), uint8(OptimisticZkGame.ProposalStatus.Unchallenged));
 
         // The child's initial deadline is block.timestamp + maxChallengeDuration.
         uint256 currentTime = block.timestamp;
@@ -212,7 +212,7 @@ contract OPSuccinctFaultDisputeGame_Initialize_Test is OPSuccinctFaultDisputeGam
         // Create a new game at index 2 which will be the parent.
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
-        OPSuccinctFaultDisputeGame parentNotRespected = OPSuccinctFaultDisputeGame(
+        OptimisticZkGame parentNotRespected = OptimisticZkGame(
             address(
                 disputeGameFactory.create{ value: 1 ether }(
                     gameType,
@@ -281,9 +281,9 @@ contract OPSuccinctFaultDisputeGame_Initialize_Test is OPSuccinctFaultDisputeGam
     }
 }
 
-/// @title OPSuccinctFaultDisputeGame_Resolve_Test
-/// @notice Tests for resolve functionality of OPSuccinctFaultDisputeGame.
-contract OPSuccinctFaultDisputeGame_Resolve_Test is OPSuccinctFaultDisputeGame_TestInit {
+/// @title OptimisticZkGame_Resolve_Test
+/// @notice Tests for resolve functionality of OptimisticZkGame.
+contract OptimisticZkGame_Resolve_Test is OptimisticZkGame_TestInit {
     function test_resolve_unchallenged_succeeds() public {
         assertEq(uint8(game.status()), uint8(GameStatus.IN_PROGRESS));
 
@@ -373,9 +373,9 @@ contract OPSuccinctFaultDisputeGame_Resolve_Test is OPSuccinctFaultDisputeGame_T
         assertEq(address(game).balance, 2 ether);
 
         // Confirm the proposal is in Challenged state.
-        (, address counteredBy_,,, OPSuccinctFaultDisputeGame.ProposalStatus challStatus,) = game.claimData();
+        (, address counteredBy_,,, OptimisticZkGame.ProposalStatus challStatus,) = game.claimData();
         assertEq(counteredBy_, challenger);
-        assertEq(uint8(challStatus), uint8(OPSuccinctFaultDisputeGame.ProposalStatus.Challenged));
+        assertEq(uint8(challStatus), uint8(OptimisticZkGame.ProposalStatus.Challenged));
 
         // Prover proves the claim in time.
         vm.startPrank(prover);
@@ -384,7 +384,7 @@ contract OPSuccinctFaultDisputeGame_Resolve_Test is OPSuccinctFaultDisputeGame_T
 
         // Confirm the proposal is now ChallengedAndValidProofProvided.
         (,,,, challStatus,) = game.claimData();
-        assertEq(uint8(challStatus), uint8(OPSuccinctFaultDisputeGame.ProposalStatus.ChallengedAndValidProofProvided));
+        assertEq(uint8(challStatus), uint8(OptimisticZkGame.ProposalStatus.ChallengedAndValidProofProvided));
         assertEq(uint8(game.status()), uint8(GameStatus.IN_PROGRESS));
 
         // Resolve the game.
@@ -445,7 +445,7 @@ contract OPSuccinctFaultDisputeGame_Resolve_Test is OPSuccinctFaultDisputeGame_T
         vm.startPrank(proposer);
 
         // Create a new game with parentIndex = 1.
-        OPSuccinctFaultDisputeGame childGame = OPSuccinctFaultDisputeGame(
+        OptimisticZkGame childGame = OptimisticZkGame(
             address(
                 disputeGameFactory.create{ value: 1 ether }(
                     gameType,
@@ -467,7 +467,7 @@ contract OPSuccinctFaultDisputeGame_Resolve_Test is OPSuccinctFaultDisputeGame_T
     function test_resolve_parentGameInvalid_succeeds() public {
         // 1) Now create a child game referencing that losing parent at index 1.
         vm.startPrank(proposer);
-        OPSuccinctFaultDisputeGame childGame = OPSuccinctFaultDisputeGame(
+        OptimisticZkGame childGame = OptimisticZkGame(
             address(
                 disputeGameFactory.create{ value: 1 ether }(
                     gameType, Claim.wrap(keccak256("child-of-loser")), abi.encodePacked(uint256(10000), uint32(1))
@@ -515,14 +515,14 @@ contract OPSuccinctFaultDisputeGame_Resolve_Test is OPSuccinctFaultDisputeGame_T
     }
 }
 
-/// @title OPSuccinctFaultDisputeGame_Challenge_Test
-/// @notice Tests for challenge functionality of OPSuccinctFaultDisputeGame.
-contract OPSuccinctFaultDisputeGame_Challenge_Test is OPSuccinctFaultDisputeGame_TestInit {
+/// @title OptimisticZkGame_Challenge_Test
+/// @notice Tests for challenge functionality of OptimisticZkGame.
+contract OptimisticZkGame_Challenge_Test is OptimisticZkGame_TestInit {
     function test_challenge_alreadyChallenged_reverts() public {
         // Initially unchallenged.
-        (, address counteredBy_,,, OPSuccinctFaultDisputeGame.ProposalStatus status_,) = game.claimData();
+        (, address counteredBy_,,, OptimisticZkGame.ProposalStatus status_,) = game.claimData();
         assertEq(counteredBy_, address(0));
-        assertEq(uint8(status_), uint8(OPSuccinctFaultDisputeGame.ProposalStatus.Unchallenged));
+        assertEq(uint8(status_), uint8(OptimisticZkGame.ProposalStatus.Unchallenged));
 
         // The first challenge is valid.
         vm.startPrank(challenger);
@@ -548,9 +548,9 @@ contract OPSuccinctFaultDisputeGame_Challenge_Test is OPSuccinctFaultDisputeGame
     }
 }
 
-/// @title OPSuccinctFaultDisputeGame_Prove_Test
-/// @notice Tests for prove functionality of OPSuccinctFaultDisputeGame.
-contract OPSuccinctFaultDisputeGame_Prove_Test is OPSuccinctFaultDisputeGame_TestInit {
+/// @title OptimisticZkGame_Prove_Test
+/// @notice Tests for prove functionality of OptimisticZkGame.
+contract OptimisticZkGame_Prove_Test is OptimisticZkGame_TestInit {
     function test_prove_afterDeadline_reverts() public {
         // Challenge first.
         vm.startPrank(challenger);
@@ -578,9 +578,9 @@ contract OPSuccinctFaultDisputeGame_Prove_Test is OPSuccinctFaultDisputeGame_Tes
     }
 }
 
-/// @title OPSuccinctFaultDisputeGame_ClaimCredit_Test
-/// @notice Tests for claimCredit functionality of OPSuccinctFaultDisputeGame.
-contract OPSuccinctFaultDisputeGame_ClaimCredit_Test is OPSuccinctFaultDisputeGame_TestInit {
+/// @title OptimisticZkGame_ClaimCredit_Test
+/// @notice Tests for claimCredit functionality of OptimisticZkGame.
+contract OptimisticZkGame_ClaimCredit_Test is OptimisticZkGame_TestInit {
     function test_claimCredit_notFinalized_reverts() public {
         (,,,,, Timestamp deadline) = game.claimData();
         vm.warp(deadline.raw() + 1);
@@ -591,9 +591,9 @@ contract OPSuccinctFaultDisputeGame_ClaimCredit_Test is OPSuccinctFaultDisputeGa
     }
 }
 
-/// @title OPSuccinctFaultDisputeGame_CloseGame_Test
-/// @notice Tests for closeGame functionality of OPSuccinctFaultDisputeGame.
-contract OPSuccinctFaultDisputeGame_CloseGame_Test is OPSuccinctFaultDisputeGame_TestInit {
+/// @title OptimisticZkGame_CloseGame_Test
+/// @notice Tests for closeGame functionality of OptimisticZkGame.
+contract OptimisticZkGame_CloseGame_Test is OptimisticZkGame_TestInit {
     function test_closeGame_notResolved_reverts() public {
         vm.expectRevert(GameNotFinalized.selector);
         game.closeGame();
@@ -611,9 +611,9 @@ contract OPSuccinctFaultDisputeGame_CloseGame_Test is OPSuccinctFaultDisputeGame
     }
 }
 
-/// @title OPSuccinctFaultDisputeGame_AccessManager_Test
+/// @title OptimisticZkGame_AccessManager_Test
 /// @notice Tests for AccessManager permissionless fallback functionality.
-contract OPSuccinctFaultDisputeGame_AccessManager_Test is OPSuccinctFaultDisputeGame_TestInit {
+contract OptimisticZkGame_AccessManager_Test is OptimisticZkGame_TestInit {
     function test_accessManager_permissionlessAfterTimeout_succeeds() public {
         // Initially, unauthorized user should not be allowed
         address unauthorizedUser = address(0x9999);

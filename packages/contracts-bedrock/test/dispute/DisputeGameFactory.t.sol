@@ -27,8 +27,8 @@ import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissi
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import { SP1MockVerifier } from "test/dispute/zk/mocks/SP1MockVerifier.sol";
 
-// OPSuccinct
-import { OPSuccinctFaultDisputeGame } from "src/dispute/zk/OPSuccinctFaultDisputeGame.sol";
+// OptimisticZk
+import { OptimisticZkGame } from "src/dispute/zk/OptimisticZkGame.sol";
 import { AccessManager } from "src/dispute/zk/AccessManager.sol";
 import { ISP1Verifier } from "src/dispute/zk/ISP1Verifier.sol";
 
@@ -395,8 +395,8 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON, _implArgs);
     }
 
-    /// @notice Parameters for OPSuccinct fault dispute game setup
-    struct OPSuccinctGameParams {
+    /// @notice Parameters for OptimisticZk game setup
+    struct OptimisticZkGameParams {
         Duration maxChallengeDuration;
         Duration maxProveDuration;
         address proposer;
@@ -407,8 +407,8 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         uint256 challengerBond;
     }
 
-    /// @notice Sets up an OPSuccinct fault dispute game implementation
-    function setupOPSuccinctFaultDisputeGame(OPSuccinctGameParams memory _params)
+    /// @notice Sets up an OptimisticZk game implementation
+    function setupOptimisticZkGame(OptimisticZkGameParams memory _params)
         internal
         returns (address gameImpl_, AccessManager accessManager_, ISP1Verifier sp1Verifier_)
     {
@@ -422,7 +422,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
 
         // Deploy game implementation
         gameImpl_ = address(
-            new OPSuccinctFaultDisputeGame(
+            new OptimisticZkGame(
                 _params.maxChallengeDuration,
                 _params.maxProveDuration,
                 disputeGameFactory,
@@ -436,8 +436,8 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
             )
         );
 
-        // Set respected game type for OPSuccinct
-        GameType gameType = GameType.wrap(OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE);
+        // Set respected game type for OptimisticZk
+        GameType gameType = GameType.wrap(OPTIMISTIC_ZK_GAME_TYPE);
         vm.prank(superchainConfig.guardian());
         anchorStateRegistry.setRespectedGameType(gameType);
 

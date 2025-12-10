@@ -5,7 +5,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { GameType } from "src/dispute/lib/Types.sol";
 import { Timestamp } from "src/dispute/lib/LibUDT.sol";
-import { OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE } from "src/dispute/lib/Types.sol";
+import { OPTIMISTIC_ZK_GAME_TYPE } from "src/dispute/lib/Types.sol";
 
 /// @title AccessManager
 /// @notice Manages permissions for dispute game proposers and challengers.
@@ -79,7 +79,7 @@ contract AccessManager is Ownable {
     /// @return The last proposal timestamp.
     function getLastProposalTimestamp() public view returns (uint256) {
         // Get the latest game to check its timestamp.
-        GameType gameType = GameType.wrap(OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE);
+        GameType gameType = GameType.wrap(OPTIMISTIC_ZK_GAME_TYPE);
         uint256 numGames = DISPUTE_GAME_FACTORY.gameCount();
 
         // Early return if no games exist.

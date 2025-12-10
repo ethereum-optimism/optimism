@@ -151,7 +151,7 @@ error GamePaused();
 error InvalidGameArgsLength();
 
 ////////////////////////////////////////////////////////////////
-//            `OPSuccinctFaultDisputeGame` Errors             //
+//                `OptimisticZkGame` Errors                 //
 ////////////////////////////////////////////////////////////////
 
 /// @notice Thrown when the claim has already been challenged.
