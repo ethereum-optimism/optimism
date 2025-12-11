@@ -1,12 +1,12 @@
 ---
-slug: /
+slug: / 
 ---
 
 # Introduction
 
 Boba is the first scaling infrastructure that is deployed on multiple blockchains, making it the leading Web3 multichain execution layer with scaling capabilities to facilitate more functionality on EVM-compatible blockchains.
 
-Boba Network is a multichain layer 2 optimistic rollup that aims to unlock the potential of rollup technology and enable interoperability between blockchains and the real world. The protocol is fully compatible with EVM-based tools and has already deployed multichain support for Ethereum and BNB, supporting lightning-fast transactions and lower fees. It also enables visionary developers to build hybrid dApps that connect people to the future of blockchain applications.
+Boba Network is a multichain, layer 2, optimistic rollup that aims to unlock the potential of rollup technology and enable interoperability between blockchains and the real world. The protocol is fully compatible with EVM-based tools and has already deployed multichain support for Ethereum and BNB, supporting lightning-fast transactions and lower fees. It also enables visionary developers to build hybrid dApps that connect people to the future of blockchain applications.
 
 Learn more about Boba through the following documentation:
 
@@ -19,4 +19,3 @@ Learn more about Boba through the following documentation:
 - [Contract and Token Addresses](./addresses/index) lists all boba-related contract and token addresses.
 - [Testnet Faucets](./faucets) lists the faucets availabe for use on Sepolia and Boba networks.
 - [Notices](./notices/holocene-breaking-changes) lists any breaking changes or other noteworthy events taking place on the network.
-- [FAQ](./faq) has the answers to Boba's frequently asked questions.
