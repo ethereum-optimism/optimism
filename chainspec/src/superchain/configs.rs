@@ -98,7 +98,7 @@ mod tests {
         OP_SEPOLIA_CANYON_TIMESTAMP, OP_SEPOLIA_ECOTONE_TIMESTAMP, OP_SEPOLIA_ISTHMUS_TIMESTAMP,
         OP_SEPOLIA_JOVIAN_TIMESTAMP,
     };
-    use reth_optimism_primitives::ADDRESS_L2_TO_L1_MESSAGE_PASSER;
+    use reth_optimism_primitives::L2_TO_L1_MESSAGE_PASSER_ADDRESS;
     use tar_no_std::TarArchiveRef;
 
     #[test]
@@ -106,7 +106,7 @@ mod tests {
         let genesis = read_superchain_genesis("unichain", "mainnet").unwrap();
         assert_eq!(genesis.config.chain_id, 130);
         assert_eq!(genesis.timestamp, 1730748359);
-        assert!(genesis.alloc.contains_key(&ADDRESS_L2_TO_L1_MESSAGE_PASSER));
+        assert!(genesis.alloc.contains_key(&L2_TO_L1_MESSAGE_PASSER_ADDRESS));
     }
 
     #[test]
@@ -114,7 +114,7 @@ mod tests {
         let genesis = read_superchain_genesis("funki", "mainnet").unwrap();
         assert_eq!(genesis.config.chain_id, 33979);
         assert_eq!(genesis.timestamp, 1721211095);
-        assert!(genesis.alloc.contains_key(&ADDRESS_L2_TO_L1_MESSAGE_PASSER));
+        assert!(genesis.alloc.contains_key(&L2_TO_L1_MESSAGE_PASSER_ADDRESS));
     }
 
     #[test]

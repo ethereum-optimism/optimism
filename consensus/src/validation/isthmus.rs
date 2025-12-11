@@ -4,7 +4,7 @@ use crate::OpConsensusError;
 use alloy_consensus::BlockHeader;
 use alloy_primitives::B256;
 use alloy_trie::EMPTY_ROOT_HASH;
-use reth_optimism_primitives::ADDRESS_L2_TO_L1_MESSAGE_PASSER;
+use reth_optimism_primitives::L2_TO_L1_MESSAGE_PASSER_ADDRESS;
 use reth_storage_api::{errors::ProviderResult, StorageRootProvider};
 use reth_trie_common::HashedStorage;
 use revm::database::BundleState;
@@ -32,7 +32,7 @@ pub fn withdrawals_root<DB: StorageRootProvider>(
     withdrawals_root_prehashed(
         state_updates
             .state()
-            .get(&ADDRESS_L2_TO_L1_MESSAGE_PASSER)
+            .get(&L2_TO_L1_MESSAGE_PASSER_ADDRESS)
             .map(|acc| {
                 HashedStorage::from_plain_storage(
                     acc.status,
@@ -52,7 +52,7 @@ pub fn withdrawals_root_prehashed<DB: StorageRootProvider>(
     hashed_storage_updates: HashedStorage,
     state: DB,
 ) -> ProviderResult<B256> {
-    state.storage_root(ADDRESS_L2_TO_L1_MESSAGE_PASSER, hashed_storage_updates)
+    state.storage_root(L2_TO_L1_MESSAGE_PASSER_ADDRESS, hashed_storage_updates)
 }
 
 /// Verifies block header field `withdrawals_root` against storage root of
@@ -146,7 +146,7 @@ mod test {
 
     #[test]
     fn l2tol1_message_passer_no_withdrawals() {
-        let hashed_address = keccak256(ADDRESS_L2_TO_L1_MESSAGE_PASSER);
+        let hashed_address = keccak256(L2_TO_L1_MESSAGE_PASSER_ADDRESS);
 
         // create account storage
         let init_storage = HashedStorage::from_iter(
