@@ -9,7 +9,7 @@ import (
 
 var (
 	ErrInvalidL1Origin      = fmt.Errorf("origin-selector: currentL1Origin.Hash != l2Head.L1Origin.Hash")
-	ErrInvalidL1OriginChild = fmt.Errorf("origin-selector: nextL1Origin.ParentHash != currentL1Origin.Hash")
+	ErrNextL1OriginOrphaned = fmt.Errorf("origin-selector: nextL1Origin.ParentHash != currentL1Origin.Hash")
 	ErrNextL1OriginRequired = fmt.Errorf("origin-selector: nextL1Origin not supplied but required to satisfy constraints")
 )
 
@@ -30,7 +30,7 @@ func FindL1OriginOfNextL2Block(
 		return nil, ErrInvalidL1Origin
 	}
 	if nextL1Origin != nil && nextL1Origin.ParentHash != currentL1Origin.Hash {
-		return nil, ErrInvalidL1OriginChild
+		return nil, ErrNextL1OriginOrphaned
 	}
 
 	l2BlockTime := cfg.BlockTime

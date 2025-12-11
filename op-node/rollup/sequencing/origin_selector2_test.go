@@ -34,9 +34,11 @@ func TestFindL1OriginOfNextL2Block(t *testing.T) {
 		expectedError       error
 	}
 
-	// L1 chain: a100(1200) <-a101(1212)
+	tcs := []testCase{}
+
+	// L1 chain: a100(1200) <- [ a101(1212) ]
 	//            /\
-	// L2 chain    \_ b1000 (1220)
+	// L2 chain    \_ b1000(1220)
 	a100 := &eth.L1BlockRef{
 		Number: 100,
 		Hash:   common.Hash{'a', '1', '0', '0'},
@@ -55,15 +57,15 @@ func TestFindL1OriginOfNextL2Block(t *testing.T) {
 		Time:     1220,
 	}
 
-	tcs := []testCase{
-		{
+	tcs = append(tcs,
+		testCase{
 			name:            "normal operation, progress because we can",
 			l2Head:          b1000,
 			currentL1Origin: a100,
 			nextL1Origin:    a101,
 			expectedResult:  a101,
 		},
-		{
+		testCase{
 			name:                "recover mode, progress because we can",
 			l2Head:              b1000,
 			currentL1Origin:     a100,
@@ -71,14 +73,14 @@ func TestFindL1OriginOfNextL2Block(t *testing.T) {
 			expectedResult:      a101,
 			matchAutoderivation: true,
 		},
-		{
+		testCase{
 			name:            "normal operation, don't need to progress",
 			l2Head:          b1000,
 			currentL1Origin: a100,
 			nextL1Origin:    nil,
 			expectedResult:  a100,
 		},
-		{
+		testCase{
 			name:                "recover mode, need to progress but can't",
 			l2Head:              b1000,
 			currentL1Origin:     a100,
@@ -86,7 +88,49 @@ func TestFindL1OriginOfNextL2Block(t *testing.T) {
 			matchAutoderivation: true,
 			expectedError:       ErrNextL1OriginRequired,
 		},
+	)
+
+	// L1 chain: c100(1200) <-[x]- c101(1212)
+	//            /\
+	// L2 chain    \_[x]- d/e1000(1220)
+	c100 := &eth.L1BlockRef{
+		Number: 100,
+		Hash:   common.Hash{'a', '1', '0', '0'},
+		Time:   1200,
 	}
+	c101 := &eth.L1BlockRef{
+		Number:     101,
+		ParentHash: common.Hash{}, // does not point to c100
+		Hash:       common.Hash{'a', '0', '0'},
+		Time:       1212,
+	}
+	d1000 := &eth.L2BlockRef{
+		Number:   1000,
+		L1Origin: c100.ID(),
+		Hash:     common.Hash{'d', '1', '0', '0', '0'},
+		Time:     1220,
+	}
+	e1000 := &eth.L2BlockRef{
+		Number:   1000,
+		L1Origin: eth.BlockID{}, // does not point to c100
+		Hash:     common.Hash{'d', '1', '0', '0', '0'},
+		Time:     1220,
+	}
+	tcs = append(tcs,
+		testCase{
+			name:            "L1 reorg",
+			currentL1Origin: c100,
+			nextL1Origin:    c101,
+			l2Head:          d1000,
+			expectedError:   ErrNextL1OriginOrphaned,
+		},
+		testCase{
+			name:            "Invalid l1 origin",
+			currentL1Origin: c100,
+			nextL1Origin:    c101,
+			l2Head:          e1000,
+			expectedError:   ErrInvalidL1Origin,
+		})
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
