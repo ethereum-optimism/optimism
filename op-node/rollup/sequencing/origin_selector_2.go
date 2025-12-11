@@ -8,10 +8,9 @@ import (
 )
 
 var (
-	ErrInvalidL1Origin                = fmt.Errorf("origin-selector: currentL1Origin.Hash != l2Head.L1Origin.Hash")
-	ErrInvalidL1OriginChild           = fmt.Errorf("origin-selector: nextL1Origin.ParentHash != currentL1Origin.Hash")
-	ErrCannotSatisfyMaxSequencerDrift = fmt.Errorf("origin-selector: cannot satisfy max sequencer drift")
-	ErrNextL1OriginRequired           = fmt.Errorf("origin-selector: nextL1Origin not supplied but required to satisfy constraints")
+	ErrInvalidL1Origin      = fmt.Errorf("origin-selector: currentL1Origin.Hash != l2Head.L1Origin.Hash")
+	ErrInvalidL1OriginChild = fmt.Errorf("origin-selector: nextL1Origin.ParentHash != currentL1Origin.Hash")
+	ErrNextL1OriginRequired = fmt.Errorf("origin-selector: nextL1Origin not supplied but required to satisfy constraints")
 )
 
 // FindL1OriginOfNextL2Block finds the L1 origin of the next L2 block.
@@ -38,11 +37,6 @@ func FindL1OriginOfNextL2Block(
 	maxDrift := rollup.NewChainSpec(cfg).MaxSequencerDrift(currentL1Origin.Time)
 	nextL2BlockTime := l2Head.Time + l2BlockTime
 	driftCurrent := nextL2BlockTime - currentL1Origin.Time
-	driftNext := nextL2BlockTime - nextL1Origin.Time
-
-	if driftNext > maxDrift {
-		return nil, fmt.Errorf("%w: driftNext %d > maxDrift %d", ErrCannotSatisfyMaxSequencerDrift, driftNext, maxDrift)
-	}
 
 	if nextL1Origin == nil {
 		if matchAutoDerivation {
