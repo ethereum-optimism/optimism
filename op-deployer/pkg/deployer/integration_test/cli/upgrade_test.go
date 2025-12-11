@@ -57,7 +57,7 @@ func TestCLIUpgrade(t *testing.T) {
 		{
 			contractTag: standard.ContractsV500Tag,
 			version:     "v5.0.0",
-			forkBlock:   9554797, // one block past the opcm deployment block
+			forkBlock:   9629972, // one block past the opcm deployment block
 		},
 	}
 
