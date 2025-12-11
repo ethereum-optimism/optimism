@@ -411,22 +411,6 @@ commands:
             fi
             echo "export RUST_CACHE_KEY_<< parameters.cache_name >>=$CACHE_KEY" >> "$BASH_ENV"
 
-  rust-restore-build-cache:
-    description: "Restore Rust build cache for a directory"
-    parameters:
-      directory:
-        description: "Directory containing the Cargo workspace"
-        type: string
-      cache_name:
-        description: "Identifier for cache key and logging"
-        type: string
-    steps:
-      - restore_cache:
-          name: Restore << parameters.cache_name >> Rust cache
-          keys:
-            - rust-<< parameters.cache_name >>-v4-{{ .Environment.RUST_CACHE_KEY_<< parameters.cache_name >> }}
-            - rust-<< parameters.cache_name >>-v4-
-
   rust-check-binary-exists:
     description: "Check if a binary exists (cache hit detection) and set RUST_CACHE_HIT_<cache_name> env var"
     parameters:
@@ -518,22 +502,6 @@ commands:
             fi
             cd << parameters.directory >> && << parameters.build_command >>
           no_output_timeout: 30m
-
-  rust-save-build-cache:
-    description: "Save Rust build cache for a directory"
-    parameters:
-      directory:
-        description: "Directory containing the Cargo workspace"
-        type: string
-      cache_name:
-        description: "Identifier for cache key"
-        type: string
-    steps:
-      - save_cache:
-          name: Save << parameters.cache_name >> Rust cache
-          key: rust-<< parameters.cache_name >>-v4-{{ .Environment.RUST_CACHE_KEY_<< parameters.cache_name >> }}
-          paths:
-            - "<< parameters.directory >>/target"
 
   rust-persist-target:
     description: "Persist target directory to workspace"
@@ -651,57 +619,59 @@ commands:
             - ~/.cargo/registry
             - ~/.cargo/git
 
-  # --- Legacy individual cache commands (kept for rust-binary-build job) ---
-
-  rust-restore-cargo-cache:
-    description: "Restore Cargo registry and git cache"
+  rust-prepare:
+    description: "Prepare the Rust environment for the build"
     parameters:
-      cache_key_file:
-        description: "File to use for cache key checksum (e.g. Cargo.lock path)"
-        type: string
-        default: "kona/Cargo.lock"
       cache_name:
-        description: "Name prefix for the cache key"
+        description: "Identifier for cache key and logging"
         type: string
-        default: "cargo"
-    steps:
-      - restore_cache:
-          name: Restore << parameters.cache_name >> cargo cache
-          keys:
-            - << parameters.cache_name >>-v1-{{ checksum "<< parameters.cache_key_file >>" }}
-            - << parameters.cache_name >>-v1-
-
-  rust-save-cargo-cache:
-    description: "Save Cargo registry and git cache"
-    parameters:
-      cache_key_file:
-        description: "File to use for cache key checksum (e.g. Cargo.lock path)"
-        type: string
-        default: "kona/Cargo.lock"
-      cache_name:
-        description: "Name prefix for the cache key"
-        type: string
-        default: "cargo"
-    steps:
-      - save_cache:
-          name: Save << parameters.cache_name >> cargo cache
-          key: << parameters.cache_name >>-v1-{{ checksum "<< parameters.cache_key_file >>" }}
-          paths:
-            - ~/.cargo/registry
-            - ~/.cargo/git
-
-  rust-init-submodule:
-    description: "Initialize a git submodule"
-    parameters:
       directory:
-        description: "Submodule directory to initialize"
+        description: "Directory containing the Cargo workspace"
+        type: string
+      check_binary:
+        description: "Binary name to check for cache hit (in target/release/)"
+        type: string
+      needs_clang:
+        description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)"
+        type: boolean
+        default: false
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-compute-cache-key:
+          directory: << parameters.directory >>
+          cache_name: << parameters.cache_name >>
+      - rust-restore-cache:
+          directory: << parameters.directory >>
+          cache_name: << parameters.cache_name >>
+      - rust-check-binary-exists:
+          directory: << parameters.directory >>
+          cache_name: << parameters.cache_name >>
+          check_binary: << parameters.check_binary >>
+      - rust-init-submodule-if-needed:
+          directory: << parameters.directory >>
+          cache_name: << parameters.cache_name >>
+      - when:
+          condition: << parameters.needs_clang >>
+          steps:
+            - rust-install-clang:
+                cache_name: << parameters.cache_name >>
+
+  rust-save:
+    description: "Save the Rust environment and target directory"
+    parameters:
+      cache_name:
+        description: "Identifier for cache key and logging"
+        type: string
+      directory:
+        description: "Directory containing the Cargo workspace"
         type: string
     steps:
-      - run:
-          name: Initialize << parameters.directory >> submodule
-          command: |
-            git submodule update --init --recursive --force -j 8 << parameters.directory >>
-
+      - rust-save-cache:
+          directory: << parameters.directory >>
+          cache_name: << parameters.cache_name >>
+      - rust-persist-target:
+          directory: << parameters.directory >>
 
 jobs:
   # Build a single Rust binary for sysgo tests (parameterized).
@@ -728,34 +698,17 @@ jobs:
         type: boolean
         default: false
     steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-compute-cache-key:
-          directory: << parameters.directory >>
+      - rust-prepare:
           cache_name: << parameters.cache_name >>
-      - rust-restore-build-cache:
           directory: << parameters.directory >>
-          cache_name: << parameters.cache_name >>
-      - rust-check-binary-exists:
-          directory: << parameters.directory >>
-          cache_name: << parameters.cache_name >>
           check_binary: << parameters.check_binary >>
-      - rust-init-submodule-if-needed:
-          directory: << parameters.directory >>
-          cache_name: << parameters.cache_name >>
-      - when:
-          condition: << parameters.needs_clang >>
-          steps:
-            - rust-install-clang:
-                cache_name: << parameters.cache_name >>
+          needs_clang: << parameters.needs_clang >>
       - rust-build:
           directory: << parameters.directory >>
           cache_name: << parameters.cache_name >>
           build_command: << parameters.build_command >>
-      - rust-save-build-cache:
-          directory: << parameters.directory >>
+      - rust-save:
           cache_name: << parameters.cache_name >>
-      - rust-persist-target:
           directory: << parameters.directory >>
 
   # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
@@ -2924,15 +2877,16 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-init-submodule:
-          directory: reth
-      - rust-install-mold
-      - rust-install-toolchain:
-          channel: stable
-          components: llvm-tools-preview
-      - rust-restore-cache:
-          directory: kona
+      - rust-prepare:
           cache_name: kona
+          directory: kona
+          check_binary: kona-node
+          needs_clang: false
+      - rust-prepare:
+          cache_name: reth
+          directory: reth
+          check_binary: reth
+          needs_clang: true
       - run:
           name: Install cargo-llvm-cov
           command: |
@@ -2971,9 +2925,12 @@ jobs:
           disable_search: true
           files: kona/node_reorgs_cov.lcov
           flags: e2e
-      - rust-save-cache:
+      - rust-save:
           directory: kona
           cache_name: kona
+      - rust-save:
+          directory: reth
+          cache_name: reth
 
   # Kona Node Restart Tests (from node_e2e_sysgo_tests.yaml)
   kona-node-restart-sysgo-tests:
@@ -2983,15 +2940,16 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-init-submodule:
-          directory: reth
-      - rust-install-mold
-      - rust-install-toolchain:
-          channel: stable
-          components: llvm-tools-preview
-      - rust-restore-cache:
-          directory: kona
+      - rust-prepare:
           cache_name: kona
+          directory: kona
+          check_binary: kona-node
+          needs_clang: false
+      - rust-prepare:
+          cache_name: reth
+          directory: reth
+          check_binary: reth
+          needs_clang: true
       - run:
           name: Install cargo-llvm-cov
           command: |
@@ -3015,9 +2973,12 @@ jobs:
           disable_search: true
           files: kona/node_restart_cov.lcov
           flags: e2e
-      - rust-save-cache:
+      - rust-save:
           directory: kona
           cache_name: kona
+      - rust-save:
+          directory: reth
+          cache_name: reth
 
   # Kona Proof Action Tests (from proof.yaml)
   kona-proof-action-tests:
@@ -3038,20 +2999,16 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-init-submodule:
-          directory: reth
-      - rust-install-mold
-      - rust-install-toolchain:
-          components: llvm-tools-preview
-      - rust-restore-cache:
-          directory: kona
+      - rust-prepare:
           cache_name: kona
+          directory: kona
+          check_binary: kona-node
+          needs_clang: false
       - run:
           name: Install cargo-llvm-cov and gotestsum
           command: |
             source ~/.cargo/env
             cargo install --locked cargo-llvm-cov
-            go install gotest.tools/gotestsum@v1.12.1
       - run:
           name: Split and run action tests
           working_directory: kona
@@ -3078,7 +3035,7 @@ jobs:
           disable_search: true
           files: kona/actions_cov.lcov
           flags: proof
-      - rust-save-cache:
+      - rust-save:
           directory: kona
           cache_name: kona
 
@@ -3098,12 +3055,11 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-install-mold
-      - rust-install-toolchain:
-          components: llvm-tools-preview
-      - rust-restore-cache:
-          directory: kona
+      - rust-prepare:
           cache_name: kona
+          directory: kona
+          check_binary: kona-node
+          needs_clang: false
       - run:
           name: Install cargo-llvm-cov
           command: |
@@ -3173,7 +3129,7 @@ jobs:
           disable_search: true
           files: kona/bin/client/client_host_cov.lcov
           flags: proof
-      - rust-save-cache:
+      - rust-save:
           directory: kona
           cache_name: kona
 
@@ -3185,12 +3141,11 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-install-mold
-      - rust-install-toolchain:
-          components: rustfmt
-      - rust-restore-cache:
-          directory: kona
+      - rust-prepare:
           cache_name: kona
+          directory: kona
+          check_binary: kona-node
+          needs_clang: false
       - run:
           name: Install nextest
           command: |
@@ -3203,7 +3158,7 @@ jobs:
           command: |
             source ~/.cargo/env
             just test
-      - rust-save-cache:
+      - rust-save:
           directory: kona
           cache_name: kona
 
@@ -3219,28 +3174,14 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-install-mold
-      - rust-install-toolchain:
-          channel: stable
-          components: clippy
-      - rust-restore-cache:
-          directory: kona
+      - rust-prepare:
           cache_name: kona
-      - run:
-          name: Install nightly with rustfmt
-          command: |
-            source ~/.cargo/env
-            rustup install nightly
-            rustup component add rustfmt --toolchain nightly
-      - when:
-          condition:
-            not:
-              equal: [native, <<parameters.target>>]
-          steps:
-            - run:
-                name: Log into ghcr
-                command: |
-                  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          directory: kona
+          check_binary: kona-node
+          needs_clang: false
+      - rust-install-toolchain:
+          channel: nightly
+          components: rustfmt
       - run:
           name: Run fmt + lint for <<parameters.target>>
           working_directory: kona
@@ -3248,11 +3189,7 @@ jobs:
           command: |
             source ~/.cargo/env
             just lint-<<parameters.target>>
-      - run:
-          name: Fix target ownership
-          command: |
-            sudo chown -R $(id -u):$(id -g) ./kona/target || true
-      - rust-save-cache:
+      - rust-save:
           directory: kona
           cache_name: kona
 
@@ -3268,21 +3205,11 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-install-mold
-      - rust-install-toolchain:
-          channel: nightly
-      - rust-restore-cache:
-          directory: kona
+      - rust-prepare:
           cache_name: kona
-      - when:
-          condition:
-            not:
-              equal: [native, <<parameters.target>>]
-          steps:
-            - run:
-                name: Log into ghcr
-                command: |
-                  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          directory: kona
+          check_binary: kona-node
+          needs_clang: false
       - run:
           name: Build <<parameters.target>>
           working_directory: kona
@@ -3290,11 +3217,7 @@ jobs:
           command: |
             source ~/.cargo/env
             just build-<<parameters.target>>
-      - run:
-          name: Fix target ownership
-          command: |
-            sudo chown -R $(id -u):$(id -g) ./kona/target || true
-      - rust-save-cache:
+      - rust-save:
           directory: kona
           cache_name: kona
 
@@ -3306,11 +3229,11 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-install-mold
-      - rust-install-toolchain
-      - rust-restore-cache:
-          directory: kona
+      - rust-prepare:
           cache_name: kona
+          directory: kona
+          check_binary: kona-node
+          needs_clang: false
       - run:
           name: Build benchmarks
           working_directory: kona
@@ -3318,11 +3241,7 @@ jobs:
           command: |
             source ~/.cargo/env
             just benches
-      - run:
-          name: Fix target ownership
-          command: |
-            sudo chown -R $(id -u):$(id -g) ./kona/target || true
-      - rust-save-cache:
+      - rust-save:
           directory: kona
           cache_name: kona
 
