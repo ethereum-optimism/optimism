@@ -350,12 +350,7 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 	} else if ctx.IsSet(flags.L2EngineSyncEnabled.Name) {
 		log.Error("l2.engine-sync is deprecated and will be removed in a future release. Use --syncmode=execution-layer instead.")
 	}
-	unsafeOnly := ctx.Bool(flags.L2UnsafeOnly.Name)
 	l2FollowSourceEndpoint := ctx.String(flags.L2FollowSource.Name)
-	if !unsafeOnly && l2FollowSourceEndpoint != "" {
-		return nil, errors.New("cannot follow external safe/finalized with derivation enabled (--l2.unsafe-only=false): " +
-			"Either remove --l2.follow.source or set --l2.unsafe-only=true to disable derivation")
-	}
 	rrSyncEnabled := ctx.Bool(flags.SyncModeReqRespFlag.Name)
 	// p2p.sync.req-resp=false && syncmode.req-resp=true is not allowed
 	if !ctx.Bool(flags.SyncReqRespName) && rrSyncEnabled {
@@ -365,32 +360,15 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	isSequencer := ctx.Bool(flags.SequencerEnabledFlag.Name)
-	if unsafeOnly && !isSequencer {
-		// The verifier node initially gains payloads from the sequencer via CLP2P.
-		// To sync to the chain tip, the verifier must close the gap between its current
-		// unsafe view and the sequencer's latest unsafe payloads.
-		// With derivation disabled, the node can only rely on RR Sync or EL Sync to close this gap.
-		if rrSyncEnabled {
-			// Allowing RR Sync technically works, but it is impractical for a verifier to
-			// rely solely on RR Syncing - bootstrapping would take too long.
-			// Since RR Sync is also being deprecated, fail early for clarity.
-			return nil, errors.New("derivation disabled (--l2.unsafe-only=true) and RR sync enabled (--syncmode.req-resp=true): " +
-				"reaching the unsafe tip would rely solely on RR sync, " +
-				"which is infeasible for bootstrap. Disable RR sync or enable derivation")
-		}
-		// If RR Sync is not used, EL Sync will fill in the unsafe gap.
-		// This path is much faster and more practical for closing the gap.
-	}
 	engineKind := engine.Kind(ctx.String(flags.L2EngineKind.Name))
 	cfg := &sync.Config{
 		SyncMode:                       mode,
 		SyncModeReqResp:                ctx.Bool(flags.SyncModeReqRespFlag.Name),
 		SkipSyncStartCheck:             ctx.Bool(flags.SkipSyncStartCheck.Name),
 		SupportsPostFinalizationELSync: engineKind.SupportsPostFinalizationELSync(),
-		UnsafeOnly:                     unsafeOnly,
 		L2FollowSourceEndpoint:         l2FollowSourceEndpoint,
-		NeedInitialResetEngine:         isSequencer && unsafeOnly,
+		// Sequencer needs a manual initial reset when follow source
+		NeedInitialResetEngine: ctx.Bool(flags.SequencerEnabledFlag.Name) && l2FollowSourceEndpoint != "",
 	}
 	if ctx.Bool(flags.L2EngineSyncEnabled.Name) {
 		cfg.SyncMode = sync.ELSync

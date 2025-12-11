@@ -75,7 +75,10 @@ type Config struct {
 
 	SupportsPostFinalizationELSync bool `json:"supports_post_finalization_elsync"`
 
-	UnsafeOnly             bool   `json:"unsafe_only"`
 	L2FollowSourceEndpoint string `json:"l2_follow_source_endpoint"`
 	NeedInitialResetEngine bool   `json:"need_initial_reset_engine"`
+}
+
+func (c *Config) FollowSourceEnabled() bool {
+	return c.L2FollowSourceEndpoint != ""
 }

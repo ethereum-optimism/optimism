@@ -278,7 +278,7 @@ func (s *Driver) eventLoop() {
 
 	lastUnsafeL2 := s.SyncDeriver.Engine.UnsafeL2Head()
 
-	unsafeOnly := s.SyncDeriver.SyncCfg.UnsafeOnly
+	followSource := s.SyncDeriver.SyncCfg.FollowSourceEnabled()
 
 	resetAltSync := func(newHead eth.L2BlockRef, derivationReady bool) {
 		s.log.Debug(
@@ -286,7 +286,7 @@ func (s *Driver) eventLoop() {
 			"head", newHead,
 			"lastUnsafeL2", lastUnsafeL2,
 			"derivationReady", derivationReady,
-			"unsafeOnly", unsafeOnly,
+			"followSource", followSource,
 		)
 		lastUnsafeL2 = newHead
 		altSyncTicker.Reset(syncCheckInterval)
@@ -296,11 +296,11 @@ func (s *Driver) eventLoop() {
 	// the state against upstream sources when derivation is disabled (unsafeOnly).
 	//
 	// In this mode, the node does not derive from L1; instead, it uses L1 as a mandatory
-	// upstream anchor for its unsafe head, and may optionally import safe/finalized state
+	// upstream anchor for its unsafe head, and imports safe/finalized state
 	// from an external source. Since the normal derivation pipeline is inactive, reorg
 	// detection must be performed here instead.
 	var upstreamSyncTickerC <-chan time.Time
-	if s.syncConfig.UnsafeOnly {
+	if followSource {
 		upstreamSyncTickerCheckInterval := time.Duration(s.SyncDeriver.Config.BlockTime) * time.Second * 2
 		upstreamSyncTicker := time.NewTicker(upstreamSyncTickerCheckInterval)
 		upstreamSyncTickerC = upstreamSyncTicker.C
@@ -320,7 +320,7 @@ func (s *Driver) eventLoop() {
 		if lastUnsafeL2 != head {
 			// Unsafe head changed: reset alt-sync to avoid redundant L2 requests while syncing.
 			resetAltSync(head, derivationReady)
-		} else if !unsafeOnly && !derivationReady {
+		} else if !followSource && !derivationReady {
 			// Derivation enabled but not yet ready: reset alt-sync while it catches up.
 			resetAltSync(head, derivationReady)
 		}
@@ -483,8 +483,7 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPa
 // no-op while derivation is enabled or the EL is still performing its initial
 // sync.
 func (s *Driver) followUpstream() {
-	if !s.syncConfig.UnsafeOnly {
-		// Only run when derivation disabled
+	if !s.syncConfig.FollowSourceEnabled() {
 		return
 	}
 	if s.SyncDeriver.Engine.IsEngineInitialELSyncing() {

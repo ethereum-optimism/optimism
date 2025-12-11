@@ -211,15 +211,11 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 	var err error
 
 	safe := "enabled"
-	if cfg.Sync.UnsafeOnly {
+	if cfg.Sync.FollowSourceEnabled() {
 		safe = cfg.Sync.L2FollowSourceEndpoint
-		if safe == "" {
-			safe = "disabled"
-		} else {
-			n.l2FollowSource, err = initFollowSource(ctx, cfg, n)
-			if err != nil {
-				return fmt.Errorf("failed to init l2 follow source: %w", err)
-			}
+		n.l2FollowSource, err = initFollowSource(ctx, cfg, n)
+		if err != nil {
+			return fmt.Errorf("failed to init l2 follow source: %w", err)
 		}
 	}
 	n.log.Info("Safety levels", "unsafe", "enabled", "safe", safe)
@@ -606,7 +602,7 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 	}
 
 	var upstreamFollowSource driver.UpstreamFollowSource
-	if node.cfg.Sync.UnsafeOnly {
+	if node.cfg.Sync.FollowSourceEnabled() {
 		upstreamFollowSource = driver.NewL2FollowSource(node.l2FollowSource, node.l1Source)
 	}
 

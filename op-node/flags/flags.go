@@ -217,16 +217,9 @@ var (
 		Value:    time.Second * 10,
 		Category: RollupCategory,
 	}
-	L2UnsafeOnly = &cli.BoolFlag{
-		Name:     "l2.unsafe-only",
-		Usage:    "Disable derivation",
-		EnvVars:  prefixEnvVars("L2_UNSAFE_ONLY"),
-		Category: RollupCategory,
-		Required: false,
-	}
 	L2FollowSource = &cli.StringFlag{
 		Name:     "l2.follow.source",
-		Usage:    "Address of L2 EL RPC HTTP endpoint to fetch safe/finalized blocks",
+		Usage:    "Address of L2 CL RPC HTTP endpoint to follow source",
 		EnvVars:  prefixEnvVars("L2_FOLLOW_SOURCE"),
 		Category: RollupCategory,
 		Required: false,
@@ -507,7 +500,6 @@ var optionalFlags = []cli.Flag{
 	L1ChainConfig,
 	L2EngineKind,
 	L2EngineRpcTimeout,
-	L2UnsafeOnly,
 	L2FollowSource,
 	InteropRPCAddr,
 	InteropRPCPort,
