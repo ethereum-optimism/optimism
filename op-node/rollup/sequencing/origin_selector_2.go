@@ -15,8 +15,9 @@ var (
 
 // FindL1OriginOfNextL2Block finds the L1 origin of the next L2 block.
 // It returns an error if there is no way to build a block satisfying
-// derivation constraints with the supplied l1OriginChild.
-// You can pass a nil pointer for l1OriginChild if it is not yet available,
+// derivation constraints with the supplied data.
+// You can pass a nil pointer for l1OriginChild if it is not yet available
+// removing the need for block building to wait on the result of network calls
 func FindL1OriginOfNextL2Block(
 	cfg *rollup.Config,
 	l2Head *eth.L2BlockRef,

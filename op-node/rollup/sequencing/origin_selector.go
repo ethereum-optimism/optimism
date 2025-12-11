@@ -3,7 +3,6 @@ package sequencing
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -70,85 +69,47 @@ func (los *L1OriginSelector) OnEvent(ctx context.Context, ev event.Event) bool {
 	return true
 }
 
-// FindL1Origin determines what the next L1 Origin should be.
-// The L1 Origin is either the L2 Head's Origin, or the following L1 block
-// if the next L2 block's time is greater than or equal to the L2 Head's Origin.
-// The origin selection relies purely on block numbers and it is the caller's
-// responsibility to detect and handle L1 reorgs.
+// FindL1Origin determines what the L1 Origin for the next L2 Block should be.
 func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
 	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(ctx, l2Head)
 	if err != nil {
 		return eth.L1BlockRef{}, err
 	}
 
-	// If the next L2 block time is greater than the next origin block's time, we can choose to
-	// start building on top of the next origin. Sequencer implementation has some leeway here and
-	// could decide to continue to build on top of the previous origin until the Sequencer runs out
-	// of slack. For simplicity, we implement our Sequencer to always start building on the latest
-	// L1 block when we can.
-	if nextOrigin != (eth.L1BlockRef{}) && l2Head.Time+los.cfg.BlockTime >= nextOrigin.Time {
-		return nextOrigin, nil
-	}
-
-	msd := los.spec.MaxSequencerDrift(currentOrigin.Time)
-	log := los.log.New("current", currentOrigin, "current_time", currentOrigin.Time,
-		"l2_head", l2Head, "l2_head_time", l2Head.Time, "max_seq_drift", msd)
-
-	pastSeqDrift := l2Head.Time+los.cfg.BlockTime-currentOrigin.Time > msd
-
-	// If we are not past the max sequencer drift, we can just return the current origin.
-	if !pastSeqDrift {
-		return currentOrigin, nil
-	}
-
-	// Otherwise, we need to find the next L1 origin block in order to continue producing blocks.
-	log.Warn("Next L2 block time is past the sequencer drift + current origin time")
-
-	if nextOrigin == (eth.L1BlockRef{}) {
-		fetchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
-
-		// If the next origin is not set, we need to fetch it now.
-		nextOrigin, err = los.fetch(fetchCtx, currentOrigin.Number+1)
-		if err != nil {
-			return eth.L1BlockRef{}, fmt.Errorf("cannot build next L2 block past current L1 origin %s by more than sequencer time drift, and failed to find next L1 origin: %w", currentOrigin, err)
+	// If in recover mode, get next origin synchronously
+	matchAutoDerivation := los.recoverMode.Load()
+	if matchAutoDerivation && nextOrigin == eth.L1BlockRef{} {
+		nextOrigin, err = los.fetch(ctx)
+		if errors.Is(err, ethereum.NotFound) {
+			// We caught up to tip and no longer want to match auto derivation
+			matchAutoDerivation = false
+		} else if err != nil {
+			return eth.L1BlockRef{}, err
 		}
 	}
 
-	// If the next origin is ahead of the L2 head, we must return the current origin.
-	if l2Head.Time+los.cfg.BlockTime < nextOrigin.Time {
-		return currentOrigin, nil
+	// TODO harmonize how we represent "no data for next origin"
+	var nextOriginPtr *eth.L1BlockRef
+	if (nextOrigin != eth.L1BlockRef{}) {
+		nextOriginPtr = &nextOrigin
 	}
 
-	return nextOrigin, nil
+	// defer to pure function
+	o, err := FindL1OriginOfNextL2Block(los.cfg,
+		&l2Head,
+		&currentOrigin,
+		nextOriginPtr,
+		matchAutoDerivation)
+
+	return *o, err
 }
 
+// CurrentAndNextOrigin returns the current cached values for the current L1 origin for the supplied l2Head, and it's successor.
+// It only performs a fetch to L1 if the cache is invalid.
+// The cache can be update asynchronously by other methods on L1OriginSelector.
 func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, eth.L1BlockRef, error) {
 	los.mu.Lock()
 	defer los.mu.Unlock()
-
-	if los.recoverMode.Load() {
-		currentOrigin, err := los.l1.L1BlockRefByHash(ctx, l2Head.L1Origin.Hash)
-		if err != nil {
-			return eth.L1BlockRef{}, eth.L1BlockRef{},
-				derive.NewTemporaryError(fmt.Errorf("failed to fetch current L1 origin: %w", err))
-		}
-		los.currentOrigin = currentOrigin
-		nextOrigin, err := los.l1.L1BlockRefByNumber(ctx, currentOrigin.Number+1)
-		if errors.Is(err, ethereum.NotFound) {
-			// If the next origin is not found, it means we are at the end of the chain.
-			// In this case, we set the next origin to an empty block reference.
-			los.log.Error("next L1 origin not found, recover mode likely brought L1 origin up to the tip of the chain", "error", err)
-			los.nextOrigin = eth.L1BlockRef{}
-			return los.currentOrigin, los.nextOrigin, nil
-		} else if err != nil {
-			return eth.L1BlockRef{}, eth.L1BlockRef{},
-				derive.NewTemporaryError(fmt.Errorf("failed to fetch next L1 origin: %w", err))
-		}
-		los.nextOrigin = nextOrigin
-		los.log.Info("origin selector in recover mode", "current_origin", los.currentOrigin, "next_origin", los.nextOrigin, "l2_head", l2Head)
-		return los.currentOrigin, los.nextOrigin, nil
-	}
 
 	if l2Head.L1Origin == los.currentOrigin.ID() {
 		// Most likely outcome: the L2 head is still on the current origin.
