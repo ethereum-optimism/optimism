@@ -720,6 +720,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      - attach_workspace:
+          at: .
       - run:
           command: mkdir -p /tmp/docker_images
       - when:
@@ -920,14 +922,6 @@ jobs:
       test_list:
         description: List of test files to run
         type: string
-      test_command:
-        description: Test command to execute (test or coverage)
-        type: string
-        default: test
-      test_flags:
-        description: Additional flags to pass to the test command
-        type: string
-        default: ""
       test_timeout:
         description: Timeout for running tests
         type: string
@@ -985,7 +979,8 @@ jobs:
             TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
             TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
             MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
-            forge <<parameters.test_command>> <<parameters.test_flags>> --match-path "$MATCH_PATH"
+            mkdir -p results
+            forge test --match-path "$MATCH_PATH" --junit > results/results.xml
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
@@ -997,6 +992,11 @@ jobs:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
           when: on_fail
+      - when:
+          condition: always
+          steps:
+            - store_test_results:
+                path: packages/contracts-bedrock/results/results.xml
       - run:
           name: Lint forge test names
           command: just lint-forge-tests-check-no-build
@@ -1031,7 +1031,9 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Run heavy fuzz tests
-          command: just test
+          command: |
+            mkdir -p results
+            just test --junit > results/results.xml
           environment:
             FOUNDRY_PROFILE: ciheavy
           working_directory: packages/contracts-bedrock
@@ -1048,6 +1050,11 @@ jobs:
           key: golang-build-cache-contracts-bedrock-heavy-fuzz-{{ checksum "go.sum" }}
           paths:
             - "~/.cache/go-build"
+      - when:
+          condition: always
+          steps:
+            - store_test_results:
+                path: packages/contracts-bedrock/results/results.xml
       - notify-failures-on-develop
 
   # AI Contracts Test Maintenance System
@@ -1088,10 +1095,6 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: 2xlarge
     parameters:
-      test_flags:
-        description: Additional flags to pass to the test command
-        type: string
-        default: ""
       test_timeout:
         description: Timeout for running tests
         type: string
@@ -1149,7 +1152,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Run coverage tests
-          command: just coverage-lcov-all <<parameters.test_flags>>
+          command: just coverage-lcov-all
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
             ETH_RPC_URL: https://ci-mainnet-l1-archive.optimism.io
@@ -1232,7 +1235,9 @@ jobs:
           features: <<parameters.features>>
       - run:
           name: Run tests
-          command: just test-upgrade
+          command: |
+            mkdir -p results
+            just test-upgrade --junit > results/results.xml
           environment:
             FOUNDRY_FUZZ_SEED: 42424242
             FOUNDRY_FUZZ_RUNS: 1
@@ -1269,6 +1274,11 @@ jobs:
       - store_artifacts:
           path: packages/contracts-bedrock/failed-test-traces.log
           when: on_fail
+      - when:
+          condition: always
+          steps:
+            - store_test_results:
+                path: packages/contracts-bedrock/results/results.xml
       - notify-failures-on-develop
 
   contracts-bedrock-upload:
@@ -1331,6 +1341,29 @@ jobs:
           command: validate-spacers-no-build
       - run-contracts-check:
           command: opcm-upgrade-checks-no-build
+
+  contracts-bedrock-checks-fast:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: 2xlarge
+    steps:
+      - utils/checkout-with-mise
+      - install-zstd
+      - install-contracts-dependencies
+      - check-changed:
+          patterns: contracts-bedrock
+      - run:
+          name: Print forge version
+          command: forge --version
+      - run:
+          name: Pull cached artifacts
+          command: bash scripts/ops/pull-artifacts.sh --fallback-to-latest
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Run checks
+          command: just check-fast
+          working_directory: packages/contracts-bedrock
+      - notify-failures-on-develop
 
   todo-issues:
     parameters:
@@ -1936,14 +1969,15 @@ jobs:
           name: Slack - Sending Notification
           command: |
             set -euo pipefail
-            # The Slack orb conditionals evaluate at compile time; guard at runtime instead.
             if [ -z "${SLACK_BLOCKS_PAYLOAD:-}" ] || [ "${SLACK_BLOCKS_PAYLOAD}" = "[]" ]; then
-              echo "SLACK_BLOCKS is empty or doesn't exist. Skipping it..."
-              exit 0
+              echo "SLACK_BLOCKS is empty or doesn't exist. Skipping Slack notification."
+              # Halt this job here to avoid invoking the Slack orb step.
+              circleci-agent step halt
+            else
+              printf '%s' "$SLACK_BLOCKS_PAYLOAD" | jq '.' > /tmp/blocks.json
+              jq -c '{blocks: .}' /tmp/blocks.json > /tmp/slack_template.json
             fi
-            echo "$SLACK_BLOCKS_PAYLOAD" | jq '.' > /tmp/blocks.json
-            jq -c '{blocks: .}' /tmp/blocks.json > /tmp/slack_template.json
-            echo 'export SLACK_TEMPLATE=$(cat /tmp/slack_template.json)' >> $BASH_ENV
+            echo 'export SLACK_TEMPLATE=$(cat /tmp/slack_template.json)' >> "$BASH_ENV"
       - slack/notify:
           channel: C03N11M0BBN # "notify-ci" channel
           event: always
@@ -2628,6 +2662,9 @@ workflows:
       - contracts-bedrock-checks:
           requires:
             - contracts-bedrock-build
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - contracts-bedrock-checks-fast:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-upload:

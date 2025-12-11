@@ -11,6 +11,7 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 import { Constants } from "src/libraries/Constants.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Features } from "src/libraries/Features.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -165,7 +166,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
                 l1StandardBridge: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
-                delayedWETH: address(0)
+                delayedWETH: address(0),
+                opcm: address(0)
             }),
             _l2ChainId: 1234,
             _superchainConfig: ISuperchainConfig(address(0))
@@ -222,7 +224,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
                 l1StandardBridge: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
-                delayedWETH: address(0)
+                delayedWETH: address(0),
+                opcm: address(0)
             }),
             _l2ChainId: 1234,
             _superchainConfig: ISuperchainConfig(address(0))
@@ -257,7 +260,8 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
                 l1StandardBridge: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
-                delayedWETH: address(0)
+                delayedWETH: address(0),
+                opcm: address(0)
             }),
             _l2ChainId: 1234,
             _superchainConfig: ISuperchainConfig(address(0))
@@ -289,7 +293,8 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
                 l1StandardBridge: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
-                delayedWETH: address(0)
+                delayedWETH: address(0),
+                opcm: address(0)
             }),
             _l2ChainId: 1234,
             _superchainConfig: ISuperchainConfig(address(0))
@@ -605,7 +610,8 @@ contract SystemConfig_SetResourceConfig_Test is SystemConfig_TestInit {
                 l1StandardBridge: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
-                delayedWETH: address(0)
+                delayedWETH: address(0),
+                opcm: address(0)
             }),
             _l2ChainId: 1234,
             _superchainConfig: ISuperchainConfig(address(0))
@@ -867,14 +873,16 @@ contract SystemConfig_IsFeatureEnabled_Test is SystemConfig_TestInit {
     /// @notice Tests that `isFeatureEnabled` returns false for unset features.
     /// @param _feature The feature to check.
     function testFuzz_isFeatureEnabled_unsetFeature_succeeds(bytes32 _feature) external {
-        vm.startPrank(address(systemConfig.proxyAdmin()));
+        if (_feature == Features.ETH_LOCKBOX && systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            // Needs to be anything but ETH_LOCKBOX because we can't turn that feature off if it's on.
+            vm.skip(true);
+        }
 
         // Normalize CUSTOM_GAS_TOKEN to avoid environment-dependent state
         if (systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) {
+            vm.prank(address(systemConfig.proxyAdmin()));
             systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, false);
         }
-
-        vm.stopPrank();
 
         assertFalse(systemConfig.isFeatureEnabled(_feature));
     }
@@ -973,5 +981,21 @@ contract SystemConfig_IsCustomGasToken_Test is SystemConfig_TestInit {
     function test_isCustomGasToken_disabled_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         assertFalse(systemConfig.isCustomGasToken());
+    }
+}
+
+/// @title SystemConfig_LastUsedOPCM_Test
+/// @notice Test contract for SystemConfig `lastUsedOPCM` and `lastUsedOPCMVersion` functions.
+contract SystemConfig_LastUsedOPCM_Test is SystemConfig_TestInit {
+    /// @notice Tests that `lastUsedOPCM` returns the correct OPCM V2 address and that
+    ///         `lastUsedOPCMVersion` matches the OPCM V2 version.
+    function test_lastUsedOPCM_opcmV2_succeeds() external {
+        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
+
+        // Verify that the lastUsedOPCM address matches the deployed OPCM V2 address
+        assertEq(systemConfig.lastUsedOPCM(), address(opcmV2));
+
+        // Verify that the lastUsedOPCMVersion matches the OPCM V2 version
+        assertEq(systemConfig.lastUsedOPCMVersion(), opcmV2.version());
     }
 }

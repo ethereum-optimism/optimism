@@ -1338,7 +1338,8 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             l1StandardBridge: address(_output.l1StandardBridgeProxy),
             optimismPortal: address(_output.optimismPortalProxy),
             optimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryProxy),
-            delayedWETH: address(0) // Will be used in OPCMv2.
+            delayedWETH: address(0), // Will be used in OPCMv2.
+            opcm: address(0) // Unsupported for V1.
          });
 
         assertValidContractAddress(opChainAddrs_.l1CrossDomainMessenger);

@@ -13,10 +13,22 @@ if [ "${CIRCLE_BRANCH:-}" != "develop" ]; then
   USE_FALLBACK=true
 
   # Check if PR has force-use-fresh-artifacts label (override fallback)
-  if [ -n "${CIRCLE_PULL_REQUEST:-}" ]; then
-    # Extract PR number from URL
-    PR_NUMBER=$(echo "${CIRCLE_PULL_REQUEST}" | grep -o '[0-9]*$')
+  # Get PR number from available sources
+  PR_NUMBER=""
 
+  # Try extracting from CIRCLE_PULL_REQUEST URL (internal PRs)
+  if [ -n "${CIRCLE_PULL_REQUEST:-}" ]; then
+    PR_NUMBER=$(echo "${CIRCLE_PULL_REQUEST}" | grep -o '[0-9]*$')
+  # For external PRs, find PR via commit SHA
+  elif [ -n "${CIRCLE_SHA1:-}" ]; then
+    if PR_SEARCH=$(curl -sS --fail --connect-timeout 10 --max-time 30 -H "Authorization: token ${MISE_GITHUB_TOKEN}" \
+      "https://api.github.com/repos/ethereum-optimism/optimism/commits/${CIRCLE_SHA1}/pulls" 2>/dev/null); then
+      # Get the first PR number from the response
+      PR_NUMBER=$(echo "$PR_SEARCH" | jq -r '.[0].number // empty' 2>/dev/null)
+    fi
+  fi
+
+  if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
     # Query GitHub API for PR details (fail safe: proceed with fallback on error)
     if PR_DATA=$(curl -sS --fail --connect-timeout 10 --max-time 30 -H "Authorization: token ${MISE_GITHUB_TOKEN}" \
       "https://api.github.com/repos/ethereum-optimism/optimism/pulls/${PR_NUMBER}" 2>/dev/null); then
