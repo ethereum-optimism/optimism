@@ -11,7 +11,7 @@ import (
 
 func TestFindL1OriginOfNextL2Block(t *testing.T) {
 	cfg := &rollup.Config{
-		MaxSequencerDrift: 500,
+		MaxSequencerDrift: 1800, // Use Fjord constant value
 		BlockTime:         2,
 	}
 
@@ -36,6 +36,9 @@ func TestFindL1OriginOfNextL2Block(t *testing.T) {
 
 	tcs := []testCase{}
 
+	// Scenarios with valid data, no drift concerns
+	// but availability of next l1 origin is modulated.
+	//
 	// L1 chain: a100(1200) <- [ a101(1212) ]
 	//            /\
 	// L2 chain    \_ b1000(1220)
@@ -90,6 +93,7 @@ func TestFindL1OriginOfNextL2Block(t *testing.T) {
 		},
 	)
 
+	// Bad input data / reorg scenarios
 	// L1 chain: c100(1200) <-[x]- c101(1212)
 	//            /\
 	// L2 chain    \_[x]- d/e1000(1220)
@@ -130,6 +134,52 @@ func TestFindL1OriginOfNextL2Block(t *testing.T) {
 			nextL1Origin:    c101,
 			l2Head:          e1000,
 			expectedError:   ErrInvalidL1Origin,
+		})
+
+	// Drift at maximum,
+	// L1 chain: a100(1200) <- [ a101(1212) ]
+	//            /\
+	// L2 chain    \_ f1000(3000)
+	f1000 := &eth.L2BlockRef{
+		Number:   1000,
+		L1Origin: a100.ID(),
+		Hash:     common.Hash{'f', '1', '0', '0', '0'},
+		Time:     3000,
+	}
+	tcs = append(tcs,
+		testCase{
+			name:            "Drift at maximum, nextL1Origin available",
+			currentL1Origin: a100,
+			nextL1Origin:    a101,
+			l2Head:          f1000,
+			expectedResult:  a101,
+		},
+		testCase{
+			name:            "Drift at maximum, nextL1Origin unavailable",
+			currentL1Origin: a100,
+			l2Head:          f1000,
+			expectedError:   ErrNextL1OriginRequired,
+		})
+
+	// Negative drift,
+	// L1 chain: a100(1200) <- a101(1212)
+	//            /\
+	// L2 chain    \_ g1000(1200)
+	// Current drift is 0
+	// adopting the nextLOrigin would make it negative (add 2 subtract 12)
+	g1000 := &eth.L2BlockRef{
+		Number:   1000,
+		L1Origin: a100.ID(),
+		Hash:     common.Hash{'g', '1', '0', '0', '0'},
+		Time:     1200,
+	}
+	tcs = append(tcs,
+		testCase{
+			name:            "Negative drift",
+			currentL1Origin: a100,
+			nextL1Origin:    a101,
+			l2Head:          g1000,
+			expectedResult:  a100,
 		})
 
 	for _, tc := range tcs {

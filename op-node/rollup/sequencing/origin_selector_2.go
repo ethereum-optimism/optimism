@@ -53,9 +53,11 @@ func FindL1OriginOfNextL2Block(
 		}
 	}
 
+	driftNext := int64(nextL2BlockTime) - int64(nextL1Origin.Time)
+
 	// Progress to l1OriginChild if doing so would respect the requirement
-	// that L2 blocks cannot point to a future L1 block.
-	if nextL2BlockTime >= nextL1Origin.Time {
+	// that L2 blocks cannot point to a future L1 block (negative drift).
+	if driftNext >= 0 {
 		// Adopt it if
 		return nextL1Origin, nil
 	} else {
