@@ -24,10 +24,7 @@ import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-
 import { Proposal, Hash } from "src/dispute/lib/Types.sol";
 
 /// @title OPContractsManagerV2_TestInit
