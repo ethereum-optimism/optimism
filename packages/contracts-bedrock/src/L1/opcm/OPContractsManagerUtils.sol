@@ -197,32 +197,6 @@ contract OPContractsManagerUtils {
         return ExtraInstruction({ key: "", data: bytes("") });
     }
 
-    /// @notice Validates and decodes interop migration addresses.
-    /// @param _instructions The list of extra upgrade instructions.
-    /// @return The decoded interop migration addresses struct.
-    /// @dev Reverts if addresses are invalid (zero address).
-    /// @dev TODO: Check that all addresses use the same OptimismPortal (found on the ASR).
-    function checkInteropMigrationAddresses(ExtraInstruction[] memory _instructions)
-        public
-        pure
-        returns (InteropMigrationAddresses memory)
-    {
-        ExtraInstruction memory instruction = getInstructionByKey(_instructions, Constants.INTEROP_MIGRATION_ADDRESSES);
-
-        // Decode the addresses
-        InteropMigrationAddresses memory addrs = abi.decode(instruction.data, (InteropMigrationAddresses));
-
-        // Validate that all addresses are non-zero
-        if (
-            address(addrs.disputeGameFactory) == address(0) || address(addrs.anchorStateRegistry) == address(0)
-                || address(addrs.ethLockbox) == address(0)
-        ) {
-            revert OPContractsManagerUtils_InvalidInteropMigrationAddresses();
-        }
-
-        return addrs;
-    }
-
     /// @notice Helper function to load data from a source contract as bytes.
     /// @param _source The source contract to load the data from.
     /// @param _selector The selector of the function to call on the source contract.

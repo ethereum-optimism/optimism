@@ -128,20 +128,6 @@ abstract contract OPContractsManagerUtilsCaller {
         );
     }
 
-    /// @notice Helper for validating and decoding interop migration addresses.
-    /// @param _instructions The list of extra upgrade instructions.
-    /// @return The decoded interop migration addresses struct.
-    function _checkInteropMigrationAddresses(IOPContractsManagerUtils.ExtraInstruction[] memory _instructions)
-        internal
-        view
-        returns (IOPContractsManagerUtils.InteropMigrationAddresses memory)
-    {
-        return abi.decode(
-            _staticcall(abi.encodeCall(IOPContractsManagerUtils.checkInteropMigrationAddresses, (_instructions))),
-            (IOPContractsManagerUtils.InteropMigrationAddresses)
-        );
-    }
-
     /// @notice Helper function to load data from a source contract as bytes.
     /// @param _source The source contract to load the data from.
     /// @param _selector The selector of the function to call on the source contract.

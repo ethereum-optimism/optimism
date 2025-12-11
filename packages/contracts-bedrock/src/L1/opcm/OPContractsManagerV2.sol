@@ -658,6 +658,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     }
 
     /// @notice Validates the deployment/upgrade config.
+    /// @dev TODO: These assertions should be moved to the StandardValidator.
     /// @param _cfg The full config.
     function _assertValidFullConfig(FullConfig memory _cfg) internal view {
         // Start validating the dispute game configs. Put allowed game types here.
@@ -699,7 +700,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // is enabled. We may be able to remove this check at some point in the future if we stop making this
         // assumption, but for
         // now we explicitly assert that it is enabled.
-        // TODO(#?????): Consider moving this to the StandardValidator.
         if (!_cfg.disputeGameConfigs[1].enabled && !_cfg.disputeGameConfigs[4].enabled) {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
@@ -745,9 +745,13 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InteropMigrationRequiresDevFeature();
             }
 
-            // Validate and decode the addresses.
-            IOPContractsManagerUtils.InteropMigrationAddresses memory interopAddrs =
-                _checkInteropMigrationAddresses(_cfg.extraInstructions);
+            // Decode the addresses.
+            // We skip validation of the addresses here because it should be done in the StandardValidator.
+            // If any of these addresses are zero, the upgrade will fail.
+            IOPContractsManagerUtils.InteropMigrationAddresses memory interopAddrs = abi.decode(
+                _getInstructionByKey(_cfg.extraInstructions, Constants.INTEROP_MIGRATION_ADDRESSES).data,
+                (IOPContractsManagerUtils.InteropMigrationAddresses)
+            );
 
             // Replace existing contract references with the shared interop references.
             _cts.ethLockbox = interopAddrs.ethLockbox;
