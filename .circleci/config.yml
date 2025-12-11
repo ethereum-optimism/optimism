@@ -3230,30 +3230,6 @@ jobs:
             just test-e2e-sysgo supervisor "/supervisor/<<parameters.test_pkg>>"
       - kona-rust-save-cache
 
-  # Kona Sync - Update Superchain Registry (from sync.yaml)
-  kona-update-scr:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: medium
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - kona-rust-setup
-      - run:
-          name: Update superchain-registry
-          working_directory: kona
-          command: |
-            source ~/.cargo/env
-            just source-registry && just bind-registry
-      - run:
-          name: Check for changes
-          command: |
-            if git diff --quiet; then
-              echo "No changes to superchain-registry"
-              circleci-agent step halt
-            fi
-            echo "Changes detected - would create PR in GitHub Actions"
-
   # Kona Publish Prestate Artifacts (from publish_artifacts.yaml)
   kona-publish-prestate-artifacts:
     parameters:
