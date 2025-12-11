@@ -1,0 +1,77 @@
+# Documentation and mdbook related jobs.
+
+name: book
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, closed]
+  merge_group:
+
+env:
+  RUSTC_WRAPPER: "sccache"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: v1.2.23
+
+      - name: Install Playwright browsers
+        # Required for rehype-mermaid to render Mermaid diagrams during build
+        run: |
+          cd docs/vocs/
+          bun i
+          npx playwright install --with-deps chromium
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+
+      - uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Build docs
+        run: cd docs/vocs && bash scripts/build-cargo-docs.sh
+
+      - name: Build Vocs
+        run: |
+          cd docs/vocs/ && bun run build
+          echo "Vocs Build Complete"
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: "./docs/vocs/docs/dist"
+
+  deploy:
+    # Only deploy if a push to main
+    if: github.ref_name == 'main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: [build]
+
+    # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    timeout-minutes: 60
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

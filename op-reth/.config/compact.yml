@@ -18,7 +18,7 @@ env:
 name: compact-codec
 jobs:
   compact-codec:
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         bin:

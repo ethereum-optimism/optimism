@@ -1,0 +1,95 @@
+# Runs simple OP stack setup in Kurtosis
+
+name: kurtosis-op
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *"
+
+  push:
+    tags:
+      - "*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prepare-reth:
+    uses: ./.github/workflows/prepare-reth.yml
+    with:
+      image_tag: ghcr.io/paradigmxyz/op-reth:kurtosis-ci
+      binary_name: op-reth
+      cargo_features: asm-keccak
+      cargo_package: crates/optimism/bin/op-reth/Cargo.toml
+
+  test:
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+    name: run kurtosis
+    runs-on: ubuntu-latest
+    needs:
+      - prepare-reth
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download reth image
+        uses: actions/download-artifact@v7
+        with:
+          name: artifacts
+          path: /tmp
+
+      - name: Load Docker image
+        run: |
+          docker load -i /tmp/reth_image.tar &
+          wait
+          docker image ls -a
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Run kurtosis
+        run: |
+          echo "deb [trusted=yes] https://apt.fury.io/kurtosis-tech/ /" | sudo tee /etc/apt/sources.list.d/kurtosis.list
+          sudo apt update
+          sudo apt install kurtosis-cli
+          kurtosis engine start
+          kurtosis run --enclave op-devnet github.com/ethpandaops/optimism-package --args-file .github/assets/kurtosis_op_network_params.yaml
+          ENCLAVE_ID=$(curl http://127.0.0.1:9779/api/enclaves | jq --raw-output 'keys[0]')
+          GETH_PORT=$(curl "http://127.0.0.1:9779/api/enclaves/$ENCLAVE_ID/services" | jq '."op-el-2151908-node0-op-geth".public_ports.rpc.number')
+          RETH_PORT=$(curl "http://127.0.0.1:9779/api/enclaves/$ENCLAVE_ID/services" | jq '."op-el-2151908-node1-op-reth".public_ports.rpc.number')
+          echo "GETH_RPC=http://127.0.0.1:$GETH_PORT" >> $GITHUB_ENV
+          echo "RETH_RPC=http://127.0.0.1:$RETH_PORT" >> $GITHUB_ENV
+
+      - name: Assert that clients advance
+        run: |
+          for i in {1..100}; do
+            sleep 5
+            BLOCK_GETH=$(cast bn --rpc-url $GETH_RPC)
+            BLOCK_RETH=$(cast bn --rpc-url $RETH_RPC)
+
+            if [ $BLOCK_GETH -ge 100 ] && [ $BLOCK_RETH -ge 100 ] ; then exit 0; fi
+            echo "Waiting for clients to advance..., Reth: $BLOCK_RETH Geth: $BLOCK_GETH"
+          done
+          kurtosis service logs -a op-devnet op-el-2151908-2-op-reth-op-node-op-kurtosis
+          kurtosis service logs -a op-devnet op-cl-2151908-2-op-node-op-reth-op-kurtosis
+          exit 1
+
+  notify-on-error:
+    needs: test
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Slack Webhook Action
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_MESSAGE: "Failed run: https://github.com/paradigmxyz/reth/actions/runs/${{ github.run_id }}"
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}

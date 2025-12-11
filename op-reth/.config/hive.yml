@@ -1,0 +1,267 @@
+# Runs `ethereum/hive` tests.
+
+name: hive
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *"
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prepare-reth-stable:
+    uses: ./.github/workflows/prepare-reth.yml
+    with:
+      image_tag: ghcr.io/paradigmxyz/reth:latest
+      binary_name: reth
+      cargo_features: "asm-keccak"
+      artifact_name: "reth-stable"
+
+  prepare-reth-edge:
+    uses: ./.github/workflows/prepare-reth.yml
+    with:
+      image_tag: ghcr.io/paradigmxyz/reth:latest
+      binary_name: reth
+      cargo_features: "asm-keccak edge"
+      artifact_name: "reth-edge"
+
+  prepare-hive:
+    if: github.repository == 'op-rs/op-reth'
+    timeout-minutes: 45
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Checkout hive tests
+        uses: actions/checkout@v6
+        with:
+          repository: ethereum/hive
+          path: hivetests
+
+      - name: Get hive commit hash
+        id: hive-commit
+        run: echo "hash=$(cd hivetests && git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "^1.13.1"
+      - run: go version
+
+      - name: Restore hive assets cache
+        id: cache-hive
+        uses: actions/cache@v5
+        with:
+          path: ./hive_assets
+          key: hive-assets-${{ steps.hive-commit.outputs.hash }}-${{ hashFiles('.github/assets/hive/build_simulators.sh') }}
+
+      - name: Build hive assets
+        if: steps.cache-hive.outputs.cache-hit != 'true'
+        run: .github/assets/hive/build_simulators.sh
+
+      - name: Load cached Docker images
+        if: steps.cache-hive.outputs.cache-hit == 'true'
+        run: |
+          cd hive_assets
+          for tar_file in *.tar; do
+            if [ -f "$tar_file" ]; then
+              echo "Loading $tar_file..."
+              docker load -i "$tar_file"
+            fi
+          done
+          # Make hive binary executable
+          chmod +x hive
+
+      - name: Upload hive assets
+        uses: actions/upload-artifact@v6
+        with:
+          name: hive_assets
+          path: ./hive_assets
+  test:
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        storage: [stable, edge]
+        # ethereum/rpc to be deprecated:
+        # https://github.com/ethereum/hive/pull/1117
+        scenario:
+          - sim: smoke/genesis
+          - sim: smoke/network
+          - sim: ethereum/sync
+          - sim: devp2p
+            limit: discv4
+          # started failing after https://github.com/ethereum/go-ethereum/pull/31843, no
+          # action on our side, remove from here when we get unexpected passes on these tests
+          # - sim: devp2p
+          #  limit: eth
+          #  include:
+          #    - MaliciousHandshake
+          #    # failures tracked in https://github.com/paradigmxyz/reth/issues/14825
+          #    - Status
+          #    - GetBlockHeaders
+          #    - ZeroRequestID
+          #    - GetBlockBodies
+          #    - Transaction
+          #    - NewPooledTxs
+          - sim: devp2p
+            limit: discv5
+            include:
+              # failures tracked at https://github.com/paradigmxyz/reth/issues/14825
+              - PingLargeRequestID
+          - sim: ethereum/engine
+            limit: engine-exchange-capabilities
+          - sim: ethereum/engine
+            limit: engine-withdrawals
+          - sim: ethereum/engine
+            limit: engine-auth
+          - sim: ethereum/engine
+            limit: engine-api
+          - sim: ethereum/engine
+            limit: cancun
+          # eth_ rpc methods
+          - sim: ethereum/rpc-compat
+            include:
+              - eth_blockNumber
+              - eth_call
+              - eth_chainId
+              - eth_createAccessList
+              - eth_estimateGas
+              - eth_feeHistory
+              - eth_getBalance
+              - eth_getBlockBy
+              - eth_getBlockTransactionCountBy
+              - eth_getCode
+              - eth_getProof
+              - eth_getStorage
+              - eth_getTransactionBy
+              - eth_getTransactionCount
+              - eth_getTransactionReceipt
+              - eth_sendRawTransaction
+              - eth_syncing
+              # debug_ rpc methods
+              - debug_
+
+          # consume-engine
+          - sim: ethereum/eels/consume-engine
+            limit: .*tests/osaka.*
+          - sim: ethereum/eels/consume-engine
+            limit: .*tests/prague.*
+          - sim: ethereum/eels/consume-engine
+            limit: .*tests/cancun.*
+          - sim: ethereum/eels/consume-engine
+            limit: .*tests/shanghai.*
+          - sim: ethereum/eels/consume-engine
+            limit: .*tests/berlin.*
+          - sim: ethereum/eels/consume-engine
+            limit: .*tests/istanbul.*
+          - sim: ethereum/eels/consume-engine
+            limit: .*tests/homestead.*
+          - sim: ethereum/eels/consume-engine
+            limit: .*tests/frontier.*
+          - sim: ethereum/eels/consume-engine
+            limit: .*tests/paris.*
+
+          # consume-rlp
+          - sim: ethereum/eels/consume-rlp
+            limit: .*tests/osaka.*
+          - sim: ethereum/eels/consume-rlp
+            limit: .*tests/prague.*
+          - sim: ethereum/eels/consume-rlp
+            limit: .*tests/cancun.*
+          - sim: ethereum/eels/consume-rlp
+            limit: .*tests/shanghai.*
+          - sim: ethereum/eels/consume-rlp
+            limit: .*tests/berlin.*
+          - sim: ethereum/eels/consume-rlp
+            limit: .*tests/istanbul.*
+          - sim: ethereum/eels/consume-rlp
+            limit: .*tests/homestead.*
+          - sim: ethereum/eels/consume-rlp
+            limit: .*tests/frontier.*
+          - sim: ethereum/eels/consume-rlp
+            limit: .*tests/paris.*
+    needs:
+      - prepare-reth-stable
+      - prepare-reth-edge
+      - prepare-hive
+    name: ${{ matrix.storage }} / ${{ matrix.scenario.sim }}${{ matrix.scenario.limit && format(' - {0}', matrix.scenario.limit) }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download hive assets
+        uses: actions/download-artifact@v7
+        with:
+          name: hive_assets
+          path: /tmp
+
+      - name: Download reth image
+        uses: actions/download-artifact@v7
+        with:
+          name: reth-${{ matrix.storage }}
+          path: /tmp
+
+      - name: Load Docker images
+        run: .github/assets/hive/load_images.sh
+
+      - name: Move hive binary
+        run: |
+          mv /tmp/hive /usr/local/bin
+          chmod +x /usr/local/bin/hive
+
+      - name: Checkout hive tests
+        uses: actions/checkout@v6
+        with:
+          repository: ethereum/hive
+          ref: master
+          path: hivetests
+
+      - name: Run simulator
+        run: |
+          LIMIT="${{ matrix.scenario.limit }}"
+          TESTS="${{ join(matrix.scenario.include, '|') }}"
+          if [ -n "$LIMIT" ] && [ -n "$TESTS" ]; then
+            FILTER="$LIMIT/$TESTS"
+          elif [ -n "$LIMIT" ]; then
+            FILTER="$LIMIT"
+          elif [ -n "$TESTS" ]; then
+            FILTER="/$TESTS"
+          else
+            FILTER="/"
+          fi
+          echo "filter: $FILTER"
+          .github/assets/hive/run_simulator.sh "${{ matrix.scenario.sim }}" "$FILTER"
+
+      - name: Parse hive output
+        run: |
+          find hivetests/workspace/logs -type f -name "*.json" ! -name "hive.json" | xargs -I {} python .github/assets/hive/parse.py {} --exclusion .github/assets/hive/expected_failures.yaml --ignored .github/assets/hive/ignored_tests.yaml
+
+      - name: Print simulator output
+        if: ${{ failure() }}
+        run: |
+          cat hivetests/workspace/logs/*simulator*.log
+
+      - name: Print reth client logs
+        if: ${{ failure() }}
+        run: |
+          cat hivetests/workspace/logs/reth/client-*.log
+  notify-on-error:
+    needs: test
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Slack Webhook Action
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_MESSAGE: "Failed run: https://github.com/paradigmxyz/reth/actions/runs/${{ github.run_id }}"
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}

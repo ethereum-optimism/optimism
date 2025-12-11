@@ -13,7 +13,7 @@ env:
 jobs:
   clippy-binaries:
     name: clippy binaries / ${{ matrix.type }}
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       matrix:
@@ -42,7 +42,7 @@ jobs:
 
   clippy:
     name: clippy
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
@@ -59,7 +59,7 @@ jobs:
           RUSTFLAGS: -D warnings
 
   wasm:
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
@@ -79,7 +79,7 @@ jobs:
           .github/assets/check_wasm.sh
 
   riscv:
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
@@ -98,7 +98,7 @@ jobs:
 
   crate-checks:
     name: crate-checks (${{ matrix.partition }}/${{ matrix.total_partitions }})
-    runs-on: depot-ubuntu-latest-4
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         partition: [1, 2, 3]
@@ -117,7 +117,7 @@ jobs:
 
   msrv:
     name: MSRV
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       matrix:
@@ -140,7 +140,7 @@ jobs:
 
   docs:
     name: docs
-    runs-on: depot-ubuntu-latest-4
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
@@ -158,7 +158,7 @@ jobs:
 
   fmt:
     name: fmt
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
@@ -172,7 +172,7 @@ jobs:
 
   udeps:
     name: udeps
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
@@ -187,7 +187,7 @@ jobs:
 
   book:
     name: book
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
@@ -246,7 +246,11 @@ jobs:
   # Checks that selected crates can compile with power set of features
   features:
     name: features
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        partition: [1, 2]
+        total_partitions: [2]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
@@ -270,7 +274,7 @@ jobs:
 
   # Check crates correctly propagate features
   feature-propagation:
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6

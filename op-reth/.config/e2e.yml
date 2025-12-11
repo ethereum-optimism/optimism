@@ -20,7 +20,7 @@ concurrency:
 jobs:
   test:
     name: e2e-testsuite
-    runs-on: depot-ubuntu-latest-4
+    runs-on: ubuntu-latest
     env:
       RUST_BACKTRACE: 1
     timeout-minutes: 90

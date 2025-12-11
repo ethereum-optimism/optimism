@@ -1,0 +1,54 @@
+# Windows build
+
+name: windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  merge_group:
+
+env:
+  RUSTC_WRAPPER: "sccache"
+
+jobs:
+  check-reth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          target: x86_64-pc-windows-gnu
+      - uses: taiki-e/install-action@cross
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: mingw-w64
+        run: sudo apt-get install -y mingw-w64
+      - name: Check Reth
+        run: cargo check --target x86_64-pc-windows-gnu
+
+  check-op-reth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          target: x86_64-pc-windows-gnu
+      - uses: taiki-e/install-action@cross
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: mingw-w64
+        run: sudo apt-get install -y mingw-w64
+      - name: Check OP-Reth
+        run: cargo check -p op-reth --target x86_64-pc-windows-gnu

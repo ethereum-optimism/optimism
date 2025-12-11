@@ -1,0 +1,67 @@
+# Runs sync tests.
+
+name: sync test
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *"
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTC_WRAPPER: "sccache"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    name: sync (${{ matrix.chain.bin }})
+    runs-on: ubuntu-latest
+    env:
+      RUST_LOG: info,sync=error
+      RUST_BACKTRACE: 1
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        chain:
+          - build: install
+            bin: reth
+            chain: mainnet
+            tip: "0x91c90676cab257a59cd956d7cb0bceb9b1a71d79755c23c7277a0697ccfaf8c4"
+            block: 100000
+            unwind-target: "0x52e0509d33a988ef807058e2980099ee3070187f7333aae12b64d4d675f34c5a"
+          - build: install-op
+            bin: op-reth
+            chain: base
+            tip: "0xbb9b85352c7ebca6ba8efc63bd66cecd038c92ec8ebd02e153a3e0b197e672b7"
+            block: 10000
+            unwind-target: "0x118a6e922a8c6cab221fc5adfe5056d2b72d58c6580e9c5629de55299e2cf8de"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Build ${{ matrix.chain.bin }}
+        run: make ${{ matrix.chain.build }}
+      - name: Run sync
+        run: |
+          ${{ matrix.chain.bin }} node \
+            --chain ${{ matrix.chain.chain }} \
+            --debug.tip ${{ matrix.chain.tip }} \
+            --debug.max-block ${{ matrix.chain.block }} \
+            --debug.terminate
+      - name: Verify the target block hash
+        run: |
+          ${{ matrix.chain.bin }} db --chain ${{ matrix.chain.chain }} get static-file headers ${{ matrix.chain.block }} \
+            | grep ${{ matrix.chain.tip }}
+      - name: Run stage unwind for 100 blocks
+        run: |
+          ${{ matrix.chain.bin }} stage unwind num-blocks 100 --chain ${{ matrix.chain.chain }}
+      - name: Run stage unwind to block hash
+        run: |
+          ${{ matrix.chain.bin }} stage unwind to-block ${{ matrix.chain.unwind-target }} --chain ${{ matrix.chain.chain }}
