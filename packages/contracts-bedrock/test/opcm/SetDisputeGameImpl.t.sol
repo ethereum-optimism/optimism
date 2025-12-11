@@ -193,7 +193,8 @@ contract SetDisputeGameImpl_Test is Test {
                     l1StandardBridge: address(5),
                     optimismPortal: address(6),
                     optimismMintableERC20Factory: address(7),
-                    delayedWETH: address(8)
+                    delayedWETH: address(8),
+                    opcm: address(0)
                 }),
                 10,
                 ISuperchainConfig(address(supConfigProxy))
