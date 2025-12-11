@@ -44,30 +44,12 @@ func FindL1OriginOfNextL2Block(
 		return nil, fmt.Errorf("%w: driftNext %d > maxDrift %d", ErrCannotSatisfyMaxSequencerDrift, driftNext, maxDrift)
 	}
 
-	if matchAutoDerivation {
-		// THIS SECTION SHOULD MATCH PROTOCOL RULES EXACTLY
-		// e.g. https://github.com/ethereum-optimism/optimism/blob/3b22b347f73774c0bf639aade750c10c9dc703d5/op-node/rollup/derive/base_batch_stage.go#L162-L206
-		// If we don't have the nextL1Origin, return an error so we can try again when we do have it.
-		if nextL1Origin == nil {
+	if nextL1Origin == nil {
+		if matchAutoDerivation {
 			// This can cause unsafe block production to slow to the rate of L1 block production, if the L1 origin is up to the L1 l2Head.
 			// Code higher up the call stack should ensure that matchAutoDerivation is false under such conditions.
 			return nil, ErrNextL1OriginRequired
-		}
-		// Progress to l1OriginChild if doing so would respect the requirement
-		// that L2 blocks cannot point to a future L1 block.
-		if nextL2BlockTime >= nextL1Origin.Time {
-			return nextL1Origin, nil
 		} else {
-			// If we cannot adopt the l1OriginChild, use the current l1 origin.
-			return currentL1Origin, nil
-		}
-	} else {
-		// THIS SECTION IS partly POLICY, and can be modified/optimized
-		// by exploiting the freedom allowed by the nonzero sequencer drift.
-		// Progress to l1OriginChild if it exists
-		// and if doing so would respect the requirement
-		// that L2 blocks cannot point to a future L1 block.
-		if nextL1Origin == nil {
 			// If we don't yet have the nextL1Origin, stick with the current L1 origin unless doing so would exceed the maximum drift.
 			if driftCurrent > maxDrift {
 				// Return an error so the caller knows it needs to fetch the next l1 origin now.
@@ -75,15 +57,15 @@ func FindL1OriginOfNextL2Block(
 			}
 			return currentL1Origin, nil
 		}
-		// Progress to l1OriginChild if doing so would respect the requirement
-		// that L2 blocks cannot point to a future L1 block.
-		if nextL2BlockTime >= nextL1Origin.Time {
-			// Adopt it if
-			return nextL1Origin, nil
-		}
-		if nextL2BlockTime < nextL1Origin.Time {
-			// If we cannot adopt the l1OriginChild, use the current l1 origin.
-			return currentL1Origin, nil
-		}
+	}
+
+	// Progress to l1OriginChild if doing so would respect the requirement
+	// that L2 blocks cannot point to a future L1 block.
+	if nextL2BlockTime >= nextL1Origin.Time {
+		// Adopt it if
+		return nextL1Origin, nil
+	} else {
+		// If we cannot adopt the l1OriginChild, use the current l1 origin.
+		return currentL1Origin, nil
 	}
 }
