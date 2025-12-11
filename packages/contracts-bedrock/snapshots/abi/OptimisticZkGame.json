@@ -506,6 +506,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "rootClaimByChainId",
+    "outputs": [
+      {
+        "internalType": "Claim",
+        "name": "rootClaim_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "sp1Verifier",
     "outputs": [
