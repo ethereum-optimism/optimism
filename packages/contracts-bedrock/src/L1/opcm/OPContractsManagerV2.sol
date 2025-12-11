@@ -846,16 +846,18 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         );
 
         // Update the ETHLockbox, DisputeGameFactory, and AnchorStateRegistry.
-        // Depending on whether or not this is an interop migration upgrade, these contracts may have a different
+        // If this is an interop migration upgrade, these contracts may have a different
         // ProxyAdmin, but regardless they MUST have the same ProxyAdmin owner. Therefore in the next upgrades
         // we use the shared ProxyAdmin which was previously read directly from the the interop shared contracts.
         // In the deployment and typical upgrade cases, this will be the same as the current chain's proxy admin.
         // A new scope is created here simply to denote where the modified pattern is being used.
         {
             if (_isInitialDeployment || _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+                // Create the array of portals to be added to the ETHLockbox's authorized portals mapping.
+                // Note that the ETHLockbox's initilizer handles this array in a purely additive manner,
+                // inserting new portals in the mapping, without removing any pre-existing authorized portals.
                 IOptimismPortal[] memory portals = new IOptimismPortal[](1);
                 portals[0] = _cts.optimismPortal;
-
 
                 // Update the ETHLockbox.
                 _upgrade(
