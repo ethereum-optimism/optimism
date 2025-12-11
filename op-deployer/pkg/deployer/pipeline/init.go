@@ -44,7 +44,13 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 			return fmt.Errorf("cannot set superchain roles for predeployed OPCM")
 		}
 
-		// Use OPCMv1 to populate superchain state
+		// Use OPCMv1 to populate superchain state.
+		// When using OPCMv1, we only provide the OPCM address (superchainConfigProxy is zero).
+		// The ReadSuperchainDeployment script (packages/contracts-bedrock/scripts/deploy/ReadSuperchainDeployment.s.sol)
+		// detects OPCM v1 mode when superchainConfigProxy is zero, then queries the OPCM contract to discover:
+		// - ProtocolVersions contract address via opcm.protocolVersions()
+		// - SuperchainConfig contract address via opcm.superchainConfig()
+		// - All related proxy admin addresses, implementations, and role addresses
 		superDeployment, superRoles, err := PopulateSuperchainState(env.L1ScriptHost, *intent.OPCMAddress, common.Address{})
 		if err != nil {
 			return fmt.Errorf("error populating superchain state: %w", err)
@@ -57,13 +63,21 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 			}
 		}
 	}
+
 	hasSuperchainConfigProxy := intent.SuperchainConfigProxy != nil
 	if hasSuperchainConfigProxy && opcmV2Enabled {
 		if intent.SuperchainRoles != nil {
 			return fmt.Errorf("cannot set superchain roles for superchain config proxy")
 		}
 
-		// Use SuperchainConfigProxy to populate superchain state
+		// Use OPCMv2 to populate superchain state.
+		// When using OPCMv2, we provide the SuperchainConfigProxy address while the OPCM address is zero.
+		// The ReadSuperchainDeployment script (packages/contracts-bedrock/scripts/deploy/ReadSuperchainDeployment.s.sol)
+		// detects OPCM v2 mode when superchainConfigProxy is non-zero, then queries the SuperchainConfig contract
+		// to discover the implementation address, proxy admin, guardian, and proxy admin owner.
+		// In OPCMv2, ProtocolVersions is being removed. Therefore, the ProtocolVersions-related fields
+		// (protocolVersionsImpl, protocolVersionsProxy, protocolVersionsOwner, recommendedProtocolVersion,
+		// requiredProtocolVersion) are intentionally left uninitialized.
 		superDeployment, superRoles, err := PopulateSuperchainState(env.L1ScriptHost, common.Address{}, *intent.SuperchainConfigProxy)
 		if err != nil {
 			return fmt.Errorf("error populating superchain state: %w", err)

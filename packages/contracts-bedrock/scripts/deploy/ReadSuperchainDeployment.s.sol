@@ -32,11 +32,17 @@ contract ReadSuperchainDeployment is Script {
     }
 
     function run(Input memory _input) public returns (Output memory output_) {
-        // OPCM v2 is active when superchainConfigProxy is provided (non-zero)
+        // On OPCM v2, each chain deploys with its own SuperchainConfig; it's no longer stored in the OPCM contract.
+        // This script detects the OPCM version by checking if superchainConfigProxy is non-zero:
+        // - v1: opcmAddress is used
+        // - v2: superchainConfigProxy is used (opcmAddress is ignored)
+        // This allows callers to require one single address as input and the field used depends on the version.
         bool isOPCMV2 = address(_input.superchainConfigProxy) != address(0);
 
         if (isOPCMV2) {
-            // OPCM v2: Use provided SuperchainConfigProxy, leave protocol versions unfilled
+            // For OPCM v2, ProtocolVersions is being removed. Therefore, the ProtocolVersions-related fields
+            // (protocolVersionsImpl, protocolVersionsProxy, protocolVersionsOwner, recommendedProtocolVersion,
+            // requiredProtocolVersion) are intentionally left uninitialized.
             output_.superchainConfigProxy = _input.superchainConfigProxy;
             output_.superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(output_.superchainConfigProxy)));
 
@@ -48,10 +54,9 @@ contract ReadSuperchainDeployment is Script {
 
             output_.guardian = output_.superchainConfigProxy.guardian();
             output_.superchainProxyAdminOwner = output_.superchainProxyAdmin.owner();
-
-            // Protocol versions fields remain zero/unfilled in OPCM v2
         } else {
-            // OPCM v1: Original logic using OPCM address
+            // When running on OPCM v1, the OPCM address is used to read the ProtocolVersions contract and
+            // SuperchainConfig.
             require(address(_input.opcmAddress) != address(0), "ReadSuperchainDeployment: opcmAddress not set");
 
             IOPContractsManager opcm = IOPContractsManager(_input.opcmAddress);
