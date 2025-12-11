@@ -16,7 +16,6 @@ type L1FollowSource interface {
 // L2 following may be optionally disabled.
 type UpstreamFollowSource interface {
 	L1FollowSource
-	CanFollowL2() bool
 	GetFollowStatus(ctx context.Context) (*sources.FollowStatus, error)
 }
 
@@ -28,14 +27,10 @@ type L2FollowSource struct {
 var _ UpstreamFollowSource = (*L2FollowSource)(nil)
 
 func NewL2FollowSource(client *sources.FollowClient, l1Source L1FollowSource) *L2FollowSource {
-	if l1Source == nil {
-		panic("NewL2FollowSource: l1Source must not be nil")
+	if l1Source == nil || client == nil {
+		panic("NewL2FollowSource: sources must not be nil")
 	}
 	return &L2FollowSource{l2Source: client, l1Source: l1Source}
-}
-
-func (fs *L2FollowSource) CanFollowL2() bool {
-	return fs.l2Source != nil
 }
 
 func (fs *L2FollowSource) GetFollowStatus(ctx context.Context) (*sources.FollowStatus, error) {

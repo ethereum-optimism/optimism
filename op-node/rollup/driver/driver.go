@@ -475,7 +475,7 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPa
 // In this mode, the driver does not derive L2 from L1. Instead, it:
 //   - Verifies that the L1 origin of the current unsafe L2 head is still
 //     canonical, and emits a rollup reset if an L1 reorg is detected.
-//   - Uses the followTracker to fetch external safe and finalized L2 heads,
+//   - Uses the followTracker to fetch external safe / finalized / CurrentL1,
 //     validates that the external state is sane (e.g. finalized is not ahead
 //     of safe), and then updates the engine via FollowSource.
 //
@@ -520,9 +520,6 @@ func (s *Driver) followUpstream() {
 			return
 		}
 	}
-	if !s.upstreamFollowSource.CanFollowL2() {
-		return
-	}
 	status, err := s.upstreamFollowSource.GetFollowStatus(s.driverCtx)
 	if err != nil {
 		s.log.Warn("Follow Upstream: Failed to fetch status", "err", err)
@@ -562,7 +559,7 @@ func (s *Driver) followUpstream() {
 	}
 
 	if (status.CurrentL1 == eth.L1BlockRef{}) {
-		s.log.Debug("Follow Upstream: CurrentL1 not supported")
+		s.log.Debug("Follow Upstream: CurrentL1 not available")
 	} else {
 		eCurrentL1, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.CurrentL1.Number)
 		if err != nil {
