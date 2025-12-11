@@ -103,7 +103,10 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 		nextOriginPtr,
 		matchAutoDerivation)
 
-	return *o, err
+	if err != nil {
+		return *o, err
+	}
+	return eth.BlockRef{}, err
 }
 
 // CurrentAndNextOrigin returns the current cached values for the current L1 origin for the supplied l2Head, and it's successor.
