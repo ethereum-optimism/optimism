@@ -3,6 +3,7 @@ use reth_db::{
     table::{Compress, Decompress},
     DatabaseError,
 };
+use reth_primitives_traits::ValueWithSubKey;
 use serde::{Deserialize, Serialize};
 
 /// Wrapper type for `Option<T>` that implements [`Compress`] and [`Decompress`]
@@ -105,6 +106,14 @@ impl<T: Decompress> Decompress for VersionedValue<T> {
         let value = MaybeDeleted::<T>::decompress(&value[8..])?;
 
         Ok(Self { block_number, value })
+    }
+}
+
+impl<T> ValueWithSubKey for VersionedValue<T> {
+    type SubKey = u64;
+
+    fn get_subkey(&self) -> Self::SubKey {
+        self.block_number
     }
 }
 
