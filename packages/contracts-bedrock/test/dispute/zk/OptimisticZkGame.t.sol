@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
 
 // Libraries
-import { Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameStatus, GameType, Timestamp } from "src/dispute/lib/Types.sol";
 import {
     BadAuth,
     IncorrectBondAmount,
