@@ -70,6 +70,7 @@ func (los *L1OriginSelector) OnEvent(ctx context.Context, ev event.Event) bool {
 }
 
 // FindL1Origin determines what the L1 Origin for the next L2 Block should be.
+// It wraps the FindL1OriginOfNextL2Block function and handles caching and network requests.
 func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
 
 	// Get cached values for currentOrigin and nextOrigin
@@ -91,14 +92,27 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 	}
 
 	// defer to pure function
-	return FindL1OriginOfNextL2Block(los.cfg,
+	o, err := FindL1OriginOfNextL2Block(los.cfg,
 		l2Head,
 		currentOrigin,
 		nextOrigin,
 		matchAutoDerivation)
+
+	// If the cache doesn't have the next origin, but we now
+	// know we definitely need it, fetch it and try again.
+	if errors.Is(err, ErrNextL1OriginRequired) {
+		nextOrigin, _ = los.fetch(ctx, currentOrigin.Number+1)
+		return FindL1OriginOfNextL2Block(los.cfg,
+			l2Head,
+			currentOrigin,
+			nextOrigin,
+			matchAutoDerivation)
+	} else {
+		return o, err
+	}
 }
 
-// CurrentAndNextOrigin returns the current cached values for the current L1 origin for the supplied l2Head, and it's successor.
+// CurrentAndNextOrigin returns the current cached values for the current L1 origin for the supplied l2Head, and its successor.
 // It only performs a fetch to L1 if the cache is invalid.
 // The cache can be update asynchronously by other methods on L1OriginSelector.
 func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, eth.L1BlockRef, error) {
