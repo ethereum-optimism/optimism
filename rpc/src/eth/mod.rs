@@ -272,6 +272,11 @@ where
     fn tracing_task_guard(&self) -> &BlockingTaskGuard {
         self.inner.eth_api.blocking_task_guard()
     }
+
+    #[inline]
+    fn blocking_io_task_guard(&self) -> &Arc<tokio::sync::Semaphore> {
+        self.inner.eth_api.blocking_io_request_semaphore()
+    }
 }
 
 impl<N, Rpc> LoadFee for OpEthApi<N, Rpc>
