@@ -12,6 +12,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Claim, Hash } from "src/dispute/lib/LibUDT.sol";
 import { GameType, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -446,6 +447,27 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
     {
         _runOpcmV2UpgradeAndChecks(opcmV2, _delegateCaller, _revertBytes, _expectedValidatorErrors);
     }
+
+    /// @notice Extracts the absolute prestate embedded in a dispute game config.
+    /// @param _gameType Game type to inspect.
+    /// @return prestate_ The absolute prestate stored in the factory's game args.
+    function _gameArgsAbsolutePrestate(GameType _gameType) internal view returns (bytes32 prestate_) {
+        bytes memory args = disputeGameFactory.gameArgs(_gameType);
+        if (args.length == 0) {
+            return bytes32(0);
+        }
+        assembly {
+            prestate_ := mload(add(args, 0x20))
+        }
+    }
+
+    /// @notice Sets the version testing flag on the Constants contract.
+    /// @dev This is used to indicate that the contract is currently executing a versioning test.
+    /// @dev This is used to allow all instructions to pass during versioning tests.
+    function _setVersionTestingFlag() internal {
+        // nosemgrep: sol-style-use-etch
+        vm.etch(address(Constants.VERSION_TESTING_ADDRESS), hex"01");
+    }
 }
 
 /// @title OPContractsManagerV2_Upgrade_Test
@@ -737,21 +759,11 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
-    /// @notice Extracts the absolute prestate embedded in a dispute game config.
-    /// @param _gameType Game type to inspect.
-    /// @return prestate_ The absolute prestate stored in the factory's game args.
-    function _gameArgsAbsolutePrestate(GameType _gameType) internal view returns (bytes32 prestate_) {
-        bytes memory args = disputeGameFactory.gameArgs(_gameType);
-        if (args.length == 0) {
-            return bytes32(0);
-        }
-        assembly {
-            prestate_ := mload(add(args, 0x20))
-        }
-    }
-
     /// @notice Tests that the upgrade succeeds when using the same OPCM (re-running upgrade).
     function test_upgrade_sameOPCM_succeeds() public {
+        // Set the version testing flag to allow all instructions to pass.
+        _setVersionTestingFlag();
+
         // Mock the OPCM version to be >= 7.0.0 so the check activates.
         vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("7.0.0"));
 
@@ -764,6 +776,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that the upgrade succeeds when upgrading to the same major but higher minor version.
     function test_upgrade_sameMajorHigherMinor_succeeds() public {
+        // Set the version testing flag to allow all instructions to pass.
+        _setVersionTestingFlag();
+
         // Create a mock address for the "old" OPCM.
         address oldOPCM = makeAddr("oldOPCM");
 
@@ -782,6 +797,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that the upgrade succeeds when upgrading to the next major version.
     function test_upgrade_nextMajorVersion_succeeds() public {
+        // Set the version testing flag to allow all instructions to pass.
+        _setVersionTestingFlag();
+
         // Create a mock address for the "old" OPCM.
         address oldOPCM = makeAddr("oldOPCM");
 
@@ -800,6 +818,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that the upgrade reverts when trying to downgrade (same major, lower minor).
     function test_upgrade_sameMajorLowerMinor_reverts() public {
+        // Set the version testing flag to allow all instructions to pass.
+        _setVersionTestingFlag();
+
         // Create a mock address for the "old" OPCM.
         address oldOPCM = makeAddr("oldOPCM");
 
@@ -824,6 +845,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that the upgrade reverts when trying to use the same minor version.
     function test_upgrade_sameMajorSameMinor_reverts() public {
+        // Set the version testing flag to allow all instructions to pass.
+        _setVersionTestingFlag();
+
         // Create a mock address for the "old" OPCM.
         address oldOPCM = makeAddr("oldOPCM");
 
@@ -848,6 +872,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that the upgrade reverts when skipping major versions.
     function test_upgrade_skipMajorVersion_reverts() public {
+        // Set the version testing flag to allow all instructions to pass.
+        _setVersionTestingFlag();
+
         // Create a mock address for the "old" OPCM.
         address oldOPCM = makeAddr("oldOPCM");
 
@@ -872,6 +899,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that the upgrade reverts when trying to downgrade major versions.
     function test_upgrade_downgradeMajorVersion_reverts() public {
+        // Set the version testing flag to allow all instructions to pass.
+        _setVersionTestingFlag();
+
         // Create a mock address for the "old" OPCM.
         address oldOPCM = makeAddr("oldOPCM");
 
@@ -896,6 +926,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that the upgrade sequence check is skipped for OPCM versions < 7.0.0.
     function test_upgrade_versionBelowThreshold_succeeds() public {
+        // Set the version testing flag to allow all instructions to pass.
+        _setVersionTestingFlag();
+
         // Create a mock address for the "old" OPCM that would fail the check if it ran.
         address oldOPCM = makeAddr("oldOPCM");
 
