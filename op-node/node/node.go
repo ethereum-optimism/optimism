@@ -620,11 +620,11 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 }
 
 func initFollowSource(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.FollowClient, error) {
-	rpcClient, rpcCfg, err := cfg.L2FollowSource.Setup(ctx, node.log, &node.cfg.Rollup, node.metrics)
+	rpcClient, _, err := cfg.L2FollowSource.Setup(ctx, node.log, &node.cfg.Rollup, node.metrics)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup L2 follow source RPC client: %w", err)
 	}
-	l2FollowSource, err := sources.NewFollowClient(rpcClient, node.log, node.metrics.L2FollowSourceCache, rpcCfg)
+	l2FollowSource, err := sources.NewFollowClient(rpcClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create follow client: %w", err)
 	}

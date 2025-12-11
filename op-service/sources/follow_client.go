@@ -6,8 +6,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type FollowClient struct {
@@ -20,7 +18,7 @@ type FollowStatus struct {
 	CurrentL1   eth.L1BlockRef
 }
 
-func NewFollowClient(client client.RPC, log log.Logger, metrics caching.Metrics, config *L2ClientConfig) (*FollowClient, error) {
+func NewFollowClient(client client.RPC) (*FollowClient, error) {
 	rollupClient := NewRollupClient(client)
 	return &FollowClient{rollupClient: rollupClient}, nil
 }
