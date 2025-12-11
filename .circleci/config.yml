@@ -546,7 +546,7 @@ commands:
           name: Install Rust toolchain (<< parameters.channel >>)
           command: |
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain << parameters.channel >>
-            source ~/.cargo/env
+
             if [ "<< parameters.channel >>" = "stable" ]; then
               rustup default << parameters.toolchain_version >>
             fi
@@ -2890,14 +2890,12 @@ jobs:
       - run:
           name: Install cargo-llvm-cov
           command: |
-            source ~/.cargo/env
             cargo install --locked cargo-llvm-cov
       - run:
           name: Run common tests for node with sysgo orchestrator
           working_directory: kona
           no_output_timeout: 60m
           command: |
-            source ~/.cargo/env
             echo "Building op-reth..."
             just build-reth
             echo "Building kona-node with llvm-cov..."
@@ -2915,7 +2913,6 @@ jobs:
           working_directory: kona
           no_output_timeout: 60m
           command: |
-            source ~/.cargo/env
             echo "Building kona-node with llvm-cov..."
             source <(cargo llvm-cov show-env --export-prefix)
             just build-kona
@@ -2953,14 +2950,12 @@ jobs:
       - run:
           name: Install cargo-llvm-cov
           command: |
-            source ~/.cargo/env
             cargo install --locked cargo-llvm-cov
       - run:
           name: Run restart tests for node with sysgo orchestrator
           working_directory: kona
           no_output_timeout: 60m
           command: |
-            source ~/.cargo/env
             echo "Building op-reth..."
             just build-reth
             echo "Building kona-node with llvm-cov..."
@@ -3007,14 +3002,12 @@ jobs:
       - run:
           name: Install cargo-llvm-cov and gotestsum
           command: |
-            source ~/.cargo/env
             cargo install --locked cargo-llvm-cov
       - run:
           name: Split and run action tests
           working_directory: kona
           no_output_timeout: 90m
           command: |
-            source ~/.cargo/env
             source <(cargo llvm-cov show-env --export-prefix)
             echo "Building host program for the native target"
             just build-native --bin kona-host
@@ -3063,7 +3056,6 @@ jobs:
       - run:
           name: Install cargo-llvm-cov
           command: |
-            source ~/.cargo/env
             cargo install --locked cargo-llvm-cov
       - when:
           condition:
@@ -3114,7 +3106,6 @@ jobs:
           working_directory: kona/bin/client
           no_output_timeout: 40m
           command: |
-            source ~/.cargo/env
             source <(cargo llvm-cov show-env --export-prefix)
             mkdir -p ../../target
             just run-client-<<parameters.target>>-offline \
@@ -3149,14 +3140,12 @@ jobs:
       - run:
           name: Install nextest
           command: |
-            source ~/.cargo/env
             cargo install --locked cargo-nextest
       - run:
           name: Run cargo tests
           working_directory: kona
           no_output_timeout: 40m
           command: |
-            source ~/.cargo/env
             just test
       - rust-save:
           directory: kona
@@ -3187,7 +3176,6 @@ jobs:
           working_directory: kona
           no_output_timeout: 40m
           command: |
-            source ~/.cargo/env
             just lint-<<parameters.target>>
       - rust-save:
           directory: kona
@@ -3215,7 +3203,6 @@ jobs:
           working_directory: kona
           no_output_timeout: 40m
           command: |
-            source ~/.cargo/env
             just build-<<parameters.target>>
       - rust-save:
           directory: kona
@@ -3239,7 +3226,6 @@ jobs:
           working_directory: kona
           no_output_timeout: 40m
           command: |
-            source ~/.cargo/env
             just benches
       - rust-save:
           directory: kona
@@ -3262,14 +3248,12 @@ jobs:
       - run:
           name: Install nextest and cargo-udeps
           command: |
-            source ~/.cargo/env
             cargo install --locked cargo-nextest cargo-udeps
       - run:
           name: Check unused dependencies
           working_directory: kona
           no_output_timeout: 40m
           command: |
-            source ~/.cargo/env
             just check-udeps
       - rust-save-cache:
           directory: kona
@@ -3293,7 +3277,6 @@ jobs:
           working_directory: kona
           no_output_timeout: 40m
           command: |
-            source ~/.cargo/env
             just lint-docs
       - rust-save-cache:
           directory: kona
@@ -3317,7 +3300,6 @@ jobs:
           working_directory: kona
           no_output_timeout: 40m
           command: |
-            source ~/.cargo/env
             just test-docs
       - rust-save-cache:
           directory: kona
@@ -3359,14 +3341,13 @@ jobs:
           command: |
             sudo apt-get update
             sudo apt-get install -y clang libclang-dev
-            source ~/.cargo/env
+
             cargo install --locked cargo-hack
       - run:
           name: Run cargo hack
           working_directory: kona
           no_output_timeout: 40m
           command: |
-            source ~/.cargo/env
             just hack
       - rust-save-cache:
           directory: kona
@@ -3389,7 +3370,7 @@ jobs:
           name: Install Rust with RISC-V target
           command: |
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-            source ~/.cargo/env
+
             rustup target add riscv32imac-unknown-none-elf
             cargo install --locked cargo-hack
       - run:
@@ -3397,7 +3378,6 @@ jobs:
           working_directory: kona
           no_output_timeout: 30m
           command: |
-            source ~/.cargo/env
             bash ../.circleci/scripts/kona_check_no_std.sh
 
   # Kona Rust CI - Coverage (from rust_ci.yaml)
@@ -3417,20 +3397,17 @@ jobs:
       - run:
           name: Install cargo-llvm-cov and nextest
           command: |
-            source ~/.cargo/env
             cargo install --locked cargo-llvm-cov cargo-nextest
       - run:
           name: Generate lockfile if needed
           working_directory: kona
           command: |
-            source ~/.cargo/env
             [ -f Cargo.lock ] || cargo generate-lockfile
       - run:
           name: Run coverage
           working_directory: kona
           no_output_timeout: 40m
           command: |
-            source ~/.cargo/env
             just llvm-cov-tests && mv ./target/nextest/ci/junit.xml ./junit.xml || true
       - codecov/upload:
           disable_search: true
@@ -3476,7 +3453,6 @@ jobs:
       - run:
           name: Install zepter
           command: |
-            source ~/.cargo/env
             cargo install --locked zepter -f
             ~/.cargo/bin/zepter --version
       - run:
@@ -3570,7 +3546,6 @@ jobs:
           working_directory: kona
           no_output_timeout: 40m
           command: |
-            source ~/.cargo/env
             just test-e2e-sysgo supervisor "/supervisor/<<parameters.test_pkg>>"
       - rust-save-cache:
           directory: kona
@@ -3607,7 +3582,6 @@ jobs:
           working_directory: kona
           no_output_timeout: 60m
           command: |
-            source ~/.cargo/env
             CANNON_TAG="$(cat .config/cannon_tag)"
             cd docker/fpvm-prestates
             just "<<parameters.kind>>" "<<parameters.version>>" "<< pipeline.git.branch >>" "$CANNON_TAG"
