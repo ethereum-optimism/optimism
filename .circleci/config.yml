@@ -922,14 +922,6 @@ jobs:
       test_list:
         description: List of test files to run
         type: string
-      test_command:
-        description: Test command to execute (test or coverage)
-        type: string
-        default: test
-      test_flags:
-        description: Additional flags to pass to the test command
-        type: string
-        default: ""
       test_timeout:
         description: Timeout for running tests
         type: string
@@ -987,7 +979,8 @@ jobs:
             TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
             TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
             MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
-            forge <<parameters.test_command>> <<parameters.test_flags>> --match-path "$MATCH_PATH"
+            mkdir -p results
+            forge test --match-path "$MATCH_PATH" --junit > results/results.xml
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
@@ -999,6 +992,11 @@ jobs:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
           when: on_fail
+      - when:
+          condition: always
+          steps:
+            - store_test_results:
+                path: packages/contracts-bedrock/results/results.xml
       - run:
           name: Lint forge test names
           command: just lint-forge-tests-check-no-build
@@ -1033,7 +1031,9 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Run heavy fuzz tests
-          command: just test
+          command: |
+            mkdir -p results
+            just test --junit > results/results.xml
           environment:
             FOUNDRY_PROFILE: ciheavy
           working_directory: packages/contracts-bedrock
@@ -1050,6 +1050,11 @@ jobs:
           key: golang-build-cache-contracts-bedrock-heavy-fuzz-{{ checksum "go.sum" }}
           paths:
             - "~/.cache/go-build"
+      - when:
+          condition: always
+          steps:
+            - store_test_results:
+                path: packages/contracts-bedrock/results/results.xml
       - notify-failures-on-develop
 
   # AI Contracts Test Maintenance System
@@ -1090,10 +1095,6 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: 2xlarge
     parameters:
-      test_flags:
-        description: Additional flags to pass to the test command
-        type: string
-        default: ""
       test_timeout:
         description: Timeout for running tests
         type: string
@@ -1151,7 +1152,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Run coverage tests
-          command: just coverage-lcov-all <<parameters.test_flags>>
+          command: just coverage-lcov-all
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
             ETH_RPC_URL: https://ci-mainnet-l1-archive.optimism.io
@@ -1234,7 +1235,9 @@ jobs:
           features: <<parameters.features>>
       - run:
           name: Run tests
-          command: just test-upgrade
+          command: |
+            mkdir -p results
+            just test-upgrade --junit > results/results.xml
           environment:
             FOUNDRY_FUZZ_SEED: 42424242
             FOUNDRY_FUZZ_RUNS: 1
@@ -1271,6 +1274,11 @@ jobs:
       - store_artifacts:
           path: packages/contracts-bedrock/failed-test-traces.log
           when: on_fail
+      - when:
+          condition: always
+          steps:
+            - store_test_results:
+                path: packages/contracts-bedrock/results/results.xml
       - notify-failures-on-develop
 
   contracts-bedrock-upload:
