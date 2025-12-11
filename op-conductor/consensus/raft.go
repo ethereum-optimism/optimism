@@ -30,9 +30,6 @@ type RaftConsensus struct {
 	r        *raft.Raft
 
 	transport *raft.NetworkTransport
-	// advertisedAddr is the host & port to contact this server.
-	// If empty, the address of the transport should be used instead.
-	advertisedAddr string
 
 	unsafeTracker *unsafeHeadTracker
 }
@@ -188,9 +185,6 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 // If no explicit address to advertise was configured,
 // the local network address that the raft-consensus server is listening on will be used.
 func (rc *RaftConsensus) Addr() string {
-	if rc.advertisedAddr != "" {
-		return rc.advertisedAddr
-	}
 	return string(rc.transport.LocalAddr())
 }
 
