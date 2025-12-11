@@ -586,7 +586,7 @@ jobs:
   contracts-bedrock-build:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: xlarge
     parameters:
       build_args:
         description: Forge build arguments
@@ -893,7 +893,7 @@ jobs:
     circleci_ip_ranges: true
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: xlarge
     parameters:
       test_list:
         description: List of test files to run

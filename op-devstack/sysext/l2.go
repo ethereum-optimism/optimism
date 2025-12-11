@@ -441,7 +441,6 @@ func (o *Orchestrator) getWalletMappings(l1Wallets descriptors.WalletMap) map[st
 		"sequencerFeeVaultRecipient": devkeys.SequencerFeeVaultRecipientRole,
 		"baseFeeVaultRecipient":      devkeys.BaseFeeVaultRecipientRole,
 		"l1FeeVaultRecipient":        devkeys.L1FeeVaultRecipientRole,
-		"operatorFeeVaultRecipient":  devkeys.OperatorFeeVaultRecipientRole,
 	}
 
 	for walletRole, devkeyRole := range systemRoles {
