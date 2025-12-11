@@ -4297,7 +4297,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - rust-binary-build:
           name: rust-build-op-rbuilder
-          cache_name: op-rbuilder
+          cache_name: op_rbuilder
           directory: op-rbuilder
           build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
           check_binary: op-rbuilder
@@ -4306,7 +4306,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - rust-binary-build:
           name: rust-build-rollup-boost
-          cache_name: rollup-boost
+          cache_name: rollup_boost
           directory: rollup-boost
           build_command: cargo build --release -p rollup-boost --bin rollup-boost
           check_binary: rollup-boost
@@ -4440,7 +4440,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - rust-binary-build:
           name: rust-build-op-rbuilder
-          cache_name: op-rbuilder
+          cache_name: op_rbuilder
           directory: op-rbuilder
           build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
           check_binary: op-rbuilder
@@ -4449,7 +4449,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - rust-binary-build:
           name: rust-build-rollup-boost
-          cache_name: rollup-boost
+          cache_name: rollup_boost
           directory: rollup-boost
           build_command: cargo build --release -p rollup-boost --bin rollup-boost
           check_binary: rollup-boost
