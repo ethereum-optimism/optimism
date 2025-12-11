@@ -504,6 +504,7 @@ func (d *Sequencer) startBuildingBlock() {
 	// Figure out which L1 origin block we're going to be building on top of.
 	l1Origin, err := d.l1OriginSelector.FindL1Origin(ctx, l2Head)
 	switch err {
+	case nil:
 	case ErrInvalidL1Origin, ErrNextL1OriginOrphaned:
 		d.metrics.RecordSequencerInconsistentL1Origin(l2Head.L1Origin, l1Origin.ID())
 		d.emitter.Emit(d.ctx, rollup.ResetEvent{

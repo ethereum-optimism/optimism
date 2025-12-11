@@ -71,6 +71,8 @@ func (los *L1OriginSelector) OnEvent(ctx context.Context, ev event.Event) bool {
 
 // FindL1Origin determines what the L1 Origin for the next L2 Block should be.
 func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
+
+	// Get cached values for currentOrigin and nextOrigin
 	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(ctx, l2Head)
 	if err != nil {
 		return eth.L1BlockRef{}, err
@@ -78,8 +80,8 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 
 	// If in recover mode, get next origin synchronously
 	matchAutoDerivation := los.recoverMode.Load()
-	if matchAutoDerivation && nextOrigin == eth.L1BlockRef{} {
-		nextOrigin, err = los.fetch(ctx)
+	if (matchAutoDerivation && nextOrigin == eth.L1BlockRef{}) {
+		nextOrigin, err = los.fetch(ctx, currentOrigin.Number+1)
 		if errors.Is(err, ethereum.NotFound) {
 			// We caught up to tip and no longer want to match auto derivation
 			matchAutoDerivation = false
