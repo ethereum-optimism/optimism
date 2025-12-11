@@ -378,10 +378,15 @@ func (b *OPRBuilderNode) Start() {
 
 	b.sub = NewSubProcess(b.p, stdOut, stdErr)
 
-	exec := os.Getenv("OP_RBUILDER_EXEC_PATH")
-	b.p.Require().NotEmpty(exec, "OP_RBUILDER_EXEC_PATH must be set")
+	execPath, err := EnsureRustBinary(b.p, RustBinarySpec{
+		SrcDir:  "op-rbuilder",
+		Package: "op-rbuilder",
+		Binary:  "op-rbuilder",
+	})
+	b.p.Require().NoError(err, "prepare op-rbuilder binary")
+	b.p.Require().NotEmpty(execPath, "op-rbuilder binary path resolved")
 
-	err := b.sub.Start(exec, args, env)
+	err = b.sub.Start(execPath, args, env)
 	b.p.Require().NoError(err, "start OPRBuilderNode")
 
 	const readinessTimeout = 15 * time.Second
