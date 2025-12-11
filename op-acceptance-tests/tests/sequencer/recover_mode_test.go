@@ -26,7 +26,8 @@ func TestRecoverModeWhenChainHealthy(gt *testing.T) {
 	tracer := t.Tracer()
 	ctx := t.Ctx()
 
-	sys.L2CL.SetSequencerRecoverMode(true)
+	err := sys.L2CL.SetSequencerRecoverMode(true)
+	require.NoError(t, err)
 	blockTime := sys.L2Chain.Escape().RollupConfig().BlockTime
 	numL2Blocks := uint64(20)
 	waitTime := time.Duration(blockTime*numL2Blocks+5) * time.Second

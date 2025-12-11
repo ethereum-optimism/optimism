@@ -16,7 +16,7 @@ func TestFindL1OriginOfNextL2Block(t *testing.T) {
 	}
 
 	require.Panics(t, func() {
-		FindL1OriginOfNextL2Block(
+		_, _ = FindL1OriginOfNextL2Block(
 			cfg,
 			nil,
 			nil,
