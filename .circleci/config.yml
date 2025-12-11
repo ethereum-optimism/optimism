@@ -1244,9 +1244,6 @@ jobs:
           when: always
           paths:
             - "~/.foundry/cache"
-      - store_artifacts:
-          path: packages/contracts-bedrock/failed-test-traces.log
-          when: on_fail
       - when:
           condition: always
           steps:
