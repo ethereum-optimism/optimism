@@ -980,18 +980,11 @@ jobs:
             TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
             MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
             mkdir -p results
-            forge test --match-path "$MATCH_PATH" --junit > results/results.xml
+            forge test --match-path "$MATCH_PATH" --junit -vvv > results/results.xml
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
           no_output_timeout: <<parameters.test_timeout>>
-      - run:
-          name: Print failed test traces
-          command: just test-rerun
-          environment:
-            FOUNDRY_PROFILE: ci
-          working_directory: packages/contracts-bedrock
-          when: on_fail
       - when:
           condition: always
           steps:
@@ -1033,18 +1026,11 @@ jobs:
           name: Run heavy fuzz tests
           command: |
             mkdir -p results
-            just test --junit > results/results.xml
+            just test --junit -vvv > results/results.xml
           environment:
             FOUNDRY_PROFILE: ciheavy
           working_directory: packages/contracts-bedrock
           no_output_timeout: 90m
-      - run:
-          name: Print failed test traces
-          command: just test-rerun
-          environment:
-            FOUNDRY_PROFILE: ciheavy
-          working_directory: packages/contracts-bedrock
-          when: on_fail
       - save_cache:
           name: Save Go build cache
           key: golang-build-cache-contracts-bedrock-heavy-fuzz-{{ checksum "go.sum" }}
@@ -1237,7 +1223,7 @@ jobs:
           name: Run tests
           command: |
             mkdir -p results
-            just test-upgrade --junit > results/results.xml
+            just test-upgrade -vvv --junit > results/results.xml
           environment:
             FOUNDRY_FUZZ_SEED: 42424242
             FOUNDRY_FUZZ_RUNS: 1
@@ -1247,19 +1233,6 @@ jobs:
             FORK_BASE_CHAIN: <<parameters.fork_base_chain>>
           working_directory: packages/contracts-bedrock
           no_output_timeout: 15m
-      - run:
-          name: Print failed test traces
-          command: |
-            just test-upgrade-rerun | tee failed-test-traces.log
-          environment:
-            FOUNDRY_FUZZ_SEED: 42424242
-            FOUNDRY_FUZZ_RUNS: 1
-            FOUNDRY_PROFILE: ci
-            ETH_RPC_URL: <<parameters.fork_base_rpc>>
-            FORK_OP_CHAIN: <<parameters.fork_op_chain>>
-            FORK_BASE_CHAIN: <<parameters.fork_base_chain>>
-          working_directory: packages/contracts-bedrock
-          when: on_fail
       - save_cache:
           name: Save Go build cache
           key: golang-build-cache-contracts-bedrock-tests-{{ checksum "go.sum" }}
