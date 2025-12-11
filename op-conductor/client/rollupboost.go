@@ -12,6 +12,7 @@ const (
 	HealthzEndpoint = "/healthz"
 )
 
+// HealthStatus represents the health state of rollup-boost.
 type HealthStatus string
 
 const (
@@ -20,26 +21,32 @@ const (
 	HealthStatusUnhealthy HealthStatus = "unhealthy"
 )
 
-type RollupBoostClient interface {
+// RollupBoostHealthChecker is the common interface for rollup-boost health checking.
+// Both RollupBoostClient and RollupBoostNextClient implement this interface.
+type RollupBoostHealthChecker interface {
 	Healthcheck(ctx context.Context) (HealthStatus, error)
 }
 
-type rollupBoostClient struct {
+// RollupBoostClient uses HTTP status codes to determine rollup-boost health.
+type RollupBoostClient struct {
 	baseURL    string
 	httpClient *http.Client
 }
 
-func NewRollupBoostClient(baseURL string, httpClient *http.Client) RollupBoostClient {
+// NewRollupBoostClient creates a client that interprets HTTP status codes for health.
+func NewRollupBoostClient(baseURL string, httpClient *http.Client) *RollupBoostClient {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
-	return &rollupBoostClient{
+	return &RollupBoostClient{
 		baseURL:    baseURL,
 		httpClient: httpClient,
 	}
 }
 
-func (c *rollupBoostClient) Healthcheck(ctx context.Context) (HealthStatus, error) {
+// Healthcheck returns health status based on HTTP status codes:
+// 200 OK = Healthy, 206 Partial Content = Partial, 503 Service Unavailable = Unhealthy
+func (c *RollupBoostClient) Healthcheck(ctx context.Context) (HealthStatus, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+HealthzEndpoint, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
@@ -65,3 +72,6 @@ func (c *rollupBoostClient) Healthcheck(ctx context.Context) (HealthStatus, erro
 		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 }
+
+// Ensure RollupBoostClient implements RollupBoostHealthChecker
+var _ RollupBoostHealthChecker = (*RollupBoostClient)(nil)

@@ -42,13 +42,14 @@ func TestBatcherFullChannelsAfterDowntime(gt *testing.T) {
 
 		for i := 0; i < 5; i++ {
 			l.Debug("Sequencing L2 block", "iteration", i, "parent", parent)
-			sequenceBlockWithL1Origin(t, ts_L2, parent, l1Origin, alice, cathrine, nonce)
+			sequenceBlockWithL1Origin(t, ts_L2, parent, l1Origin, cathrine, alice, nonce)
 			nonce++
 
 			parent = sys.L2CL.HeadBlockRef(types.LocalUnsafe).Hash
 
+			sys.L2EL.WaitForPendingNonceMatch(cathrine.Address(), nonce, 10, 1*time.Second)
+
 			sys.AdvanceTime(time.Second * 2)
-			time.Sleep(20 * time.Millisecond) // failed to force-include tx: type: 2 sender; err: nonce too high
 		}
 
 		l.Debug("Sequencing L1 block", "iteration_j", j)
@@ -95,12 +96,12 @@ func TestBatcherFullChannelsAfterDowntime(gt *testing.T) {
 	spew.Dump(status)
 }
 
-func sequenceBlockWithL1Origin(t devtest.T, ts apis.TestSequencerControlAPI, parent common.Hash, l1Origin common.Hash, alice *dsl.EOA, cathrine *dsl.EOA, nonce uint64) {
+func sequenceBlockWithL1Origin(t devtest.T, ts apis.TestSequencerControlAPI, parent common.Hash, l1Origin common.Hash, from *dsl.EOA, to *dsl.EOA, nonce uint64) {
 	require.NoError(t, ts.New(t.Ctx(), seqtypes.BuildOpts{Parent: parent, L1Origin: &l1Origin}))
 
 	// include simple transfer tx in opened block
 	{
-		to := cathrine.PlanTransfer(alice.Address(), eth.OneWei)
+		to := from.PlanTransfer(to.Address(), eth.OneWei)
 		opt := txplan.Combine(to, txplan.WithStaticNonce(nonce))
 		ptx := txplan.NewPlannedTx(opt)
 		signed_tx, err := ptx.Signed.Eval(t.Ctx())
