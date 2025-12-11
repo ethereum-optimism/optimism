@@ -138,7 +138,9 @@ func testStandardVersion(t *testing.T, address common.Address, rpcClient *rpc.Cl
 
 	w3c := w3.NewClient(rpcClient)
 
-	releaseVer, err := semver.NewVersion(strings.TrimPrefix(semverTag, "v"))
+	// Semver tags from the registry include the "op-contracts/" prefix.
+	cleanTag := strings.TrimPrefix(strings.TrimPrefix(semverTag, "op-contracts/"), "v")
+	releaseVer, err := semver.NewVersion(cleanTag)
 	require.NoError(t, err)
 
 	if releaseVer.Major() >= 5 {
