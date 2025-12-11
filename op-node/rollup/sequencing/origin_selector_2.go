@@ -40,7 +40,7 @@ func FindL1OriginOfNextL2Block(
 
 	if nextL1Origin == nil {
 		if matchAutoDerivation {
-			// This can cause unsafe block production to slow to the rate of L1 block production, if the L1 origin is up to the L1 l2Head.
+			// This can cause unsafe block production to slow to the rate of L1 block production, if the L1 origin is caught up to the L1 Head.
 			// Code higher up the call stack should ensure that matchAutoDerivation is false under such conditions.
 			return nil, ErrNextL1OriginRequired
 		} else {
