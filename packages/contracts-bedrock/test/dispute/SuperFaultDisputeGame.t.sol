@@ -1986,6 +1986,7 @@ contract SuperFaultDisputeGame_ClaimCredit_Test is SuperFaultDisputeGame_TestIni
         // Should have original balance again.
         assertEq(alice.balance, aliceBalanceBefore + firstBond);
         assertEq(bob.balance, bobBalanceBefore + secondBond);
+        revert("foo");
     }
 
     /// @notice Static unit test asserting that credit may not be drained past allowance through

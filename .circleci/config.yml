@@ -1033,7 +1033,9 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Run heavy fuzz tests
-          command: just test
+          command: |
+            mkdir -p results
+            just test --junit > results/results.xml
           environment:
             FOUNDRY_PROFILE: ciheavy
           working_directory: packages/contracts-bedrock
@@ -1050,6 +1052,11 @@ jobs:
           key: golang-build-cache-contracts-bedrock-heavy-fuzz-{{ checksum "go.sum" }}
           paths:
             - "~/.cache/go-build"
+      - when:
+          condition: always
+          steps:
+            - store_test_results:
+                path: packages/contracts-bedrock/results/results.xml
       - notify-failures-on-develop
 
   # AI Contracts Test Maintenance System
@@ -1234,7 +1241,9 @@ jobs:
           features: <<parameters.features>>
       - run:
           name: Run tests
-          command: just test-upgrade
+          command: |
+            mkdir -p results
+            just test-upgrade --junit > results/results.xml
           environment:
             FOUNDRY_FUZZ_SEED: 42424242
             FOUNDRY_FUZZ_RUNS: 1
@@ -1271,6 +1280,11 @@ jobs:
       - store_artifacts:
           path: packages/contracts-bedrock/failed-test-traces.log
           when: on_fail
+      - when:
+          condition: always
+          steps:
+            - store_test_results:
+                path: packages/contracts-bedrock/results/results.xml
       - notify-failures-on-develop
 
   contracts-bedrock-upload:
