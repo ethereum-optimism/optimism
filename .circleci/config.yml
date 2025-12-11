@@ -94,7 +94,7 @@ orbs:
   slack: circleci/slack@6.0.0
   shellcheck: circleci/shellcheck@3.2.0
   codecov: codecov/codecov@5.0.3
-  utils: ethereum-optimism/circleci-utils@1.0.22
+  utils: ethereum-optimism/circleci-utils@1.0.23
   docker: circleci/docker@2.8.2
   github-cli: circleci/github-cli@2.7.0
 
@@ -399,6 +399,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - setup_remote_docker:
           docker_layer_caching: true
       - run:
@@ -520,6 +521,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - attach_workspace:
           at: .
       - check-changed:
@@ -572,6 +574,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Check `RISCV.sol` bytecode
           working_directory: packages/contracts-bedrock
@@ -622,6 +625,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - install-zstd
       - install-contracts-dependencies
       - run:
@@ -656,7 +660,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          enable-mise-cache: true
       - attach_workspace:
           at: .
       - install-contracts-dependencies
@@ -720,6 +725,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - attach_workspace:
           at: .
       - run:
@@ -941,6 +947,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: full
+          enable-mise-cache: true
       - install-zstd
       - run:
           name: Check if test list is empty
@@ -1011,6 +1018,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: full
+          enable-mise-cache: true
       - install-contracts-dependencies
       - install-zstd
       - run:
@@ -1067,6 +1075,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Check Python version
           command: python3 --version
@@ -1110,6 +1119,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: full
+          enable-mise-cache: true
       - install-contracts-dependencies
       - install-zstd
       - attach_workspace:
@@ -1203,7 +1213,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: 2xlarge
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          enable-mise-cache: true
       - install-contracts-dependencies
       - install-zstd
       - attach_workspace:
@@ -1287,6 +1298,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock
@@ -1301,7 +1313,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          enable-mise-cache: true
       - install-contracts-dependencies
       - attach_workspace:
           at: .
@@ -1347,7 +1360,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: 2xlarge
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          enable-mise-cache: true
       - install-zstd
       - install-contracts-dependencies
       - check-changed:
@@ -1375,6 +1389,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Install ripgrep
           command: sudo apt-get install -y ripgrep
@@ -1401,6 +1416,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - check-changed:
           patterns: "<<parameters.package_name>>"
       - attach_workspace:
@@ -1433,6 +1449,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - restore_cache:
           key: golangci-v1-{{ checksum ".golangci.yaml" }}
       - run:
@@ -1482,6 +1499,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - attach_workspace:
           at: .
       - restore_cache:
@@ -1557,6 +1575,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - attach_workspace:
           at: .
       - run:
@@ -1621,6 +1640,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       # Restore cached Go modules
       - restore_cache:
           keys:
@@ -1719,6 +1739,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - attach_workspace:
           at: .
       - run:
@@ -1822,6 +1843,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - attach_workspace:
           at: .
       - run:
@@ -1880,6 +1902,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - attach_workspace:
           at: .
       - clean-old-acceptor-logs
@@ -1932,6 +1955,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Lint/Vet/Build op-acceptance-tests/cmd
           working_directory: op-acceptance-tests
@@ -2012,6 +2036,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Install tools
           command: |
@@ -2035,6 +2060,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - restore_cache:
           name: Restore cannon prestate cache
           key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
@@ -2063,6 +2089,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - setup_remote_docker
       - run:
           name: Build prestates
@@ -2079,6 +2106,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - restore_cache:
           name: Restore kona cache
           key: kona-prestate-{{ checksum "./kona-proofs/justfile" }}-{{ checksum "./kona-proofs/version.json" }}
@@ -2102,6 +2130,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - restore_cache:
           name: Restore kona host cache
           key: kona-host-{{ checksum "./kona-proofs/justfile" }}-{{ checksum "./kona-proofs/version.json" }}
@@ -2236,6 +2265,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - attach_workspace:
           at: "."
       - gcp-cli/install
@@ -2297,6 +2327,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Verify reproducibility
           command: make -C op-program verify-reproducibility
@@ -2312,6 +2343,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - setup_remote_docker
       - run:
           name: Build cannon
@@ -2380,6 +2412,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - setup_remote_docker
       - run:
           name: Run Analyzer
@@ -2394,6 +2427,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Verify Compatibility
           command: |
@@ -2407,6 +2441,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - check-changed:
           patterns: op-node
       - run:
@@ -2420,6 +2455,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - check-changed:
           patterns: op-service
       - run:
@@ -2432,6 +2468,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           command: just check-forge-version
           working_directory: op-deployer
@@ -2443,6 +2480,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
           no_go_deps: "true"
@@ -2482,6 +2520,7 @@ jobs:
           service_account_email: GCP_CONTRACTS_PUBLISHER_SERVICE_ACCOUNT_EMAIL
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - install-contracts-dependencies
       - install-zstd
       - run:
@@ -2518,7 +2557,8 @@ jobs:
       - gcp-oidc-authenticate:
           gcp_cred_config_file_path: /tmp/gcp_cred_config.json
           oidc_token_file_path: /tmp/oidc_token.json
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          enable-mise-cache: true
       - attach_workspace: { at: "." }
       - run:
           name: Configure Docker
@@ -2536,6 +2576,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - install-contracts-dependencies
       - run:
           name: Build contracts
@@ -2601,6 +2642,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Collect devnet metrics for op-acceptance-tests
           command: |
@@ -2625,6 +2667,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Generate flaky acceptance tests report
           command: |
