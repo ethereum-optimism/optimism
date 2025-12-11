@@ -162,23 +162,14 @@ func (n *OpNode) Stop() {
 	n.opNode = nil
 }
 
-func fetchFollowSourceRPC(orch *Orchestrator, p devtest.P, l2FollowSourceID stack.IDWithChain) string {
+func fetchFollowSourceRPC(orch *Orchestrator, p devtest.P, l2FollowSourceID stack.L2CLNodeID) string {
 	require := p.Require()
-	if l2ELFollowSourceID, ok := l2FollowSourceID.(stack.L2ELNodeID); ok {
-		l2ELFollowSource, ok := orch.l2ELs.Get(l2ELFollowSourceID)
-		require.True(ok, "l2 EL Follow Source required")
-		return l2ELFollowSource.UserRPC()
-	}
-	if l2CLFollowSourceID, ok := l2FollowSourceID.(stack.L2CLNodeID); ok {
-		l2CLFollowSource, ok := orch.l2CLs.Get(l2CLFollowSourceID)
-		require.True(ok, "l2 CL Follow Source required")
-		return l2CLFollowSource.UserRPC()
-	}
-	require.Failf("Invalid Follow Source", "l2 Follow Source does not implement L2CL nor L2EL: %s", l2FollowSourceID)
-	return ""
+	l2CLFollowSource, ok := orch.l2CLs.Get(l2FollowSourceID)
+	require.True(ok, "l2 CL Follow Source required")
+	return l2CLFollowSource.UserRPC()
 }
 
-func WithOpNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, l2FollowSourceID stack.IDWithChain, opts ...L2CLOption) stack.Option[*Orchestrator] {
+func WithOpNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, l2FollowSourceID stack.L2CLNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		followSource := func(orch *Orchestrator) string {
 			p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
@@ -226,16 +217,12 @@ func withOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		L2CLOptionBundle(opts).Apply(p, l2CLID, cfg) // apply specific options
 
 		syncMode := cfg.VerifierSyncMode
-		unsafeOnly := false
 		if cfg.IsSequencer {
 			syncMode = cfg.SequencerSyncMode
 			// Sanity check, to navigate legacy sync-mode test assumptions.
 			// Can't enable ELSync on the sequencer or it will never start sequencing because
 			// ELSync needs to receive gossip from the sequencer to drive the sync
 			p.Require().NotEqual(nodeSync.ELSync, syncMode, "sequencer cannot use EL sync")
-			unsafeOnly = cfg.SequencerUnsafeOnly
-		} else {
-			unsafeOnly = cfg.VerifierUnsafeOnly
 		}
 
 		jwtPath, jwtSecret := orch.writeDefaultJWT()
@@ -347,9 +334,8 @@ func withOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				SyncModeReqResp:                cfg.UseReqRespSync,
 				SkipSyncStartCheck:             false,
 				SupportsPostFinalizationELSync: false,
-				UnsafeOnly:                     unsafeOnly,
 				L2FollowSourceEndpoint:         cfg.FollowSource,
-				NeedInitialResetEngine:         cfg.IsSequencer && unsafeOnly,
+				NeedInitialResetEngine:         cfg.IsSequencer && cfg.FollowSource != "",
 			},
 			ConfigPersistence:               config.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},

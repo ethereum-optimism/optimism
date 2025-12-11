@@ -12,6 +12,5 @@ func TestMain(m *testing.M) {
 		presets.WithReqRespSyncDisabled(),
 		presets.WithNoDiscovery(),
 		presets.WithCompatibleTypes(compat.SysGo),
-		presets.WithUnsafeOnly(),
 	)
 }

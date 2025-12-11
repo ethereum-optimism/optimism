@@ -37,10 +37,6 @@ type L2CLConfig struct {
 	// NoDiscovery is the flag to enable/disable discovery
 	NoDiscovery bool
 
-	// UnsafeOnly is the flag to disable derivation
-	SequencerUnsafeOnly bool
-	VerifierUnsafeOnly  bool
-
 	FollowSource string
 }
 
@@ -56,12 +52,6 @@ func L2CLIndexing() L2CLOption {
 	})
 }
 
-func L2CLVerifierDisableUnsafeOnly() L2CLOption {
-	return L2CLOptionFn(func(p devtest.P, id stack.L2CLNodeID, cfg *L2CLConfig) {
-		cfg.VerifierUnsafeOnly = false
-	})
-}
-
 func L2CLFollowSource(source string) L2CLOption {
 	return L2CLOptionFn(func(p devtest.P, id stack.L2CLNodeID, cfg *L2CLConfig) {
 		cfg.FollowSource = source
@@ -70,17 +60,15 @@ func L2CLFollowSource(source string) L2CLOption {
 
 func DefaultL2CLConfig() *L2CLConfig {
 	return &L2CLConfig{
-		SequencerSyncMode:   nodeSync.CLSync,
-		VerifierSyncMode:    nodeSync.CLSync,
-		SafeDBPath:          "",
-		IsSequencer:         false,
-		IndexingMode:        false,
-		EnableReqRespSync:   true,
-		UseReqRespSync:      true,
-		NoDiscovery:         false,
-		SequencerUnsafeOnly: false,
-		VerifierUnsafeOnly:  false,
-		FollowSource:        "",
+		SequencerSyncMode: nodeSync.CLSync,
+		VerifierSyncMode:  nodeSync.CLSync,
+		SafeDBPath:        "",
+		IsSequencer:       false,
+		IndexingMode:      false,
+		EnableReqRespSync: true,
+		UseReqRespSync:    true,
+		NoDiscovery:       false,
+		FollowSource:      "",
 	}
 }
 
@@ -129,7 +117,7 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 	}
 }
 
-func WithL2CLNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, l2FollowSourceID stack.IDWithChain, opts ...L2CLOption) stack.Option[*Orchestrator] {
+func WithL2CLNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, l2FollowSourceID stack.L2CLNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	switch os.Getenv("DEVSTACK_L2CL_KIND") {
 	case "kona":
 		panic("kona does not support following")

@@ -18,10 +18,6 @@ type SingleChainTwoVerifiers struct {
 	TestSequencer *dsl.TestSequencer
 }
 
-func WithSingleChainTwoVerifiers() stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultSingleChainTwoVerifiersSystem(&sysgo.DefaultSingleChainTwoVerifiersSystemIDs{}))
-}
-
 func NewSingleChainTwoVerifiersWithoutCheck(t devtest.T) *SingleChainTwoVerifiers {
 	system := shim.NewSystem(t)
 	orch := Orchestrator()

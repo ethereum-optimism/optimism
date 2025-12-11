@@ -23,30 +23,6 @@ func NewDefaultSingleChainTwoVerifiersSystemIDs(l1ID, l2ID eth.ChainID) DefaultS
 	}
 }
 
-func DefaultSingleChainTwoVerifiersSystem(dest *DefaultSingleChainTwoVerifiersSystemIDs) stack.Option[*Orchestrator] {
-	ids := NewDefaultSingleChainTwoVerifiersSystemIDs(DefaultL1ID, DefaultL2AID)
-
-	opt := stack.Combine[*Orchestrator]()
-	opt.Add(DefaultSingleChainMultiNodeSystem(&dest.DefaultSingleChainMultiNodeSystemIDs))
-
-	opt.Add(WithL2ELNode(ids.L2ELC))
-	// Specific options are applied after global options
-	// this means unsafeOnly is always disabled for the second verifier
-	opt.Add(WithL2CLNode(ids.L2CLC, ids.L1CL, ids.L1EL, ids.L2ELC, L2CLVerifierDisableUnsafeOnly()))
-
-	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
-
-	opt.Add(WithL2CLP2PConnection(ids.L2CL, ids.L2CLC))
-	opt.Add(WithL2ELP2PConnection(ids.L2EL, ids.L2ELC))
-	opt.Add(WithL2CLP2PConnection(ids.L2CLB, ids.L2CLC))
-	opt.Add(WithL2ELP2PConnection(ids.L2ELB, ids.L2ELC))
-
-	opt.Add(stack.Finally(func(orch *Orchestrator) {
-		*dest = ids
-	}))
-	return opt
-}
-
 func DefaultSingleChainTwoVerifiersFollowL2System(dest *DefaultSingleChainTwoVerifiersSystemIDs) stack.Option[*Orchestrator] {
 	ids := NewDefaultSingleChainTwoVerifiersSystemIDs(DefaultL1ID, DefaultL2AID)
 
@@ -68,16 +44,12 @@ func DefaultSingleChainTwoVerifiersFollowL2System(dest *DefaultSingleChainTwoVer
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
 
 	opt.Add(WithL2ELNode(ids.L2ELB))
-	// Specific options are applied after global options
-	// this means unsafeOnly is always disabled for the first verifier
-	opt.Add(WithL2CLNode(ids.L2CLB, ids.L1CL, ids.L1EL, ids.L2ELB, L2CLVerifierDisableUnsafeOnly()))
+	opt.Add(WithL2CLNode(ids.L2CLB, ids.L1CL, ids.L1EL, ids.L2ELB))
 
 	opt.Add(WithL2ELNode(ids.L2EL))
-	// Follow EL
-	opt.Add(WithL2CLNodeFollowL2(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, ids.L2ELB, L2CLSequencer()))
+	opt.Add(WithL2CLNodeFollowL2(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, ids.L2CLB, L2CLSequencer()))
 
 	opt.Add(WithL2ELNode(ids.L2ELC))
-	// Follow CL
 	opt.Add(WithL2CLNodeFollowL2(ids.L2CLC, ids.L1CL, ids.L1EL, ids.L2ELC, ids.L2CLB))
 
 	opt.Add(WithL2CLP2PConnection(ids.L2CL, ids.L2CLB))
