@@ -3,59 +3,63 @@ package sequencing
 import (
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
+
+var (
+	ErrInvalidL1Origin                = fmt.Errorf("origin-selector: currentL1Origin.Hash != l2Head.L1Origin.Hash")
+	ErrInvalidL1OriginChild           = fmt.Errorf("origin-selector: nextL1Origin.ParentHash != currentL1Origin.Hash")
+	ErrCannotSatisfyMaxSequencerDrift = fmt.Errorf("origin-selector: cannot satisfy max sequencer drift")
+	ErrNextL1OriginRequired           = fmt.Errorf("origin-selector: nextL1Origin not supplied but required to satisfy constraints")
 )
 
 // FindL1OriginOfNextL2Block finds the L1 origin of the next L2 block.
 // It returns an error if there is no way to build a block satisfying
 // derivation constraints with the supplied l1OriginChild.
-// You can pass a nil pointer for l1OriginChild if it is temporarily
-// unavailable.
-// TODO: is there a way we can insist on having the l1OriginChild?
-// TODO: does the PR introducing async l1 origin fetching provide a hint we should not do that?
+// You can pass a nil pointer for l1OriginChild if it is not yet available,
 func FindL1OriginOfNextL2Block(
+	cfg *rollup.Config,
 	l2Head *eth.L2BlockRef,
-	l1Origin *eth.L1BlockRef, l1OriginChild *eth.L1BlockRef,
+	currentL1Origin *eth.L1BlockRef, nextL1Origin *eth.L1BlockRef,
 	matchAutoDerivation bool) (*eth.L1BlockRef, error) {
 
-	if l1Origin == nil {
-		panic("supplied l1 origin is nil")
+	if currentL1Origin == nil {
+		panic("origin-selector: currentl1Origin is nil")
+	}
+	if l2Head.L1Origin.Hash != currentL1Origin.Hash {
+		return nil, ErrInvalidL1Origin
+	}
+	if nextL1Origin != nil && nextL1Origin.ParentHash != currentL1Origin.Hash {
+		return nil, ErrInvalidL1OriginChild
 	}
 
-	if l2Head.L1Origin.Hash != l1Origin.Hash {
-		// TODO maybe return sentinel error for reorg detected?
-		panic("supplied l1 origin is not the origin of the supplied l2 head")
-	}
-
-	if l1OriginChild != nil && l1OriginChild.ParentHash != l1Origin.Hash {
-		panic("supplied l1 origin child is not a child of the supplied l1 origin")
-	}
-
-	l2BlockTime := uint64(2) // TODO generalize this
-	maxDrift := uint64(1800) // TODO generalize this
+	l2BlockTime := cfg.BlockTime
+	maxDrift := rollup.NewChainSpec(cfg).MaxSequencerDrift(currentL1Origin.Time)
 	nextL2BlockTime := l2Head.Time + l2BlockTime
+	driftCurrent := nextL2BlockTime - currentL1Origin.Time
+	driftNext := nextL2BlockTime - nextL1Origin.Time
 
-	driftStick := nextL2BlockTime - l1Origin.Time
-	driftTwist := nextL2BlockTime - l1OriginChild.Time
-
-	if driftTwist > maxDrift {
-		return nil, fmt.Errorf("drift of next L2 block exceeds maximum %d even when progressing to l1OriginChild", maxDrift)
+	if driftNext > maxDrift {
+		return nil, fmt.Errorf("%w: driftNext %d > maxDrift %d", ErrCannotSatisfyMaxSequencerDrift, driftNext, maxDrift)
 	}
 
 	if matchAutoDerivation {
 		// THIS SECTION SHOULD MATCH PROTOCOL RULES EXACTLY
 		// e.g. https://github.com/ethereum-optimism/optimism/blob/3b22b347f73774c0bf639aade750c10c9dc703d5/op-node/rollup/derive/base_batch_stage.go#L162-L206
-		if l1OriginChild == nil {
-			return nil, fmt.Errorf("l1OriginChild is nil but required to match auto derivation, try again later")
+		// If we don't have the nextL1Origin, return an error so we can try again when we do have it.
+		if nextL1Origin == nil {
+			// This can cause unsafe block production to slow to the rate of L1 block production, if the L1 origin is up to the L1 l2Head.
+			// Code higher up the call stack should ensure that matchAutoDerivation is false under such conditions.
+			return nil, ErrNextL1OriginRequired
 		}
 		// Progress to l1OriginChild if doing so would respect the requirement
 		// that L2 blocks cannot point to a future L1 block.
-		if nextL2BlockTime >= l1OriginChild.Time {
-			return l1OriginChild, nil
-		}
-		// If we cannot adopt the l1OriginChild, use the current l1 origin.
-		if nextL2BlockTime < l1OriginChild.Time {
-			return l1Origin, nil
+		if nextL2BlockTime >= nextL1Origin.Time {
+			return nextL1Origin, nil
+		} else {
+			// If we cannot adopt the l1OriginChild, use the current l1 origin.
+			return currentL1Origin, nil
 		}
 	} else {
 		// THIS SECTION IS partly POLICY, and can be modified/optimized
@@ -63,20 +67,23 @@ func FindL1OriginOfNextL2Block(
 		// Progress to l1OriginChild if it exists
 		// and if doing so would respect the requirement
 		// that L2 blocks cannot point to a future L1 block.
-		if l1OriginChild != nil && nextL2BlockTime >= l1OriginChild.Time {
-			return l1OriginChild, nil
+		if nextL1Origin == nil {
+			// If we don't yet have the nextL1Origin, stick with the current L1 origin unless doing so would exceed the maximum drift.
+			if driftCurrent > maxDrift {
+				// Return an error so the caller knows it needs to fetch the next l1 origin now.
+				return nil, fmt.Errorf("%w: drift of next L2 block would exceed maximum %d unless nextl1Origin is adopted", ErrNextL1OriginRequired, maxDrift)
+			}
+			return currentL1Origin, nil
 		}
-		if l1OriginChild != nil && nextL2BlockTime < l1OriginChild.Time {
-			// This is the only time we are allowed to violate the max drift condition
-			// in order to preserve the l2time >= l1time invariant
-			return l1Origin, nil
+		// Progress to l1OriginChild if doing so would respect the requirement
+		// that L2 blocks cannot point to a future L1 block.
+		if nextL2BlockTime >= nextL1Origin.Time {
+			// Adopt it if
+			return nextL1Origin, nil
 		}
-		// Otherwise, stick with the current L1 origin unless doing so would exceed the maximum drift.
-		if driftStick > maxDrift {
-			// We are allowed to violate this condition ONLY when
-			return nil, fmt.Errorf("cannot progress to l1OriginChild and drift of next L2 block would exceed maximum %d even when progressing to l1Origin", maxDrift)
+		if nextL2BlockTime < nextL1Origin.Time {
+			// If we cannot adopt the l1OriginChild, use the current l1 origin.
+			return currentL1Origin, nil
 		}
-		return l1Origin, nil
 	}
-
 }
