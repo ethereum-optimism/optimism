@@ -36,7 +36,7 @@ optimism_package:
             image: op-reth:local
             extra_params: [
               --proofs-history,
-              --proofs-history.window=10000,
+              --proofs-history.window=200,
               --proofs-history.prune-interval=1m,
               --proofs-history.storage-path=/data/proofs-history
             ]

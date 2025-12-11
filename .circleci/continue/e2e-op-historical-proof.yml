@@ -8,9 +8,16 @@ on:
 
 jobs:
   op-reth-as-verifier:
-    name: op-reth as verifier e2e tests
+    name: op-reth-as-verifier-${{ matrix.go_pkg_name }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - go_pkg_name: proofs/core
+          - go_pkg_name: proofs/reorg
+          - go_pkg_name: proofs/prune
 
     steps:
       - name: Checkout
@@ -59,15 +66,10 @@ jobs:
         run: |
           make all DEVNET=opgeth-seq-opreth-val
 
-      - name: Run core e2e tests
+      - name: Run ${{ matrix.go_pkg_name }} e2e tests
         working-directory: op-reth/tests
         run: |
-          make test-e2e-kurtosis GO_PKG_NAME=proofs/core DEVNET=opgeth-seq-opreth-val
-
-      - name: Run reorg e2e tests
-        working-directory: op-reth/tests
-        run: |
-          make test-e2e-kurtosis GO_PKG_NAME=proofs/reorg DEVNET=opgeth-seq-opreth-val
+          make test-e2e-kurtosis GO_PKG_NAME=${{ matrix.go_pkg_name }} DEVNET=opgeth-seq-opreth-val
 
       # disable coverage for now
       # - name: Flush coverage data
@@ -112,9 +114,16 @@ jobs:
       #     verbose: true
 
   op-reth-as-sequencer:
-    name: op-reth as sequencer e2e tests
+    name: op-reth-as-sequencer-${{ matrix.go_pkg_name }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - go_pkg_name: proofs/core
+          - go_pkg_name: proofs/reorg
+          - go_pkg_name: proofs/prune
 
     steps:
       - name: Checkout
@@ -157,15 +166,10 @@ jobs:
         run: |
           make all DEVNET=opreth-seq-opgeth-val
 
-      - name: Run core e2e tests
+      - name: Run ${{ matrix.go_pkg_name }} e2e tests
         working-directory: op-reth/tests
         run: |
-          make test-e2e-kurtosis GO_PKG_NAME=proofs/core DEVNET=opreth-seq-opgeth-val
-
-      - name: Run reorg e2e tests
-        working-directory: op-reth/tests
-        run: |
-          make test-e2e-kurtosis GO_PKG_NAME=proofs/reorg DEVNET=opreth-seq-opgeth-val
+          make test-e2e-kurtosis GO_PKG_NAME=${{ matrix.go_pkg_name }} DEVNET=opreth-seq-opgeth-val
 
   e2e-op-historical-proof-success:
     name: e2e-op-historical-proof-success
