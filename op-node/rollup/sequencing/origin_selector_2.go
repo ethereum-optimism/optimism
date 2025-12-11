@@ -20,18 +20,18 @@ var (
 // removing the need for block building to wait on the result of network calls
 func FindL1OriginOfNextL2Block(
 	cfg *rollup.Config,
-	l2Head *eth.L2BlockRef,
-	currentL1Origin *eth.L1BlockRef, nextL1Origin *eth.L1BlockRef,
-	matchAutoDerivation bool) (*eth.L1BlockRef, error) {
+	l2Head eth.L2BlockRef,
+	currentL1Origin eth.L1BlockRef, nextL1Origin eth.L1BlockRef,
+	matchAutoDerivation bool) (eth.L1BlockRef, error) {
 
-	if currentL1Origin == nil {
+	if (currentL1Origin == eth.L1BlockRef{}) {
 		panic("origin-selector: currentl1Origin is nil")
 	}
 	if l2Head.L1Origin.Hash != currentL1Origin.Hash {
-		return nil, ErrInvalidL1Origin
+		return eth.L1BlockRef{}, ErrInvalidL1Origin
 	}
-	if nextL1Origin != nil && nextL1Origin.ParentHash != currentL1Origin.Hash {
-		return nil, ErrNextL1OriginOrphaned
+	if (nextL1Origin != eth.L1BlockRef{} && nextL1Origin.ParentHash != currentL1Origin.Hash) {
+		return eth.L1BlockRef{}, ErrNextL1OriginOrphaned
 	}
 
 	l2BlockTime := cfg.BlockTime
@@ -39,16 +39,16 @@ func FindL1OriginOfNextL2Block(
 	nextL2BlockTime := l2Head.Time + l2BlockTime
 	driftCurrent := nextL2BlockTime - currentL1Origin.Time
 
-	if nextL1Origin == nil {
+	if (nextL1Origin == eth.L1BlockRef{}) {
 		if matchAutoDerivation {
 			// This can cause unsafe block production to slow to the rate of L1 block production, if the L1 origin is caught up to the L1 Head.
 			// Code higher up the call stack should ensure that matchAutoDerivation is false under such conditions.
-			return nil, ErrNextL1OriginRequired
+			return eth.L1BlockRef{}, ErrNextL1OriginRequired
 		} else {
 			// If we don't yet have the nextL1Origin, stick with the current L1 origin unless doing so would exceed the maximum drift.
 			if driftCurrent > maxDrift {
 				// Return an error so the caller knows it needs to fetch the next l1 origin now.
-				return nil, fmt.Errorf("%w: drift of next L2 block would exceed maximum %d unless nextl1Origin is adopted", ErrNextL1OriginRequired, maxDrift)
+				return eth.L1BlockRef{}, fmt.Errorf("%w: drift of next L2 block would exceed maximum %d unless nextl1Origin is adopted", ErrNextL1OriginRequired, maxDrift)
 			}
 			return currentL1Origin, nil
 		}
@@ -59,7 +59,6 @@ func FindL1OriginOfNextL2Block(
 	// Progress to l1OriginChild if doing so would respect the requirement
 	// that L2 blocks cannot point to a future L1 block (negative drift).
 	if driftNext >= 0 {
-		// Adopt it if
 		return nextL1Origin, nil
 	} else {
 		// If we cannot adopt the l1OriginChild, use the current l1 origin.

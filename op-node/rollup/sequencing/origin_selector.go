@@ -90,23 +90,12 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 		}
 	}
 
-	// TODO harmonize how we represent "no data for next origin"
-	var nextOriginPtr *eth.L1BlockRef
-	if (nextOrigin != eth.L1BlockRef{}) {
-		nextOriginPtr = &nextOrigin
-	}
-
 	// defer to pure function
-	o, err := FindL1OriginOfNextL2Block(los.cfg,
-		&l2Head,
-		&currentOrigin,
-		nextOriginPtr,
+	return FindL1OriginOfNextL2Block(los.cfg,
+		l2Head,
+		currentOrigin,
+		nextOrigin,
 		matchAutoDerivation)
-
-	if err != nil {
-		return *o, err
-	}
-	return eth.BlockRef{}, err
 }
 
 // CurrentAndNextOrigin returns the current cached values for the current L1 origin for the supplied l2Head, and it's successor.
