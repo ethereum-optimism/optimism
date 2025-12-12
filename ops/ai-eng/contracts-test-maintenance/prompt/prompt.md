@@ -140,6 +140,7 @@ reason = "Test coverage is already comprehensive with all functions and code pat
 1. Get the contract hash using the git command above
 2. Add the entry to the TOML file
 3. Commit this change with message: `chore(ai-test): skip {TEST_PATH} - already has comprehensive coverage`
+4. **Create a pull request** with the default template to record this decision
 
 This tracking allows the system to automatically exclude well-tested files from future runs until the contract changes.
 </no_changes_tracking>
