@@ -18,6 +18,7 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	const SEQUENCER_WINDOW_SIZE = 50 // (short, to keep test fast)
 	tp := helpers.NewTestParams(func(p *e2eutils.TestParams) {
 		p.SequencerWindowSize = SEQUENCER_WINDOW_SIZE
+		p.MaxSequencerDrift = 1800 // use 1800 seconds (30 minutes), which is the protocol constant since Fjord
 	})
 
 	// It seems more difficult (almost impossible) to recover from sequencing window expiry with span batches,
