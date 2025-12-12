@@ -147,7 +147,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         // Check if V2 dispute games feature is enabled
         bytes32 bitmap = opcm.devFeatureBitmap();
-        bool v2FeatureEnabled = DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
         bool superGamesEnabled = DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Change 256 bytes at random.
@@ -156,10 +155,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             uint256 randomImplIndex = vm.randomUint(0, refs.length - 1);
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
 
-            // Skip V2 dispute games when feature disabled
-            if (_isDisputeGameV2ContractRef(ref) && !v2FeatureEnabled) {
-                continue;
-            }
             // Skip super dispute games when feature disabled
             if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled) {
                 continue;
@@ -221,7 +216,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         // Check if V2 dispute games feature is enabled
         bytes32 bitmap = opcm.devFeatureBitmap();
-        bool v2FeatureEnabled = DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
         bool superGamesEnabled = DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Change 256 bytes at random.
@@ -230,10 +224,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             uint256 randomImplIndex = vm.randomUint(0, refs.length - 1);
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
 
-            // Skip V2 dispute games when feature disabled
-            if (_isDisputeGameV2ContractRef(ref) && !v2FeatureEnabled) {
-                continue;
-            }
             // Skip super dispute games when feature disabled
             if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled) {
                 continue;
@@ -297,8 +287,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             address blueprint = ref.addr;
             bytes memory blueprintCode = blueprint.code;
 
-            // Skip the V2 dispute games blueprint when feature is enabled.
-            if (blueprintCode.length == 0 && isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            if (blueprintCode.length == 0) {
                 continue;
             }
 

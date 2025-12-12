@@ -413,29 +413,6 @@ contract VerifyOPCM is Script {
         string memory artifactPath = _buildArtifactPath(_target.name);
         console.log(string.concat("  Expected Runtime Artifact: ", artifactPath));
 
-        // Check if this is a V1 dispute game that should be skipped
-        if (_isV1DisputeGameImplementation(_target.name) && _target.blueprint) {
-            if (_isV2DisputeGamesEnabled(_opcm)) {
-                console.log("[SKIP] Dispute game blueprint not deployed (dispute game v2 feature enabled)");
-                return true; // Consider this "verified" when feature is on
-            } else if (_target.addr == address(0)) {
-                console.log("[FAIL] Dispute game blueprint not deployed (dispute game v2 feature disabled)");
-                success = false;
-            }
-        }
-        // Check if this is a V2 dispute game that should be skipped
-        if (_isV2DisputeGameImplementation(_target.name)) {
-            if (!_isV2DisputeGamesEnabled(_opcm)) {
-                if (_target.addr == address(0)) {
-                    console.log("[SKIP] V2 dispute game not deployed (feature disabled)");
-                    return true; // Consider this "verified" when feature is off
-                } else {
-                    console.log("[FAIL] ERROR: V2 dispute game deployed but feature disabled");
-                    success = false;
-                }
-            }
-            // If feature is enabled, continue with normal verification
-        }
         // Check if this is a Super dispute game that should be skipped
         if (_isSuperDisputeGameImplementation(_target.name)) {
             if (!_isSuperDisputeGamesEnabled(_opcm)) {
@@ -546,27 +523,12 @@ contract VerifyOPCM is Script {
         return success;
     }
 
-    /// @notice Checks if V2 dispute games feature is enabled in the dev feature bitmap.
-    /// @param _opcm The OPContractsManager to check.
-    /// @return True if V2 dispute games are enabled.
-    function _isV2DisputeGamesEnabled(IOPContractsManager _opcm) internal view returns (bool) {
-        bytes32 bitmap = _opcm.devFeatureBitmap();
-        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
-    }
-
     /// @notice Checks if super dispute games feature is enabled in the dev feature bitmap.
     /// @param _opcm The OPContractsManager to check.
     /// @return True if super dispute games are enabled.
     function _isSuperDisputeGamesEnabled(IOPContractsManager _opcm) internal view returns (bool) {
         bytes32 bitmap = _opcm.devFeatureBitmap();
         return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
-    }
-
-    /// @notice Checks if a contract is a V1 dispute game implementation.
-    /// @param _contractName The name to check.
-    /// @return True if this is a V1 dispute game.
-    function _isV1DisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
-        return LibString.eq(_contractName, "FaultDisputeGame") || LibString.eq(_contractName, "PermissionedDisputeGame");
     }
 
     /// @notice Checks if a contract is a V2 dispute game implementation.

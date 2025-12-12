@@ -5,7 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -88,24 +88,20 @@ func deployDisputeGame(
 	}
 	lgr.Info("vm deployed", "vmAddr", vmAddr)
 
-	useV2 := st.ImplementationsDeployment.PermissionedDisputeGameV2Impl != (common.Address{})
-
 	var gameArgs []byte
-	if useV2 { // Only set game args if V2 contracts are used.
-		args := gameargs.GameArgs{
-			AbsolutePrestate:    game.DisputeAbsolutePrestate,
-			Vm:                  vmAddr,
-			AnchorStateRegistry: thisState.OpChainContracts.AnchorStateRegistryProxy,
-			Weth:                thisState.OpChainContracts.DelayedWethPermissionedGameProxy,
-			L2ChainID:           eth.ChainIDFromBytes32(thisIntent.ID),
-			Proposer:            thisIntent.Roles.Proposer,
-			Challenger:          thisIntent.Roles.Challenger,
-		}
-		if game.DisputeGameType == uint32(types.PermissionedGameType) {
-			gameArgs = args.PackPermissioned()
-		} else {
-			gameArgs = args.PackPermissionless()
-		}
+	args := gameargs.GameArgs{
+		AbsolutePrestate:    game.DisputeAbsolutePrestate,
+		Vm:                  vmAddr,
+		AnchorStateRegistry: thisState.OpChainContracts.AnchorStateRegistryProxy,
+		Weth:                thisState.OpChainContracts.DelayedWethPermissionedGameProxy,
+		L2ChainID:           eth.ChainIDFromBytes32(thisIntent.ID),
+		Proposer:            thisIntent.Roles.Proposer,
+		Challenger:          thisIntent.Roles.Challenger,
+	}
+	if game.DisputeGameType == uint32(gameTypes.PermissionedGameType) {
+		gameArgs = args.PackPermissioned()
+	} else {
+		gameArgs = args.PackPermissionless()
 	}
 
 	lgr.Info("deploying dispute game")
@@ -113,7 +109,6 @@ func deployDisputeGame(
 	out, err := env.Scripts.DeployDisputeGame.Run(
 		opcm.DeployDisputeGameInput{
 			Release:                  "dev",
-			UseV2:                    useV2,
 			VmAddress:                vmAddr,
 			GameKind:                 "FaultDisputeGame",
 			GameType:                 game.DisputeGameType,
@@ -136,7 +131,6 @@ func deployDisputeGame(
 
 	lgr.Info("setting dispute game impl on factory", "respected", game.MakeRespected)
 	sdgiInput := opcm.SetDisputeGameImplInput{
-		UseV2:               useV2,
 		Factory:             thisState.OpChainContracts.DisputeGameFactoryProxy,
 		Impl:                out.DisputeGameImpl,
 		GameType:            game.DisputeGameType,

@@ -15,7 +15,6 @@ import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { GameTypes, Claim } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { LibString } from "@solady/utils/LibString.sol";
@@ -24,7 +23,6 @@ import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
-import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
@@ -279,14 +277,9 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         address permissionedDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON));
         artifacts.save("PermissionedDisputeGame", permissionedDisputeGame);
 
-        IAnchorStateRegistry newAnchorStateRegistry;
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            newAnchorStateRegistry = IAnchorStateRegistry(
-                LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON)).anchorStateRegistry
-            );
-        } else {
-            newAnchorStateRegistry = IPermissionedDisputeGame(permissionedDisputeGame).anchorStateRegistry();
-        }
+        IAnchorStateRegistry newAnchorStateRegistry = IAnchorStateRegistry(
+            LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON)).anchorStateRegistry
+        );
         artifacts.save("AnchorStateRegistryProxy", address(newAnchorStateRegistry));
 
         // Get the lockbox address from the portal, and save it
@@ -295,14 +288,8 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         artifacts.save("ETHLockboxProxy", lockboxAddress);
 
         // Get the new DelayedWETH address and save it (might be a new proxy).
-        IDelayedWETH newDelayedWeth;
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            newDelayedWeth = IDelayedWETH(
-                payable(LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON)).weth)
-            );
-        } else {
-            newDelayedWeth = IPermissionedDisputeGame(permissionedDisputeGame).weth();
-        }
+        IDelayedWETH newDelayedWeth =
+            IDelayedWETH(payable(LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON)).weth));
         artifacts.save("DelayedWETHProxy", address(newDelayedWeth));
         artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(newDelayedWeth)));
     }

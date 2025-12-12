@@ -124,10 +124,8 @@ contract DeployImplementations is Script {
         deployMipsSingleton(_input, output_);
         deployDisputeGameFactoryImpl(output_);
         deployAnchorStateRegistryImpl(_input, output_);
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            deployFaultDisputeGameV2Impl(_input, output_);
-            deployPermissionedDisputeGameV2Impl(_input, output_);
-        }
+        deployFaultDisputeGameV2Impl(_input, output_);
+        deployPermissionedDisputeGameV2Impl(_input, output_);
         if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             deploySuperFaultDisputeGameImpl(_input, output_);
             deploySuperPermissionedDisputeGameImpl(_input, output_);
@@ -238,12 +236,6 @@ contract DeployImplementations is Script {
         require(checkAddress == address(0), "OPCM-40");
         (blueprints.resolvedDelegateProxy, checkAddress) = DeployUtils.createDeterministicBlueprint(vm.getCode("ResolvedDelegateProxy"), _salt);
         require(checkAddress == address(0), "OPCM-50");
-        // The max initcode/runtimecode size is 48KB/24KB.
-        // But for Blueprint, the initcode is stored as runtime code, that's why it's necessary to split into 2 parts.
-        if (!DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            (blueprints.permissionedDisputeGame1, blueprints.permissionedDisputeGame2) = DeployUtils.createDeterministicBlueprint(vm.getCode("PermissionedDisputeGame"), _salt);
-            (blueprints.permissionlessDisputeGame1, blueprints.permissionlessDisputeGame2) = DeployUtils.createDeterministicBlueprint(vm.getCode("FaultDisputeGame"), _salt);
-        }
         // forgefmt: disable-end
         vm.stopBroadcast();
 
@@ -669,6 +661,8 @@ contract DeployImplementations is Script {
         opcmImplementations.anchorStateRegistryImpl = _implementations.anchorStateRegistryImpl;
         opcmImplementations.delayedWETHImpl = _implementations.delayedWETHImpl;
         opcmImplementations.mipsImpl = _implementations.mipsImpl;
+        opcmImplementations.faultDisputeGameImpl = _implementations.faultDisputeGameV2Impl;
+        opcmImplementations.permissionedDisputeGameImpl = _implementations.permissionedDisputeGameV2Impl;
 
         IOPContractsManagerStandardValidator impl = IOPContractsManagerStandardValidator(
             DeployUtils.createDeterministic({
@@ -694,35 +688,31 @@ contract DeployImplementations is Script {
     }
 
     function assertValidInput(Input memory _input) private pure {
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            // Validate V2 game depth parameters are sensible
-            require(
-                _input.faultGameV2MaxGameDepth > 0 && _input.faultGameV2MaxGameDepth <= 125,
-                "DeployImplementations: faultGameV2MaxGameDepth out of valid range (1-125)"
-            );
-            // V2 contract requires splitDepth >= 2 and splitDepth + 1 < maxGameDepth
-            require(
-                _input.faultGameV2SplitDepth >= 2 && _input.faultGameV2SplitDepth + 1 < _input.faultGameV2MaxGameDepth,
-                "DeployImplementations: faultGameV2SplitDepth must be >= 2 and splitDepth + 1 < maxGameDepth"
-            );
+        // Validate V2 game depth parameters are sensible
+        require(
+            _input.faultGameV2MaxGameDepth > 0 && _input.faultGameV2MaxGameDepth <= 125,
+            "DeployImplementations: faultGameV2MaxGameDepth out of valid range (1-125)"
+        );
+        // V2 contract requires splitDepth >= 2 and splitDepth + 1 < maxGameDepth
+        require(
+            _input.faultGameV2SplitDepth >= 2 && _input.faultGameV2SplitDepth + 1 < _input.faultGameV2MaxGameDepth,
+            "DeployImplementations: faultGameV2SplitDepth must be >= 2 and splitDepth + 1 < maxGameDepth"
+        );
 
-            // Validate V2 clock parameters fit in uint64 before deployment
-            require(
-                _input.faultGameV2ClockExtension <= type(uint64).max,
-                "DeployImplementations: faultGameV2ClockExtension too large for uint64"
-            );
-            require(
-                _input.faultGameV2MaxClockDuration <= type(uint64).max,
-                "DeployImplementations: faultGameV2MaxClockDuration too large for uint64"
-            );
-            require(
-                _input.faultGameV2MaxClockDuration >= _input.faultGameV2ClockExtension,
-                "DeployImplementations: maxClockDuration must be >= clockExtension"
-            );
-            require(
-                _input.faultGameV2ClockExtension > 0, "DeployImplementations: faultGameV2ClockExtension must be > 0"
-            );
-        }
+        // Validate V2 clock parameters fit in uint64 before deployment
+        require(
+            _input.faultGameV2ClockExtension <= type(uint64).max,
+            "DeployImplementations: faultGameV2ClockExtension too large for uint64"
+        );
+        require(
+            _input.faultGameV2MaxClockDuration <= type(uint64).max,
+            "DeployImplementations: faultGameV2MaxClockDuration too large for uint64"
+        );
+        require(
+            _input.faultGameV2MaxClockDuration >= _input.faultGameV2ClockExtension,
+            "DeployImplementations: maxClockDuration must be >= clockExtension"
+        );
+        require(_input.faultGameV2ClockExtension > 0, "DeployImplementations: faultGameV2ClockExtension must be > 0");
         require(_input.withdrawalDelaySeconds != 0, "DeployImplementations: withdrawalDelaySeconds not set");
         require(_input.minProposalSizeBytes != 0, "DeployImplementations: minProposalSizeBytes not set");
         require(_input.challengePeriodSeconds != 0, "DeployImplementations: challengePeriodSeconds not set");
@@ -768,16 +758,11 @@ contract DeployImplementations is Script {
             address(_output.optimismMintableERC20FactoryImpl),
             address(_output.disputeGameFactoryImpl),
             address(_output.anchorStateRegistryImpl),
-            address(_output.ethLockboxImpl)
+            address(_output.ethLockboxImpl),
+            address(_output.faultDisputeGameV2Impl),
+            address(_output.permissionedDisputeGameV2Impl)
         );
 
-        // Only include V2 contracts in validation if they were deployed
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            address[] memory v2Addrs = Solarray.addresses(
-                address(_output.faultDisputeGameV2Impl), address(_output.permissionedDisputeGameV2Impl)
-            );
-            addrs2 = Solarray.extend(addrs2, v2Addrs);
-        }
         if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             address[] memory superGameAddrs = Solarray.addresses(
                 address(_output.superFaultDisputeGameImpl), address(_output.superPermissionedDisputeGameImpl)
@@ -787,17 +772,6 @@ contract DeployImplementations is Script {
 
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
 
-        // Validate V2 contracts not deployed when flag is disabled
-        if (!DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            require(
-                address(_output.faultDisputeGameV2Impl) == address(0),
-                "DeployImplementations: V2 flag disabled but FaultDisputeGameV2 was deployed"
-            );
-            require(
-                address(_output.permissionedDisputeGameV2Impl) == address(0),
-                "DeployImplementations: V2 flag disabled but PermissionedDisputeGameV2 was deployed"
-            );
-        }
         if (!DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             require(
                 address(_output.superFaultDisputeGameImpl) == address(0),

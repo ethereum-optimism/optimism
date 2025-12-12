@@ -10,13 +10,11 @@ import { console2 as console } from "forge-std/console2.sol";
 // Libraries
 import { GameType, Claim } from "src/dispute/lib/LibUDT.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 
 // Interfaces
 import "../../interfaces/dispute/IDisputeGame.sol";
 import "../../interfaces/dispute/IDisputeGameFactory.sol";
-import { IFaultDisputeGame } from "../../interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "../../interfaces/dispute/IPermissionedDisputeGame.sol";
 
 contract DisputeGames is FeatureFlags {
@@ -109,73 +107,38 @@ contract DisputeGames is FeatureFlags {
     }
 
     function mockGameImplPrestate(IDisputeGameFactory _dgf, GameType _gameType, bytes32 _prestate) internal {
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            bytes memory value = abi.encodePacked(_prestate);
-            _mockGameArg(_dgf, _gameType, GameArg.PRESTATE, value);
-        } else {
-            address gameAddr = address(_dgf.gameImpls(_gameType));
-            vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.absolutePrestate, ()), abi.encode(_prestate));
-        }
+        bytes memory value = abi.encodePacked(_prestate);
+        _mockGameArg(_dgf, _gameType, GameArg.PRESTATE, value);
     }
 
     function mockGameImplVM(IDisputeGameFactory _dgf, GameType _gameType, address _vm) internal {
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            bytes memory value = abi.encodePacked(_vm);
-            _mockGameArg(_dgf, _gameType, GameArg.VM, value);
-        } else {
-            address gameAddr = address(_dgf.gameImpls(_gameType));
-            vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(_vm));
-        }
+        bytes memory value = abi.encodePacked(_vm);
+        _mockGameArg(_dgf, _gameType, GameArg.VM, value);
     }
 
     function mockGameImplASR(IDisputeGameFactory _dgf, GameType _gameType, address _asr) internal {
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            bytes memory value = abi.encodePacked(_asr);
-            _mockGameArg(_dgf, _gameType, GameArg.ASR, value);
-        } else {
-            address gameAddr = address(_dgf.gameImpls(_gameType));
-            vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.anchorStateRegistry, ()), abi.encode(_asr));
-        }
+        bytes memory value = abi.encodePacked(_asr);
+        _mockGameArg(_dgf, _gameType, GameArg.ASR, value);
     }
 
     function mockGameImplWeth(IDisputeGameFactory _dgf, GameType _gameType, address _weth) internal {
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            bytes memory value = abi.encodePacked(_weth);
-            _mockGameArg(_dgf, _gameType, GameArg.WETH, value);
-        } else {
-            address gameAddr = address(_dgf.gameImpls(_gameType));
-            vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.weth, ()), abi.encode(_weth));
-        }
+        bytes memory value = abi.encodePacked(_weth);
+        _mockGameArg(_dgf, _gameType, GameArg.WETH, value);
     }
 
     function mockGameImplL2ChainId(IDisputeGameFactory _dgf, GameType _gameType, uint256 _chainId) internal {
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            bytes memory value = abi.encodePacked(_chainId);
-            _mockGameArg(_dgf, _gameType, GameArg.L2_CHAIN_ID, value);
-        } else {
-            address gameAddr = address(_dgf.gameImpls(_gameType));
-            vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.l2ChainId, ()), abi.encode(_chainId));
-        }
+        bytes memory value = abi.encodePacked(_chainId);
+        _mockGameArg(_dgf, _gameType, GameArg.L2_CHAIN_ID, value);
     }
 
     function mockGameImplProposer(IDisputeGameFactory _dgf, GameType _gameType, address _proposer) internal {
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            bytes memory value = abi.encodePacked(_proposer);
-            _mockGameArg(_dgf, _gameType, GameArg.PROPOSER, value);
-        } else {
-            address gameAddr = address(_dgf.gameImpls(_gameType));
-            vm.mockCall(gameAddr, abi.encodeCall(IPermissionedDisputeGame.proposer, ()), abi.encode(_proposer));
-        }
+        bytes memory value = abi.encodePacked(_proposer);
+        _mockGameArg(_dgf, _gameType, GameArg.PROPOSER, value);
     }
 
     function mockGameImplChallenger(IDisputeGameFactory _dgf, GameType _gameType, address _challenger) internal {
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            bytes memory value = abi.encodePacked(_challenger);
-            _mockGameArg(_dgf, _gameType, GameArg.CHALLENGER, value);
-        } else {
-            address gameAddr = address(_dgf.gameImpls(_gameType));
-            vm.mockCall(gameAddr, abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(_challenger));
-        }
+        bytes memory value = abi.encodePacked(_challenger);
+        _mockGameArg(_dgf, _gameType, GameArg.CHALLENGER, value);
     }
 
     function _getGameArgs(
@@ -185,10 +148,6 @@ contract DisputeGames is FeatureFlags {
         private
         returns (bool gameArgsExist_, bytes memory gameArgs_)
     {
-        if (!isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            return (false, gameArgs_);
-        }
-
         bytes memory gameArgsCallData = abi.encodeCall(IDisputeGameFactory.gameArgs, (_gameType));
         (bool success, bytes memory gameArgs) = address(_dgf).call(gameArgsCallData);
 

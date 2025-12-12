@@ -1,4 +1,4 @@
-package disputegame_v2
+package cannon
 
 import (
 	"testing"
