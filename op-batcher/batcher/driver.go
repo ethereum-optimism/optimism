@@ -92,7 +92,7 @@ type DriverSetup struct {
 	L1Client          L1Client
 	EndpointProvider  dial.L2EndpointProvider
 	ChannelConfig     ChannelConfigProvider
-	AltDA             *altda.DAClient
+	AltDA             altda.DAStorage
 	ChannelOutFactory ChannelOutFactory
 }
 
@@ -118,6 +118,8 @@ type BatchSubmitter struct {
 	throttleController *throttler.ThrottleController
 
 	publishSignal chan pubInfo
+
+	altDAFallbackActive bool // true if we are currently in fallback mode to L1 due to DA server unavailability
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter driver from a preconfigured DriverSetup
@@ -924,7 +926,7 @@ func (l *BatchSubmitter) cancelBlockingTx(queue *txmgr.Queue[txRef], receiptsCh 
 }
 
 // publishToAltDAAndL1 posts the txdata to the DA Provider and then sends the commitment to L1.
-func (l *BatchSubmitter) publishToAltDAAndL1(txdata txData, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group) {
+func (l *BatchSubmitter) publishToAltDAAndL1(txdata txData, queue TxSender[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group) {
 	// sanity checks
 	if nf := len(txdata.frames); nf != 1 {
 		l.Log.Crit("Unexpected number of frames in calldata tx", "num_frames", nf)
@@ -948,6 +950,13 @@ func (l *BatchSubmitter) publishToAltDAAndL1(txdata txData, queue *txmgr.Queue[t
 				l.recordFailedDARequest(txdata.ID(), nil)
 			} else {
 				l.Log.Error("Failed to post input to Alt DA", "error", err)
+
+				// activate fallback to on-chain DA if enabled
+				if l.Config.UseAltDA && l.Config.AltDAEnableFallback && !l.altDAFallbackActive {
+					l.Log.Warn("Alt DA request failed, falling back to on-chain DA", logFields(txdata.ID(), err)...)
+					l.altDAFallbackActive = true
+				}
+
 				// requeue frame if we fail to post to the DA Provider so it can be retried
 				// note: this assumes that the da server caches requests, otherwise it might lead to resubmissions of the blobs
 				l.recordFailedDARequest(txdata.ID(), err)
@@ -970,11 +979,11 @@ func (l *BatchSubmitter) publishToAltDAAndL1(txdata txData, queue *txmgr.Queue[t
 // sendTransaction creates & queues for sending a transaction to the batch inbox address with the given `txData`.
 // This call will block if the txmgr queue is at the  max-pending limit.
 // The method will block if the queue's MaxPendingTransactions is exceeded.
-func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group) error {
+func (l *BatchSubmitter) sendTransaction(txdata txData, queue TxSender[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group) error {
 	var err error
 
 	// if Alt DA is enabled we post the txdata to the DA Provider and replace it with the commitment.
-	if l.Config.UseAltDA {
+	if l.Config.UseAltDA && !l.altDAFallbackActive {
 		l.publishToAltDAAndL1(txdata, queue, receiptsCh, daGroup)
 		// we return nil to allow publishStateToL1 to keep processing the next txdata
 		return nil

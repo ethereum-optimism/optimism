@@ -48,6 +48,8 @@ type BatcherConfig struct {
 	// maximum number of concurrent blob put requests to the DA server
 	MaxConcurrentDARequests uint64
 
+	AltDAEnableFallback bool
+
 	WaitNodeSync        bool
 	CheckRecentTxsDepth int
 
@@ -113,6 +115,7 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, closeApp contex
 	bs.PollInterval = cfg.PollInterval
 	bs.MaxPendingTransactions = cfg.MaxPendingTransactions
 	bs.MaxConcurrentDARequests = cfg.AltDA.MaxConcurrentRequests
+	bs.AltDAEnableFallback = cfg.AltDA.EnableFallback
 	bs.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
 	bs.CheckRecentTxsDepth = cfg.CheckRecentTxsDepth
 	bs.WaitNodeSync = cfg.WaitNodeSync

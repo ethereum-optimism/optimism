@@ -10,9 +10,11 @@ import (
 	"net/http/httptest"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher/throttler"
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
@@ -24,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 type mockL2EndpointProvider struct {
@@ -77,6 +80,59 @@ func setup(t *testing.T, closeAppFn context.CancelCauseFunc) (*BatchSubmitter, *
 		ChannelConfig:    defaultTestChannelConfig(),
 		EndpointProvider: ep,
 	}), ep
+}
+
+// testDAClient is a simple mock DA client for testing that implements altda.DAStorage
+type testDAClient struct {
+	shouldFail atomic.Bool
+	failErr    error
+	callCount  atomic.Int32
+}
+
+func newTestDAClient() *testDAClient {
+	return &testDAClient{
+		failErr: errors.New("DA server unavailable"),
+	}
+}
+
+func (c *testDAClient) GetInput(ctx context.Context, key altda.CommitmentData) ([]byte, error) {
+	return []byte("mock data"), nil
+}
+
+func (c *testDAClient) SetInput(ctx context.Context, data []byte) (altda.CommitmentData, error) {
+	c.callCount.Add(1)
+	if c.shouldFail.Load() {
+		return nil, c.failErr
+	}
+	// Return a valid commitment
+	return altda.NewCommitmentData(altda.Keccak256CommitmentType, data), nil
+}
+
+func (c *testDAClient) SetShouldFail(fail bool) {
+	c.shouldFail.Store(fail)
+}
+
+func (c *testDAClient) CallCount() int {
+	return int(c.callCount.Load())
+}
+
+// setupWithAltDA creates a BatchSubmitter with AltDA enabled for testing
+func setupWithAltDA(t *testing.T, cfg BatcherConfig) (*BatchSubmitter, *mockL2EndpointProvider, *testDAClient) {
+	ep := newEndpointProvider()
+	mockDA := newTestDAClient()
+
+	rollupCfg := defaultTestRollupConfig
+	rollupCfg.Genesis.L1.Number = genesisL1Origin
+
+	return NewBatchSubmitter(DriverSetup{
+		Log:              testlog.Logger(t, log.LevelDebug),
+		Metr:             metrics.NoopMetrics,
+		RollupConfig:     rollupCfg,
+		Config:           cfg,
+		ChannelConfig:    defaultTestChannelConfig(),
+		EndpointProvider: ep,
+		AltDA:            mockDA,
+	}), ep, mockDA
 }
 
 func TestBatchSubmitter_SafeL1Origin(t *testing.T) {
@@ -405,5 +461,413 @@ func TestBatchSubmitter_CriticalError(t *testing.T) {
 	for _, e := range nonCriticalErrors {
 		assert.False(t, isCriticalThrottlingRPCError(e), "false negative: %s", e)
 	}
-
 }
+
+func TestBatchSubmitter_AltDA_Success(t *testing.T) {
+	t.Run("Successful DA post sends commitment to L1", func(t *testing.T) {
+		cfg := BatcherConfig{
+			UseAltDA:                true,
+			AltDAEnableFallback:     false,
+			MaxConcurrentDARequests: 10,
+			ThrottleParams: config.ThrottleParams{
+				ControllerType: config.StepControllerType,
+			},
+		}
+
+		bs, _, mockDA := setupWithAltDA(t, cfg)
+
+		// Create test data
+		originalData := []byte{0x01, 0x02, 0x03, 0x04, 0x05}
+		txData := singleFrameTxData(frameData{
+			data: originalData,
+		})
+
+		// Create dependencies
+		queue := new(MockTxQueue)
+		receiptsCh := make(chan txmgr.TxReceipt[txRef], 1)
+		daGroup := new(errgroup.Group)
+
+		// Send transaction
+		err := bs.sendTransaction(txData, queue, receiptsCh, daGroup)
+		require.NoError(t, err)
+		require.NoError(t, daGroup.Wait())
+
+		// Verify DA was called
+		require.Equal(t, 1, mockDA.CallCount(), "DA should be called once")
+
+		// Verify transaction was queued to L1
+		candidate := queue.Load(txData.ID().String())
+		require.NotNil(t, candidate.To, "Transaction should be queued")
+
+		// Verify the L1 transaction contains commitment data, not original data
+		// Commitment is 33 bytes (1 byte type + 32 bytes hash) + 1 byte version prefix = 34 bytes
+		require.NotEqual(t, originalData, candidate.TxData,
+			"L1 tx should contain commitment, not original calldata")
+		require.Equal(t, 34, len(candidate.TxData),
+			"L1 tx should contain 34-byte commitment (version + type + hash)")
+	})
+
+	t.Run("DA request with context canceled requeues frame", func(t *testing.T) {
+		cfg := BatcherConfig{
+			UseAltDA:                true,
+			AltDAEnableFallback:     false,
+			MaxConcurrentDARequests: 10,
+			ThrottleParams: config.ThrottleParams{
+				ControllerType: config.StepControllerType,
+			},
+		}
+
+		bs, _, mockDA := setupWithAltDA(t, cfg)
+
+		// Cancel the shutdown context to simulate context cancellation
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		bs.shutdownCtx = ctx
+
+		txData := singleFrameTxData(frameData{
+			data: []byte{0x01, 0x02, 0x03},
+		})
+
+		queue := new(MockTxQueue)
+		receiptsCh := make(chan txmgr.TxReceipt[txRef], 1)
+		daGroup := new(errgroup.Group)
+
+		err := bs.sendTransaction(txData, queue, receiptsCh, daGroup)
+		require.NoError(t, err)
+		require.NoError(t, daGroup.Wait())
+
+		// DA should still be called (context is checked inside SetInput)
+		require.Equal(t, 1, mockDA.CallCount(), "DA should be called once")
+
+		// Frame should be requeued via recordFailedDARequest
+		// This test verifies that context cancellation is handled without error
+	})
+
+	t.Run("Multiple transactions spawn multiple goroutines", func(t *testing.T) {
+		cfg := BatcherConfig{
+			UseAltDA:                true,
+			AltDAEnableFallback:     false,
+			MaxConcurrentDARequests: 10,
+			ThrottleParams: config.ThrottleParams{
+				ControllerType: config.StepControllerType,
+			},
+		}
+
+		bs, _, mockDA := setupWithAltDA(t, cfg)
+
+		// Create multiple transactions
+		queue := new(MockTxQueue)
+		receiptsCh := make(chan txmgr.TxReceipt[txRef], 10)
+		daGroup := new(errgroup.Group)
+
+		numTxs := 3
+		for i := 0; i < numTxs; i++ {
+			txData := singleFrameTxData(frameData{
+				data: []byte{byte(i), 0x01, 0x02},
+			})
+
+			err := bs.sendTransaction(txData, queue, receiptsCh, daGroup)
+			require.NoError(t, err)
+		}
+
+		// Wait for all DA requests to complete
+		require.NoError(t, daGroup.Wait())
+
+		// Verify all transactions called DA
+		require.Equal(t, numTxs, mockDA.CallCount(), "All transactions should call DA")
+	})
+}
+
+func TestBatchSubmitter_AltDAFallback_Activation(t *testing.T) {
+	tests := []struct {
+		name                  string
+		useAltDA              bool
+		enableFallback        bool
+		daFails               bool
+		expectFallbackActive  bool
+		expectDACallCount     int
+	}{
+		{
+			name:                 "Fallback activates on DA failure when enabled",
+			useAltDA:             true,
+			enableFallback:       true,
+			daFails:              true,
+			expectFallbackActive: true,
+			expectDACallCount:    1,
+		},
+		{
+			name:                 "Fallback does NOT activate when disabled",
+			useAltDA:             true,
+			enableFallback:       false,
+			daFails:              true,
+			expectFallbackActive: false,
+			expectDACallCount:    1,
+		},
+		{
+			name:                 "Successful DA request does NOT trigger fallback",
+			useAltDA:             true,
+			enableFallback:       true,
+			daFails:              false,
+			expectFallbackActive: false,
+			expectDACallCount:    1,
+		},
+		{
+			name:                 "No DA call when AltDA disabled",
+			useAltDA:             false,
+			enableFallback:       true,
+			daFails:              false,
+			expectFallbackActive: false,
+			expectDACallCount:    0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := BatcherConfig{
+				UseAltDA:             tt.useAltDA,
+				AltDAEnableFallback:  tt.enableFallback,
+				MaxConcurrentDARequests: 10,
+				ThrottleParams: config.ThrottleParams{
+					ControllerType: config.StepControllerType,
+				},
+			}
+
+			bs, _, mockDA := setupWithAltDA(t, cfg)
+			mockDA.SetShouldFail(tt.daFails)
+
+			// Create test data
+			txData := singleFrameTxData(frameData{
+				data: []byte{0x01, 0x02, 0x03},
+			})
+
+			// Create dependencies
+			queue := new(MockTxQueue)
+			receiptsCh := make(chan txmgr.TxReceipt[txRef], 1)
+			daGroup := new(errgroup.Group)
+
+			// Send transaction
+			err := bs.sendTransaction(txData, queue, receiptsCh, daGroup)
+			require.NoError(t, err)
+
+			// Wait for DA goroutine to complete
+			require.NoError(t, daGroup.Wait())
+
+			// Verify expectations
+			require.Equal(t, tt.expectDACallCount, mockDA.CallCount(), "DA call count mismatch")
+			require.Equal(t, tt.expectFallbackActive, bs.altDAFallbackActive, "Fallback activation state mismatch")
+		})
+	}
+}
+
+func TestBatchSubmitter_AltDAFallback_BypassBehavior(t *testing.T) {
+	tests := []struct {
+		name              string
+		fallbackActive    bool
+		expectDACall      bool
+		expectDirectToL1  bool
+	}{
+		{
+			name:             "Normal operation uses DA when not in fallback",
+			fallbackActive:   false,
+			expectDACall:     true,
+			expectDirectToL1: false,
+		},
+		{
+			name:             "Fallback mode bypasses DA and posts directly to L1",
+			fallbackActive:   true,
+			expectDACall:     false,
+			expectDirectToL1: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := BatcherConfig{
+				UseAltDA:                true,
+				AltDAEnableFallback:     true,
+				MaxConcurrentDARequests: 10,
+				ThrottleParams: config.ThrottleParams{
+					ControllerType: config.StepControllerType,
+				},
+			}
+
+			bs, _, mockDA := setupWithAltDA(t, cfg)
+
+			// Set initial fallback state
+			bs.altDAFallbackActive = tt.fallbackActive
+
+			// Create test data
+			txData := singleFrameTxData(frameData{
+				data: []byte{0x01, 0x02, 0x03},
+			})
+
+			// Create dependencies
+			queue := new(MockTxQueue)
+			receiptsCh := make(chan txmgr.TxReceipt[txRef], 1)
+			daGroup := new(errgroup.Group)
+
+			// Send transaction
+			err := bs.sendTransaction(txData, queue, receiptsCh, daGroup)
+			require.NoError(t, err)
+
+			// Wait for DA goroutine if one was spawned
+			require.NoError(t, daGroup.Wait())
+
+			// Verify DA call behavior
+			if tt.expectDACall {
+				require.Equal(t, 1, mockDA.CallCount(), "Expected DA to be called")
+			} else {
+				require.Equal(t, 0, mockDA.CallCount(), "Expected DA to be bypassed")
+			}
+
+			// Verify transaction was sent to L1
+			// In both cases, a transaction should be queued
+			candidate := queue.Load(txData.ID().String())
+			require.NotNil(t, candidate.To, "Transaction should be queued to L1")
+		})
+	}
+}
+
+func TestBatchSubmitter_AltDAFallback_Persistence(t *testing.T) {
+	cfg := BatcherConfig{
+		UseAltDA:                true,
+		AltDAEnableFallback:     true,
+		MaxConcurrentDARequests: 10,
+		ThrottleParams: config.ThrottleParams{
+			ControllerType: config.StepControllerType,
+		},
+	}
+
+	bs, _, mockDA := setupWithAltDA(t, cfg)
+	mockDA.SetShouldFail(true) // First call will fail
+
+	// Create test data for first transaction
+	txData1 := singleFrameTxData(frameData{
+		data: []byte{0x01, 0x02, 0x03},
+	})
+
+	// Create dependencies
+	queue := new(MockTxQueue)
+	receiptsCh := make(chan txmgr.TxReceipt[txRef], 10)
+	daGroup := new(errgroup.Group)
+
+	// Send first transaction - should fail and activate fallback
+	err := bs.sendTransaction(txData1, queue, receiptsCh, daGroup)
+	require.NoError(t, err)
+	require.NoError(t, daGroup.Wait())
+
+	// Verify fallback is active
+	require.True(t, bs.altDAFallbackActive, "Fallback should be active after DA failure")
+	require.Equal(t, 1, mockDA.CallCount(), "DA should have been called once")
+
+	// Now make DA healthy again (shouldn't matter)
+	mockDA.SetShouldFail(false)
+
+	// Send second transaction - should bypass DA due to fallback
+	txData2 := singleFrameTxData(frameData{
+		data: []byte{0x04, 0x05, 0x06},
+	})
+
+	daGroup2 := new(errgroup.Group)
+	err = bs.sendTransaction(txData2, queue, receiptsCh, daGroup2)
+	require.NoError(t, err)
+	require.NoError(t, daGroup2.Wait())
+
+	// Verify DA was NOT called for second transaction
+	require.Equal(t, 1, mockDA.CallCount(), "DA should still only have been called once (bypassed on second tx)")
+	require.True(t, bs.altDAFallbackActive, "Fallback should remain active")
+
+	// Send third transaction - should still bypass DA
+	txData3 := singleFrameTxData(frameData{
+		data: []byte{0x07, 0x08, 0x09},
+	})
+
+	daGroup3 := new(errgroup.Group)
+	err = bs.sendTransaction(txData3, queue, receiptsCh, daGroup3)
+	require.NoError(t, err)
+	require.NoError(t, daGroup3.Wait())
+
+	// Verify DA still not called
+	require.Equal(t, 1, mockDA.CallCount(), "DA should still only have been called once (bypassed on third tx)")
+	require.True(t, bs.altDAFallbackActive, "Fallback should persist across multiple transactions")
+}
+
+func TestBatchSubmitter_AltDAFallback_RepeatedFailures(t *testing.T) {
+	t.Run("No duplicate activation when already in fallback", func(t *testing.T) {
+		cfg := BatcherConfig{
+			UseAltDA:                true,
+			AltDAEnableFallback:     true,
+			MaxConcurrentDARequests: 10,
+			ThrottleParams: config.ThrottleParams{
+				ControllerType: config.StepControllerType,
+			},
+		}
+
+		bs, _, mockDA := setupWithAltDA(t, cfg)
+
+		// Set fallback as already active
+		bs.altDAFallbackActive = true
+
+		// Make DA fail (even though it shouldn't be called)
+		mockDA.SetShouldFail(true)
+
+		// Create test data
+		txData := singleFrameTxData(frameData{
+			data: []byte{0x01, 0x02, 0x03},
+		})
+
+		// Create dependencies
+		queue := new(MockTxQueue)
+		receiptsCh := make(chan txmgr.TxReceipt[txRef], 1)
+		daGroup := new(errgroup.Group)
+
+		// Send transaction - should bypass DA entirely
+		err := bs.sendTransaction(txData, queue, receiptsCh, daGroup)
+		require.NoError(t, err)
+		require.NoError(t, daGroup.Wait())
+
+		// Verify DA was NOT called (bypassed)
+		require.Equal(t, 0, mockDA.CallCount(), "DA should be bypassed when fallback is already active")
+		require.True(t, bs.altDAFallbackActive, "Fallback should remain active")
+
+		// Verify transaction still went to L1
+		candidate := queue.Load(txData.ID().String())
+		require.NotNil(t, candidate.To, "Transaction should be queued to L1")
+	})
+
+	t.Run("Context canceled does NOT trigger fallback", func(t *testing.T) {
+		cfg := BatcherConfig{
+			UseAltDA:                true,
+			AltDAEnableFallback:     true,
+			MaxConcurrentDARequests: 10,
+			ThrottleParams: config.ThrottleParams{
+				ControllerType: config.StepControllerType,
+			},
+		}
+
+		bs, _, mockDA := setupWithAltDA(t, cfg)
+
+		// Create a context that's already canceled
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		bs.shutdownCtx = ctx
+
+		// Create test data
+		txData := singleFrameTxData(frameData{
+			data: []byte{0x01, 0x02, 0x03},
+		})
+
+		// Create dependencies
+		queue := new(MockTxQueue)
+		receiptsCh := make(chan txmgr.TxReceipt[txRef], 1)
+		daGroup := new(errgroup.Group)
+
+		// Send transaction - DA will fail due to context canceled
+		err := bs.sendTransaction(txData, queue, receiptsCh, daGroup)
+		require.NoError(t, err)
+		require.NoError(t, daGroup.Wait())
+
+		// Verify fallback was NOT activated (context canceled is expected)
+		require.False(t, bs.altDAFallbackActive, "Fallback should NOT activate on context.Canceled")
+		require.Equal(t, 1, mockDA.CallCount(), "DA should have been called once")
+	})

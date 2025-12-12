@@ -17,6 +17,7 @@ var (
 	PutTimeoutFlagName            = altDAFlags("put-timeout")
 	GetTimeoutFlagName            = altDAFlags("get-timeout")
 	MaxConcurrentRequestsFlagName = altDAFlags("max-concurrent-da-requests")
+	EnableFallbackFlagName        = altDAFlags("enable-fallback")
 )
 
 // altDAFlags returns the flag names for altDA
@@ -78,6 +79,13 @@ func CLIFlags(envPrefix string, category string) []cli.Flag {
 			EnvVars:  altDAEnvs(envPrefix, "MAX_CONCURRENT_DA_REQUESTS"),
 			Category: category,
 		},
+		&cli.BoolFlag{
+			Name:     EnableFallbackFlagName,
+			Usage:    "Enable fallback to L1 if DA server is unavailable",
+			Value:    false,
+			EnvVars:  altDAEnvs(envPrefix, "ENABLE_FALLBACK"),
+			Category: category,
+		},
 	}
 }
 
@@ -89,6 +97,7 @@ type CLIConfig struct {
 	PutTimeout            time.Duration
 	GetTimeout            time.Duration
 	MaxConcurrentRequests uint64
+	EnableFallback        bool
 }
 
 func (c CLIConfig) Check() error {
@@ -116,5 +125,6 @@ func ReadCLIConfig(c cliiface.Context) CLIConfig {
 		PutTimeout:            c.Duration(PutTimeoutFlagName),
 		GetTimeout:            c.Duration(GetTimeoutFlagName),
 		MaxConcurrentRequests: c.Uint64(MaxConcurrentRequestsFlagName),
+		EnableFallback:        c.Bool(EnableFallbackFlagName),
 	}
 }
