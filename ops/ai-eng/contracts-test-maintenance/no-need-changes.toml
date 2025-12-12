@@ -1,0 +1,14 @@
+# Files that don't need changes
+# When a test file is analyzed and determined to not need changes,
+# add an entry here with the test path, contract path, and contract hash.
+# Entries are automatically removed when the contract hash changes.
+
+# Example entry:
+# [[tests]]
+# test_path = "test/L1/SystemConfig.t.sol"
+# contract_path = "src/L1/SystemConfig.sol"
+# contract_hash = "abc123..."
+# recorded_at = "2025-12-11T20:00:00Z"
+# devin_session_id = "devin-abc123"
+# run_id = "20251211_200000"
+# reason = "Test coverage is comprehensive"
