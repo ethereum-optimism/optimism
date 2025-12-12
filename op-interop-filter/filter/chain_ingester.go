@@ -263,6 +263,15 @@ func (c *ChainIngester) runIngestion() {
 
 	c.log.Info("Starting backfill", "from", startBlock, "to", head.NumberU64(), "blocks", head.NumberU64()-startBlock+1)
 
+	// Initialize the LogsDB with the parent block of the start block
+	// This is needed because the LogsDB requires a sealed parent block before adding logs
+	if startBlock > 0 {
+		if err := c.initializeAnchorBlock(startBlock - 1); err != nil {
+			c.log.Error("Failed to initialize anchor block", "err", err)
+			return
+		}
+	}
+
 	// Backfill
 	if err := c.backfill(startBlock, head.NumberU64()); err != nil {
 		if errors.Is(err, context.Canceled) {
@@ -280,6 +289,33 @@ func (c *ChainIngester) runIngestion() {
 
 	// Live polling loop
 	c.pollLoop()
+}
+
+// initializeAnchorBlock seals the anchor block in the LogsDB
+// This must be done before any logs can be added, as logs reference their parent block
+func (c *ChainIngester) initializeAnchorBlock(blockNum uint64) error {
+	c.log.Info("Initializing anchor block", "block", blockNum)
+
+	// Fetch the anchor block info
+	blockInfo, err := c.ethClient.InfoByNumber(c.ctx, blockNum)
+	if err != nil {
+		return fmt.Errorf("failed to get anchor block info: %w", err)
+	}
+
+	blockID := eth.BlockID{Hash: blockInfo.Hash(), Number: blockInfo.NumberU64()}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Seal the anchor block with no logs
+	// For the very first block, use zero hash as parent
+	parentHash := blockInfo.ParentHash()
+	if err := c.logsDB.SealBlock(parentHash, blockID, blockInfo.Time()); err != nil {
+		return fmt.Errorf("failed to seal anchor block: %w", err)
+	}
+
+	c.log.Info("Initialized anchor block", "block", blockNum, "hash", blockID.Hash)
+	return nil
 }
 
 // backfill ingests blocks from startBlock to endBlock
