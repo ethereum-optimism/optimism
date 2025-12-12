@@ -301,14 +301,16 @@ func run(cliCtx *cli.Context) error {
 	defer filterClient.Close()
 
 	// Check filter is ready (not in failsafe)
+	// Note: admin API may require JWT authentication, so this is optional
 	var failsafe bool
 	if err := filterClient.CallContext(ctx, &failsafe, "admin_getFailsafeEnabled"); err != nil {
-		return fmt.Errorf("failed to check filter failsafe: %w", err)
+		logger.Warn("Could not check failsafe status (admin API may require auth)", "err", err)
+	} else {
+		if failsafe {
+			return errors.New("filter service is in failsafe mode")
+		}
+		logger.Info("Filter service responding", "failsafe", failsafe)
 	}
-	if failsafe {
-		return errors.New("filter service is in failsafe mode")
-	}
-	logger.Info("Filter service responding", "failsafe", failsafe)
 
 	// Wait for backfill to complete by doing a test query
 	// The filter returns "service not ready, backfill in progress" until ready
@@ -489,9 +491,11 @@ func (s *Spammer) RunValidQuery(ctx context.Context) error {
 		// Encode and query
 		entries := suptypes.EncodeAccessList([]suptypes.Access{access})
 
+		// Use a timestamp after the initiating message's timestamp
+		// Same-timestamp execution is invalid per spec
 		execDesc := suptypes.ExecutingDescriptor{
 			ChainID:   s.chainID,
-			Timestamp: block.Time(),
+			Timestamp: block.Time() + 1, // Execute at least 1 second later
 		}
 
 		err := s.filterClient.CallContext(ctx, nil, "supervisor_checkAccessList", entries, suptypes.LocalUnsafe, execDesc)
@@ -599,9 +603,11 @@ func (s *Spammer) RunInvalidQuery(ctx context.Context) error {
 		// Encode and query
 		entries := suptypes.EncodeAccessList([]suptypes.Access{access})
 
+		// Use a timestamp after the initiating message's timestamp
+		// Same-timestamp execution is invalid per spec
 		execDesc := suptypes.ExecutingDescriptor{
 			ChainID:   s.chainID,
-			Timestamp: block.Time(),
+			Timestamp: block.Time() + 1, // Execute at least 1 second later
 		}
 
 		err := s.filterClient.CallContext(ctx, nil, "supervisor_checkAccessList", entries, suptypes.LocalUnsafe, execDesc)
