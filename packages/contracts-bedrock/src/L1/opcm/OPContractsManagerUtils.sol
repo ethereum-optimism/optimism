@@ -89,6 +89,21 @@ contract OPContractsManagerUtils {
         return keccak256(abi.encode(_l2ChainId, _saltMixer, _contractName));
     }
 
+    /// @notice Helper function to check if an instruction matches a given key.
+    /// @param _instruction The instruction to check.
+    /// @param _key The key of the instruction to check for.
+    /// @return True if the instruction matches, false otherwise.
+    function isMatchingInstructionByKey(
+        ExtraInstruction memory _instruction,
+        string memory _key
+    )
+        public
+        pure
+        returns (bool)
+    {
+        return LibString.eq(_instruction.key, _key);
+    }
+
     /// @notice Helper function to check if an instruction matches a given key and data.
     /// @param _instruction The instruction to check.
     /// @param _key The key of the instruction to check for.

@@ -117,7 +117,12 @@ func (h *Handler) Start(ctx context.Context) error {
 func (h *Handler) Stop() {
 	// Signal the hub to stop if it exists
 	if h.hub != nil {
-		close(h.hub.done)
+		select {
+		case <-h.hub.done:
+			// already closed
+		default:
+			close(h.hub.done)
+		}
 	}
 
 	// Cancel the rollup boost context if it exists
@@ -141,6 +146,15 @@ func (h *Handler) Stop() {
 			h.log.Error("Error shutting down WebSocket server", "err", err)
 		}
 		h.log.Info("WebSocket server closed")
+	}
+
+	// Wait for hub shutdown to complete to avoid leaking goroutines
+	if h.hub != nil {
+		select {
+		case <-h.hub.stopped:
+		case <-time.After(5 * time.Second):
+			h.log.Warn("Timed out waiting for hub shutdown")
+		}
 	}
 }
 
@@ -196,6 +210,11 @@ func (h *Handler) listenToRollupBoost(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
+			// If not leader, avoid pulling messages to reduce allocation pressure
+			if !h.isLeaderFn(ctx) {
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
 			// Try to connect if not connected indefinitely
 			if h.rollupBoostConn == nil {
 				h.log.Info("reconnecting to rollup boost WebSocket", "url", h.cfg.RollupBoostWsURL)
