@@ -38,6 +38,3 @@
 [submodule "rollup-boost"]
 	path = rollup-boost
 	url = git@github.com:flashbots/rollup-boost.git
-[submodule "kona"]
-	path = kona
-	url = git@github.com:op-rs/kona.git
