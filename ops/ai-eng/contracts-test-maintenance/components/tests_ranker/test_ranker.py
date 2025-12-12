@@ -455,12 +455,10 @@ def load_exclusions(contracts_bedrock: Path) -> tuple[list[Path], set[Path], lis
         # File exclusion - store as Path object in set for O(1) lookup
         excluded_files.add(Path(file_path))
 
-    # TODO: Re-enable recently processed files from CircleCI artifacts once testing is complete
     # Add recently processed files from CircleCI artifacts (avoid immediate duplicates)
-    # TEMPORARILY DISABLED FOR TESTING
-    # last_processed_files = fetch_last_processed_from_circleci()
-    # for test_file in last_processed_files:
-    #     excluded_files.add(test_file)
+    last_processed_files = fetch_last_processed_from_circleci()
+    for test_file in last_processed_files:
+        excluded_files.add(test_file)
 
     # Add TOML-based "no changes needed" exclusions (permanent until contract changes)
     repo_root = get_base_paths()[0]

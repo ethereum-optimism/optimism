@@ -45,6 +45,7 @@ def write_log(session_id, status, session_data):
 
         ranking_file = f"../tests_ranker/output/{run_id}_ranking.json"
         with open(ranking_file, "r") as f:
+          
             data = json.load(f)
         selected_files = {
             "test_path": data["entries"][0]["test_path"],
@@ -73,8 +74,8 @@ def write_log(session_id, status, session_data):
         "status": status,
     }
 
-    # Only add PR link if status is finished
-    if status == "finished" and session_data:
+    # Add PR link if status is finished or no_changes_needed (both create PRs)
+    if status in ["finished", "no_changes_needed"] and session_data:
         pr_data = session_data.get("pull_request") or {}
         pr_url = pr_data.get("url")
         if pr_url:
@@ -160,7 +161,7 @@ def monitor_session(session_id):
     setup_printed = False
     timeout_count = 0
     blocked_start_time = None  # Track when we first entered blocked state
-    blocked_timeout = 300  # 5 minutes timeout for blocked state
+    blocked_timeout = 300  # 5 minutes timeout for blocked state without outcome
 
     while True:
         try:
@@ -216,39 +217,43 @@ def monitor_session(session_id):
                         time.sleep(retry_delay)
                         continue
 
-                    # First check structured output for "no changes needed" signal
+                    # Check structured output and PR (both should be populated when blocked)
                     # Note: Devin API nests structured_output twice: {structured_output: {structured_output: {...}}}
                     # The outer structured_output can be null, so we use `or {}` to handle that case
                     structured = (api_response.get("structured_output") or {}).get("structured_output") or {}
                     analysis_complete = structured.get("analysis_complete", False)
                     changes_needed = structured.get("changes_needed")
 
+                    pr_data = api_response.get("pull_request") or {}
+                    pr_url = pr_data.get("url")
+
+                    # Case 1: Structured output indicates no changes needed
                     if analysis_complete and changes_needed is False:
-                        # Devin explicitly determined no changes needed
                         reason = structured.get("reason", "Not provided")
                         print(f"Session completed - no changes needed")
                         print(f"Reason: {reason}")
-                        print(f"Note: Devin should have updated no-need-changes.toml")
+                        if pr_url:
+                            print(f"PR created for TOML tracking: {pr_url}")
 
                         write_log(session_id, "no_changes_needed", api_response)
                         return
 
-                    # Check for PR (normal case - changes were made)
-                    pr_data = api_response.get("pull_request") or {}
-                    if pr_data.get("url"):
-                        print("Session completed successfully - PR created")
+                    # Case 2: PR created with test improvements (only if no structured output yet)
+                    # We need to wait for structured_output to determine if this is a no-changes case
+                    if pr_url and analysis_complete:
+                        # We have both PR and completed analysis, and changes_needed != False
+                        # This means actual test improvements were made
+                        print(f"Session completed successfully - PR created: {pr_url}")
                         write_log(session_id, "finished", api_response)
                         return
 
-                    # If blocked without PR or structured output, keep waiting
-                    # Devin may still be populating the output or waiting for something
+                    # If blocked without complete data, keep waiting briefly
+                    # Devin may still be populating the data
                     if status_enum == "blocked":
-                        # Track how long we've been blocked
                         if blocked_start_time is None:
                             blocked_start_time = time.time()
-                            print("Devin is blocked - waiting for outcome...")
+                            print("Devin is blocked - waiting for complete outcome data...")
 
-                        # Check if we've exceeded the timeout
                         elapsed = time.time() - blocked_start_time
                         if elapsed > blocked_timeout:
                             print(f"Timeout: Devin blocked for {int(elapsed)}s without outcome - check Devin web interface")
