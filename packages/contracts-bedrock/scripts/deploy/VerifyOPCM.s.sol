@@ -130,7 +130,18 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["opcmInteropMigrator"] = "OPContractsManagerInteropMigrator";
         fieldNameOverrides["opcmStandardValidator"] = "OPContractsManagerStandardValidator";
         fieldNameOverrides["opcmV2"] = "OPContractsManagerV2";
-        fieldNameOverrides["contractsContainer"] = "OPContractsManagerContractsContainer";
+
+        // Since both OPCM V1 and V2 have contractsContainer var and they point to different contract file names,
+        // in the code logic, we rename any occurrences of it to "contractsContainerV1" or "contractsContainerV2" before
+        // using it to read the mapping.
+        fieldNameOverrides["contractsContainerV1"] = "OPContractsManagerContractsContainer";
+        fieldNameOverrides["contractsContainerV2"] = "OPContractsManagerContainer";
+
+        // OPCM V2 Specific field name overrides.
+        fieldNameOverrides["standardValidator"] = "OPContractsStandardValidator";
+        fieldNameOverrides["storageSetterImpl"] = "StorageSetter";
+        fieldNameOverrides["thisOPCM"] = "OPContractsManagerV2";
+        fieldNameOverrides["opcmUtils"] = "OPContractsManagerUtils";
 
         // Overrides for situations where contracts have differently named source files.
         sourceNameOverrides["OPContractsManagerGameTypeAdder"] = "OPContractsManager";
@@ -158,6 +169,13 @@ contract VerifyOPCM is Script {
         expectedGetters["opcmStandardValidator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmUpgrader"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmV2"] = "SKIP"; // Address verified via bytecode comparison
+
+        // OPC V2 Specific expected getters overrides
+        expectedGetters["standardValidator"] = "SKIP"; // Address verified via bytecode comparison
+        expectedGetters["thisOPCM"] = "SKIP"; // Address verified via bytecode comparison
+        expectedGetters["opcmUtils"] = "SKIP"; // Address verified via bytecode comparison
+        expectedGetters["contractsContainer"] = "SKIP"; // Address verified via bytecode comparison
+        expectedGetters["version"] = "SKIP"; // Address verified via bytecode comparison
 
         // Getters that don't need any sort of verification
         expectedGetters["devFeatureBitmap"] = "SKIP";
@@ -252,6 +270,7 @@ contract VerifyOPCM is Script {
         // Get the ContractsContainer address from the first component (they're all the same)
         address contractsContainerAddr = address(0);
         for (uint256 i = 0; i < propRefs.length; i++) {
+            // console.log("propRefs[i].name", propRefs[i].name);
             string memory field = propRefs[i].field;
             if (_hasContractsContainer(field)) {
                 contractsContainerAddr = _getContractsContainerAddress(propRefs[i].addr);
@@ -277,10 +296,12 @@ contract VerifyOPCM is Script {
             new OpcmContractRef[](propRefs.length + implRefs.length + bpRefs.length + extraRefs);
 
         // References for OPCM and linked contracts.
-        refs[0] = OpcmContractRef({ field: "opcm", name: "OPContractsManager", addr: address(_opcm), blueprint: false });
+        refs[0] = OpcmContractRef({ field: "opcm", name: _opcmContractName(), addr: address(_opcm), blueprint: false });
         refs[1] = OpcmContractRef({
             field: "contractsContainer",
-            name: "OPContractsManagerContractsContainer",
+            name: vm.envBool("DEV_FEATURE__OPCM_V2")
+                ? "OPContractsManagerContainer"
+                : "OPContractsManagerContractsContainer",
             addr: contractsContainerAddr,
             blueprint: false
         });
@@ -787,7 +808,7 @@ contract VerifyOPCM is Script {
     }
 
     /// @notice Uses the OPContractsManager ABI JSON and the live OPCM contract to extract a list
-    ///         of contract names and their corresonding addresses for the various immutable
+    ///         of contract names and their corresponding addresses for the various immutable
     ///         references to other OPCM contracts.
     /// @param _opcm The live OPCM contract.
     /// @return Array of OpcmContractRef structs containing contract names/addresses.
@@ -798,7 +819,7 @@ contract VerifyOPCM is Script {
                 Process.bash(
                     string.concat(
                         "jq -r '[.abi[] | select(.name? and (.name | type == \"string\") and (.name | startswith(\"opcm\"))) | .name]' ",
-                        _buildArtifactPath("OPContractsManager")
+                        _buildArtifactPath(_opcmContractName())
                     )
                 )
             ),
@@ -855,7 +876,7 @@ contract VerifyOPCM is Script {
                         "jq -r '[.abi[] | select(.name == \"",
                         _property,
                         "\") | .outputs[0].components[].name]' ",
-                        _buildArtifactPath("OPContractsManager")
+                        _buildArtifactPath(_opcmContractName())
                     )
                 )
             ),
@@ -900,6 +921,10 @@ contract VerifyOPCM is Script {
     /// @param _fieldName The field name to convert.
     /// @return The contract name.
     function _getContractNameFromFieldName(string memory _fieldName) internal view returns (string memory) {
+        if (LibString.eq(_fieldName, "contractsContainer")) {
+            _fieldName = vm.envBool("DEV_FEATURE__OPCM_V2") ? "contractsContainerV2" : "contractsContainerV1";
+        }
+
         // Check for an explicit override
         string memory overrideName = fieldNameOverrides[_fieldName];
         if (bytes(overrideName).length > 0) {
@@ -1024,7 +1049,7 @@ contract VerifyOPCM is Script {
                 Process.bash(
                     string.concat(
                         "jq -r '[.abi[] | select(.type == \"function\" and .stateMutability == \"view\" and (.inputs | length) == 0) | .name]' ",
-                        _buildArtifactPath("OPContractsManager")
+                        _buildArtifactPath(_opcmContractName())
                     )
                 )
             ),
@@ -1076,5 +1101,9 @@ contract VerifyOPCM is Script {
             }
             revert VerifyOPCM_UnaccountedGetters(trimmedUnaccounted);
         }
+    }
+
+    function _opcmContractName() internal view returns (string memory) {
+        return vm.envBool("DEV_FEATURE__OPCM_V2") ? "OPContractsManagerV2" : "OPContractsManager";
     }
 }

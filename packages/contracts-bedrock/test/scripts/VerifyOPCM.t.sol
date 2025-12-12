@@ -7,6 +7,7 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Tests
 import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";
+import { OPContractsManagerV2_TestInit } from "test/L1/opcm/OPContractsManagerV2.t.sol";
 
 // Scripts
 import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
@@ -61,7 +62,7 @@ contract VerifyOPCM_Harness is VerifyOPCM {
 
 /// @title VerifyOPCM_TestInit
 /// @notice Reusable test initialization for `VerifyOPCM` tests.
-abstract contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
+abstract contract VerifyOPCM_TestInit is OPContractsManagerV2_TestInit {
     VerifyOPCM_Harness internal harness;
 
     function setUp() public virtual override {
@@ -76,8 +77,7 @@ abstract contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
 contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function setUp() public override {
         super.setUp();
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-        setupEnvVars();
+        opcm = IOPContractsManager(address(opcmV2));
     }
 
     /// @notice Tests that the script succeeds when no changes are introduced.
@@ -341,6 +341,9 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
 
+        // Skip if OPCM V2 is enabled because it has only 1 component so this will never fail.
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         // Get the property references (which include the component addresses)
         VerifyOPCM.OpcmContractRef[] memory propRefs = harness.getOpcmPropertyRefs(opcm);
 
@@ -359,6 +362,9 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function test_verifyContractsContainerConsistency_eachComponent_reverts() public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
+
+        // Skip if OPCM V2 is enabled because it has only 1 component so this will never fail.
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
 
         // Get the property references (which include the component addresses)
         VerifyOPCM.OpcmContractRef[] memory propRefs = harness.getOpcmPropertyRefs(opcm);
@@ -478,6 +484,9 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function test_verifyOpcmImmutableVariables_mismatch_fails() public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
+
+        // Skip if OPCM V2 is enabled because we do not use environment variables for OPCM V2.
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
 
         // Set expected addresses via environment variables
         address expectedSuperchainConfig = address(0x1111);

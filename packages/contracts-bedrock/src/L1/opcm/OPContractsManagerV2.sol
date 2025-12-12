@@ -959,4 +959,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     function isDevFeatureEnabled(bytes32 _feature) public view returns (bool) {
         return contractsContainer.isDevFeatureEnabled(_feature);
     }
+
+    /// @notice Returns the development feature bitmap.
+    /// @return The development feature bitmap.
+    function devFeatureBitmap() public view returns (bytes32) {
+        return contractsContainer.devFeatureBitmap();
+    }
 }
