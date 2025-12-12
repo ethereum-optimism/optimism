@@ -30,6 +30,8 @@ ai-contracts-test:
     # Step 3: Send to Devin
     just devin
 
-# Prepare Slack notification based on log.json results
-prepare-slack-notification:
-    cd contracts-test-maintenance/components/slack-notifier && ./prepare_notification.sh
+# Build Slack notification JSON from log.json results
+build-slack-notification:
+    #!/usr/bin/env bash
+    SLACK_JSON=$(bash contracts-test-maintenance/components/slack-notifier/build_notification.sh contracts-test-maintenance/log.json)
+    echo "export AI_PR_SLACK_TEMPLATE='${SLACK_JSON}'"

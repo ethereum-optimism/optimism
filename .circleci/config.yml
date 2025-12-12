@@ -1073,15 +1073,17 @@ jobs:
       - store_artifacts:
           path: ops/ai-eng/contracts-test-maintenance/log.json
           destination: log.json
-      - run:
-          name: Prepare Slack notification
-          command: just prepare-slack-notification >> $BASH_ENV
-          working_directory: ops/ai-eng
-          when: always
-      - slack/notify:
-          channel: C050F1GUHDG
-          event: always
-          template: AI_PR_SLACK_TEMPLATE
+      # TODO: Re-enable Slack notification once testing is complete
+      # TEMPORARILY DISABLED FOR TESTING
+      # - run:
+      #     name: Build Slack notification
+      #     command: just build-slack-notification >> $BASH_ENV
+      #     working_directory: ops/ai-eng
+      #     when: always
+      # - slack/notify:
+      #     channel: C050F1GUHDG
+      #     event: always
+      #     template: AI_PR_SLACK_TEMPLATE
       - notify-failures-on-develop
 
   contracts-bedrock-coverage:
