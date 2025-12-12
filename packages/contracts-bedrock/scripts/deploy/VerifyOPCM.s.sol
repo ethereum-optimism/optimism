@@ -299,9 +299,8 @@ contract VerifyOPCM is Script {
         refs[0] = OpcmContractRef({ field: "opcm", name: _opcmContractName(), addr: address(_opcm), blueprint: false });
         refs[1] = OpcmContractRef({
             field: "contractsContainer",
-            name: vm.envBool("DEV_FEATURE__OPCM_V2")
-                ? "OPContractsManagerContainer"
-                : "OPContractsManagerContractsContainer",
+            // nosemgrep: sol-style-vm-env-only-in-config-sol
+            name: _isOPCMV2Enabled() ? "OPContractsManagerContainer" : "OPContractsManagerContractsContainer",
             addr: contractsContainerAddr,
             blueprint: false
         });
@@ -922,7 +921,7 @@ contract VerifyOPCM is Script {
     /// @return The contract name.
     function _getContractNameFromFieldName(string memory _fieldName) internal view returns (string memory) {
         if (LibString.eq(_fieldName, "contractsContainer")) {
-            _fieldName = vm.envBool("DEV_FEATURE__OPCM_V2") ? "contractsContainerV2" : "contractsContainerV1";
+            _fieldName = _isOPCMV2Enabled() ? "contractsContainerV2" : "contractsContainerV1";
         }
 
         // Check for an explicit override
@@ -1104,6 +1103,11 @@ contract VerifyOPCM is Script {
     }
 
     function _opcmContractName() internal view returns (string memory) {
-        return vm.envBool("DEV_FEATURE__OPCM_V2") ? "OPContractsManagerV2" : "OPContractsManager";
+        return _isOPCMV2Enabled() ? "OPContractsManagerV2" : "OPContractsManager";
+    }
+
+    function _isOPCMV2Enabled() internal view returns (bool) {
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
+        return vm.envBool("DEV_FEATURE__OPCM_V2");
     }
 }

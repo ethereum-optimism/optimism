@@ -6,7 +6,6 @@ import { LibString } from "@solady/utils/LibString.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Tests
-import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";
 import { OPContractsManagerV2_TestInit } from "test/L1/opcm/OPContractsManagerV2.t.sol";
 
 // Scripts
