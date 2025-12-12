@@ -44,3 +44,6 @@
 [submodule "rollup-boost"]
 	path = rollup-boost
 	url = https://github.com/flashbots/rollup-boost
+[submodule "op-reth/tests/optimism"]
+	path = crates/optimism/tests/optimism
+	url = https://github.com/dhyaniarun1993/optimism.git

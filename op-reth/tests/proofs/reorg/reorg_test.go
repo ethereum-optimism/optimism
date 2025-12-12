@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
@@ -20,8 +19,7 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	ctx := t.Ctx()
 
-	sys := presets.NewSingleChainMultiNodeWithTestSeq(t)
-	opRethELNode, _ := utils.IdentifyELNodes(sys.L2EL, sys.L2ELB)
+	sys := utils.NewMixedOpProofPreset(t)
 	l := sys.Log
 
 	ia := sys.TestSequencer.Escape().ControlAPI(sys.L2Chain.ChainID())
@@ -87,13 +85,13 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 		})
 	}
 
-	sys.L2CL.StopSequencer()
+	sys.L2CLSequencer.StopSequencer()
 
 	var divergenceBlockNumber uint64
 	var originalRef eth.L2BlockRef
 	// prepare and sequence a conflicting block for the L2A chain
 	{
-		divergenceBlockRef := opRethELNode.BlockRefByNumber(divergenceHead.Number)
+		divergenceBlockRef := sys.L2ELSequencerNode().BlockRefByNumber(divergenceHead.Number)
 
 		l.Info("Expect to reorg the chain on block", "number", divergenceBlockRef.Number, "head", divergenceHead, "parent", divergenceBlockRef.ParentID().Hash)
 		divergenceBlockNumber = divergenceBlockRef.Number
@@ -148,7 +146,7 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 	{
 		l.Info("Sequencing with op-test-sequencer (no L1 origin override)")
 		err := ia.New(ctx, seqtypes.BuildOpts{
-			Parent:   opRethELNode.BlockRefByLabel(eth.Unsafe).Hash,
+			Parent:   sys.L2ELSequencerNode().BlockRefByLabel(eth.Unsafe).Hash,
 			L1Origin: nil,
 		})
 		require.NoError(t, err, "Expected to be able to create a new block job for sequencing on op-test-sequencer, but got error")
@@ -160,17 +158,16 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 	}
 
 	// continue sequencing with consensus node (op-node)
-	sys.L2CL.StartSequencer()
+	sys.L2CLSequencer.StartSequencer()
 
 	for i := 0; i < 3; i++ {
 		sys.L2Chain.WaitForBlock()
 	}
 
-	// wait for the reorg to be processed
-	// todo: replace with proof status sync based wait
-	time.Sleep(30 * time.Second)
+	latestBlock := sys.L2Chain.WaitForBlock()
+	sys.L2ELValidatorNode().WaitForBlockNumber(latestBlock.Number)
 
-	reorgedRef_A, err := opRethELNode.Escape().EthClient().BlockRefByNumber(ctx, divergenceBlockNumber)
+	reorgedRef_A, err := sys.L2ELSequencerNode().Escape().EthClient().BlockRefByNumber(ctx, divergenceBlockNumber)
 	require.NoError(t, err, "Expected to be able to call BlockRefByNumber API, but got error")
 
 	l.Info("Reorged chain on divergence block number (prior the reorg)", "number", divergenceBlockNumber, "head", originalRef.Hash, "parent", originalRef.ParentID().Hash)
@@ -180,6 +177,6 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 
 	// verify that the accounts involved in the conflicting blocks
 	for _, c := range cases {
-		utils.FetchAndVerifyProofs(t, &sys.SingleChainMultiNode, c.addr, c.slots, c.Block)
+		utils.FetchAndVerifyProofs(t, sys, c.addr, c.slots, c.Block)
 	}
 }

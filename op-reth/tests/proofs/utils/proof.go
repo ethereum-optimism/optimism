@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -105,14 +104,14 @@ func VerifyProof(res *eth.AccountResult, stateRoot common.Hash) error {
 }
 
 // FetchAndVerifyProofs fetches account proofs from both L2EL and L2ELB for the given address
-func FetchAndVerifyProofs(t devtest.T, sys *presets.SingleChainMultiNode, address common.Address, slots []common.Hash, block uint64) {
+func FetchAndVerifyProofs(t devtest.T, sys *MixedOpProofPreset, address common.Address, slots []common.Hash, block uint64) {
 	ctx := t.Ctx()
-	gethProofRes, err := sys.L2EL.Escape().L2EthClient().GetProof(ctx, address, slots, hexutil.Uint64(block).String())
+	gethProofRes, err := sys.GethL2ELNode().Escape().L2EthClient().GetProof(ctx, address, slots, hexutil.Uint64(block).String())
 	if err != nil {
 		require.NoError(t, err, "failed to get proof from L2EL at block %d", block)
 	}
 
-	rethProofRes, err := sys.L2ELB.Escape().L2EthClient().GetProof(ctx, address, slots, hexutil.Uint64(block).String())
+	rethProofRes, err := sys.RethL2ELNode().Escape().L2EthClient().GetProof(ctx, address, slots, hexutil.Uint64(block).String())
 	if err != nil {
 		require.NoError(t, err, "failed to get proof from L2ELB at block %d", block)
 	}
@@ -121,7 +120,7 @@ func FetchAndVerifyProofs(t devtest.T, sys *presets.SingleChainMultiNode, addres
 
 	require.Equal(t, gethProofRes, rethProofRes, "geth and reth proofs should match")
 
-	blockInfo, err := sys.L2EL.Escape().L2EthClient().InfoByNumber(ctx, block)
+	blockInfo, err := sys.GethL2ELNode().Escape().L2EthClient().InfoByNumber(ctx, block)
 	if err != nil {
 		require.NoError(t, err, "failed to get block info for block %d", block)
 	}

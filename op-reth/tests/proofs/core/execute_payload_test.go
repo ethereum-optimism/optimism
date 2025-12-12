@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
@@ -14,9 +13,9 @@ import (
 func TestExecutePayloadSuccess(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	ctx := t.Ctx()
-	sys := presets.NewSingleChainMultiNode(t)
+	sys := utils.NewMixedOpProofPreset(t)
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
-	opRethELNode, _ := utils.IdentifyELNodes(sys.L2EL, sys.L2ELB)
+	opRethELNode := sys.RethL2ELNode()
 
 	plannedTxOption := user.PlanTransfer(user.Address(), eth.OneWei)
 	plannedTx := txplan.NewPlannedTx(plannedTxOption)
@@ -68,9 +67,9 @@ func TestExecutePayloadSuccess(gt *testing.T) {
 func TestExecutePayloadWithInvalidParentHash(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	ctx := t.Ctx()
-	sys := presets.NewSingleChainMultiNode(t)
+	sys := utils.NewMixedOpProofPreset(t)
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
-	opRethELNode, _ := utils.IdentifyELNodes(sys.L2EL, sys.L2ELB)
+	opRethELNode := sys.RethL2ELNode()
 
 	plannedTxOption := user.PlanTransfer(user.Address(), eth.OneWei)
 	plannedTx := txplan.NewPlannedTx(plannedTxOption)

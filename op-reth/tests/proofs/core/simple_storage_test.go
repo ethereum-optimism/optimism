@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/op-rs/op-geth/proofs/utils"
@@ -14,13 +13,14 @@ import (
 func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 	t := devtest.SerialT(gt)
 
-	sys := presets.NewSingleChainMultiNode(t)
+	sys := utils.NewMixedOpProofPreset(t)
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
 
 	// deploy contract via helper
 	contract, receipt := utils.DeploySimpleStorage(t, user)
 	t.Logf("contract deployed at address %s in L2 block %d", contract.Address().Hex(), receipt.BlockNumber.Uint64())
 
+	sys.L2ELValidatorNode().WaitForBlockNumber(receipt.BlockNumber.Uint64())
 	// fetch and verify initial proof (should be zeroed storage)
 	utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{common.HexToHash("0x0")}, receipt.BlockNumber.Uint64())
 
@@ -48,6 +48,7 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 	})
 	t.Logf("reset setValue transaction included in L2 block %d", callRes.BlockNumber)
 
+	sys.L2ELValidatorNode().WaitForBlockNumber(callRes.BlockNumber.Uint64())
 	// for each case, get proof and verify
 	for _, c := range cases {
 		utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{common.HexToHash("0x0")}, c.Block)
@@ -61,13 +62,14 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 	t := devtest.SerialT(gt)
 
-	sys := presets.NewSingleChainMultiNode(t)
+	sys := utils.NewMixedOpProofPreset(t)
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
 
 	// deploy contract via helper
 	contract, receipt := utils.DeployMultiStorage(t, user)
 	t.Logf("contract deployed at address %s in L2 block %d", contract.Address().Hex(), receipt.BlockNumber.Uint64())
 
+	sys.L2ELValidatorNode().WaitForBlockNumber(receipt.BlockNumber.Uint64())
 	// fetch and verify initial proof (should be zeroed storage)
 	utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{common.HexToHash("0x0"), common.HexToHash("0x1")}, receipt.BlockNumber.Uint64())
 
@@ -104,6 +106,7 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 	})
 	t.Logf("reset setValues transaction included in L2 block %d", callRes.BlockNumber)
 
+	sys.L2ELValidatorNode().WaitForBlockNumber(callRes.BlockNumber.Uint64())
 	// for each case, get proof and verify
 	for _, c := range cases {
 		var slots []common.Hash
@@ -118,7 +121,7 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 func TestTokenVaultStorageProofs(gt *testing.T) {
 	t := devtest.SerialT(gt)
 
-	sys := presets.NewSingleChainMultiNode(t)
+	sys := utils.NewMixedOpProofPreset(t)
 	// funder EOA that will deploy / interact
 	alice := sys.FunderL2.NewFundedEOA(eth.OneEther)
 	bob := sys.FunderL2.NewFundedEOA(eth.OneEther)
@@ -146,6 +149,8 @@ func TestTokenVaultStorageProofs(gt *testing.T) {
 	deactRes := contract.DeactivateAllowance(alice, spenderAddr)
 	deactBlock := deactRes.BlockNumber.Uint64()
 	t.Logf("deactivateAllowance included in block %d", deactBlock)
+
+	sys.L2ELValidatorNode().WaitForBlockNumber(deactBlock)
 
 	// balance slot for user
 	balanceSlot := contract.GetBalanceSlot(userAddr)

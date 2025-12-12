@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -19,7 +18,7 @@ import (
 func TestL2MultipleTransactionsInDifferentBlocks(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	ctx := t.Ctx()
-	sys := presets.NewSingleChainMultiNode(t)
+	sys := utils.NewMixedOpProofPreset(t)
 
 	const numAccounts = 2
 	const initialFunding = 10
@@ -29,7 +28,7 @@ func TestL2MultipleTransactionsInDifferentBlocks(gt *testing.T) {
 	recipientAddr := recipient.Address()
 
 	// Block 1: Send transaction from first account
-	currentBlock := sys.L2EL.WaitForBlock()
+	currentBlock := sys.L2ELSequencerNode().WaitForBlock()
 	t.Logf("Current L2 block number: %d", currentBlock.Number)
 
 	transferAmount := eth.Ether(1)
@@ -40,11 +39,12 @@ func TestL2MultipleTransactionsInDifferentBlocks(gt *testing.T) {
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt1.Status)
 	t.Logf("Transaction 1 included in block: %d", receipt1.BlockNumber.Uint64())
 
+	sys.L2ELValidatorNode().WaitForBlockNumber(receipt1.BlockNumber.Uint64())
 	utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, receipt1.BlockNumber.Uint64())
-	sys.L2EL.WaitForBlockNumber(currentBlock.Number + 1)
+	sys.L2ELSequencerNode().WaitForBlockNumber(currentBlock.Number + 1)
 
 	// Block 2: Send transaction from second account
-	currentBlock = sys.L2EL.WaitForBlock()
+	currentBlock = sys.L2ELSequencerNode().WaitForBlock()
 	t.Logf("Current L2 block number: %d", currentBlock.Number)
 
 	tx2 := accounts[1].Transfer(recipientAddr, transferAmount)
@@ -54,6 +54,7 @@ func TestL2MultipleTransactionsInDifferentBlocks(gt *testing.T) {
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt2.Status)
 	t.Logf("Transaction 2 included in block: %d", receipt2.BlockNumber.Uint64())
 
+	sys.L2ELValidatorNode().WaitForBlockNumber(receipt2.BlockNumber.Uint64())
 	utils.FetchAndVerifyProofs(t, sys, accounts[1].Address(), []common.Hash{}, receipt2.BlockNumber.Uint64())
 
 	// Also verify we can get proofs for account 0 at block 2 (different block height)
@@ -67,7 +68,7 @@ func TestL2MultipleTransactionsInDifferentBlocks(gt *testing.T) {
 func TestL2MultipleTransactionsInSingleBlock(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	ctx := t.Ctx()
-	sys := presets.NewSingleChainMultiNode(t)
+	sys := utils.NewMixedOpProofPreset(t)
 
 	const numAccounts = 2
 	const initialFunding = 10
@@ -96,6 +97,7 @@ func TestL2MultipleTransactionsInSingleBlock(gt *testing.T) {
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt1.Status)
 	t.Logf("Transaction 1 included in block %d", receipt1.BlockNumber.Uint64())
 
+	sys.L2ELValidatorNode().WaitForBlockNumber(receipt1.BlockNumber.Uint64())
 	// Txns can land in the same or different blocks depending on timing.
 	if receipt0.BlockNumber.Uint64() == receipt1.BlockNumber.Uint64() {
 		t.Logf("Both transactions included in the same L2 block: %d", receipt0.BlockNumber.Uint64())

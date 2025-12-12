@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -27,8 +26,8 @@ type ExecutionWitness struct {
 // and that the response contains valid state, codes, keys, and headers data.
 func TestDebugExecutionWitness(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNode(t)
-	opRethELNode, _ := utils.IdentifyELNodes(sys.L2EL, sys.L2ELB)
+	sys := utils.NewMixedOpProofPreset(t)
+	opRethELNode := sys.RethL2ELNode()
 
 	// Create a funded account and recipient
 	account := sys.FunderL2.NewFundedEOA(eth.Ether(10))
@@ -36,7 +35,7 @@ func TestDebugExecutionWitness(gt *testing.T) {
 	recipientAddr := recipient.Address()
 
 	// Wait for current block
-	currentBlock := sys.L2EL.WaitForBlock()
+	currentBlock := sys.L2ELSequencerNode().WaitForBlock()
 	t.Logf("Current L2 block number: %d", currentBlock.Number)
 
 	// Send a transaction to create some state changes
@@ -49,6 +48,7 @@ func TestDebugExecutionWitness(gt *testing.T) {
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
 	t.Logf("Transaction included in block: %d", receipt.BlockNumber.Uint64())
 
+	sys.L2ELValidatorNode().WaitForBlockNumber(receipt.BlockNumber.Uint64())
 	l2RethClient := opRethELNode.Escape().L2EthClient()
 
 	// Get the block to inspect the state changes
