@@ -54,6 +54,7 @@ func TestCLIUpgrade(t *testing.T) {
 			version:     "v4.1.0",
 			forkBlock:   9165154, // one block past the opcm deployment block
 		},
+		// TODO: Add v5.0.0 test case
 	}
 
 	for _, tc := range testCases {
