@@ -843,7 +843,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
-    /// @notice Tests that the upgrade reverts when trying to use the same minor version.
+    /// @notice Tests that the upgrade reverts when trying to use the same minor version with a
+    ///         different OPCM.
     function test_upgrade_sameMajorSameMinor_reverts() public {
         // Set the version testing flag to allow all instructions to pass.
         _setVersionTestingFlag();

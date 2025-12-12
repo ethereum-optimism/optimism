@@ -169,9 +169,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 6.0.6
+    /// @custom:semver 6.0.7
     function version() public pure returns (string memory) {
-        return "6.0.6";
+        return "6.0.7";
     }
 
     /// @param _contractsContainer The container of blueprint and implementation contract addresses.
@@ -281,6 +281,14 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         internal
         view
     {
+        // NOTE: If we're running a versioning test where we're mocking the version function we
+        // allow all instructions to pass. If we don't do something like this, we'll get errors
+        // within this function because it will compare against a mocked version. Will never return
+        // true in production. You don't need to remove or modify this check.
+        if (_isVersioningTest()) {
+            return;
+        }
+
         for (uint256 i = 0; i < _extraInstructions.length; i++) {
             if (!_isPermittedInstruction(_extraInstructions[i])) {
                 revert OPContractsManagerV2_InvalidUpgradeInstruction(_extraInstructions[i].key);
@@ -296,14 +304,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         view
         returns (bool)
     {
-        // NOTE: If we're running a versioning test where we're mocking the version function we
-        // allow all instructions to pass. If we don't do something like this, we'll get errors
-        // within this function because it will compare against a mocked version. Will never return
-        // true in production. You don't need to remove or modify this check.
-        if (_isVersioningTest()) {
-            return true;
-        }
-
         // NOTE (IMPORTANT FOR DEVELOPERS): You MAY need to allow permitted instructions here for
         // your specific upgrade. For example, if you are adding a new contract that needs to be
         // deployed you will need to add an allowance so that the proxy can be deployed.
