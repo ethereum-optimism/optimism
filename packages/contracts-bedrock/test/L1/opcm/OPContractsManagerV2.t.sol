@@ -854,7 +854,7 @@ contract OPContractsManagerV2_InteropMigration_Test is OPContractsManagerV2_Upgr
         (bool success,) = address(opcmV2).delegatecall(
             abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
         );
-        require(success, "SuperchainConfig upgrade failed");
+        require(success, "OPContractsManagerV2_InteropMigration_Test: upgrade failed");
 
         chainContracts1 = opcmV2.deploy(_getDefaultFullConfig());
 
