@@ -207,16 +207,14 @@ func TestOriginSelectorAdvances(t *testing.T) {
 		}
 
 		if recoverMode {
-			// In recovery mode (only) we make two RPC calls.
+			// In recovery mode (only) we make an RPC call to find the next origin.
 			// First, cover the case where the nextOrigin
 			// is not ready yet by simulating a NotFound error.
-			l1.ExpectL1BlockRefByHash(c.Hash, c, nil)
 			l1.ExpectL1BlockRefByNumber(d.Number, eth.BlockRef{}, ethereum.NotFound)
 			requireL1OriginAt(l2Head, c)
 
 			// Now, simulate the block being ready, and ensure
 			// that the origin advances to the next block.
-			l1.ExpectL1BlockRefByHash(c.Hash, c, nil)
 			l1.ExpectL1BlockRefByNumber(d.Number, d, nil)
 			requireL1OriginAt(l2Head, d)
 		} else {
@@ -341,7 +339,7 @@ func TestOriginSelectorFetchesNextOrigin(t *testing.T) {
 //
 // There are 3 blocks [a, b, c]. After advancing to b, a reorg is simulated
 // where b is reorged and replaced by providing a `c` next that has a different parent hash.
-// The origin should still provide c as the next origin so upstream services can detect the reorg.
+// A sentinel error should be returned.
 func TestOriginSelectorHandlesReorg(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -381,6 +379,11 @@ func TestOriginSelectorHandlesReorg(t *testing.T) {
 		require.Equal(t, l1ref, next)
 	}
 
+	requireFindL1OriginError := func(e error) {
+		_, err := s.FindL1Origin(ctx, l2Head)
+		require.ErrorIs(t, err, e)
+	}
+
 	requireFindl1OriginEqual(a)
 
 	// Selection is stable until the next origin is fetched
@@ -410,9 +413,8 @@ func TestOriginSelectorHandlesReorg(t *testing.T) {
 	handled = s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
 	require.True(t, handled)
 
-	// The next origin should be `c` now, otherwise an upstream service cannot detect the reorg
-	// and the origin will be stuck at `b`
-	requireFindl1OriginEqual(c)
+	// We shuold get a sentinel error
+	requireFindL1OriginError(ErrNextL1OriginOrphaned)
 }
 
 // TestOriginSelectorRespectsOriginTiming ensures that the origin selector
@@ -590,7 +592,7 @@ func TestOriginSelectorStrictConfDepth(t *testing.T) {
 	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
 
 	_, err := s.FindL1Origin(ctx, l2Head)
-	require.ErrorContains(t, err, "sequencer time drift")
+	require.ErrorIs(t, err, ErrNextL1OriginRequired)
 }
 
 func u64ptr(n uint64) *uint64 {
@@ -776,11 +778,11 @@ func TestOriginSelectorHandlesLateL1Blocks(t *testing.T) {
 	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
 
 	_, err := s.FindL1Origin(ctx, l2Head)
-	require.ErrorContains(t, err, "sequencer time drift")
+	require.ErrorIs(t, err, ErrNextL1OriginRequired)
 
 	l1Head = c
 	_, err = s.FindL1Origin(ctx, l2Head)
-	require.ErrorContains(t, err, "sequencer time drift")
+	require.ErrorIs(t, err, ErrNextL1OriginRequired)
 
 	l1Head = d
 	next, err := s.FindL1Origin(ctx, l2Head)
