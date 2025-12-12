@@ -132,30 +132,17 @@ contract OPContractsManagerV2_TestInit is CommonTest, DisputeGames {
         }
 
         // Run the StandardValidator checks on the newly deployed chain.
-        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            validator.validateWithOverrides(
-                IOPContractsManagerStandardValidator.ValidationInputDev({
-                    sysCfg: cts_.systemConfig,
-                    cannonPrestate: cannonPrestate.raw(),
-                    cannonKonaPrestate: cannonKonaPrestate.raw(),
-                    l2ChainID: _deployConfig.l2ChainId,
-                    proposer: deployProposer
-                }),
-                false,
-                validationOverrides
-            );
-        } else {
-            validator.validateWithOverrides(
-                IOPContractsManagerStandardValidator.ValidationInput({
-                    sysCfg: cts_.systemConfig,
-                    absolutePrestate: cannonPrestate.raw(),
-                    l2ChainID: _deployConfig.l2ChainId,
-                    proposer: deployProposer
-                }),
-                false,
-                validationOverrides
-            );
-        }
+        validator.validateWithOverrides(
+            IOPContractsManagerStandardValidator.ValidationInputDev({
+                sysCfg: cts_.systemConfig,
+                cannonPrestate: cannonPrestate.raw(),
+                cannonKonaPrestate: cannonKonaPrestate.raw(),
+                l2ChainID: _deployConfig.l2ChainId,
+                proposer: deployProposer
+            }),
+            false,
+            validationOverrides
+        );
 
         return cts_;
     }
@@ -275,7 +262,7 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         );
         v2UpgradeInput.disputeGameConfigs.push(
             IOPContractsManagerV2.DisputeGameConfig({
-                enabled: isDevFeatureEnabled(DevFeatures.CANNON_KONA),
+                enabled: true,
                 initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
                 gameType: GameTypes.CANNON_KONA,
                 gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
@@ -285,6 +272,11 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         // Allow the DelayedWETH proxy to be (re)deployed during upgrades if it is missing.
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") })
+        );
+
+        // TODO(#18502): Remove the extra instruction for custom gas token after U18 ships.
+        v2UpgradeInput.extraInstructions.push(
+            IOPContractsManagerUtils.ExtraInstruction({ key: "overrides.cfg.useCustomGasToken", data: abi.encode(false) })
         );
     }
 
@@ -396,30 +388,17 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         }
 
         // Run the StandardValidator checks.
-        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            validator.validateWithOverrides(
-                IOPContractsManagerStandardValidator.ValidationInputDev({
-                    sysCfg: v2UpgradeInput.systemConfig,
-                    cannonPrestate: cannonPrestate.raw(),
-                    cannonKonaPrestate: cannonKonaPrestate.raw(),
-                    l2ChainID: l2ChainId,
-                    proposer: initialProposer
-                }),
-                false,
-                validationOverrides
-            );
-        } else {
-            validator.validateWithOverrides(
-                IOPContractsManagerStandardValidator.ValidationInput({
-                    sysCfg: v2UpgradeInput.systemConfig,
-                    absolutePrestate: cannonPrestate.raw(),
-                    l2ChainID: l2ChainId,
-                    proposer: initialProposer
-                }),
-                false,
-                validationOverrides
-            );
-        }
+        validator.validateWithOverrides(
+            IOPContractsManagerStandardValidator.ValidationInputDev({
+                sysCfg: v2UpgradeInput.systemConfig,
+                cannonPrestate: cannonPrestate.raw(),
+                cannonKonaPrestate: cannonKonaPrestate.raw(),
+                l2ChainID: l2ChainId,
+                proposer: initialProposer
+            }),
+            false,
+            validationOverrides
+        );
     }
 
     /// @notice Executes all past upgrades that have not yet been executed on mainnet as of the
@@ -655,6 +634,22 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             abi.encodeWithSelector(
                 IOPContractsManagerUtils.OPContractsManagerUtils_ProxyMustLoad.selector, "L1CrossDomainMessenger"
             )
+        );
+    }
+
+    /// @notice Tests that the V2 upgrade function reverts when the user attempts to upgrade enabling custom gas token
+    ///         after initial deployment.
+    function test_upgrade_enableCustomGasTokenAfterInitialDeployment_reverts() public {
+        // Override the extra instruction for custom gas token to attempt to enable it.
+        v2UpgradeInput.extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
+            key: "overrides.cfg.useCustomGasToken",
+            data: abi.encode(true)
+        });
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO,
+            abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_CannotUpgradeToCustomGasToken.selector)
         );
     }
 
@@ -897,8 +892,8 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
         deployConfig.disputeGameConfigs.push(
             IOPContractsManagerV2.DisputeGameConfig({
-                enabled: isDevFeatureEnabled(DevFeatures.CANNON_KONA),
-                initBond: isDevFeatureEnabled(DevFeatures.CANNON_KONA) ? 0.08 ether : 0, // Standard init bond
+                enabled: true,
+                initBond: 0.08 ether, // Standard init bond
                 gameType: GameTypes.CANNON_KONA,
                 gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
             })

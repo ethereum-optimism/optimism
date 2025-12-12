@@ -116,6 +116,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         IResourceMetering.ResourceConfig resourceConfig;
         // Dispute game configuration.
         DisputeGameConfig[] disputeGameConfigs;
+        // CGT
+        bool useCustomGasToken;
     }
 
     /// @notice Partial input required for an upgrade.
@@ -146,6 +148,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when an invalid upgrade instruction is provided.
     error OPContractsManagerV2_InvalidUpgradeInstruction(string _key);
 
+    /// @notice Thrown when a chain attempts to upgrade to custom gas token after initial deployment.
+    error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
+
     /// @notice Container of blueprint and implementation contract addresses.
     IOPContractsManagerContainer public immutable contractsContainer;
 
@@ -161,8 +166,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 6.0.5
-    string public constant version = "6.0.5";
+    /// @custom:semver 6.0.6
+    string public constant version = "6.0.6";
 
     /// @param _contractsContainer The container of blueprint and implementation contract addresses.
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -297,7 +302,14 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         if (SemverComp.lt(version, "7.0.0")) {
             // Unified DelayedWETH is being deployed for the first time.
             // TODO:(#18382): Remove this allowance after unified DelayedWETH is deployed.
-            return _isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH");
+            if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH")) {
+                return true;
+            }
+            // Custom Gas Token is being enabled for the first time.
+            // TODO:(#18502): Remove this allowance after U18 ships.
+            if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.useCustomGasToken")) {
+                return true;
+            }
         }
 
         // Always return false by default.
@@ -310,6 +322,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @param _saltMixer The salt mixer for creating new proxies if needed.
     /// @param _extraInstructions The extra upgrade instructions for the chain.
     /// @return The chain contracts.
+
     function _loadChainContracts(
         ISystemConfig _systemConfig,
         uint256 _l2ChainId,
@@ -503,6 +516,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     {
         // Load the full config.
         return FullConfig({
+            disputeGameConfigs: _upgradeInput.disputeGameConfigs,
             saltMixer: string(bytes.concat(bytes32(uint256(uint160(address(_chainContracts.systemConfig)))))),
             superchainConfig: abi.decode(
                 _loadBytes(
@@ -612,7 +626,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 ),
                 (GameType)
             ),
-            disputeGameConfigs: _upgradeInput.disputeGameConfigs
+            useCustomGasToken: abi.decode(
+                _loadBytes(
+                    address(_chainContracts.systemConfig),
+                    _chainContracts.systemConfig.isCustomGasToken.selector,
+                    "overrides.cfg.useCustomGasToken",
+                    _upgradeInput.extraInstructions
+                ),
+                (bool)
+            )
         });
     }
 
@@ -814,6 +836,19 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.disputeGameFactory.setInitBond(
                 _cfg.disputeGameConfigs[i].gameType, _cfg.disputeGameConfigs[i].initBond
             );
+        }
+
+        // If the custom gas token feature was requested, enable it in the SystemConfig.
+        // If the cgt is enabled, we skip this step.
+        if (_cfg.useCustomGasToken && !_cts.systemConfig.isCustomGasToken()) {
+            // NOTE: Enabling the custom gas token feature is only allowed during initial deployment to prevent
+            // chains from enabling it during upgrades. Passing in true for this flag during an upgrade is considered an
+            // error and will revert.
+            // Revert only if trying to upgrade from CGT disabled to CGT enabled.
+            if (!_isInitialDeployment) {
+                revert OPContractsManagerV2_CannotUpgradeToCustomGasToken();
+            }
+            _cts.systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, true);
         }
 
         // If critical transfer is allowed, tranfer ownership of the DisputeGameFactory and

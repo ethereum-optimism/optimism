@@ -84,6 +84,10 @@ func testImplementations(t *testing.T, forkRPCURL string) {
 			L1ProxyAdminOwner:               proxyAdminOwner,
 			Challenger:                      common.Address{'C'},
 			CacheDir:                        testCacheDir,
+			FaultGameMaxGameDepth:           standard.DisputeMaxGameDepth,
+			FaultGameSplitDepth:             standard.DisputeSplitDepth,
+			FaultGameClockExtension:         standard.DisputeClockExtension,
+			FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
 		})
 		require.NoError(t, err)
 		return out
