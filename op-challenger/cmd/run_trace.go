@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -43,11 +44,12 @@ func RunTrace(ctx *cli.Context, _ context.CancelCauseFunc) (cliapp.Lifecycle, er
 			runConfigs = append(runConfigs, runner.RunConfig{GameType: gameType})
 		}
 	}
-	return runner.NewRunner(logger, cfg, runConfigs), nil
+	vmTimeout := ctx.Duration(VMTimeoutFlag.Name)
+	return runner.NewRunner(logger, cfg, runConfigs, vmTimeout), nil
 }
 
 func runTraceFlags() []cli.Flag {
-	return append(flags.Flags, RunTraceRunFlag)
+	return append(flags.Flags, RunTraceRunFlag, VMTimeoutFlag)
 }
 
 var RunTraceCommand = &cli.Command{
@@ -57,6 +59,8 @@ var RunTraceCommand = &cli.Command{
 	Action:      cliapp.LifecycleCmd(RunTrace),
 	Flags:       runTraceFlags(),
 }
+
+const DefaultVMTimeout = 3 * time.Hour
 
 var (
 	RunTraceRunFlag = &cli.StringSliceFlag{
@@ -68,6 +72,12 @@ var (
 			"If name is omitted the game type name is used." +
 			"If the prestateHash is omitted, the absolute prestate hash used for new games on-chain.",
 		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "RUN"),
+	}
+	VMTimeoutFlag = &cli.DurationFlag{
+		Name:    "vm-timeout",
+		Usage:   fmt.Sprintf("Maximum duration for VM execution per run. Default is %s. Set to 0 to disable timeout.", DefaultVMTimeout),
+		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "VM_TIMEOUT"),
+		Value:   DefaultVMTimeout,
 	}
 )
 

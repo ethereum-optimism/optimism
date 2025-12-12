@@ -46,6 +46,7 @@ type Metricer interface {
 	RecordFailure(vmType string)
 	RecordPanic(vmType string)
 	RecordInvalid(vmType string)
+	RecordTimeout(vmType string)
 	RecordSuccess(vmType string)
 }
 
@@ -56,11 +57,24 @@ type RunConfig struct {
 	PrestateFilename string
 }
 
+type TraceProviderCreator func(
+	ctx context.Context,
+	logger log.Logger,
+	m trace.Metricer,
+	cfg *config.Config,
+	prestateSource prestateFetcher,
+	gameType gameTypes.GameType,
+	localInputs utils.LocalGameInputs,
+	dir string,
+) (types.TraceProvider, error)
+
 type Runner struct {
-	log        log.Logger
-	cfg        *config.Config
-	runConfigs []RunConfig
-	m          Metricer
+	log                  log.Logger
+	cfg                  *config.Config
+	runConfigs           []RunConfig
+	m                    Metricer
+	vmTimeout            time.Duration
+	traceProviderCreator TraceProviderCreator
 
 	running    atomic.Bool
 	ctx        context.Context
@@ -69,12 +83,14 @@ type Runner struct {
 	metricsSrv *httputil.HTTPServer
 }
 
-func NewRunner(logger log.Logger, cfg *config.Config, runConfigs []RunConfig) *Runner {
+func NewRunner(logger log.Logger, cfg *config.Config, runConfigs []RunConfig, vmTimeout time.Duration) *Runner {
 	return &Runner{
-		log:        logger,
-		cfg:        cfg,
-		runConfigs: runConfigs,
-		m:          NewMetrics(runConfigs),
+		log:                  logger,
+		cfg:                  cfg,
+		runConfigs:           runConfigs,
+		m:                    NewMetrics(runConfigs),
+		vmTimeout:            vmTimeout,
+		traceProviderCreator: createTraceProvider,
 	}
 }
 
@@ -146,6 +162,9 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfi
 		} else if errors.Is(err, trace.ErrVMPanic) {
 			log.Error("VM panicked", "type", runConfig.Name)
 			m.RecordPanic(configName)
+		} else if errors.Is(err, context.DeadlineExceeded) {
+			log.Error("VM execution timed out", "type", runConfig.Name, "timeout", r.vmTimeout)
+			m.RecordTimeout(configName)
 		} else if err != nil {
 			log.Error("Failed to run", "type", runConfig.Name, "err", err)
 			m.RecordFailure(configName)
@@ -195,7 +214,12 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfi
 }
 
 func (r *Runner) runOnce(ctx context.Context, logger log.Logger, name string, gameType gameTypes.GameType, prestateSource prestateFetcher, localInputs utils.LocalGameInputs, dir string) error {
-	provider, err := createTraceProvider(ctx, logger, metrics.NewTypedVmMetrics(r.m, name), r.cfg, prestateSource, gameType, localInputs, dir)
+	if r.vmTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, r.vmTimeout)
+		defer cancel()
+	}
+	provider, err := r.traceProviderCreator(ctx, logger, metrics.NewTypedVmMetrics(r.m, name), r.cfg, prestateSource, gameType, localInputs, dir)
 	if err != nil {
 		return fmt.Errorf("failed to create trace provider: %w", err)
 	}
