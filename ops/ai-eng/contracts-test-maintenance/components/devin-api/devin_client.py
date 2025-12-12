@@ -4,7 +4,7 @@ Loads prompt from the prompt renderer output and sends it to the Devin API,
 then monitors the session until completion while logging the results.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 import glob
 import json
 import os
@@ -136,28 +136,38 @@ def create_session(prompt):
     headers = _create_headers(api_key, "application/json")
     data = json.dumps({"prompt": prompt}).encode("utf-8")
 
-    response_data = _make_request(f"{base_url}/sessions", headers, data, "POST")
-    session_id = response_data["session_id"]
+    retry_delay = 60
+    while True:
+        response_data = _make_request(f"{base_url}/sessions", headers, data, "POST")
 
-    print(f"Created session: {session_id}")
-    return session_id
+        if response_data is None:
+            print(f"Session creation timed out, retrying in {retry_delay}s...")
+            time.sleep(retry_delay)
+            retry_delay = min(retry_delay * 2, 480)
+            continue
+
+        session_id = response_data["session_id"]
+        print(f"Created session: {session_id}")
+        return session_id
 
 
 def monitor_session(session_id):
     """Monitor session status until completion."""
     api_key, base_url = _validate_environment()
     headers = _create_headers(api_key)
-    last_status = None
+    last_status_enum = None
     retry_delay = 60  # Start with 1 minute
     setup_printed = False
     timeout_count = 0
+    blocked_start_time = None  # Track when we first entered blocked state
+    blocked_timeout = 300  # 5 minutes timeout for blocked state
 
     while True:
         try:
-            status = _make_request(f"{base_url}/sessions/{session_id}", headers)
+            api_response = _make_request(f"{base_url}/sessions/{session_id}", headers)
 
             # Handle server timeout (no response) - retry with backoff
-            if status is None:
+            if api_response is None:
                 timeout_count += 1
                 # Only print after 3rd consecutive timeout to reduce noise
                 if timeout_count >= 3:
@@ -171,10 +181,10 @@ def monitor_session(session_id):
             if timeout_count > 0:
                 timeout_count = 0
 
-            current_status = status.get("status_enum")
+            status_enum = api_response.get("status_enum")
 
             # Handle Devin setup phase (status_enum is None but we got a response)
-            if current_status is None:
+            if status_enum is None:
                 if not setup_printed:
                     print("Devin is setting up...")
                     setup_printed = True
@@ -182,49 +192,82 @@ def monitor_session(session_id):
                 continue
 
             # Print setup completion message once
-            if setup_printed and current_status:
+            if setup_printed and status_enum:
                 print("Devin finished setup")
                 setup_printed = False
 
             # Only print when status changes and is meaningful
-            if current_status and current_status != last_status:
-                print(f"Status: {current_status}")
-                last_status = current_status
+            if status_enum and status_enum != last_status_enum:
+                print(f"Status: {status_enum}")
+                last_status_enum = status_enum
 
             # Stop monitoring for terminal statuses (only if we have valid status data)
-            if status and current_status in ["blocked", "expired", "suspend_requested", "suspend_requested_frontend"]:
+            if api_response and status_enum in ["blocked", "finished", "expired", "suspend_requested", "suspend_requested_frontend"]:
                 # Handle user stopping the session
-                if current_status in ["suspend_requested", "suspend_requested_frontend"]:
+                if status_enum in ["suspend_requested", "suspend_requested_frontend"]:
                     print("Session stopped by user")
                     return
 
-                # Blocked = PR created or analysis completed without changes
-                if current_status == "blocked":
-                    structured_output = status.get("structured_output") or {}
-                    pr_data = status.get("pull_request") or {}
+                # Blocked or finished - check for outcome
+                if status_enum in ["blocked", "finished"]:
+                    # Ensure we have valid status data before accessing nested fields
+                    if api_response is None:
+                        print("Warning: Terminal status reached but no status data available, retrying...")
+                        time.sleep(retry_delay)
+                        continue
 
-                    # Check if analysis completed without changes
-                    if structured_output.get("analysis_complete") and not structured_output.get("changes_needed"):
-                        reason = structured_output.get("reason", "no changes needed")
-                        print(f"Session completed - {reason}")
-                        write_log(session_id, "finished_no_changes", status)
+                    # First check structured output for "no changes needed" signal
+                    # Note: Devin API nests structured_output twice: {structured_output: {structured_output: {...}}}
+                    # The outer structured_output can be null, so we use `or {}` to handle that case
+                    structured = (api_response.get("structured_output") or {}).get("structured_output") or {}
+                    analysis_complete = structured.get("analysis_complete", False)
+                    changes_needed = structured.get("changes_needed")
+
+                    if analysis_complete and changes_needed is False:
+                        # Devin explicitly determined no changes needed
+                        reason = structured.get("reason", "Not provided")
+                        print(f"Session completed - no changes needed")
+                        print(f"Reason: {reason}")
+                        print(f"Note: Devin should have updated no-need-changes.toml")
+
+                        write_log(session_id, "no_changes_needed", api_response)
                         return
 
-                    # Check if PR was created
+                    # Check for PR (normal case - changes were made)
+                    pr_data = api_response.get("pull_request") or {}
                     if pr_data.get("url"):
                         print("Session completed successfully - PR created")
-                        write_log(session_id, "finished", status)
+                        write_log(session_id, "finished", api_response)
                         return
 
-                    # Blocked without completion signal
-                    print(f"Session blocked without PR - check Devin web interface")
-                    # Don't write log.json so artifact won't be stored for failed sessions
-                    sys.exit(1)  # Exit with error code to mark job as failed
+                    # If blocked without PR or structured output, keep waiting
+                    # Devin may still be populating the output or waiting for something
+                    if status_enum == "blocked":
+                        # Track how long we've been blocked
+                        if blocked_start_time is None:
+                            blocked_start_time = time.time()
+                            print("Devin is blocked - waiting for outcome...")
+
+                        # Check if we've exceeded the timeout
+                        elapsed = time.time() - blocked_start_time
+                        if elapsed > blocked_timeout:
+                            print(f"Timeout: Devin blocked for {int(elapsed)}s without outcome - check Devin web interface")
+                            sys.exit(1)
+
+                        time.sleep(5)
+                        continue
+
+                    # Reset blocked timer if we move out of blocked state
+                    blocked_start_time = None
+
+                    # Finished without PR and no structured output = error
+                    print(f"Session finished without PR or clear outcome - check Devin web interface")
+                    sys.exit(1)
 
                 # Expired = session timed out
-                if current_status == "expired":
+                if status_enum == "expired":
                     print(f"Session expired")
-                    write_log(session_id, "expired", status)
+                    write_log(session_id, "expired", api_response)
                     return
 
             time.sleep(5)
