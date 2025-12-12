@@ -273,6 +273,11 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") })
         );
+
+        // TODO(#18502): Remove the extra instruction for custom gas token after U18 ships.
+        v2UpgradeInput.extraInstructions.push(
+            IOPContractsManagerUtils.ExtraInstruction({ key: "overrides.cfg.useCustomGasToken", data: abi.encode(false) })
+        );
     }
 
     /// @notice Helper function that runs an OPCM V2 upgrade, asserts that the upgrade was successful,
@@ -629,6 +634,22 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             abi.encodeWithSelector(
                 IOPContractsManagerUtils.OPContractsManagerUtils_ProxyMustLoad.selector, "L1CrossDomainMessenger"
             )
+        );
+    }
+
+    /// @notice Tests that the V2 upgrade function reverts when the user attempts to upgrade enabling custom gas token
+    ///         after initial deployment.
+    function test_upgrade_enableCustomGasTokenAfterInitialDeployment_reverts() public {
+        // Override the extra instruction for custom gas token to attempt to enable it.
+        v2UpgradeInput.extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
+            key: "overrides.cfg.useCustomGasToken",
+            data: abi.encode(true)
+        });
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO,
+            abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_CannotUpgradeToCustomGasToken.selector)
         );
     }
 

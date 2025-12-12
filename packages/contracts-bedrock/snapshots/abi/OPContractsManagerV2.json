@@ -212,6 +212,11 @@
             "internalType": "struct OPContractsManagerV2.DisputeGameConfig[]",
             "name": "disputeGameConfigs",
             "type": "tuple[]"
+          },
+          {
+            "internalType": "bool",
+            "name": "useCustomGasToken",
+            "type": "bool"
           }
         ],
         "internalType": "struct OPContractsManagerV2.FullConfig",
@@ -678,6 +683,11 @@
   {
     "inputs": [],
     "name": "NotABlueprint",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerV2_CannotUpgradeToCustomGasToken",
     "type": "error"
   },
   {
