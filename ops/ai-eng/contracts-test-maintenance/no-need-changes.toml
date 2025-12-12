@@ -1,0 +1,12 @@
+# This file tracks test files that have been analyzed and determined to already have
+# comprehensive coverage. Entries are automatically excluded from future analysis runs
+# until the source contract changes.
+
+[[tests]]
+test_path = "test/universal/SafeSend.t.sol"
+contract_path = "src/universal/SafeSend.sol"
+contract_hash = "35f7553422a7b81ad998d04ed1f67e1fa56d6b8d"
+recorded_at = "2025-12-12T17:32:49Z"
+devin_session_id = "50e7ca21d9264fe6a62c7ec944da7e43"
+run_id = "20251212_173200"
+reason = "Test coverage is already comprehensive with all functions and code paths tested. The constructor has three fuzz tests covering EOA, contract, and zero address recipients with thorough assertions."
