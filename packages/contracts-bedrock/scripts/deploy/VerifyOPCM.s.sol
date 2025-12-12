@@ -1071,12 +1071,16 @@ contract VerifyOPCM is Script {
         }
     }
 
+    /// @notice Returns the name of the OPCM contract depending on whether OPCM V2 is enabled.
+    /// @return The name of the OPCM contract.
     function _opcmContractName() internal view returns (string memory) {
         return _isOPCMV2Enabled() ? "OPContractsManagerV2" : "OPContractsManager";
     }
 
+    /// @notice Checks if OPCM V2 is enabled.
+    /// @return True if OPCM V2 is enabled, false otherwise.
     function _isOPCMV2Enabled() internal view returns (bool) {
         // nosemgrep: sol-style-vm-env-only-in-config-sol
-        return vm.envBool("DEV_FEATURE__OPCM_V2");
+        return vm.envOr("DEV_FEATURE__OPCM_V2", false);
     }
 }

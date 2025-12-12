@@ -133,7 +133,7 @@ interface IOPContractsManagerV2 {
 
     function thisOPCM() external view returns (IOPContractsManagerV2);
 
-    function utils() external view returns (IOPContractsManagerUtils);
+    function opcmUtils() external view returns (IOPContractsManagerUtils);
 
     function version() external view returns (string memory);
 
