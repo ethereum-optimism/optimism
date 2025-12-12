@@ -46,7 +46,6 @@ type Metricer interface {
 	RecordFailure(vmType string)
 	RecordPanic(vmType string)
 	RecordInvalid(vmType string)
-	RecordTimeout(vmType string)
 	RecordSuccess(vmType string)
 }
 
@@ -162,9 +161,6 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfi
 		} else if errors.Is(err, trace.ErrVMPanic) {
 			log.Error("VM panicked", "type", runConfig.Name)
 			m.RecordPanic(configName)
-		} else if errors.Is(err, context.DeadlineExceeded) {
-			log.Error("VM execution timed out", "type", runConfig.Name, "timeout", r.vmTimeout)
-			m.RecordTimeout(configName)
 		} else if err != nil {
 			log.Error("Failed to run", "type", runConfig.Name, "err", err)
 			m.RecordFailure(configName)
