@@ -320,7 +320,18 @@ func (b *Backend) tryValidateCrossUnsafe() {
 			// Clean up validated messages
 			delete(b.pendingExecMsgs[chainID], ts)
 		}
+
+		// Record pending messages metric for this chain
+		var pendingCount int64
+		for _, msgs := range b.pendingExecMsgs[chainID] {
+			pendingCount += int64(len(msgs))
+		}
+		chainIDUint64, _ := chainID.Uint64()
+		b.metrics.RecordPendingExecMsgs(chainIDUint64, pendingCount)
 	}
+
+	// Record the validated timestamp
+	b.metrics.RecordCrossUnsafeValidatedTimestamp(minTimestamp)
 }
 
 // validateExecutingMessage validates a single executing message against the source chain

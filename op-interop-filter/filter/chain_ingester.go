@@ -308,6 +308,9 @@ func (c *ChainIngester) backfill(startBlock, endBlock uint64) error {
 				"progress", fmt.Sprintf("%d%%", progress))
 			lastProgress = progress
 			lastLog = time.Now()
+			// Record backfill progress metric
+			chainIDUint64, _ := c.chainID.Uint64()
+			c.metrics.RecordBackfillProgress(chainIDUint64, float64(progress)/100.0)
 		}
 	}
 
@@ -458,6 +461,8 @@ func (c *ChainIngester) ingestBlock(blockNum uint64) error {
 	// Update metrics
 	chainIDUint64, _ := c.chainID.Uint64()
 	c.metrics.RecordChainHead(chainIDUint64, blockNum)
+	c.metrics.RecordBlocksSealed(chainIDUint64, 1)
+	c.metrics.RecordLogsAdded(chainIDUint64, int64(logIndex))
 
 	// Notify about executing messages
 	if len(execMsgs) > 0 && c.onExecMsg != nil {
@@ -470,6 +475,8 @@ func (c *ChainIngester) ingestBlock(blockNum uint64) error {
 // triggerReorg handles reorg detection
 func (c *ChainIngester) triggerReorg() {
 	c.log.Warn("Reorg detected, triggering failsafe")
+	chainIDUint64, _ := c.chainID.Uint64()
+	c.metrics.RecordReorgDetected(chainIDUint64)
 	if c.onReorg != nil {
 		c.onReorg(c.chainID)
 	}
