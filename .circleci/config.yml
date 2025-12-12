@@ -540,18 +540,22 @@ commands:
       toolchain_version:
         description: The specific toolchain version for stable channel
         type: string
-        default: "1.88"
+        default: "1.88.0"
+      target:
+        description: A custom target architecture to add to the toolchain
+        type: string
+        default: ""
     steps:
       - run:
           name: Install Rust toolchain (<< parameters.channel >>)
           command: |
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain << parameters.channel >>
+            rustup default << parameters.toolchain_version >>
 
-            if [ "<< parameters.channel >>" = "stable" ]; then
-              rustup default << parameters.toolchain_version >>
-            fi
             if [ -n "<< parameters.components >>" ]; then
               rustup component add << parameters.components >>
+            fi
+            if [ -n "<< parameters.target >>" ]; then
+              rustup target add << parameters.target >>
             fi
 
   # --- Unified Rust cache commands ---
@@ -591,11 +595,6 @@ commands:
           keys:
             - rust-<< parameters.cache_name >>-v5-{{ .Environment.RUST_CACHE_KEY_<< parameters.cache_name >> }}
             - rust-<< parameters.cache_name >>-v5-
-      - restore_cache:
-          name: Restore << parameters.cache_name >> cargo cache
-          keys:
-            - rust-<< parameters.cache_name >>-cargo-v1-{{ .Environment.RUST_CACHE_KEY_<< parameters.cache_name >> }}
-            - rust-<< parameters.cache_name >>-cargo-v1-
 
   rust-save-cache:
     description: "Save all Rust caches (target directory + cargo registry/git)"
@@ -612,12 +611,16 @@ commands:
           key: rust-<< parameters.cache_name >>-v5-{{ .Environment.RUST_CACHE_KEY_<< parameters.cache_name >> }}
           paths:
             - "<< parameters.directory >>/target"
-      - save_cache:
-          name: Save << parameters.cache_name >> cargo cache
-          key: rust-<< parameters.cache_name >>-cargo-v1-{{ .Environment.RUST_CACHE_KEY_<< parameters.cache_name >> }}
-          paths:
-            - ~/.cargo/registry
-            - ~/.cargo/git
+
+  rust-fix-mise-env:
+    description: "Fix rust mise environment variables"
+    steps:
+      - run:
+          name: Fix mise environment variables
+          command: |
+            echo "export CARGO_HOME=${MISE_CARGO_HOME}" >> "$BASH_ENV"
+            echo "export RUSTUP_HOME=${MISE_RUSTUP_HOME}" >> "$BASH_ENV"
+            echo "source ${MISE_CARGO_HOME}/env" >> "$BASH_ENV"
 
   rust-prepare:
     description: "Prepare the Rust environment for the build"
@@ -638,6 +641,7 @@ commands:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      - rust-fix-mise-env
       - rust-compute-cache-key:
           directory: << parameters.directory >>
           cache_name: << parameters.cache_name >>
@@ -2429,6 +2433,7 @@ jobs:
           command: |
             sudo apt-get update
             sudo apt-get install -y --no-install-recommends clang
+      - rust-fix-mise-env
       - run:
           name: Build kona host
           command: just build-kona-host
@@ -2877,6 +2882,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      - attach_workspace:
+          at: .
       - rust-prepare:
           cache_name: kona
           directory: kona
@@ -2888,40 +2895,23 @@ jobs:
           check_binary: reth
           needs_clang: true
       - run:
-          name: Install cargo-llvm-cov
-          command: |
-            cargo install --locked cargo-llvm-cov
-      - run:
           name: Run common tests for node with sysgo orchestrator
           working_directory: kona
           no_output_timeout: 60m
           command: |
             echo "Building op-reth..."
             just build-reth
-            echo "Building kona-node with llvm-cov..."
-            source <(cargo llvm-cov show-env --export-prefix)
             just build-kona
             echo "Running tests..."
             just test-e2e-sysgo-run node node/common "<<parameters.devnet_config>>"
-            cargo llvm-cov report --lcov --output-path node_common_cov.lcov
-      - codecov/upload:
-          disable_search: true
-          files: kona/node_common_cov.lcov
-          flags: e2e
       - run:
           name: Run reorg tests for node with sysgo orchestrator
           working_directory: kona
           no_output_timeout: 60m
           command: |
-            echo "Building kona-node with llvm-cov..."
-            source <(cargo llvm-cov show-env --export-prefix)
+            echo "Building kona-node..."
             just build-kona
             just test-e2e-sysgo-run node node/reorgs "<<parameters.devnet_config>>"
-            cargo llvm-cov report --lcov --output-path node_reorgs_cov.lcov
-      - codecov/upload:
-          disable_search: true
-          files: kona/node_reorgs_cov.lcov
-          flags: e2e
       - rust-save:
           directory: kona
           cache_name: kona
@@ -2937,6 +2927,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      - attach_workspace:
+          at: .
       - rust-prepare:
           cache_name: kona
           directory: kona
@@ -2948,26 +2940,16 @@ jobs:
           check_binary: reth
           needs_clang: true
       - run:
-          name: Install cargo-llvm-cov
-          command: |
-            cargo install --locked cargo-llvm-cov
-      - run:
           name: Run restart tests for node with sysgo orchestrator
           working_directory: kona
           no_output_timeout: 60m
           command: |
             echo "Building op-reth..."
             just build-reth
-            echo "Building kona-node with llvm-cov..."
-            source <(cargo llvm-cov show-env --export-prefix)
+            echo "Building kona-node..."
             just build-kona
             echo "Running tests..."
             just test-e2e-sysgo node node/restart
-            cargo llvm-cov report --lcov --output-path node_restart_cov.lcov
-      - codecov/upload:
-          disable_search: true
-          files: kona/node_restart_cov.lcov
-          flags: e2e
       - rust-save:
           directory: kona
           cache_name: kona
@@ -2997,8 +2979,8 @@ jobs:
       - rust-prepare:
           cache_name: kona
           directory: kona
-          check_binary: kona-node
-          needs_clang: false
+          check_binary: kona-host
+          needs_clang: true
       - run:
           name: Install cargo-llvm-cov and gotestsum
           command: |
@@ -3013,7 +2995,7 @@ jobs:
             just build-native --bin kona-host
             echo "Running action tests (shard <<parameters.index>> of <<parameters.parallel>>)"
             # Get all test names and split them
-            cd tests/optimism/op-e2e/actions/proofs
+            cd ../op-e2e/actions/proofs
             ALL_TESTS=$(go test -list '.*' ./... 2>/dev/null | grep -E '^Test' || true)
             TOTAL=$(echo "$ALL_TESTS" | wc -l)
             CHUNK_SIZE=$(( (TOTAL + <<parameters.parallel>> - 1) / <<parameters.parallel>> ))
@@ -3048,24 +3030,18 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - install-zstd
       - rust-prepare:
           cache_name: kona
           directory: kona
-          check_binary: kona-node
-          needs_clang: false
+          check_binary: kona-host
+          needs_clang: true
       - run:
           name: Install cargo-llvm-cov
           command: |
             cargo install --locked cargo-llvm-cov
-      - when:
-          condition:
-            not:
-              equal: [native, <<parameters.target>>]
-          steps:
-            - run:
-                name: Log into ghcr
-                command: |
-                  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
       - when:
           condition:
             equal: [asterisc, <<parameters.target>>]
@@ -3136,7 +3112,7 @@ jobs:
           cache_name: kona
           directory: kona
           check_binary: kona-node
-          needs_clang: false
+          needs_clang: true
       - run:
           name: Install nextest
           command: |
@@ -3157,8 +3133,9 @@ jobs:
       target:
         description: The lint target (native, cannon, asterisc)
         type: string
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+    machine:
+      image: <<pipeline.parameters.base_image>>
+      docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -3167,7 +3144,7 @@ jobs:
           cache_name: kona
           directory: kona
           check_binary: kona-node
-          needs_clang: false
+          needs_clang: true
       - rust-install-toolchain:
           channel: nightly
           components: rustfmt
@@ -3187,8 +3164,9 @@ jobs:
       target:
         description: The build target (native, cannon-client, asterisc-client)
         type: string
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+    machine:
+      image: <<pipeline.parameters.base_image>>
+      docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -3197,13 +3175,13 @@ jobs:
           cache_name: kona
           directory: kona
           check_binary: kona-node
-          needs_clang: false
+          needs_clang: true
       - run:
           name: Build <<parameters.target>>
           working_directory: kona
           no_output_timeout: 40m
           command: |
-            just build-<<parameters.target>>
+            just build-ci <<parameters.target>>
       - rust-save:
           directory: kona
           cache_name: kona
@@ -3220,7 +3198,7 @@ jobs:
           cache_name: kona
           directory: kona
           check_binary: kona-node
-          needs_clang: false
+          needs_clang: true
       - run:
           name: Build benchmarks
           working_directory: kona
@@ -3239,12 +3217,11 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-install-mold
-      - rust-install-toolchain:
-          channel: nightly
-      - rust-restore-cache:
-          directory: kona
+      - rust-prepare:
           cache_name: kona
+          directory: kona
+          check_binary: kona-node
+          needs_clang: false
       - run:
           name: Install nextest and cargo-udeps
           command: |
@@ -3255,7 +3232,7 @@ jobs:
           no_output_timeout: 40m
           command: |
             just check-udeps
-      - rust-save-cache:
+      - rust-save:
           directory: kona
           cache_name: kona
 
@@ -3267,18 +3244,18 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-install-mold
-      - rust-install-toolchain
-      - rust-restore-cache:
-          directory: kona
+      - rust-prepare:
           cache_name: kona
+          directory: kona
+          check_binary: kona-node
+          needs_clang: true
       - run:
           name: Lint documentation
           working_directory: kona
           no_output_timeout: 40m
           command: |
             just lint-docs
-      - rust-save-cache:
+      - rust-save:
           directory: kona
           cache_name: kona
 
@@ -3290,18 +3267,18 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-install-mold
-      - rust-install-toolchain
-      - rust-restore-cache:
-          directory: kona
+      - rust-prepare:
           cache_name: kona
+          directory: kona
+          check_binary: kona-node
+          needs_clang: true
       - run:
           name: Run doc tests
           working_directory: kona
           no_output_timeout: 40m
           command: |
             just test-docs
-      - rust-save-cache:
+      - rust-save:
           directory: kona
           cache_name: kona
 
@@ -3321,7 +3298,7 @@ jobs:
           name: Check for typos
           working_directory: kona
           command: |
-            ~/.cargo/bin/typos
+            typos
 
   # Kona Rust CI - Cargo hack (from rust_ci.yaml)
   kona-cargo-hack:
@@ -3331,11 +3308,11 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-install-mold
-      - rust-install-toolchain
-      - rust-restore-cache:
-          directory: kona
+      - rust-prepare:
           cache_name: kona
+          directory: kona
+          check_binary: kona-node
+          needs_clang: false
       - run:
           name: Install clang and cargo-hack
           command: |
@@ -3361,17 +3338,14 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      - rust-prepare:
+          cache_name: kona
+          directory: kona
+          check_binary: kona-node
+          needs_clang: true
       - run:
-          name: Install mold linker
+          name: Install cargo hack with RISC-V target
           command: |
-            sudo apt-get update
-            sudo apt-get install -y mold
-      - run:
-          name: Install Rust with RISC-V target
-          command: |
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-
-            rustup target add riscv32imac-unknown-none-elf
             cargo install --locked cargo-hack
       - run:
           name: Check no_std compatibility
@@ -3408,7 +3382,7 @@ jobs:
           working_directory: kona
           no_output_timeout: 40m
           command: |
-            just llvm-cov-tests && mv ./target/nextest/ci/junit.xml ./junit.xml || true
+            just llvm-cov-tests && mv ./target/nextest/ci/junit.xml ./junit.xml
       - codecov/upload:
           disable_search: true
           files: kona/lcov.info
@@ -3445,22 +3419,22 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-install-mold
-      - rust-install-toolchain
-      - rust-restore-cache:
-          directory: kona
+      - rust-prepare:
           cache_name: kona
+          directory: kona
+          check_binary: kona-node
+          needs_clang: false
       - run:
           name: Install zepter
           command: |
             cargo install --locked zepter -f
-            ~/.cargo/bin/zepter --version
+            zepter --version
       - run:
           name: Format and lint features
           working_directory: kona
           command: |
-            ~/.cargo/bin/zepter format features
-            ~/.cargo/bin/zepter
+            zepter format features
+            zepter
 
   # Kona Docs Build (from docs.yaml)
   kona-docs-build:
@@ -3470,12 +3444,11 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-install-mold
-      - rust-install-toolchain:
-          channel: nightly
-      - rust-restore-cache:
-          directory: kona
+      - rust-prepare:
           cache_name: kona
+          directory: kona
+          check_binary: kona-node
+          needs_clang: false
       - run:
           name: Install Node.js and Bun
           command: |
@@ -3488,7 +3461,6 @@ jobs:
           name: Install dependencies and Playwright browsers
           working_directory: kona/docs
           command: |
-            source $BASH_ENV
             bun i
             npx playwright install --with-deps chromium
       - run:
@@ -3496,7 +3468,6 @@ jobs:
           working_directory: kona/docs
           no_output_timeout: 60m
           command: |
-            source $BASH_ENV
             bun run build
             echo "Vocs Build Complete"
       - store_artifacts:
@@ -3535,19 +3506,18 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-install-mold
-      - rust-install-toolchain:
-          channel: stable
-      - rust-restore-cache:
-          directory: kona
+      - rust-prepare:
           cache_name: kona
+          directory: kona
+          check_binary: kona-node
+          needs_clang: false
       - run:
           name: Run supervisor tests for <<parameters.test_pkg>>
           working_directory: kona
           no_output_timeout: 40m
           command: |
             just test-e2e-sysgo supervisor "/supervisor/<<parameters.test_pkg>>"
-      - rust-save-cache:
+      - rust-save:
           directory: kona
           cache_name: kona
 
@@ -4537,6 +4507,19 @@ workflows:
             - equal: [true, <<pipeline.parameters.kona_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
+      - contracts-bedrock-build: # needed for sysgo tests
+          build_args: --skip test
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - cannon-prestate-quick: # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - cannon-kona-prestate: # needed for sysgo tests (if any package is in-memory)
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - cannon-kona-host: # needed for sysgo tests (if any package is in-memory)
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       # Rust CI jobs (from rust_ci.yaml)
       - kona-cargo-tests:
           context:
@@ -4594,9 +4577,19 @@ workflows:
               devnet_config: ["simple-kona", "simple-kona-geth", "simple-kona-sequencer", "large-kona-sequencer"]
           context:
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+            - cannon-kona-prestate
+            - cannon-kona-host
       - kona-node-restart-sysgo-tests:
           context:
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+            - cannon-kona-prestate
+            - cannon-kona-host
 
       # Proof tests (from proof.yaml) - single kind only, interop excluded per original config
       - kona-proof-action-tests:
@@ -4658,9 +4651,6 @@ workflows:
       equal: [build_weekly, <<pipeline.schedule.name>>]
     jobs:
       - kona-update-monorepo:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - kona-update-scr:
           context:
             - circleci-repo-readonly-authenticated-github-token
 

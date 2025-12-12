@@ -6,6 +6,11 @@ import "./docker/apps/justfile"
 # Vocs Documentation commands
 import "./docs/justfile"
 
+KONA_ROOT := source_directory()
+KONA_VERSION := shell('jq -r .version "$1/version.json"', KONA_ROOT)
+KONA_PRESTATE_HASH := shell('jq -r .prestateHash "$1/version.json"', KONA_ROOT)
+KONA_INTEROP_PRESTATE_HASH := shell('jq -r .interopPrestateHash "$1/version.json"', KONA_ROOT)
+
 set positional-arguments
 alias t := tests
 alias la := lint-all
@@ -48,6 +53,7 @@ test-custom-embeds:
 
 # Runs the tests with llvm-cov
 llvm-cov-tests:
+  #!/usr/bin/env bash
   # collect coverage of `just test` and `just test-custom-embeds`
   cargo llvm-cov nextest --no-report --locked --workspace \
     --all-features \
@@ -96,16 +102,16 @@ lint-native: fmt-native-check lint-docs
 lint-cannon:
   docker run \
     --rm \
-    -v `pwd`/:/workdir \
-    -w="/workdir" \
+    -v {{KONA_ROOT}}/../:/workdir \
+    -w="/workdir/kona" \
     ghcr.io/op-rs/kona/cannon-builder:0.3.0 cargo clippy -p kona-std-fpvm --all-features -Zbuild-std=core,alloc -- -D warnings
 
 # Lint the workspace (risc-v arch). Currently, only the `kona-std-fpvm` crate is linted for the `asterisc` target, as it is the only crate with architecture-specific code.
 lint-asterisc:
   docker run \
     --rm \
-    -v `pwd`/:/workdir \
-    -w="/workdir" \
+    -v {{KONA_ROOT}}/../:/workdir \
+    -w="/workdir/kona" \
     ghcr.io/op-rs/kona/asterisc-builder:0.3.0 cargo clippy -p kona-std-fpvm --all-features -Zbuild-std=core,alloc -- -D warnings
 
 # Lint the Rust documentation
@@ -118,22 +124,23 @@ test-docs:
 
 # Build for the native target
 build-native *args='':
+  #!/usr/bin/env bash
   cargo build --workspace $@
 
 # Build `kona-client` for the `cannon` target.
 build-cannon-client:
   docker run \
     --rm \
-    -v `pwd`/:/workdir \
-    -w="/workdir" \
+    -v {{KONA_ROOT}}/../:/workdir \
+    -w="/workdir/kona" \
     ghcr.io/op-rs/kona/cannon-builder:0.3.0 cargo build -Zbuild-std=core,alloc -p kona-client --bin kona-client --profile release-client-lto
 
 # Build `kona-client` for the `asterisc` target.
 build-asterisc-client:
   docker run \
     --rm \
-    -v `pwd`/:/workdir \
-    -w="/workdir" \
+    -v {{KONA_ROOT}}/../:/workdir \
+    -w="/workdir/kona" \
     ghcr.io/op-rs/kona/asterisc-builder:0.3.0 cargo build -Zbuild-std=core,alloc -p kona-client --bin kona-client --profile release-client-lto
 
 # Check for unused dependencies in the crate graph.
@@ -151,11 +158,6 @@ bind-registry:
 
 ### TODO(@theochap): Remove those recipes once the migration is complete
 
-KONA_DIR := `realpath .`
-KONA_VERSION := `jq -r .version ./version.json`
-KONA_PRESTATE_HASH := `jq -r .prestateHash ./version.json`
-KONA_INTEROP_PRESTATE_HASH := `jq -r .interopPrestateHash ./version.json`
-
 build-all: build-prestates build-kona-host
 
 build-prestates: build-cannon-prestate build-interop-prestate
@@ -170,7 +172,7 @@ build-prestate VARIANT HASH:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    cd "{{KONA_DIR}}"
+    cd "{{KONA_ROOT}}"
     # Check if required prestate already exists
     if [[ -f "prestates/{{HASH}}.bin.gz" ]]; then
         echo "Prestate {{HASH}} for variant {{VARIANT}} already exists"
@@ -178,7 +180,7 @@ build-prestate VARIANT HASH:
     fi
     echo "Building prestate..."
     just checkout-kona
-    cd "{{KONA_DIR}}/build/kona"
+    cd "{{KONA_ROOT}}/build/kona"
     cd docker/fpvm-prestates
     # Delete any existing artifacts (they're in .gitignore so reset --hard won't delete them)
     rm -rf ../../prestate-artifacts-cannon
@@ -192,8 +194,8 @@ build-prestate VARIANT HASH:
       exit 1
     fi
 
-    mkdir -p "{{KONA_DIR}}/prestates"
-    cp ../../prestate-artifacts-cannon/prestate.bin.gz "{{KONA_DIR}}/prestates/{{HASH}}.bin.gz"
+    mkdir -p "{{KONA_ROOT}}/prestates"
+    cp ../../prestate-artifacts-cannon/prestate.bin.gz "{{KONA_ROOT}}/prestates/{{HASH}}.bin.gz"
 
 build-kona-host:
     #!/usr/bin/env bash
@@ -210,17 +212,17 @@ build-kona-host:
 
     echo "Building kona-host"
     just checkout-kona
-    cd "{{KONA_DIR}}/build/kona"
+    cd "{{KONA_ROOT}}/build/kona"
     just build-native --bin kona-host
 
-    mkdir -p "{{KONA_DIR}}/bin"
-    cp "{{KONA_DIR}}/build/kona/target/debug/kona-host" "{{KONA_DIR}}/bin/kona-host"
+    mkdir -p "{{KONA_ROOT}}/bin"
+    cp "{{KONA_ROOT}}/build/kona/target/debug/kona-host" "{{KONA_ROOT}}/bin/kona-host"
 
 checkout-kona:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    DIR="{{KONA_DIR}}/build"
+    DIR="{{KONA_ROOT}}/build"
     mkdir -p "${DIR}"
     cd "${DIR}"
     if [[ -d kona ]]; then
@@ -236,4 +238,4 @@ checkout-kona:
 clean:
   #!/usr/bin/env bash
   set -euo pipefail
-  rm -rf "{{KONA_DIR}}/build" "{{KONA_DIR}}/prestates" "{{KONA_DIR}}/bin"
+  rm -rf "{{KONA_ROOT}}/build" "{{KONA_ROOT}}/prestates" "{{KONA_ROOT}}/bin"
