@@ -14,12 +14,16 @@ import (
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
+// DefaultMessageExpiryWindow is 7 days, matching op-supervisor's default
+const DefaultMessageExpiryWindow uint64 = 604800
+
 type Config struct {
-	L2RPCs           []string
-	DataDir          string
-	BackfillDuration time.Duration
-	JWTSecretPath    string
-	Version          string
+	L2RPCs              []string
+	DataDir             string
+	BackfillDuration    time.Duration
+	MessageExpiryWindow uint64 // Message expiry window in seconds (default: 7 days)
+	JWTSecretPath       string
+	Version             string
 
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -49,14 +53,15 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 	}
 
 	return &Config{
-		L2RPCs:           ctx.StringSlice(flags.L2RPCsFlag.Name),
-		DataDir:          ctx.String(flags.DataDirFlag.Name),
-		BackfillDuration: backfillDuration,
-		JWTSecretPath:    ctx.String(flags.JWTSecretFlag.Name),
-		Version:          version,
-		LogConfig:        oplog.ReadCLIConfig(ctx),
-		MetricsConfig:    opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:      oppprof.ReadCLIConfig(ctx),
-		RPC:              oprpc.ReadCLIConfig(ctx),
+		L2RPCs:              ctx.StringSlice(flags.L2RPCsFlag.Name),
+		DataDir:             ctx.String(flags.DataDirFlag.Name),
+		BackfillDuration:    backfillDuration,
+		MessageExpiryWindow: DefaultMessageExpiryWindow,
+		JWTSecretPath:       ctx.String(flags.JWTSecretFlag.Name),
+		Version:             version,
+		LogConfig:           oplog.ReadCLIConfig(ctx),
+		MetricsConfig:       opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:         oppprof.ReadCLIConfig(ctx),
+		RPC:                 oprpc.ReadCLIConfig(ctx),
 	}, nil
 }

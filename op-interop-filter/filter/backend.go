@@ -53,13 +53,27 @@ func NewBackend(parentCtx context.Context, logger log.Logger, m metrics.Metricer
 		cancel:          cancel,
 	}
 
+	// Helper to cleanup on error
+	cleanup := func() {
+		cancel()
+		for _, ingester := range b.chains {
+			_ = ingester.Stop()
+		}
+	}
+
 	// Create chain ingesters for each L2 RPC
 	for _, rpcURL := range cfg.L2RPCs {
 		// Query chain ID from the RPC
 		chainID, err := b.queryChainID(ctx, rpcURL)
 		if err != nil {
-			cancel()
+			cleanup()
 			return nil, fmt.Errorf("failed to query chain ID from %s: %w", rpcURL, err)
+		}
+
+		// Check for duplicate chain IDs BEFORE creating ingester
+		if _, exists := b.chains[chainID]; exists {
+			cleanup()
+			return nil, fmt.Errorf("duplicate chain ID %s: multiple RPCs return the same chain ID", chainID)
 		}
 
 		logger.Info("Creating chain ingester", "chain", chainID, "rpc", rpcURL)
@@ -76,14 +90,8 @@ func NewBackend(parentCtx context.Context, logger log.Logger, m metrics.Metricer
 			b.onReorg,
 		)
 		if err != nil {
-			cancel()
+			cleanup()
 			return nil, fmt.Errorf("failed to create chain ingester for chain %s: %w", chainID, err)
-		}
-
-		// Check for duplicate chain IDs
-		if _, exists := b.chains[chainID]; exists {
-			cancel()
-			return nil, fmt.Errorf("duplicate chain ID %s: multiple RPCs return the same chain ID", chainID)
 		}
 
 		b.chains[chainID] = ingester
@@ -217,6 +225,10 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 }
 
 // validateAccess validates a single access entry
+// This follows the same linking rules as op-supervisor:
+// 1. initTimestamp <= execTimestamp (same-timestamp is valid)
+// 2. initTimestamp + MessageExpiryWindow >= execTimestamp (message not expired)
+// 3. If Timeout > 0: initTimestamp + MessageExpiryWindow >= execTimestamp + Timeout
 func (b *Backend) validateAccess(ctx context.Context, access types.Access, execDescriptor types.ExecutingDescriptor) error {
 	// Find the chain ingester for this access entry
 	b.chainsMu.RLock()
@@ -227,19 +239,28 @@ func (b *Backend) validateAccess(ctx context.Context, access types.Access, execD
 		return fmt.Errorf("chain %s: %w", access.ChainID, types.ErrUnknownChain)
 	}
 
-	// Initiating message must be strictly before execution (same-timestamp is invalid)
-	if access.Timestamp >= execDescriptor.Timestamp {
-		return fmt.Errorf("initiating message timestamp %d not before execution timestamp %d: %w",
+	// Initiating message timestamp must not be after execution timestamp
+	// (same-timestamp is valid per supervisor spec)
+	if access.Timestamp > execDescriptor.Timestamp {
+		return fmt.Errorf("initiating message timestamp %d after execution timestamp %d: %w",
 			access.Timestamp, execDescriptor.Timestamp, types.ErrConflict)
 	}
 
-	// Check expiry if timeout is set
-	// Message is valid from init.Timestamp until init.Timestamp + Timeout (inclusive)
+	// Check expiry: message expires at initTimestamp + MessageExpiryWindow
+	expiresAt := saturatingAdd(access.Timestamp, b.cfg.MessageExpiryWindow)
+	if expiresAt < execDescriptor.Timestamp {
+		return fmt.Errorf("initiating message expired: init %d + expiry window %d = %d < exec %d: %w",
+			access.Timestamp, b.cfg.MessageExpiryWindow, expiresAt, execDescriptor.Timestamp, types.ErrConflict)
+	}
+
+	// If Timeout is set, also verify the message won't expire at execTimestamp + Timeout
+	// This ensures the message remains valid for the preverification window
 	if execDescriptor.Timeout > 0 {
-		expiresAt := access.Timestamp + execDescriptor.Timeout
-		if expiresAt < execDescriptor.Timestamp {
-			return fmt.Errorf("initiating message expired: init %d + timeout %d = %d < exec %d: %w",
-				access.Timestamp, execDescriptor.Timeout, expiresAt, execDescriptor.Timestamp, types.ErrConflict)
+		maxExecTimestamp := saturatingAdd(execDescriptor.Timestamp, execDescriptor.Timeout)
+		if expiresAt < maxExecTimestamp {
+			return fmt.Errorf("initiating message will expire before timeout: init %d + expiry %d = %d < exec %d + timeout %d = %d: %w",
+				access.Timestamp, b.cfg.MessageExpiryWindow, expiresAt,
+				execDescriptor.Timestamp, execDescriptor.Timeout, maxExecTimestamp, types.ErrConflict)
 		}
 	}
 
@@ -252,6 +273,15 @@ func (b *Backend) validateAccess(ctx context.Context, access types.Access, execD
 	}
 
 	return nil
+}
+
+// saturatingAdd adds two uint64 values, returning max uint64 on overflow
+func saturatingAdd(a, b uint64) uint64 {
+	result := a + b
+	if result < a { // overflow
+		return ^uint64(0) // max uint64
+	}
+	return result
 }
 
 // Rewind rewinds a chain to a specific block
@@ -345,6 +375,7 @@ func (b *Backend) tryValidateCrossUnsafe() {
 
 // validateExecutingMessage validates a single executing message against the source chain
 // execTimestamp is the timestamp when the executing message was processed
+// Uses the same linking rules as validateAccess (matching op-supervisor)
 func (b *Backend) validateExecutingMessage(execMsg *types.ExecutingMessage, execTimestamp uint64) error {
 	b.chainsMu.RLock()
 	ingester, ok := b.chains[execMsg.ChainID]
@@ -354,10 +385,18 @@ func (b *Backend) validateExecutingMessage(execMsg *types.ExecutingMessage, exec
 		return fmt.Errorf("source chain %s: %w", execMsg.ChainID, types.ErrUnknownChain)
 	}
 
-	// Initiating message must be strictly before execution
-	if execMsg.Timestamp >= execTimestamp {
-		return fmt.Errorf("initiating message timestamp %d not before execution timestamp %d: %w",
+	// Initiating message timestamp must not be after execution timestamp
+	// (same-timestamp is valid per supervisor spec)
+	if execMsg.Timestamp > execTimestamp {
+		return fmt.Errorf("initiating message timestamp %d after execution timestamp %d: %w",
 			execMsg.Timestamp, execTimestamp, types.ErrConflict)
+	}
+
+	// Check expiry: message expires at initTimestamp + MessageExpiryWindow
+	expiresAt := saturatingAdd(execMsg.Timestamp, b.cfg.MessageExpiryWindow)
+	if expiresAt < execTimestamp {
+		return fmt.Errorf("initiating message expired: init %d + expiry window %d = %d < exec %d: %w",
+			execMsg.Timestamp, b.cfg.MessageExpiryWindow, expiresAt, execTimestamp, types.ErrConflict)
 	}
 
 	// Check log exists in source chain

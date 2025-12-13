@@ -354,9 +354,11 @@ func run(cliCtx *cli.Context) error {
 	headNum := head.NumberU64()
 	logger.Info("Current L2 head", "block", headNum)
 
-	// Calculate block range to sample from
-	startBlock := headNum - uint64(blockRange)
-	if startBlock < 1 {
+	// Calculate block range to sample from (avoid underflow)
+	var startBlock uint64
+	if headNum > uint64(blockRange) {
+		startBlock = headNum - uint64(blockRange)
+	} else {
 		startBlock = 1
 	}
 
@@ -446,8 +448,27 @@ type Spammer struct {
 	recentQueries *RecentQueries
 }
 
+const maxQueryRetries = 100
+
 // RunValidQuery fetches a random log and verifies the filter accepts it
 func (s *Spammer) RunValidQuery(ctx context.Context) error {
+	for attempt := 0; attempt < maxQueryRetries; attempt++ {
+		err := s.tryValidQuery(ctx)
+		if err == nil {
+			return nil
+		}
+		// Check if this is a retryable error
+		if !strings.Contains(err.Error(), "retry:") {
+			return err
+		}
+		// Retryable error - try again
+		s.logger.Debug("Retrying valid query", "attempt", attempt+1, "reason", err)
+	}
+	return fmt.Errorf("failed to find suitable block after %d attempts", maxQueryRetries)
+}
+
+// tryValidQuery attempts a single valid query, returns error with "retry:" prefix if retryable
+func (s *Spammer) tryValidQuery(ctx context.Context) error {
 	start := time.Now()
 
 	// Pick a random block
@@ -536,9 +557,7 @@ func (s *Spammer) RunValidQuery(ctx context.Context) error {
 			// Check if this is a "skipped data" error (block outside filter's range)
 			// This means the block is too old for the filter to search, not a real error
 			if strings.Contains(err.Error(), "skipped data") {
-				s.logger.Debug("Block outside filter's searchable range, retrying with different block",
-					"block", blockNum, "err", err)
-				return s.RunValidQuery(ctx) // Try again with a different block
+				return fmt.Errorf("retry: block %d outside filter range", blockNum)
 			}
 			return fmt.Errorf("valid query rejected: block=%d logIdx=%d err=%w", blockNum, log.Index, err)
 		}
@@ -549,7 +568,7 @@ func (s *Spammer) RunValidQuery(ctx context.Context) error {
 
 	if !foundLog {
 		// Block had no logs, try again with a different block
-		return s.RunValidQuery(ctx)
+		return fmt.Errorf("retry: block %d has no logs", blockNum)
 	}
 
 	return nil

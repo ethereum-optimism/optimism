@@ -74,18 +74,15 @@ type Metrics struct {
 	// Filter metrics
 	FilterUp           float64
 	FilterFailsafe     float64
-	FilterChainReady   map[string]float64
 	FilterChainHead    map[string]float64
-	FilterBackfillProg map[string]float64
+	FilterBackfillProg map[string]float64 // 1.0 = ready
 	FilterCheckSuccess float64
 	FilterCheckFailed  float64
 	FilterReorgs       map[string]float64
 
-	// LogsDB metrics
-	LogsDBFirstBlock   map[string]float64
-	LogsDBBlocksSealed map[string]float64
-	LogsDBLogsAdded    map[string]float64
-	LogsDBEntries      map[string]float64
+	// Chain ingestion metrics (per chain)
+	BlocksSealed map[string]float64
+	LogsAdded    map[string]float64
 
 	// Spammer metrics
 	SpammerUp              float64
@@ -196,13 +193,14 @@ func render(filterURL string, spammerURLs []string, startTime time.Time) {
 
 		for _, chainID := range chainIDs {
 			head := m.FilterChainHead[chainID]
+			// Chain is ready when backfill_progress >= 1.0
 			ready := "..."
-			if r, ok := m.FilterChainReady[chainID]; ok && r > 0 {
-				ready = "[ready]"
-			}
 			backfill := 0.0
 			if bf, ok := m.FilterBackfillProg[chainID]; ok {
 				backfill = bf * 100
+				if bf >= 1.0 {
+					ready = "[ready]"
+				}
 			}
 			reorgs := 0.0
 			if r, ok := m.FilterReorgs[chainID]; ok {
@@ -222,27 +220,24 @@ func render(filterURL string, spammerURLs []string, startTime time.Time) {
 
 	fmt.Println("╠══════════════════════════════════════════════════════════════════════════════╣")
 
-	// LogsDB Stats (sorted for consistent display)
-	printLine("  LOGSDB")
-	if len(m.LogsDBBlocksSealed) > 0 {
-		chainIDs := make([]string, 0, len(m.LogsDBBlocksSealed))
-		for chainID := range m.LogsDBBlocksSealed {
+	// Chain ingestion stats (sorted for consistent display)
+	printLine("  INGESTION")
+	if len(m.BlocksSealed) > 0 {
+		chainIDs := make([]string, 0, len(m.BlocksSealed))
+		for chainID := range m.BlocksSealed {
 			chainIDs = append(chainIDs, chainID)
 		}
 		sort.Strings(chainIDs)
 
 		for _, chainID := range chainIDs {
-			firstBlock := m.LogsDBFirstBlock[chainID]
-			blocksSealed := m.LogsDBBlocksSealed[chainID]
-			logsAdded := m.LogsDBLogsAdded[chainID]
-			entries := m.LogsDBEntries[chainID]
+			blocksSealed := m.BlocksSealed[chainID]
+			logsAdded := m.LogsAdded[chainID]
 			name := chainName(chainID)
-			printLine(fmt.Sprintf("    %-18s Blocks=%-8.0f Logs=%-8.0f Entries=%-8.0f",
-				name, blocksSealed, logsAdded, entries))
-			printLine(fmt.Sprintf("                        First Block=%-10.0f", firstBlock))
+			printLine(fmt.Sprintf("    %-18s Blocks=%-10.0f Logs=%-10.0f",
+				name, blocksSealed, logsAdded))
 		}
 	} else {
-		printLine("    No LogsDB data available")
+		printLine("    No ingestion data available")
 	}
 
 	fmt.Println("╠══════════════════════════════════════════════════════════════════════════════╣")
@@ -379,14 +374,11 @@ func printLine(content string) {
 
 func fetchAllMetrics(filterURL string, spammerURLs []string) Metrics {
 	m := Metrics{
-		FilterChainReady:   make(map[string]float64),
 		FilterChainHead:    make(map[string]float64),
 		FilterBackfillProg: make(map[string]float64),
 		FilterReorgs:       make(map[string]float64),
-		LogsDBFirstBlock:   make(map[string]float64),
-		LogsDBBlocksSealed: make(map[string]float64),
-		LogsDBLogsAdded:    make(map[string]float64),
-		LogsDBEntries:      make(map[string]float64),
+		BlocksSealed:       make(map[string]float64),
+		LogsAdded:          make(map[string]float64),
 	}
 
 	// Fetch filter metrics
@@ -398,10 +390,6 @@ func fetchAllMetrics(filterURL string, spammerURLs []string) Metrics {
 
 	// Parse chain-specific metrics
 	for k, v := range filterMetrics {
-		if strings.HasPrefix(k, "op_interop_filter_default_chain_ready{") {
-			chainID := extractLabel(k, "chain_id")
-			m.FilterChainReady[chainID] = v
-		}
 		if strings.HasPrefix(k, "op_interop_filter_default_chain_head{") {
 			chainID := extractLabel(k, "chain_id")
 			m.FilterChainHead[chainID] = v
@@ -414,22 +402,14 @@ func fetchAllMetrics(filterURL string, spammerURLs []string) Metrics {
 			chainID := extractLabel(k, "chain_id")
 			m.FilterReorgs[chainID] = v
 		}
-		// LogsDB metrics
-		if strings.HasPrefix(k, "op_interop_filter_default_logsdb_first_block{") {
+		// Chain ingestion metrics (actual metric names without logsdb_ prefix)
+		if strings.HasPrefix(k, "op_interop_filter_default_blocks_sealed_total{") {
 			chainID := extractLabel(k, "chain_id")
-			m.LogsDBFirstBlock[chainID] = v
+			m.BlocksSealed[chainID] = v
 		}
-		if strings.HasPrefix(k, "op_interop_filter_default_logsdb_blocks_sealed_total{") {
+		if strings.HasPrefix(k, "op_interop_filter_default_logs_added_total{") {
 			chainID := extractLabel(k, "chain_id")
-			m.LogsDBBlocksSealed[chainID] = v
-		}
-		if strings.HasPrefix(k, "op_interop_filter_default_logsdb_logs_added_total{") {
-			chainID := extractLabel(k, "chain_id")
-			m.LogsDBLogsAdded[chainID] = v
-		}
-		if strings.HasPrefix(k, "op_interop_filter_default_logsdb_entries{") {
-			chainID := extractLabel(k, "chain_id")
-			m.LogsDBEntries[chainID] = v
+			m.LogsAdded[chainID] = v
 		}
 	}
 

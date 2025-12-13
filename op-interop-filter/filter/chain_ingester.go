@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
@@ -263,27 +264,46 @@ func (c *ChainIngester) runIngestion() {
 	}
 	c.log.Info("Current chain head", "block", head.NumberU64(), "hash", head.Hash())
 
-	// Calculate backfill start block
-	blocksToBackfill := uint64(c.backfillDuration / defaultBlockTime)
+	// Check if DB has existing data (for restarts with persistent storage)
+	c.mu.RLock()
+	latestSealed, hasSealed := c.logsDB.LatestSealedBlock()
+	c.mu.RUnlock()
+
 	var startBlock uint64
-	if head.NumberU64() > blocksToBackfill {
-		startBlock = head.NumberU64() - blocksToBackfill
-	} else {
-		startBlock = 1 // Start from block 1, not genesis
-	}
+	if hasSealed {
+		// Resume from where we left off
+		startBlock = latestSealed.Number + 1
+		c.log.Info("Resuming from existing DB", "lastSealed", latestSealed.Number, "resumeFrom", startBlock)
 
-	c.log.Info("Starting backfill", "from", startBlock, "to", head.NumberU64(), "blocks", head.NumberU64()-startBlock+1)
-
-	// Initialize the LogsDB with the parent block of the start block
-	// This is needed because the LogsDB requires a sealed parent block before adding logs
-	if startBlock > 0 {
-		if err := c.initializeAnchorBlock(startBlock - 1); err != nil {
-			c.log.Error("Failed to initialize anchor block", "err", err)
+		// If we're already caught up or ahead, just start polling
+		if startBlock > head.NumberU64() {
+			c.log.Info("DB is up to date, starting live ingestion")
+			c.ready.Store(true)
+			c.pollLoop()
 			return
+		}
+	} else {
+		// Fresh start - calculate backfill range
+		blocksToBackfill := uint64(c.backfillDuration / defaultBlockTime)
+		if head.NumberU64() > blocksToBackfill {
+			startBlock = head.NumberU64() - blocksToBackfill
+		} else {
+			startBlock = 1 // Start from block 1, not genesis
+		}
+
+		c.log.Info("Starting fresh backfill", "from", startBlock, "to", head.NumberU64(), "blocks", head.NumberU64()-startBlock+1)
+
+		// Initialize the LogsDB with the parent block of the start block
+		// This is needed because the LogsDB requires a sealed parent block before adding logs
+		if startBlock > 0 {
+			if err := c.initializeAnchorBlock(startBlock - 1); err != nil {
+				c.log.Error("Failed to initialize anchor block", "err", err)
+				return
+			}
 		}
 	}
 
-	// Backfill
+	// Backfill/catchup
 	if err := c.backfill(startBlock, head.NumberU64()); err != nil {
 		if errors.Is(err, context.Canceled) {
 			c.log.Info("Backfill canceled")
@@ -449,12 +469,51 @@ func (c *ChainIngester) ingestBlock(blockNum uint64) error {
 		}
 	}
 
-	// Process logs and add to DB
-	var execMsgs []*types.ExecutingMessage
-	var logIndex uint32
+	// Process logs and add to DB under lock
+	// We explicitly manage lock/unlock to avoid fragile defer patterns
+	result, err := c.processBlockLogs(blockInfo, blockID, receipts, blockNum)
+	if err != nil {
+		return err
+	}
+
+	// Handle reorg detection (callback runs without lock)
+	if result.needsReorg {
+		c.triggerReorg()
+		return nil
+	}
+
+	// Update metrics (no lock needed)
+	chainIDUint64, _ := c.chainID.Uint64()
+	c.metrics.RecordChainHead(chainIDUint64, blockNum)
+	c.metrics.RecordBlocksSealed(chainIDUint64, 1)
+	c.metrics.RecordLogsAdded(chainIDUint64, int64(result.logCount))
+
+	// Notify about executing messages (callback runs without lock to avoid deadlock)
+	if len(result.execMsgs) > 0 && c.onExecMsg != nil {
+		c.onExecMsg(c.chainID, blockInfo.Time(), result.execMsgs)
+	}
+
+	return nil
+}
+
+// blockLogsResult holds the result of processing block logs
+type blockLogsResult struct {
+	execMsgs   []*types.ExecutingMessage
+	logCount   uint32
+	needsReorg bool
+}
+
+// processBlockLogs processes all logs in a block and adds them to the DB
+// Returns the result containing executing messages found, log count, and reorg flag
+// Handles locking internally - caller should not hold the lock
+func (c *ChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID eth.BlockID,
+	receipts gethTypes.Receipts, blockNum uint64) (blockLogsResult, error) {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	var execMsgs []*types.ExecutingMessage
+	var logIndex uint32
 
 	// Get parent block ID for AddLog
 	parentBlock := eth.BlockID{Hash: blockInfo.ParentHash(), Number: blockNum - 1}
@@ -468,22 +527,22 @@ func (c *ChainIngester) ingestBlock(blockNum uint64) error {
 			logHash := processors.LogToLogHash(l)
 
 			// Check if this is an executing message
+			// Note: DecodeExecutingMessageLog returns (nil, nil) for non-executing-message logs,
+			// but returns an error if a log LOOKS like an executing message but can't be decoded.
+			// Per supervisor behavior, we treat decode errors as hard failures.
 			execMsg, err := processors.DecodeExecutingMessageLog(l)
 			if err != nil {
-				c.log.Debug("Failed to decode executing message", "err", err)
+				return blockLogsResult{}, fmt.Errorf("invalid log %d in block %d: %w", l.Index, blockNum, err)
 			}
 
 			// Add log to DB
 			if err := c.logsDB.AddLog(logHash, parentBlock, logIndex, execMsg); err != nil {
 				// Check for conflict (reorg indicator)
 				if errors.Is(err, types.ErrConflict) {
-					c.log.Warn("Conflict adding log, triggering reorg", "err", err)
-					c.mu.Unlock()
-					c.triggerReorg()
-					c.mu.Lock()
-					return nil
+					c.log.Warn("Conflict adding log, detected reorg", "err", err)
+					return blockLogsResult{needsReorg: true}, nil
 				}
-				return fmt.Errorf("failed to add log: %w", err)
+				return blockLogsResult{}, fmt.Errorf("failed to add log: %w", err)
 			}
 
 			if execMsg != nil {
@@ -496,31 +555,13 @@ func (c *ChainIngester) ingestBlock(blockNum uint64) error {
 	// Seal the block
 	if err := c.logsDB.SealBlock(blockInfo.ParentHash(), blockID, blockInfo.Time()); err != nil {
 		if errors.Is(err, types.ErrConflict) {
-			c.log.Warn("Conflict sealing block, triggering reorg", "err", err)
-			c.mu.Unlock()
-			c.triggerReorg()
-			c.mu.Lock()
-			return nil
+			c.log.Warn("Conflict sealing block, detected reorg", "err", err)
+			return blockLogsResult{needsReorg: true}, nil
 		}
-		return fmt.Errorf("failed to seal block: %w", err)
+		return blockLogsResult{}, fmt.Errorf("failed to seal block: %w", err)
 	}
 
-	// Update metrics
-	chainIDUint64, _ := c.chainID.Uint64()
-	c.metrics.RecordChainHead(chainIDUint64, blockNum)
-	c.metrics.RecordBlocksSealed(chainIDUint64, 1)
-	c.metrics.RecordLogsAdded(chainIDUint64, int64(logIndex))
-
-	// Notify about executing messages
-	// Release lock before callback to avoid deadlock - the callback may call
-	// back into this ingester (e.g., LatestTimestamp) which needs the lock
-	if len(execMsgs) > 0 && c.onExecMsg != nil {
-		c.mu.Unlock()
-		c.onExecMsg(c.chainID, blockInfo.Time(), execMsgs)
-		c.mu.Lock()
-	}
-
-	return nil
+	return blockLogsResult{execMsgs: execMsgs, logCount: logIndex}, nil
 }
 
 // triggerReorg handles reorg detection
