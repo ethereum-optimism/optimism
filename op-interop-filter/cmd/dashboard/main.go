@@ -391,43 +391,43 @@ func fetchAllMetrics(filterURL string, spammerURLs []string) Metrics {
 
 	// Fetch filter metrics
 	filterMetrics := fetchMetrics(filterURL)
-	m.FilterUp = filterMetrics["op_interop_filter_up"]
-	m.FilterFailsafe = filterMetrics["op_interop_filter_failsafe_enabled"]
-	m.FilterCheckSuccess = filterMetrics["op_interop_filter_check_access_list_total{success=\"true\"}"]
-	m.FilterCheckFailed = filterMetrics["op_interop_filter_check_access_list_total{success=\"false\"}"]
+	m.FilterUp = filterMetrics["op_interop_filter_default_up"]
+	m.FilterFailsafe = filterMetrics["op_interop_filter_default_failsafe_enabled"]
+	m.FilterCheckSuccess = filterMetrics["op_interop_filter_default_check_access_list_total{success=\"true\"}"]
+	m.FilterCheckFailed = filterMetrics["op_interop_filter_default_check_access_list_total{success=\"false\"}"]
 
 	// Parse chain-specific metrics
 	for k, v := range filterMetrics {
-		if strings.HasPrefix(k, "op_interop_filter_chain_ready{") {
+		if strings.HasPrefix(k, "op_interop_filter_default_chain_ready{") {
 			chainID := extractLabel(k, "chain_id")
 			m.FilterChainReady[chainID] = v
 		}
-		if strings.HasPrefix(k, "op_interop_filter_chain_head{") {
+		if strings.HasPrefix(k, "op_interop_filter_default_chain_head{") {
 			chainID := extractLabel(k, "chain_id")
 			m.FilterChainHead[chainID] = v
 		}
-		if strings.HasPrefix(k, "op_interop_filter_backfill_progress{") {
+		if strings.HasPrefix(k, "op_interop_filter_default_backfill_progress{") {
 			chainID := extractLabel(k, "chain_id")
 			m.FilterBackfillProg[chainID] = v
 		}
-		if strings.HasPrefix(k, "op_interop_filter_reorg_detected_total{") {
+		if strings.HasPrefix(k, "op_interop_filter_default_reorg_detected_total{") {
 			chainID := extractLabel(k, "chain_id")
 			m.FilterReorgs[chainID] = v
 		}
 		// LogsDB metrics
-		if strings.HasPrefix(k, "op_interop_filter_logsdb_first_block{") {
+		if strings.HasPrefix(k, "op_interop_filter_default_logsdb_first_block{") {
 			chainID := extractLabel(k, "chain_id")
 			m.LogsDBFirstBlock[chainID] = v
 		}
-		if strings.HasPrefix(k, "op_interop_filter_logsdb_blocks_sealed_total{") {
+		if strings.HasPrefix(k, "op_interop_filter_default_logsdb_blocks_sealed_total{") {
 			chainID := extractLabel(k, "chain_id")
 			m.LogsDBBlocksSealed[chainID] = v
 		}
-		if strings.HasPrefix(k, "op_interop_filter_logsdb_logs_added_total{") {
+		if strings.HasPrefix(k, "op_interop_filter_default_logsdb_logs_added_total{") {
 			chainID := extractLabel(k, "chain_id")
 			m.LogsDBLogsAdded[chainID] = v
 		}
-		if strings.HasPrefix(k, "op_interop_filter_logsdb_entries{") {
+		if strings.HasPrefix(k, "op_interop_filter_default_logsdb_entries{") {
 			chainID := extractLabel(k, "chain_id")
 			m.LogsDBEntries[chainID] = v
 		}

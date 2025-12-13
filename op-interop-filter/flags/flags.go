@@ -26,7 +26,7 @@ var (
 	}
 	DataDirFlag = &cli.StringFlag{
 		Name:    "data-dir",
-		Usage:   "Directory for LogsDB storage. If empty, uses in-memory storage",
+		Usage:   "Directory for LogsDB storage. If empty, uses a temporary directory",
 		EnvVars: prefixEnvVars("DATA_DIR"),
 		Value:   "",
 	}

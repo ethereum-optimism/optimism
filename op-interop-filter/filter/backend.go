@@ -80,6 +80,12 @@ func NewBackend(parentCtx context.Context, logger log.Logger, m metrics.Metricer
 			return nil, fmt.Errorf("failed to create chain ingester for chain %s: %w", chainID, err)
 		}
 
+		// Check for duplicate chain IDs
+		if _, exists := b.chains[chainID]; exists {
+			cancel()
+			return nil, fmt.Errorf("duplicate chain ID %s: multiple RPCs return the same chain ID", chainID)
+		}
+
 		b.chains[chainID] = ingester
 		b.pendingExecMsgs[chainID] = make(map[uint64][]*types.ExecutingMessage)
 	}

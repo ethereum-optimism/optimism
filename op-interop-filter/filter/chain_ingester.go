@@ -144,11 +144,22 @@ func (c *ChainIngester) Stop() error {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	// Close LogsDB
 	if c.logsDB != nil {
 		if err := c.logsDB.Close(); err != nil {
 			return fmt.Errorf("failed to close logs DB: %w", err)
 		}
 	}
+
+	// Close RPC clients
+	if c.ethClient != nil {
+		c.ethClient.Close()
+	}
+	if c.rpcClient != nil {
+		c.rpcClient.Close()
+	}
+
 	return nil
 }
 
@@ -501,8 +512,12 @@ func (c *ChainIngester) ingestBlock(blockNum uint64) error {
 	c.metrics.RecordLogsAdded(chainIDUint64, int64(logIndex))
 
 	// Notify about executing messages
+	// Release lock before callback to avoid deadlock - the callback may call
+	// back into this ingester (e.g., LatestTimestamp) which needs the lock
 	if len(execMsgs) > 0 && c.onExecMsg != nil {
+		c.mu.Unlock()
 		c.onExecMsg(c.chainID, blockInfo.Time(), execMsgs)
+		c.mu.Lock()
 	}
 
 	return nil
