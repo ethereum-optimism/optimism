@@ -498,7 +498,7 @@ func (s *Spammer) RunValidQuery(ctx context.Context) error {
 			Timestamp: block.Time() + 1, // Execute at least 1 second later
 		}
 
-		err := s.filterClient.CallContext(ctx, nil, "supervisor_checkAccessList", entries, suptypes.LocalUnsafe, execDesc)
+		err := s.filterClient.CallContext(ctx, nil, "supervisor_checkAccessList", entries, suptypes.CrossUnsafe, execDesc)
 
 		// Record metrics
 		if s.metrics != nil {
@@ -610,7 +610,7 @@ func (s *Spammer) RunInvalidQuery(ctx context.Context) error {
 			Timestamp: block.Time() + 1, // Execute at least 1 second later
 		}
 
-		err := s.filterClient.CallContext(ctx, nil, "supervisor_checkAccessList", entries, suptypes.LocalUnsafe, execDesc)
+		err := s.filterClient.CallContext(ctx, nil, "supervisor_checkAccessList", entries, suptypes.CrossUnsafe, execDesc)
 
 		// Record metrics
 		if s.metrics != nil {

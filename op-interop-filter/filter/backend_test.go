@@ -87,11 +87,11 @@ func TestBackend_OnReorg_EnablesFailsafe(t *testing.T) {
 func TestBackend_CheckAccessList_UnsupportedSafetyLevel(t *testing.T) {
 	backend := newTestBackendWithMockChain(t)
 
-	// CrossUnsafe is not supported
+	// Finalized is not supported (we don't track derivation)
 	err := backend.CheckAccessList(
 		context.Background(),
 		[]common.Hash{},
-		types.CrossUnsafe,
+		types.Finalized,
 		types.ExecutingDescriptor{},
 	)
 	require.Error(t, err)

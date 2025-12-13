@@ -185,10 +185,13 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 		return types.ErrUninitialized
 	}
 
-	// Only LocalUnsafe is supported for now (we don't track derivation)
-	if minSafety != types.LocalUnsafe {
+	// We support LocalUnsafe and CrossUnsafe (we don't track derivation for Safe/Finalized)
+	// CrossUnsafe is supported because we perform cross-chain validation in tryValidateCrossUnsafe()
+	// and enable failsafe if any validation fails
+	if minSafety != types.LocalUnsafe && minSafety != types.CrossUnsafe {
 		b.metrics.RecordCheckAccessList(false)
-		return fmt.Errorf("unsupported safety level %s: only %s is supported", minSafety, types.LocalUnsafe)
+		return fmt.Errorf("unsupported safety level %s: only %s and %s are supported",
+			minSafety, types.LocalUnsafe, types.CrossUnsafe)
 	}
 
 	// Parse and validate each access entry
