@@ -218,19 +218,19 @@ func (b *Backend) validateAccess(ctx context.Context, access types.Access, execD
 		return fmt.Errorf("chain %s: %w", access.ChainID, types.ErrUnknownChain)
 	}
 
-	// Important invariant: Messages initiated and executed in the same timestamp are invalid
-	if access.Timestamp == execDescriptor.Timestamp {
-		return fmt.Errorf("message initiated at same timestamp as execution (%d): %w",
-			access.Timestamp, types.ErrConflict)
+	// Initiating message must be strictly before execution (same-timestamp is invalid)
+	if access.Timestamp >= execDescriptor.Timestamp {
+		return fmt.Errorf("initiating message timestamp %d not before execution timestamp %d: %w",
+			access.Timestamp, execDescriptor.Timestamp, types.ErrConflict)
 	}
 
-	// Check timeout validity
+	// Check expiry if timeout is set
+	// Message is valid from init.Timestamp until init.Timestamp + Timeout (inclusive)
 	if execDescriptor.Timeout > 0 {
-		// The message must be valid from execDescriptor.Timestamp to execDescriptor.Timestamp + Timeout
-		// This means the initiating message timestamp must be strictly less than execDescriptor.Timestamp
-		if access.Timestamp >= execDescriptor.Timestamp {
-			return fmt.Errorf("initiating message timestamp %d not before execution timestamp %d: %w",
-				access.Timestamp, execDescriptor.Timestamp, types.ErrConflict)
+		expiresAt := access.Timestamp + execDescriptor.Timeout
+		if expiresAt < execDescriptor.Timestamp {
+			return fmt.Errorf("initiating message expired: init %d + timeout %d = %d < exec %d: %w",
+				access.Timestamp, execDescriptor.Timeout, expiresAt, execDescriptor.Timestamp, types.ErrConflict)
 		}
 	}
 
@@ -306,7 +306,7 @@ func (b *Backend) tryValidateCrossUnsafe() {
 			}
 
 			for _, execMsg := range execMsgs {
-				if err := b.validateExecutingMessage(execMsg); err != nil {
+				if err := b.validateExecutingMessage(execMsg, ts); err != nil {
 					b.log.Error("Cross-unsafe validation failed, enabling failsafe",
 						"chain", chainID,
 						"timestamp", ts,
@@ -335,7 +335,8 @@ func (b *Backend) tryValidateCrossUnsafe() {
 }
 
 // validateExecutingMessage validates a single executing message against the source chain
-func (b *Backend) validateExecutingMessage(execMsg *types.ExecutingMessage) error {
+// execTimestamp is the timestamp when the executing message was processed
+func (b *Backend) validateExecutingMessage(execMsg *types.ExecutingMessage, execTimestamp uint64) error {
 	b.chainsMu.RLock()
 	ingester, ok := b.chains[execMsg.ChainID]
 	b.chainsMu.RUnlock()
@@ -344,6 +345,13 @@ func (b *Backend) validateExecutingMessage(execMsg *types.ExecutingMessage) erro
 		return fmt.Errorf("source chain %s: %w", execMsg.ChainID, types.ErrUnknownChain)
 	}
 
+	// Initiating message must be strictly before execution
+	if execMsg.Timestamp >= execTimestamp {
+		return fmt.Errorf("initiating message timestamp %d not before execution timestamp %d: %w",
+			execMsg.Timestamp, execTimestamp, types.ErrConflict)
+	}
+
+	// Check log exists in source chain
 	query := types.ContainsQuery{
 		Timestamp: execMsg.Timestamp,
 		BlockNum:  execMsg.BlockNum,
