@@ -16,6 +16,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+// pendingExecMsg represents an executing message awaiting cross-unsafe validation
+type pendingExecMsg struct {
+	execChainID eth.ChainID              // Chain where the executing message was found
+	timestamp   uint64                   // Timestamp of the block containing the executing message
+	msg         *types.ExecutingMessage  // The executing message itself (references source chain)
+}
+
 // Backend coordinates chain ingesters, manages failsafe state, and handles CheckAccessList requests.
 type Backend struct {
 	log     log.Logger
@@ -29,9 +36,8 @@ type Backend struct {
 	// Failsafe state
 	failsafe atomic.Bool
 
-	// Cross-unsafe validation state
-	// Tracks minimum timestamp across all chains for validation
-	pendingExecMsgs map[eth.ChainID]map[uint64][]*types.ExecutingMessage // chainID -> timestamp -> execMsgs
+	// Cross-unsafe validation state - flat list of pending executing messages
+	pendingExecMsgs []pendingExecMsg
 	pendingMu       sync.Mutex
 
 	// Context for shutdown
@@ -44,13 +50,12 @@ func NewBackend(parentCtx context.Context, logger log.Logger, m metrics.Metricer
 	ctx, cancel := context.WithCancel(parentCtx)
 
 	b := &Backend{
-		log:             logger,
-		metrics:         m,
-		cfg:             cfg,
-		chains:          make(map[eth.ChainID]*ChainIngester),
-		pendingExecMsgs: make(map[eth.ChainID]map[uint64][]*types.ExecutingMessage),
-		ctx:             ctx,
-		cancel:          cancel,
+		log:     logger,
+		metrics: m,
+		cfg:     cfg,
+		chains:  make(map[eth.ChainID]*ChainIngester),
+		ctx:     ctx,
+		cancel:  cancel,
 	}
 
 	// Helper to cleanup on error
@@ -95,7 +100,6 @@ func NewBackend(parentCtx context.Context, logger log.Logger, m metrics.Metricer
 		}
 
 		b.chains[chainID] = ingester
-		b.pendingExecMsgs[chainID] = make(map[uint64][]*types.ExecutingMessage)
 	}
 
 	logger.Info("Created backend", "chains", len(b.chains))
@@ -302,11 +306,14 @@ func (b *Backend) onExecutingMessages(chainID eth.ChainID, timestamp uint64, exe
 	b.pendingMu.Lock()
 	defer b.pendingMu.Unlock()
 
-	// Store pending executing messages for cross-unsafe validation
-	if _, ok := b.pendingExecMsgs[chainID]; !ok {
-		b.pendingExecMsgs[chainID] = make(map[uint64][]*types.ExecutingMessage)
+	// Append executing messages to pending list
+	for _, msg := range execMsgs {
+		b.pendingExecMsgs = append(b.pendingExecMsgs, pendingExecMsg{
+			execChainID: chainID,
+			timestamp:   timestamp,
+			msg:         msg,
+		})
 	}
-	b.pendingExecMsgs[chainID][timestamp] = append(b.pendingExecMsgs[chainID][timestamp], execMsgs...)
 
 	// Try to validate cross-unsafe messages
 	b.tryValidateCrossUnsafe()
@@ -315,62 +322,61 @@ func (b *Backend) onExecutingMessages(chainID eth.ChainID, timestamp uint64, exe
 // tryValidateCrossUnsafe validates executing messages when all chains have caught up
 func (b *Backend) tryValidateCrossUnsafe() {
 	// Find minimum timestamp across all chains
-	minTimestamp := uint64(0)
-	first := true
+	minTimestamp, ok := b.getMinChainTimestamp()
+	if !ok {
+		return // Not all chains ready
+	}
 
+	// Validate and filter in one pass
+	remaining := b.pendingExecMsgs[:0] // reuse backing array
+	for _, pending := range b.pendingExecMsgs {
+		if pending.timestamp > minTimestamp {
+			// Not ready yet - keep for later
+			remaining = append(remaining, pending)
+			continue
+		}
+
+		// Validate this message
+		if err := b.validateExecutingMessage(pending.msg, pending.timestamp); err != nil {
+			b.log.Error("Cross-unsafe validation failed, enabling failsafe",
+				"execChain", pending.execChainID,
+				"sourceChain", pending.msg.ChainID,
+				"timestamp", pending.timestamp,
+				"err", err)
+			b.SetFailsafeEnabled(true)
+			return
+		}
+	}
+	b.pendingExecMsgs = remaining
+
+	// Record metrics
+	b.metrics.RecordPendingExecMsgs(0, int64(len(b.pendingExecMsgs)))
+	b.metrics.RecordCrossUnsafeValidatedTimestamp(minTimestamp)
+}
+
+// getMinChainTimestamp returns the minimum timestamp across all chains.
+// Returns false if any chain is not ready yet.
+func (b *Backend) getMinChainTimestamp() (uint64, bool) {
 	b.chainsMu.RLock()
+	defer b.chainsMu.RUnlock()
+
+	if len(b.chains) == 0 {
+		return 0, false
+	}
+
+	var minTimestamp uint64
+	first := true
 	for _, ingester := range b.chains {
 		ts, ok := ingester.LatestTimestamp()
 		if !ok {
-			// Chain not ready yet
-			b.chainsMu.RUnlock()
-			return
+			return 0, false // Chain not ready
 		}
 		if first || ts < minTimestamp {
 			minTimestamp = ts
 			first = false
 		}
 	}
-	b.chainsMu.RUnlock()
-
-	if first {
-		return // No chains
-	}
-
-	// Validate all pending executing messages with timestamp <= minTimestamp
-	for chainID, timestampMsgs := range b.pendingExecMsgs {
-		for ts, execMsgs := range timestampMsgs {
-			if ts > minTimestamp {
-				continue // Not ready to validate yet
-			}
-
-			for _, execMsg := range execMsgs {
-				if err := b.validateExecutingMessage(execMsg, ts); err != nil {
-					b.log.Error("Cross-unsafe validation failed, enabling failsafe",
-						"chain", chainID,
-						"timestamp", ts,
-						"execMsg", execMsg,
-						"err", err)
-					b.SetFailsafeEnabled(true)
-					return
-				}
-			}
-
-			// Clean up validated messages
-			delete(b.pendingExecMsgs[chainID], ts)
-		}
-
-		// Record pending messages metric for this chain
-		var pendingCount int64
-		for _, msgs := range b.pendingExecMsgs[chainID] {
-			pendingCount += int64(len(msgs))
-		}
-		chainIDUint64, _ := chainID.Uint64()
-		b.metrics.RecordPendingExecMsgs(chainIDUint64, pendingCount)
-	}
-
-	// Record the validated timestamp
-	b.metrics.RecordCrossUnsafeValidatedTimestamp(minTimestamp)
+	return minTimestamp, true
 }
 
 // validateExecutingMessage validates a single executing message against the source chain

@@ -105,13 +105,12 @@ func newTestBackend(t *testing.T) *Backend {
 	t.Cleanup(cancel)
 
 	return &Backend{
-		log:             log.New(),
-		metrics:         metrics.NoopMetrics,
-		cfg:             &Config{},
-		chains:          make(map[eth.ChainID]*ChainIngester),
-		pendingExecMsgs: make(map[eth.ChainID]map[uint64][]*types.ExecutingMessage),
-		ctx:             ctx,
-		cancel:          cancel,
+		log:     log.New(),
+		metrics: metrics.NoopMetrics,
+		cfg:     &Config{MessageExpiryWindow: DefaultMessageExpiryWindow},
+		chains:  make(map[eth.ChainID]*ChainIngester),
+		ctx:     ctx,
+		cancel:  cancel,
 	}
 }
 
@@ -122,7 +121,6 @@ func newTestBackendWithMockChain(t *testing.T) *Backend {
 	chainID := eth.ChainIDFromUInt64(1)
 	mockIngester := &mockChainIngester{ready: true}
 	backend.chains[chainID] = mockIngester.asChainIngester()
-	backend.pendingExecMsgs[chainID] = make(map[uint64][]*types.ExecutingMessage)
 
 	return backend
 }
