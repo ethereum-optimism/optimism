@@ -15,15 +15,16 @@ import (
 )
 
 // DefaultMessageExpiryWindow is 7 days, matching op-supervisor's default
-const DefaultMessageExpiryWindow uint64 = 604800
+const DefaultMessageExpiryWindow = 168 * time.Hour
 
 type Config struct {
-	L2RPCs              []string
-	DataDir             string
-	BackfillDuration    time.Duration
-	MessageExpiryWindow uint64 // Message expiry window in seconds (default: 7 days)
-	JWTSecretPath       string
-	Version             string
+	L2RPCs                      []string
+	DataDir                     string
+	BackfillDuration            time.Duration
+	MessageExpiryWindow         uint64 // Message expiry window in seconds (default: 7 days)
+	MessageExpiryWindowExplicit bool   // True if explicitly set via flag
+	JWTSecretPath               string
+	Version                     string
 
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -52,16 +53,22 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		return nil, fmt.Errorf("invalid backfill-duration: %w", err)
 	}
 
+	messageExpiryWindow, err := time.ParseDuration(ctx.String(flags.MessageExpiryWindowFlag.Name))
+	if err != nil {
+		return nil, fmt.Errorf("invalid message-expiry-window: %w", err)
+	}
+
 	return &Config{
-		L2RPCs:              ctx.StringSlice(flags.L2RPCsFlag.Name),
-		DataDir:             ctx.String(flags.DataDirFlag.Name),
-		BackfillDuration:    backfillDuration,
-		MessageExpiryWindow: DefaultMessageExpiryWindow,
-		JWTSecretPath:       ctx.String(flags.JWTSecretFlag.Name),
-		Version:             version,
-		LogConfig:           oplog.ReadCLIConfig(ctx),
-		MetricsConfig:       opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:         oppprof.ReadCLIConfig(ctx),
-		RPC:                 oprpc.ReadCLIConfig(ctx),
+		L2RPCs:                      ctx.StringSlice(flags.L2RPCsFlag.Name),
+		DataDir:                     ctx.String(flags.DataDirFlag.Name),
+		BackfillDuration:            backfillDuration,
+		MessageExpiryWindow:         uint64(messageExpiryWindow.Seconds()),
+		MessageExpiryWindowExplicit: ctx.IsSet(flags.MessageExpiryWindowFlag.Name),
+		JWTSecretPath:               ctx.String(flags.JWTSecretFlag.Name),
+		Version:                     version,
+		LogConfig:                   oplog.ReadCLIConfig(ctx),
+		MetricsConfig:               opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:                 oppprof.ReadCLIConfig(ctx),
+		RPC:                         oprpc.ReadCLIConfig(ctx),
 	}, nil
 }

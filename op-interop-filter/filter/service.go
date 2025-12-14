@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync/atomic"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -59,6 +60,13 @@ func Main(version string) cliapp.LifecycleAction {
 		opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
 
 		l.Info("Initializing op-interop-filter", "version", version)
+
+		if !cfg.MessageExpiryWindowExplicit {
+			l.Warn("Using default message expiry window", "window", DefaultMessageExpiryWindow)
+		} else {
+			l.Info("Message expiry window configured", "window", time.Duration(cfg.MessageExpiryWindow)*time.Second)
+		}
+
 		return NewService(cliCtx.Context, cfg, l)
 	}
 }

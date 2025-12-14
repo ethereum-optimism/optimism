@@ -107,7 +107,7 @@ func newTestBackend(t *testing.T) *Backend {
 	return &Backend{
 		log:     log.New(),
 		metrics: metrics.NoopMetrics,
-		cfg:     &Config{MessageExpiryWindow: DefaultMessageExpiryWindow},
+		cfg:     &Config{MessageExpiryWindow: uint64(DefaultMessageExpiryWindow.Seconds())},
 		chains:  make(map[eth.ChainID]*ChainIngester),
 		ctx:     ctx,
 		cancel:  cancel,

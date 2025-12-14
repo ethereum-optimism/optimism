@@ -40,6 +40,10 @@ type Backend struct {
 	pendingExecMsgs []pendingExecMsg
 	pendingMu       sync.Mutex
 
+	// Cross-unsafe validated timestamp - highest timestamp where all chains have
+	// caught up and executing messages have been validated
+	crossUnsafeTimestamp atomic.Uint64
+
 	// Context for shutdown
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -218,7 +222,7 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 		}
 
 		// Validate the access entry
-		if err := b.validateAccess(ctx, access, execDescriptor); err != nil {
+		if err := b.validateAccess(ctx, access, minSafety, execDescriptor); err != nil {
 			b.metrics.RecordCheckAccessList(false)
 			return err
 		}
@@ -233,7 +237,8 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 // 1. initTimestamp <= execTimestamp (same-timestamp is valid)
 // 2. initTimestamp + MessageExpiryWindow >= execTimestamp (message not expired)
 // 3. If Timeout > 0: initTimestamp + MessageExpiryWindow >= execTimestamp + Timeout
-func (b *Backend) validateAccess(ctx context.Context, access types.Access, execDescriptor types.ExecutingDescriptor) error {
+// 4. If CrossUnsafe: initTimestamp <= crossUnsafeTimestamp (cross-chain validated)
+func (b *Backend) validateAccess(ctx context.Context, access types.Access, minSafety types.SafetyLevel, execDescriptor types.ExecutingDescriptor) error {
 	// Find the chain ingester for this access entry
 	b.chainsMu.RLock()
 	ingester, ok := b.chains[access.ChainID]
@@ -268,12 +273,23 @@ func (b *Backend) validateAccess(ctx context.Context, access types.Access, execD
 		}
 	}
 
-	// Create query and check if log exists
+	// Create query and check if log exists (LocalUnsafe check)
 	query := access.Query()
 	_, err := ingester.Contains(query)
 	if err != nil {
 		return fmt.Errorf("log validation failed for chain %s, block %d, index %d: %w",
 			access.ChainID, access.BlockNumber, access.LogIndex, err)
+	}
+
+	// For CrossUnsafe, also verify the message timestamp has been cross-chain validated
+	// This means all chains have caught up to this timestamp and any executing messages
+	// at this timestamp have been validated against their source chains
+	if minSafety == types.CrossUnsafe {
+		crossUnsafeTs := b.crossUnsafeTimestamp.Load()
+		if access.Timestamp > crossUnsafeTs {
+			return fmt.Errorf("message at timestamp %d not yet cross-unsafe validated (current cross-unsafe timestamp: %d): %w",
+				access.Timestamp, crossUnsafeTs, types.ErrOutOfScope)
+		}
 	}
 
 	return nil
@@ -348,6 +364,10 @@ func (b *Backend) tryValidateCrossUnsafe() {
 		}
 	}
 	b.pendingExecMsgs = remaining
+
+	// Update cross-unsafe timestamp - this is the highest timestamp where all chains
+	// have caught up and all executing messages have been validated
+	b.crossUnsafeTimestamp.Store(minTimestamp)
 
 	// Record metrics
 	b.metrics.RecordPendingExecMsgs(0, int64(len(b.pendingExecMsgs)))
@@ -433,4 +453,10 @@ func (b *Backend) GetChainIDs() []eth.ChainID {
 		chainIDs = append(chainIDs, chainID)
 	}
 	return chainIDs
+}
+
+// CrossUnsafeTimestamp returns the highest timestamp that has been cross-chain validated.
+// Messages at or before this timestamp satisfy CrossUnsafe safety level.
+func (b *Backend) CrossUnsafeTimestamp() uint64 {
+	return b.crossUnsafeTimestamp.Load()
 }

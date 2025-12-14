@@ -36,6 +36,12 @@ var (
 		EnvVars: prefixEnvVars("BACKFILL_DURATION"),
 		Value:   "24h",
 	}
+	MessageExpiryWindowFlag = &cli.StringFlag{
+		Name:    "message-expiry-window",
+		Usage:   "Message expiry window duration (e.g., 168h for 7 days). Messages older than this are considered expired.",
+		EnvVars: prefixEnvVars("MESSAGE_EXPIRY_WINDOW"),
+		Value:   "168h", // 7 days default, matching op-supervisor
+	}
 	JWTSecretFlag = &cli.StringFlag{
 		Name: "rpc.jwt-secret",
 		Usage: "Path to JWT secret key for RPC authentication. " +
@@ -54,6 +60,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	DataDirFlag,
 	BackfillDurationFlag,
+	MessageExpiryWindowFlag,
 	JWTSecretFlag,
 }
 
