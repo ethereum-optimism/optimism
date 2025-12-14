@@ -314,7 +314,18 @@ func (b *Backend) Rewind(ctx context.Context, chainID eth.ChainID, newHead eth.B
 		return types.ErrUnknownChain
 	}
 
-	return ingester.Rewind(newHead)
+	if err := ingester.Rewind(newHead); err != nil {
+		return err
+	}
+
+	// Reset cross-unsafe state since chain history changed
+	b.pendingMu.Lock()
+	b.pendingExecMsgs = nil
+	b.crossUnsafeTimestamp.Store(0)
+	b.pendingMu.Unlock()
+
+	b.log.Warn("Rewind complete, reset cross-unsafe state", "chain", chainID, "newHead", newHead)
+	return nil
 }
 
 // onExecutingMessages is called when executing messages are detected during ingestion
