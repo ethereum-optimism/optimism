@@ -86,6 +86,12 @@ var (
 		Value:   true,
 		EnvVars: []string{"METRICS_ENABLED"},
 	}
+	SafetyLevelFlag = &cli.StringFlag{
+		Name:    "safety-level",
+		Usage:   "Safety level to use for queries (unsafe or cross-unsafe)",
+		Value:   "cross-unsafe",
+		EnvVars: []string{"SAFETY_LEVEL"},
+	}
 )
 
 // Metrics for the spammer
@@ -199,6 +205,7 @@ func main() {
 		QueryIntervalFlag,
 		MetricsPortFlag,
 		MetricsEnabledFlag,
+		SafetyLevelFlag,
 	}, oplog.CLIFlags("SPAMMER")...))
 	app.Action = run
 
@@ -224,6 +231,17 @@ func run(cliCtx *cli.Context) error {
 	queryInterval, err := time.ParseDuration(queryIntervalStr)
 	if err != nil {
 		return fmt.Errorf("invalid query-interval: %w", err)
+	}
+
+	safetyLevelStr := cliCtx.String(SafetyLevelFlag.Name)
+	var safetyLevel suptypes.SafetyLevel
+	switch safetyLevelStr {
+	case "unsafe", "local-unsafe":
+		safetyLevel = suptypes.LocalUnsafe
+	case "cross-unsafe":
+		safetyLevel = suptypes.CrossUnsafe
+	default:
+		return fmt.Errorf("invalid safety-level %q: must be 'unsafe' or 'cross-unsafe'", safetyLevelStr)
 	}
 
 	ctx := cliCtx.Context
@@ -265,6 +283,7 @@ func run(cliCtx *cli.Context) error {
 		"numQueries", numQueries,
 		"blockRange", blockRange,
 		"queryInterval", queryInterval,
+		"safetyLevel", safetyLevel,
 		"metricsEnabled", metricsEnabled,
 		"metricsPort", metricsPort,
 	)
@@ -369,6 +388,7 @@ func run(cliCtx *cli.Context) error {
 		chainID:       eth.ChainIDFromUInt64(chainID),
 		startBlock:    startBlock,
 		endBlock:      headNum,
+		safetyLevel:   safetyLevel,
 		metrics:       metrics,
 		recentQueries: recentQueries,
 	}
@@ -444,6 +464,7 @@ type Spammer struct {
 	chainID       eth.ChainID
 	startBlock    uint64
 	endBlock      uint64
+	safetyLevel   suptypes.SafetyLevel
 	metrics       *SpammerMetrics
 	recentQueries *RecentQueries
 }
@@ -519,7 +540,7 @@ func (s *Spammer) tryValidQuery(ctx context.Context) error {
 			Timestamp: block.Time() + 1, // Execute at least 1 second later
 		}
 
-		err := s.filterClient.CallContext(ctx, nil, "supervisor_checkAccessList", entries, suptypes.CrossUnsafe, execDesc)
+		err := s.filterClient.CallContext(ctx, nil, "supervisor_checkAccessList", entries, s.safetyLevel, execDesc)
 
 		// Record metrics
 		if s.metrics != nil {
@@ -629,7 +650,7 @@ func (s *Spammer) RunInvalidQuery(ctx context.Context) error {
 			Timestamp: block.Time() + 1, // Execute at least 1 second later
 		}
 
-		err := s.filterClient.CallContext(ctx, nil, "supervisor_checkAccessList", entries, suptypes.CrossUnsafe, execDesc)
+		err := s.filterClient.CallContext(ctx, nil, "supervisor_checkAccessList", entries, s.safetyLevel, execDesc)
 
 		// Record metrics
 		if s.metrics != nil {

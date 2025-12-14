@@ -488,8 +488,9 @@ func (c *ChainIngester) ingestBlock(blockNum uint64) error {
 	c.metrics.RecordBlocksSealed(chainIDUint64, 1)
 	c.metrics.RecordLogsAdded(chainIDUint64, int64(result.logCount))
 
-	// Notify about executing messages (callback runs without lock to avoid deadlock)
-	if len(result.execMsgs) > 0 && c.onExecMsg != nil {
+	// Notify about block progress (callback runs without lock to avoid deadlock)
+	// Always call even with empty execMsgs so backend can update cross-unsafe timestamp
+	if c.onExecMsg != nil {
 		c.onExecMsg(c.chainID, blockInfo.Time(), result.execMsgs)
 	}
 
