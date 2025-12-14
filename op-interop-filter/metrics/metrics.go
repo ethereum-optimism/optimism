@@ -36,12 +36,12 @@ type Metrics struct {
 	checkAccessTotal *prometheus.CounterVec
 
 	// Chain-specific metrics
-	backfillProgress             *prometheus.GaugeVec
-	reorgDetectedTotal           *prometheus.CounterVec
-	logsAddedTotal               *prometheus.CounterVec
-	blocksSealedTotal            *prometheus.CounterVec
+	backfillProgress              *prometheus.GaugeVec
+	reorgDetectedTotal            *prometheus.CounterVec
+	logsAddedTotal                *prometheus.CounterVec
+	blocksSealedTotal             *prometheus.CounterVec
 	crossUnsafeValidatedTimestamp prometheus.Gauge
-	pendingExecMsgs              *prometheus.GaugeVec
+	pendingExecMsgs               *prometheus.GaugeVec
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -194,14 +194,14 @@ var NoopMetrics Metricer = &noopMetrics{}
 
 type noopMetrics struct{}
 
-func (n *noopMetrics) RecordInfo(version string)                             {}
-func (n *noopMetrics) RecordUp()                                             {}
-func (n *noopMetrics) RecordFailsafeEnabled(enabled bool)                    {}
-func (n *noopMetrics) RecordChainHead(chainID uint64, blockNum uint64)       {}
-func (n *noopMetrics) RecordCheckAccessList(success bool)                    {}
+func (n *noopMetrics) RecordInfo(version string)                               {}
+func (n *noopMetrics) RecordUp()                                               {}
+func (n *noopMetrics) RecordFailsafeEnabled(enabled bool)                      {}
+func (n *noopMetrics) RecordChainHead(chainID uint64, blockNum uint64)         {}
+func (n *noopMetrics) RecordCheckAccessList(success bool)                      {}
 func (n *noopMetrics) RecordBackfillProgress(chainID uint64, progress float64) {}
-func (n *noopMetrics) RecordReorgDetected(chainID uint64)                    {}
-func (n *noopMetrics) RecordLogsAdded(chainID uint64, count int64)           {}
-func (n *noopMetrics) RecordBlocksSealed(chainID uint64, count int64)        {}
-func (n *noopMetrics) RecordCrossUnsafeValidatedTimestamp(timestamp uint64)  {}
-func (n *noopMetrics) RecordPendingExecMsgs(chainID uint64, count int64)     {}
+func (n *noopMetrics) RecordReorgDetected(chainID uint64)                      {}
+func (n *noopMetrics) RecordLogsAdded(chainID uint64, count int64)             {}
+func (n *noopMetrics) RecordBlocksSealed(chainID uint64, count int64)          {}
+func (n *noopMetrics) RecordCrossUnsafeValidatedTimestamp(timestamp uint64)    {}
+func (n *noopMetrics) RecordPendingExecMsgs(chainID uint64, count int64)       {}
