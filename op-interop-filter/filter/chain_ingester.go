@@ -40,10 +40,10 @@ type ChainIngester struct {
 	metrics metrics.Metricer
 	chainID eth.ChainID
 
-	rpcClient  client.RPC
-	ethClient  *sources.EthClient
-	logsDB     *logs.DB
-	dataDir    string
+	rpcClient        client.RPC
+	ethClient        *sources.EthClient
+	logsDB           *logs.DB
+	dataDir          string
 	backfillDuration time.Duration
 
 	ready   atomic.Bool
@@ -85,7 +85,7 @@ func NewChainIngester(
 	ethClient, err := sources.NewEthClient(
 		rpcClient,
 		logger,
-		nil,    // metrics
+		nil, // metrics
 		&sources.EthClientConfig{
 			ReceiptsCacheSize:     1000,
 			TransactionsCacheSize: 1000,

@@ -18,9 +18,9 @@ import (
 
 // pendingExecMsg represents an executing message awaiting cross-unsafe validation
 type pendingExecMsg struct {
-	execChainID eth.ChainID              // Chain where the executing message was found
-	timestamp   uint64                   // Timestamp of the block containing the executing message
-	msg         *types.ExecutingMessage  // The executing message itself (references source chain)
+	execChainID eth.ChainID             // Chain where the executing message was found
+	timestamp   uint64                  // Timestamp of the block containing the executing message
+	msg         *types.ExecutingMessage // The executing message itself (references source chain)
 }
 
 // Backend coordinates chain ingesters, manages failsafe state, and handles CheckAccessList requests.
