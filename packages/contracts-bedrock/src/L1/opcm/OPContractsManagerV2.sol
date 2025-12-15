@@ -873,12 +873,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             impls.anchorStateRegistryImpl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (
-                    _cts.systemConfig,
-                    _cts.disputeGameFactory,
-                    _cfg.startingAnchorRoot,
-                    _cfg.startingRespectedGameType
-                )
+                (_cts.systemConfig, _cts.disputeGameFactory, _cfg.startingAnchorRoot, _cfg.startingRespectedGameType)
             )
         );
 

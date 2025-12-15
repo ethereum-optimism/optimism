@@ -102,6 +102,9 @@ interface IOPContractsManagerV2 {
     error OPContractsManagerV2_UnsupportedGameType();
     error OPContractsManagerV2_InvalidUpgradeInstruction(string _key);
     error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
+    error OPContractsManagerV2_InteropMigrationRequiresDevFeature();
+    error OPContractsManagerV2_InteropSharedContractsProxyAdminMismatch();
+    error OPContractsManagerV2_InteropSharedContractsProxyAdminOwnerMismatch();
     error IdentityPrecompileCallFailed();
     error ReservedBitsSet();
     error BytesArrayTooLong();

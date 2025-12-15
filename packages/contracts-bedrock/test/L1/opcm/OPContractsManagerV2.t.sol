@@ -924,6 +924,7 @@ contract OPContractsManagerV2_InteropMigration_Test is OPContractsManagerV2_Upgr
             l2ChainId: 100,
             resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
             disputeGameConfigs: disputeGameConfigs,
+            useCustomGasToken: false,
             extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
         });
     }

@@ -217,6 +217,23 @@
             "internalType": "bool",
             "name": "useCustomGasToken",
             "type": "bool"
+          },
+          {
+            "components": [
+              {
+                "internalType": "string",
+                "name": "key",
+                "type": "string"
+              },
+              {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct IOPContractsManagerUtils.ExtraInstruction[]",
+            "name": "extraInstructions",
+            "type": "tuple[]"
           }
         ],
         "internalType": "struct OPContractsManagerV2.FullConfig",
@@ -688,6 +705,21 @@
   {
     "inputs": [],
     "name": "OPContractsManagerV2_CannotUpgradeToCustomGasToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerV2_InteropMigrationRequiresDevFeature",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerV2_InteropSharedContractsProxyAdminMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerV2_InteropSharedContractsProxyAdminOwnerMismatch",
     "type": "error"
   },
   {

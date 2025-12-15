@@ -201,6 +201,42 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "key",
+            "type": "string"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct OPContractsManagerUtils.ExtraInstruction[]",
+        "name": "_instructions",
+        "type": "tuple[]"
+      },
+      {
+        "internalType": "string",
+        "name": "_key",
+        "type": "string"
+      }
+    ],
+    "name": "hasInstructionByKey",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "implementations",
     "outputs": [
@@ -608,6 +644,11 @@
       }
     ],
     "name": "OPContractsManagerUtils_DowngradeNotAllowed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerUtils_InvalidInteropMigrationAddresses",
     "type": "error"
   },
   {

@@ -98,11 +98,6 @@ interface IOPContractsManagerUtils {
         pure
         returns (ExtraInstruction memory);
 
-    function checkInteropMigrationAddresses(ExtraInstruction[] memory _instructions)
-        external
-        pure
-        returns (InteropMigrationAddresses memory);
-
     function loadBytes(
         address _source,
         bytes4 _selector,
