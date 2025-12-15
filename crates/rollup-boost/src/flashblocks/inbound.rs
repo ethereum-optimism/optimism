@@ -77,11 +77,16 @@ impl FlashblocksReceiverService {
             self.websocket_config
                 .flashblock_builder_ws_connect_timeout_ms,
         );
+
+        info!("FlashblocksReceiverService starting reconnection loop");
         loop {
             if let Err(e) = self.connect_and_handle(&mut backoff, timeout).await {
                 let interval = backoff
                     .next_backoff()
-                    .expect("max_elapsed_time not set, never None");
+                    .unwrap_or_else(|| {
+                        error!("Backoff returned None despite max_elapsed_time=None, using max_interval as fallback");
+                        self.websocket_config.max_interval()
+                    });
                 error!(
                     "Flashblocks receiver connection error, retrying in {}ms: {}",
                     interval.as_millis(),
@@ -93,6 +98,7 @@ impl FlashblocksReceiverService {
             } else {
                 // connect_and_handle should never return Ok(())
                 error!("Builder websocket connection has stopped. Invariant is broken.");
+                self.metrics.connection_status.set(0);
             }
         }
     }
