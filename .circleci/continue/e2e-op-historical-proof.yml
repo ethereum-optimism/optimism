@@ -15,9 +15,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - go_pkg_name: proofs/core
-          - go_pkg_name: proofs/reorg
-          - go_pkg_name: proofs/prune
+          - go_pkg_name: core
+          - go_pkg_name: reorg
+          - go_pkg_name: prune
 
     steps:
       - name: Checkout
@@ -41,6 +41,8 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
+      - uses: taiki-e/install-action@cargo-llvm-cov
+
       - name: Verify tools
         run: |
           echo "forge: $(command -v forge || true)"
@@ -53,62 +55,24 @@ jobs:
 
       - uses: jdx/mise-action@v3
 
-      - name: build op-reth
-        run: |
-          make build-op
-
-      # disable coverage for now
-      # - name: Build op-reth with coverage
-      #   working-directory: op-reth/tests
-      #   run: |
-      #     make build-with-cov
-
       - name: Run ${{ matrix.go_pkg_name }} e2e tests
         working-directory: op-reth/tests
         run: |
-          make test-e2e-sysgo GO_PKG_NAME=${{ matrix.go_pkg_name }} OP_DEVSTACK_PROOF_SEQUENCER_EL=op-geth OP_DEVSTACK_PROOF_VALIDATOR_EL=op-reth
+          source <(cargo llvm-cov show-env --export-prefix)
+          make build
+          make test-e2e-sysgo GO_PKG_NAME=proofs/${{ matrix.go_pkg_name }} OP_DEVSTACK_PROOF_SEQUENCER_EL=op-geth OP_DEVSTACK_PROOF_VALIDATOR_EL=op-reth
+          cargo llvm-cov report --lcov --output-path verifier_cov.lcov
 
-      # disable coverage for now
-      # - name: Flush coverage data
-      #   working-directory: op-reth/crates/tests
-      #   run: |
-      #     mkdir -p ./coverage
-      #     CONTAINER=$(docker ps -aq --filter "name=op-reth" | head -n 1)
-      #     if [ -z "$CONTAINER" ]; then
-      #         echo "No op-reth container found"
-      #         exit 1
-      #     fi
-      #     docker stop "$CONTAINER"
-      #     sleep 5
-      #     docker cp "$CONTAINER":/coverage .
-      #     docker cp "$CONTAINER":/usr/local/bin/op-reth coverage/
-      #     docker start "$CONTAINER"
-
-      # - name: Install llvm
-      #   run: |
-      #     sudo apt-get update
-      #     sudo apt-get install -y llvm
-
-      # - name: Merge coverage files
-      #   working-directory: op-reth/crates/tests
-      #   run: |
-      #     llvm-profdata merge -sparse ./coverage/*.profraw -o ./coverage/coverage.profdata
-
-      # - name: Generate coverage report
-      #   working-directory: op-reth/crates/tests
-      #   run: |
-      #     llvm-cov export ./coverage/op-reth -instr-profile=./coverage/coverage.profdata -format=lcov --path-equivalence=/app/,/Users/arundhyani/Stuff/Project/chainsafe/op-reth/ -ignore-filename-regex="/rustc/|/usr/local/cargo/registry/|/target/release/build/" > ./coverage/coverage.lcov
-
-      # - name: Upload coverage to codecov.io
-      #   uses: codecov/codecov-action@v5
-      #   with:
-      #     fail_ci_if_error: true
-      #     token: ${{ secrets.CODECOV_TOKEN }}
-      #     files: ./coverage/coverage.lcov
-      #     flags: e2e
-      #     env_vars: OS,RUST
-      #     name: reth-kurtosis-tests
-      #     verbose: true
+      - name: Upload coverage to codecov.io
+        uses: codecov/codecov-action@v5
+        with:
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: verifier_cov.lcov
+          flags: e2e
+          env_vars: OS,RUST
+          name: verifier-${{ matrix.go_pkg_name }}-sysgo-tests
+          verbose: true
 
   op-reth-as-sequencer:
     name: op-reth-as-sequencer-${{ matrix.go_pkg_name }}
@@ -118,9 +82,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - go_pkg_name: proofs/core
-          - go_pkg_name: proofs/reorg
-          - go_pkg_name: proofs/prune
+          - go_pkg_name: core
+          - go_pkg_name: reorg
+          - go_pkg_name: prune
 
     steps:
       - name: Checkout
@@ -144,6 +108,8 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
+      - uses: taiki-e/install-action@cargo-llvm-cov
+
       - name: Verify tools
         run: |
           echo "forge: $(command -v forge || true)"
@@ -156,14 +122,24 @@ jobs:
 
       - uses: jdx/mise-action@v3
 
-      - name: build op-reth
-        run: |
-          make build-op
-
       - name: Run ${{ matrix.go_pkg_name }} e2e tests
         working-directory: op-reth/tests
         run: |
-          make test-e2e-sysgo GO_PKG_NAME=${{ matrix.go_pkg_name }} OP_DEVSTACK_PROOF_SEQUENCER_EL=op-reth OP_DEVSTACK_PROOF_VALIDATOR_EL=op-geth
+          source <(cargo llvm-cov show-env --export-prefix)
+          make build
+          make test-e2e-sysgo GO_PKG_NAME=proofs/${{ matrix.go_pkg_name }} OP_DEVSTACK_PROOF_SEQUENCER_EL=op-reth OP_DEVSTACK_PROOF_VALIDATOR_EL=op-geth
+          cargo llvm-cov report --lcov --output-path sequencer_cov.lcov
+
+      - name: Upload coverage to codecov.io
+        uses: codecov/codecov-action@v5
+        with:
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: sequencer_cov.lcov
+          flags: e2e
+          env_vars: OS,RUST
+          name: sequencer-${{ matrix.go_pkg_name }}-sysgo-tests
+          verbose: true
 
   e2e-op-historical-proof-success:
     name: e2e-op-historical-proof-success

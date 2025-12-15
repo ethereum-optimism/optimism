@@ -37,7 +37,7 @@ jobs:
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
           files: unit.lcov
-          flags: e2e
+          flags: unit
           env_vars: OS,RUST
           name: reth-op-historical-proof-unit-tests
           verbose: true

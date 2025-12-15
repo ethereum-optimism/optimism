@@ -17,7 +17,7 @@ all: build-docker run
 # Build op-reth
 build:
 	@echo "Building op-reth binary..."
-	cd ../../../ && make build-op
+	cd ../../../ && cargo build --bin op-reth --manifest-path crates/optimism/bin/Cargo.toml
 
 # Build the op-reth Docker image
 build-docker:
@@ -81,7 +81,7 @@ test-e2e-sysgo: unzip-contract-artifacts build-contracts
 	export DISABLE_OP_E2E_LEGACY=true; \
 	export DEVSTACK_ORCHESTRATOR=sysgo; \
 	export OP_RETH_ENABLE_PROOF_HISTORY=true; \
-	export OP_RETH_EXEC_PATH="${SOURCE_DIR}/../../../target/release/op-reth"; \
+	export OP_RETH_EXEC_PATH="${SOURCE_DIR}/../../../target/debug/op-reth"; \
 	export OP_DEVSTACK_PROOF_SEQUENCER_EL=$(OP_DEVSTACK_PROOF_SEQUENCER_EL); \
 	export OP_DEVSTACK_PROOF_VALIDATOR_EL=$(OP_DEVSTACK_PROOF_VALIDATOR_EL); \
 	go test -count=1 -timeout 40m -v ./$(GO_PKG_NAME)
