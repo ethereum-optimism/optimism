@@ -34,7 +34,7 @@ reth-rpc-api.workspace = true
 
 # op-reth
 reth-optimism-payload-builder.workspace = true
-reth-optimism-evm = { workspace = true, features = ["rpc"] }
+reth-optimism-evm = { workspace = true, features = ["std", "rpc"] }
 reth-optimism-rpc.workspace = true
 reth-optimism-storage.workspace = true
 reth-optimism-txpool.workspace = true

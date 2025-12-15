@@ -13,31 +13,37 @@ extern crate alloc;
 
 use alloc::sync::Arc;
 use alloy_consensus::{BlockHeader, Header};
-use alloy_eips::Decodable2718;
 use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded};
 use alloy_op_evm::block::{receipt_builder::OpReceiptBuilder, OpTxEnv};
-use alloy_primitives::{Bytes, U256};
 use core::fmt::Debug;
 use op_alloy_consensus::EIP1559ParamError;
-use op_alloy_rpc_types_engine::OpExecutionData;
 use op_revm::{OpSpecId, OpTransaction};
 use reth_chainspec::EthChainSpec;
 use reth_evm::{
-    eth::NextEvmEnvAttributes, precompiles::PrecompilesMap, ConfigureEngineEvm, ConfigureEvm,
-    EvmEnv, EvmEnvFor, ExecutableTxIterator, ExecutionCtxFor, TransactionEnv,
+    eth::NextEvmEnvAttributes, precompiles::PrecompilesMap, ConfigureEvm, EvmEnv, TransactionEnv,
 };
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
-use reth_primitives_traits::{
-    NodePrimitives, SealedBlock, SealedHeader, SignedTransaction, TxTy, WithEncoded,
+use reth_primitives_traits::{NodePrimitives, SealedBlock, SealedHeader, SignedTransaction};
+use revm::context::{BlockEnv, TxEnv};
+
+#[allow(unused_imports)]
+use {
+    alloy_eips::Decodable2718,
+    alloy_primitives::{Bytes, U256},
+    op_alloy_rpc_types_engine::OpExecutionData,
+    reth_evm::{EvmEnvFor, ExecutionCtxFor},
+    reth_primitives_traits::{TxTy, WithEncoded},
+    reth_storage_errors::any::AnyError,
+    revm::{
+        context::CfgEnv, context_interface::block::BlobExcessGasAndPrice,
+        primitives::hardfork::SpecId,
+    },
 };
-use reth_storage_errors::any::AnyError;
-use revm::{
-    context::{BlockEnv, CfgEnv, TxEnv},
-    context_interface::block::BlobExcessGasAndPrice,
-    primitives::hardfork::SpecId,
-};
+
+#[cfg(feature = "std")]
+use reth_evm::{ConfigureEngineEvm, ExecutableTxIterator};
 
 mod config;
 pub use config::{revm_spec, revm_spec_by_timestamp_after_bedrock, OpNextBlockEnvAttributes};
@@ -200,6 +206,7 @@ where
     }
 }
 
+#[cfg(feature = "std")]
 impl<ChainSpec, N, R> ConfigureEngineEvm<OpExecutionData> for OpEvmConfig<ChainSpec, N, R>
 where
     ChainSpec: EthChainSpec<Header = Header> + OpHardforks,
@@ -265,7 +272,7 @@ where
         &self,
         payload: &OpExecutionData,
     ) -> Result<impl ExecutableTxIterator<Self>, Self::Error> {
-        let transactions = payload.payload.transactions().clone().into_iter();
+        let transactions = payload.payload.transactions().clone();
         let convert = |encoded: Bytes| {
             let tx = TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref())
                 .map_err(AnyError::new)?;
