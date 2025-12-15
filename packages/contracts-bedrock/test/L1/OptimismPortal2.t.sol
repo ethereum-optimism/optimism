@@ -1265,7 +1265,7 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         bytes32 expectedSuperRoot = Hashing.hashSuperRootProof(superRootProof);
 
         // Mock the game to return the expected super root.
-        vm.mockCall(address(game), abi.encodeCall(IDisputeGame.rootClaim, ()), abi.encode(expectedSuperRoot));
+        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(expectedSuperRoot));
 
         // Should revert because the proof is wrong.
         vm.expectRevert(IOptimismPortalInterop.OptimismPortal_InvalidOutputRootIndex.selector);
@@ -1304,7 +1304,7 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         bytes32 expectedSuperRoot = Hashing.hashSuperRootProof(superRootProof);
 
         // Mock the game to return the expected super root.
-        vm.mockCall(address(game), abi.encodeCall(IDisputeGame.rootClaim, ()), abi.encode(expectedSuperRoot));
+        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(expectedSuperRoot));
 
         // Should revert because the proof is wrong.
         vm.expectRevert(IOptimismPortalInterop.OptimismPortal_InvalidOutputRootChainId.selector);
@@ -1343,7 +1343,7 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         bytes32 expectedSuperRoot = Hashing.hashSuperRootProof(superRootProof);
 
         // Mock the game to return the expected super root.
-        vm.mockCall(address(game), abi.encodeCall(IDisputeGame.rootClaim, ()), abi.encode(expectedSuperRoot));
+        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(expectedSuperRoot));
 
         // Should revert because the proof is wrong.
         vm.expectRevert(IOptimismPortalInterop.OptimismPortal_InvalidOutputRootProof.selector);
@@ -1378,7 +1378,7 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         bytes32 expectedSuperRoot = Hashing.hashSuperRootProof(superRootProof);
 
         // Mock the game to return the expected super root.
-        vm.mockCall(address(game), abi.encodeCall(IDisputeGame.rootClaim, ()), abi.encode(expectedSuperRoot));
+        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(expectedSuperRoot));
 
         // Should succeed.
         IOptimismPortalInterop(payable(optimismPortal2)).proveWithdrawalTransaction({
@@ -1840,7 +1840,7 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
 
         vm.mockCall(
             address(game),
-            abi.encodeCall(IDisputeGame.rootClaim, ()),
+            abi.encodeCall(game.rootClaim, ()),
             abi.encode(Hashing.hashOutputRootProof(outputRootProof))
         );
 
@@ -1887,7 +1887,7 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         });
 
         // Return a mock output root from the game.
-        vm.mockCall(address(game), abi.encodeCall(IDisputeGame.rootClaim, ()), abi.encode(outputRoot));
+        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(outputRoot));
 
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProven(withdrawalHash, alice, address(this));
@@ -1983,7 +1983,7 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         assertEq(withdrawalHash, Hashing.hashWithdrawal(_tx));
 
         // Setup the dispute game to return the output root
-        vm.mockCall(address(game), abi.encodeCall(IDisputeGame.rootClaim, ()), abi.encode(outputRoot));
+        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(outputRoot));
 
         // Prove the withdrawal transaction
         optimismPortal2.proveWithdrawalTransaction(_tx, _proposedGameIndex, proof, withdrawalProof);
@@ -2070,7 +2070,7 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         assertEq(withdrawalHash, Hashing.hashWithdrawal(_tx));
 
         // Setup the dispute game to return the output root
-        vm.mockCall(address(game), abi.encodeCall(IDisputeGame.rootClaim, ()), abi.encode(outputRoot));
+        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(outputRoot));
 
         // Prove the withdrawal transaction
         optimismPortal2.proveWithdrawalTransaction(_tx, _proposedGameIndex, proof, withdrawalProof);
