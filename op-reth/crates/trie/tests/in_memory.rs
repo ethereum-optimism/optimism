@@ -8,8 +8,10 @@ use reth_optimism_trie::{
 };
 use reth_primitives_traits::Account;
 use reth_trie::{
-    hashed_cursor::HashedCursor, trie_cursor::TrieCursor, updates::TrieUpdates, BranchNodeCompact,
-    HashedPostState, HashedStorage, Nibbles, TrieMask,
+    hashed_cursor::HashedCursor,
+    trie_cursor::TrieCursor,
+    updates::{TrieUpdates, TrieUpdatesSorted},
+    BranchNodeCompact, HashedPostState, HashedPostStateSorted, HashedStorage, Nibbles, TrieMask,
 };
 use serial_test::serial;
 use std::sync::Arc;
@@ -106,18 +108,20 @@ async fn test_trie_updates_operations<S: OpProofsStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     let block_ref = BlockWithParent::new(B256::ZERO, NumHash::new(50, B256::repeat_byte(0x96)));
-    let trie_updates = TrieUpdates::default();
-    let post_state = HashedPostState::default();
-    let block_state_diff =
-        BlockStateDiff { trie_updates: trie_updates.clone(), post_state: post_state.clone() };
+    let sorted_trie_updates = TrieUpdatesSorted::default();
+    let sorted_post_state = HashedPostStateSorted::default();
+    let block_state_diff = BlockStateDiff {
+        sorted_trie_updates: sorted_trie_updates.clone(),
+        sorted_post_state: sorted_post_state.clone(),
+    };
 
     // Store trie updates
     storage.store_trie_updates(block_ref, block_state_diff).await?;
 
     // Retrieve and verify
     let retrieved_diff = storage.fetch_trie_updates(block_ref.block.number).await?;
-    assert_eq!(retrieved_diff.trie_updates, trie_updates);
-    assert_eq!(retrieved_diff.post_state, post_state);
+    assert_eq!(retrieved_diff.sorted_trie_updates, sorted_trie_updates);
+    assert_eq!(retrieved_diff.sorted_post_state, sorted_post_state);
 
     Ok(())
 }
@@ -559,8 +563,12 @@ async fn test_deleted_branch_nodes<S: OpProofsStore>(
     let mut cursor75 = storage.account_trie_cursor(75)?;
     assert!(cursor75.seek_exact(path)?.is_some());
 
-    let mut block_state_diff = BlockStateDiff::default();
-    block_state_diff.trie_updates.removed_nodes.insert(path);
+    let mut block_state_diff_trie_updates = TrieUpdates::default();
+    block_state_diff_trie_updates.removed_nodes.insert(path);
+    let block_state_diff = BlockStateDiff {
+        sorted_trie_updates: block_state_diff_trie_updates.into_sorted(),
+        sorted_post_state: HashedPostStateSorted::default(),
+    };
     storage.store_trie_updates(block_ref, block_state_diff).await?;
 
     // Cursor after deletion should not see the node
@@ -1047,13 +1055,17 @@ async fn test_storage_zero_value_deletion<S: OpProofsStore>(
     assert_eq!(result75.1, U256::from(100));
 
     // "Delete" by storing zero value at block 100
-    let mut block_state_diff = BlockStateDiff::default();
+    let mut block_state_diff_post_state = HashedPostState::default();
     let mut hashed_storage = HashedStorage::default();
     hashed_storage.storage.insert(storage_key, U256::ZERO);
-    block_state_diff.post_state.storages.insert(hashed_address, hashed_storage);
+    block_state_diff_post_state.storages.insert(hashed_address, hashed_storage);
 
     let block_ref: BlockWithParent =
         BlockWithParent::new(B256::ZERO, NumHash::new(100, B256::repeat_byte(0x96)));
+    let block_state_diff = BlockStateDiff {
+        sorted_trie_updates: TrieUpdatesSorted::default(),
+        sorted_post_state: block_state_diff_post_state.into_sorted(),
+    };
     storage.store_trie_updates(block_ref, block_state_diff).await?;
 
     // Cursor after deletion should NOT see the entry (zero values are skipped)
@@ -1243,7 +1255,10 @@ async fn test_store_trie_updates_with_wiped_storage<S: OpProofsStore>(
     let wiped_storage = HashedStorage::new(true); // wiped=true, empty storage map
     post_state.storages.insert(hashed_address, wiped_storage);
 
-    let block_state_diff = BlockStateDiff { trie_updates: TrieUpdates::default(), post_state };
+    let block_state_diff = BlockStateDiff {
+        sorted_trie_updates: TrieUpdatesSorted::default(),
+        sorted_post_state: post_state.into_sorted(),
+    };
 
     // Store the wiped state
     storage.store_trie_updates(block_ref, block_state_diff).await?;
@@ -1359,7 +1374,10 @@ async fn test_store_trie_updates_comprehensive<S: OpProofsStore>(
     hashed_storage.storage.insert(B256::repeat_byte(0x03), U256::ZERO); // Deleted storage
     post_state.storages.insert(storage_addr, hashed_storage);
 
-    let block_state_diff = BlockStateDiff { trie_updates, post_state };
+    let block_state_diff = BlockStateDiff {
+        sorted_trie_updates: trie_updates.into_sorted(),
+        sorted_post_state: post_state.into_sorted(),
+    };
 
     // Store the updates
     storage.store_trie_updates(block_ref, block_state_diff).await?;
@@ -1438,23 +1456,23 @@ async fn test_store_trie_updates_comprehensive<S: OpProofsStore>(
 
     // Check that trie updates are stored
     assert_eq!(
-        fetched_diff.trie_updates.account_nodes_ref().len(),
-        2,
-        "Should have 2 account nodes"
+        fetched_diff.sorted_trie_updates.account_nodes_ref().len(),
+        3,
+        "Should have 3 account nodes, including removed"
     );
     assert_eq!(
-        fetched_diff.trie_updates.storage_tries_ref().len(),
+        fetched_diff.sorted_trie_updates.storage_tries_ref().len(),
         1,
         "Should have 1 storage trie"
     );
 
     // Check that post state is stored
     assert_eq!(
-        fetched_diff.post_state.accounts.len(),
+        fetched_diff.sorted_post_state.accounts.len(),
         3,
         "Should have 3 accounts (including deleted)"
     );
-    assert_eq!(fetched_diff.post_state.storages.len(), 1, "Should have 1 storage entry");
+    assert_eq!(fetched_diff.sorted_post_state.storages.len(), 1, "Should have 1 storage entry");
 
     Ok(())
 }
@@ -1493,8 +1511,10 @@ async fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
     let mut initial_post_state_50 = HashedPostState::default();
     initial_post_state_50.accounts.insert(initial_account_addr, Some(initial_account));
 
-    let initial_diff_50 =
-        BlockStateDiff { trie_updates: initial_trie_updates_50, post_state: initial_post_state_50 };
+    let initial_diff_50 = BlockStateDiff {
+        sorted_trie_updates: initial_trie_updates_50.into_sorted(),
+        sorted_post_state: initial_post_state_50.into_sorted(),
+    };
     storage.store_trie_updates(block_ref_50, initial_diff_50).await?;
 
     // Store data at block 100 (common block)
@@ -1508,8 +1528,8 @@ async fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
     initial_post_state_100.storages.insert(initial_storage_addr, initial_storage_100);
 
     let initial_diff_100 = BlockStateDiff {
-        trie_updates: initial_trie_updates_100,
-        post_state: initial_post_state_100,
+        sorted_trie_updates: initial_trie_updates_100.into_sorted(),
+        sorted_post_state: initial_post_state_100.into_sorted(),
     };
 
     let block_ref_100 =
@@ -1528,8 +1548,8 @@ async fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
     initial_post_state_101.accounts.insert(old_account_addr, Some(old_account));
 
     let initial_diff_101 = BlockStateDiff {
-        trie_updates: initial_trie_updates_101,
-        post_state: initial_post_state_101,
+        sorted_trie_updates: initial_trie_updates_101.into_sorted(),
+        sorted_post_state: initial_post_state_101.into_sorted(),
     };
     let block_ref_101 =
         BlockWithParent::new(block_ref_100.block.hash, NumHash::new(101, B256::repeat_byte(0x98)));
@@ -1593,7 +1613,10 @@ async fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
 
     blocks_to_add.insert(
         block_ref_101,
-        BlockStateDiff { trie_updates: new_trie_updates, post_state: new_post_state },
+        BlockStateDiff {
+            sorted_trie_updates: new_trie_updates.into_sorted(),
+            sorted_post_state: new_post_state.into_sorted(),
+        },
     );
 
     // New data for block 102
@@ -1609,12 +1632,14 @@ async fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
 
     blocks_to_add.insert(
         block_ref_102,
-        BlockStateDiff { trie_updates: trie_updates_102, post_state: post_state_102 },
+        BlockStateDiff {
+            sorted_trie_updates: trie_updates_102.into_sorted(),
+            sorted_post_state: post_state_102.into_sorted(),
+        },
     );
 
     // Execute replace_updates
     storage.replace_updates(100, blocks_to_add).await?;
-
     // ========== Verify that data up to block 100 still exists ==========
     let mut cursor_50 = storage.account_trie_cursor(75)?;
     assert!(
@@ -1696,17 +1721,25 @@ async fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
     // Verify fetch_trie_updates returns the new data
     let fetched_101 = storage.fetch_trie_updates(101).await?;
     assert_eq!(
-        fetched_101.trie_updates.account_nodes_ref().len(),
+        fetched_101.sorted_trie_updates.account_nodes_ref().len(),
         1,
         "Should have 1 account branch node at block 101"
     );
     assert!(
-        fetched_101.trie_updates.account_nodes_ref().contains_key(&new_branch_path),
+        fetched_101
+            .sorted_trie_updates
+            .account_nodes_ref()
+            .iter()
+            .any(|(addr, _)| *addr == new_branch_path),
         "New branch path should be in trie_updates"
     );
-    assert_eq!(fetched_101.post_state.accounts.len(), 1, "Should have 1 account at block 101");
+    assert_eq!(
+        fetched_101.sorted_post_state.accounts.len(),
+        1,
+        "Should have 1 account at block 101"
+    );
     assert!(
-        fetched_101.post_state.accounts.contains_key(&new_account_addr),
+        fetched_101.sorted_post_state.accounts.iter().any(|(addr, _)| *addr == new_account_addr),
         "New account should be in post_state"
     );
 
@@ -1745,8 +1778,8 @@ async fn test_pure_deletions_stored_correctly<S: OpProofsStore>(
     initial_trie_updates.insert_storage_updates(storage_address, storage_trie);
 
     let initial_diff = BlockStateDiff {
-        trie_updates: initial_trie_updates,
-        post_state: HashedPostState::default(),
+        sorted_trie_updates: initial_trie_updates.into_sorted(),
+        sorted_post_state: HashedPostStateSorted::default(),
     };
 
     let block_ref_50 = BlockWithParent::new(B256::ZERO, NumHash::new(50, B256::repeat_byte(0x96)));
@@ -1786,8 +1819,8 @@ async fn test_pure_deletions_stored_correctly<S: OpProofsStore>(
     deletion_trie_updates.insert_storage_updates(storage_address, deletion_storage_trie);
 
     let deletion_diff = BlockStateDiff {
-        trie_updates: deletion_trie_updates,
-        post_state: HashedPostState::default(),
+        sorted_trie_updates: deletion_trie_updates.into_sorted(),
+        sorted_post_state: HashedPostStateSorted::default(),
     };
 
     let block_ref_100 =
@@ -1876,8 +1909,8 @@ async fn test_updates_take_precedence_over_removals<S: OpProofsStore>(
     initial_trie_updates.insert_storage_updates(storage_address, storage_trie);
 
     let initial_diff = BlockStateDiff {
-        trie_updates: initial_trie_updates,
-        post_state: HashedPostState::default(),
+        sorted_trie_updates: initial_trie_updates.into_sorted(),
+        sorted_post_state: HashedPostStateSorted::default(),
     };
 
     let block_ref_50 = BlockWithParent::new(B256::ZERO, NumHash::new(50, B256::repeat_byte(0x96)));
@@ -1917,8 +1950,8 @@ async fn test_updates_take_precedence_over_removals<S: OpProofsStore>(
     conflicting_trie_updates.insert_storage_updates(storage_address, conflicting_storage_trie);
 
     let conflicting_diff = BlockStateDiff {
-        trie_updates: conflicting_trie_updates,
-        post_state: HashedPostState::default(),
+        sorted_trie_updates: conflicting_trie_updates.into_sorted(),
+        sorted_post_state: HashedPostStateSorted::default(),
     };
 
     let block_ref_100 =

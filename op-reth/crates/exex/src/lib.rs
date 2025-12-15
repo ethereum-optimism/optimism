@@ -20,7 +20,7 @@ use reth_optimism_trie::{
     live::LiveTrieCollector, OpProofStoragePrunerTask, OpProofsStorage, OpProofsStore,
 };
 use reth_provider::{BlockReader, TransactionVariant};
-use reth_trie::{updates::TrieUpdates, HashedPostState};
+use reth_trie::{updates::TrieUpdatesSorted, HashedPostStateSorted};
 use std::{sync::Arc, time::Duration};
 use tracing::{debug, info};
 
@@ -253,8 +253,8 @@ where
                 collector
                     .store_block_updates(
                         block.block_with_parent(),
-                        trie_updates.clone(),
-                        hashed_state.clone(),
+                        (**trie_updates).clone(),
+                        (**hashed_state).clone(),
                     )
                     .await?;
 
@@ -306,8 +306,11 @@ where
         }
 
         // find the common ancestor
-        let mut block_updates: Vec<(BlockWithParent, Arc<TrieUpdates>, Arc<HashedPostState>)> =
-            Vec::with_capacity(new.len());
+        let mut block_updates: Vec<(
+            BlockWithParent,
+            Arc<TrieUpdatesSorted>,
+            Arc<HashedPostStateSorted>,
+        )> = Vec::with_capacity(new.len());
         for block_number in new.blocks().keys() {
             // verify if the fork point matches
             if old.fork_block() != new.fork_block() {

@@ -14,7 +14,7 @@ use reth_provider::{
     StateRootProvider,
 };
 use reth_revm::database::StateProviderDatabase;
-use reth_trie::{updates::TrieUpdates, HashedPostState};
+use reth_trie::{updates::TrieUpdatesSorted, HashedPostStateSorted};
 use std::{sync::Arc, time::Instant};
 use tracing::info;
 
@@ -105,7 +105,10 @@ where
             .storage
             .store_trie_updates(
                 block_ref,
-                BlockStateDiff { trie_updates, post_state: hashed_state },
+                BlockStateDiff {
+                    sorted_trie_updates: trie_updates.into_sorted(),
+                    sorted_post_state: hashed_state.into_sorted(),
+                },
             )
             .await?;
 
@@ -135,21 +138,15 @@ where
     pub async fn store_block_updates(
         &self,
         block: BlockWithParent,
-        trie_updates: Arc<TrieUpdates>,
-        hashed_state: Arc<HashedPostState>,
+        sorted_trie_updates: TrieUpdatesSorted,
+        sorted_post_state: HashedPostStateSorted,
     ) -> eyre::Result<()> {
         let start = Instant::now();
         let mut operation_durations = OperationDurations::default();
 
         let storage_result = self
             .storage
-            .store_trie_updates(
-                block,
-                BlockStateDiff {
-                    trie_updates: (*trie_updates).clone(),
-                    post_state: (*hashed_state).clone(),
-                },
-            )
+            .store_trie_updates(block, BlockStateDiff { sorted_trie_updates, sorted_post_state })
             .await?;
 
         let write_duration = start.elapsed();
@@ -185,7 +182,7 @@ where
     ///   blocks to be added to the trie storage.
     pub async fn unwind_and_store_block_updates(
         &self,
-        block_updates: Vec<(BlockWithParent, Arc<TrieUpdates>, Arc<HashedPostState>)>,
+        block_updates: Vec<(BlockWithParent, Arc<TrieUpdatesSorted>, Arc<HashedPostStateSorted>)>,
     ) -> eyre::Result<()> {
         if block_updates.is_empty() {
             return Ok(());
@@ -202,8 +199,8 @@ where
             block_trie_updates.insert(
                 *block,
                 BlockStateDiff {
-                    trie_updates: (**trie_updates).clone(),
-                    post_state: (**hashed_state).clone(),
+                    sorted_trie_updates: (**trie_updates).clone(),
+                    sorted_post_state: (**hashed_state).clone(),
                 },
             );
         }

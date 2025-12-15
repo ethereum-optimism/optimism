@@ -8746,7 +8746,6 @@ dependencies = [
  "bytes",
  "derive_more",
  "eyre",
- "itertools 0.14.0",
  "metrics",
  "mockall",
  "reth-chainspec",

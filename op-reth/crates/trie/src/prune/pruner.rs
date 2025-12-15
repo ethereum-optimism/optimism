@@ -90,7 +90,7 @@ where
                     "Failed to fetch trie updates for block during pruning"
                 )
             })?;
-            final_diff.extend(diff);
+            final_diff.extend_ref(&diff);
         }
         let stat_diff_fetch_duration = t.elapsed();
 
@@ -164,8 +164,10 @@ mod tests {
     use reth_primitives_traits::Account;
     use reth_storage_errors::provider::ProviderResult;
     use reth_trie::{
-        hashed_cursor::HashedCursor, trie_cursor::TrieCursor, updates::StorageTrieUpdates,
-        BranchNodeCompact, HashedStorage, Nibbles,
+        hashed_cursor::HashedCursor,
+        trie_cursor::TrieCursor,
+        updates::{StorageTrieUpdates, TrieUpdates, TrieUpdatesSorted},
+        BranchNodeCompact, HashedPostState, HashedStorage, Nibbles,
     };
     use std::sync::Arc;
     use tempfile::TempDir;
@@ -242,13 +244,15 @@ mod tests {
         // Block 1: add a1,a2; s1=100, s2=200; add p1, st1
         {
             let b1 = block(1, parent);
-            let mut d = BlockStateDiff::default();
 
-            d.post_state.accounts.insert(
+            let mut d_trie_updates = TrieUpdates::default();
+            let mut d_post_state = HashedPostState::default();
+
+            d_post_state.accounts.insert(
                 a1,
                 Some(Account { nonce: 1, balance: U256::from(1_001), ..Default::default() }),
             );
-            d.post_state.accounts.insert(
+            d_post_state.accounts.insert(
                 a2,
                 Some(Account { nonce: 1, balance: U256::from(1_002), ..Default::default() }),
             );
@@ -256,12 +260,16 @@ mod tests {
             let mut hs = HashedStorage::default();
             hs.storage.insert(s1, U256::from(100));
             hs.storage.insert(s2, U256::from(200));
-            d.post_state.storages.insert(stor_addr, hs);
+            d_post_state.storages.insert(stor_addr, hs);
 
-            d.trie_updates.account_nodes.insert(p1, node_p1.clone());
-            let e = d.trie_updates.storage_tries.entry(stor_addr).or_default();
+            d_trie_updates.account_nodes.insert(p1, node_p1.clone());
+            let e = d_trie_updates.storage_tries.entry(stor_addr).or_default();
             e.storage_nodes.insert(st1, BranchNodeCompact::default());
 
+            let d = BlockStateDiff {
+                sorted_post_state: d_post_state.into_sorted(),
+                sorted_trie_updates: d_trie_updates.into_sorted(),
+            };
             store.store_trie_updates(b1, d).await.expect("b1");
             parent = b256(1);
         }
@@ -269,13 +277,15 @@ mod tests {
         // Block 2: update a2; add a3; s2=220, s3=300; add p2, st2
         {
             let b2 = block(2, parent);
-            let mut d = BlockStateDiff::default();
 
-            d.post_state.accounts.insert(
+            let mut d_trie_updates = TrieUpdates::default();
+            let mut d_post_state = HashedPostState::default();
+
+            d_post_state.accounts.insert(
                 a2,
                 Some(Account { nonce: 2, balance: U256::from(2_002), ..Default::default() }),
             );
-            d.post_state.accounts.insert(
+            d_post_state.accounts.insert(
                 a3,
                 Some(Account { nonce: 1, balance: U256::from(1_003), ..Default::default() }),
             );
@@ -283,12 +293,16 @@ mod tests {
             let mut hs = HashedStorage::default();
             hs.storage.insert(s2, U256::from(220));
             hs.storage.insert(s3, U256::from(300));
-            d.post_state.storages.insert(stor_addr, hs);
+            d_post_state.storages.insert(stor_addr, hs);
 
-            d.trie_updates.account_nodes.insert(p2, node_p2.clone());
-            let e = d.trie_updates.storage_tries.entry(stor_addr).or_default();
+            d_trie_updates.account_nodes.insert(p2, node_p2.clone());
+            let e = d_trie_updates.storage_tries.entry(stor_addr).or_default();
             e.storage_nodes.insert(st2, node_st2.clone());
 
+            let d = BlockStateDiff {
+                sorted_post_state: d_post_state.into_sorted(),
+                sorted_trie_updates: d_trie_updates.into_sorted(),
+            };
             store.store_trie_updates(b2, d).await.expect("b2");
             parent = b256(2);
         }
@@ -296,19 +310,25 @@ mod tests {
         // Block 3: delete a1; leave a2,a3; remove p1; remove st1 (storage-trie)
         {
             let b3 = block(3, parent);
-            let mut d = BlockStateDiff::default();
+
+            let mut d_trie_updates = TrieUpdates::default();
+            let mut d_post_state = HashedPostState::default();
 
             // delete a1, keep a2 & a3 values unchanged for this block
-            d.post_state.accounts.insert(a1, None);
+            d_post_state.accounts.insert(a1, None);
 
             // remove account trie node p1
-            d.trie_updates.removed_nodes.insert(p1);
+            d_trie_updates.removed_nodes.insert(p1);
 
             // remove storage-trie node st1
             let mut st_upd = StorageTrieUpdates::default();
             st_upd.removed_nodes.insert(st1);
-            d.trie_updates.storage_tries.insert(stor_addr, st_upd);
+            d_trie_updates.storage_tries.insert(stor_addr, st_upd);
 
+            let d = BlockStateDiff {
+                sorted_post_state: d_post_state.into_sorted(),
+                sorted_trie_updates: d_trie_updates.into_sorted(),
+            };
             store.store_trie_updates(b3, d).await.expect("b3");
             parent = b256(3);
         }
@@ -316,21 +336,26 @@ mod tests {
         // Block 4 (kept): update a2; s1=140; add p3, st3
         {
             let b4 = block(4, parent);
-            let mut d = BlockStateDiff::default();
 
-            d.post_state.accounts.insert(
+            let mut d_trie_updates = TrieUpdates::default();
+            let mut d_post_state = HashedPostState::default();
+
+            d_post_state.accounts.insert(
                 a2,
                 Some(Account { nonce: 3, balance: U256::from(3_002), ..Default::default() }),
             );
 
             let mut hs = HashedStorage::default();
             hs.storage.insert(s1, U256::from(140));
-            d.post_state.storages.insert(stor_addr, hs);
-
-            d.trie_updates.account_nodes.insert(p3, node_p3.clone());
-            let e = d.trie_updates.storage_tries.entry(stor_addr).or_default();
+            d_post_state.storages.insert(stor_addr, hs);
+            d_trie_updates.account_nodes.insert(p3, node_p3.clone());
+            let e = d_trie_updates.storage_tries.entry(stor_addr).or_default();
             e.storage_nodes.insert(st3, node_st3.clone());
 
+            let d = BlockStateDiff {
+                sorted_post_state: d_post_state.into_sorted(),
+                sorted_trie_updates: d_trie_updates.into_sorted(),
+            };
             store.store_trie_updates(b4, d).await.expect("b4");
             parent = b256(4);
         }
@@ -338,17 +363,22 @@ mod tests {
         // Block 5 (kept): update a3; s3=330
         {
             let b5 = block(5, parent);
-            let mut d = BlockStateDiff::default();
 
-            d.post_state.accounts.insert(
+            let mut d_post_state = HashedPostState::default();
+
+            d_post_state.accounts.insert(
                 a3,
                 Some(Account { nonce: 2, balance: U256::from(2_003), ..Default::default() }),
             );
 
             let mut hs = HashedStorage::default();
             hs.storage.insert(s3, U256::from(330));
-            d.post_state.storages.insert(stor_addr, hs);
+            d_post_state.storages.insert(stor_addr, hs);
 
+            let d = BlockStateDiff {
+                sorted_post_state: d_post_state.into_sorted(),
+                sorted_trie_updates: TrieUpdatesSorted::default(),
+            };
             store.store_trie_updates(b5, d).await.expect("b5");
         }
 

@@ -8,8 +8,8 @@ use reth_primitives_traits::Account;
 use reth_trie::{
     hashed_cursor::{HashedCursor, HashedStorageCursor},
     trie_cursor::{TrieCursor, TrieStorageCursor},
-    updates::TrieUpdates,
-    BranchNodeCompact, HashedPostState, Nibbles,
+    updates::TrieUpdatesSorted,
+    BranchNodeCompact, HashedPostStateSorted, Nibbles,
 };
 use std::{fmt::Debug, time::Duration};
 
@@ -17,16 +17,16 @@ use std::{fmt::Debug, time::Duration};
 #[derive(Debug, Clone, Default)]
 pub struct BlockStateDiff {
     /// Trie updates for branch nodes
-    pub trie_updates: TrieUpdates,
+    pub sorted_trie_updates: TrieUpdatesSorted,
     /// Post state for leaf nodes (accounts and storage)
-    pub post_state: HashedPostState,
+    pub sorted_post_state: HashedPostStateSorted,
 }
 
 impl BlockStateDiff {
     /// Extend the [` BlockStateDiff`] from other latest [`BlockStateDiff`]
-    pub fn extend(&mut self, other: Self) {
-        self.trie_updates.extend(other.trie_updates);
-        self.post_state.extend(other.post_state);
+    pub fn extend_ref(&mut self, other: &Self) {
+        self.sorted_trie_updates.extend_ref(&other.sorted_trie_updates);
+        self.sorted_post_state.extend_ref(&other.sorted_post_state);
     }
 }
 
