@@ -435,10 +435,6 @@ func (cl *L2CLNode) SafeHead() *BlockRefResult {
 	return &BlockRefResult{T: cl.t, BlockRef: cl.HeadBlockRef(types.CrossSafe)}
 }
 
-func (cl *L2CLNode) CurrentL1Matched(refNode *L2CLNode, attempts int) {
-	cl.require.NoError(cl.CurrentL1MatchedFn(refNode, attempts)())
-}
-
 func (cl *L2CLNode) CurrentL1MatchedFn(refNode *L2CLNode, attempts int) CheckFunc {
 	return func() error {
 		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 1 * time.Second},
