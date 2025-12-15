@@ -216,7 +216,7 @@ var (
 // FindL1OriginOfNextL2Block finds the L1 origin of the next L2 block.
 // It returns an error if there is no way to build a block satisfying
 // derivation constraints with the supplied data.
-// You can pass a nil pointer for l1OriginChild if it is not yet available
+// You can pass an empty nextL1Origin if it is not yet available
 // removing the need for block building to wait on the result of network calls
 // This method is designed to be pure (it only reads the cfg property of the receiver)
 // and should not have any side effects.
@@ -226,7 +226,7 @@ func (los *L1OriginSelector) findL1OriginOfNextL2Block(
 	matchAutoDerivation bool) (eth.L1BlockRef, error) {
 
 	if (currentL1Origin == eth.L1BlockRef{}) {
-		panic("origin-selector: currentl1Origin is nil")
+		panic("origin-selector: currentL1Origin is empty")
 	}
 	if l2Head.L1Origin.Hash != currentL1Origin.Hash {
 		return eth.L1BlockRef{}, ErrInvalidL1Origin
