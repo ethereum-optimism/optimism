@@ -781,7 +781,7 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "_chainId",
         "type": "uint256"
       }
     ],
@@ -1225,6 +1225,11 @@
   {
     "inputs": [],
     "name": "UnexpectedString",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnknownChainId",
     "type": "error"
   },
   {

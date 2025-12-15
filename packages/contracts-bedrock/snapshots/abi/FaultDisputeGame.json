@@ -785,7 +785,7 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "_chainId",
         "type": "uint256"
       }
     ],
@@ -797,7 +797,7 @@
         "type": "bytes32"
       }
     ],
-    "stateMutability": "pure",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -1229,6 +1229,11 @@
   {
     "inputs": [],
     "name": "UnexpectedString",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnknownChainId",
     "type": "error"
   },
   {

@@ -196,11 +196,11 @@
     "sourceCodeHash": "0xf19216b7943479af87a01ab8935e68561853e8e333d09719c917228bc7a01a3a"
   },
   "src/dispute/FaultDisputeGame.sol:FaultDisputeGame": {
-    "initCodeHash": "0xdec200e537c6c929b477e9919563843fa38a1032a54353a0fc14445324f82391",
-    "sourceCodeHash": "0x886d2eb33c986366a2db9bd7470441ab05d906012de37d50191a06fd2a6b8216"
+    "initCodeHash": "0x57b01ba6873a49b3adafe58d05e0e0c4f342281181682f9f7ecd30752395b4ad",
+    "sourceCodeHash": "0x04111af652e4a059b591da704a7d7a15dcb46a75be05fd7cad6b88c1b7a1ac1b"
   },
   "src/dispute/PermissionedDisputeGame.sol:PermissionedDisputeGame": {
-    "initCodeHash": "0x249cf63f3e8e4baa38f3e1c10f36c9afe346648023f6bb8d090527ed4933f408",
+    "initCodeHash": "0xcd7a262ac008a2de347e459902ca7039c1c980eb312106b9cc2c1f3190ae0840",
     "sourceCodeHash": "0x618013c7ad9742f59445f355f7b26347ee1727c9e6616218a6f3443f1b4bb8e0"
   },
   "src/dispute/SuperFaultDisputeGame.sol:SuperFaultDisputeGame": {
@@ -212,11 +212,11 @@
     "sourceCodeHash": "0xb864acadf4f06ca2d8c1bba0ec1e124e948d67009bf3b6c086282333a44d1f7e"
   },
   "src/dispute/v2/FaultDisputeGameV2.sol:FaultDisputeGameV2": {
-    "initCodeHash": "0xf1fe32f0e23dbd0f3aaa0cd8d9428d091e0084caa5a89c6b294de1f4243308c1",
-    "sourceCodeHash": "0x8d7f8298c61e0e1acbd87f2cf16a7c78227009bd803a210d3079d907edc41e9e"
+    "initCodeHash": "0x2806f9c9f0babb80be2a0c40382d265d598632dc6c1902db7f5f8f214d233f2f",
+    "sourceCodeHash": "0x1ac7a6aa4adafe2058046f06a425c662369f756a89be956b5a222647d99fabe8"
   },
   "src/dispute/v2/PermissionedDisputeGameV2.sol:PermissionedDisputeGameV2": {
-    "initCodeHash": "0x97b683882ca10c1b137d42efb8b044b18a01e6ea86f1e0e37a6d4af52d34dd1f",
+    "initCodeHash": "0xfbb451f1a0bf22bb96242db527371dd0b0c3435208f9e074441ec0aacbf414bd",
     "sourceCodeHash": "0x92bb886203246108435408762fab6e56fe223c2ed5ae85b5b792653cead4ec7a"
   },
   "src/dispute/zk/OPSuccinctFaultDisputeGame.sol:OPSuccinctFaultDisputeGame": {
