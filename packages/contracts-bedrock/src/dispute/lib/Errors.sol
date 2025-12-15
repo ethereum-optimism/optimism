@@ -133,6 +133,9 @@ error GameNotResolved();
 /// @notice Thrown when a reserved game type is used.
 error ReservedGameType();
 
+/// @notice Thrown when an unknown chain ID is passed to rootClaimByChainId.
+error UnknownChainId();
+
 ////////////////////////////////////////////////////////////////
 //              `PermissionedDisputeGame` Errors              //
 ////////////////////////////////////////////////////////////////

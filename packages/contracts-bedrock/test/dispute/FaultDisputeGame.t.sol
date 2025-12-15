@@ -2081,7 +2081,13 @@ contract FaultDisputeGame_RootClaim_Test is FaultDisputeGame_TestInit {
 
     /// @notice Tests that rootClaimByChainId returns the same value as rootClaim().
     function test_rootClaimByChainId_succeeds() public view {
-        assertEq(gameProxy.rootClaimByChainId(1).raw(), gameProxy.rootClaim().raw());
+        assertEq(gameProxy.rootClaimByChainId(gameProxy.l2ChainId()).raw(), gameProxy.rootClaim().raw());
+    }
+
+    /// @notice Tests that rootClaimByChainId reverts with unknown chain ID.
+    function test_rootClaimByChainId_unknownChainId_reverts() public {
+        vm.expectRevert(UnknownChainId.selector);
+        gameProxy.rootClaimByChainId(0);
     }
 }
 
