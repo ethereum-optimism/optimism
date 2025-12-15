@@ -273,28 +273,30 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
                 gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
             })
         );
-        v2UpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerV2.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.SUPER_CANNON,
-                gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
-            })
-        );
-        v2UpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerV2.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                gameArgs: abi.encode(
-                    IOPContractsManagerV2.PermissionedDisputeGameConfig({
-                        absolutePrestate: cannonPrestate,
-                        proposer: initialProposerForV2,
-                        challenger: initialChallengerForV2
-                    })
-                )
-            })
-        );
+        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            v2UpgradeInput.disputeGameConfigs.push(
+                IOPContractsManagerV2.DisputeGameConfig({
+                    enabled: false,
+                    initBond: 0,
+                    gameType: GameTypes.SUPER_CANNON,
+                    gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
+                })
+            );
+            v2UpgradeInput.disputeGameConfigs.push(
+                IOPContractsManagerV2.DisputeGameConfig({
+                    enabled: false,
+                    initBond: 0,
+                    gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                    gameArgs: abi.encode(
+                        IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                            absolutePrestate: cannonPrestate,
+                            proposer: initialProposerForV2,
+                            challenger: initialChallengerForV2
+                        })
+                    )
+                })
+            );
+        }
 
         // Allow the DelayedWETH proxy to be (re)deployed during upgrades if it is missing.
         v2UpgradeInput.extraInstructions.push(
