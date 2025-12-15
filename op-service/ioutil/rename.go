@@ -43,7 +43,7 @@ func renameCrossDevice(source, destination string) error {
 	_, err = io.Copy(dst, src)
 
 	// Close both files
-	err = src.Close()
+	src.Close()
 	dst.Close()
 
 	if err != nil {
