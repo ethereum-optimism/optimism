@@ -162,18 +162,13 @@ func (n *OpNode) Stop() {
 	n.opNode = nil
 }
 
-func fetchFollowSourceRPC(orch *Orchestrator, p devtest.P, l2FollowSourceID stack.L2CLNodeID) string {
-	require := p.Require()
-	l2CLFollowSource, ok := orch.l2CLs.Get(l2FollowSourceID)
-	require.True(ok, "l2 CL Follow Source required")
-	return l2CLFollowSource.UserRPC()
-}
-
 func WithOpNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, l2FollowSourceID stack.L2CLNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		followSource := func(orch *Orchestrator) string {
 			p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
-			return fetchFollowSourceRPC(orch, p, l2FollowSourceID)
+			l2CLFollowSource, ok := orch.l2CLs.Get(l2FollowSourceID)
+			p.Require().True(ok, "l2 CL Follow Source required")
+			return l2CLFollowSource.UserRPC()
 		}(orch)
 		opts = append(opts, L2CLFollowSource(followSource))
 		withOpNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)(orch)
