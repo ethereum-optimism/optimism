@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-// Libraries
-import { Constants } from "src/libraries/Constants.sol";
-
 // Interfaces
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
@@ -23,14 +20,6 @@ abstract contract OPContractsManagerUtilsCaller {
     /// @param _utils Address of the OPContractsManagerUtils contract.
     constructor(IOPContractsManagerUtils _utils) {
         utils = _utils;
-    }
-
-    /// @notice Checks if the OPCM is currently executing a versioning test. We define a special
-    ///         address that cannot have code in production but can have code in tests if we
-    ///         explicitly set it to have code.
-    /// @return True if the OPCM is currently executing a versioning test, false otherwise.
-    function _isVersioningTest() internal view returns (bool) {
-        return address(Constants.VERSION_TESTING_ADDRESS).code.length > 0;
     }
 
     /// @notice Maps an L2 chain ID to an L1 batch inbox address as defined by the standard

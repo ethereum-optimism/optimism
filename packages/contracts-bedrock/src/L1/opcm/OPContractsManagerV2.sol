@@ -281,14 +281,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         internal
         view
     {
-        // NOTE: If we're running a versioning test where we're mocking the version function we
-        // allow all instructions to pass. If we don't do something like this, we'll get errors
-        // within this function because it will compare against a mocked version. Will never return
-        // true in production. You don't need to remove or modify this check.
-        if (_isVersioningTest()) {
-            return;
-        }
-
         for (uint256 i = 0; i < _extraInstructions.length; i++) {
             if (!_isPermittedInstruction(_extraInstructions[i])) {
                 revert OPContractsManagerV2_InvalidUpgradeInstruction(_extraInstructions[i].key);
@@ -716,24 +708,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // and subsequent deployments will then use this function to verify the system is
         // progressing from one OPCM to the next. We only care about this for upgrades, you can
         // perform an initial deployment from any OPCM.
-        if (!_isInitialDeployment && SemverComp.gte(_version(), "7.0.0")) {
-            ISemver lastUsedOPCM = ISemver(address(_cts.systemConfig.lastUsedOPCM()));
-            SemverComp.Semver memory lastUsedSemver = SemverComp.parse(lastUsedOPCM.version());
-            SemverComp.Semver memory thisSemver = SemverComp.parse(_version());
-
-            // We have three permitted cases:
-            // 1. Address of the last used OPCM is identical to the address of this OPCM.
-            // 2. This OPCM version is the same major version but a greater minor version.
-            // 3. This OPCM version is the next major version.
-            bool isSameOPCM = address(lastUsedOPCM) == address(thisOPCM);
-            bool isNextMajor = thisSemver.major == lastUsedSemver.major + 1;
-            bool isSameMajorHigherMinor =
-                thisSemver.major == lastUsedSemver.major && thisSemver.minor > lastUsedSemver.minor;
-
-            // Revert if none of the permitted cases are true.
-            if (!(isSameOPCM || isSameMajorHigherMinor || isNextMajor)) {
-                revert OPContractsManagerV2_InvalidUpgradeSequence(lastUsedOPCM.version(), _version());
-            }
+        if (!_isInitialDeployment && !isPermittedUpgradeSequence(_cts.systemConfig)) {
+            revert OPContractsManagerV2_InvalidUpgradeSequence(_cts.systemConfig.lastUsedOPCMVersion(), _version());
         }
 
         // Update the SystemConfig.
@@ -1015,6 +991,42 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///////////////////////////////////////////////////////////////////////////
     //                        PUBLIC UTILITY FUNCTIONS                       //
     ///////////////////////////////////////////////////////////////////////////
+
+    /// @notice Checks if the upgrade sequence from the last used OPCM to this OPCM is permitted.
+    ///         This function is public to allow tests to verify upgrade sequence logic directly
+    ///         by mocking the OPCM version and calling this function, rather than running the full
+    ///         upgrade flow. This avoids the need for special testing flags that bypass validation.
+    /// @param _systemConfig The SystemConfig contract to check the upgrade sequence for.
+    /// @return True if the upgrade sequence is permitted, false otherwise.
+    function isPermittedUpgradeSequence(ISystemConfig _systemConfig) public view returns (bool) {
+        // If the SystemConfig is not initialized, this is an initial deployment, which is always
+        // permitted. Initial deployments can use any OPCM version.
+        if (address(_systemConfig) == address(0)) {
+            return true;
+        }
+
+        // Chains prior to OPCMv2 (version 7.0.0) don't have a functional lastUsedOPCM function on
+        // the SystemConfig contract. The first deployment of OPCMv2 makes this function available,
+        // so we skip this check for versions below 7.0.0.
+        if (SemverComp.lt(_version(), "7.0.0")) {
+            return true;
+        }
+
+        ISemver lastUsedOPCM = ISemver(address(_systemConfig.lastUsedOPCM()));
+        SemverComp.Semver memory lastUsedSemver = SemverComp.parse(lastUsedOPCM.version());
+        SemverComp.Semver memory thisSemver = SemverComp.parse(_version());
+
+        // We have three permitted cases:
+        // 1. Address of the last used OPCM is identical to the address of this OPCM (re-running).
+        // 2. This OPCM version is the same major version but a greater minor version (patch).
+        // 3. This OPCM version is the next major version (sequential upgrade).
+        bool isSameOPCM = address(lastUsedOPCM) == address(thisOPCM);
+        bool isNextMajor = thisSemver.major == lastUsedSemver.major + 1;
+        bool isSameMajorHigherMinor =
+            thisSemver.major == lastUsedSemver.major && thisSemver.minor > lastUsedSemver.minor;
+
+        return isSameOPCM || isSameMajorHigherMinor || isNextMajor;
+    }
 
     /// @notice Returns the blueprint contract addresses.
     function blueprints() public view returns (IOPContractsManagerContainer.Blueprints memory) {

@@ -149,4 +149,7 @@ interface IOPContractsManagerV2 {
 
     /// @notice Returns whether a development feature is enabled.
     function isDevFeatureEnabled(bytes32 _feature) external view returns (bool);
+
+    /// @notice Checks if the upgrade sequence from the last used OPCM to this OPCM is permitted.
+    function isPermittedUpgradeSequence(ISystemConfig _systemConfig) external view returns (bool);
 }
