@@ -79,31 +79,39 @@ abstract contract AdminFaucetAuthModule_TestInit is Test {
     }
 }
 
+/// @title AdminFaucetAuthModule_Constructor_Test
+/// @notice Tests the constructor of the `AdminFaucetAuthModule` contract.
+contract AdminFaucetAuthModule_Constructor_Test is AdminFaucetAuthModule_TestInit {
+    /// @notice Tests that the constructor sets the ADMIN correctly.
+    function test_constructor_setsAdmin_succeeds() external view {
+        assertEq(adminFam.ADMIN(), admin);
+    }
+}
+
 /// @title AdminFaucetAuthModule_Verify_Test
 /// @notice Tests the `verify` function of the `AdminFaucetAuthModule` contract.
 contract AdminFaucetAuthModule_Verify_Test is AdminFaucetAuthModule_TestInit {
     /// @notice Assert that verify returns true for valid proofs signed by admins.
-    function test_verify_adminProof_succeeds() external {
+    function testFuzz_verify_adminProof_succeeds(address _fundsReceiver) external {
         bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory data = "0x";
         uint32 gasLimit = 200000;
-        address fundsReceiver = makeAddr("fundsReceiver");
         bytes memory proof = issueProofWithEIP712Domain(
             adminKey,
             bytes(adminFamName),
             bytes(adminFamVersion),
             block.chainid,
             address(adminFam),
-            fundsReceiver,
-            keccak256(abi.encodePacked(fundsReceiver)),
+            _fundsReceiver,
+            keccak256(abi.encodePacked(_fundsReceiver)),
             nonce
         );
 
         vm.prank(nonAdmin);
         assertEq(
             adminFam.verify(
-                Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit),
-                keccak256(abi.encodePacked(fundsReceiver)),
+                Faucet.DripParameters(payable(_fundsReceiver), data, nonce, gasLimit),
+                keccak256(abi.encodePacked(_fundsReceiver)),
                 proof
             ),
             true
@@ -111,27 +119,26 @@ contract AdminFaucetAuthModule_Verify_Test is AdminFaucetAuthModule_TestInit {
     }
 
     /// @notice Assert that verify returns false for proofs signed by nonadmins.
-    function test_verify_nonAdminProof_succeeds() external {
+    function testFuzz_verify_nonAdminProof_succeeds(address _fundsReceiver) external {
         bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory data = "0x";
         uint32 gasLimit = 200000;
-        address fundsReceiver = makeAddr("fundsReceiver");
         bytes memory proof = issueProofWithEIP712Domain(
             nonAdminKey,
             bytes(adminFamName),
             bytes(adminFamVersion),
             block.chainid,
             address(adminFam),
-            fundsReceiver,
-            keccak256(abi.encodePacked(fundsReceiver)),
+            _fundsReceiver,
+            keccak256(abi.encodePacked(_fundsReceiver)),
             nonce
         );
 
         vm.prank(admin);
         assertEq(
             adminFam.verify(
-                Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit),
-                keccak256(abi.encodePacked(fundsReceiver)),
+                Faucet.DripParameters(payable(_fundsReceiver), data, nonce, gasLimit),
+                keccak256(abi.encodePacked(_fundsReceiver)),
                 proof
             ),
             false
@@ -140,28 +147,27 @@ contract AdminFaucetAuthModule_Verify_Test is AdminFaucetAuthModule_TestInit {
 
     /// @notice Assert that verify returns false for proofs where the id in the proof is different
     ///         than the id in the call to verify.
-    function test_verify_proofWithWrongId_succeeds() external {
+    function testFuzz_verify_wrongId_succeeds(address _fundsReceiver, address _wrongAddress) external {
+        vm.assume(_fundsReceiver != _wrongAddress);
         bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory data = "0x";
         uint32 gasLimit = 200000;
-        address fundsReceiver = makeAddr("fundsReceiver");
-        address randomAddress = makeAddr("randomAddress");
         bytes memory proof = issueProofWithEIP712Domain(
             adminKey,
             bytes(adminFamName),
             bytes(adminFamVersion),
             block.chainid,
             address(adminFam),
-            fundsReceiver,
-            keccak256(abi.encodePacked(fundsReceiver)),
+            _fundsReceiver,
+            keccak256(abi.encodePacked(_fundsReceiver)),
             nonce
         );
 
         vm.prank(admin);
         assertEq(
             adminFam.verify(
-                Faucet.DripParameters(payable(fundsReceiver), data, nonce, gasLimit),
-                keccak256(abi.encodePacked(randomAddress)),
+                Faucet.DripParameters(payable(_fundsReceiver), data, nonce, gasLimit),
+                keccak256(abi.encodePacked(_wrongAddress)),
                 proof
             ),
             false
