@@ -138,7 +138,7 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["contractsContainerV2"] = "OPContractsManagerContainer";
 
         // OPCM V2 Specific field name overrides.
-        fieldNameOverrides["standardValidator"] = "OPContractsStandardValidator";
+        fieldNameOverrides["standardValidator"] = "OPContractsManagerStandardValidator";
         fieldNameOverrides["storageSetterImpl"] = "StorageSetter";
         fieldNameOverrides["thisOPCM"] = "OPContractsManagerV2";
         fieldNameOverrides["opcmUtils"] = "OPContractsManagerUtils";
@@ -270,7 +270,6 @@ contract VerifyOPCM is Script {
         // Get the ContractsContainer address from the first component (they're all the same)
         address contractsContainerAddr = address(0);
         for (uint256 i = 0; i < propRefs.length; i++) {
-            // console.log("propRefs[i].name", propRefs[i].name);
             string memory field = propRefs[i].field;
             if (_hasContractsContainer(field)) {
                 contractsContainerAddr = _getContractsContainerAddress(propRefs[i].addr);
