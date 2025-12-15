@@ -466,9 +466,7 @@ contract AnchorStateRegistry_GetStartingAnchorRoot_Test is AnchorStateRegistry_T
 
         // Mock the game's anchor root to be different from the starting anchor root.
         vm.mockCall(
-            address(gameProxy),
-            abi.encodeCall(game.rootClaim, ()),
-            abi.encode(Claim.wrap(keccak256(abi.encode(123))))
+            address(gameProxy), abi.encodeCall(IDisputeGame.rootClaim, ()), abi.encode(Claim.wrap(keccak256(abi.encode(123))))
         );
 
         // Set the anchor game to the game proxy.
