@@ -63,8 +63,7 @@ func WithLatestFork() faultDisputeConfigOpts {
 			cfg.DeployConfig.L2GenesisGraniteTimeOffset = &genesisActivation
 			cfg.DeployConfig.L2GenesisHoloceneTimeOffset = &genesisActivation
 			cfg.DeployConfig.L2GenesisIsthmusTimeOffset = &genesisActivation
-			// TODO(#17348): Jovian is not supported in op-e2e tests yet
-			//cfg.DeployConfig.L2GenesisJovianTimeOffset = &genesisActivation
+			cfg.DeployConfig.L2GenesisJovianTimeOffset = &genesisActivation
 		})
 	}
 }
