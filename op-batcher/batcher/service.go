@@ -85,8 +85,8 @@ type BatcherService struct {
 	NotSubmittingOnStart bool
 
 	// BlobGasPriceOracle tracks blob base gas prices for dynamic pricing
-	blobGasPriceOracle *bgpo.BlobGasPriceOracle
-	oracleStopCh       chan struct{}
+	blobTipOracle *bgpo.BlobTipOracle
+	oracleStopCh  chan struct{}
 }
 
 type DriverSetupOption func(setup *DriverSetup)
@@ -176,10 +176,7 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, closeApp contex
 	if err := bs.initRollupConfig(ctx); err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)
 	}
-	if err := bs.initBlobGasPriceOracle(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init blob gas price oracle: %w", err)
-	}
-	if err := bs.initTxManager(cfg); err != nil {
+	if err := bs.initTxManager(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init Tx manager: %w", err)
 	}
 	// must be init before driver and channel config
@@ -264,10 +261,10 @@ func (bs *BatcherService) initRollupConfig(ctx context.Context) error {
 	return nil
 }
 
-func (bs *BatcherService) initBlobGasPriceOracle(ctx context.Context, cfg *CLIConfig) error {
+func (bs *BatcherService) initBlobTipOracle(ctx context.Context, cfg *CLIConfig) error {
 	// Only initialize the oracle if we're using blobs or auto mode
 	if cfg.DataAvailabilityType != flags.BlobsType && cfg.DataAvailabilityType != flags.AutoType {
-		bs.Log.Debug("Skipping blob gas price oracle initialization (not using blobs)")
+		bs.Log.Debug("Skipping blob tip oracle initialization (not using blobs)")
 		return nil
 	}
 
@@ -282,7 +279,7 @@ func (bs *BatcherService) initBlobGasPriceOracle(ctx context.Context, cfg *CLICo
 	l1ChainID := eth.ChainIDFromBig(bs.RollupConfig.L1ChainID)
 	l1ChainConfig := eth.L1ChainConfigByChainID(l1ChainID)
 	if l1ChainConfig == nil {
-		bs.Log.Info("Blob gas price oracle not initialized when L1 chain ID is not known (Ethereum mainnet, Sepolia, Holesky, Hoodi)")
+		bs.Log.Info("Blob tip oracle not initialized when L1 chain ID is not known (Ethereum mainnet, Sepolia, Holesky, Hoodi)")
 		return nil
 	}
 
@@ -290,11 +287,27 @@ func (bs *BatcherService) initBlobGasPriceOracle(ctx context.Context, cfg *CLICo
 	baseRPCClient := client.NewBaseRPCClient(rpcClient)
 
 	// Create the oracle with default config
-	oracleConfig := bgpo.DefaultBlobGasPriceOracleConfig()
-	bs.blobGasPriceOracle = bgpo.NewBlobGasPriceOracle(ctx, baseRPCClient, l1ChainConfig, bs.Log, oracleConfig)
+	oracleConfig := bgpo.DefaultBlobTipOracleConfig()
+	oracleConfig.NetworkTimeout = bs.NetworkTimeout
+	minTipCap, err := eth.GweiToWei(cfg.TxMgrConfig.MinTipCapGwei)
+	if err != nil {
+		return fmt.Errorf("invalid min tip cap: %w", err)
+	}
+	oracleConfig.DefaultPriorityFee = minTipCap
+	bs.blobTipOracle = bgpo.NewBlobTipOracle(ctx, baseRPCClient, l1ChainConfig, bs.Log, oracleConfig)
 	bs.oracleStopCh = make(chan struct{})
 
-	bs.Log.Info("Initialized blob gas price oracle")
+	bs.Log.Info("Initialized blob tip oracle")
+
+	// Start the blob tip oracle if it's initialized
+	go func() {
+		if err := bs.blobTipOracle.Start(); err != nil {
+			bs.Log.Error("Blob tip oracle stopped with error", "err", err)
+		}
+		close(bs.oracleStopCh)
+	}()
+	bs.blobTipOracle.WaitCachePopulated()
+	bs.Log.Info("Started blob tip oracle")
 	return nil
 }
 
@@ -384,15 +397,20 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 	return nil
 }
 
-func (bs *BatcherService) initTxManager(cfg *CLIConfig) error {
+func (bs *BatcherService) initTxManager(ctx context.Context, cfg *CLIConfig) error {
+	// Initialize the blob tip oracle first
+	if err := bs.initBlobTipOracle(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to init blob tip oracle: %w", err)
+	}
+
 	// Create the base config from CLI config
 	txmgrConfig, err := txmgr.NewConfig(cfg.TxMgrConfig, bs.Log)
 	if err != nil {
 		return err
 	}
 
-	// Create a custom gas price estimator that uses the blob gas price oracle if available
-	if bs.blobGasPriceOracle != nil {
+	// Create a custom gas price estimator that uses the blob tip oracle if available
+	if bs.blobTipOracle != nil {
 		txmgrConfig.GasPriceEstimatorFn = func(ctx context.Context, backend txmgr.ETHBackend) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
 			// Get tip and base fee from backend (standard way for execution gas)
 			tip, err := backend.SuggestGasTipCap(ctx)
@@ -415,9 +433,9 @@ func (bs *BatcherService) initTxManager(cfg *CLIConfig) error {
 
 			// Use the oracle's SuggestBlobTipCap for blob tip fee suggestion
 			// This analyzes recent blob transactions to suggest an appropriate blob tip fee
-			suggestedBlobFeeCap, err := bs.blobGasPriceOracle.SuggestBlobTipCap(ctx, 0, 0)
+			suggestedBlobFeeCap, err := bs.blobTipOracle.SuggestBlobTipCap(ctx, 0, 0)
 			if err != nil {
-				return nil, nil, nil, nil, fmt.Errorf("blob gas price oracle failed to suggest blob tip fee: %w", err)
+				return nil, nil, nil, nil, fmt.Errorf("blob tip oracle failed to suggest blob tip fee: %w", err)
 			}
 
 			return tip, head.BaseFee, suggestedBlobFeeCap, blobBaseFee, nil
@@ -525,17 +543,6 @@ func (bs *BatcherService) initAltDA(cfg *CLIConfig) error {
 func (bs *BatcherService) Start(ctx context.Context) error {
 	bs.driver.Log.Info("Starting batcher", "notSubmittingOnStart", bs.NotSubmittingOnStart)
 
-	// Start the blob gas price oracle if it's initialized
-	if bs.blobGasPriceOracle != nil {
-		go func() {
-			if err := bs.blobGasPriceOracle.Start(); err != nil {
-				bs.Log.Error("Blob gas price oracle stopped with error", "err", err)
-			}
-			close(bs.oracleStopCh)
-		}()
-		bs.Log.Info("Started blob gas price oracle")
-	}
-
 	if !bs.NotSubmittingOnStart {
 		return bs.driver.StartBatchSubmitting()
 	}
@@ -569,9 +576,9 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 		bs.TxManager.Close()
 	}
 
-	// Stop the blob gas price oracle if it's running
-	if bs.blobGasPriceOracle != nil {
-		bs.blobGasPriceOracle.Close()
+	// Stop the blob tip oracle if it's running
+	if bs.blobTipOracle != nil {
+		bs.blobTipOracle.Close()
 		// Wait for the oracle goroutine to finish
 		if bs.oracleStopCh != nil {
 			select {

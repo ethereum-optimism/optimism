@@ -65,14 +65,14 @@ func createHeader(blockNum uint64, excessBlobGas *uint64) *types.Header {
 	return header
 }
 
-func createBlobTx(blobFeeCap *big.Int) *types.Transaction {
+func createBlobTx(gasTip *big.Int, gasFeeCap *big.Int, blobFeeCap *big.Int) *types.Transaction {
 	// Create a minimal blob transaction
 	// Note: This is a simplified version for testing
 	tx := types.NewTx(&types.BlobTx{
 		ChainID:    uint256.NewInt(1),
 		Nonce:      0,
-		GasTipCap:  uint256.NewInt(1000000000),
-		GasFeeCap:  uint256.NewInt(2000000000),
+		GasTipCap:  uint256.MustFromBig(gasTip),
+		GasFeeCap:  uint256.MustFromBig(gasFeeCap),
 		Gas:        21000,
 		To:         common.Address{},
 		Value:      uint256.NewInt(0),
@@ -90,37 +90,37 @@ func TestNewBlobGasPriceOracle(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelInfo)
 
 	t.Run("with nil config", func(t *testing.T) {
-		oracle := NewBlobGasPriceOracle(ctx, mrpc, chainConfig, logger, nil)
+		oracle := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, nil)
 		require.NotNil(t, oracle)
-		require.Equal(t, 20, oracle.maxBlocks)
-		require.Equal(t, 60, oracle.percentile)
+		require.Equal(t, 20, oracle.config.MaxBlocks)
+		require.Equal(t, 60, oracle.config.Percentile)
 	})
 
 	t.Run("with custom config", func(t *testing.T) {
-		config := &BlobGasPriceOracleConfig{
+		config := &BlobTipOracleConfig{
 			PricesCacheSize: 500,
 			BlockCacheSize:  50,
 			MaxBlocks:       10,
 			Percentile:      70,
 		}
-		oracle := NewBlobGasPriceOracle(ctx, mrpc, chainConfig, logger, config)
+		oracle := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, config)
 		require.NotNil(t, oracle)
-		require.Equal(t, 10, oracle.maxBlocks)
-		require.Equal(t, 70, oracle.percentile)
+		require.Equal(t, 10, oracle.config.MaxBlocks)
+		require.Equal(t, 70, oracle.config.Percentile)
 	})
 
 	t.Run("with invalid config values", func(t *testing.T) {
-		config := &BlobGasPriceOracleConfig{
+		config := &BlobTipOracleConfig{
 			PricesCacheSize: -1,
 			BlockCacheSize:  -1,
 			MaxBlocks:       -1,
 			Percentile:      150, // Invalid
 		}
-		oracle := NewBlobGasPriceOracle(ctx, mrpc, chainConfig, logger, config)
+		oracle := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, config)
 		require.NotNil(t, oracle)
 		// Should use defaults
-		require.Equal(t, 20, oracle.maxBlocks)
-		require.Equal(t, 60, oracle.percentile)
+		require.Equal(t, 20, oracle.config.MaxBlocks)
+		require.Equal(t, 60, oracle.config.Percentile)
 	})
 }
 
@@ -130,7 +130,7 @@ func TestProcessHeader(t *testing.T) {
 	chainConfig := params.MainnetChainConfig
 	logger := testlog.Logger(t, log.LevelError)
 
-	oracle := NewBlobGasPriceOracle(ctx, mrpc, chainConfig, logger, &BlobGasPriceOracleConfig{
+	oracle := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, &BlobTipOracleConfig{
 		PricesCacheSize: 10,
 		BlockCacheSize:  10,
 		MaxBlocks:       5,
@@ -156,11 +156,6 @@ func TestProcessHeader(t *testing.T) {
 		err := oracle.processHeader(header)
 		require.NoError(t, err)
 
-		// Check that blob base fee was stored
-		blobBaseFee := oracle.GetBlobBaseFee(100)
-		require.NotNil(t, blobBaseFee)
-		require.Greater(t, blobBaseFee.Uint64(), uint64(0))
-
 		// Check latest block
 		latestBlock, latestFee := oracle.GetLatestBlobBaseFee()
 		require.Equal(t, uint64(100), latestBlock)
@@ -185,58 +180,9 @@ func TestProcessHeader(t *testing.T) {
 		err := oracle.processHeader(header)
 		require.NoError(t, err)
 
-		// Check that blob base fee is nil
-		blobBaseFee := oracle.GetBlobBaseFee(101)
-		require.Equal(t, big.NewInt(0), blobBaseFee)
-
 		// Latest block should be updated
 		latestBlock, _ := oracle.GetLatestBlobBaseFee()
 		require.Equal(t, uint64(101), latestBlock)
-	})
-
-	mrpc.AssertExpectations(t)
-}
-
-func TestGetBlobBaseFee(t *testing.T) {
-	ctx := context.Background()
-	mrpc := new(mockRPC)
-	chainConfig := params.MainnetChainConfig
-	logger := testlog.Logger(t, log.LevelError)
-
-	oracle := NewBlobGasPriceOracle(ctx, mrpc, chainConfig, logger, &BlobGasPriceOracleConfig{
-		PricesCacheSize: 10,
-		BlockCacheSize:  10,
-	})
-
-	t.Run("get non-existent block", func(t *testing.T) {
-		fee := oracle.GetBlobBaseFee(999)
-		require.Nil(t, fee)
-	})
-
-	t.Run("get existing block", func(t *testing.T) {
-		excessBlobGas := uint64(1000000)
-		header := createHeader(200, &excessBlobGas)
-
-		mrpc.On("CallContext", mock.Anything, mock.Anything, "eth_getBlockByNumber", mock.MatchedBy(func(args []any) bool {
-			return len(args) == 2 && args[1] == true
-		})).
-			Run(func(args mock.Arguments) {
-				block := args[1].(*rpcBlock)
-				block.Number = hexutil.Uint64(200)
-				block.Hash = common.Hash{}.Bytes()
-				block.Transactions = []*types.Transaction{}
-			}).
-			Return(nil).Once()
-
-		err := oracle.processHeader(header)
-		require.NoError(t, err)
-
-		fee := oracle.GetBlobBaseFee(200)
-		require.NotNil(t, fee)
-		// Verify it's a copy (not the same pointer)
-		fee2 := oracle.GetBlobBaseFee(200)
-		require.NotSame(t, fee, fee2)
-		require.Equal(t, fee, fee2)
 	})
 
 	mrpc.AssertExpectations(t)
@@ -248,7 +194,7 @@ func TestGetLatestBlobBaseFee(t *testing.T) {
 	chainConfig := params.MainnetChainConfig
 	logger := testlog.Logger(t, log.LevelError)
 
-	oracle := NewBlobGasPriceOracle(ctx, mrpc, chainConfig, logger, &BlobGasPriceOracleConfig{
+	oracle := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, &BlobTipOracleConfig{
 		PricesCacheSize: 10,
 		BlockCacheSize:  10,
 	})
@@ -301,7 +247,7 @@ func TestSuggestBlobTipCap(t *testing.T) {
 	chainConfig := params.MainnetChainConfig
 	logger := testlog.Logger(t, log.LevelError)
 
-	oracle := NewBlobGasPriceOracle(ctx, mrpc, chainConfig, logger, &BlobGasPriceOracleConfig{
+	oracle := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, &BlobTipOracleConfig{
 		PricesCacheSize: 10,
 		BlockCacheSize:  10,
 		MaxBlocks:       5,
@@ -315,15 +261,17 @@ func TestSuggestBlobTipCap(t *testing.T) {
 		require.Contains(t, err.Error(), "no blocks have been processed")
 	})
 
-	t.Run("with blob transactions", func(t *testing.T) {
+	t.Run("with_blob_transactions", func(t *testing.T) {
 		// Process blocks with blob transactions
 		excessBlobGas := uint64(1000000)
 		for i := uint64(400); i <= 404; i++ {
 			header := createHeader(i, &excessBlobGas)
 
-			// Create blob transactions with different fee caps
-			blobFeeCap := big.NewInt(int64((i-400)*1000000 + 1000000)) // 1M, 2M, 3M, 4M, 5M
-			blobTx := createBlobTx(blobFeeCap)
+			// Create blob transactions with different tip
+			gasFeeCap := big.NewInt(3000000000)
+			blobFeeCap := big.NewInt(3000000000)
+			tip := big.NewInt(int64((i-400)*1000000 + 1000000)) // 1M, 2M, 3M, 4M, 5M
+			blobTx := createBlobTx(tip, gasFeeCap, blobFeeCap)
 
 			mrpc.On("CallContext", mock.Anything, mock.Anything, "eth_getBlockByNumber", mock.MatchedBy(func(args []any) bool {
 				return len(args) == 2 && args[1] == true
@@ -356,11 +304,12 @@ func TestSuggestBlobTipCap(t *testing.T) {
 	})
 
 	t.Run("no blob transactions, fallback to base fee", func(t *testing.T) {
-		oracle2 := NewBlobGasPriceOracle(ctx, mrpc, chainConfig, logger, &BlobGasPriceOracleConfig{
-			PricesCacheSize: 10,
-			BlockCacheSize:  10,
-			MaxBlocks:       5,
-			Percentile:      60,
+		oracle2 := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, &BlobTipOracleConfig{
+			PricesCacheSize:    10,
+			BlockCacheSize:     10,
+			MaxBlocks:          5,
+			Percentile:         60,
+			DefaultPriorityFee: big.NewInt(101),
 		})
 
 		excessBlobGas := uint64(1000000)
@@ -382,11 +331,7 @@ func TestSuggestBlobTipCap(t *testing.T) {
 
 		suggested, err := oracle2.SuggestBlobTipCap(ctx, 0, 0)
 		require.NoError(t, err)
-		require.NotNil(t, suggested)
-		// Should be base fee + 10% buffer
-		baseFee := oracle2.GetBlobBaseFee(500)
-		expected := new(big.Int).Add(baseFee, new(big.Int).Div(baseFee, big.NewInt(10)))
-		require.Equal(t, expected, suggested)
+		require.Equal(t, big.NewInt(101), suggested)
 	})
 
 	mrpc.AssertExpectations(t)
@@ -398,7 +343,7 @@ func TestPrePopulateCache(t *testing.T) {
 	chainConfig := params.MainnetChainConfig
 	logger := testlog.Logger(t, log.LevelError)
 
-	oracle := NewBlobGasPriceOracle(ctx, mrpc, chainConfig, logger, &BlobGasPriceOracleConfig{
+	oracle := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, &BlobTipOracleConfig{
 		PricesCacheSize: 10,
 		BlockCacheSize:  10,
 		MaxBlocks:       3,
@@ -449,12 +394,6 @@ func TestPrePopulateCache(t *testing.T) {
 		err := oracle.prePopulateCache()
 		require.NoError(t, err)
 
-		// Verify blocks were processed
-		for i := uint64(998); i <= 1000; i++ {
-			fee := oracle.GetBlobBaseFee(i)
-			require.NotNil(t, fee, "block %d should have blob base fee", i)
-		}
-
 		latestBlockNum, _ := oracle.GetLatestBlobBaseFee()
 		require.Equal(t, uint64(1000), latestBlockNum)
 	})
@@ -468,30 +407,34 @@ func TestExtractBlobFeeCaps(t *testing.T) {
 	chainConfig := params.MainnetChainConfig
 	logger := testlog.Logger(t, log.LevelError)
 
-	oracle := NewBlobGasPriceOracle(ctx, mrpc, chainConfig, logger, &BlobGasPriceOracleConfig{
+	oracle := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, &BlobTipOracleConfig{
 		PricesCacheSize: 10,
 		BlockCacheSize:  10,
 	})
 
-	t.Run("extract from blob transactions", func(t *testing.T) {
+	t.Run("extract_from_blob_transactions", func(t *testing.T) {
+		baseFee := big.NewInt(1)     // 1 wei
+		blobFeeCap := big.NewInt(30) // 30 wei
+		gasFeeCap := big.NewInt(30)  // 30 wei
 		block := rpcBlock{
 			Number: hexutil.Uint64(600),
 			Hash:   common.Hash{}.Bytes(),
 			Transactions: []*types.Transaction{
-				createBlobTx(big.NewInt(1000000)),
-				createBlobTx(big.NewInt(2000000)),
-				createBlobTx(big.NewInt(3000000)),
+				createBlobTx(big.NewInt(3), gasFeeCap, blobFeeCap),
+				createBlobTx(big.NewInt(4), gasFeeCap, blobFeeCap),
+				createBlobTx(big.NewInt(40), gasFeeCap, blobFeeCap),
 			},
 		}
 
-		feeCaps := oracle.extractBlobFeeCaps(block)
-		require.Len(t, feeCaps, 3)
-		require.Equal(t, big.NewInt(1000000), feeCaps[0])
-		require.Equal(t, big.NewInt(2000000), feeCaps[1])
-		require.Equal(t, big.NewInt(3000000), feeCaps[2])
+		tips := oracle.extractTipsForBlobTxs(block, baseFee)
+		require.Len(t, tips, 3)
+		require.Equal(t, big.NewInt(3), tips[0])
+		require.Equal(t, big.NewInt(4), tips[1])
+		require.Equal(t, big.NewInt(29), tips[2])
 	})
 
 	t.Run("extract ignores non-blob transactions", func(t *testing.T) {
+		baseFee := big.NewInt(1000000)
 		block := rpcBlock{
 			Number: hexutil.Uint64(601),
 			Hash:   common.Hash{}.Bytes(),
@@ -507,11 +450,14 @@ func TestExtractBlobFeeCaps(t *testing.T) {
 			},
 		}
 
-		feeCaps := oracle.extractBlobFeeCaps(block)
+		feeCaps := oracle.extractTipsForBlobTxs(block, baseFee)
 		require.Len(t, feeCaps, 0)
 	})
 
-	t.Run("extract from mixed transactions", func(t *testing.T) {
+	t.Run("extract_from_mixed_transactions", func(t *testing.T) {
+		baseFee := big.NewInt(1000000)
+		blobFeeCap := big.NewInt(3000000000)
+		gasFeeCap := big.NewInt(3000000000)
 		block := rpcBlock{
 			Number: hexutil.Uint64(602),
 			Hash:   common.Hash{}.Bytes(),
@@ -524,14 +470,14 @@ func TestExtractBlobFeeCaps(t *testing.T) {
 					Value:    big.NewInt(0),
 					Data:     []byte{},
 				}),
-				createBlobTx(big.NewInt(5000000)),
-				createBlobTx(big.NewInt(6000000)),
+				createBlobTx(big.NewInt(5000000), gasFeeCap, blobFeeCap),
+				createBlobTx(big.NewInt(6000000), gasFeeCap, blobFeeCap),
 			},
 		}
 
-		feeCaps := oracle.extractBlobFeeCaps(block)
-		require.Len(t, feeCaps, 2)
-		require.Equal(t, big.NewInt(5000000), feeCaps[0])
-		require.Equal(t, big.NewInt(6000000), feeCaps[1])
+		tips := oracle.extractTipsForBlobTxs(block, baseFee)
+		require.Len(t, tips, 2)
+		require.Equal(t, big.NewInt(5000000), tips[0])
+		require.Equal(t, big.NewInt(6000000), tips[1])
 	})
 }
