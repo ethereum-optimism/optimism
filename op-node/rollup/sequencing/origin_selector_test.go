@@ -927,6 +927,7 @@ func TestFindL1OriginOfNextL2Block(t *testing.T) {
 			currentL1Origin: c100,
 			nextL1Origin:    c101,
 			l2Head:          d1000,
+			expectedResult:  c101,
 			expectedError:   ErrNextL1OriginOrphaned,
 		},
 		testCase{
@@ -934,6 +935,7 @@ func TestFindL1OriginOfNextL2Block(t *testing.T) {
 			currentL1Origin: c100,
 			nextL1Origin:    c101,
 			l2Head:          e1000,
+			expectedResult:  c100,
 			expectedError:   ErrInvalidL1Origin,
 		})
 
