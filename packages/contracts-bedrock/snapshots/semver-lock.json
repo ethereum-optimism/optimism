@@ -52,8 +52,8 @@
     "sourceCodeHash": "0xb3184aa5d95a82109e7134d1f61941b30e25f655b9849a0e303d04bbce0cde0b"
   },
   "src/L1/opcm/OPContractsManagerV2.sol:OPContractsManagerV2": {
-    "initCodeHash": "0xd9c821b14bf1e3fd6e55dec868b7840296122d066954994aed763b7d77b5f31e",
-    "sourceCodeHash": "0x5925d1da68615bf9177f696d596891b9160bdf3476630fa1ede7d161b0ebfb04"
+    "initCodeHash": "0x40a11976ad28756f1844093369812670f7a92297fcb25970f629eabbddd7cfe8",
+    "sourceCodeHash": "0xaa487bd1d7b5367d7f0cf5b7f0e38dd4ec0d66da00e616df41703ff9c4d83c32"
   },
   "src/L2/BaseFeeVault.sol:BaseFeeVault": {
     "initCodeHash": "0x838bbd7f381e84e21887f72bd1da605bfc4588b3c39aed96cbce67c09335b3ee",
@@ -213,7 +213,7 @@
   },
   "src/dispute/v2/FaultDisputeGameV2.sol:FaultDisputeGameV2": {
     "initCodeHash": "0x6fc59e2da083c9e2093e42b0fda705e8215cc216e4dcedbf728c08f69ec2d3bd",
-    "sourceCodeHash": "0xdad4b16692d706886f39c6ce857bafe0bcf8604cb3d44e61f5f1845fa4e2d851"
+    "sourceCodeHash": "0x7fc97734c12e207f011c4f079fffe84f5bd11f4fb4a95dd56ad6a69df184584f"
   },
   "src/dispute/v2/PermissionedDisputeGameV2.sol:PermissionedDisputeGameV2": {
     "initCodeHash": "0x9896fd04e9a3f9fe4f1d6e93eb298b37a6bfa33424aa705e68cc58d0ba7f3f90",
