@@ -633,7 +633,7 @@ jobs:
           command: forge --version
       - run:
           name: Pull artifacts
-          command: bash scripts/ops/pull-artifacts.sh --fallback-to-latest
+          command: bash scripts/ops/pull-artifacts.sh
           working_directory: packages/contracts-bedrock
       - run:
           name: Build contracts
@@ -1373,7 +1373,7 @@ jobs:
           command: forge --version
       - run:
           name: Pull cached artifacts
-          command: bash scripts/ops/pull-artifacts.sh --fallback-to-latest
+          command: bash scripts/ops/pull-artifacts.sh
           working_directory: packages/contracts-bedrock
       - run:
           name: Run checks
