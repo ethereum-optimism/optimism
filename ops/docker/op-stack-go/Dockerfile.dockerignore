@@ -20,6 +20,7 @@
 !/op-service
 !/op-supervisor
 !/op-supernode
+!/op-interop-filter
 !/op-test-sequencer
 !/op-wheel
 !/op-alt-da

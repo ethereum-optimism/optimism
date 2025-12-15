@@ -11,7 +11,6 @@ type SetDisputeGameImplInput struct {
 	AnchorStateRegistry common.Address
 	GameType            uint32
 	GameArgs            []byte
-	UseV2               bool
 }
 
 func SetDisputeGameImpl(
