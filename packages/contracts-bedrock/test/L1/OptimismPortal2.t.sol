@@ -1839,9 +1839,7 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         });
 
         vm.mockCall(
-            address(game),
-            abi.encodeCall(game.rootClaim, ()),
-            abi.encode(Hashing.hashOutputRootProof(outputRootProof))
+            address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(Hashing.hashOutputRootProof(outputRootProof))
         );
 
         optimismPortal2.proveWithdrawalTransaction({
