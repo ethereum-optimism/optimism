@@ -34,7 +34,7 @@ mod cache;
 mod test_utils;
 
 mod ws;
-pub use ws::{WsConnect, WsFlashBlockStream};
+pub use ws::{FlashBlockDecoder, WsConnect, WsFlashBlockStream};
 
 /// Receiver of the most recent [`PendingFlashBlock`] built out of [`FlashBlock`]s.
 ///

@@ -1,6 +1,6 @@
 pub use stream::{WsConnect, WsFlashBlockStream};
 
 mod decoding;
-pub(crate) use decoding::FlashBlockDecoder;
+pub use decoding::FlashBlockDecoder;
 
 mod stream;
