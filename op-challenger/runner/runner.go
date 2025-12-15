@@ -36,6 +36,7 @@ import (
 
 var (
 	ErrUnexpectedStatusCode = errors.New("unexpected status code")
+	ErrVMTimeout            = errors.New("VM execution timed out")
 )
 
 type Metricer interface {
@@ -46,6 +47,7 @@ type Metricer interface {
 	RecordFailure(vmType string)
 	RecordPanic(vmType string)
 	RecordInvalid(vmType string)
+	RecordTimeout(vmType string)
 	RecordSuccess(vmType string)
 }
 
@@ -161,6 +163,9 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfi
 		} else if errors.Is(err, trace.ErrVMPanic) {
 			log.Error("VM panicked", "type", runConfig.Name)
 			m.RecordPanic(configName)
+		} else if errors.Is(err, ErrVMTimeout) {
+			log.Error("VM execution timed out", "type", runConfig.Name, "timeout", r.vmTimeout)
+			m.RecordTimeout(configName)
 		} else if err != nil {
 			log.Error("Failed to run", "type", runConfig.Name, "err", err)
 			m.RecordFailure(configName)
@@ -217,10 +222,16 @@ func (r *Runner) runOnce(ctx context.Context, logger log.Logger, name string, ga
 	}
 	provider, err := r.traceProviderCreator(ctx, logger, metrics.NewTypedVmMetrics(r.m, name), r.cfg, prestateSource, gameType, localInputs, dir)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("%w: %w", ErrVMTimeout, err)
+		}
 		return fmt.Errorf("failed to create trace provider: %w", err)
 	}
 	hash, err := provider.Get(ctx, types.RootPosition)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("%w: %w", ErrVMTimeout, err)
+		}
 		return fmt.Errorf("failed to execute trace provider: %w", err)
 	}
 	if hash[0] != mipsevm.VMStatusValid {

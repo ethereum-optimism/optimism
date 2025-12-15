@@ -133,5 +133,6 @@ func TestRunOnceReturnsTimeoutError(t *testing.T) {
 	}
 
 	err := r.runOnce(context.Background(), log.New(), "test", gameTypes.CannonGameType, nil, utils.LocalGameInputs{}, "")
+	require.ErrorIs(t, err, ErrVMTimeout)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }

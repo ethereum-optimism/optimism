@@ -28,6 +28,7 @@ type Metrics struct {
 	consecutiveFailuresCurrent *prometheus.GaugeVec
 	panicsTotal                *prometheus.CounterVec
 	invalidTotal               *prometheus.CounterVec
+	timeoutsTotal              *prometheus.CounterVec
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -88,6 +89,11 @@ func NewMetrics(runConfigs []RunConfig) *Metrics {
 			Name:      "invalid_total",
 			Help:      "Number of runs that determined the output root was invalid",
 		}, []string{"type"}),
+		timeoutsTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "timeouts_total",
+			Help:      "Number of times the VM execution timed out",
+		}, []string{"type"}),
 	}
 
 	for _, runConfig := range runConfigs {
@@ -96,6 +102,7 @@ func NewMetrics(runConfigs []RunConfig) *Metrics {
 		metrics.consecutiveFailuresCurrent.WithLabelValues(runConfig.Name).Set(0)
 		metrics.panicsTotal.WithLabelValues(runConfig.Name).Add(0)
 		metrics.invalidTotal.WithLabelValues(runConfig.Name).Add(0)
+		metrics.timeoutsTotal.WithLabelValues(runConfig.Name).Add(0)
 		metrics.RecordUp()
 	}
 
@@ -140,5 +147,11 @@ func (m *Metrics) RecordPanic(vmType string) {
 func (m *Metrics) RecordInvalid(vmType string) {
 	m.invalidTotal.WithLabelValues(vmType).Inc()
 	// The result was bad, but we still completed setup successfully
+	m.consecutiveFailuresCurrent.WithLabelValues(vmType).Set(0)
+}
+
+func (m *Metrics) RecordTimeout(vmType string) {
+	m.timeoutsTotal.WithLabelValues(vmType).Inc()
+	// A timeout during VM execution counts as completing setup successfully
 	m.consecutiveFailuresCurrent.WithLabelValues(vmType).Set(0)
 }
