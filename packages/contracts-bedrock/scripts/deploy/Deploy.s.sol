@@ -491,10 +491,9 @@ contract Deploy is Deployer {
     }
 
     function getDeployInputV2() public view returns (IOPContractsManagerV2.FullConfig memory) {
-        IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
-        DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPTIMISM_PORTAL_INTEROP) ?
-            new IOPContractsManagerV2.DisputeGameConfig[](5) :
-            new IOPContractsManagerV2.DisputeGameConfig[](3);
+        IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs = DevFeatures.isDevFeatureEnabled(
+            cfg.devFeatureBitmap(), DevFeatures.OPTIMISM_PORTAL_INTEROP
+        ) ? new IOPContractsManagerV2.DisputeGameConfig[](5) : new IOPContractsManagerV2.DisputeGameConfig[](3);
         disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
             enabled: false,
             initBond: 0,
@@ -532,13 +531,23 @@ contract Deploy is Deployer {
                 enabled: true,
                 initBond: 0,
                 gameType: GameTypes.SUPER_CANNON,
-                gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate())) }))
+                gameArgs: abi.encode(
+                    IOPContractsManagerV2.FaultDisputeGameConfig({
+                        absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()))
+                    })
+                )
             });
             disputeGameConfigs[4] = IOPContractsManagerV2.DisputeGameConfig({
                 enabled: true,
                 initBond: 0,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                gameArgs: abi.encode(IOPContractsManagerV2.PermissionedDisputeGameConfig({ absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate())), proposer: cfg.l2OutputOracleProposer(), challenger: cfg.l2OutputOracleChallenger() }))
+                gameArgs: abi.encode(
+                    IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                        absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate())),
+                        proposer: cfg.l2OutputOracleProposer(),
+                        challenger: cfg.l2OutputOracleChallenger()
+                    })
+                )
             });
         }
 

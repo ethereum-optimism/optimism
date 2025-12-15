@@ -272,9 +272,9 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
         address proposer = permissionedGameProposer(disputeGameFactory);
 
         // Prepare the upgrade input.
-        IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs = isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP) ?
-            new IOPContractsManagerV2.DisputeGameConfig[](5) :
-            new IOPContractsManagerV2.DisputeGameConfig[](3);
+        IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs = isDevFeatureEnabled(
+            DevFeatures.OPTIMISM_PORTAL_INTEROP
+        ) ? new IOPContractsManagerV2.DisputeGameConfig[](5) : new IOPContractsManagerV2.DisputeGameConfig[](3);
         disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
             enabled: true,
             initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
@@ -312,7 +312,11 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
                 enabled: true,
                 initBond: 0.08 ether, // Standard init bond
                 gameType: GameTypes.SUPER_CANNON,
-                gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate"))) }))
+                gameArgs: abi.encode(
+                    IOPContractsManagerV2.FaultDisputeGameConfig({
+                        absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate")))
+                    })
+                )
             });
             disputeGameConfigs[4] = IOPContractsManagerV2.DisputeGameConfig({
                 enabled: true,
