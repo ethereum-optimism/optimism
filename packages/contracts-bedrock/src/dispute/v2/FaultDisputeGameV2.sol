@@ -57,7 +57,8 @@ import {
     InvalidBondDistributionMode,
     GameNotResolved,
     GamePaused,
-    BadExtraData
+    BadExtraData,
+    UnknownChainId
 } from "src/dispute/lib/Errors.sol";
 
 // Interfaces
@@ -846,9 +847,10 @@ contract FaultDisputeGameV2 is Clone, ISemver {
     }
 
     /// @notice Getter for the root claim for a given L2 chain ID.
-    /// @dev For pre-interop games, returns the root claim regardless of chain ID.
+    /// @param _chainId The L2 chain ID to get the root claim for.
     /// @return rootClaim_ The root claim of the DisputeGame.
-    function rootClaimByChainId(uint256) public pure returns (Claim rootClaim_) {
+    function rootClaimByChainId(uint256 _chainId) public pure returns (Claim rootClaim_) {
+        if (_chainId != l2ChainId()) revert UnknownChainId();
         rootClaim_ = rootClaim();
     }
 
