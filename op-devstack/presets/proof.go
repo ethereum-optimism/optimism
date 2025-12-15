@@ -29,7 +29,6 @@ func WithAddedGameType(gameType gameTypes.GameType) stack.CommonOption {
 	if gameType == gameTypes.CannonKonaGameType {
 		opts = stack.Combine(
 			opts,
-			WithCannonKonaFeatureEnabled(),
 			stack.MakeCommon(sysgo.WithChallengerCannonKonaEnabled()),
 		)
 	}

@@ -211,7 +211,8 @@ contract DeployOPChain is Script {
             gasLimit: _input.gasLimit,
             l2ChainId: _input.l2ChainId,
             resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
-            disputeGameConfigs: disputeGameConfigs
+            disputeGameConfigs: disputeGameConfigs,
+            useCustomGasToken: _input.useCustomGasToken
         });
     }
 
@@ -315,19 +316,6 @@ contract DeployOPChain is Script {
             address(_o.ethLockboxProxy)
         );
 
-        // OPCM v2 always uses v2 dispute games, so only check v1 feature flag if v2 is not enabled
-        bool useV2Games = isDevFeatureOpcmV2Enabled(_i.opcm)
-            || (!isDevFeatureOpcmV2Enabled(_i.opcm) && isDevFeatureV2DisputeGamesEnabled(_i.opcm));
-        if (!useV2Games) {
-            // Only check dispute game contracts if v2 dispute games are not enabled.
-            // When v2 contracts are enabled, we no longer deploy dispute games per chain
-            addrs2 = Solarray.extend(addrs2, Solarray.addresses(address(_o.permissionedDisputeGame)));
-
-            // TODO: Eventually switch from Permissioned to Permissionless. Add these addresses back in.
-            // address(_o.delayedWETHPermissionlessGameProxy)
-            // address(_o.faultDisputeGame()),
-        }
-
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
         _assertValidDeploy(_i, _o);
     }
@@ -360,10 +348,8 @@ contract DeployOPChain is Script {
         } else {
             // OPCM v1: use implementations from v1 contract
             IOPContractsManager opcm = IOPContractsManager(_i.opcm);
-            if (isDevFeatureV2DisputeGamesEnabled(_i.opcm)) {
-                // With v2 game contracts enabled, we use the predeployed pdg implementation
-                expectedPDGImpl = opcm.implementations().permissionedDisputeGameV2Impl;
-            }
+            // With v2 game contracts enabled, we use the predeployed pdg implementation
+            expectedPDGImpl = opcm.implementations().permissionedDisputeGameV2Impl;
         }
 
         ChainAssertions.checkDisputeGameFactory(

@@ -81,6 +81,12 @@ interface IOPContractsManagerV2 {
         uint256 l2ChainId;
         IResourceMetering.ResourceConfig resourceConfig;
         DisputeGameConfig[] disputeGameConfigs;
+        bool useCustomGasToken;
+    }
+
+    struct ExtraInstruction {
+        string key;
+        bytes data;
     }
 
     struct UpgradeInput {
@@ -99,6 +105,7 @@ interface IOPContractsManagerV2 {
     error OPContractsManagerV2_SuperchainConfigNeedsUpgrade();
     error OPContractsManagerV2_UnsupportedGameType();
     error OPContractsManagerV2_InvalidUpgradeInstruction(string _key);
+    error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
     error IdentityPrecompileCallFailed();
     error ReservedBitsSet();
     error BytesArrayTooLong();

@@ -254,10 +254,13 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			)
 		}
 
-		execPath := os.Getenv("KONA_NODE_EXEC_PATH")
-		p.Require().NotEmpty(execPath, "KONA_NODE_EXEC_PATH environment variable must be set")
-		_, err = os.Stat(execPath)
-		p.Require().NotErrorIs(err, os.ErrNotExist, "executable must exist")
+		execPath, err := EnsureRustBinary(p, RustBinarySpec{
+			SrcDir:  "kona",
+			Package: "kona-node",
+			Binary:  "kona-node",
+		})
+		p.Require().NoError(err, "prepare kona-node binary")
+		p.Require().NotEmpty(execPath, "kona-node binary path resolved")
 
 		k := &KonaNode{
 			id:                 l2CLID,

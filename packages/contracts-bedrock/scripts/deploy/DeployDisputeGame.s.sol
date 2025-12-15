@@ -26,7 +26,6 @@ contract DeployDisputeGame is Script {
     struct Input {
         // Common inputs.
         string release;
-        bool useV2;
         // Specify which game kind is being deployed here.
         string gameKind;
         // All inputs required to deploy FaultDisputeGame.
@@ -52,11 +51,7 @@ contract DeployDisputeGame is Script {
     function run(Input memory _input) public returns (Output memory output_) {
         assertValidInput(_input);
 
-        if (_input.useV2) {
-            deployDisputeGameImplV2(_input, output_);
-        } else {
-            deployDisputeGameImplV1(_input, output_);
-        }
+        deployDisputeGameImplV2(_input, output_);
 
         assertValidOutput(_input, output_);
     }
@@ -171,24 +166,9 @@ contract DeployDisputeGame is Script {
 
         DeployUtils.assertValidContractAddress(address(game));
 
-        if (!_input.useV2) {
-            require(GameType.unwrap(game.gameType()) == GameType.unwrap(_input.gameType), "DG-10");
-        }
         require(game.maxGameDepth() == _input.maxGameDepth, "DG-20");
         require(game.splitDepth() == _input.splitDepth, "DG-30");
         require(game.clockExtension().raw() == uint64(_input.clockExtension), "DG-40");
         require(game.maxClockDuration().raw() == uint64(_input.maxClockDuration), "DG-50");
-
-        if (!_input.useV2) {
-            require(game.vm() == _input.vmAddress, "DG-60");
-            require(game.weth() == _input.delayedWethProxy, "DG-70");
-            require(game.anchorStateRegistry() == _input.anchorStateRegistryProxy, "DG-80");
-            require(game.l2ChainId() == _input.l2ChainId, "DG-90");
-
-            if (LibString.eq(_input.gameKind, "PermissionedDisputeGame")) {
-                require(game.proposer() == _input.proposer, "DG-100");
-                require(game.challenger() == _input.challenger, "DG-110");
-            }
-        }
     }
 }
