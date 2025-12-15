@@ -229,10 +229,10 @@ func (los *L1OriginSelector) findL1OriginOfNextL2Block(
 		panic("origin-selector: currentL1Origin is empty")
 	}
 	if l2Head.L1Origin.Hash != currentL1Origin.Hash {
-		return eth.L1BlockRef{}, ErrInvalidL1Origin
+		return currentL1Origin, ErrInvalidL1Origin
 	}
 	if (nextL1Origin != eth.L1BlockRef{} && nextL1Origin.ParentHash != currentL1Origin.Hash) {
-		return eth.L1BlockRef{}, ErrNextL1OriginOrphaned
+		return nextL1Origin, ErrNextL1OriginOrphaned
 	}
 
 	l2BlockTime := los.cfg.BlockTime
