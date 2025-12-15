@@ -2,11 +2,9 @@ package driver
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -473,11 +471,9 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPa
 // derivation is disabled (UnsafeOnly).
 //
 // In this mode, the driver does not derive L2 from L1. Instead, it:
-//   - Verifies that the L1 origin of the current unsafe L2 head is still
-//     canonical, and emits a rollup reset if an L1 reorg is detected.
-//   - Uses the followTracker to fetch external safe / finalized / CurrentL1,
-//     validates that the external state is sane (e.g. finalized is not ahead
-//     of safe), and then updates the engine via FollowSource.
+// Uses the followTracker to fetch external safe / finalized / CurrentL1,
+// validates that the external state is sane (e.g. finalized is not ahead
+// of safe), and then updates the engine via FollowSource.
 //
 // This function is intended to be called periodically by a ticker and is a
 // no-op while derivation is enabled or the EL is still performing its initial
@@ -490,41 +486,12 @@ func (s *Driver) followUpstream() {
 		// Do not interfere with initial EL Sync and wait until it is done
 		return
 	}
-	// Verify that the L1 origin of the current unsafe L2 head is still canonical.
-	// Note: Originally the reset was triggered while L1 reorg was detected at derivation pipeline(CurrentL1)
-	localUnsafe := s.SyncDeriver.Engine.UnsafeL2Head()
-	if localUnsafe.Number != 0 {
-		s.log.Debug("Follow Upstream: Checking L1 origin of unsafe head",
-			"unsafe", localUnsafe,
-			"l1Origin", localUnsafe.L1Origin,
-		)
-		l1Ref, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, localUnsafe.L1Origin.Number)
-		if errors.Is(err, ethereum.NotFound) {
-			s.log.Warn("Follow Upstream: Reset: L1 origin of unsafe head not found (L1 reorg)")
-			s.emitter.Emit(s.driverCtx, rollup.ResetEvent{
-				Err: errors.New("follow upstream: L1 reorg detected: origin block not found"),
-			})
-			return
-		} else if err != nil {
-			s.log.Warn("Follow Upstream: Failed to look up L1 origin of unsafe head", "err", err)
-			return
-		} else if l1Ref.Hash != localUnsafe.L1Origin.Hash {
-			s.log.Warn("Follow Upstream: Reset: L1 origin hash mismatch for unsafe head (L1 reorg)",
-				"expectedOriginHash", localUnsafe.L1Origin.Hash,
-				"actualOriginHash", l1Ref.Hash,
-				"remoteL1Ref", l1Ref,
-			)
-			s.emitter.Emit(s.driverCtx, rollup.ResetEvent{
-				Err: errors.New("follow upstream: L1 reorg detected: origin hash mismatch"),
-			})
-			return
-		}
-	}
 	status, err := s.upstreamFollowSource.GetFollowStatus(s.driverCtx)
 	if err != nil {
 		s.log.Warn("Follow Upstream: Failed to fetch status", "err", err)
 		return
 	}
+	s.log.Info("Follow Upstream", "eSafe", status.SafeL2, "eFinalized", status.FinalizedL2, "eCurrentL1", status.CurrentL1)
 	if status.FinalizedL2.Number > status.SafeL2.Number {
 		s.log.Warn("Follow Upstream: Invalid external state, finalized is ahead of safe", "safe", status.SafeL2.Number, "finalized", status.FinalizedL2.Number)
 		return
