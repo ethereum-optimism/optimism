@@ -51,6 +51,3 @@ crytic-export
 
 # ignore local asdf config
 .tool-versions
-
-# Ignore compiled binaries
-bin/
