@@ -1,4 +1,4 @@
-package v5_0_0
+package v6_0_0
 
 import (
 	"encoding/hex"
@@ -13,7 +13,7 @@ func TestUpgradeOPChainInput_UpgradeInput(t *testing.T) {
 	input := &UpgradeOPChainInput{
 		Prank: common.Address{0xaa},
 		Opcm:  common.Address{0xbb},
-		UpgradeInputV2: UpgradeInputV2{
+		UpgradeInputV2: &UpgradeInputV2{
 			SystemConfig: common.Address{0x01},
 			DisputeGameConfigs: []DisputeGameConfig{
 				{
@@ -31,7 +31,7 @@ func TestUpgradeOPChainInput_UpgradeInput(t *testing.T) {
 			},
 		},
 	}
-	data, err := input.UpgradeInput()
+	data, err := input.EncodedUpgradeInputV2()
 
 	require.NoError(t, err)
 	require.NotEmpty(t, data)

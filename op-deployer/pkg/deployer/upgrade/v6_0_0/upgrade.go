@@ -1,12 +1,13 @@
-package embedded
+package v6_0_0
 
 import (
 	"encoding/json"
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/lmittmann/w3"
@@ -61,15 +62,19 @@ const (
 
 // OPChainConfig represents the configuration for an OP Chain upgrade on OPCM v1.
 type OPChainConfig struct {
-	SystemConfigProxy  common.Address `json:"systemConfigProxy"`
-	CannonPrestate     common.Hash    `json:"cannonPrestate"`
-	CannonKonaPrestate common.Hash    `json:"cannonKonaPrestate"`
+	SystemConfigProxy common.Address `json:"systemConfigProxy"`
+	ProxyAdmin        common.Address `json:"proxyAdmin"`
+	AbsolutePrestate  common.Hash    `json:"absolutePrestate"`
 }
 
 var upgradeInputEncoder = w3.MustNewFunc("dummy((address systemConfig,(bool enabled,uint256 initBond,uint32 gameType,bytes gameArgs)[] disputeGameConfigs,(string key,bytes data)[] extraInstructions))",
 	"")
 
-var opChainConfigEncoder = w3.MustNewFunc("dummy((address systemConfigProxy,bytes32 cannonPrestate,bytes32 cannonKonaPrestate)[])", "")
+var opChainConfigEncoder = w3.MustNewFunc("dummy((address systemConfigProxy,address proxyAdmin,bytes32 absolutePrestate)[])", "")
+
+type UpgradeOPChain struct {
+	Run func(input common.Address)
+}
 
 func (u *UpgradeOPChainInput) EncodedOpChainConfigs() ([]byte, error) {
 	data, err := opChainConfigEncoder.EncodeArgs(u.ChainConfigs)
@@ -88,15 +93,11 @@ func (u *UpgradeOPChainInput) EncodedUpgradeInputV2() ([]byte, error) {
 	return data[4:], nil
 }
 
-type UpgradeOPChain struct {
-	Run func(input common.Address)
-}
-
 func Upgrade(host *script.Host, input UpgradeOPChainInput) error {
 	// We need to check which of the two versions of the input we are using.
 	var encodedUpgradeInput []byte
 	var encodedError error
-	if input.UpgradeInputV2 == nil && len(input.ChainConfigs) == 0 {
+	if input.UpgradeInputV2 == nil && input.ChainConfigs == nil {
 		return fmt.Errorf("failed to read either an upgrade input or config array")
 	} else if input.UpgradeInputV2 != nil {
 		encodedUpgradeInput, encodedError = input.EncodedUpgradeInputV2()
@@ -127,7 +128,8 @@ func (u *Upgrader) Upgrade(host *script.Host, input json.RawMessage) error {
 }
 
 func (u *Upgrader) ArtifactsURL() string {
-	return artifacts.EmbeddedLocatorString
+	// TODO: Add an actual resource locator that points to this set of artifacts.
+	return artifacts.CreateHttpLocator("")
 }
 
 var DefaultUpgrader = new(Upgrader)
