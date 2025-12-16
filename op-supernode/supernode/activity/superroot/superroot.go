@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	gethlog "github.com/ethereum/go-ethereum/log"
 )
 
@@ -67,8 +68,8 @@ type AtTimestampResponse struct {
 }
 
 // AtTimestamp computes the super-root at the given timestamp, plus additional information about the current L1s, verified L2s, and optimistic L2s
-func (api *superrootAPI) AtTimestamp(ctx context.Context, timestamp uint64) (AtTimestampResponse, error) {
-	return api.s.atTimestamp(ctx, timestamp)
+func (api *superrootAPI) AtTimestamp(ctx context.Context, timestamp hexutil.Uint64) (AtTimestampResponse, error) {
+	return api.s.atTimestamp(ctx, uint64(timestamp))
 }
 
 func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (AtTimestampResponse, error) {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -132,7 +133,7 @@ func TestSuperroot_AtTimestamp_ComputesSuperRoot(t *testing.T) {
 	ts := uint64(123)
 	s := New(gethlog.New(), chains)
 	api := &superrootAPI{s: s}
-	resp, err := api.AtTimestamp(context.Background(), ts)
+	resp, err := api.AtTimestamp(context.Background(), hexutil.Uint64(ts))
 	require.NoError(t, err)
 
 	// Compute expected super root

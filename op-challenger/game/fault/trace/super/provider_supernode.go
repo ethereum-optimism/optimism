@@ -23,7 +23,6 @@ type SuperNodeRootProvider interface {
 type SuperNodeTraceProvider struct {
 	PreimagePrestateProvider
 	logger             log.Logger
-	rollupCfgs         *RollupConfigs
 	rootProvider       SuperNodeRootProvider
 	prestateTimestamp  uint64
 	poststateTimestamp uint64
@@ -31,10 +30,9 @@ type SuperNodeTraceProvider struct {
 	gameDepth          types.Depth
 }
 
-func NewSuperNodeTraceProvider(logger log.Logger, rollupCfgs *RollupConfigs, prestateProvider PreimagePrestateProvider, rootProvider SuperNodeRootProvider, l1Head eth.BlockID, gameDepth types.Depth, prestateTimestamp, poststateTimestamp uint64) *SuperNodeTraceProvider {
+func NewSuperNodeTraceProvider(logger log.Logger, prestateProvider PreimagePrestateProvider, rootProvider SuperNodeRootProvider, l1Head eth.BlockID, gameDepth types.Depth, prestateTimestamp, poststateTimestamp uint64) *SuperNodeTraceProvider {
 	return &SuperNodeTraceProvider{
 		logger:                   logger,
-		rollupCfgs:               rollupCfgs,
 		PreimagePrestateProvider: prestateProvider,
 		rootProvider:             rootProvider,
 		prestateTimestamp:        prestateTimestamp,
