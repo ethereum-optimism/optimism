@@ -119,16 +119,18 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 	for i := uint64(0); i < min(step, uint64(len(nextSuperV1.Chains))); i++ {
 		chainInfo := nextSuperV1.Chains[i]
 		// Check if the chain's optimistic root was safe at the game's L1 head
-		if verified, ok := nextRoot.VerifiedAtTimestamp[chainInfo.ChainID]; !ok {
+		optimistic, ok := nextRoot.OptimisticAtTimestamp[chainInfo.ChainID]
+		if !ok {
 			return nil, fmt.Errorf("no safe head known for chain %v at %v: %w", chainInfo.ChainID, nextTimestamp, err)
-		} else if verified.MinRequiredL1.Number > s.l1Head.Number {
+		}
+		if optimistic.SourceL1.Number > s.l1Head.Number {
+			// Not enough data on L1 to derive the optimistic block, move to invalid transition.
 			return InvalidTransition, nil
 		}
 
-		rawOutput := nextRoot.OptimisticAtTimestamp[chainInfo.ChainID].Output
 		expectedState.PendingProgress = append(expectedState.PendingProgress, interopTypes.OptimisticBlock{
-			BlockHash:  rawOutput.BlockRef.Hash,
-			OutputRoot: rawOutput.OutputRoot,
+			BlockHash:  optimistic.Output.BlockRef.Hash,
+			OutputRoot: optimistic.Output.OutputRoot,
 		})
 	}
 	return expectedState.Marshal(), nil
