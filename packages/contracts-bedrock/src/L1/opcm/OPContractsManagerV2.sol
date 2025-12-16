@@ -119,7 +119,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         DisputeGameConfig[] disputeGameConfigs;
         // CGT
         bool useCustomGasToken;
-        // Extra instructions
+        // Extra instructions can be used to insert config values for DevFeature functionality.
+        // When any such DevFeature graduates to a production feature, it should be added to the
+        // FullConfig struct as a first class member.
         IOPContractsManagerUtils.ExtraInstruction[] extraInstructions;
     }
 
