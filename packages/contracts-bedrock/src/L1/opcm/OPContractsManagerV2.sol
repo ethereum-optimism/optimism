@@ -700,7 +700,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // is enabled. We may be able to remove this check at some point in the future if we stop making this
         // assumption, but for
         // now we explicitly assert that it is enabled.
-        if (!_cfg.disputeGameConfigs[1].enabled && !_cfg.disputeGameConfigs[4].enabled) {
+        bool permissionedEnabled = _cfg.disputeGameConfigs[1].enabled;
+        bool superPermissionedEnabled =
+            isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP) && _cfg.disputeGameConfigs[4].enabled;
+        if (!permissionedEnabled && !superPermissionedEnabled) {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
     }
@@ -838,10 +841,13 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // same ProxyAdmin owner (which is delegate calling this contract).
         // Therefore for the next set of upgrades, we use either:
         //   1. The current chain's proxy admin for initial deployments
-        //   2. The ETHLockbox's proxyAdmin() getter for upgrades and interop migrations
+        //   2. The ETHLockbox's proxyAdmin() getter for upgrades and interop migrations (if lockbox exists)
+        //   3. The current chain's proxy admin for upgrades when lockbox doesn't exist
         // It would be ideal to simply use the proxyAdmin() getter in all cases, however for initial deployments
         // we are unable to do so, because the implementation address is not yet set.
-        IProxyAdmin interopContractsProxyAdmin = _isInitialDeployment ? _cts.proxyAdmin : _cts.ethLockbox.proxyAdmin();
+        IProxyAdmin interopContractsProxyAdmin = _isInitialDeployment || address(_cts.ethLockbox) == address(0)
+            ? _cts.proxyAdmin
+            : _cts.ethLockbox.proxyAdmin();
         if (_isInitialDeployment || _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
             // Create the array of portals to be added to the ETHLockbox's authorized portals mapping.
             // Note that the ETHLockbox's initilizer handles this array in a purely additive manner,
