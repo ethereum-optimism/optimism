@@ -96,7 +96,7 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 	nextTimestamp := timestamp + 1
 	nextRoot, err := s.rootProvider.SuperRootAtTimestamp(ctx, nextTimestamp)
 	// TODO: Ideally we could check here if the node is in sync enough using root.CurrentL1Verified (as above)
-	// Note that if we do teh in sync check on every call we could safely be load balanced and would just error if
+	// Note that if we do the in sync check on every call we could safely be load balanced and would just error if
 	// we get load balanced to a node that is not in sync enough. Unclear how useful that is if we keep hitting an unhealthy node though.
 	// May need to have a SuperRootAtTimestamps (plural) method to get prev and next in one call.
 	if errors.Is(err, ethereum.NotFound) {
