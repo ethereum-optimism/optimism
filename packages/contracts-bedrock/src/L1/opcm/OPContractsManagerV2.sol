@@ -151,17 +151,19 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when an invalid upgrade instruction is provided.
     error OPContractsManagerV2_InvalidUpgradeInstruction(string _key);
 
-    /// @notice Thrown when a chain attempts to upgrade to custom gas token after initial deployment.
+    /// @notice Thrown when a chain attempts to upgrade to custom gas token after initial
+    /// deployment.
     error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
 
     /// @notice Thrown when interop migration is attempted without the interop dev feature enabled.
     error OPContractsManagerV2_InteropMigrationRequiresDevFeature();
 
-    /// @notice Thrown when the proxy admin of the shared contracts is not the same as the ETHLockbox.
+    /// @notice Thrown when the proxy admin of the shared contracts is not the same as the
+    ///         ETHLockbox.
     error OPContractsManagerV2_InteropSharedContractsProxyAdminMismatch();
 
-    /// @notice Thrown when the proxy admin owner of the shared contracts is not the same as the current chain's proxy
-    /// admin owner.
+    /// @notice Thrown when the proxy admin owner of the shared contracts is not the same as the
+    ///         current chain's proxy admin owner.
     error OPContractsManagerV2_InteropSharedContractsProxyAdminOwnerMismatch();
 
     /// @notice Container of blueprint and implementation contract addresses.
