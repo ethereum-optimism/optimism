@@ -7,7 +7,6 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Tests
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";
 
 // Scripts
 import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
@@ -62,7 +61,7 @@ contract VerifyOPCM_Harness is VerifyOPCM {
 
 /// @title VerifyOPCM_TestInit
 /// @notice Reusable test initialization for `VerifyOPCM` tests.
-abstract contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
+abstract contract VerifyOPCM_TestInit is CommonTest {
     VerifyOPCM_Harness internal harness;
 
     function setUp() public virtual override {
@@ -70,24 +69,27 @@ abstract contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
         harness = new VerifyOPCM_Harness();
         harness.setUp();
     }
+
+    /// @notice Sets up the environment variables for the VerifyOPCM test.
+    function setupEnvVars() public {
+        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
+        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
+    }
 }
 
 /// @title VerifyOPCM_Run_Test
 /// @notice Tests the `run` function of the `VerifyOPCM` script.
 contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function setUp() public override {
+        super.setUp();
+
         // If OPCM V2 is enabled, set up the test environment for OPCM V2.
         // nosemgrep: sol-style-vm-env-only-in-config-sol
         if (vm.envOr("DEV_FEATURE__OPCM_V2", false)) {
-            CommonTest.setUp();
             opcm = IOPContractsManager(address(opcmV2));
         } else {
-            OPContractsManager_TestInit.setUp();
             setupEnvVars();
         }
-
-        harness = new VerifyOPCM_Harness();
-        harness.setUp();
     }
 
     /// @notice Tests that the script succeeds when no changes are introduced.

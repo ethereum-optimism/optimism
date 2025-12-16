@@ -6,18 +6,10 @@ import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";
 
 // Contracts
 import { OPContractsManager, OPContractsManagerContractsContainer } from "src/L1/OPContractsManager.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title OPContractsManagerContractsContainer_Constructor_Test
 /// @notice Tests the constructor of the `OPContractsManagerContractsContainer` contract.
 contract OPContractsManagerContractsContainer_Constructor_Test is OPContractsManager_TestInit {
-    function setUp() public override {
-        super.setUp();
-
-        // TODO(#18332): Remove this once we support all existing OPCM functions.
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-    }
-
     /// @notice Tests that the constructor succeeds when the devFeatureBitmap is in dev.
     /// @param _devFeatureBitmap The devFeatureBitmap to use.
     function testFuzz_constructor_devBitmapInDev_succeeds(bytes32 _devFeatureBitmap) public {
