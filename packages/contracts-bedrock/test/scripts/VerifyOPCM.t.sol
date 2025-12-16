@@ -499,6 +499,7 @@ abstract contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
 contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function setUp() public override {
         super.setUp();
+        setupEnvVars();
     }
 
     /// @notice Tests that the script succeeds when no changes are introduced.
