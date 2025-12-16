@@ -83,7 +83,7 @@ func (mbf *minBaseFeeEnv) verifyMinBaseFee(t devtest.T, minBase *big.Int) {
 // waitForMinBaseFeeConfigChangeOnL2 waits until the L2 latest payload extra-data encodes the expected min base fee.
 func (mbf *minBaseFeeEnv) waitForMinBaseFeeConfigChangeOnL2(t devtest.T, expected uint64) {
 	client := mbf.l2EL.Escape().L2EthClient()
-	expectedExtraData := eth.BytesMax32(eip1559.EncodeMinBaseFeeExtraData(250, 6, expected))
+	expectedExtraData := eth.BytesMax32(eip1559.EncodeJovianExtraData(250, 6, expected))
 
 	// Check extradata in block header (for all clients)
 	var actualBlockExtraData []byte

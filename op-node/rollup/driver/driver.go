@@ -37,6 +37,7 @@ func NewDriver(
 	depSet derive.DependencySet,
 	l2 L2Chain,
 	l1 L1Chain,
+	upstreamFollowSource UpstreamFollowSource,
 	l1Blobs derive.L1BlobsFetcher,
 	altSync AltSync,
 	network Network,
@@ -127,22 +128,23 @@ func NewDriver(
 
 	driverEmitter := sys.Register("driver", nil)
 	driver := &Driver{
-		StatusTracker: statusTracker,
-		Finalizer:     finalizer,
-		SyncDeriver:   syncDeriver,
-		sched:         schedDeriv,
-		emitter:       driverEmitter,
-		drain:         drain,
-		stateReq:      make(chan chan struct{}),
-		forceReset:    make(chan chan struct{}, 10),
-		driverConfig:  driverCfg,
-		syncConfig:    syncCfg,
-		driverCtx:     driverCtx,
-		driverCancel:  driverCancel,
-		log:           log,
-		sequencer:     sequencer,
-		metrics:       metrics,
-		altSync:       altSync,
+		StatusTracker:        statusTracker,
+		Finalizer:            finalizer,
+		SyncDeriver:          syncDeriver,
+		sched:                schedDeriv,
+		emitter:              driverEmitter,
+		drain:                drain,
+		stateReq:             make(chan chan struct{}),
+		forceReset:           make(chan chan struct{}, 10),
+		driverConfig:         driverCfg,
+		syncConfig:           syncCfg,
+		driverCtx:            driverCtx,
+		driverCancel:         driverCancel,
+		log:                  log,
+		sequencer:            sequencer,
+		metrics:              metrics,
+		altSync:              altSync,
+		upstreamFollowSource: upstreamFollowSource,
 	}
 
 	return driver
@@ -184,6 +186,8 @@ type Driver struct {
 
 	driverCtx    context.Context
 	driverCancel context.CancelFunc
+
+	upstreamFollowSource UpstreamFollowSource
 }
 
 // Start starts up the state loop.
@@ -272,7 +276,7 @@ func (s *Driver) eventLoop() {
 
 	lastUnsafeL2 := s.SyncDeriver.Engine.UnsafeL2Head()
 
-	unsafeOnly := s.SyncDeriver.SyncCfg.UnsafeOnly
+	followSource := s.SyncDeriver.SyncCfg.FollowSourceEnabled()
 
 	resetAltSync := func(newHead eth.L2BlockRef, derivationReady bool) {
 		s.log.Debug(
@@ -280,10 +284,25 @@ func (s *Driver) eventLoop() {
 			"head", newHead,
 			"lastUnsafeL2", lastUnsafeL2,
 			"derivationReady", derivationReady,
-			"unsafeOnly", unsafeOnly,
+			"followSource", followSource,
 		)
 		lastUnsafeL2 = newHead
 		altSyncTicker.Reset(syncCheckInterval)
+	}
+
+	// upstreamSyncTickerC drives the upstreamSyncTicker, which periodically reconciles
+	// the state against upstream sources when derivation is disabled (unsafeOnly).
+	//
+	// In this mode, the node does not derive from L1; instead, it uses L1 as a mandatory
+	// upstream anchor for its unsafe head, and imports safe/finalized state
+	// from an external source. Since the normal derivation pipeline is inactive, reorg
+	// detection must be performed here instead.
+	var upstreamSyncTickerC <-chan time.Time
+	if followSource {
+		upstreamSyncTickerCheckInterval := time.Duration(s.SyncDeriver.Config.BlockTime) * time.Second * 2
+		upstreamSyncTicker := time.NewTicker(upstreamSyncTickerCheckInterval)
+		upstreamSyncTickerC = upstreamSyncTicker.C
+		defer upstreamSyncTicker.Stop()
 	}
 
 	for {
@@ -299,7 +318,7 @@ func (s *Driver) eventLoop() {
 		if lastUnsafeL2 != head {
 			// Unsafe head changed: reset alt-sync to avoid redundant L2 requests while syncing.
 			resetAltSync(head, derivationReady)
-		} else if !unsafeOnly && !derivationReady {
+		} else if !followSource && !derivationReady {
 			// Derivation enabled but not yet ready: reset alt-sync while it catches up.
 			resetAltSync(head, derivationReady)
 		}
@@ -315,6 +334,8 @@ func (s *Driver) eventLoop() {
 			if err != nil {
 				s.log.Warn("failed to check for unsafe L2 blocks to sync", "err", err)
 			}
+		case <-upstreamSyncTickerC:
+			s.followUpstream()
 		case <-s.sched.NextDelayedStep():
 			s.sched.AttemptStep(s.driverCtx)
 		case <-s.sched.NextStep():
@@ -444,4 +465,86 @@ func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) error {
 
 func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) {
 	s.SyncDeriver.OnUnsafeL2Payload(ctx, payload)
+}
+
+// followUpstream reconciles the local engine state with upstream sources when
+// derivation is disabled (UnsafeOnly).
+//
+// In this mode, the driver does not derive L2 from L1. Instead, it:
+// Uses the followTracker to fetch external safe / finalized / CurrentL1,
+// validates that the external state is sane (e.g. finalized is not ahead
+// of safe), and then updates the engine via FollowSource.
+//
+// This function is intended to be called periodically by a ticker and is a
+// no-op while derivation is enabled or the EL is still performing its initial
+// sync.
+func (s *Driver) followUpstream() {
+	if !s.syncConfig.FollowSourceEnabled() {
+		return
+	}
+	if s.SyncDeriver.Engine.IsEngineInitialELSyncing() {
+		// Do not interfere with initial EL Sync and wait until it is done
+		return
+	}
+	status, err := s.upstreamFollowSource.GetFollowStatus(s.driverCtx)
+	if err != nil {
+		s.log.Warn("Follow Upstream: Failed to fetch status", "err", err)
+		return
+	}
+	s.log.Info("Follow Upstream", "eSafe", status.SafeL2, "eFinalized", status.FinalizedL2, "eCurrentL1", status.CurrentL1)
+	if status.FinalizedL2.Number > status.SafeL2.Number {
+		s.log.Warn("Follow Upstream: Invalid external state, finalized is ahead of safe", "safe", status.SafeL2.Number, "finalized", status.FinalizedL2.Number)
+		return
+	}
+
+	eSafeL1Origin, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.SafeL2.L1Origin.Number)
+	if err != nil {
+		s.log.Warn("Follow Upstream: Failed to look up L1 origin of external safe head", "err", err)
+		return
+	}
+	if eSafeL1Origin.Hash != status.SafeL2.L1Origin.Hash {
+		s.log.Warn(
+			"Follow Upstream: Invalid external safe: L1 origin of external safe head mismatch",
+			"actual", eSafeL1Origin,
+			"expected", status.SafeL2.L1Origin,
+		)
+		return
+	}
+
+	eFinalizedL1Origin, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.FinalizedL2.L1Origin.Number)
+	if err != nil {
+		s.log.Warn("Follow Upstream: Failed to look up L1 origin of external finalized head", "err", err)
+		return
+	}
+	if eFinalizedL1Origin.Hash != status.FinalizedL2.L1Origin.Hash {
+		s.log.Warn(
+			"Follow Upstream: Invalid external finalized: L1 origin of external finalized head mismatch",
+			"actual", eFinalizedL1Origin,
+			"expected", status.FinalizedL2.L1Origin,
+		)
+		return
+	}
+
+	if (status.CurrentL1 == eth.L1BlockRef{}) {
+		s.log.Debug("Follow Upstream: CurrentL1 not available")
+	} else {
+		eCurrentL1, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.CurrentL1.Number)
+		if err != nil {
+			s.log.Warn("Follow Upstream: Failed to look up external currentL1", "err", err)
+			return
+		}
+		if eCurrentL1.Hash != status.CurrentL1.Hash {
+			s.log.Warn(
+				"Follow Upstream: Invalid external CurrentL1: L1 head mismatch",
+				"actual", eCurrentL1,
+				"expected", status.CurrentL1,
+			)
+			return
+		}
+
+		s.log.Debug("Follow Upstream: Inject L1 Info", "currentL1", status.CurrentL1)
+		s.emitter.Emit(s.driverCtx, derive.DeriverL1StatusEvent{Origin: status.CurrentL1})
+	}
+	// Only reach this point if all L1 checks passed
+	s.SyncDeriver.Engine.FollowSource(status.SafeL2, status.FinalizedL2)
 }

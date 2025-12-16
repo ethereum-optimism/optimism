@@ -50,26 +50,6 @@
             "internalType": "address",
             "name": "resolvedDelegateProxy",
             "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionedDisputeGame1",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionedDisputeGame2",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionlessDisputeGame1",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionlessDisputeGame2",
-            "type": "address"
           }
         ],
         "internalType": "struct IOPContractsManagerContainer.Blueprints",
@@ -232,6 +212,11 @@
             "internalType": "struct OPContractsManagerV2.DisputeGameConfig[]",
             "name": "disputeGameConfigs",
             "type": "tuple[]"
+          },
+          {
+            "internalType": "bool",
+            "name": "useCustomGasToken",
+            "type": "bool"
           }
         ],
         "internalType": "struct OPContractsManagerV2.FullConfig",
@@ -447,6 +432,19 @@
     "outputs": [
       {
         "internalType": "contract IOPContractsManagerStandardValidator",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "thisOPCM",
+    "outputs": [
+      {
+        "internalType": "contract OPContractsManagerV2",
         "name": "",
         "type": "address"
       }
@@ -689,6 +687,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerV2_CannotUpgradeToCustomGasToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerV2_InvalidGameConfigs",
     "type": "error"
   },
@@ -698,7 +701,13 @@
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_key",
+        "type": "string"
+      }
+    ],
     "name": "OPContractsManagerV2_InvalidUpgradeInstruction",
     "type": "error"
   },

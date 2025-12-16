@@ -54,6 +54,11 @@ func TestCLIUpgrade(t *testing.T) {
 			version:     "v4.1.0",
 			forkBlock:   9165154, // one block past the opcm deployment block
 		},
+		{
+			contractTag: standard.ContractsV500Tag,
+			version:     "v5.0.0",
+			forkBlock:   9629972, // one block past the opcm deployment block
+		},
 	}
 
 	for _, tc := range testCases {
@@ -87,7 +92,7 @@ func TestCLIUpgrade(t *testing.T) {
 
 			configData, err := json.MarshalIndent(testConfig, "", "  ")
 			require.NoError(t, err)
-			require.NoError(t, os.WriteFile(configFile, configData, 0644))
+			require.NoError(t, os.WriteFile(configFile, configData, 0o644))
 
 			// Run full cli command to write calldata to outfile
 			output := runner.ExpectSuccess(t, []string{
@@ -115,7 +120,6 @@ func TestCLIUpgrade(t *testing.T) {
 			dataHex := hex.EncodeToString(dump[0].Data)
 			require.True(t, strings.HasPrefix(dataHex, "ff2dd5a1"),
 				"calldata should have opcm.upgrade fcn selector ff2dd5a1, got: %s", dataHex[:8])
-
 		})
 	}
 }

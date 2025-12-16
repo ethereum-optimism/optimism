@@ -39,22 +39,23 @@ type HealthMonitor interface {
 // interval is the interval between health checks measured in seconds.
 // safeInterval is the interval between safe head progress measured in seconds.
 // minPeerCount is the minimum number of peers required for the sequencer to be healthy.
-func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient, supervisor SupervisorHealthAPI, rb client.RollupBoostClient, elP2pClient client.ElP2PClient, minElP2pPeers uint64, rollupBoostToleratePartialHealthinessToleranceLimit uint64, rollupBoostToleratePartialHealthinessToleranceIntervalSeconds uint64) HealthMonitor {
+// rollupBoostHealthChecker is an optional health checker for rollup-boost (either standard or next client).
+func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient, supervisor SupervisorHealthAPI, rollupBoostHealthChecker client.RollupBoostHealthChecker, elP2pClient client.ElP2PClient, minElP2pPeers uint64, rollupBoostToleratePartialHealthinessToleranceLimit uint64, rollupBoostToleratePartialHealthinessToleranceIntervalSeconds uint64) HealthMonitor {
 	hm := &SequencerHealthMonitor{
-		log:            log,
-		metrics:        metrics,
-		interval:       interval,
-		healthUpdateCh: make(chan error),
-		rollupCfg:      rollupCfg,
-		unsafeInterval: unsafeInterval,
-		safeEnabled:    safeEnabled,
-		safeInterval:   safeInterval,
-		minPeerCount:   minPeerCount,
-		timeProviderFn: currentTimeProvider,
-		node:           node,
-		p2p:            p2p,
-		supervisor:     supervisor,
-		rb:             rb,
+		log:                      log,
+		metrics:                  metrics,
+		interval:                 interval,
+		healthUpdateCh:           make(chan error),
+		rollupCfg:                rollupCfg,
+		unsafeInterval:           unsafeInterval,
+		safeEnabled:              safeEnabled,
+		safeInterval:             safeInterval,
+		minPeerCount:             minPeerCount,
+		timeProviderFn:           currentTimeProvider,
+		node:                     node,
+		p2p:                      p2p,
+		supervisor:               supervisor,
+		rollupBoostHealthChecker: rollupBoostHealthChecker,
 	}
 
 	if elP2pClient != nil {
@@ -104,7 +105,7 @@ type SequencerHealthMonitor struct {
 	node                                          dial.RollupClientInterface
 	p2p                                           apis.P2PClient
 	supervisor                                    SupervisorHealthAPI
-	rb                                            client.RollupBoostClient
+	rollupBoostHealthChecker                      client.RollupBoostHealthChecker
 	elP2p                                         *ElP2pHealthMonitor
 	rollupBoostPartialHealthinessToleranceLimit   uint64
 	rollupBoostPartialHealthinessToleranceCounter *timeBoundedRotatingCounter
@@ -282,18 +283,22 @@ func (hm *SequencerHealthMonitor) checkNodePeerCount(ctx context.Context) error 
 }
 
 func (hm *SequencerHealthMonitor) checkRollupBoost(ctx context.Context) error {
-	// Skip the check if rollup boost client is not configured
-	if hm.rb == nil {
-		hm.log.Info("rollup boost client is not configured, skipping health check")
+	// Skip the check if rollup boost health checker is not configured
+	if hm.rollupBoostHealthChecker == nil {
+		hm.log.Debug("rollup-boost health checker is not configured, skipping health check")
 		return nil
 	}
 
-	status, err := hm.rb.Healthcheck(ctx)
+	status, err := hm.rollupBoostHealthChecker.Healthcheck(ctx)
 	if err != nil {
-		hm.log.Error("health monitor failed to get rollup boost status", "err", err)
+		hm.log.Error("health monitor failed to get rollup-boost status", "err", err)
 		return ErrRollupBoostConnectionDown
 	}
 
+	return hm.handleRollupBoostStatus(status)
+}
+
+func (hm *SequencerHealthMonitor) handleRollupBoostStatus(status client.HealthStatus) error {
 	switch status {
 	case client.HealthStatusHealthy:
 		return nil

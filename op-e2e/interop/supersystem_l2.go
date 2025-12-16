@@ -300,8 +300,15 @@ func (s *interopE2ESystem) newBatcherForL2(
 		DataAvailabilityType:  daType,
 		CompressionAlgo:       derive.Brotli,
 	}
+
+	batcherContext, batcherCancel := context.WithCancel(context.Background())
+	var closeAppFn context.CancelCauseFunc = func(cause error) {
+		s.t.Fatalf("closeAppFn called, batcher hit a critical error: %v", cause)
+		batcherCancel()
+	}
+
 	batcher, err := bss.BatcherServiceFromCLIConfig(
-		context.Background(), "0.0.1", batcherCLIConfig,
+		batcherContext, closeAppFn, "0.0.1", batcherCLIConfig,
 		logger.New("service", "batcher"))
 	require.NoError(s.t, err)
 	require.NoError(s.t, batcher.Start(context.Background()))
