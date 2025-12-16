@@ -257,6 +257,10 @@ export const opRethCliSidebar: SidebarItem = {
         {
             text: "op-reth initialize-op-proofs",
             link: "/cli/op-reth/initialize-op-proofs"
+        },
+        {
+            text: "op-reth unwind-op-proofs",
+            link: "/cli/op-reth/unwind-op-proofs"
         }
     ]
 };

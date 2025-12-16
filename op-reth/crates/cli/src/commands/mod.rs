@@ -15,6 +15,7 @@ pub mod import;
 pub mod import_receipts;
 pub mod init_state;
 pub mod initialize_proofs;
+pub mod unwind_proofs;
 
 #[cfg(feature = "dev")]
 pub mod test_vectors;
@@ -65,6 +66,9 @@ pub enum Commands<Spec: ChainSpecParser = OpChainSpecParser, Ext: clap::Args + f
     /// Initializes the proofs storage with the current state of the chain.
     #[command(name = "initialize-op-proofs")]
     InitializeOpProofs(initialize_proofs::InitializeOpProofsCommand<Spec>),
+    /// Unwinds the proofs storage to a specific block number.
+    #[command(name = "unwind-op-proofs")]
+    UnwindOpProofs(unwind_proofs::UnwindOpProofsCommand<Spec>),
 }
 
 impl<
@@ -90,6 +94,7 @@ impl<
             Self::TestVectors(_) => None,
             Self::ReExecute(cmd) => cmd.chain_spec(),
             Self::InitializeOpProofs(cmd) => cmd.chain_spec(),
+            Self::UnwindOpProofs(cmd) => cmd.chain_spec(),
         }
     }
 }
