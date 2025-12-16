@@ -8,8 +8,8 @@ import {themes as prismThemes} from 'prism-react-renderer';
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'Boba Developer Docs',
-  tagline: 'For boba developers',
+  title: 'Boba Docs',
+  tagline: 'For boba users and developers',
   favicon: 'img/boba_B.ico',
 
   // Set the production url of your site here
@@ -45,8 +45,14 @@ const config = {
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
-          routeBasePath: '/',
-          sidebarPath: './sidebars.js',
+          path: 'user-docs',
+          routeBasePath: 'user-docs',
+          sidebarPath: undefined, //'./sidebars.js',
+          versions: {
+            current: {
+              label: 'v1.0.0',
+            },
+          },
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           // editUrl:
@@ -74,30 +80,63 @@ const config = {
     ],
   ],
 
+  plugins: [
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'dev',
+        path: 'dev-docs',
+        routeBasePath: '/', // if you want a landing page, this should be 'dev-docs'
+        sidebarPath: undefined, //require.resolve('./sidebarsSDK.js'),
+        lastVersion: 'current',
+          versions: {
+            current: {
+              label: 'v1.0.0',
+            },
+          },
+      },
+    ],
+
+    // [
+    //   '@docusaurus/plugin-client-redirects',
+    //    {
+    //     redirects: [
+    //       {
+    //         to: '/dev-docs',
+    //         from: '/',
+    //       },
+    //     ],
+    //   },
+    // ],
+
+  ],
+
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       // Replace with your project's social card
       image: 'img/boba_preview.jpg',
       navbar: {
-        title: 'Boba Developer Docs',
+        title: 'Boba Docs',
         logo: {
           alt: 'For all your Boba needs',
           src: 'img/boba_B.png',
         },
         items: [
-          {
-            type: 'docSidebar',
-            sidebarId: 'tutorialSidebar',
-            position: 'left',
-            label: 'Docs',
-          },
-          // {to: '/blog', label: 'Blog', position: 'left'},
-          {
-            href: 'https://github.com/bobanetwork',
-            label: 'GitHub',
-            position: 'right',
-          },
+          { to: '/', label: 'Developer', position: 'left' }, // if you want a landing page, change to 'dev-docs/index'
+          { to: 'user-docs/index', label: 'User', position: 'left' },
+          // {
+          //   type: 'docSidebar',
+          //   sidebarId: 'tutorialSidebar',
+          //   position: 'left',
+          //   label: 'Docs',
+          // },
+          // // {to: '/blog', label: 'Blog', position: 'left'},
+          // {
+          //   href: 'https://github.com/bobanetwork',
+          //   label: 'GitHub',
+          //   position: 'right',
+          // },
         ],
       },
       footer: {
