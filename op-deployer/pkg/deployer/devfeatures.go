@@ -17,9 +17,6 @@ var (
 
 	// DeployV2DisputeGamesDevFlag enables deployment of V2 dispute game contracts.
 	DeployV2DisputeGamesDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000100")
-
-	// OPCMDevFlag enables deployment of OPCM v2 contracts.
-	OPCMV2DevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000010000")
 )
 
 // IsDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.

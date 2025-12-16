@@ -38,7 +38,7 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 		require.NoError(t, retryProxy.Stop())
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
 	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
@@ -295,13 +295,13 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 		SuperchainProxyAdminImpl: common.HexToAddress("0x189aBAAaa82DfC015A588A7dbaD6F13b1D3485Bc"),
 		SuperchainConfigProxy:    superchain.SuperchainConfigAddr,
 		SuperchainConfigImpl:     common.HexToAddress("0x4da82a327773965b8d4D85Fa3dB8249b387458E7"),
-		// TODO: Remove ProtocolVersions fields when OPCMv1 gets deprecated
+		// TODO(#18612): Remove ProtocolVersions fields when OPCMv1 gets deprecated
 		ProtocolVersionsProxy: common.Address{},
 		ProtocolVersionsImpl:  common.Address{},
 	}, *dep)
 	require.Equal(t, addresses.SuperchainRoles{
 		SuperchainProxyAdminOwner: common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2"),
-		// TODO: Remove ProtocolVersions fields when OPCMv1 gets deprecated
+		// TODO(#18612): Remove ProtocolVersions fields when OPCMv1 gets deprecated
 		ProtocolVersionsOwner: common.Address{},
 		SuperchainGuardian:    common.HexToAddress("0x7a50f00e8D05b95F98fE38d8BeE366a7324dCf7E"),
 	}, *roles)
@@ -515,7 +515,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 		require.NoError(t, retryProxy.Stop())
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
 	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
@@ -596,7 +596,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *tes
 		require.NoError(t, retryProxy.Stop())
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
 	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
@@ -637,12 +637,12 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *tes
 		st,
 	)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "cannot set superchain roles for superchain config proxy")
+	require.Contains(t, err.Error(), "cannot set superchain roles when using predeployed OPCM or SuperchainConfig")
 }
 
-// Validates that providing both
-// OPCMAddress and SuperchainConfigProxy with opcmV2Enabled=false returns an error.
-func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy_reverts(t *testing.T) {
+// Validates that providing both OPCMAddress and SuperchainConfigProxy works correctly
+// The script will use the OPCM's semver to determine the version
+func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 	t.Parallel()
 
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
@@ -655,7 +655,7 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy_reverts(t *testing.T) 
 		require.NoError(t, retryProxy.Stop())
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
 	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
@@ -669,7 +669,19 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy_reverts(t *testing.T) 
 	opcmAddr, err := standard.OPCMImplAddressFor(l1ChainID, standard.CurrentTag)
 	require.NoError(t, err)
 
-	// Don't set opcmV2Enabled flag (defaults to false)
+	_, afacts := testutil.LocalArtifacts(t)
+	host, err := env.DefaultForkedScriptHost(
+		ctx,
+		broadcaster.NoopBroadcaster(),
+		testlog.Logger(t, log.LevelInfo),
+		common.Address{'D'},
+		afacts,
+		rpcClient,
+	)
+	require.NoError(t, err)
+
+	// Provide both OPCM address and SuperchainConfigProxy
+	// The script will check the OPCM version and handle accordingly
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
@@ -686,14 +698,20 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy_reverts(t *testing.T) 
 	err = InitLiveStrategy(
 		ctx,
 		&Env{
-			L1Client: client,
-			Logger:   lgr,
+			L1Client:     client,
+			Logger:       lgr,
+			L1ScriptHost: host,
 		},
 		intent,
 		st,
 	)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "cannot set superchain config proxy for predeployed OPCM")
+	// Should succeed - the script handles version detection
+	require.NoError(t, err)
+
+	// For OPCMv1, ProtocolVersions should be populated
+	require.NotNil(t, st.SuperchainDeployment)
+	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsProxy)
+	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsImpl)
 }
 
 // Validates that providing both
@@ -711,7 +729,7 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainRoles_reverts(t *testing.T) {
 		require.NoError(t, retryProxy.Stop())
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
 	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
@@ -748,7 +766,7 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainRoles_reverts(t *testing.T) {
 		st,
 	)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "cannot set superchain roles for predeployed OPCM")
+	require.Contains(t, err.Error(), "cannot set superchain roles when using predeployed OPCM or SuperchainConfig")
 }
 
 // Validates that the correct flow is chosen when
@@ -766,7 +784,7 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 		require.NoError(t, retryProxy.Stop())
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
 	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
@@ -839,7 +857,7 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 		require.NoError(t, retryProxy.Stop())
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
 	rpcClient, err := rpc.Dial(retryProxy.Endpoint())

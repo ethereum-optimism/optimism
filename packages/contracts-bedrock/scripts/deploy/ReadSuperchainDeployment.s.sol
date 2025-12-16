@@ -9,15 +9,16 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 
 contract ReadSuperchainDeployment is Script {
     struct Input {
-        IOPContractsManager opcmAddress; // TODO: Remove OPCMAddress field when OPCMv1 gets deprecated
+        IOPContractsManager opcmAddress; // TODO(#18612): Remove OPCMAddress field when OPCMv1 gets deprecated
         ISuperchainConfig superchainConfigProxy;
     }
 
     struct Output {
-        // TODO: Remove ProtocolVersions fields when OPCMv1 gets deprecated
+        // TODO(#18612): Remove ProtocolVersions fields when OPCMv1 gets deprecated
         IProtocolVersions protocolVersionsImpl;
         IProtocolVersions protocolVersionsProxy;
         address protocolVersionsOwner;
@@ -32,14 +33,22 @@ contract ReadSuperchainDeployment is Script {
     }
 
     function run(Input memory _input) public returns (Output memory output_) {
-        // On OPCM v2, each chain deploys with its own SuperchainConfig; it's no longer stored in the OPCM contract.
-        // This script detects the OPCM version by checking if superchainConfigProxy is non-zero:
-        // - v1: opcmAddress is used
-        // - v2: superchainConfigProxy is used (opcmAddress is ignored)
-        // This allows callers to require one single address as input and the field used depends on the version.
-        bool isOPCMV2 = address(_input.superchainConfigProxy) != address(0);
+        // Determine OPCM version by checking the semver or if the OPCM address is set. OPCM v2 starts at version 6.0.0.
+        IOPContractsManager opcm = IOPContractsManager(_input.opcmAddress);
+        bool isOPCMV2;
+        if (address(opcm) == address(0)) {
+            isOPCMV2 = true;
+        } else {
+            require(address(opcm).code.length > 0, "ReadSuperchainDeployment: OPCM address has no code");
+            isOPCMV2 = SemverComp.gte(opcm.version(), "6.0.0");
+        }
 
         if (isOPCMV2) {
+            require(
+                address(_input.superchainConfigProxy) != address(0),
+                "ReadSuperchainDeployment: superchainConfigProxy required for OPCM v2"
+            );
+
             // For OPCM v2, ProtocolVersions is being removed. Therefore, the ProtocolVersions-related fields
             // (protocolVersionsImpl, protocolVersionsProxy, protocolVersionsOwner, recommendedProtocolVersion,
             // requiredProtocolVersion) are intentionally left uninitialized.
@@ -49,7 +58,7 @@ contract ReadSuperchainDeployment is Script {
             IProxy superchainConfigProxy = IProxy(payable(address(output_.superchainConfigProxy)));
 
             vm.startPrank(address(0));
-            output_.superchainConfigImpl = ISuperchainConfig(address(superchainConfigProxy.implementation()));
+            output_.superchainConfigImpl = ISuperchainConfig(superchainConfigProxy.implementation());
             vm.stopPrank();
 
             output_.guardian = output_.superchainConfigProxy.guardian();
@@ -57,10 +66,6 @@ contract ReadSuperchainDeployment is Script {
         } else {
             // When running on OPCM v1, the OPCM address is used to read the ProtocolVersions contract and
             // SuperchainConfig.
-            require(address(_input.opcmAddress) != address(0), "ReadSuperchainDeployment: opcmAddress not set");
-
-            IOPContractsManager opcm = IOPContractsManager(_input.opcmAddress);
-
             output_.protocolVersionsProxy = IProtocolVersions(opcm.protocolVersions());
             output_.superchainConfigProxy = ISuperchainConfig(opcm.superchainConfig());
             output_.superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(output_.superchainConfigProxy)));
@@ -69,8 +74,6 @@ contract ReadSuperchainDeployment is Script {
             IProxy superchainConfigProxy = IProxy(payable(address(output_.superchainConfigProxy)));
 
             vm.startPrank(address(0));
-            output_.protocolVersionsImpl = IProtocolVersions(address(protocolVersionsProxy.implementation()));
-            output_.superchainConfigImpl = ISuperchainConfig(address(superchainConfigProxy.implementation()));
             output_.protocolVersionsImpl = IProtocolVersions(protocolVersionsProxy.implementation());
             output_.superchainConfigImpl = ISuperchainConfig(superchainConfigProxy.implementation());
             vm.stopPrank();
