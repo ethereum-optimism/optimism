@@ -103,6 +103,7 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (AtTimest
 		verifiedL2, verifiedL1, err := chain.VerifiedAt(ctx, timestamp)
 		if err != nil {
 			s.log.Warn("failed to get verified L1", "chain_id", chainID.String(), "err", err)
+			// TODO: It doesn't seem safe to translate all errors to not found
 			return AtTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
 		}
 		verified[chainID] = L2WithRequiredL1{
@@ -116,6 +117,7 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (AtTimest
 		outRoot, err := chain.OutputRootAtL2BlockNumber(ctx, verifiedL2.Number)
 		if err != nil {
 			s.log.Warn("failed to compute output root at L2 block", "chain_id", chainID.String(), "l2_number", verifiedL2.Number, "err", err)
+			// TODO: It doesn't seem safe to translate all errors to not found
 			return AtTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
 		}
 		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{ChainID: chainID, Output: outRoot})
@@ -123,12 +125,14 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (AtTimest
 		optimisticOut, err := chain.OptimisticOutputAtTimestamp(ctx, timestamp)
 		if err != nil {
 			s.log.Warn("failed to get optimistic L1", "chain_id", chainID.String(), "err", err)
+			// TODO: It doesn't seem safe to translate all errors to not found
 			return AtTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
 		}
 		// Also include the source L1 for context
 		_, optimisticL1, err := chain.OptimisticAt(ctx, timestamp)
 		if err != nil {
 			s.log.Warn("failed to get optimistic source L1", "chain_id", chainID.String(), "err", err)
+			// TODO: It doesn't seem safe to translate all errors to not found
 			return AtTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
 		}
 		optimistic[chainID] = OutputWithSource{

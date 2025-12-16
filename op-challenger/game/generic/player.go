@@ -135,7 +135,10 @@ func (g *GamePlayer) ProgressGame(ctx context.Context) gameTypes.GameStatus {
 		return g.status
 	}
 	g.logger.Trace("Checking if actions are required")
-	if err := g.actor.Act(ctx); err != nil {
+	if err := g.actor.Act(ctx); errors.Is(err, client.ErrNotInSync) {
+		g.logger.Warn("Local node not sufficiently up to date to act on game", "err", err)
+		return g.status
+	} else if err != nil {
 		g.logger.Error("Error when acting on game", "err", err)
 	}
 	status, err := g.loader.GetStatus(ctx)
