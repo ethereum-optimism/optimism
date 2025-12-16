@@ -434,3 +434,19 @@ func (cl *L2CLNode) UnsafeHead() *BlockRefResult {
 func (cl *L2CLNode) SafeHead() *BlockRefResult {
 	return &BlockRefResult{T: cl.t, BlockRef: cl.HeadBlockRef(types.CrossSafe)}
 }
+
+func (cl *L2CLNode) CurrentL1MatchedFn(refNode *L2CLNode, attempts int) CheckFunc {
+	return func() error {
+		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 1 * time.Second},
+			func() error {
+				currentL1 := cl.SyncStatus().CurrentL1
+				ref := refNode.SyncStatus().CurrentL1
+				if currentL1 == ref {
+					cl.log.Info("CurrentL1 reached", "currentL1", currentL1)
+					return nil
+				}
+				cl.log.Info("Chain sync status", "currentL1", currentL1.Number, "ref", ref)
+				return fmt.Errorf("expected currentL1 to match")
+			})
+	}
+}

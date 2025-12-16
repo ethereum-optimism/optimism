@@ -1,4 +1,4 @@
-package unsafe_only
+package follow_l2
 
 import (
 	"testing"
@@ -8,11 +8,9 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	presets.DoMain(m, presets.WithSingleChainTwoVerifiers(),
-		presets.WithExecutionLayerSyncOnVerifiers(),
+	presets.DoMain(m, presets.WithSingleChainTwoVerifiersFollowL2(),
 		presets.WithReqRespSyncDisabled(),
 		presets.WithNoDiscovery(),
 		presets.WithCompatibleTypes(compat.SysGo),
-		presets.WithUnsafeOnly(),
 	)
 }

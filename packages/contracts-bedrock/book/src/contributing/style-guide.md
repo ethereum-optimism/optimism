@@ -3,29 +3,31 @@
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [Standards and Conventions](#standards-and-conventions)
-  - [Style](#style)
-    - [Comments](#comments)
-    - [Errors](#errors)
-    - [Function Parameters](#function-parameters)
-    - [Function Return Arguments](#function-return-arguments)
-    - [Event Parameters](#event-parameters)
-    - [Immutable variables](#immutable-variables)
-    - [Spacers](#spacers)
-  - [Proxy by Default](#proxy-by-default)
-  - [Versioning](#versioning)
-    - [Exceptions](#exceptions)
-  - [Dependencies](#dependencies)
-  - [Source Code](#source-code)
-  - [Tests](#tests)
-    - [Expect Revert with Low Level Calls](#expect-revert-with-low-level-calls)
-    - [Organizing Principles](#organizing-principles)
-    - [Test function naming convention](#test-function-naming-convention)
-      - [Detailed Naming Rules](#detailed-naming-rules)
-    - [Contract Naming Conventions](#contract-naming-conventions)
-    - [Test File Organization](#test-file-organization)
-    - [Test Naming Exceptions](#test-naming-exceptions)
-- [Withdrawing From Fee Vaults](#withdrawing-from-fee-vaults)
+- [Smart Contract Style Guide](#smart-contract-style-guide)
+  - [Standards and Conventions](#standards-and-conventions)
+    - [Style](#style)
+      - [Comments](#comments)
+      - [Errors](#errors)
+      - [Function Parameters](#function-parameters)
+      - [Function Return Arguments](#function-return-arguments)
+      - [Event Parameters](#event-parameters)
+      - [Immutable variables](#immutable-variables)
+      - [Struct typed storage variables](#struct-typed-storage-variables)
+      - [Spacers](#spacers)
+    - [Proxy by Default](#proxy-by-default)
+    - [Versioning](#versioning)
+      - [Exceptions](#exceptions)
+    - [Dependencies](#dependencies)
+    - [Interface Inheritance](#interface-inheritance)
+    - [Source Code](#source-code)
+    - [Tests](#tests)
+      - [Expect Revert with Low Level Calls](#expect-revert-with-low-level-calls)
+      - [Organizing Principles](#organizing-principles)
+      - [Test function naming convention](#test-function-naming-convention)
+        - [Detailed Naming Rules](#detailed-naming-rules)
+      - [Contract Naming Conventions](#contract-naming-conventions)
+      - [Test File Organization](#test-file-organization)
+      - [Test Naming Exceptions](#test-naming-exceptions)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -177,6 +179,48 @@ contract ExampleWithImmutable {
     // ✅ Handwritten getter
     function ownerAddress() public view returns (address) {
         return OWNER_ADDRESS;
+    }
+}
+```
+
+#### Struct typed storage variables
+
+Struct typed storage variables:
+
+- should be `internal` with a `_` prefix on the variable name
+- should have a hand written getter function that returns the struct type
+- the getter should be named after the variable, minus the `_` prefix.
+- if necessary to avoid a naming collision, the getter function can be prefixed with `get`.
+
+When a struct typed storage variable is declared as `public`, Solidity's auto-generated getter returns
+the struct fields as a tuple rather than as the struct type itself. This makes the contract
+interface less ergonomic for external consumers. By using `internal` visibility and writing a
+manual getter, we can return the proper struct type.
+
+Example:
+
+```solidity
+contract ExampleWithStruct {
+    struct Config {
+        address owner;
+        uint256 timeout;
+        bool enabled;
+    }
+
+    // ❌ Incorrect - public struct variable returns tuple
+    Config public config;
+    // The auto-generated getter: function config() returns (address, uint256, bool)
+
+    // ✅ Correct - internal variable with handwritten getter returns struct
+    Config internal _config;
+
+    function config() public view returns (Config memory) {
+        return _config;
+    }
+
+    // Also acceptable if necessary to prevent naming collisions
+    function getConfig() public view returns (Config memory) {
+        return _config;
     }
 }
 ```

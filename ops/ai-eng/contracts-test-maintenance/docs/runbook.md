@@ -15,6 +15,8 @@ The system uses a **two-branch scoring algorithm**:
 - **Automated CI Integration**: Runs twice weekly on schedule (Monday/Thursday) or on-demand
 - **Smart Prioritization**: Focuses on tests that are most out of sync with their contracts
 - **Duplicate Prevention**: Automatically excludes recently processed files (last 2 weeks)
+- **No-Changes Tracking**: Tests with comprehensive coverage tracked in TOML file to avoid redundant work
+- **Stale Entry Detection**: Automatically identifies when tracked tests need re-analysis due to contract changes
 - **Resilient Monitoring**: Handles long-running Devin sessions with retry logic
 - **Full Audit Trail**: All runs logged with complete traceability
 
@@ -26,7 +28,8 @@ The system uses a **two-branch scoring algorithm**:
 contracts-test-maintenance/
 ├── VERSION                          # System version
 ├── exclusion.toml                   # Static exclusions configuration
-├── log.json                         # Latest execution log
+├── no-need-changes.toml             # Tests with comprehensive coverage (auto-managed)
+├── log.jsonl                        # Execution history and results
 ├── prompt/
 │   └── prompt.md                   # AI instruction template (~2000 lines)
 ├── components/
@@ -36,10 +39,8 @@ contracts-test-maintenance/
 │   ├── prompt-renderer/            # Stage 2: Prompt generation
 │   │   ├── render.py
 │   │   └── output/{run_id}_prompt.md
-│   ├── devin-api/                  # Stage 3: AI execution
-│   │   └── devin_client.py
-│   └── slack-notifier/             # Slack notification preparation
-│       └── prepare_notification.sh
+│   └── devin-api/                  # Stage 3: AI execution
+│       └── devin_client.py
 └── docs/
     └── runbook.md                  # This document
 ```
@@ -83,7 +84,9 @@ ai-contracts-test:
 
 **Slack Notifications**:
 - Automatic notification posted to #evm-safety Slack channel when PR is created
-- Includes PR URL, test file information, and link to reviewer guide
+- Two notification types:
+  - **Test improvements**: Includes PR URL, test file info, and reviewer guide link
+  - **No changes needed**: Notifies team that test has comprehensive coverage with PR for TOML tracking update
 - Helps expedite review process by alerting reviewers immediately
 
 **In CircleCI**:
@@ -166,6 +169,14 @@ The `just rank` command generates `components/tests_ranker/output/{run_id}_ranki
       "staleness_days": -98.21,
       "score": 135.84
     }
+  ],
+  "stale_toml_entries": [
+    {
+      "test_path": "test/L1/SystemConfig.t.sol",
+      "contract_path": "src/L1/SystemConfig.sol",
+      "old_hash": "abc1234",
+      "new_hash": "def5678"
+    }
   ]
 }
 ```
@@ -180,10 +191,14 @@ The `just rank` command generates `components/tests_ranker/output/{run_id}_ranki
 - `contract_commit_ts` - Unix timestamp of contract file's last commit
 - `staleness_days` - Calculated staleness (positive = contract newer)
 - `score` - Priority score (higher = more urgent)
+- `stale_toml_entries` - Array of no-need-changes.toml entries that need removal (contract hash changed)
 
 ### Prompt Renderer Output
 
-The `just render` command generates a markdown file in `components/prompt-renderer/output/` with the name format `{run_id}_prompt.md`. This file contains the AI prompt template with the highest-priority test and contract paths filled in, ready to be used for test maintenance analysis.
+The `just render` command generates a markdown file in `components/prompt-renderer/output/` with the name format `{run_id}_prompt.md`. This file contains the AI prompt template with:
+- The highest-priority test and contract paths filled in
+- List of stale no-need-changes.toml entries (if any) that Devin should remove before starting analysis
+- Instructions for adding new entries when no changes are needed
 
 For example, a run with ID `20250922_143052` will generate `20250922_143052_prompt.md`. The system automatically links prompts to their corresponding ranking runs through the shared run ID.
 
@@ -239,17 +254,26 @@ All Devin sessions are automatically logged to `log.json` with:
 - `run_time` - Human-readable timestamp of the run
 - `devin_session_id` - Unique Devin session identifier
 - `selected_files` - The test-contract pair that was worked on
-- `status` - Final session status ("finished", "finished_no_changes", "blocked", "expired")
-- `pull_request_url` - GitHub PR URL (only present if status is "finished")
+- `status` - Final session status ("finished", "no_changes_needed", "blocked", "expired", "failed")
+- `pull_request_url` - GitHub PR URL (present for both "finished" and "no_changes_needed" statuses)
 
 #### Duplicate Prevention
 
-The ranking system automatically excludes files processed in the **last 2 weeks** to prevent duplicate work:
+The ranking system uses two complementary strategies to prevent duplicate work:
+
+**1. No-Changes Tracking (with automatic reintegration)**:
+- Tests with comprehensive coverage tracked in `no-need-changes.toml`
+- Each entry includes contract git hash for validation
+- Automatically excluded from ranking while contract remains unchanged
+- **Automatically reintegrated** when contract changes (hash mismatch detected)
+- Stale entries flagged in ranking output for Devin to remove
+
+**2. Recent Processing Exclusion (2-week cooldown)**:
 - Queries CircleCI API for recent successful runs
 - Extracts test paths from stored `log.json` artifacts
 - Temporarily excludes these files from ranking
 - Files become available again after 2 weeks
-- This prevents immediate re-ranking of files still under review
+- Prevents immediate re-ranking of files still under review
 
 ## Configuration
 
@@ -320,8 +344,12 @@ else:
 3. Get git commit timestamps using `git log -1 --format=%ct`
 4. Calculate staleness: `contract_commit_ts - test_commit_ts`
 5. Calculate priority score using two-branch algorithm
-6. Apply exclusions (static from `exclusion.toml` + dynamic from CircleCI)
-7. Sort by score (descending) and output to JSON
+6. Apply exclusions:
+   - Static exclusions from `exclusion.toml`
+   - Dynamic exclusions from CircleCI artifacts (2-week window)
+   - **No-changes tracking from `no-need-changes.toml`** (excluded while contract hash matches)
+7. Detect stale TOML entries (contract hash changed since entry was added)
+8. Sort by score (descending) and output to JSON with stale entries
 
 **Output Fields**:
 - `test_path`: Relative path from `contracts-bedrock/`
@@ -330,20 +358,25 @@ else:
 - `contract_commit_ts`: Unix timestamp (seconds since epoch)
 - `staleness_days`: Float, positive = contract is newer
 - `score`: Float, higher = more urgent attention needed
+- `stale_toml_entries`: Array of entries that need removal (contract changed)
 
 ### Stage 2: Prompt Rendering
 
 **Process**:
 1. Load ranking JSON from Stage 1 output
-2. Extract first entry (highest priority test)
-3. Load prompt template from `prompt/prompt.md`
-4. Replace placeholders:
+2. Extract first entry (highest priority test) and stale TOML entries
+3. Format stale entries as markdown bullet list
+4. Load prompt template from `prompt/prompt.md`
+5. Replace placeholders:
    - `{TEST_PATH}` → test file path
    - `{CONTRACT_PATH}` → contract file path
-5. Save rendered prompt to `output/` with same `run_id`
+   - `{{STALE_ENTRIES_LIST}}` → formatted list of stale entries (or "(none)")
+6. Save rendered prompt to `output/` with same `run_id`
 
 **The Prompt Template** contains:
 - Role definition and task instructions
+- **Stale entries cleanup instructions** (if any entries flagged)
+- **No-changes tracking instructions** (how to add entries when no improvements needed)
 - Comprehensive testing methodology (4 phases)
 - Naming conventions for test contracts and functions
 - Fuzz testing decision trees
@@ -356,24 +389,31 @@ else:
 
 **Process**:
 1. Find latest prompt file from Stage 2
-2. Create Devin session via POST to `/sessions` endpoint
+2. Create Devin session via POST to `/sessions` endpoint with session creation retry logic
 3. Monitor session with polling:
    - Poll every 30 seconds for status updates
+   - Check for blocked state with 5-minute timeout
+   - Parse `structured_output` for completion signal
    - Implement exponential backoff for server errors (502/504)
    - Continue monitoring until terminal state reached
-4. Log results to `log.json` with full session details
+4. Determine final status based on Devin state and structured output
+5. Log results to `log.json` with full session details
 
 **Devin API Terminal States**:
-- `blocked`: Devin reached a blocking state (e.g., needs approval, PR created)
+- `blocked`: Devin reached a blocking state (e.g., needs approval, PR created, or waiting)
 - `expired`: Session timeout reached
 - `suspend_requested` / `suspend_requested_frontend`: User manually stopped session
 
-**Logged Status Values** (what gets written to `log.json`):
-- `finished`: Devin status was "blocked" AND PR was successfully created
-- `finished_no_changes`: Devin completed analysis and determined no changes needed (uses structured output)
-- `blocked`: Devin status was "blocked" without PR URL or completion signal
-- `expired`: Session timed out
-- Note: User-stopped sessions are not logged
+**Status Detection Logic**:
+The client distinguishes between different outcomes by examining both Devin API status and structured output:
+
+1. **`finished`**: Devin blocked + PR created for test improvements
+2. **`no_changes_needed`**: Devin blocked + structured_output indicates comprehensive coverage + PR created for TOML entry
+3. **`blocked`**: Devin blocked but no PR or unclear state
+4. **`expired`**: Session timeout
+5. User-stopped sessions are not logged
+
+**Note**: The `status` field in `log.json` represents our interpretation of what happened, not the raw Devin API status.
 
 **Error Handling**:
 - 30-second timeout per HTTP request

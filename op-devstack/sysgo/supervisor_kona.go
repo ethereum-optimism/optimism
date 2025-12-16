@@ -158,10 +158,13 @@ func WithKonaSupervisor(supervisorID stack.SupervisorID, clusterID stack.Cluster
 			"KONA_LOG_STDOUT_FORMAT=json",
 		}
 
-		execPath := os.Getenv("KONA_SUPERVISOR_EXEC_PATH")
-		p.Require().NotEmpty(execPath, "KONA_SUPERVISOR_EXEC_PATH environment variable must be set")
-		_, err = os.Stat(execPath)
-		p.Require().NotErrorIs(err, os.ErrNotExist, "executable must exist")
+		execPath, err := EnsureRustBinary(p, RustBinarySpec{
+			SrcDir:  "kona",
+			Package: "kona-supervisor",
+			Binary:  "kona-supervisor",
+		})
+		p.Require().NoError(err, "prepare kona-supervisor binary")
+		p.Require().NotEmpty(execPath, "kona-supervisor binary path resolved")
 
 		konaSupervisor := &KonaSupervisor{
 			id:       supervisorID,
