@@ -372,3 +372,13 @@ contract SuperPermissionedDisputeGame_Initialize_Test is SuperPermissionedDisput
         );
     }
 }
+
+/// @title SuperPermissionedDisputeGame_RootClaimByChainId_Test
+/// @notice Tests the `rootClaimByChainId` function.
+contract SuperPermissionedDisputeGame_RootClaimByChainId_Test is SuperPermissionedDisputeGame_TestInit {
+    /// @notice Tests that rootClaimByChainId reverts until super root preimage support is added.
+    function test_rootClaimByChainId_superRootPreimageNotSupported_reverts(uint256 _chainId) public {
+        vm.expectRevert(SuperRootPreimageNotSupported.selector);
+        gameProxy.rootClaimByChainId(_chainId);
+    }
+}
