@@ -44,29 +44,34 @@ type L2WithRequiredL1 struct {
 	MinRequiredL1 eth.BlockID
 }
 
-// atTimestampResponse is the response superroot_atTimestamp
+// AtTimestampResponse is the response superroot_atTimestamp
 // it contains:
 // - CurrentL1Derived: the current L1 block that each chain has derived up to (without any verification)
 // - CurrentL1Verified: the current L1 block that each verifier has processed up to
 // - VerifiedAtTimestamp: the L2 blocks which are fully verified at the given timestamp, and the minimum L1 block at which verification is possible
 // - OptimisticAtTimestamp: the L2 blocks which would be applied if verification were assumed to be successful, and their L1 sources
 // - SuperRoot: the superroot at the given timestamp using verified L2 blocks
-type atTimestampResponse struct {
+type AtTimestampResponse struct {
+	// TODO: We should probably specify json names for these
 	CurrentL1Derived      map[eth.ChainID]eth.BlockID
 	CurrentL1Verified     map[string]eth.BlockID
 	VerifiedAtTimestamp   map[eth.ChainID]L2WithRequiredL1
 	OptimisticAtTimestamp map[eth.ChainID]OutputWithSource
 	MinCurrentL1          eth.BlockID
-	MinVerifiedRequiredL1 eth.BlockID
-	SuperRoot             eth.Bytes32
+	MaxVerifiedRequiredL1 eth.BlockID
+	// Not entirely sure it's a good idea to include the actual super implementation here rather than extracting the data from it
+	// But it sure is convenient.
+	// If we do this we need to sepecify json names in the eth.SuperV1 struct
+	Super     eth.Super
+	SuperRoot eth.Bytes32
 }
 
 // AtTimestamp computes the super-root at the given timestamp, plus additional information about the current L1s, verified L2s, and optimistic L2s
-func (api *superrootAPI) AtTimestamp(ctx context.Context, timestamp uint64) (atTimestampResponse, error) {
+func (api *superrootAPI) AtTimestamp(ctx context.Context, timestamp uint64) (AtTimestampResponse, error) {
 	return api.s.atTimestamp(ctx, timestamp)
 }
 
-func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (atTimestampResponse, error) {
+func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (AtTimestampResponse, error) {
 	currentL1Derived := map[eth.ChainID]eth.BlockID{}
 	// there are no Verification Activities yet, so there is no call to make to collect their CurrentL1
 	// this will be replaced with a call to the Verification Activities when they are implemented
@@ -74,7 +79,7 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (atTimest
 	verified := map[eth.ChainID]L2WithRequiredL1{}
 	optimistic := map[eth.ChainID]OutputWithSource{}
 	minCurrentL1 := eth.BlockID{}
-	minVerifiedRequiredL1 := eth.BlockID{}
+	maxVerifiedRequiredL1 := eth.BlockID{}
 	chainOutputs := make([]eth.ChainIDAndOutput, 0, len(s.chains))
 
 	// get current l1s
@@ -84,7 +89,7 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (atTimest
 		currentL1, err := chain.CurrentL1(ctx)
 		if err != nil {
 			s.log.Warn("failed to get current L1", "chain_id", chainID.String(), "err", err)
-			return atTimestampResponse{}, err
+			return AtTimestampResponse{}, err
 		}
 		currentL1Derived[chainID] = currentL1.ID()
 		if currentL1.ID().Number < minCurrentL1.Number || minCurrentL1 == (eth.BlockID{}) {
@@ -98,33 +103,33 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (atTimest
 		verifiedL2, verifiedL1, err := chain.VerifiedAt(ctx, timestamp)
 		if err != nil {
 			s.log.Warn("failed to get verified L1", "chain_id", chainID.String(), "err", err)
-			return atTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
+			return AtTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
 		}
 		verified[chainID] = L2WithRequiredL1{
 			L2:            verifiedL2,
 			MinRequiredL1: verifiedL1,
 		}
-		if verifiedL1.Number < minVerifiedRequiredL1.Number || minVerifiedRequiredL1 == (eth.BlockID{}) {
-			minVerifiedRequiredL1 = verifiedL1
+		if verifiedL1.Number > maxVerifiedRequiredL1.Number || maxVerifiedRequiredL1 == (eth.BlockID{}) {
+			maxVerifiedRequiredL1 = verifiedL1
 		}
 		// Compute output root at or before timestamp using the verified L2 block number
 		outRoot, err := chain.OutputRootAtL2BlockNumber(ctx, verifiedL2.Number)
 		if err != nil {
 			s.log.Warn("failed to compute output root at L2 block", "chain_id", chainID.String(), "l2_number", verifiedL2.Number, "err", err)
-			return atTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
+			return AtTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
 		}
 		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{ChainID: chainID, Output: outRoot})
 		// Optimistic output is the full output at the optimistic L2 block for the timestamp
 		optimisticOut, err := chain.OptimisticOutputAtTimestamp(ctx, timestamp)
 		if err != nil {
 			s.log.Warn("failed to get optimistic L1", "chain_id", chainID.String(), "err", err)
-			return atTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
+			return AtTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
 		}
 		// Also include the source L1 for context
 		_, optimisticL1, err := chain.OptimisticAt(ctx, timestamp)
 		if err != nil {
 			s.log.Warn("failed to get optimistic source L1", "chain_id", chainID.String(), "err", err)
-			return atTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
+			return AtTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
 		}
 		optimistic[chainID] = OutputWithSource{
 			Output:   optimisticOut,
@@ -136,13 +141,14 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (atTimest
 	superV1 := eth.NewSuperV1(timestamp, chainOutputs...)
 	superRoot := eth.SuperRoot(superV1)
 
-	return atTimestampResponse{
+	return AtTimestampResponse{
 		CurrentL1Derived:      currentL1Derived,
 		CurrentL1Verified:     currentL1Verified,
 		VerifiedAtTimestamp:   verified,
 		OptimisticAtTimestamp: optimistic,
 		MinCurrentL1:          minCurrentL1,
-		MinVerifiedRequiredL1: minVerifiedRequiredL1,
+		MaxVerifiedRequiredL1: maxVerifiedRequiredL1,
+		Super:                 superV1,
 		SuperRoot:             superRoot,
 	}, nil
 }
