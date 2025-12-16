@@ -13,7 +13,7 @@ use reth_evm_ethereum::EthEvmConfig;
 use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_optimism_trie::{
     backfill::BackfillJob, in_memory::InMemoryProofsStorage, live::LiveTrieCollector,
-    OpProofsStorage,
+    OpProofsStorage, OpProofsStorageError,
 };
 use reth_primitives_traits::{
     crypto::secp256k1::public_key_to_address, Block as _, RecoveredBlock,
@@ -311,6 +311,124 @@ async fn test_execute_and_store_block_updates() {
     );
 
     run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage).await.unwrap();
+}
+
+#[tokio::test]
+async fn test_execute_and_store_block_updates_missing_parent_block() {
+    let storage: OpProofsStorage<Arc<InMemoryProofsStorage>> =
+        Arc::new(InMemoryProofsStorage::new()).into();
+
+    let secp = Secp256k1::new();
+    let key_pair = Keypair::new(&secp, &mut thread_rng());
+    let sender = public_key_to_address(key_pair.public_key());
+
+    let chain_spec = chain_spec_with_address(sender);
+    let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&provider_factory).unwrap();
+
+    // No blocks before backfill; backfill only inserts genesis.
+    let scenario = TestScenario::new(vec![], vec![]);
+
+    // Run backfill (block 0 only)
+    run_test_scenario(
+        scenario,
+        provider_factory.clone(),
+        chain_spec.clone(),
+        key_pair,
+        storage.clone(),
+    )
+    .await
+    .unwrap();
+
+    // Create a block whose parent block number is missing.
+    let incorrect_block_number = 2;
+    let incorrect_parent_hash = B256::repeat_byte(0x11);
+
+    let mut nonce_counter = 0;
+    let incorrect_block = create_block_from_spec(
+        &BlockSpec::new(vec![]),
+        incorrect_block_number,
+        incorrect_parent_hash,
+        &chain_spec,
+        key_pair,
+        &mut nonce_counter,
+    );
+
+    let blockchain_db = BlockchainProvider::new(provider_factory.clone()).unwrap();
+    let collector =
+        LiveTrieCollector::new(EthEvmConfig::ethereum(chain_spec.clone()), blockchain_db, &storage);
+
+    // EXPECT: MissingParentBlock
+    let err = collector.execute_and_store_block_updates(&incorrect_block).await.unwrap_err();
+
+    assert!(matches!(
+        err.downcast_ref::<OpProofsStorageError>().unwrap(),
+        OpProofsStorageError::MissingParentBlock { .. }
+    ));
+}
+
+#[tokio::test]
+async fn test_execute_and_store_block_updates_state_root_mismatch() {
+    let storage: OpProofsStorage<Arc<InMemoryProofsStorage>> =
+        Arc::new(InMemoryProofsStorage::new()).into();
+
+    let secp = Secp256k1::new();
+    let key_pair = Keypair::new(&secp, &mut thread_rng());
+    let sender = public_key_to_address(key_pair.public_key());
+
+    let chain_spec = chain_spec_with_address(sender);
+    let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&provider_factory).unwrap();
+
+    // Run normal scenario: no blocks before backfill, one block after.
+    let recipient = Address::repeat_byte(0x42);
+    let scenario = TestScenario::new(
+        vec![],
+        vec![BlockSpec::new(vec![TxSpec::transfer(recipient, U256::from(1))])],
+    );
+
+    run_test_scenario(
+        scenario,
+        provider_factory.clone(),
+        chain_spec.clone(),
+        key_pair,
+        storage.clone(),
+    )
+    .await
+    .unwrap();
+
+    // Generate a second block normally
+    let blockchain_db = BlockchainProvider::new(provider_factory.clone()).unwrap();
+    let collector =
+        LiveTrieCollector::new(EthEvmConfig::ethereum(chain_spec.clone()), blockchain_db, &storage);
+
+    // Create the next block
+    let mut nonce_counter = 0;
+    let last_block_hash = chain_spec.genesis_hash(); // because scenario executes 1 block
+    let next_number = 2;
+
+    let mut block = create_block_from_spec(
+        &BlockSpec::new(vec![]),
+        next_number,
+        last_block_hash,
+        &chain_spec,
+        key_pair,
+        &mut nonce_counter,
+    );
+
+    // Execute it to compute a correct state root
+    let _ = execute_block(&mut block, &provider_factory, &chain_spec).unwrap();
+
+    // Change the state root to induce the error
+    block.header_mut().state_root = B256::repeat_byte(0xAA);
+
+    // EXPECT: StateRootMismatch
+    let err = collector.execute_and_store_block_updates(&block).await.unwrap_err();
+
+    assert!(matches!(
+        err.downcast_ref::<OpProofsStorageError>(),
+        Some(OpProofsStorageError::StateRootMismatch { .. })
+    ));
 }
 
 /// Test with multiple blocks before and after backfill
