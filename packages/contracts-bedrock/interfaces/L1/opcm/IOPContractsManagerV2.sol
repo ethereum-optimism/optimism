@@ -81,6 +81,12 @@ interface IOPContractsManagerV2 {
         uint256 l2ChainId;
         IResourceMetering.ResourceConfig resourceConfig;
         DisputeGameConfig[] disputeGameConfigs;
+        bool useCustomGasToken;
+    }
+
+    struct ExtraInstruction {
+        string key;
+        bytes data;
     }
 
     struct UpgradeInput {
@@ -98,7 +104,8 @@ interface IOPContractsManagerV2 {
     error OPContractsManagerV2_InvalidUpgradeInput();
     error OPContractsManagerV2_SuperchainConfigNeedsUpgrade();
     error OPContractsManagerV2_UnsupportedGameType();
-    error OPContractsManagerV2_InvalidUpgradeInstruction();
+    error OPContractsManagerV2_InvalidUpgradeInstruction(string _key);
+    error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
     error IdentityPrecompileCallFailed();
     error ReservedBitsSet();
     error BytesArrayTooLong();
@@ -124,14 +131,14 @@ interface IOPContractsManagerV2 {
 
     function standardValidator() external view returns (IOPContractsManagerStandardValidator);
 
+    function thisOPCM() external view returns (IOPContractsManagerV2);
+
     function utils() external view returns (IOPContractsManagerUtils);
 
     function version() external view returns (string memory);
 
     /// @notice Upgrades Superchain-wide contracts.
-    function upgradeSuperchain(SuperchainUpgradeInput memory _inp)
-        external
-        returns (SuperchainContracts memory);
+    function upgradeSuperchain(SuperchainUpgradeInput memory _inp) external returns (SuperchainContracts memory);
 
     /// @notice Deploys and wires a complete OP Chain per the provided configuration.
     function deploy(FullConfig memory _cfg) external returns (ChainContracts memory);

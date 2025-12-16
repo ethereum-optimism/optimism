@@ -45,6 +45,24 @@ interface IOPContractsManagerUtils {
         external
         pure
         returns (bytes32);
+
+    function isMatchingInstructionByKey(
+        ExtraInstruction memory _instruction,
+        string memory _key
+    )
+        external
+        pure
+        returns (bool);
+
+    function isMatchingInstruction(
+        ExtraInstruction memory _instruction,
+        string memory _key,
+        bytes memory _data
+    )
+        external
+        pure
+        returns (bool);
+
     function hasInstruction(
         ExtraInstruction[] memory _instructions,
         string memory _key,
