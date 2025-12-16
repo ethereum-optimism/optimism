@@ -51,7 +51,7 @@ func (s *KonaSuperExecutor) OracleCommand(cfg Config, dataDir string, inputs uti
 	}
 
 	if cfg.L1GenesisPath != "" {
-		args = append(args, "--l1-config-path", cfg.L1GenesisPath)
+		args = append(args, "--l1-config-paths", cfg.L1GenesisPath)
 	}
 
 	return args, nil
