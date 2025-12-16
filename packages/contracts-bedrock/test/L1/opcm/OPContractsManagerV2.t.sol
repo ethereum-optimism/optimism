@@ -753,7 +753,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
 /// @title OPContractsManagerV2_IsPermittedUpgradeSequence_Test
 /// @notice Tests OPContractsManagerV2.isPermittedUpgradeSequence
-contract OPContractsManagerV2_IsPermittedUpgradeSequence_Test is OPContractsManagerV2_Upgrade_TestInit {
+contract OPContractsManagerV2_IsPermittedUpgradeSequence_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that the upgrade sequence is permitted when using the same OPCM (re-running upgrade).
     function test_isPermittedUpgradeSequence_sameOPCM_succeeds() public {
         // Mock the OPCM version to be >= 7.0.0 so the check activates.
