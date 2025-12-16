@@ -162,8 +162,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         ETHLockbox.
     error OPContractsManagerV2_InteropSharedContractsProxyAdminMismatch();
 
-    /// @notice Thrown when the proxy admin owner of the shared contracts is not the same as the
-    ///         current chain's proxy admin owner.
+    /// @notice Thrown when the proxy admin owner of the shared contracts is not the same as the current chain's proxy
+    /// admin owner.
     error OPContractsManagerV2_InteropSharedContractsProxyAdminOwnerMismatch();
 
     /// @notice Container of blueprint and implementation contract addresses.
@@ -307,7 +307,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         returns (bool)
     {
         // The interop migration instruction should always be permitted regardless of the OPCM version.
-        if (LibString.eq(_instruction.key, Constants.INTEROP_MIGRATION_ADDRESSES)) {
+        if (_isMatchingInstructionByKey(_instruction, Constants.INTEROP_MIGRATION_ADDRESSES)) {
             return true;
         }
 
