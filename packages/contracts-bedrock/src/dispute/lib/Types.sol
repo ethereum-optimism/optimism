@@ -131,6 +131,7 @@ library LocalPreimageKey {
 ////////////////////////////////////////////////////////////////
 
 uint32 constant OPTIMISTIC_ZK_GAME_TYPE = 10;
+uint32 constant OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE = 42;
 
 /// @notice The public values committed to for an OP Succinct aggregation program.
 struct AggregationOutputs {
