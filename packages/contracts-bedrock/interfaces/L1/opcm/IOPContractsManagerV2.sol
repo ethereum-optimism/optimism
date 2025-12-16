@@ -131,7 +131,7 @@ interface IOPContractsManagerV2 {
 
     function standardValidator() external view returns (IOPContractsManagerStandardValidator);
 
-    function thisOPCM() external view returns (IOPContractsManagerV2);
+    function opcmV2() external view returns (IOPContractsManagerV2);
 
     function opcmUtils() external view returns (IOPContractsManagerUtils);
 

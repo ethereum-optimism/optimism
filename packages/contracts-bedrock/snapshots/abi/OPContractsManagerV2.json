@@ -454,10 +454,10 @@
   },
   {
     "inputs": [],
-    "name": "standardValidator",
+    "name": "opcmV2",
     "outputs": [
       {
-        "internalType": "contract IOPContractsManagerStandardValidator",
+        "internalType": "contract OPContractsManagerV2",
         "name": "",
         "type": "address"
       }
@@ -467,10 +467,10 @@
   },
   {
     "inputs": [],
-    "name": "thisOPCM",
+    "name": "standardValidator",
     "outputs": [
       {
-        "internalType": "contract OPContractsManagerV2",
+        "internalType": "contract IOPContractsManagerStandardValidator",
         "name": "",
         "type": "address"
       }
