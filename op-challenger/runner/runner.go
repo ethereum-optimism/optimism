@@ -44,10 +44,8 @@ type Metricer interface {
 	metrics.VmMetricer
 	opmetrics.RPCMetricer
 
-	RecordFailure(vmType string)
-	RecordPanic(vmType string)
-	RecordInvalid(vmType string)
-	RecordTimeout(vmType string)
+	RecordSetupFailure(vmType string)
+	RecordVmFailure(vmType string, reason string)
 	RecordSuccess(vmType string)
 }
 
@@ -159,16 +157,16 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfi
 	recordError := func(err error, configName string, m Metricer, log log.Logger) {
 		if errors.Is(err, ErrUnexpectedStatusCode) {
 			log.Error("Incorrect status code", "type", runConfig.Name, "err", err)
-			m.RecordInvalid(configName)
+			m.RecordVmFailure(configName, ReasonIncorrectStatus)
 		} else if errors.Is(err, trace.ErrVMPanic) {
 			log.Error("VM panicked", "type", runConfig.Name)
-			m.RecordPanic(configName)
+			m.RecordVmFailure(configName, ReasonPanic)
 		} else if errors.Is(err, ErrVMTimeout) {
 			log.Error("VM execution timed out", "type", runConfig.Name, "timeout", r.vmTimeout)
-			m.RecordTimeout(configName)
+			m.RecordVmFailure(configName, ReasonTimeout)
 		} else if err != nil {
 			log.Error("Failed to run", "type", runConfig.Name, "err", err)
-			m.RecordFailure(configName)
+			m.RecordSetupFailure(configName)
 		} else {
 			log.Info("Successfully verified output root", "type", runConfig.Name)
 			m.RecordSuccess(configName)
