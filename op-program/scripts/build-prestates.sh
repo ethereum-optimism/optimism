@@ -130,9 +130,11 @@ VERSIONS_JSON="[]"
 readarray -t VERSIONS < <(git tag --list 'op-program/v*' --sort taggerdate)
 
 for VERSION in "${VERSIONS[@]}"; do
-  pushd .
-  build_op_program_prestate "${VERSION}"
-  popd
+  if [ "$VERSION" == "op-program/v1.8.0-rc.2" ]; then
+    pushd .
+    build_op_program_prestate "${VERSION}"
+    popd
+  fi
 done
 echo "${VERSIONS_JSON}" > "${VERSIONS_FILE}"
 
@@ -152,9 +154,11 @@ readarray -t KONA_VERSIONS < <(git ls-remote --tags "$KONA_REPO_URL" | grep kona
   | grep -v beta | grep -v alpha | grep -v -F -f excluded.txt)
 
 for VERSION in "${KONA_VERSIONS[@]}"; do
-  pushd .
-  build_kona_prestate "${VERSION}"
-  popd
+  if [ "$VERSION" == "kona-client/v1.2.7" ]; then
+    pushd .
+    build_kona_prestate "${VERSION}"
+    popd
+  fi
 done
 echo "${VERSIONS_JSON}" > "${VERSIONS_FILE}"
 
