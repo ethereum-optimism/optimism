@@ -432,9 +432,6 @@ abstract contract OPContractsManager_TestInit is CommonTest, DisputeGames {
     function setUp() public virtual override {
         super.setUp();
 
-        // TODO(#18332): Remove this once we support all existing OPCM functions.
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
         proposer = address(this);
         challenger = address(this);
         chain1L2ChainId = 100;
@@ -591,6 +588,13 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test, FeatureFlag
 /// @title OPContractsManager_AddGameType_Test
 /// @notice Tests the `addGameType` function of the `OPContractsManager` contract.
 contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
+    function setUp() public override {
+        super.setUp();
+
+        // TODO(#18332): Remove this once we support all existing OPCM functions.
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+    }
+
     /// @notice Tests that we can add a PermissionedDisputeGame implementation with addGameType.
     function test_addGameType_permissioned_succeeds() public {
         // Create the input for the Permissioned game type.
@@ -925,6 +929,10 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
 
     function setUp() public virtual override {
         super.setUp();
+
+        // TODO(#18332): Remove this once we support all existing OPCM functions.
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         prestateUpdater = opcm;
     }
 
@@ -1697,6 +1705,10 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
     /// @notice Function requires interop portal.
     function setUp() public override {
         super.setUp();
+
+        // TODO(#18332): Remove this once we support all existing OPCM functions.
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
     }
 
@@ -2317,6 +2329,13 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase, DisputeGames 
 /// @title OPContractsManager_Version_Test
 /// @notice Tests the `version` function of the `OPContractsManager` contract.
 contract OPContractsManager_Version_Test is OPContractsManager_TestInit {
+    function setUp() public override {
+        super.setUp();
+
+        // TODO(#18332): Remove this once we support all existing OPCM functions.
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+    }
+
     function test_semver_works() public view {
         assertNotEq(abi.encode(opcm.version()), abi.encode(0));
     }
