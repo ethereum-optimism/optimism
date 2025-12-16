@@ -6,7 +6,6 @@ import { LibString } from "@solady/utils/LibString.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Tests
-import { OPContractsManagerV2_TestInit } from "test/L1/opcm/OPContractsManagerV2.t.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";
 
@@ -78,7 +77,7 @@ abstract contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
 contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function setUp() public override {
         // If OPCM V2 is enabled, set up the test environment for OPCM V2.
-        // nosemgrep: sol-safety-vm-env-only-in-config-sol
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
         if (vm.envOr("DEV_FEATURE__OPCM_V2", false)) {
             CommonTest.setUp();
             opcm = IOPContractsManager(address(opcmV2));
