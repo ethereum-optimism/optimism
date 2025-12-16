@@ -15,6 +15,7 @@ pub mod import;
 pub mod import_receipts;
 pub mod init_state;
 pub mod initialize_proofs;
+pub mod prune_proofs;
 pub mod unwind_proofs;
 
 #[cfg(feature = "dev")]
@@ -69,6 +70,9 @@ pub enum Commands<Spec: ChainSpecParser = OpChainSpecParser, Ext: clap::Args + f
     /// Unwinds the proofs storage to a specific block number.
     #[command(name = "unwind-op-proofs")]
     UnwindOpProofs(unwind_proofs::UnwindOpProofsCommand<Spec>),
+    /// Prunes the proofs storage by removing old proof history and state updates.
+    #[command(name = "prune-op-proofs")]
+    PruneOpProofs(prune_proofs::PruneOpProofsCommand<Spec>),
 }
 
 impl<
@@ -95,6 +99,7 @@ impl<
             Self::ReExecute(cmd) => cmd.chain_spec(),
             Self::InitializeOpProofs(cmd) => cmd.chain_spec(),
             Self::UnwindOpProofs(cmd) => cmd.chain_spec(),
+            Self::PruneOpProofs(cmd) => cmd.chain_spec(),
         }
     }
 }

@@ -118,6 +118,9 @@ where
             Commands::UnwindOpProofs(command) => {
                 runner.run_blocking_until_ctrl_c(command.execute::<OpNode>())
             }
+            Commands::PruneOpProofs(command) => {
+                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>())
+            }
         }
     }
 
