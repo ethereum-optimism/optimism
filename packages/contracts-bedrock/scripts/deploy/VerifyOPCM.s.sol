@@ -129,7 +129,6 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["opcmUpgrader"] = "OPContractsManagerUpgrader";
         fieldNameOverrides["opcmInteropMigrator"] = "OPContractsManagerInteropMigrator";
         fieldNameOverrides["opcmStandardValidator"] = "OPContractsManagerStandardValidator";
-        fieldNameOverrides["opcmV2"] = "OPContractsManagerV2";
 
         // Since both OPCM V1 and V2 have contractsContainer var and they point to different contract file names,
         // in the code logic, we rename any occurrences of it to "contractsContainerV1" or "contractsContainerV2" before
@@ -140,7 +139,7 @@ contract VerifyOPCM is Script {
         // OPCM V2 Specific field name overrides.
         fieldNameOverrides["standardValidator"] = "OPContractsManagerStandardValidator";
         fieldNameOverrides["storageSetterImpl"] = "StorageSetter";
-        fieldNameOverrides["thisOPCM"] = "OPContractsManagerV2";
+        fieldNameOverrides["opcmV2"] = "OPContractsManagerV2";
         fieldNameOverrides["opcmUtils"] = "OPContractsManagerUtils";
 
         // Overrides for situations where contracts have differently named source files.
@@ -168,18 +167,17 @@ contract VerifyOPCM is Script {
         expectedGetters["opcmInteropMigrator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmStandardValidator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmUpgrader"] = "SKIP"; // Address verified via bytecode comparison
-        expectedGetters["opcmV2"] = "SKIP"; // Address verified via bytecode comparison
 
-        // OPC V2 Specific expected getters overrides
+        // OPCM V2 Specific expected getters overrides
         expectedGetters["standardValidator"] = "SKIP"; // Address verified via bytecode comparison
-        expectedGetters["thisOPCM"] = "SKIP"; // Address verified via bytecode comparison
+        expectedGetters["opcmV2"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmUtils"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["contractsContainer"] = "SKIP"; // Address verified via bytecode comparison
-        expectedGetters["version"] = "SKIP"; // Address verified via bytecode comparison
 
         // Getters that don't need any sort of verification
         expectedGetters["devFeatureBitmap"] = "SKIP";
         expectedGetters["isDevFeatureEnabled"] = "SKIP";
+        expectedGetters["version"] = "SKIP";
 
         // Mark as ready.
         ready = true;

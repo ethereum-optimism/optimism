@@ -159,7 +159,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
     /// @notice Immutable reference to this OPCM contract so that the address of this contract can
     ///         be used when this contract is DELEGATECALLed.
-    OPContractsManagerV2 public immutable thisOPCM;
+    OPContractsManagerV2 public immutable opcmV2;
 
     /// @notice The version of the OPCM contract.
     ///         WARNING: OPCM versioning rules differ from other contracts:
@@ -181,7 +181,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     {
         contractsContainer = _contractsContainer;
         standardValidator = _standardValidator;
-        thisOPCM = this;
+        opcmV2 = this;
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -891,7 +891,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             optimismPortal: address(_cts.optimismPortal),
             optimismMintableERC20Factory: address(_cts.optimismMintableERC20Factory),
             delayedWETH: address(_cts.delayedWETH),
-            opcm: address(thisOPCM)
+            opcm: address(opcmV2)
         });
 
         // Generate the initializer arguments.
