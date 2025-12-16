@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -30,6 +31,11 @@ func NewBatchStage(log log.Logger, cfg *rollup.Config, prev NextBatchProvider, l
 	return &BatchStage{baseBatchStage: newBaseBatchStage(log, cfg, prev, l2)}
 }
 
+// NewBatchStageWithMetrics creates a BatchStage with derivation metrics instrumentation.
+func NewBatchStageWithMetrics(log log.Logger, cfg *rollup.Config, prev NextBatchProvider, l2 SafeBlockFetcher, derivMetrics DerivationMetrics) *BatchStage {
+	return &BatchStage{baseBatchStage: newBaseBatchStageWithMetrics(log, cfg, prev, l2, derivMetrics)}
+}
+
 func (bs *BatchStage) Reset(_ context.Context, base eth.L1BlockRef, _ eth.SystemConfig) error {
 	bs.reset(base)
 	return io.EOF
@@ -41,6 +47,15 @@ func (bs *BatchStage) FlushChannel() {
 }
 
 func (bs *BatchStage) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*SingularBatch, bool, error) {
+	start := time.Now()
+	var result string
+	defer func() {
+		bs.derivMetrics.RecordStageProcessing(StageBatchQueue, time.Since(start), result)
+	}()
+
+	// Record queue depth (cached span batches)
+	bs.derivMetrics.RecordStageQueueDepth(StageBatchQueue, len(bs.nextSpan))
+
 	// with Holocene, we can always update (and prune) the origins because we don't backwards-invalidate.
 	bs.updateOrigins(parent)
 
@@ -48,11 +63,17 @@ func (bs *BatchStage) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 	// Note that a channel from the parent's L1 origin block can only contain past batches, so we
 	// can just skip them.
 	if bs.originBehind(parent) || parent.L1Origin.Number == bs.origin.Number {
-		if _, err := bs.prev.NextBatch(ctx); err != nil {
+		waitStart := time.Now()
+		_, err := bs.prev.NextBatch(ctx)
+		bs.derivMetrics.RecordStageWaitTime(StageBatchQueue, time.Since(waitStart))
+
+		if err != nil {
 			// includes io.EOF and NotEnoughData
+			result = ResultEmpty
 			return nil, false, err
 		}
 		// continue draining
+		result = ResultEmpty
 		return nil, false, NotEnoughData
 	}
 
@@ -60,6 +81,7 @@ func (bs *BatchStage) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 		// This can only happen if derivation erroneously doesn't start at a safe head.
 		// By now, the L1 origin of the first safe head and the following L1 block must be in the
 		// l1Blocks.
+		result = ResultError
 		return nil, false, NewCriticalError(fmt.Errorf(
 			"unexpected low buffered origin count, origin: %v, parent: %v", bs.origin, parent))
 	}
@@ -68,6 +90,8 @@ func (bs *BatchStage) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 	// This is in the case where we auto generate all batches in an epoch & advance the epoch in
 	// deriveNextEmptyBatch but don't advance the L2 Safe Head's epoch
 	if epoch := bs.l1Blocks[0]; parent.L1Origin != epoch.ID() && parent.L1Origin.Number != epoch.Number-1 {
+		result = ResultError
+		bs.derivMetrics.RecordPipelineReset(ResetReasonInvalidBatch)
 		return nil, false, NewResetError(fmt.Errorf("buffered L1 chain epoch %s in batch queue does not match safe head origin %s", epoch, parent.L1Origin))
 	}
 
@@ -77,8 +101,15 @@ func (bs *BatchStage) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 		// span batch queue and the previous stage.
 		empty, err := bs.deriveNextEmptyBatch(ctx, true, parent)
 		// An empty batch always advances the (local) safe head.
+		if err == nil {
+			result = ResultSuccess
+			bs.derivMetrics.RecordStageItemProcessed(StageBatchQueue, ResultSuccess)
+		} else {
+			result = ResultEmpty
+		}
 		return empty, true, err
 	} else if err != nil {
+		result = ResultError
 		return nil, false, err
 	}
 
@@ -88,23 +119,32 @@ func (bs *BatchStage) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 	case BatchAccept: // continue
 		batch.LogContext(bs.Log()).Debug("Found next singular batch")
 		// BatchStage is only used with Holocene, where blocks immediately become (local) safe
+		result = ResultSuccess
+		bs.derivMetrics.RecordStageItemProcessed(StageBatchQueue, ResultSuccess)
 		return batch, true, nil
 	case BatchPast:
 		batch.LogContext(bs.Log()).Warn("Dropping past singular batch")
 		// NotEnoughData to read in next batch until we're through all past batches
+		result = ResultFiltered
+		bs.derivMetrics.RecordStageItemProcessed(StageBatchQueue, ResultFiltered)
 		return nil, false, NotEnoughData
 	case BatchDrop: // drop, flush, move onto next channel
 		batch.LogContext(bs.Log()).Warn("Dropping invalid singular batch, flushing channel")
 		bs.FlushChannel()
 		// NotEnoughData will cause derivation from previous stages until they're empty, at which
 		// point empty batch derivation will happen.
+		result = ResultFiltered
+		bs.derivMetrics.RecordStageItemProcessed(StageBatchQueue, ResultFiltered)
 		return nil, false, NotEnoughData
 	case BatchUndecided: // l2 fetcher error, try again
 		batch.LogContext(bs.Log()).Warn("Undecided span batch")
+		result = ResultEmpty
 		return nil, false, NotEnoughData
 	case BatchFuture: // panic, can't happen
+		result = ResultError
 		return nil, false, NewCriticalError(fmt.Errorf("impossible batch validity: %v", validity))
 	default:
+		result = ResultError
 		return nil, false, NewCriticalError(fmt.Errorf("unknown batch validity type: %d", validity))
 	}
 }

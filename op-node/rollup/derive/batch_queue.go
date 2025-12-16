@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -42,9 +43,25 @@ func NewBatchQueue(log log.Logger, cfg *rollup.Config, prev NextBatchProvider, l
 	return &BatchQueue{baseBatchStage: newBaseBatchStage(log, cfg, prev, l2)}
 }
 
+// NewBatchQueueWithMetrics creates a BatchQueue with derivation metrics instrumentation.
+func NewBatchQueueWithMetrics(log log.Logger, cfg *rollup.Config, prev NextBatchProvider, l2 SafeBlockFetcher, derivMetrics DerivationMetrics) *BatchQueue {
+	return &BatchQueue{baseBatchStage: newBaseBatchStageWithMetrics(log, cfg, prev, l2, derivMetrics)}
+}
+
 func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*SingularBatch, bool, error) {
+	start := time.Now()
+	var result string
+	defer func() {
+		bq.derivMetrics.RecordStageProcessing(StageBatchQueue, time.Since(start), result)
+	}()
+
+	// Record queue depth (batches waiting + cached span batches)
+	bq.derivMetrics.RecordStageQueueDepth(StageBatchQueue, len(bq.batches)+len(bq.nextSpan))
+
 	// Early return if there are singular batches from a span batch queued up
 	if batch, last := bq.nextFromSpanBatch(parent); batch != nil {
+		result = ResultCached
+		bq.derivMetrics.RecordStageItemProcessed(StageBatchQueue, ResultCached)
 		return batch, last, nil
 	}
 
@@ -53,9 +70,15 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 	originBehind := bq.originBehind(parent)
 	// Load more data into the batch queue
 	outOfData := false
-	if batch, err := bq.prev.NextBatch(ctx); err == io.EOF {
+
+	waitStart := time.Now()
+	batch, err := bq.prev.NextBatch(ctx)
+	bq.derivMetrics.RecordStageWaitTime(StageBatchQueue, time.Since(waitStart))
+
+	if err == io.EOF {
 		outOfData = true
 	} else if err != nil {
+		result = ResultError
 		return nil, false, err
 	} else if !originBehind {
 		bq.AddBatch(ctx, batch, parent)
@@ -65,33 +88,40 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 	// empty the previous stages
 	if originBehind {
 		if outOfData {
+			result = ResultEmpty
 			return nil, false, io.EOF
 		} else {
+			result = ResultEmpty
 			return nil, false, NotEnoughData
 		}
 	}
 
 	// Finally attempt to derive more batches
-	batch, err := bq.deriveNextBatch(ctx, outOfData, parent)
+	derivedBatch, err := bq.deriveNextBatch(ctx, outOfData, parent)
 	if err == io.EOF && outOfData {
+		result = ResultEmpty
 		return nil, false, io.EOF
 	} else if err == io.EOF {
+		result = ResultEmpty
 		return nil, false, NotEnoughData
 	} else if err != nil {
+		result = ResultError
 		return nil, false, err
 	}
 
 	var nextBatch *SingularBatch
-	switch typ := batch.GetBatchType(); typ {
+	switch typ := derivedBatch.GetBatchType(); typ {
 	case SingularBatchType:
-		singularBatch, ok := batch.AsSingularBatch()
+		singularBatch, ok := derivedBatch.AsSingularBatch()
 		if !ok {
+			result = ResultError
 			return nil, false, NewCriticalError(errors.New("failed type assertion to SingularBatch"))
 		}
 		nextBatch = singularBatch
 	case SpanBatchType:
-		spanBatch, ok := batch.AsSpanBatch()
+		spanBatch, ok := derivedBatch.AsSpanBatch()
 		if !ok {
+			result = ResultError
 			return nil, false, NewCriticalError(errors.New("failed type assertion to SpanBatch"))
 		}
 		// If next batch is SpanBatch, convert it to SingularBatches.
@@ -99,17 +129,21 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 		// bq.deriveNextBatch above will already have performed full span batch validation
 		// so an error performing singular batch extraction here is treated as a critical logic error.
 		if err != nil {
+			result = ResultError
 			return nil, false, NewCriticalError(err)
 		}
 		bq.nextSpan = singularBatches
 		// span-batches are non-empty, so the below pop is safe.
 		nextBatch = bq.popNextBatch(parent)
 	default:
+		result = ResultError
 		return nil, false, NewCriticalError(fmt.Errorf("unrecognized batch type: %d", typ))
 	}
 
 	// If the nextBatch is derived from the span batch, len(bq.nextSpan) == 0 means it's the last batch of the span.
 	// For singular batches, len(bq.nextSpan) == 0 is always true.
+	result = ResultSuccess
+	bq.derivMetrics.RecordStageItemProcessed(StageBatchQueue, ResultSuccess)
 	return nextBatch, len(bq.nextSpan) == 0, nil
 }
 

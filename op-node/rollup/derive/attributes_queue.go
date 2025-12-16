@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"time"
+	gotime "time"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -49,10 +49,11 @@ func (a *AttributesWithParent) IsDerived() bool {
 }
 
 type AttributesQueue struct {
-	log     log.Logger
-	config  *rollup.Config
-	builder AttributesBuilder
-	prev    SingularBatchProvider
+	log          log.Logger
+	config       *rollup.Config
+	builder      AttributesBuilder
+	prev         SingularBatchProvider
+	derivMetrics DerivationMetrics
 
 	batch       *SingularBatch
 	concluding  bool
@@ -68,10 +69,22 @@ type SingularBatchProvider interface {
 
 func NewAttributesQueue(log log.Logger, cfg *rollup.Config, builder AttributesBuilder, prev SingularBatchProvider) *AttributesQueue {
 	return &AttributesQueue{
-		log:     log,
-		config:  cfg,
-		builder: builder,
-		prev:    prev,
+		log:          log,
+		config:       cfg,
+		builder:      builder,
+		prev:         prev,
+		derivMetrics: NoopDerivationMetrics{},
+	}
+}
+
+// NewAttributesQueueWithMetrics creates an AttributesQueue with derivation metrics instrumentation.
+func NewAttributesQueueWithMetrics(log log.Logger, cfg *rollup.Config, builder AttributesBuilder, prev SingularBatchProvider, derivMetrics DerivationMetrics) *AttributesQueue {
+	return &AttributesQueue{
+		log:          log,
+		config:       cfg,
+		builder:      builder,
+		prev:         prev,
+		derivMetrics: derivMetrics,
 	}
 }
 
@@ -80,10 +93,27 @@ func (aq *AttributesQueue) Origin() eth.L1BlockRef {
 }
 
 func (aq *AttributesQueue) NextAttributes(ctx context.Context, parent eth.L2BlockRef) (*AttributesWithParent, error) {
+	start := gotime.Now()
+	var result string
+	defer func() {
+		aq.derivMetrics.RecordStageProcessing(StageAttributesQueue, gotime.Since(start), result)
+	}()
+
+	// Record queue depth (0 or 1 since we only buffer one batch)
+	queueDepth := 0
+	if aq.batch != nil {
+		queueDepth = 1
+	}
+	aq.derivMetrics.RecordStageQueueDepth(StageAttributesQueue, queueDepth)
+
 	// Get a batch if we need it
 	if aq.batch == nil {
+		waitStart := gotime.Now()
 		batch, concluding, err := aq.prev.NextBatch(ctx, parent)
+		aq.derivMetrics.RecordStageWaitTime(StageAttributesQueue, gotime.Since(waitStart))
+
 		if err != nil {
+			result = ResultEmpty
 			return nil, err
 		}
 		aq.batch = batch
@@ -92,6 +122,7 @@ func (aq *AttributesQueue) NextAttributes(ctx context.Context, parent eth.L2Bloc
 
 	// Actually generate the next attributes
 	if attrs, err := aq.createNextAttributes(ctx, aq.batch, parent); err != nil {
+		result = ResultError
 		return nil, err
 	} else {
 		// Clear out the local state once we will succeed
@@ -104,6 +135,8 @@ func (aq *AttributesQueue) NextAttributes(ctx context.Context, parent eth.L2Bloc
 		aq.lastAttribs = &attr
 		aq.batch = nil
 		aq.concluding = false
+		result = ResultSuccess
+		aq.derivMetrics.RecordStageItemProcessed(StageAttributesQueue, ResultSuccess)
 		return &attr, nil
 	}
 }
@@ -119,7 +152,7 @@ func (aq *AttributesQueue) createNextAttributes(ctx context.Context, batch *Sing
 	if expected := l2SafeHead.Time + aq.config.BlockTime; expected != batch.Timestamp {
 		return nil, NewResetError(fmt.Errorf("valid batch has bad timestamp %d, expected %d", batch.Timestamp, expected))
 	}
-	fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	fetchCtx, cancel := context.WithTimeout(ctx, 20*gotime.Second)
 	defer cancel()
 	attrs, err := aq.builder.PreparePayloadAttributes(fetchCtx, l2SafeHead, batch.Epoch())
 	if err != nil {

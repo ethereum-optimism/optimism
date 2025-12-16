@@ -3,6 +3,7 @@ package derive
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -23,17 +24,29 @@ type NextDataProvider interface {
 }
 
 type FrameQueue struct {
-	log    log.Logger
-	frames []Frame
-	prev   NextDataProvider
-	cfg    *rollup.Config
+	log          log.Logger
+	frames       []Frame
+	prev         NextDataProvider
+	cfg          *rollup.Config
+	derivMetrics DerivationMetrics
 }
 
 func NewFrameQueue(log log.Logger, cfg *rollup.Config, prev NextDataProvider) *FrameQueue {
 	return &FrameQueue{
-		log:  log,
-		prev: prev,
-		cfg:  cfg,
+		log:          log,
+		prev:         prev,
+		cfg:          cfg,
+		derivMetrics: NoopDerivationMetrics{},
+	}
+}
+
+// NewFrameQueueWithMetrics creates a FrameQueue with derivation metrics instrumentation.
+func NewFrameQueueWithMetrics(log log.Logger, cfg *rollup.Config, prev NextDataProvider, derivMetrics DerivationMetrics) *FrameQueue {
+	return &FrameQueue{
+		log:          log,
+		prev:         prev,
+		cfg:          cfg,
+		derivMetrics: derivMetrics,
 	}
 }
 
@@ -51,25 +64,42 @@ func (fq *FrameQueue) Origin() eth.L1BlockRef {
 }
 
 func (fq *FrameQueue) NextFrame(ctx context.Context) (Frame, error) {
+	start := time.Now()
+	var result string
+	defer func() {
+		fq.derivMetrics.RecordStageProcessing(StageFrameQueue, time.Since(start), result)
+	}()
+
+	// Record queue depth
+	fq.derivMetrics.RecordStageQueueDepth(StageFrameQueue, len(fq.frames))
+
 	// Only load more frames if necessary
 	if len(fq.frames) == 0 {
 		if err := fq.loadNextFrames(ctx); err != nil {
+			result = ResultEmpty
 			return Frame{}, err
 		}
 	}
 
 	// If we did not add more frames but still have more data, retry this function.
 	if len(fq.frames) == 0 {
+		result = ResultEmpty
 		return Frame{}, NotEnoughData
 	}
 
 	ret := fq.frames[0]
 	fq.frames = fq.frames[1:]
+	result = ResultSuccess
+	fq.derivMetrics.RecordStageItemProcessed(StageFrameQueue, ResultSuccess)
+	fq.derivMetrics.RecordStageBytesProcessed(StageFrameQueue, int64(len(ret.Data)))
 	return ret, nil
 }
 
 func (fq *FrameQueue) loadNextFrames(ctx context.Context) error {
+	waitStart := time.Now()
 	data, err := fq.prev.NextData(ctx)
+	fq.derivMetrics.RecordStageWaitTime(StageFrameQueue, time.Since(waitStart))
+
 	if err != nil {
 		return err
 	}
@@ -78,6 +108,7 @@ func (fq *FrameQueue) loadNextFrames(ctx context.Context) error {
 		fq.frames = append(fq.frames, frames...)
 	} else {
 		fq.log.Warn("Failed to parse frames", "origin", fq.prev.Origin(), "err", err)
+		fq.derivMetrics.RecordStageItemProcessed(StageFrameQueue, ResultFiltered)
 		return nil
 	}
 

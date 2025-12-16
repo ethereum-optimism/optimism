@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
@@ -11,9 +12,10 @@ import (
 
 // ChannelAssembler assembles frames into a raw channel. It replaces the ChannelBank since Holocene.
 type ChannelAssembler struct {
-	log     log.Logger
-	spec    ChannelStageSpec
-	metrics Metrics
+	log          log.Logger
+	spec         ChannelStageSpec
+	metrics      Metrics
+	derivMetrics DerivationMetrics
 
 	channel *Channel
 
@@ -31,10 +33,22 @@ type ChannelStageSpec interface {
 // It must only be used for derivation from Holocene origins.
 func NewChannelAssembler(log log.Logger, spec ChannelStageSpec, prev NextFrameProvider, m Metrics) *ChannelAssembler {
 	return &ChannelAssembler{
-		log:     log,
-		spec:    spec,
-		metrics: m,
-		prev:    prev,
+		log:          log,
+		spec:         spec,
+		metrics:      m,
+		derivMetrics: NoopDerivationMetrics{},
+		prev:         prev,
+	}
+}
+
+// NewChannelAssemblerWithMetrics creates a ChannelAssembler with derivation metrics instrumentation.
+func NewChannelAssemblerWithMetrics(log log.Logger, spec ChannelStageSpec, prev NextFrameProvider, m Metrics, derivMetrics DerivationMetrics) *ChannelAssembler {
+	return &ChannelAssembler{
+		log:          log,
+		spec:         spec,
+		metrics:      m,
+		derivMetrics: derivMetrics,
+		prev:         prev,
 	}
 }
 
@@ -65,8 +79,22 @@ func (ca *ChannelAssembler) channelTimedOut() bool {
 }
 
 func (ca *ChannelAssembler) NextRawChannel(ctx context.Context) ([]byte, error) {
+	start := time.Now()
+	var result string
+	defer func() {
+		ca.derivMetrics.RecordStageProcessing(StageChannelBank, time.Since(start), result)
+	}()
+
+	// Record queue depth (0 or 1 for assembler since it processes one channel at a time)
+	queueDepth := 0
+	if ca.channel != nil {
+		queueDepth = 1
+	}
+	ca.derivMetrics.RecordStageQueueDepth(StageChannelBank, queueDepth)
+
 	if ca.channel != nil && ca.channelTimedOut() {
 		ca.metrics.RecordChannelTimedOut()
+		ca.derivMetrics.RecordPipelineReset(ResetReasonChannelTimeout)
 		ca.resetChannel()
 	}
 
@@ -76,6 +104,7 @@ func (ca *ChannelAssembler) NextRawChannel(ctx context.Context) ([]byte, error) 
 	// Note that if the current channel was already completed, we would have forwarded its data
 	// already. So we start by reading in frames.
 	if ca.channel != nil && ca.channel.IsReady() {
+		result = ResultError
 		return nil, NewCriticalError(errors.New("unexpected ready channel"))
 	}
 
@@ -87,8 +116,12 @@ func (ca *ChannelAssembler) NextRawChannel(ctx context.Context) ([]byte, error) 
 	// doesn't make a difference in computational effort if these are many small frames or one large
 	// frame of that size. Plus, this is really just moving data around, no decompression etc. yet.
 	for {
+		waitStart := time.Now()
 		frame, err := ca.prev.NextFrame(ctx)
+		ca.derivMetrics.RecordStageWaitTime(StageChannelBank, time.Since(waitStart))
+
 		if err != nil { // includes io.EOF; a last frame broke the loop already
+			result = ResultEmpty
 			return nil, err
 		}
 
@@ -101,6 +134,7 @@ func (ca *ChannelAssembler) NextRawChannel(ctx context.Context) ([]byte, error) 
 		if frame.FrameNumber > 0 && ca.channel == nil {
 			lgr.Warn("dropping non-first frame without channel",
 				"frame_channel", frame.ID, "frame_number", frame.FrameNumber)
+			ca.derivMetrics.RecordStageItemProcessed(StageChannelBank, ResultFiltered)
 			continue // read more frames
 		}
 
@@ -111,11 +145,13 @@ func (ca *ChannelAssembler) NextRawChannel(ctx context.Context) ([]byte, error) 
 			lgr.Warn("failed to add frame to channel",
 				"channel", ca.channel.ID(), "frame_channel", frame.ID,
 				"frame_number", frame.FrameNumber, "err", err)
+			ca.derivMetrics.RecordStageItemProcessed(StageChannelBank, ResultFiltered)
 			continue // read more frames
 		}
 		if ca.channel.Size() > ca.spec.MaxRLPBytesPerChannel(ca.Origin().Time) {
 			lgr.Warn("dropping oversized channel",
 				"channel", ca.channel.ID(), "frame_number", frame.FrameNumber)
+			ca.derivMetrics.RecordStageItemProcessed(StageChannelBank, ResultFiltered)
 			ca.resetChannel()
 			continue // read more frames
 		}
@@ -129,10 +165,19 @@ func (ca *ChannelAssembler) NextRawChannel(ctx context.Context) ([]byte, error) 
 	ch := ca.channel
 	// Note that if we exit the frame ingestion loop, we're guaranteed to have a ready channel.
 	if ch == nil || !ch.IsReady() {
+		result = ResultError
 		return nil, NewCriticalError(errors.New("unexpected non-ready channel"))
 	}
 
 	ca.resetChannel()
 	r := ch.Reader()
-	return io.ReadAll(r)
+	data, err := io.ReadAll(r)
+	if err != nil {
+		result = ResultError
+		return nil, err
+	}
+	result = ResultSuccess
+	ca.derivMetrics.RecordStageItemProcessed(StageChannelBank, ResultSuccess)
+	ca.derivMetrics.RecordStageBytesProcessed(StageChannelBank, int64(len(data)))
+	return data, nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -30,10 +31,11 @@ type L1TraversalManaged struct {
 	// false = not consumed yet
 	done bool
 
-	l1Blocks L1TraversalManagedSource
-	log      log.Logger
-	sysCfg   eth.SystemConfig
-	cfg      *rollup.Config
+	l1Blocks     L1TraversalManagedSource
+	log          log.Logger
+	sysCfg       eth.SystemConfig
+	cfg          *rollup.Config
+	derivMetrics DerivationMetrics
 }
 
 var _ l1TraversalStage = (*L1TraversalManaged)(nil)
@@ -41,9 +43,20 @@ var _ ManagedL1Traversal = (*L1TraversalManaged)(nil)
 
 func NewL1TraversalManaged(log log.Logger, cfg *rollup.Config, l1Blocks L1TraversalManagedSource) *L1TraversalManaged {
 	return &L1TraversalManaged{
-		log:      log,
-		l1Blocks: l1Blocks,
-		cfg:      cfg,
+		log:          log,
+		l1Blocks:     l1Blocks,
+		cfg:          cfg,
+		derivMetrics: NoopDerivationMetrics{},
+	}
+}
+
+// NewL1TraversalManagedWithMetrics creates an L1TraversalManaged with derivation metrics instrumentation.
+func NewL1TraversalManagedWithMetrics(log log.Logger, cfg *rollup.Config, l1Blocks L1TraversalManagedSource, derivMetrics DerivationMetrics) *L1TraversalManaged {
+	return &L1TraversalManaged{
+		log:          log,
+		l1Blocks:     l1Blocks,
+		cfg:          cfg,
+		derivMetrics: derivMetrics,
 	}
 }
 
@@ -90,24 +103,41 @@ func (l1c *L1TraversalManaged) SystemConfig() eth.SystemConfig {
 
 // ProvideNextL1 is an override to traverse to the next L1 block.
 func (l1t *L1TraversalManaged) ProvideNextL1(ctx context.Context, nextL1 eth.L1BlockRef) error {
+	start := time.Now()
+	var result string
+	defer func() {
+		l1t.derivMetrics.RecordStageProcessing(StageL1Traversal, time.Since(start), result)
+	}()
+
+	// Record queue depth (L1 Traversal has no queue, so always 0)
+	l1t.derivMetrics.RecordStageQueueDepth(StageL1Traversal, 0)
+
 	logger := l1t.log.New("current", l1t.block, "next", nextL1)
 	if !l1t.done {
 		logger.Debug("Not ready for next L1 block yet")
+		result = ResultEmpty
 		return nil
 	}
 	if l1t.block.Number+1 != nextL1.Number {
 		logger.Warn("Received signal for L1 block, but needed different block")
+		result = ResultFiltered
 		return nil // safe to ignore; we'll signal an exhaust-L1 event, and get the correct next L1 block.
 	}
 	if l1t.block.Hash != nextL1.ParentHash {
 		logger.Warn("Provided next L1 block does not build on last processed L1 block")
+		result = ResultError
+		l1t.derivMetrics.RecordPipelineReset(ResetReasonL1Reorg)
 		return NewResetError(fmt.Errorf("provided next L1 block %s does not build on last processed L1 block %s", nextL1, l1t.block))
 	}
 
 	// Parse L1 receipts of the given block and update the L1 system configuration.
 	// If this fails, the caller will just have to ProvideNextL1 again (triggered by revisiting the exhausted-L1 signal).
+	waitStart := time.Now()
 	_, receipts, err := l1t.l1Blocks.FetchReceipts(ctx, nextL1.Hash)
+	l1t.derivMetrics.RecordStageWaitTime(StageL1Traversal, time.Since(waitStart))
+
 	if err != nil {
+		result = ResultError
 		return NewTemporaryError(fmt.Errorf("failed to fetch receipts of L1 block %s (parent: %s) for L1 sysCfg update: %w",
 			nextL1, nextL1.ParentID(), err))
 	}
@@ -120,5 +150,7 @@ func (l1t *L1TraversalManaged) ProvideNextL1(ctx context.Context, nextL1 eth.L1B
 	logger.Info("Derivation continued with next L1 block")
 	l1t.block = nextL1
 	l1t.done = false
+	result = ResultSuccess
+	l1t.derivMetrics.RecordStageItemProcessed(StageL1Traversal, ResultSuccess)
 	return nil
 }

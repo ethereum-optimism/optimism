@@ -25,10 +25,11 @@ type SafeBlockFetcher interface {
 // currently shared between the legacy BatchQueue, which buffers future batches, and the
 // post-Holocene BatchStage, which requires strictly ordered batches.
 type baseBatchStage struct {
-	log    log.Logger
-	config *rollup.Config
-	prev   NextBatchProvider
-	l2     SafeBlockFetcher
+	log          log.Logger
+	config       *rollup.Config
+	prev         NextBatchProvider
+	l2           SafeBlockFetcher
+	derivMetrics DerivationMetrics
 
 	origin eth.L1BlockRef
 
@@ -46,10 +47,21 @@ type baseBatchStage struct {
 
 func newBaseBatchStage(log log.Logger, cfg *rollup.Config, prev NextBatchProvider, l2 SafeBlockFetcher) baseBatchStage {
 	return baseBatchStage{
-		log:    log,
-		config: cfg,
-		prev:   prev,
-		l2:     l2,
+		log:          log,
+		config:       cfg,
+		prev:         prev,
+		l2:           l2,
+		derivMetrics: NoopDerivationMetrics{},
+	}
+}
+
+func newBaseBatchStageWithMetrics(log log.Logger, cfg *rollup.Config, prev NextBatchProvider, l2 SafeBlockFetcher, derivMetrics DerivationMetrics) baseBatchStage {
+	return baseBatchStage{
+		log:          log,
+		config:       cfg,
+		prev:         prev,
+		l2:           l2,
+		derivMetrics: derivMetrics,
 	}
 }
 

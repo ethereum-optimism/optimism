@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -17,12 +18,13 @@ import (
 // This is a pure function from the channel, but each channel (or channel fragment)
 // must be tagged with an L1 inclusion block to be passed to the batch queue.
 type ChannelInReader struct {
-	log         log.Logger
-	spec        *rollup.ChainSpec
-	cfg         *rollup.Config
-	nextBatchFn func() (*BatchData, error)
-	prev        RawChannelProvider
-	metrics     Metrics
+	log          log.Logger
+	spec         *rollup.ChainSpec
+	cfg          *rollup.Config
+	nextBatchFn  func() (*BatchData, error)
+	prev         RawChannelProvider
+	metrics      Metrics
+	derivMetrics DerivationMetrics
 }
 
 var (
@@ -40,11 +42,24 @@ type RawChannelProvider interface {
 // NewChannelInReader creates a ChannelInReader, which should be Reset(origin) before use.
 func NewChannelInReader(cfg *rollup.Config, log log.Logger, prev RawChannelProvider, metrics Metrics) *ChannelInReader {
 	return &ChannelInReader{
-		spec:    rollup.NewChainSpec(cfg),
-		cfg:     cfg,
-		log:     log,
-		prev:    prev,
-		metrics: metrics,
+		spec:         rollup.NewChainSpec(cfg),
+		cfg:          cfg,
+		log:          log,
+		prev:         prev,
+		metrics:      metrics,
+		derivMetrics: NoopDerivationMetrics{},
+	}
+}
+
+// NewChannelInReaderWithMetrics creates a ChannelInReader with derivation metrics instrumentation.
+func NewChannelInReaderWithMetrics(cfg *rollup.Config, log log.Logger, prev RawChannelProvider, metrics Metrics, derivMetrics DerivationMetrics) *ChannelInReader {
+	return &ChannelInReader{
+		spec:         rollup.NewChainSpec(cfg),
+		cfg:          cfg,
+		log:          log,
+		prev:         prev,
+		metrics:      metrics,
+		derivMetrics: derivMetrics,
 	}
 }
 
@@ -74,13 +89,26 @@ func (cr *ChannelInReader) NextChannel() {
 // It returns io.EOF when it cannot make any more progress.
 // It will return a temporary error if it needs to be called again to advance some internal state.
 func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
+	start := time.Now()
+	var result string
+	defer func() {
+		cr.derivMetrics.RecordStageProcessing(StageChannelReader, time.Since(start), result)
+	}()
+
 	if cr.nextBatchFn == nil {
-		if data, err := cr.prev.NextRawChannel(ctx); err == io.EOF {
+		waitStart := time.Now()
+		data, err := cr.prev.NextRawChannel(ctx)
+		cr.derivMetrics.RecordStageWaitTime(StageChannelReader, time.Since(waitStart))
+
+		if err == io.EOF {
+			result = ResultEmpty
 			return nil, io.EOF
 		} else if err != nil {
+			result = ResultError
 			return nil, err
 		} else {
 			if err := cr.WriteChannel(data); err != nil {
+				result = ResultError
 				return nil, NewTemporaryError(err)
 			}
 		}
@@ -91,10 +119,13 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 	batchData, err := cr.nextBatchFn()
 	if err == io.EOF {
 		cr.NextChannel()
+		result = ResultEmpty
 		return nil, NotEnoughData
 	} else if err != nil {
 		cr.log.Warn("failed to read batch from channel reader, skipping to next channel now", "err", err)
 		cr.NextChannel()
+		result = ResultFiltered
+		cr.derivMetrics.RecordStageItemProcessed(StageChannelReader, ResultFiltered)
 		return nil, NotEnoughData
 	}
 
@@ -103,27 +134,36 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 	case SingularBatchType:
 		batch.Batch, err = GetSingularBatch(batchData)
 		if err != nil {
+			result = ResultError
 			return nil, err
 		}
 		batch.LogContext(cr.log).Info("decoded singular batch from channel", "stage_origin", cr.Origin())
 		cr.metrics.RecordDerivedBatches("singular")
+		result = ResultSuccess
+		cr.derivMetrics.RecordStageItemProcessed(StageChannelReader, ResultSuccess)
 		return batch, nil
 	case SpanBatchType:
 		if origin := cr.Origin(); !cr.cfg.IsDelta(origin.Time) {
 			// Check hard fork activation with the L1 inclusion block time instead of the L1 origin block time.
 			// Therefore, even if the batch passed this rule, it can be dropped in the batch queue.
 			// This is just for early dropping invalid batches as soon as possible.
+			result = ResultFiltered
+			cr.derivMetrics.RecordStageItemProcessed(StageChannelReader, ResultFiltered)
 			return nil, NewTemporaryError(fmt.Errorf("cannot accept span batch in L1 block %s at time %d", origin, origin.Time))
 		}
 		batch.Batch, err = DeriveSpanBatch(batchData, cr.cfg.BlockTime, cr.cfg.Genesis.L2Time, cr.cfg.L2ChainID)
 		if err != nil {
+			result = ResultError
 			return nil, err
 		}
 		batch.LogContext(cr.log).Info("decoded span batch from channel", "stage_origin", cr.Origin())
 		cr.metrics.RecordDerivedBatches("span")
+		result = ResultSuccess
+		cr.derivMetrics.RecordStageItemProcessed(StageChannelReader, ResultSuccess)
 		return batch, nil
 	default:
 		// error is bubbled up to user, but pipeline can skip the batch and continue after.
+		result = ResultError
 		return nil, NewTemporaryError(fmt.Errorf("unrecognized batch type: %d", batchData.GetBatchType()))
 	}
 }

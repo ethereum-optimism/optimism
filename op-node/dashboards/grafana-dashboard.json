@@ -1,0 +1,143 @@
+{
+    "dashboard": {
+      "title": "OP-Node Derivation Pipeline Metrics",
+      "tags": ["optimism", "derivation", "performance"],
+      "timezone": "browser",
+      "panels": [
+        {
+          "id": 1,
+          "title": "Stage Processing Time Distribution",
+          "type": "graph",
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+          "targets": [
+            {
+              "expr": "rate(op_node_derivation_stage_duration_seconds_sum[5m]) / rate(op_node_derivation_stage_duration_seconds_count[5m])",
+              "legendFormat": "{{stage}} - {{result}}"
+            }
+          ],
+          "yaxes": [
+            {"format": "s", "label": "Avg Processing Time"},
+            {"format": "short"}
+          ],
+          "description": "Average processing time per stage over 5 minute windows"
+        },
+        {
+          "id": 2,
+          "title": "Stage Queue Depths",
+          "type": "graph",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "targets": [
+            {
+              "expr": "op_node_derivation_stage_queue_depth",
+              "legendFormat": "{{stage}}"
+            }
+          ],
+          "yaxes": [
+            {"format": "short", "label": "Queue Depth"},
+            {"format": "short"}
+          ],
+          "description": "Current depth of each pipeline stage's queue"
+        },
+        {
+          "id": 3,
+          "title": "Items Processed Rate",
+          "type": "graph",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "targets": [
+            {
+              "expr": "rate(op_node_derivation_stage_items_processed_total[5m])",
+              "legendFormat": "{{stage}} - {{result}}"
+            }
+          ],
+          "yaxes": [
+            {"format": "ops", "label": "Items/sec"},
+            {"format": "short"}
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Data Throughput (Bytes/sec)",
+          "type": "graph",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "targets": [
+            {
+              "expr": "rate(op_node_derivation_stage_bytes_processed_total[5m])",
+              "legendFormat": "{{stage}}"
+            }
+          ],
+          "yaxes": [
+            {"format": "Bps", "label": "Bytes/sec"},
+            {"format": "short"}
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Pipeline Resets",
+          "type": "graph",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "targets": [
+            {
+              "expr": "rate(op_node_derivation_pipeline_resets_total[5m])",
+              "legendFormat": "{{reason}}"
+            }
+          ],
+          "yaxes": [
+            {"format": "ops", "label": "Resets/sec"},
+            {"format": "short"}
+          ],
+          "description": "Rate of pipeline resets by reason"
+        },
+        {
+          "id": 6,
+          "title": "End-to-End L1 Block Processing Time",
+          "type": "graph",
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.99, rate(op_node_derivation_l1_block_processing_duration_seconds_bucket[5m]))",
+              "legendFormat": "p99"
+            },
+            {
+              "expr": "histogram_quantile(0.95, rate(op_node_derivation_l1_block_processing_duration_seconds_bucket[5m]))",
+              "legendFormat": "p95"
+            },
+            {
+              "expr": "histogram_quantile(0.50, rate(op_node_derivation_l1_block_processing_duration_seconds_bucket[5m]))",
+              "legendFormat": "p50"
+            }
+          ],
+          "yaxes": [
+            {"format": "s", "label": "Duration"},
+            {"format": "short"}
+          ]
+        },
+        {
+          "id": 7,
+          "title": "Stage Wait Time Distribution",
+          "type": "heatmap",
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 32},
+          "targets": [
+            {
+              "expr": "rate(op_node_derivation_stage_wait_duration_seconds_bucket[5m])",
+              "legendFormat": "{{stage}}"
+            }
+          ],
+          "description": "Time stages spend waiting for data from outer stages"
+        },
+        {
+          "id": 8,
+          "title": "Bottleneck Identification",
+          "type": "table",
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 40},
+          "targets": [
+            {
+              "expr": "topk(5, rate(op_node_derivation_stage_duration_seconds_sum[5m]))",
+              "format": "table",
+              "instant": true
+            }
+          ],
+          "description": "Top 5 slowest pipeline stages by total time spent"
+        }
+      ]
+    }
+  }

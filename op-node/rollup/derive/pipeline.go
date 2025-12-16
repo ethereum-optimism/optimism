@@ -93,30 +93,31 @@ type DerivationPipeline struct {
 	resetSysConfig eth.SystemConfig
 	engineIsReset  bool
 
-	metrics Metrics
+	metrics      Metrics
+	derivMetrics DerivationMetrics
 }
 
 // NewDerivationPipeline creates a DerivationPipeline, to turn L1 data into L2 block-inputs.
 func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, depSet DependencySet, l1Fetcher L1Fetcher, l1Blobs L1BlobsFetcher,
-	altDA AltDAInputFetcher, l2Source L2Source, metrics Metrics, managedBySupervisor bool, l1ChainConfig *params.ChainConfig,
+	altDA AltDAInputFetcher, l2Source L2Source, metrics Metrics, derivMetrics DerivationMetrics, managedBySupervisor bool, l1ChainConfig *params.ChainConfig,
 ) *DerivationPipeline {
 	spec := rollup.NewChainSpec(rollupCfg)
 	// Stages are strung together into a pipeline,
 	// results are pulled from the stage closed to the L2 engine, which pulls from the previous stage, and so on.
 	var l1Traversal l1TraversalStage
 	if managedBySupervisor {
-		l1Traversal = NewL1TraversalManaged(log, rollupCfg, l1Fetcher)
+		l1Traversal = NewL1TraversalManagedWithMetrics(log, rollupCfg, l1Fetcher, derivMetrics)
 	} else {
-		l1Traversal = NewL1Traversal(log, rollupCfg, l1Fetcher)
+		l1Traversal = NewL1TraversalWithMetrics(log, rollupCfg, l1Fetcher, derivMetrics)
 	}
 	dataSrc := NewDataSourceFactory(log, rollupCfg, l1Fetcher, l1Blobs, altDA) // auxiliary stage for L1Retrieval
-	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
-	frameQueue := NewFrameQueue(log, rollupCfg, l1Src)
-	channelMux := NewChannelMux(log, spec, frameQueue, metrics)
-	chInReader := NewChannelInReader(rollupCfg, log, channelMux, metrics)
-	batchMux := NewBatchMux(log, rollupCfg, chInReader, l2Source)
+	l1Src := NewL1RetrievalWithMetrics(log, dataSrc, l1Traversal, derivMetrics)
+	frameQueue := NewFrameQueueWithMetrics(log, rollupCfg, l1Src, derivMetrics)
+	channelMux := NewChannelMuxWithMetrics(log, spec, frameQueue, metrics, derivMetrics)
+	chInReader := NewChannelInReaderWithMetrics(rollupCfg, log, channelMux, metrics, derivMetrics)
+	batchMux := NewBatchMuxWithMetrics(log, rollupCfg, chInReader, l2Source, derivMetrics)
 	attrBuilder := NewFetchingAttributesBuilder(rollupCfg, l1ChainConfig, depSet, l1Fetcher, l2Source)
-	attributesQueue := NewAttributesQueue(log, rollupCfg, attrBuilder, batchMux)
+	attributesQueue := NewAttributesQueueWithMetrics(log, rollupCfg, attrBuilder, batchMux, derivMetrics)
 
 	// Reset from ResetEngine then up from L1 Traversal. The stages do not talk to each other during
 	// the ResetEngine, but after the ResetEngine, this is the order in which the stages could talk to each other.
@@ -124,16 +125,17 @@ func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, depSet Depe
 	stages := []ResettableStage{l1Traversal, l1Src, altDA, frameQueue, channelMux, chInReader, batchMux, attributesQueue}
 
 	return &DerivationPipeline{
-		log:       log,
-		rollupCfg: rollupCfg,
-		l1Fetcher: l1Fetcher,
-		altDA:     altDA,
-		resetting: 0,
-		stages:    stages,
-		metrics:   metrics,
-		traversal: l1Traversal,
-		attrib:    attributesQueue,
-		l2:        l2Source,
+		log:          log,
+		rollupCfg:    rollupCfg,
+		l1Fetcher:    l1Fetcher,
+		altDA:        altDA,
+		resetting:    0,
+		stages:       stages,
+		metrics:      metrics,
+		derivMetrics: derivMetrics,
+		traversal:    l1Traversal,
+		attrib:       attributesQueue,
+		l2:           l2Source,
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"slices"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -30,9 +31,10 @@ type NextFrameProvider interface {
 
 // ChannelBank buffers channel frames, and emits full channel data
 type ChannelBank struct {
-	log     log.Logger
-	spec    *rollup.ChainSpec
-	metrics Metrics
+	log          log.Logger
+	spec         *rollup.ChainSpec
+	metrics      Metrics
+	derivMetrics DerivationMetrics
 
 	channels     map[ChannelID]*Channel // channels by ID
 	channelQueue []ChannelID            // channels in FIFO order
@@ -48,6 +50,20 @@ func NewChannelBank(log log.Logger, spec *rollup.ChainSpec, prev NextFrameProvid
 		log:          log,
 		spec:         spec,
 		metrics:      m,
+		derivMetrics: NoopDerivationMetrics{},
+		channels:     make(map[ChannelID]*Channel),
+		channelQueue: make([]ChannelID, 0, 10),
+		prev:         prev,
+	}
+}
+
+// NewChannelBankWithMetrics creates a ChannelBank with derivation metrics instrumentation.
+func NewChannelBankWithMetrics(log log.Logger, spec *rollup.ChainSpec, prev NextFrameProvider, m Metrics, derivMetrics DerivationMetrics) *ChannelBank {
+	return &ChannelBank{
+		log:          log,
+		spec:         spec,
+		metrics:      m,
+		derivMetrics: derivMetrics,
 		channels:     make(map[ChannelID]*Channel),
 		channelQueue: make([]ChannelID, 0, 10),
 		prev:         prev,
@@ -176,23 +192,43 @@ func (cb *ChannelBank) tryReadChannelAtIndex(i int) (data []byte, err error) {
 // consistency around channel bank pruning which depends upon the order
 // of operations.
 func (cb *ChannelBank) NextRawChannel(ctx context.Context) ([]byte, error) {
+	start := time.Now()
+	var result string
+	defer func() {
+		cb.derivMetrics.RecordStageProcessing(StageChannelBank, time.Since(start), result)
+	}()
+
+	// Record queue depth (number of active channels)
+	cb.derivMetrics.RecordStageQueueDepth(StageChannelBank, len(cb.channelQueue))
+
 	// Do the read from the channel bank first
 	data, err := cb.Read()
 	if err == io.EOF {
 		// continue - We will attempt to load data into the channel bank
 	} else if err != nil {
+		result = ResultError
 		return nil, err
 	} else {
+		result = ResultSuccess
+		cb.derivMetrics.RecordStageItemProcessed(StageChannelBank, ResultSuccess)
+		cb.derivMetrics.RecordStageBytesProcessed(StageChannelBank, int64(len(data)))
 		return data, nil
 	}
 
 	// Then load data into the channel bank
-	if frame, err := cb.prev.NextFrame(ctx); err == io.EOF {
+	waitStart := time.Now()
+	frame, err := cb.prev.NextFrame(ctx)
+	cb.derivMetrics.RecordStageWaitTime(StageChannelBank, time.Since(waitStart))
+
+	if err == io.EOF {
+		result = ResultEmpty
 		return nil, io.EOF
 	} else if err != nil {
+		result = ResultError
 		return nil, err
 	} else {
 		cb.IngestFrame(frame)
+		result = ResultEmpty
 		return nil, NotEnoughData
 	}
 }

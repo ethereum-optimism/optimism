@@ -14,10 +14,11 @@ import (
 // Stages are swapped on demand during Reset calls, or explicitly with Transform.
 // It currently chooses the ChannelBank pre-Holocene and the ChannelAssembler post-Holocene.
 type ChannelMux struct {
-	log  log.Logger
-	spec *rollup.ChainSpec
-	prev NextFrameProvider
-	m    Metrics
+	log          log.Logger
+	spec         *rollup.ChainSpec
+	prev         NextFrameProvider
+	m            Metrics
+	derivMetrics DerivationMetrics
 
 	// embedded active stage
 	RawChannelProvider
@@ -29,10 +30,22 @@ var _ RawChannelProvider = (*ChannelMux)(nil)
 // calling other methods, to activate the right stage for a given L1 origin.
 func NewChannelMux(log log.Logger, spec *rollup.ChainSpec, prev NextFrameProvider, m Metrics) *ChannelMux {
 	return &ChannelMux{
-		log:  log,
-		spec: spec,
-		prev: prev,
-		m:    m,
+		log:          log,
+		spec:         spec,
+		prev:         prev,
+		m:            m,
+		derivMetrics: NoopDerivationMetrics{},
+	}
+}
+
+// NewChannelMuxWithMetrics creates a ChannelMux with derivation metrics instrumentation.
+func NewChannelMuxWithMetrics(log log.Logger, spec *rollup.ChainSpec, prev NextFrameProvider, m Metrics, derivMetrics DerivationMetrics) *ChannelMux {
+	return &ChannelMux{
+		log:          log,
+		spec:         spec,
+		prev:         prev,
+		m:            m,
+		derivMetrics: derivMetrics,
 	}
 }
 
@@ -42,12 +55,12 @@ func (c *ChannelMux) Reset(ctx context.Context, base eth.L1BlockRef, sysCfg eth.
 	default:
 		if _, ok := c.RawChannelProvider.(*ChannelBank); !ok {
 			c.log.Info("ChannelMux: activating pre-Holocene stage during reset", "origin", base)
-			c.RawChannelProvider = NewChannelBank(c.log, c.spec, c.prev, c.m)
+			c.RawChannelProvider = NewChannelBankWithMetrics(c.log, c.spec, c.prev, c.m, c.derivMetrics)
 		}
 	case c.spec.IsHolocene(base.Time):
 		if _, ok := c.RawChannelProvider.(*ChannelAssembler); !ok {
 			c.log.Info("ChannelMux: activating Holocene stage during reset", "origin", base)
-			c.RawChannelProvider = NewChannelAssembler(c.log, c.spec, c.prev, c.m)
+			c.RawChannelProvider = NewChannelAssemblerWithMetrics(c.log, c.spec, c.prev, c.m, c.derivMetrics)
 		}
 	}
 	return c.RawChannelProvider.Reset(ctx, base, sysCfg)
@@ -64,7 +77,7 @@ func (c *ChannelMux) TransformHolocene() {
 	switch cp := c.RawChannelProvider.(type) {
 	case *ChannelBank:
 		c.log.Info("ChannelMux: transforming to Holocene stage")
-		c.RawChannelProvider = NewChannelAssembler(c.log, c.spec, c.prev, c.m)
+		c.RawChannelProvider = NewChannelAssemblerWithMetrics(c.log, c.spec, c.prev, c.m, c.derivMetrics)
 	case *ChannelAssembler:
 		// Even if the pipeline is Reset to the activation block, the previous origin will be the
 		// same, so transformStages isn't called.
