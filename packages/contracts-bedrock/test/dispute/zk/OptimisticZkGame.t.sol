@@ -53,15 +53,35 @@ abstract contract OptimisticZkGame_TestInit is DisputeGameFactory_TestInit {
     Duration maxProveDuration = Duration.wrap(3 days);
     Claim rootClaim = Claim.wrap(keccak256("rootClaim"));
 
-    // Child game creation parameters.
-    uint256 l2BlockNumber = 2000;
-    uint32 parentIndex = 0;
+    // Sequence number offsets from anchor state (for parent and child games).
+    uint256 parentSequenceOffset = 1000;
+    uint256 childSequenceOffset = 2000;
+
+    // Game indices are set dynamically in setUp (on fork, existing games already exist)
+    uint32 parentGameIndex;
+    uint32 childGameIndex;
+
+    // Offsets from child sequence number for grandchild games.
+    uint256 grandchildOffset1 = 1000;
+    uint256 grandchildOffset2 = 2000;
+    uint256 grandchildOffset3 = 3000;
+    uint256 grandchildOffset4 = 8000;
+
+    // Actual sequence numbers (set in setUp based on anchor state)
+    uint256 anchorL2SequenceNumber;
+    uint256 parentL2SequenceNumber;
+    uint256 childL2SequenceNumber;
 
     // For a new parent game that we manipulate separately in some tests.
     OptimisticZkGame separateParentGame;
 
     function setUp() public virtual override {
         super.setUp();
+
+        // Get anchor state to calculate valid sequence numbers
+        (, anchorL2SequenceNumber) = anchorStateRegistry.getAnchorRoot();
+        parentL2SequenceNumber = anchorL2SequenceNumber + parentSequenceOffset;
+        childL2SequenceNumber = anchorL2SequenceNumber + childSequenceOffset;
 
         // Setup game implementation using shared helper
         address impl;
@@ -86,14 +106,19 @@ abstract contract OptimisticZkGame_TestInit is DisputeGameFactory_TestInit {
         // Warp time forward to ensure the parent game is created after the respectedGameTypeUpdatedAt timestamp.
         vm.warp(block.timestamp + 1000);
 
-        // This parent game will be at index 0.
+        // Create parent game (uses uint32.max to indicate first game in chain).
         parentGame = OptimisticZkGame(
             address(
                 disputeGameFactory.create{ value: 1 ether }(
-                    gameType, Claim.wrap(keccak256("genesis")), abi.encodePacked(uint256(1000), type(uint32).max)
+                    gameType,
+                    Claim.wrap(keccak256("genesis")),
+                    abi.encodePacked(parentL2SequenceNumber, type(uint32).max)
                 )
             )
         );
+
+        // Record actual index of parent game (on fork, existing games already occupy indices 0, 1, ...)
+        parentGameIndex = uint32(disputeGameFactory.gameCount() - 1);
 
         // We want the parent game to finalize. We'll skip its challenge period.
         (,,,,, Timestamp parentGameDeadline) = parentGame.claimData();
@@ -104,14 +129,17 @@ abstract contract OptimisticZkGame_TestInit is DisputeGameFactory_TestInit {
         vm.warp(parentGame.resolvedAt().raw() + finalityDelay + 1 seconds);
         parentGame.claimCredit(proposer);
 
-        // Create the child game referencing parent index = 0.
+        // Create the child game referencing actual parent game index.
         game = OptimisticZkGame(
             address(
                 disputeGameFactory.create{ value: 1 ether }(
-                    gameType, rootClaim, abi.encodePacked(l2BlockNumber, parentIndex)
+                    gameType, rootClaim, abi.encodePacked(childL2SequenceNumber, parentGameIndex)
                 )
             )
         );
+
+        // Record actual index of child game.
+        childGameIndex = uint32(disputeGameFactory.gameCount() - 1);
 
         vm.stopPrank();
     }
@@ -124,11 +152,11 @@ contract OptimisticZkGame_Initialize_Test is OptimisticZkGame_TestInit {
         // Test that the factory is correctly initialized.
         assertEq(address(disputeGameFactory.owner()), address(this));
         assertEq(address(disputeGameFactory.gameImpls(gameType)), address(gameImpl));
-        // We expect two games so far (parentGame at index 0, game at index 1).
-        assertEq(disputeGameFactory.gameCount(), 2);
+        // We expect games including parent and child (indices may vary on fork).
+        assertEq(disputeGameFactory.gameCount(), childGameIndex + 1);
 
-        // Check that the second game (our child game) matches the 'gameAtIndex(1)'.
-        (,, IDisputeGame proxy_) = disputeGameFactory.gameAtIndex(1);
+        // Check that our child game matches the game at childGameIndex.
+        (,, IDisputeGame proxy_) = disputeGameFactory.gameAtIndex(childGameIndex);
         assertEq(address(game), address(proxy_));
 
         // Check the child game fields.
@@ -137,10 +165,10 @@ contract OptimisticZkGame_Initialize_Test is OptimisticZkGame_TestInit {
         assertEq(game.maxChallengeDuration().raw(), maxChallengeDuration.raw());
         assertEq(game.maxProveDuration().raw(), maxProveDuration.raw());
         assertEq(address(game.disputeGameFactory()), address(disputeGameFactory));
-        assertEq(game.l2SequenceNumber(), l2BlockNumber);
+        assertEq(game.l2SequenceNumber(), childL2SequenceNumber);
 
-        // The parent's block number was 1000.
-        assertEq(game.startingBlockNumber(), 1000);
+        // The parent's sequence number (startingBlockNumber() returns l2SequenceNumber).
+        assertEq(game.startingBlockNumber(), parentL2SequenceNumber);
 
         // The parent's root was keccak256("genesis").
         assertEq(game.startingRootHash().raw(), keccak256("genesis"));
@@ -157,7 +185,7 @@ contract OptimisticZkGame_Initialize_Test is OptimisticZkGame_TestInit {
             Timestamp deadline_
         ) = game.claimData();
 
-        assertEq(parentIndex_, 0);
+        assertEq(parentIndex_, parentGameIndex);
         assertEq(counteredBy_, address(0));
         assertEq(game.gameCreator(), proposer);
         assertEq(prover_, address(0));
@@ -173,12 +201,11 @@ contract OptimisticZkGame_Initialize_Test is OptimisticZkGame_TestInit {
     }
 
     function test_initialize_blockNumberTooSmall_reverts() public {
-        // The parent game used L2 block 1234567890.
-        // Try to create a child game that references l2BlockNumber = 1.
+        // Try to create a child game that references a block number smaller than parent's.
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
 
-        // We expect revert
+        // We expect revert because l2BlockNumber (1) < parent's block number
         vm.expectRevert(
             abi.encodeWithSelector(
                 UnexpectedRootClaim.selector,
@@ -189,7 +216,7 @@ contract OptimisticZkGame_Initialize_Test is OptimisticZkGame_TestInit {
         disputeGameFactory.create{ value: 1 ether }(
             gameType,
             rootClaim,
-            abi.encodePacked(uint256(1), uint32(0)) // L2 block is smaller than parent's block.
+            abi.encodePacked(uint256(1), parentGameIndex) // L2 block is smaller than parent's block.
         );
         vm.stopPrank();
     }
@@ -203,13 +230,15 @@ contract OptimisticZkGame_Initialize_Test is OptimisticZkGame_TestInit {
         vm.deal(proposer, 1 ether);
         vm.expectRevert(InvalidParentGame.selector);
         disputeGameFactory.create{ value: 1 ether }(
-            gameType, Claim.wrap(keccak256("blacklisted-parent-game")), abi.encodePacked(uint256(3000), uint32(1))
+            gameType,
+            Claim.wrap(keccak256("blacklisted-parent-game")),
+            abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
         );
         vm.stopPrank();
     }
 
     function test_initialize_parentNotRespected_reverts() public {
-        // Create a new game at index 2 which will be the parent.
+        // Create a new game which will be the parent.
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
         OptimisticZkGame parentNotRespected = OptimisticZkGame(
@@ -217,10 +246,11 @@ contract OptimisticZkGame_Initialize_Test is OptimisticZkGame_TestInit {
                 disputeGameFactory.create{ value: 1 ether }(
                     gameType,
                     Claim.wrap(keccak256("not-respected-parent-game")),
-                    abi.encodePacked(uint256(3000), uint32(1))
+                    abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
                 )
             )
         );
+        uint32 parentNotRespectedIndex = uint32(disputeGameFactory.gameCount() - 1);
         vm.stopPrank();
 
         // Blacklist the parent game to make it invalid.
@@ -234,7 +264,7 @@ contract OptimisticZkGame_Initialize_Test is OptimisticZkGame_TestInit {
         disputeGameFactory.create{ value: 1 ether }(
             gameType,
             Claim.wrap(keccak256("child-with-not-respected-parent")),
-            abi.encodePacked(uint256(4000), uint32(2))
+            abi.encodePacked(childL2SequenceNumber + grandchildOffset2, parentNotRespectedIndex)
         );
         vm.stopPrank();
     }
@@ -247,7 +277,9 @@ contract OptimisticZkGame_Initialize_Test is OptimisticZkGame_TestInit {
 
         vm.expectRevert(BadAuth.selector);
         disputeGameFactory.create{ value: 1 ether }(
-            gameType, Claim.wrap(keccak256("new-claim")), abi.encodePacked(uint256(3000), uint32(1))
+            gameType,
+            Claim.wrap(keccak256("new-claim")),
+            abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
         );
 
         vm.stopPrank();
@@ -274,7 +306,9 @@ contract OptimisticZkGame_Initialize_Test is OptimisticZkGame_TestInit {
 
         vm.expectRevert(IncorrectDisputeGameFactory.selector);
         newFactory.create{ value: 1 ether }(
-            gameType, Claim.wrap(keccak256("new-claim")), abi.encodePacked(uint256(3000), uint32(1))
+            gameType,
+            Claim.wrap(keccak256("new-claim")),
+            abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
         );
 
         vm.stopPrank();
@@ -444,14 +478,13 @@ contract OptimisticZkGame_Resolve_Test is OptimisticZkGame_TestInit {
     function test_resolve_parentGameInProgress_reverts() public {
         vm.startPrank(proposer);
 
-        // Create a new game with parentIndex = 1.
+        // Create a new game referencing the child game as parent.
         OptimisticZkGame childGame = OptimisticZkGame(
             address(
                 disputeGameFactory.create{ value: 1 ether }(
                     gameType,
                     Claim.wrap(keccak256("new-claim")),
-                    // encode l2BlockNumber = 3000, parentIndex = 1.
-                    abi.encodePacked(uint256(3000), uint32(1))
+                    abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
                 )
             )
         );
@@ -470,7 +503,9 @@ contract OptimisticZkGame_Resolve_Test is OptimisticZkGame_TestInit {
         OptimisticZkGame childGame = OptimisticZkGame(
             address(
                 disputeGameFactory.create{ value: 1 ether }(
-                    gameType, Claim.wrap(keccak256("child-of-loser")), abi.encodePacked(uint256(10000), uint32(1))
+                    gameType,
+                    Claim.wrap(keccak256("child-of-loser")),
+                    abi.encodePacked(childL2SequenceNumber + grandchildOffset4, childGameIndex)
                 )
             )
         );
@@ -623,13 +658,15 @@ contract OptimisticZkGame_AccessManager_Test is OptimisticZkGame_TestInit {
         vm.deal(unauthorizedUser, 1 ether);
         vm.expectRevert(BadAuth.selector);
         disputeGameFactory.create{ value: 1 ether }(
-            gameType, Claim.wrap(keccak256("new-claim-1")), abi.encodePacked(uint256(3000), uint32(1))
+            gameType,
+            Claim.wrap(keccak256("new-claim-1")),
+            abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
         );
 
         vm.prank(proposer);
         vm.deal(proposer, 1 ether);
         disputeGameFactory.create{ value: 1 ether }(
-            gameType, Claim.wrap(keccak256("new-claim-2")), abi.encodePacked(l2BlockNumber, parentIndex)
+            gameType, Claim.wrap(keccak256("new-claim-2")), abi.encodePacked(childL2SequenceNumber, parentGameIndex)
         );
 
         // Warp time forward past the timeout
@@ -639,7 +676,9 @@ contract OptimisticZkGame_AccessManager_Test is OptimisticZkGame_TestInit {
         vm.prank(unauthorizedUser);
         vm.deal(unauthorizedUser, 1 ether);
         disputeGameFactory.create{ value: 1 ether }(
-            gameType, Claim.wrap(keccak256("new-claim-3")), abi.encodePacked(uint256(4000), uint32(1))
+            gameType,
+            Claim.wrap(keccak256("new-claim-3")),
+            abi.encodePacked(childL2SequenceNumber + grandchildOffset2, childGameIndex)
         );
 
         // After the new game, timeout resets - unauthorized user should not be allowed immediately
@@ -647,7 +686,9 @@ contract OptimisticZkGame_AccessManager_Test is OptimisticZkGame_TestInit {
         vm.deal(unauthorizedUser, 1 ether);
         vm.expectRevert(BadAuth.selector);
         disputeGameFactory.create{ value: 1 ether }(
-            gameType, Claim.wrap(keccak256("new-claim-4")), abi.encodePacked(uint256(5000), uint32(1))
+            gameType,
+            Claim.wrap(keccak256("new-claim-4")),
+            abi.encodePacked(childL2SequenceNumber + grandchildOffset3, childGameIndex)
         );
     }
 
@@ -660,7 +701,9 @@ contract OptimisticZkGame_AccessManager_Test is OptimisticZkGame_TestInit {
         vm.deal(unauthorizedUser, 1 ether);
         vm.expectRevert(BadAuth.selector);
         disputeGameFactory.create{ value: 1 ether }(
-            gameType, Claim.wrap(keccak256("new-claim-1")), abi.encodePacked(uint256(3000), uint32(1))
+            gameType,
+            Claim.wrap(keccak256("new-claim-1")),
+            abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
         );
 
         // Warp time forward past the timeout
@@ -670,7 +713,9 @@ contract OptimisticZkGame_AccessManager_Test is OptimisticZkGame_TestInit {
         vm.prank(unauthorizedUser);
         vm.deal(unauthorizedUser, 1 ether);
         disputeGameFactory.create{ value: 1 ether }(
-            gameType, Claim.wrap(keccak256("new-claim-3")), abi.encodePacked(uint256(4000), uint32(1))
+            gameType,
+            Claim.wrap(keccak256("new-claim-3")),
+            abi.encodePacked(childL2SequenceNumber + grandchildOffset2, childGameIndex)
         );
 
         // After the new game, timeout resets - unauthorized user should not be allowed immediately
@@ -678,7 +723,9 @@ contract OptimisticZkGame_AccessManager_Test is OptimisticZkGame_TestInit {
         vm.deal(unauthorizedUser, 1 ether);
         vm.expectRevert(BadAuth.selector);
         disputeGameFactory.create{ value: 1 ether }(
-            gameType, Claim.wrap(keccak256("new-claim-4")), abi.encodePacked(uint256(5000), uint32(1))
+            gameType,
+            Claim.wrap(keccak256("new-claim-4")),
+            abi.encodePacked(childL2SequenceNumber + grandchildOffset3, childGameIndex)
         );
     }
 }
