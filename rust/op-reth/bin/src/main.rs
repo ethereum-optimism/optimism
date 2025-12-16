@@ -51,7 +51,6 @@ struct Args {
     /// The window to span blocks for proofs history. Value is the number of blocks.
     /// Default is 1 month of blocks based on 2 seconds block time.
     /// 30 * 24 * 60 * 60 / 2 = `1_296_000`
-    // TODO: Pass this arg to the ExEx or remove it if not needed.
     #[arg(
         long = "proofs-history.window",
         default_value_t = 1_296_000,
