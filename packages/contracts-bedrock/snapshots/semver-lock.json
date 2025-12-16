@@ -204,11 +204,11 @@
     "sourceCodeHash": "0x335a503a4cc02dd30d88d163393680f3fd89168e0faa4fa4b0ae5da399656f91"
   },
   "src/dispute/SuperFaultDisputeGame.sol:SuperFaultDisputeGame": {
-    "initCodeHash": "0xa41aad4538dfb99509d7f8187b870841a3682690897b74510fd644e2359f3342",
-    "sourceCodeHash": "0x2f1d42a450f7f8e066ec674b5ebe888b5f8aa87f199b442044b188f2fcfd0b75"
+    "initCodeHash": "0x79859ae0d478c41f43880e19ed6adbea2f4dcb318c89bfc368a793ad8a7ece40",
+    "sourceCodeHash": "0x3096a447574168528555f091a357a120b1dee6f35b50634b7d705ace1ef9c0ad"
   },
   "src/dispute/SuperPermissionedDisputeGame.sol:SuperPermissionedDisputeGame": {
-    "initCodeHash": "0x392eef3c80f28b439e8c8f15030c7eb27e003692eb3509813f912bc6ea89ef12",
+    "initCodeHash": "0xa080730728e812e8b02d03b5857b23d16ade46f1656f26f22274835a3100edd7",
     "sourceCodeHash": "0x314b6e0412f698ce3531e8176ce8e5b8a3976cc3fa9d7ecb1f3278612f90ed4e"
   },
   "src/dispute/v2/FaultDisputeGameV2.sol:FaultDisputeGameV2": {

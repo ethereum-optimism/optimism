@@ -241,17 +241,18 @@ func (l *L2OutputSubmitter) FetchL2OOOutput(ctx context.Context) (source.Proposa
 	if err != nil {
 		return source.Proposal{}, false, fmt.Errorf("fetching output: %w", err)
 	}
+	if proposal.IsSuperRootProposal() {
+		panic("L2 Output Submitter should not be configured for Super Root proposals")
+	}
 
 	// Always propose if it's part of the Finalized L2 chain. Or if allowed, if it's part of the safe L2 chain.
-	if !proposal.IsSuperRootProposal() {
-		if proposal.SequenceNum > proposal.Legacy.FinalizedL2.Number && (!l.Cfg.AllowNonFinalized || proposal.SequenceNum > proposal.Legacy.SafeL2.Number) {
-			l.Log.Debug("Not proposing yet, L2 block is not ready for proposal",
-				"l2_proposal", proposal.SequenceNum,
-				"l2_safe", proposal.Legacy.SafeL2,
-				"l2_finalized", proposal.Legacy.FinalizedL2,
-				"allow_non_finalized", l.Cfg.AllowNonFinalized)
-			return proposal, false, nil
-		}
+	if proposal.SequenceNum > proposal.Legacy.FinalizedL2.Number && (!l.Cfg.AllowNonFinalized || proposal.SequenceNum > proposal.Legacy.SafeL2.Number) {
+		l.Log.Debug("Not proposing yet, L2 block is not ready for proposal",
+			"l2_proposal", proposal.SequenceNum,
+			"l2_safe", proposal.Legacy.SafeL2,
+			"l2_finalized", proposal.Legacy.FinalizedL2,
+			"allow_non_finalized", l.Cfg.AllowNonFinalized)
+		return proposal, false, nil
 	}
 	return proposal, true, nil
 }
@@ -319,10 +320,11 @@ func (l *L2OutputSubmitter) FetchOutput(ctx context.Context, block uint64) (sour
 	if err != nil {
 		return source.Proposal{}, fmt.Errorf("fetching proposal at block %d: %w", block, err)
 	}
-	if !proposal.IsSuperRootProposal() {
-		if onum := proposal.SequenceNum; onum != block { // sanity check, e.g. in case of bad RPC caching
-			return source.Proposal{}, fmt.Errorf("proposal block number %d mismatches requested %d", proposal.SequenceNum, block)
-		}
+	if proposal.IsSuperRootProposal() {
+		panic("L2 Output Submitter should not be configured for Super Root proposals")
+	}
+	if onum := proposal.SequenceNum; onum != block { // sanity check, e.g. in case of bad RPC caching
+		return source.Proposal{}, fmt.Errorf("proposal block number %d mismatches requested %d", proposal.SequenceNum, block)
 	}
 	return proposal, nil
 }
@@ -499,11 +501,7 @@ func (l *L2OutputSubmitter) proposeOutput(ctx context.Context, output source.Pro
 		l.Log.Error("Failed to send proposal transaction", logCtx...)
 		return
 	}
-	if output.IsSuperRootProposal() {
-		l.Metr.RecordL2Proposal(output.Super.Timestamp)
-	} else {
-		l.Metr.RecordL2Proposal(output.SequenceNum)
-	}
+	l.Metr.RecordL2Proposal(output.SequenceNum)
 	if output.Legacy.BlockRef != (eth.L2BlockRef{}) {
 		// Record legacy metrics when available
 		l.Metr.RecordL2BlocksProposed(output.Legacy.BlockRef)

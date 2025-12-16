@@ -306,6 +306,9 @@ library Encoding {
     /// @param _super Encoded super root proof.
     /// @return Decoded super root proof.
     function decodeSuperRootProof(bytes memory _super) internal pure returns (Types.SuperRootProof memory) {
+        if (_super.length < 9) {
+            revert Encoding_InvalidSuperRootEncoding();
+        }
         uint8 version = uint8(_super[0]);
         if (version != 0x01) {
             revert Encoding_InvalidSuperRootVersion();

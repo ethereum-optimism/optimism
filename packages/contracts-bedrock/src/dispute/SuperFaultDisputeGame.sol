@@ -254,7 +254,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         if (!_verifyInitCallDataLength()) revert BadExtraData();
 
         // Sanity check to prevent initializing right away with an invalid claim state that is used as convention
-        // Should be impossible to find a valid the Super preimage of INVALID_ROOT_CLAIM
+        // Should be impossible to find a valid Super preimage of INVALID_ROOT_CLAIM
         if (rootClaim().raw() == INVALID_ROOT_CLAIM) revert SuperFaultDisputeGameInvalidRootClaim();
 
         // Revert if the super root proof in extraData does not match the root claim.

@@ -239,7 +239,7 @@ func TestSupervisorSource_ProposalAtSequenceNum(t *testing.T) {
 	require.NoError(t, err)
 	expected := Proposal{
 		Root:        common.Hash(response.SuperRoot),
-		SequenceNum: 0,
+		SequenceNum: 59298244,
 		CurrentL1:   response.CrossSafeDerivedFrom,
 		Legacy:      LegacyProposalData{},
 		Super:       responseSuper.(*eth.SuperV1),

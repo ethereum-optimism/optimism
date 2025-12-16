@@ -528,6 +528,14 @@ contract Encoding_DecodeSuperRootProof_Test is Encoding_TestInit {
         encoding.decodeSuperRootProof(encoded);
     }
 
+    /// @notice Tests that decoding fails when encoded bytes are incomplete
+    function testFuzz_decodeSuperRootProof_partial_reverts(uint256 _length) external {
+        _length = uint256(bound(_length, 0, 8));
+        bytes memory encoded = new bytes(_length);
+        vm.expectRevert(Encoding.Encoding_InvalidSuperRootEncoding.selector);
+        encoding.decodeSuperRootProof(encoded);
+    }
+
     /// @notice Tests that decoding fails when output roots array is incomplete
     function testFuzz_decodeSuperRootProof_partialOutputRoots_reverts(uint64 _timestamp, uint256 _length) external {
         _length = uint256(bound(_length, 10, 72));

@@ -12,12 +12,11 @@ type Proposal struct {
 	// Root is the proposal hash
 	Root common.Hash
 
-	// SequenceNum if this Proposal is an Output Root Proposal
-	// This represents the L2 block number for L2 output proposals.
+	// SequenceNum represents the L2 Block number or Super Root L2 timestamp
 	SequenceNum uint64
 
-	// Super is present if this Proposal is a Super Root proposal
-	Super *eth.SuperV1
+	// Super is present if, and only if, this Proposal is a Super Root proposal
+	Super eth.Super
 
 	CurrentL1 eth.BlockID
 
@@ -33,18 +32,12 @@ func (p *Proposal) IsSuperRootProposal() bool {
 
 // ExtraData returns the Dispute Game extra data as appropriate for the proposal type.
 func (p *Proposal) ExtraData() []byte {
-	if p.Super == nil && p.SequenceNum == 0 {
-		panic("invalid Proposal")
-	}
-	if p.Super != nil && p.SequenceNum != 0 {
-		panic("invalid Proposal")
-	}
-	if p.SequenceNum != 0 {
+	if p.Super != nil {
+		return p.Super.Marshal()
+	} else {
 		var extraData [32]byte
 		binary.BigEndian.PutUint64(extraData[24:], p.SequenceNum)
 		return extraData[:]
-	} else {
-		return p.Super.Marshal()
 	}
 }
 

@@ -85,7 +85,7 @@ type GameCfg struct {
 	l2SequenceNumberSet bool
 	rootClaimSet        bool
 	rootClaim           common.Hash
-	super               eth.Super
+	superOutputRoots    []eth.Bytes32
 }
 type GameOpt interface {
 	Apply(cfg *GameCfg)
@@ -122,9 +122,11 @@ func WithL2SequenceNumber(seqNum uint64) GameOpt {
 	})
 }
 
-func WithSuper(super eth.Super) GameOpt {
+// WithSuperRootFrom sets the output roots to use in a super root game.
+// The length of outputRoots must match the number of chains in the super root.
+func WithSuperRootFrom(outputRoots ...eth.Bytes32) GameOpt {
 	return gameOptFn(func(c *GameCfg) {
-		c.super = super
+		c.superOutputRoots = outputRoots
 	})
 }
 
@@ -189,8 +191,8 @@ func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, opts ...GameOpt)
 
 func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType gameTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
 	cfg := NewGameCfg(opts...)
-	if cfg.super != nil && cfg.rootClaimSet {
-		f.t.Error("cannot set both super and root claim in super game")
+	if len(cfg.superOutputRoots) != 0 && cfg.rootClaimSet {
+		f.t.Error("cannot set both super output roots and root claim in super game")
 		f.t.FailNow()
 	}
 	timestamp := cfg.l2SequenceNumber
@@ -200,12 +202,6 @@ func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType g
 	extraData := f.createSuperGameExtraData(timestamp, cfg)
 	rootClaim := cfg.rootClaim
 	if !cfg.rootClaimSet {
-		// Default to the correct root claim
-		response := f.supervisor.FetchSuperRootAtTimestamp(timestamp)
-		rootClaim = common.Hash(response.SuperRoot)
-	}
-	if cfg.super != nil {
-		extraData = cfg.super.Marshal()
 		rootClaim = crypto.Keccak256Hash(extraData)
 	}
 	game, addr := f.createNewGame(eoa, gameType, rootClaim, extraData)
@@ -220,8 +216,16 @@ func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *Gam
 	}
 	super, err := f.supervisor.FetchSuperRootAtTimestamp(timestamp).ToSuper()
 	f.require.NoError(err, "Failed to fetch super root for timestamp %v", timestamp)
-	extraData := super.Marshal()
-	binary.BigEndian.PutUint64(extraData[24:], timestamp)
+
+	superV1, ok := super.(*eth.SuperV1)
+	f.require.Truef(ok, "Unsupported super type %T", super)
+	if len(cfg.superOutputRoots) != 0 {
+		f.require.Len(cfg.superOutputRoots, len(superV1.Chains), "Super output roots length mismatch")
+		for i := range superV1.Chains {
+			superV1.Chains[i].Output = cfg.superOutputRoots[i]
+		}
+	}
+	extraData := superV1.Marshal()
 	return extraData
 }
 
