@@ -32,6 +32,11 @@ var (
 	ConfigUpdateEventVersion0 = common.Hash{}
 )
 
+var (
+	ErrUnknownEventVersion = errors.New("unknown SystemConfig event version")
+	ErrUnknownEventType    = errors.New("unknown SystemConfig event type")
+)
+
 // UpdateSystemConfigWithL1Receipts filters all L1 receipts to find config updates and applies the config updates to the given sysCfg
 // Updates are applied individually, and any malformed or invalid updates are ignored.
 // Any errors encountered during the update process are returned as a multierror.
@@ -79,7 +84,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 	// indexed 0
 	version := ev.Topics[1]
 	if version != ConfigUpdateEventVersion0 {
-		return fmt.Errorf("unrecognized SystemConfig update event version: %s", version)
+		return fmt.Errorf("%w: %s", ErrUnknownEventVersion, version)
 	}
 	// indexed 1
 	updateType := ev.Topics[2]
@@ -150,11 +155,11 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		destSysCfg.DAFootprintGasScalar = daFootprintGasScalar
 		return nil
 	default:
-		return fmt.Errorf("unrecognized L1 sysCfg update type: %s", updateType)
+		return fmt.Errorf("%w: %s", ErrUnknownEventType, updateType)
 	}
 }
 
-var ErrParsingSystemConfig = NewCriticalError(errors.New("error parsing system config"))
+var ErrParsingSystemConfig = errors.New("error parsing system config")
 
 func parseSystemConfigUpdateBatcher(data []byte) (common.Address, error) {
 	reader := bytes.NewReader(data)

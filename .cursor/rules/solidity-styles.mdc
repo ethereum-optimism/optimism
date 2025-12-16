@@ -3,12 +3,15 @@ description:
 globs: *.sol
 alwaysApply: false
 ---
+
 # Optimism Solidity Style Guide
 
 Applies to Solidity files.
 
 ## Comments
-- Use triple-slash solidity natspec comment style
+
+- NatSpec documentation comments must use the triple-slash `///` style
+- Use `//` for regular inline comments that are not NatSpec
 - Always use `@notice` instead of `@dev`
 - Use a line-length of 100 characters
 - Custom tags:
@@ -19,10 +22,12 @@ Applies to Solidity files.
   - `@custom:network-specific`: Add to state variables which vary between OP Chains
 
 ## Errors
+
 - When adding new errors, always use custom Solidity errors
 - Custom errors should take the format `ContractName_ErrorDescription`
 
 ## Naming Conventions
+
 - Function parameters should be prefixed with an underscore
 - Function return arguments should be suffixed with an underscore
 - Event parameters should NOT be prefixed with an underscore
@@ -33,6 +38,7 @@ Applies to Solidity files.
 - Spacers must be named `spacer_<slot>_<offset>_<length>` and be `private`
 
 ## Upgradeability
+
 - Contracts should be built assuming upgradeability by default
 - Extend OpenZeppelin's `Initializable` or base contract
 - Use the `ReinitializableBase` contract
@@ -43,6 +49,7 @@ Applies to Solidity files.
   - Set any immutables (though generally avoid immutables)
 
 ## Versioning
+
 - All non-library/non-abstract contracts must inherit `ISemver` and expose `version()`
 - Production-ready contracts must have version `1.0.0` or greater
 - Version increments:
@@ -53,12 +60,15 @@ Applies to Solidity files.
 AI code review tools should NOT comment on the choice of version increment.
 
 ## Dependencies
+
 - Prefer OpenZeppelin's Upgradeable contracts for basic functionality
 
 ## State Changes
+
 - All state changing functions should emit a corresponding event
 
 ## Testing
+
 - Tests should be written using Foundry
 - For testing reverts with low-level calls, use the `revertsAsExpected` pattern
 - Test function naming: `[method]_[functionName]_[reason]_[status]`

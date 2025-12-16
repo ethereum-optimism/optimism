@@ -1,9 +1,6 @@
 package sysgo
 
 import (
-	"os"
-	"strings"
-
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -575,6 +572,7 @@ func ProofSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Orchestrator] {
 	ids := NewDefaultMinimalSystemIDs(DefaultL1ID, DefaultL2AID)
 	opt := defaultMinimalSystemOpts(&ids, dest)
 	opt.Add(WithCannonGameTypeAdded(ids.L1EL, ids.L2.ChainID()))
+	opt.Add(WithCannonKonaGameTypeAdded())
 	return opt
 }
 
@@ -624,22 +622,6 @@ func singleChainSystemWithFlashblocksOpts(ids *SingleChainSystemWithFlashblocksI
 	// Precompute deterministic P2P identity and peering between sequencer EL and op-rbuilder EL.
 	seqID := NewELNodeIdentity("127.0.0.1", 0)
 	builderID := NewELNodeIdentity("127.0.0.1", 0) // allocate dynamic port for builder
-
-	var missingEnv []string
-	if os.Getenv("OP_RBUILDER_EXEC_PATH") == "" {
-		missingEnv = append(missingEnv, "OP_RBUILDER_EXEC_PATH")
-	}
-	if os.Getenv("ROLLUP_BOOST_EXEC_PATH") == "" {
-		missingEnv = append(missingEnv, "ROLLUP_BOOST_EXEC_PATH")
-	}
-	if len(missingEnv) > 0 {
-		missing := strings.Join(missingEnv, ", ")
-		opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
-			o.P().Logger().Warn("Skipping single-chain flashblocks system; missing executables", "missing_env", missing)
-			o.P().SkipNow()
-		}))
-		return opt
-	}
 
 	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
 		o.P().Logger().Info("Setting up")

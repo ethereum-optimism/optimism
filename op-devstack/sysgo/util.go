@@ -37,24 +37,45 @@ func propagateEnvVarOrDefault(envVarName string, defaultValue string) string {
 }
 
 var availableLocalPortMutex sync.Mutex
+var recentlyAllocatedPorts = make(map[int]struct{})
 
 // getAvailableLocalPort searches for and returns a currently unused local port.
+// Tracks recently allocated ports to avoid returning the same port twice
+// (the OS may recycle a port immediately after we release it).
 // Note: this function is threadsafe.
 func getAvailableLocalPort() (string, error) {
 	availableLocalPortMutex.Lock()
 	defer availableLocalPortMutex.Unlock()
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return "", fmt.Errorf("could not listen on ephemeral port: %w", err)
-	}
-	defer ln.Close()
+	// Keep listeners open while looping so the OS won't return the same port twice
+	var heldListeners []net.Listener
+	defer func() {
+		for _, ln := range heldListeners {
+			ln.Close()
+		}
+	}()
 
-	addr, ok := ln.Addr().(*net.TCPAddr)
-	if !ok {
-		return "", errors.New("listener did not return a TCP addr")
+	const maxAttempts = 100
+	for range maxAttempts {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return "", fmt.Errorf("could not listen on ephemeral port: %w", err)
+		}
+		heldListeners = append(heldListeners, ln)
+
+		addr, ok := ln.Addr().(*net.TCPAddr)
+		if !ok {
+			return "", errors.New("listener did not return a TCP addr")
+		}
+		port := addr.Port
+
+		if _, used := recentlyAllocatedPorts[port]; used {
+			continue
+		}
+		recentlyAllocatedPorts[port] = struct{}{}
+		return strconv.Itoa(port), nil
 	}
-	return strconv.Itoa(addr.Port), nil
+	return "", errors.New("failed to allocate unique port after max attempts")
 }
 
 // waitTCPReady parses a URL and waits for its TCP endpoint to become ready using EventuallyWithT.

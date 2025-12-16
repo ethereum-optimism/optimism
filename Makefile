@@ -34,7 +34,7 @@ golang-docker: ## Builds Docker images for Go components using buildx
 	GIT_COMMIT=$$(git rev-parse HEAD) \
 	GIT_DATE=$$(git show -s --format='%ct') \
 	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
-	KONA_VERSION=$$(jq -r .version kona/version.json) \
+	KONA_VERSION=$$(jq -r .version kona-proofs/version.json) \
 	docker buildx bake \
 			--progress plain \
 			--load \
@@ -127,6 +127,10 @@ op-dispute-mon: ## Builds op-dispute-mon binary
 op-supernode: ## Builds op-supernode binary
 	just $(JUSTFLAGS) ./op-supernode/op-supernode
 .PHONY: op-supernode
+
+op-interop-filter: ## Builds op-interop-filter binary
+	just $(JUSTFLAGS) ./op-interop-filter/op-interop-filter
+.PHONY: op-interop-filter
 
 op-program: ## Builds op-program binary
 	make -C ./op-program op-program

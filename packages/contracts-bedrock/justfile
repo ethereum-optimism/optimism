@@ -433,3 +433,27 @@ lint: lint-fix lint-check
 # Generates a table of contents for the POLICY.md file.
 toc:
   md_toc -p github meta/POLICY.md
+
+
+########################################################
+#                 PARALLEL CHECK RUNNER                #
+########################################################
+
+# Runs checks in parallel with smart build caching.
+# Handles builds automatically and caches results for faster subsequent runs.
+# Use -run to run specific checks, -list to see available checks.
+# Examples:
+#   just check-fast                       # Run all checks with caching
+#   just check-fast -run lint             # Run only lint check
+#   just check-fast -no-build             # Skip checks that require builds
+#   just check-fast -list                 # List available checks
+#   just check-fast -verbose              # Show output for all checks
+#   just check-fast -no-cache             # Disable build caching
+#   just check-fast -clean                # Clean artifacts before each build
+#   just check-fast -config path/to/file  # Use custom checks.yaml
+check-fast *ARGS:
+  go run ./scripts/check-runner -config checks.yaml {{ARGS}}
+
+# Alias for check-fast.
+pr *ARGS:
+  just check-fast {{ARGS}}

@@ -62,6 +62,16 @@
             "internalType": "address",
             "name": "mipsImpl",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "faultDisputeGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "permissionedDisputeGameImpl",
+            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManagerStandardValidator.Implementations",
@@ -165,6 +175,19 @@
   {
     "inputs": [],
     "name": "ethLockboxImpl",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "faultDisputeGameImpl",
     "outputs": [
       {
         "internalType": "address",
@@ -281,12 +304,12 @@
   },
   {
     "inputs": [],
-    "name": "permissionedDisputeGameVersion",
+    "name": "permissionedDisputeGameImpl",
     "outputs": [
       {
-        "internalType": "string",
+        "internalType": "address",
         "name": "",
-        "type": "string"
+        "type": "address"
       }
     ],
     "stateMutability": "view",
