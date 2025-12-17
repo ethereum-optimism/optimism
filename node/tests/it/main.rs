@@ -6,4 +6,6 @@ mod priority;
 
 mod rpc;
 
+mod custom_genesis;
+
 const fn main() {}
