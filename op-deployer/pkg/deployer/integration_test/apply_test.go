@@ -174,8 +174,6 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 		devFeature common.Hash
 	}{
 		{"default", common.Hash{}},
-		{"deploy-v2-disputegames", deployer.DeployV2DisputeGamesDevFlag},
-		{"cannon-kona", deployer.EnableDevFeature(deployer.DeployV2DisputeGamesDevFlag, deployer.CannonKonaDevFlag)},
 		{"opcm-v2", deployer.OpcmV2DevFlag},
 	}
 	for _, tt := range tests {
@@ -914,26 +912,6 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 			})
 		})
 	})
-}
-
-func mustEncodeGameArgs(absolutePrestate common.Hash, proposer, challenger common.Address) []byte {
-	// Use Ethereum ABI encoding for the game args
-	// In Solidity, abi.encode(MyStruct{...}) encodes the struct fields as a tuple
-	// For FaultDisputeGameConfig: abi.encode((bytes32)) = 32 bytes
-	// For PermissionedDisputeGameConfig: abi.encode((bytes32,address,address)) = 96 bytes (3 * 32)
-
-	if proposer == (common.Address{}) {
-		// FaultDisputeGameConfig: abi.encode((bytes32 absolutePrestate))
-		// This is just the raw bytes32 value (32 bytes)
-		return absolutePrestate[:]
-	}
-	// PermissionedDisputeGameConfig: abi.encode((bytes32,address,address))
-	// This is 96 bytes: bytes32 + address (left-padded to 32) + address (left-padded to 32)
-	result := make([]byte, 96)
-	copy(result[0:32], absolutePrestate[:])
-	copy(result[44:64], proposer[:])   // address at offset 32, left-padded (12 zero bytes + 20 address bytes)
-	copy(result[76:96], challenger[:]) // address at offset 64, left-padded (12 zero bytes + 20 address bytes)
-	return result
 }
 
 func needsSuperchainConfigUpgrade(

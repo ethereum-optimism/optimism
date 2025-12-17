@@ -1,4 +1,4 @@
-package v6_0_0
+package v7_0_0
 
 import (
 	"encoding/hex"

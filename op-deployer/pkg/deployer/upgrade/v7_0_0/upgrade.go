@@ -1,4 +1,4 @@
-package v6_0_0
+package v7_0_0
 
 import (
 	"encoding/json"
@@ -97,7 +97,7 @@ func Upgrade(host *script.Host, input UpgradeOPChainInput) error {
 	// We need to check which of the two versions of the input we are using.
 	var encodedUpgradeInput []byte
 	var encodedError error
-	if input.UpgradeInputV2 == nil && input.ChainConfigs == nil {
+	if input.UpgradeInputV2 == nil && len(input.ChainConfigs) == 0 {
 		return fmt.Errorf("failed to read either an upgrade input or config array")
 	} else if input.UpgradeInputV2 != nil {
 		encodedUpgradeInput, encodedError = input.EncodedUpgradeInputV2()
@@ -128,7 +128,7 @@ func (u *Upgrader) Upgrade(host *script.Host, input json.RawMessage) error {
 }
 
 func (u *Upgrader) ArtifactsURL() string {
-	// TODO: Add an actual resource locator that points to this set of artifacts.
+	// TODO(#18633): Add an actual resource locator that points to this set of artifacts.
 	return artifacts.CreateHttpLocator("")
 }
 
