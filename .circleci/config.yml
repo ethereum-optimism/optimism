@@ -94,7 +94,7 @@ orbs:
   slack: circleci/slack@6.0.0
   shellcheck: circleci/shellcheck@3.2.0
   codecov: codecov/codecov@5.0.3
-  utils: ethereum-optimism/circleci-utils@1.0.22
+  utils: ethereum-optimism/circleci-utils@1.0.23
   docker: circleci/docker@2.8.2
   github-cli: circleci/github-cli@2.7.0
 
@@ -212,7 +212,7 @@ commands:
           command: |
             # Manually craft the submodule update command in order to take advantage
             # of the -j parameter, which speeds it up a lot.
-            git submodule update --init --recursive --force -j 8
+            git submodule update --init --recursive --single-branch --force -j 8
           working_directory: packages/contracts-bedrock
 
   # Notifies us on Slack a build fails on develop
@@ -399,6 +399,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - setup_remote_docker:
           docker_layer_caching: true
       - run:
@@ -520,6 +521,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - attach_workspace:
           at: .
       - check-changed:
@@ -572,6 +574,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Check `RISCV.sol` bytecode
           working_directory: packages/contracts-bedrock
@@ -622,6 +625,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - install-zstd
       - install-contracts-dependencies
       - run:
@@ -656,7 +660,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          enable-mise-cache: true
       - attach_workspace:
           at: .
       - install-contracts-dependencies
@@ -720,6 +725,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - attach_workspace:
           at: .
       - run:
@@ -806,7 +812,7 @@ jobs:
             fi
 
             # Let them cook!
-            KONA_VERSION=$(jq -r .version kona/version.json) \
+            KONA_VERSION=$(jq -r .version kona-proofs/version.json) \
             docker buildx bake \
               --progress plain \
               --builder=buildx-build \
@@ -941,6 +947,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: full
+          enable-mise-cache: true
       - install-zstd
       - run:
           name: Check if test list is empty
@@ -1011,6 +1018,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: full
+          enable-mise-cache: true
       - install-contracts-dependencies
       - install-zstd
       - run:
@@ -1067,6 +1075,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Check Python version
           command: python3 --version
@@ -1079,8 +1088,8 @@ jobs:
           path: ops/ai-eng/contracts-test-maintenance/log.json
           destination: log.json
       - run:
-          name: Prepare Slack notification
-          command: just prepare-slack-notification >> $BASH_ENV
+          name: Build Slack notification
+          command: just build-slack-notification >> $BASH_ENV
           working_directory: ops/ai-eng
           when: always
       - slack/notify:
@@ -1110,6 +1119,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: full
+          enable-mise-cache: true
       - install-contracts-dependencies
       - install-zstd
       - attach_workspace:
@@ -1203,7 +1213,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: 2xlarge
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          enable-mise-cache: true
       - install-contracts-dependencies
       - install-zstd
       - attach_workspace:
@@ -1287,6 +1298,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock
@@ -1301,7 +1313,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          enable-mise-cache: true
       - install-contracts-dependencies
       - attach_workspace:
           at: .
@@ -1347,7 +1360,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: 2xlarge
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          enable-mise-cache: true
       - install-zstd
       - install-contracts-dependencies
       - check-changed:
@@ -1375,6 +1389,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Install ripgrep
           command: sudo apt-get install -y ripgrep
@@ -1401,6 +1416,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - check-changed:
           patterns: "<<parameters.package_name>>"
       - attach_workspace:
@@ -1433,6 +1449,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - restore_cache:
           key: golangci-v1-{{ checksum ".golangci.yaml" }}
       - run:
@@ -1482,6 +1499,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - attach_workspace:
           at: .
       - restore_cache:
@@ -1557,6 +1575,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - attach_workspace:
           at: .
       - run:
@@ -1621,6 +1640,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       # Restore cached Go modules
       - restore_cache:
           keys:
@@ -1719,8 +1739,18 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - attach_workspace:
           at: .
+      - run:
+          name: Configure Rust binary paths (sysgo)
+          command: |
+            ROOT_DIR="$(pwd)"
+            BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
+            echo "export RUST_BINARY_PATH_KONA_NODE=$BIN_DIR/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$BIN_DIR/kona-supervisor" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
       # Restore cached Go modules
       - restore_cache:
           keys:
@@ -1813,6 +1843,18 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
+      - attach_workspace:
+          at: .
+      - run:
+          name: Configure Rust binary paths (sysgo)
+          command: |
+            ROOT_DIR="$(pwd)"
+            BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
+            echo "export RUST_BINARY_PATH_KONA_NODE=$BIN_DIR/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$BIN_DIR/kona-supervisor" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
@@ -1860,6 +1902,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - attach_workspace:
           at: .
       - clean-old-acceptor-logs
@@ -1912,6 +1955,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Lint/Vet/Build op-acceptance-tests/cmd
           working_directory: op-acceptance-tests
@@ -1992,6 +2036,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Install tools
           command: |
@@ -2015,6 +2060,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - restore_cache:
           name: Restore cannon prestate cache
           key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
@@ -2043,6 +2089,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - setup_remote_docker
       - run:
           name: Build prestates
@@ -2059,22 +2106,23 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - restore_cache:
           name: Restore kona cache
-          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
+          key: kona-prestate-{{ checksum "./kona-proofs/justfile" }}-{{ checksum "./kona-proofs/version.json" }}
       - run:
           name: Build kona prestates
           command: just build-prestates
-          working_directory: kona
+          working_directory: kona-proofs
       - save_cache:
-          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
+          key: kona-prestate-{{ checksum "./kona-proofs/justfile" }}-{{ checksum "./kona-proofs/version.json" }}
           name: Save Kona to cache
           paths:
-            - "kona/prestates/"
+            - "kona-proofs/prestates/"
       - persist_to_workspace:
           root: .
           paths:
-            - "kona/prestates/*"
+            - "kona-proofs/prestates/*"
 
   cannon-kona-host:
     docker:
@@ -2082,9 +2130,10 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - restore_cache:
           name: Restore kona host cache
-          key: kona-host-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
+          key: kona-host-{{ checksum "./kona-proofs/justfile" }}-{{ checksum "./kona-proofs/version.json" }}
       - run: # The mise plugin for clang is broken so install via apt-get
           name: Install clang
           command: |
@@ -2093,16 +2142,121 @@ jobs:
       - run:
           name: Build kona host
           command: just build-kona-host
-          working_directory: kona
+          working_directory: kona-proofs
       - save_cache:
-          key: kona-host-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
+          key: kona-host-{{ checksum "./kona-proofs/justfile" }}-{{ checksum "./kona-proofs/version.json" }}
           name: Save Kona host to cache
           paths:
-            - "kona/bin/kona-host"
+            - "kona-proofs/bin/kona-host"
       - persist_to_workspace:
           root: .
           paths:
-            - "kona/bin/kona-host"
+            - "kona-proofs/bin/kona-host"
+
+  # Build a single Rust binary for sysgo tests (parameterized).
+  rust-binary-build:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      binaries:
+        description: "Space-separated list of binary names to copy from target/release into the cache"
+        type: string
+      build_command:
+        description: "Cargo build command to run"
+        type: string
+      needs_clang:
+        description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)"
+        type: boolean
+        default: false
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Get << parameters.directory >> submodule HASH
+          command: |
+            mkdir -p .circleci-cache
+            # Verify the path is a git submodule (gitlink). For submodules, ls-tree prints:
+            # 160000 commit <sha> <path>
+            MODE_AND_TYPE="$(git ls-tree HEAD << parameters.directory >> | awk '{print $1 " " $2}')"
+            if [ "$MODE_AND_TYPE" != "160000 commit" ]; then
+              echo "ERROR: << parameters.directory >> is not a submodule path (expected '160000 commit', got '$MODE_AND_TYPE')" >&2
+              git ls-tree HEAD << parameters.directory >> >&2 || true
+              exit 1
+            fi
+
+            git ls-tree HEAD << parameters.directory >> | awk '{print $3}' > .circleci-cache/expected-submod-sha.txt
+            echo "Expected submodule HASH: $(cat .circleci-cache/expected-submod-sha.txt)"
+            echo "<< parameters.binaries >>" | tr ' ' '\n' | awk 'NF' | sort -u > .circleci-cache/expected-binaries.txt
+            echo "Expected binaries: $(tr '\n' ' ' < .circleci-cache/expected-binaries.txt)"
+      - restore_cache:
+          name: Restore << parameters.directory >> cache
+          keys:
+            - rust-<< parameters.directory >>-v8-{{ checksum ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum ".circleci-cache/expected-binaries.txt" }}
+      - run:
+          name: Build << parameters.directory >> submodule (if needed)
+          command: |
+            ROOT_DIR="$(pwd)"
+            BIN_CACHE_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
+
+            HIT=true
+            for bin in << parameters.binaries >>; do
+              if [ ! -f "$BIN_CACHE_DIR/$bin" ]; then
+                HIT=false
+                break
+              fi
+            done
+            if [ "$HIT" = "true" ]; then
+              echo "Cache hit - binaries exist"
+              exit 0
+            fi
+
+            echo "Cache miss - will build"
+            # Only run on cache miss. We intentionally do not cache into the submodule directory so that cache
+            # restore cannot make the submodule path non-empty (which breaks `git submodule update --init`).
+            git submodule update --init --recursive --depth 1 -j 8 --single-branch << parameters.directory >>
+
+            if [ "<< parameters.needs_clang >>" = "true" ]; then
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends clang
+            fi
+
+            cd << parameters.directory >> && << parameters.build_command >>
+
+            mkdir -p "$BIN_CACHE_DIR"
+            for bin in << parameters.binaries >>; do
+              SRC="$ROOT_DIR/<< parameters.directory >>/target/release/$bin"
+              DST="$BIN_CACHE_DIR/$bin"
+              if [ ! -f "$SRC" ]; then
+                echo "ERROR: expected built binary not found at $SRC" >&2
+                exit 1
+              fi
+              cp "$SRC" "$DST"
+              chmod +x "$DST" || true
+            done
+          no_output_timeout: 30m
+      - save_cache:
+          key: rust-<< parameters.directory >>-v8-{{ checksum ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum ".circleci-cache/expected-binaries.txt" }}
+          name: Save << parameters.directory >> cache
+          paths:
+            - ".circleci-cache/rust-binaries"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ".circleci-cache/rust-binaries"
+
+  # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
+  rust-binaries-for-sysgo:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: small
+    steps:
+      - run:
+          name: All Rust binaries ready
+          command: echo "All Rust binaries built and persisted to workspace"
 
   publish-cannon-prestates:
     resource_class: medium
@@ -2111,6 +2265,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - attach_workspace:
           at: "."
       - gcp-cli/install
@@ -2172,6 +2327,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Verify reproducibility
           command: make -C op-program verify-reproducibility
@@ -2187,6 +2343,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - setup_remote_docker
       - run:
           name: Build cannon
@@ -2255,6 +2412,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - setup_remote_docker
       - run:
           name: Run Analyzer
@@ -2269,6 +2427,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Verify Compatibility
           command: |
@@ -2282,6 +2441,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - check-changed:
           patterns: op-node
       - run:
@@ -2295,6 +2455,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - check-changed:
           patterns: op-service
       - run:
@@ -2307,6 +2468,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           command: just check-forge-version
           working_directory: op-deployer
@@ -2318,6 +2480,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
           no_go_deps: "true"
@@ -2357,6 +2520,7 @@ jobs:
           service_account_email: GCP_CONTRACTS_PUBLISHER_SERVICE_ACCOUNT_EMAIL
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - install-contracts-dependencies
       - install-zstd
       - run:
@@ -2393,7 +2557,8 @@ jobs:
       - gcp-oidc-authenticate:
           gcp_cred_config_file_path: /tmp/gcp_cred_config.json
           oidc_token_file_path: /tmp/oidc_token.json
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          enable-mise-cache: true
       - attach_workspace: { at: "." }
       - run:
           name: Configure Docker
@@ -2411,6 +2576,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - install-contracts-dependencies
       - run:
           name: Build contracts
@@ -2476,6 +2642,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Collect devnet metrics for op-acceptance-tests
           command: |
@@ -2500,6 +2667,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - run:
           name: Generate flaky acceptance tests report
           command: |
@@ -3204,12 +3372,41 @@ workflows:
       - cannon-prestate-quick:
           context:
             - circleci-repo-readonly-authenticated-github-token
+      - rust-binary-build:
+          name: rust-build-kona
+          directory: kona
+          binaries: "kona-node kona-supervisor"
+          build_command: cargo build --release --bin kona-node --bin kona-supervisor
+          needs_clang: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-binary-build:
+          name: rust-build-op-rbuilder
+          directory: op-rbuilder
+          binaries: "op-rbuilder"
+          build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
+          needs_clang: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-binary-build:
+          name: rust-build-rollup-boost
+          directory: rollup-boost
+          binaries: "rollup-boost"
+          build_command: cargo build --release -p rollup-boost --bin rollup-boost
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-binaries-for-sysgo:
+          requires:
+            - rust-build-kona
+            - rust-build-op-rbuilder
+            - rust-build-rollup-boost
       - op-acceptance-tests-flake-shake:
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
+            - rust-binaries-for-sysgo
       - op-acceptance-tests-flake-shake-report:
           requires:
             - op-acceptance-tests-flake-shake
@@ -3315,6 +3512,34 @@ workflows:
       - cannon-kona-host: # needed for sysgo tests (if any package is in-memory)
           context:
             - circleci-repo-readonly-authenticated-github-token
+      - rust-binary-build:
+          name: rust-build-kona
+          directory: kona
+          binaries: "kona-node kona-supervisor"
+          build_command: cargo build --release --bin kona-node --bin kona-supervisor
+          needs_clang: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-binary-build:
+          name: rust-build-op-rbuilder
+          directory: op-rbuilder
+          binaries: "op-rbuilder"
+          build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
+          needs_clang: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-binary-build:
+          name: rust-build-rollup-boost
+          directory: rollup-boost
+          binaries: "rollup-boost"
+          build_command: cargo build --release -p rollup-boost --bin rollup-boost
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-binaries-for-sysgo:
+          requires:
+            - rust-build-kona
+            - rust-build-op-rbuilder
+            - rust-build-rollup-boost
       # IN-MEMORY (all)
       - op-acceptance-tests:
           name: memory-all
@@ -3329,6 +3554,7 @@ workflows:
             - cannon-prestate-quick
             - cannon-kona-prestate
             - cannon-kona-host
+            - rust-binaries-for-sysgo
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report

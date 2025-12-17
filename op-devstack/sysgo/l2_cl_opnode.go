@@ -162,8 +162,25 @@ func (n *OpNode) Stop() {
 	n.opNode = nil
 }
 
-func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+func WithOpNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, l2FollowSourceID stack.L2CLNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
+		followSource := func(orch *Orchestrator) string {
+			p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
+			l2CLFollowSource, ok := orch.l2CLs.Get(l2FollowSourceID)
+			p.Require().True(ok, "l2 CL Follow Source required")
+			return l2CLFollowSource.UserRPC()
+		}(orch)
+		opts = append(opts, L2CLFollowSource(followSource))
+		withOpNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)(orch)
+	})
+}
+
+func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(withOpNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...))
+}
+
+func withOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) func(orch *Orchestrator) {
+	return func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
 
 		require := p.Require()
@@ -195,16 +212,12 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		L2CLOptionBundle(opts).Apply(p, l2CLID, cfg) // apply specific options
 
 		syncMode := cfg.VerifierSyncMode
-		unsafeOnly := false
 		if cfg.IsSequencer {
 			syncMode = cfg.SequencerSyncMode
 			// Sanity check, to navigate legacy sync-mode test assumptions.
 			// Can't enable ELSync on the sequencer or it will never start sequencing because
 			// ELSync needs to receive gossip from the sequencer to drive the sync
 			p.Require().NotEqual(nodeSync.ELSync, syncMode, "sequencer cannot use EL sync")
-			unsafeOnly = cfg.SequencerUnsafeOnly
-		} else {
-			unsafeOnly = cfg.VerifierUnsafeOnly
 		}
 
 		jwtPath, jwtSecret := orch.writeDefaultJWT()
@@ -286,6 +299,9 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				L2EngineAddr:      l2EL.EngineRPC(),
 				L2EngineJWTSecret: jwtSecret,
 			},
+			L2FollowSource: &config.L2FollowSourceConfig{
+				L2RPCAddr: cfg.FollowSource,
+			},
 			Beacon: &config.L1BeaconEndpointConfig{
 				BeaconAddr: l1CL.beaconHTTPAddr,
 			},
@@ -313,9 +329,8 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				SyncModeReqResp:                cfg.UseReqRespSync,
 				SkipSyncStartCheck:             false,
 				SupportsPostFinalizationELSync: false,
-				UnsafeOnly:                     unsafeOnly,
-				L2FollowSourceEndpoint:         "",
-				NeedInitialResetEngine:         cfg.IsSequencer && unsafeOnly,
+				L2FollowSourceEndpoint:         cfg.FollowSource,
+				NeedInitialResetEngine:         cfg.IsSequencer && cfg.FollowSource != "",
 			},
 			ConfigPersistence:               config.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
@@ -350,5 +365,5 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		require.True(orch.l2CLs.SetIfMissing(l2CLID, l2CLNode), fmt.Sprintf("must not already exist: %s", l2CLID))
 		l2CLNode.Start()
 		p.Cleanup(l2CLNode.Stop)
-	})
+	}
 }

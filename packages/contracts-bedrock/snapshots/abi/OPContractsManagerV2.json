@@ -440,6 +440,38 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_systemConfig",
+        "type": "address"
+      }
+    ],
+    "name": "isPermittedUpgradeSequence",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "opcmStandardValidator",
+    "outputs": [
+      {
+        "internalType": "contract IOPContractsManagerStandardValidator",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "opcmUtils",
     "outputs": [
@@ -458,19 +490,6 @@
     "outputs": [
       {
         "internalType": "contract OPContractsManagerV2",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "standardValidator",
-    "outputs": [
-      {
-        "internalType": "contract IOPContractsManagerStandardValidator",
         "name": "",
         "type": "address"
       }
@@ -670,7 +689,7 @@
         "type": "string"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -722,6 +741,22 @@
       }
     ],
     "name": "OPContractsManagerV2_InvalidUpgradeInstruction",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_lastVersion",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_thisVersion",
+        "type": "string"
+      }
+    ],
+    "name": "OPContractsManagerV2_InvalidUpgradeSequence",
     "type": "error"
   },
   {

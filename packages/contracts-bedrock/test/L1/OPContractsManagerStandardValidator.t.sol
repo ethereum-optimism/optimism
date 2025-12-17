@@ -167,7 +167,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
         preimageOracle = IPreimageOracle(artifacts.mustGetAddress("PreimageOracle"));
 
         if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            standardValidator = opcmV2.standardValidator();
+            standardValidator = opcmV2.opcmStandardValidator();
         } else {
             standardValidator = opcm.opcmStandardValidator();
         }
