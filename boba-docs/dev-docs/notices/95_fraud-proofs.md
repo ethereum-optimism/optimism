@@ -1,10 +1,10 @@
-# Prepare for Fraud Proofs on Boba Sepolia and Boba BNB Testnet 
+# Prepare for Fraud Proofs on Boba Sepolia
 
 Fraud proofs are important for making L2 more decentrailized, allowing more community involvement in validating the L2 state. These changes allow anyone to submit or challenge a state root, an essential part of the process used for withdrawing funds from L2 to L1.
 
 ## Prepare for Fault Proofs
 
-Fault proofs are expected to go live for Boba Testnets (Boba Sepolia and Boba BNB Testnet) in mid-August 2024.
+Fault proofs are expected to go live for Boba Sepolia in mid-August 2024.
 
 ### Changes for Testnet Withdrawals
 
@@ -12,7 +12,7 @@ Fault proofs are expected to go live for Boba Testnets (Boba Sepolia and Boba BN
 
 * Withdrawal will require 7 days to finalize depending on the outcome of the dispute game. 
 
-  > Boba Testnets withdrawals are no longer instant.
+  > Boba Sepolia withdrawals are no longer instant.
 
 * The `DisputeGameFactory` will replace the `L2OutputOracle` contract for proposing output root statements, enhancing platform security and reliability.
 
