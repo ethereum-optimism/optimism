@@ -458,7 +458,7 @@ commands:
       version:
         description: "Version of the cache"
         type: string
-        default: "13"
+        default: "14"
       profile:
         description: "Profile to restore the cache for"
         type: string
@@ -466,25 +466,180 @@ commands:
       features:
         description: "Comma-separated list of features to restore the cache for"
         type: string
-        default: "default"
-      binary:
-        description: "Binary name to restore the cache for"
-        type: string
         default: ""
+      prefix:
+        description: "Prefix to add to the cache key"
+        type: string
+        default: "rust-build"
     steps:
       - restore_cache:
           name: Restore << parameters.directory >> target cache
           keys:
-            - rust-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}-<< parameters.profile >>-<< parameters.features >>-<< parameters.binary >>
-            # Fallback to the workspace build if no binary is specified
-            - rust-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}-<< parameters.profile >>-<< parameters.features >>
+            - << parameters.prefix >>-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}-<< parameters.profile >>-<< parameters.features >>
+            - << parameters.prefix >>-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}-<< parameters.profile >>
+            - << parameters.prefix >>-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
       - restore_cache:
           name: Restore << parameters.directory >> registry cache (mise)
           keys:
-            - rust-registry-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
+            - << parameters.prefix >>-registry-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
+
+  rust-save-build-cache:
+    description: "Save the target directory cache for a Rust workspace"
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      version:
+        description: "Version of the cache"
+        type: string
+        default: "14"
+      profile:
+        description: "Profile to save the cache for"
+        type: string
+        default: "debug"
+      features:
+        description: "Comma-separated list of features to save the cache for"
+        type: string
+        default: ""
+      prefix:
+        description: "Prefix to add to the cache key"
+        type: string
+        default: "rust-build"
+    steps:
+      - save_cache:
+          key: << parameters.prefix >>-registry-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
+          name: Save << parameters.directory >> registry cache (mise)
+          paths:
+            - /data/mise-data/.cargo/registry
+            - /data/mise-data/.cargo/git
+            - /data/mise-data/.rustup
+      - save_cache:
+          key: << parameters.prefix >>-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}-<< parameters.profile >>-<< parameters.features >>
+          name: Save << parameters.directory >> target cache
+          paths:
+            - << parameters.directory >>/target/<< parameters.profile >>
+
+  rust-prepare-and-restore-cache:
+    description: "Prepare the Rust environment and restore the cache"
+    parameters:
+      needs_clang:
+        description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)"
+        type: boolean
+        default: true
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      version:
+        description: "Version of the cache"
+        type: string
+        default: "14"
+      profile:
+        description: "Profile to restore the cache for"
+        type: string
+        default: "debug"
+      features:
+        description: "Comma-separated list of features to restore the cache for"
+        type: string
+        default: ""
+      prefix:
+        description: "Prefix to add to the cache key"
+        type: string
+        default: "rust-build"
+    steps:
+      - rust-prepare:
+          needs_clang: << parameters.needs_clang >>
+      - rust-restore-build-cache:
+          version: << parameters.version >>
+          directory: << parameters.directory >>
+          profile: << parameters.profile >>
+          features: << parameters.features >>
+          prefix: << parameters.prefix >>
+
+  rust-build:
+    description: "Build a Rust workspace with target directory caching"
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      needs_clang:
+        description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)"
+        type: boolean
+        default: true
+      version:
+        description: "Version of the cache"
+        type: string
+        default: "14"
+      profile:
+        description: "Profile to build the binary with"
+        type: string
+        default: "debug"
+      features:
+        description: "Comma-separated list of features to build the binary with"
+        type: string
+        default: "default"
+      package:
+        description: "Package name to build. If not specified, the workspace will be built."
+        type: string
+        default: ""
+      binary:
+        description: "Binary name to build. If not specified, all targets will be built."
+        type: string
+        default: ""
+      save_cache:
+        description: "Whether to save the cache at the end of the build"
+        type: boolean
+        default: false
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          needs_clang: << parameters.needs_clang >>
+          version: << parameters.version >>
+          directory: << parameters.directory >>
+          profile: << parameters.profile >>
+          features: << parameters.features >>
+      - run:
+          name: Build << parameters.directory >>
+          command: |
+            PWD=$(pwd)
+            export CARGO_TARGET_DIR="$PWD/<< parameters.directory >>/target"
+            echo "CARGO_TARGET_DIR: $CARGO_TARGET_DIR"
+            export PROFILE="--profile << parameters.profile >>"
+
+            # Debug profile is specified as "debug" in the config/target, but cargo build expects "dev"
+            if [ "<< parameters.profile >>" = "debug" ]; then
+              export PROFILE="--profile dev"
+            fi
+
+            export PACKAGE="--workspace"
+            if [ -n "<< parameters.package >>" ]; then
+              export PACKAGE="--package << parameters.package >>"
+            fi
+
+            export BINARY="--all-targets"
+            if [ -n "<< parameters.binary >>" ]; then
+              export BINARY="--bin << parameters.binary >>"
+            fi
+
+            export FEATURES="--features << parameters.features >>"
+            if [ "<< parameters.features >>" = "all" ]; then
+              export FEATURES="--all-features"
+            fi
+
+            cd << parameters.directory >> && cargo build $PROFILE $TARGET $PACKAGE $FEATURES
+          no_output_timeout: 30m
+      - when:
+          condition: << parameters.save_cache >>
+          steps:
+            - rust-save-build-cache:
+                directory: << parameters.directory >>
+                version: << parameters.version >>
+                profile: << parameters.profile >>
+                features: << parameters.features >>
 
 jobs:
-  rust-build:
+  # Build a single Rust binary from a workspace. Will cache the binary by default.
+  rust-build-binary:
     description: "Build a Rust workspace with target directory caching"
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
@@ -500,7 +655,7 @@ jobs:
       version:
         description: "Version of the cache"
         type: string
-        default: "13"
+        default: "14"
       profile:
         description: "Profile to build the binary with"
         type: string
@@ -509,58 +664,28 @@ jobs:
         description: "Comma-separated list of features to build the binary with"
         type: string
         default: "default"
-      binary:
-        description: "Binary name to build. If not specified, the workspace will be built."
+      package:
+        description: "Package name to build. If not specified, the workspace will be built."
         type: string
         default: ""
+      binary:
+        description: "Binary name to build. If not specified, all targets will be built."
+        type: string
+        default: ""
+      save_cache:
+        description: "Whether to save the cache at the end of the build"
+        type: boolean
+        default: true
     steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare:
-          needs_clang: << parameters.needs_clang >>
-      - rust-restore-build-cache:
-          version: << parameters.version >>
+      - rust-build:
           directory: << parameters.directory >>
+          needs_clang: << parameters.needs_clang >>
+          version: << parameters.version >>
           profile: << parameters.profile >>
           features: << parameters.features >>
+          package: << parameters.package >>
           binary: << parameters.binary >>
-      - run:
-          name: Build << parameters.directory >>
-          command: |
-            PWD=$(pwd)
-            export CARGO_TARGET_DIR="$PWD/<< parameters.directory >>/target"
-            echo "CARGO_TARGET_DIR: $CARGO_TARGET_DIR"
-            export PROFILE="--profile << parameters.profile >>"
-
-            # Debug profile is specified as "debug" in the config/target, but cargo build expects "dev"
-            if [ "<< parameters.profile >>" = "debug" ]; then
-              export PROFILE="--profile dev"
-            fi
-
-            export BINARY="--workspace"
-            if [ -n "<< parameters.binary >>" ]; then
-              export BINARY="--bin << parameters.binary >>"
-            fi
-
-            export FEATURES="--features << parameters.features >>"
-            if [ "<< parameters.features >>" = "all" ]; then
-              export FEATURES="--all-features"
-            fi
-
-            cd << parameters.directory >> && cargo build $PROFILE $BINARY $FEATURES
-          no_output_timeout: 30m
-      - save_cache:
-          key: rust-registry-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
-          name: Save << parameters.directory >> registry cache (mise)
-          paths:
-            - /data/mise-data/.cargo/registry
-            - /data/mise-data/.cargo/git
-            - /data/mise-data/.rustup
-      - save_cache:
-          key: rust-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}-<< parameters.profile >>-<< parameters.features >>-<< parameters.binary >>
-          name: Save << parameters.directory >> target cache
-          paths:
-            - << parameters.directory >>/target/<< parameters.profile >>
+          save_cache: << parameters.save_cache >>
 
   # Build a single Rust binary from a submodule.
   rust-build-submodule:
@@ -2023,12 +2148,17 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      # Build kona-node for the acceptance tests. This automatically gets kona from the cache.
+      - rust-build:
+          directory: kona
+          binary: "kona-node"
+          profile: "release"
       - run:
           name: Configure Rust binary paths (sysgo)
           command: |
             ROOT_DIR="$(pwd)"
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
-            echo "export RUST_BINARY_PATH_KONA_NODE=$BIN_DIR/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/kona/target/release/kona-node" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$BIN_DIR/kona-supervisor" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
@@ -2405,30 +2535,6 @@ jobs:
           paths:
             - "kona/prestates/*"
 
-  cannon-kona-host:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - restore_cache:
-          name: Restore kona host cache
-          key: kona-host-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
-      - rust-prepare
-      - run:
-          name: Build kona host
-          command: just build-kona-host
-          working_directory: kona
-      - save_cache:
-          key: kona-host-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
-          name: Save Kona host to cache
-          paths:
-            - "kona/bin/kona-host"
-      - persist_to_workspace:
-          root: .
-          paths:
-            - "kona/bin/kona-host"
 
   # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
   rust-binaries-for-sysgo:
@@ -2882,6 +2988,10 @@ jobs:
       devnet_config:
         description: The devnet configuration to test
         type: string
+      reorg_tests:
+        description: Whether to run reorg tests
+        type: boolean
+        default: false
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
@@ -2890,9 +3000,13 @@ jobs:
           checkout-method: blobless
       - attach_workspace:
           at: .
-      - rust-prepare:
-          needs_clang: true
-      - rust-restore-build-cache:
+      # Restore cached Go modules
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v1-
+      - rust-build:
+          binary: "kona-node"
           directory: kona
           profile: release
       - run:
@@ -2902,22 +3016,24 @@ jobs:
             WD=$(pwd)
             echo "Running tests..."
             export OP_RETH_EXEC_PATH="$WD/.circleci-cache/rust-binaries/op-reth"
-            export KONA_NODE_EXEC_PATH="$WD/kona/target/release/kona-node"
-            echo "export RUST_BINARY_PATH_KONA_NODE=$KONA_NODE_EXEC_PATH" >> $BASH_ENV
-            cd kona && just build-kona && just test-e2e-sysgo-run node node/common "<<parameters.devnet_config>>"
-      - run:
-          name: Run reorg tests for node with sysgo orchestrator
-          no_output_timeout: 60m
-          command: |
-            WD=$(pwd)
-            echo "Running tests..."
-            export OP_RETH_EXEC_PATH="$WD/.circleci-cache/rust-binaries/op-reth"
-            export KONA_NODE_EXEC_PATH="$WD/kona/target/release/kona-node"
-            echo "export RUST_BINARY_PATH_KONA_NODE=$KONA_NODE_EXEC_PATH" >> $BASH_ENV
-            cd kona && just test-e2e-sysgo-run node node/reorgs "<<parameters.devnet_config>>"
+            export RUST_BINARY_PATH_KONA_NODE="$WD/kona/target/release/kona-node"
+            cd kona && just test-e2e-sysgo-run node node/common "<<parameters.devnet_config>>"
+      # TODO: It seems this job breaks in monorepo's CCI. We need to investigate why and fix it.
+      - when:
+          condition:
+            equal: [true, <<parameters.reorg_tests>>]
+          steps:
+            - run:
+                name: Run reorg tests for node with sysgo orchestrator
+                no_output_timeout: 60m
+                command: |
+                  WD=$(pwd)
+                  echo "Running tests..."
+                  export OP_RETH_EXEC_PATH="$WD/.circleci-cache/rust-binaries/op-reth"
+                  export RUST_BINARY_PATH_KONA_NODE="$WD/kona/target/release/kona-node"
+                  cd kona && just test-e2e-sysgo-run node node/reorgs "<<parameters.devnet_config>>"
 
   # Kona Node Restart Tests (from node_e2e_sysgo_tests.yaml)
-  # TODO: It seems this job breaks in monorepo's CCI. We need to investigate why and fix it.
   kona-node-restart-sysgo-tests:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
@@ -2927,9 +3043,13 @@ jobs:
           checkout-method: blobless
       - attach_workspace:
           at: .
-      - rust-prepare:
-          needs_clang: true
-      - rust-restore-build-cache:
+      # Restore cached Go modules
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v1-
+      - rust-build:
+          binary: "kona-node"
           directory: kona
           profile: release
       - run:
@@ -2938,9 +3058,8 @@ jobs:
           command: |
             echo "Running tests..."
             WD=$(pwd)
-            export KONA_NODE_EXEC_PATH="$WD/kona/target/release/kona-node"
-            echo "export RUST_BINARY_PATH_KONA_NODE=$KONA_NODE_EXEC_PATH" >> $BASH_ENV
-            cd kona && just build-kona && just test-e2e-sysgo node node/restart
+            export RUST_BINARY_PATH_KONA_NODE="$WD/kona/target/release/kona-node"
+            cd kona && just test-e2e-sysgo node node/restart
 
   # Kona Proof Action Tests (from proof.yaml)
   kona-proof-action-tests:
@@ -2951,22 +3070,26 @@ jobs:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
+    parallelism: 4
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
           at: .
-      - rust-prepare
-      - rust-restore-build-cache:
+      # Restore cached Go modules
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v1-
+      - rust-build:
           directory: kona
-          profile: debug
+          profile: release
+          binary: "kona-host"
       - run:
           name: Build kona and run action tests
           working_directory: kona
           no_output_timeout: 90m
           command: |
-            echo "Building kona..."
-            cargo build --bin kona-host
             echo "Running action tests"
             just "action-tests-<<parameters.kind>>-run"
 
@@ -3052,10 +3175,9 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare
-      - rust-restore-build-cache:
+      - rust-prepare-and-restore-cache:
           directory: kona
-          features: "all"
+          prefix: kona-tests
       - run:
           name: Install nextest
           command: |
@@ -3066,6 +3188,9 @@ jobs:
           no_output_timeout: 40m
           command: |
             just test
+      - rust-save-build-cache:
+          directory: kona
+          prefix: kona-tests
 
   # Kona Rust CI - Lint (from rust_ci.yaml)
   kona-cargo-lint:
@@ -3080,8 +3205,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare
-      - rust-restore-build-cache:
+      - rust-prepare-and-restore-cache:
           directory: kona
           features: "all"
       - rust-install-toolchain:
@@ -3105,8 +3229,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare:
-          needs_clang: true
+      - rust-prepare
       - run:
           name: Build <<parameters.target>>
           working_directory: kona
@@ -3122,16 +3245,18 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare:
-          needs_clang: true
-      - rust-restore-build-cache:
+      - rust-prepare-and-restore-cache:
           directory: kona
+          prefix: kona-benches
       - run:
           name: Build benchmarks
           working_directory: kona
           no_output_timeout: 40m
           command: |
             just benches
+      - rust-save-build-cache:
+          directory: kona
+          prefix: kona-benches
 
   # Kona Rust CI - Check unused dependencies (from rust_ci.yaml)
   kona-cargo-udeps:
@@ -3141,11 +3266,9 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare:
-          needs_clang: true
-      - rust-restore-build-cache:
+      - rust-prepare-and-restore-cache:
           directory: kona
-          features: "all"
+          prefix: kona-udeps
       - run:
           name: Install cargo-udeps
           command: |
@@ -3156,6 +3279,9 @@ jobs:
           no_output_timeout: 40m
           command: |
             just check-udeps
+      - rust-save-build-cache:
+          directory: kona
+          prefix: kona-udeps
 
   # Kona Rust CI - Doc lint (from rust_ci.yaml)
   kona-cargo-doc-lint:
@@ -3165,9 +3291,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare:
-          needs_clang: true
-      - rust-restore-build-cache:
+      - rust-prepare-and-restore-cache:
           directory: kona
       - run:
           name: Lint documentation
@@ -3184,16 +3308,18 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare:
-          needs_clang: true
-      - rust-restore-build-cache:
+      - rust-prepare-and-restore-cache:
           directory: kona
+          prefix: kona-doc-test
       - run:
           name: Run doc tests
           working_directory: kona
           no_output_timeout: 40m
           command: |
             just test-docs
+      - rust-save-build-cache:
+          directory: kona
+          prefix: kona-doc-test
 
   # Kona Rust CI - Typos (from rust_ci.yaml)
   kona-typos:
@@ -3222,8 +3348,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare
-      - rust-restore-build-cache:
+      - rust-prepare-and-restore-cache:
           directory: kona
           features: "all"
       - run:
@@ -3264,7 +3389,9 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare
+      - rust-prepare-and-restore-cache:
+          directory: kona
+          prefix: kona-coverage
       - rust-install-toolchain:
           components: llvm-tools-preview
       - run:
@@ -3288,6 +3415,9 @@ jobs:
           flags: unit
       - store_test_results:
           path: kona/junit.xml
+      - rust-save-build-cache:
+          directory: kona
+          prefix: kona-coverage
 
 
   # Kona Rust CI - Deny (from rust_ci.yaml)
@@ -3397,10 +3527,10 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-with-binaries:
+      - rust-build:
+          binary: "kona-supervisor"
           directory: kona
-          binaries: kona-supervisor
-          needs_clang: false
+          profile: release
       - run:
           name: Run supervisor tests for <<parameters.test_pkg>>
           working_directory: kona
@@ -3426,7 +3556,7 @@ jobs:
           checkout-method: blobless
       - rust-install-toolchain:
           components: llvm-tools-preview
-      - rust-prepare-with-binaries:
+      - rust-prepare-and-restore-cache:
           directory: kona
           binaries: kona-client
           needs_clang: true
@@ -4141,7 +4271,7 @@ workflows:
       - cannon-prestate-quick:
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build:
+      - rust-build-binary:
           name: kona-build-release
           directory: kona
           build_command: cargo build --release --bin kona-node --bin kona-supervisor
@@ -4278,15 +4408,20 @@ workflows:
       - cannon-kona-prestate: # needed for sysgo tests (if any package is in-memory)
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - cannon-kona-host: # needed for sysgo tests (if any package is in-memory)
+      - rust-build-binary:
+          name: cannon-kona-host
+          directory: kona
+          profile: "release"
+          binary: "kona-host"
+          save_cache: true
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build:
+      - rust-build-binary:
           name: kona-build-release
           directory: kona
-          binary: "kona-node"
-          features: "default"
           profile: "release"
+          features: "default"
+          save_cache: true
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-submodule:
@@ -4396,29 +4531,37 @@ workflows:
       - cannon-kona-prestate: # needed for sysgo tests (if any package is in-memory)
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - cannon-kona-host: # needed for sysgo tests (if any package is in-memory)
+      - rust-build-binary:
+          name: cannon-kona-host
+          directory: kona
+          profile: "release"
+          binary: "kona-host"
+          save_cache: true
           context:
             - circleci-repo-readonly-authenticated-github-token
       # Rust CI jobs (from rust_ci.yaml)
-      - rust-build:
+      - rust-build-binary:
           name: kona-build-release
           directory: kona
           profile: "release"
           features: "default"
+          save_cache: true
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build:
+      - rust-build-binary:
           name: kona-build-debug
           directory: kona
           profile: "debug"
           features: "default"
+          save_cache: true
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build:
+      - rust-build-binary:
           name: kona-build-all-features
           directory: kona
           profile: "debug"
           features: "all"
+          save_cache: true
           context:
             - circleci-repo-readonly-authenticated-github-token
       - kona-build-fpvm:
@@ -4500,6 +4643,16 @@ workflows:
             - cannon-kona-host
             - kona-build-release
             - op-reth-build
+      - kona-node-restart-sysgo-tests:
+          name: kona-node-e2e-restart
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+            - cannon-kona-prestate
+            - cannon-kona-host
+            - kona-build-release
 
       # Proof tests (from proof.yaml) - single kind only, interop excluded per original config
       - kona-proof-action-tests:
