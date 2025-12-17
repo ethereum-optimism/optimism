@@ -20,7 +20,7 @@ var addresses = map[uint64]map[string]common.Address{
 		standard.ContractsV400Tag: common.HexToAddress("0x3dfc5e44043DC5998928E0b8280136b7352d3F70"),
 		// Bootstrapped on 10/02/2025 using OP Deployer.
 		standard.ContractsV410Tag: common.HexToAddress("0x845FEF377Fa9C678B3eBe33B024678538f1215dD"),
-		// Bootstrapped on 10/27/2025 using OP Deployer (v5.0.0-rc.2).
+		// Bootstrapped on 10/27/2025 using OP Deployer.
 		standard.ContractsV500Tag: common.HexToAddress("0xDCE1A51A25dD5BF02ccB4264D039EDdF11A95b43"),
 	},
 	11155111: {
@@ -34,7 +34,7 @@ var addresses = map[uint64]map[string]common.Address{
 		standard.ContractsV400Tag: common.HexToAddress("0xA8a1529547306FEC7A32a001705160f2110451aE"),
 		// Bootstrapped on 10/02/2025 using OP Deployer.
 		standard.ContractsV410Tag: common.HexToAddress("0x7B4d2a02d5fa6C7C98D835d819956EBB876Ff439"),
-		// Bootstrapped on 10/27/2025 using OP Deployer (v5.0.0-rc.2).
+		// Bootstrapped on 10/27/2025 using OP Deployer.
 		standard.ContractsV500Tag: common.HexToAddress("0x757bFA3AAABcE60112Cee3239DCD05b5F6EFaE3A"),
 	},
 }

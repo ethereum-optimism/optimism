@@ -95,21 +95,17 @@ func (c *ImplementationsConfig) Check() error {
 	if c.DisputeGameFinalityDelaySeconds == 0 {
 		return errors.New("dispute game finality delay in seconds must be specified")
 	}
-	// Check V2 fault game parameters only if V2 dispute games feature is enabled
-	deployV2Games := deployer.IsDevFeatureEnabled(c.DevFeatureBitmap, deployer.DeployV2DisputeGamesDevFlag)
-	if deployV2Games {
-		if c.FaultGameMaxGameDepth == 0 {
-			return errors.New("fault game max game depth must be specified when V2 dispute games feature is enabled")
-		}
-		if c.FaultGameSplitDepth == 0 {
-			return errors.New("fault game split depth must be specified when V2 dispute games feature is enabled")
-		}
-		if c.FaultGameClockExtension == 0 {
-			return errors.New("fault game clock extension must be specified when V2 dispute games feature is enabled")
-		}
-		if c.FaultGameMaxClockDuration == 0 {
-			return errors.New("fault game max clock duration must be specified when V2 dispute games feature is enabled")
-		}
+	if c.FaultGameMaxGameDepth == 0 {
+		return errors.New("fault game max game depth must be specified")
+	}
+	if c.FaultGameSplitDepth == 0 {
+		return errors.New("fault game split depth must be specified")
+	}
+	if c.FaultGameClockExtension == 0 {
+		return errors.New("fault game clock extension must be specified")
+	}
+	if c.FaultGameMaxClockDuration == 0 {
+		return errors.New("fault game max clock duration must be specified")
 	}
 	if c.SuperchainConfigProxy == (common.Address{}) {
 		return errors.New("superchain config proxy must be specified")

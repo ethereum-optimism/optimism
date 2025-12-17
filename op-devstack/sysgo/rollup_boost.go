@@ -3,7 +3,6 @@ package sysgo
 import (
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -112,10 +111,15 @@ func (r *RollupBoostNode) Start() {
 
 	r.sub = NewSubProcess(r.p, stdOut, stdErr)
 
-	exec := os.Getenv("ROLLUP_BOOST_EXEC_PATH")
-	r.p.Require().NotEmpty(exec, "ROLLUP_BOOST_EXEC_PATH must be set")
+	execPath, err := EnsureRustBinary(r.p, RustBinarySpec{
+		SrcDir:  "rollup-boost",
+		Package: "rollup-boost",
+		Binary:  "rollup-boost",
+	})
+	r.p.Require().NoError(err, "prepare rollup-boost binary")
+	r.p.Require().NotEmpty(execPath, "rollup-boost binary path resolved")
 
-	err := r.sub.Start(exec, args, env)
+	err = r.sub.Start(execPath, args, env)
 	r.p.Require().NoError(err, "start rollup-boost")
 
 	rpcUpstreamURL := "http://" + cfg.RPCHost + ":" + strconv.Itoa(int(cfg.RPCPort))

@@ -121,6 +121,10 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			CacheDir:                        testCacheDir,
 			Logger:                          lgr,
 			Challenger:                      common.Address{'C'},
+			FaultGameMaxGameDepth:           standard.DisputeMaxGameDepth,
+			FaultGameSplitDepth:             standard.DisputeSplitDepth,
+			FaultGameClockExtension:         standard.DisputeClockExtension,
+			FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
 		})
 		require.NoError(t, err)
 
@@ -165,65 +169,50 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 	op_e2e.InitParallel(t)
 
-	tests := []struct {
-		name       string
-		devFeature common.Hash
-	}{
-		{"default", common.Hash{}},
-		{"deploy-v2-disputegames", deployer.DeployV2DisputeGamesDevFlag},
-		{"cannon-kona", deployer.EnableDevFeature(deployer.DeployV2DisputeGamesDevFlag, deployer.CannonKonaDevFlag)},
+	lgr := testlog.Logger(t, slog.LevelDebug)
+
+	forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
+	require.NoError(t, err)
+	pkHex, _, _ := shared.DefaultPrivkey(t)
+	t.Cleanup(func() {
+		require.NoError(t, stopL1())
+	})
+	loc, afactsFS := testutil.LocalArtifacts(t)
+	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+
+	superchain, err := standard.SuperchainFor(11155111)
+	require.NoError(t, err)
+
+	superchainProxyAdmin, err := standard.SuperchainProxyAdminAddrFor(11155111)
+	require.NoError(t, err)
+
+	superchainProxyAdminOwner, err := standard.L1ProxyAdminOwner(11155111)
+	require.NoError(t, err)
+
+	cfg := bootstrap.ImplementationsConfig{
+		L1RPCUrl:                        forkedL1.RPCUrl(),
+		PrivateKey:                      pkHex,
+		ArtifactsLocator:                loc,
+		MIPSVersion:                     int(standard.MIPSVersion),
+		WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
+		MinProposalSizeBytes:            standard.MinProposalSizeBytes,
+		ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
+		ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
+		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
+		DevFeatureBitmap:                common.Hash{},
+		SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
+		ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
+		L1ProxyAdminOwner:               superchainProxyAdminOwner,
+		SuperchainProxyAdmin:            superchainProxyAdmin,
+		CacheDir:                        testCacheDir,
+		Logger:                          lgr,
+		Challenger:                      common.Address{'C'},
+		FaultGameMaxGameDepth:           standard.DisputeMaxGameDepth,
+		FaultGameSplitDepth:             standard.DisputeSplitDepth,
+		FaultGameClockExtension:         standard.DisputeClockExtension,
+		FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			op_e2e.InitParallel(t)
-			lgr := testlog.Logger(t, slog.LevelDebug)
-
-			forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
-			require.NoError(t, err)
-			pkHex, _, _ := shared.DefaultPrivkey(t)
-			t.Cleanup(func() {
-				require.NoError(t, stopL1())
-			})
-			loc, afactsFS := testutil.LocalArtifacts(t)
-			testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
-
-			superchain, err := standard.SuperchainFor(11155111)
-			require.NoError(t, err)
-
-			superchainProxyAdmin, err := standard.SuperchainProxyAdminAddrFor(11155111)
-			require.NoError(t, err)
-
-			superchainProxyAdminOwner, err := standard.L1ProxyAdminOwner(11155111)
-			require.NoError(t, err)
-
-			cfg := bootstrap.ImplementationsConfig{
-				L1RPCUrl:                        forkedL1.RPCUrl(),
-				PrivateKey:                      pkHex,
-				ArtifactsLocator:                loc,
-				MIPSVersion:                     int(standard.MIPSVersion),
-				WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
-				MinProposalSizeBytes:            standard.MinProposalSizeBytes,
-				ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
-				ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
-				DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-				DevFeatureBitmap:                tt.devFeature,
-				SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
-				ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
-				L1ProxyAdminOwner:               superchainProxyAdminOwner,
-				SuperchainProxyAdmin:            superchainProxyAdmin,
-				CacheDir:                        testCacheDir,
-				Logger:                          lgr,
-				Challenger:                      common.Address{'C'},
-			}
-			if deployer.IsDevFeatureEnabled(tt.devFeature, deployer.DeployV2DisputeGamesDevFlag) {
-				cfg.FaultGameMaxGameDepth = standard.DisputeMaxGameDepth
-				cfg.FaultGameSplitDepth = standard.DisputeSplitDepth
-				cfg.FaultGameClockExtension = standard.DisputeClockExtension
-				cfg.FaultGameMaxClockDuration = standard.DisputeMaxClockDuration
-			}
-			runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, cfg)
-		})
-	}
+	runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, cfg)
 }
 
 func TestEndToEndApply(t *testing.T) {
@@ -454,114 +443,91 @@ func TestApplyGenesisStrategy(t *testing.T) {
 
 func TestProofParamOverrides(t *testing.T) {
 	op_e2e.InitParallel(t)
-	for _, useV2 := range []bool{true, false} {
-		t.Run(fmt.Sprintf("useV2=%v", useV2), func(t *testing.T) {
-			op_e2e.InitParallel(t)
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-			opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
-			devFeatureBitmap := common.Hash{}
-			if useV2 {
-				devFeatureBitmap = deployer.DeployV2DisputeGamesDevFlag
-			}
-			intent.GlobalDeployOverrides = map[string]any{
-				"faultGameWithdrawalDelay":                standard.WithdrawalDelaySeconds + 1,
-				"preimageOracleMinProposalSize":           standard.MinProposalSizeBytes + 1,
-				"preimageOracleChallengePeriod":           standard.ChallengePeriodSeconds + 1,
-				"proofMaturityDelaySeconds":               standard.ProofMaturityDelaySeconds + 1,
-				"disputeGameFinalityDelaySeconds":         standard.DisputeGameFinalityDelaySeconds + 1,
-				"mipsVersion":                             standard.MIPSVersion,     // Contract enforces a valid value be used
-				"respectedGameType":                       standard.DisputeGameType, // This must be set to the permissioned game
-				"faultGameAbsolutePrestate":               common.Hash{'A', 'B', 'S', 'O', 'L', 'U', 'T', 'E'},
-				"faultGameMaxDepth":                       standard.DisputeMaxGameDepth + 1,
-				"faultGameSplitDepth":                     standard.DisputeSplitDepth + 1,
-				"faultGameClockExtension":                 standard.DisputeClockExtension + 1,
-				"faultGameMaxClockDuration":               standard.DisputeMaxClockDuration + 1,
-				"dangerouslyAllowCustomDisputeParameters": true,
-				"devFeatureBitmap":                        devFeatureBitmap,
-			}
+	opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
+	intent.GlobalDeployOverrides = map[string]any{
+		"faultGameWithdrawalDelay":                standard.WithdrawalDelaySeconds + 1,
+		"preimageOracleMinProposalSize":           standard.MinProposalSizeBytes + 1,
+		"preimageOracleChallengePeriod":           standard.ChallengePeriodSeconds + 1,
+		"proofMaturityDelaySeconds":               standard.ProofMaturityDelaySeconds + 1,
+		"disputeGameFinalityDelaySeconds":         standard.DisputeGameFinalityDelaySeconds + 1,
+		"mipsVersion":                             standard.MIPSVersion,     // Contract enforces a valid value be used
+		"respectedGameType":                       standard.DisputeGameType, // This must be set to the permissioned game
+		"faultGameAbsolutePrestate":               common.Hash{'A', 'B', 'S', 'O', 'L', 'U', 'T', 'E'},
+		"faultGameMaxDepth":                       standard.DisputeMaxGameDepth + 1,
+		"faultGameSplitDepth":                     standard.DisputeSplitDepth + 1,
+		"faultGameClockExtension":                 standard.DisputeClockExtension + 1,
+		"faultGameMaxClockDuration":               standard.DisputeMaxClockDuration + 1,
+		"dangerouslyAllowCustomDisputeParameters": true,
+		"devFeatureBitmap":                        common.Hash{},
+	}
 
-			require.NoError(t, deployer.ApplyPipeline(ctx, opts))
+	require.NoError(t, deployer.ApplyPipeline(ctx, opts))
 
-			allocs := st.L1StateDump.Data.Accounts
-			chainState := st.Chains[0]
+	allocs := st.L1StateDump.Data.Accounts
 
-			uint64Caster := func(t *testing.T, val any) common.Hash {
-				return common.BigToHash(new(big.Int).SetUint64(val.(uint64)))
-			}
+	uint64Caster := func(t *testing.T, val any) common.Hash {
+		return common.BigToHash(new(big.Int).SetUint64(val.(uint64)))
+	}
 
-			pdgImpl := chainState.PermissionedDisputeGameImpl
-			if useV2 {
-				pdgImpl = st.ImplementationsDeployment.PermissionedDisputeGameV2Impl
-			}
-			tests := []struct {
-				name    string
-				caster  func(t *testing.T, val any) common.Hash
-				address common.Address
-			}{
-				{
-					"faultGameWithdrawalDelay",
-					uint64Caster,
-					st.ImplementationsDeployment.DelayedWethImpl,
-				},
-				{
-					"preimageOracleMinProposalSize",
-					uint64Caster,
-					st.ImplementationsDeployment.PreimageOracleImpl,
-				},
-				{
-					"preimageOracleChallengePeriod",
-					uint64Caster,
-					st.ImplementationsDeployment.PreimageOracleImpl,
-				},
-				{
-					"proofMaturityDelaySeconds",
-					uint64Caster,
-					st.ImplementationsDeployment.OptimismPortalImpl,
-				},
-				{
-					"disputeGameFinalityDelaySeconds",
-					uint64Caster,
-					st.ImplementationsDeployment.AnchorStateRegistryImpl,
-				},
-				{
-					"faultGameMaxDepth",
-					uint64Caster,
-					pdgImpl,
-				},
-				{
-					"faultGameSplitDepth",
-					uint64Caster,
-					pdgImpl,
-				},
-				{
-					"faultGameClockExtension",
-					uint64Caster,
-					pdgImpl,
-				},
-				{
-					"faultGameMaxClockDuration",
-					uint64Caster,
-					pdgImpl,
-				},
-				{
-					"faultGameAbsolutePrestate",
-					func(t *testing.T, val any) common.Hash {
-						return val.(common.Hash)
-					},
-					pdgImpl,
-				},
-			}
-			for _, tt := range tests {
-				t.Run(tt.name, func(t *testing.T) {
-					if useV2 && tt.name == "faultGameAbsolutePrestate" {
-						t.Skip("absolute prestate is not an immutable in V2 contracts")
-					}
-					checkImmutable(t, allocs, tt.address, tt.caster(t, intent.GlobalDeployOverrides[tt.name]))
-				})
-			}
+	pdgImpl := st.ImplementationsDeployment.PermissionedDisputeGameV2Impl
+	tests := []struct {
+		name    string
+		caster  func(t *testing.T, val any) common.Hash
+		address common.Address
+	}{
+		{
+			"faultGameWithdrawalDelay",
+			uint64Caster,
+			st.ImplementationsDeployment.DelayedWethImpl,
+		},
+		{
+			"preimageOracleMinProposalSize",
+			uint64Caster,
+			st.ImplementationsDeployment.PreimageOracleImpl,
+		},
+		{
+			"preimageOracleChallengePeriod",
+			uint64Caster,
+			st.ImplementationsDeployment.PreimageOracleImpl,
+		},
+		{
+			"proofMaturityDelaySeconds",
+			uint64Caster,
+			st.ImplementationsDeployment.OptimismPortalImpl,
+		},
+		{
+			"disputeGameFinalityDelaySeconds",
+			uint64Caster,
+			st.ImplementationsDeployment.AnchorStateRegistryImpl,
+		},
+		{
+			"faultGameMaxDepth",
+			uint64Caster,
+			pdgImpl,
+		},
+		{
+			"faultGameSplitDepth",
+			uint64Caster,
+			pdgImpl,
+		},
+		{
+			"faultGameClockExtension",
+			uint64Caster,
+			pdgImpl,
+		},
+		{
+			"faultGameMaxClockDuration",
+			uint64Caster,
+			pdgImpl,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			checkImmutable(t, allocs, tt.address, tt.caster(t, intent.GlobalDeployOverrides[tt.name]))
 		})
 	}
 }
@@ -822,10 +788,6 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 		}
 
 		// Then run the OPCM upgrade
-		var cannonKonaPrestate common.Hash
-		if deployer.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, deployer.CannonKonaDevFlag) {
-			cannonKonaPrestate = common.Hash{'K', 'O', 'N', 'A'}
-		}
 		t.Run("upgrade opcm", func(t *testing.T) {
 			upgradeConfig := embedded.UpgradeOPChainInput{
 				Prank: superchainProxyAdminOwner,
@@ -834,7 +796,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 					{
 						SystemConfigProxy:  common.HexToAddress("034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
 						CannonPrestate:     common.Hash{'C', 'A', 'N', 'N', 'O', 'N'},
-						CannonKonaPrestate: cannonKonaPrestate,
+						CannonKonaPrestate: common.Hash{'K', 'O', 'N', 'A'},
 					},
 				},
 			}

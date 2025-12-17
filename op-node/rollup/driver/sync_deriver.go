@@ -237,7 +237,7 @@ func (s *SyncDeriver) SyncStep() {
 		return
 	}
 
-	if s.SyncCfg.UnsafeOnly {
+	if s.SyncCfg.FollowSourceEnabled() {
 		if s.SyncCfg.NeedInitialResetEngine {
 			// May need a single reset to trigger sequencer block building
 			s.Engine.TryInitialResetEngineForSequencer(s.Ctx)
