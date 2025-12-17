@@ -2,7 +2,7 @@
 use crate::prune::metrics::Metrics;
 use crate::{
     prune::error::{OpProofStoragePrunerResult, PrunerError, PrunerOutput},
-    BlockStateDiff, OpProofsStore,
+    BlockStateDiff, OpProofsStorage, OpProofsStore,
 };
 use alloy_eips::{eip1898::BlockWithParent, BlockNumHash};
 use reth_provider::BlockHashReader;
@@ -13,7 +13,7 @@ use tracing::{error, info, trace};
 #[derive(Debug)]
 pub struct OpProofStoragePruner<P, H> {
     // Database provider for the prune
-    provider: P,
+    provider: OpProofsStorage<P>,
     /// Reader to fetch block hash by block number
     block_hash_reader: H,
     /// Keep at least these many recent blocks
@@ -26,7 +26,11 @@ pub struct OpProofStoragePruner<P, H> {
 
 impl<P, H> OpProofStoragePruner<P, H> {
     /// Create a new pruner.
-    pub fn new(provider: P, block_hash_reader: H, min_block_interval: u64) -> Self {
+    pub fn new(
+        provider: OpProofsStorage<P>,
+        block_hash_reader: H,
+        min_block_interval: u64,
+    ) -> Self {
         Self {
             provider,
             block_hash_reader,
@@ -206,7 +210,9 @@ mod tests {
     async fn run_inner_and_and_verify_updated_state() {
         // --- env/store ---
         let dir = TempDir::new().unwrap();
-        let store = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
+        let store: OpProofsStorage<Arc<MdbxProofsStorage>> =
+            OpProofsStorage::from(Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")));
+
         store.set_earliest_block_number(0, B256::ZERO).await.expect("set earliest");
 
         // --- entities ---
@@ -492,7 +498,8 @@ mod tests {
     #[tokio::test]
     async fn run_inner_where_latest_block_is_none() {
         let dir = TempDir::new().unwrap();
-        let store = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
+        let store: OpProofsStorage<Arc<MdbxProofsStorage>> =
+            OpProofsStorage::from(Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")));
 
         let earliest = store.get_earliest_block_number().await.unwrap();
         let latest = store.get_latest_block_number().await.unwrap();
@@ -512,7 +519,8 @@ mod tests {
         use crate::BlockStateDiff;
 
         let dir = TempDir::new().unwrap();
-        let store = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
+        let store: OpProofsStorage<Arc<MdbxProofsStorage>> =
+            OpProofsStorage::from(Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")));
 
         // Write a single block to set *latest* only.
         store
@@ -537,7 +545,8 @@ mod tests {
         use crate::BlockStateDiff;
 
         let dir = TempDir::new().unwrap();
-        let store = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
+        let store: OpProofsStorage<Arc<MdbxProofsStorage>> =
+            OpProofsStorage::from(Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")));
 
         // Set earliest=4 explicitly
         let earliest_num = 4u64;
