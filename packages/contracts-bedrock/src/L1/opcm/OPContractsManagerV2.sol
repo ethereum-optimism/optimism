@@ -666,17 +666,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @param _cfg The full config.
     function _assertValidFullConfig(FullConfig memory _cfg) internal view {
         // Start validating the dispute game configs. Put allowed game types here.
-        GameType[] memory validGameTypes;
-        if (!isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            validGameTypes = new GameType[](3);
-            validGameTypes[0] = GameTypes.CANNON;
-            validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
-            validGameTypes[2] = GameTypes.CANNON_KONA;
-        } else {
-            validGameTypes = new GameType[](5);
-            validGameTypes[0] = GameTypes.CANNON;
-            validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
-            validGameTypes[2] = GameTypes.CANNON_KONA;
+        GameType[] memory validGameTypes = isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP) ? new GameType[](5) : new GameType[](3);
+        validGameTypes[0] = GameTypes.CANNON;
+        validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
+        validGameTypes[2] = GameTypes.CANNON_KONA;
+
+        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             validGameTypes[3] = GameTypes.SUPER_CANNON;
             validGameTypes[4] = GameTypes.SUPER_PERMISSIONED_CANNON;
         }
