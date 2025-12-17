@@ -34,37 +34,36 @@ func (s *Superroot) RPCService() interface{} { return &superrootAPI{s: s} }
 type superrootAPI struct{ s *Superroot }
 
 // OutputWithSource is the full Output and its source L1 block
-type OutputWithSource struct {
-	Output   *eth.OutputResponse
-	SourceL1 eth.BlockID
+type OutputWithRequiredL1 struct {
+	Output     *eth.OutputResponse `json:"output"`
+	RequiredL1 eth.BlockID         `json:"required_l1"`
 }
 
 // L2WithRequiredL1 is a verified L2 block and the minimum L1 block at which the verification is possible
 type L2WithRequiredL1 struct {
-	L2            eth.BlockID
-	MinRequiredL1 eth.BlockID
+	L2         eth.BlockID `json:"l2"`
+	RequiredL1 eth.BlockID `json:"required_l1"`
 }
 
 // AtTimestampResponse is the response superroot_atTimestamp
-// it contains:
-// - CurrentL1Derived: the current L1 block that each chain has derived up to (without any verification)
-// - CurrentL1Verified: the current L1 block that each verifier has processed up to
-// - VerifiedAtTimestamp: the L2 blocks which are fully verified at the given timestamp, and the minimum L1 block at which verification is possible
-// - OptimisticAtTimestamp: the L2 blocks which would be applied if verification were assumed to be successful, and their L1 sources
-// - SuperRoot: the superroot at the given timestamp using verified L2 blocks
 type AtTimestampResponse struct {
-	// TODO: We should probably specify json names for these
-	CurrentL1Derived      map[eth.ChainID]eth.BlockID
-	CurrentL1Verified     map[string]eth.BlockID
-	VerifiedAtTimestamp   map[eth.ChainID]L2WithRequiredL1
-	OptimisticAtTimestamp map[eth.ChainID]OutputWithSource
-	MinCurrentL1          eth.BlockID
-	MaxVerifiedRequiredL1 eth.BlockID
-	// Not entirely sure it's a good idea to include the actual super implementation here rather than extracting the data from it
-	// But it sure is convenient.
-	// If we do this we need to sepecify json names in the eth.SuperV1 struct
-	Super     eth.Super
-	SuperRoot eth.Bytes32
+	// CurrentL1Derived is a map from chain ID to the highest L1 block that has been fully derived for that chain. It may not have been fully validated.
+	CurrentL1Derived map[eth.ChainID]eth.BlockID `json:"current_l1_derived"`
+
+	// UnverifiedAtTimestamp is the L2 block which would be applied if verification were assumed to be successful, and the minimum L1 block required to derive them.
+	UnverifiedAtTimestamp map[eth.ChainID]OutputWithRequiredL1 `json:"unverified_at_timestamp"`
+
+	// CurrentL1 is the highest L1 block that has been fully derived and verified by all chains.
+	CurrentL1 eth.BlockID `json:"current_l1"`
+
+	// VerifiedRequiredL1 is the minimum L1 block including the required data to fully verify all blocks at this timestamp
+	VerifiedRequiredL1 eth.BlockID `json:"verified_required_l1"`
+
+	// Super is the unhashed data for the superroot at the given timestamp after all verification is applied.
+	Super eth.Super `json:"super"`
+
+	// SuperRoot is the superroot at the given timestamp after all verification is applied.
+	SuperRoot eth.Bytes32 `json:"super_root"`
 }
 
 // AtTimestamp computes the super-root at the given timestamp, plus additional information about the current L1s, verified L2s, and optimistic L2s
@@ -74,11 +73,8 @@ func (api *superrootAPI) AtTimestamp(ctx context.Context, timestamp hexutil.Uint
 
 func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (AtTimestampResponse, error) {
 	currentL1Derived := map[eth.ChainID]eth.BlockID{}
-	// there are no Verification Activities yet, so there is no call to make to collect their CurrentL1
-	// this will be replaced with a call to the Verification Activities when they are implemented
-	currentL1Verified := map[string]eth.BlockID{}
 	verified := map[eth.ChainID]L2WithRequiredL1{}
-	optimistic := map[eth.ChainID]OutputWithSource{}
+	optimistic := map[eth.ChainID]OutputWithRequiredL1{}
 	minCurrentL1 := eth.BlockID{}
 	maxVerifiedRequiredL1 := eth.BlockID{}
 	chainOutputs := make([]eth.ChainIDAndOutput, 0, len(s.chains))
@@ -108,8 +104,8 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (AtTimest
 			return AtTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
 		}
 		verified[chainID] = L2WithRequiredL1{
-			L2:            verifiedL2,
-			MinRequiredL1: verifiedL1,
+			L2:         verifiedL2,
+			RequiredL1: verifiedL1,
 		}
 		if verifiedL1.Number > maxVerifiedRequiredL1.Number || maxVerifiedRequiredL1 == (eth.BlockID{}) {
 			maxVerifiedRequiredL1 = verifiedL1
@@ -136,9 +132,9 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (AtTimest
 			// TODO: It doesn't seem safe to translate all errors to not found
 			return AtTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
 		}
-		optimistic[chainID] = OutputWithSource{
-			Output:   optimisticOut,
-			SourceL1: optimisticL1,
+		optimistic[chainID] = OutputWithRequiredL1{
+			Output:     optimisticOut,
+			RequiredL1: optimisticL1,
 		}
 	}
 
@@ -148,11 +144,9 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (AtTimest
 
 	return AtTimestampResponse{
 		CurrentL1Derived:      currentL1Derived,
-		CurrentL1Verified:     currentL1Verified,
-		VerifiedAtTimestamp:   verified,
-		OptimisticAtTimestamp: optimistic,
-		MinCurrentL1:          minCurrentL1,
-		MaxVerifiedRequiredL1: maxVerifiedRequiredL1,
+		UnverifiedAtTimestamp: optimistic,
+		CurrentL1:             minCurrentL1,
+		VerifiedRequiredL1:    maxVerifiedRequiredL1,
 		Super:                 superV1,
 		SuperRoot:             superRoot,
 	}, nil

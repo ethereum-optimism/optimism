@@ -28,9 +28,9 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		})
 		response := superroot.AtTimestampResponse{
 			//MinCurrentL1:          l1Head,
-			MaxVerifiedRequiredL1: l1Head,
-			Super:                 expectedSuper,
-			SuperRoot:             eth.SuperRoot(expectedSuper),
+			VerifiedRequiredL1: l1Head,
+			Super:              expectedSuper,
+			SuperRoot:          eth.SuperRoot(expectedSuper),
 		}
 		stubSupervisor.Add(response)
 		claim, err := provider.Get(context.Background(), types.RootPosition)
@@ -45,9 +45,9 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 			Output:  eth.Bytes32{0xbb},
 		})
 		response := superroot.AtTimestampResponse{
-			MaxVerifiedRequiredL1: l1Head,
-			Super:                 expectedSuper,
-			SuperRoot:             eth.SuperRoot(expectedSuper),
+			VerifiedRequiredL1: l1Head,
+			Super:              expectedSuper,
+			SuperRoot:          eth.SuperRoot(expectedSuper),
 		}
 		stubSupervisor.Add(response)
 		claim, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(StepsPerTimestamp-1)))
@@ -71,9 +71,9 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 			Output:  eth.Bytes32{0xbb},
 		})
 		response := superroot.AtTimestampResponse{
-			MaxVerifiedRequiredL1: eth.BlockID{Number: l1Head.Number - 10, Hash: common.Hash{0xcc}},
-			Super:                 expectedSuper,
-			SuperRoot:             eth.SuperRoot(expectedSuper),
+			VerifiedRequiredL1: eth.BlockID{Number: l1Head.Number - 10, Hash: common.Hash{0xcc}},
+			Super:              expectedSuper,
+			SuperRoot:          eth.SuperRoot(expectedSuper),
 		}
 		stubSupervisor.Add(response)
 		claim, err := provider.Get(context.Background(), types.RootPosition)
@@ -88,9 +88,9 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 			Output:  eth.Bytes32{0xbb},
 		})
 		response := superroot.AtTimestampResponse{
-			MaxVerifiedRequiredL1: eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xcc}},
-			Super:                 expectedSuper,
-			SuperRoot:             eth.SuperRoot(expectedSuper),
+			VerifiedRequiredL1: eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xcc}},
+			Super:              expectedSuper,
+			SuperRoot:          eth.SuperRoot(expectedSuper),
 		}
 		stubSupervisor.Add(response)
 		claim, err := provider.Get(context.Background(), types.RootPosition)
@@ -102,8 +102,8 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
 		prev, next := createValidSuperNodeSuperRoots(l1Head)
 		// Make super roots be safe earlier
-		prev.MaxVerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number - 10, Hash: common.Hash{0xaa}}
-		next.MaxVerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number - 5, Hash: common.Hash{0xbb}}
+		prev.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number - 10, Hash: common.Hash{0xaa}}
+		next.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number - 5, Hash: common.Hash{0xbb}}
 		stubSupervisor.Add(prev)
 		stubSupervisor.Add(next)
 		expectSuperNodeValidTransition(t, provider, prev, next)
@@ -113,8 +113,8 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
 		prev, next := createValidSuperNodeSuperRoots(l1Head)
 		// Make super roots be safe only after L1 head
-		prev.MaxVerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xaa}}
-		next.MaxVerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number + 2, Hash: common.Hash{0xbb}}
+		prev.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xaa}}
+		next.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number + 2, Hash: common.Hash{0xbb}}
 		stubSupervisor.Add(prev)
 		stubSupervisor.Add(next)
 
@@ -130,16 +130,16 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
 		prev, next := createValidSuperNodeSuperRoots(l1Head)
 		// Make super roots be safe only after L1 head
-		prev.MaxVerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number, Hash: common.Hash{0xaa}}
-		next.MaxVerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xbb}}
-		next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(1)] = superroot.OutputWithSource{
+		prev.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number, Hash: common.Hash{0xaa}}
+		next.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xbb}}
+		next.UnverifiedAtTimestamp[eth.ChainIDFromUInt64(1)] = superroot.OutputWithRequiredL1{
 			Output: &eth.OutputResponse{
 				OutputRoot:            eth.Bytes32{0xad},
 				BlockRef:              eth.L2BlockRef{Hash: common.Hash{0xcd}},
 				WithdrawalStorageRoot: common.Hash{0xde},
 				StateRoot:             common.Hash{0xdf},
 			},
-			SourceL1: eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xbb}},
+			RequiredL1: eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xbb}},
 		}
 		stubSupervisor.Add(prev)
 		stubSupervisor.Add(next)
@@ -156,16 +156,16 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
 		prev, next := createValidSuperNodeSuperRoots(l1Head)
 		// Make super roots be safe only after L1 head
-		prev.MaxVerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number, Hash: common.Hash{0xaa}}
-		next.MaxVerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xbb}}
-		next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(2)] = superroot.OutputWithSource{
+		prev.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number, Hash: common.Hash{0xaa}}
+		next.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xbb}}
+		next.UnverifiedAtTimestamp[eth.ChainIDFromUInt64(2)] = superroot.OutputWithRequiredL1{
 			Output: &eth.OutputResponse{
 				OutputRoot:            eth.Bytes32{0xad},
 				BlockRef:              eth.L2BlockRef{Hash: common.Hash{0xcd}},
 				WithdrawalStorageRoot: common.Hash{0xde},
 				StateRoot:             common.Hash{0xdf},
 			},
-			SourceL1: eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xbb}},
+			RequiredL1: eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xbb}},
 		}
 		stubSupervisor.Add(prev)
 		stubSupervisor.Add(next)
@@ -328,48 +328,48 @@ func createValidSuperNodeSuperRoots(l1Head eth.BlockID) (superroot.AtTimestampRe
 		eth.ChainIDAndOutput{ChainID: eth.ChainIDFromUInt64(2), Output: eth.OutputRoot(outputB2)})
 
 	prevResponse := superroot.AtTimestampResponse{
-		OptimisticAtTimestamp: map[eth.ChainID]superroot.OutputWithSource{
+		UnverifiedAtTimestamp: map[eth.ChainID]superroot.OutputWithRequiredL1{
 			eth.ChainIDFromUInt64(1): {
-				Output:   toOutputResponse(outputA1),
-				SourceL1: l1Head,
+				Output:     toOutputResponse(outputA1),
+				RequiredL1: l1Head,
 			},
 			eth.ChainIDFromUInt64(2): {
-				Output:   toOutputResponse(outputB1),
-				SourceL1: l1Head,
+				Output:     toOutputResponse(outputB1),
+				RequiredL1: l1Head,
 			},
 		},
-		MinCurrentL1:          l1Head,
-		MaxVerifiedRequiredL1: l1Head,
-		Super:                 prevSuper,
-		SuperRoot:             eth.SuperRoot(prevSuper),
+		CurrentL1:          l1Head,
+		VerifiedRequiredL1: l1Head,
+		Super:              prevSuper,
+		SuperRoot:          eth.SuperRoot(prevSuper),
 	}
 	nextResponse := superroot.AtTimestampResponse{
-		OptimisticAtTimestamp: map[eth.ChainID]superroot.OutputWithSource{
+		UnverifiedAtTimestamp: map[eth.ChainID]superroot.OutputWithRequiredL1{
 			eth.ChainIDFromUInt64(1): {
-				Output:   toOutputResponse(outputA2),
-				SourceL1: l1Head,
+				Output:     toOutputResponse(outputA2),
+				RequiredL1: l1Head,
 			},
 			eth.ChainIDFromUInt64(2): {
-				Output:   toOutputResponse(outputB2),
-				SourceL1: l1Head,
+				Output:     toOutputResponse(outputB2),
+				RequiredL1: l1Head,
 			},
 		},
-		MinCurrentL1:          l1Head,
-		MaxVerifiedRequiredL1: l1Head,
-		Super:                 nextSuper,
-		SuperRoot:             eth.SuperRoot(nextSuper),
+		CurrentL1:          l1Head,
+		VerifiedRequiredL1: l1Head,
+		Super:              nextSuper,
+		SuperRoot:          eth.SuperRoot(nextSuper),
 	}
 	return prevResponse, nextResponse
 }
 
 func expectSuperNodeValidTransition(t *testing.T, provider *SuperNodeTraceProvider, prev superroot.AtTimestampResponse, next superroot.AtTimestampResponse) {
 	chain1OptimisticBlock := interopTypes.OptimisticBlock{
-		BlockHash:  next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(1)].Output.BlockRef.Hash,
-		OutputRoot: next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(1)].Output.OutputRoot,
+		BlockHash:  next.UnverifiedAtTimestamp[eth.ChainIDFromUInt64(1)].Output.BlockRef.Hash,
+		OutputRoot: next.UnverifiedAtTimestamp[eth.ChainIDFromUInt64(1)].Output.OutputRoot,
 	}
 	chain2OptimisticBlock := interopTypes.OptimisticBlock{
-		BlockHash:  next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(2)].Output.BlockRef.Hash,
-		OutputRoot: next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(2)].Output.OutputRoot,
+		BlockHash:  next.UnverifiedAtTimestamp[eth.ChainIDFromUInt64(2)].Output.BlockRef.Hash,
+		OutputRoot: next.UnverifiedAtTimestamp[eth.ChainIDFromUInt64(2)].Output.OutputRoot,
 	}
 	expectedFirstStep := &interopTypes.TransitionState{
 		SuperRoot:       prev.Super.Marshal(),

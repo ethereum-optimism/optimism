@@ -61,7 +61,7 @@ func (s *SuperNodeTraceProvider) getPreimageBytesAtTimestampBoundary(ctx context
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to retrieve super root at timestamp %v: %w", timestamp, err)
 	}
-	if root.MaxVerifiedRequiredL1.Number > s.l1Head.Number {
+	if root.VerifiedRequiredL1.Number > s.l1Head.Number {
 		return InvalidTransition, nil
 	}
 	return root.Super.Marshal(), nil
@@ -86,7 +86,7 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to retrieve previous super root at timestamp %v: %w", timestamp, err)
 	}
-	if prevRoot.MaxVerifiedRequiredL1.Number > s.l1Head.Number {
+	if prevRoot.VerifiedRequiredL1.Number > s.l1Head.Number {
 		// The previous root was not safe at the game L1 head so we must have already transitioned to the invalid hash
 		// prior to this step and it then repeats forever.
 		return InvalidTransition, nil
@@ -117,11 +117,11 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 	for i := uint64(0); i < min(step, uint64(len(nextSuperV1.Chains))); i++ {
 		chainInfo := nextSuperV1.Chains[i]
 		// Check if the chain's optimistic root was safe at the game's L1 head
-		optimistic, ok := nextRoot.OptimisticAtTimestamp[chainInfo.ChainID]
+		optimistic, ok := nextRoot.UnverifiedAtTimestamp[chainInfo.ChainID]
 		if !ok {
 			return nil, fmt.Errorf("no safe head known for chain %v at %v: %w", chainInfo.ChainID, nextTimestamp, err)
 		}
-		if optimistic.SourceL1.Number > s.l1Head.Number {
+		if optimistic.RequiredL1.Number > s.l1Head.Number {
 			// Not enough data on L1 to derive the optimistic block, move to invalid transition.
 			return InvalidTransition, nil
 		}

@@ -99,11 +99,10 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 	out, err := api.AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
 	require.Len(t, out.CurrentL1Derived, 2)
-	require.Len(t, out.VerifiedAtTimestamp, 2)
-	require.Len(t, out.OptimisticAtTimestamp, 2)
+	require.Len(t, out.UnverifiedAtTimestamp, 2)
 	// min values
-	require.Equal(t, uint64(2000), out.MinCurrentL1.Number)
-	require.Equal(t, uint64(1100), out.MaxVerifiedRequiredL1.Number)
+	require.Equal(t, uint64(2000), out.CurrentL1.Number)
+	require.Equal(t, uint64(1100), out.VerifiedRequiredL1.Number)
 	// With zero outputs, the superroot will be deterministic, just ensure it's set
 	_ = out.SuperRoot
 }
@@ -208,8 +207,7 @@ func TestSuperroot_AtTimestamp_EmptyChains(t *testing.T) {
 	out, err := api.AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
 	require.Len(t, out.CurrentL1Derived, 0)
-	require.Len(t, out.VerifiedAtTimestamp, 0)
-	require.Len(t, out.OptimisticAtTimestamp, 0)
+	require.Len(t, out.UnverifiedAtTimestamp, 0)
 }
 
 // assertErr returns a generic error instance used to signal mock failures.
