@@ -3250,7 +3250,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: kona
-          profile: "release"
           prefix: kona-benches
       - run:
           name: Build benchmarks
@@ -3260,7 +3259,6 @@ jobs:
             just benches
       - rust-save-build-cache:
           directory: kona
-          profile: "release"
           prefix: kona-benches
 
   # Kona Rust CI - Check unused dependencies (from rust_ci.yaml)

@@ -73,7 +73,7 @@ llvm-cov-tests:
 
 # Runs benchmarks
 benches:
-  cargo bench --release --no-run --workspace --features test-utils --exclude example-gossip --exclude example-discovery
+  cargo bench --no-run --workspace --features test-utils --exclude example-gossip --exclude example-discovery
 
 # Lint the workspace for all available targets
 lint-all: lint-native lint-cannon lint-asterisc lint-docs lint-typos
