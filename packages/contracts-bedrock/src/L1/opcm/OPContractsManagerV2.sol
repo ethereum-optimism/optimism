@@ -886,6 +886,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         );
 
         // Now we can migrate any liquidity into the ETHLockbox.
+        // The OPTIMISM_PORTAL_INTEROP dev feature is guaranteed to be enabled at this point due
+        // to the earlier check that is performed alongside the _hasInstructionByKey() check.
         if (_hasInstructionByKey(_cfg.extraInstructions, Constants.INTEROP_MIGRATION_ADDRESSES)) {
             // First we migrate any portal liquidity into the ETHLockbox.
             // There may or may not be ETH in the portal, but we can call migrateLiquidity() safely
