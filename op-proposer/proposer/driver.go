@@ -320,10 +320,7 @@ func (l *L2OutputSubmitter) FetchOutput(ctx context.Context, block uint64) (sour
 	if err != nil {
 		return source.Proposal{}, fmt.Errorf("fetching proposal at block %d: %w", block, err)
 	}
-	if proposal.IsSuperRootProposal() {
-		panic("L2 Output Submitter should not be configured for Super Root proposals")
-	}
-	if onum := proposal.SequenceNum; onum != block { // sanity check, e.g. in case of bad RPC caching
+	if onum := proposal.SequenceNum; onum != block && !proposal.IsSuperRootProposal() { // sanity check, e.g. in case of bad RPC caching
 		return source.Proposal{}, fmt.Errorf("proposal block number %d mismatches requested %d", proposal.SequenceNum, block)
 	}
 	return proposal, nil
