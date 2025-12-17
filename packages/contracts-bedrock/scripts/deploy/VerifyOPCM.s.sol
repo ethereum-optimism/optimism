@@ -1086,7 +1086,7 @@ contract VerifyOPCM is Script {
             return false;
         }
 
-        // If the OPCM contract version is greater than or equal to 6.0.8, then it is OPCM V2.
+        // If the OPCM contract version is greater than or equal to 7.0.0, then it is OPCM V2.
         return SemverComp.gte(IOPContractsManager(opcmAddress).version(), "7.0.0");
     }
 
