@@ -9,7 +9,6 @@ on:
         type: choice
         options:
           - "rollup-boost"
-          - "flashblocks-rpc"
   push:
     branches:
       - main

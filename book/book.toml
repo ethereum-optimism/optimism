@@ -1,7 +1,6 @@
 [book]
 authors = ["Rollup Boost Core Contributors"]
 language = "en"
-multilingual = false
 src = "src"
 title = "Rollup Boost"
 description = "The Rollup Boost is a sidecar to enable rollup extensions"

@@ -4,7 +4,6 @@ resolver = "3"
 members = [
     "crates/rollup-boost",
     "crates/websocket-proxy",
-    "crates/flashblocks-rpc", 
     "crates/rollup-boost-types",
 ]
 

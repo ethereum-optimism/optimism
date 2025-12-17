@@ -21,4 +21,3 @@
 - [CLI Reference](./cli/README.md)
     - [rollup-boost](./cli/rollup-boost.md)
     - [websocket-proxy](./cli/websocket-proxy.md)
-    - [flashblocks-rpc](./cli/flashblocks-rpc.md)
