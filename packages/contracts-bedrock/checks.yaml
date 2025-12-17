@@ -34,7 +34,7 @@ phases:
         command: forge fmt --check
       - name: semgrep
         description: Run semgrep security linter
-        command: cd ../../ && semgrep scan --config .semgrep/rules/ ./packages/contracts-bedrock
+        command: cd ../../ && semgrep scan --error --config .semgrep/rules/ ./packages/contracts-bedrock
       - name: semgrep-test-validity
         description: Check semgrep tests are valid
         command: forge fmt ../../.semgrep/tests/sol-rules.t.sol --check

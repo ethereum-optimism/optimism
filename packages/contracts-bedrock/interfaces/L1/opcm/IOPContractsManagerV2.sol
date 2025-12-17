@@ -106,6 +106,7 @@ interface IOPContractsManagerV2 {
     error OPContractsManagerV2_UnsupportedGameType();
     error OPContractsManagerV2_InvalidUpgradeInstruction(string _key);
     error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
+    error OPContractsManagerV2_InvalidUpgradeSequence(string _lastVersion, string _thisVersion);
     error IdentityPrecompileCallFailed();
     error ReservedBitsSet();
     error BytesArrayTooLong();
@@ -148,4 +149,7 @@ interface IOPContractsManagerV2 {
 
     /// @notice Returns whether a development feature is enabled.
     function isDevFeatureEnabled(bytes32 _feature) external view returns (bool);
+
+    /// @notice Checks if the upgrade sequence from the last used OPCM to this OPCM is permitted.
+    function isPermittedUpgradeSequence(ISystemConfig _systemConfig) external view returns (bool);
 }

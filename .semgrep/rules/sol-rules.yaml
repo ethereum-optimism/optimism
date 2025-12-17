@@ -388,3 +388,13 @@ rules:
         # LegacyMintableERC20 and the corresponding interface use legacy naming conventions.
         - packages/contracts-bedrock/src/legacy/LegacyMintableERC20.sol
         - packages/contracts-bedrock/interfaces/legacy/ILegacyMintableERC20Full.sol
+
+  - id: sol-safety-opcmv2-use-internal-version
+    languages: [generic]
+    severity: ERROR
+    message: Use _version() instead of version() in OPContractsManagerV2. Direct calls to version() are not properly mockable/testable due to DELEGATECALL context.
+    patterns:
+      - pattern-regex: (?<!\.)(?<!function\s)(?<!_)version\(\)
+    paths:
+      include:
+        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol
