@@ -2329,8 +2329,27 @@ jobs:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
+          name: Check disk usage (before build)
+          command: |
+            echo "=== Disk Usage Before Build ==="
+            df -h
+            echo ""
+            echo "=== Largest directories ==="
+            du -sh /home/circleci/* 2>/dev/null | sort -hr | head -10 || true
+            du -sh /tmp/* 2>/dev/null | sort -hr | head -10 || true
+      - run:
           name: Verify reproducibility
           command: make -C op-program verify-reproducibility
+      - run:
+          name: Check disk usage (after build)
+          command: |
+            echo "=== Disk Usage After Build ==="
+            df -h
+            echo ""
+            echo "=== Largest directories ==="
+            du -sh /home/circleci/* 2>/dev/null | sort -hr | head -10 || true
+            du -sh /tmp/* 2>/dev/null | sort -hr | head -10 || true
+          when: always
       - store_artifacts:
           path: ./op-program/temp/logs
           when: always
