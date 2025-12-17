@@ -1249,8 +1249,9 @@ jobs:
           name: Run tests
           command: |
             mkdir -p results
-            just test-upgrade --junit > results/results.xml
+            just test-upgrade
           environment:
+            JUNIT_TEST_PATH: results/results.xml
             FOUNDRY_FUZZ_SEED: 42424242
             FOUNDRY_FUZZ_RUNS: 1
             FOUNDRY_PROFILE: ci
