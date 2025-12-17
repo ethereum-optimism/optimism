@@ -67,6 +67,7 @@ interface ISuperFaultDisputeGame is IDisputeGame {
     error UnknownChainId();
     error Encoding_EmptySuperRoot();
     error Encoding_InvalidSuperRootVersion();
+    error Encoding_InvalidSuperRootEncoding();
     event Move(uint256 indexed parentIndex, Claim indexed claim, address indexed claimant);
     event GameClosed(BondDistributionMode bondDistributionMode);
 

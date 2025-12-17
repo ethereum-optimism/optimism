@@ -242,7 +242,7 @@ func TestSupervisorSource_ProposalAtSequenceNum(t *testing.T) {
 		SequenceNum: 59298244,
 		CurrentL1:   response.CrossSafeDerivedFrom,
 		Legacy:      LegacyProposalData{},
-		Super:       responseSuper.(*eth.SuperV1),
+		Super:       responseSuper,
 	}
 	sequenceNum := uint64(599)
 	t.Run("Single-Success", func(t *testing.T) {
