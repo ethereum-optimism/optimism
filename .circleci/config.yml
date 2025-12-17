@@ -3274,6 +3274,7 @@ jobs:
       - rust-prepare-and-restore-cache:
           directory: kona
           prefix: kona-udeps
+          profile: "release"
       - run:
           name: Install cargo-udeps
           command: |
@@ -3287,6 +3288,7 @@ jobs:
       - rust-save-build-cache:
           directory: kona
           prefix: kona-udeps
+          profile: "release"
 
   # Kona Rust CI - Doc lint (from rust_ci.yaml)
   kona-cargo-doc-lint:

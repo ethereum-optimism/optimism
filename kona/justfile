@@ -37,7 +37,7 @@ tests: test test-docs
 
 # Test for the native target with all features. By default, excludes online tests.
 test *args="-E '!test(test_online)'":
-  cargo nextest run --workspace --all-features {{args}}
+  cargo nextest run --release --workspace --all-features {{args}}
   just test-custom-embeds
 
 # Run all online tests
@@ -46,7 +46,7 @@ test-online:
 
 # Test custom embedded chain configuration functionality
 test-custom-embeds:
-  cargo test --package kona-registry custom_chain_is_loaded_when_enabled \
+  cargo test --release --package kona-registry custom_chain_is_loaded_when_enabled \
       --config 'env.KONA_CUSTOM_CONFIGS="true"' \
       --config "env.KONA_CUSTOM_CONFIGS_DIR=\"{{justfile_directory()}}/crates/protocol/registry/tests/fixtures/custom\"" \
       --config 'env.KONA_CUSTOM_CONFIGS_TEST="true"'
@@ -73,7 +73,7 @@ llvm-cov-tests:
 
 # Runs benchmarks
 benches:
-  cargo bench --no-run --workspace --features test-utils --exclude example-gossip --exclude example-discovery
+  cargo bench --release --no-run --workspace --features test-utils --exclude example-gossip --exclude example-discovery
 
 # Lint the workspace for all available targets
 lint-all: lint-native lint-cannon lint-asterisc lint-docs lint-typos
@@ -145,7 +145,7 @@ build-asterisc-client:
 
 # Check for unused dependencies in the crate graph.
 check-udeps:
-  cargo +nightly udeps --workspace --all-features --all-targets
+  cargo +nightly udeps --release --workspace --all-features --all-targets
 
 
 # Updates the `superchain-registry` git submodule source
