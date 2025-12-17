@@ -965,6 +965,11 @@
   },
   {
     "inputs": [],
+    "name": "Encoding_InvalidSuperRootEncoding",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "Encoding_InvalidSuperRootVersion",
     "type": "error"
   },
