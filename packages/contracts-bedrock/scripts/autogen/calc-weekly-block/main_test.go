@@ -158,7 +158,7 @@ func TestBinarySearchBlock_Integration(t *testing.T) {
 	targetTimestamp := uint64(1765670400)
 	estimate := estimateBlock(mainnetRefBlock, mainnetRefTimestamp, mainnetBlockTime, targetTimestamp)
 
-	result, err := binarySearchBlock(defaultMainnetRPC, targetTimestamp, estimate)
+	result, err := binarySearchBlock(defaultMainnetRPC, targetTimestamp, estimate, 0, false) // 0 = exact search for test
 	require.NoError(t, err)
 
 	// Verify the result by checking block timestamps
