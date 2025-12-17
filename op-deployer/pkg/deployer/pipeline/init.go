@@ -45,9 +45,9 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 		}
 
 		// The ReadSuperchainDeployment script (packages/contracts-bedrock/scripts/deploy/ReadSuperchainDeployment.s.sol)
-		// uses the OPCM's semver version (>= 6.0.0 indicates v2) to determine how to populate the superchain state:
-		// - OPCMv1 (< 6.0.0): Queries the OPCM contract to get SuperchainConfig and ProtocolVersions
-		// - OPCMv2 (>= 6.0.0): Uses the provided SuperchainConfigProxy address; ProtocolVersions is deprecated
+		// uses the OPCM's semver version (>= 7.0.0 indicates v2) to determine how to populate the superchain state:
+		// - OPCMv1 (< 7.0.0): Queries the OPCM contract to get SuperchainConfig and ProtocolVersions
+		// - OPCMv2 (>= 7.0.0): Uses the provided SuperchainConfigProxy address; ProtocolVersions is deprecated
 		superDeployment, superRoles, err := PopulateSuperchainState(env.L1ScriptHost, opcmAddr, superchainConfigAddr)
 		if err != nil {
 			return fmt.Errorf("error populating superchain state: %w", err)
