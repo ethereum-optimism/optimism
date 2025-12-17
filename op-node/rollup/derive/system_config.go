@@ -129,16 +129,18 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		if err != nil {
 			return err
 		}
-		// Validate the EIP1559 parameters to ensure elasticity multiplier is not zero
-		// This provides redundancy in case the check is accidentally removed from the contract
+		// Validate the EIP1559 parameters to ensure elasticity multiplier is not zero.
+		// This provides redundancy in case the check is accidentally removed from the contract.
 		paramsBytes := params[24:32]
 		if err := eip1559.ValidateHolocene1559Params(paramsBytes); err != nil {
 			return fmt.Errorf("invalid EIP1559 params in system config update: %w", err)
 		}
-		// Decode and validate that denominator and elasticity match contract requirements
+		// Decode and perform additional validation to match the contract's requirements.
+		// The contract (SystemConfig.sol) requires both denominator >= 1 and elasticity >= 1.
+		// ValidateHolocene1559Params only checks that if denominator is 0, elasticity must also be 0.
+		// We need to also check the inverse: if elasticity is 0, denominator must also be 0.
 		denominator, elasticity := eip1559.DecodeHolocene1559Params(paramsBytes)
-		// The contract requires both denominator >= 1 and elasticity >= 1
-		// The only exception is when both are 0 (which will be translated to protocol constants later)
+		// The only exception is when both are 0 (which will be translated to protocol constants later).
 		if denominator == 0 && elasticity != 0 {
 			return fmt.Errorf("invalid EIP1559 params: denominator is 0 but elasticity is %d", elasticity)
 		}
