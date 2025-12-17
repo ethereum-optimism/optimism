@@ -1,4 +1,4 @@
-package v7_0_0
+package embedded
 
 import (
 	"encoding/hex"
@@ -57,6 +57,32 @@ func TestUpgradeOPChainInput_UpgradeInput(t *testing.T) {
 		"00" + // padding
 		"0000000000000000000000000000000000000000000000000000000000000003" + // data.length
 		"0405060000000000000000000000000000000000000000000000000000000000" // data
+
+	require.Equal(t, expected, hex.EncodeToString(data))
+}
+
+func TestUpgradeOPChainInput_OpChainConfigs(t *testing.T) {
+	input := &UpgradeOPChainInput{
+		Prank: common.Address{0xaa},
+		Opcm:  common.Address{0xbb},
+		ChainConfigs: []OPChainConfig{
+			{
+				SystemConfigProxy:  common.Address{0x01},
+				CannonPrestate:     common.Hash{0xaa},
+				CannonKonaPrestate: common.Hash{0xbb},
+			},
+		},
+	}
+	data, err := input.EncodedOpChainConfigs()
+
+	require.NoError(t, err)
+	require.NotEmpty(t, data)
+
+	expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to array
+		"0000000000000000000000000000000000000000000000000000000000000001" + // array.length
+		"0000000000000000000000000100000000000000000000000000000000000000" + // systemConfigProxy
+		"aa00000000000000000000000000000000000000000000000000000000000000" + // cannonPrestate
+		"bb00000000000000000000000000000000000000000000000000000000000000" // cannonKonaPrestate
 
 	require.Equal(t, expected, hex.EncodeToString(data))
 }
