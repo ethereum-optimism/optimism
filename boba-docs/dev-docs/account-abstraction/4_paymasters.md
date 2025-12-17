@@ -10,13 +10,11 @@ These custom paymasters, as per compatibiltiy with ERC4337 Account Abstraction d
 
 **Manual Deposit Paymaster** (alternate) - The Boba Deposit Paymaster uses an oracle to find out the conversion ratio between the erc20 and the native token. The bundler, while simulating the userOp validation would however fail if `paymaster.validatePaymasterUserOp` accesses the state of any other contract than itself, by default. And in which case, the paymaster would require whitelisting by the bundler. For those without bundler access, Manual Deposit Paymaster provides the same functionality as the Boba Deposit Paymaster, but does not requiring whitelisting at the bundler level. It does not access an oracle during the userOp validaiton, but uses a priceRatio (between the erc20 and the native token) that is asynchronously updated by the paymaster operator in the frequency as per their required precision.
 
-**GPODepositPaymaster** (alternate) - The GPO Deposit Paymaster uses the gas price oracle to find out the price ratio between BOBA and the native token. The functionality is the same as that of the Boba Deposit Paymaster, and the paymaster also requires to be whitelisted at the bundler level.
-
 ## Sequence Flows
 
 ### Boba Deposit Paymaster
 
-Here, 'Paymaster' can be substituted for 'Boba Deposit Paymaster','Manual Deposit Paymaster' or 'GPO Deposit Paymaster'. The sole distinction between them is the manner in which their priceRatio is adjusted.
+Here, 'Paymaster' can be substituted for 'Boba Deposit Paymaster' or 'Manual Deposit Paymaster'. The sole distinction between them is the manner in which their priceRatio is adjusted.
 
 ![DepositPaymaster](../../assets/boba-deposit-paymaster.png)
 
