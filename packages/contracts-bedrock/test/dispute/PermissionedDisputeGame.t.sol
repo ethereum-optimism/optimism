@@ -8,7 +8,6 @@ import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 // Libraries
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
@@ -286,7 +285,6 @@ contract PermissionedDisputeGame_Initialize_Test is PermissionedDisputeGame_Test
     /// @notice Tests that the game cannot be initialized with incorrect CWIA calldata length
     ///         caused by additional immutable args data
     function test_initialize_extraImmutableArgsBytes_reverts(uint256 _extraByteCount) public {
-        skipIfDevFeatureDisabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
         (bytes memory correctArgs,,) = getPermissionedDisputeGameV2ImmutableArgs(absolutePrestate, PROPOSER, CHALLENGER);
 
         // We bound the upper end to 23.5KB to ensure that the minimal proxy never surpasses the
@@ -313,7 +311,6 @@ contract PermissionedDisputeGame_Initialize_Test is PermissionedDisputeGame_Test
     /// @notice Tests that the game cannot be initialized with incorrect CWIA calldata length
     ///         caused by missing immutable args data
     function test_initialize_missingImmutableArgsBytes_reverts(uint256 _truncatedByteCount) public {
-        skipIfDevFeatureDisabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
         (bytes memory correctArgs,,) = getPermissionedDisputeGameV2ImmutableArgs(absolutePrestate, PROPOSER, CHALLENGER);
 
         _truncatedByteCount = (_truncatedByteCount % correctArgs.length) + 1;

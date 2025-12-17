@@ -22,6 +22,5 @@ files = [
     "test/universal/BenchmarkTest.t.sol",
     "test/universal/ExtendedPause.t.sol",
     "test/vendor/Initializable.t.sol",
-    "test/vendor/InitializableOZv5.t.sol",
-    "test/universal/ReinitializableBase.t.sol"
+    "test/vendor/InitializableOZv5.t.sol"
 ]

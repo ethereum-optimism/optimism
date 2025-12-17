@@ -393,6 +393,10 @@ func (el *L2ELNode) SafeHead() *BlockRefResult {
 	return &BlockRefResult{T: el.t, BlockRef: el.BlockRefByLabel(eth.Safe)}
 }
 
+func (el *L2ELNode) FinalizedHead() *BlockRefResult {
+	return &BlockRefResult{T: el.t, BlockRef: el.BlockRefByLabel(eth.Finalized)}
+}
+
 type BlockRefResult struct {
 	T        devtest.T
 	BlockRef eth.L2BlockRef

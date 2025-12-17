@@ -53,26 +53,6 @@
             "internalType": "address",
             "name": "resolvedDelegateProxy",
             "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionedDisputeGame1",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionedDisputeGame2",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionlessDisputeGame1",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionlessDisputeGame2",
-            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManager.Blueprints",
@@ -349,17 +329,6 @@
   {
     "inputs": [],
     "name": "IdentityPrecompileCallFailed",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "devFeature",
-        "type": "bytes32"
-      }
-    ],
-    "name": "InvalidDevFeatureAccess",
     "type": "error"
   },
   {

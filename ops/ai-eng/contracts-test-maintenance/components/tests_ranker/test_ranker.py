@@ -20,6 +20,36 @@ import urllib.error
 # === Git Utilities ===
 
 
+def get_file_commit_hash(file_path: Path, repo_root: Path) -> Optional[str]:
+    """Get the commit hash of the last commit that modified a file.
+
+    Args:
+        file_path: Path to the file.
+        repo_root: Path to the git repository root.
+
+    Returns:
+        Full SHA-1 hash of the last commit, or None if unable to determine.
+    """
+    try:
+        relative_path = file_path.relative_to(repo_root)
+
+        result = subprocess.run(
+            ["git", "log", "-1", "--format=%H", "--", str(relative_path)],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        if result.stdout.strip():
+            return result.stdout.strip()
+
+    except (subprocess.CalledProcessError, ValueError, OSError):
+        pass
+
+    return None
+
+
 def get_file_commit_timestamp(file_path: Path, repo_root: Path) -> Optional[int]:
     """Get the timestamp of the last commit that modified a file.
 
@@ -306,14 +336,97 @@ def fetch_last_processed_from_circleci() -> list[Path]:
         return []
 
 
-def load_exclusions(contracts_bedrock: Path) -> tuple[list[Path], set[Path]]:
+def fetch_no_changes_needed_exclusions(contracts_bedrock: Path, repo_root: Path) -> tuple[set[Path], list[dict]]:
+    """Load 'no changes needed' tests from TOML file, detecting stale entries.
+
+    Reads tracking file from no-need-changes.toml, checks each entry's contract hash.
+    Returns both tests to exclude (unchanged contracts) and stale entries (changed contracts).
+
+    Args:
+        contracts_bedrock: Path to the contracts-bedrock directory.
+        repo_root: Path to the git repository root.
+
+    Returns:
+        Tuple of (excluded_tests, stale_entries):
+        - excluded_tests: Set of test paths to exclude (contracts haven't changed)
+        - stale_entries: List of dicts with stale entry info for Devin to clean up
+    """
+    try:
+        print("Checking no-need-changes.toml for tracked tests...")
+
+        toml_file = Path(__file__).parent.parent.parent / "no-need-changes.toml"
+
+        if not toml_file.exists():
+            print("No tracking file found")
+            return set(), []
+
+        with toml_file.open("rb") as f:
+            tracking_data = tomllib.load(f)
+
+        tests = tracking_data.get("tests", [])
+        if not tests:
+            print("No tracked tests found")
+            return set(), []
+
+        print(f"Loaded {len(tests)} tracked test(s)")
+
+        excluded_tests = set()
+        stale_entries = []
+
+        for entry in tests:
+            test_path = entry.get("test_path")
+            contract_path = entry.get("contract_path")
+            recorded_hash = entry.get("contract_hash")
+
+            if not test_path or not contract_path or not recorded_hash:
+                continue
+
+            # Get current contract hash
+            full_contract_path = contracts_bedrock / contract_path
+            current_hash = get_file_commit_hash(full_contract_path, repo_root)
+
+            if not current_hash:
+                # Can't get hash - skip this entry
+                continue
+
+            if current_hash == recorded_hash:
+                # Contract unchanged - exclude from ranking
+                excluded_tests.add(Path(test_path))
+                print(f"  Excluding: {test_path} (contract unchanged)")
+            else:
+                # Contract changed - entry is stale (Devin should remove it)
+                print(f"  Stale entry: {test_path} (contract changed: {recorded_hash[:7]} → {current_hash[:7]})")
+                stale_entries.append({
+                    "test_path": test_path,
+                    "contract_path": contract_path,
+                    "old_hash": recorded_hash,
+                    "new_hash": current_hash
+                })
+
+        if excluded_tests:
+            print(f"✓ Excluding {len(excluded_tests)} test(s) with unchanged contracts")
+
+        if stale_entries:
+            print(f"⚠ Found {len(stale_entries)} stale entry(ies) - Devin will clean these up")
+
+        return excluded_tests, stale_entries
+
+    except Exception as e:
+        print(f"Could not fetch tracking file: {e}")
+        return set(), []
+
+
+def load_exclusions(contracts_bedrock: Path) -> tuple[list[Path], set[Path], list[dict]]:
     """Load and normalize exclusion paths from TOML configuration.
 
     Args:
         contracts_bedrock: Path to the contracts-bedrock directory.
 
     Returns:
-        Tuple of (excluded_dirs, excluded_files) as normalized Path objects.
+        Tuple of (excluded_dirs, excluded_files, stale_toml_entries):
+        - excluded_dirs: List of excluded directory paths
+        - excluded_files: Set of excluded file paths
+        - stale_toml_entries: List of stale entries from no-need-changes.toml
 
     Raises:
         FileNotFoundError: If exclusions.toml file is not found.
@@ -347,7 +460,12 @@ def load_exclusions(contracts_bedrock: Path) -> tuple[list[Path], set[Path]]:
     for test_file in last_processed_files:
         excluded_files.add(test_file)
 
-    return excluded_dirs, excluded_files
+    # Add TOML-based "no changes needed" exclusions (permanent until contract changes)
+    repo_root = get_base_paths()[0]
+    no_changes_exclusions, stale_toml_entries = fetch_no_changes_needed_exclusions(contracts_bedrock, repo_root)
+    excluded_files.update(no_changes_exclusions)
+
+    return excluded_dirs, excluded_files, stale_toml_entries
 
 
 def is_path_excluded(
@@ -412,7 +530,10 @@ def filter_excluded_files(
 
 
 def generate_ranking_json(
-    entries: list[dict[str, str | int | float | None]], output_dir: Path, run_id: str
+    entries: list[dict[str, str | int | float | None]],
+    output_dir: Path,
+    run_id: str,
+    stale_toml_entries: list[dict] = None
 ) -> Path:
     """Generate the ranking JSON file.
 
@@ -420,10 +541,13 @@ def generate_ranking_json(
         entries: List of test-to-contract mappings with scores.
         output_dir: Directory to write the output file.
         run_id: Timestamp-based run identifier.
+        stale_toml_entries: List of stale entries from no-need-changes.toml (optional).
 
     Returns:
         Path to the generated JSON file.
     """
+    if stale_toml_entries is None:
+        stale_toml_entries = []
     # Ensure output directory exists
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -441,6 +565,7 @@ def generate_ranking_json(
         "run_id": run_id,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "entries": sorted_entries,
+        "stale_toml_entries": stale_toml_entries,
     }
 
     # Write to output file with run_id
@@ -539,16 +664,16 @@ def main() -> None:
         # Get base paths
         repo_root, contracts_bedrock, output_dir = get_base_paths()
 
-        # Load exclusions
-        excluded_dirs, excluded_files = load_exclusions(contracts_bedrock)
+        # Load exclusions (now also returns stale TOML entries)
+        excluded_dirs, excluded_files, stale_toml_entries = load_exclusions(contracts_bedrock)
 
         # Collect test entries
         entries = collect_test_entries(
             contracts_bedrock, excluded_dirs, excluded_files, repo_root
         )
 
-        # Generate ranking JSON with run_id
-        output_file = generate_ranking_json(entries, output_dir, run_id)
+        # Generate ranking JSON with run_id and stale entries
+        output_file = generate_ranking_json(entries, output_dir, run_id, stale_toml_entries)
 
         print(f"Generated {output_file} with {len(entries)} entries")
         print(f"Run ID: {run_id}")

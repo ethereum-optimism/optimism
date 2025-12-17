@@ -241,7 +241,7 @@ func getCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
 }
 
 func loadKonaVersions(t devtest.CommonT) konaVersions {
-	konaVersionPath := "kona/version.json"
+	konaVersionPath := "kona-proofs/version.json"
 	root, err := findMonorepoRoot(konaVersionPath)
 	t.Require().NoError(err)
 	p := path.Join(root, konaVersionPath)
