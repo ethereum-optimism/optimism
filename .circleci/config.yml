@@ -1041,9 +1041,10 @@ jobs:
           name: Run heavy fuzz tests
           command: |
             mkdir -p results
-            just test --junit > results/results.xml
+            just test
           environment:
             FOUNDRY_PROFILE: ciheavy
+            JUNIT_TEST_PATH: results/results.xml
           working_directory: packages/contracts-bedrock
           no_output_timeout: 90m
       - run:
