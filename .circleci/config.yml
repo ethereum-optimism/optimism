@@ -3115,7 +3115,7 @@ jobs:
       - run:
           name: Install cargo-llvm-cov
           command: |
-            cargo install --locked cargo-llvm-cov
+            cargo install cargo-llvm-cov
       - when:
           condition:
             equal: [asterisc, <<parameters.target>>]
@@ -3181,7 +3181,7 @@ jobs:
       - run:
           name: Install nextest
           command: |
-            cargo install --locked cargo-nextest
+            cargo install cargo-nextest
       - run:
           name: Run cargo tests
           working_directory: kona
@@ -3272,7 +3272,7 @@ jobs:
       - run:
           name: Install cargo-udeps
           command: |
-            cargo install --locked cargo-udeps
+            cargo install cargo-udeps
       - run:
           name: Check unused dependencies
           working_directory: kona
@@ -3333,7 +3333,7 @@ jobs:
       - run:
           name: Install typos-cli
           command: |
-            cargo install --locked typos-cli
+            cargo install typos-cli
       - run:
           name: Check for typos
           working_directory: kona
@@ -3354,7 +3354,7 @@ jobs:
       - run:
           name: Install cargo-hack
           command: |
-            cargo install --locked cargo-hack
+            cargo install cargo-hack
       - run:
           name: Run cargo hack
           working_directory: kona
@@ -3397,7 +3397,7 @@ jobs:
       - run:
           name: Install cargo-llvm-cov and nextest
           command: |
-            cargo install --locked cargo-llvm-cov cargo-nextest
+            cargo install cargo-llvm-cov cargo-nextest
       - run:
           name: Generate lockfile if needed
           working_directory: kona
@@ -3433,7 +3433,7 @@ jobs:
       - run:
           name: Install cargo-deny
           command: |
-            cargo install --locked cargo-deny
+            cargo install cargo-deny
       - run:
           name: Run cargo deny
           working_directory: kona
@@ -3452,7 +3452,7 @@ jobs:
       - run:
           name: Install zepter
           command: |
-            cargo install --locked zepter -f
+            cargo install zepter -f
             zepter --version
       - run:
           name: Format and lint features
