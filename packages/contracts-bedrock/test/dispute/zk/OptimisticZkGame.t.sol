@@ -77,6 +77,7 @@ abstract contract OptimisticZkGame_TestInit is DisputeGameFactory_TestInit {
 
     function setUp() public virtual override {
         super.setUp();
+        skipIfForkTest("OptimisticZkGame tests create games with specific state assumptions");
 
         // Get anchor state to calculate valid sequence numbers
         (, anchorL2SequenceNumber) = anchorStateRegistry.getAnchorRoot();
