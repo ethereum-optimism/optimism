@@ -4,7 +4,9 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -20,10 +22,11 @@ type BlockInfo interface {
 	BaseFee() *big.Int
 	// BlobBaseFee returns the result of computing the blob fee from excessDataGas, or nil if the
 	// block isn't a Dencun (4844 capable) block
-	BlobBaseFee() *big.Int
+	BlobBaseFee(chainConfig *params.ChainConfig) *big.Int
 	ExcessBlobGas() *uint64
 	ReceiptHash() common.Hash
 	GasUsed() uint64
+	BlobGasUsed() *uint64
 	GasLimit() uint64
 	ParentBeaconRoot() *common.Hash // Dencun extension
 	WithdrawalsRoot() *common.Hash  // Isthmus extension
@@ -31,6 +34,7 @@ type BlockInfo interface {
 	// HeaderRLP returns the RLP of the block header as per consensus rules
 	// Returns an error if the header RLP could not be written
 	HeaderRLP() ([]byte, error)
+	Header() *types.Header
 }
 
 func InfoToL1BlockRef(info BlockInfo) L1BlockRef {
@@ -57,12 +61,12 @@ func ToBlockID(b NumberAndHash) BlockID {
 // blockInfo is a conversion type of types.Block turning it into a BlockInfo
 type blockInfo struct{ *types.Block }
 
-func (b blockInfo) BlobBaseFee() *big.Int {
+func (b blockInfo) BlobBaseFee(chainConfig *params.ChainConfig) *big.Int {
 	ebg := b.ExcessBlobGas()
 	if ebg == nil {
 		return nil
 	}
-	return CalcBlobFeeDefault(b.Header())
+	return eip4844.CalcBlobFee(chainConfig, b.Header())
 }
 
 func (b blockInfo) HeaderRLP() ([]byte, error) {
@@ -124,11 +128,11 @@ func (h *headerBlockInfo) BaseFee() *big.Int {
 	return h.header.BaseFee
 }
 
-func (h *headerBlockInfo) BlobBaseFee() *big.Int {
+func (h *headerBlockInfo) BlobBaseFee(chainConfig *params.ChainConfig) *big.Int {
 	if h.header.ExcessBlobGas == nil {
 		return nil
 	}
-	return CalcBlobFeeDefault(h.header)
+	return eip4844.CalcBlobFee(chainConfig, h.header)
 }
 
 func (h *headerBlockInfo) ExcessBlobGas() *uint64 {
@@ -143,6 +147,10 @@ func (h *headerBlockInfo) GasUsed() uint64 {
 	return h.header.GasUsed
 }
 
+func (h *headerBlockInfo) BlobGasUsed() *uint64 {
+	return h.header.BlobGasUsed
+}
+
 func (h *headerBlockInfo) GasLimit() uint64 {
 	return h.header.GasLimit
 }
@@ -155,7 +163,11 @@ func (h *headerBlockInfo) HeaderRLP() ([]byte, error) {
 	return rlp.EncodeToBytes(h.header) // usage is rare and mostly 1-time-use, no need to cache
 }
 
-func (h headerBlockInfo) WithdrawalsRoot() *common.Hash {
+func (h *headerBlockInfo) Header() *types.Header {
+	return h.header
+}
+
+func (h *headerBlockInfo) WithdrawalsRoot() *common.Hash {
 	return h.header.WithdrawalsHash
 }
 

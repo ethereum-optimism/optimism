@@ -13,14 +13,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
 const (
 	// a really large target output size to ensure that the compressors are never full
 	targetOutput_huge = uint64(100_000_000_000)
-	// this target size was determiend by the devnet sepolia batcher's configuration
-	targetOuput_real = uint64(780120)
+	// this target size was determined by the devnet sepolia batcher's configuration
+	targetOutput_real = uint64(780120)
 )
 
 // compressorDetails is a helper struct to create compressors or supply the configuration for span batches
@@ -81,7 +82,7 @@ var (
 			name:         "ShadowCompressor",
 			compressorFn: compressor.NewShadowCompressor,
 			config: compressor.Config{
-				TargetOutputSize: targetOuput_real,
+				TargetOutputSize: targetOutput_real,
 				CompressionAlgo:  derive.Zlib,
 			},
 		},
@@ -114,7 +115,7 @@ func randomBlock(cfg *rollup.Config, rng *rand.Rand, txCount int, timestamp uint
 // should only be used for testing purposes, as the batch input doesn't contain the necessary information
 // to build the full block (only non-deposit transactions and a subset of header fields are populated).
 func singularBatchToBlock(rollupCfg *rollup.Config, batch *derive.SingularBatch) (*types.Block, error) {
-	l1InfoTx, err := derive.L1InfoDeposit(rollupCfg, eth.SystemConfig{}, 0, &testutils.MockBlockInfo{
+	l1InfoTx, err := derive.L1InfoDeposit(rollupCfg, params.MergedTestChainConfig, eth.SystemConfig{}, 0, &testutils.MockBlockInfo{
 		InfoNum:  uint64(batch.EpochNum),
 		InfoHash: batch.EpochHash,
 	}, batch.Timestamp)
@@ -240,14 +241,14 @@ func BenchmarkIncremental(b *testing.B) {
 		{derive.SpanBatchType, 5, 1, compressorDetails{
 			name: "RealThreshold",
 			config: compressor.Config{
-				TargetOutputSize: targetOuput_real,
+				TargetOutputSize: targetOutput_real,
 				CompressionAlgo:  derive.Zlib,
 			},
 		}},
 		{derive.SpanBatchType, 5, 1, compressorDetails{
 			name: "RealThreshold",
 			config: compressor.Config{
-				TargetOutputSize: targetOuput_real,
+				TargetOutputSize: targetOutput_real,
 				CompressionAlgo:  derive.Brotli10,
 			},
 		}},

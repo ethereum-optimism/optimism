@@ -5,12 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -25,12 +24,12 @@ func TestEventResponse(t *testing.T) {
 	eventSys := event.NewSystem(logger, ex)
 
 	mon := &eventMonitor{}
-	eventSys.Register("monitor", mon, event.DefaultRegisterOpts())
+	eventSys.Register("monitor", mon)
 
 	node := NewManagedNode(logger, chainID, syncCtrl, backend, false)
-	eventSys.Register("node", node, event.DefaultRegisterOpts())
+	eventSys.Register("node", node)
 
-	emitter := eventSys.Register("test", nil, event.DefaultRegisterOpts())
+	emitter := eventSys.Register("test", nil)
 
 	crossUnsafe := 0
 	crossSafe := 0
@@ -64,18 +63,19 @@ func TestEventResponse(t *testing.T) {
 
 	// send events and continue to do so until at least one of each type has been received
 	require.Eventually(t, func() bool {
+		testCtx := context.Background()
 		// send in one event of each type
-		emitter.Emit(superevents.CrossUnsafeUpdateEvent{ChainID: chainID})
-		emitter.Emit(superevents.CrossSafeUpdateEvent{ChainID: chainID})
-		emitter.Emit(superevents.FinalizedL2UpdateEvent{ChainID: chainID})
+		emitter.Emit(testCtx, superevents.CrossUnsafeUpdateEvent{ChainID: chainID})
+		emitter.Emit(testCtx, superevents.CrossSafeUpdateEvent{ChainID: chainID})
+		emitter.Emit(testCtx, superevents.FinalizedL2UpdateEvent{ChainID: chainID})
 
-		syncCtrl.subscribeEvents.Send(&types.ManagedEvent{
+		syncCtrl.subscribeEvents.Send(&types.IndexingEvent{
 			UnsafeBlock: &eth.BlockRef{Number: 1}})
-		syncCtrl.subscribeEvents.Send(&types.ManagedEvent{
+		syncCtrl.subscribeEvents.Send(&types.IndexingEvent{
 			DerivationUpdate: &types.DerivedBlockRefPair{Source: eth.BlockRef{Number: 1}, Derived: eth.BlockRef{Number: 2}}})
-		syncCtrl.subscribeEvents.Send(&types.ManagedEvent{
+		syncCtrl.subscribeEvents.Send(&types.IndexingEvent{
 			ExhaustL1: &types.DerivedBlockRefPair{Source: eth.BlockRef{Number: 1}, Derived: eth.BlockRef{Number: 2}}})
-		syncCtrl.subscribeEvents.Send(&types.ManagedEvent{
+		syncCtrl.subscribeEvents.Send(&types.IndexingEvent{
 			DerivationOriginUpdate: &eth.BlockRef{Number: 1}})
 
 		require.NoError(t, ex.Drain())
@@ -88,97 +88,4 @@ func TestEventResponse(t *testing.T) {
 			nodeExhausted >= 1 &&
 			mon.localDerivedOriginUpdate >= 1
 	}, 4*time.Second, 250*time.Millisecond)
-}
-
-func TestPrepareReset(t *testing.T) {
-	chainID := eth.ChainIDFromUInt64(1)
-	logger := testlog.Logger(t, log.LvlInfo)
-	syncCtrl := &mockSyncControl{}
-	backend := &mockBackend{}
-
-	ex := event.NewGlobalSynchronous(context.Background())
-	eventSys := event.NewSystem(logger, ex)
-
-	mon := &eventMonitor{}
-	eventSys.Register("monitor", mon, event.DefaultRegisterOpts())
-
-	node := NewManagedNode(logger, chainID, syncCtrl, backend, false)
-	eventSys.Register("node", node, event.DefaultRegisterOpts())
-
-	// mock: return a block of the same number as requested
-	syncCtrl.blockRefByNumFn = func(ctx context.Context, number uint64) (eth.BlockRef, error) {
-		return eth.BlockRef{Number: number, Hash: common.Hash{0xaa}}, nil
-	}
-
-	// mock: control whether the blocks appear valid or not
-	var pivot uint64
-	backend.isLocalUnsafeFn = func(ctx context.Context, chainID eth.ChainID, id eth.BlockID) error {
-		if id.Number > uint64(pivot) {
-			return types.ErrConflict
-		}
-		return nil
-	}
-
-	// mock: record the reset signal given to the node
-	var unsafe, safe, finalized eth.BlockID
-	var resetCalled int
-	syncCtrl.resetFn = func(ctx context.Context, u, s, f eth.BlockID) error {
-		unsafe = u
-		safe = s
-		finalized = f
-		resetCalled++
-		return nil
-	}
-
-	// test that the bisection finds the correct block,
-	// anywhere inside the min-max range
-	min, max := uint64(1), uint64(235)
-	for i := min; i < max; i++ {
-		node.resetTracker.a = eth.BlockID{Number: min, Hash: common.Hash{0xaa}}
-		node.resetTracker.z = eth.BlockID{Number: max}
-		pivot = i
-		node.resetTracker.bisectToTarget()
-		require.Equal(t, i, unsafe.Number)
-		require.Equal(t, uint64(0), safe.Number)
-		require.Equal(t, uint64(0), finalized.Number)
-	}
-
-	// test that when the end of range (z) is known to the node,
-	// the reset request is made with the end of the range as the safe block
-	for i := min; i < max; i++ {
-		node.resetTracker.a = eth.BlockID{Number: min}
-		node.resetTracker.z = eth.BlockID{Number: max, Hash: common.Hash{0xaa}}
-		pivot = 0
-		node.resetTracker.bisectToTarget()
-		require.Equal(t, max, unsafe.Number)
-	}
-
-	// mock: return local safe and finalized blocks which are *ahead* of the pivot
-	backend.localSafeFn = func(ctx context.Context, chainID eth.ChainID) (types.DerivedIDPair, error) {
-		return types.DerivedIDPair{
-			Derived: eth.BlockID{Number: pivot + 1},
-		}, nil
-	}
-	backend.finalizedFn = func(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error) {
-		return eth.BlockID{Number: pivot + 1}, nil
-	}
-	// test that the bisection finds the correct block,
-	// AND that the safe and finalized blocks are updated to match the unsafe block
-	for i := min; i < max; i++ {
-		node.resetTracker.a = eth.BlockID{Number: min, Hash: common.Hash{0xaa}}
-		node.resetTracker.z = eth.BlockID{Number: max}
-		pivot = i
-		node.resetTracker.bisectToTarget()
-		require.Equal(t, i, unsafe.Number)
-		require.Equal(t, i, safe.Number)
-		require.Equal(t, i, finalized.Number)
-	}
-
-	// test that the reset function is not called if start of the range (a) is unknown
-	resetCount := resetCalled
-	node.resetTracker.a = eth.BlockID{Number: 0, Hash: common.Hash{0xbb}}
-	node.resetTracker.z = eth.BlockID{Number: max}
-	pivot = 40
-	node.resetTracker.bisectToTarget()
-	require.Equal(t, resetCount, resetCalled)
 }

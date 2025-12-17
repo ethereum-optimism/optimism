@@ -24,6 +24,34 @@ spelling, stylistic or grammatical errors in documentation, code or elsewhere.
 Pull Requests that ignore this guideline will be closed,
 and may be aggregated into new Pull Requests without attribution.
 
+### Trivial Changes Discouraged
+
+We kindly ask contributors **not to submit pull requests that only make trivial changes**, such as:
+
+- Adjusting whitespace, punctuation, or formatting without substantive content changes
+- Renaming variables or refactoring code without a clear functional or readability benefit
+- Other one‑line or cosmetic edits that do not materially improve the project
+
+#### Why we discourage trivial PRs
+
+While we appreciate every attempt to contribute, **small, non‑substantive PRs create significant review and merge overhead** for maintainers without meaningfully improving the codebase or documentation. Reviewing, testing, and merging even a one‑word change takes real time and effort.
+
+To keep maintainers focused on impactful contributions, we will:
+
+- **Close trivial PRs** that fall into the above categories
+- **Aggregate minor typo or formatting fixes internally** if needed, without attribution
+- Encourage contributors to instead take on meaningful issues, such as those labeled [`D-good-first-issue`](https://github.com/ethereum-optimism/optimism/labels/D-good-first-issue) or [`S-confirmed`](https://github.com/ethereum-optimism/optimism/labels/S-confirmed)
+
+#### Better ways to help
+
+If you’d like to contribute in a small but meaningful way:
+
+- **Batch several fixes into one PR** instead of submitting many tiny ones
+- Look for beginner‑friendly issues in our [`D-good-first-issue`](https://github.com/ethereum-optimism/optimism/labels/D-good-first-issue) label
+- Improve documentation by adding missing explanations, examples, or clarifications rather than small grammar tweaks
+
+This ensures your effort has a **real impact** and increases the chance your PR will be reviewed and merged quickly.
+
 ## Code of Conduct
 
 Interactions within this repository are subject to a [Code of Conduct](https://github.com/ethereum-optimism/.github/blob/master/CODE_OF_CONDUCT.md) adapted from the [Contributor Covenant](https://www.contributor-covenant.org/version/1/4/code-of-conduct/).

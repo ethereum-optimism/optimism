@@ -1,8 +1,8 @@
 package p2p_test
 
 import (
-	"math/big"
 	"testing"
+	"time"
 
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	peer "github.com/libp2p/go-libp2p/core/peer"
@@ -13,7 +13,6 @@ import (
 	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -41,7 +40,6 @@ func TestPeerScorer(t *testing.T) {
 // TestScorer_SnapshotHook tests running the snapshot hook on the peer scorer.
 func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHook() {
 	scorer := p2p.NewScorer(
-		&rollup.Config{L2ChainID: big.NewInt(123)},
 		testSuite.mockStore,
 		testSuite.mockMetricer,
 		&p2p.NoopApplicationScorer{},
@@ -65,7 +63,17 @@ func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHook() {
 	inspectFn(snapshotMap)
 
 	// Expect updating the peer store
-	testSuite.mockStore.On("SetScore", peer.ID("peer1"), &store.GossipScores{Total: 0}).Return(scores, nil).Once()
+	testSuite.mockStore.On("SetScore", peer.ID("peer1"), &store.GossipScores{
+		Total: 0,
+		Blocks: store.TopicScores{
+			// expect the maximum time in mesh
+			TimeInMesh: 200.0, // float in seconds
+			// expect the sum of deliveries
+			FirstMessageDeliveries:   111,
+			MeshMessageDeliveries:    222,
+			InvalidMessageDeliveries: 333,
+		},
+	}).Return(scores, nil).Once()
 
 	// The metricer should then be called with the peer score band map
 	testSuite.mockMetricer.On("SetPeerScores", []store.PeerScores{scores}).Return(nil).Once()
@@ -74,6 +82,26 @@ func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHook() {
 	snapshotMap = map[peer.ID]*pubsub.PeerScoreSnapshot{
 		peer.ID("peer1"): {
 			Score: 0,
+			Topics: map[string]*pubsub.TopicScoreSnapshot{
+				"foo": {
+					TimeInMesh:               time.Second * 100,
+					FirstMessageDeliveries:   1,
+					MeshMessageDeliveries:    2,
+					InvalidMessageDeliveries: 3,
+				},
+				"bar": {
+					TimeInMesh:               time.Second * 200,
+					FirstMessageDeliveries:   10,
+					MeshMessageDeliveries:    20,
+					InvalidMessageDeliveries: 30,
+				},
+				"baz": {
+					TimeInMesh:               time.Second * 50,
+					FirstMessageDeliveries:   100,
+					MeshMessageDeliveries:    200,
+					InvalidMessageDeliveries: 300,
+				},
+			},
 		},
 	}
 	inspectFn(snapshotMap)

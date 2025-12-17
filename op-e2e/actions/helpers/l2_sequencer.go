@@ -7,9 +7,11 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
@@ -18,10 +20,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 // MockL1OriginSelector is a shim to override the origin as sequencer, so we can force it to stay on an older origin.
@@ -35,6 +38,10 @@ func (m *MockL1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bl
 		return m.originOverride, nil
 	}
 	return m.actual.FindL1Origin(ctx, l2Head)
+}
+
+func (m *MockL1OriginSelector) SetRecoverMode(bool) {
+	// noop
 }
 
 // L2Sequencer is an actor that functions like a rollup node,
@@ -51,33 +58,32 @@ type L2Sequencer struct {
 }
 
 func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc derive.L1BlobsFetcher,
-	altDASrc driver.AltDAIface, eng L2API, cfg *rollup.Config, seqConfDepth uint64,
+	altDASrc driver.AltDAIface, eng L2API, cfg *rollup.Config, l1ChainConfig *params.ChainConfig,
+	depSet depset.DependencySet, seqConfDepth uint64,
 ) *L2Sequencer {
-	ver := NewL2Verifier(t, log, l1, blobSrc, altDASrc, eng, cfg, &sync.Config{}, safedb.Disabled)
-	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, eng)
+	ver := NewL2Verifier(t, log, l1, blobSrc, altDASrc, eng, cfg, l1ChainConfig, depSet, &sync.Config{}, safedb.Disabled)
+	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1ChainConfig, depSet, l1, eng)
 	seqConfDepthL1 := confdepth.NewConfDepth(seqConfDepth, ver.syncStatus.L1Head, l1)
 	originSelector := sequencing.NewL1OriginSelector(t.Ctx(), log, cfg, seqConfDepthL1)
 	l1OriginSelector := &MockL1OriginSelector{
 		actual: originSelector,
 	}
 	metr := metrics.NoopMetrics
-	seqStateListener := node.DisabledConfigPersistence{}
+	seqStateListener := config.DisabledConfigPersistence{}
 	conduc := &conductor.NoOpConductor{}
 	asyncGossip := async.NoOpGossiper{}
 	seq := sequencing.NewSequencer(t.Ctx(), log, cfg, attrBuilder, l1OriginSelector,
-		seqStateListener, conduc, asyncGossip, metr)
-	opts := event.DefaultRegisterOpts()
-	opts.Emitter = event.EmitterOpts{
-		Limiting: true,
+		seqStateListener, conduc, asyncGossip, metr, ver.engine)
+	opts := event.WithEmitLimiter(
 		// TestSyncBatchType/DerivationWithFlakyL1RPC does *a lot* of quick retries
 		// TestL2BatcherBatchType/ExtendedTimeWithoutL1Batches as well.
-		Rate:  rate.Limit(100_000),
-		Burst: 100_000,
-		OnLimited: func() {
+		rate.Limit(100_000),
+		100_000,
+		func() {
 			log.Warn("Hitting events rate-limit. An events code-path may be hot-looping.")
 			t.Fatal("Tests must not hot-loop events")
 		},
-	}
+	)
 	ver.eventSys.Register("sequencer", seq, opts)
 	ver.eventSys.Register("origin-selector", originSelector, opts)
 	require.NoError(t, seq.Init(t.Ctx(), true))
@@ -92,6 +98,7 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc deri
 
 // ActL2StartBlock starts building of a new L2 block on top of the head
 func (s *L2Sequencer) ActL2StartBlock(t Testing) {
+	require.NoError(t, s.drainer.Drain()) // can't build when other work is still blocking
 	if !s.L2PipelineIdle {
 		t.InvalidAction("cannot start L2 build when derivation is not idle")
 		return
@@ -100,7 +107,7 @@ func (s *L2Sequencer) ActL2StartBlock(t Testing) {
 		t.InvalidAction("already started building L2 block")
 		return
 	}
-	s.synchronousEvents.Emit(sequencing.SequencerActionEvent{})
+	s.synchronousEvents.Emit(t.Ctx(), sequencing.SequencerActionEvent{})
 	require.NoError(t, s.drainer.DrainUntil(event.Is[engine.BuildStartedEvent], false),
 		"failed to start block building")
 
@@ -108,27 +115,28 @@ func (s *L2Sequencer) ActL2StartBlock(t Testing) {
 }
 
 // ActL2EndBlock completes a new L2 block and applies it to the L2 chain as new canonical unsafe head
-func (s *L2Sequencer) ActL2EndBlock(t Testing) {
+func (s *L2Sequencer) ActL2EndBlock(t Testing) eth.L2BlockRef {
 	if !s.l2Building {
 		t.InvalidAction("cannot end L2 block building when no block is being built")
-		return
+		return eth.L2BlockRef{}
 	}
 	s.l2Building = false
 
-	s.synchronousEvents.Emit(sequencing.SequencerActionEvent{})
+	s.synchronousEvents.Emit(t.Ctx(), sequencing.SequencerActionEvent{})
 	require.NoError(t, s.drainer.DrainUntil(event.Is[engine.PayloadSuccessEvent], false),
 		"failed to complete block building")
 
-	// After having built a L2 block, make sure to get an engine update processed.
-	// This will ensure the sync-status and such reflect the latest changes.
-	s.synchronousEvents.Emit(engine.TryUpdateEngineEvent{})
-	s.synchronousEvents.Emit(engine.ForkchoiceRequestEvent{})
+	// After having built a L2 block, make sure to get an engine update processed,
+	// and request a forkchoice update directly.
+	s.engine.TryUpdateEngine(t.Ctx())
+	s.engine.RequestForkchoiceUpdate(t.Ctx())
 	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
 		x, ok := ev.(engine.ForkchoiceUpdateEvent)
 		return ok && x.UnsafeL2Head == s.engine.UnsafeL2Head()
 	}, false))
 	require.Equal(t, s.engine.UnsafeL2Head(), s.syncStatus.SyncStatus().UnsafeL2,
 		"sync status must be accurate after block building")
+	return s.engine.UnsafeL2Head()
 }
 
 func (s *L2Sequencer) ActL2EmptyBlock(t Testing) {
@@ -156,12 +164,13 @@ func (s *L2Sequencer) ActL2ForceAdvanceL1Origin(t Testing) {
 	s.mockL1OriginSelector.originOverride = nextOrigin
 }
 
-// ActBuildToL1Head builds empty blocks until (incl.) the L1 head becomes the L2 origin
-func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
-	for s.engine.UnsafeL2Head().L1Origin.Number < s.syncStatus.L1Head().Number {
+// ActBuildToL1Head builds empty blocks until (incl.) the L1 head becomes the L1 origin of the L2 head
+func (s *L2Sequencer) ActBuildToL1Head(t Testing) eth.L2BlockRef {
+	for s.L2Unsafe().L1Origin.Number < s.syncStatus.L1Head().Number {
 		s.ActL2PipelineFull(t)
 		s.ActL2EmptyBlock(t)
 	}
+	return s.L2Unsafe()
 }
 
 // ActBuildToL1HeadUnsafe builds empty blocks until (incl.) the L1 head becomes the L1 origin of the L2 head
@@ -204,6 +213,14 @@ func (s *L2Sequencer) ActBuildL2ToTime(t Testing, target uint64) {
 	}
 }
 
+func (s *L2Sequencer) ActBuildL2ToFork(t Testing, fork forks.Name) eth.L2BlockRef {
+	require.NotNil(t, s.RollupCfg.ActivationTime(fork), "cannot activate %s when it is not scheduled", fork)
+	for !s.RollupCfg.IsForkActive(fork, s.L2Unsafe().Time) {
+		s.ActL2EmptyBlock(t)
+	}
+	return s.L2Unsafe()
+}
+
 func (s *L2Sequencer) ActBuildL2ToCanyon(t Testing) {
 	require.NotNil(t, s.RollupCfg.CanyonTime, "cannot activate CanyonTime when it is not scheduled")
 	for s.L2Unsafe().Time < *s.RollupCfg.CanyonTime {
@@ -242,6 +259,16 @@ func (s *L2Sequencer) ActBuildL2ToHolocene(t Testing) {
 func (s *L2Sequencer) ActBuildL2ToIsthmus(t Testing) {
 	require.NotNil(t, s.RollupCfg.IsthmusTime, "cannot activate IsthmusTime when it is not scheduled")
 	for s.L2Unsafe().Time < *s.RollupCfg.IsthmusTime {
+		s.ActL2EmptyBlock(t)
+	}
+}
+
+// Instead of replicating the above helpers for later forks, e.g. ActBuildL2ToJovian
+// we can use ActBuildL2ToTime with (e.g.) the JovianTime.
+
+func (s *L2Sequencer) ActBuildL2ToInterop(t Testing) {
+	require.NotNil(t, s.RollupCfg.InteropTime, "cannot activate InteropTime when it is not scheduled")
+	for s.L2Unsafe().Time < *s.RollupCfg.InteropTime {
 		s.ActL2EmptyBlock(t)
 	}
 }

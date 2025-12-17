@@ -30,8 +30,17 @@ var _ state.Trie = (*ForkedAccountsTrie)(nil)
 func (f *ForkedAccountsTrie) Copy() *ForkedAccountsTrie {
 	return &ForkedAccountsTrie{
 		stateRoot: f.stateRoot,
+		src:       f.src,
 		diff:      f.diff.Copy(),
 	}
+}
+
+func (f *ForkedAccountsTrie) PrefetchStorage(_ common.Address, _ [][]byte) error {
+	return nil
+}
+
+func (f *ForkedAccountsTrie) PrefetchAccount(accounts []common.Address) error {
+	return nil
 }
 
 func (f *ForkedAccountsTrie) ExportDiff() *ExportDiff {
@@ -48,7 +57,7 @@ func (f *ForkedAccountsTrie) ClearDiff() {
 	f.diff.Clear()
 }
 
-// ContractCode is not directly part of the vm.State interface,
+// ContractCode is not directly part of the state.Trie interface,
 // but is used by the ForkDB to retrieve the contract code.
 func (f *ForkedAccountsTrie) ContractCode(addr common.Address, codeHash common.Hash) ([]byte, error) {
 	diffAcc, ok := f.diff.Account[addr]
@@ -72,7 +81,7 @@ func (f *ForkedAccountsTrie) ContractCode(addr common.Address, codeHash common.H
 	return code, nil
 }
 
-// ContractCodeSize is not directly part of the vm.State interface,
+// ContractCodeSize is not directly part of the state.Trie interface,
 // but is used by the ForkDB to retrieve the contract code-size.
 func (f *ForkedAccountsTrie) ContractCodeSize(addr common.Address, codeHash common.Hash) (int, error) {
 	code, err := f.ContractCode(addr, codeHash)
@@ -206,7 +215,7 @@ func (f *ForkedAccountsTrie) Commit(collectLeaf bool) (common.Hash, *trienode.No
 	panic("cannot commit state-changes of a forked trie")
 }
 
-func (f *ForkedAccountsTrie) Witness() map[string]struct{} {
+func (f *ForkedAccountsTrie) Witness() map[string][]byte {
 	panic("witness generation of a ForkedAccountsTrie is not supported")
 }
 

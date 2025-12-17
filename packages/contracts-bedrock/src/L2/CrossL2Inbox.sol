@@ -29,9 +29,6 @@ struct Identifier {
 ///      in the tx's access list. Nodes pre-check message validity before execution. The checksum
 ///      combines the message's `Identifier` and `msgHash` with type-3 bit masking.
 contract CrossL2Inbox is ISemver {
-    /// @notice Thrown when trying to execute a cross chain message on a deposit transaction.
-    error NoExecutingDeposits();
-
     /// @notice Thrown when trying to validate a cross chain message with a checksum
     ///         that is invalid or was not provided in the transaction's access list to set the slot
     ///         as warm.
@@ -50,8 +47,8 @@ contract CrossL2Inbox is ISemver {
     error LogIndexTooHigh();
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.14
-    string public constant version = "1.0.0-beta.14";
+    /// @custom:semver 1.0.2
+    string public constant version = "1.0.2";
 
     /// @notice The mask for the most significant bits of the checksum.
     /// @dev    Used to set the most significant byte to zero.
@@ -77,7 +74,7 @@ contract CrossL2Inbox is ISemver {
     /// @param _id      Identifier of the message.
     /// @param _msgHash Hash of the message payload to call target with.
     function validateMessage(Identifier calldata _id, bytes32 _msgHash) external {
-        bytes32 checksum = _calculateChecksum(_id, _msgHash);
+        bytes32 checksum = calculateChecksum(_id, _msgHash);
         (bool isWarm,) = _isWarm(checksum);
         if (!isWarm) revert NotInAccessList();
 
@@ -88,7 +85,7 @@ contract CrossL2Inbox is ISemver {
     /// @param _id The identifier of the message.
     /// @param _msgHash The hash of the message.
     /// @return checksum_ The checksum of the message.
-    function _calculateChecksum(Identifier memory _id, bytes32 _msgHash) internal pure returns (bytes32 checksum_) {
+    function calculateChecksum(Identifier memory _id, bytes32 _msgHash) public pure returns (bytes32 checksum_) {
         if (_id.blockNumber > type(uint64).max) revert BlockNumberTooHigh();
         if (_id.logIndex > type(uint32).max) revert LogIndexTooHigh();
         if (_id.timestamp > type(uint64).max) revert TimestampTooHigh();

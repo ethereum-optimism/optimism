@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -20,7 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-conductor/health"
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	conductorrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
-	opp2p "github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/ethereum-optimism/optimism/op-conductor/rpc/ws"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
@@ -116,6 +117,9 @@ func (c *OpConductor) init(ctx context.Context) error {
 	if err := c.initRPCServer(ctx); err != nil {
 		return errors.Wrap(err, "failed to initialize rpc server")
 	}
+	if err := c.initFlashblocksHandler(ctx); err != nil {
+		return errors.Wrap(err, "failed to initialize flashblocks handler")
+	}
 	return nil
 }
 
@@ -186,7 +190,12 @@ func (c *OpConductor) initConsensus(ctx context.Context) error {
 	}
 	cons, err := consensus.NewRaftConsensus(c.log, raftConsensusConfig)
 	if err != nil {
-		return errors.Wrap(err, "failed to create raft consensus")
+		if !errors.Is(err, raft.ErrCantBootstrap) {
+			return errors.Wrap(err, "failed to create raft consensus")
+		}
+	} else if c.cfg.RaftBootstrap {
+		c.log.Warn("Raft cluster bootstrapped, pausing conductor.")
+		c.paused.Store(true)
 	}
 	c.cons = cons
 	c.leaderUpdateCh = c.cons.LeaderCh()
@@ -204,11 +213,45 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 	}
 	node := sources.NewRollupClient(nc)
 
-	pc, err := rpc.DialContext(ctx, c.cfg.NodeRPC)
-	if err != nil {
-		return errors.Wrap(err, "failed to create p2p rpc client")
+	// Create rollup-boost health checker (either standard or next, mutually exclusive)
+	var rollupBoostHealthChecker client.RollupBoostHealthChecker
+	if c.cfg.RollupBoostEnabled {
+		rollupBoostHealthChecker = client.NewRollupBoostClient(c.cfg.ExecutionRPC, &http.Client{
+			Timeout: c.cfg.RollupBoostHealthcheckTimeout,
+		})
+	} else if c.cfg.RollupBoostNextEnabled {
+		rollupBoostHealthChecker = client.NewRollupBoostNextClient(c.cfg.RollupBoostNextHealthcheckURL, &http.Client{
+			Timeout: c.cfg.RollupBoostHealthcheckTimeout,
+		})
 	}
-	p2p := opp2p.NewClient(pc)
+
+	var elP2p client.ElP2PClient
+	if c.cfg.HealthCheck.ExecutionP2pEnabled {
+		execClient, err := dial.DialEthClientWithTimeout(ctx, 1*time.Minute, c.log, c.cfg.HealthCheck.ExecutionP2pRPCUrl)
+		if err != nil {
+			return errors.Wrap(err, "failed to create execution rpc client out of the el p2p rpc url: "+c.cfg.HealthCheck.ExecutionP2pRPCUrl)
+		}
+		switch c.cfg.HealthCheck.ExecutionP2pCheckApi {
+		case "net":
+			elP2p = client.NewElP2PClientNet(execClient)
+		case "admin":
+			elP2p = client.NewElP2PClientAdmin(execClient)
+		default:
+			return errors.New("invalid el p2p check api")
+		}
+	} else {
+		elP2p = nil
+	}
+
+	p2p := sources.NewP2PClient(nc)
+
+	var supervisor health.SupervisorHealthAPI
+	if c.cfg.SupervisorRPC != "" {
+		supervisor, err = dial.DialSupervisorClientWithTimeout(ctx, c.log, c.cfg.SupervisorRPC)
+		if err != nil {
+			return errors.Wrap(err, "failed to dial supervisor")
+		}
+	}
 
 	c.hmon = health.NewSequencerHealthMonitor(
 		c.log,
@@ -221,6 +264,12 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		&c.cfg.RollupCfg,
 		node,
 		p2p,
+		supervisor,
+		rollupBoostHealthChecker,
+		elP2p,
+		c.cfg.HealthCheck.ExecutionP2pMinPeerCount,
+		c.cfg.HealthCheck.RollupBoostPartialHealthinessToleranceLimit,
+		c.cfg.HealthCheck.RollupBoostPartialHealthinessToleranceIntervalSeconds,
 	)
 	c.healthUpdateCh = c.hmon.Subscribe()
 
@@ -233,6 +282,7 @@ func (oc *OpConductor) initRPCServer(ctx context.Context) error {
 		oc.cfg.RPC.ListenPort,
 		oc.version,
 		oprpc.WithLogger(oc.log),
+		oprpc.WithRPCRecorder(oc.metrics.NewRecorder("main")),
 	)
 	api := conductorrpc.NewAPIBackend(oc.log, oc)
 	server.AddAPI(rpc.API{
@@ -257,7 +307,7 @@ func (oc *OpConductor) initRPCServer(ctx context.Context) error {
 			Service:   execMinerProxy,
 		})
 
-		nodeClient, err := dial.DialRollupClientWithTimeout(ctx, 1*time.Minute, oc.log, oc.cfg.NodeRPC)
+		nodeClient, err := dial.DialRollupClientWithTimeout(ctx, oc.log, oc.cfg.NodeRPC)
 		if err != nil {
 			return errors.Wrap(err, "failed to create node rpc client")
 		}
@@ -275,6 +325,30 @@ func (oc *OpConductor) initRPCServer(ctx context.Context) error {
 	}
 
 	oc.rpcServer = server
+	return nil
+}
+
+// initFlashblocksHandler initializes the flashblocks handler
+func (c *OpConductor) initFlashblocksHandler(ctx context.Context) error {
+	if c.cfg.RollupBoostWsURL == "" {
+		c.log.Info("flashblocks handler disabled, no rollup boost URL configured")
+		return nil
+	}
+
+	// Initialize the flashblocks handler
+	handler, err := ws.NewHandler(ws.Config{
+		RollupBoostWsURL:    c.cfg.RollupBoostWsURL,
+		WebsocketServerPort: c.cfg.WebsocketServerPort,
+	}, c.log, func(ctx context.Context) bool {
+		return c.Leader(ctx)
+	}, c.metrics)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to create flashblocks handler")
+	}
+
+	c.flashblocksHandler = handler
+
 	return nil
 }
 
@@ -323,6 +397,8 @@ type OpConductor struct {
 	metricsServer *httputil.HTTPServer
 
 	retryBackoff func() time.Duration
+
+	flashblocksHandler ws.FlashblockHandler
 }
 
 type state struct {
@@ -359,6 +435,14 @@ func (oc *OpConductor) Start(ctx context.Context) error {
 	oc.log.Info("starting JSON-RPC server")
 	if err := oc.rpcServer.Start(); err != nil {
 		return errors.Wrap(err, "failed to start JSON-RPC server")
+	}
+
+	// Start the flashblocks handler if it was initialized
+	if oc.flashblocksHandler != nil {
+		oc.log.Info("starting flashblocks handler")
+		if err := oc.flashblocksHandler.Start(ctx); err != nil {
+			return errors.Wrap(err, "failed to start flashblocks handler")
+		}
 	}
 
 	if oc.cfg.MetricsConfig.Enabled {
@@ -401,6 +485,12 @@ func (oc *OpConductor) Stop(ctx context.Context) error {
 	// close control loop
 	oc.shutdownCancel()
 	oc.wg.Wait()
+
+	// Close flashblocks handler
+	if oc.flashblocksHandler != nil {
+		oc.log.Info("stopping flashblocks handler")
+		oc.flashblocksHandler.Stop()
+	}
 
 	if oc.rpcServer != nil {
 		if err := oc.rpcServer.Stop(); err != nil {
@@ -675,10 +765,8 @@ func (oc *OpConductor) action() {
 	case status.leader && !status.healthy && status.active:
 		// There are two scenarios we need to handle here:
 		// 1. we're transitioned from case status.leader && !status.healthy && !status.active, see description above
-		//    then we should continue to sequence blocks and try to bring ourselves back to healthy state.
-		//    note: we need to also make sure that the health error is not due to ErrSequencerConnectionDown
-		//    		because in this case, we should stop sequencing and transfer leadership to other nodes.
-		if oc.prevState.leader && !oc.prevState.healthy && !oc.prevState.active && !errors.Is(oc.hcerr, health.ErrSequencerConnectionDown) {
+		//    then we should continue to sequence blocks and try to bring ourselves back to healthy state (if possible)
+		if oc.shouldWaitForHealthRecovery() {
 			err = errors.New("waiting for sequencing to become healthy by itself")
 			break
 		}
@@ -859,4 +947,25 @@ func (oc *OpConductor) updateSequencerActiveStatus() error {
 	oc.log.Info("sequencer active status updated", "active", active)
 	oc.seqActive.Store(active)
 	return nil
+}
+
+// shouldWaitForHealthRecovery determines if the conductor should wait for the sequencer
+// to recover health naturally instead of transferring leadership.
+func (oc *OpConductor) shouldWaitForHealthRecovery() bool {
+	// Only wait for recovery if we transitioned from [leader, unhealthy, inactive] state
+	if !oc.prevState.leader || oc.prevState.healthy || oc.prevState.active {
+		return false
+	}
+
+	// Don't wait if the error is a connection issue - transfer leadership instead
+	if errors.Is(oc.hcerr, health.ErrSequencerConnectionDown) {
+		return false
+	}
+
+	// Don't wait if rollup boost healthcheck is enabled and partially healthy - transfer leadership instead
+	if (oc.cfg.RollupBoostEnabled || oc.cfg.RollupBoostNextEnabled) && errors.Is(oc.hcerr, health.ErrRollupBoostPartiallyHealthy) {
+		return false
+	}
+
+	return true
 }

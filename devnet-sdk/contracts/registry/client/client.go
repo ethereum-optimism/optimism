@@ -18,12 +18,14 @@ type ClientRegistry struct {
 
 var _ interfaces.ContractsRegistry = (*ClientRegistry)(nil)
 
-func (r *ClientRegistry) SuperchainWETH(address types.Address) (interfaces.SuperchainWETH, error) {
+func (r *ClientRegistry) WETH(address types.Address) (interfaces.WETH, error) {
+	// SuperchainWETH was removed and replaced with SuperchainETHBridge
+	// NewSuperchainWETH can be still used for fetching WETH balance
 	binding, err := bindings.NewSuperchainWETH(address, r.Client)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create SuperchainWETH binding: %w", err)
+		return nil, fmt.Errorf("failed to create WETH binding: %w", err)
 	}
-	return &superchainWETHBinding{
+	return &WETHBinding{
 		contractAddress: address,
 		client:          r.Client,
 		binding:         binding,

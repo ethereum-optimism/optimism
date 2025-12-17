@@ -4,15 +4,16 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	legacybindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 )
 
 type pectraBlobScheduleTestCfg struct {
@@ -82,7 +83,7 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	sequencer.ActBuildToL1HeadUnsafe(t)
 
 	cancunBBF1 := eth.CalcBlobFeeCancun(*l1_1.ExcessBlobGas)
-	pragueBBF1 := eth.CalcBlobFeeDefault(l1_1)
+	pragueBBF1 := eip4844.CalcBlobFee(env.Sd.L1Cfg.Config, l1_1)
 	// Make sure they differ.
 	require.Less(t, pragueBBF1.Uint64(), cancunBBF1.Uint64())
 	opts := &bind.CallOpts{}
@@ -113,7 +114,7 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	sequencer.ActBuildToL1HeadUnsafe(t)
 
 	cancunBBF2 := eth.CalcBlobFeeCancun(*l1_2.ExcessBlobGas)
-	pragueBBF2 := eth.CalcBlobFeeDefault(l1_2)
+	pragueBBF2 := eip4844.CalcBlobFee(env.Sd.L1Cfg.Config, l1_2)
 	require.Less(t, pragueBBF2.Uint64(), cancunBBF2.Uint64())
 	bbf2, err := l1Block.BlobBaseFee(opts)
 	require.NoError(t, err)
@@ -128,7 +129,7 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
 	require.Equal(t, eth.HeaderBlockID(l2SafeHead), eth.HeaderBlockID(l2UnsafeHead), "derivation leads to the same block")
 
-	env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, testCfg.InputParams...)
 }
 
 func ptr[T any](v T) *T {

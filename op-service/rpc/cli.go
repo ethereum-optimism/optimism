@@ -5,6 +5,7 @@ import (
 	"math"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	"github.com/urfave/cli/v2"
 )
 
@@ -17,23 +18,35 @@ const (
 var ErrInvalidPort = errors.New("invalid RPC port")
 
 func CLIFlags(envPrefix string) []cli.Flag {
+	return CLIFlagsWithCategory(envPrefix, "", CLIConfig{
+		ListenAddr:  "0.0.0.0", // TODO(#16487): Switch to 127.0.0.1
+		ListenPort:  8545,
+		EnableAdmin: false,
+	})
+}
+
+func CLIFlagsWithCategory(envPrefix string, category string, cfg CLIConfig) []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{
-			Name:    ListenAddrFlagName,
-			Usage:   "rpc listening address",
-			Value:   "0.0.0.0", // TODO: Switch to 127.0.0.1
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "RPC_ADDR"),
+			Name:     ListenAddrFlagName,
+			Usage:    "rpc listening address",
+			Value:    cfg.ListenAddr,
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "RPC_ADDR"),
+			Category: category,
 		},
 		&cli.IntFlag{
-			Name:    PortFlagName,
-			Usage:   "rpc listening port",
-			Value:   8545,
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "RPC_PORT"),
+			Name:     PortFlagName,
+			Usage:    "rpc listening port",
+			Value:    cfg.ListenPort,
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "RPC_PORT"),
+			Category: category,
 		},
 		&cli.BoolFlag{
-			Name:    EnableAdminFlagName,
-			Usage:   "Enable the admin API",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "RPC_ENABLE_ADMIN"),
+			Name:     EnableAdminFlagName,
+			Usage:    "Enable the admin API",
+			Value:    cfg.EnableAdmin,
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "RPC_ENABLE_ADMIN"),
+			Category: category,
 		},
 	}
 }
@@ -60,7 +73,7 @@ func (c CLIConfig) Check() error {
 	return nil
 }
 
-func ReadCLIConfig(ctx *cli.Context) CLIConfig {
+func ReadCLIConfig(ctx cliiface.Context) CLIConfig {
 	return CLIConfig{
 		ListenAddr:  ctx.String(ListenAddrFlagName),
 		ListenPort:  ctx.Int(PortFlagName),

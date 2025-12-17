@@ -17,10 +17,11 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opparams "github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
 var (
@@ -83,6 +84,22 @@ type DevDeployConfig struct {
 	// FundDevAccounts configures whether to fund the dev accounts.
 	// This should only be used during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
+}
+
+type RevenueShareDeployConfig struct {
+	UseRevenueShare    bool           `json:"useRevenueShare"`
+	ChainFeesRecipient common.Address `json:"chainFeesRecipient"`
+}
+
+var _ ConfigChecker = (*RevenueShareDeployConfig)(nil)
+
+func (d *RevenueShareDeployConfig) Check(log log.Logger) error {
+	if d.UseRevenueShare {
+		if d.ChainFeesRecipient == (common.Address{}) {
+			return fmt.Errorf("%w: ChainFeesRecipient cannot be address(0)", ErrInvalidDeployConfig)
+		}
+	}
+	return nil
 }
 
 type L2GenesisBlockDeployConfig struct {
@@ -149,18 +166,24 @@ type L2VaultsDeployConfig struct {
 	// SequencerFeeVaultRecipient represents the recipient of fees accumulated in the SequencerFeeVault.
 	// Can be an account on L1 or L2, depending on the SequencerFeeVaultWithdrawalNetwork value.
 	SequencerFeeVaultRecipient common.Address `json:"sequencerFeeVaultRecipient"`
+	// OperatorFeeVaultRecipient represents the recipient of fees accumulated in the OperatorFeeVault.
+	OperatorFeeVaultRecipient common.Address `json:"operatorFeeVaultRecipient"`
 	// BaseFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the BaseFeeVault.
 	BaseFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"baseFeeVaultMinimumWithdrawalAmount"`
 	// L1FeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the L1FeeVault.
 	L1FeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"l1FeeVaultMinimumWithdrawalAmount"`
 	// SequencerFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the SequencerFeeVault.
 	SequencerFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"sequencerFeeVaultMinimumWithdrawalAmount"`
+	// OperatorFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the OperatorFeeVault.
+	OperatorFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"operatorFeeVaultMinimumWithdrawalAmount"`
 	// BaseFeeVaultWithdrawalNetwork represents the withdrawal network for the BaseFeeVault.
 	BaseFeeVaultWithdrawalNetwork WithdrawalNetwork `json:"baseFeeVaultWithdrawalNetwork"`
 	// L1FeeVaultWithdrawalNetwork represents the withdrawal network for the L1FeeVault.
 	L1FeeVaultWithdrawalNetwork WithdrawalNetwork `json:"l1FeeVaultWithdrawalNetwork"`
 	// SequencerFeeVaultWithdrawalNetwork represents the withdrawal network for the SequencerFeeVault.
 	SequencerFeeVaultWithdrawalNetwork WithdrawalNetwork `json:"sequencerFeeVaultWithdrawalNetwork"`
+	// OperatorFeeVaultWithdrawalNetwork represents the withdrawal network for the OperatorFeeVault.
+	OperatorFeeVaultWithdrawalNetwork WithdrawalNetwork `json:"operatorFeeVaultWithdrawalNetwork"`
 }
 
 var _ ConfigChecker = (*L2VaultsDeployConfig)(nil)
@@ -175,6 +198,9 @@ func (d *L2VaultsDeployConfig) Check(log log.Logger) error {
 	if d.SequencerFeeVaultRecipient == (common.Address{}) {
 		return fmt.Errorf("%w: SequencerFeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
 	}
+	if d.OperatorFeeVaultRecipient == (common.Address{}) {
+		return fmt.Errorf("%w: OperatorFeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
+	}
 	if !d.BaseFeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: BaseFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
@@ -183,6 +209,9 @@ func (d *L2VaultsDeployConfig) Check(log log.Logger) error {
 	}
 	if !d.SequencerFeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: SequencerFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
+	}
+	if !d.OperatorFeeVaultWithdrawalNetwork.Valid() {
+		return fmt.Errorf("%w: OperatorFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
 	return nil
 }
@@ -275,18 +304,33 @@ func (d *GasPriceOracleDeployConfig) OperatorFeeParams() [32]byte {
 type GasTokenDeployConfig struct {
 	// UseCustomGasToken is a flag to indicate that a custom gas token should be used
 	UseCustomGasToken bool `json:"useCustomGasToken"`
-	// CustomGasTokenAddress is the address of the ERC20 token to be used to pay for gas on L2.
-	CustomGasTokenAddress common.Address `json:"customGasTokenAddress"`
+	// GasPayingTokenName represents the custom gas token name.
+	GasPayingTokenName string `json:"gasPayingTokenName"`
+	// GasPayingTokenSymbol represents the custom gas token symbol.
+	GasPayingTokenSymbol string `json:"gasPayingTokenSymbol"`
+	// NativeAssetLiquidityAmount represents the amount of liquidity to pre-fund the NativeAssetLiquidity contract with.
+	NativeAssetLiquidityAmount *hexutil.Big `json:"nativeAssetLiquidityAmount"`
+	// LiquidityControllerOwner represents the owner of the LiquidityController.
+	LiquidityControllerOwner common.Address `json:"liquidityControllerOwner"`
 }
 
 var _ ConfigChecker = (*GasTokenDeployConfig)(nil)
 
 func (d *GasTokenDeployConfig) Check(log log.Logger) error {
 	if d.UseCustomGasToken {
-		if d.CustomGasTokenAddress == (common.Address{}) {
-			return fmt.Errorf("%w: CustomGasTokenAddress cannot be address(0)", ErrInvalidDeployConfig)
+		if d.GasPayingTokenName == "" {
+			return fmt.Errorf("%w: GasPayingTokenName cannot be empty", ErrInvalidDeployConfig)
 		}
-		log.Info("Using custom gas token", "address", d.CustomGasTokenAddress)
+		if d.GasPayingTokenSymbol == "" {
+			return fmt.Errorf("%w: GasPayingTokenSymbol cannot be empty", ErrInvalidDeployConfig)
+		}
+		if d.NativeAssetLiquidityAmount == nil || d.NativeAssetLiquidityAmount.ToInt().Sign() < 0 {
+			return fmt.Errorf("%w: NativeAssetLiquidityAmount cannot be nil or negative", ErrInvalidDeployConfig)
+		}
+		if d.LiquidityControllerOwner == (common.Address{}) {
+			return fmt.Errorf("%w: LiquidityControllerOwner cannot be address(0)", ErrInvalidDeployConfig)
+		}
+		log.Info("Using custom gas token", "name", d.GasPayingTokenName, "symbol", d.GasPayingTokenSymbol, "nativeAssetLiquidityAmount", d.NativeAssetLiquidityAmount.ToInt())
 	}
 	return nil
 }
@@ -360,6 +404,9 @@ type UpgradeScheduleDeployConfig struct {
 	// L2GenesisIsthmusTimeOffset is the number of seconds after genesis block that the Isthmus hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Isthmus.
 	L2GenesisIsthmusTimeOffset *hexutil.Uint64 `json:"l2GenesisIsthmusTimeOffset,omitempty"`
+	// L2GenesisJovianTimeOffset is the number of seconds after genesis block that the Jovian hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Jovian.
+	L2GenesisJovianTimeOffset *hexutil.Uint64 `json:"l2GenesisJovianTimeOffset,omitempty"`
 	// L2GenesisInteropTimeOffset is the number of seconds after genesis block that the Interop hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Interop.
 	L2GenesisInteropTimeOffset *hexutil.Uint64 `json:"l2GenesisInteropTimeOffset,omitempty"`
@@ -374,9 +421,18 @@ type UpgradeScheduleDeployConfig struct {
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
 	// When Prague activates. Relative to L1 genesis.
 	L1PragueTimeOffset *hexutil.Uint64 `json:"l1PragueTimeOffset,omitempty"`
-
-	// UseInterop is a flag that indicates if the system is using interop
-	UseInterop bool `json:"useInterop,omitempty"`
+	// When Osaka activates. Relative to L1 genesis.
+	L1OsakaTimeOffset *hexutil.Uint64 `json:"l1OsakaTimeOffset,omitempty"`
+	// When BPO1 activates. Relative to L1 genesis.
+	L1BPO1TimeOffset *hexutil.Uint64 `json:"l1BPO1TimeOffset,omitempty"`
+	// When BPO2 activates. Relative to L1 genesis.
+	L1BPO2TimeOffset *hexutil.Uint64 `json:"l1BPO2TimeOffset,omitempty"`
+	// When BPO3 activates. Relative to L1 genesis.
+	L1BPO3TimeOffset *hexutil.Uint64 `json:"l1BPO3TimeOffset,omitempty"`
+	// When BPO4 activates. Relative to L1 genesis.
+	L1BPO4TimeOffset *hexutil.Uint64 `json:"l1BPO4TimeOffset,omitempty"`
+	// Blob schedule config.
+	L1BlobScheduleConfig *params.BlobScheduleConfig `json:"l1BlobScheduleConfig,omitempty"`
 }
 
 var _ ConfigChecker = (*UpgradeScheduleDeployConfig)(nil)
@@ -394,23 +450,25 @@ func offsetToUpgradeTime(offset *hexutil.Uint64, genesisTime uint64) *uint64 {
 
 func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint64 {
 	switch fork {
-	case rollup.Regolith:
+	case forks.Regolith:
 		return (*uint64)(d.L2GenesisRegolithTimeOffset)
-	case rollup.Canyon:
+	case forks.Canyon:
 		return (*uint64)(d.L2GenesisCanyonTimeOffset)
-	case rollup.Delta:
+	case forks.Delta:
 		return (*uint64)(d.L2GenesisDeltaTimeOffset)
-	case rollup.Ecotone:
+	case forks.Ecotone:
 		return (*uint64)(d.L2GenesisEcotoneTimeOffset)
-	case rollup.Fjord:
+	case forks.Fjord:
 		return (*uint64)(d.L2GenesisFjordTimeOffset)
-	case rollup.Granite:
+	case forks.Granite:
 		return (*uint64)(d.L2GenesisGraniteTimeOffset)
-	case rollup.Holocene:
+	case forks.Holocene:
 		return (*uint64)(d.L2GenesisHoloceneTimeOffset)
-	case rollup.Isthmus:
+	case forks.Isthmus:
 		return (*uint64)(d.L2GenesisIsthmusTimeOffset)
-	case rollup.Interop:
+	case forks.Jovian:
+		return (*uint64)(d.L2GenesisJovianTimeOffset)
+	case forks.Interop:
 		return (*uint64)(d.L2GenesisInteropTimeOffset)
 	default:
 		panic(fmt.Sprintf("unknown fork: %s", fork))
@@ -419,30 +477,32 @@ func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint
 
 func (d *UpgradeScheduleDeployConfig) SetForkTimeOffset(fork rollup.ForkName, offset *uint64) {
 	switch fork {
-	case rollup.Regolith:
+	case forks.Regolith:
 		d.L2GenesisRegolithTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Canyon:
+	case forks.Canyon:
 		d.L2GenesisCanyonTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Delta:
+	case forks.Delta:
 		d.L2GenesisDeltaTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Ecotone:
+	case forks.Ecotone:
 		d.L2GenesisEcotoneTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Fjord:
+	case forks.Fjord:
 		d.L2GenesisFjordTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Granite:
+	case forks.Granite:
 		d.L2GenesisGraniteTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Holocene:
+	case forks.Holocene:
 		d.L2GenesisHoloceneTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Isthmus:
+	case forks.Isthmus:
 		d.L2GenesisIsthmusTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Interop:
+	case forks.Jovian:
+		d.L2GenesisJovianTimeOffset = (*hexutil.Uint64)(offset)
+	case forks.Interop:
 		d.L2GenesisInteropTimeOffset = (*hexutil.Uint64)(offset)
 	default:
 		panic(fmt.Sprintf("unknown fork: %s", fork))
 	}
 }
 
-var scheduleableForks = rollup.ForksFrom(rollup.Regolith)
+var scheduleableForks = forks.From(forks.Regolith)
 
 // ActivateForkAtOffset activates the given fork at the given offset. Previous forks are activated
 // at genesis and later forks are deactivated.
@@ -450,7 +510,7 @@ var scheduleableForks = rollup.ForksFrom(rollup.Regolith)
 // ActivateForkAtOffset with the earliest fork and then SetForkTimeOffset to individually set later
 // forks.
 func (d *UpgradeScheduleDeployConfig) ActivateForkAtOffset(fork rollup.ForkName, offset uint64) {
-	if !rollup.IsValidFork(fork) || fork == rollup.Bedrock {
+	if !forks.IsValid(fork) || fork == forks.Bedrock {
 		panic(fmt.Sprintf("invalid fork: %s", fork))
 	}
 	ts := new(uint64)
@@ -507,6 +567,10 @@ func (d *UpgradeScheduleDeployConfig) IsthmusTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisIsthmusTimeOffset, genesisTime)
 }
 
+func (d *UpgradeScheduleDeployConfig) JovianTime(genesisTime uint64) *uint64 {
+	return offsetToUpgradeTime(d.L2GenesisJovianTimeOffset, genesisTime)
+}
+
 func (d *UpgradeScheduleDeployConfig) InteropTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisInteropTimeOffset, genesisTime)
 }
@@ -540,11 +604,35 @@ func (d *UpgradeScheduleDeployConfig) forks() []Fork {
 		{L2GenesisTimeOffset: d.L2GenesisGraniteTimeOffset, Name: string(L2AllocsGranite)},
 		{L2GenesisTimeOffset: d.L2GenesisHoloceneTimeOffset, Name: string(L2AllocsHolocene)},
 		{L2GenesisTimeOffset: d.L2GenesisIsthmusTimeOffset, Name: string(L2AllocsIsthmus)},
+		{L2GenesisTimeOffset: d.L2GenesisJovianTimeOffset, Name: string(L2AllocsJovian)},
+		{L2GenesisTimeOffset: d.L2GenesisInteropTimeOffset, Name: string(L2AllocsInterop)},
 	}
 }
 
+// SolidityForkNumber converts a genesis time to a fork number suitable for use with
+// the Fork enum in ForkUtils.sol.
+func (d *UpgradeScheduleDeployConfig) SolidityForkNumber(genesisTime uint64) int64 {
+	forks := d.forks()
+	for i := len(forks) - 1; i >= 0; i-- {
+		if forkTime := offsetToUpgradeTime(forks[i].L2GenesisTimeOffset, genesisTime); forkTime != nil && *forkTime == 0 {
+			// Subtract 1 since Solidity has a "none" fork type
+			return int64(i - 1)
+		}
+		// the oldest L2AllocsMode is delta
+		if forks[i].Name == string(L2AllocsDelta) {
+			return 1
+		}
+	}
+	panic("should never reach here")
+}
+
+// Check ensures that:
+//  1. parent fork is before or at the same time as child fork
+//  2. forks cannot activate at the same post-Genesis block
 func (d *UpgradeScheduleDeployConfig) Check(log log.Logger) error {
-	// checkFork checks that fork A is before or at the same time as fork B
+	// checkFork checks that:
+	//  1. fork A is before or at the same time as fork B
+	//  2. fork A and B cannot activate at the same post-Genesis block
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
 		if a == nil && b == nil {
 			return nil
@@ -557,6 +645,9 @@ func (d *UpgradeScheduleDeployConfig) Check(log log.Logger) error {
 		}
 		if *a > *b {
 			return fmt.Errorf("fork %s set to %d, but prior fork %s has higher offset %d", bName, *b, aName, *a)
+		}
+		if *a == *b && *a != 0 {
+			return fmt.Errorf("both fork %s and %s are set to %d: Forks in general cannot activate at the same post-Genesis block", aName, bName, *b)
 		}
 		return nil
 	}
@@ -667,6 +758,18 @@ func (d *AltDADeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
+type FeeMarketConfig struct {
+	// MinBaseFee is the minimum base applied to each block.
+	MinBaseFee uint64 `json:"minBaseFee"`
+	// DAFootprintGasScalar is the scalar used to compute the DAFootprint of each block.
+	DAFootprintGasScalar uint16 `json:"daFootprintGasScalar"`
+}
+
+func (f *FeeMarketConfig) Check(log log.Logger) error {
+	// All values are valid.
+	return nil
+}
+
 // L2InitializationConfig represents all L2 configuration
 // data that can be configured before the deployment of any L1 contracts.
 type L2InitializationConfig struct {
@@ -681,7 +784,9 @@ type L2InitializationConfig struct {
 	EIP1559DeployConfig
 	UpgradeScheduleDeployConfig
 	L2CoreDeployConfig
+	FeeMarketConfig
 	AltDADeployConfig
+	RevenueShareDeployConfig
 }
 
 func (d *L2InitializationConfig) Check(log log.Logger) error {
@@ -906,12 +1011,6 @@ func (d *LegacyDeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
-// BobaDeployConfig configures the deployment of the Boba contract.
-type BobaDeployConfig struct {
-	// It is used to prevent the Boba contract from being deployed.
-	L1BobaToken *common.Address `json:"l1BobaTokenAddress,omitempty"`
-}
-
 // DeployConfig represents the deployment configuration for an OP Stack chain.
 // It is used to deploy the L1 contracts as well as create the L2 genesis state.
 type DeployConfig struct {
@@ -941,9 +1040,6 @@ type DeployConfig struct {
 
 	// Legacy, ignored, here for strict-JSON decoding to be accepted.
 	LegacyDeployConfig `evm:"-"`
-
-	// Boba
-	BobaDeployConfig
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
@@ -996,6 +1092,15 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 	d.SystemConfigProxy = deployments.SystemConfigProxy
 	d.OptimismPortalProxy = deployments.OptimismPortalProxy
 	d.DAChallengeProxy = deployments.DataAvailabilityChallengeProxy
+}
+
+func (d *DeployConfig) SetContracts(contracts *addresses.L1Contracts) {
+	d.L1StandardBridgeProxy = contracts.L1StandardBridgeProxy
+	d.L1CrossDomainMessengerProxy = contracts.L1CrossDomainMessengerProxy
+	d.L1ERC721BridgeProxy = contracts.L1Erc721BridgeProxy
+	d.SystemConfigProxy = contracts.SystemConfigProxy
+	d.OptimismPortalProxy = contracts.OptimismPortalProxy
+	d.DAChallengeProxy = contracts.AltDAChallengeProxy
 }
 
 // RollupConfig converts a DeployConfig to a rollup.Config. If Ecotone is active at genesis, the
@@ -1057,6 +1162,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		HoloceneTime:            d.HoloceneTime(l1StartTime),
 		PectraBlobScheduleTime:  d.PectraBlobScheduleTime(l1StartTime),
 		IsthmusTime:             d.IsthmusTime(l1StartTime),
+		JovianTime:              d.JovianTime(l1StartTime),
 		InteropTime:             d.InteropTime(l1StartTime),
 		ProtocolVersionsAddress: d.ProtocolVersionsProxy,
 		AltDAConfig:             altDA,
@@ -1073,21 +1179,11 @@ func (d *DeployConfig) GenesisSystemConfig() eth.SystemConfig {
 		Scalar:            d.FeeScalar(),
 		GasLimit:          uint64(d.L2GenesisBlockGasLimit),
 		OperatorFeeParams: d.OperatorFeeParams(),
+		MinBaseFee:        d.MinBaseFee,
+		// Note that we don't use SetDAFootprintGasScalar here because this SystemConfig is supposed to
+		// reflect the genesis state and is not used inside derivation.
+		DAFootprintGasScalar: d.DAFootprintGasScalar,
 	}
-}
-
-// Get Boba Token address
-func (d *DeployConfig) GetL1BobaTokenAddress() (*common.Address, error) {
-	var l1TokenAddr common.Address
-	if d.L1BobaToken != nil {
-		l1TokenAddr = *d.L1BobaToken
-	} else {
-		l1TokenAddr = predeploys.BobaL2Addr
-	}
-	if l1TokenAddr == (common.Address{}) {
-		return &l1TokenAddr, fmt.Errorf("L1BobaTokenAddress cannot be address(0): %w", ErrInvalidImmutablesConfig)
-	}
-	return &l1TokenAddr, nil
 }
 
 // NewDeployConfig reads a config file given a path on the filesystem.
@@ -1133,6 +1229,7 @@ type L1Deployments struct {
 	OptimismMintableERC20Factory      common.Address `json:"OptimismMintableERC20Factory"`
 	OptimismMintableERC20FactoryProxy common.Address `json:"OptimismMintableERC20FactoryProxy"`
 	OptimismPortal                    common.Address `json:"OptimismPortal"`
+	OptimismPortalInterop             common.Address `json:"OptimismPortalInterop"`
 	OptimismPortalProxy               common.Address `json:"OptimismPortalProxy"`
 	ETHLockbox                        common.Address `json:"ETHLockbox"`
 	ETHLockboxProxy                   common.Address `json:"ETHLockboxProxy"`
@@ -1143,6 +1240,35 @@ type L1Deployments struct {
 	ProtocolVersionsProxy             common.Address `json:"ProtocolVersionsProxy"`
 	DataAvailabilityChallenge         common.Address `json:"DataAvailabilityChallenge"`
 	DataAvailabilityChallengeProxy    common.Address `json:"DataAvailabilityChallengeProxy"`
+}
+
+func CreateL1DeploymentsFromContracts(contracts *addresses.L1Contracts) *L1Deployments {
+	return &L1Deployments{
+		AddressManager:                    contracts.AddressManagerImpl,
+		DisputeGameFactory:                contracts.DisputeGameFactoryImpl,
+		DisputeGameFactoryProxy:           contracts.DisputeGameFactoryProxy,
+		L1CrossDomainMessenger:            contracts.L1CrossDomainMessengerImpl,
+		L1CrossDomainMessengerProxy:       contracts.L1CrossDomainMessengerProxy,
+		L1ERC721Bridge:                    contracts.L1Erc721BridgeImpl,
+		L1ERC721BridgeProxy:               contracts.L1Erc721BridgeProxy,
+		L1StandardBridge:                  contracts.L1StandardBridgeImpl,
+		L1StandardBridgeProxy:             contracts.L1StandardBridgeProxy,
+		L2OutputOracleProxy:               contracts.L2OutputOracleProxy,
+		OptimismMintableERC20Factory:      contracts.OptimismMintableErc20FactoryImpl,
+		OptimismMintableERC20FactoryProxy: contracts.OptimismMintableErc20FactoryProxy,
+		OptimismPortal:                    contracts.OptimismPortalImpl,
+		OptimismPortalInterop:             contracts.OptimismPortalInteropImpl,
+		OptimismPortalProxy:               contracts.OptimismPortalProxy,
+		ETHLockbox:                        contracts.EthLockboxImpl,
+		ETHLockboxProxy:                   contracts.EthLockboxProxy,
+		ProxyAdmin:                        contracts.OpChainProxyAdminImpl,
+		SystemConfig:                      contracts.SystemConfigImpl,
+		SystemConfigProxy:                 contracts.SystemConfigProxy,
+		ProtocolVersions:                  contracts.ProtocolVersionsImpl,
+		ProtocolVersionsProxy:             contracts.ProtocolVersionsProxy,
+		DataAvailabilityChallenge:         contracts.AltDAChallengeImpl,
+		DataAvailabilityChallengeProxy:    contracts.AltDAChallengeProxy,
+	}
 }
 
 // GetName will return the name of the contract given an address.

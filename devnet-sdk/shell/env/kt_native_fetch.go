@@ -2,13 +2,13 @@ package env
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
 	"os"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/spec"
 )
@@ -24,19 +24,19 @@ func parseKurtosisNativeURL(u *url.URL) (enclave, argsFileName string) {
 }
 
 // fetchKurtosisNativeData reads data directly from kurtosis API using default dependency implementations
-func fetchKurtosisNativeData(u *url.URL) (string, []byte, error) {
+func fetchKurtosisNativeData(u *url.URL) (*descriptors.DevnetEnvironment, error) {
 	return fetchKurtosisNativeDataInternal(u, &defaultOSOpenImpl{}, &defaultSpecImpl{}, &defaultKurtosisImpl{})
 }
 
 // fetchKurtosisNativeDataInternal reads data directly from kurtosis API using provided dependency implementations
-func fetchKurtosisNativeDataInternal(u *url.URL, osImpl osOpenInterface, specImpl specInterface, kurtosisImpl kurtosisInterface) (string, []byte, error) {
+func fetchKurtosisNativeDataInternal(u *url.URL, osImpl osOpenInterface, specImpl specInterface, kurtosisImpl kurtosisInterface) (*descriptors.DevnetEnvironment, error) {
 	// First let's parse the kurtosis URL
 	enclave, argsFileName := parseKurtosisNativeURL(u)
 
 	// Open the arguments file
 	argsFile, err := osImpl.Open(argsFileName)
 	if err != nil {
-		return "", nil, fmt.Errorf("error reading arguments file: %w", err)
+		return nil, fmt.Errorf("error reading arguments file: %w", err)
 	}
 
 	// Make sure to close the file once we're done reading
@@ -45,29 +45,23 @@ func fetchKurtosisNativeDataInternal(u *url.URL, osImpl osOpenInterface, specImp
 	// Once we have the arguments file, we can extract the enclave spec
 	enclaveSpec, err := specImpl.ExtractData(argsFile)
 	if err != nil {
-		return enclave, nil, fmt.Errorf("error extracting enclave spec: %w", err)
+		return nil, fmt.Errorf("error extracting enclave spec: %w", err)
 	}
 
 	// We'll use the deployer to extract the system spec
 	deployer, err := kurtosisImpl.NewKurtosisDeployer(kurtosis.WithKurtosisEnclave(enclave))
 	if err != nil {
-		return enclave, nil, fmt.Errorf("error creating deployer: %w", err)
+		return nil, fmt.Errorf("error creating deployer: %w", err)
 	}
 
 	// We'll read the environment info from kurtosis directly
 	ctx := context.Background()
 	env, err := deployer.GetEnvironmentInfo(ctx, enclaveSpec)
 	if err != nil {
-		return enclave, nil, fmt.Errorf("error getting environment info: %w", err)
+		return nil, fmt.Errorf("error getting environment info: %w", err)
 	}
 
-	// And the last step is to encode this environment as JSON
-	envBytes, err := json.MarshalIndent(env, "", "  ")
-	if err != nil {
-		return enclave, nil, fmt.Errorf("error converting environment info to JSON: %w", err)
-	}
-
-	return enclave, envBytes, nil
+	return env.DevnetEnvironment, nil
 }
 
 // osOpenInterface describes a struct that can open filesystem files for reading

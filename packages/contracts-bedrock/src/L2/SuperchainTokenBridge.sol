@@ -46,8 +46,8 @@ contract SuperchainTokenBridge {
     address internal constant MESSENGER = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.4
-    string public constant version = "1.0.0-beta.4";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @notice Sends tokens to a target address on another chain.
     /// @dev Tokens are burned on the source chain.

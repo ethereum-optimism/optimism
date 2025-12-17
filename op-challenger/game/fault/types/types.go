@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"math"
 	"math/big"
 	"time"
@@ -19,120 +18,7 @@ import (
 var (
 	ErrGameDepthReached   = errors.New("game depth reached")
 	ErrL2BlockNumberValid = errors.New("l2 block number is valid")
-	ErrNotInSync          = errors.New("local node too far behind")
 )
-
-type GameType uint32
-
-const (
-	CannonGameType            GameType = 0
-	PermissionedGameType      GameType = 1
-	AsteriscGameType          GameType = 2
-	AsteriscKonaGameType      GameType = 3
-	SuperCannonGameType       GameType = 4
-	SuperPermissionedGameType GameType = 5
-	OPSuccinctGameType        GameType = 6
-	FastGameType              GameType = 254
-	AlphabetGameType          GameType = 255
-	KailuaGameType            GameType = 1337
-	UnknownGameType           GameType = math.MaxUint32
-)
-
-func (t GameType) MarshalText() ([]byte, error) {
-	return []byte(t.String()), nil
-}
-
-func (t GameType) String() string {
-	switch t {
-	case CannonGameType:
-		return "cannon"
-	case PermissionedGameType:
-		return "permissioned"
-	case AsteriscGameType:
-		return "asterisc"
-	case AsteriscKonaGameType:
-		return "asterisc-kona"
-	case SuperCannonGameType:
-		return "super-cannon"
-	case SuperPermissionedGameType:
-		return "super-permissioned"
-	case OPSuccinctGameType:
-		return "op-succinct"
-	case FastGameType:
-		return "fast"
-	case AlphabetGameType:
-		return "alphabet"
-	case KailuaGameType:
-		return "kailua"
-	default:
-		return fmt.Sprintf("<invalid: %d>", t)
-	}
-}
-
-type TraceType string
-
-const (
-	TraceTypeAlphabet          TraceType = "alphabet"
-	TraceTypeFast              TraceType = "fast"
-	TraceTypeCannon            TraceType = "cannon"
-	TraceTypeAsterisc          TraceType = "asterisc"
-	TraceTypeAsteriscKona      TraceType = "asterisc-kona"
-	TraceTypePermissioned      TraceType = "permissioned"
-	TraceTypeSuperCannon       TraceType = "super-cannon"
-	TraceTypeSuperPermissioned TraceType = "super-permissioned"
-)
-
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypePermissioned, TraceTypeAsterisc, TraceTypeAsteriscKona, TraceTypeFast, TraceTypeSuperCannon, TraceTypeSuperPermissioned}
-
-func (t TraceType) String() string {
-	return string(t)
-}
-
-// Set implements the Set method required by the [cli.Generic] interface.
-func (t *TraceType) Set(value string) error {
-	if !ValidTraceType(TraceType(value)) {
-		return fmt.Errorf("unknown trace type: %q", value)
-	}
-	*t = TraceType(value)
-	return nil
-}
-
-func (t *TraceType) Clone() any {
-	cpy := *t
-	return &cpy
-}
-
-func ValidTraceType(value TraceType) bool {
-	for _, t := range TraceTypes {
-		if t == value {
-			return true
-		}
-	}
-	return false
-}
-
-func (t TraceType) GameType() GameType {
-	switch t {
-	case TraceTypeCannon:
-		return CannonGameType
-	case TraceTypePermissioned:
-		return PermissionedGameType
-	case TraceTypeAsterisc:
-		return AsteriscGameType
-	case TraceTypeAsteriscKona:
-		return AsteriscKonaGameType
-	case TraceTypeFast:
-		return FastGameType
-	case TraceTypeAlphabet:
-		return AlphabetGameType
-	case TraceTypeSuperCannon:
-		return SuperCannonGameType
-	case TraceTypeSuperPermissioned:
-		return SuperPermissionedGameType
-	default:
-		return UnknownGameType
-	}
-}
 
 type ClockReader interface {
 	Now() time.Time
@@ -147,7 +33,7 @@ type PreimageOracleData struct {
 	OracleOffset uint32
 
 	// 4844 blob data
-	BlobFieldIndex uint64
+	ZPoint         [32]byte
 	BlobCommitment []byte
 	BlobProof      []byte
 }
@@ -189,13 +75,13 @@ func NewPreimageOracleData(key []byte, data []byte, offset uint32) *PreimageOrac
 	}
 }
 
-func NewPreimageOracleBlobData(key []byte, data []byte, offset uint32, fieldIndex uint64, commitment []byte, proof []byte) *PreimageOracleData {
+func NewPreimageOracleBlobData(key []byte, data []byte, offset uint32, zPoint [32]byte, commitment []byte, proof []byte) *PreimageOracleData {
 	return &PreimageOracleData{
 		IsLocal:        false,
 		OracleKey:      key,
 		oracleData:     data,
 		OracleOffset:   offset,
-		BlobFieldIndex: fieldIndex,
+		ZPoint:         zPoint,
 		BlobCommitment: commitment,
 		BlobProof:      proof,
 	}
@@ -305,6 +191,14 @@ type Clock struct {
 
 	// Timestamp is the time that the clock was last updated.
 	Timestamp time.Time
+}
+
+// DecodeClock decodes a uint128 into a Clock duration and timestamp.
+func DecodeClock(clock *big.Int) Clock {
+	maxUint64 := new(big.Int).Add(new(big.Int).SetUint64(math.MaxUint64), big.NewInt(1))
+	remainder := new(big.Int)
+	quotient, _ := new(big.Int).QuoRem(clock, maxUint64, remainder)
+	return NewClock(time.Duration(quotient.Int64())*time.Second, time.Unix(remainder.Int64(), 0))
 }
 
 // NewClock creates a new Clock instance.

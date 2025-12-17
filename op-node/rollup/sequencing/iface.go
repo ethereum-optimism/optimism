@@ -6,7 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 type SequencerIface interface {
@@ -20,5 +20,6 @@ type SequencerIface interface {
 	SetMaxSafeLag(ctx context.Context, v uint64) error
 	OverrideLeader(ctx context.Context) error
 	ConductorEnabled(ctx context.Context) bool
+	SetRecoverMode(mode bool)
 	Close()
 }

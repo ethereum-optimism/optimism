@@ -158,7 +158,7 @@ func mainAction(c *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to prepare witness data collector: %w", err)
 	}
-	state.StartPrefetcher("debug", witness)
+	state.StartPrefetcher("debug", witness, nil)
 	defer func() { // Even if the EVM fails, try to export witness data for the state-transition up to the error.
 		witnessDump := witness.ToExecutionWitness()
 		out, err := json.MarshalIndent(witnessDump, "", "  ")
@@ -308,6 +308,7 @@ func Process(logger log.Logger, config *params.ChainConfig,
 		header      = block.CreateGethHeader()
 		blockHash   = block.Hash
 		blockNumber = new(big.Int).SetUint64(uint64(block.Number))
+		blockTime   = uint64(block.Time)
 		allLogs     []*types.Log
 		gp          = new(core.GasPool).AddGas(uint64(block.GasLimit))
 	)
@@ -342,7 +343,7 @@ func Process(logger log.Logger, config *params.ChainConfig,
 		}
 		statedb.SetTxContext(tx.Hash(), i)
 
-		receipt, err := core.ApplyTransactionWithEVM(msg, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv)
+		receipt, err := core.ApplyTransactionWithEVM(msg, gp, statedb, blockNumber, blockHash, blockTime, tx, usedGas, vmenv)
 		if err != nil {
 			return nil, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}

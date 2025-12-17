@@ -24,24 +24,19 @@ contract DeployConfig is Script {
     address public superchainConfigGuardian;
     uint256 public l1ChainID;
     uint256 public l2ChainID;
-    uint256 public l2BlockTime;
     uint256 public l2GenesisDeltaTimeOffset;
     uint256 public l2GenesisEcotoneTimeOffset;
     uint256 public l2GenesisFjordTimeOffset;
     uint256 public l2GenesisGraniteTimeOffset;
     uint256 public l2GenesisHoloceneTimeOffset;
-    uint256 public maxSequencerDrift;
-    uint256 public sequencerWindowSize;
-    uint256 public channelTimeout;
+    uint256 public l2GenesisJovianTimeOffset;
     address public p2pSequencerAddress;
     address public batchInboxAddress;
     address public batchSenderAddress;
-    uint256 public l2OutputOracleSubmissionInterval;
     int256 internal _l2OutputOracleStartingTimestamp;
     uint256 public l2OutputOracleStartingBlockNumber;
     address public l2OutputOracleProposer;
     address public l2OutputOracleChallenger;
-    uint256 public finalizationPeriodSeconds;
     bool public fundDevAccounts;
     address public proxyAdminOwner;
     address public baseFeeVaultRecipient;
@@ -53,17 +48,14 @@ contract DeployConfig is Script {
     address public sequencerFeeVaultRecipient;
     uint256 public sequencerFeeVaultMinimumWithdrawalAmount;
     uint256 public sequencerFeeVaultWithdrawalNetwork;
-    string public governanceTokenName;
-    string public governanceTokenSymbol;
+    address public operatorFeeVaultRecipient;
+    uint256 public operatorFeeVaultMinimumWithdrawalAmount;
+    uint256 public operatorFeeVaultWithdrawalNetwork;
     address public governanceTokenOwner;
     uint256 public l2GenesisBlockGasLimit;
     uint32 public basefeeScalar;
     uint32 public blobbasefeeScalar;
-    uint32 public operatorFeeScalar;
-    uint64 public operatorFeeConstant;
     bool public enableGovernance;
-    uint256 public eip1559Denominator;
-    uint256 public eip1559Elasticity;
     uint256 public faultGameAbsolutePrestate;
     uint256 public faultGameGenesisBlock;
     bytes32 public faultGameGenesisOutputRoot;
@@ -87,8 +79,28 @@ contract DeployConfig is Script {
     uint256 public daBondSize;
     uint256 public daResolverRefundPercentage;
 
+    // Custom Gas Token Configuration
+    bool public useCustomGasToken;
+    string public gasPayingTokenName;
+    string public gasPayingTokenSymbol;
+    uint256 public nativeAssetLiquidityAmount;
+    address public liquidityControllerOwner;
+
+    // V2 Dispute Game Configuration
+    uint256 public faultGameV2MaxGameDepth;
+    uint256 public faultGameV2SplitDepth;
+    uint256 public faultGameV2ClockExtension;
+    uint256 public faultGameV2MaxClockDuration;
+
     bool public useInterop;
     bool public useUpgradedFork;
+    bytes32 public devFeatureBitmap;
+
+    bool public useRevenueShare;
+    address public chainFeesRecipient;
+    /// @notice This is not read from JSON because it is hardcoded in the deployer. It is overwritten with its setter
+    ///         for testing.
+    address public l1FeesDepositor;
 
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
@@ -102,26 +114,21 @@ contract DeployConfig is Script {
         superchainConfigGuardian = stdJson.readAddress(_json, "$.superchainConfigGuardian");
         l1ChainID = stdJson.readUint(_json, "$.l1ChainID");
         l2ChainID = stdJson.readUint(_json, "$.l2ChainID");
-        l2BlockTime = stdJson.readUint(_json, "$.l2BlockTime");
 
         l2GenesisDeltaTimeOffset = _readOr(_json, "$.l2GenesisDeltaTimeOffset", NULL_OFFSET);
         l2GenesisEcotoneTimeOffset = _readOr(_json, "$.l2GenesisEcotoneTimeOffset", NULL_OFFSET);
         l2GenesisFjordTimeOffset = _readOr(_json, "$.l2GenesisFjordTimeOffset", NULL_OFFSET);
         l2GenesisGraniteTimeOffset = _readOr(_json, "$.l2GenesisGraniteTimeOffset", NULL_OFFSET);
         l2GenesisHoloceneTimeOffset = _readOr(_json, "$.l2GenesisHoloceneTimeOffset", NULL_OFFSET);
+        l2GenesisJovianTimeOffset = _readOr(_json, "$.l2GenesisJovianTimeOffset", NULL_OFFSET);
 
-        maxSequencerDrift = stdJson.readUint(_json, "$.maxSequencerDrift");
-        sequencerWindowSize = stdJson.readUint(_json, "$.sequencerWindowSize");
-        channelTimeout = stdJson.readUint(_json, "$.channelTimeout");
         p2pSequencerAddress = stdJson.readAddress(_json, "$.p2pSequencerAddress");
         batchInboxAddress = stdJson.readAddress(_json, "$.batchInboxAddress");
         batchSenderAddress = stdJson.readAddress(_json, "$.batchSenderAddress");
-        l2OutputOracleSubmissionInterval = stdJson.readUint(_json, "$.l2OutputOracleSubmissionInterval");
         _l2OutputOracleStartingTimestamp = stdJson.readInt(_json, "$.l2OutputOracleStartingTimestamp");
         l2OutputOracleStartingBlockNumber = stdJson.readUint(_json, "$.l2OutputOracleStartingBlockNumber");
         l2OutputOracleProposer = stdJson.readAddress(_json, "$.l2OutputOracleProposer");
         l2OutputOracleChallenger = stdJson.readAddress(_json, "$.l2OutputOracleChallenger");
-        finalizationPeriodSeconds = stdJson.readUint(_json, "$.finalizationPeriodSeconds");
         fundDevAccounts = _readOr(_json, "$.fundDevAccounts", false);
         proxyAdminOwner = stdJson.readAddress(_json, "$.proxyAdminOwner");
         baseFeeVaultRecipient = stdJson.readAddress(_json, "$.baseFeeVaultRecipient");
@@ -133,18 +140,20 @@ contract DeployConfig is Script {
         sequencerFeeVaultRecipient = stdJson.readAddress(_json, "$.sequencerFeeVaultRecipient");
         sequencerFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.sequencerFeeVaultMinimumWithdrawalAmount");
         sequencerFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.sequencerFeeVaultWithdrawalNetwork");
-        governanceTokenName = stdJson.readString(_json, "$.governanceTokenName");
-        governanceTokenSymbol = stdJson.readString(_json, "$.governanceTokenSymbol");
+        operatorFeeVaultRecipient = stdJson.readAddress(_json, "$.operatorFeeVaultRecipient");
+        operatorFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.operatorFeeVaultMinimumWithdrawalAmount");
+        operatorFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.operatorFeeVaultWithdrawalNetwork");
         governanceTokenOwner = stdJson.readAddress(_json, "$.governanceTokenOwner");
         l2GenesisBlockGasLimit = stdJson.readUint(_json, "$.l2GenesisBlockGasLimit");
         basefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBaseFeeScalar", 1368));
         blobbasefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBlobBaseFeeScalar", 810949));
-        operatorFeeScalar = uint32(_readOr(_json, "$.gasPriceOracleOperatorFeeScalar", 0));
-        operatorFeeConstant = uint64(_readOr(_json, "$.gasPriceOracleOperatorFeeConstant", 0));
+        useCustomGasToken = _readOr(_json, "$.useCustomGasToken", false);
+        gasPayingTokenName = _readOr(_json, "$.gasPayingTokenName", "");
+        gasPayingTokenSymbol = _readOr(_json, "$.gasPayingTokenSymbol", "");
+        nativeAssetLiquidityAmount = _readOr(_json, "$.nativeAssetLiquidityAmount", 0);
+        liquidityControllerOwner = _readOr(_json, "$.liquidityControllerOwner", finalSystemOwner);
 
         enableGovernance = _readOr(_json, "$.enableGovernance", false);
-        eip1559Denominator = stdJson.readUint(_json, "$.eip1559Denominator");
-        eip1559Elasticity = stdJson.readUint(_json, "$.eip1559Elasticity");
         systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");
         requiredProtocolVersion = stdJson.readUint(_json, "$.requiredProtocolVersion");
         recommendedProtocolVersion = stdJson.readUint(_json, "$.recommendedProtocolVersion");
@@ -173,7 +182,14 @@ contract DeployConfig is Script {
         daResolverRefundPercentage = _readOr(_json, "$.daResolverRefundPercentage", 0);
 
         useInterop = _readOr(_json, "$.useInterop", false);
+        devFeatureBitmap = bytes32(_readOr(_json, "$.devFeatureBitmap", 0));
         useUpgradedFork;
+        useRevenueShare = _readOr(_json, "$.useRevenueShare", false);
+        chainFeesRecipient = _readOr(_json, "$.chainFeesRecipient", address(0));
+        faultGameV2MaxGameDepth = _readOr(_json, "$.faultGameV2MaxGameDepth", 73);
+        faultGameV2SplitDepth = _readOr(_json, "$.faultGameV2SplitDepth", 30);
+        faultGameV2ClockExtension = _readOr(_json, "$.faultGameV2ClockExtension", 10800);
+        faultGameV2MaxClockDuration = _readOr(_json, "$.faultGameV2MaxClockDuration", 302400);
     }
 
     function fork() public view returns (Fork fork_) {
@@ -225,9 +241,29 @@ contract DeployConfig is Script {
         useInterop = _useInterop;
     }
 
+    /// @notice Allow the `useRevenueShare` config to be overridden in testing environments
+    function setUseRevenueShare(bool _useRevenueShare) public {
+        useRevenueShare = _useRevenueShare;
+    }
+
+    /// @notice Allow the `l1FeesDepositor` config to be overridden in testing environments
+    function setL1FeesDepositor(address _l1FeesDepositor) public {
+        l1FeesDepositor = _l1FeesDepositor;
+    }
+
+    /// @notice Allow the `chainFeesRecipient` config to be overridden in testing environments
+    function setChainFeesRecipient(address _chainFeesRecipient) public {
+        chainFeesRecipient = _chainFeesRecipient;
+    }
+
     /// @notice Allow the `fundDevAccounts` config to be overridden.
     function setFundDevAccounts(bool _fundDevAccounts) public {
         fundDevAccounts = _fundDevAccounts;
+    }
+
+    /// @notice Allow the `devFeatureBitmap` config to be overridden in testing environments
+    function setDevFeatureBitmap(bytes32 _devFeatureBitmap) public {
+        devFeatureBitmap = _devFeatureBitmap;
     }
 
     /// @notice Allow the `useUpgradedFork` config to be overridden in testing environments
@@ -241,8 +277,50 @@ contract DeployConfig is Script {
         useUpgradedFork = _useUpgradedFork;
     }
 
+    /// @notice Allow the `useCustomGasToken` config to be overridden in testing environments
+    function setUseCustomGasToken(bool _useCustomGasToken) public {
+        useCustomGasToken = _useCustomGasToken;
+    }
+
+    /// @notice Allow the `gasPayingTokenName` config to be overridden in testing environments
+    function setGasPayingTokenName(string memory _gasPayingTokenName) public {
+        gasPayingTokenName = _gasPayingTokenName;
+    }
+
+    /// @notice Allow the `gasPayingTokenSymbol` config to be overridden in testing environments
+    function setGasPayingTokenSymbol(string memory _gasPayingTokenSymbol) public {
+        gasPayingTokenSymbol = _gasPayingTokenSymbol;
+    }
+
+    /// @notice Allow the `nativeAssetLiquidityAmount` config to be overridden in testing environments
+    function setNativeAssetLiquidityAmount(uint256 _nativeAssetLiquidityAmount) public {
+        nativeAssetLiquidityAmount = _nativeAssetLiquidityAmount;
+    }
+
+    /// @notice Allow the `baseFeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setBaseFeeVaultWithdrawalNetwork(uint256 _baseFeeVaultWithdrawalNetwork) public {
+        baseFeeVaultWithdrawalNetwork = _baseFeeVaultWithdrawalNetwork;
+    }
+
+    /// @notice Allow the `l1FeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setL1FeeVaultWithdrawalNetwork(uint256 _l1FeeVaultWithdrawalNetwork) public {
+        l1FeeVaultWithdrawalNetwork = _l1FeeVaultWithdrawalNetwork;
+    }
+
+    /// @notice Allow the `sequencerFeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setSequencerFeeVaultWithdrawalNetwork(uint256 _sequencerFeeVaultWithdrawalNetwork) public {
+        sequencerFeeVaultWithdrawalNetwork = _sequencerFeeVaultWithdrawalNetwork;
+    }
+
+    /// @notice Allow the `operatorFeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setOperatorFeeVaultWithdrawalNetwork(uint256 _operatorFeeVaultWithdrawalNetwork) public {
+        operatorFeeVaultWithdrawalNetwork = _operatorFeeVaultWithdrawalNetwork;
+    }
+
     function latestGenesisFork() internal view returns (Fork) {
-        if (l2GenesisHoloceneTimeOffset == 0) {
+        if (l2GenesisJovianTimeOffset == 0) {
+            return Fork.JOVIAN;
+        } else if (l2GenesisHoloceneTimeOffset == 0) {
             return Fork.HOLOCENE;
         } else if (l2GenesisGraniteTimeOffset == 0) {
             return Fork.GRANITE;

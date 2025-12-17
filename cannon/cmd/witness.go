@@ -27,11 +27,12 @@ var (
 )
 
 type response struct {
-	WitnessHash common.Hash   `json:"witnessHash"`
-	Witness     hexutil.Bytes `json:"witness"`
-	Step        uint64        `json:"step"`
-	Exited      bool          `json:"exited"`
-	ExitCode    uint8         `json:"exitCode"`
+	StateVersion factory.StateVersion `json:"stateVersion"`
+	WitnessHash  common.Hash          `json:"witnessHash"`
+	Witness      hexutil.Bytes        `json:"witness"`
+	Step         uint64               `json:"step"`
+	Exited       bool                 `json:"exited"`
+	ExitCode     uint8                `json:"exitCode"`
 }
 
 func Witness(ctx *cli.Context) error {
@@ -48,11 +49,12 @@ func Witness(ctx *cli.Context) error {
 		}
 	}
 	output := response{
-		WitnessHash: h,
-		Witness:     witness,
-		Step:        state.GetStep(),
-		Exited:      state.GetExited(),
-		ExitCode:    state.GetExitCode(),
+		StateVersion: state.Version,
+		WitnessHash:  h,
+		Witness:      witness,
+		Step:         state.GetStep(),
+		Exited:       state.GetExited(),
+		ExitCode:     state.GetExitCode(),
 	}
 	if err := jsonutil.WriteJSON(output, ioutil.ToStdOut()); err != nil {
 		return fmt.Errorf("failed to write response: %w", err)

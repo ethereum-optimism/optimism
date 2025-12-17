@@ -33,7 +33,6 @@ func NewSuperGameHelper(t *testing.T, require *require.Assertions, client *ethcl
 			CorrectOutputProvider: correctOutputProvider,
 			System:                system,
 			DescribePosition: func(pos types.Position, splitDepth types.Depth) string {
-
 				if pos.Depth() > splitDepth {
 					return ""
 				}
@@ -42,6 +41,10 @@ func NewSuperGameHelper(t *testing.T, require *require.Assertions, client *ethcl
 					return ""
 				}
 				return fmt.Sprintf("Timestamp: %v, Step: %v", timestamp, step)
+			},
+			ClaimedL2SequenceNumber: func(pos types.Position) (uint64, error) {
+				timestamp, _, err := correctOutputProvider.ComputeStep(pos)
+				return timestamp, err
 			},
 		},
 	}

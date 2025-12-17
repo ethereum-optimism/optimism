@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -13,8 +14,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 type L1Blocks interface {
@@ -27,6 +28,8 @@ type L1OriginSelector struct {
 	log  log.Logger
 	cfg  *rollup.Config
 	spec *rollup.ChainSpec
+
+	recoverMode atomic.Bool
 
 	l1 L1Blocks
 
@@ -47,12 +50,20 @@ func NewL1OriginSelector(ctx context.Context, log log.Logger, cfg *rollup.Config
 	}
 }
 
-func (los *L1OriginSelector) OnEvent(ev event.Event) bool {
+func (los *L1OriginSelector) SetRecoverMode(enabled bool) {
+	los.recoverMode.Store(enabled)
+}
+
+func (los *L1OriginSelector) ResetOrigins() {
+	los.reset()
+}
+
+func (los *L1OriginSelector) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case engine.ForkchoiceUpdateEvent:
 		los.onForkchoiceUpdate(x.UnsafeL2Head)
-	case rollup.ResetEvent, rollup.ForceResetEvent:
-		los.reset()
+	case rollup.ResetEvent:
+		los.ResetOrigins()
 	default:
 		return false
 	}
@@ -62,6 +73,8 @@ func (los *L1OriginSelector) OnEvent(ev event.Event) bool {
 // FindL1Origin determines what the next L1 Origin should be.
 // The L1 Origin is either the L2 Head's Origin, or the following L1 block
 // if the next L2 block's time is greater than or equal to the L2 Head's Origin.
+// The origin selection relies purely on block numbers and it is the caller's
+// responsibility to detect and handle L1 reorgs.
 func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
 	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(ctx, l2Head)
 	if err != nil {
@@ -114,6 +127,23 @@ func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head et
 	los.mu.Lock()
 	defer los.mu.Unlock()
 
+	if los.recoverMode.Load() {
+		currentOrigin, err := los.l1.L1BlockRefByHash(ctx, l2Head.L1Origin.Hash)
+		if err != nil {
+			return eth.L1BlockRef{}, eth.L1BlockRef{},
+				derive.NewTemporaryError(fmt.Errorf("failed to fetch current L1 origin: %w", err))
+		}
+		los.currentOrigin = currentOrigin
+		nextOrigin, err := los.l1.L1BlockRefByNumber(ctx, currentOrigin.Number+1)
+		if err != nil {
+			return eth.L1BlockRef{}, eth.L1BlockRef{},
+				derive.NewTemporaryError(fmt.Errorf("failed to fetch next L1 origin: %w", err))
+		}
+		los.nextOrigin = nextOrigin
+		los.log.Info("origin selector in recover mode", "current_origin", los.currentOrigin, "next_origin", los.nextOrigin, "l2_head", l2Head)
+		return los.currentOrigin, los.nextOrigin, nil
+	}
+
 	if l2Head.L1Origin == los.currentOrigin.ID() {
 		// Most likely outcome: the L2 head is still on the current origin.
 	} else if l2Head.L1Origin == los.nextOrigin.ID() {
@@ -142,8 +172,10 @@ func (los *L1OriginSelector) maybeSetNextOrigin(nextOrigin eth.L1BlockRef) {
 	los.mu.Lock()
 	defer los.mu.Unlock()
 
-	// Set the next origin if it is the immediate child of the current origin.
-	if nextOrigin.ParentHash == los.currentOrigin.Hash {
+	// Set the next origin if it is the subsequent block by number.
+	// On reorgs, this might not be the immediate child of the current origin
+	// since the hash is not checked.
+	if nextOrigin.Number == los.currentOrigin.Number+1 {
 		los.nextOrigin = nextOrigin
 	}
 }
@@ -156,7 +188,7 @@ func (los *L1OriginSelector) onForkchoiceUpdate(unsafeL2Head eth.L2BlockRef) {
 
 	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(ctx, unsafeL2Head)
 	if err != nil {
-		log.Error("Failed to get current and next L1 origin on forkchoice update", "err", err)
+		los.log.Error("Failed to get current and next L1 origin on forkchoice update", "err", err)
 		return
 	}
 
@@ -178,9 +210,9 @@ func (los *L1OriginSelector) tryFetchNextOrigin(ctx context.Context, currentOrig
 
 	if _, err := los.fetch(ctx, currentOrigin.Number+1); err != nil {
 		if errors.Is(err, ethereum.NotFound) {
-			log.Debug("No next potential L1 origin found")
+			los.log.Debug("No next potential L1 origin found")
 		} else {
-			log.Error("Failed to get next origin", "err", err)
+			los.log.Error("Failed to get next origin", "err", err)
 		}
 	}
 }

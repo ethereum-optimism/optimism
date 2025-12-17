@@ -6,17 +6,17 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -32,21 +32,13 @@ var (
 func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
-	genesisBlock := hexutil.Uint64(0)
-	fjordOffset := hexutil.Uint64(2)
 
 	log := testlog.Logger(t, log.LvlDebug)
 
-	dp.DeployConfig.L1CancunTimeOffset = &genesisBlock // can be removed once Cancun on L1 is the default
-
 	// Activate all forks at genesis, and schedule Fjord the block after
-	dp.DeployConfig.L2GenesisRegolithTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisFjordTimeOffset = &fjordOffset
-	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
-	dp.DeployConfig.L2GenesisHoloceneTimeOffset = nil
+	fjordOffset := uint64(2)
+	dp.DeployConfig.ActivateForkAtOffset(forks.Fjord, fjordOffset)
+
 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)

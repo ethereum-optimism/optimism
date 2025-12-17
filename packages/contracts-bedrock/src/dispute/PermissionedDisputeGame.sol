@@ -25,14 +25,16 @@ contract PermissionedDisputeGame is FaultDisputeGame {
 
     /// @notice Modifier that gates access to the `challenger` and `proposer` roles.
     modifier onlyAuthorized() {
-        require(msg.sender == PROPOSER || msg.sender == CHALLENGER);
+        if (!(msg.sender == PROPOSER || msg.sender == CHALLENGER)) {
+            revert BadAuth();
+        }
         _;
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.5.0
+    /// @custom:semver 1.8.0
     function version() public pure override returns (string memory) {
-        return "1.5.0";
+        return "1.8.0";
     }
 
     /// @param _params Parameters for creating a new FaultDisputeGame.

@@ -19,5 +19,12 @@
     "offset": 2,
     "slot": "0",
     "type": "bool"
+  },
+  {
+    "bytes": "1",
+    "label": "isJovian",
+    "offset": 3,
+    "slot": "0",
+    "type": "bool"
   }
 ]

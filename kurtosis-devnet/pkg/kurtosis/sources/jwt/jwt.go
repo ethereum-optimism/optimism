@@ -7,6 +7,7 @@ import (
 	"io"
 
 	ktfs "github.com/ethereum-optimism/optimism/devnet-sdk/kt/fs"
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/util"
 )
 
 const (
@@ -38,14 +39,18 @@ func (e *extractor) ExtractData(ctx context.Context) (*Data, error) {
 		return nil, err
 	}
 
-	// Get L1 JWT
-	l1JWT, err := extractJWTFromArtifact(ctx, fs, "jwt_file")
+	// Get L1 JWT with retry logic
+	l1JWT, err := util.WithRetry(ctx, "ExtractL1JWT", func() (string, error) {
+		return extractJWTFromArtifact(ctx, fs, "jwt_file")
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get L1 JWT: %w", err)
 	}
 
-	// Get L2 JWT
-	l2JWT, err := extractJWTFromArtifact(ctx, fs, "op_jwt_file")
+	// Get L2 JWT with retry logic
+	l2JWT, err := util.WithRetry(ctx, "ExtractL2JWT", func() (string, error) {
+		return extractJWTFromArtifact(ctx, fs, "op_jwt_file")
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get L2 JWT: %w", err)
 	}
@@ -57,7 +62,10 @@ func (e *extractor) ExtractData(ctx context.Context) (*Data, error) {
 }
 
 func extractJWTFromArtifact(ctx context.Context, fs *ktfs.EnclaveFS, artifactName string) (string, error) {
-	a, err := fs.GetArtifact(ctx, artifactName)
+	// Get artifact with retry logic
+	a, err := util.WithRetry(ctx, fmt.Sprintf("GetArtifact(%s)", artifactName), func() (*ktfs.Artifact, error) {
+		return fs.GetArtifact(ctx, artifactName)
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to get artifact: %w", err)
 	}

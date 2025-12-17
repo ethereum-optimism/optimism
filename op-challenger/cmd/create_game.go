@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/tools"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -22,7 +22,7 @@ var (
 		Name:    "game-type",
 		Usage:   "Game type to create (numeric values).",
 		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "TRACE_TYPE"),
-		Value:   types.CannonGameType.String(),
+		Value:   gameTypes.CannonGameType.String(),
 	}
 	OutputRootFlag = &cli.StringFlag{
 		Name:    "output-root",
@@ -43,7 +43,7 @@ func CreateGame(ctx *cli.Context) error {
 
 	contract, txMgr, err := NewContractWithTxMgr[*contracts.DisputeGameFactoryContract](ctx, flags.FactoryAddress,
 		func(ctx context.Context, metricer contractMetrics.ContractMetricer, address common.Address, caller *batching.MultiCaller) (*contracts.DisputeGameFactoryContract, error) {
-			return contracts.NewDisputeGameFactoryContract(metricer, address, caller), nil
+			return contracts.NewDisputeGameFactoryContract(ctx, metricer, address, caller)
 		})
 	if err != nil {
 		return fmt.Errorf("failed to create dispute game factory bindings: %w", err)

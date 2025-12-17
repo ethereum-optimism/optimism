@@ -338,15 +338,25 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 		switch opcode {
 		// SPECIAL2
 		case 0x1C:
-			switch fun {
-			case 0x2: // mul
+			switch {
+			case fun == 0x2: // mul
 				return SignExtend(Word(int32(rs)*int32(rt)), 32)
-			case 0x20, 0x21: // clz, clo
+			case fun == 0x20 || fun == 0x21: // clz, clo
 				if fun == 0x20 {
 					rs = ^rs
 				}
 				i := uint32(0)
 				for ; rs&0x80000000 != 0; i++ {
+					rs <<= 1
+				}
+				return Word(i)
+			case fun == 0x24 || fun == 0x25: // dclz, dclo
+				assertMips64Fun(insn)
+				if fun == 0x24 {
+					rs = ^rs
+				}
+				i := uint32(0)
+				for ; uint64(rs)&0x80000000_00000000 != 0; i++ {
 					rs <<= 1
 				}
 				return Word(i)

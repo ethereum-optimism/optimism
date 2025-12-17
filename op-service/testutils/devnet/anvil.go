@@ -10,10 +10,16 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"testing"
 	"time"
+
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/log"
 )
+
+const DefaultChainID = 77799777
 
 type Anvil struct {
 	args      map[string]string
@@ -52,6 +58,12 @@ func WithBlockTime(bt int) AnvilOption {
 func WithChainID(id uint64) AnvilOption {
 	return func(a *Anvil) {
 		a.args["--chain-id"] = strconv.FormatUint(id, 10)
+	}
+}
+
+func WithForkBlockNumber(block uint64) AnvilOption {
+	return func(a *Anvil) {
+		a.args["--fork-block-number"] = strconv.FormatUint(block, 10)
 	}
 }
 
@@ -162,4 +174,17 @@ func (r *Anvil) RPCUrl() string {
 	}
 
 	return fmt.Sprintf("http://localhost:%d", port)
+}
+
+func DefaultAnvilRPC(t *testing.T, lgr log.Logger) (string, *ethclient.Client) {
+	anvil, err := NewAnvil(lgr, WithChainID(DefaultChainID))
+	require.NoError(t, err)
+	require.NoError(t, anvil.Start())
+	t.Cleanup(func() {
+		require.NoError(t, anvil.Stop())
+	})
+	l1RPC := anvil.RPCUrl()
+	l1Client, err := ethclient.Dial(l1RPC)
+	require.NoError(t, err)
+	return l1RPC, l1Client
 }

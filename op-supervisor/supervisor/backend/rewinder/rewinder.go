@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -22,15 +22,14 @@ type l1Node interface {
 type rewinderDB interface {
 	DependencySet() depset.DependencySet
 
-	CrossSourceToLastDerived(chainID eth.ChainID, source eth.BlockID) (derived types.BlockSeal, err error)
 	PreviousSource(chain eth.ChainID, source eth.BlockID) (prevSource types.BlockSeal, err error)
-	CrossDerivedToSourceRef(chainID eth.ChainID, derived eth.BlockID) (source eth.BlockRef, err error)
+	CrossDerivedToSource(chainID eth.ChainID, derived eth.BlockID) (source types.BlockSeal, err error)
 
 	LocalSafe(eth.ChainID) (types.DerivedBlockSealPair, error)
 	CrossSafe(eth.ChainID) (types.DerivedBlockSealPair, error)
 
-	RewindLocalSafe(eth.ChainID, eth.BlockID) error
-	RewindCrossSafe(eth.ChainID, eth.BlockID) error
+	RewindLocalSafeSource(eth.ChainID, eth.BlockID) error
+	RewindCrossSafeSource(eth.ChainID, eth.BlockID) error
 	RewindLogs(chainID eth.ChainID, newHead types.BlockSeal) error
 
 	FindSealedBlock(eth.ChainID, uint64) (types.BlockSeal, error)
@@ -46,13 +45,19 @@ type Rewinder struct {
 	emitter event.Emitter
 	l1Node  l1Node
 	db      rewinderDB
+
+	rootCtx       context.Context
+	rootCtxCancel context.CancelFunc
 }
 
 func New(log log.Logger, db rewinderDB, l1Node l1Node) *Rewinder {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Rewinder{
-		log:    log.New("component", "rewinder"),
-		db:     db,
-		l1Node: l1Node,
+		log:           log.New("component", "rewinder"),
+		db:            db,
+		l1Node:        l1Node,
+		rootCtx:       ctx,
+		rootCtxCancel: cancel,
 	}
 }
 
@@ -60,7 +65,7 @@ func (r *Rewinder) AttachEmitter(em event.Emitter) {
 	r.emitter = em
 }
 
-func (r *Rewinder) OnEvent(ev event.Event) bool {
+func (r *Rewinder) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case superevents.RewindL1Event:
 		r.handleRewindL1Event(x)
@@ -135,15 +140,13 @@ func (r *Rewinder) handleLocalDerivedEvent(ev superevents.LocalSafeUpdateEvent) 
 		break
 	}
 
+	r.log.Warn("Rewinding logs DB", "chain", ev.ChainID, "target", target)
 	// Try to rewind and stop if it succeeds
 	err = r.db.RewindLogs(ev.ChainID, target)
 	if err != nil {
 		r.log.Error("failed to rewind logs DB", "chain", ev.ChainID, "err", err)
 		return
 	}
-
-	// Emit event to trigger node reset with new heads
-	r.emitter.Emit(superevents.ChainRewoundEvent{ChainID: ev.ChainID})
 }
 
 // rewindL1ChainIfReorged rewinds the L1 chain for the given chain ID if a reorg is detected
@@ -180,7 +183,7 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 			return fmt.Errorf("failed to get finalized block for chain %s: %w", chainID, err)
 		}
 	}
-	finalizedL1, err := r.db.CrossDerivedToSourceRef(chainID, finalized.ID())
+	finalizedL1, err := r.db.CrossDerivedToSource(chainID, finalized.ID())
 	if err != nil {
 		return fmt.Errorf("failed to get finalized L1 block for chain %s: %w", chainID, err)
 	}
@@ -232,7 +235,7 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 	}
 
 	// Rewind LocalSafe to not include data derived from the old L1 chain
-	if err := r.db.RewindLocalSafe(chainID, commonL1Ancestor); err != nil {
+	if err := r.db.RewindLocalSafeSource(chainID, commonL1Ancestor); err != nil {
 		if errors.Is(err, types.ErrFuture) {
 			r.log.Warn("Rewinding on L1 reorg, but local-safe DB does not have L1 block", "block", commonL1Ancestor, "err", err)
 		} else {
@@ -241,7 +244,7 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 	}
 
 	// Rewind CrossSafe to not include data derived from the old L1 chain
-	if err := r.db.RewindCrossSafe(chainID, commonL1Ancestor); err != nil {
+	if err := r.db.RewindCrossSafeSource(chainID, commonL1Ancestor); err != nil {
 		if errors.Is(err, types.ErrFuture) {
 			r.log.Warn("Rewinding on L1 reorg, but cross-safe DB does not have L1 block", "block", commonL1Ancestor, "err", err)
 		} else {
@@ -249,9 +252,9 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 		}
 	}
 
-	// Emit rewound event for sync node
-	r.emitter.Emit(superevents.ChainRewoundEvent{
-		ChainID: chainID,
-	})
 	return nil
+}
+
+func (r *Rewinder) Close() {
+	r.rootCtxCancel()
 }

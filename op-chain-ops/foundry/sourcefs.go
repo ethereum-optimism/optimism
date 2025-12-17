@@ -21,6 +21,11 @@ import (
 // - `/` a root dir, relative to where the source files are located (as per the compilationTarget metadata in an artifact).
 type SourceMapFS struct {
 	fs fs.FS
+
+	// optionally, the source-map FS can utilize the build-data of a specific compiler-profile.
+	// If left empty, assume there is a single compiler profile in the solidity-files-cache, and use that.
+	// The profile can be changed with SetProfile. Forge uses "default" as default profile name.
+	profile string
 }
 
 // NewSourceMapFS creates a new SourceMapFS.
@@ -29,6 +34,12 @@ type SourceMapFS struct {
 // The solidity source-files are lazy-loaded when using the produced sourcemap.
 func NewSourceMapFS(fs fs.FS) *SourceMapFS {
 	return &SourceMapFS{fs: fs}
+}
+
+// SetCompilerProfile changes the compiler-profile that is looked
+// for when reversing build-info of artifacts.
+func (s *SourceMapFS) SetCompilerProfile(profile string) {
+	s.profile = profile
 }
 
 // ForgeBuild represents the JSON content of a forge-build entry in the `artifacts/build-info` output.
@@ -59,8 +70,8 @@ type ForgeBuildEntry struct {
 
 // ForgeBuildInfo represents a JSON entry that enumerates the latest builds per contract per compiler version.
 type ForgeBuildInfo struct {
-	// contract name -> solidity version -> build entry
-	Artifacts map[string]map[string]ForgeBuildEntry `json:"artifacts"`
+	// contract name -> solidity version -> profile -> build entry
+	Artifacts map[string]map[string]map[string]ForgeBuildEntry `json:"artifacts"`
 }
 
 // ForgeBuildCache rep
@@ -87,7 +98,7 @@ func (s *SourceMapFS) readBuildCache() (*ForgeBuildCache, error) {
 
 // ReadSourceIDs reads the source-identifier to source file-path mapping that is needed to translate a source-map
 // of the given contract, the given compiler version, and within the given source file path.
-func (s *SourceMapFS) ReadSourceIDs(path string, contract string, compilerVersion string) (map[srcmap.SourceID]string, error) {
+func (s *SourceMapFS) ReadSourceIDs(path string, contract string, compilerVersion string, profile string) (map[srcmap.SourceID]string, error) {
 	buildCache, err := s.readBuildCache()
 	if err != nil {
 		return nil, err
@@ -100,13 +111,12 @@ func (s *SourceMapFS) ReadSourceIDs(path string, contract string, compilerVersio
 	if !ok {
 		return nil, fmt.Errorf("contract not found in artifact: %q", contract)
 	}
-	var buildEntry ForgeBuildEntry
+	var byProfile map[string]ForgeBuildEntry
 	if compilerVersion != "" {
-		entry, ok := byCompilerVersion[compilerVersion]
+		byProfile, ok = byCompilerVersion[compilerVersion]
 		if !ok {
 			return nil, fmt.Errorf("no known build for compiler version: %q", compilerVersion)
 		}
-		buildEntry = entry
 	} else {
 		if len(byCompilerVersion) == 0 {
 			return nil, errors.New("no known build, unspecified compiler version")
@@ -114,8 +124,27 @@ func (s *SourceMapFS) ReadSourceIDs(path string, contract string, compilerVersio
 		if len(byCompilerVersion) > 1 {
 			return nil, fmt.Errorf("no compiler version specified, and more than one option: %s", strings.Join(maps.Keys(byCompilerVersion), ", "))
 		}
-		for _, entry := range byCompilerVersion {
-			buildEntry = entry
+		// select the only remaining entry
+		for _, v := range byCompilerVersion {
+			byProfile = v
+		}
+	}
+	var buildEntry ForgeBuildEntry
+	if profile != "" {
+		buildEntry, ok = byProfile[profile]
+		if !ok {
+			return nil, fmt.Errorf("no known build for profile: %q", profile)
+		}
+	} else {
+		if len(byProfile) == 0 {
+			return nil, errors.New("no known build, unspecified profile")
+		}
+		if len(byProfile) > 1 {
+			return nil, fmt.Errorf("no profile specified, and more than one option: %s", strings.Join(maps.Keys(byProfile), ", "))
+		}
+		// select the only remaining entry
+		for _, v := range byProfile {
+			buildEntry = v
 		}
 	}
 	build, err := s.readBuild(filepath.ToSlash(buildCache.Paths.BuildInfos), buildEntry.BuildID)
@@ -139,7 +168,13 @@ func (s *SourceMapFS) SourceMap(artifact *Artifact, contract string) (*srcmap.So
 	}
 	// The commit suffix is ignored, the core semver part is what is used in the resolution of builds.
 	basicCompilerVersion := strings.SplitN(artifact.Metadata.Compiler.Version, "+", 2)[0]
-	ids, err := s.ReadSourceIDs(srcPath, contract, basicCompilerVersion)
+	// Unfortunately, the "metadata" of an artifact does not store which compiler-profile it used.
+	// It's only part of the artifact name, which we don't have here.
+	// E.g. `Arithmetic.0.8.15.dispute.json` for "dispute" profile,
+	// and `Arithmetic.0.8.15.json` for the default profile.
+	// We allow the user to specify the profile to use here, with SourceMapFS.SetCompilerProfile.
+	profile := s.profile
+	ids, err := s.ReadSourceIDs(srcPath, contract, basicCompilerVersion, profile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read source IDs of %q: %w", srcPath, err)
 	}

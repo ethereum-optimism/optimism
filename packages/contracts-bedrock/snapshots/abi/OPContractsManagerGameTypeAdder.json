@@ -25,11 +25,6 @@
             "type": "address"
           },
           {
-            "internalType": "contract IProxyAdmin",
-            "name": "proxyAdmin",
-            "type": "address"
-          },
-          {
             "internalType": "contract IDelayedWETH",
             "name": "delayedWETH",
             "type": "address"
@@ -83,11 +78,6 @@
         "internalType": "struct OPContractsManager.AddGameInput[]",
         "name": "_gameConfigs",
         "type": "tuple[]"
-      },
-      {
-        "internalType": "contract ISuperchainConfig",
-        "name": "_superchainConfig",
-        "type": "address"
       }
     ],
     "name": "addGameType",
@@ -156,26 +146,6 @@
             "internalType": "address",
             "name": "resolvedDelegateProxy",
             "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionedDisputeGame1",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionedDisputeGame2",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionlessDisputeGame1",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionlessDisputeGame2",
-            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManager.Blueprints",
@@ -220,6 +190,19 @@
   },
   {
     "inputs": [],
+    "name": "devFeatureBitmap",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "implementations",
     "outputs": [
       {
@@ -242,6 +225,11 @@
           {
             "internalType": "address",
             "name": "optimismPortalImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "optimismPortalInteropImpl",
             "type": "address"
           },
           {
@@ -288,11 +276,50 @@
             "internalType": "address",
             "name": "mipsImpl",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "faultDisputeGameV2Impl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "permissionedDisputeGameV2Impl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superFaultDisputeGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionedDisputeGameImpl",
+            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManager.Implementations",
         "name": "",
         "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_feature",
+        "type": "bytes32"
+      }
+    ],
+    "name": "isDevFeatureEnabled",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -308,24 +335,19 @@
             "type": "address"
           },
           {
-            "internalType": "contract IProxyAdmin",
-            "name": "proxyAdmin",
-            "type": "address"
+            "internalType": "Claim",
+            "name": "cannonPrestate",
+            "type": "bytes32"
           },
           {
             "internalType": "Claim",
-            "name": "absolutePrestate",
+            "name": "cannonKonaPrestate",
             "type": "bytes32"
           }
         ],
-        "internalType": "struct OPContractsManager.OpChainConfig[]",
+        "internalType": "struct OPContractsManager.UpdatePrestateInput[]",
         "name": "_prestateUpdateInputs",
         "type": "tuple[]"
-      },
-      {
-        "internalType": "contract ISuperchainConfig",
-        "name": "_superchainConfig",
-        "type": "address"
       }
     ],
     "name": "updatePrestate",
@@ -397,12 +419,32 @@
   },
   {
     "inputs": [],
+    "name": "InvalidGameArgsLength",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidGameConfigs",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "NotABlueprint",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerGameTypeAdder_MixedGameTypes",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerGameTypeAdder_UnsupportedGameType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManager_InvalidGameType",
     "type": "error"
   },
   {

@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
@@ -23,7 +24,7 @@ func RandomL2Block(rng *rand.Rand, txCount int, t time.Time) (*types.Block, []*t
 		t := uint64(0)
 		rollupCfg.RegolithTime = &t
 	}
-	l1InfoTx, err := derive.L1InfoDeposit(&rollupCfg, eth.SystemConfig{}, 0, eth.BlockToInfo(l1Block), 0)
+	l1InfoTx, err := derive.L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, eth.SystemConfig{}, 0, eth.BlockToInfo(l1Block), 0)
 	if err != nil {
 		panic("L1InfoDeposit: " + err.Error())
 	}

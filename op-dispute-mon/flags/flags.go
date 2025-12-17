@@ -3,11 +3,10 @@ package flags
 import (
 	"fmt"
 	"strings"
-	"time"
 
+	challengerFlags "github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-service/flags"
-	"github.com/ethereum/go-ethereum/superchain"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
@@ -34,14 +33,14 @@ var (
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
 	// Optional Flags
-	RollupRpcFlag = &cli.StringFlag{
+	RollupRpcFlag = &cli.StringSliceFlag{
 		Name:    "rollup-rpc",
-		Usage:   "HTTP provider URL for the rollup node",
+		Usage:   "HTTP provider URL for the rollup node. Multiple URLs can be specified for redundancy.",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
-	SupervisorRpcFlag = &cli.StringFlag{
+	SupervisorRpcFlag = &cli.StringSliceFlag{
 		Name:    "supervisor-rpc",
-		Usage:   "HTTP provider URL for the supervisor node",
+		Usage:   "HTTP provider URL for supervisor nodes. Multiple URLs can be specified for redundancy.",
 		EnvVars: prefixEnvVars("SUPERVISOR_RPC"),
 	}
 	GameFactoryAddressFlag = &cli.StringFlag{
@@ -49,7 +48,11 @@ var (
 		Usage:   "Address of the fault game factory contract.",
 		EnvVars: prefixEnvVars("GAME_FACTORY_ADDRESS"),
 	}
-	NetworkFlag      = flags.CLINetworkFlag(envVarPrefix, "")
+	NetworkFlag = &cli.StringSliceFlag{
+		Name:    flags.NetworkFlagName,
+		Usage:   fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
+		EnvVars: prefixEnvVars("NETWORK"),
+	}
 	HonestActorsFlag = &cli.StringSliceFlag{
 		Name:    "honest-actors",
 		Usage:   "List of honest actors that are monitored for any claims that are resolved against them.",
@@ -79,18 +82,6 @@ var (
 		EnvVars: prefixEnvVars("MAX_CONCURRENCY"),
 		Value:   config.DefaultMaxConcurrency,
 	}
-	RollupRpcTimeoutFlag = &cli.DurationFlag{
-		Name:    "rollup-rpc-timeout",
-		Usage:   "Timeout for rollup RPC requests",
-		EnvVars: prefixEnvVars("ROLLUP_RPC_TIMEOUT"),
-		Value:   time.Second * 15,
-	}
-	RollupRpcBatchTimeoutFlag = &cli.DurationFlag{
-		Name:    "rollup-rpc-batch-timeout",
-		Usage:   "Timeout for rollup RPC batch requests",
-		EnvVars: prefixEnvVars("ROLLUP_RPC_BATCH_TIMEOUT"),
-		Value:   time.Second * 30,
-	}
 )
 
 // requiredFlags are checked by [CheckRequired]
@@ -109,8 +100,6 @@ var optionalFlags = []cli.Flag{
 	GameWindowFlag,
 	IgnoredGamesFlag,
 	MaxConcurrencyFlag,
-	RollupRpcTimeoutFlag,
-	RollupRpcBatchTimeoutFlag,
 }
 
 func init() {
@@ -130,7 +119,7 @@ func CheckRequired(ctx *cli.Context) error {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
 		}
 	}
-	if !ctx.IsSet(RollupRpcFlag.Name) && !ctx.IsSet(SupervisorRpcFlag.Name) {
+	if len(ctx.StringSlice(RollupRpcFlag.Name)) == 0 && len(ctx.StringSlice(SupervisorRpcFlag.Name)) == 0 {
 		return fmt.Errorf("flag %s or %s is required", RollupRpcFlag.Name, SupervisorRpcFlag.Name)
 	}
 	return nil
@@ -141,7 +130,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	if err := CheckRequired(ctx); err != nil {
 		return nil, err
 	}
-	gameFactoryAddress, err := FactoryAddress(ctx)
+	gameFactoryAddress, err := challengerFlags.FactoryAddress(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -179,46 +168,16 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	return &config.Config{
 		L1EthRpc:           ctx.String(L1EthRpcFlag.Name),
 		GameFactoryAddress: gameFactoryAddress,
-		RollupRpc:          ctx.String(RollupRpcFlag.Name),
-		SupervisorRpc:      ctx.String(SupervisorRpcFlag.Name),
+		RollupRpcs:         ctx.StringSlice(RollupRpcFlag.Name),
+		SupervisorRpcs:     ctx.StringSlice(SupervisorRpcFlag.Name),
 
-		HonestActors:          actors,
-		MonitorInterval:       ctx.Duration(MonitorIntervalFlag.Name),
-		GameWindow:            ctx.Duration(GameWindowFlag.Name),
-		IgnoredGames:          ignoredGames,
-		MaxConcurrency:        maxConcurrency,
-		RollupRpcTimeout:      ctx.Duration(RollupRpcTimeoutFlag.Name),
-		RollupRpcBatchTimeout: ctx.Duration(RollupRpcBatchTimeoutFlag.Name),
+		HonestActors:    actors,
+		MonitorInterval: ctx.Duration(MonitorIntervalFlag.Name),
+		GameWindow:      ctx.Duration(GameWindowFlag.Name),
+		IgnoredGames:    ignoredGames,
+		MaxConcurrency:  maxConcurrency,
 
 		MetricsConfig: metricsConfig,
 		PprofConfig:   pprofConfig,
 	}, nil
-}
-
-func FactoryAddress(ctx *cli.Context) (common.Address, error) {
-	// Use FactoryAddressFlag in preference to Network. Allows overriding the default dispute game factory.
-	if ctx.IsSet(GameFactoryAddressFlag.Name) {
-		gameFactoryAddress, err := opservice.ParseAddress(ctx.String(GameFactoryAddressFlag.Name))
-		if err != nil {
-			return common.Address{}, err
-		}
-		return gameFactoryAddress, nil
-	}
-	if ctx.IsSet(flags.NetworkFlagName) {
-		chainName := ctx.String(flags.NetworkFlagName)
-		chain := chaincfg.ChainByName(chainName)
-		if chain == nil {
-			var opts []string
-			for _, cfg := range superchain.Chains {
-				opts = append(opts, cfg.Name+"-"+cfg.Network)
-			}
-			return common.Address{}, fmt.Errorf("unknown chain: %v (Valid options: %v)", chainName, strings.Join(opts, ", "))
-		}
-		addrs := chain.Addresses
-		if addrs.DisputeGameFactoryProxy == nil {
-			return common.Address{}, fmt.Errorf("dispute factory proxy not available for chain %v", chainName)
-		}
-		return *addrs.DisputeGameFactoryProxy, nil
-	}
-	return common.Address{}, fmt.Errorf("flag %v or %v is required", GameFactoryAddressFlag.Name, flags.NetworkFlagName)
 }

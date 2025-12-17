@@ -275,7 +275,7 @@ func ReorgFlipFlop(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
 	miner.ActL1EndBlock(t)
 
-	// sync verifier to what ths sequencer submitted
+	// sync verifier to what the sequencer submitted
 	verifier.ActL1HeadSignal(t)
 	verifier.ActL2PipelineFull(t)
 	require.Equal(t, verifier.L2Safe(), sequencer.L2Unsafe(), "verifier syncs from sequencer")
@@ -346,7 +346,7 @@ func DeepReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		SequencerWindowSize: 20,
 		ChannelTimeout:      120,
 		L1BlockTime:         4,
-		AllocType:           config.AllocTypeStandard,
+		AllocType:           config.DefaultAllocType,
 	}, deltaTimeOffset)
 	minerCl := miner.L1Client(t, sd.RollupCfg)
 	l2Client := seqEngine.EthClient()
@@ -366,7 +366,7 @@ func DeepReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		AddressCorpora: addresses,
 		Bindings:       actionsHelpers.NewL2Bindings(t, l2Client, seqEngine.GethClient()),
 	}
-	alice := actionsHelpers.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)), config.AllocTypeStandard)
+	alice := actionsHelpers.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)), config.DefaultAllocType)
 	alice.L2.SetUserEnv(l2UserEnv)
 
 	// Run one iteration of the L2 derivation pipeline
@@ -596,7 +596,7 @@ func RestartOpGeth(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	engRpc := &rpcWrapper{seqEng.RPCClient()}
 	l2Cl, err := sources.NewEngineClient(engRpc, log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
-	sequencer := actionsHelpers.NewL2Sequencer(t, log, l1F, miner.BlobStore(), altda.Disabled, l2Cl, sd.RollupCfg, 0)
+	sequencer := actionsHelpers.NewL2Sequencer(t, log, l1F, miner.BlobStore(), altda.Disabled, l2Cl, sd.RollupCfg, sd.L1Cfg.Config, sd.DependencySet, 0)
 
 	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
 		sequencer.RollupClient(), miner.EthClient(), seqEng.EthClient(), seqEng.EngineClient(t, sd.RollupCfg))
@@ -684,7 +684,7 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	require.NoError(t, err)
 	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindStandard))
 	require.NoError(t, err)
-	altSequencer := actionsHelpers.NewL2Sequencer(t, log, l1F, miner.BlobStore(), altda.Disabled, altSeqEngCl, sd.RollupCfg, 0)
+	altSequencer := actionsHelpers.NewL2Sequencer(t, log, l1F, miner.BlobStore(), altda.Disabled, altSeqEngCl, sd.RollupCfg, sd.L1Cfg.Config, sd.DependencySet, 0)
 	altBatcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
 		altSequencer.RollupClient(), miner.EthClient(), altSeqEng.EthClient(), altSeqEng.EngineClient(t, sd.RollupCfg))
 
@@ -697,7 +697,7 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		AddressCorpora: addresses,
 		Bindings:       actionsHelpers.NewL2Bindings(t, l2Cl, altSeqEng.GethClient()),
 	}
-	alice := actionsHelpers.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)), config.AllocTypeStandard)
+	alice := actionsHelpers.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)), config.DefaultAllocType)
 	alice.L2.SetUserEnv(l2UserEnv)
 
 	sequencer.ActL2PipelineFull(t)
@@ -782,7 +782,7 @@ func SyncAfterReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		SequencerWindowSize: 4,
 		ChannelTimeout:      2,
 		L1BlockTime:         12,
-		AllocType:           config.AllocTypeStandard,
+		AllocType:           config.DefaultAllocType,
 	}
 	sd, dp, miner, sequencer, seqEngine, verifier, _, batcher := actionsHelpers.SetupReorgTest(t, &testingParams, deltaTimeOffset)
 	l2Client := seqEngine.EthClient()
@@ -794,7 +794,7 @@ func SyncAfterReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		AddressCorpora: addresses,
 		Bindings:       actionsHelpers.NewL2Bindings(t, l2Client, seqEngine.GethClient()),
 	}
-	alice := actionsHelpers.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)), config.AllocTypeStandard)
+	alice := actionsHelpers.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)), config.DefaultAllocType)
 	alice.L2.SetUserEnv(l2UserEnv)
 
 	sequencer.ActL2PipelineFull(t)

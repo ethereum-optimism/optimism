@@ -7,13 +7,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ethereum/go-ethereum/params"
-
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum/go-ethereum/params"
 
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	libp2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
@@ -24,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 const Namespace = "op_node"
@@ -31,9 +30,6 @@ const Namespace = "op_node"
 type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
-	RecordRPCServerRequest(method string) func()
-	RecordRPCClientRequest(method string) func(err error)
-	RecordRPCClientResponse(method string, err error)
 	SetDerivationIdle(status bool)
 	SetSequencerState(active bool)
 	RecordPipelineReset()
@@ -87,6 +83,8 @@ type Metrics struct {
 
 	L1SourceCache *metrics.CacheMetrics
 	L2SourceCache *metrics.CacheMetrics
+
+	L2FollowSourceCache *metrics.CacheMetrics
 
 	DerivationIdle prometheus.Gauge
 
@@ -189,6 +187,8 @@ func NewMetrics(procName string) *Metrics {
 
 		L1SourceCache: metrics.NewCacheMetrics(factory, ns, "l1_source_cache", "L1 Source cache"),
 		L2SourceCache: metrics.NewCacheMetrics(factory, ns, "l2_source_cache", "L2 Source cache"),
+
+		L2FollowSourceCache: metrics.NewCacheMetrics(factory, ns, "l2_follow_source_cache", "L2 Follow source cache"),
 
 		DerivationIdle: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -561,6 +561,13 @@ func (m *Metrics) StartServer(hostname string, port int) (*ophttp.HTTPServer, er
 		m.registry, promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{}),
 	)
 	return ophttp.StartHTTPServer(addr, h)
+}
+
+// Registry returns the underlying Prometheus registry used by this metrics instance.
+// This enables external services (e.g. a supervising process) to expose metrics
+// without starting an internal HTTP server per node.
+func (m *Metrics) Registry() *prometheus.Registry {
+	return m.registry
 }
 
 func (m *Metrics) Document() []metrics.DocumentedMetric {

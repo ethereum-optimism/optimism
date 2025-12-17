@@ -67,3 +67,7 @@ func (m *MockRPC) Subscribe(ctx context.Context, namespace string, channel any, 
 func (m *MockRPC) ExpectSubscribe(namespace string, channel any, args []any, sub ethereum.Subscription, err error) {
 	m.Mock.On("Subscribe", mock.Anything, namespace, channel, args).Once().Return(sub, err)
 }
+
+func (m *MockRPC) URL() string {
+	return "http://mock-rpc-endpoint"
+}

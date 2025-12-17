@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-ecotone/bindings"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	nbindings "github.com/ethereum-optimism/optimism/op-node/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
@@ -35,7 +36,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -176,7 +176,7 @@ func makeCommandAction(fn CheckAction) func(c *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to dial L2 RPC: %w", err)
 		}
-		rollupCl, err := dial.DialRollupClientWithTimeout(c.Context, time.Second*20, logger, c.String(EndpointRollup.Name))
+		rollupCl, err := dial.DialRollupClientWithTimeout(c.Context, logger, c.String(EndpointRollup.Name))
 		if err != nil {
 			return fmt.Errorf("failed to dial rollup node RPC: %w", err)
 		}
@@ -500,7 +500,7 @@ func checkBlobTxDenial(ctx context.Context, env *actionEnv) error {
 	for i := 0; i < 4096; i++ {
 		blob[32*i] &= 0b0011_1111
 	}
-	sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&blob})
+	sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&blob}, false)
 	if err != nil {
 		return fmt.Errorf("failed to make sidecar: %w", err)
 	}
@@ -512,7 +512,7 @@ func checkBlobTxDenial(ctx context.Context, env *actionEnv) error {
 		return fmt.Errorf("the L1 block %s (time %d) is not ecotone yet", latestHeader.Hash(), latestHeader.Time)
 	}
 
-	blobBaseFee := eth.CalcBlobFeeDefault(latestHeader)
+	blobBaseFee := eth.CalcBlobFeeCancun(*latestHeader.ExcessBlobGas)
 	blobFeeCap := new(uint256.Int).Mul(uint256.NewInt(2), uint256.MustFromBig(blobBaseFee))
 	if blobFeeCap.Lt(uint256.NewInt(params.GWei)) { // ensure we meet 1 gwei geth tx-pool minimum
 		blobFeeCap = uint256.NewInt(params.GWei)

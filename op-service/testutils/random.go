@@ -6,10 +6,12 @@ import (
 	"math/big"
 	"math/rand"
 
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
@@ -208,6 +210,21 @@ func RandomAccessListTx(rng *rand.Rand, signer types.Signer) *types.Transaction 
 	return tx
 }
 
+func RandomAccessList(rng *rand.Rand) types.AccessList {
+	accessList := []types.AccessTuple{}
+	for range 1 + rng.Intn(3) {
+		storageKeys := []common.Hash{}
+		for range 1 + rng.Intn(4) {
+			storageKeys = append(storageKeys, RandomHash(rng))
+		}
+		accessList = append(accessList, types.AccessTuple{
+			Address:     RandomAddress(rng),
+			StorageKeys: storageKeys,
+		})
+	}
+	return accessList
+}
+
 func RandomDynamicFeeTxWithBaseFee(rng *rand.Rand, baseFee *big.Int, signer types.Signer) *types.Transaction {
 	key := InsecureRandomKey(rng)
 	tip := big.NewInt(rng.Int63n(10 * params.GWei))
@@ -338,7 +355,11 @@ func RandomBlock(rng *rand.Rand, txCount uint64) (*types.Block, []*types.Receipt
 
 func RandomBlockPrependTxsWithTime(rng *rand.Rand, txCount int, t uint64, ptxs ...*types.Transaction) (*types.Block, []*types.Receipt) {
 	header := RandomHeaderWithTime(rng, t)
-	chainID := big.NewInt(rng.Int63n(1000))
+	chainIDInt := rng.Int63n(1000)
+	if chainIDInt == 0 { // Zero chainID is invalid.
+		chainIDInt++
+	}
+	chainID := big.NewInt(chainIDInt)
 	signer := types.NewIsthmusSigner(chainID)
 	txs := make([]*types.Transaction, 0, txCount+len(ptxs))
 	txs = append(txs, ptxs...)
@@ -380,6 +401,22 @@ func RandomBlockPrependTxsWithTime(rng *rand.Rand, txCount int, t uint64, ptxs .
 func RandomBlockPrependTxs(rng *rand.Rand, txCount int, ptxs ...*types.Transaction) (*types.Block, []*types.Receipt) {
 	t := uint64(rng.Int63n(2_000_000_000))
 	return RandomBlockPrependTxsWithTime(rng, txCount, t, ptxs...)
+}
+
+func RandomBlob(rng *rand.Rand) (kzg4844.Blob, kzg4844.Commitment, error) {
+	var blob kzg4844.Blob
+	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
+		fieldEl := fr.NewElement(0)
+		randVal := new(big.Int).SetUint64(rng.Uint64())
+		fieldEl.SetBigInt(randVal)
+
+		fieldElBytes := fieldEl.Bytes()
+		copy(blob[i*32:(i+1)*32], fieldElBytes[:])
+	}
+
+	commitment, err := kzg4844.BlobToCommitment(&blob)
+
+	return blob, commitment, err
 }
 
 func RandomOutputResponse(rng *rand.Rand) *eth.OutputResponse {

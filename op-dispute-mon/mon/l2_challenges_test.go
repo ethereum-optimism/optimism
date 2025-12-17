@@ -13,9 +13,9 @@ import (
 
 func TestMonitorL2Challenges(t *testing.T) {
 	games := []*types.EnrichedGameData{
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x44}}, BlockNumberChallenged: true, AgreeWithClaim: true, L2BlockNumber: 44, BlockNumberChallenger: common.Address{0x55}},
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x44}}, BlockNumberChallenged: true, AgreeWithClaim: true, L2SequenceNumber: 44, BlockNumberChallenger: common.Address{0x55}},
 		{BlockNumberChallenged: false, AgreeWithClaim: true},
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, BlockNumberChallenged: true, AgreeWithClaim: false, L2BlockNumber: 22, BlockNumberChallenger: common.Address{0x33}},
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, BlockNumberChallenged: true, AgreeWithClaim: false, L2SequenceNumber: 22, BlockNumberChallenger: common.Address{0x33}},
 		{BlockNumberChallenged: false, AgreeWithClaim: false},
 		{BlockNumberChallenged: false, AgreeWithClaim: false},
 		{BlockNumberChallenged: false, AgreeWithClaim: true},
@@ -33,7 +33,7 @@ func TestMonitorL2Challenges(t *testing.T) {
 	l := capturedLogs.FindLog(levelFilter, messageFilter)
 	require.NotNil(t, l)
 	require.Equal(t, common.Address{0x44}, l.AttrValue("game"))
-	require.Equal(t, uint64(44), l.AttrValue("blockNum"))
+	require.Equal(t, uint64(44), l.AttrValue("l2SequenceNumber"))
 	require.Equal(t, true, l.AttrValue("agreement"))
 	require.Equal(t, common.Address{0x55}, l.AttrValue("challenger"))
 
@@ -43,7 +43,7 @@ func TestMonitorL2Challenges(t *testing.T) {
 	l = capturedLogs.FindLog(levelFilter, messageFilter)
 	require.NotNil(t, l)
 	require.Equal(t, common.Address{0x22}, l.AttrValue("game"))
-	require.Equal(t, uint64(22), l.AttrValue("blockNum"))
+	require.Equal(t, uint64(22), l.AttrValue("l2SequenceNumber"))
 	require.Equal(t, false, l.AttrValue("agreement"))
 	require.Equal(t, common.Address{0x33}, l.AttrValue("challenger"))
 }

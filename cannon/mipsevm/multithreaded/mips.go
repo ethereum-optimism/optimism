@@ -113,8 +113,8 @@ func (m *InstrumentedState) handleSyscall() error {
 			futexVal := m.getFutexValue(effFutexAddr)
 			targetVal := uint32(a2)
 			if futexVal != targetVal {
-				v0 = exec.SysErrorSignal
-				v1 = exec.MipsEAGAIN
+				v0 = exec.MipsEAGAIN
+				v1 = exec.SysErrorSignal
 			} else {
 				m.syscallYield(thread)
 				return nil
@@ -123,15 +123,15 @@ func (m *InstrumentedState) handleSyscall() error {
 			m.syscallYield(thread)
 			return nil
 		default:
-			v0 = exec.SysErrorSignal
-			v1 = exec.MipsEINVAL
+			v0 = exec.MipsEINVAL
+			v1 = exec.SysErrorSignal
 		}
 	case arch.SysSchedYield, arch.SysNanosleep:
 		m.syscallYield(thread)
 		return nil
 	case arch.SysOpen:
-		v0 = exec.SysErrorSignal
-		v1 = exec.MipsEBADF
+		v0 = exec.MipsEBADF
+		v1 = exec.SysErrorSignal
 	case arch.SysClockGetTime:
 		switch a0 {
 		case exec.ClockGettimeRealtimeFlag, exec.ClockGettimeMonotonicFlag:
@@ -152,13 +152,19 @@ func (m *InstrumentedState) handleSyscall() error {
 			m.state.Memory.SetWord(effAddr+arch.WordSizeBytes, nsecs)
 			m.handleMemoryUpdate(effAddr + arch.WordSizeBytes)
 		default:
-			v0 = exec.SysErrorSignal
-			v1 = exec.MipsEINVAL
+			v0 = exec.MipsEINVAL
+			v1 = exec.SysErrorSignal
 		}
 	case arch.SysGetpid:
 		v0 = 0
 		v1 = 0
+	case arch.SysGetRandom:
+		if m.features.SupportWorkingSysGetRandom {
+			v0, v1 = m.syscallGetRandom(a0, a1)
+		}
+		// Otherwise, ignored (noop)
 	case arch.SysMunmap:
+	case arch.SysMprotect:
 	case arch.SysGetAffinity:
 	case arch.SysMadvise:
 	case arch.SysRtSigprocmask:
@@ -177,7 +183,6 @@ func (m *InstrumentedState) handleSyscall() error {
 	case arch.SysPipe2:
 	case arch.SysEpollCtl:
 	case arch.SysEpollPwait:
-	case arch.SysGetRandom:
 	case arch.SysUname:
 	case arch.SysGetuid:
 	case arch.SysGetgid:
@@ -189,18 +194,74 @@ func (m *InstrumentedState) handleSyscall() error {
 	case arch.SysTimerDelete:
 	case arch.SysGetRLimit:
 	case arch.SysLseek:
+	case arch.SysEventFd2:
+		// a0 = initial value, a1 = flags
+		// Validate flags
+		if a1&exec.EFD_NONBLOCK == 0 {
+			// The non-block flag was not set, but we only support non-block requests, so error
+			v0 = exec.MipsEINVAL
+			v1 = exec.SysErrorSignal
+		} else {
+			v0 = exec.FdEventFd
+		}
 	default:
 		// These syscalls have the same values on 64-bit. So we use if-stmts here to avoid "duplicate case" compiler error for the cannon64 build
 		if arch.IsMips32 && (syscallNum == arch.SysFstat64 || syscallNum == arch.SysStat64 || syscallNum == arch.SysLlseek) {
 			// noop
 		} else {
-			m.Traceback()
-			panic(fmt.Sprintf("unrecognized syscall: %d", syscallNum))
+			m.handleUnrecognizedSyscall(syscallNum)
 		}
 	}
 
 	exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
 	return nil
+}
+
+func (m *InstrumentedState) syscallGetRandom(a0, a1 uint64) (v0, v1 uint64) {
+	// Get existing memory value at target address
+	effAddr := a0 & arch.AddressMask
+	m.memoryTracker.TrackMemAccess(effAddr)
+	memVal := m.state.Memory.GetWord(effAddr)
+
+	// Generate some pseudorandom data
+	randomWord := splitmix64(m.state.Step)
+
+	// Calculate number of bytes to write
+	targetByteIndex := a0 - effAddr
+	maxBytes := arch.WordSizeBytes - targetByteIndex
+	byteCount := a1
+	if maxBytes < byteCount {
+		byteCount = maxBytes
+	}
+
+	// Write random data into target memory location
+	var randDataMask arch.Word = (1 << (byteCount * 8)) - 1
+	// Shift left to align with index 0, then shift right to target correct index
+	randDataMask <<= (arch.WordSizeBytes - byteCount) * 8
+	randDataMask >>= targetByteIndex * 8
+	newMemVal := (memVal & ^randDataMask) | (randomWord & randDataMask)
+
+	m.state.Memory.SetWord(effAddr, newMemVal)
+	m.handleMemoryUpdate(effAddr)
+
+	v0 = byteCount
+	v1 = 0
+
+	return v0, v1
+}
+
+// splitmix64 generates a pseudorandom 64-bit value.
+// See canonical implementation: https://prng.di.unimi.it/splitmix64.c
+func splitmix64(seed uint64) uint64 {
+	z := seed + 0x9e3779b97f4a7c15
+	z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9
+	z = (z ^ (z >> 27)) * 0x94d049bb133111eb
+	return z ^ (z >> 31)
+}
+
+func (m *InstrumentedState) handleUnrecognizedSyscall(syscallNum Word) {
+	m.Traceback()
+	panic(fmt.Sprintf("unrecognized syscall: %d", syscallNum))
 }
 
 func (m *InstrumentedState) syscallYield(thread *ThreadState) {
@@ -255,8 +316,21 @@ func (m *InstrumentedState) doMipsStep() error {
 	}
 	m.state.StepsSinceLastContextSwitch += 1
 
-	//instruction fetch
-	insn, opcode, fun := exec.GetInstructionDetails(m.state.GetPC(), m.state.Memory)
+	pc := m.state.GetPC()
+	if pc&0x3 != 0 {
+		panic(fmt.Sprintf("unaligned instruction fetch: PC = 0x%x", pc))
+	}
+	cacheIdx := pc / 4
+
+	var insn, opcode, fun uint32
+	if int(cacheIdx) < len(m.cached_decode) {
+		decoded := m.cached_decode[cacheIdx]
+		insn, opcode, fun = decoded.insn, decoded.opcode, decoded.fun
+	} else {
+		// PC is outside eager region
+		m.statsTracker.trackInstructionCacheMiss(pc)
+		insn, opcode, fun = exec.GetInstructionDetails(pc, m.state.Memory)
+	}
 
 	// Handle syscall separately
 	// syscall (can read and write)

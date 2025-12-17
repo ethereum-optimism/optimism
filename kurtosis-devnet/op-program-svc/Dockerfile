@@ -1,6 +1,6 @@
 ARG BASE_IMAGE=op-program-base:latest
 
-FROM golang:1.22.7-alpine3.20 AS builder
+FROM golang:1.24.10-alpine3.20 AS builder
 
 COPY ./*.go /app/
 WORKDIR /app

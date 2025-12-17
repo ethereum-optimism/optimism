@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -28,15 +28,16 @@ func TestFailover(t *testing.T) {
 	require.Equal(t, source, chainProc.activeClient)
 
 	badSource := &mockSource{}
-	badSource.blockRefFunc = func(ctx context.Context, number uint64) (eth.BlockRef, error) {
-		return eth.BlockRef{}, errors.New("bad source")
+	badSource.l2blockRefFunc = func(ctx context.Context, number uint64) (eth.L2BlockRef, error) {
+		return eth.L2BlockRef{}, errors.New("bad source")
 	}
 	// after adding the second source, the activeClient hasn't changed
 	chainProc.AddSource(badSource)
 	require.Equal(t, source, chainProc.activeClient)
 
 	// when no error, the activeClient should be unchanged
-	chainProc.onRequest(2)
+	chainProc.target = 2
+	chainProc.index()
 	require.Equal(t, source, chainProc.activeClient)
 
 	// force the activeClient to be the bad source
@@ -44,24 +45,25 @@ func TestFailover(t *testing.T) {
 	require.Equal(t, badSource, chainProc.activeClient)
 
 	// when the bad source errors, the activeClient should be back to the first source
-	chainProc.onRequest(2)
+	chainProc.target = 2
+	chainProc.index()
 	require.Equal(t, source, chainProc.activeClient)
 }
 
 type mockEmitter struct{}
 
-func (m *mockEmitter) Emit(ev event.Event) {
+func (m *mockEmitter) Emit(ctx context.Context, ev event.Event) {
 }
 
 type mockSource struct {
-	blockRefFunc func(ctx context.Context, number uint64) (eth.BlockRef, error)
+	l2blockRefFunc func(ctx context.Context, number uint64) (eth.L2BlockRef, error)
 }
 
-func (m *mockSource) BlockRefByNumber(ctx context.Context, number uint64) (eth.BlockRef, error) {
-	if m.blockRefFunc != nil {
-		return m.blockRefFunc(ctx, number)
+func (m *mockSource) L2BlockRefByNumber(ctx context.Context, number uint64) (eth.L2BlockRef, error) {
+	if m.l2blockRefFunc != nil {
+		return m.l2blockRefFunc(ctx, number)
 	}
-	return eth.BlockRef{}, nil
+	return eth.L2BlockRef{}, nil
 }
 func (m *mockSource) FetchReceipts(ctx context.Context, blockHash common.Hash) (gethtypes.Receipts, error) {
 	return gethtypes.Receipts{}, nil

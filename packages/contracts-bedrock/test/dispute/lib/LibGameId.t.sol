@@ -5,9 +5,12 @@ import { Test } from "forge-std/Test.sol";
 
 import "src/dispute/lib/Types.sol";
 
-contract LibGameId_Test is Test {
-    /// @dev Tests that a round trip of packing and unpacking a GameId maintains the same values.
-    function testFuzz_gameId_roundTrip_succeeds(
+/// @title LibGameId_Pack_Test
+/// @notice Tests the `pack` and `unpack` functions of the `LibGameId` library.
+contract LibGameId_Pack_Test is Test {
+    /// @notice Tests that a round trip of packing and unpacking a `GameId` maintains the same
+    ///         values.
+    function testFuzz_pack_roundTrip_succeeds(
         GameType _gameType,
         Timestamp _timestamp,
         address _gameProxy

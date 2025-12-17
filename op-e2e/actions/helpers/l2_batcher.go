@@ -42,6 +42,7 @@ type L1TxAPI interface {
 	PendingNonceAt(ctx context.Context, account common.Address) (uint64, error)
 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
 	SendTransaction(ctx context.Context, tx *types.Transaction) error
+	BlobBaseFee(ctx context.Context) (*big.Int, error)
 }
 
 type AltDAInputSetter interface {
@@ -63,6 +64,8 @@ type BatcherCfg struct {
 
 	DataAvailabilityType batcherFlags.DataAvailabilityType
 	AltDA                AltDAInputSetter
+
+	EnableCellProofs bool
 }
 
 func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
@@ -71,6 +74,7 @@ func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
 		MaxL1TxSize:          128_000,
 		BatcherKey:           dp.Secrets.Batcher,
 		DataAvailabilityType: batcherFlags.CalldataType,
+		EnableCellProofs:     false, // TODO change to true when Osaka activates on L1
 	}
 }
 
@@ -146,12 +150,12 @@ func (s *L2Batcher) Reset() {
 
 // ActL2BatchBuffer adds the next L2 block to the batch buffer.
 // If the buffer is being submitted, the buffer is wiped.
-func (s *L2Batcher) ActL2BatchBuffer(t Testing, opts ...BlockModifier) {
+func (s *L2Batcher) ActL2BatchBuffer(t Testing, opts ...BufferOption) {
 	require.NoError(t, s.Buffer(t, opts...), "failed to add block to channel")
 }
 
 // ActCreateChannel creates a channel if we don't have one yet.
-func (s *L2Batcher) ActCreateChannel(t Testing, useSpanChannelOut bool) {
+func (s *L2Batcher) ActCreateChannel(t Testing, useSpanChannelOut bool, spanChannelOutOpts ...derive.SpanChannelOutOption) {
 	var err error
 	if s.L2ChannelOut == nil {
 		var ch ChannelOutIface
@@ -171,7 +175,7 @@ func (s *L2Batcher) ActCreateChannel(t Testing, useSpanChannelOut bool) {
 				chainSpec := rollup.NewChainSpec(s.rollupCfg)
 				// use span batch if we're forcing it or if we're at/beyond delta
 				if s.l2BatcherCfg.ForceSubmitSpanBatch || useSpanChannelOut {
-					ch, err = derive.NewSpanChannelOut(target, derive.Zlib, chainSpec)
+					ch, err = derive.NewSpanChannelOut(target, derive.Zlib, chainSpec, spanChannelOutOpts...)
 					// use singular batches in all other cases
 				} else {
 					ch, err = derive.NewSingularChannelOut(c, chainSpec)
@@ -183,7 +187,26 @@ func (s *L2Batcher) ActCreateChannel(t Testing, useSpanChannelOut bool) {
 	}
 }
 
+type bufferOptions struct {
+	blockModifiers   []BlockModifier
+	channelModifiers []derive.SpanChannelOutOption
+}
+
 type BlockModifier = func(block *types.Block) *types.Block
+
+type BufferOption = func(*bufferOptions)
+
+func WithBlockModifier(modifier BlockModifier) BufferOption {
+	return func(opts *bufferOptions) {
+		opts.blockModifiers = append(opts.blockModifiers, modifier)
+	}
+}
+
+func WithChannelModifier(modifier derive.SpanChannelOutOption) BufferOption {
+	return func(opts *bufferOptions) {
+		opts.channelModifiers = append(opts.channelModifiers, modifier)
+	}
+}
 
 func BlockLogger(t e2eutils.TestingBase) BlockModifier {
 	f := func(block *types.Block) *types.Block {
@@ -193,7 +216,12 @@ func BlockLogger(t e2eutils.TestingBase) BlockModifier {
 	return f
 }
 
-func (s *L2Batcher) Buffer(t Testing, opts ...BlockModifier) error {
+func (s *L2Batcher) Buffer(t Testing, bufferOpts ...BufferOption) error {
+	options := bufferOptions{}
+	for _, opt := range bufferOpts {
+		opt(&options)
+	}
+
 	if s.l2Submitting { // break ongoing submitting work if necessary
 		s.L2ChannelOut = nil
 		s.l2Submitting = false
@@ -236,13 +264,13 @@ func (s *L2Batcher) Buffer(t Testing, opts ...BlockModifier) error {
 	}
 
 	// Apply modifications to the block
-	for _, f := range opts {
+	for _, f := range options.blockModifiers {
 		if f != nil {
 			block = f(block)
 		}
 	}
 
-	s.ActCreateChannel(t, s.rollupCfg.IsDelta(block.Time()))
+	s.ActCreateChannel(t, s.rollupCfg.IsDelta(block.Time()), options.channelModifiers...)
 
 	if _, err := s.L2ChannelOut.AddBlock(s.rollupCfg, block); err != nil {
 		return err
@@ -348,10 +376,11 @@ func (s *L2Batcher) ActL2BatchSubmitRaw(t Testing, payload []byte, txOpts ...fun
 	} else if s.l2BatcherCfg.DataAvailabilityType == batcherFlags.BlobsType {
 		var b eth.Blob
 		require.NoError(t, b.FromData(payload), "must turn data into blob")
-		sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&b})
+		sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&b}, s.l2BatcherCfg.EnableCellProofs)
 		require.NoError(t, err)
 		require.NotNil(t, pendingHeader.ExcessBlobGas, "need L1 header with 4844 properties")
-		blobBaseFee := eth.CalcBlobFeeDefault(pendingHeader)
+		blobBaseFee, err := s.l1.BlobBaseFee(t.Ctx())
+		require.NoError(t, err, "need blob base fee")
 		blobFeeCap := new(uint256.Int).Mul(uint256.NewInt(2), uint256.MustFromBig(blobBaseFee))
 		if blobFeeCap.Lt(uint256.NewInt(params.GWei)) { // ensure we meet 1 gwei geth tx-pool minimum
 			blobFeeCap = uint256.NewInt(params.GWei)
@@ -432,10 +461,10 @@ func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
 	require.NoError(t, err, "need l1 pending header for gas price estimation")
 	gasFeeCap := new(big.Int).Add(gasTipCap, new(big.Int).Mul(pendingHeader.BaseFee, big.NewInt(2)))
 
-	sidecar, blobHashes, err := txmgr.MakeSidecar(blobs)
+	sidecar, blobHashes, err := txmgr.MakeSidecar(blobs, s.l2BatcherCfg.EnableCellProofs)
 	require.NoError(t, err)
-	require.NotNil(t, pendingHeader.ExcessBlobGas, "need L1 header with 4844 properties")
-	blobBaseFee := eth.CalcBlobFeeDefault(pendingHeader)
+	blobBaseFee, err := s.l1.BlobBaseFee(t.Ctx())
+	require.NoError(t, err, "need blob base fee")
 	blobFeeCap := new(uint256.Int).Mul(uint256.NewInt(2), uint256.MustFromBig(blobBaseFee))
 	if blobFeeCap.Lt(uint256.NewInt(params.GWei)) { // ensure we meet 1 gwei geth tx-pool minimum
 		blobFeeCap = uint256.NewInt(params.GWei)

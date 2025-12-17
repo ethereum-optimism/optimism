@@ -41,16 +41,16 @@ func NewOutputCannonGameHelper(t *testing.T, client *ethclient.Client, opts *bin
 }
 
 type HonestActorConfig struct {
-	PrestateBlock  uint64
-	PoststateBlock uint64
-	ChallengerOpts []challenger.Option
+	PrestateSequenceNumber  uint64
+	PoststateSequenceNumber uint64
+	ChallengerOpts          []challenger.Option
 }
 
 type HonestActorOpt func(cfg *HonestActorConfig)
 
 func WithClaimedL2BlockNumber(num uint64) HonestActorOpt {
 	return func(cfg *HonestActorConfig) {
-		cfg.PoststateBlock = num
+		cfg.PoststateSequenceNumber = num
 	}
 }
 
@@ -69,9 +69,9 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	splitDepth := g.SplitDepth(ctx)
 	rollupClient := g.System.RollupClient(l2Node)
 	actorCfg := &HonestActorConfig{
-		PrestateBlock:  realPrestateBlock,
-		PoststateBlock: realPostStateBlock,
-		ChallengerOpts: g.defaultChallengerOptions(),
+		PrestateSequenceNumber:  realPrestateBlock,
+		PoststateSequenceNumber: realPostStateBlock,
+		ChallengerOpts:          g.defaultChallengerOptions(),
 	}
 	for _, option := range options {
 		option(actorCfg)
@@ -79,10 +79,10 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 
 	cfg := challenger.NewChallengerConfig(g.T, g.System, l2Node, actorCfg.ChallengerOpts...)
 	dir := filepath.Join(cfg.Datadir, "honest")
-	prestateProvider := outputs.NewPrestateProvider(rollupClient, actorCfg.PrestateBlock)
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, actorCfg.PrestateSequenceNumber)
 	l1Head := g.GetL1Head(ctx)
 	accessor, err := outputs.NewOutputCannonTraceAccessor(
-		logger, metrics.NoopMetrics, cfg.Cannon, vm.NewOpProgramServerExecutor(logger), l2Client, prestateProvider, cfg.CannonAbsolutePreState, rollupClient, dir, l1Head, splitDepth, actorCfg.PrestateBlock, actorCfg.PoststateBlock)
+		logger, metrics.NoopMetrics, cfg.Cannon, vm.NewOpProgramServerExecutor(logger), l2Client, prestateProvider, cfg.CannonAbsolutePreState, rollupClient, dir, l1Head, splitDepth, actorCfg.PrestateSequenceNumber, actorCfg.PoststateSequenceNumber)
 	g.Require.NoError(err, "Failed to create output cannon trace accessor")
 	return NewOutputHonestHelper(g.T, g.Require, &g.OutputGameHelper.SplitGameHelper, g.Game, accessor)
 }

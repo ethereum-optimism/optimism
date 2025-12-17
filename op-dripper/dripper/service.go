@@ -202,6 +202,7 @@ func (ds *DripExecutorService) initRPCServer(cfg *CLIConfig) error {
 		cfg.RPCConfig.ListenPort,
 		ds.Version,
 		oprpc.WithLogger(ds.Log),
+		oprpc.WithRPCRecorder(ds.Metrics.NewRecorder("main")),
 	)
 	if cfg.RPCConfig.EnableAdmin {
 		server.AddAPI(ds.TxManager.API())

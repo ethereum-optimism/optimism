@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -17,17 +17,20 @@ import (
 )
 
 var (
-	ErrMissingTraceType              = errors.New("no supported trace types specified")
-	ErrMissingDatadir                = errors.New("missing datadir")
-	ErrMaxConcurrencyZero            = errors.New("max concurrency must not be 0")
-	ErrMissingL2Rpc                  = errors.New("missing L2 rpc url")
-	ErrMissingCannonAbsolutePreState = errors.New("missing cannon absolute pre-state")
-	ErrMissingL1EthRPC               = errors.New("missing l1 eth rpc url")
-	ErrMissingL1Beacon               = errors.New("missing l1 beacon url")
-	ErrMissingGameFactoryAddress     = errors.New("missing game factory address")
-	ErrMissingCannonSnapshotFreq     = errors.New("missing cannon snapshot freq")
-	ErrMissingCannonInfoFreq         = errors.New("missing cannon info freq")
-	ErrMissingDepsetConfig           = errors.New("missing network or depset config path")
+	ErrMissingGameType                   = errors.New("no supported game types specified")
+	ErrMissingDatadir                    = errors.New("missing datadir")
+	ErrMaxConcurrencyZero                = errors.New("max concurrency must not be 0")
+	ErrMissingL2Rpc                      = errors.New("missing L2 rpc url")
+	ErrMissingCannonAbsolutePreState     = errors.New("missing cannon absolute pre-state")
+	ErrMissingL1EthRPC                   = errors.New("missing l1 eth rpc url")
+	ErrMissingL1Beacon                   = errors.New("missing l1 beacon url")
+	ErrMissingGameFactoryAddress         = errors.New("missing game factory address")
+	ErrMissingCannonSnapshotFreq         = errors.New("missing cannon snapshot freq")
+	ErrMissingCannonInfoFreq             = errors.New("missing cannon info freq")
+	ErrMissingCannonKonaAbsolutePreState = errors.New("missing cannon kona absolute pre-state")
+	ErrMissingCannonKonaSnapshotFreq     = errors.New("missing cannon kona snapshot freq")
+	ErrMissingCannonKonaInfoFreq         = errors.New("missing cannon kona info freq")
+	ErrMissingDepsetConfig               = errors.New("missing network or depset config path")
 
 	ErrMissingRollupRpc     = errors.New("missing rollup rpc url")
 	ErrMissingSupervisorRpc = errors.New("missing supervisor rpc url")
@@ -52,11 +55,10 @@ const (
 	// The default value is 28 days. The worst case duration for a game is 16 days
 	// (due to clock extension), plus 7 days WETH withdrawal delay leaving a 5 day
 	// buffer to monitor games to ensure bonds are claimed.
-	DefaultGameWindow   = 28 * 24 * time.Hour
-	DefaultMaxPendingTx = 10
-	// Rollup RPC timeouts
-	DefaultRollupRpcTimeout      = time.Second * 15
-	DefaultRollupRpcBatchTimeout = time.Second * 30
+	DefaultGameWindow         = 28 * 24 * time.Hour
+	DefaultMaxPendingTx       = 10
+	DefaultResponseDelay      = 0 // No delay by default
+	DefaultResponseDelayAfter = 0 // Apply delay from first response by default
 )
 
 // Config is a well typed config that is parsed from the CLI params.
@@ -72,23 +74,25 @@ type Config struct {
 	MaxConcurrency       uint             // Maximum number of threads to use when progressing games
 	PollInterval         time.Duration    // Polling interval for latest-block subscription when using an HTTP RPC provider
 	AllowInvalidPrestate bool             // Whether to allow responding to games where the prestate does not match
+	MinUpdateInterval    time.Duration    // Minimum duration the L1 head block time must advance before scheduling a new update cycle
 
 	AdditionalBondClaimants []common.Address // List of addresses to claim bonds for in addition to the tx manager sender
 
 	SelectiveClaimResolution bool // Whether to only resolve claims for the claimants in AdditionalBondClaimants union [TxSender.From()]
 
-	TraceTypes []types.TraceType // Type of traces supported
+	GameTypes []gameTypes.GameType // Type of games supported
 
-	RollupRpc             string        // L2 Rollup RPC Url
-	RollupRpcTimeout      time.Duration // Timeout for L2 Rollup RPC requests
-	RollupRpcBatchTimeout time.Duration // Timeout for L2 Rollup RPC batch requests
-	SupervisorRPC         string        // L2 supervisor RPC URL
-	L2Rpcs                []string      // L2 RPC Url
+	RollupRpc     string   // L2 Rollup RPC Url
+	SupervisorRPC string   // L2 supervisor RPC URL
+	L2Rpcs        []string // L2 RPC Url
 
 	// Specific to the cannon trace provider
-	Cannon                        vm.Config
-	CannonAbsolutePreState        string   // File to load the absolute pre-state for Cannon traces from
-	CannonAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for Cannon traces from
+	Cannon                            vm.Config
+	CannonAbsolutePreState            string   // File to load the absolute pre-state for Cannon traces from
+	CannonAbsolutePreStateBaseURL     *url.URL // Base URL to retrieve absolute pre-states for Cannon traces from
+	CannonKona                        vm.Config
+	CannonKonaAbsolutePreState        string   // File to load the absolute pre-state for CannonKona traces from
+	CannonKonaAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for CannonKona traces from
 
 	// Specific to the asterisc trace provider
 	Asterisc                            vm.Config
@@ -103,29 +107,40 @@ type Config struct {
 	TxMgrConfig   txmgr.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
+
+	ResponseDelay time.Duration /* Delay before responding to each game action to slow down game progression.
+	   Note: set with caution, since the challenger can end up using more resources if it has to wait to respond
+	   to an attacker generating many claims. Consider using the additional ResponseDelayAfter config option.
+	   Also note that the delay is only applied when:
+	   	1) delaying will not lead to a timeout of the game,
+	   	2) the challenger is not in a clock extension period and
+	   	3) delaying will not lead to the challenger having to respond inside of a clock extension period
+	       (thus ensuring that the challenger always has enough remaining time to respond to the game action). */
+	ResponseDelayAfter uint64 /* Number of responses after which to start applying the delay.
+	   Set to 0 to apply delay from the first response, 1 to skip the first response, etc.
+	   Note: the delay is only applied from the next round after which this `responseDelayAfter` value
+	   is surpassed (not from the exact response after which its surpassed, but from the next round). */
 }
 
-func NewConfig(
+func NewInteropConfig(
 	gameFactoryAddress common.Address,
 	l1EthRpc string,
 	l1BeaconApi string,
-	l2RollupRpc string,
-	l2EthRpc string,
+	supervisorRpc string,
+	l2Rpcs []string,
 	datadir string,
-	supportedTraceTypes ...types.TraceType,
+	supportedGameTypes ...gameTypes.GameType,
 ) Config {
 	return Config{
-		L1EthRpc:              l1EthRpc,
-		L1Beacon:              l1BeaconApi,
-		RollupRpc:             l2RollupRpc,
-		RollupRpcTimeout:      DefaultRollupRpcTimeout,
-		RollupRpcBatchTimeout: DefaultRollupRpcBatchTimeout,
-		L2Rpcs:                []string{l2EthRpc},
-		GameFactoryAddress:    gameFactoryAddress,
-		MaxConcurrency:        uint(runtime.NumCPU()),
-		PollInterval:          DefaultPollInterval,
+		L1EthRpc:           l1EthRpc,
+		L1Beacon:           l1BeaconApi,
+		SupervisorRPC:      supervisorRpc,
+		L2Rpcs:             l2Rpcs,
+		GameFactoryAddress: gameFactoryAddress,
+		MaxConcurrency:     uint(runtime.NumCPU()),
+		PollInterval:       DefaultPollInterval,
 
-		TraceTypes: supportedTraceTypes,
+		GameTypes: supportedGameTypes,
 
 		MaxPendingTx: DefaultMaxPendingTx,
 
@@ -136,7 +151,87 @@ func NewConfig(
 		Datadir: datadir,
 
 		Cannon: vm.Config{
-			VmType:          types.TraceTypeCannon,
+			VmType:          gameTypes.CannonGameType,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultCannonSnapshotFreq,
+			InfoFreq:        DefaultCannonInfoFreq,
+			DebugInfo:       true,
+			BinarySnapshots: true,
+		},
+		CannonKona: vm.Config{
+			VmType:          gameTypes.CannonKonaGameType,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultCannonSnapshotFreq,
+			InfoFreq:        DefaultCannonInfoFreq,
+			DebugInfo:       true,
+			BinarySnapshots: true,
+		},
+		Asterisc: vm.Config{
+			VmType:          gameTypes.AsteriscGameType,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultAsteriscSnapshotFreq,
+			InfoFreq:        DefaultAsteriscInfoFreq,
+			BinarySnapshots: true,
+		},
+		AsteriscKona: vm.Config{
+			VmType:          gameTypes.AsteriscKonaGameType,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultAsteriscSnapshotFreq,
+			InfoFreq:        DefaultAsteriscInfoFreq,
+			BinarySnapshots: true,
+		},
+		GameWindow: DefaultGameWindow,
+	}
+}
+
+func NewConfig(
+	gameFactoryAddress common.Address,
+	l1EthRpc string,
+	l1BeaconApi string,
+	l2RollupRpc string,
+	l2EthRpc string,
+	datadir string,
+	supportedGameTypes ...gameTypes.GameType,
+) Config {
+	return Config{
+		L1EthRpc:           l1EthRpc,
+		L1Beacon:           l1BeaconApi,
+		RollupRpc:          l2RollupRpc,
+		L2Rpcs:             []string{l2EthRpc},
+		GameFactoryAddress: gameFactoryAddress,
+		MaxConcurrency:     uint(runtime.NumCPU()),
+		PollInterval:       DefaultPollInterval,
+
+		GameTypes: supportedGameTypes,
+
+		MaxPendingTx: DefaultMaxPendingTx,
+
+		TxMgrConfig:   txmgr.NewCLIConfig(l1EthRpc, txmgr.DefaultChallengerFlagValues),
+		MetricsConfig: opmetrics.DefaultCLIConfig(),
+		PprofConfig:   oppprof.DefaultCLIConfig(),
+
+		Datadir: datadir,
+
+		Cannon: vm.Config{
+			VmType:          gameTypes.CannonGameType,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             []string{l2EthRpc},
+			SnapshotFreq:    DefaultCannonSnapshotFreq,
+			InfoFreq:        DefaultCannonInfoFreq,
+			DebugInfo:       true,
+			BinarySnapshots: true,
+		},
+		CannonKona: vm.Config{
+			VmType:          gameTypes.CannonKonaGameType,
 			L1:              l1EthRpc,
 			L1Beacon:        l1BeaconApi,
 			L2s:             []string{l2EthRpc},
@@ -146,7 +241,7 @@ func NewConfig(
 			BinarySnapshots: true,
 		},
 		Asterisc: vm.Config{
-			VmType:          types.TraceTypeAsterisc,
+			VmType:          gameTypes.AsteriscGameType,
 			L1:              l1EthRpc,
 			L1Beacon:        l1BeaconApi,
 			L2s:             []string{l2EthRpc},
@@ -155,7 +250,7 @@ func NewConfig(
 			BinarySnapshots: true,
 		},
 		AsteriscKona: vm.Config{
-			VmType:          types.TraceTypeAsteriscKona,
+			VmType:          gameTypes.AsteriscKonaGameType,
 			L1:              l1EthRpc,
 			L1Beacon:        l1BeaconApi,
 			L2s:             []string{l2EthRpc},
@@ -167,8 +262,8 @@ func NewConfig(
 	}
 }
 
-func (c Config) TraceTypeEnabled(t types.TraceType) bool {
-	return slices.Contains(c.TraceTypes, t)
+func (c Config) GameTypeEnabled(t gameTypes.GameType) bool {
+	return slices.Contains(c.GameTypes, t)
 }
 
 func (c Config) Check() error {
@@ -184,8 +279,8 @@ func (c Config) Check() error {
 	if c.GameFactoryAddress == (common.Address{}) {
 		return ErrMissingGameFactoryAddress
 	}
-	if len(c.TraceTypes) == 0 {
-		return ErrMissingTraceType
+	if len(c.GameTypes) == 0 {
+		return ErrMissingGameType
 	}
 	if c.Datadir == "" {
 		return ErrMissingDatadir
@@ -193,7 +288,7 @@ func (c Config) Check() error {
 	if c.MaxConcurrency == 0 {
 		return ErrMaxConcurrencyZero
 	}
-	if c.TraceTypeEnabled(types.TraceTypeSuperCannon) || c.TraceTypeEnabled(types.TraceTypeSuperPermissioned) {
+	if c.GameTypeEnabled(gameTypes.SuperCannonGameType) || c.GameTypeEnabled(gameTypes.SuperPermissionedGameType) {
 		if c.SupervisorRPC == "" {
 			return ErrMissingSupervisorRpc
 		}
@@ -205,7 +300,7 @@ func (c Config) Check() error {
 			return err
 		}
 	}
-	if c.TraceTypeEnabled(types.TraceTypeCannon) || c.TraceTypeEnabled(types.TraceTypePermissioned) {
+	if c.GameTypeEnabled(gameTypes.CannonGameType) || c.GameTypeEnabled(gameTypes.PermissionedGameType) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}
@@ -213,7 +308,27 @@ func (c Config) Check() error {
 			return err
 		}
 	}
-	if c.TraceTypeEnabled(types.TraceTypeAsterisc) {
+	if c.GameTypeEnabled(gameTypes.SuperCannonKonaGameType) {
+		if c.SupervisorRPC == "" {
+			return ErrMissingSupervisorRpc
+		}
+
+		if len(c.CannonKona.Networks) == 0 && c.CannonKona.DepsetConfigPath == "" {
+			return ErrMissingDepsetConfig
+		}
+		if err := c.validateBaseCannonKonaOptions(); err != nil {
+			return err
+		}
+	}
+	if c.GameTypeEnabled(gameTypes.CannonKonaGameType) {
+		if c.RollupRpc == "" {
+			return ErrMissingRollupRpc
+		}
+		if err := c.validateBaseCannonKonaOptions(); err != nil {
+			return err
+		}
+	}
+	if c.GameTypeEnabled(gameTypes.AsteriscGameType) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}
@@ -230,24 +345,32 @@ func (c Config) Check() error {
 			return ErrMissingAsteriscInfoFreq
 		}
 	}
-	if c.TraceTypeEnabled(types.TraceTypeAsteriscKona) {
+	if c.GameTypeEnabled(gameTypes.AsteriscKonaGameType) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}
-		if err := c.AsteriscKona.Check(); err != nil {
-			return fmt.Errorf("asterisc kona: %w", err)
-		}
-		if c.AsteriscKonaAbsolutePreState == "" && c.AsteriscKonaAbsolutePreStateBaseURL == nil {
-			return ErrMissingAsteriscKonaAbsolutePreState
-		}
-		if c.AsteriscKona.SnapshotFreq == 0 {
-			return ErrMissingAsteriscKonaSnapshotFreq
-		}
-		if c.AsteriscKona.InfoFreq == 0 {
-			return ErrMissingAsteriscKonaInfoFreq
+		if err := c.validateBaseAsteriscKonaOptions(); err != nil {
+			return err
 		}
 	}
-	if c.TraceTypeEnabled(types.TraceTypeAlphabet) || c.TraceTypeEnabled(types.TraceTypeFast) {
+	if c.GameTypeEnabled(gameTypes.SuperAsteriscKonaGameType) {
+		if c.SupervisorRPC == "" {
+			return ErrMissingSupervisorRpc
+		}
+
+		if len(c.AsteriscKona.Networks) == 0 && c.AsteriscKona.DepsetConfigPath == "" {
+			return ErrMissingDepsetConfig
+		}
+		if err := c.validateBaseAsteriscKonaOptions(); err != nil {
+			return err
+		}
+	}
+	if c.GameTypeEnabled(gameTypes.OptimisticZKGameType) {
+		if c.RollupRpc == "" {
+			return ErrMissingRollupRpc
+		}
+	}
+	if c.GameTypeEnabled(gameTypes.AlphabetGameType) || c.GameTypeEnabled(gameTypes.FastGameType) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}
@@ -276,6 +399,38 @@ func (c Config) validateBaseCannonOptions() error {
 	}
 	if c.Cannon.InfoFreq == 0 {
 		return ErrMissingCannonInfoFreq
+	}
+	return nil
+}
+
+func (c Config) validateBaseCannonKonaOptions() error {
+	if err := c.CannonKona.Check(); err != nil {
+		return fmt.Errorf("cannon kona: %w", err)
+	}
+	if c.CannonKonaAbsolutePreState == "" && c.CannonKonaAbsolutePreStateBaseURL == nil {
+		return ErrMissingCannonKonaAbsolutePreState
+	}
+	if c.CannonKona.SnapshotFreq == 0 {
+		return ErrMissingCannonKonaSnapshotFreq
+	}
+	if c.CannonKona.InfoFreq == 0 {
+		return ErrMissingCannonKonaInfoFreq
+	}
+	return nil
+}
+
+func (c Config) validateBaseAsteriscKonaOptions() error {
+	if err := c.AsteriscKona.Check(); err != nil {
+		return fmt.Errorf("asterisc kona: %w", err)
+	}
+	if c.AsteriscKonaAbsolutePreState == "" && c.AsteriscKonaAbsolutePreStateBaseURL == nil {
+		return ErrMissingAsteriscKonaAbsolutePreState
+	}
+	if c.AsteriscKona.SnapshotFreq == 0 {
+		return ErrMissingAsteriscKonaSnapshotFreq
+	}
+	if c.AsteriscKona.InfoFreq == 0 {
+		return ErrMissingAsteriscKonaInfoFreq
 	}
 	return nil
 }

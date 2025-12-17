@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
@@ -26,6 +26,7 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/slices"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -39,6 +40,8 @@ type BatcherConfig struct {
 	// UseAltDA is true if the rollup config has a DA challenge address so the batcher
 	// will post inputs to the DA server and post commitments to blobs or calldata.
 	UseAltDA bool
+	// GenericDA is true if the DA server generates commitments for the input
+	GenericDA bool
 	// maximum number of concurrent blob put requests to the DA server
 	MaxConcurrentDARequests uint64
 
@@ -46,15 +49,13 @@ type BatcherConfig struct {
 	CheckRecentTxsDepth int
 
 	// For throttling DA. See CLIConfig in config.go for details on these parameters.
-	ThrottleThreshold, ThrottleTxSize          uint64
-	ThrottleBlockSize, ThrottleAlwaysBlockSize uint64
-
-	PreferLocalSafeL2 bool
+	ThrottleParams config.ThrottleParams
 }
 
 // BatcherService represents a full batch-submitter instance and its resources,
 // and conforms to the op-service CLI Lifecycle interface.
 type BatcherService struct {
+	closeApp         context.CancelCauseFunc
 	Log              log.Logger
 	Metrics          metrics.Metricer
 	L1Client         *ethclient.Client
@@ -86,15 +87,16 @@ type DriverSetupOption func(setup *DriverSetup)
 // BatcherServiceFromCLIConfig creates a new BatcherService from a CLIConfig.
 // The service components are fully started, except for the driver,
 // which will not be submitting batches (if it was configured to) until the Start part of the lifecycle.
-func BatcherServiceFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger, opts ...DriverSetupOption) (*BatcherService, error) {
+func BatcherServiceFromCLIConfig(ctx context.Context, closeApp context.CancelCauseFunc, version string, cfg *CLIConfig, log log.Logger, opts ...DriverSetupOption) (*BatcherService, error) {
 	var bs BatcherService
-	if err := bs.initFromCLIConfig(ctx, version, cfg, log, opts...); err != nil {
+	if err := bs.initFromCLIConfig(ctx, closeApp, version, cfg, log, opts...); err != nil {
 		return nil, errors.Join(err, bs.Stop(ctx)) // try to clean up our failed initialization attempt
 	}
 	return &bs, nil
 }
 
-func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger, opts ...DriverSetupOption) error {
+func (bs *BatcherService) initFromCLIConfig(ctx context.Context, closeApp context.CancelCauseFunc, version string, cfg *CLIConfig, log log.Logger, opts ...DriverSetupOption) error {
+	bs.closeApp = closeApp
 	bs.Version = version
 	bs.Log = log
 	bs.NotSubmittingOnStart = cfg.Stopped
@@ -108,18 +110,61 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.CheckRecentTxsDepth = cfg.CheckRecentTxsDepth
 	bs.WaitNodeSync = cfg.WaitNodeSync
 
-	bs.ThrottleThreshold = cfg.ThrottleThreshold
-	bs.ThrottleTxSize = cfg.ThrottleTxSize
-	bs.ThrottleBlockSize = cfg.ThrottleBlockSize
-	bs.ThrottleAlwaysBlockSize = cfg.ThrottleAlwaysBlockSize
+	bs.ThrottleParams = config.ThrottleParams{
+		LowerThreshold:      cfg.ThrottleConfig.LowerThreshold,
+		UpperThreshold:      cfg.ThrottleConfig.UpperThreshold,
+		TxSizeLowerLimit:    cfg.ThrottleConfig.TxSizeLowerLimit,
+		TxSizeUpperLimit:    cfg.ThrottleConfig.TxSizeUpperLimit,
+		BlockSizeLowerLimit: cfg.ThrottleConfig.BlockSizeLowerLimit,
+		BlockSizeUpperLimit: cfg.ThrottleConfig.BlockSizeUpperLimit,
+		ControllerType:      cfg.ThrottleConfig.ControllerType,
+		Endpoints:           slices.Union(cfg.L2EthRpc, cfg.ThrottleConfig.AdditionalEndpoints),
+	}
 
-	bs.PreferLocalSafeL2 = cfg.PreferLocalSafeL2
+	if bs.ThrottleParams.ControllerType == config.PIDControllerType {
+		bs.Log.Warn("EXPERIMENTAL PID CONTROLLER CONFIGURED")
+		bs.Log.Warn("PID controller is EXPERIMENTAL and should only be used by control theory experts. Improper configuration can lead to system instability or poor performance. Monitor system behavior closely when using PID control.")
 
-	optsFromRPC, err := bs.initRPCClients(ctx, cfg)
-	if err != nil {
+		// Validate PID configuration parameters
+		if cfg.ThrottleConfig.PidKp < 0 {
+			return fmt.Errorf("PID Kp gain must be non-negative, got %f", cfg.ThrottleConfig.PidKp)
+		}
+		if cfg.ThrottleConfig.PidKi < 0 {
+			return fmt.Errorf("PID Ki gain must be non-negative, got %f", cfg.ThrottleConfig.PidKi)
+		}
+		if cfg.ThrottleConfig.PidKd < 0 {
+			return fmt.Errorf("PID Kd gain must be non-negative, got %f", cfg.ThrottleConfig.PidKd)
+		}
+		if cfg.ThrottleConfig.PidIntegralMax <= 0 {
+			return fmt.Errorf("PID IntegralMax must be positive, got %f", cfg.ThrottleConfig.PidIntegralMax)
+		}
+		if cfg.ThrottleConfig.PidOutputMax <= 0 || cfg.ThrottleConfig.PidOutputMax > 1 {
+			return fmt.Errorf("PID OutputMax must be between 0 and 1, got %f", cfg.ThrottleConfig.PidOutputMax)
+		}
+		if cfg.ThrottleConfig.PidSampleTime <= 0 {
+			return fmt.Errorf("PID SampleTime must be positive, got %v", cfg.ThrottleConfig.PidSampleTime)
+		}
+
+		bs.ThrottleParams.PIDConfig = &config.PIDConfig{
+			Kp:          cfg.ThrottleConfig.PidKp,
+			Ki:          cfg.ThrottleConfig.PidKi,
+			Kd:          cfg.ThrottleConfig.PidKd,
+			IntegralMax: cfg.ThrottleConfig.PidIntegralMax,
+			OutputMax:   cfg.ThrottleConfig.PidOutputMax,
+			SampleTime:  cfg.ThrottleConfig.PidSampleTime,
+		}
+		bs.Log.Info("Initialized PID throttle controller",
+			"kp", bs.ThrottleParams.PIDConfig.Kp,
+			"ki", bs.ThrottleParams.PIDConfig.Ki,
+			"kd", bs.ThrottleParams.PIDConfig.Kd,
+			"integral_max", bs.ThrottleParams.PIDConfig.IntegralMax,
+			"output_max", bs.ThrottleParams.PIDConfig.OutputMax,
+			"sample_time", bs.ThrottleParams.PIDConfig.SampleTime)
+	}
+
+	if err := bs.initRPCClients(ctx, cfg); err != nil {
 		return err
 	}
-	opts = append(optsFromRPC, opts...)
 
 	if err := bs.initRollupConfig(ctx); err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)
@@ -151,50 +196,29 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	return nil
 }
 
-func (bs *BatcherService) initRPCClients(ctx context.Context, cfg *CLIConfig) (opts []DriverSetupOption, _ error) {
+func (bs *BatcherService) initRPCClients(ctx context.Context, cfg *CLIConfig) error {
 	l1Client, err := dial.DialEthClientWithTimeout(ctx, dial.DefaultDialTimeout, bs.Log, cfg.L1EthRpc)
 	if err != nil {
-		return nil, fmt.Errorf("failed to dial L1 RPC: %w", err)
+		return fmt.Errorf("failed to dial L1 RPC: %w", err)
 	}
 	bs.L1Client = l1Client
 
 	var endpointProvider dial.L2EndpointProvider
-	if strings.Contains(cfg.RollupRpc, ",") && strings.Contains(cfg.L2EthRpc, ",") {
-		rollupUrls := strings.Split(cfg.RollupRpc, ",")
-		ethUrls := strings.Split(cfg.L2EthRpc, ",")
-		provider, err := dial.NewActiveL2EndpointProvider(ctx, ethUrls, rollupUrls, cfg.ActiveSequencerCheckDuration, dial.DefaultDialTimeout, bs.Log)
+	if len(cfg.RollupRpc) > 1 && len(cfg.L2EthRpc) > 1 {
+		provider, err := dial.NewActiveL2EndpointProvider(ctx, cfg.L2EthRpc, cfg.RollupRpc, cfg.ActiveSequencerCheckDuration, dial.DefaultDialTimeout, bs.Log)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build active L2 endpoint provider: %w", err)
+			return fmt.Errorf("failed to build active L2 endpoint provider: %w", err)
 		}
 		endpointProvider = provider
-
-		// If we use an active endpoint provider AND throttling is enabled,
-		// we need to set up the callback to notify the driver any time we
-		// get a new active sequencer
-		if cfg.ThrottleThreshold > 0 {
-			activeSeqChanged := make(chan struct{}, 1)
-			opts = []DriverSetupOption{func(setup *DriverSetup) {
-				setup.ActiveSeqChanged = activeSeqChanged
-			}}
-			// callback to notify the driver of a new active sequencer
-			cb := func() {
-				select {
-				case activeSeqChanged <- struct{}{}:
-				default:
-				}
-			}
-			provider.SetOnActiveProviderChanged(cb)
-
-		}
 	} else {
-		endpointProvider, err = dial.NewStaticL2EndpointProvider(ctx, bs.Log, cfg.L2EthRpc, cfg.RollupRpc)
+		endpointProvider, err = dial.NewStaticL2EndpointProvider(ctx, bs.Log, cfg.L2EthRpc[0], cfg.RollupRpc[0])
 		if err != nil {
-			return nil, fmt.Errorf("failed to build static L2 endpoint provider: %w", err)
+			return fmt.Errorf("failed to build static L2 endpoint provider: %w", err)
 		}
 	}
 	bs.EndpointProvider = endpointProvider
 
-	return opts, nil
+	return nil
 }
 
 func (bs *BatcherService) initMetrics(cfg *CLIConfig) {
@@ -260,7 +284,11 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		return fmt.Errorf("unknown data availability type: %v", cfg.DataAvailabilityType)
 	}
 
-	if bs.UseAltDA && cc.MaxFrameSize > altda.MaxInputSize {
+	if bs.UseAltDA && cc.UseBlobs {
+		return fmt.Errorf("cannot use data availability type blobs or auto with Alt-DA")
+	}
+
+	if bs.UseAltDA && !bs.GenericDA && cc.MaxFrameSize > altda.MaxInputSize {
 		return fmt.Errorf("max frame size %d exceeds altDA max input size %d", cc.MaxFrameSize, altda.MaxInputSize)
 	}
 
@@ -359,6 +387,7 @@ func (bs *BatcherService) initMetricsServer(cfg *CLIConfig) error {
 
 func (bs *BatcherService) initDriver(opts ...DriverSetupOption) {
 	ds := DriverSetup{
+		closeApp:         bs.closeApp,
 		Log:              bs.Log,
 		Metr:             bs.Metrics,
 		RollupConfig:     bs.RollupConfig,
@@ -381,9 +410,10 @@ func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {
 		cfg.RPC.ListenPort,
 		bs.Version,
 		oprpc.WithLogger(bs.Log),
+		oprpc.WithRPCRecorder(bs.Metrics.NewRecorder("main")),
 	)
 	if cfg.RPC.EnableAdmin {
-		adminAPI := rpc.NewAdminAPI(bs.driver, bs.Metrics, bs.Log)
+		adminAPI := rpc.NewAdminAPI(bs.driver, bs.Log)
 		server.AddAPI(rpc.GetAdminAPI(adminAPI))
 		server.AddAPI(bs.TxManager.API())
 		bs.Log.Info("Admin RPC enabled")
@@ -403,6 +433,7 @@ func (bs *BatcherService) initAltDA(cfg *CLIConfig) error {
 	}
 	bs.AltDA = config.NewDAClient()
 	bs.UseAltDA = config.Enabled
+	bs.GenericDA = config.GenericDA
 	return nil
 }
 
@@ -452,7 +483,6 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 	}
 
 	if bs.rpcServer != nil {
-		// TODO(7685): the op-service RPC server is not built on top of op-service httputil Server, and has poor shutdown
 		if err := bs.rpcServer.Stop(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to stop RPC server: %w", err))
 		}
@@ -506,4 +536,11 @@ func (bs *BatcherService) ThrottlingTestDriver() *TestBatchSubmitter {
 	}
 	tbs.BatchSubmitter.channelMgr.metr = new(metrics.ThrottlingMetrics)
 	return tbs
+}
+
+func (bs *BatcherService) HTTPEndpoint() string {
+	if bs.rpcServer == nil {
+		return ""
+	}
+	return "http://" + bs.rpcServer.Endpoint()
 }

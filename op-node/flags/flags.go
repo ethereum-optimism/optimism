@@ -9,10 +9,14 @@ import (
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
@@ -67,19 +71,6 @@ var (
 		Destination: new(string),
 		Category:    RollupCategory,
 	}
-	L2RpcTimeout = &cli.DurationFlag{
-		Name:    "l2.rpc-timeout",
-		Usage:   "Timeout for L2 RPC requests",
-		EnvVars: prefixEnvVars("L2_RPC_TIMEOUT"),
-		Value:   time.Second * 10,
-	}
-	L2RpcBatchTimeout = &cli.DurationFlag{
-		Name:    "l2.rpc-batch-timeout",
-		Usage:   "Timeout for L2 RPC batch requests",
-		EnvVars: prefixEnvVars("L2_RPC_BATCH_TIMEOUT"),
-		Value:   time.Second * 20,
-	}
-	/* Optional Flags */
 	BeaconAddr = &cli.StringFlag{
 		Name:     "l1.beacon",
 		Usage:    "Address of L1 Beacon-node HTTP endpoint to use.",
@@ -119,63 +110,30 @@ var (
 		Category: L1RPCCategory,
 	}
 	SyncModeFlag = &cli.GenericFlag{
-		Name:    "syncmode",
-		Usage:   fmt.Sprintf("Blockchain sync mode (options: %s)", openum.EnumString(sync.ModeStrings)),
-		EnvVars: prefixEnvVars("SYNCMODE"),
-		Value: func() *sync.Mode {
-			out := sync.CLSync
-			return &out
-		}(),
+		Name:     "syncmode",
+		Usage:    fmt.Sprintf("Blockchain sync mode (options: %s)", openum.EnumString(sync.ModeStrings)),
+		EnvVars:  prefixEnvVars("SYNCMODE"),
+		Value:    ptr.New(sync.CLSync),
 		Category: RollupCategory,
 	}
-	RPCListenAddr = &cli.StringFlag{
-		Name:     "rpc.addr",
-		Usage:    "RPC listening address",
-		EnvVars:  prefixEnvVars("RPC_ADDR"),
-		Value:    "127.0.0.1",
-		Category: OperationsCategory,
-	}
-	RPCListenPort = &cli.IntFlag{
-		Name:     "rpc.port",
-		Usage:    "RPC listening port",
-		EnvVars:  prefixEnvVars("RPC_PORT"),
-		Value:    9545, // Note: op-service/rpc/cli.go uses 8545 as the default.
-		Category: OperationsCategory,
-	}
-	RPCListenReadTimeout = &cli.DurationFlag{
-		Name:    "rpc.read-timeout",
-		Usage:   "RPC read timeout",
-		EnvVars: prefixEnvVars("RPC_READ_TIMEOUT"),
-		Value:   time.Second * 30,
-	}
-	RPCListenReadHeaderTimeout = &cli.DurationFlag{
-		Name:    "rpc.read-header-timeout",
-		Usage:   "RPC read header timeout",
-		EnvVars: prefixEnvVars("RPC_READ_HEADER_TIMEOUT"),
-		Value:   time.Second * 30,
-	}
-	RPCListenWriteTimeout = &cli.DurationFlag{
-		Name:    "rpc.write-timeout",
-		Usage:   "RPC write timeout",
-		EnvVars: prefixEnvVars("RPC_WRITE_TIMEOUT"),
-		Value:   time.Second * 30,
-	}
-	RPCListenIdleTimeout = &cli.DurationFlag{
-		Name:    "rpc.idle-timeout",
-		Usage:   "RPC idle timeout",
-		EnvVars: prefixEnvVars("RPC_IDLE_TIMEOUT"),
-		Value:   time.Second * 120,
-	}
-	RPCEnableAdmin = &cli.BoolFlag{
-		Name:     "rpc.enable-admin",
-		Usage:    "Enable the admin API (experimental)",
-		EnvVars:  prefixEnvVars("RPC_ENABLE_ADMIN"),
-		Category: OperationsCategory,
+	SyncModeReqRespFlag = &cli.BoolFlag{
+		Name:     "syncmode.req-resp",
+		Required: false,
+		Value:    true,
+		EnvVars:  prefixEnvVars("SYNCMODE_REQ_RESP"),
+		Category: RollupCategory,
 	}
 	RPCAdminPersistence = &cli.StringFlag{
 		Name:     "rpc.admin-state",
 		Usage:    "File path used to persist state changes made via the admin API so they persist across restarts. Disabled if not set.",
 		EnvVars:  prefixEnvVars("RPC_ADMIN_STATE"),
+		Category: OperationsCategory,
+	}
+	FetchWithdrawalRootFromState = &cli.BoolFlag{
+		Name:     "fetch-withdrawal-root-from-state",
+		Usage:    "Read withdrawal_storage_root (aka message passer storage root) from state trie (via execution layer) instead of the block header. Restores pre-Isthmus behavior, requires an archive EL client.",
+		Required: false,
+		EnvVars:  prefixEnvVars("FETCH_WITHDRAWAL_ROOT_FROM_STATE"),
 		Category: OperationsCategory,
 	}
 	L1TrustRPC = &cli.BoolFlag{
@@ -219,7 +177,7 @@ var (
 	L1CacheSize = &cli.UintFlag{
 		Name: "l1.cache-size",
 		Usage: "Cache size for blocks, receipts and transactions. " +
-			"If this flag is set to 0, 2/3 of the sequencing window size is used (usually 2400). " +
+			"If this flag is set to 0, 3/2 of the sequencing window size is used (usually 2400). " +
 			"The default value of 900 (~3h of L1 blocks) is good for (high-throughput) networks that see frequent safe head increments. " +
 			"On (low-throughput) networks with infrequent safe head increments, it is recommended to set this value to 0, " +
 			"or a value that well covers the typical span between safe head increments. " +
@@ -234,6 +192,12 @@ var (
 		EnvVars:  prefixEnvVars("L1_HTTP_POLL_INTERVAL"),
 		Value:    time.Second * 12,
 		Category: L1RPCCategory,
+	}
+	L1ChainConfig = &cli.PathFlag{
+		Name:     "rollup.l1-chain-config",
+		Usage:    "Path to .json file with the chain configuration for the L1, either in the direct format or genesis.json format (i.e. embedded under the .config property). Not necessary / will be ignored if using Ethereum mainnet or Sepolia as an L1.",
+		EnvVars:  prefixEnvVars("ROLLUP_L1_CHAIN_CONFIG"),
+		Category: RollupCategory,
 	}
 	L2EngineKind = &cli.GenericFlag{
 		Name: "l2.enginekind",
@@ -250,6 +214,20 @@ var (
 		Name:     "l2.engine-rpc-timeout",
 		Usage:    "L2 engine client rpc timeout",
 		EnvVars:  prefixEnvVars("L2_ENGINE_RPC_TIMEOUT"),
+		Value:    time.Second * 10,
+		Category: RollupCategory,
+	}
+	L2FollowSource = &cli.StringFlag{
+		Name:     "l2.follow.source",
+		Usage:    "Address of L2 CL RPC HTTP endpoint to follow source",
+		EnvVars:  prefixEnvVars("L2_FOLLOW_SOURCE"),
+		Category: RollupCategory,
+		Required: false,
+	}
+	L2FollowSourceRpcTimeout = &cli.DurationFlag{
+		Name:     "l2.follow.source.rpc-timeout",
+		Usage:    "L2 follow source client rpc timeout",
+		EnvVars:  prefixEnvVars("L2_FOLLOW_SOURCE_RPC_TIMEOUT"),
 		Value:    time.Second * 10,
 		Category: RollupCategory,
 	}
@@ -286,6 +264,25 @@ var (
 		Value:    4,
 		Category: SequencerCategory,
 	}
+	SequencerRecoverMode = &cli.BoolFlag{
+		Name:     "sequencer.recover",
+		Usage:    "Forces the sequencer to strictly prepare the next L1 origin and create empty L2 blocks",
+		EnvVars:  prefixEnvVars("SEQUENCER_RECOVER"),
+		Value:    false,
+		Category: SequencerCategory,
+	}
+	FinalityLookbackFlag = &cli.Uint64Flag{
+		Name:     "finality.lookback",
+		Usage:    "Number of L1 blocks to look back for finality verification. Uses default calculation if 0 (considers alt-DA challenge/resolve windows if applicable).",
+		EnvVars:  prefixEnvVars("FINALITY_LOOKBACK"),
+		Category: RollupCategory,
+	}
+	FinalityDelayFlag = &cli.Uint64Flag{
+		Name:     "finality.delay",
+		Usage:    "Number of L1 blocks to traverse before trying to finalize L2 blocks again. Uses default (64) if 0.",
+		EnvVars:  prefixEnvVars("FINALITY_DELAY"),
+		Category: RollupCategory,
+	}
 	L1EpochPollIntervalFlag = &cli.DurationFlag{
 		Name:     "l1.epoch-poll-interval",
 		Usage:    "Poll interval for retrieving new L1 epoch updates such as safe and finalized block changes. Disabled if 0 or negative.",
@@ -299,26 +296,6 @@ var (
 		EnvVars:  prefixEnvVars("L1_RUNTIME_CONFIG_RELOAD_INTERVAL"),
 		Value:    time.Minute * 10,
 		Category: L1RPCCategory,
-	}
-	MetricsEnabledFlag = &cli.BoolFlag{
-		Name:     "metrics.enabled",
-		Usage:    "Enable the metrics server",
-		EnvVars:  prefixEnvVars("METRICS_ENABLED"),
-		Category: OperationsCategory,
-	}
-	MetricsAddrFlag = &cli.StringFlag{
-		Name:     "metrics.addr",
-		Usage:    "Metrics listening address",
-		Value:    "0.0.0.0", // TODO: Switch to 127.0.0.1
-		EnvVars:  prefixEnvVars("METRICS_ADDR"),
-		Category: OperationsCategory,
-	}
-	MetricsPortFlag = &cli.IntFlag{
-		Name:     "metrics.port",
-		Usage:    "Metrics listening port",
-		Value:    7300,
-		EnvVars:  prefixEnvVars("METRICS_PORT"),
-		Category: OperationsCategory,
 	}
 	SnapshotLog = &cli.StringFlag{
 		Name:     "snapshotlog.file",
@@ -423,19 +400,13 @@ var (
 		Category: SequencerCategory,
 	}
 	/* Interop flags, experimental. */
-	InteropSupervisor = &cli.StringFlag{
-		Name: "interop.supervisor",
-		Usage: "Interop standard-mode: RPC address of interop supervisor to use for cross-chain safety verification." +
-			"Applies only to Interop-enabled networks.",
-		EnvVars:  prefixEnvVars("INTEROP_SUPERVISOR"),
-		Category: InteropCategory,
-	}
 	InteropRPCAddr = &cli.StringFlag{
 		Name: "interop.rpc.addr",
-		Usage: "Interop Websocket-only RPC listening address, to serve supervisor syncing." +
-			"Applies only to Interop-enabled networks. Optional, alternative to follow-mode.",
+		Usage: "Interop Websocket-only RPC listening address, for supervisor service to manage syncing of the op-node." +
+			"Applies only to Interop-enabled networks. Optional, disabled if left empty. " +
+			"Do not enable if you do not run a supervisor service.",
 		EnvVars:  prefixEnvVars("INTEROP_RPC_ADDR"),
-		Value:    "127.0.0.1",
+		Value:    "",
 		Category: InteropCategory,
 	}
 	InteropRPCPort = &cli.IntFlag{
@@ -456,6 +427,13 @@ var (
 		Destination: new(string),
 		Category:    InteropCategory,
 	}
+	InteropDependencySet = &cli.PathFlag{
+		Name:      "interop.dependency-set",
+		Usage:     "Dependency-set configuration, point at JSON file.",
+		EnvVars:   prefixEnvVars("INTEROP_DEPENDENCY_SET"),
+		TakesFile: true,
+		Category:  InteropCategory,
+	}
 
 	IgnoreMissingPectraBlobSchedule = &cli.BoolFlag{
 		Name: "ignore-missing-pectra-blob-schedule",
@@ -465,6 +443,14 @@ var (
 		EnvVars:  prefixEnvVars("IGNORE_MISSING_PECTRA_BLOB_SCHEDULE"),
 		Category: RollupCategory,
 		Hidden:   true,
+	}
+
+	ExperimentalOPStackAPI = &cli.BoolFlag{
+		Name:     "experimental.sequencer-api",
+		Usage:    "Enables experimental test sequencer RPC functionality",
+		Required: false,
+		EnvVars:  prefixEnvVars("EXPERIMENTAL_SEQUENCER_API"),
+		Category: MiscCategory,
 	}
 )
 
@@ -481,12 +467,8 @@ var optionalFlags = []cli.Flag{
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
 	SyncModeFlag,
-	RPCListenAddr,
-	RPCListenPort,
-	RPCListenReadTimeout,
-	RPCListenReadHeaderTimeout,
-	RPCListenWriteTimeout,
-	RPCListenIdleTimeout,
+	SyncModeReqRespFlag,
+	FetchWithdrawalRootFromState,
 	L1TrustRPC,
 	L1RPCProviderKind,
 	L1RPCRateLimit,
@@ -494,20 +476,17 @@ var optionalFlags = []cli.Flag{
 	L1RPCMaxConcurrency,
 	L1HTTPPollInterval,
 	L1CacheSize,
-	L2RpcTimeout,
-	L2RpcBatchTimeout,
 	VerifierL1Confs,
 	SequencerEnabledFlag,
 	SequencerStoppedFlag,
 	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
+	SequencerRecoverMode,
+	FinalityLookbackFlag,
+	FinalityDelayFlag,
 	L1EpochPollIntervalFlag,
 	RuntimeConfigReloadIntervalFlag,
-	RPCEnableAdmin,
 	RPCAdminPersistence,
-	MetricsEnabledFlag,
-	MetricsAddrFlag,
-	MetricsPortFlag,
 	SnapshotLog,
 	HeartbeatEnabledFlag,
 	HeartbeatMonikerFlag,
@@ -518,13 +497,16 @@ var optionalFlags = []cli.Flag{
 	ConductorRpcFlag,
 	ConductorRpcTimeoutFlag,
 	SafeDBPath,
+	L1ChainConfig,
 	L2EngineKind,
 	L2EngineRpcTimeout,
-	InteropSupervisor,
+	L2FollowSource,
 	InteropRPCAddr,
 	InteropRPCPort,
 	InteropJWTSecret,
+	InteropDependencySet,
 	IgnoreMissingPectraBlobSchedule,
+	ExperimentalOPStackAPI,
 }
 
 var DeprecatedFlags = []cli.Flag{
@@ -539,18 +521,26 @@ var DeprecatedFlags = []cli.Flag{
 // Flags contains the list of configuration options available to the binary.
 var Flags []cli.Flag
 
+var rpcDefaults = oprpc.CLIConfig{
+	ListenAddr:  "0.0.0.0", // TODO(#16487): Switch to 127.0.0.1
+	ListenPort:  9545,      // op-node defaults to a different port than ethereum EL (8545)
+	EnableAdmin: false,
+}
+
 func init() {
 	DeprecatedFlags = append(DeprecatedFlags, deprecatedP2PFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, P2PFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
+	optionalFlags = append(optionalFlags, opmetrics.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
+	optionalFlags = append(optionalFlags, oprpc.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory, rpcDefaults)...)
 	optionalFlags = append(optionalFlags, DeprecatedFlags...)
 	optionalFlags = append(optionalFlags, opflags.CLIFlags(EnvVarPrefix, RollupCategory)...)
 	optionalFlags = append(optionalFlags, altda.CLIFlags(EnvVarPrefix, AltDACategory)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }
 
-func CheckRequired(ctx *cli.Context) error {
+func CheckRequired(ctx cliiface.Context) error {
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {
 			return fmt.Errorf("flag %s is required", f.Names()[0])

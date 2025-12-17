@@ -10,7 +10,6 @@ There are five parts to the versioning and release process:
 - [Monorepo Contracts Release Versioning](#monorepo-contracts-release-versioning): The versioning scheme for monorepo smart contract releases.
 - [Release Process](#release-process): The process for deploying contracts, creating a governance proposal, and the required associated releases.
   - [Additional Release Candidates](#additional-release-candidates): How to handle additional release candidates after an initial `op-contracts/vX.Y.Z-rc.1` release.
-  - [Merging Back to Develop After Governance Approval](#merging-back-to-develop-after-governance-approval): Explains how to choose the resulting contract versions when merging back into `develop`.
 
 > [!NOTE]
 > The rules described in this document must be enforced manually.
@@ -65,7 +64,10 @@ Individual contract versioning could be deprecated when the following conditions
 
 Versioning for monorepo releases works as follows:
 
-- Monorepo releases continue to follow the `op-contracts/vX.Y.Z` naming convention.
+- Monorepo releases follow the `op-contracts/vX.Y.Z` naming convention for core protocol contracts.
+- Additional release namespaces exist for specialized contract categories:
+  - `op-safe-contracts/vX.Y.Z`: Safe multisig extensions (SaferSafes, LivenessModule2, TimelockGuard, DeputyPauseModule, etc.)
+- Each namespace maintains its own independent semver versioning.
 - The version used for the next release is determined by the highest version bump of any individual contract in the release.
   - Example 1: The monorepo is at `op-contracts/v1.5.0`. Clarifying comments are made in contracts, so all contracts only bump the patch version. The next monorepo release will be `op-contracts/v1.5.1`.
   - Example 2: The monorepo is at `op-contracts/v1.5.1`. Various tech debt and code is cleaned up in contracts, but no features are added, so at most, contracts bumped the minor version. The next monorepo release will be `op-contracts/v1.6.0`.
@@ -77,75 +79,16 @@ Versioning for monorepo releases works as follows:
 
 ## Optimism Contracts Manager (OPCM) Versioning
 
-The [OPCM](https://github.com/ethereum-optimism/optimism/blob/main/packages/contracts-bedrock/src/L1/OPContractsManager.sol) is the contract that manages the deployment of all contracts on L1.
+The [OPCM](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OPContractsManager.sol) is the contract that manages the deployment of all contracts on L1.
 
 The `OPCM` is the source of truth for the contracts that belong in a release, available as on-chain addresses by querying [the `getImplementations` function](https://github.com/ethereum-optimism/optimism/blob/4c8764f0453e141555846d8c9dd2af9edbc1d014/packages/contracts-bedrock/src/L1/OPContractsManager.sol#L1061).
 
-When developing a new release of the contracts, [the `isRC` flag](https://github.com/ethereum-optimism/optimism/blob/4c8764f0453e141555846d8c9dd2af9edbc1d014/packages/contracts-bedrock/src/L1/OPContractsManager.sol#L181) must be set to `true` to indicate that the OPCM refers to a release candidate. The flag [is automatically set to `false`](https://github.com/ethereum-optimism/optimism/blob/4c8764f0453e141555846d8c9dd2af9edbc1d014/packages/contracts-bedrock/src/L1/OPContractsManager.sol#L453) the first time the OPCM `upgrade` method is invoked from governance's Upgrade Controller Safe. This Safe is a 2/2 held by the Security Council and Optimism Foundation.
+### OPCM Semver Rules
 
-## Release Process
+OPCM follows a specific versioning scheme that differs from individual contract versioning:
 
-When a release is proposed to governance, the proposal includes a commit hash, and often the
-contracts from that commit hash are already deployed to mainnet with their addresses included
-in the proposal.
-For example, the [Fault Proofs governance proposal](https://gov.optimism.io/t/upgrade-proposal-fault-proofs/8161) provides specific addresses that will be used.
-
-To accommodate this, once contract changes are ready for governance approval, the release flow is:
-
-1. Go to https://github.com/ethereum-optimism/optimism/releases/new
-2. Enter the release title as `op-contracts/vX.Y.Z-rc.1`
-3. In the "choose a tag" dropdown, enter the same `op-contracts/vX.Y.Z-rc.1` and click the "Create new tag" option that shows up
-4. Populate the release notes.
-5. Check "set as pre-release" since it's not yet governance approved
-6. Uncheck "Set as the latest release" and "Create a discussion for this release".
-7. Click publish release.
-8. After governance vote passes, edit the relase to uncheck "set as pre-release", and remove the `-rc.1` tag.
-
-Although the tools exist to apply a [code freeze](./code-freezes.md) to specific contracts, this is
-discouraged. If a change is required to a release candidate after it has been tagged, the
-[Additional Release Candidates](#additional-release-candidates) for more information on this flow.
-
-### Additional Release Candidates
-
-Sometimes additional release candidate versions are needed, in that case, the follow process should be used.
-This process is designed to (1) ensures fixes are made on both the release and the trunk branch
- and (2) avoids the need to stop development efforts on the trunk branch.
-
-
-1. Make the fixes on `develop`. *For whatever the normal semver level increment should be, bump that value by 5.*
-2. Create a new release branch, named `proposal/op-contracts/X.Y.Z-rc.n+1` off of the rc tag.
-3. Cherry pick the fixes from `develop` into that branch. *Bump the semvers as normal, ensuring that the resulting version is less than the one on `develop`.
-4. After merging the changes into the new release branch, tag the resulting commit on the proposal branch as `op-contracts/vX.Y.Z-rc.2`.
-   Create a new release for this tag per the instructions above.
-
-Note: The reason for the larger semver increment on `develop` is to prevent a collision, wherein a
-contract could have the same semver, but different source/bytecode on the two branches.
-
-For example: if the current version of a contract is `1.1.1` and a minor bump is required (most common for a bug fix),
-   then the fixed version should become `1.8.0` on `develop`. Then on the release branch is should become
-   `1.2.0`.
-
-### Merging Back to Develop After Governance Approval
-
-A release will change a set of contracts, and those contracts may have changed on `develop` since the release candidate was created.
-
-If there have been no changes to a contract since the release candidate, the version of that contract stays at `X.Y.Z` and just has the `-rc.n` removed.
-For example, if the release candidate is `1.2.3-rc.1`, the resulting version on `develop` will be `1.2.3`.
-
-If there have been changes to a contract, the `X.Y.Z` will stay the same as whatever is the latest version on `develop`, with the `-beta.n` qualifier incremented.
-
-For example, given that ContractA is `1.2.3-rc.1` on develop, then the initial sequence of events is:
-
-- We create the release branch, and on that branch remove the `-rc.1`, giving a final ContractA version on that branch of `1.2.3`
-- Governance proposal is posted, pointing to the corresponding monorepo tag.
-- Governance approves the release.
-- Open a PR to merge the final versions of the contracts (ContractA) back into develop.
-
-Now there are two scenarios for the PR that merges the release branch back into develop:
-
-1. On develop, no changes have been made to ContractA. The PR therefore changes ContractA's version on develop from `1.2.3-rc.1` to `1.2.3`, and no other changes to ContractA occur.
-2. On develop, breaking changes have been made to ContractA for a new feature, and it's currently versioned as `2.0.0-beta.3`. The PR should bump the version to `2.0.0-beta.4` if it changes the source code of ContractA.
-    - In practice, this one unlikely to occur when using inheritance for feature development, as specified in [Smart Contract Feature Development](https://github.com/ethereum-optimism/design-docs/blob/main/smart-contract-feature-development.md) architecture. It's more likely that (1) is the case, and we merge the version change into the base contract.
-
-This flow also provides a dedicated branch for each release, making it easy to deploy a patch or bug fix, regardless of other changes that may have occurred on develop since the release.
-
+- **Major version bump**: Used when there is a new required sequential upgrade. Each new upgrade in the upgrade sequence (e.g., U16, U17, U18) requires a major version bump to the OPCM.
+- **Minor version bump**: Used when an OPCM is replacing an existing OPCM for the same upgrade. This applies when:
+  - Fixing bugs in an OPCM for a given upgrade (e.g., fixes for the Superchain Config bug)
+  - Releasing an updated OPCM variant for the same upgrade (e.g., U16a replacing U16)
+- **Patch version bump**: Used during active development on the `develop` branch. This is the expected behavior for day-to-day development work.

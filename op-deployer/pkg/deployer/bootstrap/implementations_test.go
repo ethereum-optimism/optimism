@@ -15,25 +15,26 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
 
-func TestImplementations(t *testing.T) {
-	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+var networks = []string{"mainnet", "sepolia"}
 
+func TestImplementations(t *testing.T) {
 	for _, network := range networks {
 		t.Run(network, func(t *testing.T) {
 			envVar := strings.ToUpper(network) + "_RPC_URL"
 			rpcURL := os.Getenv(envVar)
 			require.NotEmpty(t, rpcURL, "must specify RPC url via %s env var", envVar)
-			testImplementations(t, rpcURL, testCacheDir)
+			testImplementations(t, rpcURL)
 		})
 	}
 }
 
-func testImplementations(t *testing.T, forkRPCURL string, cacheDir string) {
-	t.Parallel()
+func testImplementations(t *testing.T, forkRPCURL string) {
+	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
 	if forkRPCURL == "" {
 		t.Skip("forkRPCURL not set")
@@ -70,25 +71,34 @@ func testImplementations(t *testing.T, forkRPCURL string, cacheDir string) {
 			PrivateKey:                      "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
 			ArtifactsLocator:                loc,
 			Logger:                          lgr,
-			L1ContractsRelease:              "dev",
 			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
 			MinProposalSizeBytes:            standard.MinProposalSizeBytes,
 			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
 			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-			MIPSVersion:                     1,
+			MIPSVersion:                     int(standard.MIPSVersion),
+			DevFeatureBitmap:                common.Hash{},
 			SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
 			ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
-			UpgradeController:               proxyAdminOwner,
-			UseInterop:                      false,
-			CacheDir:                        cacheDir,
+			SuperchainProxyAdmin:            proxyAdminOwner,
+			L1ProxyAdminOwner:               proxyAdminOwner,
+			Challenger:                      common.Address{'C'},
+			CacheDir:                        testCacheDir,
+			FaultGameMaxGameDepth:           standard.DisputeMaxGameDepth,
+			FaultGameSplitDepth:             standard.DisputeSplitDepth,
+			FaultGameClockExtension:         standard.DisputeClockExtension,
+			FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
 		})
 		require.NoError(t, err)
 		return out
 	}
 
 	// Assert that addresses stay the same between runs
+	t.Log("Deploying first implementation contracts bundle")
 	deployment1 := deploy()
+	require.NotEqual(t, common.Address{}, deployment1.Opcm, "Opcm address should be set")
+	t.Log("Deploying second implementation contracts bundle")
 	deployment2 := deploy()
+	require.NotEqual(t, common.Address{}, deployment2.Opcm, "Opcm address should be set")
 	require.Equal(t, deployment1, deployment2)
 }

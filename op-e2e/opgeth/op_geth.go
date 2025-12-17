@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
@@ -57,11 +56,11 @@ type OpGeth struct {
 func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*OpGeth, error) {
 	logger := testlog.Logger(t, log.LevelCrit)
 
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs(config.AllocTypeStandard), config.L1Deployments(config.AllocTypeStandard))
+	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs(config.DefaultAllocType), config.L1Deployments(config.DefaultAllocType))
 	require.NoError(t, err)
 	l1Block := l1Genesis.ToBlock()
 	allocsMode := e2eutils.GetL2AllocsMode(cfg.DeployConfig, l1Block.Time())
-	l2Allocs := config.L2Allocs(config.AllocTypeStandard, allocsMode)
+	l2Allocs := config.L2Allocs(config.DefaultAllocType, allocsMode)
 	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, eth.BlockRefFromHeader(l1Block.Header()))
 	require.NoError(t, err)
 	l2GenesisBlock := l2Genesis.ToBlock()
@@ -80,22 +79,10 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 	}
 
 	var node services.EthInstance
-	if cfg.ExternalL2Shim == "" {
-		gethNode, err := geth.InitL2("l2", l2Genesis, cfg.JWTFilePath)
-		require.NoError(t, err)
-		require.NoError(t, gethNode.Node.Start())
-		node = gethNode
-	} else {
-		safeName := strings.ReplaceAll(t.Name(), "/", "_")
-		externalNode := (&e2esys.ExternalRunner{
-			Name:     fmt.Sprintf("%s-l2", safeName),
-			BinPath:  cfg.ExternalL2Shim,
-			Genesis:  l2Genesis,
-			JWTPath:  cfg.JWTFilePath,
-			GasLimit: uint64(cfg.DeployConfig.L2GenesisBlockGasLimit),
-		}).Run(t)
-		node = externalNode
-	}
+	gethNode, err := geth.InitL2("l2", l2Genesis, cfg.JWTFilePath)
+	require.NoError(t, err)
+	require.NoError(t, gethNode.Node.Start())
+	node = gethNode
 
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.JWTSecret))
 	l2Node, err := client.NewRPC(ctx, logger, node.AuthRPC().RPC(), client.WithGethRPCOptions(auth))
@@ -215,7 +202,7 @@ func (d *OpGeth) StartBlockBuilding(ctx context.Context, attrs *eth.PayloadAttri
 // CreatePayloadAttributes creates a valid PayloadAttributes containing a L1Info deposit transaction followed by the supplied transactions.
 func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.PayloadAttributes, error) {
 	timestamp := d.L2Head.Timestamp + 2
-	l1Info, err := derive.L1InfoDepositBytes(d.l2Engine.RollupConfig(), d.SystemConfig, d.sequenceNum, d.L1Head, uint64(timestamp))
+	l1Info, err := derive.L1InfoDepositBytes(d.l2Engine.RollupConfig(), d.L1ChainConfig, d.SystemConfig, d.sequenceNum, d.L1Head, uint64(timestamp))
 	if err != nil {
 		return nil, err
 	}
@@ -251,6 +238,10 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 		GasLimit:              (*eth.Uint64Quantity)(&d.SystemConfig.GasLimit),
 		Withdrawals:           withdrawals,
 		ParentBeaconBlockRoot: parentBeaconBlockRoot,
+	}
+	if d.L2ChainConfig.IsJovian(uint64(timestamp)) {
+		attrs.MinBaseFee = new(uint64)
+		*attrs.MinBaseFee = d.SystemConfig.MinBaseFee
 	}
 	if d.L2ChainConfig.IsHolocene(uint64(timestamp)) {
 		attrs.EIP1559Params = new(eth.Bytes8)

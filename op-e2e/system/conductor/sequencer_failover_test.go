@@ -106,6 +106,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 			sys.RollupEndpoint(Sequencer3Name).RPC(),
 			sys.NodeEndpoint(Sequencer3Name).RPC(),
 			false,
+			true,
 			*sys.RollupConfig,
 		)
 	})

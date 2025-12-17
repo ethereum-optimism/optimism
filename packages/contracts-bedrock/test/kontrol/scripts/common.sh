@@ -1,7 +1,7 @@
 #!/bin/bash
 # Common functions and variables for run-kontrol.sh and make-summary-deployment.sh
 
-notif() { echo "== $0: $*" >&2 ; }
+notif() { echo "== $0: $*" >&2; }
 
 # usage function for the run-kontrol.sh script
 usage_run_kontrol() {
@@ -34,7 +34,7 @@ usage_make_summary() {
 }
 
 # Set Run Directory <root>/packages/contracts-bedrock
-WORKSPACE_DIR=$( cd "$SCRIPT_HOME/../../.." >/dev/null 2>&1 && pwd )
+WORKSPACE_DIR=$(cd "$SCRIPT_HOME/../../.." > /dev/null 2>&1 && pwd)
 pushd "$WORKSPACE_DIR" > /dev/null || exit
 
 # Variables
@@ -60,7 +60,6 @@ usage() {
     usage_make_summary
   fi
 }
-
 
 # Argument Parsing
 # The logic behind argument parsing is the following (in order):
@@ -141,15 +140,15 @@ conditionally_start_docker() {
   if [ "$LOCAL" == false ]; then
     # Is old docker container running?
     if [ "$(docker ps -q -f name="$CONTAINER_NAME")" ]; then
-        # Stop old docker container
-        notif "Stopping old docker container"
-        clean_docker
+      # Stop old docker container
+      notif "Stopping old docker container"
+      clean_docker
     fi
     start_docker
   fi
 }
 
-start_docker () {
+start_docker() {
   docker run \
     --name "$CONTAINER_NAME" \
     --rm \
@@ -180,7 +179,7 @@ copy_to_docker() {
   fi
 }
 
-clean_docker(){
+clean_docker() {
   if [ "$LOCAL" = false ]; then
     notif "Cleaning Docker Container"
     docker stop "$CONTAINER_NAME" > /dev/null 2>&1 || true
@@ -191,11 +190,11 @@ clean_docker(){
   fi
 }
 
-docker_exec () {
+docker_exec() {
   docker exec --user user --workdir /home/user/workspace $CONTAINER_NAME "${@}"
 }
 
-run () {
+run() {
   if [ "$LOCAL" = true ]; then
     notif "Running local"
     # shellcheck disable=SC2086

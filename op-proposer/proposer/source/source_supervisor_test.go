@@ -51,6 +51,13 @@ func TestSupervisorSource_SyncStatus(t *testing.T) {
 		require.ErrorIs(t, err, expected)
 	})
 
+	t.Run("Single-MinSyncedL1Nil", func(t *testing.T) {
+		client := &mockSupervisorClient{status: eth.SupervisorSyncStatus{}}
+		source := NewSupervisorProposalSource(testlog.Logger(t, log.LvlInfo), client)
+		_, err := source.SyncStatus(context.Background())
+		require.ErrorIs(t, err, ErrNilL1View)
+	})
+
 	t.Run("Multi-ReturnLowestMinSyncedL1", func(t *testing.T) {
 		response1 := eth.SupervisorSyncStatus{
 			MinSyncedL1: eth.L1BlockRef{
@@ -86,6 +93,78 @@ func TestSupervisorSource_SyncStatus(t *testing.T) {
 			CurrentL1:   response2.MinSyncedL1,
 			SafeL2:      response2.SafeTimestamp,
 			FinalizedL2: response2.FinalizedTimestamp,
+		}
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("Multi-IgnoreMinSyncedL1Nil", func(t *testing.T) {
+		response1 := eth.SupervisorSyncStatus{}
+		response2 := eth.SupervisorSyncStatus{
+			MinSyncedL1: eth.L1BlockRef{
+				Hash:       common.Hash{0xbc},
+				Number:     48292,
+				ParentHash: common.Hash{0xdd},
+				Time:       98599217,
+			},
+			SafeTimestamp:      1234,
+			FinalizedTimestamp: 45523,
+		}
+		client1 := &mockSupervisorClient{
+			status: response1,
+		}
+		client2 := &mockSupervisorClient{
+			status: response2,
+		}
+		source := NewSupervisorProposalSource(testlog.Logger(t, log.LvlInfo), client1, client2)
+		actual, err := source.SyncStatus(context.Background())
+		require.NoError(t, err)
+		// Should use the response with the lowest MinSyncedL1 block number
+		expected := SyncStatus{
+			CurrentL1:   response2.MinSyncedL1,
+			SafeL2:      response2.SafeTimestamp,
+			FinalizedL2: response2.FinalizedTimestamp,
+		}
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("Multi-MinSyncedL1Genesis", func(t *testing.T) {
+		response1 := eth.SupervisorSyncStatus{}
+		response2 := eth.SupervisorSyncStatus{
+			MinSyncedL1: eth.L1BlockRef{
+				Hash:       common.Hash{0xbc},
+				Number:     48292,
+				ParentHash: common.Hash{0xdd},
+				Time:       98599217,
+			},
+			SafeTimestamp:      1234,
+			FinalizedTimestamp: 45523,
+		}
+		response3 := eth.SupervisorSyncStatus{
+			MinSyncedL1: eth.L1BlockRef{
+				Hash:   common.Hash{0xbc},
+				Number: 0,
+				Time:   98599217,
+			},
+			SafeTimestamp:      22,
+			FinalizedTimestamp: 44,
+		}
+		client1 := &mockSupervisorClient{
+			status: response1,
+		}
+		client2 := &mockSupervisorClient{
+			status: response2,
+		}
+		client3 := &mockSupervisorClient{
+			status: response3,
+		}
+		source := NewSupervisorProposalSource(testlog.Logger(t, log.LvlInfo), client1, client2, client3)
+		actual, err := source.SyncStatus(context.Background())
+		require.NoError(t, err)
+		// Should use the response with the lowest MinSyncedL1 block number which is L1 genesis
+		expected := SyncStatus{
+			CurrentL1:   response3.MinSyncedL1,
+			SafeL2:      response3.SafeTimestamp,
+			FinalizedL2: response3.FinalizedTimestamp,
 		}
 		require.Equal(t, expected, actual)
 	})

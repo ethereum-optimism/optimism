@@ -1,0 +1,742 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "Duration",
+        "name": "_maxChallengeDuration",
+        "type": "uint64"
+      },
+      {
+        "internalType": "Duration",
+        "name": "_maxProveDuration",
+        "type": "uint64"
+      },
+      {
+        "internalType": "contract IDisputeGameFactory",
+        "name": "_disputeGameFactory",
+        "type": "address"
+      },
+      {
+        "internalType": "contract ISP1Verifier",
+        "name": "_sp1Verifier",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_rollupConfigHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_aggregationVkey",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_rangeVkeyCommitment",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_challengerBond",
+        "type": "uint256"
+      },
+      {
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "_anchorStateRegistry",
+        "type": "address"
+      },
+      {
+        "internalType": "contract AccessManager",
+        "name": "_accessManager",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "accessManager",
+    "outputs": [
+      {
+        "internalType": "contract AccessManager",
+        "name": "accessManager_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "aggregationVkey",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "aggregationVkey_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "anchorStateRegistry",
+    "outputs": [
+      {
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "registry_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "bondDistributionMode",
+    "outputs": [
+      {
+        "internalType": "enum BondDistributionMode",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "challenge",
+    "outputs": [
+      {
+        "internalType": "enum OPSuccinctFaultDisputeGame.ProposalStatus",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "challengerBond",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "challengerBond_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_recipient",
+        "type": "address"
+      }
+    ],
+    "name": "claimCredit",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "claimData",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "parentIndex",
+        "type": "uint32"
+      },
+      {
+        "internalType": "address",
+        "name": "counteredBy",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "prover",
+        "type": "address"
+      },
+      {
+        "internalType": "Claim",
+        "name": "claim",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "enum OPSuccinctFaultDisputeGame.ProposalStatus",
+        "name": "status",
+        "type": "uint8"
+      },
+      {
+        "internalType": "Timestamp",
+        "name": "deadline",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "closeGame",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "createdAt",
+    "outputs": [
+      {
+        "internalType": "Timestamp",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_recipient",
+        "type": "address"
+      }
+    ],
+    "name": "credit",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "credit_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "disputeGameFactory",
+    "outputs": [
+      {
+        "internalType": "contract IDisputeGameFactory",
+        "name": "disputeGameFactory_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "extraData",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "extraData_",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "gameCreator",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "creator_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "gameData",
+    "outputs": [
+      {
+        "internalType": "GameType",
+        "name": "gameType_",
+        "type": "uint32"
+      },
+      {
+        "internalType": "Claim",
+        "name": "rootClaim_",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "extraData_",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "gameOver",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "gameOver_",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "gameType",
+    "outputs": [
+      {
+        "internalType": "GameType",
+        "name": "gameType_",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "l1Head",
+    "outputs": [
+      {
+        "internalType": "Hash",
+        "name": "l1Head_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "l2SequenceNumber",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "l2SequenceNumber_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxChallengeDuration",
+    "outputs": [
+      {
+        "internalType": "Duration",
+        "name": "maxChallengeDuration_",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxProveDuration",
+    "outputs": [
+      {
+        "internalType": "Duration",
+        "name": "maxProveDuration_",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "normalModeCredit",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "parentIndex",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "parentIndex_",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "_proofBytes",
+        "type": "bytes"
+      }
+    ],
+    "name": "prove",
+    "outputs": [
+      {
+        "internalType": "enum OPSuccinctFaultDisputeGame.ProposalStatus",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "rangeVkeyCommitment",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "rangeVkeyCommitment_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "refundModeCredit",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "resolve",
+    "outputs": [
+      {
+        "internalType": "enum GameStatus",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "resolvedAt",
+    "outputs": [
+      {
+        "internalType": "Timestamp",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "rollupConfigHash",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "rollupConfigHash_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "rootClaim",
+    "outputs": [
+      {
+        "internalType": "Claim",
+        "name": "rootClaim_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "sp1Verifier",
+    "outputs": [
+      {
+        "internalType": "contract ISP1Verifier",
+        "name": "verifier_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "startingBlockNumber",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "startingBlockNumber_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "startingProposal",
+    "outputs": [
+      {
+        "internalType": "Hash",
+        "name": "root",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "l2SequenceNumber",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "startingRootHash",
+    "outputs": [
+      {
+        "internalType": "Hash",
+        "name": "startingRootHash_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "status",
+    "outputs": [
+      {
+        "internalType": "enum GameStatus",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "wasRespectedGameTypeWhenCreated",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "challenger",
+        "type": "address"
+      }
+    ],
+    "name": "Challenged",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "enum BondDistributionMode",
+        "name": "bondDistributionMode",
+        "type": "uint8"
+      }
+    ],
+    "name": "GameClosed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "prover",
+        "type": "address"
+      }
+    ],
+    "name": "Proved",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "enum GameStatus",
+        "name": "status",
+        "type": "uint8"
+      }
+    ],
+    "name": "Resolved",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "AlreadyInitialized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BadAuth",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BondTransferFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ClaimAlreadyChallenged",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ClaimAlreadyResolved",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GameNotFinalized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GameNotOver",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GameOver",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "IncorrectBondAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "IncorrectDisputeGameFactory",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidBondDistributionMode",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidParentGame",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidProposalStatus",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoCreditToClaim",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ParentGameNotResolved",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "Claim",
+        "name": "rootClaim",
+        "type": "bytes32"
+      }
+    ],
+    "name": "UnexpectedRootClaim",
+    "type": "error"
+  }
+]

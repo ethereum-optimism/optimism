@@ -1,5 +1,12 @@
 # Releases
 
+## Latest Releases
+
+The latest version of OP Deployer is always available at [releases][releases]. You should search for `op-deployer` to
+exclude other packages.
+
+[releases]: https://github.com/ethereum-optimism/optimism/releases?q=op-deployer&expanded=true
+
 ## Versioning
 
 For all releases after `v0.0.11`, each minor version of OP Deployer will support a single release of the
@@ -22,12 +29,14 @@ From time to time, we may backport bugfixes from develop onto earlier versions o
 as follows:
 
 1. If one doesn't exist already, make a new branch for the version lineage you're patching (e.g. `v0.2.x`). This branch
-   should be protected (not deletable) and should be based on the latest release of that lineage. The branch should be named as follows:
+   should be protected (not deletable) and should be based on the latest release of that lineage. The branch should be
+   named as follows:
    `backports/op-deployer/<lineage, i.e. v0.2.0>`.
 2. Open a PR with the backport against that branch. Be sure to reference the original commit in the backport.
 3. Make and push a new tag on that lineage.
 
 Example for backporting fix(es) from `develop` and created a new release `op-deployer/v0.2.1`:
+
 ```
 git checkout -b backports/op-deployer/v0.2.0 op-deployer/v0.2.0
 git push origin backports/op-deployer/v0.2.0
@@ -78,16 +87,16 @@ Now, update `standard/standard.go` with these values so that the new artifacts t
 const ContractsVXTag = "op-contracts/vX.Y.Z"
 
 var taggedReleases = map[string]TaggedRelease{
-    // Other releases...
-    ContractsVXTag: {
-		ArtifactsHash: common.HexToHash("<the artifacts hash>"),
-		ContentHash:   common.HexToHash("<the checksum>"),
-	},
+// Other releases...
+ContractsVXTag: {
+ArtifactsHash: common.HexToHash("<the artifacts hash>"),
+ContentHash:   common.HexToHash("<the checksum>"),
+},
 }
 
 // Update the L1/L2 versions accordingly
 func IsSupportedL1Version(tag string) bool {
-	return tag == ContractsVXTag
+return tag == ContractsVXTag
 }
 ```
 

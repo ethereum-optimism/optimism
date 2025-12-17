@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -44,7 +45,7 @@ func TestPayloadByHash(t *testing.T) {
 		engine, _ := createOracleEngine(t, false)
 		hash := common.HexToHash("0x878899")
 		payload, err := engine.PayloadByHash(ctx, hash)
-		require.ErrorIs(t, err, ErrNotFound)
+		require.ErrorIs(t, err, ethereum.NotFound)
 		require.Nil(t, payload)
 	})
 }
@@ -65,7 +66,7 @@ func TestPayloadByNumber(t *testing.T) {
 	t.Run("NoCanonicalHash", func(t *testing.T) {
 		engine, _ := createOracleEngine(t, false)
 		payload, err := engine.PayloadByNumber(ctx, uint64(700))
-		require.ErrorIs(t, err, ErrNotFound)
+		require.ErrorIs(t, err, ethereum.NotFound)
 		require.Nil(t, payload)
 	})
 
@@ -75,7 +76,7 @@ func TestPayloadByNumber(t *testing.T) {
 		number := uint64(700)
 		stub.canonical[number] = hash
 		payload, err := engine.PayloadByNumber(ctx, number)
-		require.ErrorIs(t, err, ErrNotFound)
+		require.ErrorIs(t, err, ethereum.NotFound)
 		require.Nil(t, payload)
 	})
 }
@@ -102,7 +103,7 @@ func TestL2BlockRefByLabel(t *testing.T) {
 	}
 	t.Run("UnknownLabel", func(t *testing.T) {
 		_, err := engine.L2BlockRefByLabel(ctx, "nope")
-		require.ErrorContains(t, err, "unknown label")
+		require.ErrorIs(t, err, ErrUnknownLabel)
 	})
 }
 
@@ -120,7 +121,7 @@ func TestL2BlockRefByHash(t *testing.T) {
 
 	t.Run("UnknownBlock", func(t *testing.T) {
 		ref, err := engine.L2BlockRefByHash(ctx, common.HexToHash("0x878899"))
-		require.ErrorIs(t, err, ErrNotFound)
+		require.ErrorIs(t, err, ethereum.NotFound)
 		require.Equal(t, eth.L2BlockRef{}, ref)
 	})
 }
@@ -141,7 +142,7 @@ func TestSystemConfigByL2Hash(t *testing.T) {
 
 	t.Run("UnknownBlock", func(t *testing.T) {
 		ref, err := engine.SystemConfigByL2Hash(ctx, common.HexToHash("0x878899"))
-		require.ErrorIs(t, err, ErrNotFound)
+		require.ErrorIs(t, err, ethereum.NotFound)
 		require.Equal(t, eth.SystemConfig{}, ref)
 	})
 }
@@ -189,10 +190,11 @@ func createOracleEngine(t *testing.T, headBlockOnIsthmus bool) (*OracleEngine, *
 }
 
 func createL2Block(t *testing.T, number int, setWithdrawalsRoot bool) *types.Block {
-	tx, err := derive.L1InfoDeposit(chaincfg.OPSepolia(), eth.SystemConfig{}, uint64(1), eth.HeaderBlockInfo(&types.Header{
-		Number:  big.NewInt(32),
-		BaseFee: big.NewInt(7),
-	}), 0)
+	tx, err := derive.L1InfoDeposit(chaincfg.OPSepolia(), params.MergedTestChainConfig,
+		eth.SystemConfig{}, uint64(1), eth.HeaderBlockInfo(&types.Header{
+			Number:  big.NewInt(32),
+			BaseFee: big.NewInt(7),
+		}), 0)
 	require.NoError(t, err)
 	header := &types.Header{
 		Number:  big.NewInt(int64(number)),

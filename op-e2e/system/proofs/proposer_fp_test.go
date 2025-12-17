@@ -23,7 +23,7 @@ import (
 
 func TestL2OutputSubmitterFaultProofs(t *testing.T) {
 	op_e2e.InitParallel(t)
-	cfg := e2esys.DefaultSystemConfig(t, e2esys.WithAllocType(config.AllocTypeStandard))
+	cfg := e2esys.DefaultSystemConfig(t, e2esys.WithAllocType(config.AllocTypeMTCannon))
 	cfg.NonFinalizedProposals = true // speed up the time till we see output proposals
 
 	sys, err := cfg.Start(t)

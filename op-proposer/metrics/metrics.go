@@ -72,7 +72,7 @@ func NewMetrics(procName string) *Metrics {
 		TxMetrics:  txmetrics.MakeTxMetrics(ns, factory),
 		RPCMetrics: opmetrics.MakeRPCMetrics(ns, factory),
 
-		proposalSequenceNum: prometheus.NewGauge(prometheus.GaugeOpts{
+		proposalSequenceNum: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "proposed_sequence_number",
 			Help:      "Sequence number (block number or timestamp) of the latest proposal",

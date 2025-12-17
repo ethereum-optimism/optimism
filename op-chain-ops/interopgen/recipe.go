@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 )
@@ -16,6 +17,7 @@ type InteropDevRecipe struct {
 	L1ChainID        uint64
 	L2s              []InteropDevL2Recipe
 	GenesisTimestamp uint64
+	ExpiryTime       uint64
 }
 
 func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, error) {
@@ -42,6 +44,7 @@ func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, er
 	}
 
 	superchainOps := devkeys.SuperchainOperatorKeys(l1Cfg.ChainID)
+	chainOps := devkeys.ChainOperatorKeys(l1Cfg.ChainID)
 
 	superchainDeployer, err := addrs.Address(superchainOps(devkeys.SuperchainDeployerKey))
 	if err != nil {
@@ -59,25 +62,29 @@ func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, er
 	if err != nil {
 		return nil, err
 	}
+	challenger, err := addrs.Address(chainOps(devkeys.ChallengerRole))
+	if err != nil {
+		return nil, err
+	}
 	l1Cfg.Prefund[superchainDeployer] = Ether(10_000_000)
 	l1Cfg.Prefund[superchainProxyAdmin] = Ether(10_000_000)
 	l1Cfg.Prefund[superchainConfigGuardian] = Ether(10_000_000)
+	l1Cfg.Prefund[challenger] = Ether(10_000_000)
 
 	superchainCfg := &SuperchainConfig{
 		ProxyAdminOwner:       superchainProxyAdmin,
 		ProtocolVersionsOwner: superchainProtocolVersionsOwner,
+		Challenger:            challenger,
 		Deployer:              superchainDeployer,
 		Implementations: OPCMImplementationsConfig{
-			L1ContractsRelease: "dev",
 			FaultProof: SuperFaultProofConfig{
 				WithdrawalDelaySeconds:          big.NewInt(302400),
 				MinProposalSizeBytes:            big.NewInt(10000),
 				ChallengePeriodSeconds:          big.NewInt(120),
 				ProofMaturityDelaySeconds:       big.NewInt(12),
 				DisputeGameFinalityDelaySeconds: big.NewInt(6),
-				MipsVersion:                     big.NewInt(1),
+				MipsVersion:                     big.NewInt(int64(versions.GetExperimentalVersion())),
 			},
-			UseInterop: true,
 		},
 		SuperchainL1DeployConfig: genesis.SuperchainL1DeployConfig{
 			RequiredProtocolVersion:    params.OPStackSupport,
@@ -121,8 +128,9 @@ func (r *InteropDevRecipe) hydrated() InteropDevRecipe {
 const defaultBlockTime = 2
 
 type InteropDevL2Recipe struct {
-	ChainID   uint64
-	BlockTime uint64
+	ChainID       uint64
+	BlockTime     uint64
+	InteropOffset uint64
 }
 
 func prefundL2Accounts(l1Cfg *L1Config, l2Cfg *L2Config, addrs devkeys.Addresses) error {
@@ -178,6 +186,10 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 	if err != nil {
 		return nil, err
 	}
+	operatorFeeVaultRecipient, err := addrs.Address(chainOps(devkeys.OperatorFeeVaultRecipientRole))
+	if err != nil {
+		return nil, err
+	}
 	sequencerP2P, err := addrs.Address(chainOps(devkeys.SequencerP2PRole))
 	if err != nil {
 		return nil, err
@@ -220,12 +232,15 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 				BaseFeeVaultRecipient:                    baseFeeVaultRecipient,
 				L1FeeVaultRecipient:                      l1FeeVaultRecipient,
 				SequencerFeeVaultRecipient:               sequencerFeeVaultRecipient,
+				OperatorFeeVaultRecipient:                operatorFeeVaultRecipient,
 				BaseFeeVaultMinimumWithdrawalAmount:      (*hexutil.Big)(Ether(10)),
 				L1FeeVaultMinimumWithdrawalAmount:        (*hexutil.Big)(Ether(10)),
 				SequencerFeeVaultMinimumWithdrawalAmount: (*hexutil.Big)(Ether(10)),
+				OperatorFeeVaultMinimumWithdrawalAmount:  (*hexutil.Big)(Ether(10)),
 				BaseFeeVaultWithdrawalNetwork:            "remote",
 				L1FeeVaultWithdrawalNetwork:              "remote",
 				SequencerFeeVaultWithdrawalNetwork:       "remote",
+				OperatorFeeVaultWithdrawalNetwork:        "remote",
 			},
 			GovernanceDeployConfig: genesis.GovernanceDeployConfig{
 				EnableGovernance: false,
@@ -235,7 +250,10 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 				GasPriceOracleBlobBaseFeeScalar: 810949,
 			},
 			GasTokenDeployConfig: genesis.GasTokenDeployConfig{
-				UseCustomGasToken: false,
+				UseCustomGasToken:          false,
+				GasPayingTokenName:         "",
+				GasPayingTokenSymbol:       "",
+				NativeAssetLiquidityAmount: (*hexutil.Big)(big.NewInt(0)),
 			},
 			OperatorDeployConfig: genesis.OperatorDeployConfig{
 				P2PSequencerAddress: sequencerP2P,
@@ -255,10 +273,10 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 				L2GenesisGraniteTimeOffset:  new(hexutil.Uint64),
 				L2GenesisHoloceneTimeOffset: new(hexutil.Uint64),
 				L2GenesisIsthmusTimeOffset:  new(hexutil.Uint64),
-				L2GenesisInteropTimeOffset:  new(hexutil.Uint64),
+				L2GenesisJovianTimeOffset:   new(hexutil.Uint64),
+				L2GenesisInteropTimeOffset:  (*hexutil.Uint64)(&r.InteropOffset),
 				L1CancunTimeOffset:          new(hexutil.Uint64),
 				L1PragueTimeOffset:          new(hexutil.Uint64),
-				UseInterop:                  true,
 			},
 			L2CoreDeployConfig: genesis.L2CoreDeployConfig{
 				L1ChainID:                 l1ChainID,
@@ -273,6 +291,10 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 			},
 			AltDADeployConfig: genesis.AltDADeployConfig{
 				UseAltDA: false,
+			},
+			RevenueShareDeployConfig: genesis.RevenueShareDeployConfig{
+				UseRevenueShare:    false,
+				ChainFeesRecipient: common.Address{},
 			},
 		},
 		Prefund:                 make(map[common.Address]*big.Int),

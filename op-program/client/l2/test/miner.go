@@ -12,11 +12,13 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/txpool/blobpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	geth "github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -38,6 +40,10 @@ func NewMiner(t *testing.T, logger log.Logger, isthmusTime uint64) (*Miner, *cor
 	config.HoloceneTime = &zero
 	config.IsthmusTime = &isthmusTime
 	config.PragueTime = &isthmusTime
+
+	// Disable future Ethereum forks for now
+	config.OsakaTime = nil
+
 	denomCanyon := uint64(250)
 	config.Optimism = &params.OptimismConfig{
 		EIP1559Denominator:       50,
@@ -57,14 +63,28 @@ func NewMiner(t *testing.T, logger log.Logger, isthmusTime uint64) (*Miner, *cor
 		ExtraData: []byte{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8}, // for Holocene eip-1559 params
 	}
 	ethCfg := &ethconfig.Config{
-		NetworkId:   genesis.Config.ChainID.Uint64(),
-		Genesis:     genesis,
-		StateScheme: rawdb.HashScheme,
-		NoPruning:   true,
+		NetworkId:                 genesis.Config.ChainID.Uint64(),
+		Genesis:                   genesis,
+		RollupDisableTxPoolGossip: true,
+		StateScheme:               rawdb.HashScheme,
+		NoPruning:                 true,
+		BlobPool: blobpool.Config{
+			Datadir:   t.TempDir(),
+			Datacap:   blobpool.DefaultConfig.Datacap,
+			PriceBump: blobpool.DefaultConfig.PriceBump,
+		},
 	}
 	nodeCfg := &node.Config{
-		Name:    "l2-geth",
-		DataDir: t.TempDir(),
+		Name:     "l2-geth",
+		WSHost:   "127.0.0.1",
+		WSPort:   0,
+		HTTPHost: "127.0.0.1",
+		HTTPPort: 0,
+		DataDir:  "", // in-memory
+		P2P: p2p.Config{
+			NoDiscovery: true,
+			NoDial:      true,
+		},
 	}
 	n, err := node.New(nodeCfg)
 	require.NoError(t, err)
@@ -73,6 +93,7 @@ func NewMiner(t *testing.T, logger log.Logger, isthmusTime uint64) (*Miner, *cor
 	})
 	backend, err := geth.New(n, ethCfg)
 	require.NoError(t, err)
+	require.NoError(t, n.Start(), "failed to start L2 miner node")
 	chain := backend.BlockChain()
 
 	engineAPI := engineapi.NewL2EngineAPI(logger, chain, nil)
@@ -101,6 +122,10 @@ func (m *Miner) Fork(t *testing.T, blockNumber uint64, attrs *eth.PayloadAttribu
 			GasLimit:              &gasLimit,
 			EIP1559Params:         &eip1559Params,
 		}
+		if m.backend.Config().IsJovian(head.Time) {
+			stub := uint64(1e9)
+			attrs.MinBaseFee = &stub
+		}
 	}
 	m.MineAt(t, head, attrs)
 }
@@ -120,6 +145,10 @@ func (m *Miner) MineAt(t *testing.T, head *types.Header, attrs *eth.PayloadAttri
 			NoTxPool:              true,
 			GasLimit:              &gasLimit,
 			EIP1559Params:         &eip1559Params,
+		}
+		if m.backend.Config().IsJovian(head.Time) {
+			stub := uint64(1e9)
+			attrs.MinBaseFee = &stub
 		}
 	}
 	result, err := m.engineAPI.ForkchoiceUpdatedV3(context.Background(), &eth.ForkchoiceState{

@@ -18,12 +18,12 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
 	"github.com/urfave/cli/v2"
@@ -59,7 +59,7 @@ func L2SemversCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("chain state does not have allocs")
 	}
 
-	artifactsFS, err := artifacts.Download(ctx, intent.L2ContractsLocator, artifacts.BarProgressor(), cliCfg.CacheDir)
+	artifactsFS, err := artifacts.Download(ctx, intent.L2ContractsLocator, ioutil.BarProgressor(), cliCfg.CacheDir)
 	if err != nil {
 		return fmt.Errorf("failed to download L2 artifacts: %w", err)
 	}
@@ -102,11 +102,13 @@ type L2PredeploySemvers struct {
 	OptimismMintableERC721Factory string
 	BaseFeeVault                  string
 	L1FeeVault                    string
+	OperatorFeeVault              string
 	SchemaRegistry                string
 	EAS                           string
+	FeeSplitter                   string
 	CrossL2Inbox                  string
 	L2toL2CrossDomainMessenger    string
-	SuperchainWETH                string
+	SuperchainETHBridge           string
 	ETHLiquidity                  string
 	SuperchainTokenBridge         string
 	OptimismMintableERC20         string
@@ -140,7 +142,7 @@ func L2Semvers(cfg L2SemversConfig) (*L2PredeploySemvers, error) {
 	contracts := []contractToCheck{
 		{predeploys.L2ToL1MessagePasserAddr, &ps.L2ToL1MessagePasser, "L2ToL1MessagePasser"},
 		{predeploys.DeployerWhitelistAddr, &ps.DeployerWhitelist, "DeployerWhitelist"},
-		{predeploys.OpWETHAddr, &ps.WETH, "WETH"},
+		{predeploys.WETHAddr, &ps.WETH, "WETH"},
 		{predeploys.L2CrossDomainMessengerAddr, &ps.L2CrossDomainMessenger, "L2CrossDomainMessenger"},
 		{predeploys.L2StandardBridgeAddr, &ps.L2StandardBridge, "L2StandardBridge"},
 		{predeploys.SequencerFeeVaultAddr, &ps.SequencerFeeVault, "SequencerFeeVault"},
@@ -153,8 +155,10 @@ func L2Semvers(cfg L2SemversConfig) (*L2PredeploySemvers, error) {
 		{predeploys.OptimismMintableERC721FactoryAddr, &ps.OptimismMintableERC721Factory, "OptimismMintableERC721Factory"},
 		{predeploys.BaseFeeVaultAddr, &ps.BaseFeeVault, "BaseFeeVault"},
 		{predeploys.L1FeeVaultAddr, &ps.L1FeeVault, "L1FeeVault"},
+		{predeploys.OperatorFeeVaultAddr, &ps.OperatorFeeVault, "OperatorFeeVault"},
 		{predeploys.SchemaRegistryAddr, &ps.SchemaRegistry, "SchemaRegistry"},
 		{predeploys.EASAddr, &ps.EAS, "EAS"},
+		{predeploys.FeeSplitterAddr, &ps.FeeSplitter, "FeeSplitter"},
 	}
 	for _, contract := range contracts {
 		semver, err := ReadSemver(host, contract.Address)

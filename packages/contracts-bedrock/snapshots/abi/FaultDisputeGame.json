@@ -1001,18 +1001,6 @@
         "internalType": "enum GameStatus",
         "name": "status",
         "type": "uint8"
-      },
-      {
-        "indexed": true,
-        "internalType": "Claim",
-        "name": "rootClaim",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "l2BlockNumber",
-        "type": "uint256"
       }
     ],
     "name": "Resolved",
@@ -1026,6 +1014,11 @@
   {
     "inputs": [],
     "name": "AnchorRootNotFound",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BadExtraData",
     "type": "error"
   },
   {
@@ -1101,6 +1094,11 @@
   {
     "inputs": [],
     "name": "GameNotResolved",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GamePaused",
     "type": "error"
   },
   {

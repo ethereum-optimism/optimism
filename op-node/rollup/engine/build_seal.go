@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -54,16 +55,16 @@ func (ev BuildSealEvent) String() string {
 	return "build-seal"
 }
 
-func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
-	ctx, cancel := context.WithTimeout(eq.ctx, buildSealTimeout)
+func (e *EngineController) onBuildSeal(ctx context.Context, ev BuildSealEvent) {
+	rpcCtx, cancel := context.WithTimeout(e.ctx, buildSealTimeout)
 	defer cancel()
 
 	sealingStart := time.Now()
-	envelope, err := eq.ec.engine.GetPayload(ctx, ev.Info)
+	envelope, err := e.engine.GetPayload(rpcCtx, ev.Info)
 	if err != nil {
 		var rpcErr rpc.Error
 		if errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()) == eth.UnknownPayload {
-			eq.log.Warn("Cannot seal block, payload ID is unknown",
+			e.log.Warn("Cannot seal block, payload ID is unknown",
 				"payloadID", ev.Info.ID, "payload_time", ev.Info.Timestamp,
 				"started_time", ev.BuildStarted)
 		}
@@ -72,7 +73,7 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 		// So the user (attributes-handler or sequencer) should be able to re-attempt the exact
 		// same attributes with a new block-building job from here to recover from this error.
 		// We name it "expired", as this generally identifies a timeout, unknown job, or otherwise invalidated work.
-		eq.emitter.Emit(PayloadSealExpiredErrorEvent{
+		e.emitter.Emit(ctx, PayloadSealExpiredErrorEvent{
 			Info:        ev.Info,
 			Err:         fmt.Errorf("failed to seal execution payload (ID: %s): %w", ev.Info.ID, err),
 			Concluding:  ev.Concluding,
@@ -82,7 +83,7 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 	}
 
 	if err := sanityCheckPayload(envelope.ExecutionPayload); err != nil {
-		eq.emitter.Emit(PayloadSealInvalidEvent{
+		e.emitter.Emit(ctx, PayloadSealInvalidEvent{
 			Info: ev.Info,
 			Err: fmt.Errorf("failed sanity-check of execution payload contents (ID: %s, blockhash: %s): %w",
 				ev.Info.ID, envelope.ExecutionPayload.BlockHash, err),
@@ -92,9 +93,9 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 		return
 	}
 
-	ref, err := derive.PayloadToBlockRef(eq.cfg, envelope.ExecutionPayload)
+	ref, err := derive.PayloadToBlockRef(e.rollupCfg, envelope.ExecutionPayload)
 	if err != nil {
-		eq.emitter.Emit(PayloadSealInvalidEvent{
+		e.emitter.Emit(ctx, PayloadSealInvalidEvent{
 			Info:        ev.Info,
 			Err:         fmt.Errorf("failed to decode L2 block ref from payload: %w", err),
 			Concluding:  ev.Concluding,
@@ -106,17 +107,17 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 	now := time.Now()
 	sealTime := now.Sub(sealingStart)
 	buildTime := now.Sub(ev.BuildStarted)
-	eq.metrics.RecordSequencerSealingTime(sealTime)
-	eq.metrics.RecordSequencerBuildingDiffTime(buildTime - time.Duration(eq.cfg.BlockTime)*time.Second)
+	e.metrics.RecordSequencerSealingTime(sealTime)
+	e.metrics.RecordSequencerBuildingDiffTime(buildTime - time.Duration(e.rollupCfg.BlockTime)*time.Second)
 
 	txnCount := len(envelope.ExecutionPayload.Transactions)
 	depositCount, _ := lastDeposit(envelope.ExecutionPayload.Transactions)
-	eq.metrics.CountSequencedTxsInBlock(txnCount, depositCount)
+	e.metrics.CountSequencedTxsInBlock(txnCount, depositCount)
 
-	eq.log.Debug("Built new L2 block", "l2_unsafe", ref, "l1_origin", ref.L1Origin,
+	e.log.Debug("Built new L2 block", "l2_unsafe", ref, "l1_origin", ref.L1Origin,
 		"txs", txnCount, "deposits", depositCount, "time", ref.Time, "seal_time", sealTime, "build_time", buildTime)
 
-	eq.emitter.Emit(BuildSealedEvent{
+	e.emitter.Emit(ctx, BuildSealedEvent{
 		Concluding:   ev.Concluding,
 		DerivedFrom:  ev.DerivedFrom,
 		BuildStarted: ev.BuildStarted,
@@ -124,4 +125,59 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 		Envelope:     envelope,
 		Ref:          ref,
 	})
+}
+
+// isDepositTx checks an opaqueTx to determine if it is a Deposit Transaction
+// It has to return an error in the case the transaction is empty
+func isDepositTx(opaqueTx eth.Data) (bool, error) {
+	if len(opaqueTx) == 0 {
+		return false, errors.New("empty transaction")
+	}
+	return opaqueTx[0] == types.DepositTxType, nil
+}
+
+// lastDeposit finds the index of last deposit at the start of the transactions.
+// It walks the transactions from the start until it finds a non-deposit tx.
+// An error is returned if any looked at transaction cannot be decoded
+func lastDeposit(txns []eth.Data) (int, error) {
+	var lastDeposit int
+	for i, tx := range txns {
+		deposit, err := isDepositTx(tx)
+		if err != nil {
+			return 0, fmt.Errorf("invalid transaction at idx %d", i)
+		}
+		if deposit {
+			lastDeposit = i
+		} else {
+			break
+		}
+	}
+	return lastDeposit, nil
+}
+
+func sanityCheckPayload(payload *eth.ExecutionPayload) error {
+	// Sanity check payload before inserting it
+	if len(payload.Transactions) == 0 {
+		return errors.New("no transactions in returned payload")
+	}
+	if payload.Transactions[0][0] != types.DepositTxType {
+		return fmt.Errorf("first transaction was not deposit tx. Got %v", payload.Transactions[0][0])
+	}
+	// Ensure that the deposits are first
+	lastDeposit, err := lastDeposit(payload.Transactions)
+	if err != nil {
+		return fmt.Errorf("failed to find last deposit: %w", err)
+	}
+	// Ensure no deposits after last deposit
+	for i := lastDeposit + 1; i < len(payload.Transactions); i++ {
+		tx := payload.Transactions[i]
+		deposit, err := isDepositTx(tx)
+		if err != nil {
+			return fmt.Errorf("failed to decode transaction idx %d: %w", i, err)
+		}
+		if deposit {
+			return fmt.Errorf("deposit tx (%d) after other tx in l2 block with prev deposit at idx %d", i, lastDeposit)
+		}
+	}
+	return nil
 }

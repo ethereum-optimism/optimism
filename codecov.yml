@@ -15,11 +15,6 @@ ignore:
   - "packages/contracts-bedrock/scripts/**/*.sol"
   - "packages/contracts-bedrock/src/vendor/**/*.sol"
   - "packages/contracts-bedrock/src/interfaces/**/*.sol"
-  # TODO: add coverage for MIPS64 back once tests are merged in
-  - "packages/contracts-bedrock/src/cannon/MIPS64.sol"
-  - "packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol"
-  - "packages/contracts-bedrock/src/cannon/libraries/MIPS64State.sol"
-  - "packages/contracts-bedrock/src/cannon/libraries/MIPS64Syscalls.sol"
 
 coverage:
   status:

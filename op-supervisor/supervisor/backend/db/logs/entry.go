@@ -32,17 +32,19 @@ func (EntryBinary) EntrySize() int {
 	return EntrySize
 }
 
-type EntryTypeFlag uint8
+type EntryTypeFlag uint16
 
 const (
 	FlagSearchCheckpoint EntryTypeFlag = 1 << TypeSearchCheckpoint
 	FlagCanonicalHash    EntryTypeFlag = 1 << TypeCanonicalHash
 	FlagInitiatingEvent  EntryTypeFlag = 1 << TypeInitiatingEvent
-	FlagExecutingLink    EntryTypeFlag = 1 << TypeExecutingLink
-	FlagExecutingCheck   EntryTypeFlag = 1 << TypeExecutingCheck
+	FlagExecChainID      EntryTypeFlag = 1 << TypeExecChainID
+	FlagExecPosition     EntryTypeFlag = 1 << TypeExecPosition
+	FlagExecChecksum     EntryTypeFlag = 1 << TypeExecChecksum
 	FlagPadding          EntryTypeFlag = 1 << TypePadding
 	// for additional padding
 	FlagPadding2 EntryTypeFlag = FlagPadding << 1
+	FlagPadding3 EntryTypeFlag = FlagPadding2 << 1
 )
 
 func (x EntryTypeFlag) String() string {
@@ -73,8 +75,9 @@ const (
 	TypeSearchCheckpoint EntryType = iota
 	TypeCanonicalHash
 	TypeInitiatingEvent
-	TypeExecutingLink
-	TypeExecutingCheck
+	TypeExecChainID
+	TypeExecPosition
+	TypeExecChecksum
 	TypePadding
 )
 
@@ -86,10 +89,12 @@ func (x EntryType) String() string {
 		return "canonicalHash"
 	case TypeInitiatingEvent:
 		return "initiatingEvent"
-	case TypeExecutingLink:
-		return "executingLink"
-	case TypeExecutingCheck:
-		return "executingCheck"
+	case TypeExecChainID:
+		return "execChainID"
+	case TypeExecPosition:
+		return "execPosition"
+	case TypeExecChecksum:
+		return "execChecksum"
 	case TypePadding:
 		return "padding"
 	default:

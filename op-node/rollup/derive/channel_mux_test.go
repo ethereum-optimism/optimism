@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -34,7 +35,7 @@ func TestChannelMux_LaterHolocene(t *testing.T) {
 	require.Equal(t, io.EOF, err)
 	require.IsType(t, new(ChannelBank), c.RawChannelProvider)
 
-	c.Transform(rollup.Holocene)
+	c.Transform(forks.Holocene)
 	require.IsType(t, new(ChannelAssembler), c.RawChannelProvider)
 
 	err = c.Reset(ctx, l1B, eth.SystemConfig{})
@@ -65,5 +66,5 @@ func TestChannelMux_ActiveHolocene(t *testing.T) {
 	require.Equal(t, io.EOF, err)
 	require.IsType(t, new(ChannelAssembler), c.RawChannelProvider)
 
-	require.Panics(t, func() { c.Transform(rollup.Holocene) })
+	require.Panics(t, func() { c.Transform(forks.Holocene) })
 }

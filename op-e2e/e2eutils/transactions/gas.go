@@ -3,6 +3,7 @@ package transactions
 import (
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -22,7 +23,7 @@ func PadGasEstimate(opts *bind.TransactOpts, paddingFactor float64, builder TxBu
 	o.NoSend = true
 	tx, err := builder(o)
 	if err != nil {
-		return nil, fmt.Errorf("failed to estimate gas: %w", err)
+		return nil, fmt.Errorf("failed to estimate gas: %w", errutil.TryAddRevertReason(err))
 	}
 	gas := float64(tx.Gas()) * paddingFactor
 	o.GasLimit = uint64(gas)

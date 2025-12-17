@@ -1,4 +1,5 @@
-num_cores := $(shell nproc)
+# nproc is for linux, sysctl for Mac and then fallback to 4 if neither is available
+num_cores := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
 # Generally, JUNIT_FILE is set in CI but may be specified to an arbitrary file location to emulate CI locally
 # If JUNIT_FILE is set, JSON_LOG_FILE should also be set
@@ -14,9 +15,9 @@ endif
 test: pre-test test-ws
 .PHONY: test
 
-test-external-erigon: pre-test
-	make -C ./external_erigon/
-	$(go_test) $(go_test_flags) ./system/... ./e2eutils/... ./opgeth/... ./interop/... --externalL2 external_erigon
+test-external-%: pre-test
+	make -C ./external_$*/
+	$(go_test) $(go_test_flags) --externalL2 ./external_$*/
 
 test-ws: pre-test
 	$(go_test) $(go_test_flags) ./system/... ./e2eutils/... ./opgeth/... ./interop/...
@@ -39,8 +40,7 @@ test-fault-proofs: pre-test
 .PHONY: test-faultproofs
 
 cannon-prestates:
-	make -C .. cannon-prestate
-	make -C .. cannon-prestate-mt64
+	make -C .. cannon-prestates
 .PHONY: cannon-prestates
 
 
@@ -60,8 +60,14 @@ clean:
 .PHONY: clean
 
 fuzz:
-	printf "%s\n" \
-		"go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz FuzzFjordCostFunction ./opgeth" \
-		"go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz FuzzFastLzGethSolidity ./opgeth" \
-		"go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz FuzzFastLzCgo ./opgeth" \
-	| parallel -j 8 {}
+	parallel --tag -N1 "go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz {} ./opgeth" ::: FuzzFjordCostFunction FuzzFastLzGethSolidity FuzzFastLzCgo
+
+ifndef CONTRACT
+gen-binding:
+	$(error CONTRACT is required, usage: make gen-binding CONTRACT=OPContractsManager)
+else
+gen-binding:
+	cd ../packages/contracts-bedrock && just build
+	./scripts/gen-binding.sh $(CONTRACT)
+endif
+.PHONY: gen-binding

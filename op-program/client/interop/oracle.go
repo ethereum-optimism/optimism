@@ -129,7 +129,7 @@ func (o *ConsolidateOracle) loadTransactions(txHash common.Hash) []*types.Transa
 		k := preimage.Keccak256Key(key).PreimageKey()
 		b, err := o.db.Get(k[:])
 		if err != nil {
-			panic(fmt.Errorf("missing tx trie node %s", key))
+			panic(fmt.Sprintf("missing tx trie node %s", key))
 		}
 		return b
 	})
