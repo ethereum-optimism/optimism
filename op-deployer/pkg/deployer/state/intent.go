@@ -121,6 +121,16 @@ func (c *Intent) validateCustomConfig() error {
 		return errors.New("must define at least one l2 chain")
 	}
 
+	// Apply global deploy overrides to each chain intent before validating them.
+	for index, chain := range c.Chains {
+		chainWithOverrides, err := jsonutil.MergeJSON(chain, c.GlobalDeployOverrides)
+		if err == nil {
+			// To mitigate any errors and preserve the existing behavior, we don't error out here
+			// if the merging does not succeed. Instead, we only apply the global overrides on success
+			c.Chains[index] = chainWithOverrides
+		}
+	}
+
 	for _, chain := range c.Chains {
 		if err := chain.Check(); err != nil {
 			return err

@@ -198,6 +198,89 @@ func TestValidateCustomValues(t *testing.T) {
 	}
 }
 
+func TestValidateCustomValuesWithGlobalOverrides(t *testing.T) {
+	intent, err := NewIntentCustom(1, []common.Hash{common.HexToHash("0x336")})
+	require.NoError(t, err)
+
+	err = intent.Check()
+	require.Error(t, err)
+	require.ErrorIs(t, err, addresses.ErrZeroAddress)
+
+	setSuperchainRoles(&intent)
+	setChainRoles(&intent)
+	setEip1559Params(&intent)
+	setFeeAddresses(&intent)
+
+	err = intent.Check()
+	require.NoError(t, err)
+
+	// First we set the value to a zero address to trigger the error
+	intent.Chains[0].OperatorFeeVaultRecipient = common.Address{}
+
+	err = intent.Check()
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrFeeVaultZeroAddress)
+
+	// We set a global override for the operator fee vault
+	intent.GlobalDeployOverrides = map[string]any{"operatorFeeVaultRecipient": common.HexToAddress("0x0B")}
+
+	// And check that we had no error
+	err = intent.Check()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		mutator func(intent *Intent)
+		err     error
+	}{
+		{
+			"both OPCM and SuperchainRoles defined",
+			func(intent *Intent) {
+				addr := common.HexToAddress("0x9999")
+				intent.SuperchainRoles = &addresses.SuperchainRoles{
+					SuperchainGuardian: addr,
+				}
+				intent.OPCMAddress = &addr
+			},
+			ErrIncompatibleValue,
+		},
+		{
+			"neither OPCM or SuperchainRoles defined",
+			func(intent *Intent) {
+				intent.OPCMAddress = nil
+				intent.SuperchainRoles = nil
+			},
+			ErrIncompatibleValue,
+		},
+		{
+			"zero address for revenue share chain fees recipient when enabled",
+			func(intent *Intent) {
+				intent.Chains[0].UseRevenueShare = true
+				intent.Chains[0].ChainFeesRecipient = common.Address{}
+			},
+			ErrRevenueShareZeroAddress,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			intent, err := NewIntentCustom(11155111, []common.Hash{common.HexToHash("0x336")})
+			require.NoError(t, err)
+
+			setSuperchainRoles(&intent)
+			setChainRoles(&intent)
+
+			setEip1559Params(&intent)
+			setFeeAddresses(&intent)
+
+			tt.mutator(&intent)
+
+			err = intent.Check()
+			require.Error(t, err)
+			require.ErrorIs(t, err, tt.err)
+		})
+	}
+}
+
 func setSuperchainRoles(intent *Intent) {
 	intent.SuperchainRoles = &addresses.SuperchainRoles{
 		SuperchainProxyAdminOwner: common.HexToAddress("0xa"),
