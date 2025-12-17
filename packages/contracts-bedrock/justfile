@@ -85,9 +85,12 @@ test-dev *ARGS: build-go-ffi
   FOUNDRY_PROFILE=lite forge test {{ARGS}}
 
 # Default block number for the forked upgrade path.
+# Block numbers are calculated deterministically based on the current week.
+# The block is set to approximately Sunday 00:00 UTC of each week.
+# This allows for consistent caching while automatically updating weekly.
 
-export sepoliaBlockNumber := "9770063"
-export mainnetBlockNumber := "23942395"
+export sepoliaBlockNumber := `go run ./scripts/autogen/calc-weekly-block --chain sepolia`
+export mainnetBlockNumber := `go run ./scripts/autogen/calc-weekly-block --chain mainnet`
 
 export pinnedBlockNumber := if env_var_or_default("FORK_BASE_CHAIN", "") == "mainnet" {
     mainnetBlockNumber
