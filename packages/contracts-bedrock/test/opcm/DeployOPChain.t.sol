@@ -211,10 +211,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         deployOPChainInput.basefeeScalar = uint32(uint256(hash(_seed, 6)));
         deployOPChainInput.blobBaseFeeScalar = uint32(uint256(hash(_seed, 7)));
         deployOPChainInput.l2ChainId = uint256(hash(_seed, 8));
-        // TODO(#18536): Remove this when cgt support is added to OPCM v2
-        if (!isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            deployOPChainInput.useCustomGasToken = uint256(hash(_seed, 9)) % 2 == 1;
-        }
+        deployOPChainInput.useCustomGasToken = uint256(hash(_seed, 9)) % 2 == 1;
 
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
 
@@ -260,8 +257,6 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     }
 
     function test_customGasToken_enabled_succeeds() public {
-        // TODO(#18536): Remove this when cgt support is added to OPCM v2
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
         deployOPChainInput.useCustomGasToken = true;
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
 
