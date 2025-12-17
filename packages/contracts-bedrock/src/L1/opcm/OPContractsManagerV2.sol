@@ -1006,9 +1006,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
 
         // Chains prior to OPCMv2 (version 7.0.0) don't have a functional lastUsedOPCM function on
-        // the SystemConfig contract. The first deployment of OPCMv2 makes this function available,
-        // so we skip this check for versions below 7.0.0.
-        if (SemverComp.lt(_version(), "7.0.0")) {
+        // the SystemConfig contract. The first deployment of OPCMv2 which makes this available is
+        // version 7.0.0. We need to skip the check for 7.x.x OPCM versions because they can't
+        // guarantee that the lastUsedOPCM function will be available on the incoming SystemConfig.
+        // 8.0.0 and later will always have this function available.
+        if (SemverComp.lt(_version(), "8.0.0")) {
             return true;
         }
 
