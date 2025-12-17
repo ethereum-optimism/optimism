@@ -101,7 +101,8 @@ func TestL2Reorg(gt *testing.T) {
 			require.NoError(t, err, "Expected to be able to include a signed transaction on op-test-sequencer, but got error")
 		}
 
-		controlAPI.Next(t.Ctx())
+		err = controlAPI.Next(t.Ctx())
+		require.NoError(t, err, "Expected to be able to call Next() after IncludeTx() on op-test-sequencer, but got error")
 
 		// Resume the main sequencer
 		sequencerCL.StartSequencer()

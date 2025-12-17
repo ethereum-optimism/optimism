@@ -92,7 +92,8 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, reorgAfter *eth.BlockID, preChecks, 
 	time.Sleep(5 * time.Second)
 
 	// Start sequential block building
-	trm.GetPOS().Start()
+	err := trm.GetPOS().Start()
+	require.NoError(t, err, "Expected to be able to start POS")
 
 	// Wait sometime(5*5 = 25 at least) so that pos can create required
 	time.Sleep(30 * time.Second)

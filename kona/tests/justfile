@@ -82,8 +82,12 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
     export GO_PKG_NAME="{{GO_PKG_NAME}}"
 
     if [ "{{BINARY}}" = "node" ]; then
-        export KONA_NODE_EXEC_PATH="{{SOURCE}}/../target/debug/kona-node"
-        export OP_RETH_EXEC_PATH="{{SOURCE}}/../../reth/target/debug/op-reth"
+        if [ $KONA_NODE_EXEC_PATH == "" ]; then
+          export KONA_NODE_EXEC_PATH="{{SOURCE}}/../target/debug/kona-node"
+        fi
+        if [ $OP_RETH_EXEC_PATH == "" ]; then
+          export OP_RETH_EXEC_PATH="{{SOURCE}}/../../reth/target/debug/op-reth"
+        fi
     elif [ "{{BINARY}}" = "supervisor" ]; then
         export DEVSTACK_SUPERVISOR_KIND=kona
         export KONA_SUPERVISOR_EXEC_PATH="{{SOURCE}}/../target/release/kona-supervisor"

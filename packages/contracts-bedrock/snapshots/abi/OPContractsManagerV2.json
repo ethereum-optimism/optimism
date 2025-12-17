@@ -427,6 +427,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_systemConfig",
+        "type": "address"
+      }
+    ],
+    "name": "isPermittedUpgradeSequence",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "standardValidator",
     "outputs": [
@@ -657,7 +676,7 @@
         "type": "string"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -709,6 +728,22 @@
       }
     ],
     "name": "OPContractsManagerV2_InvalidUpgradeInstruction",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_lastVersion",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_thisVersion",
+        "type": "string"
+      }
+    ],
+    "name": "OPContractsManagerV2_InvalidUpgradeSequence",
     "type": "error"
   },
   {
