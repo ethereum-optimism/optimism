@@ -169,9 +169,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 6.0.8
+    /// @custom:semver 7.0.0
     function version() public pure returns (string memory) {
-        return "6.0.8";
+        return "7.0.0";
     }
 
     /// @param _contractsContainer The container of blueprint and implementation contract addresses.
@@ -304,7 +304,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // developers start working on the next release this will automatically become false so
         // even if the code is somehow forgotten it will not actually apply to the deployment. Make
         // sure to REMOVE the allowance once the upgrade is complete.
-        if (SemverComp.lt(_version(), "7.0.0")) {
+        if (SemverComp.lt(_version(), "8.0.0")) {
             // Unified DelayedWETH is being deployed for the first time.
             // TODO:(#18382): Remove this allowance after unified DelayedWETH is deployed.
             if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH")) {
@@ -1006,9 +1006,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
 
         // Chains prior to OPCMv2 (version 7.0.0) don't have a functional lastUsedOPCM function on
-        // the SystemConfig contract. The first deployment of OPCMv2 makes this function available,
-        // so we skip this check for versions below 7.0.0.
-        if (SemverComp.lt(_version(), "7.0.0")) {
+        // the SystemConfig contract. The first deployment of OPCMv2 which makes this available is
+        // version 7.0.0. We need to skip the check for 7.x.x OPCM versions because they can't
+        // guarantee that the lastUsedOPCM function will be available on the incoming SystemConfig.
+        // 8.0.0 and later will always have this function available.
+        if (SemverComp.lt(_version(), "8.0.0")) {
             return true;
         }
 

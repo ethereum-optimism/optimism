@@ -13,6 +13,7 @@ import { Process } from "scripts/libraries/Process.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -296,7 +297,7 @@ contract VerifyOPCM is Script {
         refs[1] = OpcmContractRef({
             field: "contractsContainer",
             // nosemgrep: sol-style-vm-env-only-in-config-sol
-            name: _isOPCMV2Enabled() ? "OPContractsManagerContainer" : "OPContractsManagerContractsContainer",
+            name: _isOPCMV2() ? "OPContractsManagerContainer" : "OPContractsManagerContractsContainer",
             addr: contractsContainerAddr,
             blueprint: false
         });
@@ -886,7 +887,7 @@ contract VerifyOPCM is Script {
     /// @return The contract name.
     function _getContractNameFromFieldName(string memory _fieldName) internal view returns (string memory) {
         if (LibString.eq(_fieldName, "contractsContainer")) {
-            _fieldName = _isOPCMV2Enabled() ? "contractsContainerV2" : "contractsContainerV1";
+            _fieldName = _isOPCMV2() ? "contractsContainerV2" : "contractsContainerV1";
         }
 
         // Check for an explicit override
@@ -1067,16 +1068,33 @@ contract VerifyOPCM is Script {
         }
     }
 
-    /// @notice Returns the name of the OPCM contract depending on whether OPCM V2 is enabled.
+    /// @notice Returns the name of the OPCM contract depending on whether the OPCM is V2.
     /// @return The name of the OPCM contract.
     function _opcmContractName() internal view returns (string memory) {
-        return _isOPCMV2Enabled() ? "OPContractsManagerV2" : "OPContractsManager";
+        return _isOPCMV2() ? "OPContractsManagerV2" : "OPContractsManager";
     }
 
-    /// @notice Checks if OPCM V2 is enabled.
-    /// @return True if OPCM V2 is enabled, false otherwise.
-    function _isOPCMV2Enabled() internal view returns (bool) {
+    /// @notice Checks if the OPCM is V2.
+    /// @dev If the OPCM address is not set, default to false.
+    /// @return True if the OPCM is V2, false otherwise.
+    function _isOPCMV2() internal view returns (bool) {
+        // Get the OPCM contract address from the environment variables.
+        address opcmAddress = _getOPCMAddress();
+
+        // If the OPCM contract address is not set, default to V1.
+        if (opcmAddress == address(0)) {
+            return false;
+        }
+
+        // If the OPCM contract version is greater than or equal to 6.0.8, then it is OPCM V2.
+        return SemverComp.gte(IOPContractsManager(opcmAddress).version(), "7.0.0");
+    }
+
+    /// @notice Gets the address of the OPCM contract from the environment variables.
+    /// @dev If not set, default to address(0).
+    /// @return The address of the OPCM contract.
+    function _getOPCMAddress() internal view returns (address) {
         // nosemgrep: sol-style-vm-env-only-in-config-sol
-        return vm.envOr("DEV_FEATURE__OPCM_V2", false);
+        return vm.envOr("OPCM_ADDRESS", address(0));
     }
 }

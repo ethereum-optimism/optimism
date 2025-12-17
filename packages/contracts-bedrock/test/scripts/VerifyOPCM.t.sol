@@ -90,6 +90,9 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         } else {
             setupEnvVars();
         }
+
+        // Set the OPCM address so that runSingle also runs for V2 OPCM if the dev feature is enabled.
+        vm.setEnv("OPCM_ADDRESS", vm.toString(address(opcm)));
     }
 
     /// @notice Tests that the script succeeds when no changes are introduced.
