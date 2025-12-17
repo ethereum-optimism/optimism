@@ -88,20 +88,17 @@ test-dev *ARGS: build-go-ffi
 # Block numbers are calculated deterministically based on the current week.
 # The block is set to approximately Sunday 00:00 UTC of each week.
 # This allows for consistent caching while automatically updating weekly.
+#
+# Note: We use a recipe instead of top-level exports to avoid eager evaluation
+# of both chains' block numbers when only one is needed.
 
-export sepoliaBlockNumber := `go run ./scripts/autogen/calc-weekly-block --chain sepolia`
-export mainnetBlockNumber := `go run ./scripts/autogen/calc-weekly-block --chain mainnet`
-
-export pinnedBlockNumber := if env_var_or_default("FORK_BASE_CHAIN", "") == "mainnet" {
-    mainnetBlockNumber
-} else if env_var_or_default("FORK_BASE_CHAIN", "") == "sepolia" {
-    sepoliaBlockNumber
-} else {
-    mainnetBlockNumber
-}
-
+# Calculates and prints the pinned block number for the current FORK_BASE_CHAIN.
+# Defaults to mainnet if FORK_BASE_CHAIN is not set.
 print-pinned-block-number:
-  echo $pinnedBlockNumber
+  #!/usr/bin/env bash
+  set -euo pipefail
+  chain="${FORK_BASE_CHAIN:-mainnet}"
+  go run ./scripts/autogen/calc-weekly-block --chain "$chain"
 
 # Prepares the environment for upgrade path variant of contract tests and coverage.
 # Env Vars:
@@ -112,7 +109,9 @@ print-pinned-block-number:
 #   when the L1 chain is upgraded.
 prepare-upgrade-env *ARGS : build-go-ffi
   #!/bin/bash
-  export FORK_BLOCK_NUMBER=$pinnedBlockNumber
+  set -euo pipefail
+  pinnedBlock=$(just print-pinned-block-number)
+  export FORK_BLOCK_NUMBER="${FORK_BLOCK_NUMBER:-$pinnedBlock}"
   echo "Running upgrade tests at block $FORK_BLOCK_NUMBER"
   export FORK_RPC_URL=$ETH_RPC_URL
   export FORK_RETRIES=10
@@ -142,8 +141,10 @@ anvil-fork:
 # Helpful for debugging.
 test-upgrade-against-anvil *ARGS: build-go-ffi
   #!/bin/bash
-  echo "Running upgrade tests at block $pinnedBlockNumber"
-  export FORK_BLOCK_NUMBER=$pinnedBlockNumber
+  set -euo pipefail
+  pinnedBlock=$(just print-pinned-block-number)
+  echo "Running upgrade tests at block $pinnedBlock"
+  export FORK_BLOCK_NUMBER="${FORK_BLOCK_NUMBER:-$pinnedBlock}"
   export FORK_RPC_URL=http://127.0.0.1:8545
   export FORK_TEST=true
   forge test {{ARGS}} \
