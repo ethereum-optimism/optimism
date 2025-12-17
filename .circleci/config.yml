@@ -458,7 +458,7 @@ commands:
       version:
         description: "Version of the cache"
         type: string
-        default: "14"
+        default: "15"
       profile:
         description: "Profile to restore the cache for"
         type: string
@@ -492,7 +492,7 @@ commands:
       version:
         description: "Version of the cache"
         type: string
-        default: "14"
+        default: "15"
       profile:
         description: "Profile to save the cache for"
         type: string
@@ -512,6 +512,7 @@ commands:
           paths:
             - /data/mise-data/.cargo/registry
             - /data/mise-data/.cargo/git
+            - /data/mise-data/.cargo/bin
             - /data/mise-data/.rustup
       - save_cache:
           key: << parameters.prefix >>-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}-<< parameters.profile >>-<< parameters.features >>
@@ -532,7 +533,7 @@ commands:
       version:
         description: "Version of the cache"
         type: string
-        default: "14"
+        default: "15"
       profile:
         description: "Profile to restore the cache for"
         type: string
@@ -568,7 +569,7 @@ commands:
       version:
         description: "Version of the cache"
         type: string
-        default: "14"
+        default: "15"
       profile:
         description: "Profile to build the binary with"
         type: string
@@ -655,7 +656,7 @@ jobs:
       version:
         description: "Version of the cache"
         type: string
-        default: "14"
+        default: "15"
       profile:
         description: "Profile to build the binary with"
         type: string
@@ -3178,6 +3179,7 @@ jobs:
       - rust-prepare-and-restore-cache:
           directory: kona
           prefix: kona-tests
+          profile: "release"
       - run:
           name: Install nextest
           command: |
@@ -3187,10 +3189,11 @@ jobs:
           working_directory: kona
           no_output_timeout: 40m
           command: |
-            just test
+            just test --release
       - rust-save-build-cache:
           directory: kona
           prefix: kona-tests
+          profile: "release"
 
   # Kona Rust CI - Lint (from rust_ci.yaml)
   kona-cargo-lint:
@@ -3247,6 +3250,7 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: kona
+          profile: "release"
           prefix: kona-benches
       - run:
           name: Build benchmarks
@@ -3256,6 +3260,7 @@ jobs:
             just benches
       - rust-save-build-cache:
           directory: kona
+          profile: "release"
           prefix: kona-benches
 
   # Kona Rust CI - Check unused dependencies (from rust_ci.yaml)
