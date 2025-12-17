@@ -842,14 +842,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // Update the ETHLockbox, DisputeGameFactory, and AnchorStateRegistry.
         // If this is an interop migration upgrade, these contracts may have a different
         // ProxyAdmin, but regardless all chains migrating to an interop set MUST have the
-        // same ProxyAdmin owner (which is delegate calling this contract).
+        // same ProxyAdmin *owner* (which is delegate calling this contract).
         // Therefore for the next set of upgrades, we use either:
         //   1. The current chain's proxy admin for initial deployments
         //   2. The ETHLockbox's proxyAdmin() getter for upgrades and interop migrations (if lockbox exists)
         //   3. The current chain's proxy admin for upgrades when lockbox doesn't exist
         // It would be ideal to simply use the proxyAdmin() getter in all cases, however for initial deployments
         // we are unable to do so, because the implementation address is not yet set.
-        IProxyAdmin interopContractsProxyAdmin = _isInitialDeployment || address(_cts.ethLockbox) == address(0)
+        // If this is not an interop migration, then ethLockboxProxyAdmin is the same as the current chain's proxy admin.
+        IProxyAdmin ethLockboxProxyAdmin = _isInitialDeployment || address(_cts.ethLockbox) == address(0)
             ? _cts.proxyAdmin
             : _cts.ethLockbox.proxyAdmin();
         if (_isInitialDeployment || _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
@@ -861,7 +862,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
             // Update the ETHLockbox.
             _upgrade(
-                interopContractsProxyAdmin,
+                ethLockboxProxyAdmin,
                 address(_cts.ethLockbox),
                 impls.ethLockboxImpl,
                 abi.encodeCall(IETHLockbox.initialize, (_cts.systemConfig, portals))
@@ -870,7 +871,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Update the DisputeGameFactory.
         _upgrade(
-            interopContractsProxyAdmin,
+            ethLockboxProxyAdmin,
             address(_cts.disputeGameFactory),
             impls.disputeGameFactoryImpl,
             abi.encodeCall(IDisputeGameFactory.initialize, (address(this)))
@@ -878,7 +879,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Update the AnchorStateRegistry.
         _upgrade(
-            interopContractsProxyAdmin,
+            ethLockboxProxyAdmin,
             address(_cts.anchorStateRegistry),
             impls.anchorStateRegistryImpl,
             abi.encodeCall(
