@@ -3189,7 +3189,7 @@ jobs:
           working_directory: kona
           no_output_timeout: 40m
           command: |
-            just test --release
+            just test
       - rust-save-build-cache:
           directory: kona
           prefix: kona-tests
