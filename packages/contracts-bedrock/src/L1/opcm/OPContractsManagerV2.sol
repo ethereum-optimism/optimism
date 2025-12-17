@@ -666,7 +666,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @param _cfg The full config.
     function _assertValidFullConfig(FullConfig memory _cfg) internal view {
         // Start validating the dispute game configs. Put allowed game types here.
-        GameType[] memory validGameTypes = isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP) ? new GameType[](5) : new GameType[](3);
+        GameType[] memory validGameTypes =
+            isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP) ? new GameType[](5) : new GameType[](3);
         validGameTypes[0] = GameTypes.CANNON;
         validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
         validGameTypes[2] = GameTypes.CANNON_KONA;
@@ -844,7 +845,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         //   3. The current chain's proxy admin for upgrades when lockbox doesn't exist
         // It would be ideal to simply use the proxyAdmin() getter in all cases, however for initial deployments
         // we are unable to do so, because the implementation address is not yet set.
-        // If this is not an interop migration, then ethLockboxProxyAdmin is the same as the current chain's proxy admin.
+        // If this is not an interop migration, then ethLockboxProxyAdmin is the same as the current chain's proxy
+        // admin.
         IProxyAdmin ethLockboxProxyAdmin = _isInitialDeployment || address(_cts.ethLockbox) == address(0)
             ? _cts.proxyAdmin
             : _cts.ethLockbox.proxyAdmin();

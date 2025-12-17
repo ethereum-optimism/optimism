@@ -867,6 +867,7 @@ contract OPContractsManagerV2_InteropMigration_Test is OPContractsManagerV2_Upgr
 
     /// @notice Helper function to get a default full config
     function _getDefaultFullConfig() internal view returns (IOPContractsManagerV2.FullConfig memory) {
+        // We can add all 5 games because this test is only run when the interop feature is enabled.
         IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerV2.DisputeGameConfig[](5);
         disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({

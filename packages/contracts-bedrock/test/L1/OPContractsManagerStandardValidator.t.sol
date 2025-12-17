@@ -236,38 +236,43 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
                 address owner = proxyAdmin.owner();
 
                 // Prepare the upgrade input.
-                IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs = isDevFeatureEnabled(
-                    DevFeatures.OPTIMISM_PORTAL_INTEROP
-                ) ? new IOPContractsManagerV2.DisputeGameConfig[](5) : new IOPContractsManagerV2.DisputeGameConfig[](3);
+                IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs = new IOPContractsManagerV2
+                    .DisputeGameConfig[](isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP) ? 5 : 3);
+
+                // Add Cannon config.
+                disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
+                    enabled: true,
+                    initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
+                    gameType: GameTypes.CANNON,
+                    gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
+                });
+
+                // Add PermissionedCannon config.
+                disputeGameConfigs[1] = IOPContractsManagerV2.DisputeGameConfig({
+                    enabled: true,
+                    initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
+                    gameType: GameTypes.PERMISSIONED_CANNON,
+                    gameArgs: abi.encode(
+                        IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                            absolutePrestate: cannonPrestate,
+                            proposer: proposer,
+                            challenger: challenger
+                        })
+                    )
+                });
+
+                // Add CannonKona config.
+                disputeGameConfigs[2] = IOPContractsManagerV2.DisputeGameConfig({
+                    enabled: true,
+                    initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
+                    gameType: GameTypes.CANNON_KONA,
+                    gameArgs: abi.encode(
+                        IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
+                    )
+                });
+
                 if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-                    disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
-                        enabled: true,
-                        initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
-                        gameType: GameTypes.CANNON,
-                        gameArgs: abi.encode(
-                            IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate })
-                        )
-                    });
-                    disputeGameConfigs[1] = IOPContractsManagerV2.DisputeGameConfig({
-                        enabled: true,
-                        initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
-                        gameType: GameTypes.PERMISSIONED_CANNON,
-                        gameArgs: abi.encode(
-                            IOPContractsManagerV2.PermissionedDisputeGameConfig({
-                                absolutePrestate: cannonPrestate,
-                                proposer: proposer,
-                                challenger: challenger
-                            })
-                        )
-                    });
-                    disputeGameConfigs[2] = IOPContractsManagerV2.DisputeGameConfig({
-                        enabled: true,
-                        initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
-                        gameType: GameTypes.CANNON_KONA,
-                        gameArgs: abi.encode(
-                            IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
-                        )
-                    });
+                    // Add SuperCannon config.
                     disputeGameConfigs[3] = IOPContractsManagerV2.DisputeGameConfig({
                         enabled: true,
                         initBond: 0.08 ether, // Standard init bond
@@ -276,6 +281,8 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
                             IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate })
                         )
                     });
+
+                    // Add SuperPermissionedCannon config.
                     disputeGameConfigs[4] = IOPContractsManagerV2.DisputeGameConfig({
                         enabled: true,
                         initBond: 0.08 ether, // Standard init bond
@@ -286,35 +293,6 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
                                 proposer: proposer,
                                 challenger: challenger
                             })
-                        )
-                    });
-                } else {
-                    disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
-                        enabled: true,
-                        initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
-                        gameType: GameTypes.CANNON,
-                        gameArgs: abi.encode(
-                            IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate })
-                        )
-                    });
-                    disputeGameConfigs[1] = IOPContractsManagerV2.DisputeGameConfig({
-                        enabled: true,
-                        initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
-                        gameType: GameTypes.PERMISSIONED_CANNON,
-                        gameArgs: abi.encode(
-                            IOPContractsManagerV2.PermissionedDisputeGameConfig({
-                                absolutePrestate: cannonPrestate,
-                                proposer: proposer,
-                                challenger: challenger
-                            })
-                        )
-                    });
-                    disputeGameConfigs[2] = IOPContractsManagerV2.DisputeGameConfig({
-                        enabled: true,
-                        initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
-                        gameType: GameTypes.CANNON_KONA,
-                        gameArgs: abi.encode(
-                            IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
                         )
                     });
                 }
