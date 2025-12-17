@@ -67,6 +67,17 @@ function build_kona_prestate() {
   echo "Built kona-interop ${version}: ${prestate_hash}"
 }
 
+EXCLUDED_OP_PROGRAM_VERSIONS=(
+  "op-program/v0.0.1"
+  "op-program/v0.1.0"
+  "op-program/v0.3.0"
+  "op-program/v0.3.1"
+  "op-program/v1.0.0"
+  "op-program/v1.0.1"
+  "op-program/v1.2.0"
+)
+printf "%s\n" "${EXCLUDED_OP_PROGRAM_VERSIONS[@]}" > excluded_op_program_versions.txt
+
 function build_op_program_prestate() {
   local VERSION=$1
   if [[ -z "${VERSION}" ]]; then
@@ -127,14 +138,14 @@ EOF
 
 # this global is written to by build_op_program_prestate and build_kona_prestate
 VERSIONS_JSON="[]"
-readarray -t VERSIONS < <(git tag --list 'op-program/v*' --sort taggerdate)
+#readarray -t VERSIONS < <(git tag --list 'op-program/v*' --sort taggerdate)
+readarray -t VERSIONS < <(git tag --list 'op-program/v*' --sort taggerdate \
+  | grep -v -F -f excluded_op_program_versions.txt)
 
 for VERSION in "${VERSIONS[@]}"; do
-  if [ "$VERSION" == "op-program/v1.8.0-rc.2" ]; then
     pushd .
     build_op_program_prestate "${VERSION}"
     popd
-  fi
 done
 echo "${VERSIONS_JSON}" > "${VERSIONS_FILE}"
 
@@ -154,11 +165,9 @@ readarray -t KONA_VERSIONS < <(git ls-remote --tags "$KONA_REPO_URL" | grep kona
   | grep -v beta | grep -v alpha | grep -v -F -f excluded.txt)
 
 for VERSION in "${KONA_VERSIONS[@]}"; do
-  if [ "$VERSION" == "kona-client/v1.2.7" ]; then
-    pushd .
-    build_kona_prestate "${VERSION}"
-    popd
-  fi
+  pushd .
+  build_kona_prestate "${VERSION}"
+  popd
 done
 echo "${VERSIONS_JSON}" > "${VERSIONS_FILE}"
 
