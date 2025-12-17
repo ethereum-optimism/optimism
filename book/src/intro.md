@@ -60,7 +60,7 @@ For more details on the design philosophy and testing strategy of Rollup Boost, 
 
 Rollup Boost underwent a security audit on May 11, 2025, with [Nethermind](https://www.nethermind.io). See the full report [here](https://github.com/flashbots/rollup-boost/blob/main/docs/NM_0411_0491_Security_Review_World_Rollup_Boost.pdf).
 
-In addition to the audit, we have an extensive suite of integration and kurtosis tests in our CI to ensure the whole flow works end-to-end with the OP stack as well as with external builders.
+In addition to the audit, we have an extensive suite of integration tests in our CI to ensure the whole flow works end-to-end with the OP stack as well as with external builders.
 
 ## Getting Help
 

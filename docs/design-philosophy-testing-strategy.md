@@ -29,4 +29,4 @@ We employ a layered testing strategy that provides defense in depth:
 
 Each integration test creates a complete test environment with mock L2 and builder nodes, simulating real-world scenarios that exercise the system's resilience features. One limitation of this approach is that issues in the mock CL node might not surface in these tests, offering quick feedback but potentially missing certain edge cases.
 
-**End-to-End Tests** (planned) will use actual components in a production-like environment. These tests using Kurtosis or Builder Playground will help ensure our test assumptions match real-world behavior.
+**End-to-End Tests** (planned) will use actual components in a production-like environment. These tests using Builder Playground will help ensure our test assumptions match real-world behavior.

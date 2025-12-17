@@ -198,30 +198,6 @@ rollup-boost debug set-execution-mode [enabled|dry-run|disabled]
 - [@0xKitsune](https://github.com/0xKitsune)
 - [Eric Woolsey](https://github.com/0xForerunner)
 
-### Rollup Boost Devnet
-
-To run rollup-boost in an op-stack devnet first make sure you have [just](https://github.com/casey/just), and [kurtosis-cli](https://docs.kurtosis.com/install/) installed.
-
-Then run the following command to start the devnet:
-
-```sh
-just kurtosis-devnet-up
-```
-
-To stop the devnet run:
-
-```sh
-just kurtosis-devnet-down
-```
-
-To run a stress test against the devnet with [contender](https://github.com/flashbots/contender) first make sure you have docker installed.
-
-Then run the following command:
-
-```sh
-just kurtosis-stress-test
-```
-
 ## License
 
 The code in this project is free software under the [MIT License](/LICENSE).
