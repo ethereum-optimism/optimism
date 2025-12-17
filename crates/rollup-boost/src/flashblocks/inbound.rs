@@ -5,7 +5,7 @@ use backoff::backoff::Backoff;
 use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
 use lru::LruCache;
-use rollup_boost_types::flashblocks::FlashblocksPayloadV1;
+use op_alloy_rpc_types_engine::OpFlashblockPayload;
 use std::io::ErrorKind::TimedOut;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -44,7 +44,7 @@ enum FlashblocksReceiverError {
     TaskPanic(String),
 
     #[error("Failed to send message to sender: {0}")]
-    SendError(#[from] Box<tokio::sync::mpsc::error::SendError<FlashblocksPayloadV1>>),
+    SendError(#[from] Box<tokio::sync::mpsc::error::SendError<OpFlashblockPayload>>),
 
     #[error("Ping mutex poisoned")]
     MutexPoisoned,
@@ -52,7 +52,7 @@ enum FlashblocksReceiverError {
 
 pub struct FlashblocksReceiverService {
     url: Url,
-    sender: mpsc::Sender<FlashblocksPayloadV1>,
+    sender: mpsc::Sender<OpFlashblockPayload>,
     websocket_config: FlashblocksWebsocketConfig,
     metrics: FlashblocksWsInboundMetrics,
 }
@@ -60,7 +60,7 @@ pub struct FlashblocksReceiverService {
 impl FlashblocksReceiverService {
     pub fn new(
         url: Url,
-        sender: mpsc::Sender<FlashblocksPayloadV1>,
+        sender: mpsc::Sender<OpFlashblockPayload>,
         websocket_config: FlashblocksWebsocketConfig,
     ) -> Self {
         Self {
@@ -167,7 +167,7 @@ impl FlashblocksReceiverService {
                             Some(Ok(msg)) => match msg {
                                 Message::Text(text) => {
                                     metrics.messages_received.increment(1);
-                                    match serde_json::from_str::<FlashblocksPayloadV1>(&text) {
+                                    match serde_json::from_str::<OpFlashblockPayload>(&text) {
                                         Ok(flashblocks_msg) => sender.send(flashblocks_msg).await.map_err(|e| {
                                                 FlashblocksReceiverError::SendError(Box::new(e))
                                             })?,
@@ -254,12 +254,12 @@ mod tests {
         addr: SocketAddr,
     ) -> eyre::Result<(
         watch::Sender<bool>,
-        mpsc::Sender<FlashblocksPayloadV1>,
+        mpsc::Sender<OpFlashblockPayload>,
         mpsc::Receiver<()>,
         url::Url,
     )> {
         let (term_tx, mut term_rx) = watch::channel(false);
-        let (send_tx, mut send_rx) = mpsc::channel::<FlashblocksPayloadV1>(100);
+        let (send_tx, mut send_rx) = mpsc::channel::<OpFlashblockPayload>(100);
         let (send_ping_tx, send_ping_rx) = mpsc::channel::<()>(100);
 
         let listener = TcpListener::bind(addr)?;
@@ -423,12 +423,12 @@ mod tests {
 
         // Send a message to the websocket server
         send_msg
-            .send(FlashblocksPayloadV1::default())
+            .send(OpFlashblockPayload::default())
             .await
             .expect("message sent to websocket server");
 
         let msg = rx.recv().await.expect("message received from websocket");
-        assert_eq!(msg, FlashblocksPayloadV1::default());
+        assert_eq!(msg, OpFlashblockPayload::default());
 
         // Drop the websocket server and start another one with the same address
         // The FlashblocksReceiverService should reconnect to the new server
@@ -440,12 +440,12 @@ mod tests {
         // start a new server with the same address
         let (term, send_msg, _, _url) = start(addr).await?;
         send_msg
-            .send(FlashblocksPayloadV1::default())
+            .send(OpFlashblockPayload::default())
             .await
             .expect("message sent to websocket server");
 
         let msg = rx.recv().await.expect("message received from websocket");
-        assert_eq!(msg, FlashblocksPayloadV1::default());
+        assert_eq!(msg, OpFlashblockPayload::default());
         term.send(true).expect("termination signal sent");
 
         Ok(())

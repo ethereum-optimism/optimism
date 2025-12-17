@@ -4,12 +4,10 @@ resolver = "3"
 members = [
     "crates/rollup-boost",
     "crates/websocket-proxy",
-    "crates/rollup-boost-types",
 ]
 
 [workspace.dependencies]
 rollup-boost = { path = "crates/rollup-boost" }
-rollup-boost-types = { path = "crates/rollup-boost-types" }
 
 backoff = "0.4.0"
 clap = { version = "4", features = ["derive", "env"] }

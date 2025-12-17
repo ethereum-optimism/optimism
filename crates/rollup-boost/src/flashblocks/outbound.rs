@@ -6,7 +6,7 @@ use core::{
     task::{Context, Poll},
 };
 use futures::{Sink, SinkExt, StreamExt};
-use rollup_boost_types::flashblocks::FlashblocksPayloadV1;
+use op_alloy_rpc_types_engine::OpFlashblockPayload;
 use std::{io, net::TcpListener, sync::Arc};
 use tokio::{
     net::TcpStream,
@@ -22,7 +22,7 @@ use tokio_tungstenite::{accept_async, tungstenite::Message};
 /// A WebSockets publisher that accepts connections from client websockets and broadcasts to them
 /// updates about new flashblocks. It maintains a count of sent messages and active subscriptions.
 ///
-/// This is modelled as a `futures::Sink` that can be used to send `FlashblocksPayloadV1` messages.
+/// This is modelled as a `futures::Sink` that can be used to send `OpFlashblockPayload` messages.
 pub struct WebSocketPublisher {
     sent: Arc<AtomicUsize>,
     subs: Arc<AtomicUsize>,
@@ -55,7 +55,7 @@ impl WebSocketPublisher {
         })
     }
 
-    pub fn publish(&self, payload: &FlashblocksPayloadV1) -> io::Result<()> {
+    pub fn publish(&self, payload: &OpFlashblockPayload) -> io::Result<()> {
         // Serialize the payload to a UTF-8 string
         // serialize only once, then just copy around only a pointer
         // to the serialized data for each subscription.
@@ -223,14 +223,14 @@ impl Debug for WebSocketPublisher {
     }
 }
 
-impl Sink<&FlashblocksPayloadV1> for WebSocketPublisher {
+impl Sink<&OpFlashblockPayload> for WebSocketPublisher {
     type Error = eyre::Report;
 
     fn poll_ready(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
-    fn start_send(self: Pin<&mut Self>, item: &FlashblocksPayloadV1) -> Result<(), Self::Error> {
+    fn start_send(self: Pin<&mut Self>, item: &OpFlashblockPayload) -> Result<(), Self::Error> {
         self.publish(item)?;
         Ok(())
     }

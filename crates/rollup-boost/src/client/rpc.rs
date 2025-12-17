@@ -1,6 +1,7 @@
 use crate::EngineApiExt;
 use crate::client::auth::AuthLayer;
 use crate::client::http::HttpClient as RollupBoostHttpClient;
+use crate::payload::{NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion};
 use crate::server::EngineApiClient;
 use crate::version::{CARGO_PKG_VERSION, VERGEN_GIT_SHA};
 use alloy_primitives::{B256, Bytes};
@@ -23,9 +24,6 @@ use op_alloy_rpc_types_engine::{
 };
 use opentelemetry::trace::SpanKind;
 use paste::paste;
-use rollup_boost_types::payload::{
-    NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion,
-};
 use std::path::PathBuf;
 use std::time::Duration;
 use thiserror::Error;
@@ -478,12 +476,12 @@ pub mod tests {
     use jsonrpsee::core::client::ClientT;
     use parking_lot::Mutex;
 
+    use crate::payload::PayloadSource;
     use alloy_rpc_types_engine::JwtSecret;
     use jsonrpsee::core::client::Error as ClientError;
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::{RpcModule, rpc_params};
     use predicates::prelude::*;
-    use rollup_boost_types::payload::PayloadSource;
     use std::collections::HashSet;
     use std::net::SocketAddr;
     use std::net::TcpListener;

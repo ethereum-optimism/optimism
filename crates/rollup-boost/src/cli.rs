@@ -4,6 +4,7 @@ use std::{net::SocketAddr, path::PathBuf};
 use tokio::signal::unix::{SignalKind, signal as unix_signal};
 use tracing::{Level, info};
 
+use crate::payload::PayloadSource;
 use crate::{
     BlockSelectionPolicy, ClientArgs, DebugServer, FlashblocksArgs, ProxyLayer, RollupBoostServer,
     client::rpc::{BuilderArgs, L2ClientArgs},
@@ -12,7 +13,6 @@ use crate::{
     probe::ProbeLayer,
 };
 use crate::{FlashblocksService, RpcClient};
-use rollup_boost_types::payload::PayloadSource;
 
 #[derive(Clone, Debug, clap::Args)]
 pub struct RollupBoostLibArgs {

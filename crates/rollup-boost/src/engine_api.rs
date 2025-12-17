@@ -4,7 +4,7 @@ use jsonrpsee::core::async_trait;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 
 use crate::ClientResult;
-use rollup_boost_types::payload::{NewPayload, OpExecutionPayloadEnvelope, PayloadVersion};
+use crate::payload::{NewPayload, OpExecutionPayloadEnvelope, PayloadVersion};
 
 #[async_trait]
 pub trait EngineApiExt: Send + Sync + 'static {
