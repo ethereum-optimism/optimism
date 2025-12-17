@@ -75,6 +75,9 @@ EXCLUDED_OP_PROGRAM_VERSIONS=(
   "op-program/v1.0.0"
   "op-program/v1.0.1"
   "op-program/v1.2.0"
+  "op-program/v1.3.0-rc.1"
+  "op-program/v1.3.0-rc.2"
+  "op-program/v1.3.0-rc.3"
 )
 printf "%s\n" "${EXCLUDED_OP_PROGRAM_VERSIONS[@]}" > excluded_op_program_versions.txt
 
@@ -157,6 +160,8 @@ EXCLUDED=(
   "kona-client/v1.1.0-rc.1"
   "kona-client/v1.1.0-rc.3"
   "kona-client/v1.1.3"
+  "kona-client/v1.1.6"
+  "kona-client/v1.1.7"
 )
 printf "%s\n" "${EXCLUDED[@]}" > excluded.txt
 
