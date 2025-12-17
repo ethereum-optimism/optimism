@@ -207,3 +207,25 @@ impl<'a, Storage: OpProofsStore> BytecodeReader for OpProofsStateProviderRef<'a,
         self.latest.bytecode_by_hash(code_hash)
     }
 }
+
+#[cfg(all(test, not(feature = "metrics")))]
+mod tests {
+    use super::*;
+    use crate::InMemoryProofsStorage;
+    use reth_provider::noop::NoopProvider;
+
+    #[test]
+    fn test_op_proofs_state_provider_ref_debug() {
+        let latest: Box<dyn StateProvider> = Box::new(NoopProvider::default());
+        let storage: crate::OpProofsStorage<InMemoryProofsStorage> =
+            InMemoryProofsStorage::new().into();
+        let block_number = 42u64;
+
+        let provider = OpProofsStateProviderRef::new(latest, &storage, block_number);
+
+        assert_eq!(
+            format!("{:?}", provider),
+            "OpProofsStateProviderRef { storage: InMemoryProofsStorage { inner: RwLock { data: InMemoryStorageInner { account_branches: {}, storage_branches: {}, hashed_accounts: {}, hashed_storages: {}, trie_updates: {}, post_states: {}, earliest_block: None } } }, block_number: 42 }"
+        );
+    }
+}
