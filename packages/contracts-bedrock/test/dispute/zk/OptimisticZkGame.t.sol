@@ -78,9 +78,11 @@ abstract contract OptimisticZkGame_TestInit is DisputeGameFactory_TestInit {
     function setUp() public virtual override {
         super.setUp();
         // Set the time to a realistic date.
-        if (!isForkTest()) {
-            vm.warp(1690906994);
-        }
+        // if (!isForkTest()) {
+        //     vm.warp(1690906994);
+        // }
+
+        skipIfForkTest("Skip");
 
         // Get anchor state to calculate valid sequence numbers
         (, anchorL2SequenceNumber) = anchorStateRegistry.getAnchorRoot();
