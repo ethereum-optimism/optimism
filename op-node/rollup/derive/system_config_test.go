@@ -215,6 +215,74 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			err: false,
 		},
 		{
+			name: "EIP1559Params-ZeroElasticity",
+			log: &types.Log{
+				Topics: []common.Hash{
+					ConfigUpdateEventABIHash,
+					ConfigUpdateEventVersion0,
+					SystemConfigUpdateEIP1559Params,
+				},
+			},
+			hook: func(t *testing.T, log *types.Log) *types.Log {
+				// Create params with non-zero denominator but zero elasticity (invalid)
+				invalidParams := []byte{0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0}
+				numberData, err := oneUint256.Pack(new(big.Int).SetBytes(invalidParams))
+				require.NoError(t, err)
+				data, err := bytesArgs.Pack(numberData)
+				require.NoError(t, err)
+				log.Data = data
+				return log
+			},
+			config: eth.SystemConfig{},
+			err:    true,
+		},
+		{
+			name: "EIP1559Params-ZeroDenominator",
+			log: &types.Log{
+				Topics: []common.Hash{
+					ConfigUpdateEventABIHash,
+					ConfigUpdateEventVersion0,
+					SystemConfigUpdateEIP1559Params,
+				},
+			},
+			hook: func(t *testing.T, log *types.Log) *types.Log {
+				// Create params with zero denominator but non-zero elasticity (invalid)
+				invalidParams := []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1}
+				numberData, err := oneUint256.Pack(new(big.Int).SetBytes(invalidParams))
+				require.NoError(t, err)
+				data, err := bytesArgs.Pack(numberData)
+				require.NoError(t, err)
+				log.Data = data
+				return log
+			},
+			config: eth.SystemConfig{},
+			err:    true,
+		},
+		{
+			name: "EIP1559Params-BothZero",
+			log: &types.Log{
+				Topics: []common.Hash{
+					ConfigUpdateEventABIHash,
+					ConfigUpdateEventVersion0,
+					SystemConfigUpdateEIP1559Params,
+				},
+			},
+			hook: func(t *testing.T, log *types.Log) *types.Log {
+				// Create params with both denominator and elasticity zero (valid - will be translated later)
+				validZeroParams := []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}
+				numberData, err := oneUint256.Pack(new(big.Int).SetBytes(validZeroParams))
+				require.NoError(t, err)
+				data, err := bytesArgs.Pack(numberData)
+				require.NoError(t, err)
+				log.Data = data
+				return log
+			},
+			config: eth.SystemConfig{
+				EIP1559Params: eth.Bytes8{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
+			},
+			err: false,
+		},
+		{
 			name: "OperatorFeeParams",
 			log: &types.Log{
 				Topics: []common.Hash{

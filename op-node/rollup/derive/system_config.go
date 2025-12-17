@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/hashicorp/go-multierror"
@@ -128,7 +129,23 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		if err != nil {
 			return err
 		}
-		copy(destSysCfg.EIP1559Params[:], params[24:32])
+		// Validate the EIP1559 parameters to ensure elasticity multiplier is not zero
+		// This provides redundancy in case the check is accidentally removed from the contract
+		paramsBytes := params[24:32]
+		if err := eip1559.ValidateHolocene1559Params(paramsBytes); err != nil {
+			return fmt.Errorf("invalid EIP1559 params in system config update: %w", err)
+		}
+		// Decode and validate that denominator and elasticity match contract requirements
+		denominator, elasticity := eip1559.DecodeHolocene1559Params(paramsBytes)
+		// The contract requires both denominator >= 1 and elasticity >= 1
+		// The only exception is when both are 0 (which will be translated to protocol constants later)
+		if denominator == 0 && elasticity != 0 {
+			return fmt.Errorf("invalid EIP1559 params: denominator is 0 but elasticity is %d", elasticity)
+		}
+		if elasticity == 0 && denominator != 0 {
+			return fmt.Errorf("invalid EIP1559 params: elasticity is 0 but denominator is %d", denominator)
+		}
+		copy(destSysCfg.EIP1559Params[:], paramsBytes)
 		return nil
 	case SystemConfigUpdateOperatorFeeParams:
 		params, err := parseSystemConfigUpdateOperatorFeeParams(ev.Data)
