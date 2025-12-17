@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/hashicorp/go-multierror"
@@ -33,8 +34,9 @@ var (
 )
 
 var (
-	ErrUnknownEventVersion = errors.New("unknown SystemConfig event version")
-	ErrUnknownEventType    = errors.New("unknown SystemConfig event type")
+	ErrUnknownEventVersion  = errors.New("unknown SystemConfig event version")
+	ErrUnknownEventType     = errors.New("unknown SystemConfig event type")
+	ErrInvalidEIP1559Params = errors.New("invalid EIP-1559 parameters")
 )
 
 // UpdateSystemConfigWithL1Receipts filters all L1 receipts to find config updates and applies the config updates to the given sysCfg
@@ -128,7 +130,15 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		if err != nil {
 			return err
 		}
-		copy(destSysCfg.EIP1559Params[:], params[24:32])
+		eip1559Params := params[24:32]
+		denominator, elasticity := eip1559.DecodeHolocene1559Params(eip1559Params)
+		if denominator == 0 && elasticity != 0 {
+			return fmt.Errorf("%w: denominator is 0 but elasticity is %d", ErrInvalidEIP1559Params, elasticity)
+		}
+		if elasticity == 0 && denominator != 0 {
+			return fmt.Errorf("%w: elasticity is 0 but denominator is %d", ErrInvalidEIP1559Params, denominator)
+		}
+		copy(destSysCfg.EIP1559Params[:], eip1559Params)
 		return nil
 	case SystemConfigUpdateOperatorFeeParams:
 		params, err := parseSystemConfigUpdateOperatorFeeParams(ev.Data)
