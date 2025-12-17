@@ -46,3 +46,12 @@ update-op-geth ref:
 	go mod tidy; \
 	echo "Updated op-geth to $ver"
 
+  # Starts local devnet (docker-based)
+devnet-up:
+    docker compose -f ops/docker-compose.yml up --build
+
+# Stops local devnet
+devnet-down:
+    docker compose -f ops/docker-compose.yml down
+
+
