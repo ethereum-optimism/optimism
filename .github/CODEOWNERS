@@ -1,3 +1,5 @@
+.github/CODEOWNERS @ethereum-optimism/contract-reviewers #[min:2]
+
 # Monorepo - default to go-reviewers
 * @ethereum-optimism/go-reviewers
 
