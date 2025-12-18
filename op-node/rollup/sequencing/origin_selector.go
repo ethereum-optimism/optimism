@@ -73,6 +73,7 @@ func (los *L1OriginSelector) OnEvent(ctx context.Context, ev event.Event) bool {
 // FindL1Origin determines what the L1 Origin for the next L2 Block should be.
 // It wraps the FindL1OriginOfNextL2Block function and handles caching and network requests.
 func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
+	recoverMode := los.recoverMode.Load()
 	// Get cached values for currentOrigin and nextOrigin
 	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(ctx, l2Head)
 	if err != nil {
@@ -83,13 +84,13 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 		l2Head,
 		currentOrigin,
 		nextOrigin,
-		los.recoverMode.Load())
+		recoverMode)
 
 	// If the cache doesn't have the next origin, but we now
 	// know we definitely need it, fetch it and try again.
 	if errors.Is(err, ErrNextL1OriginRequired) {
 		nextOrigin, err = los.fetch(ctx, currentOrigin.Number+1)
-		if err == nil || (los.recoverMode.Load() && errors.Is(err, ethereum.NotFound)) {
+		if err == nil || (recoverMode && errors.Is(err, ethereum.NotFound)) {
 			// If we got the origin, or we are in recover mode and the origin is not found
 			// (because we recovered the l1 origin up to the l1 tip)
 			// try again with matchAutoDerivation = false.
@@ -219,7 +220,7 @@ var (
 // It returns an error if there is no way to build a block satisfying
 // derivation constraints with the supplied data.
 // You can pass an empty nextL1Origin if it is not yet available
-// removing the need for block building to wait on the result of network calls
+// removing the need for block building to wait on the result of network calls.
 // This method is designed to be pure (it only reads the cfg property of the receiver)
 // and should not have any side effects.
 func (los *L1OriginSelector) findL1OriginOfNextL2Block(
