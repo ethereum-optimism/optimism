@@ -29,6 +29,7 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -496,36 +497,36 @@ contract Deploy is Deployer {
     }
 
     function getDeployInputV2() public view returns (IOPContractsManagerV2.FullConfig memory) {
-        IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerV2.DisputeGameConfig[](3);
-        disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
+        IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerUtils.DisputeGameConfig[](3);
+        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.CANNON,
             gameArgs: abi.encode(
-                IOPContractsManagerV2.FaultDisputeGameConfig({
+                IOPContractsManagerUtils.FaultDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()))
                 })
             )
         });
-        disputeGameConfigs[1] = IOPContractsManagerV2.DisputeGameConfig({
+        disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0,
             gameType: GameTypes.PERMISSIONED_CANNON,
             gameArgs: abi.encode(
-                IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate())),
                     proposer: cfg.l2OutputOracleProposer(),
                     challenger: cfg.l2OutputOracleChallenger()
                 })
             )
         });
-        disputeGameConfigs[2] = IOPContractsManagerV2.DisputeGameConfig({
+        disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.CANNON_KONA,
             gameArgs: abi.encode(
-                IOPContractsManagerV2.FaultDisputeGameConfig({
+                IOPContractsManagerUtils.FaultDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()))
                 })
             )

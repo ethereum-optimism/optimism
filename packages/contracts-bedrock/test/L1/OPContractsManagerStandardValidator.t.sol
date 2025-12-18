@@ -236,32 +236,34 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
                 address owner = proxyAdmin.owner();
 
                 // Prepare the upgrade input.
-                IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
-                    new IOPContractsManagerV2.DisputeGameConfig[](3);
-                disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
+                IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
+                    new IOPContractsManagerUtils.DisputeGameConfig[](3);
+                disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                     enabled: true,
                     initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
                     gameType: GameTypes.CANNON,
-                    gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
+                    gameArgs: abi.encode(
+                        IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate })
+                    )
                 });
-                disputeGameConfigs[1] = IOPContractsManagerV2.DisputeGameConfig({
+                disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
                     enabled: true,
                     initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
                     gameType: GameTypes.PERMISSIONED_CANNON,
                     gameArgs: abi.encode(
-                        IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                        IOPContractsManagerUtils.PermissionedDisputeGameConfig({
                             absolutePrestate: cannonPrestate,
                             proposer: proposer,
                             challenger: challenger
                         })
                     )
                 });
-                disputeGameConfigs[2] = IOPContractsManagerV2.DisputeGameConfig({
+                disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
                     enabled: true,
                     initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
                     gameType: GameTypes.CANNON_KONA,
                     gameArgs: abi.encode(
-                        IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
+                        IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
                     )
                 });
 

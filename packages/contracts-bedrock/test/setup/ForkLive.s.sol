@@ -272,36 +272,36 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
         address proposer = permissionedGameProposer(disputeGameFactory);
 
         // Prepare the upgrade input.
-        IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerV2.DisputeGameConfig[](3);
-        disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
+        IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerUtils.DisputeGameConfig[](3);
+        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
             gameType: GameTypes.CANNON,
             gameArgs: abi.encode(
-                IOPContractsManagerV2.FaultDisputeGameConfig({
+                IOPContractsManagerUtils.FaultDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate")))
                 })
             )
         });
-        disputeGameConfigs[1] = IOPContractsManagerV2.DisputeGameConfig({
+        disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
             gameType: GameTypes.PERMISSIONED_CANNON,
             gameArgs: abi.encode(
-                IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate"))),
                     proposer: proposer,
                     challenger: challenger
                 })
             )
         });
-        disputeGameConfigs[2] = IOPContractsManagerV2.DisputeGameConfig({
+        disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
             gameType: GameTypes.CANNON_KONA,
             gameArgs: abi.encode(
-                IOPContractsManagerV2.FaultDisputeGameConfig({
+                IOPContractsManagerUtils.FaultDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(keccak256("cannonKonaPrestate")))
                 })
             )
