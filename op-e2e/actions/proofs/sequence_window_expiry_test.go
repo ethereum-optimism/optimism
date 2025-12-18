@@ -63,7 +63,8 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 
 	// Ensure the safe head advanced forcefully.
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
-	require.Greater(t, l2SafeHead.Number.Uint64(), uint64(0))
+	require.Greater(t, l2SafeHead.Number.Uint64(), uint64(0),
+		"The safe head failed to progress after the sequencing window expired (expected deposit-only blocks to be derived).")
 
 	env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64()/2, testCfg.CheckResult, testCfg.InputParams...)
 

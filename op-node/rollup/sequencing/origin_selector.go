@@ -108,6 +108,8 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 // CurrentAndNextOrigin returns the current cached values for the current L1 origin for the supplied l2Head, and its successor.
 // It only performs a fetch to L1 if the cache is invalid.
 // The cache can be updated asynchronously by other methods on L1OriginSelector.
+// The returned currentOrigin should _always_ be non-empty, because it is populated from l2Head whose
+// l1Origin is first specified in the rollup.Config.Genesis.L1 and progressed to non-empty values thereafter.
 func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, eth.L1BlockRef, error) {
 	los.mu.Lock()
 	defer los.mu.Unlock()
@@ -226,6 +228,10 @@ func (los *L1OriginSelector) findL1OriginOfNextL2Block(
 	matchAutoDerivation bool) (eth.L1BlockRef, error) {
 
 	if (currentL1Origin == eth.L1BlockRef{}) {
+		// This would indicate a programming error, since the currentL1Origin
+		// should _always_ be available.
+		// The first value (for block 1) is specified in rollup.Config.Genesis.L1
+		// and it is then only updated to non-empty values.
 		panic("origin-selector: currentL1Origin is empty")
 	}
 	if l2Head.L1Origin.Hash != currentL1Origin.Hash {
@@ -242,7 +248,9 @@ func (los *L1OriginSelector) findL1OriginOfNextL2Block(
 
 	if (nextL1Origin == eth.L1BlockRef{}) {
 		if matchAutoDerivation {
-			// This can cause unsafe block production to slow to the rate of L1 block production, if the L1 origin is caught up to the L1 Head.
+			// See https://github.com/ethereum-optimism/optimism/blob/ce9fa62d0c0325304fc37d91d87aa2e16a7f8356/op-node/rollup/derive/base_batch_stage.go#L186-L205
+			// We need the next L1 origin to decide whether we can eagerly adopt it.
+			// NOTE: This can cause unsafe block production to slow to the rate of L1 block production, if the L1 origin is caught up to the L1 Head.
 			// Code higher up the call stack should ensure that matchAutoDerivation is false under such conditions.
 			return eth.L1BlockRef{}, ErrNextL1OriginRequired
 		} else {
