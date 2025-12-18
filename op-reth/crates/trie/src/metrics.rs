@@ -51,6 +51,8 @@ pub enum StorageOperation {
     StoreHashedAccount,
     /// Store hashed storage
     StoreHashedStorage,
+    /// Store address mapping
+    StoreAddressMapping,
     /// Trie cursor seek exact operation
     TrieCursorSeekExact,
     /// Trie cursor seek
@@ -73,6 +75,7 @@ impl StorageOperation {
             Self::StoreStorageBranch => "store_storage_branch",
             Self::StoreHashedAccount => "store_hashed_account",
             Self::StoreHashedStorage => "store_hashed_storage",
+            Self::StoreAddressMapping => "store_address_mapping",
             Self::TrieCursorSeekExact => "trie_cursor_seek_exact",
             Self::TrieCursorSeek => "trie_cursor_seek",
             Self::TrieCursorNext => "trie_cursor_next",
@@ -461,6 +464,27 @@ where
         if count > 0 {
             self.metrics.record_duration_per_item(
                 StorageOperation::StoreHashedStorage,
+                duration,
+                count,
+            );
+        }
+
+        result
+    }
+
+    async fn store_address_mappings(
+        &self,
+        mappings: Vec<(B256, alloy_primitives::Address)>,
+    ) -> OpProofsStorageResult<()> {
+        let count = mappings.len();
+        let start = Instant::now();
+        let result = self.storage.store_address_mappings(mappings).await;
+        let duration = start.elapsed();
+
+        // Record per-item duration
+        if count > 0 {
+            self.metrics.record_duration_per_item(
+                StorageOperation::StoreAddressMapping,
                 duration,
                 count,
             );

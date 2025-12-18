@@ -4,16 +4,16 @@ use crate::{
     db::{
         cursor::Dup,
         models::{
-            kv::IntoKV, AccountTrieHistory, BlockChangeSet, ChangeSet, HashedAccountHistory,
-            HashedStorageHistory, HashedStorageKey, MaybeDeleted, StorageTrieHistory,
-            StorageTrieKey, StorageValue, VersionedValue,
+            kv::IntoKV, AccountTrieHistory, AddressLookup, BlockChangeSet, ChangeSet,
+            HashedAccountHistory, HashedStorageHistory, HashedStorageKey, MaybeDeleted,
+            StorageTrieHistory, StorageTrieKey, StorageValue, VersionedValue,
         },
         MdbxAccountCursor, MdbxStorageCursor, MdbxTrieCursor,
     },
     BlockStateDiff, OpProofsStorageError, OpProofsStorageResult, OpProofsStore,
 };
 use alloy_eips::{eip1898::BlockWithParent, NumHash};
-use alloy_primitives::{map::HashMap, B256, U256};
+use alloy_primitives::{map::HashMap, Address, B256, U256};
 #[cfg(feature = "metrics")]
 use metrics::{gauge, Label};
 use reth_db::{
@@ -514,6 +514,27 @@ impl OpProofsStore for MdbxProofsStorage {
         })?
     }
 
+    async fn store_address_mappings(
+        &self,
+        mappings: Vec<(B256, Address)>,
+    ) -> OpProofsStorageResult<()> {
+        let mut mappings = mappings;
+        if mappings.is_empty() {
+            return Ok(());
+        }
+
+        // sort the mappings by key to ensure insertion is efficient
+        mappings.sort_by_key(|(key, _)| *key);
+
+        self.env.update(|tx| {
+            let mut cur = tx.cursor_write::<AddressLookup>()?;
+            for (k, v) in mappings {
+                cur.append(k, &v)?;
+            }
+            Ok(())
+        })?
+    }
+
     async fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
         self.env.view(|tx| self.inner_get_block_number_hash(tx, ProofWindowKey::EarliestBlock))?
     }
@@ -901,7 +922,7 @@ mod tests {
         StorageTrieKey,
     };
     use alloy_eips::NumHash;
-    use alloy_primitives::B256;
+    use alloy_primitives::{keccak256, B256};
     use reth_db::{
         cursor::DbDupCursorRO,
         transaction::{DbTx, DbTxMut},
@@ -1320,6 +1341,40 @@ mod tests {
                 assert_eq!(v.value.0, branch);
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_store_address_mappings() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        let a1 = Address::random();
+        let h1 = keccak256(a1);
+        let a2 = Address::random();
+        let h2 = keccak256(a2);
+        let a3 = Address::random();
+        let h3 = keccak256(a3);
+
+        // Input is unsorted to verify the method sorts them before appending
+        // (MDBX append requires sorted keys)
+        let mappings = vec![(h3, a3), (h1, a1), (h2, a2)];
+
+        store.store_address_mappings(mappings).await.expect("store");
+
+        let tx = store.env.tx().expect("ro tx");
+        let mut cur = tx.cursor_read::<AddressLookup>().expect("cursor");
+
+        // Verify h1
+        let v1 = cur.seek_exact(h1).expect("seek").expect("exists");
+        assert_eq!(v1, (h1, a1));
+
+        // Verify h2
+        let v2 = cur.seek_exact(h2).expect("seek").expect("exists");
+        assert_eq!(v2, (h2, a2));
+
+        // Verify h3
+        let v3 = cur.seek_exact(h3).expect("seek").expect("exists");
+        assert_eq!(v3, (h3, a3));
     }
 
     #[tokio::test]

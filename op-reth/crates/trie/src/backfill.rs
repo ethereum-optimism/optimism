@@ -1,7 +1,7 @@
 //! Backfill job for proofs storage. Handles storing the existing state into the proofs storage.
 
 use crate::OpProofsStore;
-use alloy_primitives::B256;
+use alloy_primitives::{keccak256, Address, B256};
 use reth_db::{
     cursor::{DbCursorRO, DbDupCursorRO},
     tables,
@@ -82,6 +82,7 @@ macro_rules! define_dup_cursor_iter {
 
 // Generate iterators for all 4 table types
 define_simple_cursor_iter!(HashedAccountsIter, tables::HashedAccounts, B256, Account);
+define_simple_cursor_iter!(AddressLookupIter, tables::PlainAccountState, Address, Account);
 define_dup_cursor_iter!(HashedStoragesIter, tables::HashedStorages, B256, StorageEntry);
 define_simple_cursor_iter!(
     AccountsTrieIter,
@@ -263,6 +264,29 @@ impl<'a, Tx: DbTx, S: OpProofsStore + Send> BackfillJob<'a, Tx, S> {
         Ok(())
     }
 
+    /// Backfill address mappings data
+    async fn backfill_address_mappings(&self) -> eyre::Result<()> {
+        let start_cursor = self.tx.cursor_read::<tables::PlainAccountState>()?;
+
+        let source = AddressLookupIter::new(start_cursor)
+            .map(|res| res.map(|(addr, _)| (keccak256(addr), addr)));
+        let save_fn = async |entries: Vec<(B256, Address)>| -> eyre::Result<()> {
+            self.storage.store_address_mappings(entries).await?;
+            Ok(())
+        };
+
+        backfill(
+            "address mappings",
+            source,
+            BACKFILL_STORAGE_THRESHOLD,
+            BACKFILL_LOG_THRESHOLD,
+            save_fn,
+        )
+        .await?;
+
+        Ok(())
+    }
+
     /// Backfill accounts trie data
     async fn backfill_accounts_trie(&self) -> eyre::Result<()> {
         let start_cursor = self.tx.cursor_read::<tables::AccountsTrie>()?;
@@ -328,6 +352,7 @@ impl<'a, Tx: DbTx, S: OpProofsStore + Send> BackfillJob<'a, Tx, S> {
     async fn backfill_trie(&self) -> eyre::Result<()> {
         self.backfill_hashed_accounts().await?;
         self.backfill_hashed_storages().await?;
+        self.backfill_address_mappings().await?;
         self.backfill_storages_trie().await?;
         self.backfill_accounts_trie().await?;
 
@@ -518,6 +543,34 @@ mod tests {
             count += 1;
         }
         assert_eq!(count, 3);
+    }
+
+    #[tokio::test]
+    async fn test_backfill_address_mappings() {
+        let db = create_test_rw_db();
+        let storage = InMemoryProofsStorage::new();
+
+        // Insert test address mappings into database
+        let tx = db.tx_mut().unwrap();
+        let mut cursor = tx.cursor_write::<tables::PlainAccountState>().unwrap();
+
+        let accounts = vec![
+            (Address::repeat_byte(0x01), Account { nonce: 1, ..Default::default() }),
+            (Address::repeat_byte(0x02), Account { nonce: 2, ..Default::default() }),
+        ];
+
+        for (addr, account) in &accounts {
+            cursor.append(*addr, account).unwrap();
+        }
+        drop(cursor);
+        tx.commit().unwrap();
+
+        // Run backfill
+        let tx = db.tx().unwrap();
+        let job = BackfillJob::new(storage.clone(), &tx);
+        job.backfill_address_mappings().await.unwrap();
+
+        // Todo: Verify data was stored
     }
 
     #[tokio::test]
