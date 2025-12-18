@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
-import { Safe } from "safe-contracts/Safe.sol";
-import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
+// Contracts
+import { Safe } from "safe-contracts/Safe.sol";
 import { LivenessModule } from "src/safe/LivenessModule.sol";
 import { LivenessGuard } from "src/safe/LivenessGuard.sol";
+
+// Libraries
+import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 
 /// @title LivenessModule_TestInit
 /// @notice Reusable test initialization for `LivenessModule` tests.

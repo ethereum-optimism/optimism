@@ -2,7 +2,8 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
+import { Test } from "test/setup/Test.sol";
+import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 import "../setup/FeatureFlags.sol";
 
 // Libraries

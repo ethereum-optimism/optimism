@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
+
+// Libraries
+import { LibPosition } from "src/dispute/lib/LibPosition.sol";
+import { GameType } from "src/dispute/lib/Types.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -14,6 +20,7 @@ import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 import { GameType } from "src/dispute/lib/Types.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 
+// Contracts
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { DeployDisputeGame } from "scripts/deploy/DeployDisputeGame.s.sol";
 

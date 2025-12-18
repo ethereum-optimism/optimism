@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
+import { VmSafe } from "forge-std/Vm.sol";
 
-import { Identifier as IfaceIdentifier } from "interfaces/L2/ICrossL2Inbox.sol";
-
+// Contracts
 import { EventLogger } from "../../src/integration/EventLogger.sol";
+import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 
+// Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
+// Interfaces
+import { Identifier as IfaceIdentifier } from "interfaces/L2/ICrossL2Inbox.sol";
 import { ICrossL2Inbox, Identifier as ImplIdentifier } from "interfaces/L2/ICrossL2Inbox.sol";
-import { VmSafe } from "forge-std/Vm.sol";
-import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 
 /// @title EventLogger_TestInit
 /// @notice Reusable test initialization for `EventLogger` tests.

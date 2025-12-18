@@ -2780,10 +2780,9 @@ workflows:
             parameters:
               features: &features_matrix
                 - main
-                - OPTIMISM_PORTAL_INTEROP
-                - CANNON_KONA,DEPLOY_V2_DISPUTE_GAMES
-                - OPCM_V2
                 - CUSTOM_GAS_TOKEN
+                - OPTIMISM_PORTAL_INTEROP
+                - OPCM_V2
                 - OPCM_V2,CUSTOM_GAS_TOKEN
                 - OPCM_V2,OPTIMISM_PORTAL_INTEROP
           context:
