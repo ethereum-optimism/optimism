@@ -11,6 +11,7 @@
 - Crate `reth-optimism-trie`
 - Crate `reth-optimism-exex`
 - RPC overrides `eth_getProof` and `debug_executionWitness`
+- Beautiful metrics dashboard _/etc/grafana/dashboards/op-proof-history.json_
 
 ## An intro to `reth-optimism-trie`
 
