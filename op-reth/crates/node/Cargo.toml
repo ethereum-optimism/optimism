@@ -87,7 +87,6 @@ alloy-network.workspace = true
 alloy-op-hardforks.workspace = true
 futures.workspace = true
 op-alloy-network.workspace = true
-alloy-op-hardforks.workspace = true
 
 [features]
 default = ["reth-codec"]
