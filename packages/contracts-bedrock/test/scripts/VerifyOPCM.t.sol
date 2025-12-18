@@ -6,7 +6,7 @@ import { LibString } from "@solady/utils/LibString.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Tests
-import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Scripts
 import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
@@ -61,13 +61,19 @@ contract VerifyOPCM_Harness is VerifyOPCM {
 
 /// @title VerifyOPCM_TestInit
 /// @notice Reusable test initialization for `VerifyOPCM` tests.
-abstract contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
+abstract contract VerifyOPCM_TestInit is CommonTest {
     VerifyOPCM_Harness internal harness;
 
     function setUp() public virtual override {
         super.setUp();
         harness = new VerifyOPCM_Harness();
         harness.setUp();
+    }
+
+    /// @notice Sets up the environment variables for the VerifyOPCM test.
+    function setupEnvVars() public {
+        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
+        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
     }
 }
 
@@ -76,8 +82,17 @@ abstract contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
 contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function setUp() public override {
         super.setUp();
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-        setupEnvVars();
+
+        // If OPCM V2 is enabled, set up the test environment for OPCM V2.
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
+        if (vm.envOr("DEV_FEATURE__OPCM_V2", false)) {
+            opcm = IOPContractsManager(address(opcmV2));
+        } else {
+            setupEnvVars();
+        }
+
+        // Set the OPCM address so that runSingle also runs for V2 OPCM if the dev feature is enabled.
+        vm.setEnv("OPCM_ADDRESS", vm.toString(address(opcm)));
     }
 
     /// @notice Tests that the script succeeds when no changes are introduced.
@@ -467,6 +482,9 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function test_verifyOpcmImmutableVariables_mismatch_fails() public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
+
+        // If OPCM V2 is enabled because we do not use environment variables for OPCM V2.
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
 
         // Set expected addresses via environment variables
         address expectedSuperchainConfig = address(0x1111);

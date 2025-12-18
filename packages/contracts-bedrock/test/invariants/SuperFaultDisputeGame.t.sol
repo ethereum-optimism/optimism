@@ -9,9 +9,11 @@ import { RandomClaimActor } from "test/invariants/FaultDisputeGame.t.sol";
 // Libraries
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 
 contract SuperFaultDisputeGame_Solvency_Invariant is BaseSuperFaultDisputeGame_TestInit {
-    Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32(uint256(10)));
+    Claim internal ROOT_CLAIM;
     Claim internal constant ABSOLUTE_PRESTATE = Claim.wrap(bytes32((uint256(3) << 248) | uint256(0)));
 
     RandomClaimActor internal actor;
@@ -19,7 +21,17 @@ contract SuperFaultDisputeGame_Solvency_Invariant is BaseSuperFaultDisputeGame_T
 
     function setUp() public override {
         super.setUp();
-        super.init({ _rootClaim: ROOT_CLAIM, _absolutePrestate: ABSOLUTE_PRESTATE, _l2SequenceNumber: 0x10 });
+
+        Types.OutputRootWithChainId[] memory outputRoots = new Types.OutputRootWithChainId[](2);
+        outputRoots[0] = Types.OutputRootWithChainId({ chainId: 5, root: keccak256(abi.encode(5)) });
+        outputRoots[1] = Types.OutputRootWithChainId({ chainId: 6, root: keccak256(abi.encode(6)) });
+        Types.SuperRootProof memory superRootProof;
+        superRootProof.version = bytes1(uint8(1));
+        superRootProof.timestamp = uint64(0x10);
+        superRootProof.outputRoots = outputRoots;
+        ROOT_CLAIM = Claim.wrap(Hashing.hashSuperRootProof(superRootProof));
+
+        super.init({ _rootClaim: ROOT_CLAIM, _absolutePrestate: ABSOLUTE_PRESTATE, _super: superRootProof });
 
         actor = new RandomClaimActor(IFaultDisputeGame(address(gameProxy)), vm);
 

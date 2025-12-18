@@ -6,21 +6,23 @@ import (
 )
 
 type ReadSuperchainDeploymentInput struct {
-	OPCMAddress common.Address `abi:"opcmAddress"`
+	OPCMAddress           common.Address `abi:"opcmAddress"` // TODO(#18612): Remove OPCMAddress field when OPCMv1 gets deprecated
+	SuperchainConfigProxy common.Address `abi:"superchainConfigProxy"`
 }
 
 type ReadSuperchainDeploymentOutput struct {
-	ProtocolVersionsImpl  common.Address
-	ProtocolVersionsProxy common.Address
-	SuperchainConfigImpl  common.Address
-	SuperchainConfigProxy common.Address
-	SuperchainProxyAdmin  common.Address
-
-	Guardian                   common.Address
+	// TODO(#18612): Remove ProtocolVersions fields when OPCMv1 gets deprecated
+	ProtocolVersionsImpl       common.Address
+	ProtocolVersionsProxy      common.Address
 	ProtocolVersionsOwner      common.Address
-	SuperchainProxyAdminOwner  common.Address
 	RecommendedProtocolVersion [32]byte
 	RequiredProtocolVersion    [32]byte
+
+	SuperchainConfigImpl      common.Address
+	SuperchainConfigProxy     common.Address
+	SuperchainProxyAdmin      common.Address
+	Guardian                  common.Address
+	SuperchainProxyAdminOwner common.Address
 }
 
 type ReadSuperchainDeploymentScript script.DeployScriptWithOutput[ReadSuperchainDeploymentInput, ReadSuperchainDeploymentOutput]

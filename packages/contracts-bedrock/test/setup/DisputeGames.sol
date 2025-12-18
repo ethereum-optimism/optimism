@@ -34,6 +34,20 @@ contract DisputeGames is FeatureFlags {
         internal
         returns (address)
     {
+        return createGame(_factory, _gameType, _proposer, _claim, abi.encode(bytes32(_l2BlockNumber)));
+    }
+
+    /// @notice Helper function to create a permissioned game through the factory
+    function createGame(
+        IDisputeGameFactory _factory,
+        GameType _gameType,
+        address _proposer,
+        Claim _claim,
+        bytes memory _extraData
+    )
+        internal
+        returns (address)
+    {
         // Check if there's an init bond required for the game type
         uint256 initBond = _factory.initBonds(_gameType);
         console.log("Init bond", initBond);
@@ -46,8 +60,7 @@ contract DisputeGames is FeatureFlags {
         // We use vm.startPrank to set both msg.sender and tx.origin to the proposer
         vm.startPrank(_proposer, _proposer);
 
-        IDisputeGame gameProxy =
-            _factory.create{ value: initBond }(_gameType, _claim, abi.encode(bytes32(_l2BlockNumber)));
+        IDisputeGame gameProxy = _factory.create{ value: initBond }(_gameType, _claim, _extraData);
 
         vm.stopPrank();
 
@@ -57,6 +70,12 @@ contract DisputeGames is FeatureFlags {
     function isGamePermissioned(GameType _gameType) internal pure returns (bool) {
         return _gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
             || _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw();
+    }
+
+    /// @notice Checks if the game type is a super game type
+    function isSuperGame(GameType _gameType) internal pure returns (bool) {
+        return _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+            || _gameType.raw() == GameTypes.SUPER_CANNON.raw() || _gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw();
     }
 
     enum GameArg {

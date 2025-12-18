@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/binary"
+	"errors"
 	"math/big"
 	"time"
 
@@ -194,6 +195,9 @@ func (p *L2Proposer) fetchNextOutput(t Testing) (source.Proposal, bool, error) {
 	output, shouldPropose, err := p.driver.FetchDGFOutput(t.Ctx())
 	if err != nil || !shouldPropose {
 		return source.Proposal{}, false, err
+	}
+	if output.IsSuperRootProposal() {
+		return source.Proposal{}, false, errors.New("unexpected super root proposal")
 	}
 	encodedBlockNumber := make([]byte, 32)
 	binary.BigEndian.PutUint64(encodedBlockNumber[24:], output.SequenceNum)
