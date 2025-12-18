@@ -51,8 +51,8 @@ contract L1Withdrawer is ISemver {
     event WithdrawalGasLimitUpdated(uint32 oldWithdrawalGasLimit, uint32 newWithdrawalGasLimit);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @notice Constructs the L1Withdrawer contract.
     /// @param _minWithdrawalAmount The minimum amount of ETH required to trigger a withdrawal.
