@@ -7,6 +7,8 @@ use tokio::{
 };
 use tracing::info;
 
+const PRUNE_BATCH_SIZE: u64 = 200;
+
 /// Periodic pruner task: constructs the pruner and runs it every interval.
 #[derive(Debug)]
 pub struct OpProofStoragePrunerTask<P, H> {
@@ -27,7 +29,8 @@ where
         min_block_interval: u64,
         task_run_interval: Duration,
     ) -> Self {
-        let pruner = OpProofStoragePruner::new(provider, hash_reader, min_block_interval);
+        let pruner =
+            OpProofStoragePruner::new(provider, hash_reader, min_block_interval, PRUNE_BATCH_SIZE);
         Self { pruner, min_block_interval, task_run_interval }
     }
 

@@ -47,6 +47,24 @@ impl Display for PrunerOutput {
     }
 }
 
+impl PrunerOutput {
+    /// extend the current [`PrunerOutput`] with another [`PrunerOutput`]
+    pub fn extend_ref(&mut self, other: Self) {
+        self.duration += other.duration;
+        self.fetch_duration += other.fetch_duration;
+        self.prune_duration += other.prune_duration;
+        // take the earliest start block
+        if self.start_block > other.start_block {
+            self.start_block = other.start_block;
+        }
+        // take the latest end block
+        if self.end_block < other.end_block {
+            self.end_block = other.end_block;
+        }
+        self.write_counts += other.write_counts;
+    }
+}
+
 /// Error returned by the pruner.
 #[derive(Debug, Error, Display)]
 pub enum PrunerError {

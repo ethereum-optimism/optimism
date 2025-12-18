@@ -35,6 +35,14 @@ pub struct PruneOpProofsCommand<C: ChainSpecParser> {
         value_name = "PROOFS_HISTORY_WINDOW"
     )]
     pub proofs_history_window: u64,
+
+    /// The batch size for pruning operations.
+    #[arg(
+        long = "proofs-history.prune-batch-size",
+        default_value_t = 1000,
+        value_name = "PROOFS_HISTORY_PRUNE_BATCH_SIZE"
+    )]
+    pub proofs_history_prune_batch_size: u64,
 }
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> PruneOpProofsCommand<C> {
@@ -63,8 +71,12 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> PruneOpProofsCommand<C> {
             "Current proofs storage block range"
         );
 
-        let pruner =
-            OpProofStoragePruner::new(storage, provider_factory, self.proofs_history_window);
+        let pruner = OpProofStoragePruner::new(
+            storage,
+            provider_factory,
+            self.proofs_history_window,
+            self.proofs_history_prune_batch_size,
+        );
         pruner.run().await;
         Ok(())
     }
