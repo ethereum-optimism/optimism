@@ -27,37 +27,25 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 	}
 
 	hasPredeployedOPCM := intent.OPCMAddress != nil
-	hasSuperchainConfigProxy := intent.SuperchainConfigProxy != nil
 
-	if hasPredeployedOPCM || hasSuperchainConfigProxy {
+	if hasPredeployedOPCM {
+		if intent.SuperchainConfigProxy != nil {
+			return fmt.Errorf("cannot set superchain config proxy for predeployed OPCM")
+		}
+
 		if intent.SuperchainRoles != nil {
-			return fmt.Errorf("cannot set superchain roles when using predeployed OPCM or SuperchainConfig")
+			return fmt.Errorf("cannot set superchain roles for predeployed OPCM")
 		}
 
-		opcmAddr := common.Address{}
-		if hasPredeployedOPCM {
-			opcmAddr = *intent.OPCMAddress
-		}
-
-		superchainConfigAddr := common.Address{}
-		if hasSuperchainConfigProxy {
-			superchainConfigAddr = *intent.SuperchainConfigProxy
-		}
-
-		// The ReadSuperchainDeployment script (packages/contracts-bedrock/scripts/deploy/ReadSuperchainDeployment.s.sol)
-		// uses the OPCM's semver version (>= 7.0.0 indicates v2) to determine how to populate the superchain state:
-		// - OPCMv1 (< 7.0.0): Queries the OPCM contract to get SuperchainConfig and ProtocolVersions
-		// - OPCMv2 (>= 7.0.0): Uses the provided SuperchainConfigProxy address; ProtocolVersions is deprecated
-		superDeployment, superRoles, err := PopulateSuperchainState(env.L1ScriptHost, opcmAddr, superchainConfigAddr)
+		superDeployment, superRoles, err := PopulateSuperchainState(env.L1ScriptHost, *intent.OPCMAddress)
 		if err != nil {
 			return fmt.Errorf("error populating superchain state: %w", err)
 		}
 		st.SuperchainDeployment = superDeployment
 		st.SuperchainRoles = superRoles
-
-		if hasPredeployedOPCM && st.ImplementationsDeployment == nil {
+		if st.ImplementationsDeployment == nil {
 			st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-				OpcmImpl: opcmAddr,
+				OpcmImpl: *intent.OPCMAddress,
 			}
 		}
 	}
@@ -137,17 +125,14 @@ func immutableErr(field string, was, is any) error {
 	return fmt.Errorf("%s is immutable: was %v, is %v", field, was, is)
 }
 
-// TODO(#18612): Remove OPCMAddress field when OPCMv1 gets deprecated
-// TODO(#18612): Remove ProtocolVersions fields when OPCMv1 gets deprecated
-func PopulateSuperchainState(host *script.Host, opcmAddr common.Address, superchainConfigProxy common.Address) (*addresses.SuperchainContracts, *addresses.SuperchainRoles, error) {
+func PopulateSuperchainState(host *script.Host, opcmAddr common.Address) (*addresses.SuperchainContracts, *addresses.SuperchainRoles, error) {
 	readScript, err := opcm.NewReadSuperchainDeploymentScript(host)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error generating read superchain deployment script: %w", err)
 	}
 
 	out, err := readScript.Run(opcm.ReadSuperchainDeploymentInput{
-		OPCMAddress:           opcmAddr,
-		SuperchainConfigProxy: superchainConfigProxy,
+		OPCMAddress: opcmAddr,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("error reading superchain deployment: %w", err)

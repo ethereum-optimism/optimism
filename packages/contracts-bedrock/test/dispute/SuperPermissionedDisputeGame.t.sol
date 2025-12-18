@@ -8,9 +8,6 @@ import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 // Libraries
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
-import { Types } from "src/libraries/Types.sol";
-import { Hashing } from "src/libraries/Hashing.sol";
-import { Encoding } from "src/libraries/Encoding.sol";
 
 // Interfaces
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
@@ -39,9 +36,8 @@ abstract contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_Te
 
     /// @notice The root claim of the game.
     Claim internal rootClaim;
-    /// @notice The Super Root Proof of the rootClaim
-    Types.SuperRootProof internal superRootProof;
-
+    /// @notice An arbitrary root claim for testing.
+    Claim internal arbitaryRootClaim = Claim.wrap(bytes32(uint256(123)));
     /// @notice Minimum bond value that covers all possible moves.
     uint256 internal constant MIN_BOND = 50 ether;
 
@@ -54,7 +50,7 @@ abstract contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_Te
 
     event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
 
-    function init(Claim _rootClaim, Claim _absolutePrestate, Types.SuperRootProof memory _super) public {
+    function init(Claim _rootClaim, Claim _absolutePrestate, uint256 _l2BlockNumber) public {
         // Set the time to a realistic date.
         if (!isForkTest()) {
             vm.warp(1690906994);
@@ -64,7 +60,7 @@ abstract contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_Te
         vm.deal(PROPOSER, 100 ether);
 
         // Set the extra data for the game creation
-        extraData = Encoding.encodeSuperRootProof(_super);
+        extraData = abi.encode(_l2BlockNumber);
 
         (address _impl, AlphabetVM _vm,) = setupSuperPermissionedDisputeGame(_absolutePrestate, PROPOSER, CHALLENGER);
         gameImpl = ISuperPermissionedDisputeGame(_impl);
@@ -93,11 +89,6 @@ abstract contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_Te
         assertEq(address(gameProxy.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(address(gameProxy.vm()), address(_vm));
         assertEq(address(gameProxy.gameCreator()), PROPOSER);
-        // Check extra data
-        assertEq(gameProxy.l2SequenceNumber(), _super.timestamp);
-        for (uint256 i; i < _super.outputRoots.length; i++) {
-            assertEq(gameProxy.rootClaimByChainId(_super.outputRoots[i].chainId).raw(), _super.outputRoots[i].root);
-        }
 
         // Label the proxy
         vm.label(address(gameProxy), "FaultDisputeGame_Clone");
@@ -110,16 +101,10 @@ abstract contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_Te
         super.setUp();
 
         // Get the actual anchor roots
-        (, uint256 l2Seqno) = anchorStateRegistry.getAnchorRoot();
-        validL2BlockNumber = l2Seqno + 1;
-
-        superRootProof.version = bytes1(uint8(1));
-        superRootProof.timestamp = uint64(validL2BlockNumber);
-        superRootProof.outputRoots.push(Types.OutputRootWithChainId({ chainId: 5, root: keccak256(abi.encode(5)) }));
-        superRootProof.outputRoots.push(Types.OutputRootWithChainId({ chainId: 6, root: keccak256(abi.encode(6)) }));
-        rootClaim = Claim.wrap(Hashing.hashSuperRootProof(superRootProof));
-
-        init({ _rootClaim: rootClaim, _absolutePrestate: absolutePrestate, _super: superRootProof });
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
+        validL2BlockNumber = l2BlockNumber + 1;
+        rootClaim = Claim.wrap(Hash.unwrap(root));
+        init({ _rootClaim: rootClaim, _absolutePrestate: absolutePrestate, _l2BlockNumber: validL2BlockNumber });
     }
 
     /// @notice Helper to return a pseudo-random claim
@@ -139,16 +124,6 @@ abstract contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_Te
         assembly {
             out_ := or(and(not(shl(248, 0xFF)), _claim), shl(248, _status))
         }
-    }
-
-    /// @notice Helper to create an arbitrary SuperRootProof
-    function _arbitraryRootClaim() internal view returns (Types.SuperRootProof memory super_) {
-        Types.OutputRootWithChainId[] memory outputRoots = new Types.OutputRootWithChainId[](1);
-        outputRoots[0] = Types.OutputRootWithChainId({ chainId: 99, root: keccak256(abi.encode(5)) });
-        super_.version = bytes1(uint8(1));
-        super_.timestamp = uint64(validL2BlockNumber + 100);
-        super_.outputRoots = outputRoots;
-        return super_;
     }
 
     fallback() external payable { }
@@ -234,13 +209,8 @@ contract SuperPermissionedDisputeGame_Uncategorized_Test is SuperPermissionedDis
     /// @notice Tests that the proposer can create a permissioned dispute game.
     function test_createGame_proposer_succeeds() public {
         uint256 bondAmount = disputeGameFactory.initBonds(GAME_TYPE);
-        Types.SuperRootProof memory arbitrarySuperRootProof = _arbitraryRootClaim();
         vm.prank(PROPOSER, PROPOSER);
-        disputeGameFactory.create{ value: bondAmount }(
-            GAME_TYPE,
-            Claim.wrap(Hashing.hashSuperRootProof(arbitrarySuperRootProof)),
-            Encoding.encodeSuperRootProof(arbitrarySuperRootProof)
-        );
+        disputeGameFactory.create{ value: bondAmount }(GAME_TYPE, arbitaryRootClaim, abi.encode(validL2BlockNumber));
     }
 
     /// @notice Tests that the permissioned game cannot be created by any address other than the
@@ -248,16 +218,11 @@ contract SuperPermissionedDisputeGame_Uncategorized_Test is SuperPermissionedDis
     function testFuzz_createGame_notProposer_reverts(address _p) public {
         vm.assume(_p != PROPOSER);
 
-        Types.SuperRootProof memory arbitrarySuperRootProof = _arbitraryRootClaim();
         uint256 bondAmount = disputeGameFactory.initBonds(GAME_TYPE);
         vm.deal(_p, bondAmount);
         vm.prank(_p, _p);
         vm.expectRevert(BadAuth.selector);
-        disputeGameFactory.create{ value: bondAmount }(
-            GAME_TYPE,
-            Claim.wrap(Hashing.hashSuperRootProof(arbitrarySuperRootProof)),
-            Encoding.encodeSuperRootProof(arbitrarySuperRootProof)
-        );
+        disputeGameFactory.create{ value: bondAmount }(GAME_TYPE, arbitaryRootClaim, abi.encode(validL2BlockNumber));
     }
 
     /// @notice Tests that the challenger can participate in a permissioned dispute game.
@@ -328,7 +293,7 @@ contract SuperPermissionedDisputeGame_Initialize_Test is SuperPermissionedDisput
         // bytecode.
         // [0 bytes, 31 bytes] u [33 bytes, 23.5 KB]
         _extraDataLen = bound(_extraDataLen, 0, 23_500);
-        if (_extraDataLen > 9 && (_extraDataLen - 9) % 64 == 0) {
+        if (_extraDataLen == 32) {
             _extraDataLen++;
         }
         bytes memory _extraData = new bytes(_extraDataLen);

@@ -232,17 +232,14 @@ func TestSupervisorSource_ProposalAtSequenceNum(t *testing.T) {
 		},
 		Timestamp: 59298244,
 		SuperRoot: eth.Bytes32{0xaa, 0xbb},
-		Version:   1,
+		Version:   3,
 		Chains:    nil,
 	}
-	responseSuper, err := response.ToSuper()
-	require.NoError(t, err)
 	expected := Proposal{
 		Root:        common.Hash(response.SuperRoot),
-		SequenceNum: 59298244,
+		SequenceNum: response.Timestamp,
 		CurrentL1:   response.CrossSafeDerivedFrom,
 		Legacy:      LegacyProposalData{},
-		Super:       responseSuper,
 	}
 	sequenceNum := uint64(599)
 	t.Run("Single-Success", func(t *testing.T) {

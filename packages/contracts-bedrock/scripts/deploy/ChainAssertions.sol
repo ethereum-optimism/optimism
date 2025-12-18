@@ -115,7 +115,7 @@ library ChainAssertions {
         if (IOPContractsManager(_doi.opcm).isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
             require(
                 config.batchInbox()
-                    == IOPContractsManagerUtils(IOPContractsManagerV2(address(_doi.opcm)).opcmUtils())
+                    == IOPContractsManagerUtils(IOPContractsManagerV2(address(_doi.opcm)).utils())
                         .chainIdToBatchInboxAddress(_doi.l2ChainId),
                 "CHECK-SCFG-150"
             );

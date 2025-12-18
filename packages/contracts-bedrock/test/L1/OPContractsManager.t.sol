@@ -22,9 +22,6 @@ import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
 import { Proposal, GameTypes } from "src/dispute/lib/Types.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { Types as LibTypes } from "src/libraries/Types.sol";
-import { Encoding } from "src/libraries/Encoding.sol";
-import { Hashing } from "src/libraries/Hashing.sol";
 
 // Interfaces
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -834,24 +831,13 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
         returns (IFaultDisputeGame)
     {
         // Create a game so we can assert on game args which aren't baked into the implementation contract
-        Claim claim;
-        bytes memory extraData;
-        if (isSuperGame(agi.disputeGameType)) {
-            LibTypes.OutputRootWithChainId[] memory outputRoots = new LibTypes.OutputRootWithChainId[](1);
-            outputRoots[0] = LibTypes.OutputRootWithChainId({ chainId: 100, root: keccak256(abi.encode(gasleft())) });
-            LibTypes.SuperRootProof memory superRootProof;
-            superRootProof.version = bytes1(uint8(1));
-            superRootProof.timestamp = uint64(123);
-            superRootProof.outputRoots = outputRoots;
-            extraData = Encoding.encodeSuperRootProof(superRootProof);
-            claim = Claim.wrap(Hashing.hashSuperRootProof(superRootProof));
-        } else {
-            claim = Claim.wrap(bytes32(uint256(9876)));
-            extraData = abi.encode(uint256(123)); // l2BlockNumber
-        }
+        Claim claim = Claim.wrap(bytes32(uint256(9876)));
+        uint256 l2SequenceNumber = uint256(123);
         IFaultDisputeGame game = IFaultDisputeGame(
             payable(
-                createGame(chainDeployOutput1.disputeGameFactoryProxy, agi.disputeGameType, proposer, claim, extraData)
+                createGame(
+                    chainDeployOutput1.disputeGameFactoryProxy, agi.disputeGameType, proposer, claim, l2SequenceNumber
+                )
             )
         );
 
@@ -864,7 +850,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
         assertEq(game.gameCreator(), proposer, "Game creator should match");
         assertEq(game.rootClaim().raw(), claim.raw(), "Claim should match");
         assertEq(game.l1Head().raw(), blockhash(block.number - 1), "L1 head should match");
-        assertEq(game.l2SequenceNumber(), 123, "L2 sequence number should match");
+        assertEq(game.l2SequenceNumber(), l2SequenceNumber, "L2 sequence number should match");
         assertEq(
             game.absolutePrestate().raw(), agi.disputeAbsolutePrestate.raw(), "Absolute prestate should match input"
         );
@@ -1799,28 +1785,6 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         assertEq(_dgf.gameArgs(_gameType), hex"", string.concat("Game args should be empty: ", _label));
     }
 
-    /// @notice Creates a dummy super root proof consisting of all chains being migrated
-    function _createSuperRootProof(
-        IOPContractsManagerInteropMigrator.MigrateInput memory _input,
-        uint64 _l2SequenceNumber
-    )
-        internal
-        view
-        returns (LibTypes.SuperRootProof memory super_)
-    {
-        LibTypes.OutputRootWithChainId[] memory outputRoots =
-            new LibTypes.OutputRootWithChainId[](_input.opChainConfigs.length);
-        for (uint256 j; j < _input.opChainConfigs.length; j++) {
-            outputRoots[j] = LibTypes.OutputRootWithChainId({
-                chainId: uint32(_input.opChainConfigs[j].systemConfigProxy.l2ChainId()),
-                root: keccak256(abi.encode(gasleft()))
-            });
-        }
-        super_.version = bytes1(uint8(1));
-        super_.timestamp = uint64(_l2SequenceNumber);
-        super_.outputRoots = outputRoots;
-    }
-
     /// @notice Runs some tests after opcm.migrate
     function _runPostMigrateSmokeTests(IOPContractsManagerInteropMigrator.MigrateInput memory _input) internal {
         IDisputeGameFactory dgf = IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory());
@@ -1853,19 +1817,12 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
                 assertEq(gameArgs.weth, permissionlessWeth, "gameArgs weth mismatch");
             }
 
-            LibTypes.SuperRootProof memory superRootProof = _createSuperRootProof(_input, uint64(l2SequenceNumber));
+            Claim rootClaim = Claim.wrap(bytes32(uint256(1)));
             uint256 bondAmount = dgf.initBonds(gameTypes[i]);
             vm.deal(address(proposer), bondAmount);
             vm.prank(proposer, proposer);
-
             ISuperPermissionedDisputeGame game = ISuperPermissionedDisputeGame(
-                address(
-                    dgf.create{ value: bondAmount }(
-                        gameTypes[i],
-                        Claim.wrap(Hashing.hashSuperRootProof(superRootProof)),
-                        Encoding.encodeSuperRootProof(superRootProof)
-                    )
-                )
+                address(dgf.create{ value: bondAmount }(gameTypes[i], rootClaim, abi.encode(l2SequenceNumber)))
             );
 
             assertEq(game.gameType().raw(), gameTypes[i].raw(), "Super Cannon game type not set properly");

@@ -129,17 +129,10 @@ EOF
 VERSIONS_JSON="[]"
 readarray -t VERSIONS < <(git tag --list 'op-program/v*' --sort taggerdate)
 
-for i in "${!VERSIONS[@]}"; do
+for VERSION in "${VERSIONS[@]}"; do
   pushd .
-  build_op_program_prestate "${VERSIONS[i]}"
+  build_op_program_prestate "${VERSION}"
   popd
-  # after every 10 builds, cleanup docker artifacts to reclaim disk space
-  if [ "$CIRCLECI" = "true" ]; then
-    if (( (i + 1) % 10 == 0 )); then
-      echo "Pruning docker build artifacts after ${i} builds"
-      docker system prune -f
-    fi
-  fi
 done
 echo "${VERSIONS_JSON}" > "${VERSIONS_FILE}"
 
@@ -158,17 +151,10 @@ readarray -t KONA_VERSIONS < <(git ls-remote --tags "$KONA_REPO_URL" | grep kona
   | sed 's|.*refs/tags/||' | sed 's/\^{}//' | sort -u \
   | grep -v beta | grep -v alpha | grep -v -F -f excluded.txt)
 
-for i in "${!KONA_VERSIONS[@]}"; do
+for VERSION in "${KONA_VERSIONS[@]}"; do
   pushd .
-  build_kona_prestate "${KONA_VERSIONS[i]}"
+  build_kona_prestate "${VERSION}"
   popd
-  # after every 10 builds, cleanup docker artifacts to reclaim disk space
-  if [ "$CIRCLECI" = "true" ]; then
-    if (( (i + 1) % 10 == 0 )); then
-      echo "Pruning docker build artifacts after ${i} builds"
-      docker system prune -f
-    fi
-  fi
 done
 echo "${VERSIONS_JSON}" > "${VERSIONS_FILE}"
 

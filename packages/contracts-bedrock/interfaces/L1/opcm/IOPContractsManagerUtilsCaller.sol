@@ -5,5 +5,5 @@ import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManager
 
 interface IOPContractsManagerUtilsCaller {
     function __constructor__(IOPContractsManagerUtils _utils) external;
-    function opcmUtils() external view returns (IOPContractsManagerUtils);
+    function utils() external view returns (IOPContractsManagerUtils);
 }

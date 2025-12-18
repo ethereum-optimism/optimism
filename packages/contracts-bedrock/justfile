@@ -73,12 +73,7 @@ clean:
 
 # Runs standard contract tests.
 test *ARGS: build-go-ffi
-  #!/bin/bash
-  if [ -n "$JUNIT_TEST_PATH" ]; then
-    forge test {{ARGS}} --junit > "$JUNIT_TEST_PATH"
-  else
-    forge test {{ARGS}}
-  fi
+  forge test {{ARGS}}
 
 # Runs standard contract tests (developer mode).
 test-dev *ARGS: build-go-ffi
@@ -120,12 +115,7 @@ prepare-upgrade-env *ARGS : build-go-ffi
 
 # Runs upgrade path variant of contract tests.
 test-upgrade *ARGS:
-  #!/bin/bash
-  if [ -n "$JUNIT_TEST_PATH" ]; then
-    just prepare-upgrade-env "forge test {{ARGS}} --junit > \"$JUNIT_TEST_PATH\""
-  else
-    just prepare-upgrade-env "forge test {{ARGS}}"
-  fi
+  just prepare-upgrade-env "forge test {{ARGS}}"
 
 test-upgrade-rerun *ARGS: build-go-ffi
   just test-upgrade {{ARGS}} --rerun -vvvv

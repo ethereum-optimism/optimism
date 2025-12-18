@@ -77,7 +77,7 @@ contract ReadImplementationAddresses is Script {
             output_.opcmInteropMigrator = address(0);
 
             // StandardValidator is accessible via the standardValidator() method
-            output_.opcmStandardValidator = address(opcmV2.opcmStandardValidator());
+            output_.opcmStandardValidator = address(opcmV2.standardValidator());
 
             IOPContractsManagerContainer.Implementations memory impls = opcmV2.implementations();
             output_.mipsSingleton = impls.mipsImpl;
