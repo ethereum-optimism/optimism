@@ -45,16 +45,10 @@ type L2WithRequiredL1 struct {
 	RequiredL1 eth.BlockID `json:"required_l1"`
 }
 
-// AtTimestampResponse is the response superroot_atTimestamp
-type AtTimestampResponse struct {
-	// CurrentL1Derived is a map from chain ID to the highest L1 block that has been fully derived for that chain. It may not have been fully validated.
-	CurrentL1Derived map[eth.ChainID]eth.BlockID `json:"current_l1_derived"`
-
-	// UnverifiedAtTimestamp is the L2 block which would be applied if verification were assumed to be successful, and the minimum L1 block required to derive them.
+type SuperRootResponseData struct {
+	// UnverifiedAtTimestamp is the L2 block that would be applied if verification were assumed to be successful,
+	// and the minimum L1 block required to derive them.
 	UnverifiedAtTimestamp map[eth.ChainID]OutputWithRequiredL1 `json:"unverified_at_timestamp"`
-
-	// CurrentL1 is the highest L1 block that has been fully derived and verified by all chains.
-	CurrentL1 eth.BlockID `json:"current_l1"`
 
 	// VerifiedRequiredL1 is the minimum L1 block including the required data to fully verify all blocks at this timestamp
 	VerifiedRequiredL1 eth.BlockID `json:"verified_required_l1"`
@@ -64,6 +58,19 @@ type AtTimestampResponse struct {
 
 	// SuperRoot is the superroot at the given timestamp after all verification is applied.
 	SuperRoot eth.Bytes32 `json:"super_root"`
+}
+
+// AtTimestampResponse is the response superroot_atTimestamp
+type AtTimestampResponse struct {
+	// CurrentL1Derived is a map from chain ID to the highest L1 block that has been fully derived for that chain. It may not have been fully validated.
+	CurrentL1Derived map[eth.ChainID]eth.BlockID `json:"current_l1_derived"`
+
+	// CurrentL1 is the highest L1 block that has been fully derived and verified by all chains.
+	CurrentL1 eth.BlockID `json:"current_l1"`
+
+	// Data provides information about the super root at the requested timestamp if present. If block data at the
+	// requested timestamp is not present, the data will be nil.
+	Data *SuperRootResponseData
 }
 
 // AtTimestamp computes the super-root at the given timestamp, plus additional information about the current L1s, verified L2s, and optimistic L2s
@@ -143,11 +150,13 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (AtTimest
 	superRoot := eth.SuperRoot(superV1)
 
 	return AtTimestampResponse{
-		CurrentL1Derived:      currentL1Derived,
-		UnverifiedAtTimestamp: optimistic,
-		CurrentL1:             minCurrentL1,
-		VerifiedRequiredL1:    maxVerifiedRequiredL1,
-		Super:                 superV1,
-		SuperRoot:             superRoot,
+		CurrentL1Derived: currentL1Derived,
+		CurrentL1:        minCurrentL1,
+		Data: &SuperRootResponseData{
+			UnverifiedAtTimestamp: optimistic,
+			VerifiedRequiredL1:    maxVerifiedRequiredL1,
+			Super:                 superV1,
+			SuperRoot:             superRoot,
+		},
 	}, nil
 }

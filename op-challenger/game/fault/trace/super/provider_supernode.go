@@ -2,14 +2,13 @@ package super
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/client"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/superroot"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -52,19 +51,21 @@ func (s *SuperNodeTraceProvider) Get(ctx context.Context, pos types.Position) (c
 
 func (s *SuperNodeTraceProvider) getPreimageBytesAtTimestampBoundary(ctx context.Context, timestamp uint64) ([]byte, error) {
 	root, err := s.rootProvider.SuperRootAtTimestamp(ctx, timestamp)
-	// TODO: Ideally we could check here if the node is in sync enough using root.CurrentL1Verified
-	// but we would need to get that value even if the response is not found
-	// TODO: Also make sure the client when written actually returns ethereum.NotFound not just the string "not found"
-	if errors.Is(err, ethereum.NotFound) {
-		// No block at this timestamp so it must be invalid
-		return InvalidTransition, nil
-	} else if err != nil {
+	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve super root at timestamp %v: %w", timestamp, err)
 	}
-	if root.VerifiedRequiredL1.Number > s.l1Head.Number {
+	if root.CurrentL1.Number < s.l1Head.Number {
+		// Node has not processed the game's L1 head so it is not safe to play until it syncs further.
+		return nil, client.ErrNotInSync
+	}
+	if root.Data == nil {
+		// No block at this timestamp so it must be invalid
 		return InvalidTransition, nil
 	}
-	return root.Super.Marshal(), nil
+	if root.Data.VerifiedRequiredL1.Number > s.l1Head.Number {
+		return InvalidTransition, nil
+	}
+	return root.Data.Super.Marshal(), nil
 }
 
 func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types.Position) ([]byte, error) {
@@ -79,45 +80,48 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 	}
 	// Fetch the super root at the next timestamp since we are part way through the transition to it
 	prevRoot, err := s.rootProvider.SuperRootAtTimestamp(ctx, timestamp)
-	// TODO: Ideally we could check here if the node is in sync enough using root.CurrentL1Verified (as above)
-	if errors.Is(err, ethereum.NotFound) {
-		// No block at this timestamp so it must be invalid
-		return InvalidTransition, nil
-	} else if err != nil {
+	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve previous super root at timestamp %v: %w", timestamp, err)
 	}
-	if prevRoot.VerifiedRequiredL1.Number > s.l1Head.Number {
+	if prevRoot.CurrentL1.Number < s.l1Head.Number {
+		return nil, client.ErrNotInSync
+	}
+	if prevRoot.Data == nil {
+		// No block at this timestamp so it must be invalid
+		return InvalidTransition, nil
+	}
+	if prevRoot.Data.VerifiedRequiredL1.Number > s.l1Head.Number {
 		// The previous root was not safe at the game L1 head so we must have already transitioned to the invalid hash
 		// prior to this step and it then repeats forever.
 		return InvalidTransition, nil
 	}
 	nextTimestamp := timestamp + 1
 	nextRoot, err := s.rootProvider.SuperRootAtTimestamp(ctx, nextTimestamp)
-	// TODO: Ideally we could check here if the node is in sync enough using root.CurrentL1Verified (as above)
-	// Note that if we do the in sync check on every call we could safely be load balanced and would just error if
-	// we get load balanced to a node that is not in sync enough. Unclear how useful that is if we keep hitting an unhealthy node though.
-	// May need to have a SuperRootAtTimestamps (plural) method to get prev and next in one call.
-	if errors.Is(err, ethereum.NotFound) {
-		// No block at this timestamp so it must be invalid
-		return InvalidTransition, nil
-	} else if err != nil {
+	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve next super root at timestamp %v: %w", nextTimestamp, err)
 	}
+	if nextRoot.CurrentL1.Number < s.l1Head.Number {
+		return nil, client.ErrNotInSync
+	}
+	if nextRoot.Data == nil {
+		// No block at this timestamp so it must be invalid
+		return InvalidTransition, nil
+	}
 
-	prevSuper := prevRoot.Super
+	prevSuper := prevRoot.Data.Super
 	expectedState := interopTypes.TransitionState{
 		SuperRoot:       prevSuper.Marshal(),
 		PendingProgress: make([]interopTypes.OptimisticBlock, 0, step),
 		Step:            step,
 	}
-	nextSuperV1, ok := nextRoot.Super.(*eth.SuperV1)
+	nextSuperV1, ok := nextRoot.Data.Super.(*eth.SuperV1)
 	if !ok {
-		return nil, fmt.Errorf("unsupported super root type %T", nextRoot.Super)
+		return nil, fmt.Errorf("unsupported super root type %T", nextRoot.Data.Super)
 	}
 	for i := uint64(0); i < min(step, uint64(len(nextSuperV1.Chains))); i++ {
 		chainInfo := nextSuperV1.Chains[i]
 		// Check if the chain's optimistic root was safe at the game's L1 head
-		optimistic, ok := nextRoot.UnverifiedAtTimestamp[chainInfo.ChainID]
+		optimistic, ok := nextRoot.Data.UnverifiedAtTimestamp[chainInfo.ChainID]
 		if !ok {
 			return nil, fmt.Errorf("no safe head known for chain %v at %v: %w", chainInfo.ChainID, nextTimestamp, err)
 		}
