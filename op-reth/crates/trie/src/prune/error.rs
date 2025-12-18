@@ -1,4 +1,4 @@
-use crate::OpProofsStorageError;
+use crate::{api::WriteCounts, OpProofsStorageError};
 use reth_provider::ProviderError;
 use std::{
     fmt,
@@ -24,20 +24,24 @@ pub struct PrunerOutput {
     pub start_block: u64,
     /// New earliest block at the end of the run.
     pub end_block: u64,
-    /// Total number of entries removed across tables.
-    pub total_entries_pruned: u64,
+    /// Number of entries updated/removed per table.
+    pub write_counts: WriteCounts,
 }
 
 impl Display for PrunerOutput {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let blocks = self.end_block.saturating_sub(self.start_block);
+        let total_entries = self.write_counts.hashed_accounts_written_total +
+            self.write_counts.hashed_storages_written_total +
+            self.write_counts.account_trie_updates_written_total +
+            self.write_counts.storage_trie_updates_written_total;
         write!(
             f,
             "Pruned {}→{} ({} blocks), entries={}, elapsed={:.3}s",
             self.start_block,
             self.end_block,
             blocks,
-            self.total_entries_pruned,
+            total_entries,
             self.duration.as_secs_f64(),
         )
     }
@@ -62,6 +66,7 @@ pub enum PrunerError {
 #[cfg(test)]
 mod tests {
     use super::PrunerOutput;
+    use crate::api::WriteCounts;
     use std::time::Duration;
 
     #[test]
@@ -72,10 +77,10 @@ mod tests {
             prune_duration: Duration::from_secs(5),
             start_block: 1,
             end_block: 2,
-            total_entries_pruned: 3,
+            write_counts: WriteCounts::new(1, 2, 3, 4),
         };
         let formatted_pruner_output = format!("{}", pruner_output);
 
-        assert_eq!(formatted_pruner_output, "Pruned 1→2 (1 blocks), entries=3, elapsed=10.000s");
+        assert_eq!(formatted_pruner_output, "Pruned 1→2 (1 blocks), entries=10, elapsed=10.000s");
     }
 }

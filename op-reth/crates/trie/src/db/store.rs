@@ -31,6 +31,7 @@ use reth_trie::{
     BranchNodeCompact, HashedPostState, Nibbles,
 };
 use std::{cmp::max, ops::RangeBounds, path::Path};
+use tracing::info;
 
 /// MDBX implementation of [`OpProofsStore`].
 #[derive(Debug)]
@@ -235,10 +236,19 @@ impl MdbxProofsStorage {
         &self,
         tx: &(impl DbTxMut + DbTx),
         block_range: impl RangeBounds<u64>,
-    ) -> OpProofsStorageResult<()> {
+    ) -> OpProofsStorageResult<WriteCounts> {
+        let mut write_count = WriteCounts::default();
         let mut change_set_cursor = tx.cursor_write::<BlockChangeSet>()?;
         let mut walker = change_set_cursor.walk_range(block_range)?;
+        let mut blocks_deleted = 0;
         while let Some(Ok((block_number, change_set))) = walker.next() {
+            write_count += WriteCounts::new(
+                change_set.account_trie_keys.len() as u64,
+                change_set.storage_trie_keys.len() as u64,
+                change_set.hashed_account_keys.len() as u64,
+                change_set.hashed_storage_keys.len() as u64,
+            );
+
             self.delete_dup_sorted::<AccountTrieHistory, _, _>(
                 tx,
                 block_number,
@@ -260,9 +270,15 @@ impl MdbxProofsStorage {
                 change_set.hashed_storage_keys,
             )?;
 
-            walker.delete_current()?
+            walker.delete_current()?;
+
+            blocks_deleted += 1;
+            // Progress log: only every 20 blocks, only if total >= 20
+            if blocks_deleted >= 1000 && blocks_deleted % 1000 == 0 {
+                info!(target: "optimism.trie",  %blocks_deleted, "Deleting Proofs History");
+            }
         }
-        Ok(())
+        Ok(write_count)
     }
 
     /// Write trie/state history for `block_number` from `block_state_diff`.
@@ -675,32 +691,42 @@ impl OpProofsStore for MdbxProofsStorage {
         &self,
         new_earliest_block_ref: BlockWithParent,
         diff: BlockStateDiff,
-    ) -> OpProofsStorageResult<()> {
+    ) -> OpProofsStorageResult<WriteCounts> {
+        let mut write_counts = WriteCounts::default();
+
         let new_earliest_block_number = new_earliest_block_ref.block.number;
         let Some((old_earliest_block_number, _)) = self.get_earliest_block_number().await? else {
-            return Ok(()); // Nothing to prune
+            return Ok(write_counts); // Nothing to prune
         };
 
         if old_earliest_block_number >= new_earliest_block_number {
-            return Ok(()); // Nothing to prune
+            return Ok(write_counts); // Nothing to prune
         }
 
         self.env.update(|tx| {
             // Update the initial state (block zero)
-            self.store_trie_updates_for_block(tx, 0, diff, false)?;
+            let change_set = self.store_trie_updates_for_block(tx, 0, diff, false)?;
+            write_counts += WriteCounts::new(
+                change_set.account_trie_keys.len() as u64,
+                change_set.storage_trie_keys.len() as u64,
+                change_set.hashed_account_keys.len() as u64,
+                change_set.hashed_storage_keys.len() as u64,
+            );
 
             // Delete the old entries for the block range excluding block 0
-            self.delete_history_ranged(
+            let delete_counts = self.delete_history_ranged(
                 tx,
                 max(old_earliest_block_number, 1)..=new_earliest_block_number,
             )?;
+            write_counts += delete_counts;
 
             // Set the earliest block number to the new value
             Self::inner_set_earliest_block_number(
                 tx,
                 new_earliest_block_number,
                 new_earliest_block_ref.block.hash,
-            )
+            )?;
+            Ok(write_counts)
         })?
     }
 

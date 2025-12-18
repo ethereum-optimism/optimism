@@ -130,7 +130,7 @@ where
             block: BlockNumHash { number: new_earliest_block, hash: new_earliest_block_hash },
         };
 
-        self.provider.prune_earliest_state(block_with_parent, final_diff).await?;
+        let write_count = self.provider.prune_earliest_state(block_with_parent, final_diff).await?;
 
         let total_duration = t.elapsed();
         let prune_output = PrunerOutput {
@@ -139,7 +139,7 @@ where
             prune_duration: total_duration.saturating_sub(stat_diff_fetch_duration),
             start_block: earliest_block,
             end_block: new_earliest_block,
-            total_entries_pruned: 0, // TODO: get it from the prune_earliest_state
+            write_counts: write_count,
         };
         #[cfg(feature = "metrics")]
         self.metrics.record_prune_result(prune_output.clone());

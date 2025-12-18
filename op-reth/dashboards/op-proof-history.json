@@ -1953,6 +1953,58 @@
           "legendFormat": "Pruned Blocks",
           "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "reth_optimism_trie_pruner_account_trie_updates_written",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Account Trie Nodes",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "reth_optimism_trie_pruner_storage_trie_updates_written",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Storage Trie Nodes",
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "reth_optimism_trie_pruner_hashed_accounts_written",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Hashed Accounts",
+          "range": true,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "reth_optimism_trie_pruner_hashed_storages_written",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Hashed Storage",
+          "range": true,
+          "refId": "E"
         }
       ],
       "title": "Prune State Over Time",

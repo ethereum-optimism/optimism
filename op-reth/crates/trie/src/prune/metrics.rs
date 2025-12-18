@@ -15,6 +15,14 @@ pub(crate) struct Metrics {
     pub(crate) prune_duration_seconds: Histogram,
     /// Number of pruned blocks
     pub(crate) pruned_blocks: Gauge,
+    /// Number of account trie updates written in the prune run
+    pub(crate) account_trie_updates_written: Gauge,
+    /// Number of storage trie updates written in the prune run
+    pub(crate) storage_trie_updates_written: Gauge,
+    /// Number of hashed accounts written in the prune run
+    pub(crate) hashed_accounts_written: Gauge,
+    /// Number of hashed storages written in the prune run
+    pub(crate) hashed_storages_written: Gauge,
 }
 
 impl Metrics {
@@ -25,6 +33,13 @@ impl Metrics {
             self.state_diff_fetch_duration_seconds.record(result.fetch_duration.as_secs_f64());
             self.prune_duration_seconds.record(result.prune_duration.as_secs_f64());
             self.pruned_blocks.set(blocks_pruned as f64);
+
+            // Consume write counts
+            let wc = &result.write_counts;
+            self.account_trie_updates_written.set(wc.account_trie_updates_written_total as f64);
+            self.storage_trie_updates_written.set(wc.storage_trie_updates_written_total as f64);
+            self.hashed_accounts_written.set(wc.hashed_accounts_written_total as f64);
+            self.hashed_storages_written.set(wc.hashed_storages_written_total as f64);
         }
     }
 }

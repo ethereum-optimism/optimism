@@ -610,7 +610,8 @@ impl OpProofsStore for InMemoryProofsStorage {
         &self,
         new_earliest_block_ref: BlockWithParent,
         diff: BlockStateDiff,
-    ) -> OpProofsStorageResult<()> {
+    ) -> OpProofsStorageResult<WriteCounts> {
+        let mut write_counts = WriteCounts::default();
         let mut inner = self.inner.write().await;
 
         let branches_diff = diff.sorted_trie_updates;
@@ -618,6 +619,7 @@ impl OpProofsStore for InMemoryProofsStorage {
 
         // Apply branch updates to the earliest state (block 0)
         for (path, branch) in &branches_diff.account_nodes {
+            write_counts.account_trie_updates_written_total += 1;
             match branch {
                 Some(br) => _ = inner.account_branches.insert((0, *path), Some(br.clone())),
                 None => _ = inner.account_branches.remove(&(0, *path)),
@@ -635,17 +637,20 @@ impl OpProofsStore for InMemoryProofsStorage {
                     }
                     None => _ = inner.storage_branches.remove(&(0, *hashed_address, *path)),
                 }
+                write_counts.storage_trie_updates_written_total += 1;
             }
         }
 
         // Apply account updates
         for (hashed_address, account) in &leaves_diff.accounts {
+            write_counts.hashed_accounts_written_total += 1;
             inner.hashed_accounts.insert((0, *hashed_address), *account);
         }
 
         // Apply storage updates
         for (hashed_address, storage) in &leaves_diff.storages {
             for (slot, value) in storage.storage_slots_ref() {
+                write_counts.hashed_storages_written_total += 1;
                 inner.hashed_storages.insert((0, *hashed_address, *slot), *value);
             }
         }
@@ -657,22 +662,38 @@ impl OpProofsStore for InMemoryProofsStorage {
         }
 
         // Remove all data for blocks before new_earliest_block_number (except block 0)
+        let mut length_before_prune = inner.account_branches.len();
         inner
             .account_branches
             .retain(|(block, _), _| *block == 0 || *block >= new_earliest_block_number);
+        write_counts.account_trie_updates_written_total +=
+            (length_before_prune - inner.account_branches.len()) as u64;
+
+        length_before_prune = inner.storage_branches.len();
         inner
             .storage_branches
             .retain(|(block, _, _), _| *block == 0 || *block >= new_earliest_block_number);
+        write_counts.storage_trie_updates_written_total +=
+            (length_before_prune - inner.storage_branches.len()) as u64;
+
+        length_before_prune = inner.hashed_accounts.len();
         inner
             .hashed_accounts
             .retain(|(block, _), _| *block == 0 || *block >= new_earliest_block_number);
+        write_counts.hashed_accounts_written_total +=
+            (length_before_prune - inner.hashed_accounts.len()) as u64;
+
+        length_before_prune = inner.hashed_storages.len();
         inner
             .hashed_storages
             .retain(|(block, _, _), _| *block == 0 || *block >= new_earliest_block_number);
+        write_counts.hashed_storages_written_total +=
+            (length_before_prune - inner.hashed_storages.len()) as u64;
+
         inner.trie_updates.retain(|block, _| *block >= new_earliest_block_number);
         inner.post_states.retain(|block, _| *block >= new_earliest_block_number);
 
-        Ok(())
+        Ok(write_counts)
     }
 
     async fn unwind_history(

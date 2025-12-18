@@ -4,6 +4,7 @@ use crate::OpProofsStorageResult;
 use alloy_eips::eip1898::BlockWithParent;
 use alloy_primitives::{map::HashMap, B256, U256};
 use auto_impl::auto_impl;
+use derive_more::{AddAssign, Constructor};
 use reth_primitives_traits::Account;
 use reth_trie::{
     hashed_cursor::{HashedCursor, HashedStorageCursor},
@@ -31,7 +32,7 @@ impl BlockStateDiff {
 }
 
 /// Counts of trie updates written to storage.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, AddAssign, Constructor, Eq, PartialEq)]
 pub struct WriteCounts {
     /// Number of account trie updates written
     pub account_trie_updates_written_total: u64,
@@ -170,7 +171,7 @@ pub trait OpProofsStore: Send + Sync + Debug {
         &self,
         new_earliest_block_ref: BlockWithParent,
         diff: BlockStateDiff,
-    ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
+    ) -> impl Future<Output = OpProofsStorageResult<WriteCounts>> + Send;
 
     /// Remove account, storage and trie updates from historical storage for all blocks till
     /// the specified block (inclusive).
