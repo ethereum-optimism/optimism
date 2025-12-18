@@ -19,6 +19,7 @@ import (
 	safetyTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
@@ -84,6 +85,7 @@ type GameCfg struct {
 	l2SequenceNumberSet bool
 	rootClaimSet        bool
 	rootClaim           common.Hash
+	superOutputRoots    []eth.Bytes32
 }
 type GameOpt interface {
 	Apply(cfg *GameCfg)
@@ -117,6 +119,14 @@ func WithL2SequenceNumber(seqNum uint64) GameOpt {
 	return gameOptFn(func(c *GameCfg) {
 		c.l2SequenceNumber = seqNum
 		c.l2SequenceNumberSet = true
+	})
+}
+
+// WithSuperRootFrom sets the output roots to use in a super root game.
+// The length of outputRoots must match the number of chains in the super root.
+func WithSuperRootFrom(outputRoots ...eth.Bytes32) GameOpt {
+	return gameOptFn(func(c *GameCfg) {
+		c.superOutputRoots = outputRoots
 	})
 }
 
@@ -181,6 +191,10 @@ func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, opts ...GameOpt)
 
 func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType gameTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
 	cfg := NewGameCfg(opts...)
+	if len(cfg.superOutputRoots) != 0 && cfg.rootClaimSet {
+		f.t.Error("cannot set both super output roots and root claim in super game")
+		f.t.FailNow()
+	}
 	timestamp := cfg.l2SequenceNumber
 	if !cfg.l2SequenceNumberSet {
 		timestamp = f.supervisor.FetchSyncStatus().SafeTimestamp
@@ -188,9 +202,7 @@ func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType g
 	extraData := f.createSuperGameExtraData(timestamp, cfg)
 	rootClaim := cfg.rootClaim
 	if !cfg.rootClaimSet {
-		// Default to the correct root claim
-		response := f.supervisor.FetchSuperRootAtTimestamp(timestamp)
-		rootClaim = common.Hash(response.SuperRoot)
+		rootClaim = crypto.Keccak256Hash(extraData)
 	}
 	game, addr := f.createNewGame(eoa, gameType, rootClaim, extraData)
 
@@ -202,8 +214,18 @@ func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *Gam
 	if !cfg.allowFuture {
 		f.supervisor.AwaitMinCrossSafeTimestamp(timestamp)
 	}
-	extraData := make([]byte, 32)
-	binary.BigEndian.PutUint64(extraData[24:], timestamp)
+	super, err := f.supervisor.FetchSuperRootAtTimestamp(timestamp).ToSuper()
+	f.require.NoError(err, "Failed to fetch super root for timestamp %v", timestamp)
+
+	superV1, ok := super.(*eth.SuperV1)
+	f.require.Truef(ok, "Unsupported super type %T", super)
+	if len(cfg.superOutputRoots) != 0 {
+		f.require.Len(cfg.superOutputRoots, len(superV1.Chains), "Super output roots length mismatch")
+		for i := range superV1.Chains {
+			superV1.Chains[i].Output = cfg.superOutputRoots[i]
+		}
+	}
+	extraData := superV1.Marshal()
 	return extraData
 }
 

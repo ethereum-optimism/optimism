@@ -1,7 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
+
+// Scripts
+import { UpgradeOPChain, UpgradeOPChainInput } from "scripts/deploy/UpgradeOPChain.s.sol";
+
+// Contracts
+import { OPContractsManager } from "src/L1/OPContractsManager.sol";
+import { OPContractsManagerV2 } from "src/L1/opcm/OPContractsManagerV2.sol";
+import { UpgradeOPChain, UpgradeOPChainInput } from "scripts/deploy/UpgradeOPChain.s.sol";
 
 // Libraries
 import { Claim } from "src/dispute/lib/Types.sol";
@@ -11,11 +20,6 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 // Interfaces
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-
-// Contracts
-import { OPContractsManager } from "src/L1/OPContractsManager.sol";
-import { OPContractsManagerV2 } from "src/L1/opcm/OPContractsManagerV2.sol";
-import { UpgradeOPChain, UpgradeOPChainInput } from "scripts/deploy/UpgradeOPChain.s.sol";
 
 contract UpgradeOPChainInput_Test is Test {
     UpgradeOPChainInput input;

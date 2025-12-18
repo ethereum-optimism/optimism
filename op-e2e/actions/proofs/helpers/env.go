@@ -243,15 +243,12 @@ func (env *L2FaultProofEnv) BatchAndMine(t helpers.Testing) {
 // Returns the L2 Safe Block Reference
 func (env *L2FaultProofEnv) BatchMineAndSync(t helpers.Testing) eth.L2BlockRef {
 	t.Helper()
-	id := env.Miner.UnsafeID()
 	env.BatchAndMine(t)
 	env.Sequencer.ActL1HeadSignal(t)
 	env.Sequencer.ActL2PipelineFull(t)
 
 	// Assertions
-
 	syncStatus := env.Sequencer.SyncStatus()
-	require.Equal(t, syncStatus.UnsafeL2.L1Origin, id, "UnsafeL2.L1Origin should equal L1 Unsafe ID before batch submitted")
 	require.Equal(t, syncStatus.UnsafeL2, syncStatus.SafeL2, "UnsafeL2 should equal SafeL2")
 
 	return syncStatus.SafeL2

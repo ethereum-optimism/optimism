@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { Claim, Duration, GameType } from "src/dispute/lib/Types.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 library Types {
     /// @notice Represents a set of L1 contracts. Used to represent a set of proxies.
@@ -49,6 +50,8 @@ library Types {
         // Fee params
         uint32 operatorFeeScalar;
         uint64 operatorFeeConstant;
+        // Superchain contracts
+        ISuperchainConfig superchainConfig;
         // Whether to use the custom gas token.
         bool useCustomGasToken;
     }

@@ -112,7 +112,7 @@
     "name": "challenge",
     "outputs": [
       {
-        "internalType": "enum OPSuccinctFaultDisputeGame.ProposalStatus",
+        "internalType": "enum OptimisticZkGame.ProposalStatus",
         "name": "",
         "type": "uint8"
       }
@@ -171,7 +171,7 @@
         "type": "bytes32"
       },
       {
-        "internalType": "enum OPSuccinctFaultDisputeGame.ProposalStatus",
+        "internalType": "enum OptimisticZkGame.ProposalStatus",
         "name": "status",
         "type": "uint8"
       },
@@ -413,7 +413,7 @@
     "name": "prove",
     "outputs": [
       {
-        "internalType": "enum OPSuccinctFaultDisputeGame.ProposalStatus",
+        "internalType": "enum OptimisticZkGame.ProposalStatus",
         "name": "",
         "type": "uint8"
       }

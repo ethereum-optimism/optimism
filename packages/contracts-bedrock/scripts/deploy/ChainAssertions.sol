@@ -16,6 +16,7 @@ import { Types } from "scripts/libraries/Types.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
 import { Hash } from "src/dispute/lib/Types.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -35,6 +36,8 @@ import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 
 library ChainAssertions {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -109,10 +112,19 @@ library ChainAssertions {
         require(config.scalar() >> 248 == 1, "CHECK-SCFG-70");
         // Depends on start block being set to 0 in `initialize`
         require(config.startBlock() == block.number, "CHECK-SCFG-140");
-        require(
-            config.batchInbox() == IOPContractsManager(_doi.opcm).chainIdToBatchInboxAddress(_doi.l2ChainId),
-            "CHECK-SCFG-150"
-        );
+        if (IOPContractsManager(_doi.opcm).isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            require(
+                config.batchInbox()
+                    == IOPContractsManagerUtils(IOPContractsManagerV2(address(_doi.opcm)).opcmUtils())
+                        .chainIdToBatchInboxAddress(_doi.l2ChainId),
+                "CHECK-SCFG-150"
+            );
+        } else {
+            require(
+                config.batchInbox() == IOPContractsManager(_doi.opcm).chainIdToBatchInboxAddress(_doi.l2ChainId),
+                "CHECK-SCFG-150"
+            );
+        }
         // Check _addresses
         require(config.l1CrossDomainMessenger() == _contracts.L1CrossDomainMessenger, "CHECK-SCFG-160");
         require(config.l1ERC721Bridge() == _contracts.L1ERC721Bridge, "CHECK-SCFG-170");
@@ -385,9 +397,10 @@ library ChainAssertions {
         require(address(_opcm) != address(0), "CHECK-OPCM-10");
 
         require(bytes(_opcm.version()).length > 0, "CHECK-OPCM-15");
-        require(address(_opcm.protocolVersions()) == _proxies.ProtocolVersions, "CHECK-OPCM-17");
-        require(address(_opcm.superchainConfig()) == _proxies.SuperchainConfig, "CHECK-OPCM-19");
-
+        if (!_opcm.isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            require(address(_opcm.protocolVersions()) == _proxies.ProtocolVersions, "CHECK-OPCM-17");
+            require(address(_opcm.superchainConfig()) == _proxies.SuperchainConfig, "CHECK-OPCM-19");
+        }
         // Ensure that the OPCM impls are correctly saved
         IOPContractsManager.Implementations memory impls = _opcm.implementations();
         require(impls.l1ERC721BridgeImpl == _impls.L1ERC721Bridge, "CHECK-OPCM-50");

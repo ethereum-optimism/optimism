@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
 import { FFIInterface } from "test/setup/FFIInterface.sol";
 
-// Target contract
+// Libraries
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
 
 /// @title StaticConfig_TestInit

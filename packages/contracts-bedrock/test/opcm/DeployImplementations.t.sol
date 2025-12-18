@@ -2,7 +2,8 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
+import { Test } from "test/setup/Test.sol";
+import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 import "../setup/FeatureFlags.sol";
 
 // Libraries
@@ -245,6 +246,9 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
         DeployImplementations.Output memory output = deployImplementations.run(input);
 
+        // Check which OPCM version is deployed
+        bool opcmV2Enabled = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPCM_V2);
+
         // Basic assertions
         assertNotEq(address(output.anchorStateRegistryImpl), address(0), "100");
         assertNotEq(address(output.delayedWETHImpl), address(0), "200");
@@ -254,10 +258,26 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         assertNotEq(address(output.l1ERC721BridgeImpl), address(0), "500");
         assertNotEq(address(output.l1StandardBridgeImpl), address(0), "600");
         assertNotEq(address(output.mipsSingleton), address(0), "700");
-        assertNotEq(address(output.opcm), address(0), "800");
-        assertNotEq(address(output.opcmContractsContainer), address(0), "900");
-        assertNotEq(address(output.opcmDeployer), address(0), "1000");
-        assertNotEq(address(output.opcmGameTypeAdder), address(0), "1100");
+
+        // OPCM version-specific assertions
+        if (opcmV2Enabled) {
+            assertNotEq(address(output.opcmV2), address(0), "800");
+            assertNotEq(address(output.opcmContainer), address(0), "900");
+            assertNotEq(address(output.opcmStandardValidator), address(0), "1000");
+            // V1 contracts should be null when V2 is enabled
+            assertEq(address(output.opcm), address(0), "800-v1");
+            assertEq(address(output.opcmContractsContainer), address(0), "900-v1");
+            assertEq(address(output.opcmDeployer), address(0), "1000-v1");
+            assertEq(address(output.opcmGameTypeAdder), address(0), "1100-v1");
+        } else {
+            assertNotEq(address(output.opcm), address(0), "800");
+            assertNotEq(address(output.opcmContractsContainer), address(0), "900");
+            assertNotEq(address(output.opcmDeployer), address(0), "1000");
+            assertNotEq(address(output.opcmGameTypeAdder), address(0), "1100");
+            // V2 contracts should be null when V1 is enabled
+            assertEq(address(output.opcmV2), address(0), "800-v2");
+            assertEq(address(output.opcmContainer), address(0), "900-v2");
+        }
 
         assertNotEq(address(output.faultDisputeGameV2Impl), address(0), "V2 should be deployed when enabled");
         assertNotEq(address(output.permissionedDisputeGameV2Impl), address(0), "V2 should be deployed when enabled");
@@ -351,10 +371,26 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         assertNotEq(address(output.l1ERC721BridgeImpl).code, empty, "1700");
         assertNotEq(address(output.l1StandardBridgeImpl).code, empty, "1800");
         assertNotEq(address(output.mipsSingleton).code, empty, "1900");
-        assertNotEq(address(output.opcm).code, empty, "2000");
-        assertNotEq(address(output.opcmContractsContainer).code, empty, "2100");
-        assertNotEq(address(output.opcmDeployer).code, empty, "2200");
-        assertNotEq(address(output.opcmGameTypeAdder).code, empty, "2300");
+
+        // OPCM version-specific code assertions
+        if (opcmV2Enabled) {
+            assertNotEq(address(output.opcmV2).code, empty, "2000");
+            assertNotEq(address(output.opcmContainer).code, empty, "2100");
+            assertNotEq(address(output.opcmStandardValidator).code, empty, "2200");
+            // V1 contracts should be empty when V2 is enabled
+            assertEq(address(output.opcm).code, empty, "2000-v1");
+            assertEq(address(output.opcmContractsContainer).code, empty, "2100-v1");
+            assertEq(address(output.opcmDeployer).code, empty, "2200-v1");
+            assertEq(address(output.opcmGameTypeAdder).code, empty, "2300-v1");
+        } else {
+            assertNotEq(address(output.opcm).code, empty, "2000");
+            assertNotEq(address(output.opcmContractsContainer).code, empty, "2100");
+            assertNotEq(address(output.opcmDeployer).code, empty, "2200");
+            assertNotEq(address(output.opcmGameTypeAdder).code, empty, "2300");
+            // V2 contracts should be empty when V1 is enabled
+            assertEq(address(output.opcmV2).code, empty, "2000-v2");
+            assertEq(address(output.opcmContainer).code, empty, "2100-v2");
+        }
 
         assertNotEq(address(output.faultDisputeGameV2Impl).code, empty, "V2 FDG should have code when enabled");
         assertNotEq(address(output.permissionedDisputeGameV2Impl).code, empty, "V2 PDG should have code when enabled");

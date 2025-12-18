@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
+
+// Libraries
 import { Blueprint } from "src/libraries/Blueprint.sol";
 
 /// @dev Used to test that constructor args are appended properly when deploying from a blueprint.
