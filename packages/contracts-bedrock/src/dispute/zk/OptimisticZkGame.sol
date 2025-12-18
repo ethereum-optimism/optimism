@@ -13,7 +13,7 @@ import {
     Timestamp,
     Proposal
 } from "src/dispute/lib/Types.sol";
-import { AggregationOutputs, OPTIMISTIC_ZK_GAME_TYPE } from "src/dispute/lib/Types.sol";
+import { AggregationOutputs, GameTypes } from "src/dispute/lib/Types.sol";
 import {
     AlreadyInitialized,
     BadAuth,
@@ -202,7 +202,7 @@ contract OptimisticZkGame is Clone, ISemver, IDisputeGame {
         AccessManager _accessManager
     ) {
         // Set up initial game state.
-        GAME_TYPE = GameType.wrap(OPTIMISTIC_ZK_GAME_TYPE);
+        GAME_TYPE = GameTypes.OPTIMISTIC_ZK_GAME_TYPE;
         MAX_CHALLENGE_DURATION = _maxChallengeDuration;
         MAX_PROVE_DURATION = _maxProveDuration;
         DISPUTE_GAME_FACTORY = _disputeGameFactory;

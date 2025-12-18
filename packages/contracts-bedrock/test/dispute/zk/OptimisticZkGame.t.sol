@@ -19,7 +19,7 @@ import {
     GameNotOver,
     IncorrectDisputeGameFactory
 } from "src/dispute/lib/Errors.sol";
-import { OPTIMISTIC_ZK_GAME_TYPE } from "src/dispute/lib/Types.sol";
+import { GameTypes } from "src/dispute/lib/Types.sol";
 
 // Contracts
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
@@ -48,7 +48,7 @@ abstract contract OptimisticZkGame_TestInit is DisputeGameFactory_TestInit {
     address prover = address(0x789);
 
     // Fixed parameters.
-    GameType gameType = GameType.wrap(OPTIMISTIC_ZK_GAME_TYPE);
+    GameType gameType = GameTypes.OPTIMISTIC_ZK_GAME_TYPE;
     Duration maxChallengeDuration = Duration.wrap(12 hours);
     Duration maxProveDuration = Duration.wrap(3 days);
     Claim rootClaim = Claim.wrap(keccak256("rootClaim"));
@@ -77,12 +77,7 @@ abstract contract OptimisticZkGame_TestInit is DisputeGameFactory_TestInit {
 
     function setUp() public virtual override {
         super.setUp();
-        // Set the time to a realistic date.
-        // if (!isForkTest()) {
-        //     vm.warp(1690906994);
-        // }
-
-        skipIfForkTest("Skip");
+        skipIfForkTest("Skip not supported yet");
 
         // Get anchor state to calculate valid sequence numbers
         (, anchorL2SequenceNumber) = anchorStateRegistry.getAnchorRoot();

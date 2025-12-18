@@ -437,7 +437,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         );
 
         // Set respected game type for OptimisticZk
-        GameType gameType = GameType.wrap(OPTIMISTIC_ZK_GAME_TYPE);
+        GameType gameType = GameTypes.OPTIMISTIC_ZK_GAME_TYPE;
         vm.prank(superchainConfig.guardian());
         anchorStateRegistry.setRespectedGameType(gameType);
 
