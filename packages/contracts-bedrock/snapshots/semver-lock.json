@@ -221,7 +221,7 @@
   },
   "src/dispute/zk/OptimisticZkGame.sol:OptimisticZkGame": {
     "initCodeHash": "0x0e905fc81f45b1e9aa786e66bfe70b3ec4abd8d550be5d4c8f43cdad6f2618b2",
-    "sourceCodeHash": "0x0f271ce0fe6a0dabd1fca241bc1aad4d370849eea184793fa00fe0ddae23a799"
+    "sourceCodeHash": "0x162408c90e8d9d8afd982e9825db093eba5c387cbe1145c1a9b86e2361547138"
   },
   "src/legacy/DeployerWhitelist.sol:DeployerWhitelist": {
     "initCodeHash": "0x2e0ef4c341367eb59cc6c25190c64eff441d3fe130189da91d4d126f6bdbc9b5",
