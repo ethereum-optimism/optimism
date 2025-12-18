@@ -2,8 +2,10 @@
 name = "flashblocks-websocket-proxy"
 version = "0.1.0"
 edition = "2021"
+description = "Flashblocks Websocket Proxy is a service that subscribes to new Flashblocks broadcasts them to downstream RPC nodes"
 rust-version = "1.85"
 license = "MIT"
+readme = "README.md"
 
 [dependencies]
 tracing.workspace = true

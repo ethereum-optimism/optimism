@@ -1,8 +1,11 @@
 [package]
 name = "rollup-boost"
-version = "0.1.0"
+version = "0.7.12"
 edition = "2024"
+description = "Rollup Boost is a sidecar for optimism rollups that enables rollup extensions"
+rust-version = "1.85"
 license = "MIT"
+readme = "../../README.md"
 
 [dependencies]
 tracing.workspace = true

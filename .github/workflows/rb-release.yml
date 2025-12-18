@@ -243,3 +243,22 @@ jobs:
           release_name: ${{ github.ref }}
           draft: true
           prerelease: false
+
+  publish-crates-io:
+    name: Publish to crates.io
+    runs-on: warp-ubuntu-latest-x64-16x
+    needs:
+      - extract-version
+      - build-binary
+    permissions:
+      id-token: write
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4.2.0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish to crates.io (Trusted Publishing)
+        run: |
+          cargo publish --package rollup-boost
