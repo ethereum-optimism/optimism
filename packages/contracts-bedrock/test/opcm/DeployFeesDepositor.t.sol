@@ -1,17 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+
+// Scripts
+import { DeployFeesDepositor } from "scripts/deploy/DeployFeesDepositor.s.sol";
+
+// Contracts
+import { FeesDepositor } from "src/L1/FeesDepositor.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 
 // Interfaces
 import { IFeesDepositor } from "interfaces/L1/IFeesDepositor.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
-
-import { DeployFeesDepositor } from "scripts/deploy/DeployFeesDepositor.s.sol";
-import { FeesDepositor } from "src/L1/FeesDepositor.sol";
-import { Proxy } from "src/universal/Proxy.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 /// @title DeployFeesDepositor_Test
 /// @notice This test is used to test the DeployFeesDepositor script.

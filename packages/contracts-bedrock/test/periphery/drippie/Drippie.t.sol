@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
-import { Drippie } from "src/periphery/drippie/Drippie.sol";
-import { IDripCheck } from "src/periphery/drippie/IDripCheck.sol";
-import { CheckTrue } from "src/periphery/drippie/dripchecks/CheckTrue.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
 import { SimpleStorage } from "test/mocks/SimpleStorage.sol";
+
+// Contracts
+import { Drippie } from "src/periphery/drippie/Drippie.sol";
+import { CheckTrue } from "src/periphery/drippie/dripchecks/CheckTrue.sol";
+
+// Interfaces
+import { IDripCheck } from "src/periphery/drippie/IDripCheck.sol";
 
 /// @title  TestDrippie
 /// @notice This is a wrapper contract around Drippie used for testing. Returning an entire
