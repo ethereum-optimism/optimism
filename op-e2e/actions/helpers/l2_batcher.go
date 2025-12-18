@@ -270,7 +270,7 @@ func (s *L2Batcher) Buffer(t Testing, bufferOpts ...BufferOption) error {
 		}
 	}
 
-	s.ActCreateChannel(t, s.rollupCfg.IsDelta(block.Time()), options.channelModifiers...)
+	s.ActCreateChannel(t, s.rollupCfg.IsDelta(block.Time()) && !s.l2BatcherCfg.ForceSubmitSingularBatch, options.channelModifiers...)
 
 	if _, err := s.L2ChannelOut.AddBlock(s.rollupCfg, block); err != nil {
 		return err

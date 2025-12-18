@@ -28,6 +28,10 @@ contract Encoding_Harness {
     function encodeSuperRootProof(Types.SuperRootProof memory proof) external pure returns (bytes memory) {
         return Encoding.encodeSuperRootProof(proof);
     }
+
+    function decodeSuperRootProof(bytes memory _super) external pure returns (Types.SuperRootProof memory) {
+        return Encoding.decodeSuperRootProof(_super);
+    }
 }
 
 /// @title Encoding_TestInit
@@ -300,6 +304,255 @@ contract Encoding_EncodeSuperRootProof_Test is Encoding_TestInit {
         // Expect revert when encoding
         vm.expectRevert(Encoding.Encoding_EmptySuperRoot.selector);
         encoding.encodeSuperRootProof(proof);
+    }
+}
+
+/// @title Encoding_DecodeSuperRootProof_Test
+/// @notice Tests the `decodeSuperRootProof` function of the `Encoding` contract.
+contract Encoding_DecodeSuperRootProof_Test is Encoding_TestInit {
+    /// @notice Tests successful decoding of a valid super root proof
+    /// @param _timestamp The timestamp of the super root proof
+    /// @param _length The number of output roots in the super root proof
+    /// @param _seed The seed used to generate the output roots
+    function testFuzz_decodeSuperRootProof_succeeds(uint64 _timestamp, uint256 _length, uint256 _seed) external pure {
+        // Ensure at least 1 element and cap at a reasonable maximum to avoid gas issues
+        _length = uint256(bound(_length, 1, 50));
+
+        // Create output roots array
+        Types.OutputRootWithChainId[] memory outputRoots = new Types.OutputRootWithChainId[](_length);
+
+        // Generate deterministic chain IDs and roots based on the seed
+        for (uint256 i = 0; i < _length; i++) {
+            // Use different derivations of the seed for each value
+            uint256 chainId = uint256(keccak256(abi.encode(_seed, "chainId", i)));
+            bytes32 root = keccak256(abi.encode(_seed, "root", i));
+
+            outputRoots[i] = Types.OutputRootWithChainId({ chainId: chainId, root: root });
+        }
+
+        // Create the super root proof
+        Types.SuperRootProof memory proof =
+            Types.SuperRootProof({ version: 0x01, timestamp: _timestamp, outputRoots: outputRoots });
+
+        // Encode the proof
+        bytes memory encoded = Encoding.encodeSuperRootProof(proof);
+
+        // Decode the proof
+        Types.SuperRootProof memory decoded = Encoding.decodeSuperRootProof(encoded);
+
+        // Verify the decoded values match the original
+        assertEq(uint8(decoded.version), uint8(proof.version), "Version should match");
+        assertEq(decoded.timestamp, proof.timestamp, "Timestamp should match");
+        assertEq(decoded.outputRoots.length, proof.outputRoots.length, "Output roots length should match");
+
+        // Verify each output root
+        for (uint256 i = 0; i < _length; i++) {
+            assertEq(decoded.outputRoots[i].chainId, proof.outputRoots[i].chainId, "Chain ID should match");
+            assertEq(decoded.outputRoots[i].root, proof.outputRoots[i].root, "Root should match");
+        }
+    }
+
+    /// @notice Tests decoding with a single output root
+    function test_decodeSuperRootProof_singleOutputRoot_succeeds() external pure {
+        // Create a single output root
+        Types.OutputRootWithChainId[] memory outputRoots = new Types.OutputRootWithChainId[](1);
+        outputRoots[0] = Types.OutputRootWithChainId({ chainId: 10, root: bytes32(uint256(0xdeadbeef)) });
+
+        // Create the super root proof
+        Types.SuperRootProof memory proof =
+            Types.SuperRootProof({ version: 0x01, timestamp: 1234567890, outputRoots: outputRoots });
+
+        // Encode the proof
+        bytes memory encoded = Encoding.encodeSuperRootProof(proof);
+
+        // Decode the proof
+        Types.SuperRootProof memory decoded = Encoding.decodeSuperRootProof(encoded);
+
+        // Verify the decoded values match the original
+        assertEq(uint8(decoded.version), 0x01, "Version should be 0x01");
+        assertEq(decoded.timestamp, 1234567890, "Timestamp should match");
+        assertEq(decoded.outputRoots.length, 1, "Should have one output root");
+        assertEq(decoded.outputRoots[0].chainId, 10, "Chain ID should match");
+        assertEq(decoded.outputRoots[0].root, bytes32(uint256(0xdeadbeef)), "Root should match");
+    }
+
+    /// @notice Tests decoding with multiple output roots
+    function test_decodeSuperRootProof_multipleOutputRoots_succeeds() external pure {
+        // Create multiple output roots
+        Types.OutputRootWithChainId[] memory outputRoots = new Types.OutputRootWithChainId[](3);
+        outputRoots[0] = Types.OutputRootWithChainId({ chainId: 10, root: bytes32(uint256(0xdeadbeef)) });
+        outputRoots[1] = Types.OutputRootWithChainId({ chainId: 20, root: bytes32(uint256(0xbeefcafe)) });
+        outputRoots[2] = Types.OutputRootWithChainId({ chainId: 30, root: bytes32(uint256(0xcafebabe)) });
+
+        // Create the super root proof
+        Types.SuperRootProof memory proof =
+            Types.SuperRootProof({ version: 0x01, timestamp: 1234567890, outputRoots: outputRoots });
+
+        // Encode the proof
+        bytes memory encoded = Encoding.encodeSuperRootProof(proof);
+
+        // Decode the proof
+        Types.SuperRootProof memory decoded = Encoding.decodeSuperRootProof(encoded);
+
+        // Verify the decoded values match the original
+        assertEq(uint8(decoded.version), 0x01, "Version should be 0x01");
+        assertEq(decoded.timestamp, 1234567890, "Timestamp should match");
+        assertEq(decoded.outputRoots.length, 3, "Should have three output roots");
+
+        // Verify each output root
+        assertEq(decoded.outputRoots[0].chainId, 10, "Chain ID 0 should match");
+        assertEq(decoded.outputRoots[0].root, bytes32(uint256(0xdeadbeef)), "Root 0 should match");
+        assertEq(decoded.outputRoots[1].chainId, 20, "Chain ID 1 should match");
+        assertEq(decoded.outputRoots[1].root, bytes32(uint256(0xbeefcafe)), "Root 1 should match");
+        assertEq(decoded.outputRoots[2].chainId, 30, "Chain ID 2 should match");
+        assertEq(decoded.outputRoots[2].root, bytes32(uint256(0xcafebabe)), "Root 2 should match");
+    }
+
+    /// @notice Tests decoding with maximum timestamp value
+    function test_decodeSuperRootProof_maxTimestamp_succeeds() external pure {
+        // Create a single output root
+        Types.OutputRootWithChainId[] memory outputRoots = new Types.OutputRootWithChainId[](1);
+        outputRoots[0] = Types.OutputRootWithChainId({ chainId: 1, root: bytes32(uint256(1)) });
+
+        // Create the super root proof with max timestamp
+        Types.SuperRootProof memory proof =
+            Types.SuperRootProof({ version: 0x01, timestamp: type(uint64).max, outputRoots: outputRoots });
+
+        // Encode the proof
+        bytes memory encoded = Encoding.encodeSuperRootProof(proof);
+
+        // Decode the proof
+        Types.SuperRootProof memory decoded = Encoding.decodeSuperRootProof(encoded);
+
+        // Verify timestamp is preserved correctly
+        assertEq(decoded.timestamp, type(uint64).max, "Max timestamp should be preserved");
+    }
+
+    /// @notice Tests decoding with maximum chain ID values
+    function test_decodeSuperRootProof_maxChainId_succeeds() external pure {
+        // Create output roots with max chain ID
+        Types.OutputRootWithChainId[] memory outputRoots = new Types.OutputRootWithChainId[](2);
+        outputRoots[0] = Types.OutputRootWithChainId({ chainId: type(uint256).max, root: bytes32(uint256(1)) });
+        outputRoots[1] = Types.OutputRootWithChainId({ chainId: type(uint256).max - 1, root: bytes32(uint256(2)) });
+
+        // Create the super root proof
+        Types.SuperRootProof memory proof =
+            Types.SuperRootProof({ version: 0x01, timestamp: 1234567890, outputRoots: outputRoots });
+
+        // Encode the proof
+        bytes memory encoded = Encoding.encodeSuperRootProof(proof);
+
+        // Decode the proof
+        Types.SuperRootProof memory decoded = Encoding.decodeSuperRootProof(encoded);
+
+        // Verify chain IDs are preserved correctly
+        assertEq(decoded.outputRoots[0].chainId, type(uint256).max, "Max chain ID should be preserved");
+        assertEq(decoded.outputRoots[1].chainId, type(uint256).max - 1, "Max-1 chain ID should be preserved");
+    }
+
+    /// @notice Tests that decoding fails when version is not 0x01
+    /// @param _version The version to use in the encoded bytes
+    /// @param _timestamp The timestamp to use in the encoded bytes
+    function testFuzz_decodeSuperRootProof_invalidVersion_reverts(bytes1 _version, uint64 _timestamp) external {
+        // Ensure version is not 0x01
+        if (_version == 0x01) {
+            _version = 0x02;
+        }
+
+        // Manually construct encoded bytes with invalid version
+        // Structure: 1 byte version + 8 bytes timestamp + (32 bytes chainId + 32 bytes root) * n
+        // Minimum valid structure needs at least one output root
+        bytes memory encoded = new bytes(73); // 1 + 8 + 64
+        encoded[0] = _version;
+
+        // Encode timestamp (8 bytes)
+        for (uint256 i = 0; i < 8; i++) {
+            encoded[1 + i] = bytes1(uint8(_timestamp >> (56 - i * 8)));
+        }
+
+        // Add a dummy output root (chainId = 1, root = bytes32(uint256(1)))
+        // ChainId (32 bytes starting at byte 9)
+        encoded[40] = bytes1(uint8(1)); // Last byte of chainId at offset 9+31=40
+        // Root (32 bytes starting at byte 41)
+        encoded[72] = bytes1(uint8(1)); // Last byte of root at offset 41+31=72
+
+        // Expect revert when decoding
+        vm.expectRevert(Encoding.Encoding_InvalidSuperRootVersion.selector);
+        encoding.decodeSuperRootProof(encoded);
+    }
+
+    /// @notice Tests that decoding fails when version byte is 0x00
+    function test_decodeSuperRootProof_versionZero_reverts() external {
+        // Create encoded bytes with version 0x00
+        bytes memory encoded = new bytes(73); // 1 + 8 + 64
+        encoded[0] = bytes1(0x00);
+
+        // Add timestamp and dummy output root
+        encoded[40] = bytes1(uint8(1)); // ChainId last byte
+        encoded[72] = bytes1(uint8(1)); // Root last byte
+
+        // Expect revert when decoding
+        vm.expectRevert(Encoding.Encoding_InvalidSuperRootVersion.selector);
+        encoding.decodeSuperRootProof(encoded);
+    }
+
+    /// @notice Tests that decoding fails when version byte is 0xFF
+    function test_decodeSuperRootProof_versionFF_reverts() external {
+        // Create encoded bytes with version 0xFF
+        bytes memory encoded = new bytes(73); // 1 + 8 + 64
+        encoded[0] = bytes1(0xFF);
+
+        // Add timestamp and dummy output root
+        encoded[40] = bytes1(uint8(1)); // ChainId last byte
+        encoded[72] = bytes1(uint8(1)); // Root last byte
+
+        // Expect revert when decoding
+        vm.expectRevert(Encoding.Encoding_InvalidSuperRootVersion.selector);
+        encoding.decodeSuperRootProof(encoded);
+    }
+
+    /// @notice Tests that decoding fails when output roots array is empty
+    function testFuzz_decodeSuperRootProof_emptyOutputRoots_reverts(uint64 _timestamp) external {
+        // Manually construct encoded bytes with no output roots
+        // Structure: 1 byte version + 8 bytes timestamp
+        bytes memory encoded = new bytes(9); // 1 + 8
+        encoded[0] = bytes1(0x01);
+
+        // Encode timestamp (8 bytes)
+        for (uint256 i = 0; i < 8; i++) {
+            encoded[1 + i] = bytes1(uint8(_timestamp >> (56 - i * 8)));
+        }
+
+        // Expect revert when decoding
+        vm.expectRevert(Encoding.Encoding_EmptySuperRoot.selector);
+        encoding.decodeSuperRootProof(encoded);
+    }
+
+    /// @notice Tests that decoding fails when encoded bytes are incomplete
+    function testFuzz_decodeSuperRootProof_partial_reverts(uint256 _length) external {
+        _length = uint256(bound(_length, 0, 8));
+        bytes memory encoded = new bytes(_length);
+        vm.expectRevert(Encoding.Encoding_InvalidSuperRootEncoding.selector);
+        encoding.decodeSuperRootProof(encoded);
+    }
+
+    /// @notice Tests that decoding fails when output roots array is incomplete
+    function testFuzz_decodeSuperRootProof_partialOutputRoots_reverts(uint64 _timestamp, uint256 _length) external {
+        _length = uint256(bound(_length, 10, 72));
+
+        // Manually construct encoded bytes with no output roots
+        // Structure: 1 byte version + 8 bytes timestamp
+        bytes memory encoded = new bytes(_length);
+        encoded[0] = bytes1(0x01);
+
+        // Encode timestamp (8 bytes)
+        for (uint256 i = 0; i < 8; i++) {
+            encoded[1 + i] = bytes1(uint8(_timestamp >> (56 - i * 8)));
+        }
+
+        // Expect revert when decoding
+        vm.expectRevert(Encoding.Encoding_InvalidSuperRootEncoding.selector);
+        encoding.decodeSuperRootProof(encoded);
     }
 }
 

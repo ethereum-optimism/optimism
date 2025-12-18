@@ -124,6 +124,8 @@ type OpNode struct {
 	p2pSigner p2p.Signer            // p2p gossip application messages will be signed with this signer
 	runCfg    *runcfg.RuntimeConfig // runtime configurables
 
+	l2FollowSource *sources.FollowClient // (Optional) L2 Follow source when derivation disabled
+
 	safeDB closableSafeDB
 
 	rollupHalt string // when to halt the rollup, disabled if empty
@@ -205,16 +207,18 @@ type InitializationOverrides struct {
 // so order is important to ensure that all resources are available when needed.
 func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides InitializationOverrides) error {
 	n.log.Info("Initializing rollup node", "version", n.appVersion)
+
+	var err error
+
 	safe := "enabled"
-	if cfg.Sync.UnsafeOnly {
+	if cfg.Sync.FollowSourceEnabled() {
 		safe = cfg.Sync.L2FollowSourceEndpoint
-		if safe == "" {
-			safe = "disabled"
+		n.l2FollowSource, err = initFollowSource(ctx, cfg, n)
+		if err != nil {
+			return fmt.Errorf("failed to init l2 follow source: %w", err)
 		}
 	}
 	n.log.Info("Safety levels", "unsafe", "enabled", "safe", safe)
-
-	var err error
 
 	n.eventSys, n.eventDrain, err = initEventSystem(n)
 	if err != nil {
@@ -597,7 +601,12 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 		return nil, nil, nil, nil, fmt.Errorf("cfg.Rollup.ChainOpConfig is nil. Please see https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.11.0: %w", err)
 	}
 
-	l2Driver := driver.NewDriver(node.eventSys, node.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.L1ChainConfig, cfg.DependencySet, l2Source, node.l1Source,
+	var upstreamFollowSource driver.UpstreamFollowSource
+	if node.cfg.Sync.FollowSourceEnabled() {
+		upstreamFollowSource = driver.NewL2FollowSource(node.l2FollowSource, node.l1Source)
+	}
+
+	l2Driver := driver.NewDriver(node.eventSys, node.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.L1ChainConfig, cfg.DependencySet, l2Source, node.l1Source, upstreamFollowSource,
 		node.beacon, node, node, node.log, node.metrics, cfg.ConfigPersistence, safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode)
 
 	// Wire up IndexingMode to engine controller for direct procedure call
@@ -608,6 +617,18 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 	}
 
 	return l2Source, sys, l2Driver, safeDB, nil
+}
+
+func initFollowSource(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.FollowClient, error) {
+	rpcClient, _, err := cfg.L2FollowSource.Setup(ctx, node.log, &node.cfg.Rollup, node.metrics)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup L2 follow source RPC client: %w", err)
+	}
+	l2FollowSource, err := sources.NewFollowClient(rpcClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create follow client: %w", err)
+	}
+	return l2FollowSource, nil
 }
 
 func initRPCServer(cfg *config.Config, node *OpNode) (*oprpc.Server, error) {

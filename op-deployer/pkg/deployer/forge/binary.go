@@ -254,7 +254,7 @@ func (b *StandardBin) downloadBinary(ctx context.Context, dest string) error {
 	if err := ioutil.Untar(tmpDir, tr); err != nil {
 		return fmt.Errorf("failed to untar: %w", err)
 	}
-	if err := os.Rename(path.Join(tmpDir, "forge"), path.Join(dest, "forge")); err != nil {
+	if err := ioutil.SafeRename(path.Join(tmpDir, "forge"), path.Join(dest, "forge")); err != nil {
 		return fmt.Errorf("failed to move binary: %w", err)
 	}
 	if err := os.Chmod(path.Join(dest, "forge"), 0o755); err != nil {

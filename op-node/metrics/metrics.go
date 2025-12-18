@@ -84,6 +84,8 @@ type Metrics struct {
 	L1SourceCache *metrics.CacheMetrics
 	L2SourceCache *metrics.CacheMetrics
 
+	L2FollowSourceCache *metrics.CacheMetrics
+
 	DerivationIdle prometheus.Gauge
 
 	PipelineResets   *metrics.Event
@@ -185,6 +187,8 @@ func NewMetrics(procName string) *Metrics {
 
 		L1SourceCache: metrics.NewCacheMetrics(factory, ns, "l1_source_cache", "L1 Source cache"),
 		L2SourceCache: metrics.NewCacheMetrics(factory, ns, "l2_source_cache", "L2 Source cache"),
+
+		L2FollowSourceCache: metrics.NewCacheMetrics(factory, ns, "l2_follow_source_cache", "L2 Follow source cache"),
 
 		DerivationIdle: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
