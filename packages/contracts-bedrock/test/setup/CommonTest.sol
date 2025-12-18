@@ -29,6 +29,9 @@ abstract contract CommonTest is Test, Setup, Events {
 
     bytes32 constant nonZeroHash = keccak256(abi.encode("NON_ZERO"));
 
+    /// @notice The default initial bond value for dispute games.
+    uint256 constant DEFAULT_DISPUTE_GAME_INIT_BOND = 0.08 ether;
+
     FFIInterface constant ffi = FFIInterface(address(uint160(uint256(keccak256(abi.encode("optimism.ffi"))))));
 
     bool useAltDAOverride;

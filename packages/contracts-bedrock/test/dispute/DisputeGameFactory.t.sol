@@ -150,7 +150,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         } else {
             disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl));
         }
-        disputeGameFactory.setInitBond(_gameType, 0.08 ether);
+        disputeGameFactory.setInitBond(_gameType, DEFAULT_DISPUTE_GAME_INIT_BOND);
         vm.stopPrank();
     }
 

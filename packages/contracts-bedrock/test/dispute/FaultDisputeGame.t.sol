@@ -2123,7 +2123,7 @@ contract FaultDisputeGame_GetRequiredBond_Test is FaultDisputeGame_TestInit {
             uint256 bond = gameProxy.getRequiredBond(pos);
 
             // Reasonable approximation for a max depth of 8.
-            uint256 expected = 0.08 ether;
+            uint256 expected = DEFAULT_DISPUTE_GAME_INIT_BOND;
             for (uint64 j = 0; j < i; j++) {
                 expected = expected * 22876;
                 expected = expected / 10000;
