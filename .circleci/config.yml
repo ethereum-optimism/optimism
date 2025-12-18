@@ -3458,7 +3458,7 @@ workflows:
   scheduled-upgrade-cache-warm:
     when:
       or:
-        - equal: [build_weekly_sunday, <<pipeline.schedule.name>>]
+        - equal: [build_sunday_early, <<pipeline.schedule.name>>]
         - equal: [true, << pipeline.parameters.upgrade_cache_warm_dispatch >>]
     jobs:
       - contracts-bedrock-tests-upgrade:
