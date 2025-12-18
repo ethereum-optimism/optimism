@@ -21,13 +21,32 @@ import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
-import { IOPContractsManagerMigrator } from "interfaces/L1/opcm/IOPContractsManagerMigrator.sol";
+import { GameType, Proposal } from "src/dispute/lib/Types.sol";
 
 /// @title OPContractsManagerMigrator
 /// @notice OPContractsManagerMigrator is a contract that provides the migration functionality for
 ///         migrating one or more OP Stack chains to use the Super Root dispute games and shared
 ///         dispute game contracts.
 contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
+    /// @notice Input for migrating one or more OP Stack chains to use the Super Root dispute games
+    ///         and shared dispute game contracts.
+    struct MigrateInput {
+        ISystemConfig[] chainSystemConfigs;
+        IOPContractsManagerUtils.ExtraInstruction[] extraInstructions;
+        IOPContractsManagerUtils.DisputeGameConfig[] disputeGameConfigs;
+        Proposal startingAnchorRoot;
+        GameType startingRespectedGameType;
+    }
+
+    /// @notice Thrown when a chain's ProxyAdmin owner does not match the other chains.
+    error OPContractsManagerMigrator_ProxyAdminOwnerMismatch();
+
+    /// @notice Thrown when a chain's SuperchainConfig does not match the other chains.
+    error OPContractsManagerMigrator_SuperchainConfigMismatch();
+
+    /// @notice Thrown when the starting respected game type is not a valid super game type.
+    error OPContractsManagerMigrator_InvalidStartingRespectedGameType();
+
     /// @notice Container of blueprint and implementation contract addresses.
     IOPContractsManagerContainer public immutable contractsContainer;
 
@@ -52,19 +71,27 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///      the near future once interop support is baked more directly into OPCM. It does NOT
     ///      look or function like all of the other functions in OPCMv2.
     /// @param _input The input parameters for the migration.
-    function migrate(IOPContractsManagerMigrator.MigrateInput calldata _input) public {
+    function migrate(MigrateInput calldata _input) public {
+        // Check that the starting respected game type is a valid super game type.
+        if (
+            _input.startingRespectedGameType.raw() != GameTypes.SUPER_CANNON.raw()
+                && _input.startingRespectedGameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+        ) {
+            revert OPContractsManagerMigrator_InvalidStartingRespectedGameType();
+        }
+
         // Check that all of the chains have the same core contracts.
         for (uint256 i = 0; i < _input.chainSystemConfigs.length; i++) {
             // Different chains might actually have different ProxyAdmin contracts, but it's fine
             // as long as the owner of all of those contracts is the same.
             if (_input.chainSystemConfigs[i].proxyAdmin().owner() != _input.chainSystemConfigs[0].proxyAdmin().owner())
             {
-                revert IOPContractsManagerMigrator.OPContractsManagerMigrator_ProxyAdminOwnerMismatch();
+                revert OPContractsManagerMigrator_ProxyAdminOwnerMismatch();
             }
 
             // Each chain must have the same SuperchainConfig.
             if (_input.chainSystemConfigs[i].superchainConfig() != _input.chainSystemConfigs[0].superchainConfig()) {
-                revert IOPContractsManagerMigrator.OPContractsManagerMigrator_SuperchainConfigMismatch();
+                revert OPContractsManagerMigrator_SuperchainConfigMismatch();
             }
         }
 
@@ -162,7 +189,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                         _input.chainSystemConfigs[0],
                         disputeGameFactory,
                         _input.startingAnchorRoot,
-                        GameTypes.SUPER_PERMISSIONED_CANNON
+                        _input.startingRespectedGameType
                     )
                 )
             );

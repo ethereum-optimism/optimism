@@ -104,7 +104,7 @@
             "type": "uint32"
           }
         ],
-        "internalType": "struct IOPContractsManagerMigrator.MigrateInput",
+        "internalType": "struct OPContractsManagerMigrator.MigrateInput",
         "name": "_input",
         "type": "tuple"
       }
@@ -126,6 +126,11 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_InvalidStartingRespectedGameType",
+    "type": "error"
   },
   {
     "inputs": [],

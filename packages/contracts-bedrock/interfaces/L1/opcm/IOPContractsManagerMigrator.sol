@@ -26,6 +26,9 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when a chain's SuperchainConfig does not match the other chains.
     error OPContractsManagerMigrator_SuperchainConfigMismatch();
 
+    /// @notice Thrown when the starting respected game type is not a valid super game type.
+    error OPContractsManagerMigrator_InvalidStartingRespectedGameType();
+
     /// @notice Returns the container of blueprint and implementation contract addresses.
     function contractsContainer() external view returns (IOPContractsManagerContainer);
 
