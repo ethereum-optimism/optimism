@@ -316,6 +316,7 @@ func ApplyPipeline(
 			opts.Logger,
 			deployer,
 			bundle.L1,
+			script.WithNoMaxCodeSize(), // Allow unoptimized contracts from the forge lite profile in genesis deployments
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create L1 script host: %w", err)
