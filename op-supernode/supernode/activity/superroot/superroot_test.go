@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -168,6 +169,20 @@ func TestSuperroot_AtTimestamp_ErrorOnVerifiedAt(t *testing.T) {
 	api := &superrootAPI{s: s}
 	_, err := api.AtTimestamp(context.Background(), 123)
 	require.Error(t, err)
+}
+
+func TestSuperroot_AtTimestamp_NotFoundErrorOnVerifiedAt(t *testing.T) {
+	t.Parallel()
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{
+			verifiedErr: fmt.Errorf("no block: %w", engine_controller.ErrNotFound),
+		},
+	}
+	s := New(gethlog.New(), chains)
+	api := &superrootAPI{s: s}
+	response, err := api.AtTimestamp(context.Background(), 123)
+	require.NoError(t, err)
+	require.Nil(t, response.Data)
 }
 
 func TestSuperroot_AtTimestamp_ErrorOnOutputRoot(t *testing.T) {
