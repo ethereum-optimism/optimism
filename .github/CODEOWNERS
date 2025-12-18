@@ -36,8 +36,23 @@
 # Contracts
 # We require a minimum of 2 reviewers for all changes to the contracts-bedrock
 # directory unless only markdown files are being changed.
-/packages/contracts-bedrock/**           @ethereum-optimism/contract-reviewers #[min:2]
 /packages/contracts-bedrock/**/*.md      @ethereum-optimism/contract-reviewers
+
+# While these files are in the CODEOWNERS file, they are not subject to the minimum 2 reviewer rule that is enforced in https://github.com/ethereum-optimism/optimism/settings/rules/5594133
+/packages/contracts-bedrock/**/*.245        @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock/**/*.sol        @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock/**/*.json       @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock/**/*.css        @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock/**/.gitignore   @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock/**/.gitinclude  @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock/**/.gitkeep     @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock/**/*.go         @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock/**/*.js         @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock/**/*.py         @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock/**/*.sh         @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock/**/*.toml       @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock/**/*.ts         @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock/**/*.yaml       @ethereum-optimism/contract-reviewers
 
 # Security docs
 /docs @ethereum-optimism/evm-safety
