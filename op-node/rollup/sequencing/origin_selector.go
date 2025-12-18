@@ -245,7 +245,7 @@ func (los *L1OriginSelector) findL1OriginOfNextL2Block(
 	l2BlockTime := los.cfg.BlockTime
 	maxDrift := rollup.NewChainSpec(los.cfg).MaxSequencerDrift(currentL1Origin.Time)
 	nextL2BlockTime := l2Head.Time + l2BlockTime
-	driftCurrent := nextL2BlockTime - currentL1Origin.Time
+	driftCurrent := int64(nextL2BlockTime) - int64(currentL1Origin.Time)
 
 	if (nextL1Origin == eth.L1BlockRef{}) {
 		if matchAutoDerivation {
