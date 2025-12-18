@@ -31,7 +31,7 @@ type Service struct {
 
 	pprofService *oppprof.Service
 	metricsSrv   *httputil.HTTPServer
-	rpcServer    *oprpc.Server
+	rpcServer    *oprpc.Server // Main RPC server (public supervisor API, optional JWT-protected admin sub-route)
 
 	backend *Backend
 
@@ -153,44 +153,41 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 }
 
 func (s *Service) initRPCServer(cfg *Config) error {
-	opts := []oprpc.Option{
-		oprpc.WithLogger(s.log),
-	}
+	opts := []oprpc.Option{oprpc.WithLogger(s.log)}
 
-	// Load JWT secret if path is provided (generates new secret if file is empty)
-	if cfg.JWTSecretPath != "" {
+	// If admin RPC is enabled, configure JWT on a separate RPC sub-route, keeping the root RPC public.
+	if cfg.RPC.EnableAdmin {
 		secret, err := oprpc.ObtainJWTSecret(s.log, cfg.JWTSecretPath, true)
 		if err != nil {
 			return fmt.Errorf("failed to obtain JWT secret: %w", err)
 		}
-		opts = append(opts, oprpc.WithJWTSecret(secret[:]))
+		opts = append(opts, oprpc.WithJWTSecret(secret[:]), oprpc.WithRootRPCAuthentication(false))
 	}
 
-	server := oprpc.NewServer(
-		cfg.RPC.ListenAddr,
-		cfg.RPC.ListenPort,
-		s.version,
-		opts...,
-	)
+	mainServer := oprpc.NewServer(cfg.RPC.ListenAddr, cfg.RPC.ListenPort, s.version, opts...)
 
-	// Register supervisor query API
-	server.AddAPI(rpc.API{
-		Namespace:     "supervisor",
-		Service:       &QueryFrontend{backend: s.backend},
-		Authenticated: false,
+	// Register supervisor query API (public, no auth)
+	mainServer.AddAPI(rpc.API{
+		Namespace: "supervisor",
+		Service:   &QueryFrontend{backend: s.backend},
 	})
 
-	// Register admin API (opt-in)
+	// Register admin API on an authenticated sub-route (JWT required)
 	if cfg.RPC.EnableAdmin {
-		s.log.Info("Admin RPC enabled")
-		server.AddAPI(rpc.API{
-			Namespace:     "admin",
-			Service:       &AdminFrontend{backend: s.backend},
-			Authenticated: true,
-		})
+		isAuthenticated := true
+		if err := mainServer.AddRPCWithAuthentication("/admin", &isAuthenticated); err != nil {
+			return fmt.Errorf("failed to register admin RPC route: %w", err)
+		}
+		if err := mainServer.AddAPIToRPC("/admin", rpc.API{
+			Namespace: "admin",
+			Service:   &AdminFrontend{backend: s.backend},
+		}); err != nil {
+			return fmt.Errorf("failed to register admin RPC API: %w", err)
+		}
+		s.log.Info("Admin RPC enabled (JWT protected)", "path", "/admin")
 	}
 
-	s.rpcServer = server
+	s.rpcServer = mainServer
 	return nil
 }
 
@@ -203,8 +200,10 @@ func (s *Service) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to start backend: %w", err)
 	}
 
-	// Start RPC server
+	// Start main RPC server (supervisor API)
 	if err := s.rpcServer.Start(); err != nil {
+		// Rollback: stop backend if RPC server fails to start
+		_ = s.backend.Stop(ctx)
 		return fmt.Errorf("failed to start RPC server: %w", err)
 	}
 	s.log.Info("RPC server started", "endpoint", s.rpcServer.Endpoint())

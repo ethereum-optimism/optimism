@@ -13,6 +13,15 @@ type Option func(b *Handler)
 
 type Middleware func(next http.Handler) http.Handler
 
+// WithRootRPCAuthentication configures the authentication setting of the root RPC route ("/").
+// By default (no option set), the presence of a JWT secret determines if the root RPC route is authenticated.
+// This can be overridden to support a public root RPC route while using JWT for other sub-routes.
+func WithRootRPCAuthentication(isAuthenticated bool) Option {
+	return func(b *Handler) {
+		b.rootRPCAuthenticated = &isAuthenticated
+	}
+}
+
 func WithHealthzHandler(hdlr http.Handler) Option {
 	return func(b *Handler) {
 		b.healthzHandler = hdlr

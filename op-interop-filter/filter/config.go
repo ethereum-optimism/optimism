@@ -37,9 +37,16 @@ func (c *Config) Check() error {
 	if len(c.L2RPCs) == 0 {
 		result = errors.Join(result, errors.New("at least one L2 RPC is required"))
 	}
-	// Admin API requires JWT authentication
+	// Admin API must be JWT protected.
 	if c.RPC.EnableAdmin && c.JWTSecretPath == "" {
-		result = errors.Join(result, errors.New("admin RPC requires JWT setup, but no JWT path was specified"))
+		result = errors.Join(result, errors.New("rpc.enable-admin requires admin.jwt-secret for authentication"))
+	}
+	// Durations must be positive
+	if c.BackfillDuration <= 0 {
+		result = errors.Join(result, errors.New("backfill-duration must be positive"))
+	}
+	if c.MessageExpiryWindow == 0 {
+		result = errors.Join(result, errors.New("message-expiry-window must be positive"))
 	}
 	result = errors.Join(result, c.MetricsConfig.Check())
 	result = errors.Join(result, c.PprofConfig.Check())
@@ -52,10 +59,16 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid backfill-duration: %w", err)
 	}
+	if backfillDuration <= 0 {
+		return nil, fmt.Errorf("backfill-duration must be positive, got %s", backfillDuration)
+	}
 
 	messageExpiryWindow, err := time.ParseDuration(ctx.String(flags.MessageExpiryWindowFlag.Name))
 	if err != nil {
 		return nil, fmt.Errorf("invalid message-expiry-window: %w", err)
+	}
+	if messageExpiryWindow <= 0 {
+		return nil, fmt.Errorf("message-expiry-window must be positive, got %s", messageExpiryWindow)
 	}
 
 	return &Config{

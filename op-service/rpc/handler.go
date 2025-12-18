@@ -38,8 +38,11 @@ type Handler struct {
 	corsHosts      []string
 	vHosts         []string
 	jwtSecret      []byte
-	wsEnabled      bool
-	httpRecorder   opmetrics.HTTPRecorder
+	// rootRPCAuthenticated overrides the auth behavior of the root RPC route.
+	// nil means "use global JWT presence", matching AddRPCWithAuthentication semantics.
+	rootRPCAuthenticated *bool
+	wsEnabled            bool
+	httpRecorder         opmetrics.HTTPRecorder
 
 	log         log.Logger
 	middlewares []Middleware
@@ -79,7 +82,7 @@ func NewHandler(appVersion string, opts ...Option) *Handler {
 	handler = oplog.NewLoggingMiddleware(bs.log, handler)
 	bs.outer = handler
 
-	if err := bs.AddRPC(rootRoute); err != nil {
+	if err := bs.AddRPCWithAuthentication(rootRoute, bs.rootRPCAuthenticated); err != nil {
 		panic(fmt.Errorf("failed to register root RPC server: %w", err))
 	}
 

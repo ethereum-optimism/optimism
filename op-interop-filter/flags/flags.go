@@ -43,11 +43,12 @@ var (
 		Value:   "168h", // 7 days default, matching op-supervisor
 	}
 	JWTSecretFlag = &cli.StringFlag{
-		Name: "rpc.jwt-secret",
-		Usage: "Path to JWT secret key for RPC authentication. " +
+		Name: "admin.jwt-secret",
+		Usage: "Path to JWT secret key for admin RPC authentication. " +
 			"Keys are 32 bytes, hex encoded in a file. " +
-			"A new key will be generated if the file is empty.",
-		EnvVars:   prefixEnvVars("RPC_JWT_SECRET"),
+			"A new key will be generated if the file is missing. " +
+			"Required when rpc.enable-admin is set.",
+		EnvVars:   prefixEnvVars("ADMIN_JWT_SECRET"),
 		Value:     "",
 		TakesFile: true,
 	}

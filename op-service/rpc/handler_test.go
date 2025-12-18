@@ -108,3 +108,83 @@ func TestHandlerAuthentication(t *testing.T) {
 		require.Equal(t, 12, res)
 	})
 }
+
+func TestHandlerAuthenticationWithPublicRoot(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelInfo)
+
+	// generate JWT Secret
+	var jwtSecret eth.Bytes32
+	_, err := io.ReadFull(rand.Reader, jwtSecret[:])
+	require.NoError(t, err)
+
+	server := ServerFromConfig(&ServerConfig{
+		RpcOptions: []Option{
+			WithLogger(logger),
+			WithWebsocketEnabled(),
+			WithJWTSecret(jwtSecret[:]),
+			WithRootRPCAuthentication(false),
+		},
+		Host:       "127.0.0.1",
+		Port:       0,
+		AppVersion: "test",
+	})
+
+	namespace := "test"
+	server.AddAPI(rpc.API{
+		Namespace: namespace,
+		Service:   new(testAPI),
+	})
+
+	isAuthenticated := true
+	require.NoError(t, server.Handler.AddRPCWithAuthentication("/admin", &isAuthenticated))
+	require.NoError(t, server.AddAPIToRPC("/admin", rpc.API{
+		Namespace: namespace,
+		Service:   new(testAPI),
+	}))
+
+	require.NoError(t, server.Start(), "must start")
+	t.Cleanup(func() {
+		err := server.Stop()
+		if err != nil {
+			panic(err)
+		}
+	})
+
+	endpoint := "http://" + server.Endpoint()
+
+	publicClient, err := rpc.Dial(endpoint)
+	require.NoError(t, err)
+	t.Cleanup(publicClient.Close)
+
+	adminUnauthenticatedClient, err := rpc.Dial(endpoint + "/admin")
+	require.NoError(t, err)
+	t.Cleanup(adminUnauthenticatedClient.Close)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	adminAuthenticatedClient, err := client.NewRPC(
+		ctx,
+		logger,
+		endpoint+"/admin",
+		client.WithGethRPCOptions(rpc.WithHTTPAuth(gn.NewJWTAuth(jwtSecret))),
+	)
+	require.NoError(t, err)
+	t.Cleanup(adminAuthenticatedClient.Close)
+
+	t.Run("public root RPC", func(t *testing.T) {
+		var res int
+		require.NoError(t, publicClient.Call(&res, namespace+"_frobnicate", 2))
+		require.Equal(t, 4, res)
+	})
+
+	t.Run("authenticated sub-route - unauthenticated", func(t *testing.T) {
+		var res int
+		require.ErrorContains(t, adminUnauthenticatedClient.Call(&res, namespace+"_frobnicate", 2), "missing token")
+	})
+
+	t.Run("authenticated sub-route - authenticated", func(t *testing.T) {
+		var res int
+		require.NoError(t, adminAuthenticatedClient.CallContext(ctx, &res, namespace+"_frobnicate", 6))
+		require.Equal(t, 12, res)
+	})
+}

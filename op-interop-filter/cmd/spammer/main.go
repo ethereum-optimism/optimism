@@ -16,6 +16,7 @@ import (
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -27,6 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -91,6 +93,11 @@ var (
 		Usage:   "Safety level to use for queries (unsafe or cross-unsafe)",
 		Value:   "cross-unsafe",
 		EnvVars: []string{"SAFETY_LEVEL"},
+	}
+	JWTSecretFlag = &cli.StringFlag{
+		Name:    "jwt-secret",
+		Usage:   "Path to JWT secret for authenticated admin RPC endpoints (optional)",
+		EnvVars: []string{"JWT_SECRET"},
 	}
 )
 
@@ -206,6 +213,7 @@ func main() {
 		MetricsPortFlag,
 		MetricsEnabledFlag,
 		SafetyLevelFlag,
+		JWTSecretFlag,
 	}, oplog.CLIFlags("SPAMMER")...))
 	app.Action = run
 
@@ -312,23 +320,44 @@ func run(cliCtx *cli.Context) error {
 	}
 	defer ethClient.Close()
 
-	// Connect to filter RPC
+	// Connect to filter RPC (public supervisor API)
 	filterClient, err := rpc.DialContext(ctx, filterRPC)
 	if err != nil {
 		return fmt.Errorf("failed to connect to filter RPC: %w", err)
 	}
 	defer filterClient.Close()
 
-	// Check filter is ready (not in failsafe)
-	// Note: admin API may require JWT authentication, so this is optional
-	var failsafe bool
-	if err := filterClient.CallContext(ctx, &failsafe, "admin_getFailsafeEnabled"); err != nil {
-		logger.Warn("Could not check failsafe status (admin API may require auth)", "err", err)
-	} else {
-		if failsafe {
-			return errors.New("filter service is in failsafe mode")
+	// Optionally connect to admin RPC with JWT if secret is provided
+	jwtSecretPath := cliCtx.String(JWTSecretFlag.Name)
+	var adminClient *rpc.Client
+	if jwtSecretPath != "" {
+		// Load JWT secret
+		jwtSecret, err := oprpc.ObtainJWTSecret(logger, jwtSecretPath, false)
+		if err != nil {
+			return fmt.Errorf("failed to load JWT secret: %w", err)
 		}
-		logger.Info("Filter service responding", "failsafe", failsafe)
+
+		// Connect to admin endpoint with JWT authentication
+		adminEndpoint := filterRPC + "/admin"
+		adminClient, err = rpc.DialOptions(ctx, adminEndpoint,
+			rpc.WithHTTPAuth(node.NewJWTAuth(jwtSecret)))
+		if err != nil {
+			return fmt.Errorf("failed to connect to admin RPC: %w", err)
+		}
+		defer adminClient.Close()
+
+		// Check filter is ready (not in failsafe) using admin API
+		var failsafe bool
+		if err := adminClient.CallContext(ctx, &failsafe, "admin_getFailsafeEnabled"); err != nil {
+			logger.Warn("Could not check failsafe status via admin API", "err", err)
+		} else {
+			if failsafe {
+				return errors.New("filter service is in failsafe mode")
+			}
+			logger.Info("Filter service responding", "failsafe", failsafe)
+		}
+	} else {
+		logger.Info("No JWT secret provided, skipping admin API check")
 	}
 
 	// Wait for backfill to complete by doing a test query
