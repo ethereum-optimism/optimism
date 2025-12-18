@@ -831,7 +831,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     }
 }
 
-// TODO: combine this contract with the Upgrade_Test contract.
 contract OPContractsManagerV2_InteropMigration_Test is OPContractsManagerV2_Upgrade_TestInit {
     // Define some prestates we want around
     Claim cannonPrestate1 = Claim.wrap(bytes32(hex"ABBA"));
