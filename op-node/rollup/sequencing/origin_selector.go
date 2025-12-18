@@ -256,7 +256,7 @@ func (los *L1OriginSelector) findL1OriginOfNextL2Block(
 			return eth.L1BlockRef{}, ErrNextL1OriginRequired
 		} else {
 			// If we don't yet have the nextL1Origin, stick with the current L1 origin unless doing so would exceed the maximum drift.
-			if driftCurrent > maxDrift {
+			if driftCurrent > int64(maxDrift) {
 				// Return an error so the caller knows it needs to fetch the next l1 origin now.
 				return eth.L1BlockRef{}, fmt.Errorf("%w: drift of next L2 block would exceed maximum %d unless nextl1Origin is adopted", ErrNextL1OriginRequired, maxDrift)
 			}
