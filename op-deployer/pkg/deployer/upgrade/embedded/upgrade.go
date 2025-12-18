@@ -56,7 +56,7 @@ type GameType uint32
 const (
 	GameTypeCannon             GameType = 0
 	GameTypePermissionedCannon GameType = 1
-	GameTypeCannonKona         GameType = 2
+	GameTypeCannonKona         GameType = 8
 )
 
 // OPChainConfig represents the configuration for an OP Chain upgrade on OPCM v1.

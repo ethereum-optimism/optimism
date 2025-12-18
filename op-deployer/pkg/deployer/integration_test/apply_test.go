@@ -217,10 +217,15 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 				CacheDir:                        testCacheDir,
 				Logger:                          lgr,
 				Challenger:                      common.Address{'C'},
+				FaultGameMaxGameDepth:           standard.DisputeMaxGameDepth,
+				FaultGameSplitDepth:             standard.DisputeSplitDepth,
+				FaultGameClockExtension:         standard.DisputeClockExtension,
+				FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
 			}
 			if deployer.IsDevFeatureEnabled(tt.devFeature, deployer.OpcmV2DevFlag) {
 				cfg.DevFeatureBitmap = deployer.OpcmV2DevFlag
 			}
+
 			runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, cfg)
 		})
 	}
@@ -880,13 +885,13 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 						DisputeGameConfigs: []embedded.DisputeGameConfig{
 							{
 								Enabled:  true,
-								InitBond: big.NewInt(0),
+								InitBond: big.NewInt(1000000000000000000),
 								GameType: embedded.GameTypeCannon,
 								GameArgs: []byte{},
 							},
 							{
 								Enabled:  true,
-								InitBond: big.NewInt(0),
+								InitBond: big.NewInt(1000000000000000000),
 								GameType: embedded.GameTypePermissionedCannon,
 								GameArgs: []byte{},
 							},
@@ -902,9 +907,14 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 								Key:  "PermittedProxyDeployment",
 								Data: []byte("DelayedWETH"),
 							},
+							{
+								Key:  "overrides.cfg.useCustomGasToken",
+								Data: make([]byte, 32),
+							},
 						},
 					},
 				}
+
 				upgradeConfigBytes, err := json.Marshal(upgradeConfig)
 				require.NoError(t, err, "UpgradeOPChainV2Input should marshal to JSON")
 				err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
