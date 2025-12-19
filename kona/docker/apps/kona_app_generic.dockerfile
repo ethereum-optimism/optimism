@@ -87,10 +87,22 @@ SHELL ["/bin/bash", "-c"]
 ARG BIN_TARGET
 ARG BUILD_PROFILE
 
+# Fixed non-root user/group for runtime
+ARG UID=10001
+ARG GID=10001
+
 # Install ca-certificates and libssl-dev for TLS support.
 RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates \
-  libssl-dev
+  libssl-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+# Create non-root runtime user
+RUN groupadd --gid ${GID} app \
+ && useradd  --uid ${UID} --gid ${GID} \
+            --home-dir /home/app --create-home \
+            --shell /usr/sbin/nologin \
+            app
 
 # Copy in the binary from the build image.
 COPY --from=builder "app/target/${BUILD_PROFILE}/${BIN_TARGET}" "/usr/local/bin/${BIN_TARGET}"
@@ -98,6 +110,14 @@ COPY --from=builder "app/target/${BUILD_PROFILE}/${BIN_TARGET}" "/usr/local/bin/
 # Copy in the entrypoint script.
 COPY ./docker/apps/entrypoint.sh /entrypoint.sh
 
+# Ensure the entrypoint and binary are executable and readable by the non-root user
+RUN chmod 0555 "/usr/local/bin/${BIN_TARGET}" \
+ && chmod 0555 /entrypoint.sh
+
 # Export the binary name to the environment.
 ENV BIN_TARGET="${BIN_TARGET}"
+
+# Drop privileges
+USER ${UID}:${GID}
+
 ENTRYPOINT [ "/entrypoint.sh" ]
