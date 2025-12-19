@@ -234,12 +234,14 @@ func withKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
 			propagateEnvVarOrDefault("KONA_NODE_RPC_WS_ENABLED", "true"),
 			propagateEnvVarOrDefault("KONA_METRICS_ADDR", ""),
-			propagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"), // default to info level
+			propagateEnvVarOrDefault("KONA_LOG_LEVEL", "5"), // default to info level
 			propagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
 			// p2p ports
 			propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_IP", "127.0.0.1"),
 			propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_TCP_PORT", "0"),
 			propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_UDP_PORT", "0"),
+			// need this for devstack detecting a sequencer
+			"KONA_NODE_RPC_ENABLE_ADMIN=true",
 		}
 
 		if areMetricsEnabled() {

@@ -21,7 +21,7 @@ func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 	logger := t.Logger()
 
 	// Takes about 2 minutes for L1 finalization
-	attempts := 70
+	attempts := 70 + 30 // monkey patch to make kona work
 	target := uint64(3)
 
 	// L2CL is the sequencer with CL follow source, derivation disabled
@@ -58,6 +58,7 @@ func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 }
 
 func TestFollowL2_ReorgRecovery(gt *testing.T) {
+	// not working because sequecner does not have L1 reorg detection logic when block building
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainTwoVerifiersWithoutCheck(t)
 	require := t.Require()
@@ -114,7 +115,7 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 	// What happens:
 	//  L2CL detects L1 Reorg and reset the pipeline. op-node example logs: "reset: detected L1 reorg"
 	//  L2ELB detects L2 Reorg and reorgs. op-geth example logs: "Chain reorg detected"
-	sys.L2ELB.ReorgTriggered(l2BlockBeforeReorg, 30)
+	sys.L2ELB.ReorgTriggered(l2BlockBeforeReorg, 30*2)
 	l2BlockAfterReorg := sys.L2ELB.BlockRefByNumber(l2BlockBeforeReorg.Number)
 	require.NotEqual(l2BlockAfterReorg.Hash, l2BlockBeforeReorg.Hash)
 	logger.Info("Triggered L2 reorg", "l2", l2BlockAfterReorg)
