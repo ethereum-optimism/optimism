@@ -206,7 +206,7 @@ func (o *BlobTipOracle) prePopulateCache() error {
 		startBlock = 0
 	}
 
-	o.log.Info("Pre-populating cache", "from", startBlock, "to", latest, "blocks", latest-startBlock+1)
+	o.log.Debug("Pre-populating cache", "from", startBlock, "to", latest, "blocks", latest-startBlock+1)
 
 	// Fetch and process each block
 	for blockNum := startBlock; blockNum <= latest; blockNum++ {
@@ -233,7 +233,7 @@ func (o *BlobTipOracle) prePopulateCache() error {
 // It also triggers an asynchronous fetch of the full block to extract blob fee caps.
 func (o *BlobTipOracle) processHeader(header *types.Header) error {
 	defer func(start time.Time) {
-		o.log.Info("Processed header", "block", header.Number.Uint64(), "time", time.Since(start))
+		o.log.Debug("Processed header", "block", header.Number.Uint64(), "time", time.Since(start))
 	}(time.Now())
 
 	o.Lock()
@@ -243,7 +243,7 @@ func (o *BlobTipOracle) processHeader(header *types.Header) error {
 
 	// Calculate blob base fee from the header
 	if _, ok := o.baseFees.Get(blockNum); ok {
-		o.log.Info("Skipping blob base fee calculation, already processed", "block", blockNum, "latestBlock", o.latestBlock)
+		o.log.Debug("Skipping blob base fee calculation, already processed", "block", blockNum, "latestBlock", o.latestBlock)
 	} else {
 		var blobBaseFee *big.Int
 		if header.ExcessBlobGas != nil {
@@ -251,7 +251,7 @@ func (o *BlobTipOracle) processHeader(header *types.Header) error {
 		}
 
 		if blobBaseFee != nil {
-			o.log.Info("Adding blob base fee", "block", blockNum, "blobBaseFee", blobBaseFee.String())
+			o.log.Debug("Adding blob base fee", "block", blockNum, "blobBaseFee", blobBaseFee.String())
 			o.baseFees.Add(blockNum, blobBaseFee)
 		} else {
 			o.log.Debug("Block does not support blob transactions", "block", blockNum)
@@ -273,7 +273,7 @@ func (o *BlobTipOracle) processHeader(header *types.Header) error {
 func (o *BlobTipOracle) fetchBlockBlobFeeCaps(blockNum uint64, baseFee *big.Int) {
 	// Check if we already have the blob fee caps cached
 	if _, ok := o.priorityFees.Get(blockNum); ok {
-		o.log.Info("Skipping blob fee caps fetch, already processed", "block", blockNum)
+		o.log.Debug("Skipping blob fee caps fetch, already processed", "block", blockNum)
 		return
 	}
 
@@ -369,12 +369,12 @@ func (o *BlobTipOracle) SuggestBlobTipCap(ctx context.Context, maxBlocks int, pe
 		})
 		idx := (len(tips) - 1) * percentile / 100
 		suggested := new(big.Int).Set(tips[idx])
-		o.log.Info("Suggested blob tip cap from recent transactions", "suggested", suggested.String(), "samples", len(tips), "percentile", percentile)
+		o.log.Debug("Suggested blob tip cap from recent transactions", "suggested", suggested.String(), "samples", len(tips), "percentile", percentile)
 		return suggested, nil
 	}
 
 	// No blob transactions found, use the default priority fee - that should almost never happen, so we warn about it
-	o.log.Warn("No recent blob transactions found, using blob base fee + buffer", "block", o.latestBlock, "default_priority_fee", o.config.DefaultPriorityFee.String())
+	o.log.Warn("No recent blob transactions found, using blob base fee + buffer", "block", latestBlockNum, "default_priority_fee", o.config.DefaultPriorityFee.String())
 	return new(big.Int).Set(o.config.DefaultPriorityFee), nil
 }
 
@@ -391,7 +391,7 @@ func (o *BlobTipOracle) extractTipsForBlobTxs(block rpcBlock, baseFee *big.Int) 
 			}
 
 			tips = append(tips, tip)
-			o.log.Info("Extracted tip from blob tx", "block", uint64(block.Number), "tip", tip.String())
+			o.log.Debug("Extracted tip from blob tx", "block", uint64(block.Number), "tip", tip.String())
 		}
 	}
 	return tips
