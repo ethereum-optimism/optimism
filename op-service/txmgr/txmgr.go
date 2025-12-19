@@ -1043,11 +1043,9 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 		return nil, nil, nil, nil, fmt.Errorf("tip is too high: %v, cap:%v", tip, maxTipCap)
 	}
 
-	// Check minimum tip cap (for blob txs). Note that we check the same limits for blob txs as for non-blob txs.
+	// Comparing if the configured min tip cap is higher than the suggested blob tip cap, and if so, it means we are overpaying for the transaction
 	if minTipCap != nil && blobTipCap.Cmp(minTipCap) == -1 {
 		m.l.Warn("Suggested blobTipCap is lower than the configured min tip cap for blob txs", "minTipCap", minTipCap, "blobTipCap", blobTipCap)
-		// We do not enforce the min tip cap for the suggested blob tip cap on purpose, as we are generally overpaying with the statically set minTipCap.
-		// blobTipCap = new(big.Int).Set(minTipCap)
 	}
 	if maxTipCap != nil && blobTipCap.Cmp(maxTipCap) > 0 {
 		return nil, nil, nil, nil, fmt.Errorf("blob tip cap is too high: %v, cap:%v", blobTipCap, maxTipCap)
@@ -1060,7 +1058,6 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	if maxBaseFee != nil && baseFee.Cmp(maxBaseFee) > 0 {
 		return nil, nil, nil, nil, fmt.Errorf("baseFee is too high: %v, cap:%v", baseFee, maxBaseFee)
 	}
-	// TODO(18618): do we need checks the blob base fee? we do have `m.cfg.MinBlobTxFee` but it is not enforced here?
 
 	m.l.Info("Suggested gas price caps", "gasTipCap", tip, "baseFee", baseFee, "blobTipCap", blobTipCap, "blobBaseFee", blobBaseFee)
 	return tip, baseFee, blobTipCap, blobBaseFee, nil

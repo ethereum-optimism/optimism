@@ -373,7 +373,7 @@ func (o *BlobTipOracle) SuggestBlobTipCap(ctx context.Context, maxBlocks int, pe
 		return suggested, nil
 	}
 
-	// No blob transactions found, use current blob base fee + buffer
+	// No blob transactions found, use the default priority fee - that should almost never happen, so we warn about it
 	o.log.Warn("No recent blob transactions found, using blob base fee + buffer", "block", o.latestBlock, "default_priority_fee", o.config.DefaultPriorityFee.String())
 	return new(big.Int).Set(o.config.DefaultPriorityFee), nil
 }
