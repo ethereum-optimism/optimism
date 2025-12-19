@@ -299,6 +299,19 @@
   },
   {
     "inputs": [],
+    "name": "devFeatureBitmap",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "implementations",
     "outputs": [
       {
@@ -447,7 +460,7 @@
   },
   {
     "inputs": [],
-    "name": "standardValidator",
+    "name": "opcmStandardValidator",
     "outputs": [
       {
         "internalType": "contract IOPContractsManagerStandardValidator",
@@ -460,7 +473,20 @@
   },
   {
     "inputs": [],
-    "name": "thisOPCM",
+    "name": "opcmUtils",
+    "outputs": [
+      {
+        "internalType": "contract IOPContractsManagerUtils",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "opcmV2",
     "outputs": [
       {
         "internalType": "contract OPContractsManagerV2",
@@ -651,19 +677,6 @@
       }
     ],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "utils",
-    "outputs": [
-      {
-        "internalType": "contract IOPContractsManagerUtils",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {

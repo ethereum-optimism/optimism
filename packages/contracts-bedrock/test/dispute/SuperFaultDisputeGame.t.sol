@@ -17,6 +17,7 @@ import { DisputeActor, HonestDisputeActor } from "test/actors/FaultDisputeActors
 // Libraries
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 import { RLPWriter } from "src/libraries/rlp/RLPWriter.sol";
 import { LibClock } from "src/dispute/lib/LibUDT.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
@@ -78,14 +79,14 @@ abstract contract BaseSuperFaultDisputeGame_TestInit is DisputeGameFactory_TestI
     event GameClosed(BondDistributionMode bondDistributionMode);
     event ReceiveETH(uint256 amount);
 
-    function init(Claim _rootClaim, Claim _absolutePrestate, uint256 _l2SequenceNumber) public {
+    function init(Claim _rootClaim, Claim _absolutePrestate, Types.SuperRootProof memory _super) public {
         // Set the time to a realistic date.
         if (!isForkTest()) {
             vm.warp(1690906994);
         }
 
         // Set the extra data for the game creation
-        extraData = abi.encode(_l2SequenceNumber);
+        extraData = Encoding.encodeSuperRootProof(_super);
 
         (address _impl, AlphabetVM _vm,) = setupSuperFaultDisputeGame(_absolutePrestate);
         gameImpl = ISuperFaultDisputeGame(_impl);
@@ -115,6 +116,11 @@ abstract contract BaseSuperFaultDisputeGame_TestInit is DisputeGameFactory_TestI
         assertEq(address(gameProxy.weth()), address(delayedWeth));
         assertEq(address(gameProxy.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(address(gameProxy.vm()), address(_vm));
+        // Check extra data
+        assertEq(gameProxy.l2SequenceNumber(), _super.timestamp);
+        for (uint256 i; i < _super.outputRoots.length; i++) {
+            assertEq(gameProxy.rootClaimByChainId(_super.outputRoots[i].chainId).raw(), _super.outputRoots[i].root);
+        }
 
         // Label the proxy
         vm.label(address(gameProxy), "SuperFaultDisputeGame_Clone");
@@ -131,8 +137,8 @@ abstract contract SuperFaultDisputeGame_TestInit is BaseSuperFaultDisputeGame_Te
     /// @dev The root claim of the game.
     Claim internal ROOT_CLAIM;
 
-    /// @dev An arbitrary root claim for testing.
-    Claim internal arbitaryRootClaim = Claim.wrap(bytes32(uint256(123)));
+    /// @dev The super root preimage of the game
+    Types.SuperRootProof SUPER_ROOT_PROOF;
 
     /// @dev The preimage of the absolute prestate claim
     bytes internal absolutePrestateData;
@@ -150,8 +156,8 @@ abstract contract SuperFaultDisputeGame_TestInit is BaseSuperFaultDisputeGame_Te
         super.setUp();
 
         // Get the actual anchor roots
-        (Hash root, uint256 l2Bn) = anchorStateRegistry.getAnchorRoot();
-        validl2SequenceNumber = l2Bn + 1;
+        (, uint256 l2Seqno) = anchorStateRegistry.getAnchorRoot();
+        validl2SequenceNumber = l2Seqno + 1;
 
         if (isForkTest()) {
             // Set the init bond of anchor game type 4 to be 0.
@@ -160,8 +166,13 @@ abstract contract SuperFaultDisputeGame_TestInit is BaseSuperFaultDisputeGame_Te
             );
         }
 
-        ROOT_CLAIM = Claim.wrap(Hash.unwrap(root));
-        init({ _rootClaim: ROOT_CLAIM, _absolutePrestate: absolutePrestate, _l2SequenceNumber: validl2SequenceNumber });
+        SUPER_ROOT_PROOF.version = bytes1(uint8(1));
+        SUPER_ROOT_PROOF.timestamp = uint64(validl2SequenceNumber);
+        SUPER_ROOT_PROOF.outputRoots.push(Types.OutputRootWithChainId({ chainId: 5, root: keccak256(abi.encode(5)) }));
+        SUPER_ROOT_PROOF.outputRoots.push(Types.OutputRootWithChainId({ chainId: 6, root: keccak256(abi.encode(6)) }));
+        ROOT_CLAIM = Claim.wrap(Hashing.hashSuperRootProof(SUPER_ROOT_PROOF));
+
+        init({ _rootClaim: ROOT_CLAIM, _absolutePrestate: absolutePrestate, _super: SUPER_ROOT_PROOF });
     }
 
     /// @notice Helper to generate a mock RLP encoded header (with only a real block number) & an
@@ -203,6 +214,45 @@ abstract contract SuperFaultDisputeGame_TestInit is BaseSuperFaultDisputeGame_Te
         (,,,,, Position parent,) = gameProxy.claimData(_claimIndex);
         Position pos = parent.move(true);
         bond_ = gameProxy.getRequiredBond(pos);
+    }
+
+    /// @notice Helper to return a pseudo-random super root proof
+    function _dummySuper() internal view returns (Types.SuperRootProof memory superRootProof_) {
+        return _dummySuper(uint64(validl2SequenceNumber));
+    }
+
+    /// @notice Helper to return a pseudo-random super root proof with the specified l2SequenceNumber
+    function _dummySuper(uint64 _l2SequenceNumber)
+        internal
+        view
+        returns (Types.SuperRootProof memory superRootProof_)
+    {
+        Types.OutputRootWithChainId[] memory outputRoots = new Types.OutputRootWithChainId[](1);
+        outputRoots[0] = Types.OutputRootWithChainId({ chainId: 5, root: keccak256(abi.encode(gasleft())) });
+        superRootProof_.version = bytes1(uint8(1));
+        superRootProof_.timestamp = uint64(_l2SequenceNumber);
+        superRootProof_.outputRoots = outputRoots;
+    }
+
+    /// @notice Helper to return a pseudo-random super root with the specified l2 sequence number
+    function _dummySuperRoot(uint64 _l2SequenceNumber) internal view returns (bytes32 superRoot_________) {
+        return Hashing.hashSuperRootProof(_dummySuper(_l2SequenceNumber));
+    }
+
+    /// @notice Helper to return a pseudo-random root claim with the specified l2 sequence number
+    function _dummyRootClaim(uint64 _l2SequenceNumber)
+        internal
+        view
+        returns (Claim rootClaim_, bytes memory extraData_)
+    {
+        Types.SuperRootProof memory superRootProof = _dummySuper(_l2SequenceNumber);
+        rootClaim_ = Claim.wrap(Hashing.hashSuperRootProof(superRootProof));
+        extraData_ = Encoding.encodeSuperRootProof(superRootProof);
+    }
+
+    /// @notice Helper to return a pseudo-random root claim
+    function _dummyRootClaim() internal view returns (Claim rootClaim_, bytes memory extraData_) {
+        return _dummyRootClaim(uint64(validl2SequenceNumber));
     }
 
     /// @notice Helper to return a pseudo-random claim
@@ -345,14 +395,17 @@ contract SuperFaultDisputeGame_Constructor_Test is SuperFaultDisputeGame_TestIni
 contract SuperFaultDisputeGame_Initialize_Test is SuperFaultDisputeGame_TestInit {
     /// @notice Tests that the game cannot be initialized with an output root that commits to
     ///         <= the configured starting block number
-    function testFuzz_initialize_cannotProposeGenesis_reverts(uint256 _blockNumber) public {
+    function testFuzz_initialize_cannotProposeGenesis_reverts(uint64 _blockNumber) public {
         (, uint256 startingL2Block) = gameProxy.startingProposal();
-        _blockNumber = bound(_blockNumber, 0, startingL2Block);
+        _blockNumber = uint64(bound(_blockNumber, 0, uint64(startingL2Block)));
 
-        Claim claim = _dummyClaim();
+        Types.SuperRootProof memory superRootProof = _dummySuper(_blockNumber);
+        Claim claim = Claim.wrap(Hashing.hashSuperRootProof(superRootProof));
+        bytes memory extraData = Encoding.encodeSuperRootProof(superRootProof);
+
         vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, claim));
         gameProxy = ISuperFaultDisputeGame(
-            payable(address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, abi.encode(_blockNumber))))
+            payable(address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, extraData)))
         );
     }
 
@@ -361,15 +414,10 @@ contract SuperFaultDisputeGame_Initialize_Test is SuperFaultDisputeGame_TestInit
         uint256 _value = disputeGameFactory.initBonds(GAME_TYPE);
         vm.deal(address(this), _value);
 
+        (Claim rootClaim, bytes memory extraData) = _dummyRootClaim();
         assertEq(address(gameProxy).balance, 0);
         gameProxy = ISuperFaultDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: _value }(
-                        GAME_TYPE, arbitaryRootClaim, abi.encode(validl2SequenceNumber)
-                    )
-                )
-            )
+            payable(address(disputeGameFactory.create{ value: _value }(GAME_TYPE, rootClaim, extraData)))
         );
         assertEq(address(gameProxy).balance, 0);
         assertEq(delayedWeth.balanceOf(address(gameProxy)), _value);
@@ -395,7 +443,8 @@ contract SuperFaultDisputeGame_Initialize_Test is SuperFaultDisputeGame_TestInit
         // bytecode.
         // [0 bytes, 31 bytes] u [33 bytes, 23.5 KB]
         _extraDataLen = bound(_extraDataLen, 0, 23_500);
-        if (_extraDataLen == 32) {
+
+        if (_extraDataLen > 9 && (_extraDataLen - 9) % 64 == 0) {
             _extraDataLen++;
         }
         bytes memory _extraData = new bytes(_extraDataLen);
@@ -451,11 +500,10 @@ contract SuperFaultDisputeGame_Initialize_Test is SuperFaultDisputeGame_TestInit
         );
 
         // Creation should fail.
+        (Claim rootClaim, bytes memory extraData) = _dummyRootClaim();
         vm.expectRevert(AnchorRootNotFound.selector);
         gameProxy = ISuperFaultDisputeGame(
-            payable(
-                address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), new bytes(uint256(32))))
-            )
+            payable(address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, rootClaim, extraData)))
         );
     }
 
@@ -478,17 +526,11 @@ contract SuperFaultDisputeGame_Initialize_Test is SuperFaultDisputeGame_TestInit
             address(vm_.oracle()), abi.encodeCall(IPreimageOracle.challengePeriod, ()), abi.encode(_challengePeriod)
         );
 
-        // Create game via factory - initialize() is called automatically and should revert
-        (, uint256 anchorSeqNo) = anchorStateRegistry.getAnchorRoot();
-
         // Expect the initialize call to revert with InvalidChallengePeriod
+        (Claim rootClaim, bytes memory extraData) = _dummyRootClaim();
         vm.expectRevert(InvalidChallengePeriod.selector);
         gameProxy = ISuperFaultDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), abi.encode(anchorSeqNo + 1))
-                )
-            )
+            payable(address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, rootClaim, extraData)))
         );
     }
 
@@ -500,11 +542,10 @@ contract SuperFaultDisputeGame_Initialize_Test is SuperFaultDisputeGame_TestInit
         ByteUtils.overwriteAtOffset(gameArgs, l2ChainIdOffset, abi.encodePacked(uint256(1)));
         disputeGameFactory.setImplementation(GAME_TYPE, impl, gameArgs);
 
+        (Claim claim, bytes memory extraData) = _dummyRootClaim();
         vm.expectRevert(ISuperFaultDisputeGame.NoChainIdNeeded.selector);
         gameProxy = ISuperFaultDisputeGame(
-            payable(
-                address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), new bytes(uint256(32))))
-            )
+            payable(address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, extraData)))
         );
     }
 }
@@ -1200,14 +1241,12 @@ contract SuperFaultDisputeGame_AddLocalData_Test is SuperFaultDisputeGame_TestIn
     /// @notice Tests that the L2 block number claim is favored over the bisected-to block when
     ///         adding data.
     function test_addLocalData_l2SequenceNumberExtension_succeeds() public {
+        (Claim rootClaim, bytes memory extraData) = _dummyRootClaim(uint64(validl2SequenceNumber));
+
         // Deploy a new dispute game with a L2 block number claim of 8. This is directly in the
         // middle of the leaves in our output bisection test tree, at SPLIT_DEPTH = 2 ** 2
         ISuperFaultDisputeGame game = ISuperFaultDisputeGame(
-            address(
-                disputeGameFactory.create{ value: initBond }(
-                    GAME_TYPE, Claim.wrap(bytes32(uint256(0xFF))), abi.encode(uint256(validl2SequenceNumber))
-                )
-            )
+            address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, rootClaim, extraData))
         );
 
         // Get a claim below the split depth so that we can add local data for an execution trace
@@ -1239,7 +1278,7 @@ contract SuperFaultDisputeGame_AddLocalData_Test is SuperFaultDisputeGame_TestIn
         // Expected start/disputed claims
         bytes32 startingClaim = bytes32(uint256(3));
         Position startingPos = LibPosition.wrap(4, 14);
-        bytes32 disputedClaim = bytes32(uint256(0xFF));
+        bytes32 disputedClaim = Claim.unwrap(rootClaim);
         Position disputedPos = LibPosition.wrap(0, 0);
 
         // Expected local data. This should be `l2SequenceNumber`, and not the actual bisected-to
@@ -1862,6 +1901,21 @@ contract SuperFaultDisputeGame_RootClaim_Test is SuperFaultDisputeGame_TestInit 
     function test_rootClaim_succeeds() public view {
         assertEq(gameProxy.rootClaim().raw(), ROOT_CLAIM.raw());
     }
+
+    /// @notice Tests that the game's root claim for each output root is set correctly.
+    function test_rootClaimForOutputRoot_succeeds() public view {
+        for (uint256 i = 0; i < SUPER_ROOT_PROOF.outputRoots.length; i++) {
+            uint256 chainId = SUPER_ROOT_PROOF.outputRoots[i].chainId;
+            assertEq(gameProxy.rootClaimByChainId(chainId).raw(), SUPER_ROOT_PROOF.outputRoots[i].root);
+        }
+    }
+
+    /// @notice Tests that requesting the root claim for an unknown chain ID reverts.
+    function test_rootClaimForOutputRoot_unknownChainId_reverts() public {
+        uint256 invalidChainId = 9999;
+        vm.expectRevert(UnknownChainId.selector);
+        gameProxy.rootClaimByChainId(invalidChainId);
+    }
 }
 
 /// @title SuperFaultDisputeGame_ExtraData_Test
@@ -2379,6 +2433,35 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
         super.setUp();
     }
 
+    /// @notice Helper to create a dummy super root proof with two output roots.
+    function createSuper(uint256 _timestamp) internal pure returns (Types.SuperRootProof memory) {
+        Types.OutputRootWithChainId[] memory outputRoots = new Types.OutputRootWithChainId[](2);
+        outputRoots[0] = Types.OutputRootWithChainId({ chainId: 5, root: keccak256(abi.encode(5)) });
+        outputRoots[1] = Types.OutputRootWithChainId({ chainId: 6, root: keccak256(abi.encode(6)) });
+        Types.SuperRootProof memory superRootProof;
+        superRootProof.version = bytes1(uint8(1));
+        superRootProof.timestamp = uint64(_timestamp);
+        superRootProof.outputRoots = outputRoots;
+        return superRootProof;
+    }
+
+    /// @notice Helper to create a dummy super root proof with arbitrary number of output roots.
+    function createSuper(
+        uint256 _timestamp,
+        uint256[] memory _l2Outputs
+    )
+        internal
+        pure
+        returns (Types.SuperRootProof memory)
+    {
+        Types.OutputRootWithChainId[] memory outputRoots = new Types.OutputRootWithChainId[](_l2Outputs.length);
+        for (uint256 i = 0; i < _l2Outputs.length; i++) {
+            outputRoots[i] = Types.OutputRootWithChainId({ chainId: i + 110101, root: bytes32(_l2Outputs[i]) });
+        }
+        return
+            Types.SuperRootProof({ version: bytes1(uint8(1)), timestamp: uint64(_timestamp), outputRoots: outputRoots });
+    }
+
     /// @notice Static unit test for a 1v1 output bisection dispute.
     function test_static_1v1dishonestRootGenesisAbsolutePrestate_succeeds() public {
         // The honest l2 outputs are from [1, 16] in this game.
@@ -2407,7 +2490,7 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
 
         // Run the actor test
         _actorTest({
-            _rootClaim: 17,
+            _super: createSuper(17),
             _absolutePrestateData: 0,
             _honestTrace: honestTrace,
             _honestL2Outputs: honestL2Outputs,
@@ -2419,11 +2502,15 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
 
     /// @notice Static unit test for a 1v1 output bisection dispute.
     function test_static_1v1honestRoot_succeeds() public {
+        Types.SuperRootProof memory honestSuper = _dummySuper(uint64(validl2SequenceNumber));
         // The honest l2 outputs are from [1, 16] in this game.
         uint256[] memory honestL2Outputs = new uint256[](16);
-        for (uint256 i; i < honestL2Outputs.length; i++) {
+        for (uint256 i; i < honestL2Outputs.length - 1; i++) {
             honestL2Outputs[i] = i + 1;
         }
+        // to ensure that the trace ancestor at split depth is the root claim
+        honestL2Outputs[15] = uint256(Hashing.hashSuperRootProof(honestSuper));
+
         // The honest trace covers all block -> block + 1 transitions, and is 256 bytes long,
         // consisting of bytes [0, 255].
         bytes memory honestTrace = new bytes(256);
@@ -2442,7 +2529,7 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
 
         // Run the actor test
         _actorTest({
-            _rootClaim: 16,
+            _super: honestSuper,
             _absolutePrestateData: 0,
             _honestTrace: honestTrace,
             _honestL2Outputs: honestL2Outputs,
@@ -2477,7 +2564,7 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
 
         // Run the actor test
         _actorTest({
-            _rootClaim: 17,
+            _super: createSuper(17),
             _absolutePrestateData: 0,
             _honestTrace: honestTrace,
             _honestL2Outputs: honestL2Outputs,
@@ -2489,11 +2576,15 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
 
     /// @notice Static unit test for a 1v1 output bisection dispute.
     function test_static_1v1correctRootHalfWay_succeeds() public {
+        Types.SuperRootProof memory honestSuper = _dummySuper(uint64(validl2SequenceNumber));
         // The honest l2 outputs are from [1, 16] in this game.
         uint256[] memory honestL2Outputs = new uint256[](16);
-        for (uint256 i; i < honestL2Outputs.length; i++) {
+        for (uint256 i; i < honestL2Outputs.length - 1; i++) {
             honestL2Outputs[i] = i + 1;
         }
+        // to ensure that the trace ancestor at split depth is the root claim
+        honestL2Outputs[15] = uint256(Hashing.hashSuperRootProof(honestSuper));
+
         // The honest trace covers all block -> block + 1 transitions, and is 256 bytes long,
         // consisting of bytes [0, 255].
         bytes memory honestTrace = new bytes(256);
@@ -2504,7 +2595,7 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
         // The dishonest l2 outputs are half correct, half incorrect.
         uint256[] memory dishonestL2Outputs = new uint256[](16);
         for (uint256 i; i < dishonestL2Outputs.length; i++) {
-            dishonestL2Outputs[i] = i > 7 ? 0xFF : i + 1;
+            dishonestL2Outputs[i] = i > 7 ? 0xFF : honestL2Outputs[i];
         }
         // The dishonest trace is half correct, half incorrect.
         bytes memory dishonestTrace = new bytes(256);
@@ -2514,7 +2605,7 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
 
         // Run the actor test
         _actorTest({
-            _rootClaim: 16,
+            _super: honestSuper,
             _absolutePrestateData: 0,
             _honestTrace: honestTrace,
             _honestL2Outputs: honestL2Outputs,
@@ -2538,11 +2629,16 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
             honestTrace[i] = bytes1(uint8(i));
         }
 
+        Types.SuperRootProof memory dishonestSuper = createSuper(0xFF);
+
         // The dishonest l2 outputs are half correct, half incorrect.
         uint256[] memory dishonestL2Outputs = new uint256[](16);
-        for (uint256 i; i < dishonestL2Outputs.length; i++) {
-            dishonestL2Outputs[i] = i > 7 ? 0xFF : i + 1;
+        for (uint256 i; i < dishonestL2Outputs.length - 1; i++) {
+            dishonestL2Outputs[i] = i > 7 ? 0xFF : honestL2Outputs[i];
         }
+        // to ensure that the trace ancestor at split depth is the root claim
+        dishonestL2Outputs[15] = uint256(Hashing.hashSuperRootProof(dishonestSuper));
+
         // The dishonest trace is half correct, half incorrect.
         bytes memory dishonestTrace = new bytes(256);
         for (uint256 i; i < dishonestTrace.length; i++) {
@@ -2551,7 +2647,7 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
 
         // Run the actor test
         _actorTest({
-            _rootClaim: 0xFF,
+            _super: dishonestSuper,
             _absolutePrestateData: 0,
             _honestTrace: honestTrace,
             _honestL2Outputs: honestL2Outputs,
@@ -2563,11 +2659,17 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
 
     /// @notice Static unit test for a 1v1 output bisection dispute.
     function test_static_1v1dishonestAbsolutePrestate_succeeds() public {
+        Types.SuperRootProof memory honestSuper = createSuper(validl2SequenceNumber, new uint256[](16));
+        bytes32 honestRootClaimHash = Hashing.hashSuperRootProof(honestSuper);
+
         // The honest l2 outputs are from [1, 16] in this game.
         uint256[] memory honestL2Outputs = new uint256[](16);
-        for (uint256 i; i < honestL2Outputs.length; i++) {
+        for (uint256 i; i < honestL2Outputs.length - 1; i++) {
             honestL2Outputs[i] = i + 1;
         }
+        // to ensure that the trace ancestor at split depth is the root claim
+        honestL2Outputs[15] = uint256(honestRootClaimHash);
+
         // The honest trace covers all block -> block + 1 transitions, and is 256 bytes long,
         // consisting of bytes [0, 255].
         bytes memory honestTrace = new bytes(256);
@@ -2578,7 +2680,7 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
         // The dishonest l2 outputs are half correct, half incorrect.
         uint256[] memory dishonestL2Outputs = new uint256[](16);
         for (uint256 i; i < dishonestL2Outputs.length; i++) {
-            dishonestL2Outputs[i] = i > 7 ? 0xFF : i + 1;
+            dishonestL2Outputs[i] = i > 7 ? 0xFF : honestL2Outputs[i];
         }
         // The dishonest trace correct is half correct, half incorrect.
         bytes memory dishonestTrace = new bytes(256);
@@ -2588,7 +2690,7 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
 
         // Run the actor test
         _actorTest({
-            _rootClaim: 0xFF,
+            _super: honestSuper,
             _absolutePrestateData: 0,
             _honestTrace: honestTrace,
             _honestL2Outputs: honestL2Outputs,
@@ -2600,11 +2702,16 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
 
     /// @notice Static unit test for a 1v1 output bisection dispute.
     function test_static_1v1honestRootFinalInstruction_succeeds() public {
+        Types.SuperRootProof memory honestSuper = _dummySuper(uint64(validl2SequenceNumber));
+
         // The honest l2 outputs are from [1, 16] in this game.
         uint256[] memory honestL2Outputs = new uint256[](16);
-        for (uint256 i; i < honestL2Outputs.length; i++) {
+        for (uint256 i; i < honestL2Outputs.length - 1; i++) {
             honestL2Outputs[i] = i + 1;
         }
+        // to ensure that the trace ancestor at split depth is the root claim
+        honestL2Outputs[15] = uint256(Hashing.hashSuperRootProof(honestSuper));
+
         // The honest trace covers all block -> block + 1 transitions, and is 256 bytes long,
         // consisting of bytes [0, 255].
         bytes memory honestTrace = new bytes(256);
@@ -2615,7 +2722,7 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
         // The dishonest l2 outputs are half correct, half incorrect.
         uint256[] memory dishonestL2Outputs = new uint256[](16);
         for (uint256 i; i < dishonestL2Outputs.length; i++) {
-            dishonestL2Outputs[i] = i > 7 ? 0xFF : i + 1;
+            dishonestL2Outputs[i] = i > 7 ? 0xFF : honestL2Outputs[i];
         }
         // The dishonest trace is half correct, and correct all the way up to the final instruction
         // of the exec subgame.
@@ -2626,7 +2733,7 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
 
         // Run the actor test
         _actorTest({
-            _rootClaim: 16,
+            _super: honestSuper,
             _absolutePrestateData: 0,
             _honestTrace: honestTrace,
             _honestL2Outputs: honestL2Outputs,
@@ -2650,11 +2757,16 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
             honestTrace[i] = bytes1(uint8(i));
         }
 
+        Types.SuperRootProof memory dishonestSuper = createSuper(0xFF);
+
         // The dishonest l2 outputs are half correct, half incorrect.
         uint256[] memory dishonestL2Outputs = new uint256[](16);
-        for (uint256 i; i < dishonestL2Outputs.length; i++) {
-            dishonestL2Outputs[i] = i > 7 ? 0xFF : i + 1;
+        for (uint256 i; i < dishonestL2Outputs.length - 1; i++) {
+            dishonestL2Outputs[i] = i > 7 ? 0xFF : honestL2Outputs[i];
         }
+        // to ensure that the trace ancestor at split depth is the root claim
+        dishonestL2Outputs[15] = uint256(Hashing.hashSuperRootProof(dishonestSuper));
+
         // The dishonest trace is half correct, and correct all the way up to the final instruction
         // of the exec subgame.
         bytes memory dishonestTrace = new bytes(256);
@@ -2664,7 +2776,7 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
 
         // Run the actor test
         _actorTest({
-            _rootClaim: 0xFF,
+            _super: dishonestSuper,
             _absolutePrestateData: 0,
             _honestTrace: honestTrace,
             _honestL2Outputs: honestL2Outputs,
@@ -2680,7 +2792,7 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
 
     /// @notice Helper to run a 1v1 actor test
     function _actorTest(
-        uint256 _rootClaim,
+        Types.SuperRootProof memory _super,
         uint256 _absolutePrestateData,
         bytes memory _honestTrace,
         uint256[] memory _honestL2Outputs,
@@ -2701,8 +2813,7 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
         }
 
         // Setup the environment
-        bytes memory absolutePrestateData =
-            _setup({ _absolutePrestateData: _absolutePrestateData, _rootClaim: _rootClaim });
+        bytes memory absolutePrestateData = _setup({ _absolutePrestateData: _absolutePrestateData, _super: _super });
 
         // Create actors
         _createActors({
@@ -2725,7 +2836,7 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
     /// @notice Helper to setup the 1v1 test
     function _setup(
         uint256 _absolutePrestateData,
-        uint256 _rootClaim
+        Types.SuperRootProof memory _super
     )
         internal
         returns (bytes memory absolutePrestateData_)
@@ -2733,8 +2844,8 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
         absolutePrestateData_ = abi.encode(_absolutePrestateData);
         Claim absolutePrestateExec =
             _changeClaimStatus(Claim.wrap(keccak256(absolutePrestateData_)), VMStatuses.UNFINISHED);
-        Claim rootClaim = Claim.wrap(bytes32(uint256(_rootClaim)));
-        init({ _rootClaim: rootClaim, _absolutePrestate: absolutePrestateExec, _l2SequenceNumber: _rootClaim });
+        Claim rootClaim = Claim.wrap(Hashing.hashSuperRootProof(_super));
+        init({ _rootClaim: rootClaim, _absolutePrestate: absolutePrestateExec, _super: _super });
     }
 
     /// @notice Helper to create actors for the 1v1 dispute.

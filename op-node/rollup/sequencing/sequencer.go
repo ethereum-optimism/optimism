@@ -503,20 +503,22 @@ func (d *Sequencer) startBuildingBlock() {
 
 	// Figure out which L1 origin block we're going to be building on top of.
 	l1Origin, err := d.l1OriginSelector.FindL1Origin(ctx, l2Head)
-	if err != nil {
-		d.nextAction = d.timeNow().Add(time.Second)
-		d.nextActionOK = d.active.Load()
-		d.log.Error("Error finding next L1 Origin", "err", err)
-		d.emitter.Emit(d.ctx, rollup.L1TemporaryErrorEvent{Err: err})
-		return
-	}
-
-	if !(l2Head.L1Origin.Hash == l1Origin.ParentHash || l2Head.L1Origin.Hash == l1Origin.Hash) {
+	switch {
+	case err == nil:
+	case errors.Is(err, ErrInvalidL1Origin), errors.Is(err, ErrNextL1OriginOrphaned):
 		d.metrics.RecordSequencerInconsistentL1Origin(l2Head.L1Origin, l1Origin.ID())
 		d.emitter.Emit(d.ctx, rollup.ResetEvent{
 			Err: fmt.Errorf("cannot build new L2 block with L1 origin %s (parent L1 %s) on current L2 head %s with L1 origin %s",
 				l1Origin, l1Origin.ParentHash, l2Head, l2Head.L1Origin),
 		})
+		return
+	case errors.Is(err, ErrNextL1OriginRequired):
+		fallthrough
+	default:
+		d.nextAction = d.timeNow().Add(time.Second)
+		d.nextActionOK = d.active.Load()
+		d.log.Error("Error finding next L1 Origin", "err", err)
+		d.emitter.Emit(d.ctx, rollup.L1TemporaryErrorEvent{Err: err})
 		return
 	}
 

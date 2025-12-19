@@ -130,11 +130,11 @@ interface IOPContractsManagerV2 {
 
     function contractsContainer() external view returns (IOPContractsManagerContainer);
 
-    function standardValidator() external view returns (IOPContractsManagerStandardValidator);
+    function opcmStandardValidator() external view returns (IOPContractsManagerStandardValidator);
 
-    function thisOPCM() external view returns (IOPContractsManagerV2);
+    function opcmV2() external view returns (IOPContractsManagerV2);
 
-    function utils() external view returns (IOPContractsManagerUtils);
+    function opcmUtils() external view returns (IOPContractsManagerUtils);
 
     function version() external view returns (string memory);
 
@@ -152,4 +152,7 @@ interface IOPContractsManagerV2 {
 
     /// @notice Checks if the upgrade sequence from the last used OPCM to this OPCM is permitted.
     function isPermittedUpgradeSequence(ISystemConfig _systemConfig) external view returns (bool);
+
+    /// @notice Returns the development feature bitmap.
+    function devFeatureBitmap() external view returns (bytes32);
 }

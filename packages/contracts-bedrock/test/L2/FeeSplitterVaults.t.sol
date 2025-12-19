@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// Testing
+import { Test } from "test/setup/Test.sol";
+import { FeeSplitterForTest } from "test/mocks/FeeSplitterForTest.sol";
+
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-
-// Testing
-import { Test } from "forge-std/Test.sol";
-import { FeeSplitterForTest } from "test/mocks/FeeSplitterForTest.sol";
 
 // Interfaces
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";

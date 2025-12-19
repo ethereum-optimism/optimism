@@ -19,6 +19,7 @@ import {
     LocalPreimageKey,
     VMStatuses
 } from "src/dispute/lib/Types.sol";
+import { Types } from "src/libraries/Types.sol";
 import { Position, LibPosition } from "src/dispute/lib/LibPosition.sol";
 import {
     InvalidParent,
@@ -50,8 +51,11 @@ import {
     InvalidBondDistributionMode,
     GameNotResolved,
     GamePaused,
-    BadExtraData
+    BadExtraData,
+    UnknownChainId
 } from "src/dispute/lib/Errors.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -142,9 +146,9 @@ contract SuperFaultDisputeGame is Clone, ISemver {
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
     /// @notice Semantic version.
-    /// @custom:semver 0.6.0
+    /// @custom:semver 0.7.0
     function version() public pure virtual returns (string memory) {
-        return "0.6.0";
+        return "0.7.0";
     }
 
     /// @notice The starting timestamp of the game
@@ -247,16 +251,21 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
         // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
         // super proposal to be created.
-        if (msg.data.length != expectedInitCallDataLength()) revert BadExtraData();
+        if (!_verifyInitCallDataLength()) revert BadExtraData();
+
+        // Sanity check to prevent initializing right away with an invalid claim state that is used as convention
+        // Should be impossible to find a valid Super preimage of INVALID_ROOT_CLAIM
+        if (rootClaim().raw() == INVALID_ROOT_CLAIM) revert SuperFaultDisputeGameInvalidRootClaim();
+
+        // Revert if the super root proof in extraData does not match the root claim.
+        Types.SuperRootProof memory superRootProof = Encoding.decodeSuperRootProof(extraData());
+        if (Hashing.hashSuperRootProof(superRootProof) != rootClaim().raw()) revert BadExtraData();
 
         // Grab the latest anchor root.
         (Hash root, uint256 rootL2SequenceNumber) = anchorStateRegistry().getAnchorRoot();
 
         // Should only happen if this is a new game type that hasn't been set up yet.
         if (root.raw() == bytes32(0)) revert AnchorRootNotFound();
-
-        // Prevent initializing right away with an invalid claim state that is used as convention
-        if (rootClaim().raw() == INVALID_ROOT_CLAIM) revert SuperFaultDisputeGameInvalidRootClaim();
 
         // Set the starting Proposal.
         startingProposal = Proposal({ l2SequenceNumber: rootL2SequenceNumber, root: root });
@@ -314,29 +323,79 @@ contract SuperFaultDisputeGame is Clone, ISemver {
             GameType.unwrap(anchorStateRegistry().respectedGameType()) == GameType.unwrap(gameType());
     }
 
-    /// @notice Returns the expected calldata length for the initialize method
-    function expectedInitCallDataLength() internal pure returns (uint256) {
-        // Expected length: 6 bytes + immutable args byte count
-        // - 4 bytes: selector
-        // - 2 bytes: CWIA length prefix
-        // - n bytes: Immutable args data
-        return 6 + immutableArgsByteCount();
+    /// @notice Validates the expected length of msg.data for the initialize() call.
+    /// @dev    This function must only be called by initialize().
+    ///         Note that implementations may override the expected game impl args (see SuperPermissionedDisputeGame).
+    ///
+    ///      Expected msg.data structure:
+    ///      ┌────────────────────────────────────────────────────────────────────┐
+    ///      │ 4 bytes           │ Function selector (initialize())               │
+    ///      │ 2 bytes           │ CWIA length prefix                             │
+    ///      │===================│ ============ pre extra data ================== │
+    ///      │ 20 bytes          │ creator address                                │
+    ///      │ 32 bytes          │ root claim                                     │
+    ///      │ 32 bytes          │ l1 head                                        │
+    ///      │ 4 bytes           │ game type                                      │
+    ///      │===================│ ============ extra data ====================== │
+    ///      │ 1 byte            │ super version                                  │
+    ///      │ 8 bytes           │ super timestamp (seqnr)                        │
+    ///      │ n * (32+32) bytes │ (chainId, outputRoot) tuples                   │
+    ///      │===================│ ============ end extra data ================== │
+    ///      │ 124 bytes         │ game impl args                                 │
+    ///      └────────────────────────────────────────────────────────────────────┘
+    function _verifyInitCallDataLength() internal pure returns (bool) {
+        uint256 preExtraDataLen = 4 + 2 + _preExtraDataByteCount();
+        if (msg.data.length < preExtraDataLen) {
+            return false;
+        }
+
+        uint256 postExtraDataLen = gameImplArgsByteCount();
+        uint256 extraDataAndGameArgsLength = msg.data.length - preExtraDataLen;
+        // ensure we have enough data for the game impl args
+        if (extraDataAndGameArgsLength < postExtraDataLen) {
+            return false;
+        }
+
+        uint256 superLen = extraDataAndGameArgsLength - postExtraDataLen;
+        if (superLen < 9) {
+            return false;
+        }
+        uint256 rem = superLen - 9;
+        // there must be at least one (chainId, outputRoot) tuple
+        if (rem == 0) {
+            return false;
+        }
+        return (rem % 64) == 0;
     }
 
-    /// @notice Returns the byte count of the immutable args for this contract.
-    function immutableArgsByteCount() internal pure virtual returns (uint256) {
-        // Expected length: 244 bytes
+    /// @notice Returns the length of the super extra data in the initialize() call.
+    /// @dev    Precondition: msg.data has a valid length.
+    function _extraDataByteCount() internal pure returns (uint256) {
+        // The CWIA runtime appends the immutable args and a 2-byte length suffix to every call;
+        // strip the original calldata and suffix so offsets stay correct for functions with params.
+        uint256 immutableArgsLength = msg.data.length - _getImmutableArgsOffset() - 2;
+        return immutableArgsLength - _preExtraDataByteCount() - gameImplArgsByteCount();
+    }
+
+    /// @notice Returns the byte count of the data before the extra data (super) in the initialize() call.
+    function _preExtraDataByteCount() internal pure returns (uint256) {
+        // Expected length: 88 bytes
         // - 20 bytes: creator address
         // - 32 bytes: root claim
         // - 32 bytes: l1 head
-        // -  4 bytes: game type
-        // - 32 bytes: extraData
+        // - 4 bytes: game type
+        return 88;
+    }
+
+    /// @notice Returns the byte count of the game implementation args for this contract.
+    function gameImplArgsByteCount() internal pure virtual returns (uint256) {
+        // Expected length: 124 bytes
         // - 32 bytes: absolutePrestate
         // - 20 bytes: vm address
         // - 20 bytes: anchorStateRegistry address
         // - 20 bytes: weth address
         // - 32 bytes: l2ChainId (unused)
-        return 244;
+        return 124;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -608,7 +667,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
 
     /// @notice The l2SequenceNumber (timestamp) of the disputed super root in game root claim.
     function l2SequenceNumber() public pure returns (uint256 l2SequenceNumber_) {
-        l2SequenceNumber_ = _getArgUint256(88);
+        l2SequenceNumber_ = _getArgUint64(89);
     }
 
     /// @notice Only the starting sequence number (timestamp) of the game.
@@ -764,6 +823,21 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         rootClaim_ = Claim.wrap(_getArgBytes32(20));
     }
 
+    /// @notice Returns the output root in the root claim for the specified L2 chain ID.
+    /// @param _chainId The L2 chain ID to get the output root claim for.
+    /// @return outputRootClaim_ The output root claim for the specified L2 chain ID.
+    function rootClaimByChainId(uint256 _chainId) public pure returns (Claim outputRootClaim_) {
+        Types.SuperRootProof memory superRootProof = Encoding.decodeSuperRootProof(extraData());
+        Types.OutputRootWithChainId[] memory outputRoots = superRootProof.outputRoots;
+
+        for (uint256 i = 0; i < outputRoots.length; i++) {
+            if (outputRoots[i].chainId == _chainId) {
+                return Claim.wrap(outputRoots[i].root);
+            }
+        }
+        revert UnknownChainId();
+    }
+
     /// @notice Getter for the parent hash of the L1 block when the dispute game was created.
     /// @dev `clones-with-immutable-args` argument #3
     /// @return l1Head_ The parent hash of the L1 block when the dispute game was created.
@@ -782,44 +856,42 @@ contract SuperFaultDisputeGame is Clone, ISemver {
     /// @dev `clones-with-immutable-args` argument #4
     /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
     function extraData() public pure returns (bytes memory extraData_) {
-        // The extra data starts at the second word within the cwia calldata and
-        // is 32 bytes long.
-        extraData_ = _getArgBytes(88, 32);
+        extraData_ = _getArgBytes(88, _extraDataByteCount());
     }
 
     /// @notice Getter for the absolute prestate of the instruction trace.
     /// @dev `clones-with-immutable-args` argument #6
     /// @return absolutePrestate_ The absolute prestate of the instruction trace.
     function absolutePrestate() public pure returns (Claim absolutePrestate_) {
-        absolutePrestate_ = Claim.wrap(_getArgBytes32(120));
+        absolutePrestate_ = Claim.wrap(_getArgBytes32(_preExtraDataByteCount() + _extraDataByteCount()));
     }
 
     /// @notice Getter for the VM implementation.
     /// @dev `clones-with-immutable-args` argument #7
     /// @return vm_ The onchain VM implementation address.
     function vm() public pure returns (IBigStepper vm_) {
-        vm_ = IBigStepper(_getArgAddress(152));
+        vm_ = IBigStepper(_getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 32));
     }
 
     /// @notice Getter for the anchor state registry.
     /// @dev `clones-with-immutable-args` argument #8
     /// @return registry_ The anchor state registry contract address.
     function anchorStateRegistry() public pure returns (IAnchorStateRegistry registry_) {
-        registry_ = IAnchorStateRegistry(_getArgAddress(172));
+        registry_ = IAnchorStateRegistry(_getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 52));
     }
 
     /// @notice Getter for the WETH contract.
     /// @dev `clones-with-immutable-args` argument #9
     /// @return weth_ The WETH contract for holding ETH.
     function weth() public pure returns (IDelayedWETH weth_) {
-        weth_ = IDelayedWETH(payable(_getArgAddress(192)));
+        weth_ = IDelayedWETH(payable(_getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 72)));
     }
 
     /// @notice Getter for the L2 chain ID.
     /// @dev `clones-with-immutable-args` argument #10
     /// @return l2ChainId_ The L2 chain ID.
     function _l2ChainId() internal pure returns (uint256 l2ChainId_) {
-        l2ChainId_ = _getArgUint256(212);
+        l2ChainId_ = _getArgUint256(_preExtraDataByteCount() + _extraDataByteCount() + 92);
     }
 
     /// @notice A compliant implementation of this interface should return the components of the

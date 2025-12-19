@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// Testing utilities
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Libraries

@@ -2,7 +2,9 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { Test, Vm, console2 as console } from "forge-std/Test.sol";
+import { Test } from "test/setup/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
+import { console2 as console } from "forge-std/console2.sol";
 
 // Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";

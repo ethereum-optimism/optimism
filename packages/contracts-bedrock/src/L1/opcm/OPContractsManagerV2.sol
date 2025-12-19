@@ -158,20 +158,20 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     IOPContractsManagerContainer public immutable contractsContainer;
 
     /// @notice Address of the Standard Validator for this OPCM release.
-    IOPContractsManagerStandardValidator public immutable standardValidator;
+    IOPContractsManagerStandardValidator public immutable opcmStandardValidator;
 
     /// @notice Immutable reference to this OPCM contract so that the address of this contract can
     ///         be used when this contract is DELEGATECALLed.
-    OPContractsManagerV2 public immutable thisOPCM;
+    OPContractsManagerV2 public immutable opcmV2;
 
     /// @notice The version of the OPCM contract.
     ///         WARNING: OPCM versioning rules differ from other contracts:
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 6.0.7
+    /// @custom:semver 7.0.1
     function version() public pure returns (string memory) {
-        return "6.0.7";
+        return "7.0.1";
     }
 
     /// @param _contractsContainer The container of blueprint and implementation contract addresses.
@@ -185,8 +185,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         OPContractsManagerUtilsCaller(_utils)
     {
         contractsContainer = _contractsContainer;
-        standardValidator = _standardValidator;
-        thisOPCM = this;
+        opcmStandardValidator = _standardValidator;
+        opcmV2 = this;
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -304,7 +304,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // developers start working on the next release this will automatically become false so
         // even if the code is somehow forgotten it will not actually apply to the deployment. Make
         // sure to REMOVE the allowance once the upgrade is complete.
-        if (SemverComp.lt(_version(), "7.0.0")) {
+        if (SemverComp.lt(_version(), "8.0.0")) {
             // Unified DelayedWETH is being deployed for the first time.
             // TODO:(#18382): Remove this allowance after unified DelayedWETH is deployed.
             if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH")) {
@@ -905,7 +905,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             optimismPortal: address(_cts.optimismPortal),
             optimismMintableERC20Factory: address(_cts.optimismMintableERC20Factory),
             delayedWETH: address(_cts.delayedWETH),
-            opcm: address(thisOPCM)
+            opcm: address(opcmV2)
         });
 
         // Generate the initializer arguments.
@@ -1006,9 +1006,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
 
         // Chains prior to OPCMv2 (version 7.0.0) don't have a functional lastUsedOPCM function on
-        // the SystemConfig contract. The first deployment of OPCMv2 makes this function available,
-        // so we skip this check for versions below 7.0.0.
-        if (SemverComp.lt(_version(), "7.0.0")) {
+        // the SystemConfig contract. The first deployment of OPCMv2 which makes this available is
+        // version 7.0.0. We need to skip the check for 7.x.x OPCM versions because they can't
+        // guarantee that the lastUsedOPCM function will be available on the incoming SystemConfig.
+        // 8.0.0 and later will always have this function available.
+        if (SemverComp.lt(_version(), "8.0.0")) {
             return true;
         }
 
@@ -1020,7 +1022,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // 1. Address of the last used OPCM is identical to the address of this OPCM (re-running).
         // 2. This OPCM version is the same major version but a greater minor version (patch).
         // 3. This OPCM version is the next major version (sequential upgrade).
-        bool isSameOPCM = address(lastUsedOPCM) == address(thisOPCM);
+        bool isSameOPCM = address(lastUsedOPCM) == address(opcmV2);
         bool isNextMajor = thisSemver.major == lastUsedSemver.major + 1;
         bool isSameMajorHigherMinor =
             thisSemver.major == lastUsedSemver.major && thisSemver.minor > lastUsedSemver.minor;
@@ -1050,10 +1052,16 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///////////////////////////////////////////////////////////////////////////
 
     /// @notice Helper for retrieving the version of the OPCM contract.
-    /// @dev We use thisOPCM.version() because it allows us to properly mock the version function
+    /// @dev We use opcmV2.version() because it allows us to properly mock the version function
     ///      in tests without running into issues because this contract is being DELEGATECALLed.
     /// @return The version of the OPCM contract.
     function _version() internal view returns (string memory) {
-        return thisOPCM.version();
+        return opcmV2.version();
+    }
+
+    /// @notice Returns the development feature bitmap.
+    /// @return The development feature bitmap.
+    function devFeatureBitmap() public view returns (bytes32) {
+        return contractsContainer.devFeatureBitmap();
     }
 }

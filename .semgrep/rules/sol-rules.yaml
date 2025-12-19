@@ -398,3 +398,14 @@ rules:
     paths:
       include:
         - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol
+
+  - id: sol-style-ban-forge-std-test-import
+    languages: [solidity]
+    severity: ERROR
+    message: Import Test from test/setup/Test.sol, not forge-std/Test.sol. Import other forge-std components (stdStorage, StdStorage, stdError, StdUtils, Vm, console2, etc.) from their specific files (forge-std/StdStorage.sol, forge-std/StdError.sol, forge-std/StdUtils.sol, forge-std/Vm.sol, forge-std/console2.sol, etc.)
+    pattern-regex: import\s+(\{[^}]*\}\s+from\s+)?"forge-std/Test\.sol"\s*;
+    paths:
+      include:
+        - packages/contracts-bedrock/test
+      exclude:
+        - packages/contracts-bedrock/test/setup/Test.sol

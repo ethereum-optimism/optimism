@@ -1448,9 +1448,10 @@ jobs:
           name: Run heavy fuzz tests
           command: |
             mkdir -p results
-            just test --junit > results/results.xml
+            just test
           environment:
             FOUNDRY_PROFILE: ciheavy
+            JUNIT_TEST_PATH: results/results.xml
           working_directory: packages/contracts-bedrock
           no_output_timeout: 90m
       - run:
@@ -1655,8 +1656,9 @@ jobs:
           name: Run tests
           command: |
             mkdir -p results
-            just test-upgrade --junit > results/results.xml
+            just test-upgrade
           environment:
+            JUNIT_TEST_PATH: results/results.xml
             FOUNDRY_FUZZ_SEED: 42424242
             FOUNDRY_FUZZ_RUNS: 1
             FOUNDRY_PROFILE: ci
@@ -1778,7 +1780,7 @@ jobs:
           command: forge --version
       - run:
           name: Pull cached artifacts
-          command: bash scripts/ops/pull-artifacts.sh --fallback-to-latest
+          command: bash scripts/ops/pull-artifacts.sh
           working_directory: packages/contracts-bedrock
       - run:
           name: Run checks
@@ -3682,10 +3684,9 @@ workflows:
             parameters:
               features: &features_matrix
                 - main
-                - OPTIMISM_PORTAL_INTEROP
-                - CANNON_KONA,DEPLOY_V2_DISPUTE_GAMES
-                - OPCM_V2
                 - CUSTOM_GAS_TOKEN
+                - OPTIMISM_PORTAL_INTEROP
+                - OPCM_V2
                 - OPCM_V2,CUSTOM_GAS_TOKEN
                 - OPCM_V2,OPTIMISM_PORTAL_INTEROP
           context:

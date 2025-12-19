@@ -118,7 +118,7 @@ contract OPContractsManagerV2_TestInit is CommonTest, DisputeGames {
         });
 
         // Grab the validator before we do the error assertion.
-        IOPContractsManagerStandardValidator validator = _opcm.standardValidator();
+        IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
 
         // Expect validator errors if the user provides them.
         if (bytes(_expectedValidatorErrors).length > 0) {
@@ -373,7 +373,7 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
 
         // Grab the validator before we do the error assertion because otherwise the assertion will
         // try to apply to this function call instead.
-        IOPContractsManagerStandardValidator validator = _opcm.standardValidator();
+        IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
 
         // Expect validator errors if the user provides them. We always expect the L1PAOMultisig
         // and Challenger overrides so we don't need to repeat them here.
@@ -756,8 +756,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 contract OPContractsManagerV2_IsPermittedUpgradeSequence_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that the upgrade sequence is permitted when using the same OPCM (re-running upgrade).
     function test_isPermittedUpgradeSequence_sameOPCM_succeeds() public {
-        // Mock the OPCM version to be >= 7.0.0 so the check activates.
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("7.0.0"));
+        // Mock the OPCM version to be >= 8.0.0 so the check activates.
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("8.0.0"));
 
         // Mock lastUsedOPCM to return the same OPCM address.
         vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(address(opcmV2)));
@@ -771,75 +771,21 @@ contract OPContractsManagerV2_IsPermittedUpgradeSequence_Test is OPContractsMana
         // Create a mock address for the "old" OPCM.
         address oldOPCM = makeAddr("oldOPCM");
 
-        // Mock the current OPCM version to be 7.1.0.
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("7.1.0"));
+        // Mock the current OPCM version to be 8.1.0.
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("8.1.0"));
 
         // Mock lastUsedOPCM to return the old OPCM address.
         vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
 
-        // Mock the old OPCM version to be 7.0.0.
-        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("7.0.0"));
+        // Mock the old OPCM version to be 8.0.0.
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("8.0.0"));
 
-        // Should return true because 7.1.0 > 7.0.0 (same major, higher minor).
+        // Should return true because 8.1.0 > 8.0.0 (same major, higher minor).
         assertTrue(opcmV2.isPermittedUpgradeSequence(systemConfig), "same major higher minor should be permitted");
     }
 
     /// @notice Tests that the upgrade sequence is permitted when upgrading to the next major version.
     function test_isPermittedUpgradeSequence_nextMajorVersion_succeeds() public {
-        // Create a mock address for the "old" OPCM.
-        address oldOPCM = makeAddr("oldOPCM");
-
-        // Mock the current OPCM version to be 8.0.0.
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("8.0.0"));
-
-        // Mock lastUsedOPCM to return the old OPCM address.
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
-
-        // Mock the old OPCM version to be 7.2.0.
-        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("7.2.0"));
-
-        // Should return true because 8.0.0 is the next major after 7.x.x.
-        assertTrue(opcmV2.isPermittedUpgradeSequence(systemConfig), "next major version should be permitted");
-    }
-
-    /// @notice Tests that the upgrade sequence is not permitted when downgrading (same major, lower minor).
-    function test_isPermittedUpgradeSequence_sameMajorLowerMinor_fails() public {
-        // Create a mock address for the "old" OPCM.
-        address oldOPCM = makeAddr("oldOPCM");
-
-        // Mock the current OPCM version to be 7.0.0.
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("7.0.0"));
-
-        // Mock lastUsedOPCM to return the old OPCM address.
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
-
-        // Mock the old OPCM version to be 7.1.0.
-        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("7.1.0"));
-
-        // Should return false because 7.0.0 < 7.1.0 (downgrade).
-        assertFalse(opcmV2.isPermittedUpgradeSequence(systemConfig), "same major lower minor should not be permitted");
-    }
-
-    /// @notice Tests that the upgrade sequence is not permitted when using same minor with different OPCM.
-    function test_isPermittedUpgradeSequence_sameMajorSameMinor_fails() public {
-        // Create a mock address for the "old" OPCM.
-        address oldOPCM = makeAddr("oldOPCM");
-
-        // Mock the current OPCM version to be 7.1.0.
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("7.1.0"));
-
-        // Mock lastUsedOPCM to return the old OPCM address.
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
-
-        // Mock the old OPCM version to be 7.1.0.
-        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("7.1.0"));
-
-        // Should return false because 7.1.0 == 7.1.0 (not higher).
-        assertFalse(opcmV2.isPermittedUpgradeSequence(systemConfig), "same major same minor should not be permitted");
-    }
-
-    /// @notice Tests that the upgrade sequence is not permitted when skipping major versions.
-    function test_isPermittedUpgradeSequence_skipMajorVersion_fails() public {
         // Create a mock address for the "old" OPCM.
         address oldOPCM = makeAddr("oldOPCM");
 
@@ -849,10 +795,64 @@ contract OPContractsManagerV2_IsPermittedUpgradeSequence_Test is OPContractsMana
         // Mock lastUsedOPCM to return the old OPCM address.
         vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
 
-        // Mock the old OPCM version to be 7.0.0.
-        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("7.0.0"));
+        // Mock the old OPCM version to be 8.2.0.
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("8.2.0"));
 
-        // Should return false because 9.0.0 skips major version 8.
+        // Should return true because 9.0.0 is the next major after 8.x.x.
+        assertTrue(opcmV2.isPermittedUpgradeSequence(systemConfig), "next major version should be permitted");
+    }
+
+    /// @notice Tests that the upgrade sequence is not permitted when downgrading (same major, lower minor).
+    function test_isPermittedUpgradeSequence_sameMajorLowerMinor_fails() public {
+        // Create a mock address for the "old" OPCM.
+        address oldOPCM = makeAddr("oldOPCM");
+
+        // Mock the current OPCM version to be 8.0.0.
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("8.0.0"));
+
+        // Mock lastUsedOPCM to return the old OPCM address.
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
+
+        // Mock the old OPCM version to be 8.1.0.
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("8.1.0"));
+
+        // Should return false because 8.0.0 < 8.1.0 (downgrade).
+        assertFalse(opcmV2.isPermittedUpgradeSequence(systemConfig), "same major lower minor should not be permitted");
+    }
+
+    /// @notice Tests that the upgrade sequence is not permitted when using same minor with different OPCM.
+    function test_isPermittedUpgradeSequence_sameMajorSameMinor_fails() public {
+        // Create a mock address for the "old" OPCM.
+        address oldOPCM = makeAddr("oldOPCM");
+
+        // Mock the current OPCM version to be 8.1.0.
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("8.1.0"));
+
+        // Mock lastUsedOPCM to return the old OPCM address.
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
+
+        // Mock the old OPCM version to be 8.1.0.
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("8.1.0"));
+
+        // Should return false because 8.1.0 == 8.1.0 (not higher).
+        assertFalse(opcmV2.isPermittedUpgradeSequence(systemConfig), "same major same minor should not be permitted");
+    }
+
+    /// @notice Tests that the upgrade sequence is not permitted when skipping major versions.
+    function test_isPermittedUpgradeSequence_skipMajorVersion_fails() public {
+        // Create a mock address for the "old" OPCM.
+        address oldOPCM = makeAddr("oldOPCM");
+
+        // Mock the current OPCM version to be 10.0.0.
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("10.0.0"));
+
+        // Mock lastUsedOPCM to return the old OPCM address.
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
+
+        // Mock the old OPCM version to be 8.0.0.
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("8.0.0"));
+
+        // Should return false because 10.0.0 skips major version 9.
         assertFalse(opcmV2.isPermittedUpgradeSequence(systemConfig), "skipping major version should not be permitted");
     }
 
@@ -861,34 +861,34 @@ contract OPContractsManagerV2_IsPermittedUpgradeSequence_Test is OPContractsMana
         // Create a mock address for the "old" OPCM.
         address oldOPCM = makeAddr("oldOPCM");
 
-        // Mock the current OPCM version to be 7.0.0.
+        // Mock the current OPCM version to be 8.0.0.
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("8.0.0"));
+
+        // Mock lastUsedOPCM to return the old OPCM address.
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
+
+        // Mock the old OPCM version to be 9.0.0.
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("9.0.0"));
+
+        // Should return false because 8.0.0 < 9.0.0 (major downgrade).
+        assertFalse(opcmV2.isPermittedUpgradeSequence(systemConfig), "major downgrade should not be permitted");
+    }
+
+    /// @notice Tests that the upgrade sequence check returns true for OPCM versions < 8.0.0.
+    function test_isPermittedUpgradeSequence_versionBelowThreshold_succeeds() public {
+        // Create a mock address for the "old" OPCM that would fail the check if it ran.
+        address oldOPCM = makeAddr("oldOPCM");
+
+        // Mock the current OPCM version to be 7.0.0 (below threshold).
         vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("7.0.0"));
 
         // Mock lastUsedOPCM to return the old OPCM address.
         vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
 
-        // Mock the old OPCM version to be 8.0.0.
-        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("8.0.0"));
+        // Mock the old OPCM version to be 10.0.0 (would fail if check ran).
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("10.0.0"));
 
-        // Should return false because 7.0.0 < 8.0.0 (major downgrade).
-        assertFalse(opcmV2.isPermittedUpgradeSequence(systemConfig), "major downgrade should not be permitted");
-    }
-
-    /// @notice Tests that the upgrade sequence check returns true for OPCM versions < 7.0.0.
-    function test_isPermittedUpgradeSequence_versionBelowThreshold_succeeds() public {
-        // Create a mock address for the "old" OPCM that would fail the check if it ran.
-        address oldOPCM = makeAddr("oldOPCM");
-
-        // Mock the current OPCM version to be 6.0.0 (below threshold).
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("6.0.0"));
-
-        // Mock lastUsedOPCM to return the old OPCM address.
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
-
-        // Mock the old OPCM version to be 9.0.0 (would fail if check ran).
-        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("9.0.0"));
-
-        // Should return true because the check is skipped for versions < 7.0.0.
+        // Should return true because the check is skipped for versions < 8.0.0.
         assertTrue(opcmV2.isPermittedUpgradeSequence(systemConfig), "version below threshold should be permitted");
     }
 
@@ -1125,6 +1125,19 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         // nosemgrep: sol-style-use-abi-encodecall
         runDeployV2(
             deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+}
+
+/// @title OPContractsManagerV2_DevFeatureBitmap_Test
+/// @notice Tests OPContractsManagerV2.devFeatureBitmap
+contract OPContractsManagerV2_DevFeatureBitmap_Test is OPContractsManagerV2_TestInit {
+    /// @notice Tests that the devFeatureBitmap returned by opcmV2 matches the contractsContainer address's own.
+    function test_devFeatureBitmap_succeeds() public view {
+        assertEq(
+            opcmV2.devFeatureBitmap(),
+            opcmV2.contractsContainer().devFeatureBitmap(),
+            "devFeatureBitmap on opcmV2 does not match contractsContainer bitmap"
         );
     }
 }

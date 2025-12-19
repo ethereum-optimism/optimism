@@ -300,6 +300,8 @@ interface IOPContractsManager {
 
     error InvalidDevFeatureAccess(bytes32 devFeature);
 
+    error OPContractsManager_V2Enabled();
+
     // -------- Methods --------
 
     function __constructor__(

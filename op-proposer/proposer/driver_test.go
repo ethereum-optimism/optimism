@@ -48,7 +48,7 @@ func (m *StubDGFContract) HasProposedSince(_ context.Context, _ common.Address, 
 	return false, time.Unix(1000, 0), common.Hash{0xdd}, nil
 }
 
-func (m *StubDGFContract) ProposalTx(_ context.Context, _ uint32, _ common.Hash, _ uint64) (txmgr.TxCandidate, error) {
+func (m *StubDGFContract) ProposalTx(_ context.Context, _ uint32, _ common.Hash, _ []byte) (txmgr.TxCandidate, error) {
 	panic("not implemented")
 }
 
