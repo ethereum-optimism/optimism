@@ -29,6 +29,9 @@ type SuperRootAtTimestampResponse struct {
 	// from the L1 data currently processed.
 	OptimisticAtTimestamp map[ChainID]OutputWithRequiredL1 `json:"optimistic_at_timestamp"`
 
+	// ChainIDs are the chain IDs in the dependency set at the requested timestamp, sorted ascending.
+	ChainIDs []ChainID `json:"chain_ids"`
+
 	// Data provides information about the super root at the requested timestamp if present. If block data at the
 	// requested timestamp is not present, the data will be nil.
 	Data *SuperRootResponseData `json:"data,omitempty"`
