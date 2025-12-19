@@ -25,6 +25,12 @@ import { IPermissionedDisputeGameV2 } from "interfaces/dispute/v2/IPermissionedD
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 // Mocks
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
+import { SP1MockVerifier } from "test/dispute/zk/mocks/SP1MockVerifier.sol";
+
+// OptimisticZk
+import { OptimisticZkGame } from "src/dispute/zk/OptimisticZkGame.sol";
+import { AccessManager } from "src/dispute/zk/AccessManager.sol";
+import { ISP1Verifier } from "src/dispute/zk/ISP1Verifier.sol";
 
 /// @notice A fake clone used for testing the `DisputeGameFactory` contract's `create` function.
 contract DisputeGameFactory_FakeClone_Harness {
@@ -387,6 +393,59 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
         _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON, _implArgs);
+    }
+
+    /// @notice Parameters for OptimisticZk game setup
+    struct OptimisticZkGameParams {
+        Duration maxChallengeDuration;
+        Duration maxProveDuration;
+        address proposer;
+        address challenger;
+        bytes32 rollupConfigHash;
+        bytes32 aggregationVkey;
+        bytes32 rangeVkeyCommitment;
+        uint256 challengerBond;
+    }
+
+    /// @notice Sets up an OptimisticZk game implementation
+    function setupOptimisticZkGame(OptimisticZkGameParams memory _params)
+        internal
+        returns (address gameImpl_, AccessManager accessManager_, ISP1Verifier sp1Verifier_)
+    {
+        // Deploy mock verifier
+        sp1Verifier_ = ISP1Verifier(address(new SP1MockVerifier()));
+
+        // Deploy access manager
+        accessManager_ = new AccessManager(2 weeks, disputeGameFactory);
+        accessManager_.setProposer(_params.proposer, true);
+        accessManager_.setChallenger(_params.challenger, true);
+
+        // Deploy game implementation
+        gameImpl_ = address(
+            new OptimisticZkGame(
+                _params.maxChallengeDuration,
+                _params.maxProveDuration,
+                disputeGameFactory,
+                sp1Verifier_,
+                _params.rollupConfigHash,
+                _params.aggregationVkey,
+                _params.rangeVkeyCommitment,
+                _params.challengerBond,
+                anchorStateRegistry,
+                accessManager_
+            )
+        );
+
+        // Set respected game type for OptimisticZk
+        GameType gameType = GameTypes.OPTIMISTIC_ZK_GAME_TYPE;
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(gameType);
+
+        // Register with factory
+        vm.startPrank(disputeGameFactory.owner());
+        disputeGameFactory.setImplementation(gameType, IDisputeGame(gameImpl_));
+        disputeGameFactory.setInitBond(gameType, _params.challengerBond);
+        vm.stopPrank();
     }
 }
 

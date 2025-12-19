@@ -1106,6 +1106,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManager_V2Enabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OnlyDelegatecall",
     "type": "error"
   },

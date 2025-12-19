@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
+import { Test } from "test/setup/Test.sol";
 import { FFIInterface } from "test/setup/FFIInterface.sol";
+
+// Scripts
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
-import { Test } from "forge-std/Test.sol";
 
 /// @title InvariantTest
 /// @dev An extension to `Test` that sets up excluded contracts for invariant testing.

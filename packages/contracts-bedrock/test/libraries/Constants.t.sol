@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
+
+// Libraries
 import { Constants } from "src/libraries/Constants.sol";
+
+// Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 
 /// @title Constants_Test

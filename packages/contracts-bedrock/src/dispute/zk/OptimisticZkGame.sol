@@ -13,7 +13,7 @@ import {
     Timestamp,
     Proposal
 } from "src/dispute/lib/Types.sol";
-import { AggregationOutputs, OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE } from "src/dispute/lib/Types.sol";
+import { AggregationOutputs, GameTypes } from "src/dispute/lib/Types.sol";
 import {
     AlreadyInitialized,
     BadAuth,
@@ -43,10 +43,10 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 // Contracts
 import { AccessManager } from "src/dispute/zk/AccessManager.sol";
 
-/// @title OPSuccinctFaultDisputeGame
+/// @title OptimisticZkGame
 /// @notice An implementation of the `IFaultDisputeGame` interface.
 /// @dev Derived from https://github.com/succinctlabs/op-succinct (at commit c13844a9bbc330cca69eef2538d8f8ec123e1653)
-contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
+contract OptimisticZkGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
     //                         Enums                              //
     ////////////////////////////////////////////////////////////////
@@ -146,8 +146,8 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
     AccessManager internal immutable ACCESS_MANAGER;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.0
-    string public constant version = "0.0.0";
+    /// @custom:semver 0.0.1
+    string public constant version = "0.0.1";
 
     /// @notice The starting timestamp of the game.
     Timestamp public createdAt;
@@ -202,7 +202,7 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
         AccessManager _accessManager
     ) {
         // Set up initial game state.
-        GAME_TYPE = GameType.wrap(OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE);
+        GAME_TYPE = GameTypes.OPTIMISTIC_ZK_GAME_TYPE;
         MAX_CHALLENGE_DURATION = _maxChallengeDuration;
         MAX_PROVE_DURATION = _maxProveDuration;
         DISPUTE_GAME_FACTORY = _disputeGameFactory;
@@ -279,8 +279,8 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
             }
 
             startingProposal = Proposal({
-                l2SequenceNumber: OPSuccinctFaultDisputeGame(address(proxy)).l2SequenceNumber(),
-                root: Hash.wrap(OPSuccinctFaultDisputeGame(address(proxy)).rootClaim().raw())
+                l2SequenceNumber: OptimisticZkGame(address(proxy)).l2SequenceNumber(),
+                root: Hash.wrap(OptimisticZkGame(address(proxy)).rootClaim().raw())
             });
 
             // INVARIANT: The parent game must be a valid game.

@@ -45,4 +45,3 @@ update-op-geth ref:
 	go mod edit -replace=github.com/ethereum/go-ethereum=github.com/ethereum-optimism/op-geth@"$ver"; \
 	go mod tidy; \
 	echo "Updated op-geth to $ver"
-

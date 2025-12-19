@@ -51,14 +51,14 @@ contract L1Withdrawer is ISemver {
     event WithdrawalGasLimitUpdated(uint32 oldWithdrawalGasLimit, uint32 newWithdrawalGasLimit);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @notice Constructs the L1Withdrawer contract.
     /// @param _minWithdrawalAmount The minimum amount of ETH required to trigger a withdrawal.
     /// @param _recipient The L1 address that will receive withdrawals.
     /// @param _withdrawalGasLimit The gas limit for the L1 withdrawal transaction.
-    /// @dev If target on L1 is `FeesDepositor`, the gas limit should be above 800k gas.
+    /// @dev If target on L1 is `FeesDepositor`, the gas limit should be at or above 800k gas.
     constructor(uint256 _minWithdrawalAmount, address _recipient, uint32 _withdrawalGasLimit) {
         minWithdrawalAmount = _minWithdrawalAmount;
         recipient = _recipient;
@@ -105,7 +105,7 @@ contract L1Withdrawer is ISemver {
 
     /// @notice Updates the withdrawal gas limit. Only callable by the ProxyAdmin owner.
     /// @param _newWithdrawalGasLimit The new withdrawal gas limit.
-    /// @dev If target on L1 is `FeesDepositor`, the gas limit should be above 800k gas.
+    /// @dev If target on L1 is `FeesDepositor`, the gas limit should be at or above 800k gas.
     function setWithdrawalGasLimit(uint32 _newWithdrawalGasLimit) external {
         if (msg.sender != IProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
             revert L1Withdrawer_OnlyProxyAdminOwner();
