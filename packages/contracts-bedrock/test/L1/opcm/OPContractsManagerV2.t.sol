@@ -1449,4 +1449,17 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         // Execute the migration, expect revert.
         _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_SuperchainConfigMismatch.selector);
     }
+
+    /// @notice Tests that the migration function reverts when the starting respected game type is invalid.
+    function test_migrate_invalidStartingRespectedGameType_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        // Set an invalid starting respected game type (not SUPER_CANNON or SUPER_PERMISSIONED_CANNON).
+        input.startingRespectedGameType = GameTypes.CANNON;
+
+        // Execute the migration, expect revert.
+        _doMigration(
+            input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidStartingRespectedGameType.selector
+        );
+    }
 }
