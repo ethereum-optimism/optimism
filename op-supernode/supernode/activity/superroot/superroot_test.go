@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
+	"github.com/ethereum/go-ethereum"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -97,7 +98,7 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 	api := &superrootAPI{s: s}
 	out, err := api.AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
-	require.Len(t, out.Data.UnverifiedAtTimestamp, 2)
+	require.Len(t, out.OptimisticAtTimestamp, 2)
 	// min values
 	require.Equal(t, uint64(2000), out.CurrentL1.Number)
 	require.Equal(t, uint64(1000), out.Data.VerifiedRequiredL1.Number)
@@ -168,6 +169,30 @@ func TestSuperroot_AtTimestamp_ErrorOnVerifiedAt(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestSuperroot_AtTimestamp_NotFoundOnVerifiedAt(t *testing.T) {
+	t.Parallel()
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{
+			verifiedErr: fmt.Errorf("nope: %w", ethereum.NotFound),
+		},
+		eth.ChainIDFromUInt64(11): &mockCC{
+			verL2:     eth.BlockID{Number: 200},
+			verL1:     eth.BlockID{Number: 1100},
+			optL2:     eth.BlockID{Number: 200},
+			optL1:     eth.BlockID{Number: 1100},
+			output:    eth.Bytes32{0x12},
+			currentL1: eth.BlockRef{Number: 2100},
+		},
+	}
+	s := New(gethlog.New(), chains)
+	api := &superrootAPI{s: s}
+	actual, err := api.AtTimestamp(context.Background(), 123)
+	require.NoError(t, err)
+	require.Nil(t, actual.Data)
+	require.NotContains(t, actual.OptimisticAtTimestamp, eth.ChainIDFromUInt64(10))
+	require.Contains(t, actual.OptimisticAtTimestamp, eth.ChainIDFromUInt64(11))
+}
+
 func TestSuperroot_AtTimestamp_ErrorOnOutputRoot(t *testing.T) {
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{
@@ -204,7 +229,7 @@ func TestSuperroot_AtTimestamp_EmptyChains(t *testing.T) {
 	api := &superrootAPI{s: s}
 	out, err := api.AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
-	require.Len(t, out.Data.UnverifiedAtTimestamp, 0)
+	require.Len(t, out.OptimisticAtTimestamp, 0)
 }
 
 // assertErr returns a generic error instance used to signal mock failures.

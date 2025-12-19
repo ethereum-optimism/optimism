@@ -59,15 +59,14 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		}
 	}
 
+	notFound := false
 	// collect verified and optimistic L2 and L1 blocks at the given timestamp
 	for chainID, chain := range s.chains {
 		// verifiedAt returns the L2 block which is fully verified at the given timestamp, and the minimum L1 block at which verification is possible
 		verifiedL2, verifiedL1, err := chain.VerifiedAt(ctx, timestamp)
 		if errors.Is(err, ethereum.NotFound) {
-			return eth.SuperRootAtTimestampResponse{
-				CurrentL1: minCurrentL1,
-				Data:      nil, // No super root available
-			}, nil
+			notFound = true
+			continue // To allow other chains to be populate unverified blocks
 		} else if err != nil {
 			s.log.Warn("failed to get verified block", "chain_id", chainID.String(), "err", err)
 			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to get verified block: %w", err)
@@ -104,13 +103,16 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 	superV1 := eth.NewSuperV1(timestamp, chainOutputs...)
 	superRoot := eth.SuperRoot(superV1)
 
-	return eth.SuperRootAtTimestampResponse{
-		CurrentL1: minCurrentL1,
-		Data: &eth.SuperRootResponseData{
-			UnverifiedAtTimestamp: optimistic,
-			VerifiedRequiredL1:    minVerifiedRequiredL1,
-			Super:                 superV1,
-			SuperRoot:             superRoot,
-		},
-	}, nil
+	response := eth.SuperRootAtTimestampResponse{
+		CurrentL1:             minCurrentL1,
+		OptimisticAtTimestamp: optimistic,
+	}
+	if !notFound {
+		response.Data = &eth.SuperRootResponseData{
+			VerifiedRequiredL1: minVerifiedRequiredL1,
+			Super:              superV1,
+			SuperRoot:          superRoot,
+		}
+	}
+	return response, nil
 }
