@@ -7,6 +7,7 @@ import { Vm } from "forge-std/Vm.sol";
 
 // Libraries
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Features } from "src/libraries/Features.sol";
 import { Config } from "scripts/libraries/Config.sol";
 
 // Interfaces
@@ -24,6 +25,9 @@ abstract contract FeatureFlags {
     /// @notice The address of the SystemConfig contract.
     ISystemConfig internal sysCfg;
 
+    /// @notice Mapping of feature bits to their names.
+    mapping(bytes32 => string) internal featureNames;
+
     /// @notice Sets the address of the SystemConfig contract.
     /// @param _sysCfg The address of the SystemConfig contract.
     function setSystemConfig(ISystemConfig _sysCfg) public {
@@ -31,6 +35,7 @@ abstract contract FeatureFlags {
     }
 
     /// @notice Resolves the development feature bitmap.
+    /// @dev When updating this function, make sure to also update the featureNames mapping.
     function resolveFeaturesFromEnv() public {
         if (Config.devFeatureInterop()) {
             console.log("Setup: DEV_FEATURE__OPTIMISM_PORTAL_INTEROP is enabled");
@@ -40,6 +45,14 @@ abstract contract FeatureFlags {
             console.log("Setup: DEV_FEATURE__OPCM_V2 is enabled");
             devFeatureBitmap |= DevFeatures.OPCM_V2;
         }
+
+        // Map dev feature bits to their names.
+        featureNames[DevFeatures.OPTIMISM_PORTAL_INTEROP] = "DEV_FEATURE__OPTIMISM_PORTAL_INTEROP";
+        featureNames[DevFeatures.OPCM_V2] = "DEV_FEATURE__OPCM_V2";
+
+        // Map sys feature bits to their names.
+        featureNames[Features.CUSTOM_GAS_TOKEN] = "SYS_FEATURE__CUSTOM_GAS_TOKEN";
+        featureNames[Features.ETH_LOCKBOX] = "SYS_FEATURE__ETH_LOCKBOX";
     }
 
     /// @notice Enables a feature.
@@ -72,7 +85,7 @@ abstract contract FeatureFlags {
     /// @param _feature The feature to check.
     function skipIfSysFeatureEnabled(bytes32 _feature) public {
         if (isSysFeatureEnabled(_feature)) {
-            vm.skip(true);
+            vm.skip(true, string.concat("Skipping test because ", featureNames[_feature], " is enabled"));
         }
     }
 
@@ -80,7 +93,7 @@ abstract contract FeatureFlags {
     /// @param _feature The feature to check.
     function skipIfSysFeatureDisabled(bytes32 _feature) public {
         if (!isSysFeatureEnabled(_feature)) {
-            vm.skip(true);
+            vm.skip(true, string.concat("Skipping test because ", featureNames[_feature], " is disabled"));
         }
     }
 
@@ -88,7 +101,7 @@ abstract contract FeatureFlags {
     /// @param _feature The feature to check.
     function skipIfDevFeatureEnabled(bytes32 _feature) public {
         if (isDevFeatureEnabled(_feature)) {
-            vm.skip(true);
+            vm.skip(true, string.concat("Skipping test because ", featureNames[_feature], " is enabled"));
         }
     }
 
@@ -96,7 +109,7 @@ abstract contract FeatureFlags {
     /// @param _feature The feature to check.
     function skipIfDevFeatureDisabled(bytes32 _feature) public {
         if (!isDevFeatureEnabled(_feature)) {
-            vm.skip(true);
+            vm.skip(true, string.concat("Skipping test because ", featureNames[_feature], " is disabled"));
         }
     }
 }
