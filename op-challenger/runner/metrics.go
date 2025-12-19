@@ -20,13 +20,13 @@ type Metrics struct {
 	*metrics.VmMetrics
 	opmetrics.RPCMetrics
 
-	up                       prometheus.Gauge
-	vmLastExecutionTime      *prometheus.GaugeVec
-	vmLastMemoryUsed         *prometheus.GaugeVec
-	successTotal             *prometheus.CounterVec
-	setupFailuresTotal       *prometheus.CounterVec
-	consecutiveSetupFailures *prometheus.GaugeVec
-	vmFailuresTotal          *prometheus.CounterVec
+	up                              prometheus.Gauge
+	vmLastExecutionTime             *prometheus.GaugeVec
+	vmLastMemoryUsed                *prometheus.GaugeVec
+	successTotal                    *prometheus.CounterVec
+	setupFailuresTotal              *prometheus.CounterVec
+	consecutiveSetupFailuresCurrent *prometheus.GaugeVec
+	vmFailuresTotal                 *prometheus.CounterVec
 }
 
 // Reason labels for vmFailuresTotal metric
@@ -79,9 +79,9 @@ func NewMetrics(runConfigs []RunConfig) *Metrics {
 			Name:      "setup_failures_total",
 			Help:      "Number of setup failures before VM execution",
 		}, []string{"type"}),
-		consecutiveSetupFailures: factory.NewGaugeVec(prometheus.GaugeOpts{
+		consecutiveSetupFailuresCurrent: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
-			Name:      "consecutive_setup_failures",
+			Name:      "consecutive_setup_failures_current",
 			Help:      "Number of consecutive setup failures by VM type. Resets to 0 on any complete run.",
 		}, []string{"type"}),
 		vmFailuresTotal: factory.NewCounterVec(prometheus.CounterOpts{
@@ -94,7 +94,7 @@ func NewMetrics(runConfigs []RunConfig) *Metrics {
 	for _, runConfig := range runConfigs {
 		metrics.successTotal.WithLabelValues(runConfig.Name).Add(0)
 		metrics.setupFailuresTotal.WithLabelValues(runConfig.Name).Add(0)
-		metrics.consecutiveSetupFailures.WithLabelValues(runConfig.Name).Set(0)
+		metrics.consecutiveSetupFailuresCurrent.WithLabelValues(runConfig.Name).Set(0)
 		metrics.vmFailuresTotal.WithLabelValues(runConfig.Name, ReasonIncorrectStatus).Add(0)
 		metrics.vmFailuresTotal.WithLabelValues(runConfig.Name, ReasonPanic).Add(0)
 		metrics.vmFailuresTotal.WithLabelValues(runConfig.Name, ReasonTimeout).Add(0)
@@ -125,15 +125,15 @@ func (m *Metrics) RecordVmMemoryUsed(vmType string, memoryUsed uint64) {
 
 func (m *Metrics) RecordSuccess(vmType string) {
 	m.successTotal.WithLabelValues(vmType).Inc()
-	m.consecutiveSetupFailures.WithLabelValues(vmType).Set(0)
+	m.consecutiveSetupFailuresCurrent.WithLabelValues(vmType).Set(0)
 }
 
 func (m *Metrics) RecordSetupFailure(vmType string) {
 	m.setupFailuresTotal.WithLabelValues(vmType).Inc()
-	m.consecutiveSetupFailures.WithLabelValues(vmType).Inc()
+	m.consecutiveSetupFailuresCurrent.WithLabelValues(vmType).Inc()
 }
 
 func (m *Metrics) RecordVmFailure(vmType string, reason string) {
 	m.vmFailuresTotal.WithLabelValues(vmType, reason).Inc()
-	m.consecutiveSetupFailures.WithLabelValues(vmType).Set(0)
+	m.consecutiveSetupFailuresCurrent.WithLabelValues(vmType).Set(0)
 }
