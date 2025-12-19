@@ -1,7 +1,6 @@
 package superroot
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -103,7 +102,9 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		}
 	}
 
-	slices.SortFunc(chainIDs, cmp.Compare)
+	slices.SortFunc(chainIDs, func(a, b eth.ChainID) int {
+		return a.Cmp(b)
+	})
 	response := eth.SuperRootAtTimestampResponse{
 		CurrentL1:             minCurrentL1,
 		OptimisticAtTimestamp: optimistic,

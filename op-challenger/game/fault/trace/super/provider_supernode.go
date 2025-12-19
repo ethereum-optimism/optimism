@@ -3,6 +3,7 @@ package super
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/client"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -108,6 +109,11 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 		PendingProgress: make([]interopTypes.OptimisticBlock, 0, step),
 		Step:            step,
 	}
+
+	// Should already be sorted but be defensive and sort it ourselves
+	slices.SortFunc(nextRoot.ChainIDs, func(a, b eth.ChainID) int {
+		return a.Cmp(b)
+	})
 	for i := uint64(0); i < min(step, uint64(len(nextRoot.ChainIDs))); i++ {
 		chainID := nextRoot.ChainIDs[i]
 		// Check if the chain's optimistic root was safe at the game's L1 head
