@@ -2,6 +2,7 @@ package superroot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -96,9 +97,11 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (atTimest
 	for chainID, chain := range s.chains {
 		// verifiedAt returns the L2 block which is fully verified at the given timestamp, and the minimum L1 block at which verification is possible
 		verifiedL2, verifiedL1, err := chain.VerifiedAt(ctx, timestamp)
-		if err != nil {
-			s.log.Warn("failed to get verified L1", "chain_id", chainID.String(), "err", err)
-			return atTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
+		if errors.Is(err, ethereum.NotFound) {
+			return atTimestampResponse{}, fmt.Errorf("%w: verified L2 block not found for chain %v at timestamp %v", err, chainID, timestamp)
+		} else if err != nil {
+			s.log.Warn("failed to get verified block", "chain_id", chainID.String(), "err", err)
+			return atTimestampResponse{}, fmt.Errorf("failed to get verified block: %w", err)
 		}
 		verified[chainID] = L2WithRequiredL1{
 			L2:            verifiedL2,
@@ -111,20 +114,20 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (atTimest
 		outRoot, err := chain.OutputRootAtL2BlockNumber(ctx, verifiedL2.Number)
 		if err != nil {
 			s.log.Warn("failed to compute output root at L2 block", "chain_id", chainID.String(), "l2_number", verifiedL2.Number, "err", err)
-			return atTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
+			return atTimestampResponse{}, fmt.Errorf("failed to compute output root at L2 block %d for chain ID %v: %w", verifiedL2.Number, chainID, err)
 		}
 		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{ChainID: chainID, Output: outRoot})
 		// Optimistic output is the full output at the optimistic L2 block for the timestamp
 		optimisticOut, err := chain.OptimisticOutputAtTimestamp(ctx, timestamp)
 		if err != nil {
-			s.log.Warn("failed to get optimistic L1", "chain_id", chainID.String(), "err", err)
-			return atTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
+			s.log.Warn("failed to get optimistic block", "chain_id", chainID.String(), "err", err)
+			return atTimestampResponse{}, fmt.Errorf("failed to get optimistic block at timestamp %v for chain ID %v: %w", timestamp, chainID, err)
 		}
 		// Also include the source L1 for context
 		_, optimisticL1, err := chain.OptimisticAt(ctx, timestamp)
 		if err != nil {
 			s.log.Warn("failed to get optimistic source L1", "chain_id", chainID.String(), "err", err)
-			return atTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
+			return atTimestampResponse{}, fmt.Errorf("failed to get optimistic source L1 at timestamp %v for chain ID %v: %w", timestamp, chainID, err)
 		}
 		optimistic[chainID] = OutputWithSource{
 			Output:   optimisticOut,
