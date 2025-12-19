@@ -52,6 +52,7 @@ phases:
       - name: snapshots
         description: Check snapshots are up to date
         command: go run ./scripts/autogen/generate-snapshots . && go run scripts/autogen/generate-semver-lock/main.go
+        retry-clean: true
       - name: semver-diff
         description: Check semver changes match lock changes
         command: ./scripts/checks/check-semver-diff.sh
