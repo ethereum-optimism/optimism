@@ -134,6 +134,22 @@ var (
 		Usage:   "Chain ID of the L2 network to retrieve from state. Must be specified when --workdir is set.",
 		EnvVars: deployer.PrefixEnvVar("CHAIN_ID"),
 	}
+
+	// AddGameType & Migrate Interop OPCM V2 Flags
+	// These flags are used for the upgrade command, which is used under the hood for the add-game-type-v2 and migrate-v2 commands.
+	ConfigFlag = &cli.StringFlag{
+		Name:  "config",
+		Usage: "path to the config file",
+	}
+	OverrideArtifactsURLFlag = &cli.StringFlag{
+		Name:  "override-artifacts-url",
+		Usage: "override the artifacts URL",
+	}
+	OutfileFlag = &cli.StringFlag{
+		Name:  "outfile",
+		Usage: "path to write the output to, or - for stdout",
+		Value: "-",
+	}
 )
 
 var Commands = cli.Commands{
@@ -162,6 +178,17 @@ var Commands = cli.Commands{
 			L2ChainIDFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
 		Action: AddGameTypeCLI,
+	},
+	&cli.Command{
+		Name:  "add-game-type-opcm-v2",
+		Usage: "allows to add new game types to the chain using the OPContractsManager V2",
+		Flags: append([]cli.Flag{
+			deployer.L1RPCURLFlag,
+			ConfigFlag,
+			OverrideArtifactsURLFlag,
+			OutfileFlag,
+		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
+		Action: AddGameTypeOPCMV2CLI,
 	},
 	&cli.Command{
 		Name:  "migrate",
