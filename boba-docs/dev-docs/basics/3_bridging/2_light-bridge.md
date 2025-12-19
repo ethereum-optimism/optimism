@@ -90,7 +90,7 @@ await approveTx.wait()
 
 // Deposit asset
 const depositTx = await Proxy__LightBridge.teleportAsset(
-  bobaTokenAddress, // if you want to bridge ETH or BNB then provide the Zero-Address: 0x0000..0000
+  bobaTokenAddress, // if you want to bridge a native asset like ETH, provide the Zero-Address: 0x0000..0000
   depositAmount,
   destinationChainId, // e.g. 288
 )
@@ -123,19 +123,11 @@ Here are the contract deployments for all networks. The most up-to-date version 
 - LightBridge deployed to: `0x670b130112C6f03E17192e63c67866e67D77c3ee`
 - Proxy__LightBridge deployed to: `0x0dfFd3Efe9c3237Ad7bf94252296272c96237FF5`
 
-### BSC Boba Mainnet
-- LightBridge deployed to: `0x45B9877497d73C683D38e0C7FfCf089D5D9FDCDf`
-- Proxy__LightBridge deployed to: `0x670b130112C6f03E17192e63c67866e67D77c3ee`
-
 ## Testnet deployments
 
 ### Sepolia (L1)
 - LightBridge deployed to: `0x6550b0B7e3D2dD0E0382E0638B0f56F614921CA5`
 - Proxy__LightBridge deployed to: `0xaeE12b8D99BBff7ED47866DF868CF5b4b3F73ffF`
-
-### BNB Testnet (L1)
-- LightBridge deployed to: `0xD151c8F0dc69618e6180a2dC74B05cCE3E08e0aC`
-- Proxy__LightBridge deployed to: `0x7f6a32bCaA70c65E08F2f221737612F6fC18347A`
 
 ### Boba Sepolia
 - LightBridge deployed to: `0x3f7Da9C51138E0475aA26E80677d27A568cFD6b9`

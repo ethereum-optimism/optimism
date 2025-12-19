@@ -1,5 +1,5 @@
 # Introduction
 
-Boba is the first scaling infrastructure that is deployed on multiple blockchains, making it the leading Web3 multichain execution layer with scaling capabilities to facilitate more functionality on EVM-compatible blockchains. Our [Boba Hub](https://hub.boba.network/bridge) allows you to bridge, trade, and more with your crypto with the power of our multichain, layer 2 rollup.
+Boba Network is a layer 2 optimistic rollup built on Ethereum, providing fast transactions and lower fees while maintaining full EVM compatibility. Our [Boba Hub](https://hub.boba.network/bridge) allows you to bridge, trade, and more with your crypto.
 
 More user documentation is forthcoming.
