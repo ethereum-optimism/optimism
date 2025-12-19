@@ -374,30 +374,9 @@ contract OPContractsManagerUtils {
         returns (bytes memory)
     {
         IOPContractsManagerContainer.Implementations memory impls = implementations();
-        if (_gcfg.gameType.raw() == GameTypes.CANNON.raw() || _gcfg.gameType.raw() == GameTypes.CANNON_KONA.raw()) {
-            IOPContractsManagerUtils.FaultDisputeGameConfig memory parsedInputArgs =
-                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.FaultDisputeGameConfig));
-            return abi.encodePacked(
-                parsedInputArgs.absolutePrestate,
-                impls.mipsImpl,
-                address(_anchorStateRegistry),
-                address(_delayedWETH),
-                _l2ChainId
-            );
-        } else if (_gcfg.gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
-            IOPContractsManagerUtils.PermissionedDisputeGameConfig memory parsedInputArgs =
-                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.PermissionedDisputeGameConfig));
-            return abi.encodePacked(
-                parsedInputArgs.absolutePrestate,
-                impls.mipsImpl,
-                address(_anchorStateRegistry),
-                address(_delayedWETH),
-                _l2ChainId,
-                parsedInputArgs.proposer,
-                parsedInputArgs.challenger
-            );
-        } else if (
-            _gcfg.gameType.raw() == GameTypes.SUPER_CANNON.raw()
+        if (
+            _gcfg.gameType.raw() == GameTypes.CANNON.raw() || _gcfg.gameType.raw() == GameTypes.CANNON_KONA.raw()
+                || _gcfg.gameType.raw() == GameTypes.SUPER_CANNON.raw()
                 || _gcfg.gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
         ) {
             IOPContractsManagerUtils.FaultDisputeGameConfig memory parsedInputArgs =
@@ -409,7 +388,10 @@ contract OPContractsManagerUtils {
                 address(_delayedWETH),
                 _l2ChainId
             );
-        } else if (_gcfg.gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+        } else if (
+            _gcfg.gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
+                || _gcfg.gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+        ) {
             IOPContractsManagerUtils.PermissionedDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.PermissionedDisputeGameConfig));
             return abi.encodePacked(
