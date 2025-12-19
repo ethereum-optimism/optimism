@@ -70,7 +70,7 @@ func NewTestReorgManager(t devtest.CommonT) *TestReorgManager {
 func (m *TestReorgManager) StopL1CL() {
 	m.t.Log("Stopping L1 CL services")
 
-	panic("not implemented. TODO(@theochap): implement this `https://github.com/op-rs/kona/issues/3174`")
+	panic("not implemented. TODO(op-rs/kona#3174): implement this `https://github.com/op-rs/kona/issues/3174`")
 
 	// kurtosisCtx, err := kurtosis_context.NewKurtosisContextFromLocalEngine()
 	// if err != nil {

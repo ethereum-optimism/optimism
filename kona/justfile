@@ -192,7 +192,7 @@ check-no-std:
     echo "Successfully checked no-std build for: $package"
   done
 
-### TODO(@theochap): Remove those recipes once the migration is complete
+### TODO(ethereum-optimism/optimism#18654): Remove these recipes once the migration is complete
 
 build-all: build-prestates build-kona-host
 

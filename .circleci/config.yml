@@ -2156,13 +2156,17 @@ jobs:
           directory: kona
           binary: "kona-node"
           profile: "release"
+      - rust-build:
+          directory: kona
+          binary: "kona-supervisor"
+          profile: "release"
       - run:
           name: Configure Rust binary paths (sysgo)
           command: |
             ROOT_DIR="$(pwd)"
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/kona/target/release/kona-node" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$BIN_DIR/kona-supervisor" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/kona/target/release/kona-supervisor" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
       # Restore cached Go modules
@@ -3004,10 +3008,8 @@ jobs:
       - attach_workspace:
           at: .
       # Restore cached Go modules
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-            - go-mod-v1-
+      - go-restore-cache:
+          namespace: kona-ci
       - rust-build:
           binary: "kona-node"
           directory: kona
@@ -3021,7 +3023,7 @@ jobs:
             export OP_RETH_EXEC_PATH="$WD/.circleci-cache/rust-binaries/op-reth"
             export RUST_BINARY_PATH_KONA_NODE="$WD/kona/target/release/kona-node"
             cd kona && just test-e2e-sysgo-run node node/common "<<parameters.devnet_config>>"
-      # TODO: It seems this job breaks in monorepo's CCI. We need to investigate why and fix it.
+      # TODO(ethereum-optimism/optimism#18657): It seems this job breaks in monorepo's CCI. We need to investigate why and fix it.
       - when:
           condition:
             equal: [true, <<parameters.reorg_tests>>]
@@ -3035,7 +3037,8 @@ jobs:
                   export OP_RETH_EXEC_PATH="$WD/.circleci-cache/rust-binaries/op-reth"
                   export RUST_BINARY_PATH_KONA_NODE="$WD/kona/target/release/kona-node"
                   cd kona && just test-e2e-sysgo-run node node/reorgs "<<parameters.devnet_config>>"
-
+      - go-save-cache:
+          namespace: kona-ci
   # Kona Node Restart Tests (from node_e2e_sysgo_tests.yaml)
   kona-node-restart-sysgo-tests:
     docker:
@@ -3047,10 +3050,8 @@ jobs:
       - attach_workspace:
           at: .
       # Restore cached Go modules
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-            - go-mod-v1-
+      - go-restore-cache:
+          namespace: kona-ci
       - rust-build:
           binary: "kona-node"
           directory: kona
@@ -3063,7 +3064,8 @@ jobs:
             WD=$(pwd)
             export RUST_BINARY_PATH_KONA_NODE="$WD/kona/target/release/kona-node"
             cd kona && just test-e2e-sysgo node node/restart
-
+      - go-save-cache:
+          namespace: kona-ci
   # Kona Proof Action Tests (from proof.yaml)
   kona-proof-action-tests:
     parameters:
@@ -3080,10 +3082,8 @@ jobs:
       - attach_workspace:
           at: .
       # Restore cached Go modules
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-            - go-mod-v1-
+      - go-restore-cache:
+          namespace: kona-ci
       - rust-build:
           directory: kona
           profile: release
@@ -3094,7 +3094,10 @@ jobs:
           no_output_timeout: 90m
           command: |
             echo "Running action tests"
-            just "action-tests-<<parameters.kind>>-run"
+            export KONA_HOST_PATH=$(pwd)/target/release/kona-host
+            just action-tests-single-run
+      - go-save-cache:
+          namespace: kona-ci
 
   # Kona Host Client Offline Runs (from proof.yaml)
   kona-host-client-offline:
@@ -3118,7 +3121,7 @@ jobs:
       - run:
           name: Install cargo-llvm-cov
           command: |
-            cargo install cargo-llvm-cov
+            command -v cargo-llvm-cov >/dev/null || cargo install cargo-llvm-cov
       - when:
           condition:
             equal: [asterisc, <<parameters.target>>]
@@ -3185,7 +3188,7 @@ jobs:
       - run:
           name: Install nextest
           command: |
-            cargo install cargo-nextest
+            command -v cargo-nextest >/dev/null || cargo install cargo-nextest
       - run:
           name: Run cargo tests
           working_directory: kona
@@ -3278,7 +3281,7 @@ jobs:
       - run:
           name: Install cargo-udeps
           command: |
-            cargo install cargo-udeps
+            command -v cargo-udeps >/dev/null || cargo install cargo-udeps
       - run:
           name: Check unused dependencies
           working_directory: kona
@@ -3340,7 +3343,7 @@ jobs:
       - run:
           name: Install typos-cli
           command: |
-            cargo install typos-cli
+            command -v typos-cli >/dev/null || cargo install typos-cli
       - run:
           name: Check for typos
           working_directory: kona
@@ -3352,6 +3355,7 @@ jobs:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
+    parallelism: 4
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -3361,13 +3365,31 @@ jobs:
       - run:
           name: Install cargo-hack
           command: |
-            cargo install cargo-hack
+            command -v cargo-hack >/dev/null || cargo install cargo-hack
       - run:
-          name: Run cargo hack
+          name: Shard and run cargo hack
           working_directory: kona
           no_output_timeout: 40m
           command: |
-            just hack
+            set -euo pipefail
+
+            # 1) Produce the full list of concrete cargo commands (one per line)
+            cargo hack check \
+              --feature-powerset --no-dev-deps \
+              --workspace --locked \
+              --print-command-list > /tmp/hack_cmds.txt
+
+            # 2) Take only this node's slice
+            awk "NR % ${CIRCLE_NODE_TOTAL} == ${CIRCLE_NODE_INDEX}" /tmp/hack_cmds.txt \
+              > /tmp/hack_cmds_shard.txt
+
+            echo "Node ${CIRCLE_NODE_INDEX}/${CIRCLE_NODE_TOTAL} running $(wc -l < /tmp/hack_cmds_shard.txt) cases"
+
+            # 3) Execute
+            while IFS= read -r cmd; do
+              echo ">>> $cmd"
+              bash -lc "$cmd"
+            done < /tmp/hack_cmds_shard.txt
 
   # Kona Rust CI - Check no_std (from rust_ci.yaml)
   kona-check-no-std:
@@ -3399,12 +3421,14 @@ jobs:
       - rust-prepare-and-restore-cache:
           directory: kona
           prefix: kona-coverage
+          version: "1"
       - rust-install-toolchain:
           components: llvm-tools-preview
       - run:
           name: Install cargo-llvm-cov and nextest
           command: |
-            cargo install cargo-llvm-cov cargo-nextest
+            command -v cargo-llvm-cov >/dev/null || cargo install cargo-llvm-cov
+            command -v cargo-nextest >/dev/null || cargo install cargo-nextest
       - run:
           name: Generate lockfile if needed
           working_directory: kona
@@ -3425,6 +3449,7 @@ jobs:
       - rust-save-build-cache:
           directory: kona
           prefix: kona-coverage
+          version: "1"
 
 
   # Kona Rust CI - Deny (from rust_ci.yaml)
@@ -3440,7 +3465,7 @@ jobs:
       - run:
           name: Install cargo-deny
           command: |
-            cargo install cargo-deny
+            command -v cargo-deny >/dev/null || cargo install cargo-deny
       - run:
           name: Run cargo deny
           working_directory: kona
@@ -3459,7 +3484,7 @@ jobs:
       - run:
           name: Install zepter
           command: |
-            cargo install zepter -f
+            command -v zepter >/dev/null || cargo install zepter
             zepter --version
       - run:
           name: Format and lint features

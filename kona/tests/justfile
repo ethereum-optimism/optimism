@@ -196,14 +196,54 @@ action-tests-single-build:
   just build-native --release --bin kona-host
 
 # Run action tests for the single-chain client program on the native target
-action-tests-single-run test_name='Test_ProgramAction' *args='':
+action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
   #!/bin/bash
-  export KONA_HOST_PATH="{{SOURCE}}/../target/release/kona-host"
+
+  if [ ! -n "$KONA_HOST_PATH" ]; then
+    export KONA_HOST_PATH="{{SOURCE}}/../target/release/kona-host"
+  fi
+
+  echo "KONA_HOST_PATH: $KONA_HOST_PATH"
+
   # GitHub actions patch - do not print logs.
   # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
   echo "Running action tests for the client program on the native target"
 
-  cd {{SOURCE}}/../../op-e2e/actions/proofs && GITHUB_ACTIONS=false gotestsum --format=short-verbose -- -count=1 -timeout 60m -run "{{test_name}}" {{args}}
+  cd {{SOURCE}}/../../op-e2e/actions/proofs
+
+  # Set parallel to the number of cores available if {{parallel}} is not greater than 0
+  if [ {{parallel}} -gt 0 ]; then
+    export PARALLEL={{parallel}}
+  else
+    export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+  fi
+
+  echo "Running tests with $PARALLEL cores"
+
+  # CircleCI parallelism
+  if [ -n "$CIRCLE_NODE_TOTAL" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
+  	echo "Setting up test directories..."
+    mkdir -p ./tmp/test-results ./tmp/testlogs
+
+    export NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
+    export NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
+    go test -list '^{{test_name}}' > /tmp/tests.txt
+    circleci tests split --split-by=name /tmp/tests.txt > /tmp/tests_shard.txt
+
+    echo "Node $NODE_INDEX/$NODE_TOTAL running tests: $(cat /tmp/tests_shard.txt)"
+    xargs -n 1 -I {} gotestsum --format=testname \
+      --junitfile=./tmp/test-results/results-$NODE_INDEX.xml \
+      --jsonfile=./tmp/testlogs/log-$NODE_INDEX.json \
+      -- -count=1 -parallel=$PARALLEL -coverprofile=coverage-$NODE_INDEX.out -timeout=60m -run '^{}$' \
+      < /tmp/tests_shard.txt
+
+    exit 0
+  fi
+
+  gotestsum --format=testname \
+    --junitfile=./tmp/test-results/results.xml \
+    --jsonfile=./tmp/testlogs/log.json \
+    -- -count=1 -parallel=$PARALLEL -coverprofile=coverage.out -timeout=60m -run "{{test_name}}"
 
 # Run action tests for the interop client program on the native target
 action-tests-interop test_name='TestInteropFaultProofs' *args='':
