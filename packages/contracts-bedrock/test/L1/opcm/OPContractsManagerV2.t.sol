@@ -1183,40 +1183,18 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         internal
         returns (IOPContractsManagerV2.ChainContracts memory cts_)
     {
-        // Set up the deploy config.
-        IOPContractsManagerV2.FullConfig memory deployConfig;
-        deployConfig.saltMixer = string(abi.encodePacked("migrate-test-", _l2ChainId));
-        deployConfig.superchainConfig = superchainConfig;
-        deployConfig.proxyAdminOwner = makeAddr("migrateProxyAdminOwner");
-        deployConfig.systemConfigOwner = makeAddr("migrateSystemConfigOwner");
-        deployConfig.unsafeBlockSigner = makeAddr("migrateUnsafeBlockSigner");
-        deployConfig.batcher = makeAddr("migrateBatcher");
-        deployConfig.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(hex"1234")), l2SequenceNumber: 123 });
-        deployConfig.startingRespectedGameType = GameTypes.PERMISSIONED_CANNON;
-        deployConfig.basefeeScalar = 1368;
-        deployConfig.blobBasefeeScalar = 801949;
-        deployConfig.gasLimit = 60_000_000;
-        deployConfig.l2ChainId = _l2ChainId;
-        deployConfig.resourceConfig = IResourceMetering.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            minimumBaseFee: 1 gwei,
-            systemTxMaxGas: 1_000_000,
-            maximumBaseFee: type(uint128).max
-        });
-
-        // Set up dispute game configs.
+        // Set up dispute game configs first since they're needed for the struct literal.
         address initialChallenger = permissionedGameChallenger(disputeGameFactory);
         address initialProposer = permissionedGameProposer(disputeGameFactory);
-        deployConfig.disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](3);
-        deployConfig.disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+        IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
+            new IOPContractsManagerUtils.DisputeGameConfig[](3);
+        dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0.08 ether,
             gameType: GameTypes.CANNON,
             gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
         });
-        deployConfig.disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+        dgConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0.08 ether,
             gameType: GameTypes.PERMISSIONED_CANNON,
@@ -1228,11 +1206,37 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
                 })
             )
         });
-        deployConfig.disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+        dgConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0.08 ether,
             gameType: GameTypes.CANNON_KONA,
             gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+        });
+
+        // Set up the deploy config using struct literal for compile-time field checking.
+        IOPContractsManagerV2.FullConfig memory deployConfig = IOPContractsManagerV2.FullConfig({
+            saltMixer: string(abi.encodePacked("migrate-test-", _l2ChainId)),
+            superchainConfig: superchainConfig,
+            proxyAdminOwner: makeAddr("migrateProxyAdminOwner"),
+            systemConfigOwner: makeAddr("migrateSystemConfigOwner"),
+            unsafeBlockSigner: makeAddr("migrateUnsafeBlockSigner"),
+            batcher: makeAddr("migrateBatcher"),
+            startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(hex"1234")), l2SequenceNumber: 123 }),
+            startingRespectedGameType: GameTypes.PERMISSIONED_CANNON,
+            basefeeScalar: 1368,
+            blobBasefeeScalar: 801949,
+            gasLimit: 60_000_000,
+            l2ChainId: _l2ChainId,
+            resourceConfig: IResourceMetering.ResourceConfig({
+                maxResourceLimit: 20_000_000,
+                elasticityMultiplier: 10,
+                baseFeeMaxChangeDenominator: 8,
+                minimumBaseFee: 1 gwei,
+                systemTxMaxGas: 1_000_000,
+                maximumBaseFee: type(uint128).max
+            }),
+            disputeGameConfigs: dgConfigs,
+            useCustomGasToken: false
         });
 
         // Deploy the chain.
