@@ -12,9 +12,8 @@ library MIPS64State {
         uint64 hi;
     }
 
-    struct Features {
-        bool supportWorkingSysGetRandom;
-    }
+    // struct Features {
+    // }
 
     function assertExitedIsValid(uint32 _exited) internal pure {
         if (_exited > 1) {
@@ -22,9 +21,7 @@ library MIPS64State {
         }
     }
 
-    function featuresForVersion(uint256 _version) internal pure returns (Features memory features_) {
-        if (_version >= 8) {
-            features_.supportWorkingSysGetRandom = true;
-        }
-    }
+    // function featuresForVersion(uint256 _version) internal pure returns (Features memory features_) {
+    //     // Set feature toggles based on the state version here.
+    // }
 }
