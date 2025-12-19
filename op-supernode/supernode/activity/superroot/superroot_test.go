@@ -100,12 +100,12 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 	out, err := api.AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
 	require.Len(t, out.CurrentL1Derived, 2)
-	require.Len(t, out.Data[0].UnverifiedAtTimestamp, 2)
+	require.Len(t, out.Data.UnverifiedAtTimestamp, 2)
 	// min values
 	require.Equal(t, uint64(2000), out.CurrentL1.Number)
-	require.Equal(t, uint64(1100), out.Data[0].VerifiedRequiredL1.Number)
+	require.Equal(t, uint64(1100), out.Data.VerifiedRequiredL1.Number)
 	// With zero outputs, the superroot will be deterministic, just ensure it's set
-	_ = out.Data[0].SuperRoot
+	_ = out.Data.SuperRoot
 }
 
 func TestSuperroot_AtTimestamp_ComputesSuperRoot(t *testing.T) {
@@ -142,7 +142,7 @@ func TestSuperroot_AtTimestamp_ComputesSuperRoot(t *testing.T) {
 		{ChainID: eth.ChainIDFromUInt64(420), Output: out2},
 	}
 	expected := eth.SuperRoot(eth.NewSuperV1(ts, chainOutputs...))
-	require.Equal(t, expected, resp.Data[0].SuperRoot)
+	require.Equal(t, expected, resp.Data.SuperRoot)
 }
 
 func TestSuperroot_AtTimestamp_ErrorOnCurrentL1(t *testing.T) {
@@ -182,7 +182,7 @@ func TestSuperroot_AtTimestamp_NotFoundErrorOnVerifiedAt(t *testing.T) {
 	api := &superrootAPI{s: s}
 	response, err := api.AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
-	require.Nil(t, response.Data[0])
+	require.Nil(t, response.Data)
 }
 
 func TestSuperroot_AtTimestamp_ErrorOnOutputRoot(t *testing.T) {
@@ -222,7 +222,7 @@ func TestSuperroot_AtTimestamp_EmptyChains(t *testing.T) {
 	out, err := api.AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
 	require.Len(t, out.CurrentL1Derived, 0)
-	require.Len(t, out.Data[0].UnverifiedAtTimestamp, 0)
+	require.Len(t, out.Data.UnverifiedAtTimestamp, 0)
 }
 
 // assertErr returns a generic error instance used to signal mock failures.

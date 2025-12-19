@@ -16,7 +16,7 @@ import (
 
 type SuperNodeRootProvider interface {
 	// TODO: If AtTimestampResponse is being reused it should be put in op-service
-	SuperRootAtTimestamps(ctx context.Context, timestamp ...uint64) (superroot.AtTimestampResponse, error)
+	SuperRootAtTimestamp(ctx context.Context, timestamp uint64) (superroot.AtTimestampResponse, error)
 }
 
 type SuperNodeTraceProvider struct {
@@ -50,7 +50,7 @@ func (s *SuperNodeTraceProvider) Get(ctx context.Context, pos types.Position) (c
 }
 
 func (s *SuperNodeTraceProvider) getPreimageBytesAtTimestampBoundary(ctx context.Context, timestamp uint64) ([]byte, error) {
-	root, err := s.rootProvider.SuperRootAtTimestamps(ctx, timestamp)
+	root, err := s.rootProvider.SuperRootAtTimestamp(ctx, timestamp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve super root at timestamp %v: %w", timestamp, err)
 	}
@@ -58,17 +58,14 @@ func (s *SuperNodeTraceProvider) getPreimageBytesAtTimestampBoundary(ctx context
 		// Node has not processed the game's L1 head so it is not safe to play until it syncs further.
 		return nil, client.ErrNotInSync
 	}
-	if len(root.Data) != 1 {
-		return nil, fmt.Errorf("unexpected number of super roots at timestamp %v: %d", timestamp, len(root.Data))
-	}
-	if root.Data[0] == nil {
+	if root.Data == nil {
 		// No block at this timestamp so it must be invalid
 		return InvalidTransition, nil
 	}
-	if root.Data[0].VerifiedRequiredL1.Number > s.l1Head.Number {
+	if root.Data.VerifiedRequiredL1.Number > s.l1Head.Number {
 		return InvalidTransition, nil
 	}
-	return root.Data[0].Super.Marshal(), nil
+	return root.Data.Super.Marshal(), nil
 }
 
 func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types.Position) ([]byte, error) {
@@ -81,48 +78,50 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 	if step == 0 {
 		return s.getPreimageBytesAtTimestampBoundary(ctx, timestamp)
 	}
-
-	nextTimestamp := timestamp + 1
-	response, err := s.rootProvider.SuperRootAtTimestamps(ctx, timestamp, nextTimestamp)
+	// Fetch the super root at the next timestamp since we are part way through the transition to it
+	prevRoot, err := s.rootProvider.SuperRootAtTimestamp(ctx, timestamp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve super roots at timestamps %v and %v: %w", timestamp, timestamp+1, err)
+		return nil, fmt.Errorf("failed to retrieve previous super root at timestamp %v: %w", timestamp, err)
 	}
-	if response.CurrentL1.Number < s.l1Head.Number {
+	if prevRoot.CurrentL1.Number < s.l1Head.Number {
 		return nil, client.ErrNotInSync
 	}
-	if len(response.Data) != 2 {
-		return nil, fmt.Errorf("unexpected number of super roots at timestamps %v and %v: %d", timestamp, timestamp+1, len(response.Data))
-	}
-	prevRoot := response.Data[0]
-	nextRoot := response.Data[1]
-
-	if prevRoot == nil {
+	if prevRoot.Data == nil {
+		// No block at this timestamp so it must be invalid
 		return InvalidTransition, nil
 	}
-	if prevRoot.VerifiedRequiredL1.Number > s.l1Head.Number {
+	if prevRoot.Data.VerifiedRequiredL1.Number > s.l1Head.Number {
 		// The previous root was not safe at the game L1 head so we must have already transitioned to the invalid hash
 		// prior to this step and it then repeats forever.
 		return InvalidTransition, nil
 	}
-	if nextRoot == nil {
+	nextTimestamp := timestamp + 1
+	nextRoot, err := s.rootProvider.SuperRootAtTimestamp(ctx, nextTimestamp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve next super root at timestamp %v: %w", nextTimestamp, err)
+	}
+	if nextRoot.CurrentL1.Number < s.l1Head.Number {
+		return nil, client.ErrNotInSync
+	}
+	if nextRoot.Data == nil {
 		// No block at this timestamp so it must be invalid
 		return InvalidTransition, nil
 	}
 
-	prevSuper := prevRoot.Super
+	prevSuper := prevRoot.Data.Super
 	expectedState := interopTypes.TransitionState{
 		SuperRoot:       prevSuper.Marshal(),
 		PendingProgress: make([]interopTypes.OptimisticBlock, 0, step),
 		Step:            step,
 	}
-	nextSuperV1, ok := nextRoot.Super.(*eth.SuperV1)
+	nextSuperV1, ok := nextRoot.Data.Super.(*eth.SuperV1)
 	if !ok {
-		return nil, fmt.Errorf("unsupported super root type %T", nextRoot.Super)
+		return nil, fmt.Errorf("unsupported super root type %T", nextRoot.Data.Super)
 	}
 	for i := uint64(0); i < min(step, uint64(len(nextSuperV1.Chains))); i++ {
 		chainInfo := nextSuperV1.Chains[i]
 		// Check if the chain's optimistic root was safe at the game's L1 head
-		optimistic, ok := nextRoot.UnverifiedAtTimestamp[chainInfo.ChainID]
+		optimistic, ok := nextRoot.Data.UnverifiedAtTimestamp[chainInfo.ChainID]
 		if !ok {
 			return nil, fmt.Errorf("no safe head known for chain %v at %v: %w", chainInfo.ChainID, nextTimestamp, err)
 		}
