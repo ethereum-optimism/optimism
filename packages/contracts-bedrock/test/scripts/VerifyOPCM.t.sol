@@ -457,9 +457,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             if (_hasOpcmUtils(field)) {
                 // Mock this specific component to return a different address
                 vm.mockCall(
-                    propRefs[i].addr,
-                    abi.encodeCall(IOPContractsManagerV2.opcmUtils, ()),
-                    abi.encode(differentUtils)
+                    propRefs[i].addr, abi.encodeCall(IOPContractsManagerV2.opcmUtils, ()), abi.encode(differentUtils)
                 );
 
                 // The consistency check should fail
@@ -544,15 +542,18 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     /// @notice Utility function to mock the first OPCM component's opcmUtils address.
     /// @param _propRefs Array of property references to search through.
     /// @param _mockAddress The address to mock the opcmUtils call to return.
-    function _mockFirstOpcmUtilsComponent(VerifyOPCM.OpcmContractRef[] memory _propRefs, address _mockAddress) internal {
+    function _mockFirstOpcmUtilsComponent(
+        VerifyOPCM.OpcmContractRef[] memory _propRefs,
+        address _mockAddress
+    )
+        internal
+    {
         for (uint256 i = 0; i < _propRefs.length; i++) {
             string memory field = _propRefs[i].field;
             // Check if this is an OPCM component that has opcmUtils()
             if (_hasOpcmUtils(field)) {
                 vm.mockCall(
-                    _propRefs[i].addr,
-                    abi.encodeCall(IOPContractsManagerV2.opcmUtils, ()),
-                    abi.encode(_mockAddress)
+                    _propRefs[i].addr, abi.encodeCall(IOPContractsManagerV2.opcmUtils, ()), abi.encode(_mockAddress)
                 );
                 return;
             }
