@@ -73,7 +73,6 @@ var Commands = cli.Commands{
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
 		Action: UpgradeCLI(v410.DefaultUpgrader),
 	},
-	// TODO: Add v5.0.0 test case
 	&cli.Command{
 		Name:  "v5.0.0",
 		Usage: "upgrades a chain to version v5.0.0 (U17)",
