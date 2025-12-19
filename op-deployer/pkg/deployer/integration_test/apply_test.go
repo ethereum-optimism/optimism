@@ -807,7 +807,7 @@ func TestIntentConfiguration(t *testing.T) {
 func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.StatDirFs, implementationsConfig bootstrap.ImplementationsConfig) {
 	lgr := implementationsConfig.Logger
 
-	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
 	superchainProxyAdminOwner := implementationsConfig.L1ProxyAdminOwner
