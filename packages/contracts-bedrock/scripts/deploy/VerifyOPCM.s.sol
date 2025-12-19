@@ -45,6 +45,9 @@ contract VerifyOPCM is Script {
     /// @notice Thrown when contractsContainer addresses are not the same across all OPCM components.
     error VerifyOPCM_ContractsContainerMismatch();
 
+    /// @notice Thrown when opcmUtils addresses are not the same across all OPCM components that have it.
+    error VerifyOPCM_OpcmUtilsMismatch();
+
     /// @notice Thrown when the creation bytecode is not found in an artifact file.
     error VerifyOPCM_CreationBytecodeNotFound(string _artifactPath);
 
@@ -457,7 +460,7 @@ contract VerifyOPCM is Script {
 
             if (utilsAddr == address(0)) {
                 console.log(string.concat("ERROR: Failed to retrieve opcmUtils address from ", propRef.field));
-                revert VerifyOPCM_ContractsContainerMismatch();
+                revert VerifyOPCM_OpcmUtilsMismatch();
             }
 
             utilsAddresses[componentCount] = utilsAddr;
@@ -469,7 +472,7 @@ contract VerifyOPCM is Script {
                 for (uint256 j = 0; j <= componentCount; j++) {
                     console.log(string.concat("  ", components[j].field, ": ", vm.toString(utilsAddresses[j])));
                 }
-                revert VerifyOPCM_ContractsContainerMismatch();
+                revert VerifyOPCM_OpcmUtilsMismatch();
             }
 
             componentCount++;

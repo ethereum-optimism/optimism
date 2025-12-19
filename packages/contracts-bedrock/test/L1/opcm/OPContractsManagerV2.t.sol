@@ -1268,7 +1268,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 
         input_ = IOPContractsManagerMigrator.MigrateInput({
             chainSystemConfigs: chainSystemConfigs,
-            extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0),
             disputeGameConfigs: disputeGameConfigs,
             startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(hex"ABBA")), l2SequenceNumber: 1234 }),
             startingRespectedGameType: GameTypes.SUPER_PERMISSIONED_CANNON

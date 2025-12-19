@@ -433,7 +433,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         _mockFirstOpcmUtilsComponent(propRefs, differentUtils);
 
         // Now the consistency check should fail.
-        vm.expectRevert(VerifyOPCM.VerifyOPCM_ContractsContainerMismatch.selector);
+        vm.expectRevert(VerifyOPCM.VerifyOPCM_OpcmUtilsMismatch.selector);
         harness.verifyOpcmUtilsConsistency(propRefs);
     }
 
@@ -461,7 +461,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
                 );
 
                 // The consistency check should fail
-                vm.expectRevert(VerifyOPCM.VerifyOPCM_ContractsContainerMismatch.selector);
+                vm.expectRevert(VerifyOPCM.VerifyOPCM_OpcmUtilsMismatch.selector);
                 harness.verifyOpcmUtilsConsistency(propRefs);
 
                 // Clear the mock for next iteration

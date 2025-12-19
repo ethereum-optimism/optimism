@@ -32,7 +32,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///         and shared dispute game contracts.
     struct MigrateInput {
         ISystemConfig[] chainSystemConfigs;
-        IOPContractsManagerUtils.ExtraInstruction[] extraInstructions;
         IOPContractsManagerUtils.DisputeGameConfig[] disputeGameConfigs;
         Proposal startingAnchorRoot;
         GameType startingRespectedGameType;
