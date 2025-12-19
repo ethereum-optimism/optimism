@@ -99,15 +99,14 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		}
 	}
 
-	// Build super root from collected outputs
-	superV1 := eth.NewSuperV1(timestamp, chainOutputs...)
-	superRoot := eth.SuperRoot(superV1)
-
 	response := eth.SuperRootAtTimestampResponse{
 		CurrentL1:             minCurrentL1,
 		OptimisticAtTimestamp: optimistic,
 	}
 	if !notFound {
+		// Build super root from collected outputs
+		superV1 := eth.NewSuperV1(timestamp, chainOutputs...)
+		superRoot := eth.SuperRoot(superV1)
 		response.Data = &eth.SuperRootResponseData{
 			VerifiedRequiredL1: minVerifiedRequiredL1,
 			Super:              superV1,
