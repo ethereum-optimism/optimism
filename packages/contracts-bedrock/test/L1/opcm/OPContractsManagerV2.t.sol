@@ -1331,63 +1331,73 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         assertEq(_dgf.gameArgs(_gameType), hex"", string.concat("Game args should be empty: ", _label));
     }
 
-    /// @notice Tests that the migration function succeeds.
+    /// @notice Tests that the migration function succeeds and liquidity is migrated.
     function test_migrate_succeeds() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
 
-        // Grab the existing DisputeGameFactory for each chain.
-        IDisputeGameFactory oldDisputeGameFactory1 =
-            IDisputeGameFactory(payable(chainContracts1.systemConfig.disputeGameFactory()));
-        IDisputeGameFactory oldDisputeGameFactory2 =
-            IDisputeGameFactory(payable(chainContracts2.systemConfig.disputeGameFactory()));
+        // Pre-migration setup: Get old lockboxes and fund them.
+        IETHLockbox oldLockbox1;
+        IETHLockbox oldLockbox2;
+        uint256 lockbox1Balance = 10 ether;
+        uint256 lockbox2Balance = 5 ether;
+        {
+            IOptimismPortal2 oldPortal1 = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
+            IOptimismPortal2 oldPortal2 = IOptimismPortal2(payable(chainContracts2.systemConfig.optimismPortal()));
+            oldLockbox1 = oldPortal1.ethLockbox();
+            oldLockbox2 = oldPortal2.ethLockbox();
+            vm.deal(address(oldLockbox1), lockbox1Balance);
+            vm.deal(address(oldLockbox2), lockbox2Balance);
+        }
+
+        // Pre-migration: Get old DisputeGameFactories.
+        IDisputeGameFactory oldDGF1 = IDisputeGameFactory(payable(chainContracts1.systemConfig.disputeGameFactory()));
+        IDisputeGameFactory oldDGF2 = IDisputeGameFactory(payable(chainContracts2.systemConfig.disputeGameFactory()));
 
         // Execute the migration.
         _doMigration(input);
 
         // Assert that the old game implementations are now zeroed out.
-        _assertOldGamesZeroed(oldDisputeGameFactory1);
-        _assertOldGamesZeroed(oldDisputeGameFactory2);
+        _assertOldGamesZeroed(oldDGF1);
+        _assertOldGamesZeroed(oldDGF2);
 
         // Grab the two OptimismPortal addresses.
-        IOptimismPortal2 optimismPortal1 = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
-        IOptimismPortal2 optimismPortal2 = IOptimismPortal2(payable(chainContracts2.systemConfig.optimismPortal()));
+        IOptimismPortal2 portal1 = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
+        IOptimismPortal2 portal2 = IOptimismPortal2(payable(chainContracts2.systemConfig.optimismPortal()));
 
         // Grab the AnchorStateRegistry from the OptimismPortal for both chains, confirm same.
         assertEq(
-            address(optimismPortal1.anchorStateRegistry()),
-            address(optimismPortal2.anchorStateRegistry()),
+            address(portal1.anchorStateRegistry()),
+            address(portal2.anchorStateRegistry()),
             "AnchorStateRegistry mismatch"
         );
 
         // Extract the AnchorStateRegistry now that we know it's the same on both chains.
-        IAnchorStateRegistry asr = optimismPortal1.anchorStateRegistry();
+        IAnchorStateRegistry asr = portal1.anchorStateRegistry();
 
         // Check that the starting anchor root is the same as the input.
-        (Hash root, uint256 l2SequenceNumber) = asr.getAnchorRoot();
-        assertEq(root.raw(), input.startingAnchorRoot.root.raw(), "Starting anchor root mismatch");
-        assertEq(
-            l2SequenceNumber,
-            input.startingAnchorRoot.l2SequenceNumber,
-            "Starting anchor root L2 sequence number mismatch"
-        );
+        {
+            (Hash root, uint256 l2SeqNum) = asr.getAnchorRoot();
+            assertEq(root.raw(), input.startingAnchorRoot.root.raw(), "Starting anchor root mismatch");
+            assertEq(l2SeqNum, input.startingAnchorRoot.l2SequenceNumber, "Starting anchor root L2 seq num mismatch");
+        }
 
         // Grab the ETHLockbox from the OptimismPortal for both chains, confirm same.
-        assertEq(address(optimismPortal1.ethLockbox()), address(optimismPortal2.ethLockbox()), "ETHLockbox mismatch");
+        assertEq(address(portal1.ethLockbox()), address(portal2.ethLockbox()), "ETHLockbox mismatch");
 
-        // Extract the ETHLockbox now that we know it's the same on both chains.
-        IETHLockbox ethLockbox = optimismPortal1.ethLockbox();
+        // Extract the new ETHLockbox now that we know it's the same on both chains.
+        IETHLockbox newLockbox = portal1.ethLockbox();
 
         // Check that the ETHLockbox has authorized portals.
-        assertTrue(ethLockbox.authorizedPortals(optimismPortal1), "ETHLockbox does not have portal 1 authorized");
-        assertTrue(ethLockbox.authorizedPortals(optimismPortal2), "ETHLockbox does not have portal 2 authorized");
+        assertTrue(newLockbox.authorizedPortals(portal1), "ETHLockbox does not have portal 1 authorized");
+        assertTrue(newLockbox.authorizedPortals(portal2), "ETHLockbox does not have portal 2 authorized");
 
         // Check that superRootsActive is true on both portals.
         assertTrue(
-            IOptimismPortalInterop(payable(address(optimismPortal1))).superRootsActive(),
+            IOptimismPortalInterop(payable(address(portal1))).superRootsActive(),
             "Portal 1 superRootsActive should be true"
         );
         assertTrue(
-            IOptimismPortalInterop(payable(address(optimismPortal2))).superRootsActive(),
+            IOptimismPortalInterop(payable(address(portal2))).superRootsActive(),
             "Portal 2 superRootsActive should be true"
         );
 
@@ -1402,28 +1412,47 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         );
 
         // Check that the init bonds are set correctly on the new DisputeGameFactory.
-        IDisputeGameFactory newDGF = IDisputeGameFactory(asr.disputeGameFactory());
         assertEq(
-            newDGF.initBonds(GameTypes.SUPER_PERMISSIONED_CANNON),
+            IDisputeGameFactory(asr.disputeGameFactory()).initBonds(GameTypes.SUPER_PERMISSIONED_CANNON),
             0.08 ether,
             "SUPER_PERMISSIONED_CANNON init bond mismatch"
         );
+
+        // Check that liquidity was migrated from old lockboxes to the new shared lockbox.
+        assertEq(address(oldLockbox1).balance, 0, "Old lockbox 1 should have 0 balance after migration");
+        assertEq(address(oldLockbox2).balance, 0, "Old lockbox 2 should have 0 balance after migration");
+        assertEq(
+            address(newLockbox).balance,
+            lockbox1Balance + lockbox2Balance,
+            "New lockbox should have combined balance from both old lockboxes"
+        );
+
+        // Check that the old lockboxes are authorized on the new lockbox.
+        assertTrue(newLockbox.authorizedLockboxes(oldLockbox1), "Old lockbox 1 should be authorized on new lockbox");
+        assertTrue(newLockbox.authorizedLockboxes(oldLockbox2), "Old lockbox 2 should be authorized on new lockbox");
     }
 
     /// @notice Tests that the migration function reverts when the ProxyAdmin owners are mismatched.
-    function test_migrate_mismatchedProxyAdminOwners_reverts() public {
+    /// @param _owner1 The owner address for the first chain's ProxyAdmin.
+    /// @param _owner2 The owner address for the second chain's ProxyAdmin.
+    function testFuzz_migrate_mismatchedProxyAdminOwners_reverts(address _owner1, address _owner2) public {
+        vm.assume(_owner1 != _owner2);
+        assumeNotPrecompile(_owner1);
+        assumeNotPrecompile(_owner2);
+        assumeNotForgeAddress(_owner1);
+        assumeNotForgeAddress(_owner2);
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
 
         // Mock out the owners of the ProxyAdmins to be different.
         vm.mockCall(
             address(input.chainSystemConfigs[0].proxyAdmin()),
             abi.encodeCall(IProxyAdmin.owner, ()),
-            abi.encode(address(1234))
+            abi.encode(_owner1)
         );
         vm.mockCall(
             address(input.chainSystemConfigs[1].proxyAdmin()),
             abi.encodeCall(IProxyAdmin.owner, ()),
-            abi.encode(address(5678))
+            abi.encode(_owner2)
         );
 
         // Execute the migration, expect revert.
@@ -1431,19 +1460,26 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     }
 
     /// @notice Tests that the migration function reverts when the SuperchainConfig addresses are mismatched.
-    function test_migrate_mismatchedSuperchainConfig_reverts() public {
+    /// @param _config1 The SuperchainConfig address for the first chain.
+    /// @param _config2 The SuperchainConfig address for the second chain.
+    function testFuzz_migrate_mismatchedSuperchainConfig_reverts(address _config1, address _config2) public {
+        vm.assume(_config1 != _config2);
+        assumeNotPrecompile(_config1);
+        assumeNotPrecompile(_config2);
+        assumeNotForgeAddress(_config1);
+        assumeNotForgeAddress(_config2);
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
 
         // Mock out the SuperchainConfig addresses to be different.
         vm.mockCall(
             address(input.chainSystemConfigs[0]),
             abi.encodeCall(ISystemConfig.superchainConfig, ()),
-            abi.encode(address(1234))
+            abi.encode(_config1)
         );
         vm.mockCall(
             address(input.chainSystemConfigs[1]),
             abi.encodeCall(ISystemConfig.superchainConfig, ()),
-            abi.encode(address(5678))
+            abi.encode(_config2)
         );
 
         // Execute the migration, expect revert.
@@ -1451,11 +1487,16 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     }
 
     /// @notice Tests that the migration function reverts when the starting respected game type is invalid.
-    function test_migrate_invalidStartingRespectedGameType_reverts() public {
+    /// @param _gameTypeRaw The raw game type value to test.
+    function testFuzz_migrate_invalidStartingRespectedGameType_reverts(uint32 _gameTypeRaw) public {
+        // Only SUPER_CANNON (4) and SUPER_PERMISSIONED_CANNON (5) are valid for migration.
+        vm.assume(_gameTypeRaw != GameTypes.SUPER_CANNON.raw());
+        vm.assume(_gameTypeRaw != GameTypes.SUPER_PERMISSIONED_CANNON.raw());
+
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
 
-        // Set an invalid starting respected game type (not SUPER_CANNON or SUPER_PERMISSIONED_CANNON).
-        input.startingRespectedGameType = GameTypes.CANNON;
+        // Set an invalid starting respected game type.
+        input.startingRespectedGameType = GameType.wrap(_gameTypeRaw);
 
         // Execute the migration, expect revert.
         _doMigration(

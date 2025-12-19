@@ -203,9 +203,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
 
             // Migrate each portal to the new ETHLockbox and AnchorStateRegistry.
             for (uint256 i = 0; i < _input.chainSystemConfigs.length; i++) {
-                _migratePortal(
-                    _input.chainSystemConfigs[i], impls.optimismPortalInteropImpl, ethLockbox, anchorStateRegistry
-                );
+                _migratePortal(_input.chainSystemConfigs[i], ethLockbox, anchorStateRegistry);
             }
         }
 
@@ -222,31 +220,19 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
 
     /// @notice Migrates a single portal to the new ETHLockbox and AnchorStateRegistry.
     /// @param _systemConfig The system config for the chain being migrated.
-    /// @param _portalImpl The new OptimismPortalInterop implementation address.
     /// @param _newLockbox The new ETHLockbox.
     /// @param _newASR The new AnchorStateRegistry.
     function _migratePortal(
         ISystemConfig _systemConfig,
-        address _portalImpl,
         IETHLockbox _newLockbox,
         IAnchorStateRegistry _newASR
     )
         internal
     {
-        // Convert portal to interop portal interface, and grab existing ETHLockbox, ASR, and DGF.
+        // Convert portal to interop portal interface, and grab existing ETHLockbox and DGF.
         IOptimismPortalInterop portal = IOptimismPortalInterop(payable(_systemConfig.optimismPortal()));
         IETHLockbox existingLockbox = IETHLockbox(payable(address(portal.ethLockbox())));
-        IAnchorStateRegistry existingASR = portal.anchorStateRegistry();
         IDisputeGameFactory existingDGF = IDisputeGameFactory(payable(address(portal.disputeGameFactory())));
-
-        // Upgrade the portal to the interop implementation. Pass the EXISTING anchor state
-        // registry and eth lockbox to initialize so we don't change them yet.
-        _upgrade(
-            _systemConfig.proxyAdmin(),
-            address(portal),
-            _portalImpl,
-            abi.encodeCall(IOptimismPortalInterop.initialize, (_systemConfig, existingASR, existingLockbox))
-        );
 
         // Authorize the portal on the new ETHLockbox.
         _newLockbox.authorizePortal(IOptimismPortal(payable(address(portal))));
@@ -274,6 +260,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
 
         // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
         // This also sets superRootsActive = true.
+        // NOTE: This requires the portal to already be upgraded to the interop version
+        // (OptimismPortalInterop). If the portal is not on the interop version, this call will
+        // fail.
         portal.migrateToSuperRoots(_newLockbox, _newASR);
     }
 }
