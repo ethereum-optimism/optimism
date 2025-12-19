@@ -31,5 +31,5 @@ type SuperRootAtTimestampResponse struct {
 
 	// Data provides information about the super root at the requested timestamp if present. If block data at the
 	// requested timestamp is not present, the data will be nil.
-	Data *SuperRootResponseData
+	Data *SuperRootResponseData `json:"data,omitempty"`
 }
