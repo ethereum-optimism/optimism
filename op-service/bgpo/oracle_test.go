@@ -413,24 +413,26 @@ func TestExtractBlobFeeCaps(t *testing.T) {
 	})
 
 	t.Run("extract_from_blob_transactions", func(t *testing.T) {
-		baseFee := big.NewInt(1)     // 1 wei
-		blobFeeCap := big.NewInt(30) // 30 wei
-		gasFeeCap := big.NewInt(30)  // 30 wei
+		baseFee := big.NewInt(2)      // 2 wei
+		blobFeeCap := big.NewInt(300) // 300 wei
+		gasFeeCap := big.NewInt(300)  // 300 wei
 		block := rpcBlock{
 			Number: hexutil.Uint64(600),
 			Hash:   common.Hash{}.Bytes(),
 			Transactions: []*types.Transaction{
-				createBlobTx(big.NewInt(3), gasFeeCap, blobFeeCap),
-				createBlobTx(big.NewInt(4), gasFeeCap, blobFeeCap),
-				createBlobTx(big.NewInt(40), gasFeeCap, blobFeeCap),
+				createBlobTx(big.NewInt(7), gasFeeCap, blobFeeCap),
+				createBlobTx(big.NewInt(8), gasFeeCap, blobFeeCap),
+				createBlobTx(big.NewInt(9), gasFeeCap, blobFeeCap),
+				createBlobTx(big.NewInt(400), gasFeeCap, blobFeeCap),
 			},
 		}
 
 		tips := oracle.extractTipsForBlobTxs(block, baseFee)
-		require.Len(t, tips, 3)
-		require.Equal(t, big.NewInt(3), tips[0])
-		require.Equal(t, big.NewInt(4), tips[1])
-		require.Equal(t, big.NewInt(29), tips[2])
+		require.Len(t, tips, 4)
+		require.Equal(t, big.NewInt(7), tips[0])
+		require.Equal(t, big.NewInt(8), tips[1])
+		require.Equal(t, big.NewInt(9), tips[2])
+		require.Equal(t, big.NewInt(298), tips[3]) // gasFeeCap - baseFee; limited to gasFeeCap, even though the blob tip cap is 400 wei
 	})
 
 	t.Run("extract ignores non-blob transactions", func(t *testing.T) {
