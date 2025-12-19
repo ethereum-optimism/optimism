@@ -2154,11 +2154,6 @@ jobs:
       # Build kona-node for the acceptance tests. This automatically gets kona from the cache.
       - rust-build:
           directory: kona
-          binary: "kona-node"
-          profile: "release"
-      - rust-build:
-          directory: kona
-          binary: "kona-supervisor"
           profile: "release"
       - run:
           name: Configure Rust binary paths (sysgo)
