@@ -299,23 +299,16 @@ mod test {
     use super::*;
 
     use crate::engine;
+    use alloy_op_hardforks::BASE_SEPOLIA_JOVIAN_TIMESTAMP;
     use alloy_primitives::{b64, Address, B256, B64};
     use alloy_rpc_types_engine::PayloadAttributes;
-    use reth_chainspec::{ChainSpec, ForkCondition, Hardfork};
+    use reth_chainspec::ChainSpec;
     use reth_optimism_chainspec::{OpChainSpec, BASE_SEPOLIA};
-    use reth_optimism_forks::OpHardfork;
     use reth_provider::noop::NoopProvider;
     use reth_trie_common::KeccakKeyHasher;
 
-    const JOVIAN_TIMESTAMP: u64 = 1744909000;
-
     fn get_chainspec() -> Arc<OpChainSpec> {
-        let mut base_sepolia_spec = BASE_SEPOLIA.inner.clone();
-
-        // TODO: Remove this once we know the Jovian timestamp
-        base_sepolia_spec
-            .hardforks
-            .insert(OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(JOVIAN_TIMESTAMP));
+        let base_sepolia_spec = BASE_SEPOLIA.inner.clone();
 
         Arc::new(OpChainSpec {
             inner: ChainSpec {
@@ -427,7 +420,8 @@ mod test {
     fn test_well_formed_attributes_jovian_valid() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
-        let attributes = get_attributes(Some(b64!("0000000000000000")), Some(1), JOVIAN_TIMESTAMP);
+        let attributes =
+            get_attributes(Some(b64!("0000000000000000")), Some(1), BASE_SEPOLIA_JOVIAN_TIMESTAMP);
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -442,7 +436,7 @@ mod test {
     fn test_malformed_attributes_jovian_with_eip_1559_params_none() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
-        let attributes = get_attributes(None, Some(1), JOVIAN_TIMESTAMP);
+        let attributes = get_attributes(None, Some(1), BASE_SEPOLIA_JOVIAN_TIMESTAMP);
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -472,7 +466,8 @@ mod test {
     fn test_malformed_attributes_post_jovian_with_min_base_fee_none() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
-        let attributes = get_attributes(Some(b64!("0000000000000000")), None, JOVIAN_TIMESTAMP);
+        let attributes =
+            get_attributes(Some(b64!("0000000000000000")), None, BASE_SEPOLIA_JOVIAN_TIMESTAMP);
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,

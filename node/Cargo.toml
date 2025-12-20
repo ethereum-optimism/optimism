@@ -83,6 +83,7 @@ reth-rpc-eth-types.workspace = true
 reth-stages-types.workspace = true
 
 alloy-network.workspace = true
+alloy-op-hardforks.workspace = true
 futures.workspace = true
 op-alloy-network.workspace = true
 
