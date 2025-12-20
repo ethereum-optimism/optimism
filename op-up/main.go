@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -42,6 +43,8 @@ const asciiArt = ` ____  ____        _     ____
 | / \||  \/|_____ | | |||  \/|
 | \_/||  __/\____\| \_/||  __/
 \____/\_/         \____/\_/`
+
+const maxRPCRequestBytes int64 = 1 << 20 // 1 MiB cap to avoid OOM on oversized requests
 
 var (
 	Version     = "v0.0.0"
@@ -248,9 +251,15 @@ func proxyEL(stderr io.Writer, client client.RPC) error {
 			return
 		}
 
+		r.Body = http.MaxBytesReader(w, r.Body, maxRPCRequestBytes)
 		// Read the entire request body.
 		requestBody, err := io.ReadAll(r.Body)
 		if err != nil {
+			var maxErr *http.MaxBytesError
+			if errors.As(err, &maxErr) {
+				http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+				return
+			}
 			http.Error(w, "Failed to read request body", http.StatusInternalServerError)
 			return
 		}
