@@ -117,41 +117,65 @@ func (e *extraHost) dialStaticPeer(ctx context.Context, addr *peer.AddrInfo) err
 	return nil
 }
 
-func (e *extraHost) monitorStaticPeers() {
-	tick := time.NewTicker(time.Minute)
-	defer tick.Stop()
+func (e *extraHost) monitorSingleStaticPeer(addr *peer.AddrInfo) {
+	
+	backoff := time.Second * 2
+	maxBackoff := time.Minute
+
+	e.log.Info("started individual monitor for static peer", "peer", addr.ID)
 
 	for {
 		select {
-		case <-tick.C:
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-			var wg sync.WaitGroup
-
-			e.log.Debug("polling static peers", "peers", len(e.staticPeers))
-			for _, addr := range e.staticPeers {
-				connectedness := e.Network().Connectedness(addr.ID)
-				e.log.Trace("static peer connectedness", "peer", addr.ID, "connectedness", connectedness)
-
-				if connectedness == network.Connected {
-					continue
-				}
-
-				wg.Add(1)
-				go func(addr *peer.AddrInfo) {
-					e.log.Warn("static peer disconnected, reconnecting", "peer", addr.ID)
-					if err := e.dialStaticPeer(ctx, addr); err != nil {
-						e.log.Warn("error reconnecting to static peer", "peer", addr.ID, "err", err)
-					}
-					wg.Done()
-				}(addr)
-			}
-
-			wg.Wait()
-			cancel()
 		case <-e.quitC:
 			return
+		default:
+			
+			if e.Network().Connectedness(addr.ID) == network.Connected {
+				backoff = time.Second * 2 // Сброс при успехе
+				
+				select {
+				case <-time.After(time.Second * 30):
+					continue
+				case <-e.quitC:
+					return
+				}
+			}
+
+			
+			e.log.Warn("static peer disconnected, attempting reconnect", 
+				"peer", addr.ID, 
+				"next_retry_in", backoff)
+			
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+			err := e.dialStaticPeer(ctx, addr)
+			cancel()
+
+			if err != nil {
+				e.log.Debug("reconnect failed", "peer", addr.ID, "err", err)
+				
+				select {
+				case <-time.After(backoff):
+					backoff *= 2
+					if backoff > maxBackoff {
+						backoff = maxBackoff
+					}
+				case <-e.quitC:
+					return
+				}
+			} else {
+				e.log.Info("successfully reconnected to static peer", "peer", addr.ID)
+				backoff = time.Second * 2
+			}
 		}
 	}
+}
+
+func (e *extraHost) monitorStaticPeers() {
+	for _, addr := range e.staticPeers {
+		go e.monitorSingleStaticPeer(addr)
+	}
+
+	<-e.quitC
 }
 
 var _ ExtraHostFeatures = (*extraHost)(nil)
