@@ -293,7 +293,7 @@ func applyOverrides(ctx cliiface.Context, rollupConfig *rollup.Config) {
 
 func NewL1ChainConfig(chainId *big.Int, ctx cliiface.Context, log log.Logger) (*params.ChainConfig, error) {
 	if chainId == nil {
-		panic("l1 chain id is nil")
+		return nil, fmt.Errorf("l1 chain id is nil")
 	}
 
 	if cfg := eth.L1ChainConfigByChainID(eth.ChainIDFromBig(chainId)); cfg != nil {

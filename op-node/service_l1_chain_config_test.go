@@ -117,12 +117,13 @@ func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 		require.Equal(t, custom.ChainID, cfg.ChainID)
 	})
 
-	t.Run("nil-chainid-panics", func(t *testing.T) {
+	t.Run("nil-chainid-errors", func(t *testing.T) {
 		app := cli.NewApp()
 		ctx := cli.NewContext(app, nil, nil)
-		require.Panics(t, func() {
-			_, _ = NewL1ChainConfig(nil, ctx, logger)
-		})
+
+		_, err := NewL1ChainConfig(nil, ctx, logger)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "l1 chain id is nil")
 	})
 
 	t.Run("nil-blob-schedule-config-returns-error", func(t *testing.T) {
