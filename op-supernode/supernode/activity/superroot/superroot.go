@@ -66,7 +66,7 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		verifiedL2, verifiedL1, err := chain.VerifiedAt(ctx, timestamp)
 		if errors.Is(err, ethereum.NotFound) {
 			notFound = true
-			continue // To allow other chains to be populate unverified blocks
+			continue // To allow other chains to populate unverified blocks
 		} else if err != nil {
 			s.log.Warn("failed to get verified block", "chain_id", chainID.String(), "err", err)
 			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to get verified block: %w", err)
