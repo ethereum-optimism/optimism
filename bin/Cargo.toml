@@ -30,6 +30,7 @@ workspace = true
 default = ["jemalloc", "otlp", "reth-optimism-evm/portable", "js-tracer", "keccak-cache-global", "asm-keccak"]
 
 otlp = ["reth-optimism-cli/otlp"]
+samply = ["reth-optimism-cli/samply"]
 
 js-tracer = [
     "reth-optimism-node/js-tracer",
