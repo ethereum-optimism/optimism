@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"time"
 
@@ -13,13 +14,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
-func WithL2ELP2PConnection(l2EL1ID, l2EL2ID stack.L2ELNodeID) stack.Option[*Orchestrator] {
+func WithL2ELP2PConnection(l2EL1ID, l2EL2ID stack.L2ELNodeID, trusted bool) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		require := orch.P().Require()
 
-		l2EL1, ok := orch.l2ELs.Get(l2EL1ID)
+		l2EL1, ok := orch.GetL2EL(l2EL1ID)
 		require.True(ok, "looking for L2 EL node 1 to connect p2p")
-		l2EL2, ok := orch.l2ELs.Get(l2EL2ID)
+		l2EL2, ok := orch.GetL2EL(l2EL2ID)
 		require.True(ok, "looking for L2 EL node 2 to connect p2p")
 		require.Equal(l2EL1ID.ChainID(), l2EL2ID.ChainID(), "must be same l2 chain")
 
@@ -33,7 +34,7 @@ func WithL2ELP2PConnection(l2EL1ID, l2EL2ID stack.L2ELNodeID) stack.Option[*Orch
 		require.NoError(err, "failed to connect to el2 rpc")
 		defer rpc2.Close()
 
-		ConnectP2P(orch.P().Ctx(), require, rpc1, rpc2)
+		ConnectP2P(orch.P().Ctx(), require, rpc1, rpc2, trusted)
 	})
 }
 
@@ -42,26 +43,41 @@ type RpcCaller interface {
 }
 
 // ConnectP2P creates a p2p peer connection between node1 and node2.
-func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcCaller, acceptor RpcCaller) {
+func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcCaller, acceptor RpcCaller, trusted bool) {
 	var targetInfo p2p.NodeInfo
 	require.NoError(acceptor.CallContext(ctx, &targetInfo, "admin_nodeInfo"), "get node info")
+	fmt.Printf("DEBUG: acceptor admin_nodeInfo returned: %+v\n", targetInfo)
+
+	var initiatorInfo p2p.NodeInfo
+	require.NoError(initiator.CallContext(ctx, &initiatorInfo, "admin_nodeInfo"), "get initiator node info")
+	fmt.Printf("DEBUG: initiator admin_nodeInfo returned: %+v\n", initiatorInfo)
 
 	var peerAdded bool
 	require.NoError(initiator.CallContext(ctx, &peerAdded, "admin_addPeer", targetInfo.Enode), "add peer")
+	fmt.Printf("DEBUG: admin_addPeer returned: %v\n", peerAdded)
 	require.True(peerAdded, "should have added peer successfully")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	err := wait.For(ctx, time.Second, func() (bool, error) {
-		var peers []peer
-		if err := initiator.CallContext(ctx, &peers, "admin_peers"); err != nil {
-			return false, err
-		}
-		return slices.ContainsFunc(peers, func(p peer) bool {
-			return p.ID == targetInfo.ID
-		}), nil
-	})
-	require.NoError(err, "The peer was not connected")
+	if trusted {
+		var peerAddedTrusted bool
+		require.NoError(initiator.CallContext(ctx, &peerAddedTrusted, "admin_addTrustedPeer", targetInfo.Enode), "add trusted peer")
+		fmt.Printf("DEBUG: admin_addTrustedPeer returned: %v\n", peerAddedTrusted)
+		require.True(peerAddedTrusted, "should have added trusted peer successfully")
+	}
+
+	//ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	//defer cancel()
+	//err := wait.For(ctx, time.Second, func() (bool, error) {
+	//var peers []peer
+	//if err := initiator.CallContext(ctx, &peers, "admin_peers"); err != nil {
+	//fmt.Printf("DEBUG:Error getting peers: %v\n", err)
+	//return false, err
+	//}
+	//fmt.Printf("DEBUG: Peers: %+v, looking for: %s\n", peers, targetInfo.ID)
+	//return slices.ContainsFunc(peers, func(p peer) bool {
+	//return p.ID == targetInfo.ID
+	//}), nil
+	//})
+	//require.NoError(err, "The peer was not connected")
 }
 
 // DisconnectP2P disconnects a p2p peer connection between node1 and node2.

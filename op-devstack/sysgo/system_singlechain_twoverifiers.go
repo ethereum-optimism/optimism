@@ -53,11 +53,11 @@ func DefaultSingleChainTwoVerifiersFollowL2System(dest *DefaultSingleChainTwoVer
 	opt.Add(WithL2CLNodeFollowL2(ids.L2CLC, ids.L1CL, ids.L1EL, ids.L2ELC, ids.L2CLB))
 
 	opt.Add(WithL2CLP2PConnection(ids.L2CL, ids.L2CLB))
-	opt.Add(WithL2ELP2PConnection(ids.L2EL, ids.L2ELB))
+	opt.Add(WithL2ELP2PConnection(ids.L2EL, ids.L2ELB, false))
 	opt.Add(WithL2CLP2PConnection(ids.L2CL, ids.L2CLC))
-	opt.Add(WithL2ELP2PConnection(ids.L2EL, ids.L2ELC))
+	opt.Add(WithL2ELP2PConnection(ids.L2EL, ids.L2ELC, false))
 	opt.Add(WithL2CLP2PConnection(ids.L2CLB, ids.L2CLC))
-	opt.Add(WithL2ELP2PConnection(ids.L2ELB, ids.L2ELC))
+	opt.Add(WithL2ELP2PConnection(ids.L2ELB, ids.L2ELC, false))
 
 	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
 	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))

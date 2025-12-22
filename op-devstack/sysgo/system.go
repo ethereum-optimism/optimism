@@ -602,7 +602,7 @@ func NewDefaultSingleChainSystemWithFlashblocksIDs(l1ID, l2ID eth.ChainID) Singl
 		L2:            stack.L2NetworkID(l2ID),
 		L2CL:          stack.NewL2CLNodeID("sequencer", l2ID),
 		L2EL:          stack.NewL2ELNodeID("sequencer", l2ID),
-		L2Builder:     stack.NewOPRBuilderNodeID("sequencer", l2ID),
+		L2Builder:     stack.NewOPRBuilderNodeID("sequencer-builder", l2ID),
 		L2RollupBoost: stack.NewRollupBoostNodeID("rollup-boost", l2ID),
 		L2Batcher:     stack.NewL2BatcherID("main", l2ID),
 		L2Proposer:    stack.NewL2ProposerID("main", l2ID),
@@ -620,8 +620,8 @@ func DefaultSingleChainSystemWithFlashblocks(dest *SingleChainSystemWithFlashblo
 func singleChainSystemWithFlashblocksOpts(ids *SingleChainSystemWithFlashblocksIDs, dest *SingleChainSystemWithFlashblocksIDs) stack.CombinedOption[*Orchestrator] {
 	opt := stack.Combine[*Orchestrator]()
 	// Precompute deterministic P2P identity and peering between sequencer EL and op-rbuilder EL.
-	seqID := NewELNodeIdentity("127.0.0.1", 0)
-	builderID := NewELNodeIdentity("127.0.0.1", 0) // allocate dynamic port for builder
+	seqID := NewELNodeIdentity(0)
+	builderID := NewELNodeIdentity(0) // allocate dynamic port for builder
 
 	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
 		o.P().Logger().Info("Setting up")
@@ -639,8 +639,12 @@ func singleChainSystemWithFlashblocksOpts(ids *SingleChainSystemWithFlashblocksI
 
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
 
-	opt.Add(WithL2ELNode(ids.L2EL, L2ELWithP2PConfig("127.0.0.1", seqID.Port, seqID.KeyHex(), []string{builderID.Enode}, nil)))
-	opt.Add(WithOPRBuilderNode(ids.L2Builder, OPRBuilderWithNodeIdentity(builderID, "127.0.0.1", []string{seqID.Enode}, []string{seqID.Enode})))
+	opt.Add(WithL2ELNode(ids.L2EL, L2ELWithP2PConfig("127.0.0.1", seqID.Port, seqID.KeyHex(), nil, nil)))
+	opt.Add(WithOPRBuilderNode(ids.L2Builder, OPRBuilderWithNodeIdentity(builderID, "127.0.0.1", nil, nil)))
+	// Sequencer adds builder as regular static peer (not trusted)
+	opt.Add(WithL2ELP2PConnection(ids.L2EL, stack.L2ELNodeID(ids.L2Builder), false))
+	// Builder adds sequencer as trusted peer
+	opt.Add(WithL2ELP2PConnection(stack.L2ELNodeID(ids.L2Builder), ids.L2EL, true))
 	opt.Add(WithRollupBoost(ids.L2RollupBoost, ids.L2EL, RollupBoostWithBuilderNode(ids.L2Builder)))
 
 	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, stack.L2ELNodeID(ids.L2RollupBoost), L2CLSequencer()))
