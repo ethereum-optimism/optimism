@@ -52,7 +52,7 @@ func (c contractVersion) String() string {
 }
 
 func (c contractVersion) IsSuperGame() bool {
-	return c.gameType == gameTypes.SuperCannonGameType || c.gameType == gameTypes.SuperPermissionedGameType || c.gameType == gameTypes.SuperAsteriscKonaGameType
+	return c.gameType == gameTypes.SuperCannonGameType || c.gameType == gameTypes.SuperPermissionedGameType
 }
 
 const (

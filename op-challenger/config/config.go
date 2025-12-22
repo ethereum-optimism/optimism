@@ -353,18 +353,6 @@ func (c Config) Check() error {
 			return err
 		}
 	}
-	if c.GameTypeEnabled(gameTypes.SuperAsteriscKonaGameType) {
-		if c.SupervisorRPC == "" {
-			return ErrMissingSupervisorRpc
-		}
-
-		if len(c.AsteriscKona.Networks) == 0 && c.AsteriscKona.DepsetConfigPath == "" {
-			return ErrMissingDepsetConfig
-		}
-		if err := c.validateBaseAsteriscKonaOptions(); err != nil {
-			return err
-		}
-	}
 	if c.GameTypeEnabled(gameTypes.OptimisticZKGameType) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc

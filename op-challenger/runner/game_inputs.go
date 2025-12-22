@@ -18,7 +18,7 @@ import (
 
 func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources.RollupClient, supervisorClient *sources.SupervisorClient, typeName string, gameType gameTypes.GameType) (utils.LocalGameInputs, error) {
 	switch gameType {
-	case gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType, gameTypes.SuperAsteriscKonaGameType, gameTypes.SuperCannonKonaGameType:
+	case gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType, gameTypes.SuperCannonKonaGameType:
 		if supervisorClient == nil {
 			return utils.LocalGameInputs{}, fmt.Errorf("game type %s requires supervisor rpc to be set", gameType)
 		}

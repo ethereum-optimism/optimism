@@ -44,7 +44,6 @@ var (
 		gameTypes.AsteriscKonaGameType,
 		gameTypes.SuperCannonGameType,
 		gameTypes.SuperCannonKonaGameType,
-		gameTypes.SuperAsteriscKonaGameType,
 	}
 	// Required Flags
 	L1EthRpcFlag = &cli.StringFlag{
@@ -526,30 +525,6 @@ func CheckAsteriscKonaFlags(ctx *cli.Context) error {
 	return nil
 }
 
-func CheckSuperAsteriscKonaFlags(ctx *cli.Context) error {
-	if !ctx.IsSet(SupervisorRpcFlag.Name) {
-		return fmt.Errorf("flag %v is required", SupervisorRpcFlag.Name)
-	}
-	if !ctx.IsSet(flags.NetworkFlagName) &&
-		!(RollupConfigFlag.IsSet(ctx, gameTypes.AsteriscKonaGameType) && L2GenesisFlag.IsSet(ctx, gameTypes.AsteriscKonaGameType) && DepsetConfigFlag.IsSet(ctx, gameTypes.AsteriscKonaGameType)) {
-		return fmt.Errorf("flag %v or %v, %v and %v is required",
-			flags.NetworkFlagName,
-			RollupConfigFlag.EitherFlagName(gameTypes.AsteriscKonaGameType),
-			L2GenesisFlag.EitherFlagName(gameTypes.AsteriscKonaGameType),
-			DepsetConfigFlag.EitherFlagName(gameTypes.AsteriscKonaGameType))
-	}
-	if err := CheckAsteriscBaseFlags(ctx, gameTypes.AsteriscKonaGameType); err != nil {
-		return err
-	}
-	if !ctx.IsSet(AsteriscKonaServerFlag.Name) {
-		return fmt.Errorf("flag %s is required", AsteriscKonaServerFlag.Name)
-	}
-	if !PreStatesURLFlag.IsSet(ctx, gameTypes.AsteriscKonaGameType) && !ctx.IsSet(AsteriscKonaPreStateFlag.Name) {
-		return fmt.Errorf("flag %s or %s is required", PreStatesURLFlag.EitherFlagName(gameTypes.AsteriscKonaGameType), AsteriscKonaPreStateFlag.Name)
-	}
-	return nil
-}
-
 func CheckRequired(ctx *cli.Context, types []gameTypes.GameType) error {
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {
@@ -583,10 +558,6 @@ func CheckRequired(ctx *cli.Context, types []gameTypes.GameType) error {
 			}
 		case gameTypes.SuperCannonKonaGameType:
 			if err := CheckSuperCannonKonaFlags(ctx); err != nil {
-				return err
-			}
-		case gameTypes.SuperAsteriscKonaGameType:
-			if err := CheckSuperAsteriscKonaFlags(ctx); err != nil {
 				return err
 			}
 		case gameTypes.OptimisticZKGameType, gameTypes.AlphabetGameType, gameTypes.FastGameType:

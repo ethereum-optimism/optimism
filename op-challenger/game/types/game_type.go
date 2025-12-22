@@ -18,14 +18,14 @@ const (
 	SuperCannonGameType       GameType = 4
 	SuperPermissionedGameType GameType = 5
 	OPSuccinctGameType        GameType = 6 // Not supported by op-challenger
-	SuperAsteriscKonaGameType GameType = 7
-	CannonKonaGameType        GameType = 8
-	SuperCannonKonaGameType   GameType = 9
-	OptimisticZKGameType      GameType = 10
-	FastGameType              GameType = 254
-	AlphabetGameType          GameType = 255
-	KailuaGameType            GameType = 1337           // Not supported by op-challenger
-	UnknownGameType           GameType = math.MaxUint32 // Not supported by op-challenger
+	// 7 was originally reserved for SuperAsteriscKona game type but never released.
+	CannonKonaGameType      GameType = 8
+	SuperCannonKonaGameType GameType = 9
+	OptimisticZKGameType    GameType = 10
+	FastGameType            GameType = 254
+	AlphabetGameType        GameType = 255
+	KailuaGameType          GameType = 1337           // Not supported by op-challenger
+	UnknownGameType         GameType = math.MaxUint32 // Not supported by op-challenger
 )
 
 // SupportedGameTypes is the list of game types that are supported by op-challenger.
@@ -41,7 +41,6 @@ var SupportedGameTypes = []GameType{
 	SuperCannonGameType,
 	SuperCannonKonaGameType,
 	SuperPermissionedGameType,
-	SuperAsteriscKonaGameType,
 	OptimisticZKGameType,
 }
 
@@ -89,8 +88,6 @@ func (g GameType) String() string {
 		return "super-permissioned"
 	case OPSuccinctGameType:
 		return "op-succinct"
-	case SuperAsteriscKonaGameType:
-		return "super-asterisc-kona"
 	case CannonKonaGameType:
 		return "cannon-kona"
 	case SuperCannonKonaGameType:

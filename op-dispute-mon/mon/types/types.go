@@ -29,7 +29,6 @@ var outputRootGameTypes = []types.GameType{
 var superRootGameTypes = []types.GameType{
 	types.SuperCannonGameType,
 	types.SuperPermissionedGameType,
-	types.SuperAsteriscKonaGameType,
 	types.SuperCannonKonaGameType,
 }
 

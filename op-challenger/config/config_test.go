@@ -56,7 +56,6 @@ var allCannonGameTypes []gameTypes.GameType
 var cannonKonaGameTypes = []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType}
 var asteriscGameTypes = []gameTypes.GameType{gameTypes.AsteriscGameType}
 var asteriscKonaGameTypes = []gameTypes.GameType{gameTypes.AsteriscKonaGameType}
-var superAsteriscKonaGameTypes = []gameTypes.GameType{gameTypes.SuperAsteriscKonaGameType}
 
 func init() {
 	allCannonGameTypes = append(allCannonGameTypes, singleCannonGameTypes...)
@@ -145,11 +144,6 @@ func applyValidConfigForSuperCannonKona(t *testing.T, cfg *Config) {
 	applyValidConfigForCannonKona(t, cfg)
 }
 
-func applyValidConfigForSuperAsteriscKona(t *testing.T, cfg *Config) {
-	cfg.SupervisorRPC = validSupervisorRpc
-	applyValidConfigForAsteriscKona(t, cfg)
-}
-
 func applyValidConfigForOptimisticZK(cfg *Config) {
 	cfg.RollupRpc = validRollupRpc
 }
@@ -173,9 +167,6 @@ func validConfig(t *testing.T, gameType gameTypes.GameType) Config {
 	}
 	if gameType == gameTypes.AsteriscKonaGameType {
 		applyValidConfigForAsteriscKona(t, &cfg)
-	}
-	if gameType == gameTypes.SuperAsteriscKonaGameType {
-		applyValidConfigForSuperAsteriscKona(t, &cfg)
 	}
 	if gameType == gameTypes.OptimisticZKGameType {
 		applyValidConfigForOptimisticZK(&cfg)
@@ -518,18 +509,6 @@ func TestDepsetConfig(t *testing.T) {
 		})
 	}
 
-	for _, gameType := range superAsteriscKonaGameTypes {
-		gameType := gameType
-		t.Run(fmt.Sprintf("TestAsteriscNetworkOrDepsetConfigRequired-%v", gameType), func(t *testing.T) {
-			cfg := validConfig(t, gameType)
-			cfg.AsteriscKona.Networks = nil
-			cfg.AsteriscKona.RollupConfigPaths = []string{"foo.json"}
-			cfg.AsteriscKona.L2GenesisPaths = []string{"genesis.json"}
-			cfg.AsteriscKona.DepsetConfigPath = ""
-			require.ErrorIs(t, cfg.Check(), ErrMissingDepsetConfig)
-		})
-	}
-
 	for _, gameType := range singleCannonGameTypes {
 		gameType := gameType
 		t.Run(fmt.Sprintf("TestDepsetConfigNotRequired-%v", gameType), func(t *testing.T) {
@@ -810,7 +789,7 @@ func TestHttpPollInterval(t *testing.T) {
 func TestRollupRpcRequired(t *testing.T) {
 	for _, gameType := range gameTypes.SupportedGameTypes {
 		gameType := gameType
-		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperAsteriscKonaGameType || gameType == gameTypes.SuperCannonKonaGameType {
+		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
 			continue
 		}
 		t.Run(gameType.String(), func(t *testing.T) {
@@ -839,18 +818,12 @@ func TestRollupRpcNotRequiredForInterop(t *testing.T) {
 		config.RollupRpc = ""
 		require.NoError(t, config.Check())
 	})
-
-	t.Run("SuperAsteriscKona", func(t *testing.T) {
-		config := validConfig(t, gameTypes.SuperAsteriscKonaGameType)
-		config.RollupRpc = ""
-		require.NoError(t, config.Check())
-	})
 }
 
 func TestSupervisorRpc(t *testing.T) {
 	for _, gameType := range gameTypes.SupportedGameTypes {
 		gameType := gameType
-		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperAsteriscKonaGameType || gameType == gameTypes.SuperCannonKonaGameType {
+		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
 			t.Run("RequiredFor"+gameType.String(), func(t *testing.T) {
 				config := validConfig(t, gameType)
 				config.SupervisorRPC = ""

@@ -66,15 +66,6 @@ func createTraceProvider(
 		}
 		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
 		return asterisc.NewTraceProvider(logger, m, cfg.AsteriscKona, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
-	case gameTypes.SuperAsteriscKonaGameType:
-		serverExecutor := vm.NewKonaSuperExecutor()
-		stateConverter := asterisc.NewStateConverter(cfg.AsteriscKona)
-		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.AsteriscKonaAbsolutePreStateBaseURL, cfg.AsteriscKonaAbsolutePreState, dir, stateConverter)
-		if err != nil {
-			return nil, err
-		}
-		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
-		return asterisc.NewTraceProvider(logger, m, cfg.AsteriscKona, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
 	}
 	return nil, errors.New("invalid game type")
 }

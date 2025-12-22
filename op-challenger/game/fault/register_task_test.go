@@ -76,7 +76,7 @@ func TestRegisterOracle_AddsOracle(t *testing.T) {
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			for _, gameType := range []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.SuperCannonGameType, gameTypes.SuperAsteriscKonaGameType} {
+			for _, gameType := range []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.SuperCannonGameType, gameTypes.SuperCannonKonaGameType} {
 				t.Run(fmt.Sprintf("%v", gameType), func(t *testing.T) {
 					gameFactoryAddr := common.Address{0xaa}
 					gameImplAddr := common.Address{0xbb}
@@ -86,7 +86,7 @@ func TestRegisterOracle_AddsOracle(t *testing.T) {
 					rpc.SetResponse(gameFactoryAddr, "version", rpcblock.Latest, nil, []interface{}{testCase.version})
 					if gameType == gameTypes.CannonGameType {
 						rpc.AddContract(gameImplAddr, snapshots.LoadFaultDisputeGameABI())
-					} else if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperAsteriscKonaGameType {
+					} else if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperCannonKonaGameType {
 						rpc.AddContract(gameImplAddr, snapshots.LoadSuperFaultDisputeGameABI())
 					} else {
 						t.Fatalf("game type %v not supported", gameType)
