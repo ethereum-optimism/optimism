@@ -72,9 +72,6 @@ func RegisterGameTypes(
 		if err != nil {
 			return err
 		}
-		if superNodeProvider != nil {
-			panic("Should be nil 1")
-		}
 		registerTasks = append(registerTasks, NewSuperCannonRegisterTask(gameTypes.SuperCannonGameType, cfg, m, vm.NewOpProgramServerExecutor(logger), rootProvider, superNodeProvider, syncValidator))
 	}
 	if cfg.GameTypeEnabled(gameTypes.SuperCannonKonaGameType) {

@@ -53,9 +53,6 @@ type RegisterTask struct {
 }
 
 func NewSuperCannonRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider *sources.SupervisorClient, superNodeProvider *sources.SuperNodeClient, syncValidator gameTypes.SyncValidator) *RegisterTask {
-	if superNodeProvider != nil {
-		panic("Should be nil 2")
-	}
 	return newSuperCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, rootProvider, superNodeProvider, syncValidator, cfg.Cannon, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState)
 }
 
@@ -75,9 +72,6 @@ func newSuperCannonVMRegisterTaskWithConfig(
 	preStateBaseURL *url.URL,
 	preState string,
 ) *RegisterTask {
-	if superNodeProvider != nil {
-		panic("Should be nil 3")
-	}
 	stateConverter := cannon.NewStateConverter(vmCfg)
 	return &RegisterTask{
 		gameType:               gameType,
