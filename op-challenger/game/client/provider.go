@@ -100,8 +100,8 @@ func (c *Provider) SuperchainClients() (*sources.SupervisorClient, *sources.Supe
 	if c.supervisorClient != nil || c.superNodeClient != nil {
 		return c.supervisorClient, c.superNodeClient, c.superSyncValidator, nil
 	}
-	if false {
-		superNodeClient, err := dial.DialSuperNodeClientWithTimeout(c.ctx, c.logger, c.cfg.SupervisorRPC)
+	if c.cfg.UserSuperNode {
+		superNodeClient, err := dial.DialSuperNodeClientWithTimeout(c.ctx, c.logger, c.cfg.SuperRPC)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to dial supernode: %w", err)
 		}
@@ -109,7 +109,7 @@ func (c *Provider) SuperchainClients() (*sources.SupervisorClient, *sources.Supe
 		c.superSyncValidator = &NoopSyncStatusValidator{}
 		c.toClose = append(c.toClose, superNodeClient.Close)
 	} else {
-		supervisorClient, err := dial.DialSupervisorClientWithTimeout(c.ctx, c.logger, c.cfg.SupervisorRPC)
+		supervisorClient, err := dial.DialSupervisorClientWithTimeout(c.ctx, c.logger, c.cfg.SuperRPC)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to dial supervisor: %w", err)
 		}
