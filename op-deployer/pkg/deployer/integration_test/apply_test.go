@@ -51,6 +51,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -174,7 +175,7 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 		devFeature common.Hash
 	}{
 		{"default", common.Hash{}},
-		{"opcm-v2", deployer.OpcmV2DevFlag},
+		{"opcm-v2", deployer.OPCMV2DevFlag},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -222,8 +223,8 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 				FaultGameClockExtension:         standard.DisputeClockExtension,
 				FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
 			}
-			if deployer.IsDevFeatureEnabled(tt.devFeature, deployer.OpcmV2DevFlag) {
-				cfg.DevFeatureBitmap = deployer.OpcmV2DevFlag
+			if deployer.IsDevFeatureEnabled(tt.devFeature, deployer.OPCMV2DevFlag) {
+				cfg.DevFeatureBitmap = deployer.OPCMV2DevFlag
 			}
 
 			runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, cfg)
@@ -861,7 +862,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 		// Then run the OPCM upgrade
 		t.Run("upgrade opcm", func(t *testing.T) {
-			if deployer.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, deployer.OpcmV2DevFlag) {
+			if deployer.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, deployer.OPCMV2DevFlag) {
 				t.Skip("Skipping OPCM upgrade for OPCM V2")
 				return
 			}
@@ -883,7 +884,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 			require.NoError(t, err, "OPCM upgrade should succeed")
 		})
 		t.Run("upgrade opcm v2", func(t *testing.T) {
-			if !deployer.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, deployer.OpcmV2DevFlag) {
+			if !deployer.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, deployer.OPCMV2DevFlag) {
 				t.Skip("Skipping OPCM V2 upgrade for non-OPCM V2 dev feature")
 				return
 			}
@@ -933,6 +934,27 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 			// Then test upgrade on the V2-deployed chain
 			t.Run("upgrade chain v2", func(t *testing.T) {
+				// ABI-encode game args for FaultDisputeGameConfig{absolutePrestate}
+				bytes32Type, err := abi.NewType("bytes32", "", nil)
+				require.NoError(t, err)
+				addressType, err := abi.NewType("address", "", nil)
+				require.NoError(t, err)
+
+				// FaultDisputeGameConfig just needs absolutePrestate (bytes32)
+				testPrestate := common.Hash{'P', 'R', 'E', 'S', 'T', 'A', 'T', 'E'}
+				cannonArgs, err := abi.Arguments{{Type: bytes32Type}}.Pack(testPrestate)
+				require.NoError(t, err)
+
+				// PermissionedDisputeGameConfig needs absolutePrestate, proposer, challenger
+				testProposer := common.Address{'P'}
+				testChallenger := common.Address{'C'}
+				permissionedArgs, err := abi.Arguments{
+					{Type: bytes32Type},
+					{Type: addressType},
+					{Type: addressType},
+				}.Pack(testPrestate, testProposer, testChallenger)
+				require.NoError(t, err)
+
 				upgradeConfig := embedded.UpgradeOPChainInput{
 					Prank: superchainProxyAdminOwner,
 					Opcm:  impls.OpcmV2,
@@ -943,19 +965,19 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 								Enabled:  true,
 								InitBond: big.NewInt(1000000000000000000),
 								GameType: embedded.GameTypeCannon,
-								GameArgs: []byte{},
+								GameArgs: cannonArgs,
 							},
 							{
 								Enabled:  true,
 								InitBond: big.NewInt(1000000000000000000),
 								GameType: embedded.GameTypePermissionedCannon,
-								GameArgs: []byte{},
+								GameArgs: permissionedArgs,
 							},
 							{
 								Enabled:  false,
 								InitBond: big.NewInt(0),
 								GameType: embedded.GameTypeCannonKona,
-								GameArgs: []byte{},
+								GameArgs: []byte{}, // Disabled games don't need args
 							},
 						},
 						ExtraInstructions: []embedded.ExtraInstruction{
