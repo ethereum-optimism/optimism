@@ -7,8 +7,8 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/client"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	types2 "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -311,7 +311,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		}
 		stubSupervisor.Add(response)
 		_, err := provider.Get(context.Background(), types.RootPosition)
-		require.ErrorIs(t, err, client.ErrNotInSync)
+		require.ErrorIs(t, err, types2.ErrNotInSync)
 	})
 
 	t.Run("PreviousSuperRootNotInSync", func(t *testing.T) {
@@ -321,7 +321,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 			ChainIDs:  []eth.ChainID{eth.ChainIDFromUInt64(1), eth.ChainIDFromUInt64(2)},
 		})
 		_, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(1)))
-		require.ErrorIs(t, err, client.ErrNotInSync)
+		require.ErrorIs(t, err, types2.ErrNotInSync)
 	})
 
 	t.Run("NextSuperRootNotInSync", func(t *testing.T) {
@@ -335,7 +335,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 			ChainIDs:  []eth.ChainID{eth.ChainIDFromUInt64(1), eth.ChainIDFromUInt64(2)},
 		})
 		_, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(1)))
-		require.ErrorIs(t, err, client.ErrNotInSync)
+		require.ErrorIs(t, err, types2.ErrNotInSync)
 	})
 }
 
