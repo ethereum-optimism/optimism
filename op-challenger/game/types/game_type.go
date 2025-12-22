@@ -11,21 +11,21 @@ var ErrUnknownGameType = errors.New("unknown game type")
 type GameType uint32
 
 const (
-	CannonGameType       GameType = 0
-	PermissionedGameType GameType = 1
-	// 2 was originally reserved for Asterisc game type but never released.
-	// 3 was originally reserved for AsteriscKona game type but never released.
+	CannonGameType            GameType = 0
+	PermissionedGameType      GameType = 1
+	AsteriscGameType          GameType = 2 // Not supported by op-challenger
+	AsteriscKonaGameType      GameType = 3 // Not supported by op-challenger
 	SuperCannonGameType       GameType = 4
 	SuperPermissionedGameType GameType = 5
 	OPSuccinctGameType        GameType = 6 // Not supported by op-challenger
-	// 7 was originally reserved for SuperAsteriscKona game type but never released.
-	CannonKonaGameType      GameType = 8
-	SuperCannonKonaGameType GameType = 9
-	OptimisticZKGameType    GameType = 10
-	FastGameType            GameType = 254
-	AlphabetGameType        GameType = 255
-	KailuaGameType          GameType = 1337           // Not supported by op-challenger
-	UnknownGameType         GameType = math.MaxUint32 // Not supported by op-challenger
+	SuperAsteriscKonaGameType GameType = 7 // Not supported by op-challenger
+	CannonKonaGameType        GameType = 8
+	SuperCannonKonaGameType   GameType = 9
+	OptimisticZKGameType      GameType = 10
+	FastGameType              GameType = 254
+	AlphabetGameType          GameType = 255
+	KailuaGameType            GameType = 1337           // Not supported by op-challenger
+	UnknownGameType           GameType = math.MaxUint32 // Not supported by op-challenger
 )
 
 // SupportedGameTypes is the list of game types that are supported by op-challenger.
@@ -76,12 +76,18 @@ func (g GameType) String() string {
 		return "cannon"
 	case PermissionedGameType:
 		return "permissioned"
+	case AsteriscGameType:
+		return "asterisc"
+	case AsteriscKonaGameType:
+		return "asterisc-kona"
 	case SuperCannonGameType:
 		return "super-cannon"
 	case SuperPermissionedGameType:
 		return "super-permissioned"
 	case OPSuccinctGameType:
 		return "op-succinct"
+	case SuperAsteriscKonaGameType:
+		return "super-asterisc-kona"
 	case CannonKonaGameType:
 		return "cannon-kona"
 	case SuperCannonKonaGameType:
