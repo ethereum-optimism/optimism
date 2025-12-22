@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
@@ -106,17 +107,15 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 	workDir := runner.GetWorkDir()
 
 	// Test values - using arbitrary addresses for testing
-	l1ProxyAdminOwner := common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2")
-	systemConfigProxy := common.HexToAddress("0x034edD2A225f7f429A63E0f1D2084B9E0A93b538")
+	l1ProxyAdminOwner := deployer.DefaultL1ProxyAdminOwnerSepolia
+	systemConfigProxy := deployer.DefaultSystemConfigProxySepolia
 
 	// Get OPCM V2 address from standard (using Sepolia chain ID for address lookup)
-	opcmV2, err := standard.OPCMImplAddressFor(11155111, standard.ContractsV500Tag)
+	opcmV2, err := standard.OPCMImplAddressFor(deployer.SepoliaChainID, standard.ContractsV500Tag)
 	require.NoError(t, err)
 
-	bytes32Type, err := abi.NewType("bytes32", "", nil)
-	require.NoError(t, err)
-	addressType, err := abi.NewType("address", "", nil)
-	require.NoError(t, err)
+	bytes32Type := deployer.Bytes32Type
+	addressType := deployer.AddressType
 
 	// FaultDisputeGameConfig just needs absolutePrestate (bytes32)
 	testPrestate := common.Hash{'P', 'R', 'E', 'S', 'T', 'A', 'T', 'E'}
