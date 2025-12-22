@@ -11,10 +11,10 @@ var ErrUnknownGameType = errors.New("unknown game type")
 type GameType uint32
 
 const (
-	CannonGameType            GameType = 0
-	PermissionedGameType      GameType = 1
-	AsteriscGameType          GameType = 2
-	AsteriscKonaGameType      GameType = 3
+	CannonGameType       GameType = 0
+	PermissionedGameType GameType = 1
+	// 2 was originally reserved for Asterisc game type but never released.
+	// 3 was originally reserved for AsteriscKona game type but never released.
 	SuperCannonGameType       GameType = 4
 	SuperPermissionedGameType GameType = 5
 	OPSuccinctGameType        GameType = 6 // Not supported by op-challenger
@@ -35,8 +35,6 @@ var SupportedGameTypes = []GameType{
 	CannonGameType,
 	CannonKonaGameType,
 	PermissionedGameType,
-	AsteriscGameType,
-	AsteriscKonaGameType,
 	FastGameType,
 	SuperCannonGameType,
 	SuperCannonKonaGameType,
@@ -78,10 +76,6 @@ func (g GameType) String() string {
 		return "cannon"
 	case PermissionedGameType:
 		return "permissioned"
-	case AsteriscGameType:
-		return "asterisc"
-	case AsteriscKonaGameType:
-		return "asterisc-kona"
 	case SuperCannonGameType:
 		return "super-cannon"
 	case SuperPermissionedGameType:

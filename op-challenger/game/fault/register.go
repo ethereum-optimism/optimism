@@ -95,20 +95,6 @@ func RegisterGameTypes(
 		}
 		registerTasks = append(registerTasks, NewSuperCannonRegisterTask(gameTypes.SuperPermissionedGameType, cfg, m, vm.NewOpProgramServerExecutor(logger), rootProvider, syncValidator))
 	}
-	if cfg.GameTypeEnabled(gameTypes.AsteriscGameType) {
-		l2HeaderSource, rollupClient, syncValidator, err := clients.SingleChainClients()
-		if err != nil {
-			return err
-		}
-		registerTasks = append(registerTasks, NewAsteriscRegisterTask(gameTypes.AsteriscGameType, cfg, m, vm.NewOpProgramServerExecutor(logger), l2HeaderSource, rollupClient, syncValidator))
-	}
-	if cfg.GameTypeEnabled(gameTypes.AsteriscKonaGameType) {
-		l2HeaderSource, rollupClient, syncValidator, err := clients.SingleChainClients()
-		if err != nil {
-			return err
-		}
-		registerTasks = append(registerTasks, NewAsteriscKonaRegisterTask(gameTypes.AsteriscKonaGameType, cfg, m, vm.NewKonaExecutor(), l2HeaderSource, rollupClient, syncValidator))
-	}
 	if cfg.GameTypeEnabled(gameTypes.FastGameType) {
 		l2HeaderSource, rollupClient, syncValidator, err := clients.SingleChainClients()
 		if err != nil {
