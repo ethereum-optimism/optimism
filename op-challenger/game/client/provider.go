@@ -117,5 +117,5 @@ func (c *Provider) SuperchainClients() (*sources.SupervisorClient, *sources.Supe
 		c.superSyncValidator = NewSupervisorSyncValidator(supervisorClient)
 		c.toClose = append(c.toClose, supervisorClient.Close)
 	}
-	return c.supervisorClient, nil, c.superSyncValidator, nil
+	return c.supervisorClient, c.superNodeClient, c.superSyncValidator, nil
 }
