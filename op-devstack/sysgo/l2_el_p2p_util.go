@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -47,6 +48,10 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 	var targetInfo p2p.NodeInfo
 	require.NoError(acceptor.CallContext(ctx, &targetInfo, "admin_nodeInfo"), "get node info")
 	fmt.Printf("DEBUG: acceptor admin_nodeInfo returned: %+v\n", targetInfo)
+	targetNode, err := enode.ParseV4(targetInfo.Enode)
+	require.NoError(err, "failed to parse target node")
+
+	expectedID := targetNode.ID().String()
 
 	var initiatorInfo p2p.NodeInfo
 	require.NoError(initiator.CallContext(ctx, &initiatorInfo, "admin_nodeInfo"), "get initiator node info")
@@ -64,20 +69,20 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 		require.True(peerAddedTrusted, "should have added trusted peer successfully")
 	}
 
-	//ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	//defer cancel()
-	//err := wait.For(ctx, time.Second, func() (bool, error) {
-	//var peers []peer
-	//if err := initiator.CallContext(ctx, &peers, "admin_peers"); err != nil {
-	//fmt.Printf("DEBUG:Error getting peers: %v\n", err)
-	//return false, err
-	//}
-	//fmt.Printf("DEBUG: Peers: %+v, looking for: %s\n", peers, targetInfo.ID)
-	//return slices.ContainsFunc(peers, func(p peer) bool {
-	//return p.ID == targetInfo.ID
-	//}), nil
-	//})
-	//require.NoError(err, "The peer was not connected")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err = wait.For(ctx, time.Second, func() (bool, error) {
+		var peers []peer
+		if err := initiator.CallContext(ctx, &peers, "admin_peers"); err != nil {
+			fmt.Printf("DEBUG:Error getting peers: %v\n", err)
+			return false, err
+		}
+		fmt.Printf("DEBUG: Peers: %+v, looking for: %s\n", peers, targetInfo.ID)
+		return slices.ContainsFunc(peers, func(p peer) bool {
+			return p.ID == expectedID
+		}), nil
+	})
+	require.NoError(err, "The peer was not connected")
 }
 
 // DisconnectP2P disconnects a p2p peer connection between node1 and node2.
