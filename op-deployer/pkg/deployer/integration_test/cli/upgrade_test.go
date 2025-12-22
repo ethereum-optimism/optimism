@@ -59,6 +59,11 @@ func TestCLIUpgrade(t *testing.T) {
 			version:     "v5.0.0",
 			forkBlock:   9629972, // one block past the opcm deployment block
 		},
+		{
+			contractTag: standard.ContractsV600Tag,
+			version:     "v6.0.0-rc.1",
+			forkBlock:   9699895, // one block past the opcm deployment block
+		},
 	}
 
 	for _, tc := range testCases {
@@ -118,8 +123,17 @@ func TestCLIUpgrade(t *testing.T) {
 			require.Len(t, dump, 1)
 			require.Equal(t, l1ProxyAdminOwner.Hex(), dump[0].To.Hex())
 			dataHex := hex.EncodeToString(dump[0].Data)
-			require.True(t, strings.HasPrefix(dataHex, "ff2dd5a1"),
-				"calldata should have opcm.upgrade fcn selector ff2dd5a1, got: %s", dataHex[:8])
+
+			// v6.0.0+ uses a different function signature: upgrade((address,bytes32,bytes32)[])
+			// Older versions use: upgrade((address,address,bytes32)[])
+			var expectedSelector string
+			if tc.version == "v6.0.0-rc.1" {
+				expectedSelector = "cbeda5a7" // upgrade((address,bytes32,bytes32)[])
+			} else {
+				expectedSelector = "ff2dd5a1" // upgrade((address,address,bytes32)[])
+			}
+			require.True(t, strings.HasPrefix(dataHex, expectedSelector),
+				"calldata should have opcm.upgrade fcn selector %s, got: %s", expectedSelector, dataHex[:8])
 		})
 	}
 }
