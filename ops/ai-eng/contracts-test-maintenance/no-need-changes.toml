@@ -39,3 +39,12 @@ recorded_at = "2025-12-18T07:07:01Z"
 devin_session_id = "1e3dcc3f9dae42a79ea72b0b30b2187f"
 run_id = "20251218_070700"
 reason = "Test coverage is already comprehensive. The check function has a fuzz test covering all possible inputs, and the name getter is tested. The contract has no branches, error conditions, or edge cases to add."
+
+[[tests]]
+test_path = "test/universal/StandardBridge.t.sol"
+contract_path = "src/universal/StandardBridge.sol"
+contract_hash = "8d0dd96e494b2ba154587877351e87788336a4ec"
+recorded_at = "2025-12-22T07:08:26Z"
+devin_session_id = "f27067d230bf4a9fa4b4a96f59401a1f"
+run_id = "20251222_070800"
+reason = "Test coverage is already comprehensive. The file tests internal helper functions (_isOptimismMintableERC20, _isCorrectTokenPair) and default paused() behavior. Public bridging functions are tested in concrete implementations (L1StandardBridge.t.sol, L2StandardBridge.t.sol). No fuzz conversion opportunities exist as tests cover discrete token type categories, not value ranges."
