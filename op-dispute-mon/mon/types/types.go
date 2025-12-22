@@ -16,6 +16,8 @@ import (
 var outputRootGameTypes = []types.GameType{
 	types.CannonGameType,
 	types.PermissionedGameType,
+	types.AsteriscGameType,
+	types.AsteriscKonaGameType,
 	types.OPSuccinctGameType,
 	types.CannonKonaGameType,
 	types.OptimisticZKGameType,
@@ -27,6 +29,7 @@ var outputRootGameTypes = []types.GameType{
 var superRootGameTypes = []types.GameType{
 	types.SuperCannonGameType,
 	types.SuperPermissionedGameType,
+	types.SuperAsteriscKonaGameType,
 	types.SuperCannonKonaGameType,
 }
 
