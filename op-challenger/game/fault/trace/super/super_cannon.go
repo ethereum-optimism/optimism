@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -25,8 +26,8 @@ func NewSuperCannonTraceAccessor(
 	cfg vm.Config,
 	serverExecutor vm.OracleServerExecutor,
 	prestateProvider PreimagePrestateProvider,
-	rootProvider RootProvider,
-	superNodeProvider SuperNodeRootProvider,
+	rootProvider *sources.SupervisorClient,
+	superNodeProvider *sources.SuperNodeClient,
 	cannonPrestate string,
 	dir string,
 	l1Head eth.BlockID,

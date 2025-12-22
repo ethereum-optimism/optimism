@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum/go-ethereum/common"
@@ -51,11 +52,14 @@ type RegisterTask struct {
 		poststateBlock uint64) (*trace.Accessor, error)
 }
 
-func NewSuperCannonRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider super.RootProvider, superNodeProvider super.SuperNodeRootProvider, syncValidator gameTypes.SyncValidator) *RegisterTask {
+func NewSuperCannonRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider *sources.SupervisorClient, superNodeProvider *sources.SuperNodeClient, syncValidator gameTypes.SyncValidator) *RegisterTask {
+	if superNodeProvider != nil {
+		panic("Should be nil 2")
+	}
 	return newSuperCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, rootProvider, superNodeProvider, syncValidator, cfg.Cannon, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState)
 }
 
-func NewSuperCannonKonaRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider super.RootProvider, superNodeProvider super.SuperNodeRootProvider, syncValidator gameTypes.SyncValidator) *RegisterTask {
+func NewSuperCannonKonaRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider *sources.SupervisorClient, superNodeProvider *sources.SuperNodeClient, syncValidator gameTypes.SyncValidator) *RegisterTask {
 	return newSuperCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, rootProvider, superNodeProvider, syncValidator, cfg.CannonKona, cfg.CannonKonaAbsolutePreStateBaseURL, cfg.CannonKonaAbsolutePreState)
 }
 
@@ -64,13 +68,16 @@ func newSuperCannonVMRegisterTaskWithConfig(
 	cfg *config.Config,
 	m caching.Metrics,
 	serverExecutor vm.OracleServerExecutor,
-	rootProvider super.RootProvider,
-	superNodeProvider super.SuperNodeRootProvider,
+	rootProvider *sources.SupervisorClient,
+	superNodeProvider *sources.SuperNodeClient,
 	syncValidator gameTypes.SyncValidator,
 	vmCfg vm.Config,
 	preStateBaseURL *url.URL,
 	preState string,
 ) *RegisterTask {
+	if superNodeProvider != nil {
+		panic("Should be nil 3")
+	}
 	stateConverter := cannon.NewStateConverter(vmCfg)
 	return &RegisterTask{
 		gameType:               gameType,
