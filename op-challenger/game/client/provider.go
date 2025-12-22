@@ -100,7 +100,7 @@ func (c *Provider) SuperchainClients() (*sources.SupervisorClient, *sources.Supe
 	if c.supervisorClient != nil || c.superNodeClient != nil {
 		return c.supervisorClient, c.superNodeClient, c.superSyncValidator, nil
 	}
-	if c.cfg.UserSuperNode {
+	if c.cfg.UseSuperNode {
 		superNodeClient, err := dial.DialSuperNodeClientWithTimeout(c.ctx, c.logger, c.cfg.SuperRPC)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to dial supernode: %w", err)
