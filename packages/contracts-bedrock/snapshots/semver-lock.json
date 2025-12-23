@@ -263,10 +263,6 @@
     "initCodeHash": "0x1fd4b84add5c5ed80205cea0bbca9115e98d0efb416d9cedc12ce0cff9919bda",
     "sourceCodeHash": "0xcfbaae5729ca367328ea546bbbe96194341586b2f4bfbd0cfa84acc09324d59b"
   },
-  "src/vendor/asterisc/RISCV.sol:RISCV": {
-    "initCodeHash": "0x4cd639f7da4eaf86a98eb3227fe285c0e8380ff5c79c4745aefed804cef52162",
-    "sourceCodeHash": "0x1d18c55a910212cc7572d2e8673c5f092db8352dda1137739c71df18d4ee1db1"
-  },
   "src/vendor/eas/EAS.sol:EAS": {
     "initCodeHash": "0xbd79d6fff128b3da3e09ead84b805b7540740190488f2791a6b4e5b7aabf9cff",
     "sourceCodeHash": "0x3512c3a1b5871341346f6646a04c0895dd563e9824f2ab7ab965b6a81a41ad2e"
