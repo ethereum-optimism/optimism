@@ -12,16 +12,9 @@ library MIPS64State {
         uint64 hi;
     }
 
-    // struct Features {
-    // }
-
     function assertExitedIsValid(uint32 _exited) internal pure {
         if (_exited > 1) {
             revert InvalidExitedValue();
         }
     }
-
-    // function featuresForVersion(uint256 _version) internal pure returns (Features memory features_) {
-    //     // Set feature toggles based on the state version here.
-    // }
 }
