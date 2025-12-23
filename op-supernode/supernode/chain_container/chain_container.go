@@ -276,6 +276,7 @@ func (c *simpleChainContainer) CurrentL1(ctx context.Context) (eth.BlockRef, err
 }
 
 // VerifiedAt returns the verified L2 and L1 blocks for the given L2 timestamp.
+// Must return ethereum.NotFound if there is no safe block at the specified timestamp.
 func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
 	l2Block, err := c.SafeBlockAtTimestamp(ctx, ts)
 	if err != nil {

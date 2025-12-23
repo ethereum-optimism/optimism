@@ -89,6 +89,8 @@ library GameTypes {
 
     /// @notice A dispute game type that uses RISC Zero's Kailua
     GameType internal constant KAILUA = GameType.wrap(1337);
+
+    GameType internal constant OPTIMISTIC_ZK_GAME_TYPE = GameType.wrap(10);
 }
 
 /// @title VMStatuses
@@ -127,10 +129,8 @@ library LocalPreimageKey {
 }
 
 ////////////////////////////////////////////////////////////////
-//            `OPSuccinctFaultDisputeGame` Types             //
+//               `OptimisticZkGame` Types                   //
 ////////////////////////////////////////////////////////////////
-
-uint32 constant OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE = 42;
 
 /// @notice The public values committed to for an OP Succinct aggregation program.
 struct AggregationOutputs {

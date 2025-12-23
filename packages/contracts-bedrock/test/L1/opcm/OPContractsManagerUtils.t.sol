@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { Test } from "forge-std/Test.sol";
+import { Test } from "test/setup/Test.sol";
 
 // Contracts
 import { OPContractsManagerUtils } from "src/L1/opcm/OPContractsManagerUtils.sol";
@@ -78,11 +78,7 @@ contract OPContractsManagerUtils_TestInit is Test {
             proxy: makeAddr("proxy"),
             proxyAdmin: makeAddr("proxyAdmin"),
             l1ChugSplashProxy: makeAddr("l1ChugSplashProxy"),
-            resolvedDelegateProxy: makeAddr("resolvedDelegateProxy"),
-            permissionedDisputeGame1: makeAddr("permissionedDisputeGame1"),
-            permissionedDisputeGame2: makeAddr("permissionedDisputeGame2"),
-            permissionlessDisputeGame1: makeAddr("permissionlessDisputeGame1"),
-            permissionlessDisputeGame2: makeAddr("permissionlessDisputeGame2")
+            resolvedDelegateProxy: makeAddr("resolvedDelegateProxy")
         });
 
         // Set up implementations - use real StorageSetter, mocks for the rest.
@@ -606,5 +602,67 @@ contract OPContractsManagerUtils_ContractsContainer_Test is OPContractsManagerUt
     /// @notice Tests that contractsContainer() returns the container provided at construction.
     function test_contractsContainer_succeeds() public view {
         assertEq(address(utils.contractsContainer()), address(container));
+    }
+}
+
+/// @title OPContractsManagerUtils_IsMatchingInstruction_Test
+/// @notice Tests the isMatchingInstruction function.
+contract OPContractsManagerUtils_IsMatchingInstruction_Test is OPContractsManagerUtils_TestInit {
+    /// @notice Tests that isMatchingInstruction returns true when the instruction matches the key and data.
+    function testFuzz_isMatchingInstruction_succeeds(OPContractsManagerUtils.ExtraInstruction memory _instruction)
+        public
+        view
+    {
+        assertTrue(utils.isMatchingInstruction(_instruction, _instruction.key, _instruction.data));
+    }
+
+    /// @notice Tests that isMatchingInstruction returns false when the instruction does not match the key.
+    function testFuzz_isMatchingInstruction_notMatchingKey_fails(
+        OPContractsManagerUtils.ExtraInstruction memory _instruction
+    )
+        public
+        view
+    {
+        // Create a key that is not the same as the instruction key.
+        string memory _key = string.concat("not:", _instruction.key);
+
+        assertFalse(utils.isMatchingInstruction(_instruction, _key, _instruction.data));
+    }
+
+    /// @notice Tests that isMatchingInstruction returns false when the instruction does not match the data.
+    function testFuzz_isMatchingInstruction_notMatchingData_fails(
+        OPContractsManagerUtils.ExtraInstruction memory _instruction
+    )
+        public
+        view
+    {
+        // Create a data that is not the same as the instruction data.
+        bytes memory _data = bytes.concat("not:", _instruction.data);
+
+        assertFalse(utils.isMatchingInstruction(_instruction, _instruction.key, _data));
+    }
+}
+
+/// @title OPContractsManagerUtils_IsMatchingInstructionByKey_Test
+/// @notice Tests the isMatchingInstructionByKey function.
+contract OPContractsManagerUtils_IsMatchingInstructionByKey_Test is OPContractsManagerUtils_TestInit {
+    /// @notice Tests that isMatchingInstructionByKey returns true when the instruction matches the key.
+    function testFuzz_isMatchingInstructionByKey_succeeds(OPContractsManagerUtils.ExtraInstruction memory _instruction)
+        public
+        view
+    {
+        assertTrue(utils.isMatchingInstructionByKey(_instruction, _instruction.key));
+    }
+
+    /// @notice Tests that isMatchingInstructionKey returns false when the instruction does not match the key.
+    function testFuzz_isMatchingInstructionByKey_notMatchingKey_fails(
+        OPContractsManagerUtils.ExtraInstruction memory _instruction
+    )
+        public
+        view
+    {
+        // Create a key that is not the same as the instruction key.
+        string memory _key = string.concat("not:", _instruction.key);
+        assertFalse(utils.isMatchingInstructionByKey(_instruction, _key));
     }
 }

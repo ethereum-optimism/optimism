@@ -60,7 +60,6 @@ func TestSetDisputeGameImpl(t *testing.T) {
 
 	input := SetDisputeGameImplInput{
 		Factory:             factoryAddr,
-		UseV2:               len(gameArgs) > 0,
 		Impl:                common.Address{'I'},
 		GameType:            999,
 		AnchorStateRegistry: common.Address{}, // Do not set as respected game type as we aren't authorized

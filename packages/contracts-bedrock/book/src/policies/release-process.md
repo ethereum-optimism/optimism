@@ -4,6 +4,16 @@ This release process applies to all contract release namespaces:
 - `op-contracts/vX.Y.Z`: Core protocol contracts
 - `op-safe-contracts/vX.Y.Z`: Safe multisig extensions
 
+## OPCM Versioning
+
+The OPCM contract uses a specific versioning scheme:
+
+- **Major version bump**: New required sequential upgrade (e.g., U16 → U17 → U18).
+- **Minor version bump**: Replacement OPCM for the same upgrade (e.g., bug fixes, U16a).
+- **Patch version bump**: Development changes on `develop` branch.
+
+See [OPCM Semver Rules](./versioning.md#opcm-semver-rules) for more details.
+
 ## Creating a tagged release
 
 First select a tag string based on the guidance in [Monorepo Contracts Release Versioning](./versioning.md#monorepo-contracts-release-versioning)

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Scripts
-import { Config } from "scripts/libraries/Config.sol";
-
-// Forge
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
 import { VmSafe } from "forge-std/Vm.sol";
 import { StdCheatsSafe } from "forge-std/StdCheats.sol";
+
+// Scripts
+import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";

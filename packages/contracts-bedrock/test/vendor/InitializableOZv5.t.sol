@@ -1,12 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { Test } from "forge-std/Test.sol";
-import { IOptimismSuperchainERC20 } from "interfaces/L2/IOptimismSuperchainERC20.sol";
-import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
+
+// Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
-import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
+
+// Contracts
+import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
+
+// Libraries
 import { Types } from "src/libraries/Types.sol";
+
+// Interfaces
+import { IOptimismSuperchainERC20 } from "interfaces/L2/IOptimismSuperchainERC20.sol";
+import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 
 /// @title InitializerOZv5_Test
 /// @dev Ensures that the `initialize()` function on contracts cannot be called more than

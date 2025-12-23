@@ -2,7 +2,8 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
+import { Test } from "test/setup/Test.sol";
+import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 import { VmSafe } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { FeatureFlags } from "test/setup/FeatureFlags.sol";
@@ -22,6 +23,9 @@ import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
 import { Proposal, GameTypes } from "src/dispute/lib/Types.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Types as LibTypes } from "src/libraries/Types.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 
 // Interfaces
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -279,9 +283,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         // checks. Easier to just expect the error in this case.
         // We add the prefix of OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER because we use validationOverrides.
         if (opChainConfigs[0].cannonPrestate.raw() == bytes32(0)) {
-            if (
-                opChainConfigs[0].cannonKonaPrestate.raw() == bytes32(0) && isDevFeatureEnabled(DevFeatures.CANNON_KONA)
-            ) {
+            if (opChainConfigs[0].cannonKonaPrestate.raw() == bytes32(0)) {
                 vm.expectRevert(
                     "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PDDG-40,PLDG-40,CKDG-10"
                 );
@@ -290,37 +292,22 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
                     "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PDDG-40,PLDG-40"
                 );
             }
-        } else if (
-            opChainConfigs[0].cannonKonaPrestate.raw() == bytes32(0) && isDevFeatureEnabled(DevFeatures.CANNON_KONA)
-        ) {
+        } else if (opChainConfigs[0].cannonKonaPrestate.raw() == bytes32(0)) {
             vm.expectRevert("OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,CKDG-10");
         }
 
         // Run the StandardValidator checks.
-        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            validator.validateWithOverrides(
-                IOPContractsManagerStandardValidator.ValidationInputDev({
-                    sysCfg: opChainConfigs[0].systemConfigProxy,
-                    cannonPrestate: opChainConfigs[0].cannonPrestate.raw(),
-                    cannonKonaPrestate: opChainConfigs[0].cannonKonaPrestate.raw(),
-                    l2ChainID: l2ChainId,
-                    proposer: initialProposer
-                }),
-                false,
-                validationOverrides
-            );
-        } else {
-            validator.validateWithOverrides(
-                IOPContractsManagerStandardValidator.ValidationInput({
-                    sysCfg: opChainConfigs[0].systemConfigProxy,
-                    absolutePrestate: opChainConfigs[0].cannonPrestate.raw(),
-                    l2ChainID: l2ChainId,
-                    proposer: initialProposer
-                }),
-                false,
-                validationOverrides
-            );
-        }
+        validator.validateWithOverrides(
+            IOPContractsManagerStandardValidator.ValidationInputDev({
+                sysCfg: opChainConfigs[0].systemConfigProxy,
+                cannonPrestate: opChainConfigs[0].cannonPrestate.raw(),
+                cannonKonaPrestate: opChainConfigs[0].cannonKonaPrestate.raw(),
+                l2ChainID: l2ChainId,
+                proposer: initialProposer
+            }),
+            false,
+            validationOverrides
+        );
         _runPostUpgradeSmokeTests(_opcm, opChainConfigs[0], initialChallenger, initialProposer);
     }
 
@@ -341,8 +328,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         (, uint256 rootBlockNumber) = optimismPortal2.anchorStateRegistry().getAnchorRoot();
         uint256 l2BlockNumber = rootBlockNumber + 1;
 
-        bool expectCannonKonaGameSet =
-            isDevFeatureEnabled(DevFeatures.CANNON_KONA) && _opChainConfig.cannonKonaPrestate.raw() != bytes32(0);
+        bool expectCannonKonaGameSet = _opChainConfig.cannonKonaPrestate.raw() != bytes32(0);
 
         // Deploy live games and ensure they're configured correctly
         GameType[] memory gameTypes = new GameType[](expectCannonKonaGameSet ? 3 : 2);
@@ -628,28 +614,26 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
         // L2 chain ID call should not revert because this is not a Super game.
         assertEq(newPDG.l2ChainId(), chain1L2ChainId, "l2ChainId should be set correctly");
 
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            // Get the v2 implementation address from OPCM
-            IOPContractsManager.Implementations memory impls = opcm.implementations();
+        // Get the v2 implementation address from OPCM
+        IOPContractsManager.Implementations memory impls = opcm.implementations();
 
-            // Verify v2 implementation is registered in DisputeGameFactory
-            address registeredImpl =
-                address(chainDeployOutput1.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
+        // Verify v2 implementation is registered in DisputeGameFactory
+        address registeredImpl =
+            address(chainDeployOutput1.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
 
-            // Verify implementation address matches permissionedDisputeGameV2Impl
-            assertEq(
-                registeredImpl,
-                address(impls.permissionedDisputeGameV2Impl),
-                "DisputeGameFactory should have v2 PermissionedDisputeGame implementation registered"
-            );
+        // Verify implementation address matches permissionedDisputeGameV2Impl
+        assertEq(
+            registeredImpl,
+            address(impls.permissionedDisputeGameV2Impl),
+            "DisputeGameFactory should have v2 PermissionedDisputeGame implementation registered"
+        );
 
-            // Verify that the returned fault dispute game is the v2 implementation
-            assertEq(
-                address(output.faultDisputeGame),
-                address(impls.permissionedDisputeGameV2Impl),
-                "addGameType should return v2 PermissionedDisputeGame implementation"
-            );
-        }
+        // Verify that the returned fault dispute game is the v2 implementation
+        assertEq(
+            address(output.faultDisputeGame),
+            address(impls.permissionedDisputeGameV2Impl),
+            "addGameType should return v2 PermissionedDisputeGame implementation"
+        );
     }
 
     /// @notice Tests that we can add a FaultDisputeGame implementation with addGameType.
@@ -675,24 +659,22 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
         address registeredImpl = address(chainDeployOutput1.disputeGameFactoryProxy.gameImpls(input.disputeGameType));
         assertNotEq(registeredImpl, address(0), "Implementation should have been set");
 
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            // Get the v2 implementation address from OPCM
-            IOPContractsManager.Implementations memory impls = opcm.implementations();
+        // Get the v2 implementation address from OPCM
+        IOPContractsManager.Implementations memory impls = opcm.implementations();
 
-            // Verify implementation address matches permissionedDisputeGameV2Impl
-            assertEq(
-                registeredImpl,
-                address(impls.faultDisputeGameV2Impl),
-                "DisputeGameFactory should have v2 FaultDisputeGame implementation registered"
-            );
+        // Verify implementation address matches permissionedDisputeGameV2Impl
+        assertEq(
+            registeredImpl,
+            address(impls.faultDisputeGameV2Impl),
+            "DisputeGameFactory should have v2 FaultDisputeGame implementation registered"
+        );
 
-            // Verify that the returned fault dispute game is the v2 implementation
-            assertEq(
-                address(output.faultDisputeGame),
-                address(impls.faultDisputeGameV2Impl),
-                "addGameType should return v2 FaultDisputeGame implementation"
-            );
-        }
+        // Verify that the returned fault dispute game is the v2 implementation
+        assertEq(
+            address(output.faultDisputeGame),
+            address(impls.faultDisputeGameV2Impl),
+            "addGameType should return v2 FaultDisputeGame implementation"
+        );
     }
 
     /// @notice Tests that we can add a SuperPermissionedDisputeGame implementation with addGameType.
@@ -784,30 +766,6 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
         assertFalse(success, "addGameType should have failed");
     }
 
-    /// @notice Tests that addGameType will revert if the game type is cannon-kona and the dev feature is not enabled
-    function test_addGameType_cannonKonaGameTypeDisabled_reverts() public {
-        skipIfDevFeatureEnabled(DevFeatures.CANNON_KONA);
-        IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
-
-        // Run the addGameType call, should revert.
-        IOPContractsManager.AddGameInput[] memory inputs = new IOPContractsManager.AddGameInput[](1);
-        inputs[0] = input;
-        (bool success,) = address(opcm).delegatecall(abi.encodeCall(IOPContractsManager.addGameType, (inputs)));
-        assertFalse(success, "addGameType should have failed");
-    }
-
-    /// @notice Tests that addGameType will revert if the game type is cannon-kona and the dev feature is not enabled
-    function test_addGameType_superCannonKonaGameTypeDisabled_reverts() public {
-        skipIfDevFeatureEnabled(DevFeatures.CANNON_KONA);
-        IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.SUPER_CANNON_KONA);
-
-        // Run the addGameType call, should revert.
-        IOPContractsManager.AddGameInput[] memory inputs = new IOPContractsManager.AddGameInput[](1);
-        inputs[0] = input;
-        (bool success,) = address(opcm).delegatecall(abi.encodeCall(IOPContractsManager.addGameType, (inputs)));
-        assertFalse(success, "addGameType should have failed");
-    }
-
     function test_addGameType_reusedDelayedWETH_succeeds() public {
         IDelayedWETH delayedWETH = IDelayedWETH(
             DeployUtils.create1({
@@ -877,13 +835,24 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
         returns (IFaultDisputeGame)
     {
         // Create a game so we can assert on game args which aren't baked into the implementation contract
-        Claim claim = Claim.wrap(bytes32(uint256(9876)));
-        uint256 l2SequenceNumber = uint256(123);
+        Claim claim;
+        bytes memory extraData;
+        if (isSuperGame(agi.disputeGameType)) {
+            LibTypes.OutputRootWithChainId[] memory outputRoots = new LibTypes.OutputRootWithChainId[](1);
+            outputRoots[0] = LibTypes.OutputRootWithChainId({ chainId: 100, root: keccak256(abi.encode(gasleft())) });
+            LibTypes.SuperRootProof memory superRootProof;
+            superRootProof.version = bytes1(uint8(1));
+            superRootProof.timestamp = uint64(123);
+            superRootProof.outputRoots = outputRoots;
+            extraData = Encoding.encodeSuperRootProof(superRootProof);
+            claim = Claim.wrap(Hashing.hashSuperRootProof(superRootProof));
+        } else {
+            claim = Claim.wrap(bytes32(uint256(9876)));
+            extraData = abi.encode(uint256(123)); // l2BlockNumber
+        }
         IFaultDisputeGame game = IFaultDisputeGame(
             payable(
-                createGame(
-                    chainDeployOutput1.disputeGameFactoryProxy, agi.disputeGameType, proposer, claim, l2SequenceNumber
-                )
+                createGame(chainDeployOutput1.disputeGameFactoryProxy, agi.disputeGameType, proposer, claim, extraData)
             )
         );
 
@@ -896,7 +865,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
         assertEq(game.gameCreator(), proposer, "Game creator should match");
         assertEq(game.rootClaim().raw(), claim.raw(), "Claim should match");
         assertEq(game.l1Head().raw(), blockhash(block.number - 1), "L1 head should match");
-        assertEq(game.l2SequenceNumber(), l2SequenceNumber, "L2 sequence number should match");
+        assertEq(game.l2SequenceNumber(), 123, "L2 sequence number should match");
         assertEq(
             game.absolutePrestate().raw(), agi.disputeAbsolutePrestate.raw(), "Absolute prestate should match input"
         );
@@ -922,7 +891,6 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
 
     /// @notice Tests that addGameType will revert if the game type is cannon-kona and the dev feature is not enabled
     function test_addGameType_cannonKonaGameType_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         // Create the input for the cannon-kona game type.
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
 
@@ -944,7 +912,6 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
     /// @notice Tests that addGameType will revert if the game type is cannon-kona and the dev feature is not enabled
     function test_addGameType_superCannonKonaGameType_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         // Create the input for the cannon-kona game type.
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.SUPER_CANNON_KONA);
 
@@ -1273,7 +1240,6 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
 
     /// @notice Tests that we can update the prestate for both CANNON and CANNON_KONA game types.
     function test_updatePrestate_bothGamesAndCannonKonaWithValidInput_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         // Add a FaultDisputeGame implementation via addGameType.
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON);
         addGameType(input);
@@ -1292,7 +1258,6 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     }
 
     function test_updatePrestate_cannonKonaWithSuperGame_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         _mockSuperPermissionedGame();
@@ -1352,7 +1317,6 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     /// @notice Tests that we can update the prestate when both the PermissionedDisputeGame and
     ///        FaultDisputeGame exist, and the FaultDisputeGame is of type CANNON_KONA.
     function test_updatePrestate_pdgAndCannonKonaOnly_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
         addGameType(input);
 
@@ -1369,7 +1333,6 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     ///       mixed game types (i.e. CANNON and SUPER_CANNON_KONA).
     function test_updatePrestate_cannonKonaMixedGameTypes_reverts() public {
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
 
         // Add a SuperFaultDisputeGame implementation via addGameType.
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.SUPER_CANNON_KONA);
@@ -1393,7 +1356,6 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     function test_updatePrestate_presetCannonKonaWhenOnlyCannonPrestateIsZeroAndCannonGameTypeDisabled_reverts()
         public
     {
-        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
         addGameType(input);
 
@@ -1411,7 +1373,6 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     /// @notice Tests that the updatePrestate function will revert if the provided prestate is the
     ///         zero hash.
     function test_updatePrestate_whenCannonKonaPrestateIsZero_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
         addGameType(input);
 
@@ -1498,31 +1459,19 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         runCurrentUpgrade(upgrader);
 
         // Get the absolute prestate after the upgrade
-        Claim pdgPrestateAfter;
-        Claim fdgPrestateAfter;
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            pdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.PERMISSIONED_CANNON);
-            fdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.CANNON);
-        } else {
-            pdgPrestateAfter = IPermissionedDisputeGame(
-                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
-            ).absolutePrestate();
-            fdgPrestateAfter =
-                IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).absolutePrestate();
-        }
+        Claim pdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.PERMISSIONED_CANNON);
+        Claim fdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.CANNON);
 
         // Assert that the absolute prestate is the non-zero value we set.
         assertEq(pdgPrestateAfter.raw(), bytes32(uint256(1)));
         assertEq(fdgPrestateAfter.raw(), bytes32(uint256(1)));
 
-        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            LibGameArgs.GameArgs memory cannonArgs = LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.CANNON));
-            LibGameArgs.GameArgs memory cannonKonaArgs =
-                LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.CANNON_KONA));
-            assertEq(cannonKonaArgs.weth, cannonArgs.weth);
-            assertEq(cannonKonaArgs.anchorStateRegistry, cannonArgs.anchorStateRegistry);
-            assertEq(cannonKonaArgs.absolutePrestate, bytes32(uint256(2)));
-        }
+        LibGameArgs.GameArgs memory cannonArgs = LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.CANNON));
+        LibGameArgs.GameArgs memory cannonKonaArgs =
+            LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.CANNON_KONA));
+        assertEq(cannonKonaArgs.weth, cannonArgs.weth);
+        assertEq(cannonKonaArgs.anchorStateRegistry, cannonArgs.anchorStateRegistry);
+        assertEq(cannonKonaArgs.absolutePrestate, bytes32(uint256(2)));
     }
 
     /// @notice Tests that the old absolute prestate is used if the upgrade config does not set an
@@ -1548,18 +1497,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         runCurrentUpgrade(upgrader);
 
         // Get the absolute prestate after the upgrade
-        Claim pdgPrestateAfter;
-        Claim fdgPrestateAfter;
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            pdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.PERMISSIONED_CANNON);
-            fdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.CANNON);
-        } else {
-            pdgPrestateAfter = IPermissionedDisputeGame(
-                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
-            ).absolutePrestate();
-            fdgPrestateAfter =
-                IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).absolutePrestate();
-        }
+        Claim pdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.PERMISSIONED_CANNON);
+        Claim fdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.CANNON);
 
         // Assert that the absolute prestate is the same as before the upgrade.
         assertEq(pdgPrestateAfter.raw(), pdgPrestateBefore.raw());
@@ -1590,34 +1529,19 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         runCurrentUpgrade(upgrader);
 
         // Get the absolute prestate after the upgrade
-        Claim pdgPrestateAfter;
-        Claim fdgPrestateAfter;
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            pdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.PERMISSIONED_CANNON);
-            fdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.CANNON);
-        } else {
-            pdgPrestateAfter = IPermissionedDisputeGame(
-                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
-            ).absolutePrestate();
-            fdgPrestateAfter =
-                IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).absolutePrestate();
-        }
+        Claim pdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.PERMISSIONED_CANNON);
+        Claim fdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.CANNON);
 
         // Assert that the absolute prestate is the same as before the upgrade.
         assertEq(pdgPrestateAfter.raw(), pdgPrestateBefore.raw());
         assertEq(fdgPrestateAfter.raw(), fdgPrestateBefore.raw());
 
-        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            LibGameArgs.GameArgs memory cannonArgs = LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.CANNON));
-            LibGameArgs.GameArgs memory cannonKonaArgs =
-                LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.CANNON_KONA));
-            assertEq(cannonKonaArgs.weth, cannonArgs.weth);
-            assertEq(cannonKonaArgs.anchorStateRegistry, cannonArgs.anchorStateRegistry);
-            assertEq(cannonKonaArgs.absolutePrestate, cannonKonaPrestate.raw());
-        } else {
-            assertEq(address(0), address(disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)));
-            assertEq(0, disputeGameFactory.gameArgs(GameTypes.CANNON_KONA).length);
-        }
+        LibGameArgs.GameArgs memory cannonArgs = LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.CANNON));
+        LibGameArgs.GameArgs memory cannonKonaArgs =
+            LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.CANNON_KONA));
+        assertEq(cannonKonaArgs.weth, cannonArgs.weth);
+        assertEq(cannonKonaArgs.anchorStateRegistry, cannonArgs.anchorStateRegistry);
+        assertEq(cannonKonaArgs.absolutePrestate, cannonKonaPrestate.raw());
     }
 
     /// @notice Tests that the cannon absolute prestate is updated even if the cannon kona prestate is not specified
@@ -1641,18 +1565,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         runCurrentUpgrade(upgrader);
 
         // Get the absolute prestate after the upgrade
-        Claim pdgPrestateAfter;
-        Claim fdgPrestateAfter;
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            pdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.PERMISSIONED_CANNON);
-            fdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.CANNON);
-        } else {
-            pdgPrestateAfter = IPermissionedDisputeGame(
-                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
-            ).absolutePrestate();
-            fdgPrestateAfter =
-                IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).absolutePrestate();
-        }
+        Claim pdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.PERMISSIONED_CANNON);
+        Claim fdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.CANNON);
 
         // Assert that the absolute prestate is the non-zero value we set.
         assertEq(pdgPrestateAfter.raw(), bytes32(uint256(1)));
@@ -1872,11 +1786,9 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         _assertGameIsEmpty(_disputeGameFactory, GameTypes.SUPER_CANNON, "SUPER_CANNON");
         _assertGameIsEmpty(_disputeGameFactory, GameTypes.PERMISSIONED_CANNON, "PERMISSIONED_CANNON");
         _assertGameIsEmpty(_disputeGameFactory, GameTypes.SUPER_PERMISSIONED_CANNON, "SUPER_PERMISSIONED_CANNON");
-        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            // Only explicitly zeroed out if feature is enabled. Otherwise left unchanged (which may still be 0).
-            _assertGameIsEmpty(_disputeGameFactory, GameTypes.CANNON_KONA, "CANNON_KONA");
-            _assertGameIsEmpty(_disputeGameFactory, GameTypes.SUPER_CANNON_KONA, "SUPER_CANNON_KONA");
-        }
+        // Only explicitly zeroed out if feature is enabled. Otherwise left unchanged (which may still be 0).
+        _assertGameIsEmpty(_disputeGameFactory, GameTypes.CANNON_KONA, "CANNON_KONA");
+        _assertGameIsEmpty(_disputeGameFactory, GameTypes.SUPER_CANNON_KONA, "SUPER_CANNON_KONA");
     }
 
     function _assertGameIsEmpty(IDisputeGameFactory _dgf, GameType _gameType, string memory _label) internal view {
@@ -1886,6 +1798,28 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
             string.concat("Game type set when it should not be: ", _label)
         );
         assertEq(_dgf.gameArgs(_gameType), hex"", string.concat("Game args should be empty: ", _label));
+    }
+
+    /// @notice Creates a dummy super root proof consisting of all chains being migrated
+    function _createSuperRootProof(
+        IOPContractsManagerInteropMigrator.MigrateInput memory _input,
+        uint64 _l2SequenceNumber
+    )
+        internal
+        view
+        returns (LibTypes.SuperRootProof memory super_)
+    {
+        LibTypes.OutputRootWithChainId[] memory outputRoots =
+            new LibTypes.OutputRootWithChainId[](_input.opChainConfigs.length);
+        for (uint256 j; j < _input.opChainConfigs.length; j++) {
+            outputRoots[j] = LibTypes.OutputRootWithChainId({
+                chainId: uint32(_input.opChainConfigs[j].systemConfigProxy.l2ChainId()),
+                root: keccak256(abi.encode(gasleft()))
+            });
+        }
+        super_.version = bytes1(uint8(1));
+        super_.timestamp = uint64(_l2SequenceNumber);
+        super_.outputRoots = outputRoots;
     }
 
     /// @notice Runs some tests after opcm.migrate
@@ -1920,12 +1854,19 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
                 assertEq(gameArgs.weth, permissionlessWeth, "gameArgs weth mismatch");
             }
 
-            Claim rootClaim = Claim.wrap(bytes32(uint256(1)));
+            LibTypes.SuperRootProof memory superRootProof = _createSuperRootProof(_input, uint64(l2SequenceNumber));
             uint256 bondAmount = dgf.initBonds(gameTypes[i]);
             vm.deal(address(proposer), bondAmount);
             vm.prank(proposer, proposer);
+
             ISuperPermissionedDisputeGame game = ISuperPermissionedDisputeGame(
-                address(dgf.create{ value: bondAmount }(gameTypes[i], rootClaim, abi.encode(l2SequenceNumber)))
+                address(
+                    dgf.create{ value: bondAmount }(
+                        gameTypes[i],
+                        Claim.wrap(Hashing.hashSuperRootProof(superRootProof)),
+                        Encoding.encodeSuperRootProof(superRootProof)
+                    )
+                )
             );
 
             assertEq(game.gameType().raw(), gameTypes[i].raw(), "Super Cannon game type not set properly");
@@ -1957,14 +1898,14 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 
     function _getPostMigrateExpectedGameTypes(IOPContractsManagerInteropMigrator.MigrateInput memory _input)
         internal
-        view
+        pure
         returns (GameType[] memory gameTypes_)
     {
         uint256 gameCount = 1;
         bytes32 cannonKonaPrestate = _input.opChainConfigs[0].cannonKonaPrestate.raw();
         if (_input.usePermissionlessGame) {
             gameCount += 1;
-            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA) && cannonKonaPrestate != bytes32(0)) {
+            if (cannonKonaPrestate != bytes32(0)) {
                 gameCount += 1;
             }
         }
@@ -1973,7 +1914,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         gameTypes_[0] = GameTypes.SUPER_PERMISSIONED_CANNON;
         if (_input.usePermissionlessGame) {
             gameTypes_[1] = GameTypes.SUPER_CANNON;
-            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA) && cannonKonaPrestate != bytes32(0)) {
+            if (cannonKonaPrestate != bytes32(0)) {
                 gameTypes_[2] = GameTypes.SUPER_CANNON_KONA;
             }
         }
@@ -1997,26 +1938,16 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
             input.gameParameters.initBond,
             "Super Permissioned Cannon init bond mismatch"
         );
-        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            assertEq(
-                dgf.initBonds(GameTypes.SUPER_CANNON_KONA),
-                input.gameParameters.initBond,
-                "Super CannonKona init bond mismatch"
-            );
-        } else {
-            assertEq(
-                dgf.initBonds(GameTypes.SUPER_CANNON_KONA), uint256(0), "Super CannonKona init bond should be zero"
-            );
-        }
+        assertEq(
+            dgf.initBonds(GameTypes.SUPER_CANNON_KONA),
+            input.gameParameters.initBond,
+            "Super CannonKona init bond mismatch"
+        );
 
         // Check game configuration
         _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_PERMISSIONED_CANNON, "SUPER_PERMISSIONED_CANNON");
         _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_CANNON, "SUPER_CANNON");
-        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_CANNON_KONA, "SUPER_CANNON_KONA");
-        } else {
-            _assertGameIsEmpty(dgf, GameTypes.SUPER_CANNON_KONA, "SUPER_CANNON_KONA");
-        }
+        _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_CANNON_KONA, "SUPER_CANNON_KONA");
 
         _runPostMigrateSmokeTests(input);
     }
@@ -2248,16 +2179,10 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         input.opChainConfigs[1].cannonKonaPrestate = cannonKonaPrestate2;
 
         // Execute the migration.
-        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            // We should revert if there is a mismatch and cannonaKona is enabled
-            _doMigration(
-                input,
-                OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_AbsolutePrestateMismatch.selector
-            );
-        } else {
-            // Otherwise, migration should run without reverting
-            _doMigration(input);
-        }
+        // We should revert if there is a mismatch and cannonaKona is enabled
+        _doMigration(
+            input, OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_AbsolutePrestateMismatch.selector
+        );
     }
 
     /// @notice Tests that the migration function reverts when the SuperchainConfig addresses are
@@ -2284,7 +2209,6 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
     }
 
     function test_migrate_zerosOutCannonKonaGameTypes_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
 
         // Grab the existing DisputeGameFactory for each chain.
@@ -2317,6 +2241,11 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 ///      to how a real deployment would happen.
 contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase, DisputeGames {
     using stdStorage for StdStorage;
+
+    function setUp() public override {
+        super.setUp();
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+    }
 
     // This helper function is used to convert the input struct type defined in DeployOPChain.s.sol
     // to the input struct type defined in OPContractsManager.sol.
@@ -2355,7 +2284,7 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase, DisputeGames 
         input.l2ChainId = 0;
 
         vm.expectRevert(IOPContractsManager.InvalidChainId.selector);
-        opcm.deploy(input);
+        IOPContractsManager(opcmAddr).deploy(input);
     }
 
     function test_deploy_l2ChainIdEqualsCurrentChainId_reverts() public {
@@ -2363,40 +2292,32 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase, DisputeGames 
         input.l2ChainId = block.chainid;
 
         vm.expectRevert(IOPContractsManager.InvalidChainId.selector);
-        opcm.deploy(input);
+        IOPContractsManager(opcmAddr).deploy(input);
     }
 
     function test_deploy_succeeds() public {
         vm.expectEmit(true, true, true, false); // TODO precompute the expected `deployOutput`.
         emit Deployed(deployOPChainInput.l2ChainId, address(this), bytes(""));
-        opcm.deploy(toOPCMDeployInput(deployOPChainInput));
+        IOPContractsManager(opcmAddr).deploy(toOPCMDeployInput(deployOPChainInput));
     }
 
     /// @notice Test that deploy sets the permissioned dispute game implementation
     function test_deployPermissioned_succeeds() public {
-        bool isV2 = isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
-
         // Sanity-check setup is consistent with devFeatures flag
-        IOPContractsManager.Implementations memory impls = opcm.implementations();
+        IOPContractsManager.Implementations memory impls = IOPContractsManager(opcmAddr).implementations();
         address pdgImpl = address(impls.permissionedDisputeGameV2Impl);
         address fdgImpl = address(impls.faultDisputeGameV2Impl);
-        if (isV2) {
-            assertFalse(pdgImpl == address(0), "PDG implementation address should be non-zero");
-            assertFalse(fdgImpl == address(0), "FDG implementation address should be non-zero");
-        } else {
-            assertTrue(pdgImpl == address(0), "PDG implementation address should be zero");
-            assertTrue(fdgImpl == address(0), "FDG implementation address should be zero");
-        }
+        assertFalse(pdgImpl == address(0), "PDG implementation address should be non-zero");
+        assertFalse(fdgImpl == address(0), "FDG implementation address should be non-zero");
 
         // Run OPCM.deploy
         IOPContractsManager.DeployInput memory opcmInput = toOPCMDeployInput(deployOPChainInput);
-        IOPContractsManager.DeployOutput memory opcmOutput = opcm.deploy(opcmInput);
+        IOPContractsManager.DeployOutput memory opcmOutput = IOPContractsManager(opcmAddr).deploy(opcmInput);
 
         // Verify that the DisputeGameFactory has registered an implementation for the PERMISSIONED_CANNON game type
-        address expectedPDGAddress = isV2 ? pdgImpl : address(opcmOutput.permissionedDisputeGame);
         address actualPDGAddress = address(opcmOutput.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
         assertNotEq(actualPDGAddress, address(0), "DisputeGameFactory should have a registered PERMISSIONED_CANNON");
-        assertEq(actualPDGAddress, address(expectedPDGAddress), "PDG address should match");
+        assertEq(actualPDGAddress, pdgImpl, "PDG address should match");
 
         // Create a game proxy to test immutable fields
         Claim claim = Claim.wrap(bytes32(uint256(9876)));

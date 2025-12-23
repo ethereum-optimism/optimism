@@ -83,6 +83,7 @@ type RollupClient interface {
 
 // DriverSetup is the collection of input/output interfaces and configuration that the driver operates on.
 type DriverSetup struct {
+	closeApp          context.CancelCauseFunc
 	Log               log.Logger
 	Metr              metrics.Metricer
 	RollupConfig      *rollup.Config
@@ -99,7 +100,6 @@ type DriverSetup struct {
 // batches to L1 for availability.
 type BatchSubmitter struct {
 	DriverSetup
-
 	wg                               *sync.WaitGroup
 	shutdownCtx, killCtx             context.Context
 	cancelShutdownCtx, cancelKillCtx context.CancelFunc
@@ -585,6 +585,10 @@ func (l *BatchSubmitter) receiptsLoop(wg *sync.WaitGroup, receiptsCh chan txmgr.
 	l.Log.Info("receiptsLoop returning")
 }
 
+func ErrSetMaxDASizeRPCMethodUnavailable(endpoint string, err error) error {
+	return fmt.Errorf("%s unavailable at %s,  either enable it or disable throttling: %w", SetMaxDASizeMethod, endpoint, err)
+}
+
 // singleEndpointThrottler handles throttling for a specific endpoint
 func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSignal chan struct{}, endpoint string) {
 	defer wg.Done()
@@ -623,20 +627,13 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 			return
 		}
 
-		var rpcErr rpc.Error
-		if errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()).IsGenericRPCError() {
-			l.Log.Error("SetMaxDASize RPC method unavailable on endpoint, shutting down. Either enable it or disable throttling.",
-				"endpoint", endpoint, "err", err)
-
-			// We have a strict requirement that all endpoints must have the SetMaxDASize endpoint, and shut down if this RPC method is not available
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			// Call StopBatchSubmitting in another goroutine to avoid deadlock.
-			go func() {
-				_ = l.StopBatchSubmitting(ctx)
-			}()
+		if isCriticalThrottlingRPCError(err) {
+			// We have a strict requirement that all endpoints must have the SetMaxDASize endpoint,
+			// and shut down if this RPC method is not available or returns another application-level error.
+			l.shutdownOnCriticalError(ErrSetMaxDASizeRPCMethodUnavailable(endpoint, err))
 			return
 		} else if err != nil {
+			// Transport-level errors are retried.
 			l.Log.Warn("SetMaxDASize RPC failed for endpoint, retrying.", "endpoint", endpoint, "err", err)
 			retryTimer.Reset(retryInterval)
 			return
@@ -668,6 +665,21 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 		case <-retryTimer.C:
 			updateParams()
 		}
+	}
+}
+
+func isCriticalThrottlingRPCError(err error) bool {
+	var rpcErr rpc.Error
+	return errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()).IsGenericRPCError()
+}
+
+func (l *BatchSubmitter) shutdownOnCriticalError(err error) {
+	l.Log.Error("Critical error detected, attempting batcher shut down", "err", err)
+	if l.closeApp != nil {
+		// Call closeApp to trigger process to exit (gracefully) if l.closeApp is set.
+		l.closeApp(err)
+	} else {
+		l.Log.Warn("No closeApp function set, cannot shut down batcher on critical error", "err", err)
 	}
 }
 

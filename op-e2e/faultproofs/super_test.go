@@ -31,7 +31,7 @@ func TestCreateSuperCannonGame(t *testing.T) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 		sys.L2IDs()
-		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
+		game := disputeGameFactory.StartSuperCannonGame(ctx, disputegame.WithInvalidSuperRoot())
 		game.LogGameData(ctx)
 	})
 }
@@ -40,7 +40,7 @@ func TestSuperCannonGame(t *testing.T) {
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
-		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
+		game := disputeGameFactory.StartSuperCannonGame(ctx, disputegame.WithInvalidSuperRoot())
 		testCannonGame(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
 	})
 }
@@ -49,7 +49,7 @@ func TestSuperCannonGame_WithBlobs(t *testing.T) {
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType), WithBlobBatches())
-		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
+		game := disputeGameFactory.StartSuperCannonGame(ctx, disputegame.WithInvalidSuperRoot())
 		testCannonGame(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
 	})
 }
@@ -58,7 +58,7 @@ func TestSuperCannonGame_ChallengeAllZeroClaim(t *testing.T) {
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
-		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
+		game := disputeGameFactory.StartSuperCannonGame(ctx, disputegame.WithInvalidSuperRoot())
 		testCannonChallengeAllZeroClaim(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
 	}, WithNextVMOnly[any]())
 }
@@ -88,7 +88,7 @@ func TestSuperCannonPublishCannonRootClaim(t *testing.T) {
 		require.NoError(t, err)
 		disputeL2SequenceNumber := b.Time() + test.disputeL2SequenceNumberOffset
 
-		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, disputeL2SequenceNumber, common.Hash{0x01})
+		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, disputeL2SequenceNumber, disputegame.WithInvalidSuperRoot())
 		game.DisputeLastBlock(ctx)
 		game.LogGameData(ctx)
 		game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(aliceKey(t)), challenger.WithDepset(t, sys.DependencySet()))
@@ -140,7 +140,7 @@ func TestSuperCannonDisputeGame(t *testing.T) {
 	RunTestsAcrossVmTypes(t, tests, func(t *testing.T, allocType config.AllocType, test TestCase) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
-		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01, 0xaa})
+		game := disputeGameFactory.StartSuperCannonGame(ctx, disputegame.WithInvalidSuperRoot())
 		game.LogGameData(ctx)
 
 		disputeClaim := game.DisputeLastBlock(ctx)
@@ -180,7 +180,7 @@ func TestSuperCannonDefendStep(t *testing.T) {
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
-		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
+		game := disputeGameFactory.StartSuperCannonGame(ctx, disputegame.WithInvalidSuperRoot())
 		testCannonDefendStep(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
 	}, WithNextVMOnly[any]())
 }
@@ -300,7 +300,7 @@ func TestSuperCannonPoisonedPostState(t *testing.T) {
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
-		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
+		game := disputeGameFactory.StartSuperCannonGame(ctx, disputegame.WithInvalidSuperRoot())
 		testCannonPoisonedPostState(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
 	}, WithNextVMOnly[any]())
 }
@@ -318,7 +318,7 @@ func TestSuperCannonRootBeyondProposedBlock_InvalidRoot(t *testing.T) {
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
-		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
+		game := disputeGameFactory.StartSuperCannonGame(ctx, disputegame.WithInvalidSuperRoot())
 		testDisputeRootBeyondProposedBlockInvalidOutputRoot(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
 	}, WithNextVMOnly[any]())
 }
@@ -327,7 +327,7 @@ func TestSuperCannonRootChangeClaimedRoot(t *testing.T) {
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
-		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
+		game := disputeGameFactory.StartSuperCannonGame(ctx, disputegame.WithInvalidSuperRoot())
 		testDisputeRootChangeClaimedRoot(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
 	}, WithNextVMOnly[any]())
 }
@@ -387,8 +387,7 @@ func TestSuperInvalidateUnsafeProposal(t *testing.T) {
 
 		// Root claim is _dishonest_ because the required data is not available on L1
 		unsafeSuper := createSuperRoot(t, ctx, sys, unsafeTimestamp)
-		unsafeRoot := eth.SuperRoot(unsafeSuper)
-		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, unsafeTimestamp, common.Hash(unsafeRoot), disputegame.WithFutureProposal())
+		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, unsafeTimestamp, disputegame.WithSuper(unsafeSuper), disputegame.WithFutureProposal())
 
 		correctTrace := game.CreateHonestActor(ctx, disputegame.WithPrivKey(malloryKey(t)), func(c *disputegame.HonestActorConfig) {
 			c.ChallengerOpts = append(c.ChallengerOpts, challenger.WithDepset(t, sys.DependencySet()))
@@ -446,8 +445,7 @@ func TestSuperInalidateUnsafeProposal_SecondChainIsUnsafe(t *testing.T) {
 
 		// Root claim is _dishonest_ because the required data to construct the chain B output root is not available on L1
 		unsafeSuper := createSuperRoot(t, ctx, sys, gameTimestamp)
-		unsafeRoot := eth.SuperRoot(unsafeSuper)
-		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, gameTimestamp, common.Hash(unsafeRoot), disputegame.WithFutureProposal())
+		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, gameTimestamp, disputegame.WithSuper(unsafeSuper), disputegame.WithFutureProposal())
 
 		prestateTimestamp, _, err := game.Game.GetGameRange(ctx)
 		require.NoError(t, err, "Failed to get game range")
@@ -501,7 +499,9 @@ func TestSuperInvalidateProposalForFutureBlock(t *testing.T) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 		// Root claim is _dishonest_ because the required data is not available on L1
 		farFutureTimestamp := time.Now().Add(time.Second * 10_000_000).Unix()
-		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, uint64(farFutureTimestamp), common.Hash{0x01}, disputegame.WithFutureProposal())
+		invalidSuper := disputegame.CreateInvalidSuper(uint64(farFutureTimestamp))
+		// manually create an invalid super since we can't rely on the super RPC to fetch one at the far timestamp
+		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, uint64(farFutureTimestamp), disputegame.WithSuper(invalidSuper), disputegame.WithFutureProposal())
 		correctTrace := game.CreateHonestActor(ctx, disputegame.WithPrivKey(malloryKey(t)), func(c *disputegame.HonestActorConfig) {
 			c.ChallengerOpts = append(c.ChallengerOpts, challenger.WithDepset(t, sys.DependencySet()))
 		})
@@ -567,6 +567,8 @@ func TestSuperInvalidateCorrectProposalFutureBlock(t *testing.T) {
 		require.NoError(t, err, "Failed to get sync status")
 		superRoot, err := client.SuperRootAtTimestamp(ctx, hexutil.Uint64(status.SafeTimestamp))
 		require.NoError(t, err, "Failed to get super root at safe timestamp")
+		super, err := superRoot.ToSuper()
+		require.NoError(t, err, "Failed to parse super root")
 
 		// Stop the batcher so the safe head doesn't advance
 		for _, id := range sys.L2IDs() {
@@ -575,7 +577,7 @@ func TestSuperInvalidateCorrectProposalFutureBlock(t *testing.T) {
 
 		// Create a dispute game with a proposal that is valid at `superRoot.Timestamp`, but that claims to correspond to timestamp
 		// `superRoot.Timestamp + 100000`. This is dishonest, because the superchain hasn't reached this timestamp yet.
-		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, superRoot.Timestamp+100_000, common.Hash(superRoot.SuperRoot), disputegame.WithFutureProposal())
+		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, superRoot.Timestamp+100_000, disputegame.WithSuper(super), disputegame.WithFutureProposal())
 
 		game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(aliceKey(t)), challenger.WithDepset(t, sys.DependencySet()))
 
@@ -673,7 +675,7 @@ func TestSuperCannonHonestSafeTraceExtensionInvalidRoot(t *testing.T) {
 
 		disputeGameFactory.WaitForSuperTimestamp(safeTimestamp, new(disputegame.GameCfg))
 
-		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, safeTimestamp-1, common.Hash{0xCA, 0xFE})
+		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, safeTimestamp-1, disputegame.WithInvalidSuperRoot())
 		require.NotNil(t, game)
 
 		// Create a correct trace actor with an honest trace extending to safeTimestamp

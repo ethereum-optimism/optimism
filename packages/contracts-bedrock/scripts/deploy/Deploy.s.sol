@@ -22,9 +22,9 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 // Libraries
 import { Types } from "scripts/libraries/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { GameType, Claim, GameTypes, Proposal, Hash } from "src/dispute/lib/Types.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -301,16 +301,14 @@ contract Deploy is Deployer {
         // Save the implementation addresses which are needed outside of this function or script.
         // When called in a fork test, this will overwrite the existing implementations.
         artifacts.save("MipsSingleton", address(dio.mipsSingleton));
-        if (DevFeatures.isDevFeatureEnabled(dio.opcm.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
+        if (DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
             artifacts.save("OPContractsManagerV2", address(dio.opcmV2));
         } else {
             artifacts.save("OPContractsManager", address(dio.opcm));
         }
         artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl));
         artifacts.save("PreimageOracle", address(dio.preimageOracleSingleton));
-        if (DevFeatures.isDevFeatureEnabled(dio.opcm.devFeatureBitmap(), DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            artifacts.save("PermissionedDisputeGame", address(dio.permissionedDisputeGameV2Impl));
-        }
+        artifacts.save("PermissionedDisputeGame", address(dio.permissionedDisputeGameV2Impl));
 
         // Get a contract set from the implementation addresses which were just deployed.
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(dio);
@@ -338,10 +336,16 @@ contract Deploy is Deployer {
             _mips: IMIPS64(address(dio.mipsSingleton)),
             _oracle: IPreimageOracle(address(dio.preimageOracleSingleton))
         });
+        IOPContractsManager _opcm;
+        if (DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
+            _opcm = IOPContractsManager(address(dio.opcmV2));
+        } else {
+            _opcm = IOPContractsManager(address(dio.opcm));
+        }
         ChainAssertions.checkOPContractsManager({
             _impls: impls,
             _proxies: _proxies(),
-            _opcm: IOPContractsManager(address(dio.opcm)),
+            _opcm: _opcm,
             _mips: IMIPS64(address(dio.mipsSingleton))
         });
         ChainAssertions.checkSystemConfigImpls(impls);
@@ -378,9 +382,6 @@ contract Deploy is Deployer {
         artifacts.save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistryProxy));
         artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
         artifacts.save("OptimismPortal2Proxy", address(deployOutput.optimismPortalProxy));
-        if (!DevFeatures.isDevFeatureEnabled(opcm.devFeatureBitmap(), DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            artifacts.save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
-        }
 
         // Check if the permissionless game implementation is already set
         IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
@@ -547,7 +548,8 @@ contract Deploy is Deployer {
             gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),
             l2ChainId: cfg.l2ChainID(),
             resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
-            disputeGameConfigs: disputeGameConfigs
+            disputeGameConfigs: disputeGameConfigs,
+            useCustomGasToken: cfg.useCustomGasToken()
         });
     }
 }

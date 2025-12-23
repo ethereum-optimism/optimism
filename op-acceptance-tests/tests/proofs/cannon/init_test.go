@@ -14,7 +14,6 @@ func TestMain(m *testing.M) {
 		presets.WithProofs(),
 		stack.MakeCommon(sysgo.WithDeployerOptions(sysgo.WithJovianAtGenesis)),
 		presets.WithSafeDBEnabled(),
-		presets.WithCannonKona(),
 		// Requires access to a challenger config which only sysgo provides
 		// These tests would also be exceptionally slow on real L1s
 		presets.WithCompatibleTypes(compat.SysGo),

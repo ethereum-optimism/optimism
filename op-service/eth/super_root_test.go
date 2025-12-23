@@ -2,6 +2,7 @@ package eth
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -74,6 +75,33 @@ func TestSuperRootV1Codec(t *testing.T) {
 		input = append(input, 0x01, 0x02, 0x03)
 		_, err := UnmarshalSuperRoot(input)
 		require.ErrorIs(t, err, ErrInvalidSuperRoot)
+	})
+}
+
+func TestSuperRootV1JSON(t *testing.T) {
+	t.Run("UseHexForTimestamp", func(t *testing.T) {
+		chainA := ChainIDAndOutput{ChainID: ChainIDFromUInt64(11), Output: Bytes32{0x01}}
+		superRoot := NewSuperV1(7000, chainA)
+		jsonData, err := json.Marshal(superRoot)
+		require.NoError(t, err)
+
+		values := make(map[string]any)
+		err = json.Unmarshal(jsonData, &values)
+		require.NoError(t, err)
+		require.Equal(t, "0x1b58", values["timestamp"])
+	})
+
+	t.Run("RoundTrip", func(t *testing.T) {
+		chainA := ChainIDAndOutput{ChainID: ChainIDFromUInt64(11), Output: Bytes32{0x01}}
+		chainB := ChainIDAndOutput{ChainID: ChainIDFromUInt64(12), Output: Bytes32{0x02}}
+		chainC := ChainIDAndOutput{ChainID: ChainIDFromUInt64(13), Output: Bytes32{0x03}}
+		superRoot := NewSuperV1(7000, chainA, chainB, chainC)
+		data, err := json.Marshal(superRoot)
+		require.NoError(t, err)
+		var actual SuperV1
+		err = json.Unmarshal(data, &actual)
+		require.NoError(t, err)
+		require.Equal(t, superRoot, &actual)
 	})
 }
 

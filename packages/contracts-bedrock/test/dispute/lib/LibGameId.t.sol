@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
 
+// Libraries
 import "src/dispute/lib/Types.sol";
 
 /// @title LibGameId_Pack_Test

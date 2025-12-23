@@ -17,14 +17,15 @@ type mockGasPricer struct {
 	err         error
 	tipCap      int64
 	baseFee     int64
+	blobTipCap  int64
 	blobBaseFee int64
 }
 
-func (gp *mockGasPricer) SuggestGasPriceCaps(context.Context) (tipCap *big.Int, baseFee *big.Int, blobBaseFee *big.Int, err error) {
+func (gp *mockGasPricer) SuggestGasPriceCaps(context.Context) (tipCap *big.Int, baseFee *big.Int, blobTipCap *big.Int, blobBaseFee *big.Int, err error) {
 	if gp.err != nil {
-		return nil, nil, nil, gp.err
+		return nil, nil, nil, nil, gp.err
 	}
-	return big.NewInt(gp.tipCap), big.NewInt(gp.baseFee), big.NewInt(gp.blobBaseFee), nil
+	return big.NewInt(gp.tipCap), big.NewInt(gp.baseFee), big.NewInt(gp.blobTipCap), big.NewInt(gp.blobBaseFee), nil
 }
 
 func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {

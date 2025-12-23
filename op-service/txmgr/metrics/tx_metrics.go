@@ -20,6 +20,7 @@ type TxMetricer interface {
 	RecordBaseFee(*big.Int)
 	RecordBlobBaseFee(*big.Int)
 	RecordTipCap(*big.Int)
+	RecordBlobTipCap(*big.Int)
 	RPCError()
 }
 
@@ -38,6 +39,7 @@ type TxMetrics struct {
 	baseFee            prometheus.Gauge
 	blobBaseFee        prometheus.Gauge
 	tipCap             prometheus.Gauge
+	blobTipCap         prometheus.Gauge
 	rpcError           prometheus.Counter
 }
 
@@ -131,6 +133,12 @@ func MakeTxMetrics(ns string, factory metrics.Factory) TxMetrics {
 			Help:      "Latest L1 suggested tip cap (in Wei)",
 			Subsystem: "txmgr",
 		}),
+		blobTipCap: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "blob_tipcap_wei",
+			Help:      "Latest Blob suggested tip cap (in Wei)",
+			Subsystem: "txmgr",
+		}),
 		rpcError: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      "rpc_error_count",
@@ -189,6 +197,10 @@ func (t *TxMetrics) RecordTipCap(tipcap *big.Int) {
 	t.tipCap.Set(tcf)
 }
 
+func (t *TxMetrics) RecordBlobTipCap(blobTipCap *big.Int) {
+	bcf, _ := blobTipCap.Float64()
+	t.blobTipCap.Set(bcf)
+}
 func (t *TxMetrics) RPCError() {
 	t.rpcError.Inc()
 }

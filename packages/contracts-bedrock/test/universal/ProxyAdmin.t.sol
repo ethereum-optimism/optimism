@@ -2,8 +2,11 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { Test } from "forge-std/Test.sol";
+import { Test } from "test/setup/Test.sol";
 import { Proxy_SimpleStorage_Harness } from "test/universal/Proxy.t.sol";
+
+// Scripts
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
@@ -11,8 +14,6 @@ import { IL1ChugSplashProxy } from "interfaces/legacy/IL1ChugSplashProxy.sol";
 import { IResolvedDelegateProxy } from "interfaces/legacy/IResolvedDelegateProxy.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-
-import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 /// @title ProxyAdmin_TestInit
 /// @notice Reusable test initialization for `ProxyAdmin` tests.

@@ -73,7 +73,12 @@ clean:
 
 # Runs standard contract tests.
 test *ARGS: build-go-ffi
-  forge test {{ARGS}}
+  #!/bin/bash
+  if [ -n "$JUNIT_TEST_PATH" ]; then
+    forge test {{ARGS}} --junit > "$JUNIT_TEST_PATH"
+  else
+    forge test {{ARGS}}
+  fi
 
 # Runs standard contract tests (developer mode).
 test-dev *ARGS: build-go-ffi
@@ -81,8 +86,8 @@ test-dev *ARGS: build-go-ffi
 
 # Default block number for the forked upgrade path.
 
-export sepoliaBlockNumber := "9366100"
-export mainnetBlockNumber := "23530400"
+export sepoliaBlockNumber := "9770063"
+export mainnetBlockNumber := "23942395"
 
 export pinnedBlockNumber := if env_var_or_default("FORK_BASE_CHAIN", "") == "mainnet" {
     mainnetBlockNumber
@@ -115,7 +120,12 @@ prepare-upgrade-env *ARGS : build-go-ffi
 
 # Runs upgrade path variant of contract tests.
 test-upgrade *ARGS:
-  just prepare-upgrade-env "forge test {{ARGS}}"
+  #!/bin/bash
+  if [ -n "$JUNIT_TEST_PATH" ]; then
+    just prepare-upgrade-env "forge test {{ARGS}} --junit > \"$JUNIT_TEST_PATH\""
+  else
+    just prepare-upgrade-env "forge test {{ARGS}}"
+  fi
 
 test-upgrade-rerun *ARGS: build-go-ffi
   just test-upgrade {{ARGS}} --rerun -vvvv
@@ -433,3 +443,27 @@ lint: lint-fix lint-check
 # Generates a table of contents for the POLICY.md file.
 toc:
   md_toc -p github meta/POLICY.md
+
+
+########################################################
+#                 PARALLEL CHECK RUNNER                #
+########################################################
+
+# Runs checks in parallel with smart build caching.
+# Handles builds automatically and caches results for faster subsequent runs.
+# Use -run to run specific checks, -list to see available checks.
+# Examples:
+#   just check-fast                       # Run all checks with caching
+#   just check-fast -run lint             # Run only lint check
+#   just check-fast -no-build             # Skip checks that require builds
+#   just check-fast -list                 # List available checks
+#   just check-fast -verbose              # Show output for all checks
+#   just check-fast -no-cache             # Disable build caching
+#   just check-fast -clean                # Clean artifacts before each build
+#   just check-fast -config path/to/file  # Use custom checks.yaml
+check-fast *ARGS:
+  go run ./scripts/check-runner -config checks.yaml {{ARGS}}
+
+# Alias for check-fast.
+pr *ARGS:
+  just check-fast {{ARGS}}
