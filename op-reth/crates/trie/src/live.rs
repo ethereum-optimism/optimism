@@ -140,7 +140,7 @@ where
         block: BlockWithParent,
         sorted_trie_updates: TrieUpdatesSorted,
         sorted_post_state: HashedPostStateSorted,
-    ) -> eyre::Result<()> {
+    ) -> Result<(), OpProofsStorageError> {
         let start = Instant::now();
         let mut operation_durations = OperationDurations::default();
 
