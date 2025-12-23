@@ -23,9 +23,6 @@ parameters:
   reproducibility_dispatch:
     type: boolean
     default: false
-  diff_asterisc_bytecode_dispatch:
-    type: boolean
-    default: false
   kontrol_dispatch:
     type: boolean
     default: false
