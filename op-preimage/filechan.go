@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"syscall"
 )
 
 // FileChannel is a unidirectional channel for file I/O
@@ -90,6 +89,6 @@ func ClientPreimageChannel() *ReadWritePair {
 func newFileNonBlocking(fd int, name string) *os.File {
 	// Try to enable non-blocking mode for IO so that read calls return when the file is closed
 	// This may not be possible on all systems so errors are ignored.
-	_ = syscall.SetNonblock(fd, true)
+	setNonblock(fd)
 	return os.NewFile(uintptr(fd), name)
 }
