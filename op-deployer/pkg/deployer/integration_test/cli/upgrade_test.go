@@ -9,14 +9,26 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v2_0_0"
+	v6_0_0 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v6_0_0"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
+
+// isKonaVersion checks if the version string represents v6.0.0 or higher
+func isKonaVersion(version string) bool {
+	v, err := semver.NewVersion(version)
+	if err != nil {
+		return false
+	}
+	v6, _ := semver.NewVersion("6.0.0")
+	return v.Compare(v6) >= 0
+}
 
 // TestCLIUpgrade tests the upgrade CLI command for each standard opcm release
 // - forks sepolia at a block before op-sepolia was upgraded
@@ -80,22 +92,37 @@ func TestCLIUpgrade(t *testing.T) {
 			opcm, err := standard.OPCMImplAddressFor(11155111, tc.contractTag)
 			require.NoError(t, err)
 
-			testConfig := v2_0_0.UpgradeOPChainInput{
-				Prank: l1ProxyAdminOwner,
-				Opcm:  opcm,
-				EncodedChainConfigs: []v2_0_0.OPChainConfig{
-					{
-						SystemConfigProxy: systemConfigProxy,
-						ProxyAdmin:        proxyAdminImpl,
-						AbsolutePrestate:  common.HexToHash("0x0abc"),
-					},
-				},
-			}
-
 			configFile := filepath.Join(workDir, "upgrade_config_"+tc.version+".json")
 			outputFile := filepath.Join(workDir, "upgrade_output_"+tc.version+".json")
 
-			configData, err := json.MarshalIndent(testConfig, "", "  ")
+			var configData []byte
+			if isKonaVersion(tc.version) {
+				testConfig := v6_0_0.UpgradeOPChainInput{
+					Prank: l1ProxyAdminOwner,
+					Opcm:  opcm,
+					EncodedChainConfigs: []v6_0_0.OPChainConfig{
+						{
+							SystemConfigProxy:  systemConfigProxy,
+							CannonPrestate:     common.HexToHash("0x0abc"),
+							CannonKonaPrestate: common.HexToHash("0x0def"),
+						},
+					},
+				}
+				configData, err = json.MarshalIndent(testConfig, "", "  ")
+			} else {
+				testConfig := v2_0_0.UpgradeOPChainInput{
+					Prank: l1ProxyAdminOwner,
+					Opcm:  opcm,
+					EncodedChainConfigs: []v2_0_0.OPChainConfig{
+						{
+							SystemConfigProxy: systemConfigProxy,
+							ProxyAdmin:        proxyAdminImpl,
+							AbsolutePrestate:  common.HexToHash("0x0abc"),
+						},
+					},
+				}
+				configData, err = json.MarshalIndent(testConfig, "", "  ")
+			}
 			require.NoError(t, err)
 			require.NoError(t, os.WriteFile(configFile, configData, 0o644))
 
@@ -127,7 +154,7 @@ func TestCLIUpgrade(t *testing.T) {
 			// v6.0.0+ uses a different function signature: upgrade((address,bytes32,bytes32)[])
 			// Older versions use: upgrade((address,address,bytes32)[])
 			var expectedSelector string
-			if tc.version == "v6.0.0-rc.1" {
+			if isKonaVersion(tc.version) {
 				expectedSelector = "cbeda5a7" // upgrade((address,bytes32,bytes32)[])
 			} else {
 				expectedSelector = "ff2dd5a1" // upgrade((address,address,bytes32)[])
