@@ -34,10 +34,10 @@
 	url = https://github.com/ethereum-optimism/superchain-registry
 [submodule "op-rbuilder"]
 	path = op-rbuilder
-	url = git@github.com:flashbots/op-rbuilder.git
+	url = https://github.com/flashbots/op-rbuilder
 [submodule "rollup-boost"]
 	path = rollup-boost
-	url = git@github.com:flashbots/rollup-boost.git
+	url = https://github.com/flashbots/rollup-boost
 [submodule "kona"]
 	path = kona
-	url = git@github.com:op-rs/kona.git
+	url = https://github.com/op-rs/kona
