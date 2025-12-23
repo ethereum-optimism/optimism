@@ -4001,15 +4001,15 @@ workflows:
           name: <<matrix.docker_name>>-docker-release
           docker_tags: <<pipeline.git.revision>>
           platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
+          publish: false
+          release: false
           filters:
             tags:
               only: /^<<matrix.docker_name>>\/v.*/
             branches:
               ignore: /.*/
           context:
-            - oplabs-gcr-release
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
             - contracts-bedrock-build
@@ -4218,9 +4218,8 @@ workflows:
           name: <<matrix.docker_name>>-docker-publish
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           platforms: "linux/amd64,linux/arm64"
-          publish: true
+          publish: false
           context:
-            - oplabs-gcr
             - slack
             - circleci-repo-readonly-authenticated-github-token
           requires:

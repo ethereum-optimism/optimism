@@ -59,15 +59,16 @@ jobs:
           - cannon
           - op-dripper
           - op-interop-mon
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@d04222c229c50320f513afe678b3264869ea11a9
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@34a2521e4cdb58a81093591adcd959b8647905fe
     with:
       mode: bake
+      source: .
       image_name: ${{ matrix.image_name }}
       bake_file: docker-bake.hcl
       target: ${{ matrix.image_name }}
       tag: ${{ github.event_name == 'push' && 'develop' || format('pr-{0}', github.event.pull_request.number) }}
       gcp_project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
-      registry: us-docker.pkg.dev/oplabs-tools-artifacts/oss
+      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
       env: |
         GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[matrix.image_name] }}
         KONA_VERSION=${{ needs.prep.outputs.kona_version }}
@@ -103,9 +104,10 @@ jobs:
           - cannon
           - op-dripper
           - op-interop-mon
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@d04222c229c50320f513afe678b3264869ea11a9
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@34a2521e4cdb58a81093591adcd959b8647905fe
     with:
       mode: bake
+      source: .
       image_name: ${{ matrix.image_name }}
       bake_file: docker-bake.hcl
       target: ${{ matrix.image_name }}
@@ -119,4 +121,45 @@ jobs:
         *.args.GIT_DATE=${{ needs.prep.outputs.date }}
     permissions:
       contents: read
+
+  check-cross-platform:
+    needs: [prep, local]
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    strategy:
+      fail-fast: false
+      matrix:
+        image_name:
+          - op-node
+          - op-batcher
+          - op-deployer
+          - op-faucet
+          - op-program
+          - op-proposer
+          - op-challenger
+          - op-dispute-mon
+          - op-conductor
+          - da-server
+          - op-supervisor
+          - op-supernode
+          - op-test-sequencer
+          - cannon
+          - op-dripper
+          - op-interop-mon
+        runner:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2
+        with:
+          egress-policy: audit
+      - name: Pull and verify image
+        run: |
+          TAG="${{ github.event_name == 'push' && 'develop' || format('pr-{0}', github.event.pull_request.number) }}"
+          IMAGE="us-docker.pkg.dev/oplabs-tools-artifacts/images/${{ matrix.image_name }}:${TAG}"
+          echo "Testing $IMAGE on ${{ matrix.runner }}"
+          docker pull $IMAGE
+          docker run --rm $IMAGE ${{ matrix.image_name }} --version
+          echo "✓ ${{ matrix.image_name }} verified on ${{ matrix.runner }}"
 

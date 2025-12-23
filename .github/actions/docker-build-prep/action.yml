@@ -6,7 +6,7 @@ outputs:
     description: 'JSON object mapping image names to their GIT_VERSION'
     value: ${{ steps.compute_versions.outputs.versions }}
   kona_version:
-    description: 'KONA_VERSION from kona/version.json'
+    description: 'KONA_VERSION from kona-proofs/version.json'
     value: ${{ steps.kona.outputs.version }}
   date:
     description: 'Current date in YYYYMMDD format'
@@ -22,11 +22,11 @@ runs:
         DATE=$(date +%Y%m%d)
         echo "date=$DATE" >> $GITHUB_OUTPUT
 
-    - name: Read KONA_VERSION from kona/version.json
+    - name: Read KONA_VERSION from kona-proofs/version.json
       id: kona
       shell: bash
       run: |
-        KONA_VERSION=$(jq -r .version kona/version.json)
+        KONA_VERSION=$(jq -r .version kona-proofs/version.json)
         echo "version=$KONA_VERSION" >> $GITHUB_OUTPUT
         echo "KONA_VERSION: $KONA_VERSION"
 

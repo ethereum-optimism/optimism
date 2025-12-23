@@ -24,6 +24,7 @@ jobs:
         uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
         with:
           fetch-depth: 0
+          submodules: true
       - uses: ./.github/actions/docker-build-prep
         id: prep
       - name: Parse tag
@@ -32,15 +33,16 @@ jobs:
 
   release:
     needs: prep
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@d04222c229c50320f513afe678b3264869ea11a9
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@34a252123f0e19f93e6584f8c73daaf89bce1fc8
     with:
       mode: bake
+      source: .
       image_name: ${{ needs.prep.outputs.image_name }}
       bake_file: docker-bake.hcl
       target: ${{ needs.prep.outputs.image_name }}
       tag: ${{ needs.prep.outputs.version }}
       gcp_project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
-      registry: us-docker.pkg.dev/oplabs-tools-artifacts/oss
+      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
       env: |
         GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[needs.prep.outputs.image_name] }}
         KONA_VERSION=${{ needs.prep.outputs.kona_version }}
@@ -51,3 +53,26 @@ jobs:
       contents: read
       id-token: write
       attestations: write
+
+  check-cross-platform:
+    needs: [prep, release]
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2
+        with:
+          egress-policy: audit
+      - name: Pull and run image
+        run: |
+          IMAGE="us-docker.pkg.dev/oplabs-tools-artifacts/images/${{ needs.prep.outputs.image_name }}:${{ needs.prep.outputs.version }}"
+          echo "Testing $IMAGE on ${{ matrix.arch }}"
+          docker pull $IMAGE
+          docker run --rm $IMAGE ${{ needs.prep.outputs.image_name }} --version
+          echo "✓ Image verified on ${{ matrix.arch }}"
