@@ -9,12 +9,13 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/superchain"
 	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/module"
 )
 
 const (
 	monorepoGoModAtTag            = "https://github.com/ethereum-optimism/optimism/raw/refs/tags/%s/go.mod"
 	superchainRegistryCommitAtRef = "https://github.com/ethereum-optimism/op-geth/raw/%s/superchain-registry-commit.txt"
-	superchainConfigsZipAtTag     = "https://github.com/ethereum-optimism/op-geth/raw/refs/tags/%s/superchain/superchain-configs.zip"
+	superchainConfigsZipAtRef     = "https://github.com/ethereum-optimism/op-geth/raw/%s/superchain/superchain-configs.zip"
 )
 
 type OPProgramPrestate struct {
@@ -38,7 +39,7 @@ func (p *OPProgramPrestate) FindVersions(log log.Logger, prestateVersion string)
 	if err != nil {
 		log.Crit("Failed to fetch go mod", "err", err)
 	}
-	elVersion := p.findOpGethVersion(log, modFile)
+	elVersion := resolvePseudoVersion(p.findOpGethVersion(log, modFile))
 	elCommitInfo = types.NewCommitInfo("ethereum-optimism", "op-geth", elVersion, "optimism", "")
 
 	registryCommitBytes, err := util.Fetch(fmt.Sprintf(superchainRegistryCommitAtRef, elVersion))
@@ -48,7 +49,7 @@ func (p *OPProgramPrestate) FindVersions(log log.Logger, prestateVersion string)
 	superChainRegistryCommit = strings.TrimSpace(string(registryCommitBytes))
 	log.Info("Found superchain registry commit info", "commit", superChainRegistryCommit)
 
-	prestateConfigData, err := util.Fetch(fmt.Sprintf(superchainConfigsZipAtTag, elVersion))
+	prestateConfigData, err := util.Fetch(fmt.Sprintf(superchainConfigsZipAtRef, elVersion))
 	if err != nil {
 		log.Crit("Failed to fetch prestate's superchain registry config zip", "err", err)
 	}
@@ -83,4 +84,18 @@ func fetchMonorepoGoMod(opProgramTag string) (*modfile.File, error) {
 	}
 
 	return modfile.Parse("go.mod", goMod, nil)
+}
+
+// resolvePseudoVersion converts a Go module version to a git ref.
+// For pseudo-versions like "v1.101604.0-synctest.0.0.20251208094937-ba6bdcfef423",
+// it extracts the commit hash suffix. For regular tags, it returns the version as-is.
+func resolvePseudoVersion(version string) string {
+	if module.IsPseudoVersion(version) {
+		rev, err := module.PseudoVersionRev(version)
+		if err != nil {
+			log.Crit("Failed to extract commit hash from pseudo-version", "version", version, "err", err)
+		}
+		return rev
+	}
+	return version
 }
