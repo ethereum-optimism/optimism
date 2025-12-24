@@ -151,7 +151,7 @@ error GamePaused();
 error InvalidGameArgsLength();
 
 ////////////////////////////////////////////////////////////////
-//            `OPSuccinctFaultDisputeGame` Errors             //
+//                `OptimisticZkGame` Errors                 //
 ////////////////////////////////////////////////////////////////
 
 /// @notice Thrown when the claim has already been challenged.
@@ -177,3 +177,10 @@ error InvalidProposalStatus();
 
 /// @notice Thrown when the game is initialized by an incorrect factory.
 error IncorrectDisputeGameFactory();
+
+////////////////////////////////////////////////////////////////
+//            `SuperFaultDisputeGame` Errors                  //
+////////////////////////////////////////////////////////////////
+
+/// @notice Thrown when an unknown chain ID is encountered.
+error UnknownChainId();

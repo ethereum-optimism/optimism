@@ -15,11 +15,11 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 ///      this is much easier for humans to read and for us to validate offchain.
 abstract contract OPContractsManagerUtilsCaller {
     /// @notice Address of the OPContractsManagerUtils contract.
-    IOPContractsManagerUtils public immutable utils;
+    IOPContractsManagerUtils public immutable opcmUtils;
 
     /// @param _utils Address of the OPContractsManagerUtils contract.
     constructor(IOPContractsManagerUtils _utils) {
-        utils = _utils;
+        opcmUtils = _utils;
     }
 
     /// @notice Maps an L2 chain ID to an L1 batch inbox address as defined by the standard
@@ -52,6 +52,44 @@ abstract contract OPContractsManagerUtilsCaller {
         return abi.decode(
             _staticcall(abi.encodeCall(IOPContractsManagerUtils.computeSalt, (_l2ChainId, _saltMixer, _contractName))),
             (bytes32)
+        );
+    }
+
+    /// @notice Helper function to check if an instruction matches a given key.
+    /// @param _instruction The instruction to check.
+    /// @param _key The key of the instruction to check for.
+    /// @return True if the instruction matches, false otherwise.
+    function _isMatchingInstructionByKey(
+        IOPContractsManagerUtils.ExtraInstruction memory _instruction,
+        string memory _key
+    )
+        internal
+        view
+        returns (bool)
+    {
+        return abi.decode(
+            _staticcall(abi.encodeCall(IOPContractsManagerUtils.isMatchingInstructionByKey, (_instruction, _key))),
+            (bool)
+        );
+    }
+
+    /// @notice Helper function to check if an instruction matches a given key and data.
+    /// @param _instruction The instruction to check.
+    /// @param _key The key of the instruction to check for.
+    /// @param _data The data of the instruction to check for.
+    /// @return True if the instruction matches, false otherwise.
+    function _isMatchingInstruction(
+        IOPContractsManagerUtils.ExtraInstruction memory _instruction,
+        string memory _key,
+        bytes memory _data
+    )
+        internal
+        view
+        returns (bool)
+    {
+        return abi.decode(
+            _staticcall(abi.encodeCall(IOPContractsManagerUtils.isMatchingInstruction, (_instruction, _key, _data))),
+            (bool)
         );
     }
 
@@ -147,7 +185,7 @@ abstract contract OPContractsManagerUtilsCaller {
     /// @param _data Calldata to send to the utils contract.
     /// @return Result of the call.
     function _delegatecall(bytes memory _data) internal returns (bytes memory) {
-        (bool success, bytes memory result) = address(utils).delegatecall(_data);
+        (bool success, bytes memory result) = address(opcmUtils).delegatecall(_data);
         if (!success) {
             assembly {
                 revert(add(result, 0x20), mload(result))
@@ -160,7 +198,7 @@ abstract contract OPContractsManagerUtilsCaller {
     /// @param _data Calldata to send to the utils contract.
     /// @return Result of the call.
     function _staticcall(bytes memory _data) internal view returns (bytes memory) {
-        (bool success, bytes memory result) = address(utils).staticcall(_data);
+        (bool success, bytes memory result) = address(opcmUtils).staticcall(_data);
         if (!success) {
             assembly {
                 revert(add(result, 0x20), mload(result))

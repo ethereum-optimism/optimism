@@ -5,7 +5,6 @@ pragma solidity 0.8.15;
 import { OPContractsManagerUtilsCaller } from "src/L1/opcm/OPContractsManagerUtilsCaller.sol";
 
 // Libraries
-import { LibString } from "@solady/utils/LibString.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { Claim, GameType, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
@@ -117,6 +116,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         IResourceMetering.ResourceConfig resourceConfig;
         // Dispute game configuration.
         DisputeGameConfig[] disputeGameConfigs;
+        // CGT
+        bool useCustomGasToken;
     }
 
     /// @notice Partial input required for an upgrade.
@@ -145,17 +146,33 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     error OPContractsManagerV2_InvalidUpgradeInput();
 
     /// @notice Thrown when an invalid upgrade instruction is provided.
-    error OPContractsManagerV2_InvalidUpgradeInstruction();
+    error OPContractsManagerV2_InvalidUpgradeInstruction(string _key);
+
+    /// @notice Thrown when a chain attempts to upgrade to custom gas token after initial deployment.
+    error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
+
+    /// @notice Thrown when an invalid upgrade sequence is provided.
+    error OPContractsManagerV2_InvalidUpgradeSequence(string _lastVersion, string _thisVersion);
 
     /// @notice Container of blueprint and implementation contract addresses.
     IOPContractsManagerContainer public immutable contractsContainer;
 
     /// @notice Address of the Standard Validator for this OPCM release.
-    IOPContractsManagerStandardValidator public immutable standardValidator;
+    IOPContractsManagerStandardValidator public immutable opcmStandardValidator;
+
+    /// @notice Immutable reference to this OPCM contract so that the address of this contract can
+    ///         be used when this contract is DELEGATECALLed.
+    OPContractsManagerV2 public immutable opcmV2;
 
     /// @notice The version of the OPCM contract.
-    /// @custom:semver 6.2.0
-    string public constant version = "6.2.0";
+    ///         WARNING: OPCM versioning rules differ from other contracts:
+    ///         - Major bump: New required sequential upgrade
+    ///         - Minor bump: Replacement OPCM for same upgrade
+    ///         - Patch bump: Development changes (expected for normal dev work)
+    /// @custom:semver 7.0.1
+    function version() public pure returns (string memory) {
+        return "7.0.1";
+    }
 
     /// @param _contractsContainer The container of blueprint and implementation contract addresses.
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -168,7 +185,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         OPContractsManagerUtilsCaller(_utils)
     {
         contractsContainer = _contractsContainer;
-        standardValidator = _standardValidator;
+        opcmStandardValidator = _standardValidator;
+        opcmV2 = this;
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -257,22 +275,50 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///////////////////////////////////////////////////////////////////////////
 
     /// @notice Asserts that the upgrade instructions array is valid.
+    /// @dev Developers don't need to touch this function, modify _isPermittedInstruction instead.
     /// @param _extraInstructions The extra upgrade instructions for the chain.
     function _assertValidUpgradeInstructions(IOPContractsManagerUtils.ExtraInstruction[] memory _extraInstructions)
         internal
-        pure
+        view
     {
         for (uint256 i = 0; i < _extraInstructions.length; i++) {
-            if (
-                LibString.eq(_extraInstructions[i].key, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY)
-                    && LibString.eq(string(_extraInstructions[i].data), "DelayedWETH")
-            ) {
-                // Unified DelayedWETH is being deployed for the first time.
-                // TODO:(#?????): Remove this allowance after unified DelayedWETH is deployed.
-            } else {
-                revert OPContractsManagerV2_InvalidUpgradeInstruction();
+            if (!_isPermittedInstruction(_extraInstructions[i])) {
+                revert OPContractsManagerV2_InvalidUpgradeInstruction(_extraInstructions[i].key);
             }
         }
+    }
+
+    /// @notice Checks if an upgrade instruction is permitted.
+    /// @param _instruction The upgrade instruction to check.
+    /// @return True if the instruction is permitted, false otherwise.
+    function _isPermittedInstruction(IOPContractsManagerUtils.ExtraInstruction memory _instruction)
+        internal
+        view
+        returns (bool)
+    {
+        // NOTE (IMPORTANT FOR DEVELOPERS): You MAY need to allow permitted instructions here for
+        // your specific upgrade. For example, if you are adding a new contract that needs to be
+        // deployed you will need to add an allowance so that the proxy can be deployed.
+        // Allowances MUST always be restricted to one specific upgrade. Here we maintain this
+        // restriction by checking that the version is less than the NEXT release version. Once
+        // developers start working on the next release this will automatically become false so
+        // even if the code is somehow forgotten it will not actually apply to the deployment. Make
+        // sure to REMOVE the allowance once the upgrade is complete.
+        if (SemverComp.lt(_version(), "8.0.0")) {
+            // Unified DelayedWETH is being deployed for the first time.
+            // TODO:(#18382): Remove this allowance after unified DelayedWETH is deployed.
+            if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH")) {
+                return true;
+            }
+            // Custom Gas Token is being enabled for the first time.
+            // TODO:(#18502): Remove this allowance after U18 ships.
+            if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.useCustomGasToken")) {
+                return true;
+            }
+        }
+
+        // Always return false by default.
+        return false;
     }
 
     /// @notice Loads (or builds) the chain contracts from whatever exists.
@@ -281,6 +327,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @param _saltMixer The salt mixer for creating new proxies if needed.
     /// @param _extraInstructions The extra upgrade instructions for the chain.
     /// @return The chain contracts.
+
     function _loadChainContracts(
         ISystemConfig _systemConfig,
         uint256 _l2ChainId,
@@ -474,6 +521,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     {
         // Load the full config.
         return FullConfig({
+            disputeGameConfigs: _upgradeInput.disputeGameConfigs,
             saltMixer: string(bytes.concat(bytes32(uint256(uint160(address(_chainContracts.systemConfig)))))),
             superchainConfig: abi.decode(
                 _loadBytes(
@@ -583,7 +631,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 ),
                 (GameType)
             ),
-            disputeGameConfigs: _upgradeInput.disputeGameConfigs
+            useCustomGasToken: abi.decode(
+                _loadBytes(
+                    address(_chainContracts.systemConfig),
+                    _chainContracts.systemConfig.isCustomGasToken.selector,
+                    "overrides.cfg.useCustomGasToken",
+                    _upgradeInput.extraInstructions
+                ),
+                (bool)
+            )
         });
     }
 
@@ -645,6 +701,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // Make sure the provided SuperchainConfig is up to date.
         if (SemverComp.lt(_cfg.superchainConfig.version(), ISuperchainConfig(impls.superchainConfigImpl).version())) {
             revert OPContractsManagerV2_SuperchainConfigNeedsUpgrade();
+        }
+
+        // Chains prior to OPCMv2 don't yet have a functional lastUsedOPCMVersion function on the
+        // SystemConfig contract. The first deployment of OPCMv2 will make this function available
+        // and subsequent deployments will then use this function to verify the system is
+        // progressing from one OPCM to the next. We only care about this for upgrades, you can
+        // perform an initial deployment from any OPCM.
+        if (!_isInitialDeployment && !isPermittedUpgradeSequence(_cts.systemConfig)) {
+            revert OPContractsManagerV2_InvalidUpgradeSequence(_cts.systemConfig.lastUsedOPCMVersion(), _version());
         }
 
         // Update the SystemConfig.
@@ -787,6 +852,19 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             );
         }
 
+        // If the custom gas token feature was requested, enable it in the SystemConfig.
+        // If the cgt is enabled, we skip this step.
+        if (_cfg.useCustomGasToken && !_cts.systemConfig.isCustomGasToken()) {
+            // NOTE: Enabling the custom gas token feature is only allowed during initial deployment to prevent
+            // chains from enabling it during upgrades. Passing in true for this flag during an upgrade is considered an
+            // error and will revert.
+            // Revert only if trying to upgrade from CGT disabled to CGT enabled.
+            if (!_isInitialDeployment) {
+                revert OPContractsManagerV2_CannotUpgradeToCustomGasToken();
+            }
+            _cts.systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, true);
+        }
+
         // If critical transfer is allowed, tranfer ownership of the DisputeGameFactory and
         // ProxyAdmin to the PAO. During deployments, this means transferring ownership from the
         // OPCM contract to the target PAO. During upgrades, this would theoretically mean
@@ -826,7 +904,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             l1StandardBridge: address(_cts.l1StandardBridge),
             optimismPortal: address(_cts.optimismPortal),
             optimismMintableERC20Factory: address(_cts.optimismMintableERC20Factory),
-            delayedWETH: address(_cts.delayedWETH)
+            delayedWETH: address(_cts.delayedWETH),
+            opcm: address(opcmV2)
         });
 
         // Generate the initializer arguments.
@@ -913,6 +992,44 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     //                        PUBLIC UTILITY FUNCTIONS                       //
     ///////////////////////////////////////////////////////////////////////////
 
+    /// @notice Checks if the upgrade sequence from the last used OPCM to this OPCM is permitted.
+    ///         This function is public to allow tests to verify upgrade sequence logic directly
+    ///         by mocking the OPCM version and calling this function, rather than running the full
+    ///         upgrade flow. This avoids the need for special testing flags that bypass validation.
+    /// @param _systemConfig The SystemConfig contract to check the upgrade sequence for.
+    /// @return True if the upgrade sequence is permitted, false otherwise.
+    function isPermittedUpgradeSequence(ISystemConfig _systemConfig) public view returns (bool) {
+        // If the SystemConfig is not initialized, this is an initial deployment, which is always
+        // permitted. Initial deployments can use any OPCM version.
+        if (address(_systemConfig) == address(0)) {
+            return true;
+        }
+
+        // Chains prior to OPCMv2 (version 7.0.0) don't have a functional lastUsedOPCM function on
+        // the SystemConfig contract. The first deployment of OPCMv2 which makes this available is
+        // version 7.0.0. We need to skip the check for 7.x.x OPCM versions because they can't
+        // guarantee that the lastUsedOPCM function will be available on the incoming SystemConfig.
+        // 8.0.0 and later will always have this function available.
+        if (SemverComp.lt(_version(), "8.0.0")) {
+            return true;
+        }
+
+        ISemver lastUsedOPCM = ISemver(address(_systemConfig.lastUsedOPCM()));
+        SemverComp.Semver memory lastUsedSemver = SemverComp.parse(lastUsedOPCM.version());
+        SemverComp.Semver memory thisSemver = SemverComp.parse(_version());
+
+        // We have three permitted cases:
+        // 1. Address of the last used OPCM is identical to the address of this OPCM (re-running).
+        // 2. This OPCM version is the same major version but a greater minor version (patch).
+        // 3. This OPCM version is the next major version (sequential upgrade).
+        bool isSameOPCM = address(lastUsedOPCM) == address(opcmV2);
+        bool isNextMajor = thisSemver.major == lastUsedSemver.major + 1;
+        bool isSameMajorHigherMinor =
+            thisSemver.major == lastUsedSemver.major && thisSemver.minor > lastUsedSemver.minor;
+
+        return isSameOPCM || isSameMajorHigherMinor || isNextMajor;
+    }
+
     /// @notice Returns the blueprint contract addresses.
     function blueprints() public view returns (IOPContractsManagerContainer.Blueprints memory) {
         return contractsContainer.blueprints();
@@ -928,5 +1045,23 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @return True if the feature is enabled, false otherwise.
     function isDevFeatureEnabled(bytes32 _feature) public view returns (bool) {
         return contractsContainer.isDevFeatureEnabled(_feature);
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+    //                       INTERNAL UTILITY FUNCTIONS                      //
+    ///////////////////////////////////////////////////////////////////////////
+
+    /// @notice Helper for retrieving the version of the OPCM contract.
+    /// @dev We use opcmV2.version() because it allows us to properly mock the version function
+    ///      in tests without running into issues because this contract is being DELEGATECALLed.
+    /// @return The version of the OPCM contract.
+    function _version() internal view returns (string memory) {
+        return opcmV2.version();
+    }
+
+    /// @notice Returns the development feature bitmap.
+    /// @return The development feature bitmap.
+    function devFeatureBitmap() public view returns (bytes32) {
+        return contractsContainer.devFeatureBitmap();
     }
 }

@@ -16,7 +16,7 @@ type (
 	}
 
 	GasPricer interface {
-		SuggestGasPriceCaps(ctx context.Context) (tipCap *big.Int, baseFee *big.Int, blobBaseFee *big.Int, err error)
+		SuggestGasPriceCaps(ctx context.Context) (tipCap *big.Int, baseFee *big.Int, blobTipCap *big.Int, blobBaseFee *big.Int, err error)
 	}
 
 	DynamicEthChannelConfig struct {
@@ -61,7 +61,7 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isPectra, isThrottling bool) C
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), dec.timeout)
 	defer cancel()
-	tipCap, baseFee, blobBaseFee, err := dec.gasPricer.SuggestGasPriceCaps(ctx)
+	tipCap, baseFee, blobTipCap, blobBaseFee, err := dec.gasPricer.SuggestGasPriceCaps(ctx)
 	if err != nil {
 		dec.log.Warn("Error querying gas prices, returning last config", "err", err)
 		return *dec.lastConfig
@@ -81,8 +81,14 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isPectra, isThrottling bool) C
 	numBlobsPerTx := dec.blobConfig.TargetNumFrames
 
 	// Compute the total absolute cost of submitting either a single calldata tx or a single blob tx.
-	calldataCost, blobCost := computeSingleCalldataTxCost(tokensPerCalldataTx, baseFee, tipCap, isPectra),
-		computeSingleBlobTxCost(numBlobsPerTx, baseFee, tipCap, blobBaseFee)
+	calldataCost, blobCost, oracleBlobCost :=
+		computeSingleCalldataTxCost(tokensPerCalldataTx, baseFee, tipCap, isPectra),
+		computeSingleBlobTxCost(numBlobsPerTx, baseFee, tipCap, blobBaseFee),
+		computeSingleBlobTxCost(numBlobsPerTx, baseFee, blobTipCap, blobBaseFee)
+
+	// TODO(18618): before activating the blob tip oracle, confirm in prod that we mostly get newBlobSavings == true, otherwise
+	// it is not worth it using the oracle
+	oracleBlobSavings := oracleBlobCost.Cmp(blobCost) < 0
 
 	// Now we compare the absolute cost per tx divided by the number of bytes per tx:
 	blobDataBytesPerTx := big.NewInt(eth.MaxBlobDataSize * int64(numBlobsPerTx))
@@ -97,6 +103,8 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isPectra, isThrottling bool) C
 	lgr := dec.log.New("base_fee", baseFee, "blob_base_fee", blobBaseFee, "tip_cap", tipCap,
 		"calldata_bytes", calldataBytesPerTx, "calldata_cost", calldataCost,
 		"blob_data_bytes", blobDataBytesPerTx, "blob_cost", blobCost,
+		"oracle_blob_cost", oracleBlobCost,
+		"oracle_blob_savings", oracleBlobSavings,
 		"cost_ratio", costRatio)
 
 	if ay.Cmp(bx) == 1 {

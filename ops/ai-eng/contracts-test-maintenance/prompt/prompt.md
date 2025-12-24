@@ -28,46 +28,6 @@ Only make changes you're confident about - analyze code behavior before testing.
 Don't guess or assume - if unsure, examine the source contract carefully.
 </critical_requirement>
 
-<structured_output>
-You MUST maintain a `structured_output` field to communicate task completion status. Please update the structured output immediately after completing your analysis (Phases 1-2) to indicate whether changes are needed.
-
-**Required Format:**
-```json
-{
-  "analysis_complete": boolean,
-  "changes_needed": boolean,
-  "reason": string
-}
-```
-
-**When to Update:**
-- Update immediately after completing Phases 1-2 (Enhancement Analysis & Coverage Gap Analysis)
-- Set `analysis_complete: true` as soon as you determine the outcome
-- Set `changes_needed: true` if you will create or modify tests
-- Set `changes_needed: false` if no changes are needed after thorough analysis
-- Set `reason` with a brief explanation of the outcome
-
-**Examples:**
-
-No changes needed:
-```json
-{
-  "analysis_complete": true,
-  "changes_needed": false,
-  "reason": "Test coverage is already comprehensive with all functions and code paths tested"
-}
-```
-
-Changes needed:
-```json
-{
-  "analysis_complete": true,
-  "changes_needed": true,
-  "reason": "Converting 3 tests to fuzz tests and adding coverage for 2 untested functions"
-}
-```
-</structured_output>
-
 <zero_tolerance_rules>
 1. NO creating NEW tests for inherited functions - only test functions declared in target contract
 2. NO creating test contracts for constructor parameters - use Constructor_Test instead
@@ -99,6 +59,102 @@ Enhance the provided Solidity test file following these objectives:
 
 Focus on mechanical improvements that increase coverage and quality.
 </task>
+
+<structured_output>
+**IMPORTANT: You MUST maintain a `structured_output` field to communicate task status.**
+
+Please update the structured output **immediately after completing Phases 1-2 (Enhancement Analysis & Coverage Gap Analysis)** to indicate whether changes are needed.
+
+**Required JSON Structure:**
+```json
+{
+  "analysis_complete": boolean,
+  "changes_needed": boolean,
+  "reason": string
+}
+```
+
+**Field Definitions:**
+- `analysis_complete`: Set to `true` as soon as you determine the outcome after Phases 1-2
+- `changes_needed`: Set to `true` if you will create or modify tests; `false` if no changes needed
+- `reason`: Brief explanation (1-2 sentences) of why changes are/aren't needed
+
+**When to Update:**
+Update the structured output immediately after completing your analysis (Phases 1-2), before starting implementation work. This allows the system to detect when no changes are required.
+
+**Examples:**
+
+No changes needed:
+```json
+{
+  "analysis_complete": true,
+  "changes_needed": false,
+  "reason": "Test coverage is already comprehensive with all functions and code paths tested. The constructor has both focused and fuzz tests covering all valid inputs."
+}
+```
+
+Changes needed:
+```json
+{
+  "analysis_complete": true,
+  "changes_needed": true,
+  "reason": "Converting 3 tests to fuzz tests and adding coverage for 2 untested error conditions in the validate() function."
+}
+```
+
+**Critical:** Set this output BEFORE proceeding to Phase 3. If `changes_needed: false`, you can stop after Phase 2.
+</structured_output>
+
+<no_changes_tracking>
+**IMPORTANT: When no changes are needed (`changes_needed: false`), you MUST update the tracking file.**
+
+If your analysis determines that no changes are needed, add an entry to `ops/ai-eng/contracts-test-maintenance/no-need-changes.toml` with the following information:
+
+```toml
+[[tests]]
+test_path = "{TEST_PATH}"
+contract_path = "{CONTRACT_PATH}"
+contract_hash = "<git commit hash of the contract file>"
+recorded_at = "<ISO 8601 timestamp>"
+devin_session_id = "<your session ID>"
+run_id = "<run ID from the ranking file>"
+reason = "<brief explanation from your structured_output.reason>"
+```
+
+**How to get the contract hash:**
+Run this command: `git log -1 --format=%H -- packages/contracts-bedrock/{CONTRACT_PATH}`
+
+**Example entry:**
+```toml
+[[tests]]
+test_path = "test/L1/SystemConfig.t.sol"
+contract_path = "src/L1/SystemConfig.sol"
+contract_hash = "abc123def456..."
+recorded_at = "2025-12-11T20:30:00Z"
+devin_session_id = "devin-abc123"
+run_id = "20251211_203000"
+reason = "Test coverage is already comprehensive with all functions and code paths tested."
+```
+
+**Critical Steps:**
+1. Get the contract hash using the git command above
+2. Add the entry to the TOML file
+3. Commit this change with message: `chore(ai-test): skip {TEST_PATH} - already has comprehensive coverage`
+4. **Create a pull request** with the default template to record this decision
+
+This tracking allows the system to automatically exclude well-tested files from future runs until the contract changes.
+</no_changes_tracking>
+
+<stale_entries_cleanup>
+**IMPORTANT: Clean up stale TOML entries before starting your analysis.**
+
+The following entries in `ops/ai-eng/contracts-test-maintenance/no-need-changes.toml` have outdated contract hashes and must be removed:
+
+{{STALE_ENTRIES_LIST}}
+
+Remove these entries from the TOML file and commit with message:
+`chore(ai-test): remove stale entries from no-need-changes.toml`
+</stale_entries_cleanup>
 
 <methodology>
 **Structured Enhancement Methodology**

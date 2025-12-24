@@ -1,0 +1,92 @@
+# Check Runner Configuration
+#
+# Phases run sequentially, top to bottom.
+# Within each phase, checks run in parallel (unless parallel: false).
+# Dependencies within a phase are respected.
+#
+# Phase fields:
+#   - name: Phase identifier (shown in output)
+#   - build: (optional) Build command to run before checks
+#   - parallel: (optional) Whether checks run in parallel (default: true)
+#   - checks: List of checks to run
+#
+# Check fields:
+#   - name: Unique identifier
+#   - description: Human-readable description
+#   - command: Shell command to run
+#   - depends: (optional) Checks that must complete first (within same phase)
+#   - retry-clean: (optional) If true, retry with clean build on failure
+
+phases:
+  # Phase 1: Setup - runs sequentially
+  - name: setup
+    parallel: false
+    checks:
+      - name: lint-fix
+        description: Fix code formatting
+        command: forge fmt || true
+
+  # Phase 2: Pre-build checks - no compilation needed
+  - name: pre-build
+    checks:
+      - name: lint
+        description: Check code formatting
+        command: forge fmt --check
+      - name: semgrep
+        description: Run semgrep security linter
+        command: cd ../../ && semgrep scan --error --config .semgrep/rules/ ./packages/contracts-bedrock
+      - name: semgrep-test-validity
+        description: Check semgrep tests are valid
+        command: forge fmt ../../.semgrep/tests/sol-rules.t.sol --check
+      - name: deploy-configs
+        description: Validate deploy configurations
+        command: ./scripts/checks/check-deploy-configs.sh
+      - name: kontrol-summaries
+        description: Check kontrol summaries unchanged
+        command: ./scripts/checks/check-kontrol-summaries-unchanged.sh
+
+  # Phase 3: Source build checks - production contracts only
+  - name: source
+    build: just build-source
+    checks:
+      - name: snapshots
+        description: Check snapshots are up to date
+        command: go run ./scripts/autogen/generate-snapshots . && go run scripts/autogen/generate-semver-lock/main.go
+      - name: semver-diff
+        description: Check semver changes match lock changes
+        command: ./scripts/checks/check-semver-diff.sh
+        depends:
+          - snapshots
+      - name: unused-imports
+        description: Check for unused imports
+        command: go run ./scripts/checks/unused-imports
+      - name: strict-pragma
+        description: Check strict pragma versions
+        command: go run ./scripts/checks/strict-pragma
+      - name: valid-semver
+        description: Check valid semver versions
+        command: go run ./scripts/checks/valid-semver-check/main.go
+      - name: spacers
+        description: Validate storage spacers
+        command: go run ./scripts/checks/spacers
+      - name: reinitializers
+        description: Check reinitializer modifiers
+        command: go run ./scripts/checks/reinitializer
+      - name: interfaces
+        description: Check interface correctness
+        command: go run ./scripts/checks/interfaces
+        retry-clean: true
+      - name: size-check
+        description: Check contract sizes
+        command: forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**"
+      - name: opcm-upgrade-checks
+        description: Check OPCM upgrade methods
+        command: go run ./scripts/checks/opcm-upgrade-checks/
+
+  # Phase 4: Dev build checks - needs test artifacts
+  - name: dev
+    build: just forge-build-dev
+    checks:
+      - name: forge-test-names
+        description: Validate forge test conventions
+        command: go run ./scripts/checks/test-validation
