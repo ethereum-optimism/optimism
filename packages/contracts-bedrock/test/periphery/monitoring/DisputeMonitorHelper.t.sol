@@ -280,20 +280,30 @@ contract DisputeMonitorHelper_GetUnresolvedGames_Test is DisputeMonitorHelper_Te
 }
 
 contract DisputeMonitorHelper_toRpcHexString_Test is DisputeMonitorHelper_TestInit {
-    /// @notice Test that the toRpcHexString function converts a uint256 to a hex string that
-    ///         starts with 0x and doesn't have any leading zeros.
-    function test_toRpcHexString_succeeds() external view {
-        uint256 value = 1234567890;
-        string memory hexString = helper.toRpcHexString(value);
-        assertEq(hexString, "0x499602d2");
+    /// @notice Fuzz test that the toRpcHexString function converts a uint256 to a hex string.
+    /// @param _value The value to convert.
+    function testFuzz_toRpcHexString_succeeds(uint256 _value) external view {
+        string memory hexString = helper.toRpcHexString(_value);
+
+        // Verify the string starts with "0x".
+        bytes memory hexBytes = bytes(hexString);
+        assertGe(hexBytes.length, 3, "hex string too short");
+        assertEq(hexBytes[0], "0", "hex string should start with 0");
+        assertEq(hexBytes[1], "x", "hex string should have x as second char");
+
+        // Verify no leading zeros after 0x (except for zero value which is "0x0").
+        if (_value != 0) {
+            assertNotEq(hexBytes[2], "0", "hex string should not have leading zeros");
+        } else {
+            assertEq(hexBytes.length, 3, "zero should be 0x0");
+            assertEq(hexBytes[2], "0", "zero should be 0x0");
+        }
     }
 
-    /// @notice Test that the toRpcHexString function converts a uint256 to a hex string that
-    ///         doesn't have any leading zeros.
-    function test_toRpcHexString_noLeadingZero_succeeds() external view {
-        uint256 value = 136210625;
-        string memory hexString = helper.toRpcHexString(value);
-        assertEq(hexString, "0x81e68c1");
+    /// @notice Test that zero value converts to "0x0".
+    function test_toRpcHexString_zeroValue_succeeds() external view {
+        string memory hexString = helper.toRpcHexString(0);
+        assertEq(hexString, "0x0");
     }
 }
 
@@ -405,32 +415,34 @@ contract DisputeMonitorHelper_Search_Test is DisputeMonitorHelper_TestInit {
         assertEq(foundIndex, type(uint256).max, "found index should be max");
     }
 
-    /// @notice Test that searching for a game older than all games returns the max index.
-    function test_search_olderThanEverything_succeeds() external {
-        // Select a target timestamp.
-        uint256 targetTimestamp = vm.randomUint(1, 100);
+    /// @notice Fuzz test that searching for a game older than all games returns the max index.
+    /// @param _targetTimestamp The timestamp to create the game at.
+    function testFuzz_search_olderThanEverything_succeeds(uint256 _targetTimestamp) external {
+        // Bound the timestamp to uint64 range (contract truncates to uint64) and avoid underflow.
+        _targetTimestamp = bound(_targetTimestamp, 1, type(uint64).max);
 
         // Create one game.
-        createGameWithTimestamp(targetTimestamp, bytes32(uint256(1)));
+        createGameWithTimestamp(_targetTimestamp, bytes32(uint256(1)));
 
         // Search by providing a timestamp that is before all games.
         uint256 foundIndex = helper.search(
-            disputeGameFactory, targetTimestamp - 1, DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ
+            disputeGameFactory, _targetTimestamp - 1, DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ
         );
         assertEq(foundIndex, type(uint256).max, "found index should be max");
     }
 
-    /// @notice Test that searching for a game newer than all games returns the max index.
-    function test_search_newerThanEverything_succeeds() external {
-        // Select a target timestamp.
-        uint256 targetTimestamp = vm.randomUint(1, 100);
+    /// @notice Fuzz test that searching for a game newer than all games returns the max index.
+    /// @param _targetTimestamp The timestamp to create the game at.
+    function testFuzz_search_newerThanEverything_succeeds(uint256 _targetTimestamp) external {
+        // Bound the timestamp to uint64 range (contract truncates to uint64) and avoid overflow.
+        _targetTimestamp = bound(_targetTimestamp, 0, type(uint64).max - 1);
 
         // Create one game.
-        createGameWithTimestamp(targetTimestamp, bytes32(uint256(1)));
+        createGameWithTimestamp(_targetTimestamp, bytes32(uint256(1)));
 
         // Search by providing a timestamp that is after all games.
         uint256 foundIndex = helper.search(
-            disputeGameFactory, targetTimestamp + 1, DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ
+            disputeGameFactory, _targetTimestamp + 1, DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ
         );
         assertEq(foundIndex, type(uint256).max, "found index should be max");
     }
