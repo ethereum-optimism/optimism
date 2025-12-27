@@ -78,7 +78,6 @@ default = []
 
 # Opentelemtry feature to activate metrics export
 otlp = ["reth-tracing/otlp", "reth-node-core/otlp"]
-samply = ["reth-tracing/samply", "reth-node-core/samply"]
 
 asm-keccak = [
     "alloy-primitives/asm-keccak",
