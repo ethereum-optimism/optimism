@@ -1042,3 +1042,22 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 		})
 	})
 }
+
+// TestChannelManager_getReadyChannel_NilChannel verifies that getReadyChannel
+// handles nil currentChannel gracefully when forcePublish is true.
+// This is a regression test for a nil pointer dereference bug.
+func TestChannelManager_getReadyChannel_NilChannel(t *testing.T) {
+	log := testlog.Logger(t, log.LevelCrit)
+	cfg := channelManagerTestConfig(120_000, derive.SingularBatchType)
+	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &rollup.Config{})
+	m.Clear(eth.BlockID{})
+
+	require.Nil(t, m.currentChannel, "currentChannel should be nil after Clear()")
+
+	l1Head := eth.BlockID{Hash: common.HexToHash("0x1234"), Number: 100}
+
+	// Should not panic when currentChannel is nil and forcePublish is true
+	require.NotPanics(t, func() {
+		_, _ = m.getReadyChannel(l1Head, pubInfo{forcePublish: true})
+	}, "getReadyChannel should not panic when currentChannel is nil")
+}
