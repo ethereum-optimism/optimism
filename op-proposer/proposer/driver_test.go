@@ -76,12 +76,9 @@ func (p *mockRollupEndpointProvider) Close() {}
 func setup(t *testing.T, testName string) (*L2OutputSubmitter, *mockRollupEndpointProvider, *MockL2OOContract, *StubDGFContract, *txmgrmocks.TxManager, *testlog.CapturingHandler) {
 	ep := newEndpointProvider()
 
-	l2OutputOracleAddr := common.HexToAddress("0x3F8A862E63E759a77DA22d384027D21BF096bA9E")
-
 	proposerConfig := ProposerConfig{
-		PollInterval:       time.Microsecond,
-		ProposalInterval:   time.Microsecond,
-		L2OutputOracleAddr: &l2OutputOracleAddr,
+		PollInterval:     time.Microsecond,
+		ProposalInterval: time.Microsecond,
 	}
 
 	txmgr := txmgrmocks.NewTxManager(t)
