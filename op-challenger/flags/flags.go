@@ -28,7 +28,6 @@ import (
 const EnvVarPrefix = "OP_CHALLENGER"
 
 func prefixEnvVars(names ...string) []string {
-
 	envs := make([]string, 0, len(names))
 	for _, name := range names {
 		envs = append(envs, EnvVarPrefix+"_"+name)
@@ -38,8 +37,8 @@ func prefixEnvVars(names ...string) []string {
 
 var (
 	faultDisputeVMs = []gameTypes.GameType{
-		gameTypes.CannonGameType,
 		gameTypes.CannonKonaGameType,
+		gameTypes.CannonGameType,
 		gameTypes.AsteriscGameType,
 		gameTypes.AsteriscKonaGameType,
 		gameTypes.SuperCannonGameType,
@@ -88,7 +87,7 @@ var (
 		Aliases: []string{"trace-type"}, // For backwards compatibility
 		Usage:   "The game types to support. Valid options: " + openum.EnumStringer(gameTypes.SupportedGameTypes),
 		EnvVars: prefixEnvVars("GAME_TYPES", "TRACE_TYPE"),
-		Value:   cli.NewStringSlice(gameTypes.CannonGameType.String(), gameTypes.CannonKonaGameType.String()),
+		Value:   cli.NewStringSlice(gameTypes.CannonKonaGameType.String(), gameTypes.CannonGameType.String()),
 	}
 	DatadirFlag = &cli.StringFlag{
 		Name:    "datadir",
