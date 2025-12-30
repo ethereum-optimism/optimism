@@ -43,8 +43,6 @@ contract UpgradeSuperchainConfig is Script {
 
     /// @notice Asserts that the input is valid.
     function assertValidInput(Input memory _input) internal pure {
-        // Note: Intentionally not checking extra instructions for OPCM v2 as they are not required in some upgrades.
-        // This responsibility is delegated to the OPCM v2 contract.
         require(_input.prank != address(0), "UpgradeSuperchainConfig: prank not set");
         require(address(_input.opcm) != address(0), "UpgradeSuperchainConfig: opcm not set");
         require(address(_input.superchainConfig) != address(0), "UpgradeSuperchainConfig: superchainConfig not set");
@@ -92,10 +90,10 @@ contract DummyCaller {
         return (success, result);
     }
 }
+
 /// @title DummyCallerV2
 /// @notice This contract is used to mimic the contract that is used as the source of the delegatecall to the OPCM v2.
 /// Uses IOPContractsManagerV2.SuperchainUpgradeInput type for the upgrade input.
-
 contract DummyCallerV2 {
     address internal _opcmAddr;
 
