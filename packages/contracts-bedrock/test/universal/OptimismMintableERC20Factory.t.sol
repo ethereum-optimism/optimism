@@ -67,7 +67,7 @@ contract OptimismMintableERC20Factory_Initialize_Test is OptimismMintableERC20Fa
 ///         contract.
 contract OptimismMintableERC20Factory_CreateStandardL2Token_Test is OptimismMintableERC20Factory_TestInit {
     /// @notice Test that calling `createStandardL2Token` with valid parameters succeeds.
-    function test_createStandardL2Token_succeeds(
+    function testFuzz_createStandardL2Token_validParams_succeeds(
         address _caller,
         address _remoteToken,
         string memory _name,
@@ -100,7 +100,7 @@ contract OptimismMintableERC20Factory_CreateStandardL2Token_Test is OptimismMint
 
     /// @notice Test that calling `createOptimismMintableERC20WithDecimals` with valid parameters
     ///         succeeds.
-    function test_createStandardL2TokenWithDecimals_succeeds(
+    function testFuzz_createOptimismMintableERC20WithDecimals_validParams_succeeds(
         address _caller,
         address _remoteToken,
         string memory _name,
@@ -134,7 +134,7 @@ contract OptimismMintableERC20Factory_CreateStandardL2Token_Test is OptimismMint
     }
 
     /// @notice Test that calling `createStandardL2Token` with the same parameters twice reverts.
-    function test_createStandardL2Token_sameTwice_reverts(
+    function testFuzz_createStandardL2Token_sameTwice_reverts(
         address _caller,
         address _remoteToken,
         string memory _name,
@@ -156,9 +156,9 @@ contract OptimismMintableERC20Factory_CreateStandardL2Token_Test is OptimismMint
         l2OptimismMintableERC20Factory.createStandardL2Token(_remoteToken, _name, _symbol);
     }
 
-    /// @notice Test that calling `createStandardL2TokenWithDecimals` with the same parameters
-    ///         twice reverts.
-    function test_createStandardL2TokenWithDecimals_sameTwice_reverts(
+    /// @notice Test that calling `createOptimismMintableERC20WithDecimals` with the same
+    ///         parameters twice reverts.
+    function testFuzz_createOptimismMintableERC20WithDecimals_sameTwice_reverts(
         address _caller,
         address _remoteToken,
         string memory _name,
@@ -182,7 +182,7 @@ contract OptimismMintableERC20Factory_CreateStandardL2Token_Test is OptimismMint
     }
 
     /// @notice Test that calling `createStandardL2Token` with a zero remote token address reverts.
-    function test_createStandardL2Token_remoteIsZero_reverts(
+    function testFuzz_createStandardL2Token_remoteIsZero_reverts(
         address _caller,
         string memory _name,
         string memory _symbol
@@ -198,9 +198,9 @@ contract OptimismMintableERC20Factory_CreateStandardL2Token_Test is OptimismMint
         l2OptimismMintableERC20Factory.createStandardL2Token(remote, _name, _symbol);
     }
 
-    /// @notice Test that calling `createStandardL2TokenWithDecimals` with a zero remote token
-    ///         address reverts.
-    function test_createStandardL2TokenWithDecimals_remoteIsZero_reverts(
+    /// @notice Test that calling `createOptimismMintableERC20WithDecimals` with a zero remote
+    ///         token address reverts.
+    function testFuzz_createOptimismMintableERC20WithDecimals_remoteIsZero_reverts(
         address _caller,
         string memory _name,
         string memory _symbol,
