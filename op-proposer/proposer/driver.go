@@ -298,8 +298,6 @@ func (l *L2OutputSubmitter) ProposeL2OutputDGFTxCandidate(ctx context.Context, o
 func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output source.Proposal) error {
 	l.Log.Info("Proposing output root", "output", output.Root, "sequenceNum", output.SequenceNum, "extraData", output.ExtraData())
 
-	// We no longer check for L2OutputOracleAddr.
-	// The proposer now only supports DisputeGameFactory.
 	candidate, err := l.ProposeL2OutputDGFTxCandidate(ctx, output)
 	if err != nil {
 		return fmt.Errorf("failed to create DGF tx candidate: %w", err)
