@@ -90,7 +90,6 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	RollupRpcFlag,
 	SupervisorRpcsFlag,
-	L2OOAddressFlag,
 	PollIntervalFlag,
 	AllowNonFinalizedFlag,
 	L2OutputHDPathFlag,
