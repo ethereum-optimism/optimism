@@ -96,7 +96,7 @@ func NewL2OutputSubmitter(setup DriverSetup) (_ *L2OutputSubmitter, err error) {
 	}()
 
 	if setup.Cfg.DisputeGameFactoryAddr == nil {
-		return nil, errors.New("DisputeGameFactory address must be provided; L2OutputOracle is no longer supported")
+		return nil, errors.New("missing DisputeGameFactory address")
 	}
 
 	return newDGFSubmitter(ctx, cancel, setup)
