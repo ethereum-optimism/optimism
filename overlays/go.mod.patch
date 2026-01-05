@@ -1,0 +1,10 @@
+# Boba go.mod patch
+# This patch replaces the upstream op-geth with Boba's fork
+#
+# The patch is applied by scripts/boba-build.sh before building
+#
+# Format: Each line that starts with 's|' is a sed substitution pattern
+# Pattern: s|<original>|<replacement>|g
+
+# Replace upstream op-geth with Boba's fork
+s|github.com/ethereum-optimism/op-geth v[^ ]*|github.com/bobanetwork/op-geth v0.0.0-20251216190032-bdb3c55eb405|g

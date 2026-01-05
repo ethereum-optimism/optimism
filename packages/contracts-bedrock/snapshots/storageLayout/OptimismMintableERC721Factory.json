@@ -1,9 +1,0 @@
-[
-  {
-    "bytes": "32",
-    "label": "isOptimismMintableERC721",
-    "offset": 0,
-    "slot": "0",
-    "type": "mapping(address => bool)"
-  }
-]

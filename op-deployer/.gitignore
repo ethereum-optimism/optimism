@@ -1,3 +1,0 @@
-bin
-.deployer
-pkg/deployer/artifacts/forge-artifacts/*

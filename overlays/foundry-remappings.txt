@@ -1,0 +1,3 @@
+# Additional Foundry remappings for Boba contracts
+# These are appended to the upstream foundry.toml remappings
+@openzeppelin-patched/=lib/openzeppelin-contracts-patched/

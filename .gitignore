@@ -3,6 +3,9 @@ node_modules
 results
 temp
 coverage.json
+
+# Boba build system
+.boba-build/
 **/lcov.info
 **/lcov-upgrade.info
 **/lcov-all.info
