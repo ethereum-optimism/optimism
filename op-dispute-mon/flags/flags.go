@@ -38,9 +38,9 @@ var (
 		Usage:   "HTTP provider URL for the rollup node. Multiple URLs can be specified for redundancy.",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
-	SupernodeRpcFlag = &cli.StringSliceFlag{
+	SuperNodeRpcFlag = &cli.StringSliceFlag{
 		Name:    "supernode-rpc",
-		Usage:   "HTTP provider URL for supernodes. Multiple URLs can be specified for redundancy.",
+		Usage:   "HTTP provider URL for super nodes. Multiple URLs can be specified for redundancy.",
 		EnvVars: prefixEnvVars("SUPERNODE_RPC"),
 	}
 	GameFactoryAddressFlag = &cli.StringFlag{
@@ -92,7 +92,7 @@ var requiredFlags = []cli.Flag{
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
 	RollupRpcFlag,
-	SupernodeRpcFlag,
+	SuperNodeRpcFlag,
 	GameFactoryAddressFlag,
 	NetworkFlag,
 	HonestActorsFlag,
@@ -119,8 +119,8 @@ func CheckRequired(ctx *cli.Context) error {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
 		}
 	}
-	if len(ctx.StringSlice(RollupRpcFlag.Name)) == 0 && len(ctx.StringSlice(SupernodeRpcFlag.Name)) == 0 {
-		return fmt.Errorf("flag %s or %s is required", RollupRpcFlag.Name, SupernodeRpcFlag.Name)
+	if len(ctx.StringSlice(RollupRpcFlag.Name)) == 0 && len(ctx.StringSlice(SuperNodeRpcFlag.Name)) == 0 {
+		return fmt.Errorf("flag %s or %s is required", RollupRpcFlag.Name, SuperNodeRpcFlag.Name)
 	}
 	return nil
 }
@@ -169,7 +169,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		L1EthRpc:           ctx.String(L1EthRpcFlag.Name),
 		GameFactoryAddress: gameFactoryAddress,
 		RollupRpcs:         ctx.StringSlice(RollupRpcFlag.Name),
-		SupernodeRpcs:      ctx.StringSlice(SupernodeRpcFlag.Name),
+		SuperNodeRpcs:      ctx.StringSlice(SuperNodeRpcFlag.Name),
 
 		HonestActors:    actors,
 		MonitorInterval: ctx.Duration(MonitorIntervalFlag.Name),

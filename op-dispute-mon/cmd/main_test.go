@@ -60,12 +60,12 @@ func TestL1EthRpc(t *testing.T) {
 	})
 }
 
-func TestMustSpecifyEitherRollupRpcOrSupernodeRpc(t *testing.T) {
+func TestMustSpecifyEitherRollupRpcOrSuperNodeRpc(t *testing.T) {
 	verifyArgsInvalid(t, "flag rollup-rpc or supernode-rpc is required", addRequiredArgsExcept("--rollup-rpc"))
 }
 
 func TestRollupRpc(t *testing.T) {
-	t.Run("NotRequiredIfSupernodeRpcSupplied", func(t *testing.T) {
+	t.Run("NotRequiredIfSuperNodeRpcSupplied", func(t *testing.T) {
 		configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supernode-rpc", "http://localhost/supernode"))
 	})
 
@@ -83,7 +83,7 @@ func TestRollupRpc(t *testing.T) {
 	})
 }
 
-func TestSupernodeRpc(t *testing.T) {
+func TestSuperNodeRpc(t *testing.T) {
 	t.Run("NotRequiredIfRollupRpcSupplied", func(t *testing.T) {
 		// rollup-rpc is in the default args.
 		configForArgs(t, addRequiredArgsExcept("--supernode-rpc"))
@@ -92,14 +92,14 @@ func TestSupernodeRpc(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		url := "http://example.com:9999"
 		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supernode-rpc", url))
-		require.Equal(t, []string{url}, cfg.SupernodeRpcs)
+		require.Equal(t, []string{url}, cfg.SuperNodeRpcs)
 	})
 
 	t.Run("MultipleValues", func(t *testing.T) {
 		url1 := "http://example1.com:9999"
 		url2 := "http://example2.com:8888"
 		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supernode-rpc", url1, "--supernode-rpc", url2))
-		require.Equal(t, []string{url1, url2}, cfg.SupernodeRpcs)
+		require.Equal(t, []string{url1, url2}, cfg.SuperNodeRpcs)
 	})
 }
 

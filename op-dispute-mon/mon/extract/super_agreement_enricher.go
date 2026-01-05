@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	ErrSupernodeRpcRequired     = errors.New("supernode rpc required")
-	ErrAllSuperNodesUnavailable = errors.New("all supernodes returned errors")
+	ErrSuperNodeRpcRequired     = errors.New("super node rpc required")
+	ErrAllSuperNodesUnavailable = errors.New("all super nodes returned errors")
 )
 
 type SuperRootProvider interface {
@@ -51,7 +51,7 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 		return nil
 	}
 	if len(e.clients) == 0 {
-		return fmt.Errorf("%w but required for game type %v", ErrSupernodeRpcRequired, game.GameType)
+		return fmt.Errorf("%w but required for game type %v", ErrSuperNodeRpcRequired, game.GameType)
 	}
 
 	results := make([]superRootResult, len(e.clients))

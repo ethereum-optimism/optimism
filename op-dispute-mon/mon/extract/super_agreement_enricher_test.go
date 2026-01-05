@@ -21,7 +21,7 @@ import (
 func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ErrorWhenNoSupernodeClient", func(t *testing.T) {
+	t.Run("ErrorWhenNoSuperNodeClient", func(t *testing.T) {
 		validator, _, _ := setupSuperValidatorTest(t)
 		validator.clients = nil // Set to nil to test the error case
 		game := &types.EnrichedGameData{
@@ -33,7 +33,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
-		require.ErrorIs(t, err, ErrSupernodeRpcRequired)
+		require.ErrorIs(t, err, ErrSuperNodeRpcRequired)
 	})
 
 	t.Run("SkipOutputRootGameTypes", func(t *testing.T) {
@@ -42,7 +42,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			gameType := gameType
 			t.Run(fmt.Sprintf("GameType_%d", gameType), func(t *testing.T) {
 				validator, _, metrics := setupSuperValidatorTest(t)
-				validator.clients = nil // Should not error even though there's no supernode client
+				validator.clients = nil // Should not error even though there's no super node client
 				game := &types.EnrichedGameData{
 					GameMetadata: challengerTypes.GameMetadata{
 						GameType: gameType,
@@ -205,7 +205,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	})
 
 	t.Run("AllSuperNodesReturnError", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSupernodeTest(t, 3)
+		validator, clients, metrics := setupMultiSuperNodeTest(t, 3)
 		for _, client := range clients {
 			client.outputErr = errors.New("boom")
 		}
@@ -226,7 +226,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	})
 
 	t.Run("AllSuperNodesReturnNotFound", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSupernodeTest(t, 3)
+		validator, clients, metrics := setupMultiSuperNodeTest(t, 3)
 		for _, client := range clients {
 			client.notFound = true
 		}
@@ -246,7 +246,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	})
 
 	t.Run("SomeSuperNodesOutOfSync", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSupernodeTest(t, 3)
+		validator, clients, metrics := setupMultiSuperNodeTest(t, 3)
 		clients[0].notFound = true
 		clients[1].outputErr = nil
 		clients[2].outputErr = nil
@@ -266,7 +266,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	})
 
 	t.Run("SuperNodesDiverged", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSupernodeTest(t, 3)
+		validator, clients, metrics := setupMultiSuperNodeTest(t, 3)
 		divergedRoot := common.HexToHash("0x5678")
 		clients[0].superRoot = mockRootClaim
 		clients[1].superRoot = divergedRoot
@@ -287,7 +287,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	})
 
 	t.Run("AllSuperNodesAgree", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSupernodeTest(t, 3)
+		validator, clients, metrics := setupMultiSuperNodeTest(t, 3)
 		clients[0].derivedFromL1BlockNum = 200
 		clients[1].derivedFromL1BlockNum = 199
 		clients[2].derivedFromL1BlockNum = 201
@@ -307,7 +307,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	})
 
 	t.Run("MixedResponses_FoundNodesMatchClaimAndSafe", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSupernodeTest(t, 4)
+		validator, clients, metrics := setupMultiSuperNodeTest(t, 4)
 		clients[0].notFound = true
 		clients[1].notFound = true
 		clients[2].superRoot = mockRootClaim
@@ -330,7 +330,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	})
 
 	t.Run("MixedResponses_FoundNodesDontMatchClaim", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSupernodeTest(t, 3)
+		validator, clients, metrics := setupMultiSuperNodeTest(t, 3)
 		differentRoot := common.HexToHash("0x9999")
 		clients[0].notFound = true
 		clients[1].superRoot = differentRoot
@@ -353,7 +353,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	})
 
 	t.Run("AllNodesAgree_SuperRootMatchesClaim_NoneReportSafe", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSupernodeTest(t, 3)
+		validator, clients, metrics := setupMultiSuperNodeTest(t, 3)
 
 		for _, client := range clients {
 			client.superRoot = mockRootClaim
@@ -376,7 +376,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	})
 
 	t.Run("AllNodesAgree_SuperRootDifferentFromClaim", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSupernodeTest(t, 3)
+		validator, clients, metrics := setupMultiSuperNodeTest(t, 3)
 
 		differentRoot := common.HexToHash("0xdifferent")
 		for _, client := range clients {
@@ -408,19 +408,19 @@ func setupSuperValidatorTest(t *testing.T) (*SuperAgreementEnricher, *stubSuperN
 	return validator, client, metrics
 }
 
-func setupMultiSupernodeTest(t *testing.T, numNodes int) (*SuperAgreementEnricher, []*stubSuperNodeClient, *stubOutputMetrics) {
+func setupMultiSuperNodeTest(t *testing.T, numNodes int) (*SuperAgreementEnricher, []*stubSuperNodeClient, *stubOutputMetrics) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	clients := make([]*stubSuperNodeClient, numNodes)
-	supernodeClients := make([]SuperRootProvider, numNodes)
+	superNodeClients := make([]SuperRootProvider, numNodes)
 	for i := range clients {
 		clients[i] = &stubSuperNodeClient{
 			derivedFromL1BlockNum: 0,
 			superRoot:             mockRootClaim,
 		}
-		supernodeClients[i] = clients[i]
+		superNodeClients[i] = clients[i]
 	}
 	metrics := &stubOutputMetrics{}
-	validator := NewSuperAgreementEnricher(logger, metrics, supernodeClients, clock.NewDeterministicClock(time.Unix(9824924, 499)))
+	validator := NewSuperAgreementEnricher(logger, metrics, superNodeClients, clock.NewDeterministicClock(time.Unix(9824924, 499)))
 	return validator, clients, metrics
 }
 
