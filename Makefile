@@ -11,7 +11,7 @@
 #   make submodule-update - Update upstream submodule
 #
 
-SHELL := /bin/bash
+SHELL := /usr/bin/env bash
 .PHONY: all build test clean submodule-update help patch-apply patch-restore
 
 # Directories
