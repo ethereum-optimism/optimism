@@ -663,7 +663,7 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "_chainId",
         "type": "uint256"
       }
     ],
@@ -671,7 +671,7 @@
     "outputs": [
       {
         "internalType": "Claim",
-        "name": "",
+        "name": "outputRootClaim_",
         "type": "bytes32"
       }
     ],
@@ -960,6 +960,21 @@
   },
   {
     "inputs": [],
+    "name": "Encoding_EmptySuperRoot",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Encoding_InvalidSuperRootEncoding",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Encoding_InvalidSuperRootVersion",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "GameDepthExceeded",
     "type": "error"
   },
@@ -1054,11 +1069,6 @@
     "type": "error"
   },
   {
-    "inputs": [],
-    "name": "SuperRootPreimageNotSupported",
-    "type": "error"
-  },
-  {
     "inputs": [
       {
         "internalType": "Claim",
@@ -1067,6 +1077,11 @@
       }
     ],
     "name": "UnexpectedRootClaim",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnknownChainId",
     "type": "error"
   },
   {

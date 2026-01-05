@@ -376,9 +376,18 @@ contract SuperPermissionedDisputeGame_Initialize_Test is SuperPermissionedDisput
 /// @title SuperPermissionedDisputeGame_RootClaimByChainId_Test
 /// @notice Tests the `rootClaimByChainId` function.
 contract SuperPermissionedDisputeGame_RootClaimByChainId_Test is SuperPermissionedDisputeGame_TestInit {
-    /// @notice Tests that rootClaimByChainId reverts until super root preimage support is added.
-    function test_rootClaimByChainId_superRootPreimageNotSupported_reverts(uint256 _chainId) public {
-        vm.expectRevert(SuperRootPreimageNotSupported.selector);
-        gameProxy.rootClaimByChainId(_chainId);
+    /// @notice Tests that the game's root claim for each output root is set correctly.
+    function test_rootClaimForOutputRoot_succeeds() public view {
+        for (uint256 i = 0; i < superRootProof.outputRoots.length; i++) {
+            uint256 chainId = superRootProof.outputRoots[i].chainId;
+            assertEq(gameProxy.rootClaimByChainId(chainId).raw(), superRootProof.outputRoots[i].root);
+        }
+    }
+
+    /// @notice Tests that requesting the root claim for an unknown chain ID reverts.
+    function test_rootClaimForOutputRoot_unknownChainId_reverts() public {
+        uint256 invalidChainId = 9999;
+        vm.expectRevert(UnknownChainId.selector);
+        gameProxy.rootClaimByChainId(invalidChainId);
     }
 }
