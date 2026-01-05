@@ -40,7 +40,7 @@ where
     pub async fn execute_and_store_block_updates(
         &self,
         block: &RecoveredBlock<BlockTy<Evm::Primitives>>,
-    ) -> eyre::Result<()> {
+    ) -> Result<(), OpProofsStorageError> {
         let mut operation_durations = OperationDurations::default();
 
         let start = Instant::now();
@@ -49,12 +49,12 @@ where
             self.storage.get_earliest_block_number().await?,
             self.storage.get_latest_block_number().await?,
         ) else {
-            return Err(OpProofsStorageError::NoBlocksFound.into());
+            return Err(OpProofsStorageError::NoBlocksFound);
         };
 
         let parent_block_number = block.number() - 1;
         if parent_block_number < earliest {
-            return Err(OpProofsStorageError::UnknownParent.into());
+            return Err(OpProofsStorageError::UnknownParent);
         }
 
         if parent_block_number > latest {
@@ -62,8 +62,7 @@ where
                 block_number: block.number(),
                 parent_block_number,
                 latest_block_number: latest,
-            }
-            .into());
+            });
         }
 
         let block_ref =
@@ -80,8 +79,7 @@ where
         let db = StateProviderDatabase::new(&state_provider);
         let block_executor = self.evm_config.batch_executor(db);
 
-        let execution_result =
-            block_executor.execute(&(*block).clone()).map_err(|err| eyre::eyre!(err))?;
+        let execution_result = block_executor.execute(&(*block).clone())?;
 
         operation_durations.execution_duration_seconds = start.elapsed();
 
@@ -97,8 +95,7 @@ where
                 block_number: block.number(),
                 current_state_hash: state_root,
                 expected_state_hash: block.state_root(),
-            }
-            .into());
+            });
         }
 
         let update_result = self

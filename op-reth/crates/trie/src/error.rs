@@ -2,6 +2,8 @@
 
 use alloy_primitives::B256;
 use reth_db::DatabaseError;
+use reth_execution_errors::BlockExecutionError;
+use reth_provider::ProviderError;
 use reth_trie::Nibbles;
 use std::sync::Arc;
 use thiserror::Error;
@@ -82,11 +84,29 @@ pub enum OpProofsStorageError {
     /// Error occurred while trying to acquire a lock.
     #[error("failed lock attempt")]
     TryLockError,
+    /// Error occurred during block execution.
+    #[error(transparent)]
+    ExecutionError(Arc<BlockExecutionError>),
+    /// Error occurred while interacting with the provider.
+    #[error(transparent)]
+    ProviderError(Arc<ProviderError>),
 }
 
 impl From<TryLockError> for OpProofsStorageError {
     fn from(_: TryLockError) -> Self {
         Self::TryLockError
+    }
+}
+
+impl From<BlockExecutionError> for OpProofsStorageError {
+    fn from(error: BlockExecutionError) -> Self {
+        Self::ExecutionError(Arc::new(error))
+    }
+}
+
+impl From<ProviderError> for OpProofsStorageError {
+    fn from(error: ProviderError) -> Self {
+        Self::ProviderError(Arc::new(error))
     }
 }
 

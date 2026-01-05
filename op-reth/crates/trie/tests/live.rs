@@ -361,10 +361,7 @@ async fn test_execute_and_store_block_updates_missing_parent_block() {
     // EXPECT: MissingParentBlock
     let err = collector.execute_and_store_block_updates(&incorrect_block).await.unwrap_err();
 
-    assert!(matches!(
-        err.downcast_ref::<OpProofsStorageError>().unwrap(),
-        OpProofsStorageError::MissingParentBlock { .. }
-    ));
+    assert!(matches!(err, OpProofsStorageError::MissingParentBlock { .. }));
 }
 
 #[tokio::test]
@@ -425,10 +422,7 @@ async fn test_execute_and_store_block_updates_state_root_mismatch() {
     // EXPECT: StateRootMismatch
     let err = collector.execute_and_store_block_updates(&block).await.unwrap_err();
 
-    assert!(matches!(
-        err.downcast_ref::<OpProofsStorageError>(),
-        Some(OpProofsStorageError::StateRootMismatch { .. })
-    ));
+    assert!(matches!(err, OpProofsStorageError::StateRootMismatch { .. }));
 }
 
 /// Test with multiple blocks before and after backfill
