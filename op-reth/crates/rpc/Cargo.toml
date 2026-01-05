@@ -89,6 +89,9 @@ derive_more = { workspace = true, features = ["constructor"] }
 reth-metrics.workspace = true
 metrics.workspace = true
 
+# enum
+strum.workspace = true
+
 [dev-dependencies]
 reth-optimism-chainspec.workspace = true
 alloy-op-hardforks.workspace = true
