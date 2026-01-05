@@ -164,7 +164,7 @@ func newCannonVMRegisterTaskWithConfig(
 	}
 }
 
-func NewAlphabetRegisterTask(gameType gameTypes.GameType, l2Client utils.L2HeaderSource, rollupClient outputs.OutputRollupClient, syncValidator generic.SyncValidator) *RegisterTask {
+func NewAlphabetRegisterTask(gameType gameTypes.GameType, l2Client utils.L2HeaderSource, rollupClient outputs.OutputRollupClient, syncValidator gameTypes.SyncValidator) *RegisterTask {
 	return &RegisterTask{
 		gameType:      gameType,
 		syncValidator: syncValidator,
