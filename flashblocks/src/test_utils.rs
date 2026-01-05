@@ -63,7 +63,7 @@ use op_alloy_rpc_types_engine::{
 /// # Examples
 ///
 /// ```ignore
-/// let factory = TestFlashBlockFactory::new(2); // 2 second block time
+/// let factory = TestFlashBlockFactory::new(); // Default 2 second block time
 /// let fb0 = factory.flashblock_at(0).build();
 /// let fb1 = factory.flashblock_after(&fb0).build();
 /// let fb2 = factory.flashblock_for_next_block(&fb1).build(); // timestamp auto-increments
@@ -79,18 +79,9 @@ pub(crate) struct TestFlashBlockFactory {
 }
 
 impl TestFlashBlockFactory {
-    /// Creates a new builder with the specified block time in seconds.
+    /// Creates a new factory with a default block time of 2 seconds.
     ///
-    /// # Arguments
-    ///
-    /// * `block_time` - Time between blocks in seconds (e.g., 2 for 2-second blocks)
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// let factory = TestFlashBlockFactory::new(2); // 2 second blocks
-    /// let factory_fast = TestFlashBlockFactory::new(1); // 1 second blocks
-    /// ```
+    /// Use [`with_block_time`](Self::with_block_time) to customize the block time.
     pub(crate) fn new() -> Self {
         Self { block_time: 2, base_timestamp: 1_000_000, current_block_number: 100 }
     }
@@ -107,7 +98,7 @@ impl TestFlashBlockFactory {
     /// # Examples
     ///
     /// ```ignore
-    /// let factory = TestFlashBlockFactory::new(2);
+    /// let factory = TestFlashBlockFactory::new();
     /// let fb0 = factory.flashblock_at(0).build(); // Simple usage
     /// let fb1 = factory.flashblock_at(1).state_root(specific_root).build(); // Customize
     /// ```
@@ -123,7 +114,7 @@ impl TestFlashBlockFactory {
     /// # Examples
     ///
     /// ```ignore
-    /// let factory = TestFlashBlockFactory::new(2);
+    /// let factory = TestFlashBlockFactory::new();
     /// let fb0 = factory.flashblock_at(0).build();
     /// let fb1 = factory.flashblock_after(&fb0).build(); // Simple
     /// let fb2 = factory.flashblock_after(&fb1).transactions(txs).build(); // With txs
@@ -149,7 +140,7 @@ impl TestFlashBlockFactory {
     /// # Examples
     ///
     /// ```ignore
-    /// let factory = TestFlashBlockFactory::new(2); // 2 second blocks
+    /// let factory = TestFlashBlockFactory::new(); // 2 second blocks
     /// let fb0 = factory.flashblock_at(0).build(); // Block 100, timestamp 1000000
     /// let fb1 = factory.flashblock_for_next_block(&fb0).build(); // Block 101, timestamp 1000002
     /// let fb2 = factory.flashblock_for_next_block(&fb1).transactions(txs).build(); // Customize
@@ -173,7 +164,7 @@ impl TestFlashBlockFactory {
     /// # Examples
     ///
     /// ```ignore
-    /// let factory = TestFlashBlockFactory::new(2);
+    /// let factory = TestFlashBlockFactory::new();
     /// let fb = factory.builder()
     ///     .index(5)
     ///     .block_number(200)
