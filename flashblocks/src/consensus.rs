@@ -41,9 +41,9 @@ where
     /// Attempts to submit a new payload to the engine.
     ///
     /// The `TryFrom` conversion will fail if `execution_outcome.state_root` is `B256::ZERO`,
-    /// in which case this returns the `parent_hash` instead to drive the chain forward.
+    /// in which case this method uses the `parent_hash` instead to drive the chain forward.
     ///
-    /// Returns the block hash to use for FCU (either the new block or parent).
+    /// Returns the block hash to use for FCU (either the new block's hash or the parent hash).
     async fn submit_new_payload(&self, sequence: &FlashBlockCompleteSequence) -> B256 {
         let payload = match P::ExecutionData::try_from(sequence) {
             Ok(payload) => payload,
