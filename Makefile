@@ -57,9 +57,12 @@ help:
 patch-apply: $(SUBMODULE)/go.mod
 	@echo "Applying Boba patches..."
 	@mkdir -p $(BUILD_DIR)
-	@# Backup go.mod if not already done
+	@# Backup go.mod and go.sum if not already done
 	@if [ ! -f "$(BUILD_DIR)/go.mod.upstream" ]; then \
 		cp "$(SUBMODULE)/go.mod" "$(BUILD_DIR)/go.mod.upstream"; \
+	fi
+	@if [ ! -f "$(BUILD_DIR)/go.sum.upstream" ]; then \
+		cp "$(SUBMODULE)/go.sum" "$(BUILD_DIR)/go.sum.upstream"; \
 	fi
 	@# Apply go.mod patch
 	@if [ -f "$(OVERLAYS)/go.mod.patch" ]; then \
@@ -111,6 +114,9 @@ patch-restore:
 	@echo "Restoring upstream state..."
 	@if [ -f "$(BUILD_DIR)/go.mod.upstream" ]; then \
 		cp "$(BUILD_DIR)/go.mod.upstream" "$(SUBMODULE)/go.mod"; \
+	fi
+	@if [ -f "$(BUILD_DIR)/go.sum.upstream" ]; then \
+		cp "$(BUILD_DIR)/go.sum.upstream" "$(SUBMODULE)/go.sum"; \
 	fi
 	@if [ -f "$(BUILD_DIR)/foundry.toml.upstream" ]; then \
 		cp "$(BUILD_DIR)/foundry.toml.upstream" "$(SUBMODULE)/packages/contracts-bedrock/foundry.toml"; \
