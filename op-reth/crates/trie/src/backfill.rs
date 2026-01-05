@@ -208,8 +208,9 @@ impl<'a, Tx: DbTx, S: OpProofsStore + Send> BackfillJob<'a, Tx, S> {
         let start_cursor = self.tx.cursor_read::<tables::HashedAccounts>()?;
 
         let source = HashedAccountsIter::new(start_cursor);
+        let storage = &self.storage;
         let save_fn = async |entries: Vec<(B256, Account)>| -> eyre::Result<()> {
-            self.storage
+            storage
                 .store_hashed_accounts(
                     entries
                         .into_iter()
@@ -237,6 +238,7 @@ impl<'a, Tx: DbTx, S: OpProofsStore + Send> BackfillJob<'a, Tx, S> {
         let start_cursor = self.tx.cursor_dup_read::<tables::HashedStorages>()?;
 
         let source = HashedStoragesIter::new(start_cursor);
+        let storage = &self.storage;
         let save_fn = async |entries: Vec<(B256, StorageEntry)>| -> eyre::Result<()> {
             // Group entries by hashed address
             let mut by_address: HashMap<B256, Vec<(B256, alloy_primitives::U256)>> =
@@ -247,7 +249,7 @@ impl<'a, Tx: DbTx, S: OpProofsStore + Send> BackfillJob<'a, Tx, S> {
 
             // Store each address's storage entries
             for (address, storages) in by_address {
-                self.storage.store_hashed_storages(address, storages).await?;
+                storage.store_hashed_storages(address, storages).await?;
             }
             Ok(())
         };
@@ -270,8 +272,9 @@ impl<'a, Tx: DbTx, S: OpProofsStore + Send> BackfillJob<'a, Tx, S> {
 
         let source = AddressLookupIter::new(start_cursor)
             .map(|res| res.map(|(addr, _)| (keccak256(addr), addr)));
+        let storage = &self.storage;
         let save_fn = async |entries: Vec<(B256, Address)>| -> eyre::Result<()> {
-            self.storage.store_address_mappings(entries).await?;
+            storage.store_address_mappings(entries).await?;
             Ok(())
         };
 
@@ -292,8 +295,9 @@ impl<'a, Tx: DbTx, S: OpProofsStore + Send> BackfillJob<'a, Tx, S> {
         let start_cursor = self.tx.cursor_read::<tables::AccountsTrie>()?;
 
         let source = AccountsTrieIter::new(start_cursor);
+        let storage = &self.storage;
         let save_fn = async |entries: Vec<(StoredNibbles, BranchNodeCompact)>| -> eyre::Result<()> {
-            self.storage
+            storage
                 .store_account_branches(
                     entries.into_iter().map(|(path, branch)| (path.0, Some(branch))).collect(),
                 )
@@ -318,6 +322,7 @@ impl<'a, Tx: DbTx, S: OpProofsStore + Send> BackfillJob<'a, Tx, S> {
         let start_cursor = self.tx.cursor_dup_read::<tables::StoragesTrie>()?;
 
         let source = StoragesTrieIter::new(start_cursor);
+        let storage = &self.storage;
         let save_fn = async |entries: Vec<(B256, StorageTrieEntry)>| -> eyre::Result<()> {
             // Group entries by hashed address
             let mut by_address: HashMap<B256, Vec<(Nibbles, Option<BranchNodeCompact>)>> =
@@ -331,7 +336,7 @@ impl<'a, Tx: DbTx, S: OpProofsStore + Send> BackfillJob<'a, Tx, S> {
 
             // Store each address's storage trie branches
             for (address, branches) in by_address {
-                self.storage.store_storage_branches(address, branches).await?;
+                storage.store_storage_branches(address, branches).await?;
             }
             Ok(())
         };
