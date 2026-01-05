@@ -106,7 +106,7 @@ async fn launch_node(
             MdbxProofsStorage::new(&path)
                 .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
         );
-        let storage: OpProofsStorage<_> = Arc::new(mdbx.clone()).into();
+        let storage: OpProofsStorage<_> = mdbx.clone().into();
 
         let storage_exec = storage.clone();
 

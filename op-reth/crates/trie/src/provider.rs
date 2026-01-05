@@ -32,7 +32,7 @@ use std::fmt::Debug;
 #[derive(Constructor)]
 pub struct OpProofsStateProviderRef<'a, Storage: OpProofsStore> {
     /// Historical state provider for non-state related tasks.
-    latest: Box<dyn StateProvider + 'a>,
+    latest: Box<dyn StateProvider + Send + 'a>,
 
     /// Storage provider for state lookups.
     storage: &'a OpProofsStorage<Storage>,

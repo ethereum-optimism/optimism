@@ -67,13 +67,16 @@ where
         let start = Instant::now();
         self.metrics.get_proof_requests.increment(1);
 
-        let state =
-            self.state_provider_factory.state_provider(block_number).await.map_err(Into::into)?;
         let storage_keys = keys.iter().map(|key| key.as_b256()).collect::<Vec<_>>();
 
         let result = async {
-            let proof =
-                state.proof(Default::default(), address, &storage_keys).map_err(Into::into)?;
+            let proof = self
+                .state_provider_factory
+                .state_provider(block_number)
+                .await
+                .map_err(Into::into)?
+                .proof(Default::default(), address, &storage_keys)
+                .map_err(Into::into)?;
 
             Ok(proof.into_eip1186_response(keys))
         }
