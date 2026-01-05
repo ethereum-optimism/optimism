@@ -31,7 +31,8 @@ const (
 	BatchPast
 )
 
-// CheckBatch checks if the given batch can be applied on top of the given l2SafeHead, given the contextual L1 blocks the batch was included in.
+// CheckBatch performs semantic validation to check if the given batch can be applied on top of
+// the given l2SafeHead, given the contextual L1 blocks the batch was included in.
 // The first entry of the l1Blocks should match the origin of the l2SafeHead. One or more consecutive l1Blocks should be provided.
 // In case of only a single L1 block, the decision whether a batch is valid may have to stay undecided.
 func CheckBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef,
@@ -58,7 +59,8 @@ func CheckBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Block
 	}
 }
 
-// checkSingularBatch implements SingularBatch validation rule.
+// checkSingularBatch checks the SingularBatch semantic validation rules on a syntactically-correct
+// singular batch.
 func checkSingularBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef, batch *SingularBatch, l1InclusionBlock eth.L1BlockRef) BatchValidity {
 	// add details to the log
 	log = batch.LogContext(log)
@@ -190,7 +192,8 @@ func checkSingularBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1Blo
 	return BatchAccept
 }
 
-// checkSpanBatchPrefix performs the span batch prefix rules for Holocene.
+// checkSpanBatchPrefix checks the span batch prefix semantic validation rules for Holocene.
+// It validates timestamp ordering and parent hash consistency on a syntactically-correct span batch.
 // Next to the validity, it also returns the parent L2 block as determined during the checks for
 // further consumption.
 func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef,
