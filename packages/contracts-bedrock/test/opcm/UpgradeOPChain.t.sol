@@ -181,9 +181,9 @@ contract UpgradeOPChainInput_Test is Test {
         vm.assume(initBond > 0);
 
         // Try to set V2 input when V1 is enabled
-        OPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
-            new OPContractsManagerV2.DisputeGameConfig[](1);
-        disputeGameConfigs[0] = OPContractsManagerV2.DisputeGameConfig({
+        IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerUtils.DisputeGameConfig[](1);
+        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: enabled,
             initBond: initBond,
             gameType: GameType.wrap(gameType),
@@ -228,9 +228,9 @@ contract UpgradeOPChainInput_TestV2 is Test {
         vm.assume(initBond > 0);
 
         // Create sample UpgradeInputV2
-        OPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
-            new OPContractsManagerV2.DisputeGameConfig[](1);
-        disputeGameConfigs[0] = OPContractsManagerV2.DisputeGameConfig({
+        IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerUtils.DisputeGameConfig[](1);
+        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: enabled,
             initBond: initBond,
             gameType: GameType.wrap(gameType),
@@ -274,7 +274,7 @@ contract UpgradeOPChainInput_TestV2 is Test {
     function testFuzz_setUpgradeInputV2_withZeroSystemConfig_reverts() public {
         OPContractsManagerV2.UpgradeInput memory upgradeInput = OPContractsManagerV2.UpgradeInput({
             systemConfig: ISystemConfig(address(0)),
-            disputeGameConfigs: new OPContractsManagerV2.DisputeGameConfig[](1),
+            disputeGameConfigs: new IOPContractsManagerUtils.DisputeGameConfig[](1),
             extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
         });
 
@@ -289,7 +289,7 @@ contract UpgradeOPChainInput_TestV2 is Test {
 
         OPContractsManagerV2.UpgradeInput memory upgradeInput = OPContractsManagerV2.UpgradeInput({
             systemConfig: ISystemConfig(systemConfig),
-            disputeGameConfigs: new OPContractsManagerV2.DisputeGameConfig[](0),
+            disputeGameConfigs: new IOPContractsManagerUtils.DisputeGameConfig[](0),
             extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
         });
 
@@ -342,7 +342,7 @@ contract MockOPCMV1 {
 contract MockOPCMV2 {
     event UpgradeCalled(
         address indexed systemConfig,
-        OPContractsManagerV2.DisputeGameConfig[] indexed disputeGameConfigs,
+        IOPContractsManagerUtils.DisputeGameConfig[] indexed disputeGameConfigs,
         IOPContractsManagerUtils.ExtraInstruction[] indexed extraInstructions
     );
 
@@ -417,7 +417,7 @@ contract UpgradeOPChain_TestV2 is Test {
 
     event UpgradeCalled(
         address indexed systemConfig,
-        OPContractsManagerV2.DisputeGameConfig[] indexed disputeGameConfigs,
+        IOPContractsManagerUtils.DisputeGameConfig[] indexed disputeGameConfigs,
         IOPContractsManagerUtils.ExtraInstruction[] indexed extraInstructions
     );
 
@@ -445,11 +445,12 @@ contract UpgradeOPChain_TestV2 is Test {
     {
         vm.assume(systemConfig != address(0));
 
-        // NOTE: Setting the upgrade input here to avoid `Copying of type struct OPContractsManagerV2.DisputeGameConfig
-        // memory[] memory to storage not yet supported.` error.
-        OPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
-            new OPContractsManagerV2.DisputeGameConfig[](1);
-        disputeGameConfigs[0] = OPContractsManagerV2.DisputeGameConfig({
+        // NOTE: Setting the upgrade input here to avoid `Copying of type struct
+        // IOPContractsManagerUtils.DisputeGameConfig memory[] memory to storage
+        // not yet supported.` error.
+        IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerUtils.DisputeGameConfig[](1);
+        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: enabled,
             initBond: initBond,
             gameType: GameType.wrap(gameType),
