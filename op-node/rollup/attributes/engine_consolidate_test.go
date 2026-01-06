@@ -214,7 +214,8 @@ func createMismatchedFeeRecipient() matchArgs {
 
 func createMismatchedEIP1559Params() matchArgs {
 	args := holoceneArgs()
-	args.attrs.EIP1559Params[0]++ // so denominator is != 0
+	// Create valid but mismatched EIP-1559 params (both denominator and elasticity must be non-zero or both zero)
+	copy((*args.attrs.EIP1559Params)[:], eip1559.EncodeHolocene1559Params(999, 999))
 	return args
 }
 
