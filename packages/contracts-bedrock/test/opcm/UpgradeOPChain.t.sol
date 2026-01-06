@@ -75,8 +75,14 @@ contract UpgradeOPChainInput_Test is Test {
         // Assume non-zero addresses for system configs
         vm.assume(systemConfig1 != address(0));
         vm.assume(systemConfig2 != address(0));
+        // Assume not precompiles for system configs
         assumeNotPrecompile(systemConfig1);
         assumeNotPrecompile(systemConfig2);
+        // Ensure system configs don't collide with test contracts
+        vm.assume(systemConfig1 != address(input));
+        vm.assume(systemConfig1 != address(_mockOPCM));
+        vm.assume(systemConfig2 != address(input));
+        vm.assume(systemConfig2 != address(_mockOPCM));
 
         // Create sample OpChainConfig array
         OPContractsManager.OpChainConfig[] memory configs = new OPContractsManager.OpChainConfig[](2);
@@ -362,7 +368,7 @@ contract UpgradeOPChain_Test is Test {
         address indexed sysCfgProxy, bytes32 indexed absolutePrestate, bytes32 indexed cannonKonaPrestate
     );
 
-    function setUp() public virtual {
+    function setUp() public {
         mockOPCM = new MockOPCMV1();
         uoci = new UpgradeOPChainInput();
         uoci.set(uoci.opcm.selector, address(mockOPCM));
