@@ -7,7 +7,7 @@
 //! ## Simple: Create a flashblock sequence for the same block
 //!
 //! ```ignore
-//! let factory = FlashBlockTestFactory::new(2); // 2 second block time
+//! let factory = TestFlashBlockFactory::new(); // Default 2 second block time
 //! let fb0 = factory.flashblock_at(0).build();
 //! let fb1 = factory.flashblock_after(&fb0).build();
 //! let fb2 = factory.flashblock_after(&fb1).build();
@@ -16,7 +16,7 @@
 //! ## Create flashblocks with transactions
 //!
 //! ```ignore
-//! let factory = FlashBlockTestFactory::new(2);
+//! let factory = TestFlashBlockFactory::new();
 //! let fb0 = factory.flashblock_at(0).build();
 //! let txs = vec![Bytes::from_static(&[1, 2, 3])];
 //! let fb1 = factory.flashblock_after(&fb0).transactions(txs).build();
@@ -25,7 +25,7 @@
 //! ## Test across multiple blocks (timestamps auto-increment)
 //!
 //! ```ignore
-//! let factory = FlashBlockTestFactory::new(2); // 2 second blocks
+//! let factory = TestFlashBlockFactory::new(); // Default 2 second blocks
 //!
 //! // Block 100 at timestamp 1000000
 //! let fb0 = factory.flashblock_at(0).build();
@@ -39,8 +39,8 @@
 //! ## Full control with builder
 //!
 //! ```ignore
-//! let factory = FlashBlockTestFactory::new(1);
-//! let fb = factory.custom()
+//! let factory = TestFlashBlockFactory::new();
+//! let fb = factory.builder()
 //!     .block_number(100)
 //!     .parent_hash(specific_hash)
 //!     .state_root(computed_root)
