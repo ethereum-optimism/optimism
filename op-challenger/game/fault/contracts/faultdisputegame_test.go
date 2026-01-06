@@ -539,13 +539,31 @@ func expectGetClaim(stubRpc *batchingTest.AbiBasedRpc, block rpcblock.Block, cla
 func TestGetGameRange(t *testing.T) {
 	for _, version := range versions {
 		version := version
-		t.Run(version.String(), func(t *testing.T) {
+		t.Run("simple-"+version.String(), func(t *testing.T) {
 			stubRpc, contract := setupFaultDisputeGameTest(t, version)
 			expectedStart := uint64(65)
 			expectedEnd := uint64(102)
 			if version.IsSuperGame() {
 				stubRpc.SetResponse(fdgAddr, methodStartingSequenceNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
 				stubRpc.SetResponse(fdgAddr, methodL2SequenceNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedEnd)})
+			} else {
+				stubRpc.SetResponse(fdgAddr, methodStartingBlockNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
+				stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedEnd)})
+			}
+			start, end, err := contract.GetGameRange(context.Background())
+			require.NoError(t, err)
+			require.Equal(t, expectedStart, start)
+			require.Equal(t, expectedEnd, end)
+		})
+
+		t.Run("large-"+version.String(), func(t *testing.T) {
+			stubRpc, contract := setupFaultDisputeGameTest(t, version)
+			expectedStart := uint64(65)
+			expectedEnd := uint64(math.MaxUint64)
+			realEnd := new(big.Int).Add(new(big.Int).SetUint64(math.MaxUint64), big.NewInt(1))
+			if version.IsSuperGame() {
+				stubRpc.SetResponse(fdgAddr, methodStartingSequenceNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
+				stubRpc.SetResponse(fdgAddr, methodL2SequenceNumber, rpcblock.Latest, nil, []interface{}{realEnd})
 			} else {
 				stubRpc.SetResponse(fdgAddr, methodStartingBlockNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
 				stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedEnd)})
@@ -572,79 +590,97 @@ func TestGetSplitDepth(t *testing.T) {
 	}
 }
 
-func TestGetGameMetadata(t *testing.T) {
+func TestGetExtendedMetadata(t *testing.T) {
+	tests := []struct {
+		name                  string
+		expectedL2BlockNumber uint64
+		returnedL2BlockNumber *big.Int
+	}{
+		{name: "simple", expectedL2BlockNumber: 123, returnedL2BlockNumber: big.NewInt(123)},
+		{name: "big", expectedL2BlockNumber: math.MaxUint64, returnedL2BlockNumber: new(big.Int).Add(new(big.Int).SetUint64(math.MaxUint64), big.NewInt(1))},
+	}
 	for _, version := range versions {
 		version := version
-		t.Run(version.String(), func(t *testing.T) {
-			stubRpc, contract := setupFaultDisputeGameTest(t, version)
-			expectedL1Head := common.Hash{0x0a, 0x0b}
-			expectedL2BlockNumber := uint64(123)
-			expectedMaxClockDuration := uint64(456)
-			expectedRootClaim := common.Hash{0x01, 0x02}
-			expectedStatus := gameTypes.GameStatusChallengerWon
-			expectedL2BlockNumberChallenged := true
-			expectedL2BlockNumberChallenger := common.Address{0xee}
-			block := rpcblock.ByNumber(889)
-			stubRpc.SetResponse(fdgAddr, methodL1Head, block, nil, []interface{}{expectedL1Head})
-			if version.IsSuperGame() {
-				stubRpc.SetResponse(fdgAddr, methodL2SequenceNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
-			} else {
-				stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
-			}
-			stubRpc.SetResponse(fdgAddr, methodRootClaim, block, nil, []interface{}{expectedRootClaim})
-			stubRpc.SetResponse(fdgAddr, methodStatus, block, nil, []interface{}{expectedStatus})
-			supportsL2BlockNumChallenge := (version.version != vers080 && version.version != vers0180) && !version.IsSuperGame()
-			if supportsL2BlockNumChallenge {
-				stubRpc.SetResponse(fdgAddr, methodMaxClockDuration, block, nil, []interface{}{expectedMaxClockDuration})
-				stubRpc.SetResponse(fdgAddr, methodL2BlockNumberChallenged, block, nil, []interface{}{expectedL2BlockNumberChallenged})
-				stubRpc.SetResponse(fdgAddr, methodL2BlockNumberChallenger, block, nil, []interface{}{expectedL2BlockNumberChallenger})
-			} else {
-				t.Skip("Can't have challenged L2 block number on this contract version")
-			}
-			actual, err := contract.GetExtendedMetadata(context.Background(), block)
-			expected := GameMetadata{
-				L1Head:                  expectedL1Head,
-				L2SequenceNum:           expectedL2BlockNumber,
-				RootClaim:               expectedRootClaim,
-				Status:                  expectedStatus,
-				MaxClockDuration:        expectedMaxClockDuration,
-				L2BlockNumberChallenged: expectedL2BlockNumberChallenged,
-				L2BlockNumberChallenger: expectedL2BlockNumberChallenger,
-			}
-			require.NoError(t, err)
-			require.Equal(t, expected, actual)
-		})
+		for _, test := range tests {
+			t.Run(fmt.Sprintf("%s-%s", test.name, version.String()), func(t *testing.T) {
+				stubRpc, contract := setupFaultDisputeGameTest(t, version)
+				expectedL1Head := common.Hash{0x0a, 0x0b}
+				expectedMaxClockDuration := uint64(456)
+				expectedRootClaim := common.Hash{0x01, 0x02}
+				expectedStatus := gameTypes.GameStatusChallengerWon
+				expectedL2BlockNumberChallenged := true
+				expectedL2BlockNumberChallenger := common.Address{0xee}
+				block := rpcblock.ByNumber(889)
+				stubRpc.SetResponse(fdgAddr, methodL1Head, block, nil, []interface{}{expectedL1Head})
+				if version.IsSuperGame() {
+					stubRpc.SetResponse(fdgAddr, methodL2SequenceNumber, block, nil, []interface{}{test.returnedL2BlockNumber})
+				} else {
+					stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, block, nil, []interface{}{test.returnedL2BlockNumber})
+				}
+				stubRpc.SetResponse(fdgAddr, methodRootClaim, block, nil, []interface{}{expectedRootClaim})
+				stubRpc.SetResponse(fdgAddr, methodStatus, block, nil, []interface{}{expectedStatus})
+				supportsL2BlockNumChallenge := (version.version != vers080 && version.version != vers0180) && !version.IsSuperGame()
+				if supportsL2BlockNumChallenge {
+					stubRpc.SetResponse(fdgAddr, methodMaxClockDuration, block, nil, []interface{}{expectedMaxClockDuration})
+					stubRpc.SetResponse(fdgAddr, methodL2BlockNumberChallenged, block, nil, []interface{}{expectedL2BlockNumberChallenged})
+					stubRpc.SetResponse(fdgAddr, methodL2BlockNumberChallenger, block, nil, []interface{}{expectedL2BlockNumberChallenger})
+				} else {
+					t.Skip("Can't have challenged L2 block number on this contract version")
+				}
+				actual, err := contract.GetExtendedMetadata(context.Background(), block)
+				expected := GameMetadata{
+					L1Head:                  expectedL1Head,
+					L2SequenceNum:           test.expectedL2BlockNumber,
+					RootClaim:               expectedRootClaim,
+					Status:                  expectedStatus,
+					MaxClockDuration:        expectedMaxClockDuration,
+					L2BlockNumberChallenged: expectedL2BlockNumberChallenged,
+					L2BlockNumberChallenger: expectedL2BlockNumberChallenger,
+				}
+				require.NoError(t, err)
+				require.Equal(t, expected, actual)
+			})
+		}
 	}
 }
 
 func TestGetMetadata(t *testing.T) {
+	tests := []struct {
+		name                  string
+		expectedL2BlockNumber uint64
+		returnedL2BlockNumber *big.Int
+	}{
+		{name: "simple", expectedL2BlockNumber: 123, returnedL2BlockNumber: big.NewInt(123)},
+		{name: "big", expectedL2BlockNumber: math.MaxUint64, returnedL2BlockNumber: new(big.Int).Add(new(big.Int).SetUint64(math.MaxUint64), big.NewInt(1))},
+	}
 	for _, version := range versions {
 		version := version
-		t.Run(version.String(), func(t *testing.T) {
-			stubRpc, contract := setupFaultDisputeGameTest(t, version)
-			expectedL1Head := common.Hash{0x0a, 0x0b}
-			expectedL2BlockNumber := uint64(123)
-			expectedRootClaim := common.Hash{0x01, 0x02}
-			expectedStatus := gameTypes.GameStatusChallengerWon
-			block := rpcblock.ByNumber(889)
-			stubRpc.SetResponse(fdgAddr, methodL1Head, block, nil, []interface{}{expectedL1Head})
-			if version.IsSuperGame() {
-				stubRpc.SetResponse(fdgAddr, methodL2SequenceNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
-			} else {
-				stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
-			}
-			stubRpc.SetResponse(fdgAddr, methodRootClaim, block, nil, []interface{}{expectedRootClaim})
-			stubRpc.SetResponse(fdgAddr, methodStatus, block, nil, []interface{}{expectedStatus})
-			actual, err := contract.GetMetadata(context.Background(), block)
-			expected := GenericGameMetadata{
-				L1Head:        expectedL1Head,
-				L2SequenceNum: expectedL2BlockNumber,
-				ProposedRoot:  expectedRootClaim,
-				Status:        expectedStatus,
-			}
-			require.NoError(t, err)
-			require.Equal(t, expected, actual)
-		})
+		for _, test := range tests {
+			t.Run(fmt.Sprintf("%s-%s", test.name, version.String()), func(t *testing.T) {
+				stubRpc, contract := setupFaultDisputeGameTest(t, version)
+				expectedL1Head := common.Hash{0x0a, 0x0b}
+				expectedRootClaim := common.Hash{0x01, 0x02}
+				expectedStatus := gameTypes.GameStatusChallengerWon
+				block := rpcblock.ByNumber(889)
+				stubRpc.SetResponse(fdgAddr, methodL1Head, block, nil, []interface{}{expectedL1Head})
+				if version.IsSuperGame() {
+					stubRpc.SetResponse(fdgAddr, methodL2SequenceNumber, block, nil, []interface{}{test.returnedL2BlockNumber})
+				} else {
+					stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, block, nil, []interface{}{test.returnedL2BlockNumber})
+				}
+				stubRpc.SetResponse(fdgAddr, methodRootClaim, block, nil, []interface{}{expectedRootClaim})
+				stubRpc.SetResponse(fdgAddr, methodStatus, block, nil, []interface{}{expectedStatus})
+				actual, err := contract.GetMetadata(context.Background(), block)
+				expected := GenericGameMetadata{
+					L1Head:        expectedL1Head,
+					L2SequenceNum: test.expectedL2BlockNumber,
+					ProposedRoot:  expectedRootClaim,
+					Status:        expectedStatus,
+				}
+				require.NoError(t, err)
+				require.Equal(t, expected, actual)
+			})
+		}
 	}
 }
 

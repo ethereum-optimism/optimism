@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"time"
 
@@ -199,9 +200,17 @@ func (f *FaultDisputeGameContractLatest) GetGameRange(ctx context.Context) (pres
 		retErr = fmt.Errorf("expected 2 results but got %v", len(results))
 		return
 	}
-	prestateBlock = results[0].GetBigInt(0).Uint64()
-	poststateBlock = results[1].GetBigInt(0).Uint64()
+	prestateBlock = getBlockNumber(results[0], 0)
+	poststateBlock = getBlockNumber(results[1], 0)
 	return
+}
+
+func getBlockNumber(result *batching.CallResult, idx int) uint64 {
+	val := result.GetBigInt(idx)
+	if val.IsUint64() {
+		return val.Uint64()
+	}
+	return math.MaxUint64
 }
 
 type GameMetadata struct {
@@ -233,7 +242,7 @@ func (f *FaultDisputeGameContractLatest) GetExtendedMetadata(ctx context.Context
 		return GameMetadata{}, fmt.Errorf("expected 7 results but got %v", len(results))
 	}
 	l1Head := results[0].GetHash(0)
-	l2BlockNumber := results[1].GetBigInt(0).Uint64()
+	l2BlockNumber := getBlockNumber(results[1], 0)
 	rootClaim := results[2].GetHash(0)
 	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
 	if err != nil {
@@ -269,7 +278,7 @@ func (f *FaultDisputeGameContractLatest) GetMetadata(ctx context.Context, block 
 		return GenericGameMetadata{}, fmt.Errorf("expected 4 results but got %v", len(results))
 	}
 	l1Head := results[0].GetHash(0)
-	l2BlockNumber := results[1].GetBigInt(0).Uint64()
+	l2BlockNumber := getBlockNumber(results[1], 0)
 	rootClaim := results[2].GetHash(0)
 	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
 	if err != nil {
