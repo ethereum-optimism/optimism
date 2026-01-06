@@ -180,7 +180,7 @@ where
     pub async fn unwind_and_store_block_updates(
         &self,
         block_updates: Vec<(BlockWithParent, Arc<TrieUpdatesSorted>, Arc<HashedPostStateSorted>)>,
-    ) -> eyre::Result<()> {
+    ) -> Result<(), OpProofsStorageError> {
         if block_updates.is_empty() {
             return Ok(());
         }
