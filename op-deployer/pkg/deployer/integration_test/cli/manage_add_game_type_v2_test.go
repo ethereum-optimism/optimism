@@ -1,20 +1,28 @@
 package cli
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
+	"log/slog"
 	"math/big"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -98,21 +106,26 @@ func TestManageAddGameTypeV2_CLI(t *testing.T) {
 	})
 }
 
+// Tests the manage add-game-type-opcm-v2 command, from the CLI to the actual contract execution through the Solidity scripts.
 func TestManageAddGameTypeV2_Integration(t *testing.T) {
-	// TODO(#????): Update this to use an actual deployed OPCM V2 contract
-	t.Skip("Skipping until we have a deployed OPCM V2 contract")
-	return
+	// TODO(#18718): Update this to use an actual deployed OPCM V2 contract once we have one.
+	// For now, we manually deploy the OPCM V2 contract using bootstrap.Implementations.
+	lgr := testlog.Logger(t, slog.LevelDebug)
 
-	runner := NewCLITestRunnerWithNetwork(t)
+	l1Rpc, stopL1, err := devnet.NewForkedSepolia(lgr)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, stopL1())
+	})
+	runner := NewCLITestRunnerWithNetwork(t, WithL1RPC(l1Rpc.RPCUrl()))
 	workDir := runner.GetWorkDir()
 
 	// Test values - using arbitrary addresses for testing
 	l1ProxyAdminOwner := deployer.DefaultL1ProxyAdminOwnerSepolia
 	systemConfigProxy := deployer.DefaultSystemConfigProxySepolia
 
-	// Get OPCM V2 address from standard (using Sepolia chain ID for address lookup)
-	opcmV2, err := standard.OPCMImplAddressFor(deployer.SepoliaChainID, standard.ContractsV500Tag)
-	require.NoError(t, err)
+	// Deploy the OPCM V2 contract.
+	opcmV2 := deployDependencies(t, runner)
 
 	bytes32Type := deployer.Bytes32Type
 	addressType := deployer.AddressType
@@ -163,6 +176,7 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 					Data: []byte("DelayedWETH"),
 				},
 				{
+					// TODO(#18502): Remove this extra instruction after U18 ships.
 					Key:  "overrides.cfg.useCustomGasToken",
 					Data: make([]byte, 32),
 				},
@@ -192,6 +206,13 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 	data, err := os.ReadFile(outputFile)
 	require.NoError(t, err)
 
+	// Verify the file is not empty
+	require.NotEmpty(t, data, "output file should not be empty")
+
+	// Verify the file contains valid JSON
+	require.True(t, json.Valid(data), "output file should contain valid JSON")
+
+	// Verify the JSON can be unmarshaled into the expected structure
 	var dump []broadcaster.CalldataDump
 	require.NoError(t, json.Unmarshal(data, &dump))
 
@@ -202,12 +223,148 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 	require.Equal(t, l1ProxyAdminOwner.Hex(), dump[0].To.Hex(), "calldata should be sent to prank address")
 
 	// Verify the calldata has the correct function selector for opcm.upgrade
-	// The selector for upgrade(address,bytes) is 0xff2dd5a1
-	dataHex := hex.EncodeToString(dump[0].Data)
-	prefix := dataHex
-	if len(prefix) > 8 {
-		prefix = prefix[:8]
+	// The selector for `upgrade((address,(bool,uint256,uint32,bytes)[],(string,bytes)[]))` is 0x8a847e2e
+	calldata := dump[0].Data
+	require.GreaterOrEqual(t, len(calldata), 4, "calldata should be at least 4 bytes for function selector")
+
+	expectedSelector := common.FromHex("8a847e2e")
+	actualSelector := calldata[:4]
+	require.Equal(t, expectedSelector, actualSelector,
+		"calldata should contain opcmV2.upgrade function selector 0x8a847e2e, got: %s", hex.EncodeToString(actualSelector))
+
+	// Decode the calldata parameters to verify they match the input config
+	// The function signature is: upgrade((address systemConfig,(bool enabled,uint256 initBond,uint32 gameType,bytes gameArgs)[] disputeGameConfigs,(string key,bytes data)[] extraInstructions))
+	upgradeInputType, err := abi.NewType("tuple", "struct", []abi.ArgumentMarshaling{
+		{Name: "systemConfig", Type: "address"},
+		{Name: "disputeGameConfigs", Type: "tuple[]", Components: []abi.ArgumentMarshaling{
+			{Name: "enabled", Type: "bool"},
+			{Name: "initBond", Type: "uint256"},
+			{Name: "gameType", Type: "uint32"},
+			{Name: "gameArgs", Type: "bytes"},
+		}},
+		{Name: "extraInstructions", Type: "tuple[]", Components: []abi.ArgumentMarshaling{
+			{Name: "key", Type: "string"},
+			{Name: "data", Type: "bytes"},
+		}},
+	})
+	require.NoError(t, err, "failed to create upgrade input ABI type")
+
+	// Decode the parameters
+	// We need to skip the 4-byte function selector
+	decoded, err := abi.Arguments{{Type: upgradeInputType}}.Unpack(calldata[4:])
+	require.NoError(t, err, "failed to decode upgrade calldata")
+	require.Len(t, decoded, 1, "decoded calldata should have one argument")
+
+	// Extract the upgrade input struct
+	upgradeInputMap, ok := decoded[0].(map[string]interface{})
+	require.True(t, ok, "decoded upgrade input should be a map")
+
+	// Verify systemConfig address matches the input config
+	systemConfigAddr, ok := upgradeInputMap["systemConfig"].(common.Address)
+	require.True(t, ok, "systemConfig should be an address")
+	require.Equal(t, systemConfigProxy, systemConfigAddr,
+		"systemConfig address should match config: expected %s, got %s", systemConfigProxy.Hex(), systemConfigAddr.Hex())
+
+	// Verify disputeGameConfigs array length matches
+	disputeGameConfigs, ok := upgradeInputMap["disputeGameConfigs"].([]interface{})
+	require.True(t, ok, "disputeGameConfigs should be an array")
+	require.Len(t, disputeGameConfigs, len(testConfig.UpgradeInputV2.DisputeGameConfigs),
+		"disputeGameConfigs length should match config: expected %d, got %d",
+		len(testConfig.UpgradeInputV2.DisputeGameConfigs), len(disputeGameConfigs))
+
+	// Verify first dispute game config matches (Cannon - enabled)
+	if len(disputeGameConfigs) > 0 {
+		cfg0Map, ok := disputeGameConfigs[0].(map[string]interface{})
+		require.True(t, ok, "disputeGameConfig[0] should be a map")
+		enabled0, ok := cfg0Map["enabled"].(bool)
+		require.True(t, ok, "disputeGameConfig[0].enabled should be a bool")
+		require.True(t, enabled0, "disputeGameConfig[0] should be enabled (Cannon)")
+		gameType0, ok := cfg0Map["gameType"].(uint32)
+		require.True(t, ok, "disputeGameConfig[0].gameType should be a uint32")
+		require.Equal(t, uint32(embedded.GameTypeCannon), gameType0,
+			"disputeGameConfig[0].gameType should be Cannon (0), got %d", gameType0)
 	}
-	require.True(t, strings.HasPrefix(dataHex, "ff2dd5a1"),
-		"calldata should have opcm.upgrade function selector ff2dd5a1, got: %s", prefix)
+
+	// Verify third dispute game config matches (CannonKona - disabled)
+	if len(disputeGameConfigs) > 2 {
+		cfg2Map, ok := disputeGameConfigs[2].(map[string]interface{})
+		require.True(t, ok, "disputeGameConfig[2] should be a map")
+		enabled2, ok := cfg2Map["enabled"].(bool)
+		require.True(t, ok, "disputeGameConfig[2].enabled should be a bool")
+		require.False(t, enabled2, "disputeGameConfig[2] should be disabled (CannonKona)")
+		gameType2, ok := cfg2Map["gameType"].(uint32)
+		require.True(t, ok, "disputeGameConfig[2].gameType should be a uint32")
+		require.Equal(t, uint32(embedded.GameTypeCannonKona), gameType2,
+			"disputeGameConfig[2].gameType should be CannonKona (8), got %d", gameType2)
+	}
+
+	// Verify extraInstructions array length matches
+	extraInstructions, ok := upgradeInputMap["extraInstructions"].([]interface{})
+	require.True(t, ok, "extraInstructions should be an array")
+	require.Len(t, extraInstructions, len(testConfig.UpgradeInputV2.ExtraInstructions),
+		"extraInstructions length should match config: expected %d, got %d",
+		len(testConfig.UpgradeInputV2.ExtraInstructions), len(extraInstructions))
+
+}
+
+// TODO(#18718): Remove this once we have a deployed OPCM V2 contract.
+// deployDependencies deploys the superchain contracts and OPCM V2 implementation
+// using the DeployImplementations script, and returns the OPCM V2 address
+func deployDependencies(t *testing.T, runner *CLITestRunner) common.Address {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+
+	// First, deploy superchain contracts (required for OPCM deployment)
+	superchainProxyAdminOwner := common.Address{'S'}
+	superchainOut, err := bootstrap.Superchain(ctx, bootstrap.SuperchainConfig{
+		L1RPCUrl:                   runner.l1RPC,
+		PrivateKey:                 runner.privateKeyHex,
+		ArtifactsLocator:           artifacts.EmbeddedLocator,
+		Logger:                     runner.lgr,
+		SuperchainProxyAdminOwner:  superchainProxyAdminOwner,
+		ProtocolVersionsOwner:      common.Address{'P'},
+		Guardian:                   common.Address{'G'},
+		Paused:                     false,
+		RequiredProtocolVersion:    params.ProtocolVersionV0{Major: 1}.Encode(),
+		RecommendedProtocolVersion: params.ProtocolVersionV0{Major: 2}.Encode(),
+		CacheDir:                   testCacheDir,
+	})
+	require.NoError(t, err, "Failed to deploy superchain contracts")
+
+	// Deploy implementations with OPCM V2 enabled
+	implOut, err := bootstrap.Implementations(ctx, bootstrap.ImplementationsConfig{
+		L1RPCUrl:                        runner.l1RPC,
+		PrivateKey:                      runner.privateKeyHex,
+		ArtifactsLocator:                artifacts.EmbeddedLocator,
+		Logger:                          runner.lgr,
+		WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
+		MinProposalSizeBytes:            standard.MinProposalSizeBytes,
+		ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
+		ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
+		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
+		MIPSVersion:                     int(standard.MIPSVersion),
+		DevFeatureBitmap:                deployer.OPCMV2DevFlag, // Enable OPCM V2
+		SuperchainConfigProxy:           superchainOut.SuperchainConfigProxy,
+		ProtocolVersionsProxy:           superchainOut.ProtocolVersionsProxy,
+		SuperchainProxyAdmin:            superchainOut.SuperchainProxyAdmin,
+		L1ProxyAdminOwner:               superchainProxyAdminOwner,
+		Challenger:                      common.Address{'C'},
+		CacheDir:                        testCacheDir,
+		FaultGameMaxGameDepth:           standard.DisputeMaxGameDepth,
+		FaultGameSplitDepth:             standard.DisputeSplitDepth,
+		FaultGameClockExtension:         standard.DisputeClockExtension,
+		FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
+	})
+	require.NoError(t, err, "Failed to deploy implementations")
+
+	// Verify OPCM V2 was deployed
+	require.NotEqual(t, common.Address{}, implOut.OpcmV2, "OPCM V2 address should be set")
+	require.Equal(t, common.Address{}, implOut.Opcm, "OPCM V1 address should be zero when V2 is deployed")
+
+	t.Logf("Deployed OPCM V2 at address: %s", implOut.OpcmV2.Hex())
+	t.Logf("SuperchainConfigProxy: %s", superchainOut.SuperchainConfigProxy.Hex())
+
+	return implOut.OpcmV2
 }
