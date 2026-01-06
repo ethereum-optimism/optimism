@@ -93,7 +93,6 @@ func TestUpgradeEnvVarPrefixes(t *testing.T) {
 	got = upgradeEnvVarPrefixes(flag, "OP_NODE", "VN_ALL")
 	expected = []string{"OP_SUPERNODE_VN_ALL_FINALITY_DELAY"}
 	require.Equal(t, expected, got)
-
 }
 
 func TestFullDynamicFlags_ClonesAllFlagsForChainsAndGlobal(t *testing.T) {
