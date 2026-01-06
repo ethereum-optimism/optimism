@@ -151,7 +151,7 @@ func upgradeEnvVarPrefixes(f cli.Flag, existingPrefix, newInfix string) []string
 	for _, e := range envs {
 		suffix := strings.TrimPrefix(e, existingPrefix+"_")
 		if suffix == e {
-			continue
+			panic("encountered unprefixed flag")
 		}
 		out = append(out, EnvVarPrefix+"_"+newInfix+"_"+suffix)
 	}
