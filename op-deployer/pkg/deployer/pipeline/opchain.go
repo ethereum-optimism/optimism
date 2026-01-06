@@ -104,6 +104,15 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 
+	// Select which OPCM to use based on dev feature flag
+	opcmAddr := st.ImplementationsDeployment.OpcmImpl
+	if devFeatureBitmap, ok := intent.GlobalDeployOverrides["devFeatureBitmap"].(common.Hash); ok {
+		opcmV2Flag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000010000")
+		if isDevFeatureEnabled(devFeatureBitmap, opcmV2Flag) && st.ImplementationsDeployment.OpcmV2Impl != (common.Address{}) {
+			opcmAddr = st.ImplementationsDeployment.OpcmV2Impl
+		}
+	}
+
 	return opcm.DeployOPChainInput{
 		OpChainProxyAdminOwner:       thisIntent.Roles.L1ProxyAdminOwner,
 		SystemConfigOwner:            thisIntent.Roles.SystemConfigOwner,
@@ -114,7 +123,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		BasefeeScalar:                standard.BasefeeScalar,
 		BlobBaseFeeScalar:            standard.BlobBaseFeeScalar,
 		L2ChainId:                    chainID.Big(),
-		Opcm:                         st.ImplementationsDeployment.OpcmImpl,
+		Opcm:                         opcmAddr,
 		SaltMixer:                    st.Create2Salt.String(), // passing through salt generated at state initialization
 		GasLimit:                     thisIntent.GasLimit,
 		DisputeGameType:              proofParams.DisputeGameType,
@@ -126,6 +135,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		AllowCustomDisputeParameters: proofParams.DangerouslyAllowCustomDisputeParameters,
 		OperatorFeeScalar:            thisIntent.OperatorFeeScalar,
 		OperatorFeeConstant:          thisIntent.OperatorFeeConstant,
+		SuperchainConfig:             st.SuperchainDeployment.SuperchainConfigProxy,
 		UseCustomGasToken:            thisIntent.IsCustomGasTokenEnabled(),
 	}, nil
 }
@@ -169,4 +179,15 @@ func shouldDeployOPChain(st *state.State, chainID common.Hash) bool {
 	}
 
 	return true
+}
+
+// isDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.
+// This mirrors the function in devfeatures.go to avoid import cycles.
+func isDevFeatureEnabled(bitmap, flag common.Hash) bool {
+	b := new(big.Int).SetBytes(bitmap[:])
+	f := new(big.Int).SetBytes(flag[:])
+
+	featuresIsNonZero := f.Cmp(big.NewInt(0)) != 0
+	bitmapContainsFeatures := new(big.Int).And(b, f).Cmp(f) == 0
+	return featuresIsNonZero && bitmapContainsFeatures
 }

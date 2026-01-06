@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
+import { FFIInterface } from "test/setup/FFIInterface.sol";
+
+// Libraries
 import { MerkleTrie } from "src/libraries/trie/MerkleTrie.sol";
 import { RLPReader } from "src/libraries/rlp/RLPReader.sol";
-import { FFIInterface } from "test/setup/FFIInterface.sol";
 import "src/libraries/rlp/RLPErrors.sol";
 
 contract MerkleTrie_Harness {

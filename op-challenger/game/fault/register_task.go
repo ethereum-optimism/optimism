@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/asterisc"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
@@ -159,110 +158,6 @@ func newCannonVMRegisterTaskWithConfig(
 			poststateBlock uint64) (*trace.Accessor, error) {
 			provider := vmPrestateProvider.(*vm.PrestateProvider)
 			return outputs.NewOutputCannonTraceAccessor(logger, m, vmCfg, serverExecutor, l2Client, prestateProvider, provider.PrestatePath(), rollupClient, dir, l1Head, splitDepth, prestateBlock, poststateBlock)
-		},
-	}
-}
-
-func NewAsteriscRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, l2Client utils.L2HeaderSource, rollupClient outputs.OutputRollupClient, syncValidator generic.SyncValidator) *RegisterTask {
-	stateConverter := asterisc.NewStateConverter(cfg.Asterisc)
-	return &RegisterTask{
-		gameType:      gameType,
-		syncValidator: syncValidator,
-		getTopPrestateProvider: func(ctx context.Context, prestateBlock uint64) (faultTypes.PrestateProvider, error) {
-			return outputs.NewPrestateProvider(rollupClient, prestateBlock), nil
-		},
-		getBottomPrestateProvider: cachePrestates(
-			gameType,
-			stateConverter,
-			m,
-			cfg.AsteriscAbsolutePreStateBaseURL,
-			cfg.AsteriscAbsolutePreState,
-			filepath.Join(cfg.Datadir, "asterisc-prestates"),
-			func(ctx context.Context, path string) faultTypes.PrestateProvider {
-				return vm.NewPrestateProvider(path, stateConverter)
-			}),
-		newTraceAccessor: func(
-			logger log.Logger,
-			m metrics.Metricer,
-			prestateProvider faultTypes.PrestateProvider,
-			vmPrestateProvider faultTypes.PrestateProvider,
-			dir string,
-			l1Head eth.BlockID,
-			splitDepth faultTypes.Depth,
-			prestateBlock uint64,
-			poststateBlock uint64) (*trace.Accessor, error) {
-			provider := vmPrestateProvider.(*vm.PrestateProvider)
-			return outputs.NewOutputAsteriscTraceAccessor(logger, m, cfg.Asterisc, serverExecutor, l2Client, prestateProvider, provider.PrestatePath(), rollupClient, dir, l1Head, splitDepth, prestateBlock, poststateBlock)
-		},
-	}
-}
-
-func NewAsteriscKonaRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, l2Client utils.L2HeaderSource, rollupClient outputs.OutputRollupClient, syncValidator generic.SyncValidator) *RegisterTask {
-	stateConverter := asterisc.NewStateConverter(cfg.Asterisc)
-	return &RegisterTask{
-		gameType:      gameType,
-		syncValidator: syncValidator,
-		getTopPrestateProvider: func(ctx context.Context, prestateBlock uint64) (faultTypes.PrestateProvider, error) {
-			return outputs.NewPrestateProvider(rollupClient, prestateBlock), nil
-		},
-		getBottomPrestateProvider: cachePrestates(
-			gameType,
-			stateConverter,
-			m,
-			cfg.AsteriscKonaAbsolutePreStateBaseURL,
-			cfg.AsteriscKonaAbsolutePreState,
-			filepath.Join(cfg.Datadir, "asterisc-kona-prestates"),
-			func(ctx context.Context, path string) faultTypes.PrestateProvider {
-				return vm.NewPrestateProvider(path, stateConverter)
-			}),
-		newTraceAccessor: func(
-			logger log.Logger,
-			m metrics.Metricer,
-			prestateProvider faultTypes.PrestateProvider,
-			vmPrestateProvider faultTypes.PrestateProvider,
-			dir string,
-			l1Head eth.BlockID,
-			splitDepth faultTypes.Depth,
-			prestateBlock uint64,
-			poststateBlock uint64) (*trace.Accessor, error) {
-			provider := vmPrestateProvider.(*vm.PrestateProvider)
-			return outputs.NewOutputAsteriscTraceAccessor(logger, m, cfg.AsteriscKona, serverExecutor, l2Client, prestateProvider, provider.PrestatePath(), rollupClient, dir, l1Head, splitDepth, prestateBlock, poststateBlock)
-		},
-	}
-}
-
-func NewSuperAsteriscKonaRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider super.RootProvider, syncValidator generic.SyncValidator) *RegisterTask {
-	stateConverter := asterisc.NewStateConverter(cfg.AsteriscKona)
-	return &RegisterTask{
-		gameType:               gameType,
-		syncValidator:          syncValidator,
-		skipPrestateValidation: gameType == gameTypes.SuperPermissionedGameType,
-		getTopPrestateProvider: func(ctx context.Context, prestateTimestamp uint64) (faultTypes.PrestateProvider, error) {
-			return super.NewSuperRootPrestateProvider(rootProvider, prestateTimestamp), nil
-		},
-		getBottomPrestateProvider: cachePrestates(
-			gameType,
-			stateConverter,
-			m,
-			cfg.AsteriscKonaAbsolutePreStateBaseURL,
-			cfg.AsteriscKonaAbsolutePreState,
-			filepath.Join(cfg.Datadir, "super-asterisc-kona-prestates"),
-			func(ctx context.Context, path string) faultTypes.PrestateProvider {
-				return vm.NewPrestateProvider(path, stateConverter)
-			}),
-		newTraceAccessor: func(
-			logger log.Logger,
-			m metrics.Metricer,
-			prestateProvider faultTypes.PrestateProvider,
-			vmPrestateProvider faultTypes.PrestateProvider,
-			dir string,
-			l1Head eth.BlockID,
-			splitDepth faultTypes.Depth,
-			prestateBlock uint64,
-			poststateBlock uint64) (*trace.Accessor, error) {
-			provider := vmPrestateProvider.(*vm.PrestateProvider)
-			preimagePrestateProvider := prestateProvider.(super.PreimagePrestateProvider)
-			return super.NewSuperAsteriscKonaTraceAccessor(logger, m, cfg.AsteriscKona, serverExecutor, preimagePrestateProvider, rootProvider, provider.PrestatePath(), dir, l1Head, splitDepth, prestateBlock, poststateBlock)
 		},
 	}
 }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.15;
 
-// Forge
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
 import { VmSafe } from "forge-std/Vm.sol";
 
 // Scripts

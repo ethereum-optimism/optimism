@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Target contract
+// Testing
+import { Test } from "test/setup/Test.sol";
+
+// Contracts
 import { StorageSetter } from "src/universal/StorageSetter.sol";
-import { Test } from "forge-std/Test.sol";
 
 /// @title Storage_TestInit
 /// @notice Reusable test initialization for `Storage` tests.

@@ -31,18 +31,7 @@ var (
 	validRollupRpc                        = "http://localhost:8555"
 	validSupervisorRpc                    = "http://localhost/supervisor"
 
-	validAsteriscBin                        = "./bin/asterisc"
-	validAsteriscOpProgramBin               = "./bin/op-program"
-	validAsteriscNetwork                    = "mainnet"
-	validAsteriscAbsolutePreState           = "pre.json"
-	validAsteriscAbsolutePreStateBaseURL, _ = url.Parse("http://localhost/bar/")
-
-	nonExistingFile                             = "path/to/nonexistent/file"
-	validAsteriscKonaBin                        = "./bin/asterisc"
-	validAsteriscKonaServerBin                  = "./bin/kona-host"
-	validAsteriscKonaNetwork                    = "mainnet"
-	validAsteriscKonaAbsolutePreState           = "pre.json"
-	validAsteriscKonaAbsolutePreStateBaseURL, _ = url.Parse("http://localhost/bar/")
+	nonExistingFile = "path/to/nonexistent/file"
 
 	validCannonKonaBin                        = "./bin/cannon"
 	validCannonKonaServerBin                  = "./bin/kona-host"
@@ -54,9 +43,6 @@ var singleCannonGameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameT
 var superCannonGameTypes = []gameTypes.GameType{gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType}
 var allCannonGameTypes []gameTypes.GameType
 var cannonKonaGameTypes = []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType}
-var asteriscGameTypes = []gameTypes.GameType{gameTypes.AsteriscGameType}
-var asteriscKonaGameTypes = []gameTypes.GameType{gameTypes.AsteriscKonaGameType}
-var superAsteriscKonaGameTypes = []gameTypes.GameType{gameTypes.SuperAsteriscKonaGameType}
 
 func init() {
 	allCannonGameTypes = append(allCannonGameTypes, singleCannonGameTypes...)
@@ -98,34 +84,6 @@ func applyValidConfigForCannon(t *testing.T, cfg *Config) {
 	cfg.Cannon.Networks = []string{validCannonNetwork}
 }
 
-func applyValidConfigForAsterisc(t *testing.T, cfg *Config) {
-	tmpDir := t.TempDir()
-	vmBin := filepath.Join(tmpDir, validAsteriscBin)
-	server := filepath.Join(tmpDir, validAsteriscOpProgramBin)
-	err := ensureExists(vmBin)
-	require.NoError(t, err)
-	err = ensureExists(server)
-	require.NoError(t, err)
-	cfg.Asterisc.VmBin = vmBin
-	cfg.Asterisc.Server = server
-	cfg.AsteriscAbsolutePreStateBaseURL = validAsteriscAbsolutePreStateBaseURL
-	cfg.Asterisc.Networks = []string{validAsteriscNetwork}
-}
-
-func applyValidConfigForAsteriscKona(t *testing.T, cfg *Config) {
-	tmpDir := t.TempDir()
-	vmBin := filepath.Join(tmpDir, validAsteriscKonaBin)
-	server := filepath.Join(tmpDir, validAsteriscKonaServerBin)
-	err := ensureExists(vmBin)
-	require.NoError(t, err)
-	err = ensureExists(server)
-	require.NoError(t, err)
-	cfg.AsteriscKona.VmBin = vmBin
-	cfg.AsteriscKona.Server = server
-	cfg.AsteriscKonaAbsolutePreStateBaseURL = validAsteriscKonaAbsolutePreStateBaseURL
-	cfg.AsteriscKona.Networks = []string{validAsteriscKonaNetwork}
-}
-
 func applyValidConfigForCannonKona(t *testing.T, cfg *Config) {
 	tmpDir := t.TempDir()
 	vmBin := filepath.Join(tmpDir, validCannonKonaBin)
@@ -145,11 +103,6 @@ func applyValidConfigForSuperCannonKona(t *testing.T, cfg *Config) {
 	applyValidConfigForCannonKona(t, cfg)
 }
 
-func applyValidConfigForSuperAsteriscKona(t *testing.T, cfg *Config) {
-	cfg.SupervisorRPC = validSupervisorRpc
-	applyValidConfigForAsteriscKona(t, cfg)
-}
-
 func applyValidConfigForOptimisticZK(cfg *Config) {
 	cfg.RollupRpc = validRollupRpc
 }
@@ -167,15 +120,6 @@ func validConfig(t *testing.T, gameType gameTypes.GameType) Config {
 	}
 	if gameType == gameTypes.SuperCannonKonaGameType {
 		applyValidConfigForSuperCannonKona(t, &cfg)
-	}
-	if gameType == gameTypes.AsteriscGameType {
-		applyValidConfigForAsterisc(t, &cfg)
-	}
-	if gameType == gameTypes.AsteriscKonaGameType {
-		applyValidConfigForAsteriscKona(t, &cfg)
-	}
-	if gameType == gameTypes.SuperAsteriscKonaGameType {
-		applyValidConfigForSuperAsteriscKona(t, &cfg)
 	}
 	if gameType == gameTypes.OptimisticZKGameType {
 		applyValidConfigForOptimisticZK(&cfg)
@@ -198,12 +142,6 @@ func validConfigWithNoNetworks(t *testing.T, gameType gameTypes.GameType) Config
 	}
 	if slices.Contains(cannonKonaGameTypes, gameType) {
 		mutateVmConfig(&cfg.CannonKona)
-	}
-	if slices.Contains(asteriscGameTypes, gameType) {
-		mutateVmConfig(&cfg.Asterisc)
-	}
-	if slices.Contains(asteriscKonaGameTypes, gameType) {
-		mutateVmConfig(&cfg.AsteriscKona)
 	}
 	return cfg
 }
@@ -518,18 +456,6 @@ func TestDepsetConfig(t *testing.T) {
 		})
 	}
 
-	for _, gameType := range superAsteriscKonaGameTypes {
-		gameType := gameType
-		t.Run(fmt.Sprintf("TestAsteriscNetworkOrDepsetConfigRequired-%v", gameType), func(t *testing.T) {
-			cfg := validConfig(t, gameType)
-			cfg.AsteriscKona.Networks = nil
-			cfg.AsteriscKona.RollupConfigPaths = []string{"foo.json"}
-			cfg.AsteriscKona.L2GenesisPaths = []string{"genesis.json"}
-			cfg.AsteriscKona.DepsetConfigPath = ""
-			require.ErrorIs(t, cfg.Check(), ErrMissingDepsetConfig)
-		})
-	}
-
 	for _, gameType := range singleCannonGameTypes {
 		gameType := gameType
 		t.Run(fmt.Sprintf("TestDepsetConfigNotRequired-%v", gameType), func(t *testing.T) {
@@ -540,243 +466,6 @@ func TestDepsetConfig(t *testing.T) {
 			cfg.Cannon.L2GenesisPaths = []string{"genesis.json"}
 			cfg.Cannon.DepsetConfigPath = ""
 			require.NoError(t, cfg.Check())
-		})
-	}
-
-	for _, gameType := range asteriscKonaGameTypes {
-		gameType := gameType
-		t.Run(fmt.Sprintf("TestDepsetConfigNotRequired-%v", gameType), func(t *testing.T) {
-			cfg := validConfig(t, gameType)
-			cfg.AsteriscKona.Networks = nil
-			cfg.AsteriscKona.RollupConfigPaths = []string{"foo.json"}
-			cfg.AsteriscKona.L1GenesisPath = "bar.json"
-			cfg.AsteriscKona.L2GenesisPaths = []string{"genesis.json"}
-			cfg.AsteriscKona.DepsetConfigPath = ""
-			require.NoError(t, cfg.Check())
-		})
-	}
-}
-
-func TestAsteriscRequiredArgs(t *testing.T) {
-	for _, gameType := range asteriscGameTypes {
-		gameType := gameType
-
-		t.Run(fmt.Sprintf("TestAsteriscBinRequired-%v", gameType), func(t *testing.T) {
-			config := validConfig(t, gameType)
-			config.Asterisc.VmBin = ""
-			require.ErrorIs(t, config.Check(), vm.ErrMissingBin)
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscServerRequired-%v", gameType), func(t *testing.T) {
-			config := validConfig(t, gameType)
-			config.Asterisc.Server = ""
-			require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscAbsolutePreStateOrBaseURLRequired-%v", gameType), func(t *testing.T) {
-			config := validConfig(t, gameType)
-			config.AsteriscAbsolutePreState = ""
-			config.AsteriscAbsolutePreStateBaseURL = nil
-			require.ErrorIs(t, config.Check(), ErrMissingAsteriscAbsolutePreState)
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscAbsolutePreState-%v", gameType), func(t *testing.T) {
-			config := validConfig(t, gameType)
-			config.AsteriscAbsolutePreState = validAsteriscAbsolutePreState
-			config.AsteriscAbsolutePreStateBaseURL = nil
-			require.NoError(t, config.Check())
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscAbsolutePreStateBaseURL-%v", gameType), func(t *testing.T) {
-			config := validConfig(t, gameType)
-			config.AsteriscAbsolutePreState = ""
-			config.AsteriscAbsolutePreStateBaseURL = validAsteriscAbsolutePreStateBaseURL
-			require.NoError(t, config.Check())
-		})
-
-		t.Run(fmt.Sprintf("TestAllowSupplingBothAsteriscAbsolutePreStateAndBaseURL-%v", gameType), func(t *testing.T) {
-			// Since the prestate base URL might be inherited from the --prestate-urls option, allow overriding it with a specific prestate
-			config := validConfig(t, gameType)
-			config.AsteriscAbsolutePreState = validAsteriscAbsolutePreState
-			config.AsteriscAbsolutePreStateBaseURL = validAsteriscAbsolutePreStateBaseURL
-			require.NoError(t, config.Check())
-		})
-
-		t.Run(fmt.Sprintf("TestL2RpcRequired-%v", gameType), func(t *testing.T) {
-			config := validConfig(t, gameType)
-			config.L2Rpcs = nil
-			require.ErrorIs(t, config.Check(), ErrMissingL2Rpc)
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscSnapshotFreq-%v", gameType), func(t *testing.T) {
-			t.Run("MustNotBeZero", func(t *testing.T) {
-				cfg := validConfig(t, gameType)
-				cfg.Asterisc.SnapshotFreq = 0
-				require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscSnapshotFreq)
-			})
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscInfoFreq-%v", gameType), func(t *testing.T) {
-			t.Run("MustNotBeZero", func(t *testing.T) {
-				cfg := validConfig(t, gameType)
-				cfg.Asterisc.InfoFreq = 0
-				require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscInfoFreq)
-			})
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscNetworkOrRollupConfigRequired-%v", gameType), func(t *testing.T) {
-			cfg := validConfigWithNoNetworks(t, gameType)
-			cfg.Asterisc.RollupConfigPaths = nil
-			require.ErrorIs(t, cfg.Check(), vm.ErrMissingRollupConfig)
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscNetworkOrL2GenesisRequired-%v", gameType), func(t *testing.T) {
-			cfg := validConfigWithNoNetworks(t, gameType)
-			cfg.Asterisc.L2GenesisPaths = nil
-			require.ErrorIs(t, cfg.Check(), vm.ErrMissingL2Genesis)
-		})
-
-		t.Run(fmt.Sprintf("MaySpecifyNetworkAndCustomConfigs-%v", gameType), func(t *testing.T) {
-			cfg := validConfig(t, gameType)
-			cfg.Asterisc.Networks = []string{validAsteriscNetwork}
-			cfg.Asterisc.RollupConfigPaths = []string{"foo.json"}
-			cfg.Asterisc.L2GenesisPaths = []string{"genesis.json"}
-			require.NoError(t, cfg.Check())
-		})
-
-		t.Run(fmt.Sprintf("TestNetworkMustBeValid-%v", gameType), func(t *testing.T) {
-			cfg := validConfig(t, gameType)
-			cfg.Asterisc.Networks = []string{"unknown"}
-			require.ErrorIs(t, cfg.Check(), vm.ErrNetworkUnknown)
-		})
-
-		t.Run(fmt.Sprintf("TestDebugInfoDisabled-%v", gameType), func(t *testing.T) {
-			cfg := validConfig(t, gameType)
-			require.False(t, cfg.Asterisc.DebugInfo)
-		})
-
-		t.Run(fmt.Sprintf("TestVMBinExists-%v", gameType), func(t *testing.T) {
-			cfg := validConfig(t, gameType)
-			cfg.Asterisc.VmBin = nonExistingFile
-			require.ErrorIs(t, cfg.Check(), vm.ErrMissingBin)
-		})
-
-		t.Run(fmt.Sprintf("TestServerExists-%v", gameType), func(t *testing.T) {
-			cfg := validConfig(t, gameType)
-			cfg.Asterisc.Server = nonExistingFile
-			require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
-		})
-	}
-}
-
-func TestAsteriscKonaRequiredArgs(t *testing.T) {
-	for _, gameType := range asteriscKonaGameTypes {
-		gameType := gameType
-
-		t.Run(fmt.Sprintf("TestAsteriscKonaBinRequired-%v", gameType), func(t *testing.T) {
-			config := validConfig(t, gameType)
-			config.AsteriscKona.VmBin = ""
-			require.ErrorIs(t, config.Check(), vm.ErrMissingBin)
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscKonaServerRequired-%v", gameType), func(t *testing.T) {
-			config := validConfig(t, gameType)
-			config.AsteriscKona.Server = ""
-			require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscKonaAbsolutePreStateOrBaseURLRequired-%v", gameType), func(t *testing.T) {
-			config := validConfig(t, gameType)
-			config.AsteriscKonaAbsolutePreState = ""
-			config.AsteriscKonaAbsolutePreStateBaseURL = nil
-			require.ErrorIs(t, config.Check(), ErrMissingAsteriscKonaAbsolutePreState)
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscKonaAbsolutePreState-%v", gameType), func(t *testing.T) {
-			config := validConfig(t, gameType)
-			config.AsteriscKonaAbsolutePreState = validAsteriscKonaAbsolutePreState
-			config.AsteriscKonaAbsolutePreStateBaseURL = nil
-			require.NoError(t, config.Check())
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscKonaAbsolutePreStateBaseURL-%v", gameType), func(t *testing.T) {
-			config := validConfig(t, gameType)
-			config.AsteriscKonaAbsolutePreState = ""
-			config.AsteriscKonaAbsolutePreStateBaseURL = validAsteriscKonaAbsolutePreStateBaseURL
-			require.NoError(t, config.Check())
-		})
-
-		t.Run(fmt.Sprintf("TestAllowSupplyingBothAsteriscKonaAbsolutePreStateAndBaseURL-%v", gameType), func(t *testing.T) {
-			// Since the prestate base URL might be inherited from the --prestate-urls option, allow overriding it with a specific prestate
-			config := validConfig(t, gameType)
-			config.AsteriscKonaAbsolutePreState = validAsteriscKonaAbsolutePreState
-			config.AsteriscKonaAbsolutePreStateBaseURL = validAsteriscKonaAbsolutePreStateBaseURL
-			require.NoError(t, config.Check())
-		})
-
-		t.Run(fmt.Sprintf("TestL2RpcRequired-%v", gameType), func(t *testing.T) {
-			config := validConfig(t, gameType)
-			config.L2Rpcs = nil
-			require.ErrorIs(t, config.Check(), ErrMissingL2Rpc)
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscKonaSnapshotFreq-%v", gameType), func(t *testing.T) {
-			t.Run("MustNotBeZero", func(t *testing.T) {
-				cfg := validConfig(t, gameType)
-				cfg.AsteriscKona.SnapshotFreq = 0
-				require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscKonaSnapshotFreq)
-			})
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscKonaInfoFreq-%v", gameType), func(t *testing.T) {
-			t.Run("MustNotBeZero", func(t *testing.T) {
-				cfg := validConfig(t, gameType)
-				cfg.AsteriscKona.InfoFreq = 0
-				require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscKonaInfoFreq)
-			})
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscKonaNetworkOrRollupConfigRequired-%v", gameType), func(t *testing.T) {
-			cfg := validConfigWithNoNetworks(t, gameType)
-			cfg.AsteriscKona.RollupConfigPaths = nil
-			require.ErrorIs(t, cfg.Check(), vm.ErrMissingRollupConfig)
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscKonaNetworkOrL2GenesisRequired-%v", gameType), func(t *testing.T) {
-			cfg := validConfigWithNoNetworks(t, gameType)
-			cfg.AsteriscKona.L2GenesisPaths = nil
-			require.ErrorIs(t, cfg.Check(), vm.ErrMissingL2Genesis)
-		})
-
-		t.Run(fmt.Sprintf("MaySpecifyNetworkAndCustomConfig-%v", gameType), func(t *testing.T) {
-			cfg := validConfig(t, gameType)
-			cfg.AsteriscKona.Networks = []string{validAsteriscKonaNetwork}
-			cfg.AsteriscKona.RollupConfigPaths = []string{"foo.json"}
-			cfg.AsteriscKona.L2GenesisPaths = []string{"genesis.json"}
-			require.NoError(t, cfg.Check())
-		})
-
-		t.Run(fmt.Sprintf("TestNetworkMustBeValid-%v", gameType), func(t *testing.T) {
-			cfg := validConfig(t, gameType)
-			cfg.AsteriscKona.Networks = []string{"unknown"}
-			require.ErrorIs(t, cfg.Check(), vm.ErrNetworkUnknown)
-		})
-
-		t.Run(fmt.Sprintf("TestDebugInfoDisabled-%v", gameType), func(t *testing.T) {
-			cfg := validConfig(t, gameType)
-			require.False(t, cfg.AsteriscKona.DebugInfo)
-		})
-
-		t.Run(fmt.Sprintf("TestVMBinExists-%v", gameType), func(t *testing.T) {
-			cfg := validConfig(t, gameType)
-			cfg.AsteriscKona.VmBin = nonExistingFile
-			require.ErrorIs(t, cfg.Check(), vm.ErrMissingBin)
-		})
-
-		t.Run(fmt.Sprintf("TestServerExists-%v", gameType), func(t *testing.T) {
-			cfg := validConfig(t, gameType)
-			cfg.AsteriscKona.Server = nonExistingFile
-			require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
 		})
 	}
 }
@@ -810,7 +499,7 @@ func TestHttpPollInterval(t *testing.T) {
 func TestRollupRpcRequired(t *testing.T) {
 	for _, gameType := range gameTypes.SupportedGameTypes {
 		gameType := gameType
-		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperAsteriscKonaGameType || gameType == gameTypes.SuperCannonKonaGameType {
+		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
 			continue
 		}
 		t.Run(gameType.String(), func(t *testing.T) {
@@ -839,18 +528,12 @@ func TestRollupRpcNotRequiredForInterop(t *testing.T) {
 		config.RollupRpc = ""
 		require.NoError(t, config.Check())
 	})
-
-	t.Run("SuperAsteriscKona", func(t *testing.T) {
-		config := validConfig(t, gameTypes.SuperAsteriscKonaGameType)
-		config.RollupRpc = ""
-		require.NoError(t, config.Check())
-	})
 }
 
 func TestSupervisorRpc(t *testing.T) {
 	for _, gameType := range gameTypes.SupportedGameTypes {
 		gameType := gameType
-		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperAsteriscKonaGameType || gameType == gameTypes.SuperCannonKonaGameType {
+		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
 			t.Run("RequiredFor"+gameType.String(), func(t *testing.T) {
 				config := validConfig(t, gameType)
 				config.SupervisorRPC = ""
@@ -884,29 +567,11 @@ func TestRequireConfigForMultipleGameTypesForCannon(t *testing.T) {
 	require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
 }
 
-func TestRequireConfigForMultipleGameTypesForAsterisc(t *testing.T) {
-	cfg := validConfig(t, gameTypes.AsteriscGameType)
-	cfg.GameTypes = []gameTypes.GameType{gameTypes.AsteriscGameType, gameTypes.AlphabetGameType}
-	// Set all required options and check its valid
-	cfg.RollupRpc = validRollupRpc
-	require.NoError(t, cfg.Check())
-
-	// Require asterisc specific args
-	cfg.AsteriscAbsolutePreState = ""
-	cfg.AsteriscAbsolutePreStateBaseURL = nil
-	require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscAbsolutePreState)
-	cfg.AsteriscAbsolutePreState = validAsteriscAbsolutePreState
-
-	// Require output asterisc specific args
-	cfg.RollupRpc = ""
-	require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
-}
-
-func TestRequireConfigForMultipleGameTypesForCannonAndAsterisc(t *testing.T) {
+func TestRequireConfigForMultipleGameTypesForCannonAndCannonKona(t *testing.T) {
 	cfg := validConfig(t, gameTypes.CannonGameType)
-	applyValidConfigForAsterisc(t, &cfg)
+	applyValidConfigForCannonKona(t, &cfg)
 
-	cfg.GameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.AsteriscGameType, gameTypes.AlphabetGameType, gameTypes.FastGameType}
+	cfg.GameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.CannonKonaGameType, gameTypes.AlphabetGameType, gameTypes.FastGameType}
 	// Set all required options and check its valid
 	cfg.RollupRpc = validRollupRpc
 	require.NoError(t, cfg.Check())
@@ -920,18 +585,15 @@ func TestRequireConfigForMultipleGameTypesForCannonAndAsterisc(t *testing.T) {
 	require.NoError(t, err)
 	cfg.Cannon.VmBin = vmBin
 
-	// Require asterisc specific args
-	cfg.AsteriscAbsolutePreState = ""
-	cfg.AsteriscAbsolutePreStateBaseURL = nil
-	require.ErrorIs(t, cfg.Check(), ErrMissingAsteriscAbsolutePreState)
-	cfg.AsteriscAbsolutePreState = validAsteriscAbsolutePreState
+	// Require cannon-kona specific args
+	cfg.CannonKonaAbsolutePreState = ""
+	cfg.CannonKonaAbsolutePreStateBaseURL = nil
+	require.ErrorIs(t, cfg.Check(), ErrMissingCannonKonaAbsolutePreState)
+	cfg.CannonKonaAbsolutePreStateBaseURL = validCannonKonaAbsolutePreStateBaseURL
 
-	cfg.Asterisc.Server = ""
+	cfg.CannonKona.Server = ""
 	require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
-	server := filepath.Join(tmpDir, validAsteriscOpProgramBin)
-	err = ensureExists(server)
-	require.NoError(t, err)
-	cfg.Asterisc.Server = server
+	cfg.CannonKona.Server = vmBin
 
 	// Check final config is valid
 	require.NoError(t, cfg.Check())

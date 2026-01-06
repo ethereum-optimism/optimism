@@ -120,7 +120,7 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 func WithL2CLNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, l2FollowSourceID stack.L2CLNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	switch os.Getenv("DEVSTACK_L2CL_KIND") {
 	case "kona":
-		panic("kona does not support following")
+		return WithKonaNodeFollowL2(l2CLID, l1CLID, l1ELID, l2ELID, l2FollowSourceID, opts...)
 	case "supernode":
 		panic("supernode does not support following")
 	default:

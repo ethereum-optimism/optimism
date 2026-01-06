@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { stdStorage, StdStorage } from "forge-std/Test.sol";
+import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 

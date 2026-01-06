@@ -415,3 +415,19 @@ contract PermissionedDisputeGame_Uncategorized_Test is PermissionedDisputeGame_T
         vm.stopPrank();
     }
 }
+
+/// @title PermissionedDisputeGame_RootClaimByChainId_Test
+/// @notice Tests the `rootClaimByChainId` function.
+contract PermissionedDisputeGame_RootClaimByChainId_Test is PermissionedDisputeGame_TestInit {
+    /// @notice Tests that rootClaimByChainId returns the same value as rootClaim().
+    function test_rootClaimByChainId_succeeds() public view {
+        assertEq(gameProxy.rootClaimByChainId(gameProxy.l2ChainId()).raw(), gameProxy.rootClaim().raw());
+    }
+
+    /// @notice Tests that rootClaimByChainId reverts with unknown chain ID.
+    function test_rootClaimByChainId_unknownChainId_reverts(uint256 _chainId) public {
+        vm.assume(_chainId != gameProxy.l2ChainId());
+        vm.expectRevert(UnknownChainId.selector);
+        gameProxy.rootClaimByChainId(_chainId);
+    }
+}

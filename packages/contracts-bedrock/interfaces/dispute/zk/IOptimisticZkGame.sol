@@ -18,9 +18,9 @@ import { ISP1Verifier } from "src/dispute/zk/ISP1Verifier.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { AccessManager } from "src/dispute/zk/AccessManager.sol";
 
-/// @title IOPSuccinctFaultDisputeGame
-/// @notice Interface for the OPSuccinctFaultDisputeGame contract.
-interface IOPSuccinctFaultDisputeGame is IDisputeGame, ISemver {
+/// @title IOptimisticZkGame
+/// @notice Interface for the OptimisticZkGame contract.
+interface IOptimisticZkGame is IDisputeGame, ISemver {
     enum ProposalStatus {
         Unchallenged,
         Challenged,
@@ -72,6 +72,7 @@ interface IOPSuccinctFaultDisputeGame is IDisputeGame, ISemver {
     function gameType() external view returns (GameType gameType_);
     function gameCreator() external pure returns (address creator_);
     function rootClaim() external pure returns (Claim rootClaim_);
+    function rootClaimByChainId(uint256) external pure returns (Claim rootClaim_);
     function l1Head() external pure returns (Hash l1Head_);
     function extraData() external pure returns (bytes memory extraData_);
     function gameData() external view returns (GameType gameType_, Claim rootClaim_, bytes memory extraData_);

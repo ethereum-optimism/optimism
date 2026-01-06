@@ -68,6 +68,7 @@ interface IFaultDisputeGameV2 is IDisputeGame {
     error UnexpectedList();
     error UnexpectedRootClaim(Claim rootClaim);
     error UnexpectedString();
+    error UnknownChainId();
     error ValidStep();
     error InvalidBondDistributionMode();
     error GameNotFinalized();
@@ -114,6 +115,7 @@ interface IFaultDisputeGameV2 is IDisputeGame {
     function move(Claim _disputed, uint256 _challengeIndex, Claim _claim, bool _isAttack) external payable;
     function normalModeCredit(address) external view returns (uint256);
     function refundModeCredit(address) external view returns (uint256);
+    function rootClaimByChainId(uint256 _chainId) external pure returns (Claim rootClaim_);
     function resolutionCheckpoints(uint256)
         external
         view

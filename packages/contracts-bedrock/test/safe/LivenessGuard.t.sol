@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
-import { StdUtils } from "forge-std/StdUtils.sol";
-import { StdCheats } from "forge-std/StdCheats.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
+import "test/safe-tools/SafeTestTools.sol";
+
+// Contracts
 import { Safe } from "safe-contracts/Safe.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import { LivenessGuard } from "src/safe/LivenessGuard.sol";
+
+// Libraries
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
-import "test/safe-tools/SafeTestTools.sol";
-import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-
-import { LivenessGuard } from "src/safe/LivenessGuard.sol";
 
 /// @notice A wrapper contract exposing the length of the ownersBefore set in the LivenessGuard.
 contract LivenessGuard_WrappedGuard_Harness is LivenessGuard {
@@ -165,7 +167,7 @@ contract LivenessGuard_ShowLiveness_Test is LivenessGuard_TestInit {
 /// @title LivenessGuard_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `LivenessGuard`
 ///         contract or are testing multiple functions at once.
-contract LivenessGuard_Uncategorized_Test is StdCheats, StdUtils, LivenessGuard_TestInit {
+contract LivenessGuard_Uncategorized_Test is LivenessGuard_TestInit {
     using SafeTestLib for SafeInstance;
 
     /// @notice Enumerates the possible owner management operations

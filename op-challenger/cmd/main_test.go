@@ -34,9 +34,6 @@ var (
 	cannonKonaPreState      = "./cannon-kona-pre.json"
 	datadir                 = "./test_data"
 	rollupRpc               = "http://example.com:8555"
-	asteriscBin             = "./bin/asterisc"
-	asteriscServer          = "./bin/op-program"
-	asteriscPreState        = "./pre.json"
 )
 
 func TestLogLevel(t *testing.T) {
@@ -108,13 +105,10 @@ func TestOpSupervisor(t *testing.T) {
 	t.Run("RequiredForSuperCannonKona", func(t *testing.T) {
 		verifyArgsInvalid(t, "flag supervisor-rpc is required", addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--supervisor-rpc"))
 	})
-	t.Run("RequiredForSuperAsteriscKona", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag supervisor-rpc is required", addRequiredArgsExcept(gameTypes.SuperAsteriscKonaGameType, "--supervisor-rpc"))
-	})
 
 	for _, gameType := range gameTypes.SupportedGameTypes {
 		gameType := gameType
-		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperAsteriscKonaGameType || gameType == gameTypes.SuperCannonKonaGameType {
+		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
 			continue
 		}
 
@@ -138,12 +132,6 @@ func TestOpSupervisor(t *testing.T) {
 	t.Run("Valid-SuperCannonKona", func(t *testing.T) {
 		url := "http://localhost/supervisor"
 		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--supervisor-rpc", "--supervisor-rpc", url))
-		require.Equal(t, url, cfg.SupervisorRPC)
-	})
-
-	t.Run("Valid-SuperAsteriscKona", func(t *testing.T) {
-		url := "http://localhost/supervisor"
-		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperAsteriscKonaGameType, "--supervisor-rpc", "--supervisor-rpc", url))
 		require.Equal(t, url, cfg.SupervisorRPC)
 	})
 }
@@ -180,8 +168,8 @@ func TestGameTypes(t *testing.T) {
 func TestMultipleGameTypes(t *testing.T) {
 	t.Run("WithAllOptions", func(t *testing.T) {
 		argsMap := requiredArgs(gameTypes.CannonGameType)
-		// Add Asterisc required flags
-		addRequiredAsteriscArgs(argsMap)
+		// Add cannon-kona required flags
+		addRequiredCannonKonaArgs(argsMap)
 		args := toArgList(argsMap)
 		// Add extra game types (cannon is already specified)
 		args = append(args,
@@ -189,9 +177,9 @@ func TestMultipleGameTypes(t *testing.T) {
 		args = append(args,
 			"--game-types", gameTypes.PermissionedGameType.String())
 		args = append(args,
-			"--game-types", gameTypes.AsteriscGameType.String())
+			"--game-types", gameTypes.CannonKonaGameType.String())
 		cfg := configForArgs(t, args)
-		require.Equal(t, []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.AlphabetGameType, gameTypes.PermissionedGameType, gameTypes.AsteriscGameType}, cfg.GameTypes)
+		require.Equal(t, []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.AlphabetGameType, gameTypes.PermissionedGameType, gameTypes.CannonKonaGameType}, cfg.GameTypes)
 	})
 	t.Run("WithSomeOptions", func(t *testing.T) {
 		argsMap := requiredArgs(gameTypes.CannonGameType)
@@ -367,160 +355,6 @@ func TestMinUpdateInterval(t *testing.T) {
 	})
 }
 
-func TestAsteriscOpProgramRequiredArgs(t *testing.T) {
-	gameType := gameTypes.AsteriscGameType
-	t.Run(fmt.Sprintf("TestAsteriscServer-%v", gameType), func(t *testing.T) {
-		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-server"))
-		})
-
-		t.Run("Required", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag asterisc-server is required", addRequiredArgsExcept(gameType, "--asterisc-server"))
-		})
-
-		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--asterisc-server", "--asterisc-server=./op-program"))
-			require.Equal(t, "./op-program", cfg.Asterisc.Server)
-		})
-	})
-
-	t.Run(fmt.Sprintf("TestAsteriscAbsolutePrestate-%v", gameType), func(t *testing.T) {
-		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-prestate"))
-		})
-
-		t.Run("Required", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag prestates-url/asterisc-prestates-url or asterisc-prestate is required", addRequiredArgsExcept(gameType, "--asterisc-prestate"))
-		})
-
-		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--asterisc-prestate", "--asterisc-prestate=./pre.json"))
-			require.Equal(t, "./pre.json", cfg.AsteriscAbsolutePreState)
-		})
-	})
-
-	t.Run(fmt.Sprintf("TestPrestateBaseURL-%v", gameType), func(t *testing.T) {
-		allPrestateOptions := []string{"--prestates-url", "--asterisc-prestates-url", "--asterisc-prestate"}
-		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExceptArr(gameTypes.AlphabetGameType, allPrestateOptions))
-		})
-
-		t.Run("NotRequiredIfAsteriscPrestatesBaseURLSet", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions, "--asterisc-prestates-url=http://localhost/foo"))
-		})
-
-		t.Run("AsteriscPrestatesBaseURLTakesPrecedence", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions, "--asterisc-prestates-url=http://localhost/foo", "--prestates-url=http://localhost/bar"))
-			require.Equal(t, "http://localhost/foo", cfg.AsteriscAbsolutePreStateBaseURL.String())
-		})
-
-		t.Run("RequiredIfAsteriscPrestatesBaseURLNotSet", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag prestates-url/asterisc-prestates-url or asterisc-prestate is required", addRequiredArgsExceptArr(gameType, allPrestateOptions))
-		})
-
-		t.Run("Invalid", func(t *testing.T) {
-			verifyArgsInvalid(t, "invalid prestates-url (:foo/bar)", addRequiredArgsExceptArr(gameType, allPrestateOptions, "--prestates-url=:foo/bar"))
-		})
-
-		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions, "--prestates-url=http://localhost/foo"))
-			require.Equal(t, "http://localhost/foo", cfg.AsteriscAbsolutePreStateBaseURL.String())
-		})
-	})
-
-	t.Run(fmt.Sprintf("TestAsteriscAbsolutePrestateBaseURL-%v", gameType), func(t *testing.T) {
-		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-prestates-url"))
-		})
-
-		t.Run("Required", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag prestates-url/asterisc-prestates-url or asterisc-prestate is required", addRequiredArgsExcept(gameType, "--asterisc-prestate"))
-		})
-
-		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--asterisc-prestates-url", "--asterisc-prestates-url=http://localhost/bar"))
-			require.Equal(t, "http://localhost/bar", cfg.AsteriscAbsolutePreStateBaseURL.String())
-		})
-	})
-}
-
-func TestAsteriscKonaRequiredArgs(t *testing.T) {
-	gameType := gameTypes.AsteriscKonaGameType
-	t.Run(fmt.Sprintf("TestAsteriscServer-%v", gameType), func(t *testing.T) {
-		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-kona-server"))
-		})
-
-		t.Run("Required", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag asterisc-kona-server is required", addRequiredArgsExcept(gameType, "--asterisc-kona-server"))
-		})
-
-		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--asterisc-kona-server", "--asterisc-kona-server=./kona-host"))
-			require.Equal(t, "./kona-host", cfg.AsteriscKona.Server)
-		})
-	})
-
-	t.Run(fmt.Sprintf("TestAsteriscAbsolutePrestate-%v", gameType), func(t *testing.T) {
-		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-kona-prestate"))
-		})
-
-		t.Run("Required", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag prestates-url/asterisc-kona-prestates-url or asterisc-kona-prestate is required", addRequiredArgsExcept(gameType, "--asterisc-kona-prestate"))
-		})
-
-		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--asterisc-kona-prestate", "--asterisc-kona-prestate=./pre.json"))
-			require.Equal(t, "./pre.json", cfg.AsteriscKonaAbsolutePreState)
-		})
-	})
-
-	t.Run(fmt.Sprintf("TestAsteriscAbsolutePrestateBaseURL-%v", gameType), func(t *testing.T) {
-		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-kona-prestates-url"))
-		})
-
-		t.Run("Required", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag prestates-url/asterisc-kona-prestates-url or asterisc-kona-prestate is required", addRequiredArgsExcept(gameType, "--asterisc-kona-prestate"))
-		})
-
-		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--asterisc-kona-prestates-url", "--asterisc-kona-prestates-url=http://localhost/bar"))
-			require.Equal(t, "http://localhost/bar", cfg.AsteriscKonaAbsolutePreStateBaseURL.String())
-		})
-	})
-
-	t.Run(fmt.Sprintf("TestPrestateBaseURL-%v", gameType), func(t *testing.T) {
-		allPrestateOptions := []string{"--prestates-url", "--asterisc-kona-prestates-url", "--asterisc-kona-prestate"}
-		t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExceptArr(gameTypes.AlphabetGameType, allPrestateOptions))
-		})
-
-		t.Run("NotRequiredIfAsteriscKonaPrestatesBaseURLSet", func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions, "--asterisc-kona-prestates-url=http://localhost/foo"))
-		})
-
-		t.Run("AsteriscKonaPrestatesBaseURLTakesPrecedence", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions, "--asterisc-kona-prestates-url=http://localhost/foo", "--prestates-url=http://localhost/bar"))
-			require.Equal(t, "http://localhost/foo", cfg.AsteriscKonaAbsolutePreStateBaseURL.String())
-		})
-
-		t.Run("RequiredIfAsteriscKonaPrestatesBaseURLNotSet", func(t *testing.T) {
-			verifyArgsInvalid(t, "flag prestates-url/asterisc-kona-prestates-url or asterisc-kona-prestate is required", addRequiredArgsExceptArr(gameType, allPrestateOptions))
-		})
-
-		t.Run("Invalid", func(t *testing.T) {
-			verifyArgsInvalid(t, "invalid prestates-url (:foo/bar)", addRequiredArgsExceptArr(gameType, allPrestateOptions, "--prestates-url=:foo/bar"))
-		})
-
-		t.Run("Valid", func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions, "--prestates-url=http://localhost/foo"))
-			require.Equal(t, "http://localhost/foo", cfg.AsteriscKonaAbsolutePreStateBaseURL.String())
-		})
-	})
-}
-
 // validateCustomNetworkFlagsProhibitedWithNetworkFlag ensures custom network flags are not used simultaneously with the network flag.
 // It validates disallowed flag combinations for a given game type and game type prefix configuration.
 func validateCustomNetworkFlagsProhibitedWithNetworkFlag(t *testing.T, gameType gameTypes.GameType, gameTypeForFlagPrefix gameTypes.GameType, customNetworkFlag string) {
@@ -560,135 +394,6 @@ func validateCustomNetworkFlagsProhibitedWithNetworkFlag(t *testing.T, gameType 
 					addRequiredArgs(gameType, fmt.Sprintf("--%v=somevalue.json", flagName)))
 			})
 		}
-	}
-}
-
-func TestAsteriscBaseRequiredArgs(t *testing.T) {
-	for _, gameType := range []gameTypes.GameType{gameTypes.AsteriscGameType, gameTypes.AsteriscKonaGameType} {
-		gameType := gameType
-		t.Run(fmt.Sprintf("TestAsteriscBin-%v", gameType), func(t *testing.T) {
-			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-bin"))
-			})
-
-			t.Run("Required", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag asterisc-bin is required", addRequiredArgsExcept(gameType, "--asterisc-bin"))
-			})
-
-			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--asterisc-bin", "--asterisc-bin=./asterisc"))
-				require.Equal(t, "./asterisc", cfg.Asterisc.VmBin)
-			})
-		})
-
-		t.Run(fmt.Sprintf("TestL2Rpc-%v", gameType), func(t *testing.T) {
-			t.Run("RequiredForAsteriscTrace", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag l2-eth-rpc is required", addRequiredArgsExcept(gameType, "--l2-eth-rpc"))
-			})
-
-			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgs(gameType))
-				require.Equal(t, []string{l2EthRpc}, cfg.L2Rpcs)
-			})
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscSnapshotFreq-%v", gameType), func(t *testing.T) {
-			t.Run("UsesDefault", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgs(gameType))
-				require.Equal(t, config.DefaultAsteriscSnapshotFreq, cfg.Asterisc.SnapshotFreq)
-			})
-
-			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgs(gameType, "--asterisc-snapshot-freq=1234"))
-				require.Equal(t, uint(1234), cfg.Asterisc.SnapshotFreq)
-			})
-
-			t.Run("Invalid", func(t *testing.T) {
-				verifyArgsInvalid(t, "invalid value \"abc\" for flag -asterisc-snapshot-freq",
-					addRequiredArgs(gameType, "--asterisc-snapshot-freq=abc"))
-			})
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscInfoFreq-%v", gameType), func(t *testing.T) {
-			t.Run("UsesDefault", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgs(gameType))
-				require.Equal(t, config.DefaultAsteriscInfoFreq, cfg.Asterisc.InfoFreq)
-			})
-
-			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgs(gameType, "--asterisc-info-freq=1234"))
-				require.Equal(t, uint(1234), cfg.Asterisc.InfoFreq)
-			})
-
-			t.Run("Invalid", func(t *testing.T) {
-				verifyArgsInvalid(t, "invalid value \"abc\" for flag -asterisc-info-freq",
-					addRequiredArgs(gameType, "--asterisc-info-freq=abc"))
-			})
-		})
-
-		t.Run(fmt.Sprintf("TestRequireEitherNetworkOrRollupAndGenesis-%v", gameType), func(t *testing.T) {
-			verifyArgsInvalid(
-				t,
-				fmt.Sprintf("flag network or rollup-config/%s-rollup-config and l2-genesis/%s-l2-genesis is required", gameType, gameType),
-				addRequiredArgsExcept(gameType, "--network"))
-			verifyArgsInvalid(
-				t,
-				fmt.Sprintf("flag network or rollup-config/%s-rollup-config and l2-genesis/%s-l2-genesis is required", gameType, gameType),
-				addRequiredArgsExcept(gameType, "--network", "--rollup-config=rollup.json"))
-			verifyArgsInvalid(
-				t,
-				fmt.Sprintf("flag network or rollup-config/%s-rollup-config and l2-genesis/%s-l2-genesis is required", gameType, gameType),
-				addRequiredArgsExcept(gameType, "--network", "--l2-genesis=gensis.json"))
-		})
-
-		validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, gameType, gameTypes.AsteriscKonaGameType, "asterisc-kona-l2-custom")
-
-		t.Run(fmt.Sprintf("TestNetwork-%v", gameType), func(t *testing.T) {
-			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--network"))
-			})
-
-			t.Run("NotRequiredWhenRollupAndGenesisSpecified", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(gameType, "--network",
-					"--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
-			})
-
-			t.Run("NotRequiredWhenNetworkSpecified", func(t *testing.T) {
-				args := requiredArgs(gameType)
-				delete(args, "--network")
-				delete(args, "--game-factory-address")
-				args["--network"] = "op-sepolia"
-				cfg := configForArgs(t, toArgList(args))
-				require.Equal(t, []string{"op-sepolia"}, cfg.Asterisc.Networks)
-			})
-
-			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--network", testNetwork))
-				require.Equal(t, []string{testNetwork}, cfg.Asterisc.Networks)
-			})
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscRollupConfig-%v", gameType), func(t *testing.T) {
-			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-rollup-config"))
-			})
-
-			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
-				require.Equal(t, []string{"rollup.json"}, cfg.Asterisc.RollupConfigPaths)
-			})
-		})
-
-		t.Run(fmt.Sprintf("TestL2Genesis-%v", gameType), func(t *testing.T) {
-			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--l2-genesis"))
-			})
-
-			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
-				require.Equal(t, []string{"genesis.json"}, cfg.Asterisc.L2GenesisPaths)
-			})
-		})
 	}
 }
 
@@ -942,93 +647,6 @@ func TestSuperCannonKonaCustomConfigArgs(t *testing.T) {
 	})
 }
 
-func TestSuperAsteriscKonaCustomConfigArgs(t *testing.T) {
-	for _, gameType := range []gameTypes.GameType{gameTypes.SuperAsteriscKonaGameType} {
-		gameType := gameType
-
-		t.Run(fmt.Sprintf("TestRequireEitherAsteriscKonaNetworkOrRollupAndGenesisAndDepset-%v", gameType), func(t *testing.T) {
-			expectedErrorMessage := "flag network or rollup-config/asterisc-kona-rollup-config, l2-genesis/asterisc-kona-l2-genesis and depset-config/asterisc-kona-depset-config is required"
-			// Missing all
-			verifyArgsInvalid(
-				t,
-				expectedErrorMessage,
-				addRequiredArgsExcept(gameType, "--network"))
-			// Missing l2-genesis
-			verifyArgsInvalid(
-				t,
-				expectedErrorMessage,
-				addRequiredArgsExcept(gameType, "--network", "--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-depset-config=depset.json"))
-			// Missing rollup-config
-			verifyArgsInvalid(
-				t,
-				expectedErrorMessage,
-				addRequiredArgsExcept(gameType, "--network", "--asterisc-kona-l2-genesis=gensis.json", "--asterisc-kona-depset-config=depset.json"))
-			// Missing depset-config
-			verifyArgsInvalid(
-				t,
-				expectedErrorMessage,
-				addRequiredArgsExcept(gameType, "--network", "--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-l2-genesis=gensis.json"))
-		})
-
-		validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, gameType, gameTypes.AsteriscKonaGameType, "asterisc-kona-l2-custom")
-
-		t.Run(fmt.Sprintf("TestNetwork-%v", gameType), func(t *testing.T) {
-			t.Run("NotRequiredWhenRollupGenesisAndDepsetIsSpecified", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(gameType, "--network",
-					"--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-l2-genesis=genesis.json", "--asterisc-kona-depset-config=depset.json"))
-			})
-
-			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--network", testNetwork))
-				require.Equal(t, []string{testNetwork}, cfg.AsteriscKona.Networks)
-			})
-		})
-
-		t.Run(fmt.Sprintf("TestSetAsteriscL2ChainId-%v", gameType), func(t *testing.T) {
-			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network",
-				"--asterisc-kona-rollup-config=rollup.json",
-				"--asterisc-kona-l2-genesis=genesis.json",
-				"--asterisc-kona-depset-config=depset.json",
-				"--asterisc-kona-l2-custom"))
-			require.True(t, cfg.AsteriscKona.L2Custom)
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscRollupConfig-%v", gameType), func(t *testing.T) {
-			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-kona-rollup-config"))
-			})
-
-			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network",
-					"--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-l2-genesis=genesis.json", "--asterisc-kona-depset-config=depset.json"))
-				require.Equal(t, []string{"rollup.json"}, cfg.AsteriscKona.RollupConfigPaths)
-			})
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscL2Genesis-%v", gameType), func(t *testing.T) {
-			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-kona-l2-genesis"))
-			})
-
-			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-l2-genesis=genesis.json", "--asterisc-kona-depset-config=depset.json"))
-				require.Equal(t, []string{"genesis.json"}, cfg.AsteriscKona.L2GenesisPaths)
-			})
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscDepsetConfig-%v", gameType), func(t *testing.T) {
-			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-				configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--asterisc-kona-depset-config"))
-			})
-
-			t.Run("Valid", func(t *testing.T) {
-				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-l2-genesis=genesis.json", "--asterisc-kona-depset-config=depset.json"))
-				require.Equal(t, "depset.json", cfg.AsteriscKona.DepsetConfigPath)
-			})
-		})
-	}
-}
-
 func TestCannonRequiredArgs(t *testing.T) {
 	for _, gameType := range []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType, gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType} {
 		gameType := gameType
@@ -1182,12 +800,6 @@ func TestDepsetConfig(t *testing.T) {
 					"flag network or rollup-config/cannon-kona-rollup-config, l2-genesis/cannon-kona-l2-genesis and depset-config/cannon-kona-depset-config is required",
 					addRequiredArgsExcept(gameType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
 			})
-		} else if gameType == gameTypes.SuperAsteriscKonaGameType {
-			t.Run("Required-"+gameType.String(), func(t *testing.T) {
-				verifyArgsInvalid(t,
-					"flag network or rollup-config/asterisc-kona-rollup-config, l2-genesis/asterisc-kona-l2-genesis and depset-config/asterisc-kona-depset-config is required",
-					addRequiredArgsExcept(gameType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
-			})
 		} else {
 			t.Run("NotRequired-"+gameType.String(), func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
@@ -1216,7 +828,7 @@ func TestRollupRpc(t *testing.T) {
 	for _, gameType := range gameTypes.SupportedGameTypes {
 		gameType := gameType
 
-		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperAsteriscKonaGameType || gameType == gameTypes.SuperCannonKonaGameType {
+		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
 			t.Run(fmt.Sprintf("NotRequiredFor-%v", gameType), func(t *testing.T) {
 				configForArgs(t, addRequiredArgsExcept(gameType, "--rollup-rpc"))
 			})
@@ -1399,16 +1011,10 @@ func requiredArgs(gameType gameTypes.GameType) map[string]string {
 		addRequiredCannonArgs(args)
 	case gameTypes.CannonKonaGameType:
 		addRequiredCannonKonaArgs(args)
-	case gameTypes.AsteriscGameType:
-		addRequiredAsteriscArgs(args)
-	case gameTypes.AsteriscKonaGameType:
-		addRequiredAsteriscKonaArgs(args)
 	case gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType:
 		addRequiredSuperCannonArgs(args)
 	case gameTypes.SuperCannonKonaGameType:
 		addRequiredSuperCannonKonaArgs(args)
-	case gameTypes.SuperAsteriscKonaGameType:
-		addRequiredSuperAsteriscKonaArgs(args)
 	case gameTypes.OptimisticZKGameType, gameTypes.AlphabetGameType, gameTypes.FastGameType:
 		addRequiredOutputRootArgs(args)
 	}
@@ -1450,27 +1056,6 @@ func addRequiredCannonKonaBaseArgs(args map[string]string) {
 
 func addRequiredSuperCannonKonaArgs(args map[string]string) {
 	addRequiredCannonKonaBaseArgs(args)
-	args["--supervisor-rpc"] = supervisorRpc
-}
-
-func addRequiredAsteriscArgs(args map[string]string) {
-	addRequiredOutputRootArgs(args)
-	args["--network"] = network
-	args["--asterisc-bin"] = asteriscBin
-	args["--asterisc-server"] = asteriscServer
-	args["--asterisc-prestate"] = asteriscPreState
-}
-
-func addRequiredAsteriscKonaArgs(args map[string]string) {
-	addRequiredOutputRootArgs(args)
-	args["--network"] = network
-	args["--asterisc-bin"] = asteriscBin
-	args["--asterisc-kona-server"] = asteriscServer
-	args["--asterisc-kona-prestate"] = asteriscPreState
-}
-
-func addRequiredSuperAsteriscKonaArgs(args map[string]string) {
-	addRequiredAsteriscKonaArgs(args)
 	args["--supervisor-rpc"] = supervisorRpc
 }
 

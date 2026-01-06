@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
+
+// Scripts
 import { FetchChainInfo, FetchChainInfoInput, FetchChainInfoOutput } from "scripts/FetchChainInfo.s.sol";
+
+// Libraries
 import { GameTypes, GameType } from "src/dispute/lib/Types.sol";
 import { LibGameType } from "src/dispute/lib/LibUDT.sol";
 

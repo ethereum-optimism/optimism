@@ -118,7 +118,7 @@ contract OPContractsManagerV2_TestInit is CommonTest, DisputeGames {
         });
 
         // Grab the validator before we do the error assertion.
-        IOPContractsManagerStandardValidator validator = _opcm.standardValidator();
+        IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
 
         // Expect validator errors if the user provides them.
         if (bytes(_expectedValidatorErrors).length > 0) {
@@ -373,7 +373,7 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
 
         // Grab the validator before we do the error assertion because otherwise the assertion will
         // try to apply to this function call instead.
-        IOPContractsManagerStandardValidator validator = _opcm.standardValidator();
+        IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
 
         // Expect validator errors if the user provides them. We always expect the L1PAOMultisig
         // and Challenger overrides so we don't need to repeat them here.
@@ -1125,6 +1125,19 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         // nosemgrep: sol-style-use-abi-encodecall
         runDeployV2(
             deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+}
+
+/// @title OPContractsManagerV2_DevFeatureBitmap_Test
+/// @notice Tests OPContractsManagerV2.devFeatureBitmap
+contract OPContractsManagerV2_DevFeatureBitmap_Test is OPContractsManagerV2_TestInit {
+    /// @notice Tests that the devFeatureBitmap returned by opcmV2 matches the contractsContainer address's own.
+    function test_devFeatureBitmap_succeeds() public view {
+        assertEq(
+            opcmV2.devFeatureBitmap(),
+            opcmV2.contractsContainer().devFeatureBitmap(),
+            "devFeatureBitmap on opcmV2 does not match contractsContainer bitmap"
         );
     }
 }
