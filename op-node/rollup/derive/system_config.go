@@ -130,15 +130,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		if err != nil {
 			return err
 		}
-		eip1559Params := params[24:32]
-		denominator, elasticity := eip1559.DecodeHolocene1559Params(eip1559Params)
-		if denominator == 0 && elasticity != 0 {
-			return fmt.Errorf("%w: denominator is 0 but elasticity is %d", ErrInvalidEIP1559Params, elasticity)
-		}
-		if elasticity == 0 && denominator != 0 {
-			return fmt.Errorf("%w: elasticity is 0 but denominator is %d", ErrInvalidEIP1559Params, denominator)
-		}
-		copy(destSysCfg.EIP1559Params[:], eip1559Params)
+		copy(destSysCfg.EIP1559Params[:], params[24:32])
 		return nil
 	case SystemConfigUpdateOperatorFeeParams:
 		params, err := parseSystemConfigUpdateOperatorFeeParams(ev.Data)
@@ -243,6 +235,10 @@ func parseSystemConfigUpdateEIP1559Params(data []byte) (eth.Bytes32, error) {
 	}
 	if !solabi.EmptyReader(reader) {
 		return eth.Bytes32{}, fmt.Errorf("%w: too many bytes", ErrParsingSystemConfig)
+	}
+	// Validate the EIP-1559 params (last 8 bytes of the 32-byte value)
+	if err := eip1559.ValidateHolocene1559Params(params[24:32]); err != nil {
+		return eth.Bytes32{}, fmt.Errorf("%w: %w", ErrInvalidEIP1559Params, err)
 	}
 	return params, nil
 }
