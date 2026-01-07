@@ -90,6 +90,14 @@ jemalloc = [
     "reth-node-core/jemalloc",
     "reth-node-metrics/jemalloc",
 ]
+jemalloc-prof = [
+    "jemalloc",
+    "reth-node-metrics/jemalloc-prof",
+]
+jemalloc-symbols = [
+    "jemalloc-prof",
+    "reth-node-metrics/jemalloc-symbols",
+]
 
 dev = [
     "dep:proptest",
