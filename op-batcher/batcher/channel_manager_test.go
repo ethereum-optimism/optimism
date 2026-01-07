@@ -1044,7 +1044,7 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 }
 
 func TestChannelManager_SingleBlockBiggerThanMaxFrameSize(t *testing.T) {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng := rand.New(rand.NewSource(int64(1234))) // use fixed seed for reproducibility / determinism
 	a := derivetest.RandomL2BlockWithChainId(rng, 4, defaultTestRollupConfig.L2ChainID)
 	l1BlockID := eth.BlockID{
 		Hash:   a.Hash(),
