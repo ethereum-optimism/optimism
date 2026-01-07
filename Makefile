@@ -107,6 +107,15 @@ patch-apply: $(SUBMODULE)/go.mod
 			fi; \
 		done < "$(OVERLAYS)/foundry-remappings.txt"; \
 	fi
+	@# Copy kurtosis-devnet overlays (e.g., boba-local.yaml)
+	@if [ -d "$(OVERLAYS)/kurtosis-devnet" ]; then \
+		cp -r "$(OVERLAYS)/kurtosis-devnet/"* "$(SUBMODULE)/kurtosis-devnet/"; \
+	fi
+	@# Apply git patch files
+	@for patchfile in $$(find "$(OVERLAYS)" -name "*.patch" -type f 2>/dev/null); do \
+		echo "Applying patch: $$patchfile"; \
+		(cd "$(SUBMODULE)" && patch -p1 < "$$patchfile") || true; \
+	done
 	@echo "Patches applied."
 
 # Restore submodule to upstream state
@@ -126,6 +135,9 @@ patch-restore:
 	@rm -rf "$(SUBMODULE)/packages/contracts-bedrock/deployments/boba-"* 2>/dev/null || true
 	@rm -f "$(SUBMODULE)/packages/contracts-bedrock/deploy-config/boba-"*.json 2>/dev/null || true
 	@rm -rf "$(SUBMODULE)/packages/contracts-bedrock/lib/openzeppelin-contracts-patched" 2>/dev/null || true
+	@rm -f "$(SUBMODULE)/kurtosis-devnet/boba-"*.yaml 2>/dev/null || true
+	@# Revert any applied patches
+	@(cd "$(SUBMODULE)" && git checkout -- . 2>/dev/null) || true
 	@echo "Restored."
 
 # Build all targets

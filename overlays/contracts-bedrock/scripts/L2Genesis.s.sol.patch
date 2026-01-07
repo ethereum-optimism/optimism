@@ -1,0 +1,19 @@
+--- a/packages/contracts-bedrock/scripts/L2Genesis.s.sol
++++ b/packages/contracts-bedrock/scripts/L2Genesis.s.sol
+@@ -133,6 +133,7 @@ contract L2Genesis is Deployer {
+     function runWithEnv() public {
+         //  The setUp() is skipped (since we insert a custom DeployConfig, and do not use Artifacts)
+         deployer = makeAddr("deployer");
++        console.log("L2GENESIS_L1BobaToken is %s", vm.envAddress("L2GENESIS_L1BobaToken"));
+         runWithOptions(
+             OutputMode.NONE,
+             Config.fork(),
+@@ -140,7 +141,7 @@ contract L2Genesis is Deployer {
+                 l1CrossDomainMessengerProxy: payable(vm.envAddress("L2GENESIS_L1CrossDomainMessengerProxy")),
+                 l1StandardBridgeProxy: payable(vm.envAddress("L2GENESIS_L1StandardBridgeProxy")),
+                 l1ERC721BridgeProxy: payable(vm.envAddress("L2GENESIS_L1ERC721BridgeProxy")),
+-                l1BobaToken: address(0)
++                l1BobaToken: payable(vm.envAddress("L2GENESIS_L1BobaToken"))
+             })
+         );
+     }

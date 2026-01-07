@@ -1,0 +1,13 @@
+--- a/op-deployer/pkg/deployer/opcm/l2genesis.go
++++ b/op-deployer/pkg/deployer/opcm/l2genesis.go
+@@ -35,6 +35,10 @@ func L2Genesis(l2Host *script.Host, input *L2GenesisInput) error {
+ 	l2Host.SetEnvVar("L2GENESIS_L1StandardBridgeProxy", input.L1Deployments.L1StandardBridgeProxy.String())
+ 	l2Host.SetEnvVar("L2GENESIS_L1ERC721BridgeProxy", input.L1Deployments.L1ERC721BridgeProxy.String())
+
++	// Ideally this would check to see if the L1 contract had been created in
++	// the .yaml "additional_preloaded_contracts", but for convenience it's hard-coded.
++	l2Host.SetEnvVar("L2GENESIS_L1BobaToken", "0xB0ba000000000000000000000000000000012345")
++
+ 	var allocsMode string
+ 	if input.OverrideAllocsMode == "" {
+ 		allocsMode = string(input.L2Config.UpgradeScheduleDeployConfig.AllocMode(uint64(time.Now().Unix())))
