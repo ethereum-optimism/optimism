@@ -448,6 +448,7 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
         // It should revert if the opcm address is not a contract.
         address eoaAddress = makeAddr("EOA");
         deployOPChainInput.opcm = eoaAddress;
+        // nosemgrep: sol-safety-expectrevert-no-args
         vm.expectRevert();
         deployOPChain.run(deployOPChainInput);
     }
@@ -479,13 +480,14 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
     function test_runWithBytes_invalidInput_reverts() public {
         // It should revert if the input bytes cannot be decoded.
         bytes memory invalidInput = "invalid";
+        // nosemgrep: sol-safety-expectrevert-no-args
         vm.expectRevert();
         deployOPChain.runWithBytes(invalidInput);
     }
 
     function test_runWithBytes_emptyInput_reverts() public {
         bytes memory emptyInput = "";
-        vm.expectRevert();
+        vm.expectRevert("DeployOPChain: input cannot be empty");
         deployOPChain.runWithBytes(emptyInput);
     }
 }

@@ -57,6 +57,7 @@ contract DeployOPChain is Script {
     /// @param _input The input to the script.
     /// @return output_ The output of the script.
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        require(_input.length > 0, "DeployOPChain: input cannot be empty");
         Types.DeployOPChainInput memory input = abi.decode(_input, (Types.DeployOPChainInput));
         Output memory output_ = run(input);
         return abi.encode(output_);
