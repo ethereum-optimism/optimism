@@ -1054,29 +1054,28 @@ func TestChannelManager_SingleBlockBiggerThanMaxFrameSize(t *testing.T) {
 	for _, ca := range derive.CompressionAlgos {
 		t.Run(string(ca), func(t *testing.T) {
 			require := require.New(t)
+			assert := assert.New(t)
 			log := testlog.Logger(t, log.LevelCrit)
-			// use an extremely low frame size that will definitely not be enough for the random block
+
+			// Use an extremely low frame size that will definitely not be enough for the random block
 			cfg := channelManagerTestConfig(derive.FrameV0OverHeadSize, derive.SingularBatchType)
-			cfg.UseBlobs = true
-			// Need to set the channel timeout here so we don't clear pending
-			// channels on confirmation. This would result in [TxConfirmed]
-			// clearing confirmed transactions, and resetting the pendingChannels map
-			cfg.ChannelTimeout = 10
 			cfg.InitShadowCompressor(ca)
 			m := NewChannelManager(log, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
-
 			require.NoError(m.AddL2Block(a))
 
 			// Make sure there is a channel
 			require.NoError(m.ensureChannelWithSpace(l1BlockID))
-			require.NotNil(m.currentChannel)
-			require.Len(m.currentChannel.confirmedTransactions, 0)
+			channel := m.currentChannel
+			require.NotNil(channel)
+			require.Equal(1, m.pendingBlocks())
+			require.Zero(len(channel.blocks))
 
 			// Process the blocks
-			// We should have a pending channel with 1 frame
-			require.Equal(m.pendingBlocks(), 1)
 			require.NoError(m.processBlocks())
-			require.Equal(m.pendingBlocks(), 0)
+
+			// The block should have been moved into the channel
+			assert.Equal(0, m.pendingBlocks())
+			assert.Equal(1, len(channel.blocks), "channel should have one block")
 		})
 	}
 }
