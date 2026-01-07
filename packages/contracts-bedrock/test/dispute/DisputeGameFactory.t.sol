@@ -83,7 +83,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         vm_ = new AlphabetVM(_absolutePrestate, preimageOracle_);
     }
 
-    function _getGameConstructorParamsV2()
+    function _getGameConstructorParams()
         internal
         pure
         returns (IFaultDisputeGame.GameConstructorParams memory params_)
@@ -207,7 +207,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         gameImpl_ = DeployUtils.create1({
             _name: "FaultDisputeGame",
             _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(IFaultDisputeGame.__constructor__, (_getGameConstructorParamsV2()))
+                abi.encodeCall(IFaultDisputeGame.__constructor__, (_getGameConstructorParams()))
             )
         });
 
@@ -287,7 +287,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         gameImpl_ = DeployUtils.create1({
             _name: "PermissionedDisputeGame",
             _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(IPermissionedDisputeGame.__constructor__, (_getGameConstructorParamsV2()))
+                abi.encodeCall(IPermissionedDisputeGame.__constructor__, (_getGameConstructorParams()))
             )
         });
 
@@ -548,24 +548,24 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         assertEq(Timestamp.unwrap(timestamp), block.timestamp);
 
         // Verify the game has the correct parameters via CWIA
-        IFaultDisputeGame gameV2 = IFaultDisputeGame(address(proxy));
+        IFaultDisputeGame game_ = IFaultDisputeGame(address(proxy));
 
         // Test CWIA getters
-        assertEq(Claim.unwrap(gameV2.absolutePrestate()), Claim.unwrap(absolutePrestate));
-        assertEq(Claim.unwrap(gameV2.rootClaim()), Claim.unwrap(rootClaim));
-        assertEq(gameV2.extraData(), extraData);
-        assertEq(gameV2.l2ChainId(), l2ChainId);
-        assertEq(address(gameV2.gameCreator()), address(this));
-        assertEq(gameV2.l2BlockNumber(), uint256(type(uint32).max));
-        assertEq(address(gameV2.vm()), address(vm_));
-        assertEq(address(gameV2.weth()), address(delayedWeth));
-        assertEq(address(gameV2.anchorStateRegistry()), address(anchorStateRegistry));
+        assertEq(Claim.unwrap(game_.absolutePrestate()), Claim.unwrap(absolutePrestate));
+        assertEq(Claim.unwrap(game_.rootClaim()), Claim.unwrap(rootClaim));
+        assertEq(game_.extraData(), extraData);
+        assertEq(game_.l2ChainId(), l2ChainId);
+        assertEq(address(game_.gameCreator()), address(this));
+        assertEq(game_.l2BlockNumber(), uint256(type(uint32).max));
+        assertEq(address(game_.vm()), address(vm_));
+        assertEq(address(game_.weth()), address(delayedWeth));
+        assertEq(address(game_.anchorStateRegistry()), address(anchorStateRegistry));
         // Test Constructor args
-        assertEq(GameType.unwrap(gameV2.gameType()), GameType.unwrap(GameTypes.CANNON));
-        assertEq(gameV2.maxGameDepth(), 2 ** 3);
-        assertEq(gameV2.splitDepth(), 2 ** 2);
-        assertEq(Duration.unwrap(gameV2.clockExtension()), Duration.unwrap(Duration.wrap(3 hours)));
-        assertEq(Duration.unwrap(gameV2.maxClockDuration()), Duration.unwrap(Duration.wrap(3.5 days)));
+        assertEq(GameType.unwrap(game_.gameType()), GameType.unwrap(GameTypes.CANNON));
+        assertEq(game_.maxGameDepth(), 2 ** 3);
+        assertEq(game_.splitDepth(), 2 ** 2);
+        assertEq(Duration.unwrap(game_.clockExtension()), Duration.unwrap(Duration.wrap(3 hours)));
+        assertEq(Duration.unwrap(game_.maxClockDuration()), Duration.unwrap(Duration.wrap(3.5 days)));
     }
 }
 

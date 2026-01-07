@@ -505,7 +505,7 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
     }
 
     /// @notice Tests that initialization reverts when oracle challenge period is too large.
-    /// @dev V2 validates oracle challenge period during initialize(), not constructor
+    /// @dev Validates oracle challenge period during initialize(), not constructor
     function testFuzz_initialize_oracleChallengePeriodTooLarge_reverts(uint256 _challengePeriod) public {
         // Bound to values larger than uint64.max
         _challengePeriod = bound(_challengePeriod, uint256(type(uint64).max) + 1, type(uint256).max);
