@@ -7,8 +7,8 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/client"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	types2 "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -20,7 +20,7 @@ import (
 
 func TestSuperNodeProvider_Get(t *testing.T) {
 	t.Run("AtPostState", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
 		expectedSuper := eth.NewSuperV1(poststateTimestamp, eth.ChainIDAndOutput{
 			ChainID: eth.ChainIDFromUInt64(1),
 			Output:  eth.Bytes32{0xbb},
@@ -34,14 +34,14 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 				SuperRoot:          eth.SuperRoot(expectedSuper),
 			},
 		}
-		stubSupervisor.Add(response)
+		stubSuperNode.Add(response)
 		claim, err := provider.Get(context.Background(), types.RootPosition)
 		require.NoError(t, err)
 		require.Equal(t, common.Hash(eth.SuperRoot(expectedSuper)), claim)
 	})
 
 	t.Run("AtNewTimestamp", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
 		expectedSuper := eth.NewSuperV1(prestateTimestamp+1, eth.ChainIDAndOutput{
 			ChainID: eth.ChainIDFromUInt64(1),
 			Output:  eth.Bytes32{0xbb},
@@ -55,23 +55,23 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 				SuperRoot:          eth.SuperRoot(expectedSuper),
 			},
 		}
-		stubSupervisor.Add(response)
+		stubSuperNode.Add(response)
 		claim, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(StepsPerTimestamp-1)))
 		require.NoError(t, err)
 		require.Equal(t, common.Hash(eth.SuperRoot(expectedSuper)), claim)
 	})
 
 	t.Run("ValidTransitionBetweenFirstTwoSuperRoots", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
 		prev, next := createValidSuperNodeSuperRoots(l1Head)
-		stubSupervisor.Add(prev)
-		stubSupervisor.Add(next)
+		stubSuperNode.Add(prev)
+		stubSuperNode.Add(next)
 
 		expectSuperNodeValidTransition(t, provider, prev, next)
 	})
 
 	t.Run("Step0SuperRootIsSafeBeforeGameL1Head", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
 		expectedSuper := eth.NewSuperV1(poststateTimestamp, eth.ChainIDAndOutput{
 			ChainID: eth.ChainIDFromUInt64(1),
 			Output:  eth.Bytes32{0xbb},
@@ -85,14 +85,14 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 				SuperRoot:          eth.SuperRoot(expectedSuper),
 			},
 		}
-		stubSupervisor.Add(response)
+		stubSuperNode.Add(response)
 		claim, err := provider.Get(context.Background(), types.RootPosition)
 		require.NoError(t, err)
 		require.Equal(t, common.Hash(eth.SuperRoot(expectedSuper)), claim)
 	})
 
 	t.Run("Step0SuperRootNotSafeAtGameL1Head", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
 		expectedSuper := eth.NewSuperV1(poststateTimestamp, eth.ChainIDAndOutput{
 			ChainID: eth.ChainIDFromUInt64(1),
 			Output:  eth.Bytes32{0xbb},
@@ -106,31 +106,31 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 				SuperRoot:          eth.SuperRoot(expectedSuper),
 			},
 		}
-		stubSupervisor.Add(response)
+		stubSuperNode.Add(response)
 		claim, err := provider.Get(context.Background(), types.RootPosition)
 		require.NoError(t, err)
 		require.Equal(t, InvalidTransitionHash, claim)
 	})
 
 	t.Run("NextSuperRootSafeBeforeGameL1Head", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
 		prev, next := createValidSuperNodeSuperRoots(l1Head)
 		// Make super roots be safe earlier
 		prev.Data.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number - 10, Hash: common.Hash{0xaa}}
 		next.Data.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number - 5, Hash: common.Hash{0xbb}}
-		stubSupervisor.Add(prev)
-		stubSupervisor.Add(next)
+		stubSuperNode.Add(prev)
+		stubSuperNode.Add(next)
 		expectSuperNodeValidTransition(t, provider, prev, next)
 	})
 
 	t.Run("PreviousSuperRootNotSafeAtGameL1Head", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
 		prev, next := createValidSuperNodeSuperRoots(l1Head)
 		// Make super roots be safe only after L1 head
 		prev.Data.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xaa}}
 		next.Data.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number + 2, Hash: common.Hash{0xbb}}
-		stubSupervisor.Add(prev)
-		stubSupervisor.Add(next)
+		stubSuperNode.Add(prev)
+		stubSuperNode.Add(next)
 
 		// All steps should be the invalid transition hash.
 		for i := int64(0); i < StepsPerTimestamp+1; i++ {
@@ -141,7 +141,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 	})
 
 	t.Run("FirstChainUnsafe", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
 		prev, next := createValidSuperNodeSuperRoots(l1Head)
 		// Make super roots be safe only after L1 head
 		prev.Data.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number, Hash: common.Hash{0xaa}}
@@ -155,8 +155,8 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 			},
 			RequiredL1: eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xbb}},
 		}
-		stubSupervisor.Add(prev)
-		stubSupervisor.Add(next)
+		stubSuperNode.Add(prev)
+		stubSuperNode.Add(next)
 
 		// All steps should be the invalid transition hash.
 		for i := int64(0); i < StepsPerTimestamp+1; i++ {
@@ -167,7 +167,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 	})
 
 	t.Run("SecondChainUnsafe", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
 		prev, next := createValidSuperNodeSuperRoots(l1Head)
 		// Make super roots be safe only after L1 head
 		prev.Data.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number, Hash: common.Hash{0xaa}}
@@ -181,8 +181,8 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 			},
 			RequiredL1: eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xbb}},
 		}
-		stubSupervisor.Add(prev)
-		stubSupervisor.Add(next)
+		stubSuperNode.Add(prev)
+		stubSuperNode.Add(next)
 
 		// First step should be valid because we can reach the required block on chain 1
 		claim, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(0)))
@@ -198,8 +198,8 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 	})
 
 	t.Run("Step0ForTimestampBeyondChainHead", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
-		stubSupervisor.AddAtTimestamp(poststateTimestamp, eth.SuperRootAtTimestampResponse{
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
+		stubSuperNode.AddAtTimestamp(poststateTimestamp, eth.SuperRootAtTimestampResponse{
 			CurrentL1: l1Head,
 			ChainIDs:  []eth.ChainID{eth.ChainIDFromUInt64(1), eth.ChainIDFromUInt64(2)},
 			Data:      nil,
@@ -211,10 +211,10 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 	})
 
 	t.Run("NextSuperRootTimestampBeyondAllChainHeads", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
 		prev, _ := createValidSuperNodeSuperRoots(l1Head)
-		stubSupervisor.Add(prev)
-		stubSupervisor.AddAtTimestamp(prestateTimestamp+1, eth.SuperRootAtTimestampResponse{
+		stubSuperNode.Add(prev)
+		stubSuperNode.AddAtTimestamp(prestateTimestamp+1, eth.SuperRootAtTimestampResponse{
 			CurrentL1: l1Head,
 			ChainIDs:  prev.ChainIDs,
 			Data:      nil,
@@ -229,10 +229,10 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 	})
 
 	t.Run("NextSuperRootTimestampBeyondFirstChainHead", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
 		prev, next := createValidSuperNodeSuperRoots(l1Head)
-		stubSupervisor.Add(prev)
-		stubSupervisor.AddAtTimestamp(prestateTimestamp+1, eth.SuperRootAtTimestampResponse{
+		stubSuperNode.Add(prev)
+		stubSuperNode.AddAtTimestamp(prestateTimestamp+1, eth.SuperRootAtTimestampResponse{
 			CurrentL1: l1Head,
 			ChainIDs:  prev.ChainIDs,
 			OptimisticAtTimestamp: map[eth.ChainID]eth.OutputWithRequiredL1{
@@ -249,10 +249,10 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 	})
 
 	t.Run("NextSuperRootTimestampBeyondSecondChainHead", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
 		prev, next := createValidSuperNodeSuperRoots(l1Head)
-		stubSupervisor.Add(prev)
-		stubSupervisor.AddAtTimestamp(prestateTimestamp+1, eth.SuperRootAtTimestampResponse{
+		stubSuperNode.Add(prev)
+		stubSuperNode.AddAtTimestamp(prestateTimestamp+1, eth.SuperRootAtTimestampResponse{
 			CurrentL1: l1Head,
 			ChainIDs:  next.ChainIDs,
 			OptimisticAtTimestamp: map[eth.ChainID]eth.OutputWithRequiredL1{
@@ -274,13 +274,13 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 	})
 
 	t.Run("PreviousSuperRootTimestampBeyondChainHead", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
-		stubSupervisor.AddAtTimestamp(prestateTimestamp, eth.SuperRootAtTimestampResponse{
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
+		stubSuperNode.AddAtTimestamp(prestateTimestamp, eth.SuperRootAtTimestampResponse{
 			CurrentL1: l1Head,
 			ChainIDs:  []eth.ChainID{eth.ChainIDFromUInt64(1), eth.ChainIDFromUInt64(2)},
 			Data:      nil,
 		})
-		stubSupervisor.AddAtTimestamp(prestateTimestamp+1, eth.SuperRootAtTimestampResponse{
+		stubSuperNode.AddAtTimestamp(prestateTimestamp+1, eth.SuperRootAtTimestampResponse{
 			CurrentL1: l1Head,
 			ChainIDs:  []eth.ChainID{eth.ChainIDFromUInt64(1), eth.ChainIDFromUInt64(2)},
 			Data:      nil,
@@ -295,7 +295,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 	})
 
 	t.Run("Step0NotInSync", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
 		expectedSuper := eth.NewSuperV1(poststateTimestamp, eth.ChainIDAndOutput{
 			ChainID: eth.ChainIDFromUInt64(1),
 			Output:  eth.Bytes32{0xbb},
@@ -309,33 +309,33 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 				SuperRoot:          eth.SuperRoot(expectedSuper),
 			},
 		}
-		stubSupervisor.Add(response)
+		stubSuperNode.Add(response)
 		_, err := provider.Get(context.Background(), types.RootPosition)
-		require.ErrorIs(t, err, client.ErrNotInSync)
+		require.ErrorIs(t, err, types2.ErrNotInSync)
 	})
 
 	t.Run("PreviousSuperRootNotInSync", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
-		stubSupervisor.AddAtTimestamp(prestateTimestamp, eth.SuperRootAtTimestampResponse{
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
+		stubSuperNode.AddAtTimestamp(prestateTimestamp, eth.SuperRootAtTimestampResponse{
 			CurrentL1: eth.BlockID{Number: l1Head.Number - 1, Hash: common.Hash{0xaa}},
 			ChainIDs:  []eth.ChainID{eth.ChainIDFromUInt64(1), eth.ChainIDFromUInt64(2)},
 		})
 		_, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(1)))
-		require.ErrorIs(t, err, client.ErrNotInSync)
+		require.ErrorIs(t, err, types2.ErrNotInSync)
 	})
 
 	t.Run("NextSuperRootNotInSync", func(t *testing.T) {
-		provider, stubSupervisor, l1Head := createSuperNodeProvider(t)
+		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
 		prev, _ := createValidSuperNodeSuperRoots(l1Head)
 		// Previous gives an in sync response
-		stubSupervisor.Add(prev)
+		stubSuperNode.Add(prev)
 		// But next gives an out of sync response
-		stubSupervisor.AddAtTimestamp(prestateTimestamp+1, eth.SuperRootAtTimestampResponse{
+		stubSuperNode.AddAtTimestamp(prestateTimestamp+1, eth.SuperRootAtTimestampResponse{
 			CurrentL1: eth.BlockID{Number: l1Head.Number - 1, Hash: common.Hash{0xaa}},
 			ChainIDs:  []eth.ChainID{eth.ChainIDFromUInt64(1), eth.ChainIDFromUInt64(2)},
 		})
 		_, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(1)))
-		require.ErrorIs(t, err, client.ErrNotInSync)
+		require.ErrorIs(t, err, types2.ErrNotInSync)
 	})
 }
 
@@ -415,11 +415,11 @@ func TestSuperNodeProvider_GetL2BlockNumberChallengeReturnsError(t *testing.T) {
 func createSuperNodeProvider(t *testing.T) (*SuperNodeTraceProvider, *stubSuperNodeRootProvider, eth.BlockID) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	l1Head := eth.BlockID{Number: 23542, Hash: common.Hash{0xab, 0xcd}}
-	stubSupervisor := &stubSuperNodeRootProvider{
+	stubSuperNode := &stubSuperNodeRootProvider{
 		rootsByTimestamp: make(map[uint64]eth.SuperRootAtTimestampResponse),
 	}
-	provider := NewSuperNodeTraceProvider(logger, nil, stubSupervisor, l1Head, gameDepth, prestateTimestamp, poststateTimestamp)
-	return provider, stubSupervisor, l1Head
+	provider := NewSuperNodeTraceProvider(logger, nil, stubSuperNode, l1Head, gameDepth, prestateTimestamp, poststateTimestamp)
+	return provider, stubSuperNode, l1Head
 }
 
 func toOutputResponse(output *eth.OutputV0) *eth.OutputResponse {

@@ -6,7 +6,6 @@ import (
 	"net/url"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/asterisc"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
@@ -48,33 +47,6 @@ func createTraceProvider(
 		}
 		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
 		return cannon.NewTraceProvider(logger, m, cfg.CannonKona, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
-	case gameTypes.AsteriscGameType:
-		serverExecutor := vm.NewOpProgramServerExecutor(logger)
-		stateConverter := asterisc.NewStateConverter(cfg.Asterisc)
-		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.AsteriscAbsolutePreStateBaseURL, cfg.AsteriscAbsolutePreState, dir, stateConverter)
-		if err != nil {
-			return nil, err
-		}
-		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
-		return asterisc.NewTraceProvider(logger, m, cfg.Asterisc, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
-	case gameTypes.AsteriscKonaGameType:
-		serverExecutor := vm.NewKonaExecutor()
-		stateConverter := asterisc.NewStateConverter(cfg.AsteriscKona)
-		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.AsteriscKonaAbsolutePreStateBaseURL, cfg.AsteriscKonaAbsolutePreState, dir, stateConverter)
-		if err != nil {
-			return nil, err
-		}
-		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
-		return asterisc.NewTraceProvider(logger, m, cfg.AsteriscKona, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
-	case gameTypes.SuperAsteriscKonaGameType:
-		serverExecutor := vm.NewKonaSuperExecutor()
-		stateConverter := asterisc.NewStateConverter(cfg.AsteriscKona)
-		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.AsteriscKonaAbsolutePreStateBaseURL, cfg.AsteriscKonaAbsolutePreState, dir, stateConverter)
-		if err != nil {
-			return nil, err
-		}
-		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
-		return asterisc.NewTraceProvider(logger, m, cfg.AsteriscKona, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
 	}
 	return nil, errors.New("invalid game type")
 }

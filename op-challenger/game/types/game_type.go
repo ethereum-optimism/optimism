@@ -13,12 +13,12 @@ type GameType uint32
 const (
 	CannonGameType            GameType = 0
 	PermissionedGameType      GameType = 1
-	AsteriscGameType          GameType = 2
-	AsteriscKonaGameType      GameType = 3
+	AsteriscGameType          GameType = 2 // Not supported by op-challenger
+	AsteriscKonaGameType      GameType = 3 // Not supported by op-challenger
 	SuperCannonGameType       GameType = 4
 	SuperPermissionedGameType GameType = 5
 	OPSuccinctGameType        GameType = 6 // Not supported by op-challenger
-	SuperAsteriscKonaGameType GameType = 7
+	SuperAsteriscKonaGameType GameType = 7 // Not supported by op-challenger
 	CannonKonaGameType        GameType = 8
 	SuperCannonKonaGameType   GameType = 9
 	OptimisticZKGameType      GameType = 10
@@ -35,13 +35,10 @@ var SupportedGameTypes = []GameType{
 	CannonGameType,
 	CannonKonaGameType,
 	PermissionedGameType,
-	AsteriscGameType,
-	AsteriscKonaGameType,
 	FastGameType,
 	SuperCannonGameType,
 	SuperCannonKonaGameType,
 	SuperPermissionedGameType,
-	SuperAsteriscKonaGameType,
 	OptimisticZKGameType,
 }
 

@@ -12,7 +12,7 @@ import (
 
 type (
 	ChannelConfigProvider interface {
-		ChannelConfig(isPectra, isThrottling bool) ChannelConfig
+		ChannelConfig(isThrottling bool) ChannelConfig
 	}
 
 	GasPricer interface {
@@ -53,7 +53,7 @@ func NewDynamicEthChannelConfig(lgr log.Logger,
 //
 // The blob config is returned when throttling is in progress, prioritizing throughput over cost
 // in times of limited bandwidth.
-func (dec *DynamicEthChannelConfig) ChannelConfig(isPectra, isThrottling bool) ChannelConfig {
+func (dec *DynamicEthChannelConfig) ChannelConfig(isThrottling bool) ChannelConfig {
 	if isThrottling {
 		dec.log.Info("Using blob channel config while throttling is in progress")
 		dec.lastConfig = &dec.blobConfig
@@ -82,7 +82,7 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isPectra, isThrottling bool) C
 
 	// Compute the total absolute cost of submitting either a single calldata tx or a single blob tx.
 	calldataCost, blobCost, oracleBlobCost :=
-		computeSingleCalldataTxCost(tokensPerCalldataTx, baseFee, tipCap, isPectra),
+		computeSingleCalldataTxCost(tokensPerCalldataTx, baseFee, tipCap),
 		computeSingleBlobTxCost(numBlobsPerTx, baseFee, tipCap, blobBaseFee),
 		computeSingleBlobTxCost(numBlobsPerTx, baseFee, blobTipCap, blobBaseFee)
 
@@ -117,22 +117,14 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isPectra, isThrottling bool) C
 	return dec.blobConfig
 }
 
-func computeSingleCalldataTxCost(numTokens uint64, baseFee, tipCap *big.Int, isPectra bool) *big.Int {
+func computeSingleCalldataTxCost(numTokens uint64, baseFee, tipCap *big.Int) *big.Int {
 	// We assume isContractCreation = false and execution_gas_used = 0 in https://eips.ethereum.org/EIPS/eip-7623
 	// This is a safe assumption given how batcher transactions are constructed.
-	const (
-		standardTokenCost      = 4
-		totalCostFloorPerToken = 10
-	)
-	var multiplier uint64
-	if isPectra {
-		multiplier = totalCostFloorPerToken
-	} else {
-		multiplier = standardTokenCost
-	}
+	// Since Pectra is active on L1, we use the totalCostFloorPerToken (10) as the multiplier.
+	const totalCostFloorPerToken = 10
 
 	calldataPrice := new(big.Int).Add(baseFee, tipCap)
-	calldataGas := big.NewInt(int64(params.TxGas + numTokens*multiplier))
+	calldataGas := big.NewInt(int64(params.TxGas + numTokens*totalCostFloorPerToken))
 
 	return new(big.Int).Mul(calldataGas, calldataPrice)
 }

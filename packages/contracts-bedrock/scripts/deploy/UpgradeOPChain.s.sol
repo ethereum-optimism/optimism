@@ -27,6 +27,9 @@ contract UpgradeOPChainInput is BaseDeployIO {
     /// @param _sel The selector of the field to set.
     /// @param _value The value to set.
     function set(bytes4 _sel, OPContractsManager.OpChainConfig[] memory _value) public {
+        if (OPContractsManager(opcm()).isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            revert("UpgradeOPCMInput: cannot set OPCM v1 upgrade input when OPCM v2 is enabled");
+        }
         require(_value.length > 0, "UpgradeOPCMInput: cannot set empty array");
 
         if (_sel == this.upgradeInput.selector) _upgradeInput = abi.encode(_value);
@@ -40,6 +43,9 @@ contract UpgradeOPChainInput is BaseDeployIO {
     /// @param _sel The selector of the field to set.
     /// @param _value The value to set.
     function set(bytes4 _sel, OPContractsManagerV2.UpgradeInput memory _value) public {
+        if (!OPContractsManager(opcm()).isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            revert("UpgradeOPCMInput: cannot set OPCM v2 upgrade input when OPCM v1 is enabled");
+        }
         require(address(_value.systemConfig) != address(0), "UpgradeOPCMInput: cannot set zero address");
         require(_value.disputeGameConfigs.length > 0, "UpgradeOPCMInput: cannot set empty dispute game configs array");
 

@@ -1296,7 +1296,7 @@ jobs:
 
   contracts-bedrock-upload:
     machine: true
-    resource_class: ethereum-optimism/latitude-1
+    resource_class: large
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless

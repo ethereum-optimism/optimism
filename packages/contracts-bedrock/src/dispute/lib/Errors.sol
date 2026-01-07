@@ -133,6 +133,9 @@ error GameNotResolved();
 /// @notice Thrown when a reserved game type is used.
 error ReservedGameType();
 
+/// @notice Thrown when an unknown chain ID is passed to rootClaimByChainId.
+error UnknownChainId();
+
 ////////////////////////////////////////////////////////////////
 //              `PermissionedDisputeGame` Errors              //
 ////////////////////////////////////////////////////////////////
@@ -177,10 +180,3 @@ error InvalidProposalStatus();
 
 /// @notice Thrown when the game is initialized by an incorrect factory.
 error IncorrectDisputeGameFactory();
-
-////////////////////////////////////////////////////////////////
-//            `SuperFaultDisputeGame` Errors                  //
-////////////////////////////////////////////////////////////////
-
-/// @notice Thrown when an unknown chain ID is encountered.
-error UnknownChainId();

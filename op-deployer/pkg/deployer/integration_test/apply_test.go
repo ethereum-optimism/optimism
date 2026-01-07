@@ -914,15 +914,10 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 			// First, upgrade the superchain with V2
 			t.Run("upgrade superchain v2", func(t *testing.T) {
 				superchainUpgradeConfig := embedded.UpgradeSuperchainConfigInput{
-					Prank:            superchainProxyAdminOwner,
-					Opcm:             impls.OpcmV2,
-					SuperchainConfig: implementationsConfig.SuperchainConfigProxy,
-					ExtraInstructions: []embedded.ExtraInstruction{
-						{
-							Key:  "PermittedProxyDeployment",
-							Data: []byte("DelayedWETH"),
-						},
-					},
+					Prank:             superchainProxyAdminOwner,
+					Opcm:              impls.OpcmV2,
+					SuperchainConfig:  implementationsConfig.SuperchainConfigProxy,
+					ExtraInstructions: []embedded.ExtraInstruction{},
 				}
 				err := embedded.UpgradeSuperchainConfig(host, superchainUpgradeConfig)
 				if err != nil {
@@ -985,6 +980,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 								Key:  "PermittedProxyDeployment",
 								Data: []byte("DelayedWETH"),
 							},
+							// TODO(#18502): Remove the extra instruction for custom gas token after U18 ships.
 							{
 								Key:  "overrides.cfg.useCustomGasToken",
 								Data: make([]byte, 32),
@@ -995,6 +991,77 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 				upgradeConfigBytes, err := json.Marshal(upgradeConfig)
 				require.NoError(t, err, "UpgradeOPChainV2Input should marshal to JSON")
+
+				// Verify input encoding
+				encodedData, err := upgradeConfig.EncodedUpgradeInputV2()
+				require.NoError(t, err, "Should encode UpgradeInputV2")
+				require.NotEmpty(t, encodedData, "Encoded data should not be empty")
+
+				// Build expected hex encoding
+				// Structure breakdown:
+				// - Tuple offset (0x20)
+				// - SystemConfig address (0x034edd2a225f7f429a63e0f1d2084b9e0a93b538)
+				// - DisputeGameConfigs array offset (0x60) and ExtraInstructions array offset (0x340)
+				// - DisputeGameConfigs[]: 3 configs
+				//   [0] Cannon: enabled=true, initBond=1e18, gameType=0, gameArgs="PRESTATE"
+				//   [1] PermissionedCannon: enabled=true, initBond=1e18, gameType=1, gameArgs="PRESTATE"+proposer+challenger
+				//   [2] CannonKona: enabled=false, initBond=0, gameType=0, gameArgs=empty
+				// - ExtraInstructions[]: 2 instructions
+				//   [0] key="PermittedProxyDeployment", data="DelayedWETH"
+				//   [1] key="overrides.cfg.useCustomGasToken", data=32 zero bytes
+				expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to tuple
+					"000000000000000000000000034edd2a225f7f429a63e0f1d2084b9e0a93b538" + // systemConfig address
+					"0000000000000000000000000000000000000000000000000000000000000060" + // offset to disputeGameConfigs
+					"0000000000000000000000000000000000000000000000000000000000000340" + // offset to extraInstructions
+					"0000000000000000000000000000000000000000000000000000000000000003" + // disputeGameConfigs.length (3)
+					"0000000000000000000000000000000000000000000000000000000000000060" + // offset to disputeGameConfigs[0]
+					"0000000000000000000000000000000000000000000000000000000000000120" + // offset to disputeGameConfigs[1]
+					"0000000000000000000000000000000000000000000000000000000000000220" + // offset to disputeGameConfigs[2]
+					// DisputeGameConfigs[0] - Cannon
+					"0000000000000000000000000000000000000000000000000000000000000001" + // enabled=true
+					"0000000000000000000000000000000000000000000000000de0b6b3a7640000" + // initBond=1e18
+					"0000000000000000000000000000000000000000000000000000000000000000" + // gameType=0 (Cannon)
+					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
+					"0000000000000000000000000000000000000000000000000000000000000020" + // gameArgs.length (32 bytes)
+					"5052455354415445000000000000000000000000000000000000000000000000" + // gameArgs data "PRESTATE"
+					// DisputeGameConfigs[1] - PermissionedCannon
+					"0000000000000000000000000000000000000000000000000000000000000001" + // enabled=true
+					"0000000000000000000000000000000000000000000000000de0b6b3a7640000" + // initBond=1e18
+					"0000000000000000000000000000000000000000000000000000000000000001" + // gameType=1 (PermissionedCannon)
+					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
+					"0000000000000000000000000000000000000000000000000000000000000060" + // gameArgs.length (96 bytes)
+					"5052455354415445000000000000000000000000000000000000000000000000" + // gameArgs data "PRESTATE"
+					"0000000000000000000000005000000000000000000000000000000000000000" + // proposer address
+					"0000000000000000000000004300000000000000000000000000000000000000" + // challenger address
+					// DisputeGameConfigs[2] - CannonKona (disabled)
+					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
+					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
+					"0000000000000000000000000000000000000000000000000000000000000008" + // gameType=8 (CannonKona)
+					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
+					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
+					// ExtraInstructions array
+					"0000000000000000000000000000000000000000000000000000000000000002" + // extraInstructions.length (2)
+					"0000000000000000000000000000000000000000000000000000000000000040" + // offset to extraInstructions[0]
+					"0000000000000000000000000000000000000000000000000000000000000100" + // offset to extraInstructions[1]
+					// ExtraInstructions[0] - PermittedProxyDeployment
+					"0000000000000000000000000000000000000000000000000000000000000040" + // offset to key
+					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to data
+					"0000000000000000000000000000000000000000000000000000000000000018" + // key.length (24 bytes)
+					"5065726d697474656450726f78794465706c6f796d656e74000000000000000" + // "PermittedProxyDeployment"
+					"0" + // padding
+					"000000000000000000000000000000000000000000000000000000000000000b" + // data.length (11 bytes)
+					"44656c617965645745544800000000000000000000000000000000000000000" + // "DelayedWETH"
+					"0" + // padding
+					// ExtraInstructions[1] - useCustomGasToken override
+					"0000000000000000000000000000000000000000000000000000000000000040" + // offset to key
+					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to data
+					"000000000000000000000000000000000000000000000000000000000000001f" + // key.length (31 bytes)
+					"6f76657272696465732e6366672e757365437573746f6d476173546f6b656e00" + // "overrides.cfg.useCustomGasToken"
+					"0000000000000000000000000000000000000000000000000000000000000020" + // data.length (32 bytes)
+					"0000000000000000000000000000000000000000000000000000000000000000" // data (32 zero bytes)
+
+				require.Equal(t, expected, hex.EncodeToString(encodedData), "Encoded calldata should match expected structure")
+
 				err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
 				require.NoError(t, err, "OPCM V2 chain upgrade should succeed")
 			})

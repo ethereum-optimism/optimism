@@ -146,8 +146,8 @@ contract OptimisticZkGame is Clone, ISemver, IDisputeGame {
     AccessManager internal immutable ACCESS_MANAGER;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.1
-    string public constant version = "0.0.1";
+    /// @custom:semver 0.0.2
+    string public constant version = "0.0.2";
 
     /// @notice The starting timestamp of the game.
     Timestamp public createdAt;
@@ -590,6 +590,13 @@ contract OptimisticZkGame is Clone, ISemver, IDisputeGame {
     /// @return rootClaim_ The root claim of the DisputeGame.
     function rootClaim() public pure returns (Claim rootClaim_) {
         rootClaim_ = Claim.wrap(_getArgBytes32(0x14));
+    }
+
+    /// @notice Getter for the root claim for a given L2 chain ID.
+    /// @dev For pre-interop games, returns the root claim regardless of chain ID.
+    /// @return rootClaim_ The root claim of the DisputeGame.
+    function rootClaimByChainId(uint256) public pure returns (Claim rootClaim_) {
+        rootClaim_ = rootClaim();
     }
 
     /// @notice Getter for the parent hash of the L1 block when the dispute game was created.

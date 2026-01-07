@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +31,7 @@ func TestSupervisorSyncStatusProvider(t *testing.T) {
 			syncStatus: eth.SupervisorSyncStatus{
 				MinSyncedL1: eth.L1BlockRef{Number: 99},
 			},
-			expectedError: ErrNotInSync,
+			expectedError: types.ErrNotInSync,
 		},
 		{
 			name:       "MinSyncedL1EqualToGameHead",
@@ -38,7 +39,7 @@ func TestSupervisorSyncStatusProvider(t *testing.T) {
 			syncStatus: eth.SupervisorSyncStatus{
 				MinSyncedL1: eth.L1BlockRef{Number: 100},
 			},
-			expectedError: ErrNotInSync,
+			expectedError: types.ErrNotInSync,
 		},
 		{
 			name:       "InSync",

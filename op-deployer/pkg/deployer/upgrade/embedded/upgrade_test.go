@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestUpgradeOPChainInput_UpgradeInput(t *testing.T) {
+func TestUpgradeOPChainInput_UpgradeInputV2(t *testing.T) {
 	input := &UpgradeOPChainInput{
 		Prank: common.Address{0xaa},
 		Opcm:  common.Address{0xbb},

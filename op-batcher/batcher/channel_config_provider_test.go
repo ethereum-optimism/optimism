@@ -39,13 +39,13 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 		UseBlobs:        true,
 	}
 
+	// Since Pectra is now always active on L1, we only test with Pectra pricing (totalCostFloorPerToken = 10)
 	tests := []struct {
 		name         string
 		tipCap       int64
 		baseFee      int64
 		blobBaseFee  int64
 		wantCalldata bool
-		isL1Pectra   bool
 		isThrottling bool
 	}{
 		{
@@ -58,13 +58,13 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 			name:        "close-cheaper-blobs",
 			tipCap:      1e3,
 			baseFee:     1e6,
-			blobBaseFee: 16e6, // because of amortized fixed 21000 tx cost, blobs are still cheaper here...
+			blobBaseFee: 398e5, // this value just under the equilibrium point for 3 blobs
 		},
 		{
 			name:         "close-cheaper-calldata",
 			tipCap:       1e3,
 			baseFee:      1e6,
-			blobBaseFee:  161e5, // ...but then increasing the fee just a tiny bit makes blobs more expensive
+			blobBaseFee:  399e5, // this value just over the equilibrium point for 3 blobs
 			wantCalldata: true,
 		},
 		{
@@ -73,36 +73,6 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 			baseFee:      1e6,
 			blobBaseFee:  1e9,
 			wantCalldata: true,
-		},
-		{
-			name:        "much-cheaper-blobs-l1-pectra",
-			tipCap:      1e3,
-			baseFee:     1e6,
-			blobBaseFee: 1,
-			isL1Pectra:  true,
-		},
-		{
-			name:        "close-cheaper-blobs-l1-pectra",
-			tipCap:      1e3,
-			baseFee:     1e6,
-			blobBaseFee: 398e5, // this value just under the equilibrium point for 3 blobs
-			isL1Pectra:  true,
-		},
-		{
-			name:         "close-cheaper-calldata-l1-pectra",
-			tipCap:       1e3,
-			baseFee:      1e6,
-			blobBaseFee:  399e5, // this value just over the equilibrium point for 3 blobs
-			wantCalldata: true,
-			isL1Pectra:   true,
-		},
-		{
-			name:         "much-cheaper-calldata-l1-pectra",
-			tipCap:       1e3,
-			baseFee:      1e6,
-			blobBaseFee:  1e9,
-			wantCalldata: true,
-			isL1Pectra:   true,
 		},
 		{
 			// blobs should be chosen even though calldata is cheaper.
@@ -122,7 +92,7 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 				blobBaseFee: tt.blobBaseFee,
 			}
 			dec := NewDynamicEthChannelConfig(lgr, 1*time.Second, gp, blobCfg, calldataCfg)
-			cc := dec.ChannelConfig(tt.isL1Pectra, tt.isThrottling)
+			cc := dec.ChannelConfig(tt.isThrottling)
 			if tt.wantCalldata {
 				require.Equal(t, cc, calldataCfg)
 				require.NotNil(t, ch.FindLog(testlog.NewMessageContainsFilter("calldata")))
@@ -144,21 +114,21 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 			err:         errors.New("gp-error"),
 		}
 		dec := NewDynamicEthChannelConfig(lgr, 1*time.Second, gp, blobCfg, calldataCfg)
-		require.Equal(t, dec.ChannelConfig(false, false), blobCfg)
+		require.Equal(t, dec.ChannelConfig(false), blobCfg)
 		require.NotNil(t, ch.FindLog(
 			testlog.NewLevelFilter(slog.LevelWarn),
 			testlog.NewMessageContainsFilter("returning last config"),
 		))
 
 		gp.err = nil
-		require.Equal(t, dec.ChannelConfig(false, false), calldataCfg)
+		require.Equal(t, dec.ChannelConfig(false), calldataCfg)
 		require.NotNil(t, ch.FindLog(
 			testlog.NewLevelFilter(slog.LevelInfo),
 			testlog.NewMessageContainsFilter("calldata"),
 		))
 
 		gp.err = errors.New("gp-error-2")
-		require.Equal(t, dec.ChannelConfig(false, false), calldataCfg)
+		require.Equal(t, dec.ChannelConfig(false), calldataCfg)
 		require.NotNil(t, ch.FindLog(
 			testlog.NewLevelFilter(slog.LevelWarn),
 			testlog.NewMessageContainsFilter("returning last config"),
@@ -167,11 +137,8 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 }
 
 func TestComputeSingleCalldataTxCost(t *testing.T) {
-	// 30KB of data
-	got := computeSingleCalldataTxCost(120_000, big.NewInt(1), big.NewInt(1), false)
-	require.Equal(t, big.NewInt(1_002_000), got) // (21_000 + 4*120_000) * (1+1)
-
-	got = computeSingleCalldataTxCost(120_000, big.NewInt(1), big.NewInt(1), true)
+	// 30KB of data - since Pectra is active, we use totalCostFloorPerToken = 10
+	got := computeSingleCalldataTxCost(120_000, big.NewInt(1), big.NewInt(1))
 	require.Equal(t, big.NewInt(2_442_000), got) // (21_000 + 10*120_000) * (1+1)
 }
 

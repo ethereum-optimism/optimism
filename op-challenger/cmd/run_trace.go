@@ -62,7 +62,7 @@ var (
 	RunTraceRunFlag = &cli.StringSliceFlag{
 		Name: "run",
 		Usage: "Specify a trace to run. Format is gameType/name/prestateHash where " +
-			"gameType is the game type to use with the prestate (e.g cannon or asterisc-kona), " +
+			"gameType is the game type to use with the prestate (e.g cannon or cannon-kona), " +
 			"name is an arbitrary name for the prestate to use when reporting metrics and" +
 			"prestateHash is the hex encoded absolute prestate commitment to use. " +
 			"If name is omitted the game type name is used." +

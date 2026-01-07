@@ -268,7 +268,7 @@ func TestComputeStep(t *testing.T) {
 		rollupCfgs, err := NewRollupConfigs(vm.Config{})
 		require.NoError(t, err)
 		// Uses a big game depth so the trace index doesn't fit in uint64
-		provider := NewSuperTraceProvider(testlog.Logger(t, log.LvlInfo), rollupCfgs, nil, &stubRootProvider{}, eth.BlockID{}, 65, prestateTimestamp, poststateTimestamp)
+		provider := NewSupervisorSuperTraceProvider(testlog.Logger(t, log.LvlInfo), rollupCfgs, nil, &stubRootProvider{}, eth.BlockID{}, 65, prestateTimestamp, poststateTimestamp)
 		// Left-most position in top game
 		_, _, err = provider.ComputeStep(types.RootPosition)
 		require.ErrorIs(t, err, ErrIndexTooBig)
@@ -326,7 +326,7 @@ func TestComputeStep(t *testing.T) {
 	})
 }
 
-func createProvider(t *testing.T) (*SuperTraceProvider, *stubRootProvider, eth.BlockID, *RollupConfigs) {
+func createProvider(t *testing.T) (*SupervisorSuperTraceProvider, *stubRootProvider, eth.BlockID, *RollupConfigs) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	l1Head := eth.BlockID{Number: 23542, Hash: common.Hash{0xab, 0xcd}}
 	stubSupervisor := &stubRootProvider{
@@ -348,7 +348,7 @@ func createProvider(t *testing.T) (*SuperTraceProvider, *stubRootProvider, eth.B
 	}
 	rollupCfgs, err := NewRollupConfigsFromParsed(chain1Cfg, chain2Cfg)
 	require.NoError(t, err)
-	provider := NewSuperTraceProvider(logger, rollupCfgs, nil, stubSupervisor, l1Head, gameDepth, prestateTimestamp, poststateTimestamp)
+	provider := NewSupervisorSuperTraceProvider(logger, rollupCfgs, nil, stubSupervisor, l1Head, gameDepth, prestateTimestamp, poststateTimestamp)
 	return provider, stubSupervisor, l1Head, rollupCfgs
 }
 
@@ -423,7 +423,7 @@ func createValidSuperRoots(l1Head eth.BlockID) (superRootData, superRootData) {
 	return prev, next
 }
 
-func expectValidTransition(t *testing.T, provider *SuperTraceProvider, prev superRootData, next superRootData) {
+func expectValidTransition(t *testing.T, provider *SupervisorSuperTraceProvider, prev superRootData, next superRootData) {
 	expectedFirstStep := &interopTypes.TransitionState{
 		SuperRoot: prev.super.Marshal(),
 		PendingProgress: []interopTypes.OptimisticBlock{

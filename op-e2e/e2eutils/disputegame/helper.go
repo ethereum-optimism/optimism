@@ -293,7 +293,7 @@ func (h *FactoryHelper) startSuperCannonGameOfType(ctx context.Context, timestam
 	prestateProvider := super.NewSuperRootPrestateProvider(rootProvider, prestateTimestamp)
 	rollupCfgs, err := super.NewRollupConfigsFromParsed(h.System.RollupCfgs()...)
 	require.NoError(h.T, err, "failed to create rollup configs")
-	provider := super.NewSuperTraceProvider(logger, rollupCfgs, prestateProvider, rootProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
+	provider := super.NewSupervisorSuperTraceProvider(logger, rollupCfgs, prestateProvider, rootProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
 
 	return NewSuperCannonGameHelper(h.T, h.Client, h.Opts, h.PrivKey, game, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System)
 }
