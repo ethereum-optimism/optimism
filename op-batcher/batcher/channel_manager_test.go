@@ -1051,22 +1051,8 @@ func TestChannelManager_SingleBlockBiggerThanMaxFrameSize(t *testing.T) {
 		Number: a.NumberU64(),
 	}
 
-	type testCase struct {
-		name            string
-		compressionAlgo derive.CompressionAlgo
-	}
-
-	for _, tc := range []testCase{
-		{
-			name:            "zlib",
-			compressionAlgo: derive.Zlib,
-		},
-		{
-			name:            "brotli",
-			compressionAlgo: derive.Brotli,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, ca := range derive.CompressionAlgos {
+		t.Run(string(ca), func(t *testing.T) {
 			require := require.New(t)
 			log := testlog.Logger(t, log.LevelCrit)
 			// use an extremely low frame size that will definitely not be enough for the random block
@@ -1076,7 +1062,7 @@ func TestChannelManager_SingleBlockBiggerThanMaxFrameSize(t *testing.T) {
 			// channels on confirmation. This would result in [TxConfirmed]
 			// clearing confirmed transactions, and resetting the pendingChannels map
 			cfg.ChannelTimeout = 10
-			cfg.InitShadowCompressor(tc.compressionAlgo)
+			cfg.InitShadowCompressor(ca)
 			m := NewChannelManager(log, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 
 			require.NoError(m.AddL2Block(a))
