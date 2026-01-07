@@ -108,9 +108,12 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 	opcmAddr := st.ImplementationsDeployment.OpcmImpl
 	if devFeatureBitmap, ok := intent.GlobalDeployOverrides["devFeatureBitmap"].(common.Hash); ok {
 		opcmV2Flag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000010000")
-		if isDevFeatureEnabled(devFeatureBitmap, opcmV2Flag) && st.ImplementationsDeployment.OpcmV2Impl != (common.Address{}) {
+		if isDevFeatureEnabled(devFeatureBitmap, opcmV2Flag) {
 			opcmAddr = st.ImplementationsDeployment.OpcmV2Impl
 		}
+	}
+	if opcmAddr == (common.Address{}) {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("OPCM implementation is not deployed")
 	}
 
 	return opcm.DeployOPChainInput{

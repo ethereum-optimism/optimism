@@ -46,6 +46,8 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         deployImplementations = new DeployImplementations();
     }
 
+    /// @notice Test that the deployImplementations script succeeds when deploying the implementation contracts with a
+    /// valid input.
     function test_deployImplementation_succeeds() public {
         DeployImplementations.Input memory input = defaultInput();
         DeployImplementations.Output memory output = deployImplementations.run(input);
@@ -147,6 +149,8 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         }
     }
 
+    /// @notice Test that the deployImplementations function succeeds when reusing the same valid input.
+    /// It should produce the same output addresses for each deployment.
     function test_reuseImplementation_succeeds() public {
         DeployImplementations.Input memory input = defaultInput();
         DeployImplementations.Output memory output1 = deployImplementations.run(input);
@@ -175,6 +179,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         assertNotEq(address(output1.permissionedDisputeGameV2Impl), address(0), "V2 contracts should not be null");
     }
 
+    /// @notice Test that the deployImplementations script succeeds with a range of input values.
     function testFuzz_run_memory_succeeds(
         uint256 _withdrawalDelaySeconds,
         uint256 _minProposalSizeBytes,
@@ -414,6 +419,8 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         assertEq(address(output.mipsSingleton.oracle()), address(output.preimageOracleSingleton), "600");
     }
 
+    /// @notice Test that the deployImplementations script reverts when the Mips version is set to 1 on Mainnet or
+    /// Sepolia.
     function test_run_deployMipsV1OnMainnetOrSepolia_reverts() public {
         DeployImplementations.Input memory input = defaultInput();
         input.mipsVersion = 1;
@@ -427,6 +434,8 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         deployImplementations.run(input);
     }
 
+    /// @notice Test that the deployImplementations script reverts when the challenge period seconds value is too
+    /// large.
     function test_challengePeriodSeconds_valueTooLarge_reverts(uint256 _challengePeriodSeconds) public {
         vm.assume(_challengePeriodSeconds > uint256(type(uint64).max));
 
@@ -437,6 +446,8 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         deployImplementations.run(input);
     }
 
+    /// @notice Test that the deployImplementations script reverts when a required input property is set to zero
+    /// value.
     function test_run_nullInput_reverts() public {
         DeployImplementations.Input memory input;
 
@@ -489,8 +500,14 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         input.l1ProxyAdminOwner = address(0);
         vm.expectRevert("DeployImplementations: L1ProxyAdminOwner not set");
         deployImplementations.run(input);
+
+        input = defaultInput();
+        input.challenger = address(0);
+        vm.expectRevert("DeployImplementations: challenger not set");
+        deployImplementations.run(input);
     }
 
+    /// @notice Test that the deployImplementations script reverts when the V2 game parameters are invalid.
     function test_invalidV2GameParams_withV2Enabled_reverts() public {
         DeployImplementations.Input memory input;
 

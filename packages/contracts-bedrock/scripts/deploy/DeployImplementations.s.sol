@@ -150,6 +150,12 @@ contract DeployImplementations is Script {
 
     // --- OP Contracts Manager ---
 
+    /// @notice Deploys the OPCM v1 contract.
+    ///         Sets the OPCM v2 addresses to zero to indicate that OPCM v2 was not deployed.
+    /// @param _input The deployment input parameters.
+    /// @param _output The deployment output parameters.
+    /// @param _blueprints The blueprints for the OPCM v1 contract.
+    /// @return opcm_ The deployed OPCM v1 contract.
     function createOPCMContract(
         Input memory _input,
         Output memory _output,
@@ -205,6 +211,12 @@ contract DeployImplementations is Script {
         _output.opcmContainer = IOPContractsManagerContainer(address(0));
     }
 
+    /// @notice Deploys the OPCM v2 contract and all the necessary components it uses, including the OPCM v2 container.
+    ///         Sets the OPCM v1 addresses to zero to indicate that OPCM v1 was not deployed.
+    /// @param _input The deployment input parameters.
+    /// @param _output The deployment output parameters.
+    /// @param _blueprints The blueprints for the OPCM v2 contract.
+    /// @return opcmV2_ The deployed OPCM v2 contract.
     function createOPCMContractV2(
         Input memory _input,
         Output memory _output,
@@ -291,6 +303,9 @@ contract DeployImplementations is Script {
         );
     }
 
+    /// @notice Deploys the OPCM contract depending on the dev feature bitmap.
+    /// @param _input The deployment input parameters.
+    /// @param _output The deployment output parameters.
     function deployOPContractsManager(Input memory _input, Output memory _output) private {
         // First we deploy the blueprints for the singletons deployed by OPCM.
         // forgefmt: disable-start
@@ -926,6 +941,7 @@ contract DeployImplementations is Script {
             address(_input.superchainProxyAdmin) != address(0), "DeployImplementations: superchainProxyAdmin not set"
         );
         require(address(_input.l1ProxyAdminOwner) != address(0), "DeployImplementations: L1ProxyAdminOwner not set");
+        require(address(_input.challenger) != address(0), "DeployImplementations: challenger not set");
     }
 
     function assertValidOutput(Input memory _input, Output memory _output) private {
