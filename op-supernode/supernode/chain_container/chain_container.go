@@ -29,15 +29,11 @@ type ChainContainer interface {
 	Pause(ctx context.Context) error
 	Resume(ctx context.Context) error
 
-	SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
+	BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
-	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1 eth.BlockID, l2 eth.BlockID, err error)
-	// L1AtSafeHead returns the earliest L1 block at which the given L2 block became safe.
-	L1AtSafeHead(ctx context.Context, l2 eth.BlockID) (eth.BlockID, error)
 	VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
-	// OptimisticOutputAtTimestamp returns the full Output at the optimistic L2 block for the given timestamp.
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error)
 }
 
@@ -224,12 +220,13 @@ func (c *simpleChainContainer) Resume(ctx context.Context) error {
 	return nil
 }
 
-// SafeBlockAtTimestamp returns the highest SAFE L2 block with timestamp <= ts using the L2 client.
-func (c *simpleChainContainer) SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
+// BlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client,
+// if the specified label contains a block at that timestamp
+func (c *simpleChainContainer) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
 	if c.engine == nil {
 		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
 	}
-	return c.engine.SafeBlockAtTimestamp(ctx, ts)
+	return c.engine.BlockAtTimestamp(ctx, ts, label)
 }
 
 // SyncStatus returns the in-process op-node sync status for this chain.
@@ -259,16 +256,8 @@ func (c *simpleChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2
 	return eth.OutputRoot(out), nil
 }
 
-// SafeHeadAtL1 queries the embedded op-node RPC handler for the SafeDB mapping at/preceding the given L1 block number.
-func (c *simpleChainContainer) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
-	if c.vn == nil {
-		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("virtual node not initialized")
-	}
-	return c.vn.SafeHeadAtL1(ctx, l1BlockNum)
-}
-
-// L1AtSafeHead delegates to the virtual node to resolve the earliest L1 at which the L2 became safe.
-func (c *simpleChainContainer) L1AtSafeHead(ctx context.Context, l2 eth.BlockID) (eth.BlockID, error) {
+// safeDBAtL2 delegates to the virtual node to resolve the earliest L1 at which the L2 became safe.
+func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (eth.BlockID, error) {
 	if c.vn == nil {
 		return eth.BlockID{}, fmt.Errorf("virtual node not initialized")
 	}
@@ -278,12 +267,12 @@ func (c *simpleChainContainer) L1AtSafeHead(ctx context.Context, l2 eth.BlockID)
 // VerifiedAt returns the verified L2 and L1 blocks for the given L2 timestamp.
 // Must return ethereum.NotFound if there is no safe block at the specified timestamp.
 func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
-	l2Block, err := c.SafeBlockAtTimestamp(ctx, ts)
+	l2Block, err := c.BlockAtTimestamp(ctx, ts, eth.Safe)
 	if err != nil {
 		c.log.Error("error determining l2 block at given timestamp", "error", err)
 		return eth.BlockID{}, eth.BlockID{}, err
 	}
-	l1Block, err := c.L1AtSafeHead(ctx, l2Block.ID())
+	l1Block, err := c.safeDBAtL2(ctx, l2Block.ID())
 	if err != nil {
 		c.log.Error("error determining l1 block number at which l2 block became safe", "error", err)
 		return eth.BlockID{}, eth.BlockID{}, err
@@ -296,12 +285,12 @@ func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l
 
 // OptimisticAt returns the optimistic (pre-verified) L2 and L1 blocks for the given L2 timestamp.
 func (c *simpleChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
-	l2Block, err := c.SafeBlockAtTimestamp(ctx, ts)
+	l2Block, err := c.BlockAtTimestamp(ctx, ts, eth.Safe)
 	if err != nil {
 		c.log.Error("error determining l2 block at given timestamp", "error", err)
 		return eth.BlockID{}, eth.BlockID{}, err
 	}
-	l1Block, err := c.L1AtSafeHead(ctx, l2Block.ID())
+	l1Block, err := c.safeDBAtL2(ctx, l2Block.ID())
 	if err != nil {
 		c.log.Error("error determining l1 block number at which l2 block became safe", "error", err)
 		return eth.BlockID{}, eth.BlockID{}, err
@@ -319,7 +308,7 @@ func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, 
 		return nil, fmt.Errorf("rollup client not initialized")
 	}
 	// Determine the optimistic L2 block at timestamp (currently same as safe block at ts)
-	l2Block, err := c.SafeBlockAtTimestamp(ctx, ts)
+	l2Block, err := c.BlockAtTimestamp(ctx, ts, eth.Safe)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve L2 block at timestamp: %w", err)
 	}

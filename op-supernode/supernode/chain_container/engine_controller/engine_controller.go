@@ -15,10 +15,10 @@ import (
 
 // EngineController abstracts access to the L2 execution layer
 type EngineController interface {
-	// SafeBlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp,
-	// clamped to the current SAFE head.
-	// Must return ethereum.NotFound if there is no safe block at the specified timestamp.
-	SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
+	// BlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp,
+	// clamped to the head of the specified label (Safe, Finalized, Unsafe).
+	// Must return ethereum.NotFound if there is no block at the specified timestamp for the given label.
+	BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error)
 	// OutputV0AtBlockNumber returns the output preimage for the given L2 block number.
 	OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error)
 	// Close releases any underlying RPC resources.
@@ -64,9 +64,9 @@ var (
 	ErrNoRollupConfig = errors.New("rollup config not available")
 )
 
-// SafeBlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp,
-// clamped to the current SAFE head. Must return ethereum.NotFound if no safe block is available at the timestamp.
-func (e *simpleEngineController) SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
+// BlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp,
+// clamped to the head of the specified label. Must return ethereum.NotFound if no block is available at the timestamp.
+func (e *simpleEngineController) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
 	if e.l2 == nil {
 		return eth.L2BlockRef{}, ErrNoEngineClient
 	}
@@ -78,16 +78,16 @@ func (e *simpleEngineController) SafeBlockAtTimestamp(ctx context.Context, ts ui
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
-	safeHead, err := e.l2.L2BlockRefByLabel(ctx, eth.Safe)
+	head, err := e.l2.L2BlockRefByLabel(ctx, label)
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
-	if num > safeHead.Number {
-		e.log.Warn("engine_controller: target block number exceeds safe head", "targetBlockNumber", num, "safeHead", safeHead.Number)
+	if num > head.Number {
+		e.log.Warn("engine_controller: target block number exceeds head", "label", label, "targetBlockNumber", num, "head", head.Number)
 		return eth.L2BlockRef{}, ethereum.NotFound
 	}
-	e.log.Debug("engine_controller: computed safe block number from timestamp",
-		"timestamp", ts, "targetBlockNumber", num, "safeHead", safeHead.Number, "safeHeadErr", err)
+	e.log.Debug("engine_controller: computed block number from timestamp",
+		"label", label, "timestamp", ts, "targetBlockNumber", num, "head", head.Number)
 	return e.l2.L2BlockRefByNumber(ctx, num)
 }
 
