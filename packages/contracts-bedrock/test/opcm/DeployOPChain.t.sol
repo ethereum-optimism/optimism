@@ -1,20 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
 import { FeatureFlags } from "test/setup/FeatureFlags.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { Features } from "src/libraries/Features.sol";
 
+// Scripts
 import { DeploySuperchain } from "scripts/deploy/DeploySuperchain.s.sol";
 import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.sol";
 import { DeployOPChain } from "scripts/deploy/DeployOPChain.s.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 
+// Libraries
+import { Features } from "src/libraries/Features.sol";
+
+// Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { Claim, Duration, GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 contract DeployOPChain_TestBase is Test, FeatureFlags {
     DeploySuperchain deploySuperchain;
@@ -58,7 +64,8 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     uint256 disputeSplitDepth = 30;
     Duration disputeClockExtension = Duration.wrap(3 hours);
     Duration disputeMaxClockDuration = Duration.wrap(3.5 days);
-    IOPContractsManager opcm;
+    address opcmAddr;
+    ISuperchainConfig superchainConfig;
     bool useCustomGasToken = false;
 
     event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
@@ -102,8 +109,13 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
                 devFeatureBitmap: devFeatureBitmap
             })
         );
-        opcm = dio.opcm;
-        vm.label(address(opcm), "opcm");
+        // Select OPCM v1 or v2 based on feature flag
+        opcmAddr = isDevFeatureEnabled(DevFeatures.OPCM_V2) ? address(dio.opcmV2) : address(dio.opcm);
+        vm.label(address(dio.opcm), "opcm");
+        vm.label(address(dio.opcmV2), "opcmV2");
+
+        // Set superchainConfig from deployment
+        superchainConfig = dso.superchainConfigProxy;
 
         // 3) Build DeployOPChainInput struct
         deployOPChainInput = Types.DeployOPChainInput({
@@ -116,7 +128,7 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
             basefeeScalar: basefeeScalar,
             blobBaseFeeScalar: blobBaseFeeScalar,
             l2ChainId: l2ChainId,
-            opcm: address(opcm),
+            opcm: opcmAddr,
             saltMixer: saltMixer,
             gasLimit: gasLimit,
             disputeGameType: disputeGameType,
@@ -128,6 +140,7 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
             allowCustomDisputeParameters: false,
             operatorFeeScalar: 0,
             operatorFeeConstant: 0,
+            superchainConfig: superchainConfig,
             useCustomGasToken: useCustomGasToken
         });
     }
@@ -151,18 +164,10 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             Duration.unwrap(pdg.maxClockDuration()), Duration.unwrap(disputeMaxClockDuration), "PDG maxClockDuration"
         );
 
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            // For v2 contracts, some immutable args are passed in at game creation time from DGF.gameArgs
-            assertEq(address(pdg.proposer()), address(0), "PDG proposer");
-            assertEq(address(pdg.challenger()), address(0), "PDG challenger");
-            assertEq(Claim.unwrap(pdg.absolutePrestate()), bytes32(0), "PDG absolutePrestate");
-        } else {
-            assertEq(address(pdg.proposer()), proposer, "PDG proposer");
-            assertEq(address(pdg.challenger()), challenger, "PDG challenger");
-            assertEq(
-                Claim.unwrap(pdg.absolutePrestate()), Claim.unwrap(disputeAbsolutePrestate), "PDG absolutePrestate"
-            );
-        }
+        // For v2 contracts, some immutable args are passed in at game creation time from DGF.gameArgs
+        assertEq(address(pdg.proposer()), address(0), "PDG proposer");
+        assertEq(address(pdg.challenger()), address(0), "PDG challenger");
+        assertEq(Claim.unwrap(pdg.absolutePrestate()), bytes32(0), "PDG absolutePrestate");
 
         // Custom gas token feature should reflect input
         assertEq(doo.systemConfigProxy.isCustomGasToken(), useCustomGasToken, "SystemConfig isCustomGasToken");
@@ -171,6 +176,34 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             useCustomGasToken,
             "SystemConfig CUSTOM_GAS_TOKEN feature"
         );
+
+        // Verify superchainConfig is set correctly
+        assertEq(
+            address(doo.systemConfigProxy.superchainConfig()),
+            address(deployOPChainInput.superchainConfig),
+            "superchainConfig mismatch"
+        );
+
+        // OPCM v2 specific assertions
+        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            // PERMISSIONED_CANNON must always be enabled with 0.08 ether init bond
+            assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.PERMISSIONED_CANNON), 0.08 ether);
+            assertNotEq(address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON)), address(0));
+
+            // CANNON is only enabled if it's the starting game type
+            bool cannonEnabled = deployOPChainInput.disputeGameType.raw() == GameTypes.CANNON.raw();
+            assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), cannonEnabled ? 0.08 ether : 0);
+            if (cannonEnabled) {
+                assertNotEq(address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON)), address(0));
+            }
+
+            // CANNON_KONA is only enabled if it's the starting game type
+            bool cannonKonaEnabled = deployOPChainInput.disputeGameType.raw() == GameTypes.CANNON_KONA.raw();
+            assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON_KONA), cannonKonaEnabled ? 0.08 ether : 0);
+            if (cannonKonaEnabled) {
+                assertNotEq(address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON_KONA)), address(0));
+            }
+        }
     }
 
     function testFuzz_run_memory_succeeds(bytes32 _seed) public {
@@ -187,30 +220,33 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
 
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
 
-        // Verify that the initial bonds are zero.
-        assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), 0, "2700");
-        assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.PERMISSIONED_CANNON), 0, "2800");
+        // Skip init bond checks for OPCM v2 (bonds are set during deployment, not zero)
+        if (!isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            // Verify that the initial bonds are zero for OPCM v1.
+            assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), 0, "2700");
+            assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.PERMISSIONED_CANNON), 0, "2800");
+        }
 
         // Check dispute game deployments
         // Validate permissionedDisputeGame (PDG) address
-        bool isDeployV2Games = isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
-        IOPContractsManager.Implementations memory impls = opcm.implementations();
-        address expectedPDGAddress =
-            isDeployV2Games ? impls.permissionedDisputeGameV2Impl : address(doo.permissionedDisputeGame);
+        IOPContractsManager.Implementations memory impls = IOPContractsManager(opcmAddr).implementations();
+        address expectedPDGAddress = impls.permissionedDisputeGameV2Impl;
         address actualPDGAddress = address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
         assertNotEq(actualPDGAddress, address(0), "PDG address should be non-zero");
         assertEq(actualPDGAddress, expectedPDGAddress, "PDG address should match expected address");
 
-        // Check PDG getters
-        IPermissionedDisputeGame pdg = IPermissionedDisputeGame(actualPDGAddress);
-        bytes32 expectedPrestate =
-            isDeployV2Games ? bytes32(0) : bytes32(0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c);
-        assertEq(pdg.l2BlockNumber(), 0, "3000");
-        assertEq(Claim.unwrap(pdg.absolutePrestate()), expectedPrestate, "3100");
-        assertEq(Duration.unwrap(pdg.clockExtension()), 10800, "3200");
-        assertEq(Duration.unwrap(pdg.maxClockDuration()), 302400, "3300");
-        assertEq(pdg.splitDepth(), 30, "3400");
-        assertEq(pdg.maxGameDepth(), 73, "3500");
+        // Skip PDG getter checks for OPCM v2 (game args are passed at creation time)
+        if (!isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            // Check PDG getters
+            IPermissionedDisputeGame pdg = IPermissionedDisputeGame(actualPDGAddress);
+            bytes32 expectedPrestate = bytes32(0);
+            assertEq(pdg.l2BlockNumber(), 0, "3000");
+            assertEq(Claim.unwrap(pdg.absolutePrestate()), expectedPrestate, "3100");
+            assertEq(Duration.unwrap(pdg.clockExtension()), 10800, "3200");
+            assertEq(Duration.unwrap(pdg.maxClockDuration()), 302400, "3300");
+            assertEq(pdg.splitDepth(), 30, "3400");
+            assertEq(pdg.maxGameDepth(), 73, "3500");
+        }
 
         // Verify custom gas token feature is set as seeded
         assertEq(
@@ -235,18 +271,6 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             true,
             "SystemConfig CUSTOM_GAS_TOKEN feature should be true"
         );
-    }
-
-    function test_customDisputeGame_customEnabled_succeeds() public {
-        // For v2 games, these parameters have already been configured at OPCM deploy time
-        skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
-
-        deployOPChainInput.allowCustomDisputeParameters = true;
-        deployOPChainInput.disputeSplitDepth = disputeSplitDepth + 1;
-        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
-
-        IPermissionedDisputeGame pdg = getPermissionedDisputeGame(doo);
-        assertEq(pdg.splitDepth(), disputeSplitDepth + 1);
     }
 
     function getPermissionedDisputeGame(DeployOPChain.Output memory doo)

@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
 
+// Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+
+// Libraries
 import { UnsupportedStateVersion } from "src/cannon/libraries/CannonErrors.sol";
+
+// Interfaces
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 

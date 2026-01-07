@@ -1,18 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Forge
+import { StdCheatsSafe } from "forge-std/StdCheats.sol";
+
+// Testing
+import { Test } from "test/setup/Test.sol";
+
+// Scripts
 import {
     DeployOwnership,
     SafeConfig,
     SecurityCouncilConfig,
     LivenessModuleConfig
 } from "scripts/deploy/DeployOwnership.s.sol";
-import { Test } from "forge-std/Test.sol";
 
+// Contracts
 import { Safe } from "safe-contracts/Safe.sol";
-import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
-
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
+
+// Libraries
+import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 
 contract DeployOwnershipTest is Test, DeployOwnership {
     address internal constant SENTINEL_MODULES = address(0x1);
@@ -20,6 +28,10 @@ contract DeployOwnershipTest is Test, DeployOwnership {
     function setUp() public override {
         super.setUp();
         run();
+    }
+
+    function makeAddr(string memory _name) internal override(Test, StdCheatsSafe) returns (address) {
+        return Test.makeAddr(_name);
     }
 
     /// @dev Helper function to make assertions on basic Safe config properties.

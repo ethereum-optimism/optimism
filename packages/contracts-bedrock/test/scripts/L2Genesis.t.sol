@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+
+// Scripts
 import { L2Genesis } from "scripts/L2Genesis.s.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
 import { LATEST_FORK } from "scripts/libraries/Config.sol";
+
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
 import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
 import { ISequencerFeeVault } from "interfaces/L2/ISequencerFeeVault.sol";
 import { IBaseFeeVault } from "interfaces/L2/IBaseFeeVault.sol";
@@ -194,9 +201,9 @@ abstract contract L2Genesis_TestInit is Test {
 
         // Check the L1Withdrawer is properly set
         IL1Withdrawer l1Withdrawer = IL1Withdrawer(superchainRevSharesCalculator.shareRecipient());
-        assertEq(l1Withdrawer.minWithdrawalAmount(), 10 ether);
+        assertEq(l1Withdrawer.minWithdrawalAmount(), 2 ether);
         assertEq(l1Withdrawer.recipient(), input.l1FeesDepositor);
-        assertEq(l1Withdrawer.withdrawalGasLimit(), 1_000_000);
+        assertEq(l1Withdrawer.withdrawalGasLimit(), 800_000);
     }
 
     function testCGT() internal view {

@@ -130,6 +130,14 @@ func (a *Actor) isValidProposal(ctx context.Context) (bool, error) {
 		// Output root doesn't match so can't be valid
 		return false, nil
 	}
+	if canonicalOutput.Status.SafeL2.Number < proposalSeqNum {
+		// Note this deliberately uses the simpler check of if the proposed block is currently unsafe
+		// The proposal is not necessarily supported by data on L1 up to the game's L1 head
+		// but we don't need to challenge it as long as supporting data has since become available
+		// and the output matches the canonical chain.
+		a.logger.Debug("Proposed block is not yet safe, treating as invalid", "safe", canonicalOutput.Status.SafeL2.Number, "proposed", proposalSeqNum)
+		return false, nil
+	}
 	return true, nil
 }
 
@@ -167,6 +175,10 @@ func (a *Actor) createResolveTx(ctx context.Context, gameState contracts.Challen
 	return txmgr.TxCandidate{}, errNoResolutionRequired
 }
 
-func (a *Actor) AdditionalStatus(_ context.Context) ([]any, error) {
-	return nil, nil
+func (a *Actor) AdditionalStatus(ctx context.Context) ([]any, error) {
+	metadata, err := a.contract.GetChallengerMetadata(ctx, rpcblock.Latest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get challenger metadata: %w", err)
+	}
+	return []any{"proposalStatus", metadata.ProposalStatus}, nil
 }

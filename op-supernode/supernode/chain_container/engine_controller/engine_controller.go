@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum/go-ethereum"
 	gethlog "github.com/ethereum/go-ethereum/log"
 )
 
@@ -16,6 +17,7 @@ import (
 type EngineController interface {
 	// SafeBlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp,
 	// clamped to the current SAFE head.
+	// Must return ethereum.NotFound if there is no safe block at the specified timestamp.
 	SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
 	// OutputV0AtBlockNumber returns the output preimage for the given L2 block number.
 	OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error)
@@ -60,9 +62,10 @@ func NewEngineControllerFromConfig(ctx context.Context, log gethlog.Logger, vncf
 var (
 	ErrNoEngineClient = errors.New("engine client not initialized")
 	ErrNoRollupConfig = errors.New("rollup config not available")
-	ErrNotFound       = errors.New("not found")
 )
 
+// SafeBlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp,
+// clamped to the current SAFE head. Must return ethereum.NotFound if no safe block is available at the timestamp.
 func (e *simpleEngineController) SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	if e.l2 == nil {
 		return eth.L2BlockRef{}, ErrNoEngineClient
@@ -81,7 +84,7 @@ func (e *simpleEngineController) SafeBlockAtTimestamp(ctx context.Context, ts ui
 	}
 	if num > safeHead.Number {
 		e.log.Warn("engine_controller: target block number exceeds safe head", "targetBlockNumber", num, "safeHead", safeHead.Number)
-		return eth.L2BlockRef{}, ErrNotFound
+		return eth.L2BlockRef{}, ethereum.NotFound
 	}
 	e.log.Debug("engine_controller: computed safe block number from timestamp",
 		"timestamp", ts, "targetBlockNumber", num, "safeHead", safeHead.Number, "safeHeadErr", err)

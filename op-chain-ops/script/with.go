@@ -44,9 +44,15 @@ func WithScript[B any](h *Host, name string, contract string) (b *B, cleanup fun
 		return nil, nil, fmt.Errorf("failed to make bindings: %w", err)
 	}
 
-	// Scripts can be very large
+	// Scripts can be very large - disable contract size constraints for script deployment
+	wasNoMaxCodeSize := h.noMaxCodeSize
 	h.EnforceMaxCodeSize(false)
-	defer h.EnforceMaxCodeSize(true)
+	defer func() {
+		// Only re-enable if it wasn't originally disabled
+		if !wasNoMaxCodeSize {
+			h.EnforceMaxCodeSize(true)
+		}
+	}()
 	// deploy the script contract
 	deployedAddr, err := h.Create(deployer, artifact.Bytecode.Object)
 	if err != nil {

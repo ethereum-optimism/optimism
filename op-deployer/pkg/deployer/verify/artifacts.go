@@ -45,6 +45,7 @@ var contractNameExceptions = map[string]string{
 	"OpcmStandardValidator":       "OPContractsManagerStandardValidator.sol/OPContractsManagerStandardValidator.json",
 	"OpcmV2":                      "OPContractsManagerV2.sol/OPContractsManagerV2.json",
 	"OpcmContainer":               "OPContractsManagerContainer.sol/OPContractsManagerContainer.json",
+	"OpcmUtils":                   "OPContractsManagerUtils.sol/OPContractsManagerUtils.json",
 	"Mips":                        "MIPS64.sol/MIPS64.json",
 	"EthLockbox":                  "ETHLockbox.sol/ETHLockbox.json",
 }

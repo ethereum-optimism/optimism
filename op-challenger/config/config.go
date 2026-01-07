@@ -32,24 +32,14 @@ var (
 	ErrMissingCannonKonaInfoFreq         = errors.New("missing cannon kona info freq")
 	ErrMissingDepsetConfig               = errors.New("missing network or depset config path")
 
-	ErrMissingRollupRpc     = errors.New("missing rollup rpc url")
-	ErrMissingSupervisorRpc = errors.New("missing supervisor rpc url")
-
-	ErrMissingAsteriscAbsolutePreState = errors.New("missing asterisc absolute pre-state")
-	ErrMissingAsteriscSnapshotFreq     = errors.New("missing asterisc snapshot freq")
-	ErrMissingAsteriscInfoFreq         = errors.New("missing asterisc info freq")
-
-	ErrMissingAsteriscKonaAbsolutePreState = errors.New("missing asterisc kona absolute pre-state")
-	ErrMissingAsteriscKonaSnapshotFreq     = errors.New("missing asterisc kona snapshot freq")
-	ErrMissingAsteriscKonaInfoFreq         = errors.New("missing asterisc kona info freq")
+	ErrMissingRollupRpc = errors.New("missing rollup rpc url")
+	ErrMissingSuperRpc  = errors.New("missing super rpc url")
 )
 
 const (
-	DefaultPollInterval         = time.Second * 12
-	DefaultCannonSnapshotFreq   = uint(1_000_000_000)
-	DefaultCannonInfoFreq       = uint(10_000_000)
-	DefaultAsteriscSnapshotFreq = uint(1_000_000_000)
-	DefaultAsteriscInfoFreq     = uint(10_000_000)
+	DefaultPollInterval       = time.Second * 12
+	DefaultCannonSnapshotFreq = uint(1_000_000_000)
+	DefaultCannonInfoFreq     = uint(10_000_000)
 	// DefaultGameWindow is the default maximum time duration in the past
 	// that the challenger will look for games to progress.
 	// The default value is 28 days. The worst case duration for a game is 16 days
@@ -82,9 +72,10 @@ type Config struct {
 
 	GameTypes []gameTypes.GameType // Type of games supported
 
-	RollupRpc     string   // L2 Rollup RPC Url
-	SupervisorRPC string   // L2 supervisor RPC URL
-	L2Rpcs        []string // L2 RPC Url
+	RollupRpc    string   // L2 Rollup RPC Url
+	SuperRPC     string   // L2 RPC URL for super roots
+	UseSuperNode bool     // Temporary: True to use op-supernode APIs, false for op-supervisor APIs
+	L2Rpcs       []string // L2 RPC Url
 
 	// Specific to the cannon trace provider
 	Cannon                            vm.Config
@@ -93,14 +84,6 @@ type Config struct {
 	CannonKona                        vm.Config
 	CannonKonaAbsolutePreState        string   // File to load the absolute pre-state for CannonKona traces from
 	CannonKonaAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for CannonKona traces from
-
-	// Specific to the asterisc trace provider
-	Asterisc                            vm.Config
-	AsteriscAbsolutePreState            string   // File to load the absolute pre-state for Asterisc traces from
-	AsteriscAbsolutePreStateBaseURL     *url.URL // Base URL to retrieve absolute pre-states for Asterisc traces from
-	AsteriscKona                        vm.Config
-	AsteriscKonaAbsolutePreState        string   // File to load the absolute pre-state for AsteriscKona traces from
-	AsteriscKonaAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for AsteriscKona traces from
 
 	MaxPendingTx uint64 // Maximum number of pending transactions (0 == no limit)
 
@@ -126,7 +109,7 @@ func NewInteropConfig(
 	gameFactoryAddress common.Address,
 	l1EthRpc string,
 	l1BeaconApi string,
-	supervisorRpc string,
+	superRpc string,
 	l2Rpcs []string,
 	datadir string,
 	supportedGameTypes ...gameTypes.GameType,
@@ -134,7 +117,7 @@ func NewInteropConfig(
 	return Config{
 		L1EthRpc:           l1EthRpc,
 		L1Beacon:           l1BeaconApi,
-		SupervisorRPC:      supervisorRpc,
+		SuperRPC:           superRpc,
 		L2Rpcs:             l2Rpcs,
 		GameFactoryAddress: gameFactoryAddress,
 		MaxConcurrency:     uint(runtime.NumCPU()),
@@ -168,24 +151,6 @@ func NewInteropConfig(
 			SnapshotFreq:    DefaultCannonSnapshotFreq,
 			InfoFreq:        DefaultCannonInfoFreq,
 			DebugInfo:       true,
-			BinarySnapshots: true,
-		},
-		Asterisc: vm.Config{
-			VmType:          gameTypes.AsteriscGameType,
-			L1:              l1EthRpc,
-			L1Beacon:        l1BeaconApi,
-			L2s:             l2Rpcs,
-			SnapshotFreq:    DefaultAsteriscSnapshotFreq,
-			InfoFreq:        DefaultAsteriscInfoFreq,
-			BinarySnapshots: true,
-		},
-		AsteriscKona: vm.Config{
-			VmType:          gameTypes.AsteriscKonaGameType,
-			L1:              l1EthRpc,
-			L1Beacon:        l1BeaconApi,
-			L2s:             l2Rpcs,
-			SnapshotFreq:    DefaultAsteriscSnapshotFreq,
-			InfoFreq:        DefaultAsteriscInfoFreq,
 			BinarySnapshots: true,
 		},
 		GameWindow: DefaultGameWindow,
@@ -240,24 +205,6 @@ func NewConfig(
 			DebugInfo:       true,
 			BinarySnapshots: true,
 		},
-		Asterisc: vm.Config{
-			VmType:          gameTypes.AsteriscGameType,
-			L1:              l1EthRpc,
-			L1Beacon:        l1BeaconApi,
-			L2s:             []string{l2EthRpc},
-			SnapshotFreq:    DefaultAsteriscSnapshotFreq,
-			InfoFreq:        DefaultAsteriscInfoFreq,
-			BinarySnapshots: true,
-		},
-		AsteriscKona: vm.Config{
-			VmType:          gameTypes.AsteriscKonaGameType,
-			L1:              l1EthRpc,
-			L1Beacon:        l1BeaconApi,
-			L2s:             []string{l2EthRpc},
-			SnapshotFreq:    DefaultAsteriscSnapshotFreq,
-			InfoFreq:        DefaultAsteriscInfoFreq,
-			BinarySnapshots: true,
-		},
 		GameWindow: DefaultGameWindow,
 	}
 }
@@ -289,8 +236,8 @@ func (c Config) Check() error {
 		return ErrMaxConcurrencyZero
 	}
 	if c.GameTypeEnabled(gameTypes.SuperCannonGameType) || c.GameTypeEnabled(gameTypes.SuperPermissionedGameType) {
-		if c.SupervisorRPC == "" {
-			return ErrMissingSupervisorRpc
+		if c.SuperRPC == "" {
+			return ErrMissingSuperRpc
 		}
 
 		if len(c.Cannon.Networks) == 0 && c.Cannon.DepsetConfigPath == "" {
@@ -309,8 +256,8 @@ func (c Config) Check() error {
 		}
 	}
 	if c.GameTypeEnabled(gameTypes.SuperCannonKonaGameType) {
-		if c.SupervisorRPC == "" {
-			return ErrMissingSupervisorRpc
+		if c.SuperRPC == "" {
+			return ErrMissingSuperRpc
 		}
 
 		if len(c.CannonKona.Networks) == 0 && c.CannonKona.DepsetConfigPath == "" {
@@ -325,43 +272,6 @@ func (c Config) Check() error {
 			return ErrMissingRollupRpc
 		}
 		if err := c.validateBaseCannonKonaOptions(); err != nil {
-			return err
-		}
-	}
-	if c.GameTypeEnabled(gameTypes.AsteriscGameType) {
-		if c.RollupRpc == "" {
-			return ErrMissingRollupRpc
-		}
-		if err := c.Asterisc.Check(); err != nil {
-			return fmt.Errorf("asterisc: %w", err)
-		}
-		if c.AsteriscAbsolutePreState == "" && c.AsteriscAbsolutePreStateBaseURL == nil {
-			return ErrMissingAsteriscAbsolutePreState
-		}
-		if c.Asterisc.SnapshotFreq == 0 {
-			return ErrMissingAsteriscSnapshotFreq
-		}
-		if c.Asterisc.InfoFreq == 0 {
-			return ErrMissingAsteriscInfoFreq
-		}
-	}
-	if c.GameTypeEnabled(gameTypes.AsteriscKonaGameType) {
-		if c.RollupRpc == "" {
-			return ErrMissingRollupRpc
-		}
-		if err := c.validateBaseAsteriscKonaOptions(); err != nil {
-			return err
-		}
-	}
-	if c.GameTypeEnabled(gameTypes.SuperAsteriscKonaGameType) {
-		if c.SupervisorRPC == "" {
-			return ErrMissingSupervisorRpc
-		}
-
-		if len(c.AsteriscKona.Networks) == 0 && c.AsteriscKona.DepsetConfigPath == "" {
-			return ErrMissingDepsetConfig
-		}
-		if err := c.validateBaseAsteriscKonaOptions(); err != nil {
 			return err
 		}
 	}
@@ -415,22 +325,6 @@ func (c Config) validateBaseCannonKonaOptions() error {
 	}
 	if c.CannonKona.InfoFreq == 0 {
 		return ErrMissingCannonKonaInfoFreq
-	}
-	return nil
-}
-
-func (c Config) validateBaseAsteriscKonaOptions() error {
-	if err := c.AsteriscKona.Check(); err != nil {
-		return fmt.Errorf("asterisc kona: %w", err)
-	}
-	if c.AsteriscKonaAbsolutePreState == "" && c.AsteriscKonaAbsolutePreStateBaseURL == nil {
-		return ErrMissingAsteriscKonaAbsolutePreState
-	}
-	if c.AsteriscKona.SnapshotFreq == 0 {
-		return ErrMissingAsteriscKonaSnapshotFreq
-	}
-	if c.AsteriscKona.InfoFreq == 0 {
-		return ErrMissingAsteriscKonaInfoFreq
 	}
 	return nil
 }

@@ -387,6 +387,25 @@ func TestUpdateSystemConfigWithL1Receipts_Atomicity(t *testing.T) {
 			},
 			Data: []byte{0x00}, // insufficient bytes for pointer/length -> parse error
 		}
+		// Future / unknown event type
+		futureLogType := &types.Log{
+			Address: l1Addr,
+			Topics: []common.Hash{
+				ConfigUpdateEventABIHash,
+				ConfigUpdateEventVersion0,
+				common.Hash{0: 'a', 31: 7}, // test assumes this is not a known event type
+			},
+		}
+		// Future / unknown event version
+		futureLogVersion := &types.Log{
+			Address: l1Addr,
+			Topics: []common.Hash{
+				ConfigUpdateEventABIHash,
+				common.Hash{31: 1}, // test assumes this is not a known event version
+				SystemConfigUpdateBatcher,
+			},
+			Data: batcherData,
+		}
 		receipts := []*types.Receipt{
 			{
 				Status: types.ReceiptStatusSuccessful,
@@ -396,6 +415,14 @@ func TestUpdateSystemConfigWithL1Receipts_Atomicity(t *testing.T) {
 				Status: types.ReceiptStatusSuccessful,
 				Logs:   []*types.Log{malformedGasLog},
 			},
+			{
+				Status: types.ReceiptStatusSuccessful,
+				Logs:   []*types.Log{futureLogType},
+			},
+			{
+				Status: types.ReceiptStatusSuccessful,
+				Logs:   []*types.Log{futureLogVersion},
+			},
 		}
 		err = UpdateSystemConfigWithL1Receipts(&sysCfg, receipts, &cfg, 0)
 		// Error should be returned due to malformed update, but valid updates should apply
@@ -404,6 +431,11 @@ func TestUpdateSystemConfigWithL1Receipts_Atomicity(t *testing.T) {
 		require.Equal(t, newBatcher, sysCfg.BatcherAddr)
 		// Confirm invalid update did not apply; GasLimit remains unchanged
 		require.Equal(t, initial.GasLimit, sysCfg.GasLimit)
+		// Confirm error contains expected messages
+		require.ErrorContains(t, err, "invalid pointer field")
+		require.ErrorIs(t, err, ErrParsingSystemConfig)
+		require.ErrorIs(t, err, ErrUnknownEventType)
+		require.ErrorIs(t, err, ErrUnknownEventVersion)
 	})
 
 	t.Run("applies multiple updates within a single receipt", func(t *testing.T) {

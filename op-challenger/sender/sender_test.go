@@ -194,6 +194,6 @@ func (s *stubTxMgr) API() rpc.API {
 func (s *stubTxMgr) Close() {
 }
 
-func (s *stubTxMgr) SuggestGasPriceCaps(context.Context) (*big.Int, *big.Int, *big.Int, error) {
+func (s *stubTxMgr) SuggestGasPriceCaps(context.Context) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
 	panic("unimplemented")
 }

@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -20,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,13 +52,20 @@ func (p *mockL2EndpointProvider) Close() {}
 
 const genesisL1Origin = uint64(123)
 
-func setup(t *testing.T) (*BatchSubmitter, *mockL2EndpointProvider) {
+func setup(t *testing.T, closeAppFn context.CancelCauseFunc) (*BatchSubmitter, *mockL2EndpointProvider) {
 	ep := newEndpointProvider()
 
 	cfg := defaultTestRollupConfig
 	cfg.Genesis.L1.Number = genesisL1Origin
 
+	if closeAppFn == nil {
+		closeAppFn = func(cause error) {
+			t.Fatalf("closeAppFn called, batcher hit a critical error: %v", cause)
+		}
+	}
+
 	return NewBatchSubmitter(DriverSetup{
+		closeApp:     closeAppFn,
 		Log:          testlog.Logger(t, log.LevelDebug),
 		Metr:         metrics.NoopMetrics,
 		RollupConfig: cfg,
@@ -70,7 +80,7 @@ func setup(t *testing.T) (*BatchSubmitter, *mockL2EndpointProvider) {
 }
 
 func TestBatchSubmitter_SafeL1Origin(t *testing.T) {
-	bs, ep := setup(t)
+	bs, ep := setup(t, nil)
 
 	tests := []struct {
 		name                   string
@@ -123,7 +133,7 @@ func TestBatchSubmitter_SafeL1Origin(t *testing.T) {
 }
 
 func TestBatchSubmitter_SafeL1Origin_FailsToResolveRollupClient(t *testing.T) {
-	bs, ep := setup(t)
+	bs, ep := setup(t, nil)
 
 	ep.rollupClientErr = errors.New("failed to resolve rollup client")
 
@@ -145,7 +155,7 @@ func (q *MockTxQueue) Load(id string) txmgr.TxCandidate {
 }
 
 func TestBatchSubmitter_sendTx_FloorDataGas(t *testing.T) {
-	bs, _ := setup(t)
+	bs, _ := setup(t, nil)
 
 	q := new(MockTxQueue)
 
@@ -173,9 +183,17 @@ func TestBatchSubmitter_sendTx_FloorDataGas(t *testing.T) {
 	require.GreaterOrEqual(t, candidateOut.GasLimit, expectedFloorDataGas)
 }
 
+type handlerFailureMode string
+
+const (
+	noFailure      handlerFailureMode = "none"
+	internalError  handlerFailureMode = "internal_error"
+	methodNotFound handlerFailureMode = "method_not_found"
+)
+
 // createHTTPHandler creates a mock HTTP handler for testing, it accepts a callback which
 // is invoked when the expected request is received.
-func createHTTPHandler(t *testing.T, cb func(), alwaysFails bool) http.HandlerFunc {
+func createHTTPHandler(t *testing.T, cb func(), failureMode handlerFailureMode) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
 			var req struct {
@@ -185,16 +203,22 @@ func createHTTPHandler(t *testing.T, cb func(), alwaysFails bool) http.HandlerFu
 				ID      interface{}   `json:"id"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+				cb()
 
-				if alwaysFails {
-					http.Error(w, "Simulated failure", http.StatusInternalServerError)
-					cb()
-					return
-				}
-				if req.Method == "miner_setMaxDASize" && len(req.Params) == 2 {
-					cb()
+				switch failureMode {
+				case noFailure:
 					w.Header().Set("Content-Type", "application/json")
 					_, err := w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":true}`))
+					if err != nil {
+						t.Logf("Error writing response: %v", err)
+					}
+					return
+				case internalError:
+					http.Error(w, "Simulated failure", http.StatusInternalServerError)
+					return
+				case methodNotFound:
+					w.Header().Set("Content-Type", "application/json")
+					_, err := w.Write([]byte(fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"error":{"code":%d,"message":"method not found"}}`, eth.MethodNotFound)))
 					if err != nil {
 						t.Logf("Error writing response: %v", err)
 					}
@@ -207,7 +231,8 @@ func createHTTPHandler(t *testing.T, cb func(), alwaysFails bool) http.HandlerFu
 }
 
 func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
-
+	// Set a very long timeout to avoid flakiness
+	timeout := time.Second * 120
 	testThrottlingEndpoints := func(numHealthyServers, numUnhealthyServers int) func(t *testing.T) {
 
 		return func(t *testing.T) {
@@ -220,12 +245,12 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			urls := make([]string, 0, numHealthyServers+numUnhealthyServers)
 
 			for i := range healthyCalls {
-				healthyServers[i] = httptest.NewServer(createHTTPHandler(t, func() { healthyCalls[i]++ }, false))
+				healthyServers[i] = httptest.NewServer(createHTTPHandler(t, func() { healthyCalls[i]++ }, noFailure))
 				urls = append(urls, healthyServers[i].URL)
 				defer healthyServers[i].Close()
 			}
 			for i := range unHealthyCalls {
-				unhealthyServers[i] = httptest.NewServer(createHTTPHandler(t, func() { unHealthyCalls[i]++ }, true))
+				unhealthyServers[i] = httptest.NewServer(createHTTPHandler(t, func() { unHealthyCalls[i]++ }, internalError))
 				urls = append(urls, unhealthyServers[i].URL)
 				defer unhealthyServers[i].Close()
 			}
@@ -238,8 +263,12 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 
 			t.Log("Throttling endpoints:", urls)
 
+			var batcherShutdownError error
+
 			// Create test BatchSubmitter using the setup function
-			bs, _ := setup(t)
+			bs, _ := setup(t, func(cause error) {
+				batcherShutdownError = cause
+			})
 			bs.shutdownCtx = ctx
 			bs.Config.NetworkTimeout = time.Second
 			bs.Config.ThrottleParams.Endpoints = urls
@@ -290,15 +319,8 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			require.Eventually(t,
 				func() bool {
 					// Check that all endpoints were called
-					for i := range healthyCalls {
-						if healthyCalls[i] == 0 {
-							return false
-						}
-					}
-					for i := range unHealthyCalls {
-						if unHealthyCalls[i] == 0 {
-							return false
-						}
+					if slices.Contains(healthyCalls, 0) || slices.Contains(unHealthyCalls, 0) {
+						return false
 					}
 					return true
 				}, time.Second*10, time.Millisecond*10, "All endpoints should have been called within 10s")
@@ -322,18 +344,66 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 				addr := healthyServers[0].Listener.Addr().String()
 				healthyServers[0].Close()
 				time.Sleep(time.Second * 2)
-				startTestServerAtAddr(addr, createHTTPHandler(t, func() { restartedServerCalled = true }, false))
+				startTestServerAtAddr(addr, createHTTPHandler(t, func() { restartedServerCalled = true }, noFailure))
 				defer healthyServers[0].Close()
 				t.Log("restarted server at", addr)
 
 				require.Eventually(t, func() bool {
 					return restartedServerCalled
-				}, time.Second*2, time.Millisecond*10, "Restarted server should have been called within 2s")
+				}, timeout, time.Millisecond*10, "Restarted server should have been called within 2s")
 			}
 
+			// Take an unhealthy server down, wait 2s and bring it back up with misconfiguration. Check the batcher exits.
+			if len(unhealthyServers) > 0 {
+				restartedServerCalled := false
+
+				addr := unhealthyServers[0].Listener.Addr().String()
+				unhealthyServers[0].Close()
+				time.Sleep(time.Second * 2)
+				startTestServerAtAddr(addr, createHTTPHandler(t, func() { restartedServerCalled = true }, methodNotFound))
+				defer unhealthyServers[0].Close()
+				t.Log("restarted server at", addr)
+
+				require.Eventually(t, func() bool {
+					return restartedServerCalled
+				}, timeout, time.Millisecond*10, "Restarted server should have been called within 2s")
+
+				require.Eventually(t, func() bool {
+					return batcherShutdownError != nil
+				}, timeout, time.Millisecond*10, "Batcher should have triggered self shutdown within 2s")
+
+				require.Equal(t, batcherShutdownError.Error(), ErrSetMaxDASizeRPCMethodUnavailable("http://"+addr, errors.New("method not found")).Error(), "Batcher shutdown error should be the same as the expected error")
+			}
 		}
 	}
 	t.Run("two normal endpoints", testThrottlingEndpoints(2, 0))
 	t.Run("two failing endpoints", testThrottlingEndpoints(0, 2))
 	t.Run("one normal endpoint, one failing endpoint", testThrottlingEndpoints(1, 1))
+}
+
+func TestBatchSubmitter_CriticalError(t *testing.T) {
+	criticalErrors := []error{
+		eth.InputError{
+			Code: eth.MethodNotFound,
+		},
+		eth.InputError{
+			Code: eth.InvalidParams,
+		},
+	}
+
+	for _, e := range criticalErrors {
+		assert.True(t, isCriticalThrottlingRPCError(e), "false positive: %s", e)
+	}
+
+	nonCriticalErrors := []error{
+		eth.InputError{
+			Code: eth.UnsupportedFork,
+		},
+		errors.New("timeout"),
+	}
+
+	for _, e := range nonCriticalErrors {
+		assert.False(t, isCriticalThrottlingRPCError(e), "false negative: %s", e)
+	}
+
 }

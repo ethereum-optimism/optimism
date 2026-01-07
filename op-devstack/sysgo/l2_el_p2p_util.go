@@ -3,9 +3,11 @@ package sysgo
 import (
 	"context"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -13,13 +15,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
-func WithL2ELP2PConnection(l2EL1ID, l2EL2ID stack.L2ELNodeID) stack.Option[*Orchestrator] {
+func WithL2ELP2PConnection(l2EL1ID, l2EL2ID stack.L2ELNodeID, trusted bool) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		require := orch.P().Require()
 
-		l2EL1, ok := orch.l2ELs.Get(l2EL1ID)
+		l2EL1, ok := orch.GetL2EL(l2EL1ID)
 		require.True(ok, "looking for L2 EL node 1 to connect p2p")
-		l2EL2, ok := orch.l2ELs.Get(l2EL2ID)
+		l2EL2, ok := orch.GetL2EL(l2EL2ID)
 		require.True(ok, "looking for L2 EL node 2 to connect p2p")
 		require.Equal(l2EL1ID.ChainID(), l2EL2ID.ChainID(), "must be same l2 chain")
 
@@ -33,7 +35,7 @@ func WithL2ELP2PConnection(l2EL1ID, l2EL2ID stack.L2ELNodeID) stack.Option[*Orch
 		require.NoError(err, "failed to connect to el2 rpc")
 		defer rpc2.Close()
 
-		ConnectP2P(orch.P().Ctx(), require, rpc1, rpc2)
+		ConnectP2P(orch.P().Ctx(), require, rpc1, rpc2, trusted)
 	})
 }
 
@@ -42,23 +44,36 @@ type RpcCaller interface {
 }
 
 // ConnectP2P creates a p2p peer connection between node1 and node2.
-func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcCaller, acceptor RpcCaller) {
+func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcCaller, acceptor RpcCaller, trusted bool) {
 	var targetInfo p2p.NodeInfo
 	require.NoError(acceptor.CallContext(ctx, &targetInfo, "admin_nodeInfo"), "get node info")
+	targetNode, err := enode.ParseV4(targetInfo.Enode)
+	require.NoError(err, "failed to parse target node")
+	expectedID := targetNode.ID().String()
+
+	var initiatorInfo p2p.NodeInfo
+	require.NoError(initiator.CallContext(ctx, &initiatorInfo, "admin_nodeInfo"), "get initiator node info")
 
 	var peerAdded bool
 	require.NoError(initiator.CallContext(ctx, &peerAdded, "admin_addPeer", targetInfo.Enode), "add peer")
 	require.True(peerAdded, "should have added peer successfully")
 
+	if trusted {
+		var peerAddedTrusted bool
+		require.NoError(initiator.CallContext(ctx, &peerAddedTrusted, "admin_addTrustedPeer", targetInfo.Enode), "add trusted peer")
+		require.True(peerAddedTrusted, "should have added trusted peer successfully")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	err := wait.For(ctx, time.Second, func() (bool, error) {
+	err = wait.For(ctx, time.Second, func() (bool, error) {
 		var peers []peer
 		if err := initiator.CallContext(ctx, &peers, "admin_peers"); err != nil {
 			return false, err
 		}
 		return slices.ContainsFunc(peers, func(p peer) bool {
-			return p.ID == targetInfo.ID
+			peerID := strings.TrimPrefix(strings.ToLower(p.ID), "0x")
+			return peerID == strings.ToLower(expectedID)
 		}), nil
 	})
 	require.NoError(err, "The peer was not connected")
@@ -68,6 +83,9 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 func DisconnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcCaller, acceptor RpcCaller) {
 	var targetInfo p2p.NodeInfo
 	require.NoError(acceptor.CallContext(ctx, &targetInfo, "admin_nodeInfo"), "get node info")
+	targetNode, err := enode.ParseV4(targetInfo.Enode)
+	require.NoError(err, "failed to parse target node")
+	expectedID := targetNode.ID().String()
 
 	var peerRemoved bool
 	require.NoError(initiator.CallContext(ctx, &peerRemoved, "admin_removePeer", targetInfo.ENR), "add peer")
@@ -75,13 +93,14 @@ func DisconnectP2P(ctx context.Context, require *testreq.Assertions, initiator R
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	err := wait.For(ctx, time.Second, func() (bool, error) {
+	err = wait.For(ctx, time.Second, func() (bool, error) {
 		var peers []peer
 		if err := initiator.CallContext(ctx, &peers, "admin_peers"); err != nil {
 			return false, err
 		}
 		return !slices.ContainsFunc(peers, func(p peer) bool {
-			return p.ID == targetInfo.ID
+			peerID := strings.TrimPrefix(strings.ToLower(p.ID), "0x")
+			return peerID == strings.ToLower(expectedID)
 		}), nil
 	})
 	require.NoError(err, "The peer was not removed")

@@ -69,6 +69,10 @@ variable "OP_SUPERNODE_VERSION" {
   default = "${GIT_VERSION}"
 }
 
+variable "OP_INTEROP_FILTER_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
 variable "OP_TEST_SEQUENCER_VERSION" {
   default = "${GIT_VERSION}"
 }
@@ -226,6 +230,19 @@ target "op-supernode" {
   target = "op-supernode-target"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-supernode:${tag}"]
+}
+
+target "op-interop-filter" {
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
+  context = "."
+  args = {
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
+    OP_INTEROP_FILTER_VERSION = "${OP_INTEROP_FILTER_VERSION}"
+  }
+  target = "op-interop-filter-target"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-interop-filter:${tag}"]
 }
 
 target "op-test-sequencer" {

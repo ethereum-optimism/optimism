@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { stdStorage, StdStorage } from "forge-std/Test.sol";
+import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 
 // Libraries
 import { Encoding } from "src/libraries/Encoding.sol";

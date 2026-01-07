@@ -42,12 +42,11 @@ const (
 	ContractsV300Tag        = "op-contracts/v3.0.0"
 	ContractsV400Tag        = "op-contracts/v4.0.0-rc.7"
 	ContractsV410Tag        = "op-contracts/v4.1.0"
-	ContractsV500Tag        = "op-contracts/v5.0.0-rc.2"
-	CurrentTag              = ContractsV410Tag
+	ContractsV500Tag        = "op-contracts/v5.0.0"
+	CurrentTag              = ContractsV500Tag
 )
 
-// TODO(#17505): This address should be updated to the actual address once deployed
-var L1FeesDepositor = common.HexToAddress("0x81c01427DFA9A2512b4EBf1462868856BA4aA91a")
+var L1FeesDepositor = common.HexToAddress("0xed9B99a703BaD32AC96FDdc313c0652e379251Fd")
 
 var DisputeAbsolutePrestate = common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
 

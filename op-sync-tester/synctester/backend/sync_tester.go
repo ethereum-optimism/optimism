@@ -220,6 +220,27 @@ func (s *SyncTester) ChainId(ctx context.Context) (hexutil.Big, error) {
 	})
 }
 
+func (s *SyncTester) ExchangeCapabilities(ctx context.Context, _ []string) []string {
+	return []string{
+		// getPayload
+		"engine_getPayloadV1",
+		"engine_getPayloadV2",
+		"engine_getPayloadV3",
+		"engine_getPayloadV4",
+
+		// forkchoiceUpdated
+		"engine_forkchoiceUpdatedV1",
+		"engine_forkchoiceUpdatedV2",
+		"engine_forkchoiceUpdatedV3",
+
+		// newPayload
+		"engine_newPayloadV1",
+		"engine_newPayloadV2",
+		"engine_newPayloadV3",
+		"engine_newPayloadV4",
+	}
+}
+
 // GetPayloadV1 only supports V1 payloads.
 func (s *SyncTester) GetPayloadV1(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
@@ -429,7 +450,7 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		}
 		// https://github.com/ethereum-optimism/specs/blob/510377c586d0cbede2d40402d2371fcadd5656a0/specs/protocol/jovian/exec-engine.md#minimum-base-fee-in-block-header
 		// Implicitly determine whether jovian is enabled by inspecting extraData from read only EL data
-		isJovian := eip1559.ValidateMinBaseFeeExtraData(newBlock.Header().Extra) == nil
+		isJovian := eip1559.ValidateJovianExtraData(newBlock.Header().Extra) == nil
 		// https://github.com/ethereum-optimism/specs/blob/972dec7c7c967800513c354b2f8e5b79340de1c3/specs/protocol/holocene/exec-engine.md#eip-1559-parameters-in-block-header
 		// Implicitly determine whether holocene is enabled by inspecting extraData from read only EL data
 		isHolocene := true // holocene is always activated when jovian is activated

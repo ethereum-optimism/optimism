@@ -10,6 +10,11 @@
         "internalType": "contract IOPContractsManagerStandardValidator",
         "name": "_standardValidator",
         "type": "address"
+      },
+      {
+        "internalType": "contract IOPContractsManagerUtils",
+        "name": "_utils",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -44,26 +49,6 @@
           {
             "internalType": "address",
             "name": "resolvedDelegateProxy",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionedDisputeGame1",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionedDisputeGame2",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionlessDisputeGame1",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionlessDisputeGame2",
             "type": "address"
           }
         ],
@@ -227,6 +212,11 @@
             "internalType": "struct OPContractsManagerV2.DisputeGameConfig[]",
             "name": "disputeGameConfigs",
             "type": "tuple[]"
+          },
+          {
+            "internalType": "bool",
+            "name": "useCustomGasToken",
+            "type": "bool"
           }
         ],
         "internalType": "struct OPContractsManagerV2.FullConfig",
@@ -305,6 +295,19 @@
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "devFeatureBitmap",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -437,11 +440,56 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_systemConfig",
+        "type": "address"
+      }
+    ],
+    "name": "isPermittedUpgradeSequence",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
-    "name": "standardValidator",
+    "name": "opcmStandardValidator",
     "outputs": [
       {
         "internalType": "contract IOPContractsManagerStandardValidator",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "opcmUtils",
+    "outputs": [
+      {
+        "internalType": "contract IOPContractsManagerUtils",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "opcmV2",
+    "outputs": [
+      {
+        "internalType": "contract OPContractsManagerV2",
         "name": "",
         "type": "address"
       }
@@ -498,7 +546,7 @@
                 "type": "bytes"
               }
             ],
-            "internalType": "struct OPContractsManagerV2.ExtraInstruction[]",
+            "internalType": "struct IOPContractsManagerUtils.ExtraInstruction[]",
             "name": "extraInstructions",
             "type": "tuple[]"
           }
@@ -603,7 +651,7 @@
                 "type": "bytes"
               }
             ],
-            "internalType": "struct OPContractsManagerV2.ExtraInstruction[]",
+            "internalType": "struct IOPContractsManagerUtils.ExtraInstruction[]",
             "name": "extraInstructions",
             "type": "tuple[]"
           }
@@ -641,27 +689,8 @@
         "type": "string"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "name",
-        "type": "string"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "proxy",
-        "type": "address"
-      }
-    ],
-    "name": "ProxyCreation",
-    "type": "event"
   },
   {
     "inputs": [],
@@ -689,25 +718,8 @@
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "string",
-        "name": "_name",
-        "type": "string"
-      }
-    ],
-    "name": "OPContractsManagerV2_ConfigLoadFailed",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_contract",
-        "type": "address"
-      }
-    ],
-    "name": "OPContractsManagerV2_DowngradeNotAllowed",
+    "inputs": [],
+    "name": "OPContractsManagerV2_CannotUpgradeToCustomGasToken",
     "type": "error"
   },
   {
@@ -721,7 +733,13 @@
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_key",
+        "type": "string"
+      }
+    ],
     "name": "OPContractsManagerV2_InvalidUpgradeInstruction",
     "type": "error"
   },
@@ -729,11 +747,16 @@
     "inputs": [
       {
         "internalType": "string",
-        "name": "_name",
+        "name": "_lastVersion",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_thisVersion",
         "type": "string"
       }
     ],
-    "name": "OPContractsManagerV2_ProxyMustLoad",
+    "name": "OPContractsManagerV2_InvalidUpgradeSequence",
     "type": "error"
   },
   {

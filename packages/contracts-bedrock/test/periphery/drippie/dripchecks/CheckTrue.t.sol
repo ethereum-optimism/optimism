@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
+
+// Contracts
 import { CheckTrue } from "src/periphery/drippie/dripchecks/CheckTrue.sol";
 
 /// @title CheckTrue_TestInit

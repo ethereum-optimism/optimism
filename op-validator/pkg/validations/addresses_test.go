@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -111,8 +112,7 @@ func testStandardVersionNetwork(t *testing.T, network string) {
 		standard.ContractsV300Tag,
 		standard.ContractsV400Tag,
 		standard.ContractsV410Tag,
-		// Enable whenever we upgrade the superchain registry
-		//standard.ContractsV500Tag,
+		standard.ContractsV500Tag,
 	}
 
 	for _, semver := range contractVersions {
@@ -138,10 +138,12 @@ func testStandardVersion(t *testing.T, address common.Address, rpcClient *rpc.Cl
 
 	w3c := w3.NewClient(rpcClient)
 
-	ver, err := semver.NewVersion(version.SystemConfig.Version)
+	// Semver tags from the registry include the "op-contracts/" prefix.
+	cleanTag := strings.TrimPrefix(strings.TrimPrefix(semverTag, "op-contracts/"), "v")
+	releaseVer, err := semver.NewVersion(cleanTag)
 	require.NoError(t, err)
 
-	if ver.Major() >= 5 {
+	if releaseVer.Major() >= 5 {
 		// For v5.0.0+
 		type implFieldDef struct {
 			implGetter string

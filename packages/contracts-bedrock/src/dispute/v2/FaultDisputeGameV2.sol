@@ -57,7 +57,8 @@ import {
     InvalidBondDistributionMode,
     GameNotResolved,
     GamePaused,
-    BadExtraData
+    BadExtraData,
+    UnknownChainId
 } from "src/dispute/lib/Errors.sol";
 
 // Interfaces
@@ -146,9 +147,9 @@ contract FaultDisputeGameV2 is Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.2.0
+    /// @custom:semver 2.3.0
     function version() public pure virtual returns (string memory) {
-        return "2.2.0";
+        return "2.3.0";
     }
 
     /// @notice The starting timestamp of the game
@@ -843,6 +844,14 @@ contract FaultDisputeGameV2 is Clone, ISemver {
     /// @return rootClaim_ The root claim of the DisputeGame.
     function rootClaim() public pure returns (Claim rootClaim_) {
         rootClaim_ = Claim.wrap(_getArgBytes32(20));
+    }
+
+    /// @notice Getter for the root claim for a given L2 chain ID.
+    /// @param _chainId The L2 chain ID to get the root claim for.
+    /// @return rootClaim_ The root claim of the DisputeGame.
+    function rootClaimByChainId(uint256 _chainId) public pure returns (Claim rootClaim_) {
+        if (_chainId != l2ChainId()) revert UnknownChainId();
+        rootClaim_ = rootClaim();
     }
 
     /// @notice Getter for the parent hash of the L1 block when the dispute game was created.

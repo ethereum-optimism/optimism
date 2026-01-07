@@ -99,9 +99,9 @@ func (r *Runner) Start(ctx context.Context) error {
 		rollupClient = cl
 	}
 	var supervisorClient *sources.SupervisorClient
-	if r.cfg.SupervisorRPC != "" {
-		r.log.Info("Dialling supervisor client", "url", r.cfg.SupervisorRPC)
-		cl, err := dial.DialSupervisorClientWithTimeout(ctx, r.log, r.cfg.SupervisorRPC)
+	if r.cfg.SuperRPC != "" {
+		r.log.Info("Dialling supervisor client", "url", r.cfg.SuperRPC)
+		cl, err := dial.DialSupervisorClientWithTimeout(ctx, r.log, r.cfg.SuperRPC)
 		if err != nil {
 			return fmt.Errorf("failed to dial supervisor: %w", err)
 		}

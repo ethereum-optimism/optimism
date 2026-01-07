@@ -391,7 +391,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 				log.Warn("payload is on v3 topic, but has nil blob gas used", "bad_hash", payload.BlockHash.String())
 				return pubsub.ValidationReject
 				// [REJECT] if the block is on a topic >= V3 and has a non-zero blob gas used field pre-Jovian
-			} else if !cfg.IsDAFootprintBlockLimit(uint64(payload.Timestamp)) && *payload.BlobGasUsed != 0 {
+			} else if !cfg.IsJovian(uint64(payload.Timestamp)) && *payload.BlobGasUsed != 0 {
 				log.Warn("payload is on v3 topic, but has non-zero blob gas used",
 					"bad_hash", payload.BlockHash.String(), "blob_gas_used", *payload.BlobGasUsed)
 				return pubsub.ValidationReject

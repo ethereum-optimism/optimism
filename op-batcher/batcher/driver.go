@@ -83,6 +83,7 @@ type RollupClient interface {
 
 // DriverSetup is the collection of input/output interfaces and configuration that the driver operates on.
 type DriverSetup struct {
+	closeApp          context.CancelCauseFunc
 	Log               log.Logger
 	Metr              metrics.Metricer
 	RollupConfig      *rollup.Config
@@ -99,7 +100,6 @@ type DriverSetup struct {
 // batches to L1 for availability.
 type BatchSubmitter struct {
 	DriverSetup
-
 	wg                               *sync.WaitGroup
 	shutdownCtx, killCtx             context.Context
 	cancelShutdownCtx, cancelKillCtx context.CancelFunc
@@ -585,6 +585,10 @@ func (l *BatchSubmitter) receiptsLoop(wg *sync.WaitGroup, receiptsCh chan txmgr.
 	l.Log.Info("receiptsLoop returning")
 }
 
+func ErrSetMaxDASizeRPCMethodUnavailable(endpoint string, err error) error {
+	return fmt.Errorf("%s unavailable at %s,  either enable it or disable throttling: %w", SetMaxDASizeMethod, endpoint, err)
+}
+
 // singleEndpointThrottler handles throttling for a specific endpoint
 func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSignal chan struct{}, endpoint string) {
 	defer wg.Done()
@@ -623,20 +627,13 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 			return
 		}
 
-		var rpcErr rpc.Error
-		if errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()).IsGenericRPCError() {
-			l.Log.Error("SetMaxDASize RPC method unavailable on endpoint, shutting down. Either enable it or disable throttling.",
-				"endpoint", endpoint, "err", err)
-
-			// We have a strict requirement that all endpoints must have the SetMaxDASize endpoint, and shut down if this RPC method is not available
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			// Call StopBatchSubmitting in another goroutine to avoid deadlock.
-			go func() {
-				_ = l.StopBatchSubmitting(ctx)
-			}()
+		if isCriticalThrottlingRPCError(err) {
+			// We have a strict requirement that all endpoints must have the SetMaxDASize endpoint,
+			// and shut down if this RPC method is not available or returns another application-level error.
+			l.shutdownOnCriticalError(ErrSetMaxDASizeRPCMethodUnavailable(endpoint, err))
 			return
 		} else if err != nil {
+			// Transport-level errors are retried.
 			l.Log.Warn("SetMaxDASize RPC failed for endpoint, retrying.", "endpoint", endpoint, "err", err)
 			retryTimer.Reset(retryInterval)
 			return
@@ -668,6 +665,21 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 		case <-retryTimer.C:
 			updateParams()
 		}
+	}
+}
+
+func isCriticalThrottlingRPCError(err error) bool {
+	var rpcErr rpc.Error
+	return errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()).IsGenericRPCError()
+}
+
+func (l *BatchSubmitter) shutdownOnCriticalError(err error) {
+	l.Log.Error("Critical error detected, attempting batcher shut down", "err", err)
+	if l.closeApp != nil {
+		// Call closeApp to trigger process to exit (gracefully) if l.closeApp is set.
+		l.closeApp(err)
+	} else {
+		l.Log.Warn("No closeApp function set, cannot shut down batcher on critical error", "err", err)
 	}
 }
 
@@ -749,7 +761,7 @@ func (l *BatchSubmitter) waitNodeSync() error {
 	cCtx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
 	defer cancel()
 
-	l1Tip, _, err := l.l1Tip(cCtx)
+	l1Tip, err := l.l1Tip(cCtx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve l1 tip: %w", err)
 	}
@@ -844,7 +856,7 @@ func (l *BatchSubmitter) clearState(ctx context.Context) {
 // publishTxToL1 submits a single state tx to the L1
 func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group, pi pubInfo) error {
 	// send all available transactions
-	l1tip, isPectra, err := l.l1Tip(ctx)
+	l1tip, err := l.l1Tip(ctx)
 	if err != nil {
 		l.Log.Error("Failed to query L1 tip", "err", err)
 		return err
@@ -855,7 +867,7 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	// Collect next transaction data. This pulls data out of the channel, so we need to make sure
 	// to put it back if ever da or txmgr requests fail, by calling l.recordFailedDARequest/recordFailedTx.
 	l.channelMgrMutex.Lock()
-	txdata, err := l.channelMgr.TxData(l1tip.ID(), isPectra, params.IsThrottling(), pi)
+	txdata, err := l.channelMgr.TxData(l1tip.ID(), params.IsThrottling(), pi)
 	l.channelMgrMutex.Unlock()
 
 	if err == io.EOF {
@@ -1067,16 +1079,14 @@ func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *types.Receipt) {
 
 // l1Tip gets the current L1 tip as a L1BlockRef. The passed context is assumed
 // to be a lifetime context, so it is internally wrapped with a network timeout.
-// It also returns a boolean indicating if the tip is from a Pectra chain.
-func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, bool, error) {
+func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, error) {
 	tctx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
 	defer cancel()
 	head, err := l.L1Client.HeaderByNumber(tctx, nil)
 	if err != nil {
-		return eth.L1BlockRef{}, false, fmt.Errorf("getting latest L1 block: %w", err)
+		return eth.L1BlockRef{}, fmt.Errorf("getting latest L1 block: %w", err)
 	}
-	isPectra := head.RequestsHash != nil // See https://eips.ethereum.org/EIPS/eip-7685
-	return eth.InfoToL1BlockRef(eth.HeaderBlockInfo(head)), isPectra, nil
+	return eth.InfoToL1BlockRef(eth.HeaderBlockInfo(head)), nil
 }
 
 func (l *BatchSubmitter) checkTxpool(queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef]) bool {

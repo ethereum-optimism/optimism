@@ -14,16 +14,15 @@ import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { GameTypes, Claim } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
-import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
@@ -35,6 +34,7 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 
 /// @title ForkLive
 /// @notice This script is called by Setup.sol as a preparation step for the foundry test suite, and is run as an
@@ -252,7 +252,7 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
                 (
                     IOPContractsManagerV2.SuperchainUpgradeInput({
                         superchainConfig: superchainConfig,
-                        extraInstructions: new IOPContractsManagerV2.ExtraInstruction[](0)
+                        extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
                     })
                 )
             )
@@ -260,7 +260,7 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
         if (success == false) {
             // Only acceptable revert reason is downgrade not allowed.
             assertTrue(
-                bytes4(reason) == IOPContractsManagerV2.OPContractsManagerV2_DowngradeNotAllowed.selector,
+                bytes4(reason) == IOPContractsManagerUtils.OPContractsManagerUtils_DowngradeNotAllowed.selector,
                 "Revert reason other than DowngradeNotAllowed"
             );
         }
@@ -297,7 +297,7 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
             )
         });
         disputeGameConfigs[2] = IOPContractsManagerV2.DisputeGameConfig({
-            enabled: isDevFeatureEnabled(DevFeatures.CANNON_KONA),
+            enabled: true,
             initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
             gameType: GameTypes.CANNON_KONA,
             gameArgs: abi.encode(
@@ -308,10 +308,15 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
         });
 
         // Add extra instructions to allow the DelayedWETH proxy to be deployed.
-        IOPContractsManagerV2.ExtraInstruction[] memory extraInstructions =
-            new IOPContractsManagerV2.ExtraInstruction[](1);
+        // TODO(#18502): Remove the extra instruction for custom gas token after U18 ships.
+        IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
+            new IOPContractsManagerUtils.ExtraInstruction[](2);
         extraInstructions[0] =
-            IOPContractsManagerV2.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") });
+            IOPContractsManagerUtils.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") });
+        extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
+            key: "overrides.cfg.useCustomGasToken",
+            data: abi.encode(false)
+        });
 
         vm.prank(_delegateCaller, true);
         (bool upgradeSuccess,) = address(_opcm).delegatecall(
@@ -363,14 +368,9 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
         address permissionedDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON));
         artifacts.save("PermissionedDisputeGame", permissionedDisputeGame);
 
-        IAnchorStateRegistry newAnchorStateRegistry;
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            newAnchorStateRegistry = IAnchorStateRegistry(
-                LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON)).anchorStateRegistry
-            );
-        } else {
-            newAnchorStateRegistry = IPermissionedDisputeGame(permissionedDisputeGame).anchorStateRegistry();
-        }
+        IAnchorStateRegistry newAnchorStateRegistry = IAnchorStateRegistry(
+            LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON)).anchorStateRegistry
+        );
         artifacts.save("AnchorStateRegistryProxy", address(newAnchorStateRegistry));
 
         // Get the lockbox address from the portal, and save it
@@ -379,14 +379,8 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
         artifacts.save("ETHLockboxProxy", lockboxAddress);
 
         // Get the new DelayedWETH address and save it (might be a new proxy).
-        IDelayedWETH newDelayedWeth;
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            newDelayedWeth = IDelayedWETH(
-                payable(LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON)).weth)
-            );
-        } else {
-            newDelayedWeth = IPermissionedDisputeGame(permissionedDisputeGame).weth();
-        }
+        IDelayedWETH newDelayedWeth =
+            IDelayedWETH(payable(LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON)).weth));
         artifacts.save("DelayedWETHProxy", address(newDelayedWeth));
         artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(newDelayedWeth)));
     }

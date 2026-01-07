@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-// Forge
-import { Test } from "forge-std/Test.sol";
-
 // Testing
+import { Test } from "test/setup/Test.sol";
 import { Setup } from "test/setup/Setup.sol";
 import { Events } from "test/setup/Events.sol";
 import { FFIInterface } from "test/setup/FFIInterface.sol";
