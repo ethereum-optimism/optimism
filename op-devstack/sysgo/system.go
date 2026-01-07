@@ -618,13 +618,35 @@ func DefaultSingleChainSystemWithFlashblocks(dest *SingleChainSystemWithFlashblo
 }
 
 func singleChainSystemWithFlashblocksOpts(ids *SingleChainSystemWithFlashblocksIDs, dest *SingleChainSystemWithFlashblocksIDs) stack.CombinedOption[*Orchestrator] {
+	return singleChainSystemWithFlashblocksOptsInternal(ids, dest, nil)
+}
+
+// RulesConfig holds configuration for rule-based block building
+type RulesConfig struct {
+	// Enabled determines if rules are enabled
+	Enabled bool
+	// ConfigPath is the path to the rules registry configuration file
+	ConfigPath string
+}
+
+// DefaultSingleChainSystemWithFlashblocksAndRules creates a flashblocks system with rules enabled
+func DefaultSingleChainSystemWithFlashblocksAndRules(dest *SingleChainSystemWithFlashblocksIDs, rulesConfig RulesConfig) stack.Option[*Orchestrator] {
+	ids := NewDefaultSingleChainSystemWithFlashblocksIDs(DefaultL1ID, DefaultL2AID)
+	return singleChainSystemWithFlashblocksOptsInternal(&ids, dest, &rulesConfig)
+}
+
+func singleChainSystemWithFlashblocksOptsInternal(ids *SingleChainSystemWithFlashblocksIDs, dest *SingleChainSystemWithFlashblocksIDs, rulesConfig *RulesConfig) stack.CombinedOption[*Orchestrator] {
 	opt := stack.Combine[*Orchestrator]()
 	// Precompute deterministic P2P identity and peering between sequencer EL and op-rbuilder EL.
 	seqID := NewELNodeIdentity(0)
 	builderID := NewELNodeIdentity(0) // allocate dynamic port for builder
 
 	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
-		o.P().Logger().Info("Setting up")
+		if rulesConfig != nil && rulesConfig.Enabled {
+			o.P().Logger().Info("Setting up flashblocks system with rules", "rules_config", rulesConfig.ConfigPath)
+		} else {
+			o.P().Logger().Info("Setting up flashblocks system")
+		}
 	}))
 
 	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
@@ -640,11 +662,19 @@ func singleChainSystemWithFlashblocksOpts(ids *SingleChainSystemWithFlashblocksI
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
 
 	opt.Add(WithL2ELNode(ids.L2EL, L2ELWithP2PConfig("127.0.0.1", seqID.Port, seqID.KeyHex(), nil, nil)))
-	opt.Add(WithOPRBuilderNode(ids.L2Builder, OPRBuilderWithNodeIdentity(builderID, "127.0.0.1", nil, nil)))
 	// Sequencer adds builder as regular static peer (not trusted)
 	opt.Add(WithL2ELP2PConnection(ids.L2EL, stack.L2ELNodeID(ids.L2Builder), false))
 	// Builder adds sequencer as trusted peer
 	opt.Add(WithL2ELP2PConnection(stack.L2ELNodeID(ids.L2Builder), ids.L2EL, true))
+
+	// Configure OPRBuilder with rules if enabled
+	builderOpts := []OPRBuilderNodeOption{
+		OPRBuilderWithNodeIdentity(builderID, "127.0.0.1", nil, nil),
+	}
+	if rulesConfig != nil && rulesConfig.Enabled && rulesConfig.ConfigPath != "" {
+		builderOpts = append(builderOpts, OPRBuilderNodeWithExtraArgs("--rules.enabled", "--rules.config-path="+rulesConfig.ConfigPath))
+	}
+	opt.Add(WithOPRBuilderNode(ids.L2Builder, builderOpts...))
 	opt.Add(WithRollupBoost(ids.L2RollupBoost, ids.L2EL, RollupBoostWithBuilderNode(ids.L2Builder)))
 
 	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, stack.L2ELNodeID(ids.L2RollupBoost), L2CLSequencer()))
