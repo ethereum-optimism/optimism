@@ -23,7 +23,6 @@ additional_compiler_profiles = [
 compilation_restrictions = [
   { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 5000 },
   { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 5000 },
-  { paths = "src/dispute/zk/OptimisticZkGame.sol", optimizer_runs = 5000 },
   { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 5000 },
   { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 5000 },
   { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 5000 },
@@ -156,7 +155,6 @@ additional_compiler_profiles = [
 compilation_restrictions = [
   { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/dispute/zk/OptimisticZkGame.sol", optimizer_runs = 0 },
   { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 0 },

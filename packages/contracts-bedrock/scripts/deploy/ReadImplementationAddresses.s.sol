@@ -38,8 +38,8 @@ contract ReadImplementationAddresses is Script {
         address disputeGameFactory;
         address mipsSingleton;
         address preimageOracleSingleton;
-        address faultDisputeGameV2;
-        address permissionedDisputeGameV2;
+        address faultDisputeGame;
+        address permissionedDisputeGame;
         address superFaultDisputeGame;
         address superPermissionedDisputeGame;
         address opcmDeployer;
@@ -85,8 +85,8 @@ contract ReadImplementationAddresses is Script {
             output_.ethLockbox = impls.ethLockboxImpl;
             output_.anchorStateRegistry = impls.anchorStateRegistryImpl;
             output_.optimismPortalInterop = impls.optimismPortalInteropImpl;
-            output_.faultDisputeGameV2 = impls.faultDisputeGameV2Impl;
-            output_.permissionedDisputeGameV2 = impls.permissionedDisputeGameV2Impl;
+            output_.faultDisputeGame = impls.faultDisputeGameImpl;
+            output_.permissionedDisputeGame = impls.permissionedDisputeGameImpl;
             output_.superFaultDisputeGame = impls.superFaultDisputeGameImpl;
             output_.superPermissionedDisputeGame = impls.superPermissionedDisputeGameImpl;
         } else {
@@ -104,8 +104,8 @@ contract ReadImplementationAddresses is Script {
             output_.ethLockbox = impls.ethLockboxImpl;
             output_.anchorStateRegistry = impls.anchorStateRegistryImpl;
             output_.optimismPortalInterop = impls.optimismPortalInteropImpl;
-            output_.faultDisputeGameV2 = impls.faultDisputeGameV2Impl;
-            output_.permissionedDisputeGameV2 = impls.permissionedDisputeGameV2Impl;
+            output_.faultDisputeGame = impls.faultDisputeGameImpl;
+            output_.permissionedDisputeGame = impls.permissionedDisputeGameImpl;
             output_.superFaultDisputeGame = impls.superFaultDisputeGameImpl;
             output_.superPermissionedDisputeGame = impls.superPermissionedDisputeGameImpl;
         }

@@ -118,8 +118,8 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["optimismPortalInteropImpl"] = "OptimismPortalInterop";
         fieldNameOverrides["mipsImpl"] = "MIPS64";
         fieldNameOverrides["ethLockboxImpl"] = "ETHLockbox";
-        fieldNameOverrides["faultDisputeGameV2Impl"] = "FaultDisputeGame";
-        fieldNameOverrides["permissionedDisputeGameV2Impl"] = "PermissionedDisputeGame";
+        fieldNameOverrides["faultDisputeGameImpl"] = "FaultDisputeGame";
+        fieldNameOverrides["permissionedDisputeGameImpl"] = "PermissionedDisputeGame";
         fieldNameOverrides["permissionlessDisputeGame1"] = "FaultDisputeGame";
         fieldNameOverrides["permissionlessDisputeGame2"] = "FaultDisputeGame";
         fieldNameOverrides["permissionedDisputeGame1"] = "PermissionedDisputeGame";

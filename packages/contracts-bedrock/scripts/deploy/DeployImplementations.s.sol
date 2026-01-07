@@ -98,8 +98,8 @@ contract DeployImplementations is Script {
         IAnchorStateRegistry anchorStateRegistryImpl;
         ISuperchainConfig superchainConfigImpl;
         IProtocolVersions protocolVersionsImpl;
-        IFaultDisputeGame faultDisputeGameV2Impl;
-        IPermissionedDisputeGame permissionedDisputeGameV2Impl;
+        IFaultDisputeGame faultDisputeGameImpl;
+        IPermissionedDisputeGame permissionedDisputeGameImpl;
         ISuperFaultDisputeGame superFaultDisputeGameImpl;
         ISuperPermissionedDisputeGame superPermissionedDisputeGameImpl;
         IStorageSetter storageSetterImpl;
@@ -175,8 +175,8 @@ contract DeployImplementations is Script {
             anchorStateRegistryImpl: address(_output.anchorStateRegistryImpl),
             delayedWETHImpl: address(_output.delayedWETHImpl),
             mipsImpl: address(_output.mipsSingleton),
-            faultDisputeGameV2Impl: address(_output.faultDisputeGameV2Impl),
-            permissionedDisputeGameV2Impl: address(_output.permissionedDisputeGameV2Impl),
+            faultDisputeGameImpl: address(_output.faultDisputeGameImpl),
+            permissionedDisputeGameImpl: address(_output.permissionedDisputeGameImpl),
             superFaultDisputeGameImpl: address(_output.superFaultDisputeGameImpl),
             superPermissionedDisputeGameImpl: address(_output.superPermissionedDisputeGameImpl)
         });
@@ -231,8 +231,8 @@ contract DeployImplementations is Script {
             anchorStateRegistryImpl: address(_output.anchorStateRegistryImpl),
             delayedWETHImpl: address(_output.delayedWETHImpl),
             mipsImpl: address(_output.mipsSingleton),
-            faultDisputeGameV2Impl: address(_output.faultDisputeGameV2Impl),
-            permissionedDisputeGameV2Impl: address(_output.permissionedDisputeGameV2Impl),
+            faultDisputeGameImpl: address(_output.faultDisputeGameImpl),
+            permissionedDisputeGameImpl: address(_output.permissionedDisputeGameImpl),
             superFaultDisputeGameImpl: address(_output.superFaultDisputeGameImpl),
             superPermissionedDisputeGameImpl: address(_output.superPermissionedDisputeGameImpl),
             storageSetterImpl: address(_output.storageSetterImpl)
@@ -583,7 +583,7 @@ contract DeployImplementations is Script {
             })
         );
         vm.label(address(impl), "FaultDisputeGameImpl");
-        _output.faultDisputeGameV2Impl = impl;
+        _output.faultDisputeGameImpl = impl;
     }
 
     function deployPermissionedDisputeGameImpl(Input memory _input, Output memory _output) private {
@@ -601,7 +601,7 @@ contract DeployImplementations is Script {
             })
         );
         vm.label(address(impl), "PermissionedDisputeGameImpl");
-        _output.permissionedDisputeGameV2Impl = impl;
+        _output.permissionedDisputeGameImpl = impl;
     }
 
     function deploySuperFaultDisputeGameImpl(Input memory _input, Output memory _output) private {
@@ -767,8 +767,8 @@ contract DeployImplementations is Script {
         opcmImplementations.anchorStateRegistryImpl = _implementations.anchorStateRegistryImpl;
         opcmImplementations.delayedWETHImpl = _implementations.delayedWETHImpl;
         opcmImplementations.mipsImpl = _implementations.mipsImpl;
-        opcmImplementations.faultDisputeGameImpl = _implementations.faultDisputeGameV2Impl;
-        opcmImplementations.permissionedDisputeGameImpl = _implementations.permissionedDisputeGameV2Impl;
+        opcmImplementations.faultDisputeGameImpl = _implementations.faultDisputeGameImpl;
+        opcmImplementations.permissionedDisputeGameImpl = _implementations.permissionedDisputeGameImpl;
 
         IOPContractsManagerStandardValidator impl = IOPContractsManagerStandardValidator(
             DeployUtils.createDeterministic({
@@ -841,8 +841,8 @@ contract DeployImplementations is Script {
         opcmImplementations.anchorStateRegistryImpl = _implementations.anchorStateRegistryImpl;
         opcmImplementations.delayedWETHImpl = _implementations.delayedWETHImpl;
         opcmImplementations.mipsImpl = _implementations.mipsImpl;
-        opcmImplementations.faultDisputeGameImpl = _implementations.faultDisputeGameV2Impl;
-        opcmImplementations.permissionedDisputeGameImpl = _implementations.permissionedDisputeGameV2Impl;
+        opcmImplementations.faultDisputeGameImpl = _implementations.faultDisputeGameImpl;
+        opcmImplementations.permissionedDisputeGameImpl = _implementations.permissionedDisputeGameImpl;
 
         IOPContractsManagerStandardValidator impl = IOPContractsManagerStandardValidator(
             DeployUtils.createDeterministic({
@@ -971,8 +971,8 @@ contract DeployImplementations is Script {
             address(_output.disputeGameFactoryImpl),
             address(_output.anchorStateRegistryImpl),
             address(_output.ethLockboxImpl),
-            address(_output.faultDisputeGameV2Impl),
-            address(_output.permissionedDisputeGameV2Impl)
+            address(_output.faultDisputeGameImpl),
+            address(_output.permissionedDisputeGameImpl)
         );
 
         if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {

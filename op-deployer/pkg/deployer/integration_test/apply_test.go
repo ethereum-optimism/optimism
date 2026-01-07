@@ -546,7 +546,7 @@ func TestProofParamOverrides(t *testing.T) {
 		return common.BigToHash(new(big.Int).SetUint64(val.(uint64)))
 	}
 
-	pdgImpl := st.ImplementationsDeployment.PermissionedDisputeGameV2Impl
+	pdgImpl := st.ImplementationsDeployment.PermissionedDisputeGameImpl
 	tests := []struct {
 		name    string
 		caster  func(t *testing.T, val any) common.Hash

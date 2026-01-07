@@ -89,8 +89,8 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		OptimismMintableErc20FactoryImpl: dio.OptimismMintableERC20FactoryImpl,
 		DisputeGameFactoryImpl:           dio.DisputeGameFactoryImpl,
 		AnchorStateRegistryImpl:          dio.AnchorStateRegistryImpl,
-		FaultDisputeGameV2Impl:           dio.FaultDisputeGameV2Impl,
-		PermissionedDisputeGameV2Impl:    dio.PermissionedDisputeGameV2Impl,
+		FaultDisputeGameImpl:             dio.FaultDisputeGameImpl,
+		PermissionedDisputeGameImpl:      dio.PermissionedDisputeGameImpl,
 		StorageSetterImpl:                dio.StorageSetterImpl,
 	}
 

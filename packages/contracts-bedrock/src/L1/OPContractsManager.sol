@@ -311,7 +311,7 @@ abstract contract OPContractsManagerBase {
     /// @param _input The deployment input data containing all necessary parameters
     /// @param _implementation The implementation addresses struct
     /// @param _output The deployment output containing proxy addresses
-    function _registerPermissionedGameV2(
+    function _registerPermissionedGame(
         OPContractsManager.DeployInput calldata _input,
         OPContractsManager.Implementations memory _implementation,
         OPContractsManager.DeployOutput memory _output
@@ -330,7 +330,7 @@ abstract contract OPContractsManagerBase {
         setDGFImplementation(
             _output.disputeGameFactoryProxy,
             GameTypes.PERMISSIONED_CANNON,
-            IDisputeGame(_implementation.permissionedDisputeGameV2Impl),
+            IDisputeGame(_implementation.permissionedDisputeGameImpl),
             gameArgs
         );
     }
@@ -426,13 +426,13 @@ abstract contract OPContractsManagerBase {
         if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
             return getImplementations().superPermissionedDisputeGameImpl;
         } else if (_gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
-            return getImplementations().permissionedDisputeGameV2Impl;
+            return getImplementations().permissionedDisputeGameImpl;
         } else if (
             _gameType.raw() == GameTypes.SUPER_CANNON.raw() || _gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
         ) {
             return getImplementations().superFaultDisputeGameImpl;
         } else if (_gameType.raw() == GameTypes.CANNON.raw() || _gameType.raw() == GameTypes.CANNON_KONA.raw()) {
-            return getImplementations().faultDisputeGameV2Impl;
+            return getImplementations().faultDisputeGameImpl;
         } else {
             revert OPContractsManager_InvalidGameType();
         }
@@ -833,7 +833,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         // All chains have the PermissionedDisputeGame, grab that.
         IDisputeGame permissionedDisputeGame = getGameImplementation(dgf, GameTypes.PERMISSIONED_CANNON);
 
-        setNewPermissionedGameImplV2({
+        setNewPermissionedGameImpl({
             _impls: _impls,
             _l2ChainId: _l2ChainId,
             _disputeGame: permissionedDisputeGame,
@@ -854,7 +854,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             Claim cannonPrestate = _opChainConfig.cannonPrestate.raw() != bytes32(0)
                 ? _opChainConfig.cannonPrestate
                 : getAbsolutePrestate(disputeGameFactory, address(permissionlessDisputeGame), GameTypes.CANNON);
-            setNewPermissionlessGameImplV2({
+            setNewPermissionlessGameImpl({
                 _impls: _impls,
                 _l2ChainId: _l2ChainId,
                 _newAbsolutePrestate: cannonPrestate,
@@ -865,7 +865,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             });
 
             if (_opChainConfig.cannonKonaPrestate.raw() != bytes32(0)) {
-                setNewPermissionlessGameImplV2({
+                setNewPermissionlessGameImpl({
                     _impls: _impls,
                     _l2ChainId: _l2ChainId,
                     _newAbsolutePrestate: _opChainConfig.cannonKonaPrestate,
@@ -924,7 +924,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     /// @param _newDelayedWeth The new delayed WETH implementation
     /// @param _newAnchorStateRegistryProxy The new anchor state registry proxy
     /// @param _opChainConfig The OP chain configuration
-    function setNewPermissionedGameImplV2(
+    function setNewPermissionedGameImpl(
         OPContractsManager.Implementations memory _impls,
         uint256 _l2ChainId,
         IDisputeGame _disputeGame,
@@ -951,7 +951,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             revert OPContractsManager.PrestateNotSet();
         }
 
-        IDisputeGame newGame = IDisputeGame(_impls.permissionedDisputeGameV2Impl);
+        IDisputeGame newGame = IDisputeGame(_impls.permissionedDisputeGameImpl);
         bytes memory gameArgs = LibGameArgs.encode(
             LibGameArgs.GameArgs({
                 absolutePrestate: absolutePrestate.raw(),
@@ -978,7 +978,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     /// @param _newDelayedWeth The new delayed WETH implementation
     /// @param _newAnchorStateRegistryProxy The new anchor state registry proxy
     /// @param _disputeGameFactory The dispute game factory proxy
-    function setNewPermissionlessGameImplV2(
+    function setNewPermissionlessGameImpl(
         OPContractsManager.Implementations memory _impls,
         uint256 _l2ChainId,
         Claim _newAbsolutePrestate,
@@ -994,7 +994,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             revert OPContractsManager.PrestateNotSet();
         }
 
-        IDisputeGame newGame = IDisputeGame(_impls.faultDisputeGameV2Impl);
+        IDisputeGame newGame = IDisputeGame(_impls.faultDisputeGameImpl);
         bytes memory gameArgs = LibGameArgs.encode(
             LibGameArgs.GameArgs({
                 absolutePrestate: _newAbsolutePrestate.raw(),
@@ -1228,7 +1228,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             data
         );
         // Extracted to helper function to avoid stack too deep error
-        _registerPermissionedGameV2(_input, implementation, output);
+        _registerPermissionedGame(_input, implementation, output);
 
         transferOwnership(address(output.disputeGameFactoryProxy), address(_input.roles.opChainProxyAdminOwner));
 
@@ -1864,8 +1864,8 @@ contract OPContractsManager is ISemver {
         address anchorStateRegistryImpl;
         address delayedWETHImpl;
         address mipsImpl;
-        address faultDisputeGameV2Impl;
-        address permissionedDisputeGameV2Impl;
+        address faultDisputeGameImpl;
+        address permissionedDisputeGameImpl;
         address superFaultDisputeGameImpl;
         address superPermissionedDisputeGameImpl;
     }
