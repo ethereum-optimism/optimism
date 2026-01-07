@@ -19,6 +19,7 @@ type ChannelCompressor interface {
 	Close() error
 	Reset()
 	Len() int
+	// StaticBytesLen returns the number of header bytes written to the buffer at construction time
 	StaticBytesLen() int
 	Read([]byte) (int, error)
 	GetCompressed() *bytes.Buffer

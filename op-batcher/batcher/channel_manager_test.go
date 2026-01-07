@@ -1074,6 +1074,10 @@ func TestChannelManager_SingleBlockBiggerThanMaxFrameSize(t *testing.T) {
 			require.NoError(m.processBlocks())
 
 			// The block should have been moved into the channel
+			// This test is a regression test for a bug where the channel manager would not
+			// correctly handle a single block that was bigger than the maximum frame size,
+			// because it incorrectly interpreted the
+			// static header bytes written to the buffer at construction time as block data.
 			assert.Equal(0, m.pendingBlocks())
 			assert.Equal(1, len(channel.blocks), "channel should have one block")
 		})
