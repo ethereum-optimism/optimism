@@ -90,7 +90,6 @@ func TestGetStepData(t *testing.T) {
 		require.Equal(t, expected, value)
 		expectedProof := common.FromHex("08028e3c0000000000000000000000003c01000a24210b7c00200008000000008fa40004")
 		require.Equal(t, expectedProof, proof)
-		// TODO: Need to add some oracle data
 		require.Nil(t, data)
 		require.Empty(t, generator.generated)
 	})
