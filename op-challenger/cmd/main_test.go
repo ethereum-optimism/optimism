@@ -95,15 +95,15 @@ func TestL1Beacon(t *testing.T) {
 	})
 }
 
-func TestSuperRpc(t *testing.T) {
+func TestSuperNodeRpc(t *testing.T) {
 	t.Run("RequiredForSuperCannon", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag super-rpc is required", addRequiredArgsExcept(gameTypes.SuperCannonGameType, "--super-rpc"))
+		verifyArgsInvalid(t, "flag supernode-rpc is required", addRequiredArgsExcept(gameTypes.SuperCannonGameType, "--supernode-rpc"))
 	})
 	t.Run("RequiredForSuperPermissioned", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag super-rpc is required", addRequiredArgsExcept(gameTypes.SuperPermissionedGameType, "--super-rpc"))
+		verifyArgsInvalid(t, "flag supernode-rpc is required", addRequiredArgsExcept(gameTypes.SuperPermissionedGameType, "--supernode-rpc"))
 	})
 	t.Run("RequiredForSuperCannonKona", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag super-rpc is required", addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--super-rpc"))
+		verifyArgsInvalid(t, "flag supernode-rpc is required", addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--supernode-rpc"))
 	})
 
 	for _, gameType := range gameTypes.SupportedGameTypes {
@@ -113,25 +113,25 @@ func TestSuperRpc(t *testing.T) {
 		}
 
 		t.Run("NotRequiredForGameType-"+gameType.String(), func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(gameType, "--super-rpc"))
+			configForArgs(t, addRequiredArgsExcept(gameType, "--supernode-rpc"))
 		})
 	}
 
 	t.Run("Valid-SuperCannon", func(t *testing.T) {
 		url := "http://localhost/super"
-		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperCannonGameType, "--super-rpc", "--super-rpc", url))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperCannonGameType, "--supernode-rpc", "--supernode-rpc", url))
 		require.Equal(t, url, cfg.SuperRPC)
 	})
 
 	t.Run("Valid-SuperPermissioned", func(t *testing.T) {
 		url := "http://localhost/super"
-		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperPermissionedGameType, "--super-rpc", "--super-rpc", url))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperPermissionedGameType, "--supernode-rpc", "--supernode-rpc", url))
 		require.Equal(t, url, cfg.SuperRPC)
 	})
 
 	t.Run("Valid-SuperCannonKona", func(t *testing.T) {
 		url := "http://localhost/super"
-		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--super-rpc", "--super-rpc", url))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--supernode-rpc", "--supernode-rpc", url))
 		require.Equal(t, url, cfg.SuperRPC)
 	})
 }
@@ -1023,7 +1023,7 @@ func requiredArgs(gameType gameTypes.GameType) map[string]string {
 
 func addRequiredSuperCannonArgs(args map[string]string) {
 	addRequiredCannonBaseArgs(args)
-	args["--super-rpc"] = superRpc
+	args["--supernode-rpc"] = superRpc
 }
 
 func addRequiredCannonArgs(args map[string]string) {
@@ -1056,7 +1056,7 @@ func addRequiredCannonKonaBaseArgs(args map[string]string) {
 
 func addRequiredSuperCannonKonaArgs(args map[string]string) {
 	addRequiredCannonKonaBaseArgs(args)
-	args["--super-rpc"] = superRpc
+	args["--supernode-rpc"] = superRpc
 }
 
 func toArgList(req map[string]string) []string {
