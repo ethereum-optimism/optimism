@@ -153,8 +153,7 @@ func (s *Service) initL1Clients(ctx context.Context, cfg *config.Config) error {
 	}
 	s.l1RPC = pollClient
 
-	// TODO: Make RPCKind configurable
-	l1Client, err := sources.NewL1Client(s.l1RPC, s.logger, s.metrics, sources.L1ClientSimpleConfig(true, sources.RPCKindAny, 100))
+	l1Client, err := sources.NewL1Client(s.l1RPC, s.logger, s.metrics, sources.L1ClientSimpleConfig(true, cfg.L1RPCKind, 100))
 	if err != nil {
 		return fmt.Errorf("failed to dial L1: %w", err)
 	}
