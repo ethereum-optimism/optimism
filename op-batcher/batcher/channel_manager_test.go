@@ -1082,6 +1082,8 @@ func TestChannelManager_SingleBlockBiggerThanMaxFrameSize(t *testing.T) {
 			assert.Equal(1, len(channel.blocks), "channel should have one block")
 		})
 	}
+}
+
 // TestChannelManager_getReadyChannel_NilChannel verifies that getReadyChannel
 // handles nil currentChannel gracefully when forcePublish is true.
 // This is a regression test for a nil pointer dereference bug.
