@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -30,7 +31,7 @@ func TestManageAddGameTypeV2_CLI(t *testing.T) {
 	t.Run("missing required flag --config", func(t *testing.T) {
 		runner := NewCLITestRunnerWithNetwork(t)
 		runner.ExpectErrorContains(t, []string{
-			"manage", "add-game-type-opcm-v2",
+			"manage", "add-game-type-v2",
 			"--l1-rpc-url", runner.l1RPC,
 		}, nil, "missing required flag: config")
 	})
@@ -55,7 +56,7 @@ func TestManageAddGameTypeV2_CLI(t *testing.T) {
 		require.NoError(t, os.WriteFile(configFile, configData, 0o644))
 
 		runner.ExpectErrorContains(t, []string{
-			"manage", "add-game-type-opcm-v2",
+			"manage", "add-game-type-v2",
 			"--config", configFile,
 		}, nil, "missing required flag: l1-rpc-url")
 	})
@@ -63,7 +64,7 @@ func TestManageAddGameTypeV2_CLI(t *testing.T) {
 	t.Run("invalid config file path", func(t *testing.T) {
 		runner := NewCLITestRunnerWithNetwork(t)
 		runner.ExpectErrorContains(t, []string{
-			"manage", "add-game-type-opcm-v2",
+			"manage", "add-game-type-v2",
 			"--config", "/nonexistent/path/config.json",
 			"--l1-rpc-url", runner.l1RPC,
 		}, nil, "failed to read config file")
@@ -78,7 +79,7 @@ func TestManageAddGameTypeV2_CLI(t *testing.T) {
 		require.NoError(t, os.WriteFile(configFile, []byte("{invalid json}"), 0o644))
 
 		runner.ExpectErrorContains(t, []string{
-			"manage", "add-game-type-opcm-v2",
+			"manage", "add-game-type-v2",
 			"--config", configFile,
 			"--l1-rpc-url", runner.l1RPC,
 		}, nil, "failed to upgrade")
@@ -99,14 +100,14 @@ func TestManageAddGameTypeV2_CLI(t *testing.T) {
 		require.NoError(t, os.WriteFile(configFile, configData, 0o644))
 
 		runner.ExpectErrorContains(t, []string{
-			"manage", "add-game-type-opcm-v2",
+			"manage", "add-game-type-v2",
 			"--config", configFile,
 			"--l1-rpc-url", runner.l1RPC,
 		}, nil, "failed to upgrade")
 	})
 }
 
-// Tests the manage add-game-type-opcm-v2 command, from the CLI to the actual contract execution through the Solidity scripts.
+// Tests the manage add-game-type-v2 command, from the CLI to the actual contract execution through the Solidity scripts.
 func TestManageAddGameTypeV2_Integration(t *testing.T) {
 	// TODO(#18718): Update this to use an actual deployed OPCM V2 contract once we have one.
 	// For now, we manually deploy the OPCM V2 contract using bootstrap.Implementations.
@@ -191,15 +192,39 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(configFile, configData, 0o644))
 
+	// Create a custom cache directory
+	customCacheDir := filepath.Join(workDir, "custom-cache")
+	require.NoError(t, os.MkdirAll(customCacheDir, 0755))
+
 	// Run the CLI command
 	output := runner.ExpectSuccess(t, []string{
-		"manage", "add-game-type-opcm-v2",
+		"manage", "add-game-type-v2",
 		"--config", configFile,
 		"--l1-rpc-url", runner.l1RPC,
 		"--outfile", outputFile,
+		"--cache-dir", customCacheDir,
 	}, nil)
 
 	t.Logf("Command output (logs):\n%s", output)
+
+	// Verify the cache directory was created
+	entries, err := os.ReadDir(customCacheDir)
+	require.NoError(t, err)
+	require.NotEmpty(t, entries, "cache directory should not be empty")
+
+	// Verify the cache directory contains the expected files
+	hasCacheFile := false
+	for _, entry := range entries {
+		if !entry.IsDir() && (strings.HasSuffix(entry.Name(), ".tgz") || strings.HasSuffix(entry.Name(), ".tzst")) {
+			hasCacheFile = true
+			// Verify the file has content
+			info, err := entry.Info()
+			require.NoError(t, err)
+			require.Greater(t, info.Size(), int64(0), "Cache file should not be empty")
+			break
+		}
+	}
+	require.True(t, hasCacheFile, "Cache directory should contain a cached artifact file")
 
 	// Verify output file was created
 	require.FileExists(t, outputFile)

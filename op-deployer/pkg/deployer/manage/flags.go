@@ -3,6 +3,7 @@ package manage
 import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/urfave/cli/v2"
 )
@@ -134,22 +135,6 @@ var (
 		Usage:   "Chain ID of the L2 network to retrieve from state. Must be specified when --workdir is set.",
 		EnvVars: deployer.PrefixEnvVar("CHAIN_ID"),
 	}
-
-	// AddGameType & Migrate Interop OPCM V2 Flags
-	// These flags are used for the upgrade command, which is used under the hood for the add-game-type-v2 and migrate-v2 commands.
-	ConfigFlag = &cli.StringFlag{
-		Name:  "config",
-		Usage: "path to the config file",
-	}
-	OverrideArtifactsURLFlag = &cli.StringFlag{
-		Name:  "override-artifacts-url",
-		Usage: "override the artifacts URL",
-	}
-	OutfileFlag = &cli.StringFlag{
-		Name:  "outfile",
-		Usage: "path to write the output to, or - for stdout",
-		Value: "-",
-	}
 )
 
 var Commands = cli.Commands{
@@ -180,13 +165,14 @@ var Commands = cli.Commands{
 		Action: AddGameTypeCLI,
 	},
 	&cli.Command{
-		Name:  "add-game-type-opcm-v2",
+		Name:  "add-game-type-v2",
 		Usage: "allows to add new game types to the chain using the OPContractsManager V2",
 		Flags: append([]cli.Flag{
 			deployer.L1RPCURLFlag,
-			ConfigFlag,
-			OverrideArtifactsURLFlag,
-			OutfileFlag,
+			upgrade.ConfigFlag,
+			upgrade.OverrideArtifactsURLFlag,
+			upgrade.OutfileFlag,
+			deployer.CacheDirFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
 		Action: AddGameTypeOPCMV2CLI,
 	},
