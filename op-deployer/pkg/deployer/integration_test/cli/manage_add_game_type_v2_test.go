@@ -229,82 +229,27 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 
 	expectedSelector := common.FromHex("8a847e2e")
 	actualSelector := calldata[:4]
-	require.Equal(t, expectedSelector, actualSelector,
+	require.Equal(t, hex.EncodeToString(expectedSelector), hex.EncodeToString(actualSelector),
 		"calldata should contain opcmV2.upgrade function selector 0x8a847e2e, got: %s", hex.EncodeToString(actualSelector))
 
-	// Decode the calldata parameters to verify they match the input config
-	// The function signature is: upgrade((address systemConfig,(bool enabled,uint256 initBond,uint32 gameType,bytes gameArgs)[] disputeGameConfigs,(string key,bytes data)[] extraInstructions))
-	upgradeInputType, err := abi.NewType("tuple", "struct", []abi.ArgumentMarshaling{
-		{Name: "systemConfig", Type: "address"},
-		{Name: "disputeGameConfigs", Type: "tuple[]", Components: []abi.ArgumentMarshaling{
-			{Name: "enabled", Type: "bool"},
-			{Name: "initBond", Type: "uint256"},
-			{Name: "gameType", Type: "uint32"},
-			{Name: "gameArgs", Type: "bytes"},
-		}},
-		{Name: "extraInstructions", Type: "tuple[]", Components: []abi.ArgumentMarshaling{
-			{Name: "key", Type: "string"},
-			{Name: "data", Type: "bytes"},
-		}},
-	})
-	require.NoError(t, err, "failed to create upgrade input ABI type")
+	// Verify the calldata contains the correct upgrade input
+	// We construct the expected calldata from testConfig
+	expectedEncodedParams, err := testConfig.EncodedUpgradeInputV2()
+	require.NoError(t, err, "failed to encode expected upgrade input")
 
-	// Decode the parameters
-	// We need to skip the 4-byte function selector
-	decoded, err := abi.Arguments{{Type: upgradeInputType}}.Unpack(calldata[4:])
-	require.NoError(t, err, "failed to decode upgrade calldata")
-	require.Len(t, decoded, 1, "decoded calldata should have one argument")
+	// Construct expected calldata: function selector + encoded parameters
+	expectedCalldata := append(expectedSelector, expectedEncodedParams...)
 
-	// Extract the upgrade input struct
-	upgradeInputMap, ok := decoded[0].(map[string]interface{})
-	require.True(t, ok, "decoded upgrade input should be a map")
+	// Compare the full calldata (excluding the selector which we already verified)
+	require.Equal(t, len(expectedCalldata), len(calldata),
+		"calldata length mismatch: expected %d bytes, got %d bytes", len(expectedCalldata), len(calldata))
 
-	// Verify systemConfig address matches the input config
-	systemConfigAddr, ok := upgradeInputMap["systemConfig"].(common.Address)
-	require.True(t, ok, "systemConfig should be an address")
-	require.Equal(t, systemConfigProxy, systemConfigAddr,
-		"systemConfig address should match config: expected %s, got %s", systemConfigProxy.Hex(), systemConfigAddr.Hex())
+	// Compare the encoded parameters (skip the 4-byte selector)
+	require.Equal(t, hex.EncodeToString(expectedEncodedParams), hex.EncodeToString(calldata[4:]),
+		"encoded upgrade input parameters do not match expected values")
 
-	// Verify disputeGameConfigs array length matches
-	disputeGameConfigs, ok := upgradeInputMap["disputeGameConfigs"].([]interface{})
-	require.True(t, ok, "disputeGameConfigs should be an array")
-	require.Len(t, disputeGameConfigs, len(testConfig.UpgradeInputV2.DisputeGameConfigs),
-		"disputeGameConfigs length should match config: expected %d, got %d",
-		len(testConfig.UpgradeInputV2.DisputeGameConfigs), len(disputeGameConfigs))
-
-	// Verify first dispute game config matches (Cannon - enabled)
-	if len(disputeGameConfigs) > 0 {
-		cfg0Map, ok := disputeGameConfigs[0].(map[string]interface{})
-		require.True(t, ok, "disputeGameConfig[0] should be a map")
-		enabled0, ok := cfg0Map["enabled"].(bool)
-		require.True(t, ok, "disputeGameConfig[0].enabled should be a bool")
-		require.True(t, enabled0, "disputeGameConfig[0] should be enabled (Cannon)")
-		gameType0, ok := cfg0Map["gameType"].(uint32)
-		require.True(t, ok, "disputeGameConfig[0].gameType should be a uint32")
-		require.Equal(t, uint32(embedded.GameTypeCannon), gameType0,
-			"disputeGameConfig[0].gameType should be Cannon (0), got %d", gameType0)
-	}
-
-	// Verify third dispute game config matches (CannonKona - disabled)
-	if len(disputeGameConfigs) > 2 {
-		cfg2Map, ok := disputeGameConfigs[2].(map[string]interface{})
-		require.True(t, ok, "disputeGameConfig[2] should be a map")
-		enabled2, ok := cfg2Map["enabled"].(bool)
-		require.True(t, ok, "disputeGameConfig[2].enabled should be a bool")
-		require.False(t, enabled2, "disputeGameConfig[2] should be disabled (CannonKona)")
-		gameType2, ok := cfg2Map["gameType"].(uint32)
-		require.True(t, ok, "disputeGameConfig[2].gameType should be a uint32")
-		require.Equal(t, uint32(embedded.GameTypeCannonKona), gameType2,
-			"disputeGameConfig[2].gameType should be CannonKona (8), got %d", gameType2)
-	}
-
-	// Verify extraInstructions array length matches
-	extraInstructions, ok := upgradeInputMap["extraInstructions"].([]interface{})
-	require.True(t, ok, "extraInstructions should be an array")
-	require.Len(t, extraInstructions, len(testConfig.UpgradeInputV2.ExtraInstructions),
-		"extraInstructions length should match config: expected %d, got %d",
-		len(testConfig.UpgradeInputV2.ExtraInstructions), len(extraInstructions))
-
+	// Verify To is the prank address
+	require.Equal(t, l1ProxyAdminOwner.Hex(), dump[0].To.Hex(), "calldata should be sent to prank address")
 }
 
 // TODO(#18718): Remove this once we have a deployed OPCM V2 contract.
