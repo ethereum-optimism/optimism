@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -29,13 +30,13 @@ type Provider struct {
 	toClose            []func()
 }
 
-func NewProvider(ctx context.Context, logger log.Logger, cfg *config.Config, l1Client *ethclient.Client) *Provider {
+func NewProvider(ctx context.Context, logger log.Logger, cfg *config.Config, l1Client *ethclient.Client, rpcClient client.RPC) *Provider {
 	return &Provider{
 		ctx:      ctx,
 		logger:   logger,
 		cfg:      cfg,
 		l1Client: l1Client,
-		caller:   batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize),
+		caller:   batching.NewMultiCaller(rpcClient, batching.DefaultBatchSize),
 	}
 }
 
