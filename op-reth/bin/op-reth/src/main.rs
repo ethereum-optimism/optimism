@@ -59,7 +59,7 @@ struct Args {
     pub proofs_history_window: u64,
 
     /// Interval between proof-storage prune runs. Accepts human-friendly durations
-    /// like "100s", "5m", "1h". Defaults to 1h.
+    /// like "100s", "5m", "1h". Defaults to 15s.
     ///
     /// - Shorter intervals prune smaller batches more often, so each prune run tends to be faster
     ///   and the blocking pause for writes is shorter, at the cost of more frequent pauses.
@@ -73,7 +73,7 @@ struct Args {
     #[arg(
         long = "proofs-history.prune-interval",
         value_name = "PROOFS_HISTORY_PRUNE_INTERVAL",
-        default_value = "1h",
+        default_value = "15s",
         value_parser = humantime::parse_duration
     )]
     pub proofs_history_prune_interval: Duration,

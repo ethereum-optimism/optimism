@@ -1087,7 +1087,7 @@ Rollup:
           [default: 1296000]
 
       --proofs-history.prune-interval <PROOFS_HISTORY_PRUNE_INTERVAL>
-          Interval between proof-storage prune runs. Accepts human-friendly durations like "100s", "5m", "1h". Defaults to 1h.
+          Interval between proof-storage prune runs. Accepts human-friendly durations like "100s", "5m", "1h". Defaults to 15s.
 
           - Shorter intervals prune smaller batches more often, so each prune run tends to be faster and the blocking pause for writes is shorter, at the cost of more frequent pauses. - Longer intervals prune larger batches less often, which reduces how often pruning runs, but each run can take longer and block writes for longer.
 
@@ -1095,7 +1095,7 @@ Rollup:
 
           CLI: `--proofs-history.prune-interval 10m`
 
-          [default: 1h]
+          [default: 15s]
 
 Logging:
       --log.stdout.format <FORMAT>
