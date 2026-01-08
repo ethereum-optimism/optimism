@@ -221,7 +221,7 @@ func (s *Service) initBondClaims() error {
 func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
 	oracles := registry.NewOracleRegistry()
-	s.clientProvider = challengerClient.NewProvider(ctx, s.logger, cfg, s.l1EthClient, s.l1RPC)
+	s.clientProvider = challengerClient.NewProvider(ctx, s.logger, cfg, s.l1Client, s.l1RPC)
 	err := fault.RegisterGameTypes(ctx, s.systemClock, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, oracles, s.txSender, s.factoryContract, s.clientProvider, cfg.SelectiveClaimResolution, s.claimants)
 	if err != nil {
 		return err

@@ -18,7 +18,7 @@ type Provider struct {
 	ctx      context.Context
 	logger   log.Logger
 	cfg      *config.Config
-	l1Client *ethclient.Client
+	l1Client *sources.L1Client
 	caller   *batching.MultiCaller
 
 	l2EL               *ethclient.Client
@@ -30,7 +30,7 @@ type Provider struct {
 	toClose            []func()
 }
 
-func NewProvider(ctx context.Context, logger log.Logger, cfg *config.Config, l1Client *ethclient.Client, rpcClient client.RPC) *Provider {
+func NewProvider(ctx context.Context, logger log.Logger, cfg *config.Config, l1Client *sources.L1Client, rpcClient client.RPC) *Provider {
 	return &Provider{
 		ctx:      ctx,
 		logger:   logger,
@@ -46,7 +46,7 @@ func (c *Provider) Close() {
 	}
 }
 
-func (c *Provider) L1Client() *ethclient.Client {
+func (c *Provider) L1Client() *sources.L1Client {
 	return c.l1Client
 }
 
