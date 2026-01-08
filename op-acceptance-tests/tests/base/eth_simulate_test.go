@@ -78,5 +78,4 @@ func TestEthSimulateV1(gt *testing.T) {
 	)
 	t.Log("resp", resp)
 	require.Error(t, err, "eth_simulateV1 cannot be used on the genesis block")
-
 }
