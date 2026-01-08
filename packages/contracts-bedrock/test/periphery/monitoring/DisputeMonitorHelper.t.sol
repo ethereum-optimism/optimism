@@ -213,18 +213,21 @@ contract DisputeMonitorHelper_GetUnresolvedGames_Test is DisputeMonitorHelper_Te
         assertEq(results.length, 0, "empty case returned games");
     }
 
-    /// @notice Test that getting unresolved games between two timestamps returns an empty array.
-    function test_getUnresolvedGames_betweenTimestamps_succeeds() external {
-        // Select two timestamps.
-        uint256 timestamp1 = 100;
-        uint256 timestamp2 = 200;
+    /// @notice Fuzz test that getting unresolved games between two timestamps returns empty array.
+    /// @param _timestamp1 The timestamp for the first game.
+    /// @param _gap The gap between the two game timestamps.
+    function testFuzz_getUnresolvedGames_betweenTimestamps_succeeds(uint256 _timestamp1, uint256 _gap) external {
+        // Bound timestamps to ensure valid range with a gap of at least 2.
+        _timestamp1 = bound(_timestamp1, 1, type(uint64).max - 1000);
+        _gap = bound(_gap, 2, 1000);
+        uint256 timestamp2 = _timestamp1 + _gap;
 
         // Create two games.
-        createGameWithTimestamp(timestamp1, bytes32(uint256(1)));
+        createGameWithTimestamp(_timestamp1, bytes32(uint256(1)));
         createGameWithTimestamp(timestamp2, bytes32(uint256(2)));
 
         // Select a range that falls between the two timestamps.
-        uint256 rangeStart = timestamp1 + 1;
+        uint256 rangeStart = _timestamp1 + 1;
         uint256 rangeEnd = timestamp2 - 1;
 
         // Get the unresolved games.
@@ -294,6 +297,22 @@ contract DisputeMonitorHelper_toRpcHexString_Test is DisputeMonitorHelper_TestIn
         uint256 value = 136210625;
         string memory hexString = helper.toRpcHexString(value);
         assertEq(hexString, "0x81e68c1");
+    }
+
+    /// @notice Test that the toRpcHexString function converts zero to "0x0".
+    function test_toRpcHexString_zero_succeeds() external view {
+        string memory hexString = helper.toRpcHexString(0);
+        assertEq(hexString, "0x0");
+    }
+
+    /// @notice Fuzz test that verifies toRpcHexString output starts with "0x".
+    /// @param _value The value to convert.
+    function testFuzz_toRpcHexString_startsWithPrefix_succeeds(uint256 _value) external view {
+        string memory hexString = helper.toRpcHexString(_value);
+        bytes memory hexBytes = bytes(hexString);
+        assertGe(hexBytes.length, 3, "hex string too short");
+        assertEq(hexBytes[0], "0", "should start with 0");
+        assertEq(hexBytes[1], "x", "should have x prefix");
     }
 }
 
@@ -405,32 +424,34 @@ contract DisputeMonitorHelper_Search_Test is DisputeMonitorHelper_TestInit {
         assertEq(foundIndex, type(uint256).max, "found index should be max");
     }
 
-    /// @notice Test that searching for a game older than all games returns the max index.
-    function test_search_olderThanEverything_succeeds() external {
-        // Select a target timestamp.
-        uint256 targetTimestamp = vm.randomUint(1, 100);
+    /// @notice Fuzz test that searching for a game older than all games returns the max index.
+    /// @param _targetTimestamp The timestamp to create the game at.
+    function testFuzz_search_olderThanAllGames_succeeds(uint256 _targetTimestamp) external {
+        // Bound the timestamp to ensure we can subtract 1 without underflow.
+        _targetTimestamp = bound(_targetTimestamp, 1, type(uint64).max);
 
         // Create one game.
-        createGameWithTimestamp(targetTimestamp, bytes32(uint256(1)));
+        createGameWithTimestamp(_targetTimestamp, bytes32(uint256(1)));
 
         // Search by providing a timestamp that is before all games.
         uint256 foundIndex = helper.search(
-            disputeGameFactory, targetTimestamp - 1, DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ
+            disputeGameFactory, _targetTimestamp - 1, DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ
         );
         assertEq(foundIndex, type(uint256).max, "found index should be max");
     }
 
-    /// @notice Test that searching for a game newer than all games returns the max index.
-    function test_search_newerThanEverything_succeeds() external {
-        // Select a target timestamp.
-        uint256 targetTimestamp = vm.randomUint(1, 100);
+    /// @notice Fuzz test that searching for a game newer than all games returns the max index.
+    /// @param _targetTimestamp The timestamp to create the game at.
+    function testFuzz_search_newerThanAllGames_succeeds(uint256 _targetTimestamp) external {
+        // Bound the timestamp to ensure we can add 1 without overflow.
+        _targetTimestamp = bound(_targetTimestamp, 1, type(uint64).max - 1);
 
         // Create one game.
-        createGameWithTimestamp(targetTimestamp, bytes32(uint256(1)));
+        createGameWithTimestamp(_targetTimestamp, bytes32(uint256(1)));
 
         // Search by providing a timestamp that is after all games.
         uint256 foundIndex = helper.search(
-            disputeGameFactory, targetTimestamp + 1, DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ
+            disputeGameFactory, _targetTimestamp + 1, DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ
         );
         assertEq(foundIndex, type(uint256).max, "found index should be max");
     }
