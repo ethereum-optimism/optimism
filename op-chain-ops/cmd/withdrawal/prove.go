@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	opnode_bindings "github.com/ethereum-optimism/optimism/op-node/bindings"
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
@@ -15,6 +17,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -56,6 +60,11 @@ var (
 		Name:    "rollup.config",
 		Usage:   "Path to the rollup config of the target chain. Only required for proving using super roots.",
 		EnvVars: op_service.PrefixEnvVar(EnvVarPrefix, "ROLLUP_CONFIG"),
+	}
+	DisputeGameFlag = &cli.StringFlag{
+		Name:    "dispute-game",
+		Usage:   "Address of SuperFaultDisputeGame. When provided, reads super root proof from on-chain extraData instead of supervisor-rpc. Requires --rollup.config but not --supervisor or --depset.",
+		EnvVars: op_service.PrefixEnvVar(EnvVarPrefix, "DISPUTE_GAME"),
 	}
 )
 
@@ -130,10 +139,39 @@ func ProveWithdrawal(ctx *cli.Context) error {
 			return err
 		}
 	} else {
-		logger.Info("Proving withdrawal using super root proof")
-		txData, err = txDataForSuperRootProof(ctx, l1EthClient, proofClient, l2Client, txHash, factory, portal)
-		if err != nil {
-			return err
+		// Check if --dispute-game flag is provided for the new flow
+		if disputeGameStr := ctx.String(DisputeGameFlag.Name); disputeGameStr != "" {
+			logger.Info("Proving withdrawal using super root from dispute game extraData")
+			disputeGameAddr := common.HexToAddress(disputeGameStr)
+
+			// Load rollup config (still required for timestamp→block number conversion)
+			rollupCfg, err := loadRollupConfig(ctx, RollupConfigFlag.Name)
+			if err != nil {
+				return fmt.Errorf("failed to load rollup config: %w", err)
+			}
+
+			txData, err = txDataForSuperRootProofFromGame(
+				ctx.Context,
+				l1Client,
+				l1EthClient,
+				proofClient,
+				l2Client,
+				txHash,
+				disputeGameAddr,
+				portalAddr,
+				portal,
+				rollupCfg,
+			)
+			if err != nil {
+				return err
+			}
+		} else {
+			// Existing supervisor-based flow
+			logger.Info("Proving withdrawal using super root from supervisor")
+			txData, err = txDataForSuperRootProof(ctx, l1EthClient, proofClient, l2Client, txHash, factory, portal)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -242,6 +280,158 @@ func txDataForSuperRootProof(ctx *cli.Context, l1EthClient apis.EthClient, proof
 	return txData, nil
 }
 
+// txDataForSuperRootProofFromGame builds withdrawal proof tx data by reading the super root proof
+// directly from a SuperFaultDisputeGame's extraData, without requiring supervisor-rpc or depset.
+func txDataForSuperRootProofFromGame(
+	ctx context.Context,
+	l1Client *ethclient.Client,
+	l1EthClient apis.EthClient,
+	proofClient *gethclient.Client,
+	l2Client *ethclient.Client,
+	txHash common.Hash,
+	disputeGameAddr common.Address,
+	portalAddr common.Address,
+	portal *bindingspreview.OptimismPortal2,
+	rollupCfg *rollup.Config,
+) ([]byte, error) {
+	// Load ABI and prepare contract calls
+	gameABI := snapshots.LoadSuperFaultDisputeGameABI()
+
+	// Call extraData() to get encoded super root proof
+	extraDataCallData, err := gameABI.Pack("extraData")
+	if err != nil {
+		return nil, fmt.Errorf("failed to pack extraData call: %w", err)
+	}
+	extraDataResult, err := l1Client.CallContract(ctx, ethereum.CallMsg{
+		To:   &disputeGameAddr,
+		Data: extraDataCallData,
+	}, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call extraData: %w", err)
+	}
+
+	// Unpack extraData result (returns bytes)
+	unpackedExtra, err := gameABI.Unpack("extraData", extraDataResult)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack extraData: %w", err)
+	}
+	if len(unpackedExtra) == 0 {
+		return nil, errors.New("extraData returned empty result")
+	}
+	extraDataBytes, ok := unpackedExtra[0].([]byte)
+	if !ok {
+		return nil, errors.New("extraData result is not []byte")
+	}
+
+	// Decode super root proof from extraData
+	superRootProof, err := withdrawals.DecodeSuperRootProof(extraDataBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode super root proof: %w", err)
+	}
+
+	// Get target L2 chain ID from portal
+	targetChainID, err := l2ChainIDForPortal(ctx, l1EthClient, portal)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get target chain ID from portal: %w", err)
+	}
+
+	// Find output root index for target chain in the super root proof
+	var outputRootIndex *big.Int
+	for i, outputRoot := range superRootProof.OutputRoots {
+		if outputRoot.ChainID.Uint64() == targetChainID {
+			outputRootIndex = big.NewInt(int64(i))
+			break
+		}
+	}
+	if outputRootIndex == nil {
+		return nil, fmt.Errorf("target chain ID %d not found in super root proof", targetChainID)
+	}
+
+	// Get L2 sequence number (timestamp) from the dispute game
+	seqNumCallData, err := gameABI.Pack("l2SequenceNumber")
+	if err != nil {
+		return nil, fmt.Errorf("failed to pack l2SequenceNumber call: %w", err)
+	}
+	seqNumResult, err := l1Client.CallContract(ctx, ethereum.CallMsg{
+		To:   &disputeGameAddr,
+		Data: seqNumCallData,
+	}, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call l2SequenceNumber: %w", err)
+	}
+	unpackedSeq, err := gameABI.Unpack("l2SequenceNumber", seqNumResult)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack l2SequenceNumber: %w", err)
+	}
+	if len(unpackedSeq) == 0 {
+		return nil, errors.New("l2SequenceNumber returned empty result")
+	}
+	l2SequenceNumber, ok := unpackedSeq[0].(*big.Int)
+	if !ok {
+		return nil, errors.New("l2SequenceNumber result is not *big.Int")
+	}
+
+	// Convert sequence number (timestamp) to L2 block number using rollup config
+	l2BlockNumber, err := rollupCfg.TargetBlockNumber(l2SequenceNumber.Uint64())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get L2 block number from sequence number: %w", err)
+	}
+
+	// Fetch the L2 header at that block
+	l2Header, err := l2Client.HeaderByNumber(ctx, new(big.Int).SetUint64(l2BlockNumber))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get L2 header: %w", err)
+	}
+
+	// Get withdrawal receipt and parse MessagePassed event
+	receipt, err := l2Client.TransactionReceipt(ctx, txHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get withdrawal receipt: %w", err)
+	}
+	ev, err := withdrawals.ParseMessagePassed(receipt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse withdrawal event: %w", err)
+	}
+
+	// Build the withdrawal storage proof
+	withdrawalProof, storageRoot, err := withdrawals.GetWithdrawalProof(ctx, proofClient, ev, l2Header)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get withdrawal proof: %w", err)
+	}
+
+	// Pack the proveWithdrawalTransaction call data
+	txData, err := w3.MustNewFunc("proveWithdrawalTransaction("+
+		"(uint256 Nonce, address Sender, address Target, uint256 Value, uint256 GasLimit, bytes Data),"+
+		"address DisputeGameProxy,"+
+		"uint256 OutputRootIndex,"+
+		"(bytes1 Version, uint64 Timestamp, (uint256 ChainID, bytes32 Root)[] OutputRoots),"+
+		"(bytes32 Version, bytes32 StateRoot, bytes32 MessagePasserStorageRoot, bytes32 LatestBlockhash),"+
+		"bytes[])", "").EncodeArgs(
+		bindingspreview.TypesWithdrawalTransaction{
+			Nonce:    ev.Nonce,
+			Sender:   ev.Sender,
+			Target:   ev.Target,
+			Value:    ev.Value,
+			GasLimit: ev.GasLimit,
+			Data:     ev.Data,
+		},
+		disputeGameAddr,
+		outputRootIndex,
+		superRootProof,
+		opnode_bindings.TypesOutputRootProof{
+			Version:                  [32]byte{},
+			StateRoot:                l2Header.Root,
+			MessagePasserStorageRoot: storageRoot,
+			LatestBlockhash:          l2Header.Hash(),
+		},
+		withdrawalProof,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pack prove withdrawal transaction: %w", err)
+	}
+	return txData, nil
+}
+
 func l2ChainIDForPortal(ctx context.Context, l1EthClient apis.EthClient, portal *bindingspreview.OptimismPortal2) (uint64, error) {
 	systemConfigAddr, err := portal.SystemConfig(&bind.CallOpts{Context: ctx})
 	if err != nil {
@@ -265,6 +455,7 @@ func proveFlags() []cli.Flag {
 		SupervisorFlag,
 		DepSetFlag,
 		RollupConfigFlag,
+		DisputeGameFlag,
 	}
 	cliFlags = append(cliFlags, txmgr.CLIFlagsWithDefaults(EnvVarPrefix, txmgr.DefaultChallengerFlagValues)...)
 	cliFlags = append(cliFlags, oplog.CLIFlags(EnvVarPrefix)...)

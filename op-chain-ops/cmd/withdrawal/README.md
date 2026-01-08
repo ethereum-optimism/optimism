@@ -27,11 +27,22 @@ valid proposal is made for a L2 block at or after the initiating transaction was
 go run . prove --l1 <l1-el-rpc> --l2 <l2-el-rpc> --tx <init-tx-hash> --portal-address <portal-addr> --private-key <private-key>
 ```
 
-When proving super roots, you'll need to provide additional flags:
+When proving super roots, you have two options:
 
+**Option 1: Using dispute game address** (recommended - reads proof from on-chain):
+
+```shell
+go run . prove --l1 <l1-el-rpc> --l2 <l2-el-rpc> --tx <init-tx-hash> --portal-address <portal-addr> --private-key <private-key> \
+  --dispute-game <dispute-game-proxy-address> --rollup.config <path-to-rollup-config>
 ```
-shell
-go run . prove --l1 <l1-el-rpc> --l2 <l2-el-rpc> --tx <init-tx-hash> --portal-address <portal-addr> --private-key <private-key>\
+
+This option reads the super root proof directly from the `SuperFaultDisputeGame` contract's `extraData()`,
+eliminating the need for supervisor-rpc and depset flags.
+
+**Option 2: Using supervisor RPC** (legacy - requires supervisor, rollup config, and depset):
+
+```shell
+go run . prove --l1 <l1-el-rpc> --l2 <l2-el-rpc> --tx <init-tx-hash> --portal-address <portal-addr> --private-key <private-key> \
   --supervisor <supervisor-rpc> --rollup.config <path-to-rollup-config> --depset <path-to-dependency-set-json>
 ```
 
