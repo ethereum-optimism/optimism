@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,7 +36,7 @@ func TestEthSimulateV1(gt *testing.T) {
 
 	// wait until the chain mines at least one block
 	// (known limitation that we cannot simulate on top of the genesis block,
-	// Since the EL will just reuse the l1 attributes tx from the previous bock
+	// Since the EL will just reuse the l1 attributes tx from the previous block
 	// and there is no such transaction for the genesis block).
 	sys.L1Network.WaitForBlock()
 
@@ -60,4 +61,10 @@ func TestEthSimulateV1(gt *testing.T) {
 
 	// Transaction type should be dynamic fee transaction type, not a deposit transaction.
 	require.Equal(t, "0x2", transaction["type"]) // 0x02 is the dynamic fee transaction type
+
+	// Check Blob Gas Used is nonzero
+	// This proves out that eth_simulateV1 can be used to estimate the DA size of a transaction
+	bgu, err := hexutil.DecodeUint64(respBlock["blobGasUsed"].(string))
+	require.NoError(t, err)
+	require.NotZero(t, bgu)
 }
