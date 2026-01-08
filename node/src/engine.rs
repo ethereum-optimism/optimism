@@ -229,6 +229,10 @@ where
                 return Err(EngineObjectValidationError::InvalidParams(
                     "Eip1559ParamsDenominatorZero".to_string().into(),
                 ));
+            } else if denominator != 0 && elasticity == 0 {
+                return Err(EngineObjectValidationError::InvalidParams(
+                    "Eip1559ParamsElasticityZero".to_string().into(),
+                ));
             }
         }
 
@@ -307,6 +311,18 @@ mod test {
     use reth_provider::noop::NoopProvider;
     use reth_trie_common::KeccakKeyHasher;
 
+    macro_rules! assert_invalid_params_error {
+        ($result:expr, $msg:expr) => {{
+            let err = $result.expect_err("expected InvalidParams error");
+            match err {
+                EngineObjectValidationError::InvalidParams(inner) => {
+                    assert_eq!(inner.to_string(), $msg);
+                }
+                other => panic!("expected InvalidParams, got {other:?}"),
+            }
+        }};
+    }
+
     fn get_chainspec() -> Arc<OpChainSpec> {
         let base_sepolia_spec = BASE_SEPOLIA.inner.clone();
 
@@ -371,7 +387,7 @@ mod test {
         >>::ensure_well_formed_attributes(
             &validator, EngineApiMessageVersion::V3, &attributes,
         );
-        assert!(matches!(result, Err(EngineObjectValidationError::InvalidParams(_))));
+        assert_invalid_params_error!(result, "MissingEip1559ParamsInPayloadAttributes");
     }
 
     #[test]
@@ -385,7 +401,21 @@ mod test {
         >>::ensure_well_formed_attributes(
             &validator, EngineApiMessageVersion::V3, &attributes,
         );
-        assert!(matches!(result, Err(EngineObjectValidationError::InvalidParams(_))));
+        assert_invalid_params_error!(result, "Eip1559ParamsDenominatorZero");
+    }
+
+    #[test]
+    fn test_well_formed_attributes_holocene_eip1559_params_zero_elasticity() {
+        let validator =
+            OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
+        let attributes = get_attributes(Some(b64!("0000000800000000")), None, 1732633200);
+
+        let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
+            OpEngineTypes,
+        >>::ensure_well_formed_attributes(
+            &validator, EngineApiMessageVersion::V3, &attributes,
+        );
+        assert_invalid_params_error!(result, "Eip1559ParamsElasticityZero");
     }
 
     #[test]
@@ -443,7 +473,7 @@ mod test {
         >>::ensure_well_formed_attributes(
             &validator, EngineApiMessageVersion::V3, &attributes,
         );
-        assert!(matches!(result, Err(EngineObjectValidationError::InvalidParams(_))));
+        assert_invalid_params_error!(result, "MissingEip1559ParamsInPayloadAttributes");
     }
 
     /// Before Jovian, min base fee must be None
@@ -458,7 +488,7 @@ mod test {
         >>::ensure_well_formed_attributes(
             &validator, EngineApiMessageVersion::V3, &attributes,
         );
-        assert!(matches!(result, Err(EngineObjectValidationError::InvalidParams(_))));
+        assert_invalid_params_error!(result, "MinBaseFeeNotAllowedBeforeJovian");
     }
 
     /// After Jovian, min base fee must be Some
@@ -474,6 +504,6 @@ mod test {
         >>::ensure_well_formed_attributes(
             &validator, EngineApiMessageVersion::V3, &attributes,
         );
-        assert!(matches!(result, Err(EngineObjectValidationError::InvalidParams(_))));
+        assert_invalid_params_error!(result, "MissingMinBaseFeeInPayloadAttributes");
     }
 }
