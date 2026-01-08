@@ -75,6 +75,14 @@ func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*e
 	return &eth.OutputResponse{}, nil
 }
 
+func (m *mockCC) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error) {
+	return eth.BlockID{}, nil
+}
+
+func (m *mockCC) ID() eth.ChainID {
+	return eth.ChainIDFromUInt64(10)
+}
+
 var _ cc.ChainContainer = (*mockCC)(nil)
 
 func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {

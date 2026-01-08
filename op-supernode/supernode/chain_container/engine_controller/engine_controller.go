@@ -75,6 +75,7 @@ func (e *simpleEngineController) BlockAtTimestamp(ctx context.Context, ts uint64
 	}
 	// Compute the target block directly from rollup config
 	num, err := e.rollup.TargetBlockNumber(ts)
+	e.log.Debug("engine_controller: computed target block number from timestamp", "timestamp", ts, "targetBlockNumber", num)
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}

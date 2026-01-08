@@ -29,9 +29,11 @@ type ChainContainer interface {
 	Pause(ctx context.Context) error
 	Resume(ctx context.Context) error
 
+	ID() eth.ChainID
 	BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
+	L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error)
@@ -105,6 +107,10 @@ func NewChainContainer(
 		}
 	}
 	return c
+}
+
+func (c *simpleChainContainer) ID() eth.ChainID {
+	return c.chainID
 }
 
 // defaultVirtualNodeFactory is the default factory that creates a real VirtualNode
@@ -220,6 +226,20 @@ func (c *simpleChainContainer) Resume(ctx context.Context) error {
 	return nil
 }
 
+func (c *simpleChainContainer) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
+	if c.vncfg == nil {
+		return 0, fmt.Errorf("rollup config not available")
+	}
+	return c.vncfg.Rollup.TargetBlockNumber(ts)
+}
+
+func (c *simpleChainContainer) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
+	if c.vncfg == nil {
+		return 0, fmt.Errorf("rollup config not available")
+	}
+	return c.vncfg.Rollup.Genesis.L2Time + (blocknum * c.vncfg.Rollup.BlockTime), nil
+}
+
 // BlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client,
 // if the specified label contains a block at that timestamp
 func (c *simpleChainContainer) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
@@ -261,6 +281,13 @@ func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (
 	if c.vn == nil {
 		return eth.BlockID{}, fmt.Errorf("virtual node not initialized")
 	}
+	c.log.Info("safeDBAtL2", "l2", l2)
+	status, err := c.SyncStatus(ctx)
+	if err != nil {
+		return eth.BlockID{}, err
+	}
+	currentL1 := status.CurrentL1
+	c.log.Info("latest L1 just for good measure", "l1", currentL1)
 	return c.vn.L1AtSafeHead(ctx, l2)
 }
 

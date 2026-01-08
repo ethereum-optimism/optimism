@@ -84,11 +84,14 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsFanIn.SetMetricsRegistry)
 	}
 	// Initialize activities
+	interopActivationTimestamp := cfg.RawCtx.Uint64(interop.InteropActivationTimestampFlag.Name)
 	s.activities = []activity.Activity{
+		interop.New(log.New("activity", "interop"), interopActivationTimestamp, s.chains, cfg.DataDir, s.l1Client),
 		heartbeat.New(log.New("activity", "heartbeat"), 10*time.Second),
 		superroot.New(log.New("activity", "superroot"), s.chains),
-		interop.New(log.New("activity", "interop"), s.chains),
 	}
+
+	// set up http server
 	addr := net.JoinHostPort(cfg.RPCConfig.ListenAddr, strconv.Itoa(cfg.RPCConfig.ListenPort))
 	s.httpServer = httputil.NewHTTPServer(addr, s.rpcRouter)
 
