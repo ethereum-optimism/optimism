@@ -112,13 +112,7 @@ where
             Commands::ReExecute(command) => {
                 runner.run_until_ctrl_c(command.execute::<OpNode>(components))
             }
-            Commands::InitializeOpProofs(command) => {
-                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>())
-            }
-            Commands::UnwindOpProofs(command) => {
-                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>())
-            }
-            Commands::PruneOpProofs(command) => {
+            Commands::OpProofs(command) => {
                 runner.run_blocking_until_ctrl_c(command.execute::<OpNode>())
             }
         }

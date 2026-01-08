@@ -17,7 +17,7 @@ use tracing::info;
 /// This command must be run before starting the node with proofs history enabled.
 /// It backfills the proofs storage with trie nodes from the current chain state.
 #[derive(Debug, Parser)]
-pub struct InitializeOpProofsCommand<C: ChainSpecParser> {
+pub struct InitCommand<C: ChainSpecParser> {
     #[command(flatten)]
     env: EnvironmentArgs<C>,
 
@@ -33,7 +33,7 @@ pub struct InitializeOpProofsCommand<C: ChainSpecParser> {
     pub storage_path: PathBuf,
 }
 
-impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitializeOpProofsCommand<C> {
+impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
     /// Execute `initialize-op-proofs` command
     pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
         self,
@@ -92,7 +92,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitializeOpProofsCommand<C> {
     }
 }
 
-impl<C: ChainSpecParser> InitializeOpProofsCommand<C> {
+impl<C: ChainSpecParser> InitCommand<C> {
     /// Returns the underlying chain being used to run this command
     pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
         Some(&self.env.chain)

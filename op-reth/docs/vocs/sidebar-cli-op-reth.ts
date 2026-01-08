@@ -255,16 +255,23 @@ export const opRethCliSidebar: SidebarItem = {
             link: "/cli/op-reth/re-execute"
         },
         {
-            text: "op-reth initialize-op-proofs",
-            link: "/cli/op-reth/initialize-op-proofs"
-        },
-        {
-            text: "op-reth unwind-op-proofs",
-            link: "/cli/op-reth/unwind-op-proofs"
-        },
-        {
-            text: "op-reth prune-op-proofs",
-            link: "/cli/op-reth/prune-op-proofs"
+            text: "op-reth proofs",
+            link: "/cli/op-reth/proofs",
+            collapsed: true,
+            items: [
+                {
+                    text: "op-reth proofs init",
+                    link: "/cli/op-reth/proofs/init"
+                },
+                {
+                    text: "op-reth proofs prune",
+                    link: "/cli/op-reth/proofs/prune"
+                },
+                {
+                    text: "op-reth proofs unwind",
+                    link: "/cli/op-reth/proofs/unwind"
+                }
+            ]
         }
     ]
 };

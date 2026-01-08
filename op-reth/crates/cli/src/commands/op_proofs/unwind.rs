@@ -15,7 +15,7 @@ use tracing::{info, warn};
 ///
 /// This command removes all proof history and state updates after the target block number.
 #[derive(Debug, Parser)]
-pub struct UnwindOpProofsCommand<C: ChainSpecParser> {
+pub struct UnwindCommand<C: ChainSpecParser> {
     #[command(flatten)]
     env: EnvironmentArgs<C>,
 
@@ -34,7 +34,7 @@ pub struct UnwindOpProofsCommand<C: ChainSpecParser> {
     pub target: u64,
 }
 
-impl<C: ChainSpecParser> UnwindOpProofsCommand<C> {
+impl<C: ChainSpecParser> UnwindCommand<C> {
     /// Validates that the target block number is within a valid range for unwinding.
     async fn validate_unwind_range<Store: OpProofsStore>(
         &self,
@@ -61,8 +61,8 @@ impl<C: ChainSpecParser> UnwindOpProofsCommand<C> {
     }
 }
 
-impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> UnwindOpProofsCommand<C> {
-    /// Execute [`UnwindOpProofsCommand`].
+impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> UnwindCommand<C> {
+    /// Execute [`UnwindCommand`].
     pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
         self,
     ) -> eyre::Result<()> {
@@ -98,7 +98,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> UnwindOpProofsCommand<C> {
     }
 }
 
-impl<C: ChainSpecParser> UnwindOpProofsCommand<C> {
+impl<C: ChainSpecParser> UnwindCommand<C> {
     /// Returns the underlying chain being used to run this command
     pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
         Some(&self.env.chain)

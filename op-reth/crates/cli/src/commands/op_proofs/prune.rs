@@ -14,7 +14,7 @@ use tracing::info;
 
 /// Prunes the proofs storage by removing old proof history and state updates.
 #[derive(Debug, Parser)]
-pub struct PruneOpProofsCommand<C: ChainSpecParser> {
+pub struct PruneCommand<C: ChainSpecParser> {
     #[command(flatten)]
     env: EnvironmentArgs<C>,
 
@@ -45,8 +45,8 @@ pub struct PruneOpProofsCommand<C: ChainSpecParser> {
     pub proofs_history_prune_batch_size: u64,
 }
 
-impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> PruneOpProofsCommand<C> {
-    /// Execute [`PruneOpProofsCommand`].
+impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> PruneCommand<C> {
+    /// Execute [`PruneCommand`].
     pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
         self,
     ) -> eyre::Result<()> {
@@ -82,7 +82,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> PruneOpProofsCommand<C> {
     }
 }
 
-impl<C: ChainSpecParser> PruneOpProofsCommand<C> {
+impl<C: ChainSpecParser> PruneCommand<C> {
     /// Returns the underlying chain being used to run this command
     pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
         Some(&self.env.chain)
