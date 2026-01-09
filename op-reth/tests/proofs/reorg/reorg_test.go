@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
@@ -166,6 +167,18 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 
 	latestBlock := sys.L2Chain.WaitForBlock()
 	sys.L2ELValidatorNode().WaitForBlockNumber(latestBlock.Number)
+
+	// verify that the L2A validator has reorged and reached the latest block
+	err := wait.For(t.Ctx(), 2*time.Second, func() (bool, error) {
+		blockRef, err := sys.L2ELValidatorNode().Escape().EthClient().BlockRefByNumber(ctx, latestBlock.Number)
+		if err != nil {
+			// this could happen if the validator is still syncing after reorg
+			l.Warn("Error fetching block reference from validator", "error", err)
+			return false, nil
+		}
+		return blockRef.Hash == latestBlock.Hash, nil
+	})
+	require.NoError(t, err, "Expected block hash to match latest block hash on validator")
 
 	reorgedRef_A, err := sys.L2ELSequencerNode().Escape().EthClient().BlockRefByNumber(ctx, divergenceBlockNumber)
 	require.NoError(t, err, "Expected to be able to call BlockRefByNumber API, but got error")
