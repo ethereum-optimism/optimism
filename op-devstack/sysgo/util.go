@@ -1,7 +1,6 @@
 package sysgo
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -13,7 +12,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -93,18 +91,6 @@ func waitTCPReady(p devtest.P, rawURL string, timeout time.Duration) {
 		}
 		assert.NoError(c, err, "TCP connection to %s should succeed", u.Host)
 	}, timeout, 100*time.Millisecond, waitMsg)
-}
-
-// waitWSReady attempts an actual WebSocket handshake to confirm readiness using EventuallyWithT.
-func waitWSReady(p devtest.P, rawURL string, timeout time.Duration) {
-	p.Helper()
-	waitWSMsg := fmt.Sprintf("WebSocket endpoint %s not ready within %v", rawURL, timeout)
-	p.Require().EventuallyWithT(func(c *assert.CollectT) {
-		ctx, cancel := context.WithTimeout(context.Background(), 750*time.Millisecond)
-		err := opclient.ProbeWS(ctx, rawURL)
-		cancel()
-		assert.NoError(c, err, "WebSocket handshake to %s should succeed", rawURL)
-	}, timeout, 100*time.Millisecond, waitWSMsg)
 }
 
 // parseAndValidateAddr ensures the address has a scheme and is a valid URL.
