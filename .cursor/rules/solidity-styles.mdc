@@ -12,7 +12,8 @@ Applies to Solidity files.
 
 - NatSpec documentation comments must use the triple-slash `///` style
 - Use `//` for regular inline comments that are not NatSpec
-- Always use `@notice` instead of `@dev`
+- Use `@notice` for documenting what a function/contract does (external-facing documentation)
+- Use `@dev` for internal developer notes, reminders, or invariants (e.g., "when updating this, also update X")
 - Use a line-length of 100 characters
 - Custom tags:
   - `@custom:proxied`: Add to a contract whenever it's meant to live behind a proxy

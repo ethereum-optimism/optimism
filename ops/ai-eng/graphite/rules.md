@@ -25,6 +25,13 @@ If the PR modifies `OPContractsManagerV2.sol` and changes the `version` constant
 
 This section applies to Solidity files ONLY.
 
+### @dev Comments
+
+- Pay close attention to `@dev` natspec comments in the codebase
+- These comments often contain important invariants, requirements, or reminders for developers
+- When reviewing changes to a function, check if there are `@dev` comments that specify conditions or actions that must be taken when modifying that code
+- Flag violations of instructions in `@dev` comments (e.g., "when updating this function, also update X")
+
 ### Style Guide
 
 - Follow the style guide found at `.cursor/rules/solidity-styles.mdc` in the root of this repository.

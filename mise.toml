@@ -45,7 +45,6 @@ op-acceptor = "op-acceptor/v3.8.1"
 # Put things here if you need to track versions of tools or projects that can't
 # actually be managed by mise (yet). Make sure that anything you put in here is
 # also found inside of disabled_tools or mise will try to install it.
-asterisc = "1.3.0"
 kontrol = "1.0.90"
 binary_signer = "1.0.4"
 
@@ -64,11 +63,10 @@ svm-rs = "ubi:alloy-rs/svm-rs[exe=svm]"
 
 # These are disabled, but latest mise versions error if they don't have a known
 # install source even though it won't ever actually use that source.
-asterisc = "ubi:ethereum-optimism/fake-asterisc"
 kontrol = "ubi:ethereum-optimism/fake-kontrol"
 binary_signer = "ubi:ethereum-optimism/fake-binary_signer"
 
 [settings]
 experimental = true
 pipx.uvx = true
-disable_tools = ["asterisc", "kontrol", "binary_signer"]
+disable_tools = ["kontrol", "binary_signer"]

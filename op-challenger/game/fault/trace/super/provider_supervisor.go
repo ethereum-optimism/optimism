@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -36,7 +37,12 @@ type RootProvider interface {
 	AllSafeDerivedAt(ctx context.Context, derivedFrom eth.BlockID) (map[eth.ChainID]eth.BlockID, error)
 }
 
-type SuperTraceProvider struct {
+type SuperTraceProvider interface {
+	types.TraceProvider
+	PreimageTraceProvider
+}
+
+type SupervisorSuperTraceProvider struct {
 	PreimagePrestateProvider
 	logger             log.Logger
 	rollupCfgs         *RollupConfigs
@@ -47,8 +53,18 @@ type SuperTraceProvider struct {
 	gameDepth          types.Depth
 }
 
-func NewSuperTraceProvider(logger log.Logger, rollupCfgs *RollupConfigs, prestateProvider PreimagePrestateProvider, rootProvider RootProvider, l1Head eth.BlockID, gameDepth types.Depth, prestateTimestamp, poststateTimestamp uint64) *SuperTraceProvider {
-	return &SuperTraceProvider{
+func NewSuperTraceProvider(logger log.Logger, rollupCfgs *RollupConfigs, prestateProvider PreimagePrestateProvider, rootProvider *sources.SupervisorClient, superNodeProvider *sources.SuperNodeClient, l1Head eth.BlockID, gameDepth types.Depth, prestateTimestamp, poststateTimestamp uint64) SuperTraceProvider {
+	if rootProvider == nil && superNodeProvider != nil {
+		return NewSuperNodeTraceProvider(logger, prestateProvider, superNodeProvider, l1Head, gameDepth, prestateTimestamp, poststateTimestamp)
+	} else if rootProvider != nil && superNodeProvider == nil {
+		return NewSupervisorSuperTraceProvider(logger, rollupCfgs, prestateProvider, rootProvider, l1Head, gameDepth, prestateTimestamp, poststateTimestamp)
+	} else {
+		panic(fmt.Sprintf("Invalid configuration: must provide either a super node provider or a root provider, but not both. Root provider: %v, SuperNodeProvider: %v", rootProvider, superNodeProvider))
+	}
+}
+
+func NewSupervisorSuperTraceProvider(logger log.Logger, rollupCfgs *RollupConfigs, prestateProvider PreimagePrestateProvider, rootProvider RootProvider, l1Head eth.BlockID, gameDepth types.Depth, prestateTimestamp, poststateTimestamp uint64) *SupervisorSuperTraceProvider {
+	return &SupervisorSuperTraceProvider{
 		logger:                   logger,
 		rollupCfgs:               rollupCfgs,
 		PreimagePrestateProvider: prestateProvider,
@@ -60,7 +76,7 @@ func NewSuperTraceProvider(logger log.Logger, rollupCfgs *RollupConfigs, prestat
 	}
 }
 
-func (s *SuperTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
+func (s *SupervisorSuperTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
 	preimage, err := s.GetPreimageBytes(ctx, pos)
 	if err != nil {
 		return common.Hash{}, err
@@ -68,7 +84,7 @@ func (s *SuperTraceProvider) Get(ctx context.Context, pos types.Position) (commo
 	return crypto.Keccak256Hash(preimage), nil
 }
 
-func (s *SuperTraceProvider) GetPreimageBytes(ctx context.Context, pos types.Position) ([]byte, error) {
+func (s *SupervisorSuperTraceProvider) GetPreimageBytes(ctx context.Context, pos types.Position) ([]byte, error) {
 	// Find the timestamp and step at position
 	timestamp, step, err := s.ComputeStep(pos)
 	if err != nil {
@@ -165,7 +181,7 @@ func (s *SuperTraceProvider) GetPreimageBytes(ctx context.Context, pos types.Pos
 	return expectedState.Marshal(), nil
 }
 
-func (s *SuperTraceProvider) ComputeStep(pos types.Position) (timestamp uint64, step uint64, err error) {
+func (s *SupervisorSuperTraceProvider) ComputeStep(pos types.Position) (timestamp uint64, step uint64, err error) {
 	bigIdx := pos.TraceIndex(s.gameDepth)
 	if !bigIdx.IsUint64() {
 		err = fmt.Errorf("%w: %v", ErrIndexTooBig, bigIdx)
@@ -184,13 +200,14 @@ func (s *SuperTraceProvider) ComputeStep(pos types.Position) (timestamp uint64, 
 	return
 }
 
-func (s *SuperTraceProvider) GetStepData(_ context.Context, _ types.Position) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
+func (s *SupervisorSuperTraceProvider) GetStepData(_ context.Context, _ types.Position) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
 	return nil, nil, nil, ErrGetStepData
 }
 
-func (s *SuperTraceProvider) GetL2BlockNumberChallenge(_ context.Context) (*types.InvalidL2BlockNumberChallenge, error) {
+func (s *SupervisorSuperTraceProvider) GetL2BlockNumberChallenge(_ context.Context) (*types.InvalidL2BlockNumberChallenge, error) {
 	// Never need to challenge L2 block number for super root games.
 	return nil, types.ErrL2BlockNumberValid
 }
 
-var _ types.TraceProvider = (*SuperTraceProvider)(nil)
+var _ types.TraceProvider = (*SupervisorSuperTraceProvider)(nil)
+var _ SuperTraceProvider = (*SupervisorSuperTraceProvider)(nil)

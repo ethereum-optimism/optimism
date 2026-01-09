@@ -4,6 +4,10 @@ pragma solidity ^0.8.0;
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { Claim, GameType } from "src/dispute/lib/Types.sol";
 
 interface IOPContractsManagerUtils {
     struct ProxyDeployArgs {
@@ -18,11 +22,32 @@ interface IOPContractsManagerUtils {
         bytes data;
     }
 
+    /// @notice Configuration struct for the FaultDisputeGame.
+    struct FaultDisputeGameConfig {
+        Claim absolutePrestate;
+    }
+
+    /// @notice Configuration struct for the PermissionedDisputeGame.
+    struct PermissionedDisputeGameConfig {
+        Claim absolutePrestate;
+        address proposer;
+        address challenger;
+    }
+
+    /// @notice Generic dispute game configuration data.
+    struct DisputeGameConfig {
+        bool enabled;
+        uint256 initBond;
+        GameType gameType;
+        bytes gameArgs;
+    }
+
     event ProxyCreation(string name, address proxy);
 
     error OPContractsManagerUtils_DowngradeNotAllowed(address _contract);
     error OPContractsManagerUtils_ConfigLoadFailed(string _name);
     error OPContractsManagerUtils_ProxyMustLoad(string _name);
+    error OPContractsManagerUtils_UnsupportedGameType();
     error ReservedBitsSet();
     error UnsupportedERCVersion(uint8 version);
     error SemverComp_InvalidSemverParts();
@@ -109,6 +134,18 @@ interface IOPContractsManagerUtils {
         uint8 _offset
     )
         external;
+
+    function getGameImpl(GameType _gameType) external view returns (IDisputeGame);
+
+    function makeGameArgs(
+        uint256 _l2ChainId,
+        IAnchorStateRegistry _anchorStateRegistry,
+        IDelayedWETH _delayedWETH,
+        DisputeGameConfig memory _gcfg
+    )
+        external
+        view
+        returns (bytes memory);
 
     function __constructor__(IOPContractsManagerContainer _contractsContainer) external;
 }

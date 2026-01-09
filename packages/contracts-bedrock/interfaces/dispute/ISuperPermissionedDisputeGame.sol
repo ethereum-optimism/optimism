@@ -103,6 +103,7 @@ interface ISuperPermissionedDisputeGame is IDisputeGame {
     function normalModeCredit(address) external view returns (uint256);
     function l2SequenceNumber() external pure returns (uint256 l2SequenceNumber_);
     function refundModeCredit(address) external view returns (uint256);
+    function rootClaimByChainId(uint256 _chainId) external pure returns (Claim outputRootClaim_);
     function resolutionCheckpoints(uint256)
         external
         view
@@ -119,8 +120,6 @@ interface ISuperPermissionedDisputeGame is IDisputeGame {
     function vm() external view returns (IBigStepper vm_);
     function wasRespectedGameTypeWhenCreated() external view returns (bool);
     function weth() external view returns (IDelayedWETH weth_);
-    // TODO(#18516): Remove once IDisputeGame includes this interface
-    function rootClaimByChainId(uint256 _chainId) external view returns (Claim outputRootClaim_);
 
     function __constructor__(ISuperFaultDisputeGame.GameConstructorParams memory _params) external;
 }

@@ -161,8 +161,25 @@ func (k *KonaNode) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
 
 var _ L2CLNode = (*KonaNode)(nil)
 
-func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+func WithKonaNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, l2FollowSourceID stack.L2CLNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
+		followSource := func(orch *Orchestrator) string {
+			p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
+			l2CLFollowSource, ok := orch.l2CLs.Get(l2FollowSourceID)
+			p.Require().True(ok, "l2 CL Follow Source required")
+			return l2CLFollowSource.UserRPC()
+		}(orch)
+		opts = append(opts, L2CLFollowSource(followSource))
+		withKonaNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)(orch)
+	})
+}
+
+func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(withKonaNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...))
+}
+
+func withKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) func(orch *Orchestrator) {
+	return func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
 
 		require := p.Require()
@@ -236,6 +253,12 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			envVars = append(envVars, "KONA_METRICS_ENABLED=true")
 		}
 
+		if cfg.FollowSource != "" {
+			envVars = append(envVars,
+				"KONA_NODE_L2_FOLLOW_SOURCE="+cfg.FollowSource,
+			)
+		}
+
 		if cfg.IsSequencer {
 			p2pKey, err := orch.keys.Secret(devkeys.SequencerP2PRole.Key(l2CLID.ChainID().ToBig()))
 			require.NoError(err, "need p2p key for sequencer")
@@ -279,5 +302,5 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		p.Cleanup(k.Stop)
 		p.Logger().Info("Kona-node is up", "rpc", k.UserRPC())
 		require.True(orch.l2CLs.SetIfMissing(l2CLID, k), "must not already exist")
-	})
+	}
 }

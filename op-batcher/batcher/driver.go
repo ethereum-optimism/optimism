@@ -761,7 +761,7 @@ func (l *BatchSubmitter) waitNodeSync() error {
 	cCtx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
 	defer cancel()
 
-	l1Tip, _, err := l.l1Tip(cCtx)
+	l1Tip, err := l.l1Tip(cCtx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve l1 tip: %w", err)
 	}
@@ -856,7 +856,7 @@ func (l *BatchSubmitter) clearState(ctx context.Context) {
 // publishTxToL1 submits a single state tx to the L1
 func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group, pi pubInfo) error {
 	// send all available transactions
-	l1tip, isPectra, err := l.l1Tip(ctx)
+	l1tip, err := l.l1Tip(ctx)
 	if err != nil {
 		l.Log.Error("Failed to query L1 tip", "err", err)
 		return err
@@ -867,7 +867,7 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	// Collect next transaction data. This pulls data out of the channel, so we need to make sure
 	// to put it back if ever da or txmgr requests fail, by calling l.recordFailedDARequest/recordFailedTx.
 	l.channelMgrMutex.Lock()
-	txdata, err := l.channelMgr.TxData(l1tip.ID(), isPectra, params.IsThrottling(), pi)
+	txdata, err := l.channelMgr.TxData(l1tip.ID(), params.IsThrottling(), pi)
 	l.channelMgrMutex.Unlock()
 
 	if err == io.EOF {
@@ -1079,16 +1079,14 @@ func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *types.Receipt) {
 
 // l1Tip gets the current L1 tip as a L1BlockRef. The passed context is assumed
 // to be a lifetime context, so it is internally wrapped with a network timeout.
-// It also returns a boolean indicating if the tip is from a Pectra chain.
-func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, bool, error) {
+func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, error) {
 	tctx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
 	defer cancel()
 	head, err := l.L1Client.HeaderByNumber(tctx, nil)
 	if err != nil {
-		return eth.L1BlockRef{}, false, fmt.Errorf("getting latest L1 block: %w", err)
+		return eth.L1BlockRef{}, fmt.Errorf("getting latest L1 block: %w", err)
 	}
-	isPectra := head.RequestsHash != nil // See https://eips.ethereum.org/EIPS/eip-7685
-	return eth.InfoToL1BlockRef(eth.HeaderBlockInfo(head)), isPectra, nil
+	return eth.InfoToL1BlockRef(eth.HeaderBlockInfo(head)), nil
 }
 
 func (l *BatchSubmitter) checkTxpool(queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef]) bool {

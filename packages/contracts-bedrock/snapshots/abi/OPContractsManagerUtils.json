@@ -114,6 +114,25 @@
   {
     "inputs": [
       {
+        "internalType": "GameType",
+        "name": "_gameType",
+        "type": "uint32"
+      }
+    ],
+    "name": "getGameImpl",
+    "outputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "components": [
           {
             "internalType": "string",
@@ -509,6 +528,62 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "_l2ChainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "_anchorStateRegistry",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IDelayedWETH",
+        "name": "_delayedWETH",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "enabled",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "initBond",
+            "type": "uint256"
+          },
+          {
+            "internalType": "GameType",
+            "name": "gameType",
+            "type": "uint32"
+          },
+          {
+            "internalType": "bytes",
+            "name": "gameArgs",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct IOPContractsManagerUtils.DisputeGameConfig",
+        "name": "_gcfg",
+        "type": "tuple"
+      }
+    ],
+    "name": "makeGameArgs",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "contract IProxyAdmin",
         "name": "_proxyAdmin",
         "type": "address"
@@ -619,6 +694,11 @@
       }
     ],
     "name": "OPContractsManagerUtils_ProxyMustLoad",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerUtils_UnsupportedGameType",
     "type": "error"
   },
   {

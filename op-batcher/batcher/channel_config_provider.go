@@ -12,11 +12,11 @@ import (
 
 type (
 	ChannelConfigProvider interface {
-		ChannelConfig(isPectra, isThrottling bool) ChannelConfig
+		ChannelConfig(isThrottling bool) ChannelConfig
 	}
 
 	GasPricer interface {
-		SuggestGasPriceCaps(ctx context.Context) (tipCap *big.Int, baseFee *big.Int, blobBaseFee *big.Int, err error)
+		SuggestGasPriceCaps(ctx context.Context) (tipCap *big.Int, baseFee *big.Int, blobTipCap *big.Int, blobBaseFee *big.Int, err error)
 	}
 
 	DynamicEthChannelConfig struct {
@@ -53,7 +53,7 @@ func NewDynamicEthChannelConfig(lgr log.Logger,
 //
 // The blob config is returned when throttling is in progress, prioritizing throughput over cost
 // in times of limited bandwidth.
-func (dec *DynamicEthChannelConfig) ChannelConfig(isPectra, isThrottling bool) ChannelConfig {
+func (dec *DynamicEthChannelConfig) ChannelConfig(isThrottling bool) ChannelConfig {
 	if isThrottling {
 		dec.log.Info("Using blob channel config while throttling is in progress")
 		dec.lastConfig = &dec.blobConfig
@@ -61,7 +61,7 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isPectra, isThrottling bool) C
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), dec.timeout)
 	defer cancel()
-	tipCap, baseFee, blobBaseFee, err := dec.gasPricer.SuggestGasPriceCaps(ctx)
+	tipCap, baseFee, blobTipCap, blobBaseFee, err := dec.gasPricer.SuggestGasPriceCaps(ctx)
 	if err != nil {
 		dec.log.Warn("Error querying gas prices, returning last config", "err", err)
 		return *dec.lastConfig
@@ -81,8 +81,14 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isPectra, isThrottling bool) C
 	numBlobsPerTx := dec.blobConfig.TargetNumFrames
 
 	// Compute the total absolute cost of submitting either a single calldata tx or a single blob tx.
-	calldataCost, blobCost := computeSingleCalldataTxCost(tokensPerCalldataTx, baseFee, tipCap, isPectra),
-		computeSingleBlobTxCost(numBlobsPerTx, baseFee, tipCap, blobBaseFee)
+	calldataCost, blobCost, oracleBlobCost :=
+		computeSingleCalldataTxCost(tokensPerCalldataTx, baseFee, tipCap),
+		computeSingleBlobTxCost(numBlobsPerTx, baseFee, tipCap, blobBaseFee),
+		computeSingleBlobTxCost(numBlobsPerTx, baseFee, blobTipCap, blobBaseFee)
+
+	// TODO(18618): before activating the blob tip oracle, confirm in prod that we mostly get newBlobSavings == true, otherwise
+	// it is not worth it using the oracle
+	oracleBlobSavings := oracleBlobCost.Cmp(blobCost) < 0
 
 	// Now we compare the absolute cost per tx divided by the number of bytes per tx:
 	blobDataBytesPerTx := big.NewInt(eth.MaxBlobDataSize * int64(numBlobsPerTx))
@@ -97,6 +103,8 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isPectra, isThrottling bool) C
 	lgr := dec.log.New("base_fee", baseFee, "blob_base_fee", blobBaseFee, "tip_cap", tipCap,
 		"calldata_bytes", calldataBytesPerTx, "calldata_cost", calldataCost,
 		"blob_data_bytes", blobDataBytesPerTx, "blob_cost", blobCost,
+		"oracle_blob_cost", oracleBlobCost,
+		"oracle_blob_savings", oracleBlobSavings,
 		"cost_ratio", costRatio)
 
 	if ay.Cmp(bx) == 1 {
@@ -109,22 +117,14 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isPectra, isThrottling bool) C
 	return dec.blobConfig
 }
 
-func computeSingleCalldataTxCost(numTokens uint64, baseFee, tipCap *big.Int, isPectra bool) *big.Int {
+func computeSingleCalldataTxCost(numTokens uint64, baseFee, tipCap *big.Int) *big.Int {
 	// We assume isContractCreation = false and execution_gas_used = 0 in https://eips.ethereum.org/EIPS/eip-7623
 	// This is a safe assumption given how batcher transactions are constructed.
-	const (
-		standardTokenCost      = 4
-		totalCostFloorPerToken = 10
-	)
-	var multiplier uint64
-	if isPectra {
-		multiplier = totalCostFloorPerToken
-	} else {
-		multiplier = standardTokenCost
-	}
+	// Since Pectra is active on L1, we use the totalCostFloorPerToken (10) as the multiplier.
+	const totalCostFloorPerToken = 10
 
 	calldataPrice := new(big.Int).Add(baseFee, tipCap)
-	calldataGas := big.NewInt(int64(params.TxGas + numTokens*multiplier))
+	calldataGas := big.NewInt(int64(params.TxGas + numTokens*totalCostFloorPerToken))
 
 	return new(big.Int).Mul(calldataGas, calldataPrice)
 }

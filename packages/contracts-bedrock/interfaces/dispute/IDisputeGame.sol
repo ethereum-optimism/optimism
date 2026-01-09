@@ -13,6 +13,7 @@ interface IDisputeGame is IInitializable {
     function gameType() external view returns (GameType gameType_);
     function gameCreator() external pure returns (address creator_);
     function rootClaim() external pure returns (Claim rootClaim_);
+    function rootClaimByChainId(uint256 _chainId) external pure returns (Claim rootClaim_);
     function l1Head() external pure returns (Hash l1Head_);
     function l2SequenceNumber() external pure returns (uint256 l2SequenceNumber_);
     function extraData() external pure returns (bytes memory extraData_);

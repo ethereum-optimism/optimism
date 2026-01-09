@@ -39,20 +39,12 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 			game: types.GameMetadata{GameType: uint32(types.CannonKonaGameType), Proxy: fdgAddr},
 		},
 		{
-			name: "validAsteriscGameType",
-			game: types.GameMetadata{GameType: uint32(types.AsteriscGameType), Proxy: fdgAddr},
-		},
-		{
 			name: "validAlphabetGameType",
 			game: types.GameMetadata{GameType: uint32(types.AlphabetGameType), Proxy: fdgAddr},
 		},
 		{
 			name: "validFastGameType",
 			game: types.GameMetadata{GameType: uint32(types.FastGameType), Proxy: fdgAddr},
-		},
-		{
-			name: "validAsteriscKonaGameType",
-			game: types.GameMetadata{GameType: uint32(types.AsteriscKonaGameType), Proxy: fdgAddr},
 		},
 		{
 			name: "validSuperCannonGameType",
@@ -65,10 +57,6 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 		{
 			name: "validSuperCannonKonaGameType",
 			game: types.GameMetadata{GameType: uint32(types.SuperCannonKonaGameType), Proxy: fdgAddr},
-		},
-		{
-			name: "validSuperAsteriscKonaGameType",
-			game: types.GameMetadata{GameType: uint32(types.SuperAsteriscKonaGameType), Proxy: fdgAddr},
 		},
 		{
 			name:        "InvalidGameType",
@@ -102,8 +90,7 @@ func setupMetadataLoaderTest(t *testing.T, gameType uint32) (*batching.MultiCall
 	fdgAbi := snapshots.LoadFaultDisputeGameABI()
 	if gameType == uint32(types.SuperPermissionedGameType) ||
 		gameType == uint32(types.SuperCannonGameType) ||
-		gameType == uint32(types.SuperCannonKonaGameType) ||
-		gameType == uint32(types.SuperAsteriscKonaGameType) {
+		gameType == uint32(types.SuperCannonKonaGameType) {
 		fdgAbi = snapshots.LoadSuperFaultDisputeGameABI()
 	}
 	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAddr, fdgAbi)

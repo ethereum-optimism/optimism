@@ -92,7 +92,7 @@ func (f fakeTxMgr) API() rpc.API {
 	panic("unimplemented")
 }
 
-func (f fakeTxMgr) SuggestGasPriceCaps(context.Context) (*big.Int, *big.Int, *big.Int, error) {
+func (f fakeTxMgr) SuggestGasPriceCaps(context.Context) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
 	panic("unimplemented")
 }
 

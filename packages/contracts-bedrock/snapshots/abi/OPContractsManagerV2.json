@@ -12,6 +12,11 @@
         "type": "address"
       },
       {
+        "internalType": "contract IOPContractsManagerMigrator",
+        "name": "_migrator",
+        "type": "address"
+      },
+      {
         "internalType": "contract IOPContractsManagerUtils",
         "name": "_utils",
         "type": "address"
@@ -209,7 +214,7 @@
                 "type": "bytes"
               }
             ],
-            "internalType": "struct OPContractsManagerV2.DisputeGameConfig[]",
+            "internalType": "struct IOPContractsManagerUtils.DisputeGameConfig[]",
             "name": "disputeGameConfigs",
             "type": "tuple[]"
           },
@@ -459,6 +464,88 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "contract ISystemConfig[]",
+            "name": "chainSystemConfigs",
+            "type": "address[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "enabled",
+                "type": "bool"
+              },
+              {
+                "internalType": "uint256",
+                "name": "initBond",
+                "type": "uint256"
+              },
+              {
+                "internalType": "GameType",
+                "name": "gameType",
+                "type": "uint32"
+              },
+              {
+                "internalType": "bytes",
+                "name": "gameArgs",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct IOPContractsManagerUtils.DisputeGameConfig[]",
+            "name": "disputeGameConfigs",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "Hash",
+                "name": "root",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "uint256",
+                "name": "l2SequenceNumber",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Proposal",
+            "name": "startingAnchorRoot",
+            "type": "tuple"
+          },
+          {
+            "internalType": "GameType",
+            "name": "startingRespectedGameType",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct IOPContractsManagerMigrator.MigrateInput",
+        "name": "_input",
+        "type": "tuple"
+      }
+    ],
+    "name": "migrate",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "opcmMigrator",
+    "outputs": [
+      {
+        "internalType": "contract IOPContractsManagerMigrator",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "opcmStandardValidator",
     "outputs": [
@@ -529,7 +616,7 @@
                 "type": "bytes"
               }
             ],
-            "internalType": "struct OPContractsManagerV2.DisputeGameConfig[]",
+            "internalType": "struct IOPContractsManagerUtils.DisputeGameConfig[]",
             "name": "disputeGameConfigs",
             "type": "tuple[]"
           },
@@ -762,11 +849,6 @@
   {
     "inputs": [],
     "name": "OPContractsManagerV2_SuperchainConfigNeedsUpgrade",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "OPContractsManagerV2_UnsupportedGameType",
     "type": "error"
   },
   {

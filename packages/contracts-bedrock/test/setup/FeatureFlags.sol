@@ -7,6 +7,7 @@ import { Vm } from "forge-std/Vm.sol";
 
 // Libraries
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Features } from "src/libraries/Features.sol";
 import { Config } from "scripts/libraries/Config.sol";
 
 // Interfaces
@@ -24,6 +25,9 @@ abstract contract FeatureFlags {
     /// @notice The address of the SystemConfig contract.
     ISystemConfig internal sysCfg;
 
+    /// @notice Thrown when an unknown feature is provided.
+    error FeatureFlags_UnknownFeature(bytes32);
+
     /// @notice Sets the address of the SystemConfig contract.
     /// @param _sysCfg The address of the SystemConfig contract.
     function setSystemConfig(ISystemConfig _sysCfg) public {
@@ -31,6 +35,7 @@ abstract contract FeatureFlags {
     }
 
     /// @notice Resolves the development feature bitmap.
+    /// @dev When updating this function, make sure to also update the getFeatureName function.
     function resolveFeaturesFromEnv() public {
         if (Config.devFeatureInterop()) {
             console.log("Setup: DEV_FEATURE__OPTIMISM_PORTAL_INTEROP is enabled");
@@ -39,6 +44,25 @@ abstract contract FeatureFlags {
         if (Config.devFeatureOpcmV2()) {
             console.log("Setup: DEV_FEATURE__OPCM_V2 is enabled");
             devFeatureBitmap |= DevFeatures.OPCM_V2;
+        }
+    }
+
+    /// @notice Returns the string name of a feature.
+    /// @param _feature The feature to get the name of.
+    /// @return The name of the feature.
+    function getFeatureName(bytes32 _feature) public pure returns (string memory) {
+        if (_feature == DevFeatures.OPTIMISM_PORTAL_INTEROP) {
+            return "DEV_FEATURE__OPTIMISM_PORTAL_INTEROP";
+        } else if (_feature == DevFeatures.OPCM_V2) {
+            return "DEV_FEATURE__OPCM_V2";
+        } else if (_feature == Features.CUSTOM_GAS_TOKEN) {
+            return "SYS_FEATURE__CUSTOM_GAS_TOKEN";
+        } else if (_feature == Features.ETH_LOCKBOX) {
+            return "SYS_FEATURE__ETH_LOCKBOX";
+        } else {
+            // NOTE: We error out here so that developers remember to actually name their features
+            //       above. Solidity doesn't have anything like reflection that could do this.
+            revert FeatureFlags_UnknownFeature(_feature);
         }
     }
 
@@ -72,7 +96,7 @@ abstract contract FeatureFlags {
     /// @param _feature The feature to check.
     function skipIfSysFeatureEnabled(bytes32 _feature) public {
         if (isSysFeatureEnabled(_feature)) {
-            vm.skip(true);
+            vm.skip(true, string.concat("Skipping test because ", getFeatureName(_feature), " is enabled"));
         }
     }
 
@@ -80,7 +104,7 @@ abstract contract FeatureFlags {
     /// @param _feature The feature to check.
     function skipIfSysFeatureDisabled(bytes32 _feature) public {
         if (!isSysFeatureEnabled(_feature)) {
-            vm.skip(true);
+            vm.skip(true, string.concat("Skipping test because ", getFeatureName(_feature), " is disabled"));
         }
     }
 
@@ -88,7 +112,7 @@ abstract contract FeatureFlags {
     /// @param _feature The feature to check.
     function skipIfDevFeatureEnabled(bytes32 _feature) public {
         if (isDevFeatureEnabled(_feature)) {
-            vm.skip(true);
+            vm.skip(true, string.concat("Skipping test because ", getFeatureName(_feature), " is enabled"));
         }
     }
 
@@ -96,7 +120,7 @@ abstract contract FeatureFlags {
     /// @param _feature The feature to check.
     function skipIfDevFeatureDisabled(bytes32 _feature) public {
         if (!isDevFeatureEnabled(_feature)) {
-            vm.skip(true);
+            vm.skip(true, string.concat("Skipping test because ", getFeatureName(_feature), " is disabled"));
         }
     }
 }
