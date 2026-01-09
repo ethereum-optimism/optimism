@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -104,4 +105,22 @@ func waitWSReady(p devtest.P, rawURL string, timeout time.Duration) {
 		cancel()
 		assert.NoError(c, err, "WebSocket handshake to %s should succeed", rawURL)
 	}, timeout, 100*time.Millisecond, waitWSMsg)
+}
+
+// parseAndValidateAddr ensures the address has a scheme and is a valid URL.
+// Returns the validated URL string or empty string if invalid.
+// This is used to parse addresses from process (e.g. op-rbuilder) log output.
+func parseAndValidateAddr(addr, defaultScheme string) string {
+	if addr == "" {
+		return ""
+	}
+	// Add scheme if not present
+	if !strings.Contains(addr, "://") {
+		addr = defaultScheme + "://" + addr
+	}
+	u, err := url.Parse(addr)
+	if err != nil || u.Host == "" || u.Hostname() == "" {
+		return ""
+	}
+	return u.String()
 }
