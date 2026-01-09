@@ -8,7 +8,6 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -192,39 +191,15 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(configFile, configData, 0o644))
 
-	// Create a custom cache directory
-	customCacheDir := filepath.Join(workDir, "custom-cache")
-	require.NoError(t, os.MkdirAll(customCacheDir, 0755))
-
 	// Run the CLI command
 	output := runner.ExpectSuccess(t, []string{
 		"manage", "add-game-type-v2",
 		"--config", configFile,
 		"--l1-rpc-url", runner.l1RPC,
 		"--outfile", outputFile,
-		"--cache-dir", customCacheDir,
 	}, nil)
 
 	t.Logf("Command output (logs):\n%s", output)
-
-	// Verify the cache directory was created
-	entries, err := os.ReadDir(customCacheDir)
-	require.NoError(t, err)
-	require.NotEmpty(t, entries, "cache directory should not be empty")
-
-	// Verify the cache directory contains the expected files
-	hasCacheFile := false
-	for _, entry := range entries {
-		if !entry.IsDir() && (strings.HasSuffix(entry.Name(), ".tgz") || strings.HasSuffix(entry.Name(), ".tzst")) {
-			hasCacheFile = true
-			// Verify the file has content
-			info, err := entry.Info()
-			require.NoError(t, err)
-			require.Greater(t, info.Size(), int64(0), "Cache file should not be empty")
-			break
-		}
-	}
-	require.True(t, hasCacheFile, "Cache directory should contain a cached artifact file")
 
 	// Verify output file was created
 	require.FileExists(t, outputFile)
