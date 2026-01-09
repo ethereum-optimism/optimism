@@ -32,8 +32,8 @@ var (
 	ErrMissingCannonKonaInfoFreq         = errors.New("missing cannon kona info freq")
 	ErrMissingDepsetConfig               = errors.New("missing network or depset config path")
 
-	ErrMissingRollupRpc     = errors.New("missing rollup rpc url")
-	ErrMissingSupervisorRpc = errors.New("missing supervisor rpc url")
+	ErrMissingRollupRpc = errors.New("missing rollup rpc url")
+	ErrMissingSuperRpc  = errors.New("missing super rpc url")
 )
 
 const (
@@ -72,9 +72,10 @@ type Config struct {
 
 	GameTypes []gameTypes.GameType // Type of games supported
 
-	RollupRpc     string   // L2 Rollup RPC Url
-	SupervisorRPC string   // L2 supervisor RPC URL
-	L2Rpcs        []string // L2 RPC Url
+	RollupRpc    string   // L2 Rollup RPC Url
+	SuperRPC     string   // L2 RPC URL for super roots
+	UseSuperNode bool     // Temporary: True to use op-supernode APIs, false for op-supervisor APIs
+	L2Rpcs       []string // L2 RPC Url
 
 	// Specific to the cannon trace provider
 	Cannon                            vm.Config
@@ -108,7 +109,7 @@ func NewInteropConfig(
 	gameFactoryAddress common.Address,
 	l1EthRpc string,
 	l1BeaconApi string,
-	supervisorRpc string,
+	superRpc string,
 	l2Rpcs []string,
 	datadir string,
 	supportedGameTypes ...gameTypes.GameType,
@@ -116,7 +117,7 @@ func NewInteropConfig(
 	return Config{
 		L1EthRpc:           l1EthRpc,
 		L1Beacon:           l1BeaconApi,
-		SupervisorRPC:      supervisorRpc,
+		SuperRPC:           superRpc,
 		L2Rpcs:             l2Rpcs,
 		GameFactoryAddress: gameFactoryAddress,
 		MaxConcurrency:     uint(runtime.NumCPU()),
@@ -235,8 +236,8 @@ func (c Config) Check() error {
 		return ErrMaxConcurrencyZero
 	}
 	if c.GameTypeEnabled(gameTypes.SuperCannonGameType) || c.GameTypeEnabled(gameTypes.SuperPermissionedGameType) {
-		if c.SupervisorRPC == "" {
-			return ErrMissingSupervisorRpc
+		if c.SuperRPC == "" {
+			return ErrMissingSuperRpc
 		}
 
 		if len(c.Cannon.Networks) == 0 && c.Cannon.DepsetConfigPath == "" {
@@ -255,8 +256,8 @@ func (c Config) Check() error {
 		}
 	}
 	if c.GameTypeEnabled(gameTypes.SuperCannonKonaGameType) {
-		if c.SupervisorRPC == "" {
-			return ErrMissingSupervisorRpc
+		if c.SuperRPC == "" {
+			return ErrMissingSuperRpc
 		}
 
 		if len(c.CannonKona.Networks) == 0 && c.CannonKona.DepsetConfigPath == "" {

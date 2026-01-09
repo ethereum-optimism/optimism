@@ -92,10 +92,10 @@ contract DummyCaller {
         return (success, result);
     }
 }
+
 /// @title DummyCallerV2
 /// @notice This contract is used to mimic the contract that is used as the source of the delegatecall to the OPCM v2.
 /// Uses IOPContractsManagerV2.SuperchainUpgradeInput type for the upgrade input.
-
 contract DummyCallerV2 {
     address internal _opcmAddr;
 

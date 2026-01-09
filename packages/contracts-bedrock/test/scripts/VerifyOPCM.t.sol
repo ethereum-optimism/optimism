@@ -13,6 +13,7 @@ import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
 
 // Interfaces
 import { IOPContractsManager, IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.sol";
+import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 
 contract VerifyOPCM_Harness is VerifyOPCM {
     function loadArtifactInfo(string memory _artifactPath) public view returns (ArtifactInfo memory) {
@@ -40,6 +41,10 @@ contract VerifyOPCM_Harness is VerifyOPCM {
 
     function verifyContractsContainerConsistency(OpcmContractRef[] memory _propRefs) public view {
         return _verifyContractsContainerConsistency(_propRefs);
+    }
+
+    function verifyOpcmUtilsConsistency(OpcmContractRef[] memory _propRefs) public view {
+        return _verifyOpcmUtilsConsistency(_propRefs);
     }
 
     function verifyOpcmImmutableVariables(IOPContractsManager _opcm) public returns (bool) {
@@ -395,6 +400,80 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         assertGt(componentsWithContainerTested, 0, "Should have tested at least one component");
     }
 
+    /// @notice Tests that the script verifies all component contracts with opcmUtils() have the same address.
+    function test_verifyOpcmUtilsConsistency_succeeds() public {
+        // Coverage changes bytecode and causes failures, skip.
+        skipIfCoverage();
+
+        // Only run for OPCM V2
+        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
+
+        // Get the property references (which include the component addresses)
+        VerifyOPCM.OpcmContractRef[] memory propRefs = harness.getOpcmPropertyRefs(opcm);
+
+        // This should succeed with the current setup where all contracts have the same opcmUtils address.
+        harness.verifyOpcmUtilsConsistency(propRefs);
+    }
+
+    /// @notice Tests that the script reverts when contracts have different opcmUtils addresses.
+    function test_verifyOpcmUtilsConsistency_mismatch_reverts() public {
+        // Coverage changes bytecode and causes failures, skip.
+        skipIfCoverage();
+
+        // Only run for OPCM V2
+        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
+
+        // Get the property references (which include the component addresses)
+        VerifyOPCM.OpcmContractRef[] memory propRefs = harness.getOpcmPropertyRefs(opcm);
+
+        // Create a different address to simulate a mismatch.
+        address differentUtils = address(0x9999999999999999999999999999999999999999);
+
+        // Mock the first component with opcmUtils() to return a different address
+        _mockFirstOpcmUtilsComponent(propRefs, differentUtils);
+
+        // Now the consistency check should fail.
+        vm.expectRevert(VerifyOPCM.VerifyOPCM_OpcmUtilsMismatch.selector);
+        harness.verifyOpcmUtilsConsistency(propRefs);
+    }
+
+    /// @notice Tests that each OPCM component with opcmUtils() can be individually tested for mismatch.
+    function test_verifyOpcmUtilsConsistency_eachComponent_reverts() public {
+        // Coverage changes bytecode and causes failures, skip.
+        skipIfCoverage();
+
+        // Only run for OPCM V2
+        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
+
+        // Get the property references (which include the component addresses)
+        VerifyOPCM.OpcmContractRef[] memory propRefs = harness.getOpcmPropertyRefs(opcm);
+
+        // Test each OPCM component individually (only those that actually have opcmUtils())
+        address differentUtils = address(0x9999999999999999999999999999999999999999);
+
+        uint256 componentsWithUtilsTested = 0;
+        for (uint256 i = 0; i < propRefs.length; i++) {
+            string memory field = propRefs[i].field;
+            if (_hasOpcmUtils(field)) {
+                // Mock this specific component to return a different address
+                vm.mockCall(
+                    propRefs[i].addr, abi.encodeCall(IOPContractsManagerV2.opcmUtils, ()), abi.encode(differentUtils)
+                );
+
+                // The consistency check should fail
+                vm.expectRevert(VerifyOPCM.VerifyOPCM_OpcmUtilsMismatch.selector);
+                harness.verifyOpcmUtilsConsistency(propRefs);
+
+                // Clear the mock for next iteration
+                vm.clearMockedCalls();
+                componentsWithUtilsTested++;
+            }
+        }
+
+        // Ensure we actually tested some components (currently: opcmV2, opcmMigrator)
+        assertGt(componentsWithUtilsTested, 0, "Should have tested at least one component with opcmUtils");
+    }
+
     function _isDisputeGameV2ContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {
         return LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
     }
@@ -450,6 +529,35 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         }
 
         return true;
+    }
+
+    /// @notice Helper function to check if a field represents an OPCM component that has opcmUtils().
+    /// @param _field The field name to check.
+    /// @return True if the field represents an OPCM component with opcmUtils(), false otherwise.
+    function _hasOpcmUtils(string memory _field) internal pure returns (bool) {
+        // Only opcmV2 and opcmMigrator have opcmUtils() via OPContractsManagerUtilsCaller
+        return LibString.eq(_field, "opcmV2") || LibString.eq(_field, "opcmMigrator");
+    }
+
+    /// @notice Utility function to mock the first OPCM component's opcmUtils address.
+    /// @param _propRefs Array of property references to search through.
+    /// @param _mockAddress The address to mock the opcmUtils call to return.
+    function _mockFirstOpcmUtilsComponent(
+        VerifyOPCM.OpcmContractRef[] memory _propRefs,
+        address _mockAddress
+    )
+        internal
+    {
+        for (uint256 i = 0; i < _propRefs.length; i++) {
+            string memory field = _propRefs[i].field;
+            // Check if this is an OPCM component that has opcmUtils()
+            if (_hasOpcmUtils(field)) {
+                vm.mockCall(
+                    _propRefs[i].addr, abi.encodeCall(IOPContractsManagerV2.opcmUtils, ()), abi.encode(_mockAddress)
+                );
+                return;
+            }
+        }
     }
 
     /// @notice Tests that immutable variables are correctly verified in the OPCM contract.

@@ -52,8 +52,8 @@
     "sourceCodeHash": "0xb3184aa5d95a82109e7134d1f61941b30e25f655b9849a0e303d04bbce0cde0b"
   },
   "src/L1/opcm/OPContractsManagerV2.sol:OPContractsManagerV2": {
-    "initCodeHash": "0x4d2822fdc1f81c51f843d027ccece5c4e847f7c5870bb068a05bd568f7354c22",
-    "sourceCodeHash": "0xdb47dbef330b9a8c6e644d5791ed3414796381d90b22078db682b14de30ed16d"
+    "initCodeHash": "0x426d53fd2634e081467a8d7bb266870fcdadeb0d23d3d50f47bd862f224c2028",
+    "sourceCodeHash": "0xaa1ea1b099c18edd712fcbde2aa35119b9c2953836e6a0f37d53253b0a1b1f4a"
   },
   "src/L2/BaseFeeVault.sol:BaseFeeVault": {
     "initCodeHash": "0x838bbd7f381e84e21887f72bd1da605bfc4588b3c39aed96cbce67c09335b3ee",
@@ -262,10 +262,6 @@
   "src/universal/StorageSetter.sol:StorageSetter": {
     "initCodeHash": "0x1fd4b84add5c5ed80205cea0bbca9115e98d0efb416d9cedc12ce0cff9919bda",
     "sourceCodeHash": "0xcfbaae5729ca367328ea546bbbe96194341586b2f4bfbd0cfa84acc09324d59b"
-  },
-  "src/vendor/asterisc/RISCV.sol:RISCV": {
-    "initCodeHash": "0x4cd639f7da4eaf86a98eb3227fe285c0e8380ff5c79c4745aefed804cef52162",
-    "sourceCodeHash": "0x1d18c55a910212cc7572d2e8673c5f092db8352dda1137739c71df18d4ee1db1"
   },
   "src/vendor/eas/EAS.sol:EAS": {
     "initCodeHash": "0xbd79d6fff128b3da3e09ead84b805b7540740190488f2791a6b4e5b7aabf9cff",

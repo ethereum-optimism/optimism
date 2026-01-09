@@ -68,10 +68,10 @@ func deployDisputeGameScriptVM(t *testing.T, host *script.Host) common.Address {
 	preimageOracleAddress, err := host.Create(addresses.ScriptDeployer, append(preimageOracleArtifact.Bytecode.Object, encodedPreimageOracleConstructor...))
 	require.NoError(t, err)
 
-	bigStepperArtifact, err := host.Artifacts().ReadArtifact("RISCV.sol", "RISCV")
+	bigStepperArtifact, err := host.Artifacts().ReadArtifact("MIPS64.sol", "MIPS64")
 	require.NoError(t, err)
 
-	encodedBigStepperConstructor, err := bigStepperArtifact.ABI.Pack("", preimageOracleAddress)
+	encodedBigStepperConstructor, err := bigStepperArtifact.ABI.Pack("", preimageOracleAddress, new(big.Int).SetUint64(standard.MIPSVersion))
 	require.NoError(t, err)
 
 	bigStepperAddress, err := host.Create(addresses.ScriptDeployer, append(bigStepperArtifact.Bytecode.Object, encodedBigStepperConstructor...))

@@ -13,7 +13,6 @@ SEMVER_LOCK="snapshots/semver-lock.json"
 
 # Define excluded contracts.
 EXCLUDED_CONTRACTS=(
-  "src/vendor/asterisc/RISCV.sol"
 )
 
 # Helper function to check if a contract is excluded.

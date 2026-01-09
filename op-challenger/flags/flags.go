@@ -54,10 +54,10 @@ var (
 		Usage:   "Address of L1 Beacon API endpoint to use",
 		EnvVars: prefixEnvVars("L1_BEACON"),
 	}
-	SupervisorRpcFlag = &cli.StringFlag{
-		Name:    "supervisor-rpc",
-		Usage:   "Provider URL for supervisor RPC",
-		EnvVars: prefixEnvVars("SUPERVISOR_RPC"),
+	SuperNodeRpcFlag = &cli.StringFlag{
+		Name:    "supernode-rpc",
+		Usage:   "Provider URL for supernode roots",
+		EnvVars: prefixEnvVars("SUPERNODE_RPC"),
 	}
 	RollupRpcFlag = &cli.StringFlag{
 		Name:    "rollup-rpc",
@@ -267,7 +267,7 @@ var optionalFlags = []cli.Flag{
 	FactoryAddressFlag,
 	GameTypesFlag,
 	MaxConcurrencyFlag,
-	SupervisorRpcFlag,
+	SuperNodeRpcFlag,
 	L2EthRpcFlag,
 	L2ExperimentalEthRpcFlag,
 	MaxPendingTransactionsFlag,
@@ -338,8 +338,8 @@ func CheckCannonBaseFlags(ctx *cli.Context) error {
 }
 
 func CheckSuperCannonFlags(ctx *cli.Context) error {
-	if !ctx.IsSet(SupervisorRpcFlag.Name) {
-		return fmt.Errorf("flag %v is required", SupervisorRpcFlag.Name)
+	if !ctx.IsSet(SuperNodeRpcFlag.Name) {
+		return fmt.Errorf("flag %v is required", SuperNodeRpcFlag.Name)
 	}
 	if !ctx.IsSet(flags.NetworkFlagName) &&
 		!(RollupConfigFlag.IsSet(ctx, gameTypes.CannonGameType) && L2GenesisFlag.IsSet(ctx, gameTypes.CannonGameType) && DepsetConfigFlag.IsSet(ctx, gameTypes.CannonGameType)) {
@@ -356,8 +356,8 @@ func CheckSuperCannonFlags(ctx *cli.Context) error {
 }
 
 func CheckSuperCannonKonaFlags(ctx *cli.Context) error {
-	if !ctx.IsSet(SupervisorRpcFlag.Name) {
-		return fmt.Errorf("flag %v is required", SupervisorRpcFlag.Name)
+	if !ctx.IsSet(SuperNodeRpcFlag.Name) {
+		return fmt.Errorf("flag %v is required", SuperNodeRpcFlag.Name)
 	}
 	if !ctx.IsSet(flags.NetworkFlagName) &&
 		!(RollupConfigFlag.IsSet(ctx, gameTypes.CannonKonaGameType) && L2GenesisFlag.IsSet(ctx, gameTypes.CannonKonaGameType) && DepsetConfigFlag.IsSet(ctx, gameTypes.CannonKonaGameType)) {
@@ -601,7 +601,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		MinUpdateInterval:       ctx.Duration(MinUpdateInterval.Name),
 		AdditionalBondClaimants: claimants,
 		RollupRpc:               ctx.String(RollupRpcFlag.Name),
-		SupervisorRPC:           ctx.String(SupervisorRpcFlag.Name),
+		SuperRPC:                ctx.String(SuperNodeRpcFlag.Name),
 		Cannon: vm.Config{
 			VmType:            gameTypes.CannonGameType,
 			L1:                l1EthRpc,

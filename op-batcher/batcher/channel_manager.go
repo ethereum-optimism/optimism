@@ -285,7 +285,7 @@ type pubInfo struct {
 // If forcePublish is true, it will force close channels and
 // generate frames for them.
 func (s *channelManager) getReadyChannel(l1Head eth.BlockID, pi pubInfo) (*channel, error) {
-	if pi.forcePublish && s.currentChannel.TotalFrames() == 0 {
+	if pi.forcePublish && s.currentChannel != nil && s.currentChannel.TotalFrames() == 0 {
 		s.log.Info("Force-closing channel and creating frames", "channel_id", s.currentChannel.ID())
 		s.currentChannel.Close()
 		if err := s.currentChannel.OutputFrames(); err != nil {

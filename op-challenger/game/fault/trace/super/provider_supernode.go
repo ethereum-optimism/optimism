@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/client"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	types2 "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -55,7 +55,7 @@ func (s *SuperNodeTraceProvider) getPreimageBytesAtTimestampBoundary(ctx context
 	}
 	if root.CurrentL1.Number < s.l1Head.Number {
 		// Node has not processed the game's L1 head so it is not safe to play until it syncs further.
-		return nil, client.ErrNotInSync
+		return nil, types2.ErrNotInSync
 	}
 	if root.Data == nil {
 		// No block at this timestamp so it must be invalid
@@ -83,7 +83,7 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 		return nil, fmt.Errorf("failed to retrieve previous super root at timestamp %v: %w", timestamp, err)
 	}
 	if prevRoot.CurrentL1.Number < s.l1Head.Number {
-		return nil, client.ErrNotInSync
+		return nil, types2.ErrNotInSync
 	}
 	if prevRoot.Data == nil {
 		// No block at this timestamp so it must be invalid
@@ -100,7 +100,7 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 		return nil, fmt.Errorf("failed to retrieve next super root at timestamp %v: %w", nextTimestamp, err)
 	}
 	if nextRoot.CurrentL1.Number < s.l1Head.Number {
-		return nil, client.ErrNotInSync
+		return nil, types2.ErrNotInSync
 	}
 
 	prevSuper := prevRoot.Data.Super

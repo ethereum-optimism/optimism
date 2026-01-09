@@ -65,6 +65,15 @@ func DialSupervisorClientWithTimeout(ctx context.Context, log log.Logger, url st
 	return sources.NewSupervisorClient(rpcCl), nil
 }
 
+func DialSuperNodeClientWithTimeout(ctx context.Context, log log.Logger, url string, callerOpts ...client.RPCOption) (*sources.SuperNodeClient, error) {
+	rpcCl, err := dialClientWithTimeout(ctx, log, url, callerOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return sources.NewSuperNodeClient(rpcCl), nil
+}
+
 // DialRPCClientWithTimeout attempts to dial the RPC provider using the provided URL.
 // The timeout and retry logic is handled internally by the client.
 func DialRPCClientWithTimeout(ctx context.Context, log log.Logger, url string, opts ...rpc.ClientOption) (*rpc.Client, error) {
