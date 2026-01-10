@@ -807,7 +807,7 @@ func TestIntentConfiguration(t *testing.T) {
 func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.StatDirFs, implementationsConfig bootstrap.ImplementationsConfig) {
 	lgr := implementationsConfig.Logger
 
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
 	superchainProxyAdminOwner := implementationsConfig.L1ProxyAdminOwner
@@ -871,7 +871,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 				Opcm:  impls.Opcm,
 				ChainConfigs: []embedded.OPChainConfig{
 					{
-						SystemConfigProxy:  common.HexToAddress("034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
+						SystemConfigProxy:  deployer.DefaultSystemConfigProxySepolia,
 						CannonPrestate:     common.Hash{'C', 'A', 'N', 'N', 'O', 'N'},
 						CannonKonaPrestate: common.Hash{'K', 'O', 'N', 'A'},
 					},
@@ -930,10 +930,8 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 			// Then test upgrade on the V2-deployed chain
 			t.Run("upgrade chain v2", func(t *testing.T) {
 				// ABI-encode game args for FaultDisputeGameConfig{absolutePrestate}
-				bytes32Type, err := abi.NewType("bytes32", "", nil)
-				require.NoError(t, err)
-				addressType, err := abi.NewType("address", "", nil)
-				require.NoError(t, err)
+				bytes32Type := deployer.Bytes32Type
+				addressType := deployer.AddressType
 
 				// FaultDisputeGameConfig just needs absolutePrestate (bytes32)
 				testPrestate := common.Hash{'P', 'R', 'E', 'S', 'T', 'A', 'T', 'E'}
@@ -954,7 +952,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 					Prank: superchainProxyAdminOwner,
 					Opcm:  impls.OpcmV2,
 					UpgradeInputV2: &embedded.UpgradeInputV2{
-						SystemConfig: common.HexToAddress("034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
+						SystemConfig: deployer.DefaultSystemConfigProxySepolia,
 						DisputeGameConfigs: []embedded.DisputeGameConfig{
 							{
 								Enabled:  true,

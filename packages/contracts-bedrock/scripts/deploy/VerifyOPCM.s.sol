@@ -45,6 +45,9 @@ contract VerifyOPCM is Script {
     /// @notice Thrown when contractsContainer addresses are not the same across all OPCM components.
     error VerifyOPCM_ContractsContainerMismatch();
 
+    /// @notice Thrown when opcmUtils addresses are not the same across all OPCM components that have it.
+    error VerifyOPCM_OpcmUtilsMismatch();
+
     /// @notice Thrown when the creation bytecode is not found in an artifact file.
     error VerifyOPCM_CreationBytecodeNotFound(string _artifactPath);
 
@@ -127,6 +130,7 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["superPermissionedDisputeGame2"] = "SuperPermissionedDisputeGame";
         fieldNameOverrides["opcmGameTypeAdder"] = "OPContractsManagerGameTypeAdder";
         fieldNameOverrides["opcmDeployer"] = "OPContractsManagerDeployer";
+        fieldNameOverrides["opcmMigrator"] = "OPContractsManagerMigrator";
         fieldNameOverrides["opcmUpgrader"] = "OPContractsManagerUpgrader";
         fieldNameOverrides["opcmInteropMigrator"] = "OPContractsManagerInteropMigrator";
         fieldNameOverrides["opcmStandardValidator"] = "OPContractsManagerStandardValidator";
@@ -166,6 +170,7 @@ contract VerifyOPCM is Script {
         expectedGetters["opcmDeployer"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmGameTypeAdder"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmInteropMigrator"] = "SKIP"; // Address verified via bytecode comparison
+        expectedGetters["opcmMigrator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmStandardValidator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmUpgrader"] = "SKIP"; // Address verified via bytecode comparison
 
@@ -264,6 +269,9 @@ contract VerifyOPCM is Script {
 
         // Verify that all component contracts have the same contractsContainer address.
         _verifyContractsContainerConsistency(propRefs);
+
+        // Verify that all component contracts that have opcmUtils() have the same address.
+        _verifyOpcmUtilsConsistency(propRefs);
 
         // Get the ContractsContainer address from the first component (they're all the same)
         address contractsContainerAddr = address(0);
@@ -405,6 +413,81 @@ contract VerifyOPCM is Script {
             return address(0);
         }
         return abi.decode(returnData, (address));
+    }
+
+    /// @notice Checks if a field name represents an OPCM component contract that has opcmUtils().
+    /// @param _field The field name to check.
+    /// @return True if the field represents an OPCM component with opcmUtils(), false otherwise.
+    function _hasOpcmUtils(string memory _field) internal pure returns (bool) {
+        // Only opcmV2 and opcmMigrator have opcmUtils() via OPContractsManagerUtilsCaller
+        return LibString.eq(_field, "opcmV2") || LibString.eq(_field, "opcmMigrator");
+    }
+
+    /// @notice Gets the opcmUtils address from a contract.
+    /// @param _contract The contract address to query.
+    /// @return The opcmUtils address.
+    function _getOpcmUtilsAddress(address _contract) internal view returns (address) {
+        // Call the opcmUtils() function on the contract.
+        // nosemgrep: sol-style-use-abi-encodecall
+        (bool success, bytes memory returnData) = _contract.staticcall(abi.encodeWithSignature("opcmUtils()"));
+        if (!success) {
+            console.log(
+                string.concat("[FAIL] ERROR: Failed to call opcmUtils() function on contract ", vm.toString(_contract))
+            );
+            return address(0);
+        }
+        return abi.decode(returnData, (address));
+    }
+
+    /// @notice Verifies that all OPCM component contracts that have opcmUtils() have the same address.
+    /// @param _propRefs Array of property references containing component addresses.
+    function _verifyOpcmUtilsConsistency(OpcmContractRef[] memory _propRefs) internal view {
+        // Process components that have opcmUtils(), validate addresses, and verify consistency
+        OpcmContractRef[] memory components = new OpcmContractRef[](_propRefs.length);
+        address[] memory utilsAddresses = new address[](_propRefs.length);
+        uint256 componentCount = 0;
+        address expectedUtils = address(0);
+
+        for (uint256 i = 0; i < _propRefs.length; i++) {
+            OpcmContractRef memory propRef = _propRefs[i];
+
+            if (!_hasOpcmUtils(propRef.field)) {
+                continue;
+            }
+
+            components[componentCount] = propRef;
+            address utilsAddr = _getOpcmUtilsAddress(propRef.addr);
+
+            if (utilsAddr == address(0)) {
+                console.log(string.concat("ERROR: Failed to retrieve opcmUtils address from ", propRef.field));
+                revert VerifyOPCM_OpcmUtilsMismatch();
+            }
+
+            utilsAddresses[componentCount] = utilsAddr;
+
+            if (componentCount == 0) {
+                expectedUtils = utilsAddr;
+            } else if (utilsAddr != expectedUtils) {
+                console.log("ERROR: opcmUtils addresses are not consistent across all components");
+                for (uint256 j = 0; j <= componentCount; j++) {
+                    console.log(string.concat("  ", components[j].field, ": ", vm.toString(utilsAddresses[j])));
+                }
+                revert VerifyOPCM_OpcmUtilsMismatch();
+            }
+
+            componentCount++;
+        }
+
+        // Ensure we found at least one component
+        if (componentCount == 0) {
+            console.log("OK: No OPCM components with opcmUtils() found (skipping verification)");
+            return;
+        }
+
+        console.log(
+            string.concat("OK: All ", vm.toString(componentCount), " components have the same opcmUtils address")
+        );
+        console.log(string.concat("  opcmUtils: ", vm.toString(expectedUtils)));
     }
 
     /// @notice Verifies a single OPCM contract reference (implementation or bytecode).

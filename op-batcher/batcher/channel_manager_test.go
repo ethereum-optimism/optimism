@@ -1043,6 +1043,47 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 	})
 }
 
+func TestChannelManager_SingleBlockBiggerThanMaxFrameSize(t *testing.T) {
+	rng := rand.New(rand.NewSource(int64(1234))) // use fixed seed for reproducibility / determinism
+	a := derivetest.RandomL2BlockWithChainId(rng, 4, defaultTestRollupConfig.L2ChainID)
+	l1BlockID := eth.BlockID{
+		Hash:   a.Hash(),
+		Number: a.NumberU64(),
+	}
+
+	for _, ca := range derive.CompressionAlgos {
+		t.Run(string(ca), func(t *testing.T) {
+			require := require.New(t)
+			assert := assert.New(t)
+			log := testlog.Logger(t, log.LevelCrit)
+
+			// Use an extremely low frame size that will definitely not be enough for the random block
+			cfg := channelManagerTestConfig(derive.FrameV0OverHeadSize, derive.SingularBatchType)
+			cfg.InitShadowCompressor(ca)
+			m := NewChannelManager(log, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+			require.NoError(m.AddL2Block(a))
+
+			// Make sure there is a channel
+			require.NoError(m.ensureChannelWithSpace(l1BlockID))
+			channel := m.currentChannel
+			require.NotNil(channel)
+			require.Equal(1, m.pendingBlocks())
+			require.Zero(len(channel.blocks))
+
+			// Process the blocks
+			require.NoError(m.processBlocks())
+
+			// The block should have been moved into the channel
+			// This test is a regression test for a bug where the channel manager would not
+			// correctly handle a single block that was bigger than the maximum frame size,
+			// because it incorrectly interpreted the
+			// static header bytes written to the buffer at construction time as block data.
+			assert.Equal(0, m.pendingBlocks())
+			assert.Equal(1, len(channel.blocks), "channel should have one block")
+		})
+	}
+}
+
 // TestChannelManager_getReadyChannel_NilChannel verifies that getReadyChannel
 // handles nil currentChannel gracefully when forcePublish is true.
 // This is a regression test for a nil pointer dereference bug.

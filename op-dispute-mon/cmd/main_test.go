@@ -60,13 +60,13 @@ func TestL1EthRpc(t *testing.T) {
 	})
 }
 
-func TestMustSpecifyEitherRollupRpcOrSupervisorRpc(t *testing.T) {
-	verifyArgsInvalid(t, "flag rollup-rpc or supervisor-rpc is required", addRequiredArgsExcept("--rollup-rpc"))
+func TestMustSpecifyEitherRollupRpcOrSuperNodeRpc(t *testing.T) {
+	verifyArgsInvalid(t, "flag rollup-rpc or supernode-rpc is required", addRequiredArgsExcept("--rollup-rpc"))
 }
 
 func TestRollupRpc(t *testing.T) {
-	t.Run("NotRequiredIfSupervisorRpcSupplied", func(t *testing.T) {
-		configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supervisor-rpc", "http://localhost/supervisor"))
+	t.Run("NotRequiredIfSuperNodeRpcSupplied", func(t *testing.T) {
+		configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supernode-rpc", "http://localhost/supernode"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
@@ -83,23 +83,23 @@ func TestRollupRpc(t *testing.T) {
 	})
 }
 
-func TestSupervisorRpc(t *testing.T) {
+func TestSuperNodeRpc(t *testing.T) {
 	t.Run("NotRequiredIfRollupRpcSupplied", func(t *testing.T) {
 		// rollup-rpc is in the default args.
-		configForArgs(t, addRequiredArgsExcept("--supervisor-rpc"))
+		configForArgs(t, addRequiredArgsExcept("--supernode-rpc"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
 		url := "http://example.com:9999"
-		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supervisor-rpc", url))
-		require.Equal(t, []string{url}, cfg.SupervisorRpcs)
+		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supernode-rpc", url))
+		require.Equal(t, []string{url}, cfg.SuperNodeRpcs)
 	})
 
 	t.Run("MultipleValues", func(t *testing.T) {
 		url1 := "http://example1.com:9999"
 		url2 := "http://example2.com:8888"
-		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supervisor-rpc", url1, "--supervisor-rpc", url2))
-		require.Equal(t, []string{url1, url2}, cfg.SupervisorRpcs)
+		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supernode-rpc", url1, "--supernode-rpc", url2))
+		require.Equal(t, []string{url1, url2}, cfg.SuperNodeRpcs)
 	})
 }
 

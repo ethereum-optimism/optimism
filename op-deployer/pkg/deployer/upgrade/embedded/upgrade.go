@@ -93,15 +93,19 @@ type UpgradeOPChain struct {
 }
 
 func Upgrade(host *script.Host, input UpgradeOPChainInput) error {
-	// We need to check which of the two versions of the input we are using.
+	// Determine which input format to use and encode it
 	var encodedUpgradeInput []byte
 	var encodedError error
-	if input.UpgradeInputV2 == nil && len(input.ChainConfigs) == 0 {
-		return fmt.Errorf("failed to read either an upgrade input or config array")
-	} else if input.UpgradeInputV2 != nil {
+
+	if input.UpgradeInputV2 != nil {
+		// Prefer V2 input if present
 		encodedUpgradeInput, encodedError = input.EncodedUpgradeInputV2()
-	} else {
+	} else if len(input.ChainConfigs) > 0 {
+		// Fall back to V1 input if V2 is not present
 		encodedUpgradeInput, encodedError = input.EncodedOpChainConfigs()
+	} else {
+		// Neither input format is present
+		return fmt.Errorf("failed to read either an upgrade input or config array")
 	}
 
 	if encodedError != nil {

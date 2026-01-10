@@ -6,13 +6,18 @@ import { LibString } from "@solady/utils/LibString.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { GameType, GameTypes } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
+import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 
 /// @title OPContractsManagerUtils
 /// @notice OPContractsManagerUtils is a contract that provides utility functions for the OPContractsManager.
@@ -226,8 +231,8 @@ contract OPContractsManagerUtils {
         // Try to load the proxy from the source.
         (bool success, bytes memory result) = address(_source).staticcall(abi.encodePacked(_selector));
 
-        // If the load succeeded and the result is not a zero address, return the result.
-        if (success && abi.decode(result, (address)) != address(0)) {
+        // If the load succeeded, returned valid data, and the result is not a zero address, return the result.
+        if (success && result.length >= 32 && abi.decode(result, (address)) != address(0)) {
             return payable(abi.decode(result, (address)));
         } else if (!loadCanFail) {
             // Load not permitted to fail but did, revert.
@@ -328,5 +333,78 @@ contract OPContractsManagerUtils {
     /// @return The blueprints for the contracts.
     function blueprints() public view returns (IOPContractsManagerContainer.Blueprints memory) {
         return contractsContainer.blueprints();
+    }
+
+    /// @notice Helper for retrieving the dispute game implementation for a given game type.
+    /// @param _gameType The game type to retrieve the implementation for.
+    /// @return The dispute game implementation.
+    function getGameImpl(GameType _gameType) public view returns (IDisputeGame) {
+        IOPContractsManagerContainer.Implementations memory impls = implementations();
+        if (_gameType.raw() == GameTypes.CANNON.raw()) {
+            return IDisputeGame(impls.faultDisputeGameV2Impl);
+        } else if (_gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
+            return IDisputeGame(impls.permissionedDisputeGameV2Impl);
+        } else if (_gameType.raw() == GameTypes.CANNON_KONA.raw()) {
+            return IDisputeGame(impls.faultDisputeGameV2Impl);
+        } else if (_gameType.raw() == GameTypes.SUPER_CANNON.raw()) {
+            return IDisputeGame(impls.superFaultDisputeGameImpl);
+        } else if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+            return IDisputeGame(impls.superPermissionedDisputeGameImpl);
+        } else if (_gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()) {
+            return IDisputeGame(impls.superFaultDisputeGameImpl);
+        } else {
+            revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();
+        }
+    }
+
+    /// @notice Helper for creating game constructor arguments.
+    /// @param _l2ChainId The L2 chain ID.
+    /// @param _anchorStateRegistry The AnchorStateRegistry to use for dispute games.
+    /// @param _delayedWETH The DelayedWETH to use for dispute games.
+    /// @param _gcfg Configuration for the dispute game to create.
+    /// @return The game constructor arguments.
+    function makeGameArgs(
+        uint256 _l2ChainId,
+        IAnchorStateRegistry _anchorStateRegistry,
+        IDelayedWETH _delayedWETH,
+        IOPContractsManagerUtils.DisputeGameConfig memory _gcfg
+    )
+        public
+        view
+        returns (bytes memory)
+    {
+        IOPContractsManagerContainer.Implementations memory impls = implementations();
+        if (
+            _gcfg.gameType.raw() == GameTypes.CANNON.raw() || _gcfg.gameType.raw() == GameTypes.CANNON_KONA.raw()
+                || _gcfg.gameType.raw() == GameTypes.SUPER_CANNON.raw()
+                || _gcfg.gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
+        ) {
+            IOPContractsManagerUtils.FaultDisputeGameConfig memory parsedInputArgs =
+                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.FaultDisputeGameConfig));
+            return abi.encodePacked(
+                parsedInputArgs.absolutePrestate,
+                impls.mipsImpl,
+                address(_anchorStateRegistry),
+                address(_delayedWETH),
+                _l2ChainId
+            );
+        } else if (
+            _gcfg.gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
+                || _gcfg.gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+        ) {
+            IOPContractsManagerUtils.PermissionedDisputeGameConfig memory parsedInputArgs =
+                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.PermissionedDisputeGameConfig));
+            return abi.encodePacked(
+                parsedInputArgs.absolutePrestate,
+                impls.mipsImpl,
+                address(_anchorStateRegistry),
+                address(_delayedWETH),
+                _l2ChainId,
+                parsedInputArgs.proposer,
+                parsedInputArgs.challenger
+            );
+        } else {
+            revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();
+        }
     }
 }

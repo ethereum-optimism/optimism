@@ -14,6 +14,7 @@ import { Types } from "scripts/libraries/Types.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -152,8 +153,8 @@ contract DeployOPChain is Script {
         returns (IOPContractsManagerV2.FullConfig memory config_)
     {
         // Build dispute game configs - OPCMV2 requires exactly 3 configs: CANNON, PERMISSIONED_CANNON, CANNON_KONA
-        IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerV2.DisputeGameConfig[](3);
+        IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerUtils.DisputeGameConfig[](3);
 
         // Determine which games should be enabled based on the starting respected game type
         bool cannonEnabled = _input.disputeGameType.raw() == GameTypes.CANNON.raw();
@@ -161,10 +162,10 @@ contract DeployOPChain is Script {
         bool cannonKonaEnabled = _input.disputeGameType.raw() == GameTypes.CANNON_KONA.raw();
 
         // Config 0: CANNON
-        IOPContractsManagerV2.FaultDisputeGameConfig memory cannonConfig =
-            IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: _input.disputeAbsolutePrestate });
+        IOPContractsManagerUtils.FaultDisputeGameConfig memory cannonConfig =
+            IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _input.disputeAbsolutePrestate });
 
-        disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
+        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: cannonEnabled,
             initBond: cannonEnabled ? 0.08 ether : 0, // Standard init bond if enabled
             gameType: GameTypes.CANNON,
@@ -172,14 +173,14 @@ contract DeployOPChain is Script {
         });
 
         // Config 1: PERMISSIONED_CANNON (must be enabled)
-        IOPContractsManagerV2.PermissionedDisputeGameConfig memory pdgConfig = IOPContractsManagerV2
+        IOPContractsManagerUtils.PermissionedDisputeGameConfig memory pdgConfig = IOPContractsManagerUtils
             .PermissionedDisputeGameConfig({
             absolutePrestate: _input.disputeAbsolutePrestate,
             proposer: _input.proposer,
             challenger: _input.challenger
         });
 
-        disputeGameConfigs[1] = IOPContractsManagerV2.DisputeGameConfig({
+        disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: permissionedCannonEnabled,
             initBond: 0.08 ether, // Standard init bond
             gameType: GameTypes.PERMISSIONED_CANNON,
@@ -187,10 +188,10 @@ contract DeployOPChain is Script {
         });
 
         // Config 2: CANNON_KONA
-        IOPContractsManagerV2.FaultDisputeGameConfig memory cannonKonaConfig =
-            IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: _input.disputeAbsolutePrestate });
+        IOPContractsManagerUtils.FaultDisputeGameConfig memory cannonKonaConfig =
+            IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _input.disputeAbsolutePrestate });
 
-        disputeGameConfigs[2] = IOPContractsManagerV2.DisputeGameConfig({
+        disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: cannonKonaEnabled,
             initBond: cannonKonaEnabled ? 0.08 ether : 0, // Standard init bond if enabled
             gameType: GameTypes.CANNON_KONA,

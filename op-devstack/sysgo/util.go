@@ -1,18 +1,17 @@
 package sysgo
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net"
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -94,14 +93,20 @@ func waitTCPReady(p devtest.P, rawURL string, timeout time.Duration) {
 	}, timeout, 100*time.Millisecond, waitMsg)
 }
 
-// waitWSReady attempts an actual WebSocket handshake to confirm readiness using EventuallyWithT.
-func waitWSReady(p devtest.P, rawURL string, timeout time.Duration) {
-	p.Helper()
-	waitWSMsg := fmt.Sprintf("WebSocket endpoint %s not ready within %v", rawURL, timeout)
-	p.Require().EventuallyWithT(func(c *assert.CollectT) {
-		ctx, cancel := context.WithTimeout(context.Background(), 750*time.Millisecond)
-		err := opclient.ProbeWS(ctx, rawURL)
-		cancel()
-		assert.NoError(c, err, "WebSocket handshake to %s should succeed", rawURL)
-	}, timeout, 100*time.Millisecond, waitWSMsg)
+// parseAndValidateAddr ensures the address has a scheme and is a valid URL.
+// Returns the validated URL string or empty string if invalid.
+// This is used to parse addresses from process (e.g. op-rbuilder) log output.
+func parseAndValidateAddr(addr, defaultScheme string) string {
+	if addr == "" {
+		return ""
+	}
+	// Add scheme if not present
+	if !strings.Contains(addr, "://") {
+		addr = defaultScheme + "://" + addr
+	}
+	u, err := url.Parse(addr)
+	if err != nil || u.Host == "" || u.Hostname() == "" {
+		return ""
+	}
+	return u.String()
 }
