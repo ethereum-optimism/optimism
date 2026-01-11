@@ -61,6 +61,7 @@ pub static DEV_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
         (OpHardfork::Ecotone.boxed(), ForkCondition::Timestamp(0)),
         (OpHardfork::Fjord.boxed(), ForkCondition::Timestamp(0)),
         (OpHardfork::Granite.boxed(), ForkCondition::Timestamp(0)),
+        (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(0)),
         (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(0)),
         (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(0)),
         (OpHardfork::Jovian.boxed(), JOVIAN_TIMESTAMP),
