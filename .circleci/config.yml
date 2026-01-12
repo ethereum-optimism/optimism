@@ -915,6 +915,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - check-changed:
           patterns: <<parameters.check_changed_patterns>>
+      - install-solc-compilers
       - run:
           name: Print dependencies
           command: just dep-status
