@@ -225,7 +225,7 @@ mod tests {
 
         assert_eq!(
             format!("{:?}", provider),
-            "OpProofsStateProviderRef { storage: InMemoryProofsStorage { inner: RwLock { data: InMemoryStorageInner { account_branches: {}, storage_branches: {}, hashed_accounts: {}, hashed_storages: {}, address_mappings: {}, trie_updates: {}, post_states: {}, earliest_block: None } } }, block_number: 42 }"
+            "OpProofsStateProviderRef { storage: InMemoryProofsStorage { inner: RwLock { data: InMemoryStorageInner { account_branches: {}, storage_branches: {}, hashed_accounts: {}, hashed_storages: {}, trie_updates: {}, post_states: {}, earliest_block: None } } }, block_number: 42 }"
         );
     }
 }

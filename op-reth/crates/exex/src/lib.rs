@@ -8,10 +8,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
-use alloy_consensus::{
-    private::alloy_primitives::{Address, B256},
-    BlockHeader,
-};
+use alloy_consensus::BlockHeader;
 use alloy_eips::eip1898::BlockWithParent;
 use derive_more::Constructor;
 use futures_util::TryStreamExt;
@@ -211,11 +208,9 @@ where
 
         match &notification {
             ExExNotification::ChainCommitted { new } => {
-                self.store_address_mappings(new.clone()).await?;
                 self.handle_chain_committed(new.clone(), latest_stored, collector).await?
             }
             ExExNotification::ChainReorged { old, new } => {
-                self.store_address_mappings(new.clone()).await?;
                 self.handle_chain_reorged(old.clone(), new.clone(), latest_stored, collector)
                     .await?
             }
@@ -404,18 +399,5 @@ where
 
         collector.unwind_history(old.first().block_with_parent()).await?;
         Ok(())
-    }
-
-    async fn store_address_mappings(&self, chain: Arc<Chain<Primitives>>) -> eyre::Result<()> {
-        let mappings: Vec<(B256, Address)> = chain
-            .execution_outcome()
-            .accounts_iter()
-            .filter_map(|(address, info)| info.map(|info| (info.code_hash, address)))
-            .collect();
-
-        self.storage
-            .store_address_mappings(mappings)
-            .await
-            .map_err(|err| eyre::eyre!("Failed to store address mappings: {}", err))
     }
 }

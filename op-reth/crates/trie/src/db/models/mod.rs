@@ -16,7 +16,7 @@ pub(crate) mod kv;
 pub use change_set::*;
 pub use kv::*;
 
-use alloy_primitives::{Address, B256};
+use alloy_primitives::B256;
 use reth_db::{
     table::{DupSort, TableInfo},
     tables, TableSet, TableType, TableViewer,
@@ -80,11 +80,5 @@ tables! {
     table BlockChangeSet {
         type Key = u64; // Block number
         type Value = ChangeSet;
-    }
-
-    /// A mapping table from hashed addresses to their original addresses.
-    table AddressLookup {
-        type Key = B256;
-        type Value = Address;
     }
 }

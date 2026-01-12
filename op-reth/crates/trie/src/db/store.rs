@@ -4,16 +4,16 @@ use crate::{
     db::{
         cursor::Dup,
         models::{
-            kv::IntoKV, AccountTrieHistory, AddressLookup, BlockChangeSet, ChangeSet,
-            HashedAccountHistory, HashedStorageHistory, HashedStorageKey, MaybeDeleted,
-            StorageTrieHistory, StorageTrieKey, StorageValue, VersionedValue,
+            kv::IntoKV, AccountTrieHistory, BlockChangeSet, ChangeSet, HashedAccountHistory,
+            HashedStorageHistory, HashedStorageKey, MaybeDeleted, StorageTrieHistory,
+            StorageTrieKey, StorageValue, VersionedValue,
         },
         MdbxAccountCursor, MdbxStorageCursor, MdbxTrieCursor,
     },
     BlockStateDiff, OpProofsStorageError, OpProofsStorageResult, OpProofsStore,
 };
 use alloy_eips::{eip1898::BlockWithParent, NumHash};
-use alloy_primitives::{map::HashMap, Address, B256, U256};
+use alloy_primitives::{map::HashMap, B256, U256};
 #[cfg(feature = "metrics")]
 use metrics::{gauge, Label};
 use reth_db::{
@@ -519,27 +519,6 @@ impl OpProofsStore for MdbxProofsStorage {
         })?
     }
 
-    async fn store_address_mappings(
-        &self,
-        mappings: Vec<(B256, Address)>,
-    ) -> OpProofsStorageResult<()> {
-        let mut mappings = mappings;
-        if mappings.is_empty() {
-            return Ok(());
-        }
-
-        // sort the mappings by key to ensure insertion is efficient
-        mappings.sort_by_key(|(key, _)| *key);
-
-        self.env.update(|tx| {
-            let mut cur = tx.cursor_write::<AddressLookup>()?;
-            for (k, v) in mappings {
-                cur.upsert(k, &v)?;
-            }
-            Ok(())
-        })?
-    }
-
     async fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
         self.env.view(|tx| self.inner_get_block_number_hash(tx, ProofWindowKey::EarliestBlock))?
     }
@@ -927,7 +906,7 @@ mod tests {
         StorageTrieKey,
     };
     use alloy_eips::NumHash;
-    use alloy_primitives::{keccak256, B256};
+    use alloy_primitives::B256;
     use reth_db::{
         cursor::DbDupCursorRO,
         transaction::{DbTx, DbTxMut},
@@ -1346,166 +1325,6 @@ mod tests {
                 assert_eq!(v.value.0, branch);
             }
         }
-    }
-
-    #[tokio::test]
-    async fn test_store_address_mappings() {
-        let dir = TempDir::new().unwrap();
-        let store = MdbxProofsStorage::new(dir.path()).expect("env");
-
-        let a1 = Address::random();
-        let h1 = keccak256(a1);
-        let a2 = Address::random();
-        let h2 = keccak256(a2);
-        let a3 = Address::random();
-        let h3 = keccak256(a3);
-
-        // Input is unsorted to verify the method sorts them before appending
-        // (MDBX append requires sorted keys)
-        let mappings = vec![(h3, a3), (h1, a1), (h2, a2)];
-
-        store.store_address_mappings(mappings).await.expect("store");
-
-        let tx = store.env.tx().expect("ro tx");
-        let mut cur = tx.cursor_read::<AddressLookup>().expect("cursor");
-
-        // Verify h1
-        let v1 = cur.seek_exact(h1).expect("seek").expect("exists");
-        assert_eq!(v1, (h1, a1));
-
-        // Verify h2
-        let v2 = cur.seek_exact(h2).expect("seek").expect("exists");
-        assert_eq!(v2, (h2, a2));
-
-        // Verify h3
-        let v3 = cur.seek_exact(h3).expect("seek").expect("exists");
-        assert_eq!(v3, (h3, a3));
-    }
-
-    #[tokio::test]
-    async fn test_store_address_mappings_with_existing_entries() {
-        let dir = TempDir::new().unwrap();
-        let store = MdbxProofsStorage::new(dir.path()).expect("env");
-
-        // --- existing entries in db (high keys) ---
-        let a200 = Address::repeat_byte(200);
-        let a201 = Address::repeat_byte(201);
-        let a202 = Address::repeat_byte(202);
-
-        let mut k200 = [0u8; 32];
-        k200[31] = 200;
-        let k200 = B256::from(k200);
-
-        let mut k201 = [0u8; 32];
-        k201[31] = 201;
-        let k201 = B256::from(k201);
-
-        let mut k202 = [0u8; 32];
-        k202[31] = 202;
-        let k202 = B256::from(k202);
-
-        store
-            .store_address_mappings(vec![(k200, a200), (k201, a201), (k202, a202)])
-            .await
-            .expect("store existing");
-
-        // --- add more entries (contains smaller keys than existing max, and is unsorted) ---
-        let a9 = Address::repeat_byte(9);
-        let a10 = Address::repeat_byte(10);
-        let a203 = Address::repeat_byte(203);
-
-        let mut k9 = [0u8; 32];
-        k9[31] = 9;
-        let k9 = B256::from(k9);
-
-        let mut k10 = [0u8; 32];
-        k10[31] = 10;
-        let k10 = B256::from(k10);
-
-        let mut k203 = [0u8; 32];
-        k203[31] = 203;
-        let k203 = B256::from(k203);
-
-        // Unsorted on purpose
-        let new_mappings = vec![(k10, a10), (k203, a203), (k9, a9)];
-
-        // Requirement: should not fail even if new keys are not guaranteed > existing ones
-        store.store_address_mappings(new_mappings).await.expect("store new");
-
-        // --- verify all keys exist ---
-        let tx = store.env.tx().expect("ro tx");
-        let mut cur = tx.cursor_read::<AddressLookup>().expect("cursor");
-
-        let v9 = cur.seek_exact(k9).expect("seek").expect("exists");
-        assert_eq!(v9, (k9, a9));
-
-        let v10 = cur.seek_exact(k10).expect("seek").expect("exists");
-        assert_eq!(v10, (k10, a10));
-
-        let v200 = cur.seek_exact(k200).expect("seek").expect("exists");
-        assert_eq!(v200, (k200, a200));
-
-        let v201 = cur.seek_exact(k201).expect("seek").expect("exists");
-        assert_eq!(v201, (k201, a201));
-
-        let v202 = cur.seek_exact(k202).expect("seek").expect("exists");
-        assert_eq!(v202, (k202, a202));
-
-        let v203 = cur.seek_exact(k203).expect("seek").expect("exists");
-        assert_eq!(v203, (k203, a203));
-    }
-
-    #[tokio::test]
-    async fn test_store_address_mappings_idempotent() {
-        let dir = TempDir::new().unwrap();
-        let store = MdbxProofsStorage::new(dir.path()).expect("env");
-
-        let a1 = Address::repeat_byte(1);
-        let a2 = Address::repeat_byte(2);
-        let a3 = Address::repeat_byte(3);
-
-        let mut k1 = [0u8; 32];
-        k1[31] = 1;
-        let k1 = B256::from(k1);
-
-        let mut k2 = [0u8; 32];
-        k2[31] = 2;
-        let k2 = B256::from(k2);
-
-        let mut k3 = [0u8; 32];
-        k3[31] = 3;
-        let k3 = B256::from(k3);
-
-        let mappings = vec![(k3, a3), (k1, a1), (k2, a2)]; // unsorted on purpose
-
-        // First insert
-        store.store_address_mappings(mappings.clone()).await.expect("store first");
-
-        // Re-add exact same entries
-        store.store_address_mappings(mappings).await.expect("store second");
-
-        // Verify values are correct
-        let tx = store.env.tx().expect("ro tx");
-        let mut cur = tx.cursor_read::<AddressLookup>().expect("cursor");
-
-        let v1 = cur.seek_exact(k1).expect("seek").expect("exists");
-        assert_eq!(v1, (k1, a1));
-
-        let v2 = cur.seek_exact(k2).expect("seek").expect("exists");
-        assert_eq!(v2, (k2, a2));
-
-        let v3 = cur.seek_exact(k3).expect("seek").expect("exists");
-        assert_eq!(v3, (k3, a3));
-
-        // Ensure no duplicates were created: table length should be exactly 3.
-        let mut count = 0usize;
-        if let Some(_first) = cur.first().expect("first") {
-            count += 1;
-            while let Some(_next) = cur.next().expect("next") {
-                count += 1;
-            }
-        }
-        assert_eq!(count, 3, "re-adding same mappings should not create duplicate rows");
     }
 
     #[tokio::test]

@@ -2,7 +2,7 @@
 
 use crate::OpProofsStorageResult;
 use alloy_eips::eip1898::BlockWithParent;
-use alloy_primitives::{map::HashMap, Address, B256, U256};
+use alloy_primitives::{map::HashMap, B256, U256};
 use auto_impl::auto_impl;
 use derive_more::{AddAssign, Constructor};
 use reth_primitives_traits::Account;
@@ -108,12 +108,6 @@ pub trait OpProofsStore: Send + Sync + Debug {
         &self,
         hashed_address: B256,
         storages: Vec<(B256, U256)>,
-    ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
-
-    /// Store a batch of address mappings from hashed to original addresses.
-    fn store_address_mappings(
-        &self,
-        mappings: Vec<(B256, Address)>,
     ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
 
     /// Get the earliest block number and hash that has been stored

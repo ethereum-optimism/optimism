@@ -4,7 +4,7 @@ use crate::{
     api::WriteCounts, BlockStateDiff, OpProofsStorageError, OpProofsStorageResult, OpProofsStore,
 };
 use alloy_eips::eip1898::BlockWithParent;
-use alloy_primitives::{map::HashMap, Address, B256, U256};
+use alloy_primitives::{map::HashMap, B256, U256};
 use reth_db::DatabaseError;
 use reth_primitives_traits::Account;
 use reth_trie::{
@@ -36,9 +36,6 @@ struct InMemoryStorageInner {
 
     /// Hashed storages: (`block_number`, `hashed_address`, `hashed_slot`) -> value
     hashed_storages: BTreeMap<(u64, B256, B256), U256>,
-
-    /// Address mappings: (`block_number`, `hashed_address`) -> original address
-    address_mappings: BTreeMap<B256, Address>,
 
     /// Trie updates by block number
     trie_updates: BTreeMap<u64, TrieUpdatesSorted>,
@@ -536,19 +533,6 @@ impl OpProofsStore for InMemoryProofsStorage {
 
         for (slot, value) in storages {
             inner.hashed_storages.insert((0, hashed_address, slot), value);
-        }
-
-        Ok(())
-    }
-
-    async fn store_address_mappings(
-        &self,
-        mappings: Vec<(B256, alloy_primitives::Address)>,
-    ) -> OpProofsStorageResult<()> {
-        let mut inner = self.inner.write().await;
-
-        for (hashed_address, original_address) in mappings {
-            inner.address_mappings.insert(hashed_address, original_address);
         }
 
         Ok(())
