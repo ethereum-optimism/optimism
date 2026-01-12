@@ -300,6 +300,7 @@ go-tests-short: $(TEST_DEPS) ## Runs comprehensive Go tests with -short flag
 # Internal target for running Go tests with gotestsum for CI
 # Usage: make _go-tests-ci-internal GO_TEST_FLAGS="-short"
 _go-tests-ci-internal:
+	$(MAKE) -C cannon cannon elf # Required for cannon/provider_test TestLastStepCacheAccuracy
 	@echo "Setting up test directories..."
 	mkdir -p ./tmp/test-results ./tmp/testlogs
 	@echo "Running Go tests with gotestsum..."
