@@ -10,8 +10,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// MetricsRouter multiplexes Prometheus metrics by
-// directing http requests to all registered handlers
+// MetricsRouter allows multiple Prometheus metrics
+// "Gatherers"
+//
+//	to be served by a single HTTP server.
+//
+// The Gatherers must not collide with each other,
+// e.g. each must have a unique name or label set.
+// This can be accomplished by using a distinct,
+// global label on each Gatherer.
 type MetricsRouter struct {
 	log     gethlog.Logger
 	mu      sync.RWMutex
