@@ -11,9 +11,7 @@ import (
 )
 
 // MetricsRouter allows multiple Prometheus metrics
-// "Gatherers"
-//
-//	to be served by a single HTTP server.
+// "Gatherers" to be served by a single HTTP server.
 //
 // The Gatherers must not collide with each other,
 // e.g. each must have a unique name or label set.
