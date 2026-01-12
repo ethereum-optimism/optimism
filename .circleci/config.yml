@@ -1102,6 +1102,8 @@ jobs:
           command: |
             just print-pinned-block-number > ./pinnedBlockNumber.txt
             cat pinnedBlockNumber.txt
+          environment:
+            ETH_RPC_URL: https://ci-mainnet-l1-archive.optimism.io
           working_directory: packages/contracts-bedrock
       - restore_cache:
           name: Restore forked state
@@ -1194,6 +1196,7 @@ jobs:
             cat pinnedBlockNumber.txt
           environment:
             FORK_BASE_CHAIN: <<parameters.fork_base_chain>>
+            ETH_RPC_URL: <<parameters.fork_base_rpc>>
           working_directory: packages/contracts-bedrock
       - restore_cache:
           name: Restore forked state
