@@ -117,7 +117,7 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 
 	// Create and start the inner node
 	additionalLabels := map[string]string{VIRTUAL_NODE_CHAIN_ID_LABEL: v.cfg.Rollup.L2ChainID.String()}
-	m := opmetrics.NewMetrics("supeode", additionalLabels)
+	m := opmetrics.NewMetrics("supernode", additionalLabels)
 	n, err := v.innerNodeFactory(runCtx, v.cfg, v.log, v.appVersion, m, v.initOverload)
 	if err != nil {
 		v.state = VNStateStopped

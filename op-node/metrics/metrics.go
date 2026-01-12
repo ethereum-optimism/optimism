@@ -165,15 +165,16 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 	ns := Namespace + "_" + procName
 
 	registry := prometheus.NewRegistry()
-
-	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-	registry.MustRegister(collectors.NewGoCollector())
+	var registerer prometheus.Registerer
 	if labels != nil {
-		// We use a type assertion here because the Metrics type
-		// is tightly bound to the prometheus.Registry type.
-		registry = prometheus.WrapRegistererWith(labels, registry).(*prometheus.Registry)
+		registerer = prometheus.WrapRegistererWith(labels, registry)
+	} else {
+		registerer = registry
 	}
-	factory := metrics.With(registry)
+	registerer.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	registerer.MustRegister(collectors.NewGoCollector())
+
+	factory := metrics.With(registerer)
 	return &Metrics{
 		Info: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -563,7 +564,7 @@ func (m *Metrics) RecordSequencerSealingTime(duration time.Duration) {
 func (m *Metrics) StartServer(hostname string, port int) (*ophttp.HTTPServer, error) {
 	addr := net.JoinHostPort(hostname, strconv.Itoa(port))
 	h := promhttp.InstrumentMetricHandler(
-		m.registry, promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{}),
+		m.registry, promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{}),
 	)
 	return ophttp.StartHTTPServer(addr, h)
 }
