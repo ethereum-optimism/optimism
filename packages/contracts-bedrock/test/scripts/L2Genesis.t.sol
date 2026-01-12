@@ -11,6 +11,7 @@ import { LATEST_FORK } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
@@ -437,7 +438,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     function test_cgt_revenueShare_reverts() external {
         _setInputCGTEnabled();
         input.useRevenueShare = true;
-        vm.expectRevert("FeeVault: custom gas token and revenue share cannot be enabled together");
+        vm.expectRevert(Features.Features_CustomGasTokenAndRevenueShareIncompatible.selector);
         genesis.run(input);
     }
 }

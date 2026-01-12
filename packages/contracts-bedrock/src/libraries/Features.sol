@@ -15,4 +15,29 @@ library Features {
     ///         gas token in the OptimismPortal. When the CUSTOM_GAS_TOKEN feature is active, the
     ///         deposits and withdrawals of native ETH are disabled.
     bytes32 internal constant CUSTOM_GAS_TOKEN = "CUSTOM_GAS_TOKEN";
+
+    /// @notice The REVENUE_SHARING feature determines if the system is configured to use
+    ///         revenue sharing with fee vaults routing to the FeeSplitter predeploy.
+    ///         This is an L2-only feature configured at genesis time.
+    bytes32 internal constant REVENUE_SHARING = "REVENUE_SHARING";
+
+    /// @notice Error thrown when custom gas token and revenue sharing are both enabled.
+    error Features_CustomGasTokenAndRevenueShareIncompatible();
+
+    /// @notice Validates that custom gas token and revenue sharing are not both enabled.
+    ///         These features are mutually exclusive.
+    ///
+    /// @dev This validation approach is intentionally simple and not designed to scale
+    ///      to a large number of features or complex compatibility rules. As new features are
+    ///      added to the system, they should be evaluated for compatibility with all existing
+    ///      features. If additional incompatibilities are discovered or the number of features
+    ///      grows significantly, a more robust and extensible validation mechanism should be
+    ///      implemented.
+    /// @param _useCustomGasToken Whether custom gas token is enabled.
+    /// @param _useRevenueShare Whether revenue sharing is enabled.
+    function validateCompatibility(bool _useCustomGasToken, bool _useRevenueShare) internal pure {
+        if (_useCustomGasToken && _useRevenueShare) {
+            revert Features_CustomGasTokenAndRevenueShareIncompatible();
+        }
+    }
 }

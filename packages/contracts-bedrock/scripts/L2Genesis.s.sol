@@ -14,6 +14,7 @@ import { OutputMode, OutputModeUtils, Fork, ForkUtils } from "scripts/libraries/
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { Types } from "src/libraries/Types.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
@@ -233,6 +234,9 @@ contract L2Genesis is Script {
     ///      sets the deployed bytecode at their expected predeploy address.
     ///      LEGACY_ERC20_ETH and L1_MESSAGE_SENDER are deprecated and are not set.
     function setPredeployImplementations(Input memory _input) internal {
+        // Validate feature compatibility
+        Features.validateCompatibility(_input.useCustomGasToken, _input.useRevenueShare);
+
         setLegacyMessagePasser(); // 0
         // 01: legacy, not used in OP-Stack
         setDeployerWhitelist(); // 2
@@ -712,10 +716,6 @@ contract L2Genesis is Script {
 
         if (_useCustomGasToken && _withdrawalNetwork == Types.WithdrawalNetwork.L1) {
             revert("FeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
-        }
-
-        if (_useCustomGasToken && _useRevenueShare) {
-            revert("FeeVault: custom gas token and revenue share cannot be enabled together");
         }
 
         if (_useRevenueShare) {
