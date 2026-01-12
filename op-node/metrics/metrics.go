@@ -564,7 +564,7 @@ func (m *Metrics) RecordSequencerSealingTime(duration time.Duration) {
 func (m *Metrics) StartServer(hostname string, port int) (*ophttp.HTTPServer, error) {
 	addr := net.JoinHostPort(hostname, strconv.Itoa(port))
 	h := promhttp.InstrumentMetricHandler(
-		m.registry, promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{}),
+		m.registry, promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{}),
 	)
 	return ophttp.StartHTTPServer(addr, h)
 }
