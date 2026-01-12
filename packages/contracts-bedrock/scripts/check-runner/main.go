@@ -801,14 +801,22 @@ func (r *Runner) runRetryChecksWithDependents(checkNames []string, phase *Phase)
 		return
 	}
 
-	// Keep running dependents until no more can be unblocked
-	for {
+	// Keep running dependents until no more can be unblocked.
+	// Track processed checks to detect circular dependencies or unexpected loops.
+	processed := make(map[string]bool)
+	maxIterations := len(phase.Checks) + 1 // Safety limit
+	for iteration := 0; iteration < maxIterations; iteration++ {
 		if r.interrupted.Load() {
 			return
 		}
 
 		unblockedAny := false
 		for _, check := range phase.Checks {
+			// Skip if already processed in this retry phase
+			if processed[check.Name] {
+				continue
+			}
+
 			state := r.states[check.Name]
 			if state == nil || state.status != "skipped" {
 				continue
@@ -829,6 +837,7 @@ func (r *Runner) runRetryChecksWithDependents(checkNames []string, phase *Phase)
 
 			if allDepsPassed && len(check.Depends) > 0 {
 				// This check was skipped but its deps now pass - run it
+				processed[check.Name] = true
 				if r.runRetryCheck(check.Name) {
 					retryPassed[check.Name] = true
 				}
