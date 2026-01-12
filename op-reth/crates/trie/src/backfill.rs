@@ -196,6 +196,19 @@ async fn backfill<
     Ok(total_entries)
 }
 
+/// Save hashed accounts to storage.
+async fn save_hashed_accounts<S: OpProofsStore>(
+    storage: &S,
+    entries: Vec<(B256, Account)>,
+) -> Result<(), OpProofsStorageError> {
+    storage
+        .store_hashed_accounts(
+            entries.into_iter().map(|(address, account)| (address, Some(account))).collect(),
+        )
+        .await?;
+    Ok(())
+}
+
 impl<'a, Tx: DbTx, S: OpProofsStore + Send> BackfillJob<'a, Tx, S> {
     /// Create a new backfill job.
     pub const fn new(storage: S, tx: &'a Tx) -> Self {
@@ -208,24 +221,12 @@ impl<'a, Tx: DbTx, S: OpProofsStore + Send> BackfillJob<'a, Tx, S> {
 
         let source = HashedAccountsIter::new(start_cursor);
         let storage = &self.storage;
-        let save_fn = async |entries: Vec<(B256, Account)>| -> Result<(), OpProofsStorageError> {
-            storage
-                .store_hashed_accounts(
-                    entries
-                        .into_iter()
-                        .map(|(address, account)| (address, Some(account)))
-                        .collect(),
-                )
-                .await?;
-            Ok(())
-        };
-
         backfill(
             "hashed accounts",
             source,
             BACKFILL_STORAGE_THRESHOLD,
             BACKFILL_LOG_THRESHOLD,
-            save_fn,
+            |entries| save_hashed_accounts(storage, entries),
         )
         .await?;
 
