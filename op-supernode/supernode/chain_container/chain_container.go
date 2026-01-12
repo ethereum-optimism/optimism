@@ -74,6 +74,7 @@ func NewChainContainer(
 	initOverload *rollupNode.InitializationOverrides,
 	rpcHandler *oprpc.Handler,
 	setHandler func(chainID string, h http.Handler),
+	setMetricsHandler func(chainID string, h http.Handler),
 ) ChainContainer {
 	c := &simpleChainContainer{
 		vncfg:              vncfg,
@@ -84,6 +85,7 @@ func NewChainContainer(
 		initOverload:       initOverload,
 		rpcHandler:         rpcHandler,
 		setHandler:         setHandler,
+		setMetricsHandler:  setMetricsHandler,
 		appVersion:         virtualNodeVersion,
 		virtualNodeFactory: defaultVirtualNodeFactory,
 	}

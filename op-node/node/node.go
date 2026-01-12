@@ -289,7 +289,6 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 		}
 	}
 
-	// TODO remove?
 	// Expose metrics registry to provided registry if requested
 	if overrides.MetricsRegistry != nil && n.metrics != nil {
 		if reg := n.metrics.Registry(); reg != nil {
