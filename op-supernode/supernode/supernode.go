@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/heartbeat"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/superroot"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/metrics"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	rpc "github.com/ethereum/go-ethereum/rpc"
@@ -40,9 +41,9 @@ type Supernode struct {
 	beaconClient *sources.L1BeaconClient
 	httpServer   *httputil.HTTPServer
 	rpcRouter    *resources.Router
-	// Metrics router/server for per-chain metrics
-	metrics       *resources.MetricsService
-	metricsRouter *resources.MetricsRouter
+	metrics      *metrics.Metrics
+	metricsSrv   *httputil.HTTPServer
+
 	// cached address when available
 	rpcAddr string
 }
@@ -67,8 +68,6 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	// Root JSON-RPC handler mounted at '/'
 	s.rootRPC = oprpc.NewHandler(version, oprpc.WithLogger(log))
 	s.rpcRouter.SetRootHandler(s.rootRPC)
-	// Build metrics router; attach per-chain registries later
-	s.metricsRouter = resources.NewMetricsRouter(log)
 	for _, id := range cfg.Chains {
 		chainID := eth.ChainIDFromUInt64(id)
 		initOverrides := &rollupNode.InitializationOverrides{
@@ -80,7 +79,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			log.Error("missing virtual node config for chain", "chain", id)
 			continue
 		}
-		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsRouter.SetHandler)
+		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler)
 	}
 	// Initialize activities
 	s.activities = []activity.Activity{
@@ -90,10 +89,6 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	addr := net.JoinHostPort(cfg.RPCConfig.ListenAddr, strconv.Itoa(cfg.RPCConfig.ListenPort))
 	s.httpServer = httputil.NewHTTPServer(addr, s.rpcRouter)
 
-	// Optionally build metrics service
-	if cfg.MetricsConfig.Enabled {
-		s.metrics = resources.NewMetricsService(log, cfg.MetricsConfig.ListenAddr, cfg.MetricsConfig.ListenPort, s.metricsRouter)
-	}
 	return s, nil
 }
 
@@ -117,16 +112,14 @@ func (s *Supernode) Start(ctx context.Context) error {
 			}
 		}()
 	}
+
 	// Start metrics service
-	if s.metrics != nil {
-		s.wg.Add(1)
-		s.metrics.Start(func(err error) {
-			defer s.wg.Done()
-			if s.requestStop != nil {
-				s.requestStop(err)
-			}
-		})
+	var err error
+	s.metricsSrv, err = s.initMetricsServer()
+	if err != nil {
+		return err
 	}
+
 	// Register RPC APIs and start only Runnable activities
 	for _, a := range s.activities {
 		if ra, ok := a.(activity.RPCActivity); ok {
@@ -170,21 +163,16 @@ func (s *Supernode) Stop(ctx context.Context) error {
 			s.log.Error("error shutting down rpc server", "error", err)
 		}
 	}
-	if s.metrics != nil {
+	if s.metricsSrv != nil {
 		shutdownCtx, cancel := context.WithTimeout(ctx, 0)
 		defer cancel()
-		if err := s.metrics.Stop(shutdownCtx); err != nil {
+		if err := s.metricsSrv.Shutdown(shutdownCtx); err != nil {
 			s.log.Error("error shutting down metrics server", "error", err)
 		}
 	}
 	if s.rpcRouter != nil {
 		if err := s.rpcRouter.Close(); err != nil {
 			s.log.Error("error closing rpc router", "error", err)
-		}
-	}
-	if s.metricsRouter != nil {
-		if err := s.metricsRouter.Close(); err != nil {
-			s.log.Error("error closing metrics router", "error", err)
 		}
 	}
 
@@ -295,4 +283,18 @@ func (s *Supernode) initBeaconClient(ctx context.Context, cfg *config.CLIConfig)
 
 	s.log.Info("L1 Beacon client initialized successfully")
 	return nil
+}
+
+func (s *Supernode) initMetricsServer() (*httputil.HTTPServer, error) {
+	if !s.cfg.MetricsConfig.Enabled {
+		s.log.Info("metrics disabled")
+		return nil, nil
+	}
+	s.log.Debug("starting metrics server", "addr", s.cfg.MetricsConfig.ListenAddr, "port", s.cfg.MetricsConfig.ListenPort)
+	metricsSrv, err := s.metrics.StartServer(s.cfg.MetricsConfig.ListenAddr, s.cfg.MetricsConfig.ListenPort)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start metrics server: %w", err)
+	}
+	s.log.Info("started metrics server", "addr", metricsSrv.Addr())
+	return metricsSrv, nil
 }
