@@ -94,11 +94,17 @@ test-dev *ARGS: build-go-ffi
 
 # Calculates and prints the pinned block number for the current FORK_BASE_CHAIN.
 # Defaults to mainnet if FORK_BASE_CHAIN is not set.
+# Uses the most recent Sunday at 00:00 UTC as the target timestamp.
 print-pinned-block-number:
   #!/usr/bin/env bash
   set -euo pipefail
-  chain="${FORK_BASE_CHAIN:-mainnet}"
-  go run ./scripts/autogen/calc-weekly-block --chain "$chain"
+  # Calculate most recent Sunday at 00:00 UTC
+  now=$(date -u +%s)
+  dow=$(date -u +%w)  # 0=Sunday
+  h=$(date -u +%H); m=$(date -u +%M); s=$(date -u +%S)
+  secs_since_midnight=$(( 10#$h * 3600 + 10#$m * 60 + 10#$s ))
+  sunday_midnight=$(( now - secs_since_midnight - dow * 86400 ))
+  cast find-block "$sunday_midnight"
 
 # Prepares the environment for upgrade path variant of contract tests and coverage.
 # Env Vars:
