@@ -6,20 +6,24 @@ import (
 	"sync"
 
 	gethlog "github.com/ethereum/go-ethereum/log"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // MetricsRouter multiplexes Prometheus metrics by
 // directing http requests to all registered handlers
 type MetricsRouter struct {
-	log      gethlog.Logger
-	mu       sync.RWMutex
-	handlers []http.Handler // one for each chain
+	log     gethlog.Logger
+	mu      sync.RWMutex
+	g       prometheus.Gatherers
+	handler http.Handler
 	// optional resource closers
 	closers []io.Closer
 }
 
 func NewMetricsRouter(log gethlog.Logger) *MetricsRouter {
-	return &MetricsRouter{log: log, handlers: make([]http.Handler, 0)}
+	// TODO could accept number of gatherers as constructor argument
+	return &MetricsRouter{log: log, g: make([]prometheus.Gatherer, 0)}
 }
 
 func (r *MetricsRouter) Close() error {
@@ -32,10 +36,11 @@ func (r *MetricsRouter) Close() error {
 	return firstErr
 }
 
-func (r *MetricsRouter) AddHandler(h http.Handler) {
+func (r *MetricsRouter) AddRegistry(g prometheus.Gatherer) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.handlers = append(r.handlers, h)
+	r.g = append(r.g, g)
+	r.handler = promhttp.HandlerFor(r.g, promhttp.HandlerOpts{})
 }
 
 func (r *MetricsRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -45,8 +50,6 @@ func (r *MetricsRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	r.mu.RLock()
-	for _, h := range r.handlers {
-		h.ServeHTTP(w, req)
-	}
+	r.handler.ServeHTTP(w, req)
 	r.mu.RUnlock()
 }
