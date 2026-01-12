@@ -55,14 +55,14 @@ contract MintManager_Constructor_Test is MintManager_TestInit {
 /// @title MintManager_Mint_Test
 /// @notice Tests the `mint` function of the `MintManager` contract.
 contract MintManager_Mint_Test is MintManager_TestInit {
-    /// @notice Tests that the mint function properly mints tokens when called by the owner.
-    function test_mint_fromOwner_succeeds() external {
-        // Mint once.
-        vm.prank(owner);
-        manager.mint(owner, 100);
+    /// @notice Tests that the first mint can be any amount since no cap applies.
+    function testFuzz_mint_firstMint_succeeds(uint256 _amount) external {
+        _amount = bound(_amount, 0, type(uint192).max);
 
-        // Token balance increases.
-        assertEq(gov.balanceOf(owner), 100);
+        vm.prank(owner);
+        manager.mint(owner, _amount);
+
+        assertEq(gov.balanceOf(owner), _amount);
     }
 
     /// @notice Tests that the mint function reverts when called by a non-owner.
@@ -73,23 +73,23 @@ contract MintManager_Mint_Test is MintManager_TestInit {
         manager.mint(owner, 100);
     }
 
-    /// @notice Tests that the mint function properly mints tokens when called by the owner a
-    ///         second time after the mint period has elapsed.
-    function test_mint_afterPeriodElapsed_succeeds() external {
-        // Mint once.
+    /// @notice Tests that subsequent mints succeed when within cap after period elapsed.
+    function testFuzz_mint_afterPeriodElapsed_succeeds(uint256 _initialAmount, uint256 _secondAmount) external {
+        _initialAmount = bound(_initialAmount, 1, type(uint192).max);
+
         vm.prank(owner);
-        manager.mint(owner, 100);
+        manager.mint(owner, _initialAmount);
 
-        // Token balance increases.
-        assertEq(gov.balanceOf(owner), 100);
+        assertEq(gov.balanceOf(owner), _initialAmount);
 
-        // Mint again after period elapsed (2% max).
+        uint256 maxMint = (_initialAmount * manager.MINT_CAP()) / manager.DENOMINATOR();
+        _secondAmount = bound(_secondAmount, 0, maxMint);
+
         vm.warp(block.timestamp + manager.MINT_PERIOD() + 1);
         vm.prank(owner);
-        manager.mint(owner, 2);
+        manager.mint(owner, _secondAmount);
 
-        // Token balance increases.
-        assertEq(gov.balanceOf(owner), 102);
+        assertEq(gov.balanceOf(owner), _initialAmount + _secondAmount);
     }
 
     /// @notice Tests that the mint function always reverts when called before the mint period has
@@ -134,14 +134,14 @@ contract MintManager_Mint_Test is MintManager_TestInit {
 /// @title MintManager_Upgrade_Test
 /// @notice Tests the `upgrade` function of the `MintManager` contract.
 contract MintManager_Upgrade_Test is MintManager_TestInit {
-    /// @notice Tests that the owner can upgrade the mint manager.
-    function test_upgrade_fromOwner_succeeds() external {
-        // Upgrade to new manager.
-        vm.prank(owner);
-        manager.upgrade(rando);
+    /// @notice Tests that the owner can upgrade to any non-zero address.
+    function testFuzz_upgrade_fromOwner_succeeds(address _newManager) external {
+        vm.assume(_newManager != address(0));
 
-        // New manager is rando.
-        assertEq(gov.owner(), rando);
+        vm.prank(owner);
+        manager.upgrade(_newManager);
+
+        assertEq(gov.owner(), _newManager);
     }
 
     /// @notice Tests that the upgrade function reverts when called by a non-owner.
