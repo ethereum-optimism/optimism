@@ -158,17 +158,22 @@ type Metrics struct {
 var _ Metricer = (*Metrics)(nil)
 
 // NewMetrics creates a new [Metrics] instance with the given process name.
-func NewMetrics(procName string) *Metrics {
+func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 	if procName == "" {
 		procName = "default"
 	}
 	ns := Namespace + "_" + procName
 
 	registry := prometheus.NewRegistry()
+
 	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	registry.MustRegister(collectors.NewGoCollector())
+	if labels != nil {
+		// We use a type assertion here because the Metrics type
+		// is tightly bound to the prometheus.Registry type.
+		registry = prometheus.WrapRegistererWith(labels, registry).(*prometheus.Registry)
+	}
 	factory := metrics.With(registry)
-
 	return &Metrics{
 		Info: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,

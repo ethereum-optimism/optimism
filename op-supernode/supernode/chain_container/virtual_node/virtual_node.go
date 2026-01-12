@@ -14,6 +14,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const VIRTUAL_NODE_CHAIN_ID_LABEL = "virtual_node_chain_id"
+
 // defaultInnerNodeFactory is the default factory that creates a real op-node
 func defaultInnerNodeFactory(ctx context.Context, cfg *opnodecfg.Config, log gethlog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitializationOverrides) (innerNode, error) {
 	var overrides rollupNode.InitializationOverrides
@@ -114,7 +116,8 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 	}
 
 	// Create and start the inner node
-	m := opmetrics.NewMetrics("supernode")
+	additionalLabels := map[string]string{VIRTUAL_NODE_CHAIN_ID_LABEL: v.cfg.Rollup.L2ChainID.String()}
+	m := opmetrics.NewMetrics("supeode", additionalLabels)
 	n, err := v.innerNodeFactory(runCtx, v.cfg, v.log, v.appVersion, m, v.initOverload)
 	if err != nil {
 		v.state = VNStateStopped
