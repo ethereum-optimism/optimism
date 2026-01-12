@@ -8,22 +8,18 @@ import (
 	gethlog "github.com/ethereum/go-ethereum/log"
 )
 
-// MetricsRouter multiplexes Prometheus metrics by the first path segment (chainID),
-// and then requires the next segment to be 'metrics'. Effective paths:
-//
-//	/{chain}/metrics
-//
-// The wrapped handler is expected to serve on '/'.
+// MetricsRouter multiplexes Prometheus metrics by
+// directing http requests to all registered handlers
 type MetricsRouter struct {
-	log   gethlog.Logger
-	mu    sync.RWMutex
-	paths map[string]http.Handler // chainID -> handler
+	log      gethlog.Logger
+	mu       sync.RWMutex
+	handlers []http.Handler // one for each chain
 	// optional resource closers
 	closers []io.Closer
 }
 
 func NewMetricsRouter(log gethlog.Logger) *MetricsRouter {
-	return &MetricsRouter{log: log, paths: make(map[string]http.Handler)}
+	return &MetricsRouter{log: log, handlers: make([]http.Handler, 0)}
 }
 
 func (r *MetricsRouter) Close() error {
@@ -36,48 +32,21 @@ func (r *MetricsRouter) Close() error {
 	return firstErr
 }
 
-func (r *MetricsRouter) SetHandler(chainID string, h http.Handler) {
+func (r *MetricsRouter) AddHandler(h http.Handler) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.paths == nil {
-		r.paths = make(map[string]http.Handler)
-	}
-	r.paths[chainID] = h
+	r.handlers = append(r.handlers, h)
 }
 
 func (r *MetricsRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	chainID, remainder := splitFirstSegment(req.URL.Path)
-	if chainID == "" {
-		http.NotFound(w, req)
-		return
-	}
-	// next segment must be 'metrics'
-	seg, _ := splitFirstSegment(remainder)
+	seg, _ := splitFirstSegment(req.URL.Path)
 	if seg != "metrics" {
 		http.NotFound(w, req)
 		return
 	}
-
 	r.mu.RLock()
-	h, ok := r.paths[chainID]
+	for _, h := range r.handlers {
+		h.ServeHTTP(w, req)
+	}
 	r.mu.RUnlock()
-	if !ok {
-		http.NotFound(w, req)
-		return
-	}
-
-	// Normalize path to '/'
-	origPath := req.URL.Path
-	origReqURI := req.RequestURI
-	req.URL.Path = "/"
-	if req.URL.RawQuery != "" {
-		req.RequestURI = "/?" + req.URL.RawQuery
-	} else {
-		req.RequestURI = "/"
-	}
-	defer func() {
-		req.URL.Path = origPath
-		req.RequestURI = origReqURI
-	}()
-	h.ServeHTTP(w, req)
 }

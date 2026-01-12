@@ -57,7 +57,7 @@ type simpleChainContainer struct {
 	initOverload       *rollupNode.InitializationOverrides  // Base shared resources for all virtual nodes
 	rpcHandler         *oprpc.Handler                       // Current per-chain RPC handler instance
 	setHandler         func(chainID string, h http.Handler) // Set the RPC handler on the router for the chain
-	setMetricsHandler  func(chainID string, h http.Handler) // Set the metrics handler on the router for the chain
+	addMetricsHandler  func(h http.Handler)                 // Set the metrics handler on the router for the chain
 	appVersion         string
 	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
@@ -74,7 +74,7 @@ func NewChainContainer(
 	initOverload *rollupNode.InitializationOverrides,
 	rpcHandler *oprpc.Handler,
 	setHandler func(chainID string, h http.Handler),
-	setMetricsHandler func(chainID string, h http.Handler),
+	addMetricsHandler func(h http.Handler),
 ) ChainContainer {
 	c := &simpleChainContainer{
 		vncfg:              vncfg,
@@ -85,7 +85,7 @@ func NewChainContainer(
 		initOverload:       initOverload,
 		rpcHandler:         rpcHandler,
 		setHandler:         setHandler,
-		setMetricsHandler:  setMetricsHandler,
+		addMetricsHandler:  addMetricsHandler,
 		appVersion:         virtualNodeVersion,
 		virtualNodeFactory: defaultVirtualNodeFactory,
 	}
@@ -142,12 +142,11 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		// Disable per-VN metrics server and provide metrics registry hook
 		c.vncfg.Metrics.Enabled = false
 		if c.initOverload != nil {
-			chainID := c.chainID.String()
 			c.initOverload.MetricsRegistry = func(reg *prometheus.Registry) {
-				if c.setMetricsHandler != nil {
+				if c.addMetricsHandler != nil {
 					// Mount per-chain metrics handler at /{chain}/metrics via router
 					handler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
-					c.setMetricsHandler(chainID, handler)
+					c.addMetricsHandler(handler)
 				}
 			}
 		}
