@@ -86,8 +86,6 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isThrottling bool) ChannelConf
 		computeSingleBlobTxCost(numBlobsPerTx, baseFee, tipCap, blobBaseFee),
 		computeSingleBlobTxCost(numBlobsPerTx, baseFee, blobTipCap, blobBaseFee)
 
-	// TODO(18618): before activating the blob tip oracle, confirm in prod that we mostly get newBlobSavings == true, otherwise
-	// it is not worth it using the oracle
 	oracleBlobSavings := oracleBlobCost.Cmp(blobCost) < 0
 
 	// Now we compare the absolute cost per tx divided by the number of bytes per tx:
