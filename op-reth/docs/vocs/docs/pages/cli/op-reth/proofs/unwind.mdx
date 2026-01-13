@@ -30,6 +30,9 @@ Datadir:
       --datadir.rocksdb <PATH>
           The absolute path to store `RocksDB` database in.
 
+      --datadir.pprof-dumps <PATH>
+          The absolute path to store pprof dumps in.
+
       --config <FILE>
           The path to the configuration file to use
 
@@ -102,6 +105,9 @@ Static Files:
       --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS>
           Number of blocks per file for the transaction senders segment
 
+      --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS>
+          Number of blocks per file for the account changesets segment
+
       --static-files.receipts
           Store receipts in static files instead of the database.
 
@@ -113,6 +119,13 @@ Static Files:
           Store transaction senders in static files instead of the database.
 
           When enabled, transaction senders will be written to static files on disk instead of the database.
+
+          Note: This setting can only be configured at genesis initialization. Once the node has been initialized, changing this flag requires re-syncing from scratch.
+
+      --static-files.account-change-sets
+          Store account changesets in static files.
+
+          When enabled, account changesets will be written to static files on disk instead of the database.
 
           Note: This setting can only be configured at genesis initialization. Once the node has been initialized, changing this flag requires re-syncing from scratch.
 
