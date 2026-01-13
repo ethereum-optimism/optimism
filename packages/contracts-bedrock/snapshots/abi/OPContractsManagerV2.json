@@ -2,11 +2,6 @@
   {
     "inputs": [
       {
-        "internalType": "contract IOPContractsManagerContainer",
-        "name": "_contractsContainer",
-        "type": "address"
-      },
-      {
         "internalType": "contract IOPContractsManagerStandardValidator",
         "name": "_standardValidator",
         "type": "address"
