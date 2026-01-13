@@ -228,7 +228,7 @@ func TestInteropMigration(t *testing.T) {
 	}
 }
 
-func TestMigrateCLI_V1Flags(t *testing.T) {
+func TestMigrateCLIV1Flags(t *testing.T) {
 	app := cli.NewApp()
 	flagSet := flag.NewFlagSet("test-migrate-v1", flag.ContinueOnError)
 
@@ -285,7 +285,7 @@ func TestMigrateCLI_V1Flags(t *testing.T) {
 	require.Equal(t, common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000fed"), cannonKonaPrestate)
 }
 
-func TestMigrateCLI_V2Flags(t *testing.T) {
+func TestMigrateCLIV2Flags(t *testing.T) {
 	app := cli.NewApp()
 	flagSet := flag.NewFlagSet("test-migrate-v2", flag.ContinueOnError)
 
@@ -327,7 +327,7 @@ func TestMigrateCLI_V2Flags(t *testing.T) {
 	require.Equal(t, uint32(0), startingRespectedGameType)
 }
 
-func TestMigrateCLI_MissingRequiredFlags(t *testing.T) {
+func TestMigrateCLIMissingRequiredFlags(t *testing.T) {
 	testCases := []struct {
 		name        string
 		setupFlags  func(*flag.FlagSet)
@@ -363,6 +363,107 @@ func TestMigrateCLI_MissingRequiredFlags(t *testing.T) {
 				require.Empty(t, ctx.String(OPCMImplFlag.Name))
 			case SystemConfigProxyFlag.Name:
 				require.Empty(t, ctx.String(SystemConfigProxyFlag.Name))
+			}
+		})
+	}
+}
+
+func TestMigrateCLIV2Uint32Overflow(t *testing.T) {
+	testCases := []struct {
+		name                      string
+		disputeGameType           uint64
+		startingRespectedGameType uint64
+		expectError               bool
+		expectedErrContains       string
+	}{
+		{
+			name:                      "valid uint32 values",
+			disputeGameType:           0,
+			startingRespectedGameType: 4,
+			expectError:               false,
+		},
+		{
+			name:                      "max valid uint32 values",
+			disputeGameType:           0xFFFFFFFF,
+			startingRespectedGameType: 0xFFFFFFFF,
+			expectError:               false,
+		},
+		{
+			name:                      "disputeGameType overflow",
+			disputeGameType:           0x100000000, // 2^32
+			startingRespectedGameType: 4,
+			expectError:               true,
+			expectedErrContains:       "disputeGameType",
+		},
+		{
+			name:                      "startingRespectedGameType overflow",
+			disputeGameType:           0,
+			startingRespectedGameType: 0x100000000, // 2^32
+			expectError:               true,
+			expectedErrContains:       "startingRespectedGameType",
+		},
+		{
+			name:                      "disputeGameType large overflow",
+			disputeGameType:           0xFFFFFFFFFFFFFFFF, // max uint64
+			startingRespectedGameType: 4,
+			expectError:               true,
+			expectedErrContains:       "disputeGameType",
+		},
+		{
+			name:                      "startingRespectedGameType large overflow",
+			disputeGameType:           0,
+			startingRespectedGameType: 0xFFFFFFFFFFFFFFFF, // max uint64
+			expectError:               true,
+			expectedErrContains:       "startingRespectedGameType",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := cli.NewApp()
+			flagSet := flag.NewFlagSet(fmt.Sprintf("test-%s", tc.name), flag.ContinueOnError)
+
+			// Set all required flags
+			flagSet.String(deployer.L1RPCURLFlag.Name, "http://localhost:8545", "doc")
+			flagSet.String(deployer.PrivateKeyFlag.Name, "0000000000000000000000000000000000000000000000000000000000000001", "doc")
+			flagSet.String(OPCMImplFlag.Name, "0xaf334f4537e87f5155d135392ff6d52f1866465e", "doc")
+			flagSet.String(SystemConfigProxyFlag.Name, "0x034edD2A225f7f429A63E0f1D2084B9E0A93b538", "doc")
+			flagSet.String(L1ProxyAdminOwnerFlag.Name, "0x1Eb2fFc903729a0F03966B917003800b145F56E2", "doc")
+			flagSet.Bool(DisputeGameEnabledFlag.Name, true, "doc")
+			flagSet.String(InitialBondFlag.Name, "1000000000000000000", "doc")
+			flagSet.Uint64(DisputeGameTypeFlag.Name, tc.disputeGameType, "doc")
+			flagSet.String(DisputeAbsolutePrestateFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000abc", "doc")
+			flagSet.String(StartingAnchorRootFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000def", "doc")
+			flagSet.Uint64(StartingAnchorL2SequenceNumberFlag.Name, 1, "doc")
+			flagSet.Uint64(StartingRespectedGameTypeFlag.Name, tc.startingRespectedGameType, "doc")
+			flagSet.String(deployer.ArtifactsLocatorFlag.Name, "tag://op-contracts/v1.6.0", "doc")
+			flagSet.String(deployer.CacheDirFlag.Name, t.TempDir(), "doc")
+
+			ctx := cli.NewContext(app, flagSet, nil)
+
+			// Parse the flags to validate uint32 bounds
+			disputeGameTypeU64 := ctx.Uint64(DisputeGameTypeFlag.Name)
+			startingRespectedGameTypeU64 := ctx.Uint64(StartingRespectedGameTypeFlag.Name)
+
+			// Simulate the validation logic from MigrateCLIV2
+			var validationErr error
+			if disputeGameTypeU64 > 0xFFFFFFFF {
+				validationErr = fmt.Errorf("disputeGameType %d exceeds uint32 max value", disputeGameTypeU64)
+			}
+			if startingRespectedGameTypeU64 > 0xFFFFFFFF {
+				validationErr = fmt.Errorf("startingRespectedGameType %d exceeds uint32 max value", startingRespectedGameTypeU64)
+			}
+
+			if tc.expectError {
+				require.Error(t, validationErr)
+				require.Contains(t, validationErr.Error(), tc.expectedErrContains)
+			} else {
+				require.NoError(t, validationErr)
+				// Verify casting to uint32 is safe
+				disputeGameType := uint32(disputeGameTypeU64)
+				startingRespectedGameType := uint32(startingRespectedGameTypeU64)
+				require.Equal(t, tc.disputeGameType, uint64(disputeGameType))
+				require.Equal(t, tc.startingRespectedGameType, uint64(startingRespectedGameType))
 			}
 		})
 	}

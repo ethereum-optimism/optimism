@@ -364,13 +364,19 @@ func MigrateCLIV2(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to ABI-encode game args: %w", err)
 	}
 
-	startingRespectedGameType := uint32(cliCtx.Uint64(StartingRespectedGameTypeFlag.Name))
-
-	if startingRespectedGameType != 4 && startingRespectedGameType != 5 {
-		return fmt.Errorf("debug: startingRespectedGameType must be 4 (SUPER_CANNON) or 5 (SUPER_PERMISSIONED_CANNON), got %d", startingRespectedGameType)
+	startingRespectedGameTypeU64 := cliCtx.Uint64(StartingRespectedGameTypeFlag.Name)
+	if startingRespectedGameTypeU64 > 0xFFFFFFFF {
+		return fmt.Errorf("startingRespectedGameType %d exceeds uint32 max value", startingRespectedGameTypeU64)
 	}
+	startingRespectedGameType := uint32(startingRespectedGameTypeU64)
 
 	systemConfigProxy := common.HexToAddress(cliCtx.String(SystemConfigProxyFlag.Name))
+
+	disputeGameTypeU64 := cliCtx.Uint64(DisputeGameTypeFlag.Name)
+	if disputeGameTypeU64 > 0xFFFFFFFF {
+		return fmt.Errorf("disputeGameType %d exceeds uint32 max value", disputeGameTypeU64)
+	}
+	disputeGameType := uint32(disputeGameTypeU64)
 
 	var prankAddr common.Address
 	if prankFlag := cliCtx.String(L1ProxyAdminOwnerFlag.Name); prankFlag != "" {
@@ -390,7 +396,7 @@ func MigrateCLIV2(cliCtx *cli.Context) error {
 				{
 					Enabled:  cliCtx.Bool(DisputeGameEnabledFlag.Name),
 					InitBond: initBond,
-					GameType: uint32(cliCtx.Uint64(DisputeGameTypeFlag.Name)),
+					GameType: disputeGameType,
 					GameArgs: gameArgs,
 				},
 			},
