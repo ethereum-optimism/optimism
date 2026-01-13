@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"testing"
@@ -213,6 +214,40 @@ func TestLargePreimageUploader_UploadPreimage_EdgeCases(t *testing.T) {
 		require.Equal(t, 0, contract.addCalls)
 		require.Empty(t, contract.addData)
 	})
+
+	t.Run("StoragePartMustNotSpanChunk", func(t *testing.T) {
+		for offsetFromMaxChunkSize := -41; offsetFromMaxChunkSize < 10; offsetFromMaxChunkSize++ {
+			t.Run(fmt.Sprintf("offsetFromMaxChunkSize=%d", offsetFromMaxChunkSize), func(t *testing.T) {
+				oracle, _, _, contract := newTestLargePreimageUploader(t)
+				data := mockPreimageOracleData()
+				data.OracleOffset = uint32(MaxChunkSize + offsetFromMaxChunkSize)
+
+				// Upload preimage successfully
+				err := oracle.UploadPreimage(context.Background(), 0, data)
+				require.ErrorIs(t, err, ErrChallengePeriodNotOver, "Data uploaded but can't squeeze yet")
+				require.Equal(t, data.GetPreimageWithoutSize(), contract.addData, "Did not upload correct data")
+			})
+		}
+	})
+
+	t.Run("StoragePartExtendsPastEndOfData", func(t *testing.T) {
+		oracle, _, _, contract := newTestLargePreimageUploader(t)
+		// Input data is just shorter than the max chunk size
+		input := make([]byte, 2*MaxChunkSize-10)
+		for i := range input {
+			input[i] = byte(i)
+		}
+		// Offset is set so that the 32 bytes to store would extend past the end of the chunk
+		// But we won't need to change the chunk size because it will reach the end of the data first.
+		offset := uint32(2*MaxChunkSize - 20)
+		data := makePreimageData(input, offset)
+
+		// Upload preimage successfully
+		err := oracle.UploadPreimage(context.Background(), 0, data)
+		require.ErrorIs(t, err, ErrChallengePeriodNotOver, "Data uploaded but can't squeeze yet")
+		require.Equal(t, data.GetPreimageWithoutSize(), contract.addData, "Did not upload correct data")
+		require.Equal(t, 2, contract.addCalls, "Should not need additional transactions")
+	})
 }
 
 func mockPreimageOracleData() *types.PreimageOracleData {
@@ -305,6 +340,7 @@ func TestLargePreimageUploader_UploadPreimage_Succeeds(t *testing.T) {
 			poststate, _ := s.PoststateWithProof()
 			require.Equal(t, prestate, contract.squeezePrestate)
 			require.Equal(t, poststate, contract.squeezePoststate)
+			require.Equal(t, data.GetPreimageWithoutSize(), contract.addData, "Did not upload correct data")
 		})
 	}
 }
@@ -386,6 +422,20 @@ func (s *mockPreimageOracleContract) AddLeaves(uuid *big.Int, startingBlockIndex
 	s.addCalls++
 	if s.addFails {
 		return txmgr.TxCandidate{}, mockAddLeavesError
+	}
+
+	// Enforce: if the preimage part intersects this chunk, the full 32-byte part must be present in `input`,
+	// unless we're finalizing (tail-end partial data allowed). This mirrors `_extractPreimagePart` in PreimageOracle.sol.
+	// The metadata.PartOffset is calculated including the 8 byte length prefix.
+	// The uploaded data and metadata.BytesProcessed excludes the 8 byte length prefix so we need to adjust for it.
+	offset := uint64(metadata.PartOffset)
+	currentSize := uint64(metadata.BytesProcessed) + 8 // Add implicit 8 byte length prefix
+	if offset >= currentSize && offset < currentSize+uint64(len(input)) {
+		// The start of the preimage is in this piece, check that the end is as well or that we're finalizing.
+		// We always store 32 bytes of the preimage.
+		if offset+32 >= currentSize+uint64(len(input)) && !finalize {
+			require.Fail(s.t, "PartOffsetOOB: full preimage part not available in input")
+		}
 	}
 
 	metadata.BytesProcessed += uint32(len(input))

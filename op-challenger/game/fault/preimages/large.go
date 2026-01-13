@@ -100,24 +100,42 @@ func (p *LargePreimageUploader) splitCalls(data *types.PreimageOracleData, alrea
 	stateMatrix := matrix.NewStateMatrix()
 	var calls []keccakTypes.InputData
 	in := bytes.NewReader(data.GetPreimageWithoutSize())
+	// OracleOffset is calculated including the 8 byte length prefix which is not part of the uploaded data
+	ingestedBytes := 8
 	if alreadyUploadedBlocks > 0 {
 		// Process but don't capture calls for the already uploaded blocks
-		_, err := stateMatrix.AbsorbUpTo(in, int(alreadyUploadedBlocks)*keccakTypes.BlockSize)
+		maxLen := int(alreadyUploadedBlocks) * keccakTypes.BlockSize
+		_, err := stateMatrix.AbsorbUpTo(in, maxLen)
 		if errors.Is(err, io.EOF) {
 			return stateMatrix, nil, nil
 		}
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to absorb already uploaded data: %w", err)
 		}
+		ingestedBytes += maxLen
 	}
 	for {
-		call, err := stateMatrix.AbsorbUpTo(in, MaxChunkSize)
+		maxChunkSize := MaxChunkSize
+		offset := int(data.OracleOffset)
+		// The contract requires the full data to store to be submitted in a single transaction
+		// Check if the start of the preimage to store is part of the next chunk
+		if offset >= ingestedBytes && offset < ingestedBytes+maxChunkSize {
+			// Check if the 32 bytes being store will extend past the end of the chunk
+			// and that this won't be the last chunk
+			if offset+32 >= ingestedBytes+maxChunkSize && ingestedBytes+maxChunkSize < len(data.GetPreimageWithSize()) {
+				// If so, drop the last block from the chunk
+				// It will be sent as part of the next chunk along with the tail end of the data to store
+				maxChunkSize -= keccakTypes.BlockSize
+			}
+		}
+		call, err := stateMatrix.AbsorbUpTo(in, maxChunkSize)
 		if errors.Is(err, io.EOF) {
 			calls = append(calls, call)
 			break
 		} else if err != nil {
 			return nil, nil, fmt.Errorf("failed to absorb data: %w", err)
 		}
+		ingestedBytes += maxChunkSize
 		calls = append(calls, call)
 	}
 	return stateMatrix, calls, nil
