@@ -1,9 +1,7 @@
 name: coverage-op-historical-proof
 
 on:
-  push:
-    branches: [ unstable, main ]
-  pull_request:
+  merge_group:
   workflow_dispatch:
 
 jobs:
