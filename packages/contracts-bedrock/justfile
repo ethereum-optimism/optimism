@@ -92,8 +92,7 @@ test-dev *ARGS: build-go-ffi
 # Note: We use a recipe instead of top-level exports to avoid eager evaluation
 # of both chains' block numbers when only one is needed.
 
-# Calculates and prints the pinned block number for the current FORK_BASE_CHAIN.
-# Defaults to mainnet if FORK_BASE_CHAIN is not set.
+# Calculates and prints the pinned block number for the current ETH_RPC_URL.
 # Uses the most recent Sunday at 00:00 UTC as the target timestamp.
 print-pinned-block-number:
   #!/usr/bin/env bash
@@ -104,7 +103,7 @@ print-pinned-block-number:
   h=$(date -u +%H); m=$(date -u +%M); s=$(date -u +%S)
   secs_since_midnight=$(( 10#$h * 3600 + 10#$m * 60 + 10#$s ))
   sunday_midnight=$(( now - secs_since_midnight - dow * 86400 ))
-  cast find-block "$sunday_midnight"
+  cast find-block "$sunday_midnight" --rpc-url $ETH_RPC_URL
 
 # Prepares the environment for upgrade path variant of contract tests and coverage.
 # Env Vars:
