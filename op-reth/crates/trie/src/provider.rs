@@ -77,29 +77,25 @@ impl<'a, Storage: OpProofsStore + Clone> StateRootProvider
     for OpProofsStateProviderRef<'a, Storage>
 {
     fn state_root(&self, state: HashedPostState) -> ProviderResult<B256> {
-        StateRoot::overlay_root(self.storage, self.block_number, state)
-            .map_err(|err| ProviderError::Database(err.into()))
+        Ok(StateRoot::overlay_root(self.storage, self.block_number, state)?)
     }
 
     fn state_root_from_nodes(&self, input: TrieInput) -> ProviderResult<B256> {
-        StateRoot::overlay_root_from_nodes(self.storage, self.block_number, input)
-            .map_err(|err| ProviderError::Database(err.into()))
+        Ok(StateRoot::overlay_root_from_nodes(self.storage, self.block_number, input)?)
     }
 
     fn state_root_with_updates(
         &self,
         state: HashedPostState,
     ) -> ProviderResult<(B256, TrieUpdates)> {
-        StateRoot::overlay_root_with_updates(self.storage, self.block_number, state)
-            .map_err(|err| ProviderError::Database(err.into()))
+        Ok(StateRoot::overlay_root_with_updates(self.storage, self.block_number, state)?)
     }
 
     fn state_root_from_nodes_with_updates(
         &self,
         input: TrieInput,
     ) -> ProviderResult<(B256, TrieUpdates)> {
-        StateRoot::overlay_root_from_nodes_with_updates(self.storage, self.block_number, input)
-            .map_err(|err| ProviderError::Database(err.into()))
+        Ok(StateRoot::overlay_root_from_nodes_with_updates(self.storage, self.block_number, input)?)
     }
 }
 
