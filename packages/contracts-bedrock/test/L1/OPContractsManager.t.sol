@@ -394,9 +394,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         // Run past upgrades depending on network.
         if (block.chainid == 1) {
             // Mainnet
-            // This is empty because the block number in the justfile is after the most recent upgrade so there are no
-            // past upgrades to run.
-            _delegateCaller;
+            _runOpcmUpgradeAndChecks(IOPContractsManager(address(0x50f47b43c24f40b92c873fa0704d4207586d0c9f)), _delegateCaller, bytes(""));
         } else {
             revert UnsupportedChainId();
         }
