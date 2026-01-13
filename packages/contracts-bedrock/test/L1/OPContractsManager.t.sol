@@ -390,7 +390,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
     ///         upgrades from this function once they've been executed on mainnet and the
     ///         simulation block has been bumped beyond the execution block.
     /// @param _delegateCaller The address of the delegate caller to use for the upgrade.
-    function runPastUpgrades(address _delegateCaller) internal view {
+    function runPastUpgrades(address _delegateCaller) internal {
         // Run past upgrades depending on network.
         if (block.chainid == 1) {
             // Mainnet
