@@ -812,7 +812,7 @@ contract DeployImplementations is Script {
             DeployUtils.createDeterministic({
                 _name: "OPContractsManagerMigrator.sol:OPContractsManagerMigrator",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOPContractsManagerMigrator.__constructor__, (_output.opcmContainer, _output.opcmUtils))
+                    abi.encodeCall(IOPContractsManagerMigrator.__constructor__, (_output.opcmUtils))
                 ),
                 _salt: _salt
             })

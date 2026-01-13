@@ -304,7 +304,6 @@ contract VerifyOPCM is Script {
         refs[0] = OpcmContractRef({ field: "opcm", name: _opcmContractName(), addr: address(_opcm), blueprint: false });
         refs[1] = OpcmContractRef({
             field: "contractsContainer",
-            // nosemgrep: sol-style-vm-env-only-in-config-sol
             name: _isOPCMV2() ? "OPContractsManagerContainer" : "OPContractsManagerContractsContainer",
             addr: contractsContainerAddr,
             blueprint: false
