@@ -475,7 +475,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     }
 
     function _isDisputeGameV2ContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {
-        return LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
+        return LibString.eq(ref.name, "FaultDisputeGame") || LibString.eq(ref.name, "PermissionedDisputeGame");
     }
 
     function _isSuperDisputeGameContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {

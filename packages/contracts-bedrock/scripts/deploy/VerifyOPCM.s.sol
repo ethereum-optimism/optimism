@@ -118,8 +118,8 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["optimismPortalInteropImpl"] = "OptimismPortalInterop";
         fieldNameOverrides["mipsImpl"] = "MIPS64";
         fieldNameOverrides["ethLockboxImpl"] = "ETHLockbox";
-        fieldNameOverrides["faultDisputeGameV2Impl"] = "FaultDisputeGameV2";
-        fieldNameOverrides["permissionedDisputeGameV2Impl"] = "PermissionedDisputeGameV2";
+        fieldNameOverrides["faultDisputeGameV2Impl"] = "FaultDisputeGame";
+        fieldNameOverrides["permissionedDisputeGameV2Impl"] = "PermissionedDisputeGame";
         fieldNameOverrides["permissionlessDisputeGame1"] = "FaultDisputeGame";
         fieldNameOverrides["permissionlessDisputeGame2"] = "FaultDisputeGame";
         fieldNameOverrides["permissionedDisputeGame1"] = "PermissionedDisputeGame";
@@ -666,8 +666,7 @@ contract VerifyOPCM is Script {
     /// @param _contractName The name to check.
     /// @return True if this is a V2 dispute game.
     function _isV2DisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
-        return LibString.eq(_contractName, "FaultDisputeGameV2")
-            || LibString.eq(_contractName, "PermissionedDisputeGameV2");
+        return LibString.eq(_contractName, "FaultDisputeGame") || LibString.eq(_contractName, "PermissionedDisputeGame");
     }
 
     /// @notice Checks if a contract is a Super dispute game implementation.

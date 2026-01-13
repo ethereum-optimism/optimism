@@ -225,31 +225,6 @@ abstract contract OPContractsManagerBase {
         if (_who.code.length == 0) revert OPContractsManager.AddressHasNoCode(_who);
     }
 
-    function encodePermissionlessFDGConstructor(IFaultDisputeGame.GameConstructorParams memory _params)
-        internal
-        view
-        virtual
-        returns (bytes memory)
-    {
-        bytes memory dataWithSelector = abi.encodeCall(IFaultDisputeGame.__constructor__, (_params));
-        return Bytes.slice(dataWithSelector, 4);
-    }
-
-    function encodePermissionedFDGConstructor(
-        IFaultDisputeGame.GameConstructorParams memory _params,
-        address _proposer,
-        address _challenger
-    )
-        internal
-        view
-        virtual
-        returns (bytes memory)
-    {
-        bytes memory dataWithSelector =
-            abi.encodeCall(IPermissionedDisputeGame.__constructor__, (_params, _proposer, _challenger));
-        return Bytes.slice(dataWithSelector, 4);
-    }
-
     function encodePermissionlessSuperFDGConstructor(ISuperFaultDisputeGame.GameConstructorParams memory _params)
         internal
         view
@@ -272,12 +247,7 @@ abstract contract OPContractsManagerBase {
         return _disputeGameFactory.gameImpls(_gameType);
     }
 
-    /// @notice Retrieves the Anchor State Registry for a given v1 game
-    function getAnchorStateRegistryV1(IFaultDisputeGame _disputeGame) internal view returns (IAnchorStateRegistry) {
-        return _disputeGame.anchorStateRegistry();
-    }
-
-    /// @notice Retrieves the Anchor State Registry for a given v1 or v2 game
+    /// @notice Retrieves the Anchor State Registry for a given game
     function getAnchorStateRegistry(
         IDisputeGameFactory _disputeGameFactory,
         IDisputeGame _disputeGame,
@@ -300,12 +270,7 @@ abstract contract OPContractsManagerBase {
         return _disputeGame.l2ChainId();
     }
 
-    /// @notice Retrieves the proposer address for a given v1 game
-    function getProposerV1(IPermissionedDisputeGame _disputeGame) internal view returns (address) {
-        return _disputeGame.proposer();
-    }
-
-    /// @notice Retrieves the proposer address for a given v1 or v2 game
+    /// @notice Retrieves the proposer address for a given game
     function getProposer(
         IDisputeGameFactory _disputeGameFactory,
         IDisputeGame _disputeGame,
@@ -323,12 +288,7 @@ abstract contract OPContractsManagerBase {
         }
     }
 
-    /// @notice Retrieves the challenger address for a given v1 game
-    function getChallengerV1(IPermissionedDisputeGame _disputeGame) internal view returns (address) {
-        return _disputeGame.challenger();
-    }
-
-    /// @notice Retrieves the challenger address of a given v1 or v2 game
+    /// @notice Retrieves the challenger address of a given game
     function getChallenger(
         IDisputeGameFactory _disputeGameFactory,
         IDisputeGame _disputeGame,
@@ -385,38 +345,7 @@ abstract contract OPContractsManagerBase {
         return IAnchorStateRegistry(IOptimismPortal(payable(_systemConfig.optimismPortal())).anchorStateRegistry());
     }
 
-    /// @notice Retrieves the constructor params for a given v1 game.
-    function getGameConstructorParams(IFaultDisputeGame _disputeGame)
-        internal
-        view
-        returns (IFaultDisputeGame.GameConstructorParams memory)
-    {
-        // Grab the game type first, it'll determine if we need to pull the L2 chain ID from the
-        // contract or if we just return zero (Super games).
-        GameType gameType = _disputeGame.gameType();
-        uint256 l2ChainId = getL2ChainId(_disputeGame);
-
-        // Return the constructor params.
-        return IFaultDisputeGame.GameConstructorParams({
-            gameType: gameType,
-            absolutePrestate: _disputeGame.absolutePrestate(),
-            maxGameDepth: _disputeGame.maxGameDepth(),
-            splitDepth: _disputeGame.splitDepth(),
-            clockExtension: _disputeGame.clockExtension(),
-            maxClockDuration: _disputeGame.maxClockDuration(),
-            vm: _disputeGame.vm(),
-            weth: getWETHV1(_disputeGame),
-            anchorStateRegistry: getAnchorStateRegistryV1(_disputeGame),
-            l2ChainId: l2ChainId
-        });
-    }
-
-    /// @notice Retrieves the DelayedWETH address for a given v1 game
-    function getWETHV1(IFaultDisputeGame _disputeGame) internal view returns (IDelayedWETH) {
-        return _disputeGame.weth();
-    }
-
-    /// @notice Retrieves the DelayedWETH for a given v1 or v2 game
+    /// @notice Retrieves the DelayedWETH for a given game
     function getWETH(
         IDisputeGameFactory _disputeGameFactory,
         IDisputeGame _disputeGame,
@@ -434,7 +363,7 @@ abstract contract OPContractsManagerBase {
         }
     }
 
-    /// @notice Retrieves the BigStepper VM for a given v1 or v2 game
+    /// @notice Retrieves the BigStepper VM for a given game
     function getVM(
         IDisputeGameFactory _disputeGameFactory,
         IDisputeGame _disputeGame,
@@ -1092,10 +1021,10 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     {
         bytes memory gameArgsBytes = _dgf.gameArgs(_gameType);
         if (gameArgsBytes.length == 0) {
-            // assume we're dealing with v1 fdgs
+            // Game without CWIA args - read directly from contract
             return IFaultDisputeGame(_disputeGame).absolutePrestate();
         } else {
-            // v2 dispute game
+            // Game with CWIA args - decode from game args
             LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(gameArgsBytes);
             return Claim.wrap(gameArgs.absolutePrestate);
         }

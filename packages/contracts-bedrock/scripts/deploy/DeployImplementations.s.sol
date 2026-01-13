@@ -15,10 +15,10 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
+import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
-import { IPermissionedDisputeGameV2 } from "interfaces/dispute/v2/IPermissionedDisputeGameV2.sol";
+import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { Duration } from "src/dispute/lib/Types.sol";
 import {
     IOPContractsManager,
@@ -98,8 +98,8 @@ contract DeployImplementations is Script {
         IAnchorStateRegistry anchorStateRegistryImpl;
         ISuperchainConfig superchainConfigImpl;
         IProtocolVersions protocolVersionsImpl;
-        IFaultDisputeGameV2 faultDisputeGameV2Impl;
-        IPermissionedDisputeGameV2 permissionedDisputeGameV2Impl;
+        IFaultDisputeGame faultDisputeGameV2Impl;
+        IPermissionedDisputeGame permissionedDisputeGameV2Impl;
         ISuperFaultDisputeGame superFaultDisputeGameImpl;
         ISuperPermissionedDisputeGame superPermissionedDisputeGameImpl;
         IStorageSetter storageSetterImpl;
@@ -134,8 +134,8 @@ contract DeployImplementations is Script {
         deployMipsSingleton(_input, output_);
         deployDisputeGameFactoryImpl(output_);
         deployAnchorStateRegistryImpl(_input, output_);
-        deployFaultDisputeGameV2Impl(_input, output_);
-        deployPermissionedDisputeGameV2Impl(_input, output_);
+        deployFaultDisputeGameImpl(_input, output_);
+        deployPermissionedDisputeGameImpl(_input, output_);
         if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             deploySuperFaultDisputeGameImpl(_input, output_);
             deploySuperPermissionedDisputeGameImpl(_input, output_);
@@ -568,39 +568,39 @@ contract DeployImplementations is Script {
         _output.anchorStateRegistryImpl = impl;
     }
 
-    function deployFaultDisputeGameV2Impl(Input memory _input, Output memory _output) private {
-        IFaultDisputeGameV2.GameConstructorParams memory params;
+    function deployFaultDisputeGameImpl(Input memory _input, Output memory _output) private {
+        IFaultDisputeGame.GameConstructorParams memory params;
         params.maxGameDepth = _input.faultGameV2MaxGameDepth;
         params.splitDepth = _input.faultGameV2SplitDepth;
         params.clockExtension = Duration.wrap(uint64(_input.faultGameV2ClockExtension));
         params.maxClockDuration = Duration.wrap(uint64(_input.faultGameV2MaxClockDuration));
 
-        IFaultDisputeGameV2 impl = IFaultDisputeGameV2(
+        IFaultDisputeGame impl = IFaultDisputeGame(
             DeployUtils.createDeterministic({
-                _name: "FaultDisputeGameV2",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGameV2.__constructor__, (params))),
+                _name: "FaultDisputeGame",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGame.__constructor__, (params))),
                 _salt: _salt
             })
         );
-        vm.label(address(impl), "FaultDisputeGameV2Impl");
+        vm.label(address(impl), "FaultDisputeGameImpl");
         _output.faultDisputeGameV2Impl = impl;
     }
 
-    function deployPermissionedDisputeGameV2Impl(Input memory _input, Output memory _output) private {
-        IFaultDisputeGameV2.GameConstructorParams memory params;
+    function deployPermissionedDisputeGameImpl(Input memory _input, Output memory _output) private {
+        IFaultDisputeGame.GameConstructorParams memory params;
         params.maxGameDepth = _input.faultGameV2MaxGameDepth;
         params.splitDepth = _input.faultGameV2SplitDepth;
         params.clockExtension = Duration.wrap(uint64(_input.faultGameV2ClockExtension));
         params.maxClockDuration = Duration.wrap(uint64(_input.faultGameV2MaxClockDuration));
 
-        IPermissionedDisputeGameV2 impl = IPermissionedDisputeGameV2(
+        IPermissionedDisputeGame impl = IPermissionedDisputeGame(
             DeployUtils.createDeterministic({
-                _name: "PermissionedDisputeGameV2",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IPermissionedDisputeGameV2.__constructor__, (params))),
+                _name: "PermissionedDisputeGame",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IPermissionedDisputeGame.__constructor__, (params))),
                 _salt: _salt
             })
         );
-        vm.label(address(impl), "PermissionedDisputeGameV2Impl");
+        vm.label(address(impl), "PermissionedDisputeGameImpl");
         _output.permissionedDisputeGameV2Impl = impl;
     }
 

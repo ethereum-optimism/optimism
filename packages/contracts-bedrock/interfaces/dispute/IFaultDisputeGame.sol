@@ -6,7 +6,7 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { Types } from "src/libraries/Types.sol";
-import { GameType, Claim, Position, Clock, Hash, Duration, BondDistributionMode } from "src/dispute/lib/Types.sol";
+import { Claim, Position, Clock, Hash, Duration, BondDistributionMode } from "src/dispute/lib/Types.sol";
 
 interface IFaultDisputeGame is IDisputeGame {
     struct ClaimData {
@@ -27,16 +27,10 @@ interface IFaultDisputeGame is IDisputeGame {
     }
 
     struct GameConstructorParams {
-        GameType gameType;
-        Claim absolutePrestate;
         uint256 maxGameDepth;
         uint256 splitDepth;
         Duration clockExtension;
         Duration maxClockDuration;
-        IBigStepper vm;
-        IDelayedWETH weth;
-        IAnchorStateRegistry anchorStateRegistry;
-        uint256 l2ChainId;
     }
 
     error AlreadyInitialized();
@@ -79,7 +73,6 @@ interface IFaultDisputeGame is IDisputeGame {
     error InvalidBondDistributionMode();
     error GameNotFinalized();
     error GameNotResolved();
-    error ReservedGameType();
     error GamePaused();
     event Move(uint256 indexed parentIndex, Claim indexed claim, address indexed claimant);
     event GameClosed(BondDistributionMode bondDistributionMode);

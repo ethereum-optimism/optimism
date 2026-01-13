@@ -235,18 +235,15 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertNotEq(actualPDGAddress, address(0), "PDG address should be non-zero");
         assertEq(actualPDGAddress, expectedPDGAddress, "PDG address should match expected address");
 
-        // Skip PDG getter checks for OPCM v2 (game args are passed at creation time)
-        if (!isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            // Check PDG getters
-            IPermissionedDisputeGame pdg = IPermissionedDisputeGame(actualPDGAddress);
-            bytes32 expectedPrestate = bytes32(0);
-            assertEq(pdg.l2BlockNumber(), 0, "3000");
-            assertEq(Claim.unwrap(pdg.absolutePrestate()), expectedPrestate, "3100");
-            assertEq(Duration.unwrap(pdg.clockExtension()), 10800, "3200");
-            assertEq(Duration.unwrap(pdg.maxClockDuration()), 302400, "3300");
-            assertEq(pdg.splitDepth(), 30, "3400");
-            assertEq(pdg.maxGameDepth(), 73, "3500");
-        }
+        // Check PDG getters
+        IPermissionedDisputeGame pdg = IPermissionedDisputeGame(actualPDGAddress);
+        bytes32 expectedPrestate = bytes32(0);
+        assertEq(pdg.l2BlockNumber(), 0, "3000");
+        assertEq(Claim.unwrap(pdg.absolutePrestate()), expectedPrestate, "3100");
+        assertEq(Duration.unwrap(pdg.clockExtension()), 10800, "3200");
+        assertEq(Duration.unwrap(pdg.maxClockDuration()), 302400, "3300");
+        assertEq(pdg.splitDepth(), 30, "3400");
+        assertEq(pdg.maxGameDepth(), 73, "3500");
 
         // Verify custom gas token feature is set as seeded
         assertEq(

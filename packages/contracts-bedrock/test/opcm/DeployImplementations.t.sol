@@ -52,39 +52,37 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
         assertNotEq(address(output.systemConfigImpl), address(0));
 
-        assertNotEq(address(output.faultDisputeGameV2Impl), address(0), "FaultDisputeGameV2 should be deployed");
+        assertNotEq(address(output.faultDisputeGameV2Impl), address(0), "FaultDisputeGame should be deployed");
         assertNotEq(
-            address(output.permissionedDisputeGameV2Impl), address(0), "PermissionedDisputeGameV2 should be deployed"
+            address(output.permissionedDisputeGameV2Impl), address(0), "PermissionedDisputeGame should be deployed"
         );
 
-        // Validate constructor args for FaultDisputeGameV2
-        assertEq(output.faultDisputeGameV2Impl.maxGameDepth(), 73, "FaultDisputeGameV2 maxGameDepth incorrect");
-        assertEq(output.faultDisputeGameV2Impl.splitDepth(), 30, "FaultDisputeGameV2 splitDepth incorrect");
+        // Validate constructor args for FaultDisputeGame
+        assertEq(output.faultDisputeGameV2Impl.maxGameDepth(), 73, "FaultDisputeGame maxGameDepth incorrect");
+        assertEq(output.faultDisputeGameV2Impl.splitDepth(), 30, "FaultDisputeGame splitDepth incorrect");
         assertEq(
-            output.faultDisputeGameV2Impl.clockExtension().raw(), 10800, "FaultDisputeGameV2 clockExtension incorrect"
+            output.faultDisputeGameV2Impl.clockExtension().raw(), 10800, "FaultDisputeGame clockExtension incorrect"
         );
         assertEq(
             output.faultDisputeGameV2Impl.maxClockDuration().raw(),
             302400,
-            "FaultDisputeGameV2 maxClockDuration incorrect"
+            "FaultDisputeGame maxClockDuration incorrect"
         );
 
-        // Validate constructor args for PermissionedDisputeGameV2
+        // Validate constructor args for PermissionedDisputeGame
         assertEq(
-            output.permissionedDisputeGameV2Impl.maxGameDepth(), 73, "PermissionedDisputeGameV2 maxGameDepth incorrect"
+            output.permissionedDisputeGameV2Impl.maxGameDepth(), 73, "PermissionedDisputeGame maxGameDepth incorrect"
         );
-        assertEq(
-            output.permissionedDisputeGameV2Impl.splitDepth(), 30, "PermissionedDisputeGameV2 splitDepth incorrect"
-        );
+        assertEq(output.permissionedDisputeGameV2Impl.splitDepth(), 30, "PermissionedDisputeGame splitDepth incorrect");
         assertEq(
             output.permissionedDisputeGameV2Impl.clockExtension().raw(),
             10800,
-            "PermissionedDisputeGameV2 clockExtension incorrect"
+            "PermissionedDisputeGame clockExtension incorrect"
         );
         assertEq(
             output.permissionedDisputeGameV2Impl.maxClockDuration().raw(),
             302400,
-            "PermissionedDisputeGameV2 maxClockDuration incorrect"
+            "PermissionedDisputeGame maxClockDuration incorrect"
         );
 
         // for the super DG implementation deployments
