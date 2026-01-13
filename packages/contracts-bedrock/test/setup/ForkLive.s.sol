@@ -346,8 +346,8 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
         // Run past upgrades depending on network.
         if (block.chainid == 1) {
             // Mainnet
-            // This is empty because the block number in the justfile is after the most recent upgrade so there are no
-            // past upgrades to run.
+            // U18
+            _doUpgrade(IOPContractsManager(0x50F47B43c24F40B92C873Fa0704D4207586D0C9f), upgrader);
         } else {
             revert UnsupportedChainId();
         }

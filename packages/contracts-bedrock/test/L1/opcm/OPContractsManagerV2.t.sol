@@ -21,6 +21,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
+import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IOPContractsManagerMigrator } from "interfaces/L1/opcm/IOPContractsManagerMigrator.sol";
@@ -412,19 +413,44 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         );
     }
 
+    /// @notice Simple helper to run an OPCMv1 upgrade. This is useful for running past upgrades
+    ///         that were released as OPCMv1 releases before transitioning to OPCMv2.
+    /// @param _opcm The OPCMv1 contract to use for the upgrade.
+    /// @param _delegateCaller The address of the delegate caller to use for the upgrade.
+    function _runOpcmV1Upgrade(IOPContractsManager _opcm, address _delegateCaller) internal {
+        // Upgrade the SuperchainConfig first.
+        prankDelegateCall(superchainPAO);
+        (bool scSuccess,) =
+            address(_opcm).delegatecall(abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig)));
+        // Acceptable to fail if already up to date.
+        scSuccess;
+
+        // Build the OpChainConfig for the chain being upgraded.
+        IOPContractsManager.OpChainConfig[] memory opChainConfigs = new IOPContractsManager.OpChainConfig[](1);
+        opChainConfigs[0] = IOPContractsManager.OpChainConfig({
+            systemConfigProxy: v2UpgradeInput.systemConfig,
+            cannonPrestate: cannonPrestate,
+            cannonKonaPrestate: cannonKonaPrestate
+        });
+
+        // Execute the OPCMv1 chain upgrade.
+        prankDelegateCall(_delegateCaller);
+        (bool upgradeSuccess,) =
+            address(_opcm).delegatecall(abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
+        assertTrue(upgradeSuccess, "OPCMv1 upgrade failed");
+    }
+
     /// @notice Executes all past upgrades that have not yet been executed on mainnet as of the
     ///         current simulation block defined in the justfile for this package. This function
     ///         might be empty if there are no previous upgrades to execute. You should remove
     ///         upgrades from this function once they've been executed on mainnet and the
     ///         simulation block has been bumped beyond the execution block.
     /// @param _delegateCaller The address of the delegate caller to use for the upgrade.
-    function runPastUpgrades(address _delegateCaller) internal view {
+    function runPastUpgrades(address _delegateCaller) internal {
         // Run past upgrades depending on network.
         if (block.chainid == 1) {
-            // Mainnet
-            // This is empty because the block number in the justfile is after the most recent upgrade so there are no
-            // past upgrades to run.
-            _delegateCaller;
+            // Mainnet: U18 is an OPCMv1 release.
+            _runOpcmV1Upgrade(IOPContractsManager(address(0x50F47B43c24F40B92C873Fa0704D4207586D0C9f)), _delegateCaller);
         } else {
             revert UnsupportedChainId();
         }

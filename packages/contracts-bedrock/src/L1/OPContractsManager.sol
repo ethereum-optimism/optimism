@@ -1907,9 +1907,12 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 6.1.0
+    /// @dev This needs to stay at 6.x.x because the next release will ship OPCMv2. Since we are
+    ///      not actually planning to release a 7.x.x of OPCMv1, it needs to stay at 6.x.x to avoid
+    ///      errors in the versioning rules of OPCMv2.
+    /// @custom:semver 6.0.3
     function version() public pure virtual returns (string memory) {
-        return "6.1.0";
+        return "6.0.3";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
