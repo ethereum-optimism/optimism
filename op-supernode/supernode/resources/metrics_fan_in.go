@@ -10,7 +10,8 @@ import (
 
 // MetricsFanIn is an http.handler
 // which allows multiple Prometheus metrics
-// "Gatherers" to be combined.
+// "Gatherers" to be combined and served at the
+// /metrics path.
 //
 // The Gatherers must not collide with each other,
 // e.g. each must have a unique name or label set.
@@ -31,7 +32,7 @@ func NewMetricsFanIn(numGatherers int) *MetricsFanIn {
 		handler:      promhttp.HandlerFor(emptyRegistry, promhttp.HandlerOpts{})}
 }
 
-func (r *MetricsFanIn) AddMetricsRegistry(key string, g prometheus.Gatherer) {
+func (r *MetricsFanIn) SetMetricsRegistry(key string, g prometheus.Gatherer) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.gm[key] = g
