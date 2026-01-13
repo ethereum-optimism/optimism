@@ -26,7 +26,7 @@ var (
 	}
 	DataDirFlag = &cli.StringFlag{
 		Name:    "data-dir",
-		Usage:   "Directory for LogsDB storage. If empty, uses in-memory storage",
+		Usage:   "Directory for LogsDB storage. If empty, uses a temporary directory",
 		EnvVars: prefixEnvVars("DATA_DIR"),
 		Value:   "",
 	}
@@ -36,14 +36,33 @@ var (
 		EnvVars: prefixEnvVars("BACKFILL_DURATION"),
 		Value:   "24h",
 	}
+	MessageExpiryWindowFlag = &cli.StringFlag{
+		Name:    "message-expiry-window",
+		Usage:   "Message expiry window duration (e.g., 168h for 7 days). Messages older than this are considered expired.",
+		EnvVars: prefixEnvVars("MESSAGE_EXPIRY_WINDOW"),
+		Value:   "168h", // 7 days default, matching op-supervisor
+	}
 	JWTSecretFlag = &cli.StringFlag{
-		Name: "rpc.jwt-secret",
-		Usage: "Path to JWT secret key for RPC authentication. " +
+		Name: "admin.jwt-secret",
+		Usage: "Path to JWT secret key for admin RPC authentication. " +
 			"Keys are 32 bytes, hex encoded in a file. " +
-			"A new key will be generated if the file is empty.",
-		EnvVars:   prefixEnvVars("RPC_JWT_SECRET"),
+			"A new key will be generated if the file is missing. " +
+			"Required when rpc.enable-admin is set.",
+		EnvVars:   prefixEnvVars("ADMIN_JWT_SECRET"),
 		Value:     "",
 		TakesFile: true,
+	}
+	PollIntervalFlag = &cli.StringFlag{
+		Name:    "poll-interval",
+		Usage:   "Interval for polling new blocks from L2 RPCs (e.g., 2s, 500ms)",
+		EnvVars: prefixEnvVars("POLL_INTERVAL"),
+		Value:   "2s",
+	}
+	ValidationIntervalFlag = &cli.StringFlag{
+		Name:    "validation-interval",
+		Usage:   "Interval for cross-chain validation loop (e.g., 500ms, 1s)",
+		EnvVars: prefixEnvVars("VALIDATION_INTERVAL"),
+		Value:   "500ms",
 	}
 )
 
@@ -54,7 +73,10 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	DataDirFlag,
 	BackfillDurationFlag,
+	MessageExpiryWindowFlag,
 	JWTSecretFlag,
+	PollIntervalFlag,
+	ValidationIntervalFlag,
 }
 
 func init() {
