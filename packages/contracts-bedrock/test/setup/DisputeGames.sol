@@ -15,6 +15,7 @@ import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 // Interfaces
 import "../../interfaces/dispute/IDisputeGame.sol";
 import "../../interfaces/dispute/IDisputeGameFactory.sol";
+import { IFaultDisputeGame } from "../../interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "../../interfaces/dispute/IPermissionedDisputeGame.sol";
 
 contract DisputeGames is FeatureFlags {
@@ -122,6 +123,35 @@ contract DisputeGames is FeatureFlags {
             proposer_ = gameArgs.proposer;
         } else {
             proposer_ = IPermissionedDisputeGame(address(_dgf.gameImpls(gameType))).proposer();
+        }
+    }
+
+    /// @notice Gets the absolute prestate for a game type, handling both v1 and v2 dispute games.
+    ///         V1 games store the prestate on the game implementation, v2 games store it in gameArgs.
+    ///         Returns Claim.wrap(bytes32(0)) if no implementation exists for the game type.
+    /// @param _dgf The dispute game factory.
+    /// @param _gameType The game type to get the prestate for.
+    /// @return prestate_ The absolute prestate claim.
+    function getGameImplPrestate(
+        IDisputeGameFactory _dgf,
+        GameType _gameType
+    )
+        internal
+        view
+        returns (Claim prestate_)
+    {
+        // Return zero if no implementation exists for this game type
+        address gameImpl = address(_dgf.gameImpls(_gameType));
+        if (gameImpl == address(0)) {
+            return Claim.wrap(bytes32(0));
+        }
+
+        (bool gameArgsExist, bytes memory gameArgsData) = _getGameArgs(_dgf, _gameType);
+        if (gameArgsExist) {
+            LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(gameArgsData);
+            prestate_ = Claim.wrap(gameArgs.absolutePrestate);
+        } else {
+            prestate_ = IFaultDisputeGame(gameImpl).absolutePrestate();
         }
     }
 

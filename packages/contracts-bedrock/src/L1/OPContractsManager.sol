@@ -864,20 +864,21 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 _disputeGameFactory: disputeGameFactory
             });
 
-            if (_opChainConfig.cannonKonaPrestate.raw() != bytes32(0)) {
-                setNewPermissionlessGameImpl({
-                    _impls: _impls,
-                    _l2ChainId: _l2ChainId,
-                    _newAbsolutePrestate: _opChainConfig.cannonKonaPrestate,
-                    // CANNON and CANNON_KONA use the same weth and asr proxy addresses
-                    _newDelayedWeth: getWETH(dgf, permissionlessDisputeGame, GameTypes.CANNON),
-                    _newAnchorStateRegistryProxy: getAnchorStateRegistry(dgf, permissionlessDisputeGame, GameTypes.CANNON),
-                    _gameType: GameTypes.CANNON_KONA,
-                    _disputeGameFactory: disputeGameFactory
-                });
-                uint256 initialCannonGameBond = disputeGameFactory.initBonds(GameTypes.CANNON);
-                disputeGameFactory.setInitBond(GameTypes.CANNON_KONA, initialCannonGameBond);
-            }
+            Claim cannonKonaPrestate = _opChainConfig.cannonKonaPrestate.raw() != bytes32(0)
+                ? _opChainConfig.cannonKonaPrestate
+                : getAbsolutePrestate(disputeGameFactory, address(permissionlessDisputeGame), GameTypes.CANNON_KONA);
+            setNewPermissionlessGameImpl({
+                _impls: _impls,
+                _l2ChainId: _l2ChainId,
+                _newAbsolutePrestate: cannonKonaPrestate,
+                // CANNON and CANNON_KONA use the same weth and asr proxy addresses
+                _newDelayedWeth: getWETH(dgf, permissionlessDisputeGame, GameTypes.CANNON),
+                _newAnchorStateRegistryProxy: getAnchorStateRegistry(dgf, permissionlessDisputeGame, GameTypes.CANNON),
+                _gameType: GameTypes.CANNON_KONA,
+                _disputeGameFactory: disputeGameFactory
+            });
+            uint256 initialCannonGameBond = disputeGameFactory.initBonds(GameTypes.CANNON);
+            disputeGameFactory.setInitBond(GameTypes.CANNON_KONA, initialCannonGameBond);
         }
     }
 
