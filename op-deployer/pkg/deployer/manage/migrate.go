@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"os"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -18,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -233,7 +233,7 @@ func MigrateCLI(cliCtx *cli.Context) error {
 	}
 
 	input := InteropMigrationInput{
-		Prank: common.Address{}, // The current CLI does not support prank address, so we set it to zero.
+		Prank: common.HexToAddress(cliCtx.String(L1ProxyAdminOwnerFlag.Name)),
 		Opcm:  opcmAddr,
 		MigrateInputV1: &MigrateInputV1{
 			UsePermissionlessGame: cliCtx.Bool(PermissionlessFlag.Name),
@@ -307,7 +307,7 @@ func MigrateCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to run interop migration: %w", err)
 	}
 
-	enc := json.NewEncoder(os.Stdout)
+	enc := json.NewEncoder(cliCtx.App.Writer)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(output); err != nil {
 		return fmt.Errorf("failed to encode interop migration output: %w", err)
@@ -349,26 +349,56 @@ func MigrateCLIV2(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to parse initial bond: %s", initBondStr)
 	}
 
+	// ABI-encode the FaultDisputeGameConfig struct
+	// FaultDisputeGameConfig contains a single field: absolutePrestate (bytes32)
+	absolutePrestateHex := cliCtx.String(DisputeAbsolutePrestateFlag.Name)
+	absolutePrestate := common.HexToHash(absolutePrestateHex)
+
+	bytes32Type, err := abi.NewType("bytes32", "", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create bytes32 ABI type: %w", err)
+	}
+
+	gameArgs, err := abi.Arguments{{Type: bytes32Type}}.Pack(absolutePrestate)
+	if err != nil {
+		return fmt.Errorf("failed to ABI-encode game args: %w", err)
+	}
+
+	startingRespectedGameType := uint32(cliCtx.Uint64(StartingRespectedGameTypeFlag.Name))
+
+	if startingRespectedGameType != 4 && startingRespectedGameType != 5 {
+		return fmt.Errorf("debug: startingRespectedGameType must be 4 (SUPER_CANNON) or 5 (SUPER_PERMISSIONED_CANNON), got %d", startingRespectedGameType)
+	}
+
+	systemConfigProxy := common.HexToAddress(cliCtx.String(SystemConfigProxyFlag.Name))
+
+	var prankAddr common.Address
+	if prankFlag := cliCtx.String(L1ProxyAdminOwnerFlag.Name); prankFlag != "" {
+		prankAddr = common.HexToAddress(prankFlag)
+	} else {
+		return fmt.Errorf("missing required flag: %s", L1ProxyAdminOwnerFlag.Name)
+	}
+
 	input := InteropMigrationInput{
-		Prank: common.Address{}, // The current CLI does not support prank address, so we set it to zero.
+		Prank: prankAddr,
 		Opcm:  opcmAddr,
 		MigrateInputV2: &MigrateInputV2{
 			ChainSystemConfigs: []common.Address{
-				common.HexToAddress(cliCtx.String(SystemConfigProxyFlag.Name)),
+				systemConfigProxy,
 			},
 			DisputeGameConfigs: []DisputeGameConfig{
 				{
 					Enabled:  cliCtx.Bool(DisputeGameEnabledFlag.Name),
 					InitBond: initBond,
 					GameType: uint32(cliCtx.Uint64(DisputeGameTypeFlag.Name)),
-					GameArgs: common.FromHex(cliCtx.String(DisputeAbsolutePrestateFlag.Name)),
+					GameArgs: gameArgs,
 				},
 			},
 			StartingAnchorRoot: Proposal{
 				Root:             common.HexToHash(cliCtx.String(StartingAnchorRootFlag.Name)),
 				L2SequenceNumber: new(big.Int).SetUint64(cliCtx.Uint64(StartingAnchorL2SequenceNumberFlag.Name)),
 			},
-			StartingRespectedGameType: uint32(cliCtx.Uint64(StartingRespectedGameTypeFlag.Name)),
+			StartingRespectedGameType: startingRespectedGameType,
 		},
 	}
 
@@ -419,7 +449,7 @@ func MigrateCLIV2(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to run interop migration: %w", err)
 	}
 
-	enc := json.NewEncoder(os.Stdout)
+	enc := json.NewEncoder(cliCtx.App.Writer)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(output); err != nil {
 		return fmt.Errorf("failed to encode interop migration output: %w", err)

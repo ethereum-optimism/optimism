@@ -120,9 +120,9 @@ var (
 	}
 	StartingRespectedGameTypeFlag = &cli.Uint64Flag{
 		Name:    "starting-respected-game-type",
-		Usage:   "Starting respected game type for OPCM v2 migration. Defaults to 0 (Cannon).",
+		Usage:   "Starting respected game type for OPCM v2 migration. Defaults to 4 (Super Cannon).",
 		EnvVars: deployer.PrefixEnvVar("STARTING_RESPECTED_GAME_TYPE"),
-		Value:   0,
+		Value:   4,
 	}
 	DisputeGameEnabledFlag = &cli.BoolFlag{
 		Name:    "dispute-game-enabled",
