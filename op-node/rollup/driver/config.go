@@ -1,6 +1,10 @@
 package driver
 
-import "github.com/ethereum-optimism/optimism/op-node/rollup/finality"
+import (
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
+)
 
 type Config struct {
 	// VerifierConfDepth is the distance to keep from the L1 head when reading L1 data for L2 derivation.
@@ -26,6 +30,11 @@ type Config struct {
 	// RecoverMode forces the sequencer to select the next L1 Origin exactly, and create an empty block,
 	// to be compatible with verifiers forcefully generating the same block while catching up the sequencing window timeout.
 	RecoverMode bool `json:"recover_mode"`
+
+	// SequencerSealingDuration is the amount of the time the sequencer allocates to sealing the block
+	// (i.e. it will fetch the payload from the execution engine this much prior to the block's timestamp).
+	// If this is <= 0 it is automatically adjusted to 50ms.
+	SequencerSealingDuration time.Duration `json:"sequencer_sealing_duration"`
 
 	// Finalizer contains runtime configuration for finality behavior.
 	Finalizer *finality.Config `json:"finalizer,omitempty"`

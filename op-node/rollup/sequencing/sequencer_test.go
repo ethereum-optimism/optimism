@@ -26,6 +26,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
+const defaultSealingDuration = 50 * time.Millisecond
+
 type FakeAttributesBuilder struct {
 	cfg *rollup.Config
 	rng *rand.Rand
@@ -550,7 +552,7 @@ func TestSequencerBuild(t *testing.T) {
 	sealTargetTime, ok := seq.NextAction()
 	require.True(t, ok)
 	buildDuration := sealTargetTime.Sub(time.Unix(int64(head.Time), 0))
-	require.Equal(t, (time.Duration(deps.cfg.BlockTime)*time.Second)-sealingDuration, buildDuration)
+	require.Equal(t, (time.Duration(deps.cfg.BlockTime)*time.Second)-defaultSealingDuration, buildDuration)
 
 	// Now trigger the sequencer to start sealing
 	emitter.ExpectOnce(engine.BuildSealEvent{
@@ -731,7 +733,7 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 		conductor:   &FakeConductor{},
 		asyncGossip: &FakeAsyncGossip{},
 	}
-	seq := NewSequencer(context.Background(), log, cfg, deps.attribBuilder,
+	seq := NewSequencer(context.Background(), log, cfg, defaultSealingDuration, deps.attribBuilder,
 		deps.l1OriginSelector, deps.seqState, deps.conductor,
 		deps.asyncGossip, metrics.NoopMetrics, fakeEngController{})
 	// We create mock payloads, with the epoch-id as tx[0], rather than proper L1Block-info deposit tx.
