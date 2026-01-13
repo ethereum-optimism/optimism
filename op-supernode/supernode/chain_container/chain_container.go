@@ -53,10 +53,10 @@ type simpleChainContainer struct {
 	stopped            chan struct{}
 	log                gethlog.Logger
 	chainID            eth.ChainID
-	initOverload       *rollupNode.InitializationOverrides  // Base shared resources for all virtual nodes
-	rpcHandler         *oprpc.Handler                       // Current per-chain RPC handler instance
-	setHandler         func(chainID string, h http.Handler) // Set the RPC handler on the router for the chain
-	addMetricsRegistry func(g prometheus.Gatherer)          // Set the metrics registry on the global metrics server
+	initOverload       *rollupNode.InitializationOverrides     // Base shared resources for all virtual nodes
+	rpcHandler         *oprpc.Handler                          // Current per-chain RPC handler instance
+	setHandler         func(chainID string, h http.Handler)    // Set the RPC handler on the router for the chain
+	addMetricsRegistry func(key string, g prometheus.Gatherer) // Set the metrics registry on the global metrics server
 	appVersion         string
 	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
@@ -73,7 +73,7 @@ func NewChainContainer(
 	initOverload *rollupNode.InitializationOverrides,
 	rpcHandler *oprpc.Handler,
 	setHandler func(chainID string, h http.Handler),
-	addMetricsRegistry func(g prometheus.Gatherer),
+	addMetricsRegistry func(key string, g prometheus.Gatherer),
 ) ChainContainer {
 	c := &simpleChainContainer{
 		vncfg:              vncfg,
@@ -143,7 +143,7 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		if c.initOverload != nil {
 			c.initOverload.MetricsRegistry = func(reg *prometheus.Registry) {
 				if c.addMetricsRegistry != nil {
-					c.addMetricsRegistry(reg)
+					c.addMetricsRegistry(c.chainID.String(), reg)
 				}
 			}
 		}

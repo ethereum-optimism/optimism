@@ -17,23 +17,31 @@ import (
 // This can be accomplished by using a distinct,
 // global label on each Gatherer.
 type MetricsFanIn struct {
-	mu      sync.RWMutex
-	g       prometheus.Gatherers
-	handler http.Handler
+	mu           sync.RWMutex
+	numGatherers int
+	gm           map[string]prometheus.Gatherer // keyed by decimal chain ID
+	handler      http.Handler
 }
 
 func NewMetricsFanIn(numGatherers int) *MetricsFanIn {
 	emptyRegistry := prometheus.NewRegistry()
 	return &MetricsFanIn{
-		g:       make(prometheus.Gatherers, 0, numGatherers),
-		handler: promhttp.HandlerFor(emptyRegistry, promhttp.HandlerOpts{})}
+		numGatherers: numGatherers,
+		gm:           make(map[string]prometheus.Gatherer),
+		handler:      promhttp.HandlerFor(emptyRegistry, promhttp.HandlerOpts{})}
 }
 
-func (r *MetricsFanIn) AddRegistry(g prometheus.Gatherer) {
+func (r *MetricsFanIn) AddMetricsRegistry(key string, g prometheus.Gatherer) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.g = append(r.g, g)
-	r.handler = promhttp.HandlerFor(r.g, promhttp.HandlerOpts{})
+	r.gm[key] = g
+
+	gs := make(prometheus.Gatherers, 0, r.numGatherers)
+	for _, gr := range r.gm {
+		gs = append(gs, gr)
+	}
+
+	r.handler = promhttp.HandlerFor(gs, promhttp.HandlerOpts{})
 }
 
 func (r *MetricsFanIn) ServeHTTP(w http.ResponseWriter, req *http.Request) {
