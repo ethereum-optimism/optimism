@@ -378,7 +378,10 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         uint256 componentsWithContainerTested = 0;
         for (uint256 i = 0; i < propRefs.length; i++) {
             string memory field = propRefs[i].field;
-            if (_hasContractsContainer(field)) {
+            // We want to do nothing if the field is opcmUtils because it all other components get their
+            // contractsContainer from it
+            // So mocking it to return a different value would make the other components have the same return value.
+            if (_hasContractsContainer(field) && !LibString.eq(field, "opcmUtils")) {
                 // Mock this specific component to return a different address
                 vm.mockCall(
                     propRefs[i].addr,
