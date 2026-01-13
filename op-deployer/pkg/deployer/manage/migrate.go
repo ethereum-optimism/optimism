@@ -42,7 +42,7 @@ type InteropMigrationInput struct {
 	Prank          common.Address  `json:"prank"`
 	Opcm           common.Address  `json:"opcm"`
 	MigrateInputV1 *MigrateInputV1 `json:"migrateInputV1,omitempty"`
-	MigrateInputV2 *MigrateInputV2 `json:"migrateInput,omitempty"`
+	MigrateInputV2 *MigrateInputV2 `json:"migrateInputV2,omitempty"`
 }
 
 // MigrateInputV1 represents the migrate input format for OPCM v1 (< 7.0.0).

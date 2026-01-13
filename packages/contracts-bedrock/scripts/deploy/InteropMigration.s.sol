@@ -79,41 +79,38 @@ contract InteropMigrationOutput is BaseDeployIO {
 }
 
 contract InteropMigration is Script {
+    /// @notice Whether to use OPCM v2.
+    bool internal _useOPCMv2;
+
     function run(InteropMigrationInput _imi, InteropMigrationOutput _imo) public {
         // Determine OPCM version by checking the semver or if the OPCM address is set. OPCM v2 starts at version 7.0.0.
         IOPContractsManager opcm = IOPContractsManager(_imi.opcm());
-        bool useOPCMv2;
-        if (address(opcm) == address(0)) {
-            useOPCMv2 = true;
-        } else {
-            require(address(opcm).code.length > 0, "ReadSuperchainDeployment: OPCM address has no code");
-            useOPCMv2 = SemverComp.gte(opcm.version(), "7.0.0");
-        }
+        require(address(opcm).code.length > 0, "InteropMigration: OPCM address has no code");
+        _useOPCMv2 = SemverComp.gte(opcm.version(), "7.0.0");
 
         // Etch DummyCaller contract. This contract is used to mimic the contract that is used
         // as the source of the delegatecall to the OPCM. In practice this will be the governance
         // 2/2 or similar.
         address prank = _imi.prank();
-        bytes memory code = _getDummyCallerCode(useOPCMv2);
+        bytes memory code = _getDummyCallerCode();
         vm.etch(prank, code);
         vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(opcm)))));
         vm.label(prank, "DummyCaller");
 
         // Call into the DummyCaller. This will perform the delegatecall under the hood and
         // return the result.
-        (bool success,) = _migrate(prank, useOPCMv2, _imi.migrateInput());
+        (bool success,) = _migrate(prank, _imi.migrateInput());
         require(success, "InteropMigration: migrate failed");
 
         // After migration all portals will have the same DGF
-        _setDisputeGameFactory(_imi, _imo, useOPCMv2);
+        _setDisputeGameFactory(_imi, _imo);
 
-        checkOutput(_imi, _imo, useOPCMv2);
+        checkOutput(_imi, _imo);
     }
 
     /// @notice Helper function to get the proper dummy caller code based on the OPCM version.
-    /// @param _useOPCMv2 Whether to use OPCM v2.
     /// @return code The code of the dummy caller.
-    function _getDummyCallerCode(bool _useOPCMv2) internal view returns (bytes memory) {
+    function _getDummyCallerCode() internal view returns (bytes memory) {
         if (_useOPCMv2) return vm.getDeployedCode("InteropMigration.s.sol:DummyCallerV2");
         else return vm.getDeployedCode("InteropMigration.s.sol:DummyCallerV1");
     }
@@ -121,18 +118,10 @@ contract InteropMigration is Script {
     /// @notice Helper function to migrate the OPCM based on the OPCM version. Performs the decoding of the migrate
     /// input and the delegatecall to the OPCM.
     /// @param _prank The address of the dummy caller contract.
-    /// @param _useOPCMv2 Whether to use OPCM v2.
     /// @param _migrateInput The migrate input.
     /// @return success Whether the migration succeeded.
     /// @return result The result of the migration (bool, bytes memory).
-    function _migrate(
-        address _prank,
-        bool _useOPCMv2,
-        bytes memory _migrateInput
-    )
-        internal
-        returns (bool, bytes memory)
-    {
+    function _migrate(address _prank, bytes memory _migrateInput) internal returns (bool, bytes memory) {
         vm.broadcast(msg.sender);
         if (_useOPCMv2) {
             return DummyCallerV2(_prank).migrate(abi.decode(_migrateInput, (IOPContractsManagerMigrator.MigrateInput)));
@@ -146,14 +135,7 @@ contract InteropMigration is Script {
     /// @notice Helper function to set the dispute game factory in the output based on the OPCM version.
     /// @param _imi The migration input.
     /// @param _imo The migration output.
-    /// @param _useOPCMv2 Whether to use OPCM v2.
-    function _setDisputeGameFactory(
-        InteropMigrationInput _imi,
-        InteropMigrationOutput _imo,
-        bool _useOPCMv2
-    )
-        internal
-    {
+    function _setDisputeGameFactory(InteropMigrationInput _imi, InteropMigrationOutput _imo) internal {
         if (_useOPCMv2) {
             IOPContractsManagerMigrator.MigrateInput memory inputV2 =
                 abi.decode(_imi.migrateInput(), (IOPContractsManagerMigrator.MigrateInput));
@@ -168,7 +150,7 @@ contract InteropMigration is Script {
         }
     }
 
-    function checkOutput(InteropMigrationInput _imi, InteropMigrationOutput _imo, bool _useOPCMv2) public view {
+    function checkOutput(InteropMigrationInput _imi, InteropMigrationOutput _imo) public view {
         if (_useOPCMv2) {
             IOPContractsManagerMigrator.MigrateInput memory inputV2 =
                 abi.decode(_imi.migrateInput(), (IOPContractsManagerMigrator.MigrateInput));

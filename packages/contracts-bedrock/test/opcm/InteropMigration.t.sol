@@ -149,8 +149,29 @@ contract MockOPCM {
     }
 }
 
+contract MockOPCMRevert {
+    bool public opcmV2Enabled;
+
+    constructor(bool _opcmV2Enabled) {
+        opcmV2Enabled = _opcmV2Enabled;
+    }
+
+    function version() public view returns (string memory) {
+        return opcmV2Enabled ? "7.0.0" : "6.0.0";
+    }
+
+    function migrate(IOPContractsManagerInteropMigrator.MigrateInput memory /*_input*/ ) public pure {
+        revert("MockOPCMRevert: revert migrate");
+    }
+
+    function migrate(IOPContractsManagerMigrator.MigrateInput memory /*_input*/ ) public pure {
+        revert("MockOPCMRevert: revert migrate");
+    }
+}
+
 contract InteropMigrationV1_Test is Test {
     MockOPCM mockOPCM;
+    MockOPCMRevert mockOPCMRevert;
     InteropMigrationInput input;
     IOPContractsManager.OpChainConfig config;
     InteropMigration migration;
@@ -220,10 +241,32 @@ contract InteropMigrationV1_Test is Test {
 
         assertEq(address(output.disputeGameFactory()), dgf);
     }
+
+    function test_migrateV1_migrate_reverts() public {
+        // Set mock OPCM to revert on migrate
+        mockOPCMRevert = new MockOPCMRevert(false);
+        input.set(input.opcm.selector, address(mockOPCMRevert));
+
+        InteropMigrationOutput output = new InteropMigrationOutput();
+        vm.expectRevert("InteropMigration: migrate failed");
+        migration.run(input, output);
+    }
+
+    function test_opcmWithNoCode_reverts() public {
+        // Set an address with no code as OPCM
+        address emptyOPCM = makeAddr("emptyOPCM");
+        input.set(input.opcm.selector, emptyOPCM);
+
+        InteropMigrationOutput output = new InteropMigrationOutput();
+
+        vm.expectRevert("InteropMigration: OPCM address has no code");
+        migration.run(input, output);
+    }
 }
 
 contract InteropMigrationV2_Test is Test {
     MockOPCM mockOPCM;
+    MockOPCMRevert mockOPCMRevert;
     InteropMigrationInput input;
     ISystemConfig systemConfig;
     InteropMigration migration;
@@ -285,5 +328,26 @@ contract InteropMigrationV2_Test is Test {
         migration.run(input, output);
 
         assertEq(address(output.disputeGameFactory()), dgf);
+    }
+
+    function test_migrateV2_migrate_reverts() public {
+        // Set mock OPCM with V2 enabled to revert on migrate
+        mockOPCMRevert = new MockOPCMRevert(true);
+        input.set(input.opcm.selector, address(mockOPCMRevert));
+
+        InteropMigrationOutput output = new InteropMigrationOutput();
+        vm.expectRevert("InteropMigration: migrate failed");
+        migration.run(input, output);
+    }
+
+    function test_opcmWithNoCode_reverts() public {
+        // Set an address with no code as OPCM
+        address emptyOPCM = makeAddr("emptyOPCM");
+        input.set(input.opcm.selector, emptyOPCM);
+
+        InteropMigrationOutput output = new InteropMigrationOutput();
+
+        vm.expectRevert("InteropMigration: OPCM address has no code");
+        migration.run(input, output);
     }
 }
