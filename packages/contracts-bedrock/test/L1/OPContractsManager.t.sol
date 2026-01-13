@@ -394,7 +394,9 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         // Run past upgrades depending on network.
         if (block.chainid == 1) {
             // Mainnet
-            _runOpcmUpgradeAndChecks(IOPContractsManager(address(0x50f47b43c24f40b92c873fa0704d4207586d0c9f)), _delegateCaller, bytes(""));
+            _runOpcmUpgradeAndChecks(
+                IOPContractsManager(address(0x50F47B43c24F40B92C873Fa0704D4207586D0C9f)), _delegateCaller, bytes("")
+            );
         } else {
             revert UnsupportedChainId();
         }
