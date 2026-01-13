@@ -9,7 +9,6 @@ import { InteropMigrationInput, InteropMigration, InteropMigrationOutput } from 
 
 // Libraries
 import { Claim, Duration, Hash, GameType, Proposal } from "src/dispute/lib/Types.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOPContractsManagerInteropMigrator, IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -252,7 +251,7 @@ contract InteropMigrationV1_Test is Test {
         migration.run(input, output);
     }
 
-    function test_opcmWithNoCode_reverts() public {
+    function test_opcmV1_withNoCode_reverts() public {
         // Set an address with no code as OPCM
         address emptyOPCM = makeAddr("emptyOPCM");
         input.set(input.opcm.selector, emptyOPCM);
@@ -340,7 +339,7 @@ contract InteropMigrationV2_Test is Test {
         migration.run(input, output);
     }
 
-    function test_opcmWithNoCode_reverts() public {
+    function test_opcmv2_withNoCode_reverts() public {
         // Set an address with no code as OPCM
         address emptyOPCM = makeAddr("emptyOPCM");
         input.set(input.opcm.selector, emptyOPCM);
