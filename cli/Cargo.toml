@@ -76,8 +76,9 @@ reth-optimism-chainspec = { workspace = true, features = ["std", "superchain-con
 [features]
 default = []
 
-# Opentelemtry feature to activate metrics export
+# Opentelemetry feature to activate tracing and logs export
 otlp = ["reth-tracing/otlp", "reth-node-core/otlp"]
+otlp-logs = ["reth-tracing/otlp-logs", "reth-node-core/otlp-logs"]
 
 asm-keccak = [
     "alloy-primitives/asm-keccak",
