@@ -51,7 +51,8 @@ fi
 
 # Pull artifacts with or without fallback
 if [ "$USE_FALLBACK" = "true" ]; then
-  bash scripts/ops/pull-artifacts.sh --fallback-to-latest
+
+j  bash scripts/ops/pull-artifacts.sh --fallback-to-latest
 else
   bash scripts/ops/pull-artifacts.sh
 fi
