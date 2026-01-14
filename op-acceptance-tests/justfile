@@ -65,7 +65,7 @@ acceptance-test devnet="" gate="base":
 
         echo "Building Rust binaries (kona-node, kona-supervisor, op-rbuilder, rollup-boost)..."
         cd {{REPO_ROOT}}
-        just build-rust-debug
+        just build-rust-release
     fi
 
     cd {{REPO_ROOT}}/op-acceptance-tests

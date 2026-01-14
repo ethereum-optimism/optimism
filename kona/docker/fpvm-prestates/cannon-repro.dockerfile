@@ -61,33 +61,45 @@ RUN cd kona && \
 FROM ubuntu:22.04 AS prestate-build
 SHELL ["/bin/bash", "-c"]
 
-# Set env
-ENV CANNON_BIN_PATH="/cannon"
-ENV CLIENT_BIN_PATH="/kona-client-elf"
-ENV PRESTATE_OUT_PATH="/prestate.bin.gz"
-ENV PROOF_OUT_PATH="/prestate-proof.json"
+ARG UID=10001
+ARG GID=10001
+
+RUN groupadd --gid ${GID} app \
+ && useradd  --uid ${UID} --gid ${GID} \
+            --home-dir /home/app --create-home \
+            --shell /usr/sbin/nologin \
+            app
+
+# Use a writable workspace owned by the non-root user
+WORKDIR /work
+RUN chown ${UID}:${GID} /work
 
 # Copy cannon binary
-COPY --from=cannon-build /cannon-bin $CANNON_BIN_PATH
+COPY --from=cannon-build /cannon-bin /work/cannon
 
 # Copy kona-client binary
-COPY --from=client-build /kona-client-elf $CLIENT_BIN_PATH
+COPY --from=client-build /kona-client-elf /work/kona-client-elf
+
+# Make the binaries executable
+RUN chmod 0555 /work/cannon /work/kona-client-elf
+
+USER ${UID}:${GID}
 
 # Create `prestate.bin.gz`
-RUN $CANNON_BIN_PATH load-elf \
-  --path=$CLIENT_BIN_PATH \
-  --out=$PRESTATE_OUT_PATH \
+RUN /work/cannon load-elf \
+  --path=/work/kona-client-elf \
+  --out=/work/prestate.bin.gz \
   --type multithreaded64-5
 
 # Create `prestate-proof.json`
-RUN $CANNON_BIN_PATH run \
+RUN /work/cannon run \
   --proof-at "=0" \
   --stop-at "=1" \
-  --input $PRESTATE_OUT_PATH \
-  --meta ./meta.json \
-  --proof-fmt "./%d.json" \
+  --input /work/prestate.bin.gz \
+  --meta /work/meta.json \
+  --proof-fmt "/work/%d.json" \
   --output "" && \
-  mv 0.json $PROOF_OUT_PATH
+  mv /work/0.json /work/prestate-proof.json
 
 ################################################################
 #                       Export Artifacts                       #
@@ -95,8 +107,8 @@ RUN $CANNON_BIN_PATH run \
 
 FROM scratch AS export-stage
 
-COPY --from=prestate-build /cannon .
-COPY --from=prestate-build /kona-client-elf .
-COPY --from=prestate-build /prestate.bin.gz .
-COPY --from=prestate-build /prestate-proof.json .
-COPY --from=prestate-build /meta.json .
+COPY --from=prestate-build /work/cannon .
+COPY --from=prestate-build /work/kona-client-elf .
+COPY --from=prestate-build /work/prestate.bin.gz .
+COPY --from=prestate-build /work/prestate-proof.json .
+COPY --from=prestate-build /work/meta.json .

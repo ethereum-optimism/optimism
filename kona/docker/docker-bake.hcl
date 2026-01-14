@@ -25,6 +25,16 @@ variable "GIT_REF_NAME" {
   description = "The git reference name. This is typically the branch name, commit hash, or tag."
 }
 
+variable "HOST_UID" {
+  default = "1000"
+  description = "The UID of the host user for volume permissions."
+}
+
+variable "HOST_GID" {
+  default = "1000"
+  description = "The GID of the host user for volume permissions."
+}
+
 // Special target: https://github.com/docker/metadata-action#bake-definition
 target "docker-metadata-action" {
   description = "Special target used with `docker/metadata-action`"
@@ -126,6 +136,10 @@ target "cannon-builder" {
   inherits = ["docker-metadata-action"]
   context = "docker/cannon"
   dockerfile = "cannon.dockerfile"
+  args = {
+    HOST_UID = "${HOST_UID}"
+    HOST_GID = "${HOST_GID}"
+  }
   platforms = split(",", PLATFORMS)
 }
 

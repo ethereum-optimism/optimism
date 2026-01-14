@@ -1,9 +1,15 @@
+
 # E2e integration tests for kona.
 import "./tests/justfile"
 # Builds docker images for kona
 import "./docker/apps/justfile"
 # Vocs Documentation commands
 import "./docs/justfile"
+
+KONA_ROOT := source_directory()
+KONA_VERSION := shell('jq -r .version "$1/version.json"', KONA_ROOT)
+KONA_PRESTATE_HASH := shell('jq -r .prestateHash "$1/version.json"', KONA_ROOT)
+KONA_INTEROP_PRESTATE_HASH := shell('jq -r .interopPrestateHash "$1/version.json"', KONA_ROOT)
 
 set positional-arguments
 alias t := tests
@@ -31,7 +37,7 @@ tests: test test-docs
 
 # Test for the native target with all features. By default, excludes online tests.
 test *args="-E '!test(test_online)'":
-  cargo nextest run --workspace --all-features {{args}}
+  cargo nextest run --release --workspace --all-features {{args}}
   just test-custom-embeds
 
 # Run all online tests
@@ -40,13 +46,14 @@ test-online:
 
 # Test custom embedded chain configuration functionality
 test-custom-embeds:
-  cargo test --package kona-registry custom_chain_is_loaded_when_enabled \
+  cargo test --release --package kona-registry custom_chain_is_loaded_when_enabled \
       --config 'env.KONA_CUSTOM_CONFIGS="true"' \
       --config "env.KONA_CUSTOM_CONFIGS_DIR=\"{{justfile_directory()}}/crates/protocol/registry/tests/fixtures/custom\"" \
       --config 'env.KONA_CUSTOM_CONFIGS_TEST="true"'
 
 # Runs the tests with llvm-cov
 llvm-cov-tests:
+  #!/usr/bin/env bash
   # collect coverage of `just test` and `just test-custom-embeds`
   cargo llvm-cov nextest --no-report --locked --workspace \
     --all-features \
@@ -95,16 +102,16 @@ lint-native: fmt-native-check lint-docs
 lint-cannon:
   docker run \
     --rm \
-    -v `pwd`/:/workdir \
-    -w="/workdir" \
+    -v {{KONA_ROOT}}/../:/workdir \
+    -w="/workdir/kona" \
     ghcr.io/op-rs/kona/cannon-builder:0.3.0 cargo clippy -p kona-std-fpvm --all-features -Zbuild-std=core,alloc -- -D warnings
 
 # Lint the workspace (risc-v arch). Currently, only the `kona-std-fpvm` crate is linted for the `asterisc` target, as it is the only crate with architecture-specific code.
 lint-asterisc:
   docker run \
     --rm \
-    -v `pwd`/:/workdir \
-    -w="/workdir" \
+    -v {{KONA_ROOT}}/../:/workdir \
+    -w="/workdir/kona" \
     ghcr.io/op-rs/kona/asterisc-builder:0.3.0 cargo clippy -p kona-std-fpvm --all-features -Zbuild-std=core,alloc -- -D warnings
 
 # Lint the Rust documentation
@@ -117,27 +124,28 @@ test-docs:
 
 # Build for the native target
 build-native *args='':
+  #!/usr/bin/env bash
   cargo build --workspace $@
 
 # Build `kona-client` for the `cannon` target.
 build-cannon-client:
   docker run \
     --rm \
-    -v `pwd`/:/workdir \
-    -w="/workdir" \
+    -v {{KONA_ROOT}}/../:/workdir \
+    -w="/workdir/kona" \
     ghcr.io/op-rs/kona/cannon-builder:0.3.0 cargo build -Zbuild-std=core,alloc -p kona-client --bin kona-client --profile release-client-lto
 
 # Build `kona-client` for the `asterisc` target.
 build-asterisc-client:
   docker run \
     --rm \
-    -v `pwd`/:/workdir \
-    -w="/workdir" \
+    -v {{KONA_ROOT}}/../:/workdir \
+    -w="/workdir/kona" \
     ghcr.io/op-rs/kona/asterisc-builder:0.3.0 cargo build -Zbuild-std=core,alloc -p kona-client --bin kona-client --profile release-client-lto
 
 # Check for unused dependencies in the crate graph.
 check-udeps:
-  cargo +nightly udeps --workspace --all-features --all-targets
+  cargo +nightly udeps --release --workspace --all-features --all-targets
 
 
 # Updates the `superchain-registry` git submodule source
@@ -147,3 +155,123 @@ source-registry:
 # Generate file bindings for super-registry
 bind-registry:
   @just --justfile ./crates/protocol/registry/justfile bind
+
+check-no-std:
+  #!/usr/bin/env bash
+  no_std_packages=(
+    # proof crates
+    kona-executor
+    kona-mpt
+    kona-preimage
+    kona-proof
+    kona-proof-interop
+
+    # protocol crates
+    kona-genesis
+    kona-hardforks
+    kona-registry
+    kona-protocol
+    kona-derive
+    kona-driver
+    kona-interop
+
+    # utilities
+    kona-serde
+  )
+
+  for package in "${no_std_packages[@]}"; do
+    echo "Checking no-std build for: $package"
+
+    cargo build -p $package --target riscv32imac-unknown-none-elf --no-default-features
+
+    if [ $? -ne 0 ]; then
+      echo "Failed to build no-std for: $package"
+      exit 1
+    fi
+
+    echo "Successfully checked no-std build for: $package"
+  done
+
+### TODO(ethereum-optimism/optimism#18654): Remove these recipes once the migration is complete
+
+build-all: build-prestates build-kona-host
+
+build-prestates: build-cannon-prestate build-interop-prestate
+
+build-cannon-prestate:
+    @just build-prestate kona-client {{KONA_PRESTATE_HASH}}
+
+build-interop-prestate:
+    @just build-prestate kona-client-int {{KONA_INTEROP_PRESTATE_HASH}}
+
+build-prestate VARIANT HASH:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    cd "{{KONA_ROOT}}"
+    # Check if required prestate already exists
+    if [[ -f "prestates/{{HASH}}.bin.gz" ]]; then
+        echo "Prestate {{HASH}} for variant {{VARIANT}} already exists"
+        exit
+    fi
+    echo "Building prestate..."
+    just checkout-kona
+    cd "{{KONA_ROOT}}/build/kona"
+    cd docker/fpvm-prestates
+    # Delete any existing artifacts (they're in .gitignore so reset --hard won't delete them)
+    rm -rf ../../prestate-artifacts-cannon
+    echo just cannon {{VARIANT}} "kona-client/v{{KONA_VERSION}}" $(cat ../../.config/cannon_tag)
+    just cannon {{VARIANT}} "kona-client/v{{KONA_VERSION}}" $(cat ../../.config/cannon_tag)
+
+    # Check the prestate hash matches what we expect
+    ACTUAL_HASH=$(jq -r .pre ../../prestate-artifacts-cannon/prestate-proof.json)
+    if [[ "${ACTUAL_HASH}" != "{{HASH}}" ]]; then
+      echo "Incorrect prestate hash, expected {{HASH}} but was ${ACTUAL_HASH}"
+      exit 1
+    fi
+
+    mkdir -p "{{KONA_ROOT}}/prestates"
+    cp ../../prestate-artifacts-cannon/prestate.bin.gz "{{KONA_ROOT}}/prestates/{{HASH}}.bin.gz"
+
+build-kona-host:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Check if kona-host has already been built
+    # This is a simplistic check that relies on CircleCI's cache being keyed on this file
+    # which contains the kona version we're checking out. Locally you may need to run
+    # just clean to force a rebuild if the kona version has changed.
+    if [[ -f "bin/kona-host" ]]; then
+        echo "kona-host already built. Assuming it is built from kona-client/v{{KONA_VERSION}}"
+        exit
+    fi
+
+    echo "Building kona-host"
+    just checkout-kona
+    cd "{{KONA_ROOT}}/build/kona"
+    just build-native --bin kona-host
+
+    mkdir -p "{{KONA_ROOT}}/bin"
+    cp "{{KONA_ROOT}}/build/kona/target/debug/kona-host" "{{KONA_ROOT}}/bin/kona-host"
+
+checkout-kona:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    DIR="{{KONA_ROOT}}/build"
+    mkdir -p "${DIR}"
+    cd "${DIR}"
+    if [[ -d kona ]]; then
+      cd kona
+      git fetch origin
+      git checkout -f "kona-client/v{{KONA_VERSION}}"
+      git reset --hard HEAD
+    else
+      git clone -b "kona-client/v{{KONA_VERSION}}" https://github.com/op-rs/kona kona
+      cd kona
+    fi
+
+clean:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  rm -rf "{{KONA_ROOT}}/build" "{{KONA_ROOT}}/prestates" "{{KONA_ROOT}}/bin"

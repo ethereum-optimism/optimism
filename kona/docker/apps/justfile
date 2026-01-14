@@ -1,3 +1,5 @@
+DOCKER_JUSTFILE := source_directory()
+
 _docker_arch:
   #!/bin/bash
   if [[ -z "$PLATFORMS" ]]; then
@@ -19,7 +21,7 @@ build-local bin_name image_tag='kona:local' load_flag='':
     LOAD_FLAG="--load"
   fi
 
-  (cd "$(git rev-parse --show-toplevel)" && docker buildx bake \
+  (cd {{DOCKER_JUSTFILE}}/../../ && docker buildx bake \
     --progress plain \
     -f docker/docker-bake.hcl \
     $LOAD_FLAG \
@@ -40,7 +42,7 @@ build-remote bin_name git_tag='' image_tag='kona:local':
     export GIT_REF_NAME="{{git_tag}}"
   fi
 
-  (cd "$(git rev-parse --show-toplevel)" && docker buildx bake \
+  (cd {{DOCKER_JUSTFILE}}/../../ && docker buildx bake \
     --progress plain \
     -f docker/docker-bake.hcl \
     generic)

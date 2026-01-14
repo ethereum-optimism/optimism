@@ -3,8 +3,8 @@ package sysgo
 import (
 	"testing"
 
+	spresets "github.com/ethereum-optimism/optimism/kona/tests/supervisor/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	spresets "github.com/op-rs/kona/supervisor/presets"
 )
 
 // TestMain creates the test-setups against the shared backend

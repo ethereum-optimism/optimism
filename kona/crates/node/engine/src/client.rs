@@ -258,8 +258,8 @@ impl EngineClientBuilder {
 
         let rollup_boost = Arc::new(RollupBoostServer { server: rollup_boost_server, probes });
 
-        // TODO(@theochap): remove this client, upstream the remaining EngineApiExt methods to the
-        // RollupBoostServer
+        // TODO(ethereum-optimism/optimism#18656): remove this client, upstream the remaining
+        // EngineApiExt methods to the RollupBoostServer
         let engine = OpEngineClient::<RootProvider, RootProvider<Optimism>>::rpc_client::<Optimism>(
             self.l2,
             self.l2_jwt,

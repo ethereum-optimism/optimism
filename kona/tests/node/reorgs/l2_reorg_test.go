@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"testing"
 
+	node_utils "github.com/ethereum-optimism/optimism/kona/tests/node/utils"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
-	node_utils "github.com/op-rs/kona/node/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -101,7 +101,8 @@ func TestL2Reorg(gt *testing.T) {
 			require.NoError(t, err, "Expected to be able to include a signed transaction on op-test-sequencer, but got error")
 		}
 
-		controlAPI.Next(t.Ctx())
+		err = controlAPI.Next(t.Ctx())
+		require.NoError(t, err, "Expected to be able to call Next() after IncludeTx() on op-test-sequencer, but got error")
 
 		// Resume the main sequencer
 		sequencerCL.StartSequencer()

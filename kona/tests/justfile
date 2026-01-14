@@ -15,13 +15,13 @@ build-devnet BINARY:
 
 build-reth:
   #!/bin/bash
-  cd {{SOURCE}}/reth && cargo build --bin op-reth -p op-reth
+  cd {{SOURCE}}/../../reth && cargo build --bin op-reth -p op-reth
 
-build-kona:
+build-kona PROFILE="release":
   #!/bin/bash
-  cd {{SOURCE}}/.. && cargo build --bin kona-node
+  cd {{SOURCE}}/.. && cargo build --bin kona-node --profile {{PROFILE}}
 
-acceptance-tests CL_TYPE="kona" EL_TYPE="op-reth" GATE="jovian": 
+acceptance-tests CL_TYPE="kona" EL_TYPE="op-reth" GATE="jovian":
   #!/bin/bash
   if [ "{{CL_TYPE}}" = "kona" ] ; then
     echo "Building kona-node..."
@@ -46,7 +46,7 @@ acceptance-tests-run CL_TYPE="kona" EL_TYPE="op-reth" GATE="jovian":
 
   if [ "{{EL_TYPE}}" = "op-reth" ] ; then
     echo "Running acceptance tests for op-reth"
-    export OP_RETH_EXEC_PATH="{{SOURCE}}/reth/target/debug/op-reth"
+    export OP_RETH_EXEC_PATH="{{SOURCE}}/../../reth/target/debug/op-reth"
   fi
 
   echo "Running acceptance tests for {{CL_TYPE}} with {{EL_TYPE}} on gate {{GATE}}..."
@@ -57,7 +57,7 @@ acceptance-tests-run CL_TYPE="kona" EL_TYPE="op-reth" GATE="jovian":
   cd {{SOURCE}}/optimism/op-acceptance-tests && just acceptance-test "" "{{GATE}}"
 
 # Run the e2e tests for the sysgo orchestrator.
-# Builds the kona-node and op-reth binaries, unzips the contract artifacts, and runs the tests.
+# Builds the kona-node and op-reth binaries and runs the tests.
 test-e2e-sysgo BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" FILTER="" :
     #!/bin/bash
     if [ "{{BINARY}}" = "node" ]; then
@@ -70,24 +70,24 @@ test-e2e-sysgo BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" FILT
       cd {{SOURCE}}/.. && just build-supervisor
     fi
 
-    echo "Unzipping contract artifacts..."
-    just unzip-contract-artifacts
-
     just test-e2e-sysgo-run {{BINARY}} {{GO_PKG_NAME}} {{DEVNET}} {{FILTER}}
 
-# Run the e2e tests for the sysgo orchestrator. Don't build the binaries or unzip the contract artifacts.
+# Run the e2e tests for the sysgo orchestrator. Don't build the binaries.
 test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" FILTER="" :
     #!/bin/bash
     echo "Running e2e tests for the sysgo orchestrator for binary {{BINARY}} with package name {{GO_PKG_NAME}} on devnet {{DEVNET}}..."
 
-    export OP_DEPLOYER_ARTIFACTS="{{SOURCE}}/artifacts/src/forge-artifacts"
     export DISABLE_OP_E2E_LEGACY=true
     export DEVSTACK_ORCHESTRATOR=sysgo
     export GO_PKG_NAME="{{GO_PKG_NAME}}"
 
     if [ "{{BINARY}}" = "node" ]; then
-        export KONA_NODE_EXEC_PATH="{{SOURCE}}/../target/debug/kona-node"
-        export OP_RETH_EXEC_PATH="{{SOURCE}}/reth/target/debug/op-reth"
+        if [ $KONA_NODE_EXEC_PATH == "" ]; then
+          export KONA_NODE_EXEC_PATH="{{SOURCE}}/../target/debug/kona-node"
+        fi
+        if [ $OP_RETH_EXEC_PATH == "" ]; then
+          export OP_RETH_EXEC_PATH="{{SOURCE}}/../../reth/target/debug/op-reth"
+        fi
     elif [ "{{BINARY}}" = "supervisor" ]; then
         export DEVSTACK_SUPERVISOR_KIND=kona
         export KONA_SUPERVISOR_EXEC_PATH="{{SOURCE}}/../target/release/kona-supervisor"
@@ -143,6 +143,8 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
         export OP_VALIDATOR_WITH_GETH=0
     fi
 
+    export SKIP_P2P_CONNECTION_CHECK=true
+
     # Run the test with count=1 to avoid caching the test results.
     cd {{SOURCE}} && go test -count=1 -timeout 40m -v ./$GO_PKG_NAME $FILTER
 
@@ -163,7 +165,7 @@ long-running-test FILTER="" OUTPUT_LOGS_DIR="":
     export OP_VALIDATOR_WITH_GETH=0
 
     export KONA_NODE_EXEC_PATH="{{SOURCE}}/../target/debug/kona-node"
-    export OP_RETH_EXEC_PATH="{{SOURCE}}/reth/target/debug/op-reth"
+    export OP_RETH_EXEC_PATH="{{SOURCE}}/../../reth/target/debug/op-reth"
     export DEVSTACK_ORCHESTRATOR=sysgo
     echo "Building kona-node..."
     just build-kona
@@ -177,8 +179,8 @@ long-running-test FILTER="" OUTPUT_LOGS_DIR="":
 
     mkdir -p $OP_TESTLOG_FILE_LOGGER_OUTDIR
 
-    export OP_DEPLOYER_ARTIFACTS="{{SOURCE}}/artifacts"
     export DISABLE_OP_E2E_LEGACY=true
+    export SKIP_P2P_CONNECTION_CHECK=true
 
     # Run the test with count=1 to avoid caching the test results.
     cd {{SOURCE}} && go test -count=1 -timeout 0 -v ./node/long-running $FILTER
@@ -189,27 +191,63 @@ action-tests-single test_name='Test_ProgramAction' *args='': action-tests-single
 # Build action tests for the single-chain client program on the native target
 action-tests-single-build:
   #!/bin/bash
-  echo "Building contract artifacts for the optimism"
-  just unzip-contract-artifacts {{SOURCE}}/optimism/packages/contracts-bedrock
 
   echo "Building host program for the native target"
-  just build-native --bin kona-host
+  just build-native --release --bin kona-host
 
 # Run action tests for the single-chain client program on the native target
-action-tests-single-run test_name='Test_ProgramAction' *args='':
+action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
   #!/bin/bash
-  export KONA_HOST_PATH="{{SOURCE}}/../target/debug/kona-host"
+
+  if [ ! -n "$KONA_HOST_PATH" ]; then
+    export KONA_HOST_PATH="{{SOURCE}}/../target/release/kona-host"
+  fi
+
+  echo "KONA_HOST_PATH: $KONA_HOST_PATH"
+
   # GitHub actions patch - do not print logs.
   # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
   echo "Running action tests for the client program on the native target"
 
-  cd {{SOURCE}}/optimism/op-e2e/actions/proofs && GITHUB_ACTIONS=false gotestsum --format=short-verbose -- -count=1 -timeout 60m -run "{{test_name}}" {{args}}
+  cd {{SOURCE}}/../../op-e2e/actions/proofs
+
+  # Set parallel to the number of cores available if {{parallel}} is not greater than 0
+  if [ {{parallel}} -gt 0 ]; then
+    export PARALLEL={{parallel}}
+  else
+    export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+  fi
+
+  echo "Running tests with $PARALLEL cores"
+
+  # CircleCI parallelism
+  if [ -n "$CIRCLE_NODE_TOTAL" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
+  	echo "Setting up test directories..."
+    mkdir -p ./tmp/test-results ./tmp/testlogs
+
+    export NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
+    export NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
+    go test -list '^{{test_name}}' > /tmp/tests.txt
+    circleci tests split --split-by=name /tmp/tests.txt > /tmp/tests_shard.txt
+
+    echo "Node $NODE_INDEX/$NODE_TOTAL running tests: $(cat /tmp/tests_shard.txt)"
+    xargs -n 1 -I {} gotestsum --format=testname \
+      --junitfile=./tmp/test-results/results-$NODE_INDEX.xml \
+      --jsonfile=./tmp/testlogs/log-$NODE_INDEX.json \
+      -- -count=1 -parallel=$PARALLEL -coverprofile=coverage-$NODE_INDEX.out -timeout=60m -run '^{}$' \
+      < /tmp/tests_shard.txt
+
+    exit 0
+  fi
+
+  gotestsum --format=testname \
+    --junitfile=./tmp/test-results/results.xml \
+    --jsonfile=./tmp/testlogs/log.json \
+    -- -count=1 -parallel=$PARALLEL -coverprofile=coverage.out -timeout=60m -run "{{test_name}}"
 
 # Run action tests for the interop client program on the native target
 action-tests-interop test_name='TestInteropFaultProofs' *args='':
   #!/bin/bash
-  echo "Building contract artifacts for the optimism"
-  just unzip-contract-artifacts {{SOURCE}}/optimism/packages/contracts-bedrock
 
   echo "Building host program for the native target"
   just build-native --bin kona-host
@@ -219,7 +257,7 @@ action-tests-interop test_name='TestInteropFaultProofs' *args='':
   # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
   echo "Running action tests for the client program on the native target"
 
-  cd {{SOURCE}}/optimism/op-e2e/actions/interop && GITHUB_ACTIONS=false gotestsum --format=testname -- -run "{{test_name}}" {{args}} -count=1 ./...
+  cd {{SOURCE}}/../../op-e2e/actions/interop && GITHUB_ACTIONS=false gotestsum --format=testname -- -run "{{test_name}}" {{args}} -count=1 ./...
 
 action-tests-interop-build test_name='TestInteropFaultProofs' *args='':
   #!/bin/bash
@@ -228,18 +266,6 @@ action-tests-interop-build test_name='TestInteropFaultProofs' *args='':
 action-tests-interop-run test_name='TestInteropFaultProofs' *args='':
   #!/bin/bash
   echo "Not implemented.  See https://github.com/op-rs/kona/issues/3010"
-
-unzip-contract-artifacts DEST_DIR="":
-    #!/bin/bash
-
-    export DEST_DIR="{{DEST_DIR}}"
-    if [ -z "{{DEST_DIR}}" ]; then
-        export DEST_DIR="{{SOURCE}}/artifacts/src"
-    fi
-
-    mkdir -p $DEST_DIR
-
-    tar --zstd -xf {{SOURCE}}/artifacts/compressed/artifacts.tzst -C $DEST_DIR
 
 update-packages:
     #!/bin/bash

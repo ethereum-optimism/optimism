@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"testing"
 
+	node_utils "github.com/ethereum-optimism/optimism/kona/tests/node/utils"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/libp2p/go-libp2p/core/peer"
-	node_utils "github.com/op-rs/kona/node/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,7 +46,7 @@ func arePeers(t devtest.T, node *dsl.L2CLNode, otherNodeId peer.ID) {
 	found := false
 	for _, peer := range nodePeers.Peers {
 		if peer.PeerID == otherNodeId {
-			// TODO(@theochap): this test is flaky, we should fix it.
+			// TODO(ethereum-optimism/optimism#18655): this test is flaky, we should fix it.
 			// require.Equal(t, network.Connected, peer.Connectedness, fmt.Sprintf("%s is not connected to the %s", node.Escape().ID(), otherNodeId))
 			checkProtocols(t, peer)
 			found = true

@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -17,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -477,21 +475,9 @@ func DefaultMixedOpKonaSystem(dest *DefaultMixedOpKonaSystemIDs, l2NodeConfig L2
 
 	opt.Add(sysgo.WithMnemonicKeys(devkeys.TestMnemonic))
 
-	// Get artifacts path
-	artifactsPath := os.Getenv("OP_DEPLOYER_ARTIFACTS")
-	if artifactsPath == "" {
-		panic("OP_DEPLOYER_ARTIFACTS is not set")
-	}
-
 	opt.Add(sysgo.WithDeployer(),
-		sysgo.WithDeployerPipelineOption(
-			sysgo.WithDeployerCacheDir(artifactsPath),
-		),
 		sysgo.WithDeployerOptions(
-			func(_ devtest.P, _ devkeys.Keys, builder intentbuilder.Builder) {
-				builder.WithL1ContractsLocator(artifacts.MustNewFileLocator(artifactsPath))
-				builder.WithL2ContractsLocator(artifacts.MustNewFileLocator(artifactsPath))
-			},
+			sysgo.WithLocalContractSources(),
 			sysgo.WithCommons(ids.L1.ChainID()),
 			sysgo.WithPrefundedL2(ids.L1.ChainID(), ids.L2.ChainID()),
 		),
@@ -565,7 +551,7 @@ func DefaultMixedOpKonaSystem(dest *DefaultMixedOpKonaSystemIDs, l2NodeConfig L2
 	for i := range CLNodeIDs {
 		for j := range i {
 			opt.Add(sysgo.WithL2CLP2PConnection(CLNodeIDs[i], CLNodeIDs[j]))
-			opt.Add(sysgo.WithL2ELP2PConnection(ELNodeIDs[i], ELNodeIDs[j]))
+			opt.Add(sysgo.WithL2ELP2PConnection(ELNodeIDs[i], ELNodeIDs[j], false))
 		}
 	}
 
