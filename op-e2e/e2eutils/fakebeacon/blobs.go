@@ -142,8 +142,9 @@ func (f *FakeBeacon) StoreBlobsBundle(slot uint64, bundle *engine.BlobsBundle) e
 	return nil
 }
 
-// LoadBlobsByHash loads blobs by their hashes, returning a map of hashes to blobs.
-// If the supplied hashes list is empty, all blobs for the given slot are returned.
+// LoadBlobsByHashreturns a slice of blobs in the given slot, corresponding to the supplied versioned hashes.
+// If the provided hashes is empty, all blobs in the store at the supplied timestamp are returned.
+// Blobs are ordered by their index in the block.
 func (f *FakeBeacon) LoadBlobsByHash(slot uint64, hashes []common.Hash) ([]*eth.Blob, error) {
 	f.blobsLock.Lock()
 	defer f.blobsLock.Unlock()

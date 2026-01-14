@@ -47,8 +47,10 @@ func (store *Store) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []e
 	return out, nil
 }
 
-// GetBlobsByHash returns a slice of blobs corresponding to the supplied versioned hashes.
+// GetBlobsByHash returns a slice of blobs in the slot at the given timestamp,
+// corresponding to the supplied versioned hashes.
 // If the provided hashes is empty, all blobs in the store at the supplied timestamp are returned.
+// Blobs are ordered by their index in the block.
 func (store *Store) GetBlobsByHash(ctx context.Context, time uint64, hashes []common.Hash) ([]*eth.Blob, error) {
 	m, ok := store.blobs[time]
 	if !ok {
