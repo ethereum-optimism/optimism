@@ -43,6 +43,11 @@ if [ "${CIRCLE_BRANCH:-}" != "develop" ]; then
   fi
 fi
 
+# Ensure that PRs targetting anything other than develop do not use the fallback
+if [ "$TARGET_BRANCH" != "develop" ]; then
+  USE_FALLBACK=false
+fi
+
 # Pull artifacts with or without fallback
 if [ "$USE_FALLBACK" = "true" ]; then
   bash scripts/ops/pull-artifacts.sh --fallback-to-latest
