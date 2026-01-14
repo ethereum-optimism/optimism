@@ -1518,32 +1518,7 @@ func runFppAndChallengerTests(gt *testing.T, system *dsl.InteropDSL, tests []*tr
 }
 
 func runFppTest(gt *testing.T, test *transitionTest, actors *dsl.InteropActors, depSet *depset.StaticConfigDependencySet) {
-	t := helpers.SubTest(gt)
-	if test.skipProgram {
-		t.Skip("Not yet implemented")
-		return
-	}
-	logger := testlog.Logger(t, slog.LevelInfo)
-	checkResult := fpHelpers.ExpectNoError()
-	if !test.expectValid {
-		checkResult = fpHelpers.ExpectError(claim.ErrClaimNotValid)
-	}
-	l1Head := test.l1Head
-	if l1Head == (common.Hash{}) {
-		l1Head = actors.L1Miner.L1Chain().CurrentBlock().Hash()
-	}
-	proposalTimestamp := test.proposalTimestamp
-	if proposalTimestamp == 0 {
-		proposalTimestamp = actors.ChainA.Sequencer.L2Unsafe().Time
-	}
-	fpHelpers.RunFaultProofProgram(
-		t,
-		logger,
-		actors.L1Miner,
-		checkResult,
-		WithInteropEnabled(t, actors, depSet, test.agreedClaim, crypto.Keccak256Hash(test.disputedClaim), proposalTimestamp),
-		fpHelpers.WithL1Head(l1Head),
-	)
+	runFppTestWithL2RPCTracking(gt, test, actors, depSet, nil)
 }
 
 func runFppTestWithL2RPCTracking(gt *testing.T, test *transitionTest, actors *dsl.InteropActors, depSet *depset.StaticConfigDependencySet, tracker *fpHelpers.L2RPCTracker) {
@@ -1565,14 +1540,19 @@ func runFppTestWithL2RPCTracking(gt *testing.T, test *transitionTest, actors *ds
 	if proposalTimestamp == 0 {
 		proposalTimestamp = actors.ChainA.Sequencer.L2Unsafe().Time
 	}
+	params := []fpHelpers.FixtureInputParam{
+		WithInteropEnabled(t, actors, depSet, test.agreedClaim, crypto.Keccak256Hash(test.disputedClaim), proposalTimestamp),
+		fpHelpers.WithL1Head(l1Head),
+	}
+	if tracker != nil {
+		params = append(params, fpHelpers.WithL2RPCTracker(tracker))
+	}
 	fpHelpers.RunFaultProofProgram(
 		t,
 		logger,
 		actors.L1Miner,
 		checkResult,
-		WithInteropEnabled(t, actors, depSet, test.agreedClaim, crypto.Keccak256Hash(test.disputedClaim), proposalTimestamp),
-		fpHelpers.WithL1Head(l1Head),
-		fpHelpers.WithL2RPCTracker(tracker),
+		params...,
 	)
 }
 
