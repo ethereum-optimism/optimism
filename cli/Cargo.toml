@@ -85,6 +85,12 @@ asm-keccak = [
     "reth-optimism-node/asm-keccak",
 ]
 
+keccak-cache-global = [
+    "alloy-primitives/keccak-cache-global",
+    "reth-node-core/keccak-cache-global",
+    "reth-optimism-node/keccak-cache-global",
+]
+
 # Jemalloc feature for vergen to generate correct env vars
 jemalloc = [
     "reth-node-core/jemalloc",
