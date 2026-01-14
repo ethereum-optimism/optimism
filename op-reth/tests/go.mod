@@ -3,14 +3,16 @@ module github.com/op-rs/op-geth
 go 1.24.0
 
 // We're using the "develop" branch of the Optimism repo to include the latest changes to the `devstack` package.
-require github.com/ethereum-optimism/optimism v1.14.2-0.20251022171045-db70e5fc3b09
+require github.com/ethereum-optimism/optimism v1.16.4
 
 require (
 	github.com/BurntSushi/toml v1.5.0
 	github.com/bmatcuk/doublestar/v4 v4.8.1
+	github.com/chelnak/ysmrr v0.6.0
 	github.com/ethereum/go-ethereum v1.16.3
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/sync v0.14.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -18,7 +20,7 @@ require (
 	github.com/DataDog/zstd v1.5.6-0.20230824185856-869dae002e5e // indirect
 	github.com/Masterminds/semver/v3 v3.3.1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/VictoriaMetrics/fastcache v1.12.2 // indirect
+	github.com/VictoriaMetrics/fastcache v1.13.0 // indirect
 	github.com/adrg/xdg v0.4.0 // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
@@ -40,6 +42,7 @@ require (
 	github.com/cockroachdb/pebble v1.1.5 // indirect
 	github.com/cockroachdb/redact v1.1.5 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
+	github.com/coder/websocket v1.8.13 // indirect
 	github.com/consensys/gnark-crypto v0.18.0 // indirect
 	github.com/containerd/cgroups v1.1.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
@@ -63,8 +66,9 @@ require (
 	github.com/elastic/gosigar v0.14.3 // indirect
 	github.com/emicklei/dot v1.6.2 // indirect
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.4-0.20251001155152-4eb15ccedf7e // indirect
-	github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20251009180028-9b4658b9b7af // indirect
+	github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20251121143344-5ac16e0fbb00 // indirect
 	github.com/ethereum/c-kzg-4844/v2 v2.1.5 // indirect
+	github.com/ethereum/go-bigmodexpfix v0.0.0-20250911101455-f9e208c548ab // indirect
 	github.com/ethereum/go-verkle v0.2.2 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -85,7 +89,7 @@ require (
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
-	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
+	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/pprof v0.0.0-20241009165004-a3522334989c // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -273,10 +277,9 @@ require (
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.3.0 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101603.3-rc.3
+replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101605.0-rc.1
 
 replace github.com/ethereum-optimism/optimism => ./optimism

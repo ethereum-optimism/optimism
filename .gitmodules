@@ -46,4 +46,5 @@
 	url = https://github.com/flashbots/rollup-boost
 [submodule "op-reth/tests/optimism"]
 	path = crates/optimism/tests/optimism
-	url = https://github.com/dhyaniarun1993/optimism.git
+	url = https://github.com/ChainSafe/optimism.git
+	branch = jk/op-historical-proofs

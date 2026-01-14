@@ -41,6 +41,7 @@ func TestExecutePayloadSuccess(gt *testing.T) {
 	copy(prevRandao[:], lastBlock.MixDigest().Bytes())
 
 	var zero1559 eth.Bytes8
+	minBaseFee := uint64(10)
 
 	attrs := eth.PayloadAttributes{
 		Timestamp:             eth.Uint64Quantity(blockTime),
@@ -52,7 +53,7 @@ func TestExecutePayloadSuccess(gt *testing.T) {
 		NoTxPool:              true,
 		GasLimit:              &gasLimit,
 		EIP1559Params:         &zero1559,
-		MinBaseFee:            nil,
+		MinBaseFee:            &minBaseFee,
 	}
 
 	witness, err := opRethELNode.Escape().L2EthClient().PayloadExecutionWitness(ctx, lastBlock.Hash(), attrs)
@@ -95,6 +96,7 @@ func TestExecutePayloadWithInvalidParentHash(gt *testing.T) {
 	copy(prevRandao[:], lastBlock.MixDigest().Bytes())
 
 	var zero1559 eth.Bytes8
+	minBaseFee := uint64(10)
 
 	attrs := eth.PayloadAttributes{
 		Timestamp:             eth.Uint64Quantity(blockTime),
@@ -106,7 +108,7 @@ func TestExecutePayloadWithInvalidParentHash(gt *testing.T) {
 		NoTxPool:              true,
 		GasLimit:              &gasLimit,
 		EIP1559Params:         &zero1559,
-		MinBaseFee:            nil,
+		MinBaseFee:            &minBaseFee,
 	}
 
 	_, err = opRethELNode.Escape().L2EthClient().PayloadExecutionWitness(ctx, common.Hash{}, attrs)

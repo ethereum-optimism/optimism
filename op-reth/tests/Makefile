@@ -81,6 +81,7 @@ test-e2e-sysgo: unzip-contract-artifacts build-contracts
 	export DISABLE_OP_E2E_LEGACY=true; \
 	export DEVSTACK_ORCHESTRATOR=sysgo; \
 	export OP_RETH_ENABLE_PROOF_HISTORY=true; \
+	export SKIP_P2P_CONNECTION_CHECK=true; \
 	export OP_RETH_EXEC_PATH="${SOURCE_DIR}/../../../target/debug/op-reth"; \
 	export OP_DEVSTACK_PROOF_SEQUENCER_EL=$(OP_DEVSTACK_PROOF_SEQUENCER_EL); \
 	export OP_DEVSTACK_PROOF_VALIDATOR_EL=$(OP_DEVSTACK_PROOF_VALIDATOR_EL); \
