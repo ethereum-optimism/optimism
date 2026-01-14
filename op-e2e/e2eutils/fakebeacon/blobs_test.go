@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -28,10 +27,9 @@ func TestBlobsEndpoints(t *testing.T) {
 
 	l := testlog.Logger(t, log.LevelInfo)
 
-	// shared setup: in-memory blob store and a fake beacon with fuluTime in the past
+	// shared setup: in-memory blob store
 	blobStore := blobstore.New()
-	past := uint64(time.Now().Add(-time.Minute).Unix())
-	beaconApi := NewBeacon(l, blobStore, uint64(0), uint64(12), &past)
+	beaconApi := NewBeacon(l, blobStore, uint64(0), uint64(12))
 	t.Cleanup(func() { _ = beaconApi.Close() })
 	require.NoError(t, beaconApi.Start("127.0.0.1:0"))
 
