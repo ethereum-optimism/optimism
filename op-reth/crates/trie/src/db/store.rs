@@ -169,24 +169,33 @@ impl MdbxProofsStorage {
             return Ok(keys);
         }
 
-        // Prune mode: remove tombstones and write state to block 0 (not append)
-        let (to_delete, to_append): (Vec<_>, Vec<_>) =
-            pairs.into_iter().partition(|(_, vv)| vv.value.0.is_none());
+        // Drop current cursor to start clean for Phase 1
+        drop(cur);
 
-        for (k, vv) in to_append {
-            // Dupsort upsert doesn't replace - manually delete old block 0 entry first
-            let val = cur.seek_by_key_subkey(k.clone(), 0)?;
-            if val.is_some() && val.unwrap().block_number == 0 {
-                cur.delete_current()?;
+        // Phase 1: Batch Delete (Sequential)
+        // Remove all existing state at Block 0 for these keys.
+        {
+            let mut del_cur = tx.cursor_dup_write::<T>()?;
+            for (k, _) in &pairs {
+                // Seek to (Key, Block 0)
+                if let Some(vv) = del_cur.seek_by_key_subkey(k.clone(), 0)? &&
+                    vv.block_number == 0
+                {
+                    del_cur.delete_current()?;
+                }
             }
-            cur.upsert(k, &vv)?;
         }
 
-        // Delete tombstones after updates to avoid overwrites
-        self.delete_dup_sorted::<T, _, V>(
-            tx,
-            to_delete.into_iter().map(|(k, _)| (k, block_number)),
-        )?;
+        // Phase 2: Batch Write (Sequential)
+        // Write new values (skipping tombstones).
+        {
+            let mut write_cur = tx.cursor_dup_write::<T>()?;
+            for (k, vv) in pairs {
+                if vv.value.0.is_some() {
+                    write_cur.upsert(k, &vv)?;
+                }
+            }
+        }
 
         Ok(keys)
     }
