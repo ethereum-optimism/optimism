@@ -2,7 +2,6 @@ package fakebeacon
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -72,83 +71,6 @@ func (f *FakeBeacon) Start(addr string) error {
 			f.log.Error("config handler err", "err", err)
 		}
 	})
-	mux.HandleFunc("/eth/v1/beacon/blob_sidecars/", func(w http.ResponseWriter, r *http.Request) {
-		blockID := strings.TrimPrefix(r.URL.Path, "/eth/v1/beacon/blob_sidecars/")
-		slot, err := strconv.ParseUint(blockID, 10, 64)
-		if err != nil {
-			f.log.Error("could not parse block id from request", "url", r.URL.Path, "err", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		bundle, err := f.LoadBlobsBundle(slot)
-		if errors.Is(err, ethereum.NotFound) {
-			f.log.Error("failed to load blobs bundle - not found", "slot", slot, "err", err)
-			w.WriteHeader(http.StatusNotFound)
-			return
-		} else if err != nil {
-			f.log.Error("failed to load blobs bundle", "slot", slot, "err", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		query := r.URL.Query()
-		rawIndices := query["indices"]
-		indices := make([]uint64, 0, len(bundle.Blobs))
-		if len(rawIndices) == 0 {
-			// request is for all blobs
-			for i := range bundle.Blobs {
-				indices = append(indices, uint64(i))
-			}
-		} else {
-			for _, raw := range rawIndices {
-				ix, err := strconv.ParseUint(raw, 10, 64)
-				if err != nil {
-					f.log.Error("could not parse index from request", "url", r.URL)
-					w.WriteHeader(http.StatusBadRequest)
-					return
-				}
-				indices = append(indices, ix)
-			}
-		}
-
-		var mockBeaconBlockRoot [32]byte
-		mockBeaconBlockRoot[0] = 42
-		binary.LittleEndian.PutUint64(mockBeaconBlockRoot[32-8:], slot)
-		sidecars := make([]*eth.APIBlobSidecar, len(indices))
-		for i, ix := range indices {
-			if ix >= uint64(len(bundle.Blobs)) {
-				f.log.Error("blob index from request is out of range", "url", r.URL)
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-
-			var proof eth.Bytes48
-			if f.fuluTime == nil || time.Now().Before(time.Unix(int64(*f.fuluTime), 0)) {
-				proof = eth.Bytes48(bundle.Proofs[ix])
-			} else {
-				// From Fulu onwards, a blob proof is not provided.
-				// Derivation should not rely on a valid proof here.
-				proof = eth.Bytes48(kzg4844.Proof(hexutil.MustDecode("0xc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")))
-			}
-
-			sidecars[i] = &eth.APIBlobSidecar{
-				Index:         eth.Uint64String(ix),
-				KZGCommitment: eth.Bytes48(bundle.Commitments[ix]),
-				KZGProof:      proof,
-				SignedBlockHeader: eth.SignedBeaconBlockHeader{
-					Message: eth.BeaconBlockHeader{
-						StateRoot: mockBeaconBlockRoot,
-						Slot:      eth.Uint64String(slot),
-					},
-				},
-				InclusionProof: make([]eth.Bytes32, 0),
-			}
-			copy(sidecars[i].Blob[:], bundle.Blobs[ix])
-		}
-		if err := json.NewEncoder(w).Encode(&eth.APIGetBlobSidecarsResponse{Data: sidecars}); err != nil {
-			f.log.Error("blobs handler err", "err", err)
-		}
-	})
 	mux.HandleFunc("/eth/v1/beacon/blobs/", func(w http.ResponseWriter, r *http.Request) {
 		if f.fuluTime == nil || time.Now().Before(time.Unix(int64(*f.fuluTime), 0)) {
 			f.log.Warn("post-Fulu blobs endpoint queried before Fulu hardfork")
@@ -181,7 +103,11 @@ func (f *FakeBeacon) Start(addr string) error {
 		blobs := make([]*eth.Blob, 0)
 		for i := range bundle.Blobs {
 			blob := eth.Blob(bundle.Blobs[i])
-			versionedHash := eth.KZGToVersionedHash(kzg4844.Commitment(bundle.Commitments[i]))
+			commitment, err := kzg4844.BlobToCommitment(blob.KZGBlob())
+			if err != nil {
+				f.log.Error("could not compute blob commitment", "err", err)
+			}
+			versionedHash := eth.KZGToVersionedHash(kzg4844.Commitment(commitment))
 			if len(versionedHashes) > 0 && !slices.Contains(versionedHashes, versionedHash) {
 				continue
 			}
@@ -246,21 +172,23 @@ func (f *FakeBeacon) LoadBlobsBundle(slot uint64) (*engine.BlobsBundle, error) {
 	slotTimestamp := slot*f.blockTime + f.genesisTime
 
 	// Load blobs from the store
-	blobs, err := f.blobStore.GetAllSidecars(context.Background(), slotTimestamp)
+	// we wrap the slot timestamp in a l1 block ref to satisfy the getblobs API
+	// TODO can we do this in a nicer way?
+	ref := eth.L1BlockRef{
+		Time: slotTimestamp,
+	}
+	blobs, err := f.blobStore.GetBlobs(context.Background(), ref, []eth.IndexedBlobHash{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to load blobs from store: %w", err)
 	}
 
 	// Convert blobs to the bundle
 	out := engine.BlobsBundle{
-		Commitments: make([]hexutil.Bytes, len(blobs)),
-		Proofs:      make([]hexutil.Bytes, len(blobs)),
-		Blobs:       make([]hexutil.Bytes, len(blobs)),
+		// TODO if we don't use the other fields, better to return a different type
+		Blobs: make([]hexutil.Bytes, len(blobs)),
 	}
-	for _, b := range blobs {
-		out.Commitments[b.Index] = hexutil.Bytes(b.KZGCommitment[:])
-		out.Proofs[b.Index] = hexutil.Bytes(b.KZGProof[:])
-		out.Blobs[b.Index] = hexutil.Bytes(b.Blob[:])
+	for i, b := range blobs {
+		out.Blobs[i] = hexutil.Bytes(b.String())
 	}
 
 	return &out, nil
