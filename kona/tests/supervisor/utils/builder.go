@@ -143,21 +143,21 @@ func (s *TestBlockBuilder) rewindTo(ctx context.Context, blockHash common.Hash) 
 	block, err := s.ethClient.BlockByHash(ctx, blockHash)
 	if err != nil {
 		s.t.Errorf("failed to fetch block by hash %s: %v", blockHash.Hex(), err)
-		return nil, fmt.Errorf("failed to fetch block by hash: %v", err)
+		return nil, fmt.Errorf("failed to fetch block by hash: %w", err)
 	}
 
 	// Attempt rewind using debug_setHead
 	_, err = s.rpcCall(s.cfg.GethRPC, "debug_setHead", []interface{}{fmt.Sprintf("0x%x", block.NumberU64())})
 	if err != nil {
 		s.t.Errorf("failed to rewind to block %s: %v", blockHash.Hex(), err)
-		return nil, fmt.Errorf("rewind failed: %v", err)
+		return nil, fmt.Errorf("rewind failed: %w", err)
 	}
 
 	// Confirm head matches requested parent
 	head, err := s.ethClient.BlockByNumber(ctx, big.NewInt(int64(rpc.LatestBlockNumber)))
 	if err != nil {
-		s.t.Errorf("failed to fetch latest block: %v", err)
-		return nil, fmt.Errorf("failed to fetch latest block: %v", err)
+		s.t.Errorf("failed to fetch latest block: %w", err)
+		return nil, fmt.Errorf("failed to fetch latest block: %w", err)
 	}
 
 	if head.Hash() != blockHash {
@@ -247,7 +247,11 @@ func (s *TestBlockBuilder) BuildBlock(ctx context.Context, parentHash *common.Ha
 	}
 
 	var fcResult engine.ForkChoiceResponse
-	json.Unmarshal(fcResp.Result, &fcResult)
+	err = json.Unmarshal(fcResp.Result, &fcResult)
+	if err != nil {
+		s.t.Errorf("failed to unmarshal forkchoiceUpdated response: %v", err)
+		return
+	}
 	if fcResult.PayloadStatus.Status != "VALID" && fcResult.PayloadStatus.Status != "SYNCING" {
 		s.t.Errorf("forkchoiceUpdated returned invalid status: %s", fcResult.PayloadStatus.Status)
 		return
@@ -268,7 +272,11 @@ func (s *TestBlockBuilder) BuildBlock(ctx context.Context, parentHash *common.Ha
 	}
 
 	var envelope engine.ExecutionPayloadEnvelope
-	json.Unmarshal(plResp.Result, &envelope)
+	err = json.Unmarshal(plResp.Result, &envelope)
+	if err != nil {
+		s.t.Errorf("failed to unmarshal getPayload response: %v", err)
+		return
+	}
 	if envelope.ExecutionPayload == nil {
 		s.t.Errorf("getPayload returned empty execution payload")
 		return
@@ -296,7 +304,11 @@ func (s *TestBlockBuilder) BuildBlock(ctx context.Context, parentHash *common.Ha
 	}
 
 	var npRes engine.PayloadStatusV1
-	json.Unmarshal(newPayloadResp.Result, &npRes)
+	err = json.Unmarshal(newPayloadResp.Result, &npRes)
+	if err != nil {
+		s.t.Errorf("failed to unmarshal newPayload response: %v", err)
+		return
+	}
 	if npRes.Status != "VALID" && npRes.Status != "ACCEPTED" {
 		s.t.Errorf("newPayload returned invalid status: %s", npRes.Status)
 		return

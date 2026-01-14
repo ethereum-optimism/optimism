@@ -1,5 +1,7 @@
 set fallback := true
 
+KONA_CLIENT_ROOT := source_directory()
+
 # default recipe to display help information
 default:
   @just --list
@@ -13,9 +15,9 @@ run-client-asterisc block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc ver
   L2_NODE_ADDRESS="{{l2_rpc}}"
   OP_NODE_ADDRESS="{{rollup_node_rpc}}"
 
-  HOST_BIN_PATH="./target/release/kona-host"
-  CLIENT_BIN_PATH="./target/riscv64imac-unknown-none-elf/release-client-lto/kona-client"
-  STATE_PATH="./state.bin.gz"
+  HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../target/release/kona-host"
+  CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../target/riscv64imac-unknown-none-elf/release-client-lto/kona-client"
+  STATE_PATH="{{KONA_CLIENT_ROOT}}/../../state.bin.gz"
 
   CLAIMED_L2_BLOCK_NUMBER={{block_number}}
   echo "Fetching configuration for block #$CLAIMED_L2_BLOCK_NUMBER..."
@@ -30,8 +32,8 @@ run-client-asterisc block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc ver
   L1_HEAD=$(cast block --rpc-url $L1_NODE_ADDRESS $((L1_ORIGIN_NUM + 30)) --json | jq -r .hash)
   L2_CHAIN_ID=$(cast chain-id --rpc-url $L2_NODE_ADDRESS)
 
-  # Move to the workspace root
-  cd $(git rev-parse --show-toplevel)
+  # Move to the kona root
+  cd {{KONA_CLIENT_ROOT}}/../..
 
   echo "Building client program for RISC-V target..."
   just build-asterisc-client
@@ -92,8 +94,8 @@ run-client-native block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc rollu
   L1_ORIGIN_NUM=$(cast rpc --rpc-url $OP_NODE_ADDRESS "optimism_outputAtBlock" $(cast 2h $((CLAIMED_L2_BLOCK_NUMBER - 1))) | jq -r .blockRef.l1origin.number)
   L1_HEAD=$(cast block --rpc-url $L1_NODE_ADDRESS $((L1_ORIGIN_NUM + 30)) --json | jq -r .hash)
 
-  # Move to the workspace root
-  cd $(git rev-parse --show-toplevel)
+  # Move to the kona root
+  cd {{KONA_CLIENT_ROOT}}/../..
 
   echo "Running host program with native client program..."
   cargo r --bin kona-host --release -- \
@@ -122,8 +124,8 @@ run-client-native-offline block_number l2_claim l2_output_root l2_head l1_head l
   L1_HEAD={{l1_head}}
   L2_CHAIN_ID={{l2_chain_id}}
 
-  # Move to the workspace root
-  cd $(git rev-parse --show-toplevel)
+  # Move to the kona root
+  cd {{KONA_CLIENT_ROOT}}/../..
 
   echo "Running host program with native client program..."
   cargo r --bin kona-host -- \
@@ -142,9 +144,9 @@ run-client-native-offline block_number l2_claim l2_output_root l2_head l1_head l
 run-client-asterisc-offline block_number l2_claim l2_output_root l2_head l1_head l2_chain_id verbosity='':
   #!/usr/bin/env bash
 
-  HOST_BIN_PATH="./target/debug/kona-host"
-  CLIENT_BIN_PATH="./target/riscv64imac-unknown-none-elf/release-client-lto/kona-client"
-  STATE_PATH="./state.bin.gz"
+  HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../target/debug/kona-host"
+  CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../target/riscv64imac-unknown-none-elf/release-client-lto/kona-client"
+  STATE_PATH="{{KONA_CLIENT_ROOT}}/../../state.bin.gz"
 
   CLAIMED_L2_BLOCK_NUMBER={{block_number}}
   CLAIMED_L2_OUTPUT_ROOT={{l2_claim}}
@@ -153,8 +155,8 @@ run-client-asterisc-offline block_number l2_claim l2_output_root l2_head l1_head
   L1_HEAD={{l1_head}}
   L2_CHAIN_ID={{l2_chain_id}}
 
-  # Move to the workspace root
-  cd $(git rev-parse --show-toplevel)
+  # Move to the kona root
+  cd {{KONA_CLIENT_ROOT}}/../..
 
   echo "Building client program for RISC-V target..."
   just build-asterisc-client
@@ -188,9 +190,9 @@ run-client-cannon block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc rollu
   #!/usr/bin/env bash
   set -o errexit -o nounset -o pipefail
 
-  HOST_BIN_PATH="./target/release/kona-host"
-  CLIENT_BIN_PATH="./target/mips64-unknown-none/release-client-lto/kona-client"
-  STATE_PATH="./state.bin.gz"
+  HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../target/release/kona-host"
+  CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../target/mips64-unknown-none/release-client-lto/kona-client"
+  STATE_PATH="{{KONA_CLIENT_ROOT}}/../../state.bin.gz"
 
   L1_NODE_ADDRESS="{{l1_rpc}}"
   L1_BEACON_ADDRESS="{{l1_beacon_rpc}}"
@@ -216,8 +218,8 @@ run-client-cannon block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc rollu
   L1_ORIGIN_NUM=$(cast rpc --rpc-url $OP_NODE_ADDRESS "optimism_outputAtBlock" $(cast 2h $((CLAIMED_L2_BLOCK_NUMBER - 1))) | jq -r .blockRef.l1origin.number)
   L1_HEAD=$(cast block --rpc-url $L1_NODE_ADDRESS $((L1_ORIGIN_NUM + 30)) --json | jq -r .hash)
 
-  # Move to the workspace root
-  cd $(git rev-parse --show-toplevel)
+  # Move to the kona root
+  cd {{KONA_CLIENT_ROOT}}/../..
 
   echo "Building client program for MIPS64 target..."
   just build-cannon-client
@@ -253,9 +255,9 @@ run-client-cannon block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc rollu
 run-client-cannon-offline block_number l2_claim l2_output_root l2_head l1_head l2_chain_id verbosity='':
   #!/usr/bin/env bash
 
-  HOST_BIN_PATH="./target/debug/kona-host"
-  CLIENT_BIN_PATH="./target/mips64-unknown-none/release-client-lto/kona-client"
-  STATE_PATH="./state.bin.gz"
+  HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../target/debug/kona-host"
+  CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../target/mips64-unknown-none/release-client-lto/kona-client"
+  STATE_PATH="{{KONA_CLIENT_ROOT}}/../../state.bin.gz"
 
   CLAIMED_L2_BLOCK_NUMBER={{block_number}}
   CLAIMED_L2_OUTPUT_ROOT={{l2_claim}}
@@ -264,8 +266,8 @@ run-client-cannon-offline block_number l2_claim l2_output_root l2_head l1_head l
   L1_HEAD={{l1_head}}
   L2_CHAIN_ID={{l2_chain_id}}
 
-  # Move to the workspace root
-  cd $(git rev-parse --show-toplevel)
+  # Move to the kona root
+  cd {{KONA_CLIENT_ROOT}}/../..
 
   echo "Building client program for MIPS64 target..."
   just build-cannon-client

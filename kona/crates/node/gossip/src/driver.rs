@@ -47,7 +47,7 @@ pub struct GossipDriver<G: ConnectionGate> {
     /// This is an option to allow to take the underlying value when the gossip driver gets
     /// activated.
     ///
-    /// TODO(@theochap, `<https://github.com/op-rs/kona/issues/2141>`): remove the sync-req-resp protocol once the `op-node` phases it out.
+    /// TODO(op-rs/kona#2141): remove the sync-req-resp protocol once the `op-node` phases it out.
     #[debug(skip)]
     pub sync_protocol: Option<IncomingStreams>,
     /// A mapping from [`PeerId`] to [`Multiaddr`].

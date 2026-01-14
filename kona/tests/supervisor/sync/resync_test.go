@@ -30,8 +30,8 @@ func TestL2CLResync(gt *testing.T) {
 
 	logger.Info("Make sure L2ELs does not advance")
 	dsl.CheckAll(t,
-		sys.L2ELA.NotAdvancedFn(eth.Unsafe),
-		sys.L2ELB.NotAdvancedFn(eth.Unsafe),
+		sys.L2ELA.NotAdvancedFn(eth.Unsafe, 30),
+		sys.L2ELB.NotAdvancedFn(eth.Unsafe, 30),
 	)
 
 	logger.Info("Restart L2CL nodes")

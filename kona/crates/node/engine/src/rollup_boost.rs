@@ -204,7 +204,7 @@ impl<T: EngineApiExt + Send + Sync + 'static + Debug> RollupBoostServerLike
 
 /// Structure that wraps a rollup boost server and its probes.
 ///
-/// TODO(@theochap, `<https://github.com/op-rs/kona/issues/3053>`): remove this wrapper and use the RollupBoostServer directly
+/// TODO(op-rs/kona#3053): remove this wrapper and use the RollupBoostServer directly
 /// Remove the dynamic dispatch and use generics instead.
 #[derive(Debug)]
 pub struct RollupBoostServer {

@@ -6,11 +6,11 @@ import (
 	"sync/atomic"
 	"testing"
 
+	node_utils "github.com/ethereum-optimism/optimism/kona/tests/node/utils"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	node_utils "github.com/op-rs/kona/node/utils"
 )
 
 // Define a global atomic counter for the number of transactions produced.

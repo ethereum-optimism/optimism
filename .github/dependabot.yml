@@ -12,3 +12,20 @@ updates:
       prefix: "dependabot(gomod): "
     labels:
       - "M-dependabot"
+
+  # Kona - Rust/Cargo dependencies
+  - package-ecosystem: "cargo"
+    directory: "/kona"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "dependabot(cargo): "
+    labels:
+      - "M-dependabot"
+      - "F-deps"
+    ignore:
+      - dependency-name: "*"
+        # patch and minor updates don't matter for libraries
+        update-types:
+          - "version-update:semver-patch"
+          - "version-update:semver-minor"
