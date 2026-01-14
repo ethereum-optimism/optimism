@@ -11,18 +11,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -126,6 +131,11 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 
 	// Deploy the OPCM V2 contract.
 	opcmV2 := deployDependencies(t, runner)
+
+	// Run past upgrades before testing the V2 command.
+	// This is necessary when forking a network at a block before certain upgrades were executed.
+	_, afactsFS := testutil.LocalArtifacts(t)
+	runPastUpgrades(t, runner.l1RPC, afactsFS, lgr, l1ProxyAdminOwner, systemConfigProxy)
 
 	bytes32Type := deployer.Bytes32Type
 	addressType := deployer.AddressType
@@ -312,4 +322,55 @@ func deployDependencies(t *testing.T, runner *CLITestRunner) common.Address {
 	t.Logf("SuperchainConfigProxy: %s", superchainOut.SuperchainConfigProxy.Hex())
 
 	return implOut.OpcmV2
+}
+
+// runPastUpgrades executes all past OPCM upgrades that have not yet been executed on the forked network.
+// This is necessary when forking a network at a block before certain upgrades were executed.
+// Add past upgrade calls here when introducing new upgrades that need to be sequenced.
+func runPastUpgrades(t *testing.T, l1RPCUrl string, afactsFS foundry.StatDirFs, lgr log.Logger, prank common.Address, systemConfigProxy common.Address) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	// Create script host for the upgrade
+	rpcClient, err := rpc.Dial(l1RPCUrl)
+	require.NoError(t, err)
+
+	host, err := env.DefaultForkedScriptHost(
+		ctx,
+		broadcaster.NoopBroadcaster(),
+		lgr,
+		prank,
+		afactsFS,
+		rpcClient,
+	)
+	require.NoError(t, err)
+
+	// U18 OPCM address for Sepolia (op-contracts/v6.0.0)
+	pastOpcm := common.HexToAddress("0xf0a2e224519e876979ea6b2cd15ef5cc3d6703bd")
+
+	// U18 upgrade config
+	upgradeConfig := embedded.UpgradeOPChainInput{
+		Prank: prank,
+		Opcm:  pastOpcm,
+		ChainConfigs: []embedded.OPChainConfig{
+			{
+				SystemConfigProxy:  systemConfigProxy,
+				CannonPrestate:     common.Hash{'C', 'A', 'N', 'N', 'O', 'N'},
+				CannonKonaPrestate: common.Hash{'K', 'O', 'N', 'A'},
+			},
+		},
+	}
+
+	upgradeConfigBytes, err := json.Marshal(upgradeConfig)
+	require.NoError(t, err, "Failed to marshal past upgrade config")
+
+	err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
+	if err != nil {
+		// It's acceptable for this to fail if the upgrade was already executed
+		t.Logf("Past upgrade may have already been executed or failed: %v", err)
+	} else {
+		t.Logf("Successfully executed past U18 upgrade using OPCM at %s", pastOpcm.Hex())
+	}
 }
