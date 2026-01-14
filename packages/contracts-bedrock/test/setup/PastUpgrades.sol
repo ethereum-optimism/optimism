@@ -79,7 +79,7 @@ library PastUpgrades {
             string memory basePath = string.concat(".upgrades[", vm.toString(i), "]");
 
             // Try to read the name - if it fails, we've reached the end
-            try vm.parseTomlString(toml, string.concat(basePath, ".name")) returns (string memory name) {
+            try vm.parseTomlString(toml, string.concat(basePath, ".name")) returns (string memory name_) {
                 // Get the OPCM version
                 uint256 opcmVersion = toml.readUint(string.concat(basePath, ".opcm_version"));
 
@@ -87,12 +87,12 @@ library PastUpgrades {
                 string memory addrPath = string.concat(basePath, ".opcm_addresses.", vm.toString(_chainId));
 
                 // Check if this chain has an OPCM address configured
-                try vm.parseTomlAddress(toml, addrPath) returns (address opcmAddr) {
-                    if (opcmAddr == address(0)) continue;
+                try vm.parseTomlAddress(toml, addrPath) returns (address opcmAddr_) {
+                    if (opcmAddr_ == address(0)) continue;
 
-                    tempUpgrades[validCount].name = name;
+                    tempUpgrades[validCount].name = name_;
                     tempUpgrades[validCount].opcmVersion = opcmVersion;
-                    tempUpgrades[validCount].opcmAddress = opcmAddr;
+                    tempUpgrades[validCount].opcmAddress = opcmAddr_;
 
                     if (opcmVersion == 1) {
                         // V1: Get prestates directly
@@ -143,19 +143,20 @@ library PastUpgrades {
 
         for (uint256 j = 0; j < MAX_EXTRA_INSTRUCTIONS; j++) {
             string memory instrPath = string.concat(_basePath, ".extra_instructions[", vm.toString(j), "]");
-            try vm.parseTomlString(_toml, string.concat(instrPath, ".key")) returns (string memory key) {
+            try vm.parseTomlString(_toml, string.concat(instrPath, ".key")) returns (string memory key_) {
                 // Try to read data as string first, then as hex
                 bytes memory data;
-                try vm.parseTomlString(_toml, string.concat(instrPath, ".data")) returns (string memory dataStr) {
-                    data = bytes(dataStr);
+                try vm.parseTomlString(_toml, string.concat(instrPath, ".data")) returns (string memory dataStr_) {
+                    data = bytes(dataStr_);
                 } catch {
-                    try vm.parseTomlBytes(_toml, string.concat(instrPath, ".data_hex")) returns (bytes memory dataHex) {
-                        data = dataHex;
+                    try vm.parseTomlBytes(_toml, string.concat(instrPath, ".data_hex")) returns (bytes memory dataHex_)
+                    {
+                        data = dataHex_;
                     } catch {
                         data = "";
                     }
                 }
-                temp[count] = IOPContractsManagerUtils.ExtraInstruction({ key: key, data: data });
+                temp[count] = IOPContractsManagerUtils.ExtraInstruction({ key: key_, data: data });
                 count++;
             } catch {
                 break;
@@ -185,26 +186,26 @@ library PastUpgrades {
 
         for (uint256 j = 0; j < MAX_DISPUTE_GAME_CONFIGS; j++) {
             string memory cfgPath = string.concat(_basePath, ".dispute_game_configs[", vm.toString(j), "]");
-            try vm.parseTomlString(_toml, string.concat(cfgPath, ".game_type")) returns (string memory gameType) {
-                temp[count].gameType = gameType;
+            try vm.parseTomlString(_toml, string.concat(cfgPath, ".game_type")) returns (string memory gameType_) {
+                temp[count].gameType = gameType_;
                 temp[count].enabled = vm.parseTomlBool(_toml, string.concat(cfgPath, ".enabled"));
                 temp[count].prestate = vm.parseTomlBytes32(_toml, string.concat(cfgPath, ".prestate"));
 
                 // Try to read init_bond (optional, defaults to 0)
-                try vm.parseTomlUint(_toml, string.concat(cfgPath, ".init_bond")) returns (uint256 bond) {
-                    temp[count].initBond = bond;
+                try vm.parseTomlUint(_toml, string.concat(cfgPath, ".init_bond")) returns (uint256 bond_) {
+                    temp[count].initBond = bond_;
                 } catch {
                     temp[count].initBond = 0;
                 }
 
                 // Try to read proposer/challenger (only for PERMISSIONED_CANNON)
-                try vm.parseTomlAddress(_toml, string.concat(cfgPath, ".proposer")) returns (address p) {
-                    temp[count].proposer = p;
+                try vm.parseTomlAddress(_toml, string.concat(cfgPath, ".proposer")) returns (address p_) {
+                    temp[count].proposer = p_;
                 } catch {
                     temp[count].proposer = address(0);
                 }
-                try vm.parseTomlAddress(_toml, string.concat(cfgPath, ".challenger")) returns (address c) {
-                    temp[count].challenger = c;
+                try vm.parseTomlAddress(_toml, string.concat(cfgPath, ".challenger")) returns (address c_) {
+                    temp[count].challenger = c_;
                 } catch {
                     temp[count].challenger = address(0);
                 }
