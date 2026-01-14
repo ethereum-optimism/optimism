@@ -70,6 +70,17 @@ The module injects custom handlers to intercept specific RPC calls:
 *   **`debug_executionWitness`**: Allows debugging and tracing against historical states.
 *   **`debug_executePayload`**: Executes a payload against the historical state to generate an execution witness.
 
+## Hardware Requirements
+
+Recommended specifications:
+
+- **CPU**: 8-Core processor with good single-core performance
+- **RAM**: Minimum 16 GB (32 GB recommended)
+- **Storage**: NVMe SSD with adequate capacity for chain data plus snapshots
+  - Calculate: `(2 × current_chain_size) + snapshot_size + 20% buffer`
+  - *Note*: Storing 4 weeks of full proof history on a network like Base Testnet consumes approximately **~1 TB** of additional storage.
+- **Network**: Stable internet connection with good bandwidth
+
 ## Usage
 
 ### 1. Initialization
