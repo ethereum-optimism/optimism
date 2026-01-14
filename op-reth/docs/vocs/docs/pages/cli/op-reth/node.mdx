@@ -1097,6 +1097,15 @@ Rollup:
 
           [default: 15s]
 
+      --proofs-history.verification-interval <PROOFS_HISTORY_VERIFICATION_INTERVAL>
+          Verification interval: perform full block execution every N blocks for data integrity. - 0: Disabled (Default) (always use fast path with pre-computed data from notifications) - 1: Always verify (always execute blocks, slowest) - N: Verify every Nth block (e.g., 100 = every 100 blocks)
+
+          Periodic verification helps catch data corruption or consensus bugs while maintaining good performance.
+
+          CLI: `--proofs-history.verification-interval 100`
+
+          [default: 0]
+
 Logging:
       --log.stdout.format <FORMAT>
           The format to use for logs written to stdout

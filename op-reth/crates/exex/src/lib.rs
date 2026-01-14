@@ -10,7 +10,6 @@
 
 use alloy_consensus::BlockHeader;
 use alloy_eips::eip1898::BlockWithParent;
-use derive_more::Constructor;
 use futures_util::TryStreamExt;
 use reth_execution_types::Chain;
 use reth_exex::{ExExContext, ExExEvent, ExExNotification};
@@ -72,6 +71,10 @@ const MAX_PRUNE_BLOCKS_STARTUP: u64 = 1000;
 /// let storage_exec = storage.clone();
 /// let proofs_history_window = 1_296_000u64;
 /// let proofs_history_prune_interval = Duration::from_secs(3600);
+///
+/// // Verification interval: perform full execution every N blocks
+/// let verification_interval = 0; // 0 = disabled, 100 = verify every 100 blocks
+///
 /// // Can also use install_exex_if along with a boolean flag
 /// // Set this based on your configuration or CLI args
 /// let _builder = NodeBuilder::new(config)
@@ -84,6 +87,7 @@ const MAX_PRUNE_BLOCKS_STARTUP: u64 = 1000;
 ///             storage_exec,
 ///             proofs_history_window,
 ///             proofs_history_prune_interval,
+///             verification_interval, // 0 = no verification, 100 = every 100 blocks
 ///         )
 ///         .run()
 ///         .boxed())
@@ -91,7 +95,7 @@ const MAX_PRUNE_BLOCKS_STARTUP: u64 = 1000;
 ///     .on_node_started(|_full_node| Ok(()))
 ///     .check_launch();
 /// ```
-#[derive(Debug, Constructor)]
+#[derive(Debug)]
 pub struct OpProofsExEx<Node, Storage>
 where
     Node: FullNodeComponents,
@@ -106,6 +110,32 @@ where
     proofs_history_window: u64,
     /// Interval between proof-storage prune runs
     proofs_history_prune_interval: Duration,
+    /// Verification interval: perform full block execution every N blocks for data integrity.
+    /// If 0, verification is disabled (always use fast path when available).
+    /// If 1, verification is always enabled (always execute blocks).
+    verification_interval: u64,
+}
+
+impl<Node, Storage> OpProofsExEx<Node, Storage>
+where
+    Node: FullNodeComponents,
+{
+    /// Create a new `OpProofsExEx` instance.
+    pub const fn new(
+        ctx: ExExContext<Node>,
+        storage: OpProofsStorage<Storage>,
+        proofs_history_window: u64,
+        proofs_history_prune_interval: Duration,
+        verification_interval: u64,
+    ) -> Self {
+        Self {
+            ctx,
+            storage,
+            proofs_history_window,
+            proofs_history_prune_interval,
+            verification_interval,
+        }
+    }
 }
 
 impl<Node, Storage, Primitives> OpProofsExEx<Node, Storage>
@@ -266,6 +296,10 @@ where
         chain: &Chain<Primitives>,
         collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
     ) -> eyre::Result<()> {
+        // Check if this block should be verified via full execution
+        let should_verify = self.verification_interval > 0 &&
+            block_number.is_multiple_of(self.verification_interval);
+
         // Try to get block data from the chain first
         // 1. Fast Path: Try to use pre-computed state from the notification
         if let Some(block) = chain.blocks().get(&block_number) {
@@ -274,21 +308,31 @@ where
             if let (Some(trie_updates), Some(hashed_state)) =
                 (chain.trie_updates_at(block_number), chain.hashed_state_at(block_number))
             {
-                debug!(
+                // Use fast path only if we're not scheduled to verify this block
+                if !should_verify {
+                    debug!(
+                        target: "optimism::exex",
+                        block_number,
+                        "Using pre-computed state updates from notification"
+                    );
+
+                    collector
+                        .store_block_updates(
+                            block.block_with_parent(),
+                            (**trie_updates).clone(),
+                            (**hashed_state).clone(),
+                        )
+                        .await?;
+
+                    return Ok(());
+                }
+
+                info!(
                     target: "optimism::exex",
                     block_number,
-                    "Using pre-computed state updates from notification"
+                    verification_interval = self.verification_interval,
+                    "Periodic verification: performing full block execution"
                 );
-
-                collector
-                    .store_block_updates(
-                        block.block_with_parent(),
-                        (**trie_updates).clone(),
-                        (**hashed_state).clone(),
-                    )
-                    .await?;
-
-                return Ok(());
             }
 
             debug!(

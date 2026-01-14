@@ -8454,7 +8454,6 @@ version = "1.10.2"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
- "derive_more",
  "eyre",
  "futures",
  "futures-util",

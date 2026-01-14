@@ -31,7 +31,6 @@ alloy-eips.workspace = true
 # misc
 eyre.workspace = true
 futures-util.workspace = true
-derive_more.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
