@@ -111,8 +111,8 @@ patch-apply: $(SUBMODULE)/go.mod
 	@if [ -d "$(OVERLAYS)/kurtosis-devnet" ]; then \
 		cp -r "$(OVERLAYS)/kurtosis-devnet/"* "$(SUBMODULE)/kurtosis-devnet/"; \
 	fi
-	@# Apply git patch files
-	@for patchfile in $$(find "$(OVERLAYS)" -name "*.patch" -type f 2>/dev/null); do \
+	@# Apply git patch files (exclude go.mod.patch which uses sed format)
+	@for patchfile in $$(find "$(OVERLAYS)" -name "*.patch" -type f ! -name "go.mod.patch" 2>/dev/null); do \
 		echo "Applying patch: $$patchfile"; \
 		(cd "$(SUBMODULE)" && patch -p1 < "$$patchfile") || true; \
 	done
