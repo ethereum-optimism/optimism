@@ -853,7 +853,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
             Claim cannonPrestate = _opChainConfig.cannonPrestate.raw() != bytes32(0)
                 ? _opChainConfig.cannonPrestate
-                : getAbsolutePrestate(disputeGameFactory, address(permissionlessDisputeGame), GameTypes.CANNON);
+                : getAbsolutePrestate(disputeGameFactory, GameTypes.CANNON);
             setNewPermissionlessGameImpl({
                 _impls: _impls,
                 _l2ChainId: _l2ChainId,
@@ -940,8 +940,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         // that already exists on the current dispute game.
         Claim absolutePrestate;
         if (Claim.unwrap(_opChainConfig.cannonPrestate) == bytes32(0)) {
-            absolutePrestate =
-                getAbsolutePrestate(disputeGameFactory, address(_disputeGame), GameTypes.PERMISSIONED_CANNON);
+            absolutePrestate = getAbsolutePrestate(disputeGameFactory, GameTypes.PERMISSIONED_CANNON);
         } else {
             absolutePrestate = _opChainConfig.cannonPrestate;
         }
@@ -1009,25 +1008,11 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         setDGFImplementation(_disputeGameFactory, _gameType, IDisputeGame(newGame), gameArgs);
     }
 
-    /// @notice Retrieves the absolute prestate for a dispute game, handling both V1 and V2 games.
-    function getAbsolutePrestate(
-        IDisputeGameFactory _dgf,
-        address _disputeGame,
-        GameType _gameType
-    )
-        internal
-        view
-        returns (Claim)
-    {
+    /// @notice Retrieves the absolute prestate for a dispute game from CWIA args.
+    function getAbsolutePrestate(IDisputeGameFactory _dgf, GameType _gameType) internal view returns (Claim) {
         bytes memory gameArgsBytes = _dgf.gameArgs(_gameType);
-        if (gameArgsBytes.length == 0) {
-            // Game without CWIA args - read directly from contract
-            return IFaultDisputeGame(_disputeGame).absolutePrestate();
-        } else {
-            // Game with CWIA args - decode from game args
-            LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(gameArgsBytes);
-            return Claim.wrap(gameArgs.absolutePrestate);
-        }
+        LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(gameArgsBytes);
+        return Claim.wrap(gameArgs.absolutePrestate);
     }
 }
 
