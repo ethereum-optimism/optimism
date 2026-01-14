@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -84,9 +83,9 @@ func (f *FakeBeacon) Start(addr string) error {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		bundle, err := f.LoadBlobsBundle(slot)
+		blobs, err := f.LoadBlobs(slot)
 		if err != nil {
-			f.log.Error("failed to load blobs bundle", "slot", slot, "err", err)
+			f.log.Error("failed to load blobs", "slot", slot, "err", err)
 			if errors.Is(err, ethereum.NotFound) {
 				w.WriteHeader(http.StatusNotFound)
 			} else {
@@ -96,13 +95,11 @@ func (f *FakeBeacon) Start(addr string) error {
 		}
 
 		query := r.URL.Query()
-		versionedHashes := make([]common.Hash, 0, len(bundle.Blobs))
+		versionedHashes := make([]common.Hash, 0, len(blobs))
 		for _, raw := range query["versioned_hashes"] {
 			versionedHashes = append(versionedHashes, common.HexToHash(raw))
 		}
-		blobs := make([]*eth.Blob, 0)
-		for i := range bundle.Blobs {
-			blob := eth.Blob(bundle.Blobs[i])
+		for _, blob := range blobs {
 			commitment, err := kzg4844.BlobToCommitment(blob.KZGBlob())
 			if err != nil {
 				f.log.Error("could not compute blob commitment", "err", err)
@@ -111,7 +108,6 @@ func (f *FakeBeacon) Start(addr string) error {
 			if len(versionedHashes) > 0 && !slices.Contains(versionedHashes, versionedHash) {
 				continue
 			}
-			blobs = append(blobs, &blob)
 		}
 
 		if err := json.NewEncoder(w).Encode(&eth.APIBeaconBlobsResponse{Data: blobs}); err != nil {
@@ -162,7 +158,7 @@ func (f *FakeBeacon) StoreBlobsBundle(slot uint64, bundle *engine.BlobsBundle) e
 	return nil
 }
 
-func (f *FakeBeacon) LoadBlobsBundle(slot uint64) (*engine.BlobsBundle, error) {
+func (f *FakeBeacon) LoadBlobs(slot uint64) ([]*eth.Blob, error) {
 	f.blobsLock.Lock()
 	defer f.blobsLock.Unlock()
 
@@ -173,25 +169,10 @@ func (f *FakeBeacon) LoadBlobsBundle(slot uint64) (*engine.BlobsBundle, error) {
 
 	// Load blobs from the store
 	// we wrap the slot timestamp in a l1 block ref to satisfy the getblobs API
-	// TODO can we do this in a nicer way?
 	ref := eth.L1BlockRef{
 		Time: slotTimestamp,
 	}
-	blobs, err := f.blobStore.GetBlobs(context.Background(), ref, []eth.IndexedBlobHash{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to load blobs from store: %w", err)
-	}
-
-	// Convert blobs to the bundle
-	out := engine.BlobsBundle{
-		// TODO if we don't use the other fields, better to return a different type
-		Blobs: make([]hexutil.Bytes, len(blobs)),
-	}
-	for i, b := range blobs {
-		out.Blobs[i] = hexutil.Bytes(b.String())
-	}
-
-	return &out, nil
+	return f.blobStore.GetBlobs(context.Background(), ref, []eth.IndexedBlobHash{})
 }
 
 func (f *FakeBeacon) Close() error {
