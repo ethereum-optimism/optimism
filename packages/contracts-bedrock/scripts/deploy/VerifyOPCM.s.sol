@@ -655,20 +655,6 @@ contract VerifyOPCM is Script {
         return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
     }
 
-    /// @notice Checks if a contract is a V1 dispute game implementation.
-    /// @param _contractName The name to check.
-    /// @return True if this is a V1 dispute game.
-    function _isV1DisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
-        return LibString.eq(_contractName, "FaultDisputeGame") || LibString.eq(_contractName, "PermissionedDisputeGame");
-    }
-
-    /// @notice Checks if a contract is a V2 dispute game implementation.
-    /// @param _contractName The name to check.
-    /// @return True if this is a V2 dispute game.
-    function _isV2DisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
-        return LibString.eq(_contractName, "FaultDisputeGame") || LibString.eq(_contractName, "PermissionedDisputeGame");
-    }
-
     /// @notice Checks if a contract is a Super dispute game implementation.
     /// @param _contractName The name to check.
     /// @return True if this is a V2 dispute game.
