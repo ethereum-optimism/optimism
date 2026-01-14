@@ -948,7 +948,6 @@ jobs:
           name: Print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
-      - get-target-branch
       - pull-artifacts-conditional
       - go-restore-cache:
           namespace: packages/contracts-bedrock/scripts/go-ffi
@@ -1117,7 +1116,6 @@ jobs:
           name: Print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
-      - get-target-branch
       - pull-artifacts-conditional
       - run:
           name: Install lcov
@@ -1212,7 +1210,6 @@ jobs:
           name: Print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
-      - get-target-branch
       - pull-artifacts-conditional
       - run:
           name: Write pinned block number for cache key
