@@ -101,10 +101,10 @@ func (cl *BeaconHTTPClient) BeaconGenesis(ctx context.Context) (eth.APIGenesisRe
 	return genesisResp, nil
 }
 
-func (cl *BeaconHTTPClient) BeaconBlobs(ctx context.Context, slot uint64, hashes []eth.IndexedBlobHash) (eth.APIBeaconBlobsResponse, error) {
+func (cl *BeaconHTTPClient) BeaconBlobs(ctx context.Context, slot uint64, hashes []common.Hash) (eth.APIBeaconBlobsResponse, error) {
 	reqQuery := url.Values{}
 	for _, hash := range hashes {
-		reqQuery.Add("versioned_hashes", hash.Hash.Hex())
+		reqQuery.Add("versioned_hashes", hash.Hex())
 	}
 	reqPath := path.Join(blobsMethodPrefix, strconv.FormatUint(slot, 10))
 	var blobsResp eth.APIBeaconBlobsResponse
@@ -303,7 +303,11 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 	if err != nil {
 		return nil, err
 	}
-	blobs, errBeaconBlobs := cl.beaconBlobs(ctx, slot, hashes)
+	vHashes := make([]common.Hash, len(hashes))
+	for i, hash := range hashes {
+		vHashes[i] = hash.Hash
+	}
+	blobs, errBeaconBlobs := cl.beaconBlobs(ctx, slot, vHashes)
 	if errBeaconBlobs == nil {
 		return blobs, nil
 	}
@@ -320,7 +324,7 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 	return blobs, nil
 }
 
-func (cl *L1BeaconClient) beaconBlobs(ctx context.Context, slot uint64, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
+func (cl *L1BeaconClient) beaconBlobs(ctx context.Context, slot uint64, hashes []common.Hash) ([]*eth.Blob, error) {
 	resp, err := cl.cl.BeaconBlobs(ctx, slot, hashes)
 	if err != nil {
 		return nil, fmt.Errorf("get blobs from beacon client: %w", err)
@@ -344,8 +348,8 @@ func (cl *L1BeaconClient) beaconBlobs(ctx context.Context, slot uint64, hashes [
 		}
 		got := eth.KZGToVersionedHash(commitment)
 		idx := -1
-		for i, indexedHash := range hashes {
-			if got == indexedHash.Hash && blobs[i] == nil {
+		for i, h := range hashes {
+			if got == h && blobs[i] == nil {
 				idx = i
 				break
 			}

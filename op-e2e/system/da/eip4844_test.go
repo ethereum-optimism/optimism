@@ -221,17 +221,16 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 		require.Equal(t, maxBlobsPerBlock, numBlobs, fmt.Sprintf("multi-blob: expected to find L1 blob tx with %d blobs", maxBlobsPerBlock))
 		// blob tx should have filled up all but last blob
 		bcl := sys.L1BeaconHTTPClient()
-		hashes := toIndexedBlobHashes(blobTx.BlobHashes()...)
-		sidecars, err := bcl.BeaconBlobSideCars(context.Background(), false, sys.L1Slot(blobBlock.Time()), hashes)
+		blobs, err := bcl.BeaconBlobs(context.Background(), sys.L1Slot(blobBlock.Time()), blobTx.BlobHashes())
 		require.NoError(t, err)
-		require.Len(t, sidecars.Data, maxBlobsPerBlock)
+		require.Len(t, blobs.Data, maxBlobsPerBlock)
 		for i := 0; i < maxBlobsPerBlock-1; i++ {
-			data, err := sidecars.Data[i].Blob.ToData()
+			data, err := blobs.Data[i].ToData()
 			require.NoError(t, err)
-			require.Len(t, data, maxL1TxSize)
+			assert.Len(t, data, maxL1TxSize, "blob %d should be full", i)
 		}
 		// last blob should only be partially filled
-		data, err := sidecars.Data[maxBlobsPerBlock-1].Blob.ToData()
+		data, err := blobs.Data[maxBlobsPerBlock-1].ToData()
 		require.NoError(t, err)
 		require.Less(t, len(data), maxL1TxSize)
 	}

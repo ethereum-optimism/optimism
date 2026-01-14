@@ -47,7 +47,7 @@ func (store *Store) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []e
 	return out, nil
 }
 
-// GetBlobsByHash returns a map of blobs (corresponding to the supplied versioned hashes) keyed by their versioned hash.
+// GetBlobsByHash returns a slice of blobs corresponding to the supplied versioned hashes.
 // If the provided hashes is empty, all blobs in the store at the supplied timestamp are returned.
 func (store *Store) GetBlobsByHash(ctx context.Context, time uint64, hashes []common.Hash) ([]*eth.Blob, error) {
 	m, ok := store.blobs[time]
@@ -56,24 +56,26 @@ func (store *Store) GetBlobsByHash(ctx context.Context, time uint64, hashes []co
 	}
 
 	if len(hashes) == 0 {
-		out := make([]*eth.Blob, 0, len(m))
-		for _, v := range m {
-			out = append(out, v)
+		out := make([]*eth.Blob, len(m))
+		for k, v := range m {
+			out[k.Index] = v
 		}
 		return out, nil
 	}
 
-	n := make([]*eth.Blob, 0, len(hashes))
-	for h, b := range m {
-		if slices.Contains(hashes, h.Hash) || len(hashes) == 0 {
-			n = append(n, b)
+	out := make([]*eth.Blob, len(hashes))
+	numBlobsFound := 0
+	for k, v := range m {
+		if slices.Contains(hashes, k.Hash) {
+			out[k.Index] = v
+			numBlobsFound++
 		}
 	}
-	if len(n) != len(hashes) {
+	if numBlobsFound != len(hashes) {
 		return nil, fmt.Errorf("not all blobs found")
 	}
 
-	return n, nil
+	return out, nil
 }
 
 var _ derive.L1BlobsFetcher = (*Store)(nil)
