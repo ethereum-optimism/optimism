@@ -6,7 +6,6 @@ import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { OPContractsManagerV2 } from "src/L1/opcm/OPContractsManagerV2.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { DummyCaller } from "scripts/libraries/DummyCaller.sol";
 
 contract UpgradeOPChainInput is BaseDeployIO {
     address internal _prank;

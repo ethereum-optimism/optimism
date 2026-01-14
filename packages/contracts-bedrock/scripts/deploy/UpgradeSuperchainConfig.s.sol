@@ -7,7 +7,6 @@ import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { DummyCaller } from "scripts/libraries/DummyCaller.sol";
 
 contract UpgradeSuperchainConfig is Script {
     struct Input {

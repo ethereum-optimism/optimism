@@ -6,7 +6,6 @@ import { Script } from "forge-std/Script.sol";
 
 // Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
-import { DummyCaller } from "scripts/libraries/DummyCaller.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
