@@ -231,7 +231,8 @@ func TestBeaconClientBadProof(t *testing.T) {
 	index1, sidecar1 := makeTestBlobSidecar(indices[1])
 	index2, sidecar2 := makeTestBlobSidecar(indices[2])
 
-	hashes := []eth.IndexedBlobHash{index0, index1, index2}
+	indexedHashes := []eth.IndexedBlobHash{index0, index1, index2}
+	hashes := []common.Hash{index0.Hash, index1.Hash, index2.Hash}
 	sidecars := []*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}
 	blobs := []*eth.Blob{&sidecar0.Blob, &sidecar1.Blob, &sidecar2.Blob}
 
@@ -247,8 +248,8 @@ func TestBeaconClientBadProof(t *testing.T) {
 		client := NewL1BeaconClient(p, L1BeaconClientConfig{})
 		ref := eth.L1BlockRef{Time: 12}
 		p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(eth.APIBeaconBlobsResponse{}, errors.New("the sky is falling"))
-		p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
-		_, err := client.GetBlobs(ctx, ref, hashes)
+		p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), indexedHashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
+		_, err := client.GetBlobs(ctx, ref, indexedHashes)
 		assert.NoError(t, err)
 	})
 
@@ -260,7 +261,7 @@ func TestBeaconClientBadProof(t *testing.T) {
 		client := NewL1BeaconClient(p, L1BeaconClientConfig{})
 		ref := eth.L1BlockRef{Time: 12}
 		p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(eth.APIBeaconBlobsResponse{Data: blobs}, nil)
-		_, err := client.GetBlobs(ctx, ref, hashes)
+		_, err := client.GetBlobs(ctx, ref, indexedHashes)
 		assert.NoError(t, err)
 	})
 }
@@ -327,7 +328,8 @@ func TestGetBlobs(t *testing.T) {
 	hash1, sidecar1 := makeTestBlobSidecar(1)
 	hash2, sidecar2 := makeTestBlobSidecar(2)
 
-	hashes := []eth.IndexedBlobHash{hash0, hash2, hash1} // Mix up the order.
+	indexedHashes := []eth.IndexedBlobHash{hash0, hash2, hash1} // Mix up the order.
+	hashes := []common.Hash{hash0.Hash, hash2.Hash, hash1.Hash} // Mix up the order.
 
 	invalidBlob0 := sidecar0.Blob
 	invalidBlob0[10]++
@@ -382,12 +384,12 @@ func TestGetBlobs(t *testing.T) {
 			p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(beaconBlobsResponse, err)
 
 			if c.expectFallback {
-				p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{
+				p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), indexedHashes).Return(eth.APIGetBlobSidecarsResponse{
 					Data: toAPISideCars([]*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}),
 				}, nil)
 			}
 
-			resp, err := client.GetBlobs(ctx, ref, hashes)
+			resp, err := client.GetBlobs(ctx, ref, indexedHashes)
 			require.NoError(t, err)
 			require.Equal(t, []*eth.Blob{&sidecar0.Blob, &sidecar2.Blob, &sidecar1.Blob}, resp)
 		})
