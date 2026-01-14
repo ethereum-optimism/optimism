@@ -22,7 +22,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -234,14 +233,6 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 		require.NoError(t, err)
 		require.Less(t, len(data), maxL1TxSize)
 	}
-}
-
-func toIndexedBlobHashes(hs ...common.Hash) []eth.IndexedBlobHash {
-	hashes := make([]eth.IndexedBlobHash, 0, len(hs))
-	for i, hash := range hs {
-		hashes = append(hashes, eth.IndexedBlobHash{Index: uint64(i), Hash: hash})
-	}
-	return hashes
 }
 
 // TestBatcherAutoDA tests that the batcher with Auto data availability type
