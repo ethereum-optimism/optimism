@@ -1,171 +1,150 @@
-# op-reth historical proofs
-[![codecov](https://codecov.io/gh/op-rs/op-reth/branch/main/graph/badge.svg)](https://app.codecov.io/gh/op-rs/op-reth/tree/unstable/crates%2Foptimism?components%5B0%5D=op%20historical%20proof)
+<div align="center">
+  <br />
+  <br />
+  <a href="https://optimism.io"><img alt="Optimism" src="./logo.svg" width=600></a>
+  <br />
+  <h3><a href="https://optimism.io">Optimism</a> is Ethereum, scaled.</h3>
+  <br />
+</div>
 
-![Description](assets/op-rs-logo.png)
-> **⚠️ Under Construction**
->
-> This is a work in progress. Stay tuned!
+**Table of Contents**
 
-## Motivation
+<!--TOC-->
 
-Reliable access to recent historical state via `eth_getProof` is a critical requirement for rollups and L2 infrastructure built on Ethereum.
+- [What is Optimism?](#what-is-optimism)
+- [Documentation](#documentation)
+- [Specification](#specification)
+- [Community](#community)
+- [Contributing](#contributing)
+- [Security Policy and Vulnerability Reporting](#security-policy-and-vulnerability-reporting)
+- [Directory Structure](#directory-structure)
+- [Development and Release Process](#development-and-release-process)
+  - [Overview](#overview)
+  - [Production Releases](#production-releases)
+  - [Development branch](#development-branch)
+- [License](#license)
 
-As described in Reth issue [#18070](https://github.com/paradigmxyz/reth/issues/18070), many applications on Optimism and other rollups (e.g. Base infrastructure, ENS, fault-proof systems) depend on fast and reliable `eth_getProof` queries within a bounded challenge window (typically 7 days). At present, the lack of reliable recent-state proof support is a blocker for broader Reth adoption in these environments.
+<!--TOC-->
 
-The core issue lies in Reth's architecture for historical state calculation. To serve `eth_getProof` for a historical block, Reth must perform an **in-memory revert**, applying state diffs backwards from the chain tip. While efficient for recent blocks, reverting state for a block 7 days ago requires loading thousands of changesets into Memory. This operation is computationally expensive and often causes the node to crash due to **Out-Of-Memory (OOM)** errors, effectively making deep historical proofs impossible on a standard node.
+## What is Optimism?
 
-While solutions like Erigon’s compressed archive format demonstrate that full historical proofs can be stored efficiently (~5 TB), most real-world use cases do not require access to *all* historical state. Instead, the overwhelming majority of applications only require proofs over a **recent, bounded time window** (e.g. the last 7 days for challenge games).
+[Optimism](https://www.optimism.io/) is a project dedicated to scaling Ethereum's technology and expanding its ability to coordinate people from across the world to build effective decentralized economies and governance systems. The [Optimism Collective](https://www.optimism.io/vision) builds open-source software that powers scalable blockchains and aims to address key governance and economic challenges in the wider Ethereum ecosystem. Optimism operates on the principle of **impact=profit**, the idea that individuals who positively impact the Collective should be proportionally rewarded with profit. **Change the incentives and you change the world.**
 
-This fork introduces a **Bounded History Sidecar** architecture for historical state proofs. The goal is to provide:
-- **Crash-Free Proof Generation:** Serve `eth_getProof` for deep historical blocks without the OOM risks associated with in-memory reverts.
-- **Constant Storage Footprint:** Maintain a fixed storage size (linear to the configured window) rather than the unbounded growth.
-- **Zero-Overhead Sync:** Utilize Reth's Execution Extensions (ExEx) to process and index history asynchronously, ensuring the main node's sync speed and tip latency are unaffected.
+In this repository you'll find numerous core components of the OP Stack, the decentralized software stack maintained by the Optimism Collective that powers Optimism and forms the backbone of blockchains like [OP Mainnet](https://explorer.optimism.io/) and [Base](https://base.org). The OP Stack is designed to be aggressively open-source — you are welcome to explore, modify, and extend this code.
 
-## Architecture: Bounded History Sidecar
+## Documentation
 
-This module implements a **Sidecar Storage Pattern**. Instead of burdening the main node's database with historical data, we maintain a dedicated, secondary MDBX environment optimized specifically for serving proofs.
+- If you want to build on top of OP Mainnet, refer to the [Optimism Documentation](https://docs.optimism.io)
+- If you want to build your own OP Stack based blockchain, refer to the [OP Stack Guide](https://docs.optimism.io/stack/getting-started) and make sure to understand this repository's [Development and Release Process](#development-and-release-process)
 
-### Core Mechanism: Versioned State
-Unlike standard Reth (which stores the *current* state and calculates history by reverting diffs), this module implements a **Versioned State Store**.
+## Specification
 
-1.  **`AccountTrieHistory` & `StorageTrieHistory`**: Stores the intermediate branch nodes of the Merkle Patricia Trie. Each node is versioned by block number, allowing us to traverse the exact trie structure as it existed at any past block.
-2.  **`HashedAccountHistory` & `HashedStorageHistory`**: Stores the actual account data (nonce, balance) and storage slot values at the leaves of the trie, also versioned by block number.
+Detailed specifications for the OP Stack can be found within the [OP Stack Specs](https://github.com/ethereum-optimism/specs) repository.
 
-### Initialization: State Snapshot
-To ensure the service is easy to set up on existing nodes with millions of blocks, we do not require a full chain re-sync. Instead, the module requires an **Initial State Snapshot** via the CLI:
+## Community
 
-1.  **Capture:** The CLI command captures the *current* state of the blockchain (Account and Storage Tries) from the main database.
-2.  **Seed:** It populates the sidecar with this baseline state.
-3.  **Track:** Once initialized, the node begins tracking new blocks and maintaining history from that point forward.
+General discussion happens most frequently on the [Optimism discord](https://discord.gg/optimism).
+Governance discussion can also be found on the [Optimism Governance Forum](https://gov.optimism.io/).
 
-This ensures that the proof window has a valid starting point immediately.
+## Contributing
 
-### Data Flow
+The OP Stack is a collaborative project. By collaborating on free, open software and shared standards, the Optimism Collective aims to prevent siloed software development and rapidly accelerate the development of the Ethereum ecosystem. Come contribute, build the future, and redefine power, together.
 
-1.  **Initialization:** The operator runs the initialization CLI command to snapshot the current main DB state and seed the sidecar.
-2.  **Ingestion (Write):** As the node syncs, the Execution Extension (`ExEx`) captures the TrieUpdates (branch nodes) and HashedPostState (leaf values) in each block and writes them to the sidecar DB tagged with the block number.
-3.  **Retrieval (Read):** When `eth_getProof` is called for a historical block, we simply look up the trie nodes valid at that specific block version.
-4.  **Maintenance (Prune):** A background process monitors the chain tip. Once a block falls outside the configured window (e.g., > 7 days old), its specific history versions are deleted to reclaim space.
+[CONTRIBUTING.md](./CONTRIBUTING.md) contains a detailed explanation of the contributing process for this repository. Make sure to use the [Developer Quick Start](./CONTRIBUTING.md#development-quick-start) to properly set up your development environment.
 
-## New Components
+[Good First Issues](https://github.com/ethereum-optimism/optimism/issues?q=is:open+is:issue+label:D-good-first-issue) are a great place to look for tasks to tackle if you're not sure where to start, and see [CONTRIBUTING.md](./CONTRIBUTING.md) for info on larger projects.
 
-### 1. `reth-optimism-exex`
-This crate implements the Execution Extension (ExEx) that acts as the bridge between the main node and the sidecar storage.
+## Security Policy and Vulnerability Reporting
 
-- Ingestion Pipeline: Subscribes to the node's canonical state notifications to capture ExecutionOutcomes in real-time.
-- Diff Extraction: Isolates the specific TrieUpdates (branch nodes) and HashedPostState (leaf values) changed in each block.
-- Persistence: Writes these versioned updates to the sidecar MDBX database without blocking the main datastore.
-- Lifecycle Management: Orchestrates the pruning process, ensuring the sidecar storage remains bounded by the configured window.
+Please refer to the canonical [Security Policy](https://github.com/ethereum-optimism/.github/blob/master/SECURITY.md) document for detailed information about how to report vulnerabilities in this codebase.
+Bounty hunters are encouraged to check out the [Optimism Immunefi bug bounty program](https://immunefi.com/bounty/optimism/).
+The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vulnerabilities.
 
-### 2. `reth-optimism-trie`
-This crate provides the Storage Engine and Proof Logic that powers the sidecar.
+## Directory Structure
 
-- Versioned Storage: Implements MdbxProofsStorage, a specialized database schema optimized for time-series trie node retrieval.
-- Proof Generation: Replaces the standard "revert-based" proof logic with a direct "lookup-based" approach.
-- Pruning Logic: Implements the smart retention algorithm that safely deletes old history
+<pre>
+├── <a href="./cannon">cannon</a>: Onchain MIPS instruction emulator for fault proofs
+├── <a href="./devnet-sdk">devnet-sdk</a>: Comprehensive toolkit for standardized devnet interactions
+├── <a href="./docs">docs</a>: A collection of documents including audits and post-mortems
+├── <a href="./kurtosis-devnet">kurtosis-devnet</a>: OP-Stack Kurtosis devnet
+├── <a href="./op-acceptance-tests">op-acceptance-tests</a>: Acceptance tests and configuration for OP Stack
+├── <a href="./op-alt-da">op-alt-da</a>: Alternative Data Availability mode (beta)
+├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
+├── <a href="./op-chain-ops">op-chain-ops</a>: State surgery utilities
+├── <a href="./op-challenger">op-challenger</a>: Dispute game challenge agent
+├── <a href="./op-conductor">op-conductor</a>: High-availability sequencer service
+├── <a href="./op-deployer">op-deployer</a>: CLI tool for deploying and upgrading OP Stack smart contracts
+├── <a href="./op-devstack">op-devstack</a>: Flexible test frontend for integration and acceptance testing
+├── <a href="./op-dispute-mon">op-dispute-mon</a>: Off-chain service to monitor dispute games
+├── <a href="./op-dripper">op-dripper</a>: Controlled token distribution service
+├── <a href="./op-e2e">op-e2e</a>: End-to-End testing of all bedrock components in Go
+├── <a href="./op-faucet">op-faucet</a>: Dev-faucet with support for multiple chains
+├── <a href="./op-fetcher">op-fetcher</a>: Data fetching utilities
+├── <a href="./op-interop-mon">op-interop-mon</a>: Interoperability monitoring service
+├── <a href="./op-node">op-node</a>: Rollup consensus-layer client
+├── <a href="./op-preimage">op-preimage</a>: Go bindings for Preimage Oracle
+├── <a href="./op-program">op-program</a>: Fault proof program
+├── <a href="./op-proposer">op-proposer</a>: L2-Output Submitter, submits proposals to L1
+├── <a href="./op-service">op-service</a>: Common codebase utilities
+├── <a href="./op-supervisor">op-supervisor</a>: Service to monitor chains and determine cross-chain message safety
+├── <a href="./op-sync-tester">op-sync-tester</a>: Sync testing utilities
+├── <a href="./op-test-sequencer">op-test-sequencer</a>: Test sequencer for development
+├── <a href="./op-up">op-up</a>: Deployment and management utilities
+├── <a href="./op-validator">op-validator</a>: Tool for validating Optimism chain configurations and deployments
+├── <a href="./op-wheel">op-wheel</a>: Database utilities
+├── <a href="./ops">ops</a>: Various operational packages
+├── <a href="./packages">packages</a>
+│   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
+</pre>
 
-### 3. RPC Overrides
-The module injects custom handlers to intercept specific RPC calls:
-*   **`eth_getProof`**: Checks if the requested block is historical. If so, it fetches the account and storage proofs from the secondary Proofs DB.
-*   **`debug_executionWitness`**: Allows debugging and tracing against historical states.
-*   **`debug_executePayload`**: Executes a payload against the historical state to generate an execution witness.
+## Development and Release Process
 
-## Hardware Requirements
+### Overview
 
-Recommended specifications:
+Please read this section carefully if you're planning to fork or make frequent PRs into this repository.
 
-- **CPU**: 8-Core processor with good single-core performance
-- **RAM**: Minimum 16 GB (32 GB recommended)
-- **Storage**: NVMe SSD with adequate capacity for chain data plus snapshots
-  - Calculate: `(2 × current_chain_size) + snapshot_size + 20% buffer`
-  - *Note*: Storing 4 weeks of full proof history on a network like Base Testnet consumes approximately **~1 TB** of additional storage.
-- **Network**: Stable internet connection with good bandwidth
+### Production Releases
 
-## Usage
+Production releases are always tags, versioned as `<component-name>/v<semver>`.
+For example, an `op-node` release might be versioned as `op-node/v1.1.2`, and  smart contract releases might be versioned as `op-contracts/v1.0.0`.
+Release candidates are versioned in the format `op-node/v1.1.2-rc.1`.
+We always start with `rc.1` rather than `rc`.
 
-### 1. Initialization
-Before starting the node with the sidecar enabled, you must initialize the proof storage. This command snapshots the current state of the main database to seed the sidecar.
+For contract releases, refer to the GitHub release notes for a given release which will list the specific contracts being released. Not all contracts are considered production ready within a release and many are under active development.
 
-```bash
-op-reth initialize-op-proofs \
-  --datadir=path/to/reth-datadir \
-  --proofs-history.storage-path=/path/to/proof-db
-```
+Tags of the form `v<semver>`, such as `v1.1.4`, indicate releases of all Go code only, and **DO NOT** include smart contracts.
+This naming scheme is required by Golang.
+In the above list, this means these `v<semver>` releases contain all `op-*` components and exclude all `contracts-*` components.
 
-### 2. Running the Node (Syncing)
+`op-geth` embeds upstream geth’s version inside its own version as follows: `vMAJOR.GETH_MAJOR GETH_MINOR GETH_PATCH.PATCH`.
+Basically, geth’s version is our minor version.
+For example if geth is at `v1.12.0`, the corresponding op-geth version would be `v1.101200.0`.
+Note that we pad out to three characters for the geth minor version and two characters for the geth patch version.
+Since we cannot left-pad with zeroes, the geth major version is not padded.
 
-Once initialized, start the node with the --proofs-history flags to enable the sidecar service.
+See the [Node Software Releases](https://docs.optimism.io/builders/node-operators/releases) page of the documentation for more information about releases for the latest node components.
 
-```bash
-op-reth node \
-  --chain base-sepolia \
-  --datadir=/path/to/reth-datadir \
-  --proofs-history \
-  --proofs-history.storage-path=/path/to/proofs-db \
-  --proofs-history.window=600000 \
-  --proofs-history.prune-interval=15s
-```
+The full set of components that have releases are:
 
-Configuration Flags
+- `op-batcher`
+- `op-contracts`
+- `op-challenger`
+- `op-node`
+- `op-proposer`
 
-| Flag | Description | Default | Required |
-| :--- | :--- | :--- | :--- |
-| `--proofs-history` | Enables the historical proofs module. | `false` | No |
-| `--proofs-history.storage-path` | Path to the separate MDBX database for storing proofs. | `None` | **Yes** (if enabled) |
-| `--proofs-history.window` | Retention period in **blocks**. Data older than `Tip - Window` is pruned. | `1,296,000` (~30 days) | No |
-| `--proofs-history.prune-interval` | How frequently the pruner runs to delete old data. | `1h` | No |
+All other components and packages should be considered development components only and do not have releases.
 
-### 3. Management
+### Development branch
 
-We provide custom CLI commands to manage the proof history manually.
+The primary development branch is [`develop`](https://github.com/ethereum-optimism/optimism/tree/develop/).
+`develop` contains the most up-to-date software that remains backwards compatible with the latest experimental [network deployments](https://docs.optimism.io/chain/networks).
+If you're making a backwards compatible change, please direct your pull request towards `develop`.
 
-`prune-op-proofs`
-Manually triggers the pruning process. Useful for reclaiming space immediately.
+**Changes to contracts within `packages/contracts-bedrock/src` are usually NOT considered backwards compatible.**
+Some exceptions to this rule exist for cases in which we absolutely must deploy some new contract after a tag has already been fully deployed.
+If you're changing or adding a contract and you're unsure about which branch to make a PR into, default to using a feature branch.
+Feature branches are typically used when there are conflicts between 2 projects touching the same code, to avoid conflicts from merging both into `develop`.
 
-```bash
-op-reth prune-op-proofs \
-  --datadir=/path/to/reth-datadir \
-  --proofs-history.storage-path=/path/to/proof-db \
-  --proofs-history.window=600000 \
-  --proofs-history.prune-batch-size=10000
-```
+## License
 
-`unwind-op-proofs`
-Manually unwinds the proof history to a specific block. Useful for recovering from corrupted states.
-
-```bash
-op-reth unwind-op-proofs \
-  --datadir=/path/to/reth-datadir \
-  --proofs-history.storage-path=/path/to/proofs-db \
-  --target=90
-```
-
-### 4. Metrics
-A comprehensive Grafana dashboard is available at `etc/grafana/dashboards/op-proof-history.json` to monitor:
--   Syncing speed
--   Sidecar storage size.
--   Pruning performance.
--   Proof generation latency.
-
-Sample metric snapshot available at: https://snapshots.raintank.io/dashboard/snapshot/bzYXscOCugsxO6C2bzFB1XbskxG0KFdo
-
-## Performance
-
-We benchmarked the sidecar on Base Sepolia to validate latency and throughput under load.
-
-Metric | Result
--- | --
-Avg Latency | 	15 ms
-Throughput	|   ~5,000 req/sec
-
-Benchmark Configuration
-- Network: Base Sepolia (Local Node)
-- Target: WETH Contract (0x420...0006)
-- Range: ~700k blocks (34,011,476 to 34,704,213)
-- Load: 10 concurrent workers, 100 requests per block iteration.
-
-The test script iterates through the block range, spawning 10 concurrent workers. Each worker selects an address round-robin from a pre-defined set, dynamically calculates the storage slot for balanceOf[address], and sends an eth_getProof request.
-
-Visual Proof:
-- [Grafana Snapshot: Proof Metrics](https://snapshots.raintank.io/dashboard/snapshot/bzYXscOCugsxO6C2bzFB1XbskxG0KFdo)
-- [Grafana Snapshot: Reth Metrics](https://snapshots.raintank.io/dashboard/snapshot/hxZaChzsrez3Q3w52IHj0Wab3H1wndUg)
+All other files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/master/LICENSE) unless stated otherwise.
