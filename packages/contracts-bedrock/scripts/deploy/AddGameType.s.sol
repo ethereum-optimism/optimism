@@ -6,6 +6,7 @@ import { Script } from "forge-std/Script.sol";
 
 // Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DummyCaller } from "scripts/libraries/DummyCaller.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -61,7 +62,7 @@ contract AddGameType is Script {
         // 2/2 or similar.
         address prank = _agi.prank;
 
-        bytes memory code = vm.getDeployedCode("DummyCaller.sol:DummyCaller");
+        bytes memory code = type(DummyCaller).runtimeCode;
         vm.etch(prank, code);
         vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(_agi.opcmImpl)))));
         vm.label(prank, "DummyCaller");

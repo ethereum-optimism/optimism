@@ -7,6 +7,7 @@ import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { DummyCaller } from "scripts/libraries/DummyCaller.sol";
 
 contract UpgradeSuperchainConfig is Script {
     struct Input {
@@ -54,8 +55,8 @@ contract UpgradeSuperchainConfig is Script {
 
     /// @notice Helper function to get the dummy caller code.
     /// @return code The code of the dummy caller.
-    function _getDummyCallerCode() internal view returns (bytes memory) {
-        return vm.getDeployedCode("DummyCaller.sol:DummyCaller");
+    function _getDummyCallerCode() internal pure returns (bytes memory) {
+        return type(DummyCaller).runtimeCode;
     }
 
     /// @notice Helper function to upgrade the OPCM based on the OPCM version. Performs the decoding of the upgrade
@@ -64,15 +65,19 @@ contract UpgradeSuperchainConfig is Script {
     /// @param _useOPCMv2 Whether to use OPCM v2.
     /// @param _input The input.
     function _upgrade(address _prank, bool _useOPCMv2, Input memory _input) internal {
+        bytes memory data;
         if (_useOPCMv2) {
-            IOPContractsManagerV2(_prank).upgradeSuperchain(
+            data = abi.encodeCall(
+                IOPContractsManagerV2.upgradeSuperchain,
                 IOPContractsManagerV2.SuperchainUpgradeInput({
                     superchainConfig: _input.superchainConfig,
                     extraInstructions: _input.extraInstructions
                 })
             );
         } else {
-            IOPContractsManager(_prank).upgradeSuperchainConfig(_input.superchainConfig);
+            data = abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, _input.superchainConfig);
         }
+        (bool success,) = _prank.call(data);
+        require(success, "UpgradeSuperchainConfig: upgrade failed");
     }
 }

@@ -6,6 +6,7 @@ import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { OPContractsManagerV2 } from "src/L1/opcm/OPContractsManagerV2.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { DummyCaller } from "scripts/libraries/DummyCaller.sol";
 
 contract UpgradeOPChainInput is BaseDeployIO {
     address internal _prank;
@@ -85,16 +86,19 @@ contract UpgradeOPChain is Script {
         vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(opcm)))));
         vm.label(prank, "DummyCaller");
 
+        // Get the upgrade input before broadcasting
+        bytes memory upgradeInput = _uoci.upgradeInput();
+
         // Call into the DummyCaller. This will perform the delegatecall under the hood.
         // The DummyCaller uses a fallback that reverts on failure, so no need to check success.
         vm.broadcast(msg.sender);
-        _upgrade(prank, useOPCMv2, _uoci.upgradeInput());
+        _upgrade(prank, useOPCMv2, upgradeInput);
     }
 
     /// @notice Helper function to get the dummy caller code.
     /// @return code The code of the dummy caller.
-    function _getDummyCallerCode() internal view returns (bytes memory) {
-        return vm.getDeployedCode("DummyCaller.sol:DummyCaller");
+    function _getDummyCallerCode() internal pure returns (bytes memory) {
+        return type(DummyCaller).runtimeCode;
     }
 
     /// @notice Helper function to upgrade the OPCM based on the OPCM version. Performs the decoding of the upgrade
@@ -103,10 +107,17 @@ contract UpgradeOPChain is Script {
     /// @param _useOPCMv2 Whether to use OPCM v2.
     /// @param _upgradeInput The upgrade input.
     function _upgrade(address _prank, bool _useOPCMv2, bytes memory _upgradeInput) internal {
+        bytes memory data;
         if (_useOPCMv2) {
-            OPContractsManagerV2(_prank).upgrade(abi.decode(_upgradeInput, (OPContractsManagerV2.UpgradeInput)));
+            data = abi.encodeCall(
+                OPContractsManagerV2.upgrade, abi.decode(_upgradeInput, (OPContractsManagerV2.UpgradeInput))
+            );
         } else {
-            OPContractsManager(_prank).upgrade(abi.decode(_upgradeInput, (OPContractsManager.OpChainConfig[])));
+            data = abi.encodeCall(
+                OPContractsManager.upgrade, abi.decode(_upgradeInput, (OPContractsManager.OpChainConfig[]))
+            );
         }
+        (bool success,) = _prank.call(data);
+        require(success, "UpgradeOPChain: upgrade failed");
     }
 }

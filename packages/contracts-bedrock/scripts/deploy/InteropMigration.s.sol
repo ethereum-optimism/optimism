@@ -6,6 +6,7 @@ import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { IOPContractsManagerInteropMigrator, IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { Duration, Proposal, Hash } from "src/dispute/lib/Types.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DummyCaller } from "scripts/libraries/DummyCaller.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 
@@ -194,7 +195,7 @@ contract InteropMigration is Script {
         // as the source of the delegatecall to the OPCM. In practice this will be the governance
         // 2/2 or similar.
         address prank = _imi.prank();
-        bytes memory code = vm.getDeployedCode("DummyCaller.sol:DummyCaller");
+        bytes memory code = type(DummyCaller).runtimeCode;
         vm.etch(prank, code);
         vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(opcm)))));
         vm.label(prank, "DummyCaller");
