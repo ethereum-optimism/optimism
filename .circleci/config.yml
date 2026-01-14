@@ -240,6 +240,18 @@ commands:
           name: Install zstd
           command: sudo apt-get update && sudo apt-get install -y zstd=1.4.8*
 
+  install-cargo-binstall:
+    description: "Install cargo-binstall for fast binary installations"
+    steps:
+      - run:
+          name: Install cargo-binstall
+          command: |
+            if command -v cargo-binstall >/dev/null 2>&1; then
+              echo "cargo-binstall already installed"
+              exit 0
+            fi
+            curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+
   get-target-branch:
     description: "Determine the PR target branch and export TARGET_BRANCH for subsequent steps"
     steps:
@@ -2508,6 +2520,18 @@ jobs:
   # Kona Jobs (migrated from kona/.github/workflows)
   # ============================================================================
 
+  # Kona change check gate - halts if no kona folder changes detected
+  kona-change-check:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - check-changed:
+          patterns: kona
+          no_go_deps: "true"
+
   # Kona Node E2E Sysgo Tests (from node_e2e_sysgo_tests.yaml)
   kona-node-e2e-sysgo-tests:
     parameters:
@@ -2529,10 +2553,10 @@ jobs:
       # Restore cached Go modules
       - go-restore-cache:
           namespace: kona-ci
-      - rust-build:
-          binary: "kona-node"
+      - rust-build: &kona-rust-build-release
           directory: kona
           profile: release
+          binary: "kona-node"
       - run:
           name: Run common tests for node with sysgo orchestrator
           no_output_timeout: 60m
@@ -2571,10 +2595,7 @@ jobs:
       # Restore cached Go modules
       - go-restore-cache:
           namespace: kona-ci
-      - rust-build:
-          binary: "kona-node"
-          directory: kona
-          profile: release
+      - rust-build: *kona-rust-build-release
       - run:
           name: Run restart tests for node with sysgo orchestrator
           no_output_timeout: 60m
@@ -2604,8 +2625,7 @@ jobs:
       - go-restore-cache:
           namespace: kona-ci
       - rust-build:
-          directory: kona
-          profile: release
+          <<: *kona-rust-build-release
           binary: "kona-host"
       - run:
           name: Build kona and run action tests
@@ -2614,7 +2634,7 @@ jobs:
           command: |
             echo "Running action tests"
             export KONA_HOST_PATH=$(pwd)/target/release/kona-host
-            just action-tests-single-run
+            just action-tests-<<parameters.kind>>-run
       - go-save-cache:
           namespace: kona-ci
 
@@ -2624,10 +2644,6 @@ jobs:
       target:
         description: The target platform (native, asterisc, cannon)
         type: string
-      block_number:
-        description: The block number to verify
-        type: string
-        default: "26215604"
     machine:
       image: <<pipeline.parameters.base_image>>
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
@@ -2637,10 +2653,11 @@ jobs:
           checkout-method: blobless
       - install-zstd
       - rust-prepare
+      - install-cargo-binstall
       - run:
           name: Install cargo-llvm-cov
           command: |
-            command -v cargo-llvm-cov >/dev/null || cargo install cargo-llvm-cov
+            command -v cargo-llvm-cov >/dev/null || cargo binstall --no-confirm cargo-llvm-cov
       - when:
           condition:
             equal: [asterisc, <<parameters.target>>]
@@ -2648,29 +2665,29 @@ jobs:
             - run:
                 name: Clone and build asterisc
                 command: |
-                  git clone https://github.com/ethereum-optimism/asterisc.git
-                  cd asterisc && git checkout v1.3.0 && make build-rvgo
+                  git clone --no-checkout --depth 1 https://github.com/ethereum-optimism/asterisc.git
+                  cd asterisc && git fetch --depth 1 origin v1.3.0 && git checkout v1.3.0
+                  make build-rvgo
                   sudo mv ./rvgo/bin/asterisc /usr/local/bin/
       - when:
           condition:
             equal: [cannon, <<parameters.target>>]
           steps:
             - run:
-                name: Clone and build cannon
+                name: Build cannon
                 command: |
-                  git clone https://github.com/ethereum-optimism/optimism.git optimism-cannon
-                  cd optimism-cannon/cannon && make
+                  cd cannon && make
                   sudo mv ./bin/cannon /usr/local/bin/
       - run:
           name: Set run environment
           command: |
-            echo 'export BLOCK_NUMBER=<<parameters.block_number>>' >> $BASH_ENV
+            echo 'export BLOCK_NUMBER=26215604' >> $BASH_ENV
             echo 'export L2_CLAIM=0x7415d942f80a34f77d344e4bccb7050f14e593f5ea33669d27ea01dce273d72d' >> $BASH_ENV
             echo 'export L2_OUTPUT_ROOT=0xaa34b62993bd888d7a2ad8541935374e39948576fce12aa8179a0aa5b5bc787b' >> $BASH_ENV
             echo 'export L2_HEAD=0xf4adf5790bad1ffc9eee315dc163df9102473c5726a2743da27a8a10dc16b473' >> $BASH_ENV
             echo 'export L1_HEAD=0x010cfdb22eaa13e8cdfbf66403f8de2a026475e96a6635d53c31f853a0e3ae25' >> $BASH_ENV
             echo 'export L2_CHAIN_ID=11155420' >> $BASH_ENV
-            echo 'export WITNESS_TAR_NAME=holocene-op-sepolia-<<parameters.block_number>>-witness.tar.zst' >> $BASH_ENV
+            echo 'export WITNESS_TAR_NAME=holocene-op-sepolia-26215604-witness.tar.zst' >> $BASH_ENV
       - run:
           name: Decompress witness data
           working_directory: kona
@@ -2700,24 +2717,22 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache:
+      - rust-prepare-and-restore-cache: &kona-tests-cache
           directory: kona
           prefix: kona-tests
           profile: "release"
+      - install-cargo-binstall
       - run:
           name: Install nextest
           command: |
-            command -v cargo-nextest >/dev/null || cargo install cargo-nextest
+            command -v cargo-nextest >/dev/null || cargo binstall --no-confirm cargo-nextest
       - run:
           name: Run cargo tests
           working_directory: kona
           no_output_timeout: 40m
           command: |
             just test
-      - rust-save-build-cache:
-          directory: kona
-          prefix: kona-tests
-          profile: "release"
+      - rust-save-build-cache: *kona-tests-cache
 
   # Kona Rust CI - Lint (from rust_ci.yaml)
   kona-cargo-lint:
@@ -2772,7 +2787,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache:
+      - rust-prepare-and-restore-cache: &kona-benches-cache
           directory: kona
           prefix: kona-benches
       - run:
@@ -2781,9 +2796,7 @@ jobs:
           no_output_timeout: 40m
           command: |
             just benches
-      - rust-save-build-cache:
-          directory: kona
-          prefix: kona-benches
+      - rust-save-build-cache: *kona-benches-cache
 
   # Kona Rust CI - Check unused dependencies (from rust_ci.yaml)
   kona-cargo-udeps:
@@ -2793,24 +2806,22 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache:
+      - rust-prepare-and-restore-cache: &kona-udeps-cache
           directory: kona
           prefix: kona-udeps
           profile: "release"
+      - install-cargo-binstall
       - run:
           name: Install cargo-udeps
           command: |
-            command -v cargo-udeps >/dev/null || cargo install cargo-udeps
+            command -v cargo-udeps >/dev/null || cargo binstall --no-confirm cargo-udeps
       - run:
           name: Check unused dependencies
           working_directory: kona
           no_output_timeout: 40m
           command: |
             just check-udeps
-      - rust-save-build-cache:
-          directory: kona
-          prefix: kona-udeps
-          profile: "release"
+      - rust-save-build-cache: *kona-udeps-cache
 
   # Kona Rust CI - Doc lint (from rust_ci.yaml)
   kona-cargo-doc-lint:
@@ -2837,7 +2848,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache:
+      - rust-prepare-and-restore-cache: &kona-doc-test-cache
           directory: kona
           prefix: kona-doc-test
       - run:
@@ -2846,9 +2857,7 @@ jobs:
           no_output_timeout: 40m
           command: |
             just test-docs
-      - rust-save-build-cache:
-          directory: kona
-          prefix: kona-doc-test
+      - rust-save-build-cache: *kona-doc-test-cache
 
   # Kona Rust CI - Typos (from rust_ci.yaml)
   kona-typos:
@@ -2859,10 +2868,11 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
       - rust-prepare
+      - install-cargo-binstall
       - run:
           name: Install typos-cli
           command: |
-            command -v typos-cli >/dev/null || cargo install typos-cli
+            command -v typos >/dev/null || cargo binstall --no-confirm typos-cli
       - run:
           name: Check for typos
           working_directory: kona
@@ -2881,10 +2891,11 @@ jobs:
       - rust-prepare-and-restore-cache:
           directory: kona
           features: "all"
+      - install-cargo-binstall
       - run:
           name: Install cargo-hack
           command: |
-            command -v cargo-hack >/dev/null || cargo install cargo-hack
+            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
       - run:
           name: Shard and run cargo hack
           working_directory: kona
@@ -2937,17 +2948,18 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache:
+      - rust-prepare-and-restore-cache: &kona-coverage-cache
           directory: kona
           prefix: kona-coverage
           version: "1"
       - rust-install-toolchain:
           components: llvm-tools-preview
+      - install-cargo-binstall
       - run:
           name: Install cargo-llvm-cov and nextest
           command: |
-            command -v cargo-llvm-cov >/dev/null || cargo install cargo-llvm-cov
-            command -v cargo-nextest >/dev/null || cargo install cargo-nextest
+            command -v cargo-llvm-cov >/dev/null || cargo binstall --no-confirm cargo-llvm-cov
+            command -v cargo-nextest >/dev/null || cargo binstall --no-confirm cargo-nextest
       - run:
           name: Generate lockfile if needed
           working_directory: kona
@@ -2965,10 +2977,7 @@ jobs:
           flags: unit
       - store_test_results:
           path: kona/junit.xml
-      - rust-save-build-cache:
-          directory: kona
-          prefix: kona-coverage
-          version: "1"
+      - rust-save-build-cache: *kona-coverage-cache
 
 
   # Kona Rust CI - Deny (from rust_ci.yaml)
@@ -2979,17 +2988,21 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-restore-build-cache:
+      - rust-prepare-and-restore-cache: &kona-deny-cache
           directory: kona
+          prefix: kona-deny
+          version: "1"
+      - install-cargo-binstall
       - run:
           name: Install cargo-deny
           command: |
-            command -v cargo-deny >/dev/null || cargo install cargo-deny
+            command -v cargo-deny >/dev/null || cargo binstall --no-confirm cargo-deny
       - run:
           name: Run cargo deny
           working_directory: kona
           command: |
             cargo deny check
+      - rust-save-build-cache: *kona-deny-cache
 
   # Kona Rust CI - Zepter (from rust_ci.yaml)
   kona-zepter:
@@ -3000,10 +3013,11 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
       - rust-prepare
+      - install-cargo-binstall
       - run:
           name: Install zepter
           command: |
-            command -v zepter >/dev/null || cargo install zepter
+            command -v zepter >/dev/null || cargo binstall --no-confirm zepter
             zepter --version
       - run:
           name: Format and lint features
@@ -3079,9 +3093,8 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
       - rust-build:
+          <<: *kona-rust-build-release
           binary: "kona-supervisor"
-          directory: kona
-          profile: release
       - run:
           name: Run supervisor tests for <<parameters.test_pkg>>
           working_directory: kona
@@ -4261,7 +4274,7 @@ workflows:
           profile: "release"
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule:
+      - rust-build-submodule: &rust-build-op-rbuilder
           name: rust-build-op-rbuilder
           directory: op-rbuilder
           binaries: "op-rbuilder"
@@ -4269,7 +4282,7 @@ workflows:
           needs_clang: true
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule:
+      - rust-build-submodule: &rust-build-rollup-boost
           name: rust-build-rollup-boost
           directory: rollup-boost
           binaries: "rollup-boost"
@@ -4390,7 +4403,7 @@ workflows:
       - cannon-kona-prestate: # needed for sysgo tests (if any package is in-memory)
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary:
+      - rust-build-binary: &cannon-kona-host
           name: cannon-kona-host
           directory: kona
           profile: "release"
@@ -4398,7 +4411,7 @@ workflows:
           save_cache: true
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary:
+      - rust-build-binary: &kona-build-release
           name: kona-build-release
           directory: kona
           profile: "release"
@@ -4406,21 +4419,8 @@ workflows:
           save_cache: true
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule:
-          name: rust-build-op-rbuilder
-          directory: op-rbuilder
-          binaries: "op-rbuilder"
-          build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
-          needs_clang: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule:
-          name: rust-build-rollup-boost
-          directory: rollup-boost
-          binaries: "rollup-boost"
-          build_command: cargo build --release -p rollup-boost --bin rollup-boost
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-submodule: *rust-build-op-rbuilder
+      - rust-build-submodule: *rust-build-rollup-boost
       - rust-binaries-for-sysgo:
           requires:
             - kona-build-release
@@ -4495,6 +4495,7 @@ workflows:
   # ============================================================================
 
   # Kona main CI workflow (runs on push to main, merge_group, pull_request)
+  # Only runs when changes are detected in the kona folder
   kona-ci:
     when:
       or:
@@ -4503,112 +4504,99 @@ workflows:
             - equal: [true, <<pipeline.parameters.kona_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
+      # Gate job - checks if kona folder has changes, halts workflow if not
+      - kona-change-check:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build: # needed for sysgo tests
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate-quick: # needed for sysgo tests
+          requires:
+            - kona-change-check
+      - cannon-prestate-quick: &kona-job-base # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - kona-change-check
       - cannon-kona-prestate: # needed for sysgo tests (if any package is in-memory)
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+          <<: *kona-job-base
       - rust-build-binary:
-          name: cannon-kona-host
-          directory: kona
-          profile: "release"
-          binary: "kona-host"
-          save_cache: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+          <<: *cannon-kona-host
+          requires:
+            - kona-change-check
       # Rust CI jobs (from rust_ci.yaml)
       - rust-build-binary:
-          name: kona-build-release
-          directory: kona
-          profile: "release"
-          features: "default"
-          save_cache: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+          <<: *kona-build-release
+          requires:
+            - kona-change-check
       - rust-build-binary:
+          <<: *kona-job-base
           name: kona-build-debug
           directory: kona
           profile: "debug"
           features: "default"
           save_cache: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary:
+          <<: *kona-job-base
           name: kona-build-all-features
           directory: kona
           profile: "debug"
           features: "all"
           save_cache: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - kona-build-fpvm:
+          <<: *kona-job-base
           name: kona-build-fpvm-<<matrix.target>>
           matrix:
             parameters:
               target: ["cannon-client", "asterisc-client"]
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - kona-cargo-tests:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+          <<: *kona-job-base
       - kona-cargo-lint:
+          <<: *kona-job-base
           name: kona-lint-<<matrix.target>>
           matrix:
             parameters:
               target: ["native", "cannon", "asterisc"]
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - kona-cargo-build-benches:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+          <<: *kona-job-base
       - kona-cargo-udeps:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+          <<: *kona-job-base
       - kona-cargo-doc-lint:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+          <<: *kona-job-base
       - kona-cargo-doc-test:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+          <<: *kona-job-base
       - kona-typos:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+          <<: *kona-job-base
       - kona-cargo-deny:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+          <<: *kona-job-base
       - kona-zepter:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+          <<: *kona-job-base
       - kona-check-no-std:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+          <<: *kona-job-base
       - kona-coverage:
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
+            - kona-change-check
             - kona-cargo-tests
       - kona-cargo-hack:
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
+            - kona-change-check
             - kona-build-release
             - kona-build-debug
             - kona-cargo-udeps
             - kona-build-all-features
 
       - rust-build-submodule:
+          <<: *kona-job-base
           name: op-reth-build
           directory: reth
           binaries: op-reth
           build_command: cd crates/optimism/bin && cargo build --release --bin op-reth
           needs_clang: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
 
       # Node E2E tests (from node_e2e_sysgo_tests.yaml)
       - kona-node-e2e-sysgo-tests:
@@ -4619,6 +4607,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
+            - kona-change-check
             - contracts-bedrock-build
             - cannon-prestate-quick
             - cannon-kona-prestate
@@ -4630,6 +4619,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
+            - kona-change-check
             - contracts-bedrock-build
             - cannon-prestate-quick
             - cannon-kona-prestate
@@ -4641,6 +4631,7 @@ workflows:
           name: kona-proof-action-single
           kind: single
           requires:
+            - kona-change-check
             - kona-build-release
             - contracts-bedrock-build
           context:
@@ -4649,6 +4640,7 @@ workflows:
           name: kona-host-client-native
           target: native
           requires:
+            - kona-change-check
             - kona-build-release
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -4656,6 +4648,7 @@ workflows:
           name: kona-host-client-asterisc
           target: asterisc
           requires:
+            - kona-change-check
             - kona-build-release
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -4663,6 +4656,7 @@ workflows:
           name: kona-host-client-cannon
           target: cannon
           requires:
+            - kona-change-check
             - kona-build-release
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -4671,6 +4665,8 @@ workflows:
       - kona-docs-build:
           context:
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - kona-change-check
 
   # Kona scheduled workflows
   scheduled-kona-link-checker:
@@ -4709,7 +4705,6 @@ workflows:
     when:
       or:
         - equal: ["develop", <<pipeline.git.branch>>]
-        - equal: ["main", <<pipeline.git.branch>>]
     jobs:
       - kona-publish-prestate-artifacts:
           name: kona-publish-<<matrix.version>>
