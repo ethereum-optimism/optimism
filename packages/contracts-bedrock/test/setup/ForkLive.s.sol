@@ -7,6 +7,7 @@ import { StdAssertions } from "forge-std/StdAssertions.sol";
 // Testing
 import { stdToml } from "forge-std/StdToml.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
+import { PastUpgrades } from "test/setup/PastUpgrades.sol";
 
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
@@ -52,9 +53,6 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
     using LibString for string;
 
     bool public useOpsRepo;
-
-    /// @notice Thrown when testing with an unsupported chain ID.
-    error UnsupportedChainId();
 
     /// @notice Returns the base chain name to use for forking
     /// @return The base chain name as a string
@@ -343,14 +341,11 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
         address upgrader = proxyAdmin.owner();
         vm.label(upgrader, "ProxyAdmin Owner");
 
-        // Run past upgrades depending on network.
-        if (block.chainid == 1) {
-            // Mainnet
-            // U18
-            _doUpgrade(IOPContractsManager(0x50F47B43c24F40B92C873Fa0704D4207586D0C9f), upgrader);
-        } else {
-            revert UnsupportedChainId();
-        }
+        // Run past upgrades from the TOML config.
+        IDisputeGameFactory disputeGameFactoryForPastUpgrades =
+            IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        PastUpgrades.runPastUpgrades(upgrader, systemConfig, superchainConfig, disputeGameFactoryForPastUpgrades);
 
         // Current upgrade.
         if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {

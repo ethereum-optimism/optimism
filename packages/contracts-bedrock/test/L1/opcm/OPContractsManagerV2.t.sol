@@ -5,6 +5,7 @@ pragma solidity 0.8.15;
 import { VmSafe } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
+import { PastUpgrades } from "test/setup/PastUpgrades.sol";
 
 // Libraries
 import { Config } from "scripts/libraries/Config.sol";
@@ -222,9 +223,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
     /// @notice Buffer percentage (relative to EIP-7825 gas limit) allowed for upgrades.
     uint256 public constant UPGRADE_GAS_BUFFER_PERCENTAGE = 50; // 50%
 
-    /// @notice Thrown when trying to run past upgrades on an unsupported chain.
-    error UnsupportedChainId();
-
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
         super.disableUpgradedFork();
@@ -413,33 +411,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         );
     }
 
-    /// @notice Simple helper to run an OPCMv1 upgrade. This is useful for running past upgrades
-    ///         that were released as OPCMv1 releases before transitioning to OPCMv2.
-    /// @param _opcm The OPCMv1 contract to use for the upgrade.
-    /// @param _delegateCaller The address of the delegate caller to use for the upgrade.
-    function _runOpcmV1Upgrade(IOPContractsManager _opcm, address _delegateCaller) internal {
-        // Upgrade the SuperchainConfig first.
-        prankDelegateCall(superchainPAO);
-        (bool scSuccess,) =
-            address(_opcm).delegatecall(abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig)));
-        // Acceptable to fail if already up to date.
-        scSuccess;
-
-        // Build the OpChainConfig for the chain being upgraded.
-        IOPContractsManager.OpChainConfig[] memory opChainConfigs = new IOPContractsManager.OpChainConfig[](1);
-        opChainConfigs[0] = IOPContractsManager.OpChainConfig({
-            systemConfigProxy: v2UpgradeInput.systemConfig,
-            cannonPrestate: cannonPrestate,
-            cannonKonaPrestate: cannonKonaPrestate
-        });
-
-        // Execute the OPCMv1 chain upgrade.
-        prankDelegateCall(_delegateCaller);
-        (bool upgradeSuccess,) =
-            address(_opcm).delegatecall(abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
-        assertTrue(upgradeSuccess, "OPCMv1 upgrade failed");
-    }
-
     /// @notice Executes all past upgrades that have not yet been executed on mainnet as of the
     ///         current simulation block defined in the justfile for this package. This function
     ///         might be empty if there are no previous upgrades to execute. You should remove
@@ -447,13 +418,7 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
     ///         simulation block has been bumped beyond the execution block.
     /// @param _delegateCaller The address of the delegate caller to use for the upgrade.
     function runPastUpgrades(address _delegateCaller) internal {
-        // Run past upgrades depending on network.
-        if (block.chainid == 1) {
-            // Mainnet: U18 is an OPCMv1 release.
-            _runOpcmV1Upgrade(IOPContractsManager(address(0x50F47B43c24F40B92C873Fa0704D4207586D0C9f)), _delegateCaller);
-        } else {
-            revert UnsupportedChainId();
-        }
+        PastUpgrades.runPastUpgrades(_delegateCaller, v2UpgradeInput.systemConfig, superchainConfig, disputeGameFactory);
     }
 
     /// @notice Executes the current V2 upgrade and checks the results.

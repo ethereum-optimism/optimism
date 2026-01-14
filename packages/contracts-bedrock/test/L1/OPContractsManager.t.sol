@@ -14,6 +14,8 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
 import { DeployOPChain } from "scripts/deploy/DeployOPChain.s.sol";
+import { DisputeGames } from "test/setup/DisputeGames.sol";
+import { PastUpgrades } from "test/setup/PastUpgrades.sol";
 
 // Libraries
 import { Config } from "scripts/libraries/Config.sol";
@@ -61,7 +63,6 @@ import {
     OPContractsManagerInteropMigrator,
     OPContractsManagerStandardValidator
 } from "src/L1/OPContractsManager.sol";
-import { DisputeGames } from "../setup/DisputeGames.sol";
 import { IPermissionedDisputeGame } from "../../interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IProxy } from "../../interfaces/universal/IProxy.sol";
 import { IDelayedWETH } from "../../interfaces/dispute/IDelayedWETH.sol";
@@ -112,9 +113,6 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
 
     // The ImplementationSet event emitted by the DisputeGameFactory contract.
     event ImplementationSet(address indexed impl, GameType indexed gameType);
-
-    /// @notice Thrown when testing with an unsupported chain ID.
-    error UnsupportedChainId();
 
     struct PreUpgradeState {
         Claim cannonAbsolutePrestate;
@@ -418,15 +416,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
     ///         simulation block has been bumped beyond the execution block.
     /// @param _delegateCaller The address of the delegate caller to use for the upgrade.
     function runPastUpgrades(address _delegateCaller) internal {
-        // Run past upgrades depending on network.
-        if (block.chainid == 1) {
-            // Mainnet
-            _runOpcmUpgradeAndChecks(
-                IOPContractsManager(address(0x50F47B43c24F40B92C873Fa0704D4207586D0C9f)), _delegateCaller, bytes("")
-            );
-        } else {
-            revert UnsupportedChainId();
-        }
+        PastUpgrades.runPastUpgrades(_delegateCaller, systemConfig, superchainConfig, disputeGameFactory);
     }
 
     /// @notice Executes the current upgrade and checks the results.
