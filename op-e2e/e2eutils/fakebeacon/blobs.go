@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -83,7 +82,15 @@ func (f *FakeBeacon) Start(addr string) error {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		blobs, err := f.LoadBlobs(slot)
+
+		query := r.URL.Query()
+		versionedHashesFromQueryHex := query["versioned_hashes"]
+		versionedHashesFromQuery := make([]common.Hash, 0, len(versionedHashesFromQueryHex))
+		for _, h := range versionedHashesFromQueryHex {
+			versionedHashesFromQuery = append(versionedHashesFromQuery, common.HexToHash(h))
+		}
+
+		blobs, err := f.LoadBlobsByHash(slot, versionedHashesFromQuery)
 		if err != nil {
 			f.log.Error("failed to load blobs", "slot", slot, "err", err)
 			if errors.Is(err, ethereum.NotFound) {
@@ -92,22 +99,6 @@ func (f *FakeBeacon) Start(addr string) error {
 				w.WriteHeader(http.StatusInternalServerError)
 			}
 			return
-		}
-
-		query := r.URL.Query()
-		versionedHashes := make([]common.Hash, 0, len(blobs))
-		for _, raw := range query["versioned_hashes"] {
-			versionedHashes = append(versionedHashes, common.HexToHash(raw))
-		}
-		for _, blob := range blobs {
-			commitment, err := kzg4844.BlobToCommitment(blob.KZGBlob())
-			if err != nil {
-				f.log.Error("could not compute blob commitment", "err", err)
-			}
-			versionedHash := eth.KZGToVersionedHash(kzg4844.Commitment(commitment))
-			if len(versionedHashes) > 0 && !slices.Contains(versionedHashes, versionedHash) {
-				continue
-			}
 		}
 
 		if err := json.NewEncoder(w).Encode(&eth.APIBeaconBlobsResponse{Data: blobs}); err != nil {
@@ -158,7 +149,9 @@ func (f *FakeBeacon) StoreBlobsBundle(slot uint64, bundle *engine.BlobsBundle) e
 	return nil
 }
 
-func (f *FakeBeacon) LoadBlobs(slot uint64) ([]*eth.Blob, error) {
+// LoadBlobsByHash loads blobs by their hashes, returning a map of hashes to blobs.
+// If the supplied hashes list is empty, all blobs for the given slot are returned.
+func (f *FakeBeacon) LoadBlobsByHash(slot uint64, hashes []common.Hash) ([]*eth.Blob, error) {
 	f.blobsLock.Lock()
 	defer f.blobsLock.Unlock()
 
@@ -167,12 +160,7 @@ func (f *FakeBeacon) LoadBlobs(slot uint64) ([]*eth.Blob, error) {
 	// timestamp = slot * slot_time + genesis
 	slotTimestamp := slot*f.blockTime + f.genesisTime
 
-	// Load blobs from the store
-	// we wrap the slot timestamp in a l1 block ref to satisfy the getblobs API
-	ref := eth.L1BlockRef{
-		Time: slotTimestamp,
-	}
-	return f.blobStore.GetBlobs(context.Background(), ref, []eth.IndexedBlobHash{})
+	return f.blobStore.GetBlobsByHash(context.Background(), slotTimestamp, hashes)
 }
 
 func (f *FakeBeacon) Close() error {
