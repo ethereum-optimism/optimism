@@ -1,0 +1,60 @@
+[package]
+name = "kona-providers-alloy"
+version = "0.3.3"
+description = "Alloy Backed Providers"
+
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Kona
+kona-macros.workspace = true
+kona-genesis.workspace = true
+kona-protocol.workspace = true
+kona-derive.workspace = true
+
+# Alloy
+alloy-serde.workspace = true
+alloy-eips = { workspace = true, features = ["kzg"] }
+alloy-transport.workspace = true
+alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls", "jwt-auth"] }
+alloy-consensus.workspace = true
+alloy-rpc-types-beacon.workspace = true
+alloy-rpc-types-engine.workspace = true
+alloy-rpc-client.workspace = true
+alloy-provider = { workspace = true, features = ["ipc", "ws", "reqwest"] }
+alloy-primitives = { workspace = true, features = ["map"] }
+
+# Op Alloy
+op-alloy-consensus.workspace = true
+op-alloy-network.workspace = true
+
+# Misc
+lru.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+reqwest = { workspace = true, features = ["json"] }
+tower.workspace = true
+http-body-util.workspace = true
+
+c-kzg.workspace = true
+
+# `metrics` feature
+metrics = { workspace = true, optional = true }
+
+[features]
+default = []
+metrics = [ "dep:metrics", "kona-derive/metrics" ]
+
+[dev-dependencies]
+tokio.workspace = true

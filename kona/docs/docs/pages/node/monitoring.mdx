@@ -1,0 +1,40 @@
+# Monitoring
+
+The `kona-node` exposes metrics by default. Optionally, metrics
+can be disabled with the `--metrics.disabled` cli flag.
+
+Unless otherwise specified, metrics are exposed on port `9090`.
+
+To grab a snapshot of the metrics, you can visit `0.0.0.0:9090`
+or `curl` the url.
+
+```
+curl 0.0.0.0:9090
+```
+
+The output should be raw text mapping metrics with their values.
+
+Remember, this is just a snapshot of the metrics at that point
+in time. To record and visualize the metrics, we'll use
+[Grafana and Prometheus](#-Grafana-and-Prometheus).
+
+
+## Grafana and Prometheus
+
+Prometheus is a simple service that scrapes metrics at a predefined
+interval. Grafana then uses Prometheus as a "Data Source" to
+visualize the collected metrics.
+
+The Reth book provides a great overview to setting up [Prometheus
+and Grafana][setup]. Visit the Reth docs to follow along.
+
+The `kona-node` comes shipped with a default Grafana dashboard
+for the `kona-node`. To import the dashboard to grafana, click
+the `+` icon > `Import Dashboard` > paste the contents of [kona's
+dashboard][dashboard] in the textbox > `Load`.
+
+
+
+[setup]: https://reth.rs/run/monitoring#prometheus--grafana
+
+[dashboard]: https://github.com/op-rs/kona/blob/f86052b5dacec7da46b12441aafab2867069f7e7/docker/recipes/kona-node/grafana/dashboards/overview.json

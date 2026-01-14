@@ -1,0 +1,20 @@
+{
+  "arch": "mips64",
+  "cpu": "mips64",
+  "llvm-target": "mips64-unknown-none",
+  "data-layout": "E-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128",
+  "target-endian": "big",
+  "target-pointer-width": "64",
+  "target-c-int-width": 64,
+  "os": "none",
+  "llvm-abiname": "n64",
+  "features": "+soft-float,+mips64",
+  "max-atomic-width": 64,
+  "linker": "rust-lld",
+  "linker-flavor": "ld.lld",
+  "executables": true,
+  "panic-strategy": "abort",
+  "relocation-model": "static",
+  "emit-debug-gdb-scripts": false,
+  "singlethread": true
+}

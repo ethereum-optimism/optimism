@@ -1,0 +1,253 @@
+SOURCE := source_directory()
+CURRENT_DIR := `pwd`
+DEFAULT_DEVNET_PATH := source_directory() + "/devnets/simple-kona.yaml"
+DEFAULT_OP_PACKAGE_PATH := "github.com/ethpandaops/optimism-package@998796c0f3bb478d63d729e65f0b76e24112e00d"
+
+build-devnet BINARY:
+    #!/usr/bin/env bash
+    if [ {{BINARY}} != "node" ] && [ {{BINARY}} != "supervisor" ]; then
+        echo "Invalid binary specified. Must be either 'node' or 'supervisor'."
+        exit 1
+    fi
+
+    export BUILD_PROFILE="release"
+    cd {{SOURCE}}/../docker/apps && just build-local "kona-{{BINARY}}" "kona-{{BINARY}}:local"
+
+build-reth:
+  #!/bin/bash
+  cd {{SOURCE}}/reth && cargo build --bin op-reth -p op-reth
+
+build-kona:
+  #!/bin/bash
+  cd {{SOURCE}}/.. && cargo build --bin kona-node
+
+acceptance-tests CL_TYPE="kona" EL_TYPE="op-reth" GATE="jovian": 
+  #!/bin/bash
+  if [ "{{CL_TYPE}}" = "kona" ] ; then
+    echo "Building kona-node..."
+    just build-kona
+  fi
+
+  if [ "{{EL_TYPE}}" = "op-reth" ] ; then
+    echo "Building op-reth..."
+    just build-reth
+  fi
+
+  just acceptance-tests-run {{CL_TYPE}} {{EL_TYPE}} {{GATE}}
+
+# Run acceptance tests for the rust stack. By default runs the acceptance tests for kona-node with op-reth.
+# Uses the jovian gate by default.
+acceptance-tests-run CL_TYPE="kona" EL_TYPE="op-reth" GATE="jovian":
+  #!/bin/bash
+  if [ "{{CL_TYPE}}" = "kona" ] ; then
+    echo "Running acceptance tests for kona-node"
+    export KONA_NODE_EXEC_PATH="{{SOURCE}}/../target/debug/kona-node"
+  fi
+
+  if [ "{{EL_TYPE}}" = "op-reth" ] ; then
+    echo "Running acceptance tests for op-reth"
+    export OP_RETH_EXEC_PATH="{{SOURCE}}/reth/target/debug/op-reth"
+  fi
+
+  echo "Running acceptance tests for {{CL_TYPE}} with {{EL_TYPE}} on gate {{GATE}}..."
+
+  export DEVSTACK_L2CL_KIND="{{CL_TYPE}}"
+  export DEVSTACK_L2EL_KIND="{{EL_TYPE}}"
+  export LOG_LEVEL="debug"
+  cd {{SOURCE}}/optimism/op-acceptance-tests && just acceptance-test "" "{{GATE}}"
+
+# Run the e2e tests for the sysgo orchestrator.
+# Builds the kona-node and op-reth binaries, unzips the contract artifacts, and runs the tests.
+test-e2e-sysgo BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" FILTER="" :
+    #!/bin/bash
+    if [ "{{BINARY}}" = "node" ]; then
+      echo "Building kona-node..."
+      just build-kona
+      echo "Building op-reth..."
+      just build-reth
+    elif [ "{{BINARY}}" = "supervisor" ]; then
+      echo "Building supervisor..."
+      cd {{SOURCE}}/.. && just build-supervisor
+    fi
+
+    echo "Unzipping contract artifacts..."
+    just unzip-contract-artifacts
+
+    just test-e2e-sysgo-run {{BINARY}} {{GO_PKG_NAME}} {{DEVNET}} {{FILTER}}
+
+# Run the e2e tests for the sysgo orchestrator. Don't build the binaries or unzip the contract artifacts.
+test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" FILTER="" :
+    #!/bin/bash
+    echo "Running e2e tests for the sysgo orchestrator for binary {{BINARY}} with package name {{GO_PKG_NAME}} on devnet {{DEVNET}}..."
+
+    export OP_DEPLOYER_ARTIFACTS="{{SOURCE}}/artifacts/src/forge-artifacts"
+    export DISABLE_OP_E2E_LEGACY=true
+    export DEVSTACK_ORCHESTRATOR=sysgo
+    export GO_PKG_NAME="{{GO_PKG_NAME}}"
+
+    if [ "{{BINARY}}" = "node" ]; then
+        export KONA_NODE_EXEC_PATH="{{SOURCE}}/../target/debug/kona-node"
+        export OP_RETH_EXEC_PATH="{{SOURCE}}/reth/target/debug/op-reth"
+    elif [ "{{BINARY}}" = "supervisor" ]; then
+        export DEVSTACK_SUPERVISOR_KIND=kona
+        export KONA_SUPERVISOR_EXEC_PATH="{{SOURCE}}/../target/release/kona-supervisor"
+    else
+        echo "Invalid BINARY specified. Must be either 'node' or 'supervisor'."
+        exit 1
+    fi
+
+    if ! [ -z "{{FILTER}}" ]; then
+        export FILTER="-run {{FILTER}}"
+        echo "Running tests with filter {{FILTER}}..."
+    fi
+
+    if [ "{{DEVNET}}" = "simple-kona" ]; then
+        export KONA_SEQUENCER_WITH_RETH=0
+        export KONA_VALIDATOR_WITH_RETH=1
+        export KONA_SEQUENCER_WITH_GETH=0
+        export KONA_VALIDATOR_WITH_GETH=0
+
+        export OP_SEQUENCER_WITH_RETH=1
+        export OP_VALIDATOR_WITH_RETH=1
+        export OP_SEQUENCER_WITH_GETH=0
+        export OP_VALIDATOR_WITH_GETH=0
+    elif [ "{{DEVNET}}" = "simple-kona-geth" ]; then
+        export KONA_SEQUENCER_WITH_RETH=0
+        export KONA_VALIDATOR_WITH_RETH=0
+        export KONA_SEQUENCER_WITH_GETH=0
+        export KONA_VALIDATOR_WITH_GETH=1
+
+        export OP_SEQUENCER_WITH_RETH=0
+        export OP_VALIDATOR_WITH_RETH=0
+        export OP_SEQUENCER_WITH_GETH=1
+        export OP_VALIDATOR_WITH_GETH=1
+    elif [ "{{DEVNET}}" = "simple-kona-sequencer" ]; then
+        export KONA_SEQUENCER_WITH_RETH=1
+        export KONA_VALIDATOR_WITH_RETH=1
+        export KONA_SEQUENCER_WITH_GETH=0
+        export KONA_VALIDATOR_WITH_GETH=1
+
+        export OP_SEQUENCER_WITH_RETH=0
+        export OP_VALIDATOR_WITH_RETH=0
+        export OP_SEQUENCER_WITH_GETH=0
+        export OP_VALIDATOR_WITH_GETH=0
+    elif [ "{{DEVNET}}" = "large-kona-sequencer" ]; then
+        export KONA_SEQUENCER_WITH_RETH=1
+        export KONA_VALIDATOR_WITH_RETH=4
+        export KONA_SEQUENCER_WITH_GETH=0
+        export KONA_VALIDATOR_WITH_GETH=4
+
+        export OP_SEQUENCER_WITH_RETH=0
+        export OP_VALIDATOR_WITH_RETH=0
+        export OP_SEQUENCER_WITH_GETH=0
+        export OP_VALIDATOR_WITH_GETH=0
+    fi
+
+    # Run the test with count=1 to avoid caching the test results.
+    cd {{SOURCE}} && go test -count=1 -timeout 40m -v ./$GO_PKG_NAME $FILTER
+
+long-running-test FILTER="" OUTPUT_LOGS_DIR="":
+    #!/bin/bash
+    if ! [ -z "{{FILTER}}" ]; then
+        export FILTER="-run {{FILTER}}"
+    fi
+
+    export KONA_SEQUENCER_WITH_RETH=1
+    export KONA_VALIDATOR_WITH_RETH=4
+    export KONA_SEQUENCER_WITH_GETH=0
+    export KONA_VALIDATOR_WITH_GETH=4
+
+    export OP_SEQUENCER_WITH_RETH=0
+    export OP_VALIDATOR_WITH_RETH=0
+    export OP_SEQUENCER_WITH_GETH=0
+    export OP_VALIDATOR_WITH_GETH=0
+
+    export KONA_NODE_EXEC_PATH="{{SOURCE}}/../target/debug/kona-node"
+    export OP_RETH_EXEC_PATH="{{SOURCE}}/reth/target/debug/op-reth"
+    export DEVSTACK_ORCHESTRATOR=sysgo
+    echo "Building kona-node..."
+    just build-kona
+    echo "Building op-reth..."
+    just build-reth
+
+    export OP_TESTLOG_FILE_LOGGER_OUTDIR="{{OUTPUT_LOGS_DIR}}"
+    if [ -z "{{OUTPUT_LOGS_DIR}}" ]; then
+        export OP_TESTLOG_FILE_LOGGER_OUTDIR="{{CURRENT_DIR}}/kona-test-logs"
+    fi
+
+    mkdir -p $OP_TESTLOG_FILE_LOGGER_OUTDIR
+
+    export OP_DEPLOYER_ARTIFACTS="{{SOURCE}}/artifacts"
+    export DISABLE_OP_E2E_LEGACY=true
+
+    # Run the test with count=1 to avoid caching the test results.
+    cd {{SOURCE}} && go test -count=1 -timeout 0 -v ./node/long-running $FILTER
+
+# Run action tests for the single-chain client program on the native target
+action-tests-single test_name='Test_ProgramAction' *args='': action-tests-single-build (action-tests-single-run test_name args)
+
+# Build action tests for the single-chain client program on the native target
+action-tests-single-build:
+  #!/bin/bash
+  echo "Building contract artifacts for the optimism"
+  just unzip-contract-artifacts {{SOURCE}}/optimism/packages/contracts-bedrock
+
+  echo "Building host program for the native target"
+  just build-native --bin kona-host
+
+# Run action tests for the single-chain client program on the native target
+action-tests-single-run test_name='Test_ProgramAction' *args='':
+  #!/bin/bash
+  export KONA_HOST_PATH="{{SOURCE}}/../target/debug/kona-host"
+  # GitHub actions patch - do not print logs.
+  # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
+  echo "Running action tests for the client program on the native target"
+
+  cd {{SOURCE}}/optimism/op-e2e/actions/proofs && GITHUB_ACTIONS=false gotestsum --format=short-verbose -- -count=1 -timeout 60m -run "{{test_name}}" {{args}}
+
+# Run action tests for the interop client program on the native target
+action-tests-interop test_name='TestInteropFaultProofs' *args='':
+  #!/bin/bash
+  echo "Building contract artifacts for the optimism"
+  just unzip-contract-artifacts {{SOURCE}}/optimism/packages/contracts-bedrock
+
+  echo "Building host program for the native target"
+  just build-native --bin kona-host
+  export KONA_HOST_PATH="{{justfile_directory()}}/target/debug/kona-host"
+
+  # GitHub actions patch - do not print logs.
+  # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
+  echo "Running action tests for the client program on the native target"
+
+  cd {{SOURCE}}/optimism/op-e2e/actions/interop && GITHUB_ACTIONS=false gotestsum --format=testname -- -run "{{test_name}}" {{args}} -count=1 ./...
+
+action-tests-interop-build test_name='TestInteropFaultProofs' *args='':
+  #!/bin/bash
+  echo "Not implemented. See https://github.com/op-rs/kona/issues/3010"
+
+action-tests-interop-run test_name='TestInteropFaultProofs' *args='':
+  #!/bin/bash
+  echo "Not implemented.  See https://github.com/op-rs/kona/issues/3010"
+
+unzip-contract-artifacts DEST_DIR="":
+    #!/bin/bash
+
+    export DEST_DIR="{{DEST_DIR}}"
+    if [ -z "{{DEST_DIR}}" ]; then
+        export DEST_DIR="{{SOURCE}}/artifacts/src"
+    fi
+
+    mkdir -p $DEST_DIR
+
+    tar --zstd -xf {{SOURCE}}/artifacts/compressed/artifacts.tzst -C $DEST_DIR
+
+update-packages:
+    #!/bin/bash
+    cd {{SOURCE}}/optimism/op-deployer && just build-contracts copy-contract-artifacts
+    cp {{SOURCE}}/optimism/op-deployer/pkg/deployer/artifacts/forge-artifacts/artifacts.tzst {{SOURCE}}/artifacts/compressed/artifacts.tzst
+
+# Updates the pinned version of the optimism
+update-optimism:
+  #!/bin/bash
+  git submodule update --remote --force
+

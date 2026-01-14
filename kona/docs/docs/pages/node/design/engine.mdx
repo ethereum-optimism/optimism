@@ -1,0 +1,300 @@
+# Execution Engine
+
+The `kona-engine` crate provides a modular execution engine implementation for the OP Stack rollup node. It serves as the bridge between the rollup protocol and the execution layer (EL), managing Engine API interactions through a sophisticated task queue system.
+
+## Architecture Overview
+
+The execution engine is built around several key components:
+
+- **Engine Task Queue**: A priority-ordered queue that manages Engine API operations
+- **Trait Abstractions**: Extensible interfaces for tasks, errors, and state management  
+- **Engine Client**: HTTP client for communicating with the execution layer
+- **Actor Integration**: Service layer integration through the `EngineActor`
+
+## Core Trait Abstractions
+
+### EngineTaskExt
+
+The `EngineTaskExt` trait defines the interface for all engine tasks:
+
+```rust
+#[async_trait]
+pub trait EngineTaskExt {
+    type Output;
+    type Error: EngineTaskError;
+
+    async fn execute(&self, state: &mut EngineState) -> Result<Self::Output, Self::Error>;
+}
+```
+
+This trait enables:
+- **Atomic operations** over the `EngineState`
+- **Extensible task implementation** for custom operations
+- **Async execution** with proper error handling
+
+### EngineTaskError
+
+The `EngineTaskError` trait provides sophisticated error handling with severity levels:
+
+```rust
+pub trait EngineTaskError {
+    fn severity(&self) -> EngineTaskErrorSeverity;
+}
+
+pub enum EngineTaskErrorSeverity {
+    Temporary,  // Retry the task
+    Critical,   // Propagate to engine actor
+    Reset,      // Request derivation reset
+    Flush,      // Request derivation flush
+}
+```
+
+This allows tasks to signal different recovery strategies based on the error type.
+
+## Task Queue System
+
+The engine uses a priority-based task queue where tasks are ordered according to OP Stack synchronization requirements:
+
+### Task Priority (Highest to Lowest)
+
+1. **ForkchoiceUpdate** - Synchronizes forkchoice state
+2. **Build** - Builds new blocks (sequencer mode)
+3. **Insert** - Inserts unsafe blocks from gossip
+4. **Consolidate** - Advances safe chain via derivation
+5. **Finalize** - Finalizes L2 blocks
+
+### Task Types
+
+#### SynchronizeTask
+
+Updates the execution layer's forkchoice state:
+
+```rust
+pub struct SynchronizeTask {
+    pub client: Arc<EngineClient>,
+    pub rollup: Arc<RollupConfig>,
+    pub envelope: Option<OpAttributesWithParent>,
+    pub state_update: EngineSyncStateUpdate,
+}
+```
+
+Handles:
+- Forkchoice synchronization without payload attributes
+- Payload building initiation with attributes
+- EL sync status management
+
+#### BuildTask
+
+Builds new blocks in sequencer mode:
+
+```rust
+pub struct BuildTask {
+    pub engine: Arc<EngineClient>,
+    pub cfg: Arc<RollupConfig>,
+    pub attributes: OpAttributesWithParent,
+    pub is_attributes_derived: bool,
+    pub payload_tx: Option<mpsc::Sender<OpExecutionPayloadEnvelope>>,
+}
+```
+
+Handles:
+- Payload building with `engine_forkchoiceUpdated`
+- Payload retrieval with version-specific `engine_getPayload` calls
+- Payload insertion and canonicalization
+
+#### InsertTask
+
+Inserts unsafe blocks received from gossip:
+
+```rust
+pub struct InsertTask {
+    pub client: Arc<EngineClient>,
+    pub rollup: Arc<RollupConfig>,
+    pub envelope: OpExecutionPayloadEnvelope,
+}
+```
+
+#### ConsolidateTask
+
+Advances the safe chain through derivation:
+
+```rust
+pub struct ConsolidateTask {
+    pub client: Arc<EngineClient>,
+    pub rollup: Arc<RollupConfig>,
+    pub attributes: OpAttributesWithParent,
+}
+```
+
+#### FinalizeTask
+
+Finalizes L2 blocks:
+
+```rust
+pub struct FinalizeTask {
+    pub client: Arc<EngineClient>,
+    pub rollup: Arc<RollupConfig>,
+    pub l2_block: L2BlockInfo,
+}
+```
+
+## Engine State Management
+
+The `EngineState` tracks the current state of the execution engine:
+
+```rust
+pub struct EngineState {
+    pub current: L2BlockInfo,
+    pub finalized: L2BlockInfo,
+    pub safe: L2BlockInfo,
+    pub sync_state: EngineSyncState,
+    pub el_sync_finished: bool,
+    // ... additional fields
+}
+```
+
+State updates are communicated through watch channels, enabling reactive programming patterns across the system.
+
+## Integration with kona-node
+
+The `kona-node` service layer integrates the engine through the `EngineActor`:
+
+### Actor Pattern
+
+The `EngineActor` implements the `NodeActor` trait:
+
+```rust
+#[async_trait]
+pub trait NodeActor: Send + 'static {
+    type Error: std::fmt::Debug;
+    type OutboundData: CancellableContext;
+    type InboundData: Sized;
+    type Builder;
+
+    fn build(builder: Self::Builder) -> (Self::InboundData, Self);
+    async fn start(self, inbound_context: Self::OutboundData) -> Result<(), Self::Error>;
+}
+```
+
+### Communication Channels
+
+The `EngineActor` receives input through multiple channels:
+
+- **attributes_rx**: Payload attributes from derivation
+- **unsafe_block_rx**: Unsafe blocks from gossip
+- **reset_request_rx**: Reset requests
+- **inbound_queries**: Engine state queries
+- **runtime_config_rx**: Runtime configuration updates
+- **build_request_rx**: Block building requests (sequencer mode only)
+
+### Engine Queries
+
+The engine supports queries for:
+
+```rust
+pub enum EngineQueries {
+    Config(Sender<RollupConfig>),
+    State(Sender<EngineState>),
+    OutputAtBlock { block: BlockNumberOrTag, sender: Sender<(L2BlockInfo, OutputRoot, EngineState)> },
+    StateReceiver(Sender<tokio::sync::watch::Receiver<EngineState>>),
+}
+```
+
+## Usage Patterns
+
+### Basic Engine Setup
+
+```rust
+// Create engine client
+let client = EngineClient::new_http(
+    engine_url,
+    l2_rpc_url,
+    l1_rpc_url,
+    rollup_config,
+    jwt_secret,
+);
+
+// Initialize engine state
+let state = EngineState::default();
+let (state_sender, state_receiver) = watch::channel(state);
+
+// Create engine with task queue
+let engine = Engine::new(state, state_sender);
+```
+
+### Adding Tasks
+
+```rust
+// Add a forkchoice update task
+let task = EngineTask::ForkchoiceUpdate(SynchronizeTask::new(
+    client.clone(),
+    rollup_config.clone(),
+    state_update,
+    None, // No payload attributes
+));
+
+engine.add_task(task);
+```
+
+### Draining the Queue
+
+```rust
+// Process all pending tasks
+match engine.drain().await {
+    Ok(()) => info!("Tasks completed successfully"),
+    Err(e) => match e.severity() {
+        EngineTaskErrorSeverity::Reset => {
+            // Request derivation reset
+        },
+        EngineTaskErrorSeverity::Critical => {
+            // Handle critical error
+        },
+        _ => {
+            // Handle other error types
+        }
+    }
+}
+```
+
+## Error Handling and Recovery
+
+The engine provides robust error handling through:
+
+### Severity-Based Recovery
+
+- **Temporary errors**: Automatically retried
+- **Critical errors**: Propagated to the actor
+- **Reset errors**: Trigger derivation pipeline reset
+- **Flush errors**: Trigger derivation pipeline flush
+
+### State Consistency
+
+Tasks operate atomically on the `EngineState`, ensuring consistency even during error conditions.
+
+## Version Support
+
+The engine automatically selects appropriate Engine API versions based on hardfork activation:
+
+- **Pre-Ecotone**: Uses `engine_newPayloadV2` and `engine_getPayloadV2`
+- **Post-Ecotone**: Uses `engine_newPayloadV3` and `engine_getPayloadV3`  
+- **Post-Isthmus**: Uses `engine_newPayloadV4` and `engine_getPayloadV4`
+
+## Metrics and Observability
+
+When the `metrics` feature is enabled, the engine provides comprehensive metrics for:
+
+- Task execution times
+- Error rates by task type
+- Engine state transitions
+- API call latencies
+
+## Extensibility
+
+The trait-based architecture allows for:
+
+- **Custom task implementations** via `EngineTaskExt`
+- **Custom error handling** via `EngineTaskError`
+- **Custom state management** extensions
+- **Testing and mocking** support
+
+This modular design ensures the engine can adapt to future OP Stack protocol changes while maintaining backward compatibility.

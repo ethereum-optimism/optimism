@@ -1,0 +1,70 @@
+[package]
+name = "kona-engine"
+description = "An implementation of the OP Stack engine client"
+version = "0.1.2"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# workspace
+kona-genesis.workspace = true
+kona-macros.workspace = true
+kona-protocol = {workspace = true, features = ["serde", "std"]}
+
+# alloy
+alloy-eips.workspace = true
+alloy-consensus.workspace = true
+alloy-json-rpc.workspace = true
+alloy-network.workspace = true
+alloy-transport.workspace = true
+alloy-primitives.workspace = true
+alloy-provider = { workspace = true, features = ["ipc", "reqwest", "reqwest-rustls-tls", "engine-api"] }
+alloy-rpc-client.workspace = true
+alloy-rpc-types-eth.workspace = true
+alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
+alloy-transport-http = { workspace = true, features = ["reqwest", "hyper", "jwt-auth"] }
+
+# op-alloy
+op-alloy-network.workspace = true
+op-alloy-consensus.workspace = true
+op-alloy-provider.workspace = true
+op-alloy-rpc-types.workspace = true
+op-alloy-rpc-types-engine.workspace = true
+
+# general
+serde.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+async-trait.workspace = true
+thiserror.workspace = true
+url.workspace = true
+tower.workspace = true
+http-body-util.workspace = true
+derive_more = { workspace = true, features = ["display", "deref", "from_str", "constructor"] }
+serde_json.workspace = true
+jsonrpsee-types.workspace = true
+
+# metrics
+metrics = { workspace = true, optional = true }
+
+# rollup boost
+rollup-boost.workspace = true
+http.workspace = true
+
+[dev-dependencies]
+kona-registry.workspace = true
+rand = {workspace = true, features = ["thread_rng"]}
+arbitrary.workspace = true
+op-alloy-rpc-types = {workspace = true, features = ["arbitrary", "k256"]}
+metrics-exporter-prometheus.workspace = true
+rstest.workspace = true
+
+[features]
+metrics = [ "dep:metrics" ]
+test-utils = []

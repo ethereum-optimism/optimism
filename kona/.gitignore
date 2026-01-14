@@ -1,0 +1,46 @@
+# MacOS dust
+.DS_Store
+
+# Rust target
+target/
+
+# Ignore VSCode Configuration
+.vscode/
+
+# Monorepo workspace
+monorepo/
+
+# Release artifacts
+dist/
+
+# vocs node_modules
+docs/node_modules
+
+# `optimism-package` workspace
+optimism-package/
+
+# Environment Variables
+.env
+
+# kona-host data-dir
+data/
+
+# Ignore jwt hex tokens
+jwt.hex
+
+# FPVM artifacts
+state.bin.gz
+meta.json
+out.json
+
+# Prestate artifacts
+prestate-artifacts-*
+
+# IDE specific
+.idea
+
+# rustc bug report
+rustc-ice-*
+
+# logfiles
+*.log
