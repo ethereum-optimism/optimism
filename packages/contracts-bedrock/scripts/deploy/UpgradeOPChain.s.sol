@@ -121,3 +121,23 @@ contract UpgradeOPChain is Script {
         require(success, "UpgradeOPChain: upgrade failed");
     }
 }
+
+/// @title DummyCallerGeneric
+/// @notice Generic delegatecall forwarder that works with any function signature.
+/// Reads target address from storage slot 0, forwards calldata via delegatecall,
+/// reverts on failure, returns on success. Used for broadcasting upgrades to forked networks.
+contract DummyCallerGeneric {
+    address internal _opcmAddr;
+
+    fallback() external {
+        address target = _opcmAddr;
+        assembly {
+            calldatacopy(0, 0, calldatasize())
+            let result := delegatecall(gas(), target, 0, calldatasize(), 0, 0)
+            returndatacopy(0, 0, returndatasize())
+            switch result
+            case 0 { revert(0, returndatasize()) }
+            default { return(0, returndatasize()) }
+        }
+    }
+}

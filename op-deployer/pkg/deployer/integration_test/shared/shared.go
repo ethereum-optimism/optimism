@@ -26,9 +26,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
@@ -153,35 +157,25 @@ type PastUpgradeExtraInstruction struct {
 	Data []byte
 }
 
-// PastDisputeGameConfig represents a parsed dispute game config for V2 upgrades
+// PastDisputeGameConfig represents a dispute game config for V2 upgrades.
 type PastDisputeGameConfig struct {
-	GameType   string         // "CANNON", "PERMISSIONED_CANNON", "CANNON_KONA", etc.
-	Enabled    bool           // whether this game type is enabled
-	Prestate   common.Hash    // prestate hash for this game type
-	InitBond   *big.Int       // initial bond in wei (nil means use factory default)
-	Proposer   common.Address // proposer address (only for PERMISSIONED game types)
-	Challenger common.Address // challenger address (only for PERMISSIONED game types)
+	GameType   string
+	Enabled    bool
+	Prestate   common.Hash
+	InitBond   *big.Int
+	Proposer   common.Address // PERMISSIONED only
+	Challenger common.Address // PERMISSIONED only
 }
 
-// PastUpgradeConfig defines configuration for a past upgrade that needs to be executed
-// when forking a network at a block before that upgrade was executed.
+// PastUpgradeConfig defines configuration for a past upgrade.
 type PastUpgradeConfig struct {
-	// Name is a human-readable name for the upgrade (for logging)
-	Name string
-	// OpcmVersion is 1 or 2, determining which OPCM interface to use
-	OpcmVersion int
-	// OpcmAddresses maps chain IDs to the OPCM address used for this upgrade
-	OpcmAddresses map[uint64]common.Address
-	// V1-only fields
-	// CannonPrestate is the prestate for cannon (V1 only)
-	CannonPrestate common.Hash
-	// CannonKonaPrestate is the prestate for cannon-kona (V1 only)
-	CannonKonaPrestate common.Hash
-	// V2-only fields
-	// DisputeGameConfigs are the dispute game configurations (V2 only)
-	DisputeGameConfigs []PastDisputeGameConfig
-	// ExtraInstructions are additional config instructions (V2 only)
-	ExtraInstructions []PastUpgradeExtraInstruction
+	Name               string
+	OpcmVersion        int // 1 or 2
+	OpcmAddresses      map[uint64]common.Address
+	CannonPrestate     common.Hash                   // V1 only
+	CannonKonaPrestate common.Hash                   // V1 only
+	DisputeGameConfigs []PastDisputeGameConfig       // V2 only
+	ExtraInstructions  []PastUpgradeExtraInstruction // V2 only
 }
 
 var (
@@ -286,113 +280,104 @@ func loadPastUpgrades() ([]PastUpgradeConfig, error) {
 	return pastUpgrades, pastUpgradesErr
 }
 
-// GetPastUpgrades returns the list of past upgrades loaded from the YAML file.
-// This is the list of past upgrades that need to be executed in order.
-// Add new upgrades to packages/contracts-bedrock/past_upgrades.yaml
+// GetPastUpgrades returns the list of past upgrades loaded from past_upgrades.toml.
 func GetPastUpgrades(t *testing.T) []PastUpgradeConfig {
 	upgrades, err := loadPastUpgrades()
-	require.NoError(t, err, "Failed to load past upgrades from packages/contracts-bedrock/past_upgrades.yaml")
+	require.NoError(t, err, "Failed to load past upgrades")
 	return upgrades
 }
 
-// RunPastUpgrades executes all past OPCM upgrades that have not yet been executed on the forked network.
-// This is necessary when forking a network at a block before certain upgrades were executed.
+// RunPastUpgrades executes all past OPCM upgrades in-memory only (no broadcast).
 func RunPastUpgrades(t *testing.T, host *script.Host, chainID uint64, prank common.Address, systemConfigProxy common.Address) {
 	t.Helper()
-
-	upgrades := GetPastUpgrades(t)
-	for _, upgrade := range upgrades {
-		opcmAddr, ok := upgrade.OpcmAddresses[chainID]
-		if !ok {
-			t.Logf("No %s OPCM address configured for chain %d, skipping", upgrade.Name, chainID)
-			continue
-		}
-
-		var upgradeConfig embedded.UpgradeOPChainInput
-		switch upgrade.OpcmVersion {
-		case 1:
-			upgradeConfig = embedded.UpgradeOPChainInput{
-				Prank: prank,
-				Opcm:  opcmAddr,
-				ChainConfigs: []embedded.OPChainConfig{
-					{
-						SystemConfigProxy:  systemConfigProxy,
-						CannonPrestate:     upgrade.CannonPrestate,
-						CannonKonaPrestate: upgrade.CannonKonaPrestate,
-					},
-				},
-			}
-		case 2:
-			upgradeConfig = buildV2UpgradeConfig(t, prank, opcmAddr, systemConfigProxy, upgrade)
-		default:
-			t.Logf("Unknown OPCM version %d for %s upgrade, skipping", upgrade.OpcmVersion, upgrade.Name)
-			continue
-		}
-
-		upgradeConfigBytes, err := json.Marshal(upgradeConfig)
-		require.NoError(t, err, "Failed to marshal %s upgrade config", upgrade.Name)
-
-		err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
-		if err != nil {
-			// It's acceptable for this to fail if the upgrade was already executed
-			t.Logf("%s upgrade may have already been executed or failed: %v", upgrade.Name, err)
-		} else {
-			t.Logf("Successfully executed %s upgrade using OPCM v%d at %s", upgrade.Name, upgrade.OpcmVersion, opcmAddr.Hex())
-		}
+	for _, upgrade := range GetPastUpgrades(t) {
+		runSingleUpgrade(t, host, chainID, prank, systemConfigProxy, upgrade)
 	}
 }
 
-// buildV2UpgradeConfig builds an UpgradeOPChainInput for OPCM v2 upgrades
+// runSingleUpgrade executes a single upgrade on the given host.
+func runSingleUpgrade(t *testing.T, host *script.Host, chainID uint64, prank, systemConfigProxy common.Address, upgrade PastUpgradeConfig) bool {
+	t.Helper()
+
+	opcmAddr, ok := upgrade.OpcmAddresses[chainID]
+	if !ok {
+		return false
+	}
+
+	upgradeConfig := buildUpgradeConfig(t, prank, opcmAddr, systemConfigProxy, upgrade)
+	if upgradeConfig == nil {
+		return false
+	}
+
+	upgradeConfigBytes, err := json.Marshal(upgradeConfig)
+	require.NoError(t, err)
+
+	err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
+	if err != nil {
+		t.Logf("%s upgrade failed (may already be applied): %v", upgrade.Name, err)
+		return false
+	}
+	t.Logf("Successfully executed %s upgrade", upgrade.Name)
+	return true
+}
+
+// buildUpgradeConfig builds the upgrade config for the given upgrade.
+func buildUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy common.Address, upgrade PastUpgradeConfig) *embedded.UpgradeOPChainInput {
+	t.Helper()
+
+	switch upgrade.OpcmVersion {
+	case 1:
+		return &embedded.UpgradeOPChainInput{
+			Prank: prank,
+			Opcm:  opcmAddr,
+			ChainConfigs: []embedded.OPChainConfig{{
+				SystemConfigProxy:  systemConfigProxy,
+				CannonPrestate:     upgrade.CannonPrestate,
+				CannonKonaPrestate: upgrade.CannonKonaPrestate,
+			}},
+		}
+	case 2:
+		cfg := buildV2UpgradeConfig(t, prank, opcmAddr, systemConfigProxy, upgrade)
+		return &cfg
+	default:
+		return nil
+	}
+}
+
 func buildV2UpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy common.Address, upgrade PastUpgradeConfig) embedded.UpgradeOPChainInput {
 	t.Helper()
 
-	bytes32Type := deployer.Bytes32Type
-	addressType := deployer.AddressType
-
-	// Build dispute game configs from parsed TOML config
 	var disputeGameConfigs []embedded.DisputeGameConfig
 	for _, dgc := range upgrade.DisputeGameConfigs {
 		var gameArgs []byte
 		var err error
 
-		// Encode gameArgs based on game type
 		if dgc.GameType == "PERMISSIONED_CANNON" || dgc.GameType == "SUPER_PERMISSIONED_CANNON" {
-			// Permissioned games: prestate + proposer + challenger
 			gameArgs, err = abi.Arguments{
-				abi.Argument{Type: bytes32Type},
-				abi.Argument{Type: addressType},
-				abi.Argument{Type: addressType},
+				{Type: deployer.Bytes32Type},
+				{Type: deployer.AddressType},
+				{Type: deployer.AddressType},
 			}.Pack(dgc.Prestate, dgc.Proposer, dgc.Challenger)
-			require.NoError(t, err, "Failed to encode %s args for %s", dgc.GameType, upgrade.Name)
 		} else {
-			// Non-permissioned games: just the prestate hash
-			gameArgs, err = abi.Arguments{abi.Argument{Type: bytes32Type}}.Pack(dgc.Prestate)
-			require.NoError(t, err, "Failed to encode %s args for %s", dgc.GameType, upgrade.Name)
+			gameArgs, err = abi.Arguments{{Type: deployer.Bytes32Type}}.Pack(dgc.Prestate)
 		}
-
-		// Convert game type string to embedded.GameType
-		gameType := stringToGameType(dgc.GameType)
+		require.NoError(t, err)
 
 		disputeGameConfigs = append(disputeGameConfigs, embedded.DisputeGameConfig{
 			Enabled:  dgc.Enabled,
 			InitBond: dgc.InitBond,
-			GameType: gameType,
+			GameType: stringToGameType(dgc.GameType),
 			GameArgs: gameArgs,
 		})
 	}
 
-	// Sort by game type (ascending numerical order, required by OPCM)
 	sort.Slice(disputeGameConfigs, func(i, j int) bool {
 		return disputeGameConfigs[i].GameType < disputeGameConfigs[j].GameType
 	})
 
-	// Build extra instructions
 	var extraInstructions []embedded.ExtraInstruction
 	for _, instr := range upgrade.ExtraInstructions {
-		extraInstructions = append(extraInstructions, embedded.ExtraInstruction{
-			Key:  instr.Key,
-			Data: instr.Data,
-		})
+		extraInstructions = append(extraInstructions, embedded.ExtraInstruction{Key: instr.Key, Data: instr.Data})
 	}
 
 	return embedded.UpgradeOPChainInput{
@@ -426,26 +411,214 @@ func stringToGameType(gameType string) embedded.GameType {
 	}
 }
 
-// RunPastUpgradesWithRPC is a convenience function that creates a script host and runs past upgrades.
-// Use this when you don't already have a script host available.
+// RunPastUpgradesWithRPC runs past upgrades and broadcasts them using Anvil impersonation.
 func RunPastUpgradesWithRPC(t *testing.T, l1RPCUrl string, afactsFS foundry.StatDirFs, lgr log.Logger, chainID uint64, prank common.Address, systemConfigProxy common.Address) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
 	rpcClient, err := rpc.Dial(l1RPCUrl)
 	require.NoError(t, err)
 
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
-		broadcaster.NoopBroadcaster(),
-		lgr,
-		prank,
-		afactsFS,
-		rpcClient,
-	)
+	ethClient := ethclient.NewClient(rpcClient)
+
+	err = rpcClient.Call(nil, "anvil_impersonateAccount", prank)
+	require.NoError(t, err)
+	defer func() { _ = rpcClient.Call(nil, "anvil_stopImpersonatingAccount", prank) }()
+
+	// Fund prank address for gas
+	err = rpcClient.Call(nil, "anvil_setBalance", prank, "0x56bc75e2d63100000") // 100 ETH
 	require.NoError(t, err)
 
-	RunPastUpgrades(t, host, chainID, prank, systemConfigProxy)
+	networkChainID, err := ethClient.ChainID(ctx)
+	require.NoError(t, err)
+
+	// Process each upgrade: deploy DummyCaller with correct OPCM, run upgrade, broadcast
+	for _, upgrade := range GetPastUpgrades(t) {
+		opcmAddr, ok := upgrade.OpcmAddresses[chainID]
+		if !ok {
+			continue
+		}
+
+		// Deploy DummyCallerGeneric with this upgrade's OPCM address
+		deployDummyCaller(t, rpcClient, afactsFS, prank, opcmAddr)
+
+		// Create fresh broadcaster and host for this upgrade
+		bcaster := NewImpersonationBroadcaster(lgr, ethClient, rpcClient, prank, networkChainID)
+		host, err := env.DefaultForkedScriptHost(ctx, bcaster, lgr, prank, afactsFS, rpcClient)
+		require.NoError(t, err)
+
+		// Run the upgrade
+		if !runSingleUpgrade(t, host, chainID, prank, systemConfigProxy, upgrade) {
+			continue
+		}
+
+		// Broadcast this upgrade's transactions
+		if _, err = bcaster.Broadcast(ctx); err != nil {
+			t.Logf("Warning: %s broadcast failed: %v", upgrade.Name, err)
+		} else {
+			t.Logf("Successfully broadcast %s upgrade", upgrade.Name)
+		}
+	}
+}
+
+// deployDummyCaller deploys DummyCallerGeneric at the prank address with the given OPCM address.
+func deployDummyCaller(t *testing.T, rpcClient *rpc.Client, afactsFS foundry.StatDirFs, prank, opcmAddr common.Address) {
+	t.Helper()
+
+	artifacts := &foundry.ArtifactsFS{FS: afactsFS}
+	artifact, err := artifacts.ReadArtifact("UpgradeOPChain.s.sol", "DummyCallerGeneric")
+	require.NoError(t, err, "failed to read DummyCallerGeneric artifact")
+
+	err = rpcClient.Call(nil, "anvil_setCode", prank, hexutil.Encode(artifact.DeployedBytecode.Object))
+	require.NoError(t, err, "failed to deploy DummyCallerGeneric")
+
+	err = rpcClient.Call(nil, "anvil_setStorageAt", prank, common.Hash{}, common.BytesToHash(opcmAddr.Bytes()))
+	require.NoError(t, err, "failed to set OPCM address in storage")
+}
+
+// ImpersonationBroadcaster broadcasts transactions using Anvil impersonation.
+type ImpersonationBroadcaster struct {
+	lgr       log.Logger
+	client    *ethclient.Client
+	rpcClient *rpc.Client
+	from      common.Address
+	chainID   *big.Int
+	bcasts    []script.Broadcast
+	mtx       sync.Mutex
+}
+
+func NewImpersonationBroadcaster(lgr log.Logger, client *ethclient.Client, rpcClient *rpc.Client, from common.Address, chainID *big.Int) *ImpersonationBroadcaster {
+	return &ImpersonationBroadcaster{
+		lgr:       lgr,
+		client:    client,
+		rpcClient: rpcClient,
+		from:      from,
+		chainID:   chainID,
+	}
+}
+
+func (b *ImpersonationBroadcaster) Hook(bcast script.Broadcast) {
+	b.mtx.Lock()
+	b.bcasts = append(b.bcasts, bcast)
+	b.mtx.Unlock()
+}
+
+func (b *ImpersonationBroadcaster) Broadcast(ctx context.Context) ([]broadcaster.BroadcastResult, error) {
+	b.mtx.Lock()
+	bcasts := b.bcasts
+	b.bcasts = nil
+	b.mtx.Unlock()
+
+	if len(bcasts) == 0 {
+		return nil, nil
+	}
+
+	results := make([]broadcaster.BroadcastResult, len(bcasts))
+	for i, bcast := range bcasts {
+		result := broadcaster.BroadcastResult{Broadcast: bcast}
+
+		var to *common.Address
+		if bcast.Type == script.BroadcastCall {
+			to = &bcast.To
+		}
+
+		nonce, err := b.client.PendingNonceAt(ctx, b.from)
+		if err != nil {
+			result.Err = fmt.Errorf("failed to get nonce: %w", err)
+			results[i] = result
+			continue
+		}
+
+		gasPrice, err := b.client.SuggestGasPrice(ctx)
+		if err != nil {
+			result.Err = fmt.Errorf("failed to get gas price: %w", err)
+			results[i] = result
+			continue
+		}
+
+		value := ((*uint256.Int)(bcast.Value)).ToBig()
+
+		// Estimate gas
+		msg := ethereum.CallMsg{
+			From:     b.from,
+			To:       to,
+			GasPrice: gasPrice,
+			Value:    value,
+			Data:     bcast.Input,
+		}
+		gasLimit, err := b.client.EstimateGas(ctx, msg)
+		if err != nil {
+			result.Err = fmt.Errorf("failed to estimate gas: %w", err)
+			results[i] = result
+			continue
+		}
+
+		gasLimit = gasLimit * 120 / 100 // buffer
+
+		var txHash common.Hash
+		err = b.rpcClient.CallContext(ctx, &txHash, "eth_sendTransaction", map[string]interface{}{
+			"from":     b.from,
+			"to":       to,
+			"gas":      fmt.Sprintf("0x%x", gasLimit),
+			"gasPrice": fmt.Sprintf("0x%x", gasPrice),
+			"value":    fmt.Sprintf("0x%x", value),
+			"data":     hexutil.Encode(bcast.Input),
+			"nonce":    fmt.Sprintf("0x%x", nonce),
+		})
+		if err != nil {
+			result.Err = fmt.Errorf("failed to send transaction: %w", err)
+			results[i] = result
+			continue
+		}
+
+		result.TxHash = txHash
+		b.lgr.Info("transaction sent via impersonation", "hash", txHash.Hex(), "from", b.from.Hex(), "nonce", nonce)
+
+		receipt, err := b.waitForReceipt(ctx, txHash)
+		if err != nil {
+			result.Err = fmt.Errorf("failed to wait for receipt: %w", err)
+			results[i] = result
+			continue
+		}
+
+		result.Receipt = receipt
+		if receipt.Status == 0 {
+			result.Err = fmt.Errorf("transaction failed: %s", txHash.Hex())
+			b.lgr.Error("transaction failed on chain", "hash", txHash.Hex())
+		} else {
+			b.lgr.Info("transaction confirmed", "hash", txHash.Hex(), "gasUsed", receipt.GasUsed)
+		}
+
+		results[i] = result
+	}
+
+	var errCount int
+	for _, r := range results {
+		if r.Err != nil {
+			errCount++
+		}
+	}
+	if errCount > 0 {
+		return results, fmt.Errorf("%d transactions failed", errCount)
+	}
+	return results, nil
+}
+
+func (b *ImpersonationBroadcaster) waitForReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
+	for {
+		receipt, err := b.client.TransactionReceipt(ctx, txHash)
+		if err == nil {
+			return receipt, nil
+		}
+		if err != ethereum.NotFound {
+			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
 }
