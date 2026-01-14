@@ -32,12 +32,15 @@
 [submodule "packages/contracts-bedrock/lib/superchain-registry"]
 	path = packages/contracts-bedrock/lib/superchain-registry
 	url = https://github.com/ethereum-optimism/superchain-registry
+[submodule "kona/crates/protocol/registry/superchain-registry"]
+	path = kona/crates/protocol/registry/superchain-registry
+	url = https://github.com/ethereum-optimism/superchain-registry.git
+[submodule "reth"]
+	path = reth
+	url = https://github.com/paradigmxyz/reth
 [submodule "op-rbuilder"]
 	path = op-rbuilder
 	url = https://github.com/flashbots/op-rbuilder
 [submodule "rollup-boost"]
 	path = rollup-boost
 	url = https://github.com/flashbots/rollup-boost
-[submodule "kona"]
-	path = kona
-	url = https://github.com/op-rs/kona
