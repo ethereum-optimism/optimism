@@ -54,11 +54,13 @@ var (
 	methodL2BlockNumberChallenger = "l2BlockNumberChallenger"
 	methodChallengeRootL2Block    = "challengeRootL2Block"
 	methodBondDistributionMode    = "bondDistributionMode"
+	methodCloseGame               = "closeGame"
 )
 
 var (
 	ErrSimulationFailed             = errors.New("tx simulation failed")
 	ErrChallengeL2BlockNotSupported = errors.New("contract version does not support challenging L2 block number")
+	ErrCloseGameNotSupported        = errors.New("contract version does not support closeGame")
 )
 
 type FaultDisputeGameContractLatest struct {
@@ -528,6 +530,16 @@ func (f *FaultDisputeGameContractLatest) GetBondDistributionMode(ctx context.Con
 	return types.BondDistributionMode(result.GetUint8(0)), nil
 }
 
+func (f *FaultDisputeGameContractLatest) CloseGameTx(ctx context.Context) (txmgr.TxCandidate, error) {
+	defer f.metrics.StartContractRequest("CloseGame")()
+	call := f.contract.Call(methodCloseGame)
+	_, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, call)
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("%w: %w", ErrSimulationFailed, err)
+	}
+	return call.ToTxCandidate()
+}
+
 func (f *FaultDisputeGameContractLatest) IsResolved(ctx context.Context, block rpcblock.Block, claims ...types.Claim) ([]bool, error) {
 	defer f.metrics.StartContractRequest("IsResolved")()
 	calls := make([]batching.Call, 0, len(claims))
@@ -706,4 +718,5 @@ type FaultDisputeGameContract interface {
 	ResolveClaimTx(claimIdx uint64) (txmgr.TxCandidate, error)
 	Vm(ctx context.Context) (*VMContract, error)
 	GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (types.BondDistributionMode, error)
+	CloseGameTx(ctx context.Context) (txmgr.TxCandidate, error)
 }

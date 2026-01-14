@@ -7,7 +7,9 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -24,6 +26,8 @@ type BondClaimMetrics interface {
 type BondContract interface {
 	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, types.GameStatus, error)
 	ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error)
+	GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (faultTypes.BondDistributionMode, error)
+	CloseGameTx(ctx context.Context) (txmgr.TxCandidate, error)
 }
 
 type BondContractCreator func(game types.GameMetadata) (BondContract, error)
@@ -76,7 +80,7 @@ func (c *Claimer) claimBond(ctx context.Context, game types.GameMetadata, addr c
 	}
 	if credit.Cmp(big.NewInt(0)) == 0 {
 		c.logger.Debug("No credit to claim", "game", game.Proxy, "addr", addr)
-		return nil
+		return c.closeGame(ctx, contract, game)
 	}
 
 	candidate, err := contract.ClaimCreditTx(ctx, addr)
@@ -92,5 +96,34 @@ func (c *Claimer) claimBond(ctx context.Context, game types.GameMetadata, addr c
 	}
 
 	c.metrics.RecordBondClaimed(credit.Uint64())
+	return nil
+}
+
+func (c *Claimer) closeGame(ctx context.Context, contract BondContract, game types.GameMetadata) error {
+	bondMode, err := contract.GetBondDistributionMode(ctx, rpcblock.Latest)
+	if err != nil {
+		return fmt.Errorf("failed to get bond distribution mode: %w", err)
+	}
+	if bondMode != faultTypes.UndecidedDistributionMode {
+		c.logger.Debug("Game already closed", "game", game.Proxy, "bondMode", bondMode)
+		return nil
+	}
+
+	candidate, err := contract.CloseGameTx(ctx)
+	if errors.Is(err, contracts.ErrSimulationFailed) {
+		c.logger.Debug("Game not ready to close", "game", game.Proxy)
+		return nil
+	} else if errors.Is(err, contracts.ErrCloseGameNotSupported) {
+		c.logger.Debug("Contract version does not support closeGame", "game", game.Proxy)
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("failed to create close game tx: %w", err)
+	}
+
+	c.logger.Info("Closing game to update anchor state", "game", game.Proxy)
+	if err = c.txSender.SendAndWaitSimple("close game", candidate); err != nil {
+		return fmt.Errorf("failed to close game: %w", err)
+	}
+
 	return nil
 }
