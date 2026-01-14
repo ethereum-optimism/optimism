@@ -18,6 +18,7 @@ type Implementations struct {
 	OpcmInteropMigrator              common.Address `json:"OPCMInteropMigrator"`
 	OpcmStandardValidator            common.Address `json:"OPCMStandardValidator"`
 	OpcmUtils                        common.Address `json:"OPCMUtils"`
+	OpcmMigrator                     common.Address `json:"OPCMMigrator"`
 	OpcmV2                           common.Address `json:"OPCMV2"`
 	OpcmContainer                    common.Address `json:"OPCMContainer"`
 	DelayedWETHImpl                  common.Address `json:"DelayedWETHImpl"`

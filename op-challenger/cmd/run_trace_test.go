@@ -18,7 +18,7 @@ func TestParseRunArg(t *testing.T) {
 	}{
 		{arg: "unknown/test1/0x1234", err: gameTypes.ErrUnknownGameType},
 		{arg: "cannon", expected: runner.RunConfig{GameType: gameTypes.CannonGameType, Name: gameTypes.CannonGameType.String()}},
-		{arg: "asterisc", expected: runner.RunConfig{GameType: gameTypes.AsteriscGameType, Name: gameTypes.AsteriscGameType.String()}},
+		{arg: "cannon-kona", expected: runner.RunConfig{GameType: gameTypes.CannonKonaGameType, Name: gameTypes.CannonKonaGameType.String()}},
 		{arg: "cannon/test1", expected: runner.RunConfig{GameType: gameTypes.CannonGameType, Name: "test1"}},
 		{arg: "cannon/test1/0x1234", expected: runner.RunConfig{GameType: gameTypes.CannonGameType, Name: "test1", Prestate: common.HexToHash("0x1234")}},
 		{arg: "cannon/test1/0xinvalid", err: ErrInvalidPrestateHash},

@@ -159,6 +159,8 @@ type chainContext struct {
 	config *params.ChainConfig
 }
 
+var _ core.ChainContext = (*chainContext)(nil)
+
 func (c *chainContext) Engine() consensus.Engine {
 	return c.engine
 }
@@ -170,4 +172,16 @@ func (c *chainContext) Config() *params.ChainConfig {
 func (c *chainContext) GetHeader(hash common.Hash, number uint64) *types.Header {
 	// The EVM should never call this method during eip-2935 historical block retrieval
 	panic("unexpected call to GetHeader")
+}
+
+func (c *chainContext) CurrentHeader() *types.Header {
+	panic("unimplemented")
+}
+
+func (c *chainContext) GetHeaderByHash(hash common.Hash) *types.Header {
+	panic("unimplemented")
+}
+
+func (c *chainContext) GetHeaderByNumber(number uint64) *types.Header {
+	panic("unimplemented")
 }

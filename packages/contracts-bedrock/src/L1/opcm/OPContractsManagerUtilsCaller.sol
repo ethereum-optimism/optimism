@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+// Libraries
+import { GameType } from "src/dispute/lib/Types.sol";
+
 // Interfaces
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 
 /// @title OPContractsManagerUtilsCaller
 /// @notice OPContractsManagerUtilsCaller is an abstract contract that exists to hide all of the
@@ -15,11 +21,11 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 ///      this is much easier for humans to read and for us to validate offchain.
 abstract contract OPContractsManagerUtilsCaller {
     /// @notice Address of the OPContractsManagerUtils contract.
-    IOPContractsManagerUtils public immutable utils;
+    IOPContractsManagerUtils public immutable opcmUtils;
 
     /// @param _utils Address of the OPContractsManagerUtils contract.
     constructor(IOPContractsManagerUtils _utils) {
-        utils = _utils;
+        opcmUtils = _utils;
     }
 
     /// @notice Maps an L2 chain ID to an L1 batch inbox address as defined by the standard
@@ -52,6 +58,24 @@ abstract contract OPContractsManagerUtilsCaller {
         return abi.decode(
             _staticcall(abi.encodeCall(IOPContractsManagerUtils.computeSalt, (_l2ChainId, _saltMixer, _contractName))),
             (bytes32)
+        );
+    }
+
+    /// @notice Helper function to check if an instruction matches a given key.
+    /// @param _instruction The instruction to check.
+    /// @param _key The key of the instruction to check for.
+    /// @return True if the instruction matches, false otherwise.
+    function _isMatchingInstructionByKey(
+        IOPContractsManagerUtils.ExtraInstruction memory _instruction,
+        string memory _key
+    )
+        internal
+        view
+        returns (bool)
+    {
+        return abi.decode(
+            _staticcall(abi.encodeCall(IOPContractsManagerUtils.isMatchingInstructionByKey, (_instruction, _key))),
+            (bool)
         );
     }
 
@@ -167,7 +191,7 @@ abstract contract OPContractsManagerUtilsCaller {
     /// @param _data Calldata to send to the utils contract.
     /// @return Result of the call.
     function _delegatecall(bytes memory _data) internal returns (bytes memory) {
-        (bool success, bytes memory result) = address(utils).delegatecall(_data);
+        (bool success, bytes memory result) = address(opcmUtils).delegatecall(_data);
         if (!success) {
             assembly {
                 revert(add(result, 0x20), mload(result))
@@ -180,12 +204,46 @@ abstract contract OPContractsManagerUtilsCaller {
     /// @param _data Calldata to send to the utils contract.
     /// @return Result of the call.
     function _staticcall(bytes memory _data) internal view returns (bytes memory) {
-        (bool success, bytes memory result) = address(utils).staticcall(_data);
+        (bool success, bytes memory result) = address(opcmUtils).staticcall(_data);
         if (!success) {
             assembly {
                 revert(add(result, 0x20), mload(result))
             }
         }
         return result;
+    }
+
+    /// @notice Helper for retrieving the dispute game implementation for a given game type.
+    /// @param _gameType The game type to retrieve the implementation for.
+    /// @return The dispute game implementation.
+    function _getGameImpl(GameType _gameType) internal view returns (IDisputeGame) {
+        return
+            abi.decode(_staticcall(abi.encodeCall(IOPContractsManagerUtils.getGameImpl, (_gameType))), (IDisputeGame));
+    }
+
+    /// @notice Helper for creating game constructor arguments.
+    /// @param _l2ChainId The L2 chain ID.
+    /// @param _anchorStateRegistry The AnchorStateRegistry to use for dispute games.
+    /// @param _delayedWETH The DelayedWETH to use for dispute games.
+    /// @param _gcfg Configuration for the dispute game to create.
+    /// @return The game constructor arguments.
+    function _makeGameArgs(
+        uint256 _l2ChainId,
+        IAnchorStateRegistry _anchorStateRegistry,
+        IDelayedWETH _delayedWETH,
+        IOPContractsManagerUtils.DisputeGameConfig memory _gcfg
+    )
+        internal
+        view
+        returns (bytes memory)
+    {
+        return abi.decode(
+            _staticcall(
+                abi.encodeCall(
+                    IOPContractsManagerUtils.makeGameArgs, (_l2ChainId, _anchorStateRegistry, _delayedWETH, _gcfg)
+                )
+            ),
+            (bytes)
+        );
     }
 }

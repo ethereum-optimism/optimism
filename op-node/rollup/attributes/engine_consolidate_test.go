@@ -214,7 +214,8 @@ func createMismatchedFeeRecipient() matchArgs {
 
 func createMismatchedEIP1559Params() matchArgs {
 	args := holoceneArgs()
-	args.attrs.EIP1559Params[0]++ // so denominator is != 0
+	// Create valid but mismatched EIP-1559 params (both denominator and elasticity must be non-zero or both zero)
+	copy((*args.attrs.EIP1559Params)[:], eip1559.EncodeHolocene1559Params(999, 999))
 	return args
 }
 
@@ -575,7 +576,7 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 			desc:           "err-both-zero",
 			attrParams:     new(eth.Bytes8),
 			blockExtraData: make(eth.BytesMax32, 9),
-			err:            "eip1559 parameters do not match, attributes: 250, 6 (translated from 0,0), block: 0, 0",
+			err:            "invalid block extraData: holocene extraData must encode a non-zero denominator",
 		},
 		{
 			desc:           "err-invalid-params",
@@ -609,7 +610,8 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 				HoloceneTime:  &pastTime,
 				IsthmusTime:   &pastTime,
 				JovianTime:    &futureTime,
-				ChainOpConfig: defaultOpConfig}
+				ChainOpConfig: defaultOpConfig,
+			}
 			err := checkExtraDataParamsMatch(cfg, uint64(2), test.attrParams, nil, test.blockExtraData)
 			if test.err == "" {
 				require.NoError(t, err)

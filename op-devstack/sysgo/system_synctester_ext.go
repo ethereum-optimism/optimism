@@ -88,9 +88,10 @@ func ExternalELSystemWithEndpointAndSuperchainRegistry(dest *DefaultMinimalExter
 
 	// Add SyncTesterL2ELNode as the L2EL replacement for real-world EL endpoint
 	opt.Add(WithSyncTesterL2ELNode(ids.L2EL, ids.L2EL))
-	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL))
 
 	opt.Add(WithExtL2Node(ids.L2ELReadOnly, networkPreset.L2ELEndpoint))
+
+	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL))
 
 	opt.Add(WithL2MetricsDashboard())
 

@@ -11,7 +11,6 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 // Libraries
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -26,6 +25,12 @@ import { IPermissionedDisputeGameV2 } from "interfaces/dispute/v2/IPermissionedD
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 // Mocks
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
+import { SP1MockVerifier } from "test/dispute/zk/mocks/SP1MockVerifier.sol";
+
+// OptimisticZk
+import { OptimisticZkGame } from "src/dispute/zk/OptimisticZkGame.sol";
+import { AccessManager } from "src/dispute/zk/AccessManager.sol";
+import { ISP1Verifier } from "src/dispute/zk/ISP1Verifier.sol";
 
 /// @notice A fake clone used for testing the `DisputeGameFactory` contract's `create` function.
 contract DisputeGameFactory_FakeClone_Harness {
@@ -145,7 +150,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         } else {
             disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl));
         }
-        disputeGameFactory.setInitBond(_gameType, 0.08 ether);
+        disputeGameFactory.setInitBond(_gameType, DEFAULT_DISPUTE_GAME_INIT_BOND);
         vm.stopPrank();
     }
 
@@ -187,11 +192,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            return setupFaultDisputeGameV2(_absolutePrestate);
-        } else {
-            return setupFaultDisputeGameV1(_absolutePrestate);
-        }
+        return setupFaultDisputeGameV2(_absolutePrestate);
     }
 
     /// @notice Sets up a fault game implementation
@@ -274,11 +275,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            return setupPermissionedDisputeGameV2(_absolutePrestate, _proposer, _challenger);
-        } else {
-            return setupPermissionedDisputeGameV1(_absolutePrestate, _proposer, _challenger);
-        }
+        return setupPermissionedDisputeGameV2(_absolutePrestate, _proposer, _challenger);
     }
 
     function setupPermissionedDisputeGameV1(
@@ -397,6 +394,59 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         });
         _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON, _implArgs);
     }
+
+    /// @notice Parameters for OptimisticZk game setup
+    struct OptimisticZkGameParams {
+        Duration maxChallengeDuration;
+        Duration maxProveDuration;
+        address proposer;
+        address challenger;
+        bytes32 rollupConfigHash;
+        bytes32 aggregationVkey;
+        bytes32 rangeVkeyCommitment;
+        uint256 challengerBond;
+    }
+
+    /// @notice Sets up an OptimisticZk game implementation
+    function setupOptimisticZkGame(OptimisticZkGameParams memory _params)
+        internal
+        returns (address gameImpl_, AccessManager accessManager_, ISP1Verifier sp1Verifier_)
+    {
+        // Deploy mock verifier
+        sp1Verifier_ = ISP1Verifier(address(new SP1MockVerifier()));
+
+        // Deploy access manager
+        accessManager_ = new AccessManager(2 weeks, disputeGameFactory);
+        accessManager_.setProposer(_params.proposer, true);
+        accessManager_.setChallenger(_params.challenger, true);
+
+        // Deploy game implementation
+        gameImpl_ = address(
+            new OptimisticZkGame(
+                _params.maxChallengeDuration,
+                _params.maxProveDuration,
+                disputeGameFactory,
+                sp1Verifier_,
+                _params.rollupConfigHash,
+                _params.aggregationVkey,
+                _params.rangeVkeyCommitment,
+                _params.challengerBond,
+                anchorStateRegistry,
+                accessManager_
+            )
+        );
+
+        // Set respected game type for OptimisticZk
+        GameType gameType = GameTypes.OPTIMISTIC_ZK_GAME_TYPE;
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(gameType);
+
+        // Register with factory
+        vm.startPrank(disputeGameFactory.owner());
+        disputeGameFactory.setImplementation(gameType, IDisputeGame(gameImpl_));
+        disputeGameFactory.setInitBond(gameType, _params.challengerBond);
+        vm.stopPrank();
+    }
 }
 
 /// @title DisputeGameFactory_Initialize_Test
@@ -456,7 +506,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
     {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
         // values.
-        uint32 maxGameType = isDevFeatureEnabled(DevFeatures.CANNON_KONA) ? 8 : 2;
+        uint32 maxGameType = 8;
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, maxGameType)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
@@ -523,7 +573,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
         // values. We skip over game type = 0, since the deploy script set the implementation for
         // that game type.
-        uint32 maxGameType = isDevFeatureEnabled(DevFeatures.CANNON_KONA) ? 8 : 2;
+        uint32 maxGameType = 8;
         GameType gt = GameType.wrap(uint32(bound(gameType, maxGameType + 1, type(uint32).max)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
@@ -537,7 +587,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
     function testFuzz_create_sameUUID_reverts(uint32 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
         // values.
-        uint32 maxGameType = isDevFeatureEnabled(DevFeatures.CANNON_KONA) ? 8 : 2;
+        uint32 maxGameType = 8;
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, maxGameType)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);

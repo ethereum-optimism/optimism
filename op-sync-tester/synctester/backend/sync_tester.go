@@ -220,6 +220,27 @@ func (s *SyncTester) ChainId(ctx context.Context) (hexutil.Big, error) {
 	})
 }
 
+func (s *SyncTester) ExchangeCapabilities(ctx context.Context, _ []string) []string {
+	return []string{
+		// getPayload
+		"engine_getPayloadV1",
+		"engine_getPayloadV2",
+		"engine_getPayloadV3",
+		"engine_getPayloadV4",
+
+		// forkchoiceUpdated
+		"engine_forkchoiceUpdatedV1",
+		"engine_forkchoiceUpdatedV2",
+		"engine_forkchoiceUpdatedV3",
+
+		// newPayload
+		"engine_newPayloadV1",
+		"engine_newPayloadV2",
+		"engine_newPayloadV3",
+		"engine_newPayloadV4",
+	}
+}
+
 // GetPayloadV1 only supports V1 payloads.
 func (s *SyncTester) GetPayloadV1(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ExecutionPayloadEnvelope, error) {

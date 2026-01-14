@@ -437,7 +437,7 @@ func (d *GithubReleaseDownloader) download(ctx context.Context, version string, 
 
 	// Move the extracted name to the destination path and ensure it is
 	// executable by clearing/setting appropriate file mode bits.
-	if err := os.Rename(sourcePath, destinationPath); err != nil {
+	if err := ioutil.SafeRename(sourcePath, destinationPath); err != nil {
 		return "", fmt.Errorf("failed to move name from %s to %s: %w", sourcePath, destinationPath, err)
 	}
 	if err := os.Chmod(destinationPath, 0o755); err != nil {

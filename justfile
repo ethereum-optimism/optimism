@@ -1,3 +1,9 @@
+# Build all Rust binaries (release) for sysgo tests.
+build-rust-release:
+  cd kona && cargo build --release --bin kona-node --bin kona-supervisor
+  cd op-rbuilder && cargo build --release -p op-rbuilder --bin op-rbuilder
+  cd rollup-boost && cargo build --release -p rollup-boost --bin rollup-boost
+
 # Checks that TODO comments have corresponding issues.
 todo-checker:
   ./ops/scripts/todo-checker.sh
@@ -39,4 +45,3 @@ update-op-geth ref:
 	go mod edit -replace=github.com/ethereum/go-ethereum=github.com/ethereum-optimism/op-geth@"$ver"; \
 	go mod tidy; \
 	echo "Updated op-geth to $ver"
-

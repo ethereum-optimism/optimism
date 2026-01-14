@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -50,7 +51,9 @@ func FetchLocalInputs(ctx context.Context, caller GameInputsSource, l2Client L2H
 }
 
 func FetchLocalInputsFromProposals(ctx context.Context, l1Head common.Hash, l2Client L2HeaderSource, agreedOutput Proposal, claimedOutput Proposal) (LocalGameInputs, error) {
-	agreedHeader, err := l2Client.HeaderByNumber(ctx, agreedOutput.L2BlockNumber)
+	tCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	agreedHeader, err := l2Client.HeaderByNumber(tCtx, agreedOutput.L2BlockNumber)
 	if err != nil {
 		return LocalGameInputs{}, fmt.Errorf("fetch L2 block header %v: %w", agreedOutput.L2BlockNumber, err)
 	}

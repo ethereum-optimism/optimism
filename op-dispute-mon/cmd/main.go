@@ -59,7 +59,7 @@ func run(ctx context.Context, args []string, action ConfiguredLifecycle) error {
 		logger.Info("RPC endpoints",
 			"l1", cfg.L1EthRpc,
 			"rollup", cfg.RollupRpcs,
-			"supervisor", cfg.SupervisorRpcs,
+			"superNode", cfg.SuperNodeRpcs,
 		)
 		return action(ctx.Context, logger, cfg)
 	})

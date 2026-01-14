@@ -12,7 +12,7 @@ var (
 	validL1EthRpc           = "http://localhost:8545"
 	validGameFactoryAddress = common.Address{0x23}
 	validRollupRpcs         = []string{"http://localhost:8555"}
-	validSupervisorRpcs     = []string{"http://localhost:8999"}
+	validSuperNodeRpcs      = []string{"http://localhost:8999"}
 )
 
 func validConfig() Config {
@@ -35,24 +35,24 @@ func TestGameFactoryAddressRequired(t *testing.T) {
 	require.ErrorIs(t, config.Check(), ErrMissingGameFactoryAddress)
 }
 
-func TestRollupRpcOrSupervisorRpcRequired(t *testing.T) {
+func TestRollupRpcOrSuperNodeRpcRequired(t *testing.T) {
 	config := validConfig()
 	config.RollupRpcs = nil
-	config.SupervisorRpcs = nil
-	require.ErrorIs(t, config.Check(), ErrMissingRollupAndSupervisorRpc)
+	config.SuperNodeRpcs = nil
+	require.ErrorIs(t, config.Check(), ErrMissingRollupAndSuperNodeRpc)
 }
 
-func TestRollupRpcNotRequiredWhenSupervisorRpcSet(t *testing.T) {
+func TestRollupRpcNotRequiredWhenSuperNodeRpcSet(t *testing.T) {
 	config := validConfig()
 	config.RollupRpcs = nil
-	config.SupervisorRpcs = validSupervisorRpcs
+	config.SuperNodeRpcs = validSuperNodeRpcs
 	require.NoError(t, config.Check())
 }
 
-func TestSupervisorRpcNotRequiredWhenRollupRpcSet(t *testing.T) {
+func TestSuperNodeRpcNotRequiredWhenRollupRpcSet(t *testing.T) {
 	config := validConfig()
 	config.RollupRpcs = validRollupRpcs
-	config.SupervisorRpcs = nil
+	config.SuperNodeRpcs = nil
 	require.NoError(t, config.Check())
 }
 
@@ -62,22 +62,22 @@ func TestMaxConcurrencyRequired(t *testing.T) {
 	require.ErrorIs(t, config.Check(), ErrMissingMaxConcurrency)
 }
 
-func TestMultipleSupervisorRpcs(t *testing.T) {
+func TestMultipleSuperNodeRpcs(t *testing.T) {
 	config := validConfig()
 	config.RollupRpcs = nil
-	config.SupervisorRpcs = []string{"http://localhost:8999", "http://localhost:9000", "http://localhost:9001"}
+	config.SuperNodeRpcs = []string{"http://localhost:8999", "http://localhost:9000", "http://localhost:9001"}
 	require.NoError(t, config.Check())
 }
 
 func TestInteropConfig(t *testing.T) {
 	gameFactoryAddr := common.Address{0x42}
 	l1RPC := "http://localhost:8545"
-	supervisorRpcs := []string{"http://localhost:8999", "http://localhost:9000"}
+	superNodeRpcs := []string{"http://localhost:8999", "http://localhost:9000"}
 
-	config := NewInteropConfig(gameFactoryAddr, l1RPC, supervisorRpcs)
+	config := NewInteropConfig(gameFactoryAddr, l1RPC, superNodeRpcs)
 	require.Equal(t, gameFactoryAddr, config.GameFactoryAddress)
 	require.Equal(t, l1RPC, config.L1EthRpc)
-	require.Equal(t, supervisorRpcs, config.SupervisorRpcs)
+	require.Equal(t, superNodeRpcs, config.SuperNodeRpcs)
 	require.Nil(t, config.RollupRpcs)
 	require.NoError(t, config.Check())
 }
@@ -86,12 +86,12 @@ func TestCombinedConfig(t *testing.T) {
 	gameFactoryAddr := common.Address{0x42}
 	l1RPC := "http://localhost:8545"
 	rollupRpcs := []string{"http://localhost:8555"}
-	supervisorRpcs := []string{"http://localhost:8999"}
+	superNodeRpcs := []string{"http://localhost:8999"}
 
-	config := NewCombinedConfig(gameFactoryAddr, l1RPC, rollupRpcs, supervisorRpcs)
+	config := NewCombinedConfig(gameFactoryAddr, l1RPC, rollupRpcs, superNodeRpcs)
 	require.Equal(t, gameFactoryAddr, config.GameFactoryAddress)
 	require.Equal(t, l1RPC, config.L1EthRpc)
 	require.Equal(t, rollupRpcs, config.RollupRpcs)
-	require.Equal(t, supervisorRpcs, config.SupervisorRpcs)
+	require.Equal(t, superNodeRpcs, config.SuperNodeRpcs)
 	require.NoError(t, config.Check())
 }

@@ -57,15 +57,8 @@ func newTestHarnessWithConfig(t *testing.T, cfg *Config) *testHarness {
 	g := newGasPricer(3)
 	backend := newMockBackend(g)
 	cfg.Backend = backend
-	mgr := &SimpleTxManager{
-		chainID: cfg.ChainID,
-		name:    "TEST",
-		cfg:     cfg,
-		backend: cfg.Backend,
-		l:       testlog.Logger(t, log.LevelCrit),
-		metr:    &metrics.NoopTxMetrics{},
-	}
-
+	mgr, err := NewSimpleTxManagerFromConfig("TEST", testlog.Logger(t, log.LevelCrit), &metrics.NoopTxMetrics{}, cfg)
+	require.NoError(t, err)
 	return &testHarness{
 		cfg:       cfg,
 		mgr:       mgr,
@@ -107,6 +100,7 @@ func (h testHarness) createBlobTxCandidate() TxCandidate {
 
 func configWithNumConfs(numConfirmations uint64) *Config {
 	cfg := Config{
+		ChainID:                   big.NewInt(1),
 		ReceiptQueryInterval:      50 * time.Millisecond,
 		NumConfirmations:          numConfirmations,
 		SafeAbortNonceTooLowCount: 3,
@@ -114,10 +108,11 @@ func configWithNumConfs(numConfirmations uint64) *Config {
 		Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 			return tx, nil
 		},
-		From:          common.Address{},
-		RetryInterval: 1 * time.Millisecond,
-		MaxRetries:    5,
-		CellProofTime: math.MaxUint64,
+		From:           common.Address{},
+		RetryInterval:  1 * time.Millisecond,
+		NetworkTimeout: 1 * time.Second,
+		MaxRetries:     5,
+		CellProofTime:  math.MaxUint64,
 	}
 
 	cfg.RebroadcastInterval.Store(int64(time.Second / 2))
@@ -428,7 +423,6 @@ func TestTxMgrTxSendTimeout(t *testing.T) {
 	testSendVariants(t, func(t *testing.T, send testSendVariantsFn) {
 		conf := configWithNumConfs(1)
 		conf.TxSendTimeout = 3 * time.Second
-		conf.NetworkTimeout = 1 * time.Second
 
 		h := newTestHarnessWithConfig(t, conf)
 
@@ -1262,8 +1256,8 @@ func TestIncreaseGasPrice(t *testing.T) {
 		{
 			name: "supports extension through custom estimator",
 			run: func(t *testing.T) {
-				estimator := func(ctx context.Context, backend ETHBackend) (*big.Int, *big.Int, *big.Int, error) {
-					return big.NewInt(100), big.NewInt(3000), big.NewInt(100), nil
+				estimator := func(ctx context.Context, backend ETHBackend) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
+					return big.NewInt(100), big.NewInt(3000), big.NewInt(100), big.NewInt(100), nil
 				}
 				_, newTx, err := doGasPriceIncrease(t, 70, 2000, 80, 2100, estimator)
 				require.NoError(t, err)
@@ -1319,6 +1313,9 @@ func testIncreaseGasPriceLimit(t *testing.T, lt gasPriceLimitTest) {
 	}
 
 	cfg := Config{
+		ChainID:                   big.NewInt(1),
+		NetworkTimeout:            1 * time.Second,
+		TxNotInMempoolTimeout:     1 * time.Second,
 		ReceiptQueryInterval:      50 * time.Millisecond,
 		NumConfirmations:          1,
 		SafeAbortNonceTooLowCount: 3,
@@ -1331,14 +1328,11 @@ func testIncreaseGasPriceLimit(t *testing.T, lt gasPriceLimitTest) {
 	cfg.FeeLimitMultiplier.Store(5)
 	cfg.FeeLimitThreshold.Store(lt.thr)
 	cfg.MinBlobTxFee.Store(defaultMinBlobTxFee)
+	cfg.Backend = &borkedBackend
 
-	mgr := &SimpleTxManager{
-		cfg:     &cfg,
-		name:    "TEST",
-		backend: &borkedBackend,
-		l:       testlog.Logger(t, log.LevelCrit),
-		metr:    &metrics.NoopTxMetrics{},
-	}
+	mgr, err := NewSimpleTxManagerFromConfig("TEST", testlog.Logger(t, log.LevelCrit), &metrics.NoopTxMetrics{}, &cfg)
+	require.NoError(t, err)
+
 	lastGoodTx := types.NewTx(&types.DynamicFeeTx{
 		GasTipCap: big.NewInt(10),
 		GasFeeCap: big.NewInt(100),
@@ -1347,7 +1341,6 @@ func testIncreaseGasPriceLimit(t *testing.T, lt gasPriceLimitTest) {
 	// Run increaseGasPrice a bunch of times in a row to simulate a very fast resubmit loop to make
 	// sure it errors out without a runaway fee increase.
 	ctx := context.Background()
-	var err error
 	for {
 		var tmpTx *types.Transaction
 		tmpTx, err = mgr.increaseGasPrice(ctx, lastGoodTx)
@@ -1493,7 +1486,7 @@ func TestMinFees(t *testing.T) {
 			conf.MinTipCap.Store(tt.minTipCap)
 			h := newTestHarnessWithConfig(t, conf)
 
-			tip, baseFee, _, err := h.mgr.SuggestGasPriceCaps(context.Background())
+			tip, baseFee, _, _, err := h.mgr.SuggestGasPriceCaps(context.Background())
 			require.NoError(err)
 
 			if tt.expectMinBaseFee {
@@ -1540,7 +1533,7 @@ func TestMaxFees(t *testing.T) {
 			conf.MaxTipCap.Store(tt.maxTipCap)
 			h := newTestHarnessWithConfig(t, conf)
 
-			tip, baseFee, _, err := h.mgr.SuggestGasPriceCaps(context.Background())
+			tip, baseFee, _, _, err := h.mgr.SuggestGasPriceCaps(context.Background())
 			if tt.expectMaxBaseFee {
 				require.Equal(err, fmt.Errorf("baseFee is too high: %v, cap:%v", h.gasPricer.baseBaseFee, tt.maxBaseFee), "expect baseFee is too high")
 			}

@@ -25,11 +25,15 @@ compilation_restrictions = [
   { paths = "src/dispute/v2/FaultDisputeGameV2.sol", optimizer_runs = 5000 },
   { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 5000 },
   { paths = "src/dispute/v2/PermissionedDisputeGameV2.sol", optimizer_runs = 5000 },
-  { paths = "src/dispute/zk/OPSuccinctFaultDisputeGame.sol", optimizer_runs = 5000 },
+  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 5000 },
+  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 5000 },
   { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 5000 },
   { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 5000 },
   { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 5000 },
   { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 5000 },
+  { paths = "src/L1/opcm/OPContractsManagerMigrator.sol", optimizer_runs = 5000 },
+  { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 5000 },
+  { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 5000 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 5000 },
   { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 5000 },
   { paths = "src/universal/StorageSetter.sol", optimizer_runs = 5000 }
@@ -155,13 +159,18 @@ compilation_restrictions = [
   { paths = "src/dispute/v2/FaultDisputeGameV2.sol", optimizer_runs = 0 },
   { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/dispute/v2/PermissionedDisputeGameV2.sol", optimizer_runs = 0 },
-  { paths = "src/dispute/zk/OPSuccinctFaultDisputeGame.sol", optimizer_runs = 0 },
+  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 0 },
+  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 0 },
   { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 0 },
   { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 0 },
   { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerMigrator.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 0 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },
   { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 0 },
+  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0 }
 ]
 
 ################################################################

@@ -62,7 +62,7 @@ func TestGenerateProof(t *testing.T) {
 		cfg.DebugInfo = true
 		_, _, args := captureExec(t, dir, cfg, inputs, info, math.MaxUint64, m)
 		// stop-at would need to be one more than the proof step which would overflow back to 0
-		// so expect that it will be omitted. We'll ultimately want asterisc to execute until the program exits.
+		// so expect that it will be omitted. We'll ultimately want the vm to execute until the program exits.
 		require.NotContains(t, args, "--stop-at")
 		validateMetrics(t, m, info, cfg)
 	})

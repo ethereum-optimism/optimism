@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"sync/atomic"
+	"time"
 
 	challengerClient "github.com/ethereum-optimism/optimism/op-challenger/game/client"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/zk"
 	"github.com/ethereum-optimism/optimism/op-challenger/sender"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -57,8 +59,9 @@ type Service struct {
 	registry        *registry.GameTypeRegistry
 	oracles         *registry.OracleRegistry
 
-	l1Client   *ethclient.Client
-	pollClient client.RPC
+	l1RPC       client.RPC
+	l1Client    *sources.L1Client
+	l1EthClient *ethclient.Client
 
 	pprofService *oppprof.Service
 	metricsSrv   *httputil.HTTPServer
@@ -90,11 +93,8 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 		return fmt.Errorf("failed to init tx manager: %w", err)
 	}
 	s.initClaimants(cfg)
-	if err := s.initL1Client(ctx, cfg); err != nil {
+	if err := s.initL1Clients(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init l1 client: %w", err)
-	}
-	if err := s.initPollClient(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init poll client: %w", err)
 	}
 	if err := s.initPProf(&cfg.PprofConfig); err != nil {
 		return fmt.Errorf("failed to init profiling: %w", err)
@@ -140,21 +140,28 @@ func (s *Service) initTxManager(ctx context.Context, cfg *config.Config) error {
 	return nil
 }
 
-func (s *Service) initL1Client(ctx context.Context, cfg *config.Config) error {
-	l1Client, err := dial.DialEthClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, cfg.L1EthRpc)
+func (s *Service) initL1Clients(ctx context.Context, cfg *config.Config) error {
+	l1EthClient, err := dial.DialEthClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, cfg.L1EthRpc)
 	if err != nil {
 		return fmt.Errorf("failed to dial L1: %w", err)
 	}
-	s.l1Client = l1Client
-	return nil
-}
 
-func (s *Service) initPollClient(ctx context.Context, cfg *config.Config) error {
-	pollClient, err := client.NewRPCWithClient(ctx, s.logger, cfg.L1EthRpc, client.NewBaseRPCClient(s.l1Client.Client()), cfg.PollInterval)
+	l1RPC := client.NewBaseRPCClient(l1EthClient.Client(), client.WithCallTimeout(30*time.Second), client.WithBatchCallTimeout(60*time.Second))
+	pollClient, err := client.NewRPCWithClient(ctx, s.logger, cfg.L1EthRpc, l1RPC, cfg.PollInterval)
 	if err != nil {
 		return fmt.Errorf("failed to create RPC client: %w", err)
 	}
-	s.pollClient = pollClient
+	s.l1RPC = pollClient
+
+	l1Client, err := sources.NewL1Client(s.l1RPC, s.logger, s.metrics, sources.L1ClientSimpleConfig(true, cfg.L1RPCKind, 100))
+	if err != nil {
+		return fmt.Errorf("failed to dial L1: %w", err)
+	}
+
+	s.l1Client = l1Client
+	s.l1RPC = l1Client.RPC()
+
+	s.l1EthClient = l1EthClient
 	return nil
 }
 
@@ -190,13 +197,13 @@ func (s *Service) initMetricsServer(cfg *opmetrics.CLIConfig) error {
 	}
 	s.logger.Info("started metrics server", "addr", metricsSrv.Addr())
 	s.metricsSrv = metricsSrv
-	s.balanceMetricer = s.metrics.StartBalanceMetrics(s.logger, s.l1Client, s.txSender.From())
+	s.balanceMetricer = s.metrics.StartBalanceMetrics(s.logger, s.l1EthClient, s.txSender.From())
 	return nil
 }
 
 func (s *Service) initFactoryContract(ctx context.Context, cfg *config.Config) error {
 	factoryContract, err := contracts.NewDisputeGameFactoryContract(ctx, s.metrics, cfg.GameFactoryAddress,
-		batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize))
+		batching.NewMultiCaller(s.l1RPC, batching.DefaultBatchSize))
 	if err != nil {
 		return fmt.Errorf("failed to create factory contract: %w", err)
 	}
@@ -213,7 +220,7 @@ func (s *Service) initBondClaims() error {
 func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
 	oracles := registry.NewOracleRegistry()
-	s.clientProvider = challengerClient.NewProvider(ctx, s.logger, cfg, s.l1Client)
+	s.clientProvider = challengerClient.NewProvider(ctx, s.logger, cfg, s.l1Client, s.l1RPC)
 	err := fault.RegisterGameTypes(ctx, s.systemClock, s.l1Clock, s.logger, s.metrics, cfg, gameTypeRegistry, oracles, s.txSender, s.factoryContract, s.clientProvider, cfg.SelectiveClaimResolution, s.claimants)
 	if err != nil {
 		return err
@@ -242,7 +249,7 @@ func (s *Service) initLargePreimages() error {
 }
 
 func (s *Service) initMonitor(cfg *config.Config) {
-	s.monitor = newGameMonitor(s.logger, s.l1Clock, s.factoryContract, s.sched, s.preimages, cfg.GameWindow, s.claimer, cfg.GameAllowlist, s.pollClient, cfg.MinUpdateInterval)
+	s.monitor = newGameMonitor(s.logger, s.l1Clock, s.factoryContract, s.sched, s.preimages, cfg.GameWindow, s.claimer, cfg.GameAllowlist, s.l1RPC, cfg.MinUpdateInterval)
 }
 
 func (s *Service) Start(ctx context.Context) error {
@@ -295,8 +302,8 @@ func (s *Service) Stop(ctx context.Context) error {
 		s.txMgr.Close()
 	}
 
-	if s.pollClient != nil {
-		s.pollClient.Close()
+	if s.l1RPC != nil {
+		s.l1RPC.Close()
 	}
 	if s.l1Client != nil {
 		s.l1Client.Close()

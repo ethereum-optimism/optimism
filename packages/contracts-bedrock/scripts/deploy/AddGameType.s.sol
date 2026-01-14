@@ -16,6 +16,8 @@ import { GameType, Duration, Claim } from "src/dispute/lib/Types.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 
 /// @title AddGameType
+/// @notice This script is used to add a new game type to the chain using the OPContractsManager V1.
+///         Support for OPCM v2 is provided through the UpgradeOPChain script.
 contract AddGameType is Script {
     struct Input {
         // Address that will be used for the DummyCaller contract

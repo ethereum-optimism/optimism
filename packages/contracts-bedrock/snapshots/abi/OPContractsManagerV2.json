@@ -2,13 +2,13 @@
   {
     "inputs": [
       {
-        "internalType": "contract IOPContractsManagerContainer",
-        "name": "_contractsContainer",
+        "internalType": "contract IOPContractsManagerStandardValidator",
+        "name": "_standardValidator",
         "type": "address"
       },
       {
-        "internalType": "contract IOPContractsManagerStandardValidator",
-        "name": "_standardValidator",
+        "internalType": "contract IOPContractsManagerMigrator",
+        "name": "_migrator",
         "type": "address"
       },
       {
@@ -49,26 +49,6 @@
           {
             "internalType": "address",
             "name": "resolvedDelegateProxy",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionedDisputeGame1",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionedDisputeGame2",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionlessDisputeGame1",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionlessDisputeGame2",
             "type": "address"
           }
         ],
@@ -229,9 +209,14 @@
                 "type": "bytes"
               }
             ],
-            "internalType": "struct OPContractsManagerV2.DisputeGameConfig[]",
+            "internalType": "struct IOPContractsManagerUtils.DisputeGameConfig[]",
             "name": "disputeGameConfigs",
             "type": "tuple[]"
+          },
+          {
+            "internalType": "bool",
+            "name": "useCustomGasToken",
+            "type": "bool"
           }
         ],
         "internalType": "struct OPContractsManagerV2.FullConfig",
@@ -310,6 +295,19 @@
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "devFeatureBitmap",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -442,8 +440,109 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_systemConfig",
+        "type": "address"
+      }
+    ],
+    "name": "isPermittedUpgradeSequence",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "contract ISystemConfig[]",
+            "name": "chainSystemConfigs",
+            "type": "address[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "enabled",
+                "type": "bool"
+              },
+              {
+                "internalType": "uint256",
+                "name": "initBond",
+                "type": "uint256"
+              },
+              {
+                "internalType": "GameType",
+                "name": "gameType",
+                "type": "uint32"
+              },
+              {
+                "internalType": "bytes",
+                "name": "gameArgs",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct IOPContractsManagerUtils.DisputeGameConfig[]",
+            "name": "disputeGameConfigs",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "Hash",
+                "name": "root",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "uint256",
+                "name": "l2SequenceNumber",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Proposal",
+            "name": "startingAnchorRoot",
+            "type": "tuple"
+          },
+          {
+            "internalType": "GameType",
+            "name": "startingRespectedGameType",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct IOPContractsManagerMigrator.MigrateInput",
+        "name": "_input",
+        "type": "tuple"
+      }
+    ],
+    "name": "migrate",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
-    "name": "standardValidator",
+    "name": "opcmMigrator",
+    "outputs": [
+      {
+        "internalType": "contract IOPContractsManagerMigrator",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "opcmStandardValidator",
     "outputs": [
       {
         "internalType": "contract IOPContractsManagerStandardValidator",
@@ -456,7 +555,20 @@
   },
   {
     "inputs": [],
-    "name": "thisOPCM",
+    "name": "opcmUtils",
+    "outputs": [
+      {
+        "internalType": "contract IOPContractsManagerUtils",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "opcmV2",
     "outputs": [
       {
         "internalType": "contract OPContractsManagerV2",
@@ -499,7 +611,7 @@
                 "type": "bytes"
               }
             ],
-            "internalType": "struct OPContractsManagerV2.DisputeGameConfig[]",
+            "internalType": "struct IOPContractsManagerUtils.DisputeGameConfig[]",
             "name": "disputeGameConfigs",
             "type": "tuple[]"
           },
@@ -651,19 +763,6 @@
   },
   {
     "inputs": [],
-    "name": "utils",
-    "outputs": [
-      {
-        "internalType": "contract IOPContractsManagerUtils",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "version",
     "outputs": [
       {
@@ -672,7 +771,7 @@
         "type": "string"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -702,6 +801,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerV2_CannotUpgradeToCustomGasToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerV2_InvalidGameConfigs",
     "type": "error"
   },
@@ -722,13 +826,24 @@
     "type": "error"
   },
   {
-    "inputs": [],
-    "name": "OPContractsManagerV2_SuperchainConfigNeedsUpgrade",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_lastVersion",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_thisVersion",
+        "type": "string"
+      }
+    ],
+    "name": "OPContractsManagerV2_InvalidUpgradeSequence",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "OPContractsManagerV2_UnsupportedGameType",
+    "name": "OPContractsManagerV2_SuperchainConfigNeedsUpgrade",
     "type": "error"
   },
   {

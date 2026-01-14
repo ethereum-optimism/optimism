@@ -117,6 +117,9 @@ type Host struct {
 	// useCreate2Deployer uses the Create2Deployer for broadcasted
 	// create2 calls.
 	useCreate2Deployer bool
+
+	// noMaxCodeSize disables the maximum contract bytecode size check.
+	noMaxCodeSize bool
 }
 
 type HostOption func(h *Host)
@@ -158,6 +161,15 @@ func WithIsolatedBroadcasts() HostOption {
 func WithCreate2Deployer() HostOption {
 	return func(h *Host) {
 		h.useCreate2Deployer = true
+	}
+}
+
+// WithNoMaxCodeSize disables the maximum contract bytecode size check.
+// This is useful for development environments where contracts may be compiled
+// without optimizations and exceed the standard 24KB limit.
+func WithNoMaxCodeSize() HostOption {
+	return func(h *Host) {
+		h.noMaxCodeSize = true
 	}
 }
 
@@ -297,6 +309,11 @@ func NewHost(
 
 	h.env = WrapEVM(vm.NewEVM(blockContext, h.state, h.chainCfg, vmCfg))
 	h.env.SetTxContext(txContext)
+
+	// Apply noMaxCodeSize after EVM is initialized
+	if h.noMaxCodeSize {
+		h.EnforceMaxCodeSize(false)
+	}
 
 	return h
 }

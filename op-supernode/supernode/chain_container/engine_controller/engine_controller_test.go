@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -94,7 +95,7 @@ func TestEngineController_TargetBlockNumber(t *testing.T) {
 	require.Equal(t, m.ref, numRef)
 	// ts = genesis + 2*1000 => block #1000, with safe head now below target
 	_, err = ec.SafeBlockAtTimestamp(context.Background(), 1_000+2*1000)
-	require.ErrorIs(t, err, ErrNotFound)
+	require.ErrorIs(t, err, ethereum.NotFound)
 }
 
 func TestEngineController_SentinelErrors(t *testing.T) {

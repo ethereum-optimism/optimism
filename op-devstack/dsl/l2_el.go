@@ -244,7 +244,7 @@ func (el *L2ELNode) Start() {
 }
 
 func (el *L2ELNode) PeerWith(peer *L2ELNode) {
-	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
+	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC(), false)
 }
 
 func (el *L2ELNode) DisconnectPeerWith(peer *L2ELNode) {
@@ -391,6 +391,10 @@ func (el *L2ELNode) UnsafeHead() *BlockRefResult {
 
 func (el *L2ELNode) SafeHead() *BlockRefResult {
 	return &BlockRefResult{T: el.t, BlockRef: el.BlockRefByLabel(eth.Safe)}
+}
+
+func (el *L2ELNode) FinalizedHead() *BlockRefResult {
+	return &BlockRefResult{T: el.t, BlockRef: el.BlockRefByLabel(eth.Finalized)}
 }
 
 type BlockRefResult struct {

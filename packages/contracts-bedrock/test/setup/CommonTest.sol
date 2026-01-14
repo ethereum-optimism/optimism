@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-// Forge
-import { Test } from "forge-std/Test.sol";
-
 // Testing
+import { Test } from "test/setup/Test.sol";
 import { Setup } from "test/setup/Setup.sol";
 import { Events } from "test/setup/Events.sol";
 import { FFIInterface } from "test/setup/FFIInterface.sol";
@@ -30,6 +28,9 @@ abstract contract CommonTest is Test, Setup, Events {
     address bob;
 
     bytes32 constant nonZeroHash = keccak256(abi.encode("NON_ZERO"));
+
+    /// @notice The default initial bond value for dispute games.
+    uint256 constant DEFAULT_DISPUTE_GAME_INIT_BOND = 0.08 ether;
 
     FFIInterface constant ffi = FFIInterface(address(uint160(uint256(keccak256(abi.encode("optimism.ffi"))))));
 

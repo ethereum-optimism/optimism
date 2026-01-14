@@ -66,8 +66,8 @@ contract MIPS64 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS64 contract.
-    /// @custom:semver 1.9.0
-    string public constant version = "1.9.0";
+    /// @custom:semver 1.10.0
+    string public constant version = "1.10.0";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -92,8 +92,8 @@ contract MIPS64 is ISemver {
 
     /// @param _oracle The address of the preimage oracle contract.
     constructor(IPreimageOracle _oracle, uint256 _stateVersion) {
-        // Supports VersionMultiThreaded64_v4 (7) and VersionMultiThreaded64_v5 (8)
-        if (_stateVersion != 7 && _stateVersion != 8) {
+        // Supports VersionMultiThreaded64_v5 (8)
+        if (_stateVersion != 8) {
             revert UnsupportedStateVersion();
         }
         ORACLE = _oracle;
@@ -560,10 +560,7 @@ contract MIPS64 is ISemver {
                 v0 = 0;
                 v1 = 0;
             } else if (syscall_no == sys.SYS_GETRANDOM) {
-                if (st.featuresForVersion(STATE_VERSION).supportWorkingSysGetRandom) {
-                    (v0, v1, state.memRoot) = syscallGetRandom(state, a0, a1);
-                }
-                // Otherwise, ignored (noop)
+                (v0, v1, state.memRoot) = syscallGetRandom(state, a0, a1);
             } else if (syscall_no == sys.SYS_MUNMAP) {
                 // ignored
             } else if (syscall_no == sys.SYS_MPROTECT) {

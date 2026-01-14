@@ -169,7 +169,7 @@ func (_m *TxManager) SendAsync(ctx context.Context, candidate txmgr.TxCandidate,
 }
 
 // SuggestGasPriceCaps provides a mock function with given fields: ctx
-func (_m *TxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *big.Int, *big.Int, error) {
+func (_m *TxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
 	ret := _m.Called(ctx)
 
 	if len(ret) == 0 {
@@ -179,8 +179,9 @@ func (_m *TxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *big.In
 	var r0 *big.Int
 	var r1 *big.Int
 	var r2 *big.Int
-	var r3 error
-	if rf, ok := ret.Get(0).(func(context.Context) (*big.Int, *big.Int, *big.Int, error)); ok {
+	var r3 *big.Int
+	var r4 error
+	if rf, ok := ret.Get(0).(func(context.Context) (*big.Int, *big.Int, *big.Int, *big.Int, error)); ok {
 		return rf(ctx)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context) *big.Int); ok {
@@ -207,13 +208,21 @@ func (_m *TxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *big.In
 		}
 	}
 
-	if rf, ok := ret.Get(3).(func(context.Context) error); ok {
+	if rf, ok := ret.Get(3).(func(context.Context) *big.Int); ok {
 		r3 = rf(ctx)
 	} else {
-		r3 = ret.Error(3)
+		if ret.Get(3) != nil {
+			r3 = ret.Get(3).(*big.Int)
+		}
 	}
 
-	return r0, r1, r2, r3
+	if rf, ok := ret.Get(4).(func(context.Context) error); ok {
+		r4 = rf(ctx)
+	} else {
+		r4 = ret.Error(4)
+	}
+
+	return r0, r1, r2, r3, r4
 }
 
 // NewTxManager creates a new instance of TxManager. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

@@ -64,3 +64,7 @@ func (e *EngineFrontend) NewPayloadV3(ctx context.Context, payload *eth.Executio
 func (e *EngineFrontend) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (*eth.PayloadStatusV1, error) {
 	return e.b.NewPayloadV4(ctx, payload, versionedHashes, beaconRoot, executionRequests)
 }
+
+func (e *EngineFrontend) ExchangeCapabilities(ctx context.Context, args []string) []string {
+	return e.b.ExchangeCapabilities(ctx, args)
+}
