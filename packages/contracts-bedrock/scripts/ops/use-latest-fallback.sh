@@ -8,6 +8,7 @@ set -euo pipefail
 
 # Determine the target branch for this PR
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/get-target-branch.sh"
 
 USE_FALLBACK=false
