@@ -2,7 +2,7 @@
 
 # Core dependencies
 go = "1.24.10"
-golangci-lint = "1.64.8"
+golangci-lint = "2.8.0"
 gotestsum = "1.12.3"
 mockery = "2.53.3"
 rust = "1.91.0"
