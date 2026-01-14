@@ -6,6 +6,10 @@ set -euo pipefail
 # - develop branch: Always build fresh (accuracy)
 # - force-use-fresh-artifacts label: Override fallback (emergency escape hatch)
 
+# Determine the target branch for this PR
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/get-target-branch.sh"
+
 USE_FALLBACK=false
 
 # Check if we're on a PR (not develop branch)
@@ -43,6 +47,7 @@ if [ "${CIRCLE_BRANCH:-}" != "develop" ]; then
   fi
 fi
 
+echo "TARGET_BRANCH=$TARGET_BRANCH"
 # Ensure that PRs targetting anything other than develop do not use the fallback
 if [ "$TARGET_BRANCH" != "develop" ]; then
   USE_FALLBACK=false
