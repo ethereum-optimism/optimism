@@ -77,6 +77,21 @@ struct Args {
         value_parser = humantime::parse_duration
     )]
     pub proofs_history_prune_interval: Duration,
+    /// Verification interval: perform full block execution every N blocks for data integrity.
+    /// - 0: Disabled (Default) (always use fast path with pre-computed data from notifications)
+    /// - 1: Always verify (always execute blocks, slowest)
+    /// - N: Verify every Nth block (e.g., 100 = every 100 blocks)
+    ///
+    /// Periodic verification helps catch data corruption or consensus bugs while maintaining
+    /// good performance.
+    ///
+    /// CLI: `--proofs-history.verification-interval 100`
+    #[arg(
+        long = "proofs-history.verification-interval",
+        value_name = "PROOFS_HISTORY_VERIFICATION_INTERVAL",
+        default_value_t = 0
+    )]
+    pub proofs_history_verification_interval: u64,
 }
 
 /// Single entry that handles:
@@ -91,6 +106,7 @@ async fn launch_node(
     let rollup_args = args.rollup_args.clone();
     let proofs_history_window = args.proofs_history_window;
     let proofs_history_prune_interval = args.proofs_history_prune_interval;
+    let proofs_history_verification_interval = args.proofs_history_verification_interval;
 
     // Start from a plain OpNode builder
     let mut node_builder = builder.node(OpNode::new(rollup_args));
@@ -125,6 +141,7 @@ async fn launch_node(
                     storage_exec,
                     proofs_history_window,
                     proofs_history_prune_interval,
+                    proofs_history_verification_interval,
                 )
                 .run()
                 .boxed())
