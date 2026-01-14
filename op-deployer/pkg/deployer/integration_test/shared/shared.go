@@ -1,17 +1,27 @@
 package shared
 
 import (
+	"context"
 	"crypto/ecdsa"
+	"encoding/json"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -91,4 +101,92 @@ func DefaultPrivkey(t *testing.T) (string, *ecdsa.PrivateKey, *devkeys.MnemonicD
 	require.NoError(t, err)
 
 	return pkHex, pk, dk
+}
+
+// PastUpgradeConfig defines configuration for a past upgrade that needs to be executed
+// when forking a network at a block before that upgrade was executed.
+type PastUpgradeConfig struct {
+	// Name is a human-readable name for the upgrade (for logging)
+	Name string
+	// OpcmAddresses maps chain IDs to the OPCM address used for this upgrade
+	OpcmAddresses map[uint64]common.Address
+	// BuildUpgradeConfig builds the upgrade configuration for the given parameters
+	BuildUpgradeConfig func(prank, systemConfigProxy common.Address) embedded.UpgradeOPChainInput
+}
+
+// PastUpgrades is the list of past upgrades that need to be executed in order.
+// Add new upgrades here when introducing new upgrades that need to be sequenced.
+var PastUpgrades = []PastUpgradeConfig{
+	{
+		Name: "U18",
+		OpcmAddresses: map[uint64]common.Address{
+			1:        common.HexToAddress("0x50F47B43c24F40B92C873Fa0704D4207586D0C9f"), // Mainnet
+			11155111: common.HexToAddress("0xf0a2e224519e876979ea6b2cd15ef5cc3d6703bd"), // Sepolia
+		},
+		BuildUpgradeConfig: func(prank, systemConfigProxy common.Address) embedded.UpgradeOPChainInput {
+			return embedded.UpgradeOPChainInput{
+				Prank: prank,
+				// Opcm is set by the caller based on chainID
+				ChainConfigs: []embedded.OPChainConfig{
+					{
+						SystemConfigProxy:  systemConfigProxy,
+						CannonPrestate:     common.Hash{'C', 'A', 'N', 'N', 'O', 'N'},
+						CannonKonaPrestate: common.Hash{'K', 'O', 'N', 'A'},
+					},
+				},
+			}
+		},
+	},
+}
+
+// RunPastUpgrades executes all past OPCM upgrades that have not yet been executed on the forked network.
+// This is necessary when forking a network at a block before certain upgrades were executed.
+func RunPastUpgrades(t *testing.T, host *script.Host, chainID uint64, prank common.Address, systemConfigProxy common.Address) {
+	t.Helper()
+
+	for _, upgrade := range PastUpgrades {
+		opcmAddr, ok := upgrade.OpcmAddresses[chainID]
+		if !ok {
+			t.Logf("No %s OPCM address configured for chain %d, skipping", upgrade.Name, chainID)
+			continue
+		}
+
+		upgradeConfig := upgrade.BuildUpgradeConfig(prank, systemConfigProxy)
+		upgradeConfig.Opcm = opcmAddr
+
+		upgradeConfigBytes, err := json.Marshal(upgradeConfig)
+		require.NoError(t, err, "Failed to marshal %s upgrade config", upgrade.Name)
+
+		err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
+		if err != nil {
+			// It's acceptable for this to fail if the upgrade was already executed
+			t.Logf("%s upgrade may have already been executed or failed: %v", upgrade.Name, err)
+		} else {
+			t.Logf("Successfully executed %s upgrade using OPCM at %s", upgrade.Name, opcmAddr.Hex())
+		}
+	}
+}
+
+// RunPastUpgradesWithRPC is a convenience function that creates a script host and runs past upgrades.
+// Use this when you don't already have a script host available.
+func RunPastUpgradesWithRPC(t *testing.T, l1RPCUrl string, afactsFS foundry.StatDirFs, lgr log.Logger, chainID uint64, prank common.Address, systemConfigProxy common.Address) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	rpcClient, err := rpc.Dial(l1RPCUrl)
+	require.NoError(t, err)
+
+	host, err := env.DefaultForkedScriptHost(
+		ctx,
+		broadcaster.NoopBroadcaster(),
+		lgr,
+		prank,
+		afactsFS,
+		rpcClient,
+	)
+	require.NoError(t, err)
+
+	RunPastUpgrades(t, host, chainID, prank, systemConfigProxy)
 }

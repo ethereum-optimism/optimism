@@ -31,7 +31,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -864,7 +863,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 		// Run past upgrades before running the current upgrade.
 		// This is necessary when forking at a block before those upgrades were executed.
 		t.Run("run past upgrades", func(t *testing.T) {
-			runPastUpgrades(t, host, 11155111, superchainProxyAdminOwner, deployer.DefaultSystemConfigProxySepolia)
+			shared.RunPastUpgrades(t, host, 11155111, superchainProxyAdminOwner, deployer.DefaultSystemConfigProxySepolia)
 		})
 
 		// Then run the OPCM upgrade
@@ -1072,49 +1071,6 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 			})
 		})
 	})
-}
-
-// runPastUpgrades executes all past OPCM upgrades that have not yet been executed on the forked network.
-// This is necessary when forking a network at a block before certain upgrades were executed.
-// Add past upgrade calls here when introducing new upgrades that need to be sequenced.
-func runPastUpgrades(t *testing.T, host *script.Host, chainID uint64, prank common.Address, systemConfigProxy common.Address) {
-	t.Helper()
-
-	// U18 OPCM addresses (op-contracts/v6.0.0)
-	var pastOpcm common.Address
-	switch chainID {
-	case 1: // Mainnet
-		pastOpcm = common.HexToAddress("0x50F47B43c24F40B92C873Fa0704D4207586D0C9f")
-	case 11155111: // Sepolia
-		pastOpcm = common.HexToAddress("0xf0a2e224519e876979ea6b2cd15ef5cc3d6703bd")
-	default:
-		t.Logf("No past OPCM address configured for chain %d, skipping past upgrades", chainID)
-		return
-	}
-
-	// U18 upgrade config
-	upgradeConfig := embedded.UpgradeOPChainInput{
-		Prank: prank,
-		Opcm:  pastOpcm,
-		ChainConfigs: []embedded.OPChainConfig{
-			{
-				SystemConfigProxy:  systemConfigProxy,
-				CannonPrestate:     common.Hash{'C', 'A', 'N', 'N', 'O', 'N'},
-				CannonKonaPrestate: common.Hash{'K', 'O', 'N', 'A'},
-			},
-		},
-	}
-
-	upgradeConfigBytes, err := json.Marshal(upgradeConfig)
-	require.NoError(t, err, "Failed to marshal past upgrade config")
-
-	err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
-	if err != nil {
-		// It's acceptable for this to fail if the upgrade was already executed
-		t.Logf("Past upgrade may have already been executed or failed: %v", err)
-	} else {
-		t.Logf("Successfully executed past U18 upgrade using OPCM at %s", pastOpcm.Hex())
-	}
 }
 
 func needsSuperchainConfigUpgrade(
