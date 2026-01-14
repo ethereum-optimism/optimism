@@ -417,14 +417,16 @@ func TestRequestDuplicateBlobHashes(t *testing.T) {
 		KZGCommitment: sidecar0.KZGCommitment,
 		KZGProof:      sidecar0.KZGProof,
 	}
-	hashes := []eth.IndexedBlobHash{hash0, hash2, hash1, sameHash} // Mix up the order.
-	beaconBlobs := []*eth.Blob{&sidecar0.Blob, &sidecar1.Blob, &sidecar2.Blob, &sameHashSidecar.Blob}
+
+	indexedHashes := []eth.IndexedBlobHash{hash0, hash2, hash1, sameHash} // Mix up the order.
+	hashes := []common.Hash{hash0.Hash, hash2.Hash, hash1.Hash, sameHash.Hash}
+	beaconBlobs := []*eth.Blob{&sidecar0.Blob, &sidecar2.Blob, &sidecar1.Blob, &sameHashSidecar.Blob}
 
 	// construct the mock response for the beacon blobs call
 	beaconBlobsResponse := eth.APIBeaconBlobsResponse{Data: beaconBlobs}
 	p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(beaconBlobsResponse, nil)
 
-	resp, err := client.GetBlobs(ctx, ref, hashes)
+	resp, err := client.GetBlobs(ctx, ref, indexedHashes)
 	require.NoError(t, err)
 	for i, blob := range resp {
 		require.NotNil(t, blob, fmt.Sprintf("blob at index %d should not be nil", i))
