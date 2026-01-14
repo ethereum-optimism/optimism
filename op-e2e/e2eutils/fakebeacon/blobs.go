@@ -37,18 +37,16 @@ type FakeBeacon struct {
 	beaconSrv         *http.Server
 	beaconAPIListener net.Listener
 
-	fuluTime    *uint64
 	genesisTime uint64
 	blockTime   uint64
 }
 
-func NewBeacon(log log.Logger, blobStore *blobstore.Store, genesisTime uint64, blockTime uint64, fuluTime *uint64) *FakeBeacon {
+func NewBeacon(log log.Logger, blobStore *blobstore.Store, genesisTime uint64, blockTime uint64) *FakeBeacon {
 	return &FakeBeacon{
 		log:         log,
 		blobStore:   blobStore,
 		genesisTime: genesisTime,
 		blockTime:   blockTime,
-		fuluTime:    fuluTime,
 	}
 }
 
@@ -150,11 +148,6 @@ func (f *FakeBeacon) Start(addr string) error {
 		}
 	})
 	mux.HandleFunc("/eth/v1/beacon/blobs/", func(w http.ResponseWriter, r *http.Request) {
-		if f.fuluTime == nil || time.Now().Before(time.Unix(int64(*f.fuluTime), 0)) {
-			f.log.Warn("post-Fulu blobs endpoint queried before Fulu hardfork")
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
 		blockID := strings.TrimPrefix(r.URL.Path, "/eth/v1/beacon/blobs/")
 		slot, err := strconv.ParseUint(blockID, 10, 64)
 		if err != nil {
