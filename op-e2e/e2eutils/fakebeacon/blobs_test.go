@@ -29,25 +29,31 @@ func TestBlobsEndpoints(t *testing.T) {
 
 	// shared setup: in-memory blob store
 	blobStore := blobstore.New()
-	beaconApi := NewBeacon(l, blobStore, uint64(0), uint64(12))
+	zero := uint64(0)
+	beaconApi := NewBeacon(l, blobStore, zero, uint64(12), &zero)
 	t.Cleanup(func() { _ = beaconApi.Close() })
 	require.NoError(t, beaconApi.Start("127.0.0.1:0"))
+
+	blobToCommitmentAndProof := func(blob eth.Blob) (kzg4844.Commitment, kzg4844.Proof) {
+		kzgBlob := kzg4844.Blob(blob)
+		commitment, err := kzg4844.BlobToCommitment(&kzgBlob)
+		require.NoError(t, err)
+		proof, err := kzg4844.ComputeBlobProof(&kzgBlob, commitment)
+		require.NoError(t, err)
+		return commitment, proof
+	}
 
 	// Prepare bundles for different slots used in subtests.
 
 	// Slot 10: single blob (pattern used by first subtest)
 	var blobSlot10 eth.Blob
 	for i := range blobSlot10 {
-		blobSlot10[i] = 0xAB
+		blobSlot10[i] = 0x01
 	}
-	commit10 := make([]byte, 48)
-	for i := range commit10 {
-		commit10[i] = byte(i)
-	}
-	proof10 := make([]byte, 48)
+	commit10, proof10 := blobToCommitmentAndProof(blobSlot10)
 	bundle10 := engine.BlobsBundle{
-		Commitments: []hexutil.Bytes{hexutil.Bytes(commit10)},
-		Proofs:      []hexutil.Bytes{hexutil.Bytes(proof10)},
+		Commitments: []hexutil.Bytes{hexutil.Bytes(commit10[:])},
+		Proofs:      []hexutil.Bytes{hexutil.Bytes(proof10[:])},
 		Blobs:       []hexutil.Bytes{hexutil.Bytes(blobSlot10[:])},
 	}
 	slot10 := uint64(10)
@@ -56,14 +62,10 @@ func TestBlobsEndpoints(t *testing.T) {
 	// Slot 20: single blob, we'll query by its versioned hash
 	var blobSlot20 eth.Blob
 	blobSlot20[0] = 0x42
-	commit20 := make([]byte, 48)
-	for i := range commit20 {
-		commit20[i] = byte(100 + i)
-	}
-	proof20 := make([]byte, 48)
+	commit20, proof20 := blobToCommitmentAndProof(blobSlot20)
 	bundle20 := engine.BlobsBundle{
-		Commitments: []hexutil.Bytes{hexutil.Bytes(commit20)},
-		Proofs:      []hexutil.Bytes{hexutil.Bytes(proof20)},
+		Commitments: []hexutil.Bytes{hexutil.Bytes(commit20[:])},
+		Proofs:      []hexutil.Bytes{hexutil.Bytes(proof20[:])},
 		Blobs:       []hexutil.Bytes{hexutil.Bytes(blobSlot20[:])},
 	}
 	slot20 := uint64(20)
@@ -73,16 +75,11 @@ func TestBlobsEndpoints(t *testing.T) {
 	var blobA, blobB eth.Blob
 	blobA[0] = 0x11
 	blobB[0] = 0x22
-	commitA := make([]byte, 48)
-	commitB := make([]byte, 48)
-	for i := range commitA {
-		commitA[i] = byte(i)
-		commitB[i] = byte(i + 1)
-	}
-	proofAB := make([]byte, 48)
+	commitA, proofA := blobToCommitmentAndProof(blobA)
+	commitB, proofB := blobToCommitmentAndProof(blobB)
 	bundle15 := engine.BlobsBundle{
-		Commitments: []hexutil.Bytes{hexutil.Bytes(commitA), hexutil.Bytes(commitB)},
-		Proofs:      []hexutil.Bytes{hexutil.Bytes(proofAB), hexutil.Bytes(proofAB)},
+		Commitments: []hexutil.Bytes{hexutil.Bytes(commitA[:]), hexutil.Bytes(commitB[:])},
+		Proofs:      []hexutil.Bytes{hexutil.Bytes(proofA[:]), hexutil.Bytes(proofB[:])},
 		Blobs:       []hexutil.Bytes{hexutil.Bytes(blobA[:]), hexutil.Bytes(blobB[:])},
 	}
 	slot15 := uint64(15)
@@ -117,9 +114,7 @@ func TestBlobsEndpoints(t *testing.T) {
 	t.Run("GetBlobsBySingleVersionedHash", func(t *testing.T) {
 		t.Parallel()
 		// compute versioned hash for slot20's commitment
-		var c kzg4844.Commitment
-		copy(c[:], commit20)
-		vh := eth.KZGToVersionedHash(c)
+		vh := eth.KZGToVersionedHash(commit20)
 
 		url := fmt.Sprintf("%s/eth/v1/beacon/blobs/%d?versioned_hashes=%s", beaconApi.BeaconAddr(), slot20, vh.Hex())
 		apiResp, err := getBlobs(url)
@@ -130,11 +125,8 @@ func TestBlobsEndpoints(t *testing.T) {
 
 	t.Run("GetBlobsByMultipleVersionedHashes", func(t *testing.T) {
 		t.Parallel()
-		var ca, cb kzg4844.Commitment
-		copy(ca[:], commitA)
-		copy(cb[:], commitB)
-		vhA := eth.KZGToVersionedHash(ca)
-		vhB := eth.KZGToVersionedHash(cb)
+		vhA := eth.KZGToVersionedHash(commitA)
+		vhB := eth.KZGToVersionedHash(commitB)
 
 		// Provide two versioned_hashes params; order shouldn't matter in behavior
 		url := fmt.Sprintf("%s/eth/v1/beacon/blobs/%d?versioned_hashes=%s&versioned_hashes=%s", beaconApi.BeaconAddr(), slot15, vhA.Hex(), vhB.Hex())
