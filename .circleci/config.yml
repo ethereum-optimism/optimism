@@ -3150,11 +3150,11 @@ jobs:
               echo "Publishing commit hash data"
               INFO_FILE=$(mktemp)
               (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_HASH}") > "${INFO_FILE}"
-              gsutil cp "${INFO_FILE}" "gs://kona-proof-prestates/<<parameters.kind>>/${BRANCH_NAME}-<<parameters.version>>-prestate.bin.gz.txt"
+              gsutil cp "${INFO_FILE}" "gs://oplabs-network-data/proofs/kona/<<parameters.kind>>/${BRANCH_NAME}-<<parameters.version>>-prestate.bin.gz.txt"
               rm "${INFO_FILE}"
               PRESTATE_HASH="${BRANCH_NAME}-<<parameters.version>>"
             fi
-            gsutil cp ./prestate-artifacts-<<parameters.kind>>/prestate.bin.gz "gs://kona-proof-prestates/<<parameters.kind>>/${PRESTATE_HASH}.bin.gz"
+            gsutil cp ./prestate-artifacts-<<parameters.kind>>/prestate.bin.gz "gs://oplabs-network-data/proofs/kona/<<parameters.kind>>/${PRESTATE_HASH}.bin.gz"
             echo "Successfully published prestates artifacts to GCS"
 
   ### END KONA JOBS ###
