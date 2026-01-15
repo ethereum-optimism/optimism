@@ -146,6 +146,12 @@ func (s *Service) initMetricsServer(cfg *Config) error {
 }
 
 func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
+	// Calculate start timestamp once for all components.
+	// Chain ingesters will start ingesting from (startTimestamp - backfillDuration)
+	// and report Ready() once they reach startTimestamp.
+	// Cross-validator initializes to startTimestamp and waits for chains to catch up.
+	startTimestamp := uint64(time.Now().Unix())
+
 	chains := make(map[eth.ChainID]ChainIngester)
 
 	// Create chain ingesters for each L2 RPC
@@ -187,6 +193,7 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 			chainID,
 			rpcURL,
 			cfg.DataDir,
+			startTimestamp,
 			cfg.BackfillDuration,
 			cfg.PollInterval,
 			rollupCfg,
@@ -203,6 +210,7 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 		s.log,
 		s.metrics,
 		cfg.MessageExpiryWindow,
+		startTimestamp,
 		cfg.ValidationInterval,
 		chains,
 	)

@@ -408,25 +408,25 @@ type mockBlockInfo struct {
 	timestamp  uint64
 }
 
-func (b *mockBlockInfo) Hash() common.Hash                                  { return b.hash }
-func (b *mockBlockInfo) ParentHash() common.Hash                            { return b.parentHash }
-func (b *mockBlockInfo) NumberU64() uint64                                  { return b.number }
-func (b *mockBlockInfo) Time() uint64                                       { return b.timestamp }
-func (b *mockBlockInfo) Coinbase() common.Address                           { return common.Address{} }
-func (b *mockBlockInfo) Root() common.Hash                                  { return common.Hash{} }
-func (b *mockBlockInfo) ReceiptHash() common.Hash                           { return common.Hash{} }
-func (b *mockBlockInfo) GasUsed() uint64                                    { return 0 }
-func (b *mockBlockInfo) GasLimit() uint64                                   { return 0 }
-func (b *mockBlockInfo) BaseFee() *big.Int                                  { return nil }
-func (b *mockBlockInfo) BlobBaseFee(_ *params.ChainConfig) *big.Int         { return nil }
-func (b *mockBlockInfo) ExcessBlobGas() *uint64                             { return nil }
-func (b *mockBlockInfo) BlobGasUsed() *uint64                               { return nil }
-func (b *mockBlockInfo) ParentBeaconRoot() *common.Hash                     { return nil }
-func (b *mockBlockInfo) WithdrawalsRoot() *common.Hash                      { return nil }
-func (b *mockBlockInfo) ID() eth.BlockID                                    { return eth.BlockID{Hash: b.hash, Number: b.number} }
-func (b *mockBlockInfo) MixDigest() common.Hash                             { return common.Hash{} }
-func (b *mockBlockInfo) HeaderRLP() ([]byte, error)                         { return nil, nil }
-func (b *mockBlockInfo) Header() *gethTypes.Header                          { return nil }
+func (b *mockBlockInfo) Hash() common.Hash                          { return b.hash }
+func (b *mockBlockInfo) ParentHash() common.Hash                    { return b.parentHash }
+func (b *mockBlockInfo) NumberU64() uint64                          { return b.number }
+func (b *mockBlockInfo) Time() uint64                               { return b.timestamp }
+func (b *mockBlockInfo) Coinbase() common.Address                   { return common.Address{} }
+func (b *mockBlockInfo) Root() common.Hash                          { return common.Hash{} }
+func (b *mockBlockInfo) ReceiptHash() common.Hash                   { return common.Hash{} }
+func (b *mockBlockInfo) GasUsed() uint64                            { return 0 }
+func (b *mockBlockInfo) GasLimit() uint64                           { return 0 }
+func (b *mockBlockInfo) BaseFee() *big.Int                          { return nil }
+func (b *mockBlockInfo) BlobBaseFee(_ *params.ChainConfig) *big.Int { return nil }
+func (b *mockBlockInfo) ExcessBlobGas() *uint64                     { return nil }
+func (b *mockBlockInfo) BlobGasUsed() *uint64                       { return nil }
+func (b *mockBlockInfo) ParentBeaconRoot() *common.Hash             { return nil }
+func (b *mockBlockInfo) WithdrawalsRoot() *common.Hash              { return nil }
+func (b *mockBlockInfo) ID() eth.BlockID                            { return eth.BlockID{Hash: b.hash, Number: b.number} }
+func (b *mockBlockInfo) MixDigest() common.Hash                     { return common.Hash{} }
+func (b *mockBlockInfo) HeaderRLP() ([]byte, error)                 { return nil, nil }
+func (b *mockBlockInfo) Header() *gethTypes.Header                  { return nil }
 
 // LoadCapturedData loads captured test data from a JSON file
 func LoadCapturedData(path string) (*CapturedData, error) {

@@ -30,7 +30,7 @@ func TestCrossValidator_TimeoutZero(t *testing.T) {
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(testChainA): mock,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow)
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
 	access := makeAccess(testChainA, 100, 10, 0, checksum)
 	exec := makeExecDescriptor(testChainA, 150, 0) // timeout = 0, skip check
@@ -48,7 +48,7 @@ func TestCrossValidator_TimeoutExceedsExpiry(t *testing.T) {
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(testChainA): mock,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow)
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
 	access := makeAccess(testChainA, 100, 10, 0, checksum)
 	// init=100, expiry=100, so expiresAt=200
@@ -75,7 +75,7 @@ func TestCrossValidator_CrossUnsafe_AtBoundary(t *testing.T) {
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(testChainA): mock,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow)
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
 	// Trigger initialization (sets crossValidatedTs=100)
 	cv.advanceValidation()
@@ -92,12 +92,12 @@ func TestCrossValidator_CrossUnsafe_BeyondBoundary(t *testing.T) {
 	mock := newMockChainIngester()
 	checksum := types.MessageChecksum{0x01}
 	mock.AddLog(101, 10, 0, checksum, types.BlockSeal{}) // Note: timestamp 101
-	mock.SetLatestTimestamp(100) // Set to 100 so init sets crossValidatedTs=100
+	mock.SetLatestTimestamp(100)                         // Set to 100 so init sets crossValidatedTs=100
 
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(testChainA): mock,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow)
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
 	// Trigger initialization (sets crossValidatedTs=100)
 	cv.advanceValidation()
@@ -124,7 +124,7 @@ func TestCrossValidator_KnownChain(t *testing.T) {
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(testChainA): mock,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow)
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
 	access := makeAccess(testChainA, 100, 10, 0, checksum)
 	exec := makeExecDescriptor(testChainA, 150, 0)
@@ -140,7 +140,7 @@ func TestCrossValidator_UnknownChain(t *testing.T) {
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(testChainA): mock,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow)
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
 	// Access from chain 902 which is not registered
 	unknownChainID := uint64(902)
@@ -165,7 +165,7 @@ func TestCrossValidator_ChecksumMatch(t *testing.T) {
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(testChainA): mock,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow)
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
 	access := makeAccess(testChainA, 100, 10, 0, checksum)
 	exec := makeExecDescriptor(testChainA, 150, 0)
@@ -182,7 +182,7 @@ func TestCrossValidator_ChecksumNotFound(t *testing.T) {
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(testChainA): mock,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow)
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
 	access := makeAccess(testChainA, 100, 10, 0, types.MessageChecksum{0x01})
 	exec := makeExecDescriptor(testChainA, 150, 0)
@@ -231,6 +231,7 @@ func TestCrossValidator_ValidationFailureSetsError(t *testing.T) {
 		testlog.Logger(t, log.LevelCrit),
 		metrics.NoopMetrics,
 		testExpiryWindow,
+		101,              // startTimestamp - matches what chains report
 		time.Millisecond, // Short interval for test
 		chains,
 	)
@@ -290,7 +291,7 @@ func TestValidateAccessEntry_TimestampNotIngested(t *testing.T) {
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(testChainA): mock,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow)
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
 	// Access at timestamp 150, but we've only ingested up to 100
 	access := makeAccess(testChainA, 150, 10, 0, checksum)
@@ -315,7 +316,7 @@ func TestValidateExecMsg_InitBeforeInclusion(t *testing.T) {
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(testChainA): mock,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow)
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
 	// Init timestamp = 100, Inclusion timestamp = 100 (equal, not before)
 	access := makeAccess(testChainA, 100, 10, 0, checksum)
@@ -336,7 +337,7 @@ func TestValidateExecMsg_MessageExpired(t *testing.T) {
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(testChainA): mock,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow) // expiry window = 100
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100) // expiry window = 100
 
 	// Init timestamp = 100, expiry = 100, so expires at 200
 	// Inclusion at 250 - message has expired
@@ -361,7 +362,7 @@ func TestAdvanceValidation_WaitsForChainsReady(t *testing.T) {
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(testChainA): mock,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow)
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
 	// Should not initialize when chains not ready
 	cv.advanceValidation()
@@ -376,25 +377,25 @@ func TestAdvanceValidation_WaitsForChainsReady(t *testing.T) {
 	require.Equal(t, uint64(100), ts)
 }
 
-func TestAdvanceValidation_InitializesToMinIngestedTimestamp(t *testing.T) {
+func TestAdvanceValidation_InitializesToStartTimestamp(t *testing.T) {
 	mock := newMockChainIngester()
 	mock.SetReady(true)
-	mock.SetLatestTimestamp(150)
+	mock.SetLatestTimestamp(150) // Chains have ingested up to 150
 
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(testChainA): mock,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow)
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100) // startTimestamp = 100
 
 	// Before first advance, no cross-validated timestamp
 	_, ok := cv.CrossValidatedTimestamp()
 	require.False(t, ok)
 
-	// First advance initializes to minIngestedTs
+	// First advance initializes to startTimestamp
 	cv.advanceValidation()
 	ts, ok := cv.CrossValidatedTimestamp()
 	require.True(t, ok)
-	require.Equal(t, uint64(150), ts, "should initialize to minIngestedTs")
+	require.Equal(t, uint64(100), ts, "should initialize to startTimestamp")
 }
 
 func TestAdvanceValidation_AdvancesTimestamp(t *testing.T) {
@@ -405,7 +406,7 @@ func TestAdvanceValidation_AdvancesTimestamp(t *testing.T) {
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(testChainA): mock,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow)
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
 	// Initialize
 	cv.advanceValidation()
@@ -433,7 +434,7 @@ func TestAdvanceValidation_StopsAtMinIngested(t *testing.T) {
 		eth.ChainIDFromUInt64(testChainA):     mockA,
 		eth.ChainIDFromUInt64(testChainA + 1): mockB,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow)
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
 	// Initialize
 	cv.advanceValidation()

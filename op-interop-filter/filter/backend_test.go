@@ -38,7 +38,7 @@ func newTestBackendWithMockChain(chainID uint64) (*Backend, *mockChainIngester) 
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(chainID): mock,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow)
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 	return NewBackend(context.Background(), BackendParams{
 		Logger:         testlog.Logger(&testing.T{}, log.LevelCrit),
 		Metrics:        metrics.NoopMetrics,
@@ -47,12 +47,13 @@ func newTestBackendWithMockChain(chainID uint64) (*Backend, *mockChainIngester) 
 	}), mock
 }
 
-func newTestCrossValidator(chains map[eth.ChainID]ChainIngester, expiryWindow uint64) *LockstepCrossValidator {
+func newTestCrossValidator(chains map[eth.ChainID]ChainIngester, expiryWindow uint64, startTimestamp uint64) *LockstepCrossValidator {
 	return NewLockstepCrossValidator(
 		context.Background(),
 		testlog.Logger(&testing.T{}, log.LevelCrit),
 		metrics.NoopMetrics,
 		expiryWindow,
+		startTimestamp,
 		time.Hour, // Long interval - won't tick in tests
 		chains,
 	)
@@ -120,7 +121,7 @@ func TestBackend_Failsafe_CrossValidatorError(t *testing.T) {
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(testChainA): mock,
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow)
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
 	backend := NewBackend(context.Background(), BackendParams{
 		Logger:         testlog.Logger(t, log.LevelCrit),

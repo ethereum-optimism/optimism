@@ -33,6 +33,7 @@ type LockstepCrossValidator struct {
 	metrics metrics.Metricer
 
 	messageExpiryWindow uint64
+	startTimestamp      uint64 // Initial timestamp to start validation from
 	validationInterval  time.Duration
 
 	// Chain ingesters keyed by chain ID (read-only after construction)
@@ -51,13 +52,13 @@ type LockstepCrossValidator struct {
 }
 
 // NewLockstepCrossValidator creates a new LockstepCrossValidator.
-// The cross-validated timestamp is lazily initialized from the minimum ingested
-// timestamp once all chains are ready.
+// The startTimestamp is used to initialize the cross-validated timestamp on first run.
 func NewLockstepCrossValidator(
 	parentCtx context.Context,
 	logger log.Logger,
 	m metrics.Metricer,
 	messageExpiryWindow uint64,
+	startTimestamp uint64,
 	validationInterval time.Duration,
 	chains map[eth.ChainID]ChainIngester,
 ) *LockstepCrossValidator {
@@ -67,6 +68,7 @@ func NewLockstepCrossValidator(
 		log:                 logger.New("component", "cross-validator"),
 		metrics:             m,
 		messageExpiryWindow: messageExpiryWindow,
+		startTimestamp:      startTimestamp,
 		validationInterval:  validationInterval,
 		chains:              chains,
 		ctx:                 ctx,
@@ -252,10 +254,10 @@ func (v *LockstepCrossValidator) advanceValidation() {
 
 	currentTs := v.crossValidatedTs.Load()
 
-	// Lazy initialization: start from the minimum ingested timestamp once all chains are ready
+	// Lazy initialization: start from the configured start timestamp
 	if currentTs == 0 {
-		v.crossValidatedTs.Store(minIngestedTs)
-		v.log.Info("Cross-validator initialized", "startTimestamp", minIngestedTs)
+		v.crossValidatedTs.Store(v.startTimestamp)
+		v.log.Info("Cross-validator initialized", "startTimestamp", v.startTimestamp)
 		return
 	}
 

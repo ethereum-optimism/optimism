@@ -48,7 +48,8 @@ func newTestLogsDBChainIngester(t *testing.T, cfg testIngesterConfig) *LogsDBCha
 		chainID:          cfg.chainID,
 		ethClient:        cfg.ethClient,
 		dataDir:          cfg.dataDir,
-		backfillDuration: time.Hour,
+		startTimestamp:   10000, // Default for tests - high enough to avoid underflow
+		backfillDuration: 0,     // No backfill by default in tests
 		pollInterval:     100 * time.Millisecond,
 		rollupCfg:        cfg.rollupCfg,
 		ctx:              ctx,
@@ -181,9 +182,10 @@ func TestLogsDBChainIngester_SealParentBlock(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, uint64(99), latestBlock.Number)
 
-	// Verify earliest block is set correctly
-	require.True(t, ingester.earliestBlockSet.Load())
-	require.Equal(t, uint64(100), ingester.earliestBlockNum.Load())
+	// Note: earliestBlockNum is NOT set in sealParentBlock anymore.
+	// It's now set in ingestBlock when the first block with actual log data is ingested.
+	// The anchor block is just a checkpoint, not a block with queryable log data.
+	require.False(t, ingester.earliestBlockSet.Load(), "sealParentBlock should not set earliestBlockNum")
 }
 
 func TestLogsDBChainIngester_IngestBlock(t *testing.T) {
@@ -291,7 +293,7 @@ func TestLogsDBChainIngester_Ready(t *testing.T) {
 
 	mockClient := NewMockEthClient()
 
-	// Create blocks
+	// Create blocks - block 100 has timestamp 1200
 	parentBlock := createTestBlock(99, 1198, common.Hash{})
 	mockClient.AddBlock(parentBlock, nil)
 
@@ -305,19 +307,15 @@ func TestLogsDBChainIngester_Ready(t *testing.T) {
 		rollupCfg: testRollupConfig(901, 0, 1000),
 	})
 
-	// Not ready initially
+	// Set startTimestamp to 1200 (block 100's timestamp) for this test
+	ingester.startTimestamp = 1200
+
+	// Not ready initially - no blocks ingested yet
 	require.False(t, ingester.Ready())
 
 	err := ingester.initLogsDB()
 	require.NoError(t, err)
 	t.Cleanup(func() { ingester.logsDB.Close() })
-
-	// Still not ready - starting block not set
-	require.False(t, ingester.Ready())
-
-	// Set starting block
-	ingester.startingBlock.Store(100)
-	ingester.startingBlockSet.Store(true)
 
 	// Still not ready - no blocks sealed
 	require.False(t, ingester.Ready())
@@ -326,13 +324,13 @@ func TestLogsDBChainIngester_Ready(t *testing.T) {
 	err = ingester.sealParentBlock(99)
 	require.NoError(t, err)
 
-	// Still not ready - latest is 99, starting is 100
+	// Still not ready - latest timestamp is 1198 (block 99), startTimestamp is 1200
 	require.False(t, ingester.Ready())
 
 	err = ingester.ingestBlock(100)
 	require.NoError(t, err)
 
-	// Now ready - latest (100) >= starting (100)
+	// Now ready - latestTimestamp (1200) >= startTimestamp (1200)
 	require.True(t, ingester.Ready())
 }
 
@@ -680,9 +678,10 @@ func TestLogsDBChainIngester_InitIngestion_FreshStart(t *testing.T) {
 
 	mockClient := NewMockEthClient()
 
-	// L2 chain starts at block 100 (not 0) to avoid underflow when sealing parent
+	// L2 chain starts at block 100
 	// Head: block 200, timestamp 1200
-	// backfillDuration: 1 hour > chain age, so we start from L2 start block
+	// With backfillDuration=1hr and startTimestamp=1200, backfillTimestamp would be
+	// negative (1200-3600), causing TargetBlockNumber to fail and fall back to genesis.
 	l2StartBlock := uint64(100)
 	l2StartTimestamp := uint64(1000)
 
@@ -701,15 +700,19 @@ func TestLogsDBChainIngester_InitIngestion_FreshStart(t *testing.T) {
 		rollupCfg: testRollupConfig(901, l2StartBlock, l2StartTimestamp),
 	})
 
+	// Set up for backfill that goes before genesis
+	ingester.startTimestamp = 1200
+	ingester.backfillDuration = time.Hour // 3600 seconds > head timestamp, so backfill goes negative
+
 	err := ingester.initLogsDB()
 	require.NoError(t, err)
 	t.Cleanup(func() { ingester.logsDB.Close() })
 
-	// Call initIngestion
+	// Call initIngestion - should fall back to L2 start block since backfill is before genesis
 	nextBlock, err := ingester.initIngestion()
 	require.NoError(t, err)
 
-	// Should start from L2 start block
+	// Should start from L2 start block (genesis fallback)
 	require.True(t, ingester.startingBlockSet.Load())
 	startingBlock := ingester.startingBlock.Load()
 	require.Equal(t, l2StartBlock, startingBlock)

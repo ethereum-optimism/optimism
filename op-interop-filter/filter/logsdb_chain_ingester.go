@@ -52,12 +52,12 @@ type LogsDBChainIngester struct {
 	ethClient        EthClient
 	logsDB           *logs.DB
 	dataDir          string
-	backfillDuration time.Duration
+	startTimestamp   uint64        // Timestamp at which we report Ready (typically now)
+	backfillDuration time.Duration // How far back to start ingestion from startTimestamp
 	pollInterval     time.Duration
 	rollupCfg        *rollup.Config // Rollup config for block number calculation
 
 	// startingBlock is the first block we need to ingest (set once at init).
-	// Ready() returns true when latestSealed >= startingBlock.
 	startingBlock    atomic.Uint64
 	startingBlockSet atomic.Bool
 
@@ -75,6 +75,8 @@ type LogsDBChainIngester struct {
 }
 
 // NewLogsDBChainIngester creates a new LogsDBChainIngester for the given chain.
+// startTimestamp is when we report Ready() = true (typically now).
+// backfillDuration is how far back from startTimestamp to begin ingestion.
 func NewLogsDBChainIngester(
 	parentCtx context.Context,
 	logger log.Logger,
@@ -82,6 +84,7 @@ func NewLogsDBChainIngester(
 	chainID eth.ChainID,
 	rpcURL string,
 	dataDir string,
+	startTimestamp uint64,
 	backfillDuration time.Duration,
 	pollInterval time.Duration,
 	rollupCfg *rollup.Config,
@@ -125,6 +128,7 @@ func NewLogsDBChainIngester(
 		rpcClient:        rpcClient,
 		ethClient:        ethClient,
 		dataDir:          dataDir,
+		startTimestamp:   startTimestamp,
 		backfillDuration: backfillDuration,
 		pollInterval:     pollInterval,
 		rollupCfg:        rollupCfg,
@@ -175,17 +179,13 @@ func (c *LogsDBChainIngester) Stop() error {
 	return nil
 }
 
-// Ready returns true if we've ingested up to at least the starting block.
-// This is the only place where "backfill" is a concept - just one comparison.
+// Ready returns true if we've ingested up to at least the start timestamp.
 func (c *LogsDBChainIngester) Ready() bool {
-	if !c.startingBlockSet.Load() {
-		return false
-	}
-	latestBlock, ok := c.LatestBlock()
+	latestTs, ok := c.LatestTimestamp()
 	if !ok {
 		return false
 	}
-	return latestBlock.Number >= c.startingBlock.Load()
+	return latestTs >= c.startTimestamp
 }
 
 // SetError sets the error state, logs the error, and records metrics.
@@ -323,14 +323,19 @@ func (c *LogsDBChainIngester) findAndSetEarliestBlock(latestBlock uint64) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	// Walk backward from latest to find the first block that can be opened.
+	// The anchor block (sealed but not fully ingested) will fail OpenBlock
+	// because it has no predecessor checkpoint data, so we'll identify
+	// the first block with actual log data.
 	earliest := latestBlock
 	for blockNum := latestBlock; blockNum > 0; blockNum-- {
-		_, err := c.logsDB.FindSealedBlock(blockNum - 1)
+		_, _, _, err := c.logsDB.OpenBlock(blockNum)
 		if err != nil {
-			earliest = blockNum
+			// This block can't be opened, the one after it is earliest queryable
+			earliest = blockNum + 1
 			break
 		}
-		earliest = blockNum - 1
+		earliest = blockNum
 	}
 
 	c.earliestBlockNum.Store(earliest)
@@ -468,18 +473,19 @@ func (c *LogsDBChainIngester) initIngestion() (uint64, error) {
 	}
 	c.log.Info("Current chain head", "block", head.NumberU64(), "hash", head.Hash())
 
-	// Calculate the starting block using rollup config
-	backfillSeconds := uint64(c.backfillDuration / time.Second)
-	var targetTimestamp uint64
-	if head.Time() > backfillSeconds {
-		targetTimestamp = head.Time() - backfillSeconds
+	// Calculate backfill timestamp (where ingestion starts)
+	// Handle underflow: if backfillDuration > startTimestamp, start from genesis
+	backfillSeconds := uint64(c.backfillDuration.Seconds())
+	var backfillTimestamp uint64
+	if c.startTimestamp > backfillSeconds {
+		backfillTimestamp = c.startTimestamp - backfillSeconds
 	}
 
-	// Use rollup config to calculate block number from timestamp
-	startingBlock, err := c.rollupCfg.TargetBlockNumber(targetTimestamp)
+	// Use rollup config to calculate block number from the backfill timestamp
+	startingBlock, err := c.rollupCfg.TargetBlockNumber(backfillTimestamp)
 	if err != nil {
 		// Timestamp is before genesis, start from genesis block
-		c.log.Info("Target timestamp before genesis, starting from genesis", "targetTimestamp", targetTimestamp)
+		c.log.Info("Target timestamp before genesis, starting from genesis", "targetTimestamp", backfillTimestamp)
 		startingBlock = c.rollupCfg.Genesis.L2.Number
 	}
 
@@ -490,7 +496,7 @@ func (c *LogsDBChainIngester) initIngestion() (uint64, error) {
 
 	c.startingBlock.Store(startingBlock)
 	c.startingBlockSet.Store(true)
-	c.log.Info("Determined starting block", "block", startingBlock, "targetTimestamp", targetTimestamp)
+	c.log.Info("Determined starting block", "block", startingBlock, "backfillTimestamp", backfillTimestamp, "startTimestamp", c.startTimestamp)
 
 	// Check if we have existing data to resume from
 	c.mu.RLock()
@@ -571,8 +577,9 @@ func (c *LogsDBChainIngester) sealParentBlock(blockNum uint64) error {
 		return fmt.Errorf("failed to seal block: %w", err)
 	}
 
-	c.earliestBlockNum.Store(blockNum + 1)
-	c.earliestBlockSet.Store(true)
+	// Note: We don't set earliestBlockNum here because the parent block is just
+	// an anchor checkpoint. earliestBlockNum will be set in ingestBlock when
+	// the first block with actual log data is ingested.
 
 	c.log.Info("Sealed parent block", "block", blockNum, "hash", blockID.Hash)
 	return nil
@@ -637,6 +644,13 @@ func (c *LogsDBChainIngester) ingestBlock(blockNum uint64) error {
 	c.metrics.RecordChainHead(chainIDUint64, blockNum)
 	c.metrics.RecordBlocksSealed(chainIDUint64, 1)
 	c.metrics.RecordLogsAdded(chainIDUint64, int64(logCount))
+
+	// Set earliest block on first successful ingestion (fresh start case).
+	// On restart, findAndSetEarliestBlock handles this instead.
+	if !c.earliestBlockSet.Load() {
+		c.earliestBlockNum.Store(blockNum)
+		c.earliestBlockSet.Store(true)
+	}
 
 	return nil
 }
