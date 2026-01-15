@@ -3,7 +3,6 @@ package blobstore
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -57,6 +56,7 @@ func (store *Store) GetBlobsByHash(ctx context.Context, time uint64, hashes []co
 		return nil, fmt.Errorf("no blobs known with given time: %w", ethereum.NotFound)
 	}
 
+	// Case of empty hashes
 	if len(hashes) == 0 {
 		out := make([]*eth.Blob, len(m))
 		for k, v := range m {
@@ -65,19 +65,33 @@ func (store *Store) GetBlobsByHash(ctx context.Context, time uint64, hashes []co
 		return out, nil
 	}
 
-	out := make([]*eth.Blob, len(hashes))
-	numBlobsFound := 0
-	for k, v := range m {
-		if slices.Contains(hashes, k.Hash) {
-			out[k.Index] = v
-			numBlobsFound++
+	// When hashes is not empty,
+	type indexedBlob struct {
+		Index uint64
+		Blob  *eth.Blob
+	}
+
+	// find the blob for each hash
+	n := make([]indexedBlob, 0, len(hashes))
+	for _, h := range hashes {
+		for k, v := range m {
+			if h == k.Hash {
+				n = append(n, indexedBlob{Index: k.Index, Blob: v})
+			}
 		}
 	}
-	if numBlobsFound != len(hashes) {
+
+	if len(n) != len(hashes) {
 		return nil, fmt.Errorf("not all blobs found")
 	}
 
-	return out, nil
+	// and then sort by blob index
+	o := make([]*eth.Blob, len(n))
+	for _, blob := range n {
+		o[blob.Index] = blob.Blob
+	}
+
+	return o, nil
 }
 
 var _ derive.L1BlobsFetcher = (*Store)(nil)
