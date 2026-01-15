@@ -19,8 +19,6 @@ var (
 type Rewind struct {
 	log    gethlog.Logger
 	chains map[eth.ChainID]cc.ChainContainer
-	ctx    context.Context
-	cancel context.CancelFunc
 }
 
 // New creates a new Heartbeat activity.
