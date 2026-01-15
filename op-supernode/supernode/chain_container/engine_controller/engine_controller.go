@@ -19,8 +19,12 @@ type EngineController interface {
 	// clamped to the current SAFE head.
 	// Must return ethereum.NotFound if there is no safe block at the specified timestamp.
 	SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
+	// FinalizedBlock return the Finalized L2 Block
+	FinalizedBlock(ctx context.Context) (eth.L2BlockRef, error)
 	// OutputV0AtBlockNumber returns the output preimage for the given L2 block number.
 	OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error)
+	// ForkchoiceUpdate
+	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState) (*eth.ForkchoiceUpdatedResult, error)
 	// Close releases any underlying RPC resources.
 	Close() error
 }
@@ -31,6 +35,7 @@ type l2Provider interface {
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	OutputV0AtBlockNumber(ctx context.Context, blockNum uint64) (*eth.OutputV0, error)
 	PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error)
+	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
 	Close()
 }
 
@@ -91,6 +96,13 @@ func (e *simpleEngineController) SafeBlockAtTimestamp(ctx context.Context, ts ui
 	return e.l2.L2BlockRefByNumber(ctx, num)
 }
 
+func (e *simpleEngineController) FinalizedBlock(ctx context.Context) (eth.L2BlockRef, error) {
+	if e.l2 == nil {
+		return eth.L2BlockRef{}, ErrNoEngineClient
+	}
+	return e.l2.L2BlockRefByLabel(ctx, eth.Finalized)
+}
+
 func (e *simpleEngineController) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
 	if e.l2 == nil {
 		return nil, ErrNoEngineClient
@@ -122,6 +134,12 @@ func (e *simpleEngineController) OutputV0AtBlockNumber(ctx context.Context, num 
 		e.log.Debug("engine_controller: falling back to proof-based OutputV0", "blockNumber", num)
 	}
 	return e.l2.OutputV0AtBlockNumber(ctx, num)
+}
+func (e *simpleEngineController) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState) (*eth.ForkchoiceUpdatedResult, error) {
+	if e.l2 == nil {
+		return nil, ErrNoEngineClient
+	}
+	return e.l2.ForkchoiceUpdate(ctx, state, nil) // use nil PayloadAttributes to avoid triggering block building
 }
 
 func (e *simpleEngineController) Close() error {

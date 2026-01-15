@@ -79,8 +79,16 @@ func (m *mockL2) PayloadByNumber(ctx context.Context, number uint64) (*eth.Execu
 	m.payloadCalls++
 	return m.payload, m.payloadErr
 }
+func (m *mockL2) FinalizedBlockRef(ctx context.Context) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{Number: 0}, nil
+}
+func (m *mockL2) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, payloadAttributes *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+	return nil, nil
+}
 func (m *mockL2) Close() {
 }
+
+var _ l2Provider = (*mockL2)(nil)
 
 func TestEngineController_TargetBlockNumber(t *testing.T) {
 	t.Parallel()
