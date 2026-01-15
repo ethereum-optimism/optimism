@@ -864,21 +864,28 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 _disputeGameFactory: disputeGameFactory
             });
 
-            Claim cannonKonaPrestate = _opChainConfig.cannonKonaPrestate.raw() != bytes32(0)
-                ? _opChainConfig.cannonKonaPrestate
-                : getAbsolutePrestate(disputeGameFactory, address(permissionlessDisputeGame), GameTypes.CANNON_KONA);
-            setNewPermissionlessGameImpl({
-                _impls: _impls,
-                _l2ChainId: _l2ChainId,
-                _newAbsolutePrestate: cannonKonaPrestate,
-                // CANNON and CANNON_KONA use the same weth and asr proxy addresses
-                _newDelayedWeth: getWETH(dgf, permissionlessDisputeGame, GameTypes.CANNON),
-                _newAnchorStateRegistryProxy: getAnchorStateRegistry(dgf, permissionlessDisputeGame, GameTypes.CANNON),
-                _gameType: GameTypes.CANNON_KONA,
-                _disputeGameFactory: disputeGameFactory
-            });
-            uint256 initialCannonGameBond = disputeGameFactory.initBonds(GameTypes.CANNON);
-            disputeGameFactory.setInitBond(GameTypes.CANNON_KONA, initialCannonGameBond);
+            // Get the actual CANNON_KONA implementation to determine if it exists and to read its prestate
+            IDisputeGame cannonKonaGame = getGameImplementation(dgf, GameTypes.CANNON_KONA);
+
+            // Only upgrade CANNON_KONA if prestate is explicitly provided OR if CANNON_KONA already exists.
+            // This avoids silently enabling CANNON_KONA with an unintended prestate.
+            if (_opChainConfig.cannonKonaPrestate.raw() != bytes32(0) || address(cannonKonaGame) != address(0)) {
+                Claim cannonKonaPrestate = _opChainConfig.cannonKonaPrestate.raw() != bytes32(0)
+                    ? _opChainConfig.cannonKonaPrestate
+                    : getAbsolutePrestate(disputeGameFactory, address(cannonKonaGame), GameTypes.CANNON_KONA);
+                setNewPermissionlessGameImpl({
+                    _impls: _impls,
+                    _l2ChainId: _l2ChainId,
+                    _newAbsolutePrestate: cannonKonaPrestate,
+                    // CANNON and CANNON_KONA use the same weth and asr proxy addresses
+                    _newDelayedWeth: getWETH(dgf, permissionlessDisputeGame, GameTypes.CANNON),
+                    _newAnchorStateRegistryProxy: getAnchorStateRegistry(dgf, permissionlessDisputeGame, GameTypes.CANNON),
+                    _gameType: GameTypes.CANNON_KONA,
+                    _disputeGameFactory: disputeGameFactory
+                });
+                uint256 initialCannonGameBond = disputeGameFactory.initBonds(GameTypes.CANNON);
+                disputeGameFactory.setInitBond(GameTypes.CANNON_KONA, initialCannonGameBond);
+            }
         }
     }
 
