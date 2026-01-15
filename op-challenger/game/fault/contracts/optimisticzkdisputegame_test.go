@@ -277,12 +277,11 @@ func TestZKGame_GetBondDistributionMode(t *testing.T) {
 		version := version
 		t.Run(version.String(), func(t *testing.T) {
 			stubRpc, game := setupZKDisputeGameTest(t, version)
-			expectedMode := uint8(1) // NormalDistributionMode
-			stubRpc.SetResponse(zkGameAddr, methodBondDistributionMode, rpcblock.Latest, nil, []interface{}{expectedMode})
+			stubRpc.SetResponse(zkGameAddr, methodBondDistributionMode, rpcblock.Latest, nil, []interface{}{uint8(faultTypes.NormalDistributionMode)})
 
 			mode, err := game.GetBondDistributionMode(context.Background(), rpcblock.Latest)
 			require.NoError(t, err)
-			require.Equal(t, faultTypes.BondDistributionMode(expectedMode), mode)
+			require.Equal(t, faultTypes.NormalDistributionMode, mode)
 		})
 	}
 }
