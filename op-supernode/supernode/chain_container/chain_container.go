@@ -363,7 +363,7 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 	}
 	currentFinalizedBlock, err := c.engine.FinalizedBlock(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get finalized block by hash %s: %w", timestamp, err)
+		return fmt.Errorf("failed to get finalized block by hash %d: %w", timestamp, err)
 	}
 
 	// Pause the container to stop it restarting the vn when we kill it
@@ -402,7 +402,7 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 		return fmt.Errorf("failed to rewind engine: %w", err)
 	}
 	if res.PayloadStatus.Status != eth.ExecutionValid {
-		return fmt.Errorf("failed to rewind engine: %s", res.PayloadStatus)
+		return fmt.Errorf("failed to rewind engine: %+v", res.PayloadStatus)
 	}
 
 	// resume the chain container to trigger a new vn to be started
