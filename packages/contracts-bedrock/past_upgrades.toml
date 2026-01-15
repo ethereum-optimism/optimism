@@ -2,6 +2,7 @@
 # before those upgrades were executed.
 #
 # Add new upgrades here when introducing new upgrades that need to be sequenced.
+# Upgrades are executed in the order they appear in this file (array order matters).
 #
 # V1 upgrades (opcm_version = 1):
 #   - name: Human-readable name for logging

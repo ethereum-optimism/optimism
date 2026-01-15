@@ -395,17 +395,17 @@ func buildV2UpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy commo
 func stringToGameType(gameType string) embedded.GameType {
 	switch gameType {
 	case "CANNON":
-		return embedded.GameTypeCannon // 0
+		return embedded.GameTypeCannon
 	case "PERMISSIONED_CANNON":
-		return embedded.GameTypePermissionedCannon // 1
+		return embedded.GameTypePermissionedCannon
 	case "SUPER_CANNON":
-		return embedded.GameType(4)
+		return embedded.GameTypeSuperCannon
 	case "SUPER_PERMISSIONED_CANNON":
-		return embedded.GameType(5)
+		return embedded.GameTypeSuperPermCannon
 	case "CANNON_KONA":
-		return embedded.GameTypeCannonKona // 8
+		return embedded.GameTypeCannonKona
 	case "SUPER_CANNON_KONA":
-		return embedded.GameType(9)
+		return embedded.GameTypeSuperCannonKona
 	default:
 		panic(fmt.Sprintf("unknown game type: %s", gameType))
 	}
