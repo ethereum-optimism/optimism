@@ -14,22 +14,24 @@ going through the formal version update proposal process outlined in this docume
 
 ## Update Process
 
-1. **Minimum Delay Period**: A new Foundry version must be at least 1 month old before it can be
+1. **Minimum Delay Period**: A new Foundry version must be at least 3 month old before it can be
    considered for adoption.
-2. Only stable releases are recommended to be proposed for adoption. For upgrades to nightly builds, there must be a feature addition that improves the quality of our codebase considerably or a bug fix that addresses a non-trivial security vulnerability.
-3. **Proposal Submission**: Before any Foundry version upgrades are made, a detailed proposal must
+2. Only stable releases are recommended to be proposed for adoption.
+3. Nightly builds must only be considered for adoption if it includes a bug fix that addresses a non-trivial security vulnerability. This path does not need to follow the 3 month delay period.
+4. **Proposal Submission**: Before any Foundry version upgrades are made, a detailed proposal must
    be submitted as a pull request to the [`ethereum-optimism/design-docs`][1] repository in a
    `foundry/` subfolder, following the standardized format outlined below. This applies to the monorepo, superchain-ops, and any other repositories that use Foundry.
-4. **Review and Approval**: A dedicated review panel will assess the proposal based on the
+5. **Review and Approval**: A dedicated review panel that must consist of **at least 2 members of the security team** will assess the proposal based on the
    following criteria:
-   - Is the Foundry version at least 1 month old?
+   - Is the Foundry version at least 3 month old?
    - Does the proposed upgrade provide clear value to the codebase?
    - Do any new features or bug fixes pose an unnecessary risk to the codebase?
    - Are there any security vulnerabilities addressed by this version?
-5. **Implementation**: If the proposal receives unanimous approval from the review panel, the
+6. **Implementation**: If the proposal receives unanimous approval from the review panel, the
    Foundry version upgrade will be implemented across the entire OP Stack codebase, including:
    - The monorepo (`mise.toml` and `op-deployer/pkg/deployer/forge/version.json`)
    - The `superchain-ops` repository
+7. The PR that implements the bump MUST include a reference to the approved, merged design document that approves that foundry version for usage.
 
 ## Proposal Submission Guidelines
 
