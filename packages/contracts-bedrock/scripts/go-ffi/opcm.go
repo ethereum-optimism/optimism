@@ -9,10 +9,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// GetOPCMs returns ABI-encoded OPCM data for a given chain ID.
+// GetOPCMs returns ABI-encoded OPCM addresses for a given chain ID.
 // Called via FFI from Solidity tests.
 // Usage: go-ffi opcm <chainID>
-// Returns: ABI-encoded array of (address opcmAddress, string version, bool isV1)
+// Returns: ABI-encoded array of (address addr, string releaseVersion)
+// Note: releaseVersion is the contracts release version from the registry (e.g., "1.6.0"),
+// NOT the OPCM contract's semver. The actual OPCM version must be queried on-chain via opcm.version().
 func GetOPCMs() {
 	if len(os.Args) < 3 {
 		fmt.Fprintf(os.Stderr, "Usage: go-ffi opcm <chainID>\n")
@@ -32,27 +34,23 @@ func GetOPCMs() {
 	}
 
 	// Encode as ABI-packed array of structs
-	// struct OPCMInfo { address addr; string version; bool isV1; }
 	type OPCMInfoEncoded struct {
-		Addr    common.Address
-		Version string
-		IsV1    bool
+		Addr           common.Address
+		ReleaseVersion string
 	}
 
 	encoded := make([]OPCMInfoEncoded, len(opcms))
 	for i, opcm := range opcms {
 		encoded[i] = OPCMInfoEncoded{
-			Addr:    opcm.Address,
-			Version: opcm.Version,
-			IsV1:    opcm.IsV1,
+			Addr:           opcm.Address,
+			ReleaseVersion: opcm.ReleaseVersion,
 		}
 	}
 
 	// Define the ABI type for the array of structs
 	opcmInfoType, _ := abi.NewType("tuple[]", "", []abi.ArgumentMarshaling{
 		{Name: "addr", Type: "address"},
-		{Name: "version", Type: "string"},
-		{Name: "isV1", Type: "bool"},
+		{Name: "releaseVersion", Type: "string"},
 	})
 
 	args := abi.Arguments{{Type: opcmInfoType}}

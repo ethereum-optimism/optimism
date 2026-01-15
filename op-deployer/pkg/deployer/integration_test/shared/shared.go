@@ -210,7 +210,7 @@ func getLastUsedOPCMVersion(caller ContractCaller, systemConfigProxy common.Addr
 func runSingleOPCMUpgradeResolved(t *testing.T, host *script.Host, prank, systemConfigProxy common.Address, opcm opcmregistry.ResolvedOPCM) bool {
 	t.Helper()
 
-	upgradeConfig := buildOPCMUpgradeConfig(t, prank, opcm.Address, systemConfigProxy, opcm.Version)
+	upgradeConfig := buildOPCMUpgradeConfig(t, prank, opcm.Address, systemConfigProxy, opcm.OPCMVersion)
 	if upgradeConfig == nil {
 		return false
 	}
@@ -220,10 +220,10 @@ func runSingleOPCMUpgradeResolved(t *testing.T, host *script.Host, prank, system
 
 	err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
 	if err != nil {
-		t.Logf("OPCM %s (v%s) upgrade failed: %v", opcm.Address.Hex(), opcm.Version.Raw, err)
+		t.Logf("OPCM %s (v%s) upgrade failed: %v", opcm.Address.Hex(), opcm.OPCMVersion.Raw, err)
 		return false
 	}
-	t.Logf("Successfully executed OPCM %s (v%s) upgrade", opcm.Address.Hex(), opcm.Version.Raw)
+	t.Logf("Successfully executed OPCM %s (v%s) upgrade", opcm.Address.Hex(), opcm.OPCMVersion.Raw)
 	return true
 }
 
@@ -358,7 +358,7 @@ func RunPastUpgrades(t *testing.T, host *script.Host, chainID uint64, prank comm
 	}
 
 	// Filter to only include OPCMs with version > lastUsedOPCMVersion
-	toApply, err := opcmregistry.FilterByLastUsedVersion(resolved, lastVersion)
+	toApply, err := opcmregistry.FilterByLastUsedOPCMVersion(resolved, lastVersion)
 	if err != nil {
 		t.Logf("Warning: failed to filter by lastUsedOPCMVersion: %v", err)
 		toApply = resolved
@@ -426,7 +426,7 @@ func RunPastUpgradesWithRPC(t *testing.T, l1RPCUrl string, afactsFS foundry.Stat
 	}
 
 	// Filter to only include OPCMs with version > lastUsedOPCMVersion
-	toApply, err := opcmregistry.FilterByLastUsedVersion(resolved, lastVersion)
+	toApply, err := opcmregistry.FilterByLastUsedOPCMVersion(resolved, lastVersion)
 	if err != nil {
 		t.Logf("Warning: failed to filter by lastUsedOPCMVersion: %v", err)
 		toApply = resolved
@@ -449,9 +449,9 @@ func RunPastUpgradesWithRPC(t *testing.T, l1RPCUrl string, afactsFS foundry.Stat
 
 		// Broadcast this upgrade's transactions
 		if _, err = bcaster.Broadcast(ctx); err != nil {
-			t.Logf("Warning: OPCM %s (v%s) broadcast failed: %v", opcm.Address.Hex(), opcm.Version.Raw, err)
+			t.Logf("Warning: OPCM %s (v%s) broadcast failed: %v", opcm.Address.Hex(), opcm.OPCMVersion.Raw, err)
 		} else {
-			t.Logf("Successfully broadcast OPCM %s (v%s) upgrade", opcm.Address.Hex(), opcm.Version.Raw)
+			t.Logf("Successfully broadcast OPCM %s (v%s) upgrade", opcm.Address.Hex(), opcm.OPCMVersion.Raw)
 		}
 	}
 }

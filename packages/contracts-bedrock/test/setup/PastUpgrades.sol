@@ -36,17 +36,17 @@ library PastUpgrades {
     bytes32 internal constant DUMMY_CANNON_PRESTATE = keccak256("CANNON");
     bytes32 internal constant DUMMY_CANNON_KONA_PRESTATE = keccak256("CANNON_KONA");
 
-    /// @notice Struct representing an OPCM from the registry (returned by FFI)
+    /// @notice Struct representing an OPCM from the registry (returned by FFI).
+    ///         Note: releaseVersion is NOT the OPCM semver - query opcm.version() on-chain for that.
     struct OPCMInfo {
         address addr;
-        string version;
-        bool isV1;
+        string releaseVersion; // Contracts release version (e.g., "1.6.0"), not OPCM semver
     }
 
-    /// @notice Struct for resolved OPCM with on-chain version
+    /// @notice Struct for resolved OPCM with on-chain version from opcm.version()
     struct ResolvedOPCM {
         address addr;
-        string version;
+        string opcmVersion; // Actual OPCM semver from opcm.version() (e.g., "6.0.0")
         SemverComp.Semver semver;
     }
 
@@ -134,17 +134,17 @@ library PastUpgrades {
             ResolvedOPCM memory opcm = resolved[i];
 
             // Skip if already applied (version <= lastUsedOPCMVersion)
-            if (hasLastVersion && bytes(lastVersion).length > 0 && SemverComp.lte(opcm.version, lastVersion)) {
+            if (hasLastVersion && bytes(lastVersion).length > 0 && SemverComp.lte(opcm.opcmVersion, lastVersion)) {
                 console.log(
                     "PastUpgrades: Skipping OPCM %s (v%s) - already applied (lastUsed=%s)",
                     opcm.addr,
-                    opcm.version,
+                    opcm.opcmVersion,
                     lastVersion
                 );
                 continue;
             }
 
-            console.log("PastUpgrades: Running upgrade with OPCM %s (v%s)", opcm.addr, opcm.version);
+            console.log("PastUpgrades: Running upgrade with OPCM %s (v%s)", opcm.addr, opcm.opcmVersion);
 
             if (opcm.semver.major == 6) {
                 executeV1Upgrade(opcm.addr, _delegateCaller, _systemConfig, _superchainConfig);
@@ -307,8 +307,8 @@ library PastUpgrades {
         // First pass: count valid OPCMs
         uint256 count = 0;
         for (uint256 i = 0; i < _opcms.length; i++) {
-            string memory version = ISemver(_opcms[i].addr).version();
-            SemverComp.Semver memory sv = SemverComp.parse(version);
+            string memory opcmVersion = ISemver(_opcms[i].addr).version();
+            SemverComp.Semver memory sv = SemverComp.parse(opcmVersion);
             if (sv.major >= 6) {
                 count++;
             }
@@ -318,10 +318,10 @@ library PastUpgrades {
         resolved_ = new ResolvedOPCM[](count);
         uint256 idx = 0;
         for (uint256 i = 0; i < _opcms.length; i++) {
-            string memory version = ISemver(_opcms[i].addr).version();
-            SemverComp.Semver memory sv = SemverComp.parse(version);
+            string memory opcmVersion = ISemver(_opcms[i].addr).version();
+            SemverComp.Semver memory sv = SemverComp.parse(opcmVersion);
             if (sv.major >= 6) {
-                resolved_[idx] = ResolvedOPCM({ addr: _opcms[i].addr, version: version, semver: sv });
+                resolved_[idx] = ResolvedOPCM({ addr: _opcms[i].addr, opcmVersion: opcmVersion, semver: sv });
                 idx++;
             }
         }
@@ -333,7 +333,7 @@ library PastUpgrades {
         uint256 n = _resolved.length;
         for (uint256 i = 0; i < n; i++) {
             for (uint256 j = i + 1; j < n; j++) {
-                if (SemverComp.lt(_resolved[j].version, _resolved[i].version)) {
+                if (SemverComp.lt(_resolved[j].opcmVersion, _resolved[i].opcmVersion)) {
                     ResolvedOPCM memory temp = _resolved[i];
                     _resolved[i] = _resolved[j];
                     _resolved[j] = temp;

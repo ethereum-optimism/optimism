@@ -139,12 +139,15 @@ func getVersionsForChain(chainID uint64) (Versions, error) {
 	return versions, nil
 }
 
-// OPCMInfo contains information about an OPCM from the registry
+// OPCMInfo contains information about an OPCM from the registry.
+// Note: This only contains registry metadata. The actual OPCM version (and whether it's V1/V2)
+// must be determined by querying opcm.version() on-chain.
 type OPCMInfo struct {
-	Version string
-	Address common.Address
-	ChainID uint64
-	IsV1    bool // true for 6.x.x, false for 7.x.x+
+	// ReleaseVersion is the contracts release version from the registry (e.g., "1.6.0").
+	// This is NOT the OPCM contract's semver - use opcm.version() on-chain to get that.
+	ReleaseVersion string
+	Address        common.Address
+	ChainID        uint64
 }
 
 // Semver represents a parsed semantic version
@@ -218,8 +221,8 @@ func (s Semver) IsV1OPCM() bool {
 }
 
 // GetOPCMsForChain returns all OPCMs for a given chain ID by fetching from the superchain-registry GitHub.
-// Returns unique OPCMs sorted by registry version ascending, deduplicated by address.
-// Note: The version in the registry (e.g., "1.6.0") is NOT the OPCM contract version (e.g., "6.0.0").
+// Returns unique OPCMs sorted by release version ascending, deduplicated by address.
+// Note: ReleaseVersion (e.g., "1.6.0") is NOT the OPCM contract's semver (e.g., "6.0.0").
 // The actual OPCM version must be queried on-chain via opcm.version().
 // Prerelease versions (e.g., rc, beta) are excluded - only stable releases are returned.
 func GetOPCMsForChain(chainID uint64) ([]OPCMInfo, error) {
@@ -238,10 +241,10 @@ func GetOPCMsForChain(chainID uint64) ([]OPCMInfo, error) {
 			continue
 		}
 
-		opcmVersion := versionConfig.OPContractsManager.Version
+		releaseVersion := versionConfig.OPContractsManager.Version
 
 		// Skip prerelease versions (rc, beta, alpha, etc.)
-		sv, err := ParseSemver(opcmVersion)
+		sv, err := ParseSemver(releaseVersion)
 		if err != nil {
 			continue
 		}
@@ -250,18 +253,16 @@ func GetOPCMsForChain(chainID uint64) ([]OPCMInfo, error) {
 		}
 
 		opcms = append(opcms, OPCMInfo{
-			Version: opcmVersion,
-			Address: common.Address(*versionConfig.OPContractsManager.Address),
-			ChainID: chainID,
-			// IsV1 cannot be determined from registry version alone - must query on-chain
-			IsV1: false,
+			ReleaseVersion: releaseVersion,
+			Address:        common.Address(*versionConfig.OPContractsManager.Address),
+			ChainID:        chainID,
 		})
 	}
 
-	// Sort by version ascending
+	// Sort by release version ascending
 	sort.Slice(opcms, func(i, j int) bool {
-		vi, _ := ParseSemver(opcms[i].Version)
-		vj, _ := ParseSemver(opcms[j].Version)
+		vi, _ := ParseSemver(opcms[i].ReleaseVersion)
+		vj, _ := ParseSemver(opcms[j].ReleaseVersion)
 		return vi.Compare(vj) < 0
 	})
 
@@ -278,9 +279,9 @@ func GetOPCMsForChain(chainID uint64) ([]OPCMInfo, error) {
 	return result, nil
 }
 
-// FilterOPCMsByVersion filters OPCMs to only include those with version > lastVersion.
+// FilterOPCMsByReleaseVersion filters OPCMs to only include those with release version > lastVersion.
 // If lastVersion is empty, returns all OPCMs.
-func FilterOPCMsByVersion(opcms []OPCMInfo, lastVersion string) ([]OPCMInfo, error) {
+func FilterOPCMsByReleaseVersion(opcms []OPCMInfo, lastVersion string) ([]OPCMInfo, error) {
 	if lastVersion == "" {
 		return opcms, nil
 	}
@@ -292,7 +293,7 @@ func FilterOPCMsByVersion(opcms []OPCMInfo, lastVersion string) ([]OPCMInfo, err
 
 	var result []OPCMInfo
 	for _, opcm := range opcms {
-		sv, err := ParseSemver(opcm.Version)
+		sv, err := ParseSemver(opcm.ReleaseVersion)
 		if err != nil {
 			continue
 		}
@@ -304,22 +305,22 @@ func FilterOPCMsByVersion(opcms []OPCMInfo, lastVersion string) ([]OPCMInfo, err
 	return result, nil
 }
 
-// VersionQuerier is a function that queries the actual OPCM version on-chain.
-// It takes an OPCM address and returns the version string.
-type VersionQuerier func(addr common.Address) (string, error)
+// OPCMVersionQuerier is a function that queries the OPCM contract's version() on-chain.
+// It takes an OPCM address and returns the OPCM semver string (e.g., "6.0.0", "7.0.0").
+type OPCMVersionQuerier func(addr common.Address) (string, error)
 
-// ResolvedOPCM contains an OPCM with its actual on-chain version resolved.
+// ResolvedOPCM contains an OPCM with its on-chain version resolved via opcm.version().
 type ResolvedOPCM struct {
-	Address common.Address
-	Version Semver
-	IsV1    bool
+	Address     common.Address
+	OPCMVersion Semver // The actual OPCM semver from opcm.version() (e.g., "6.0.0")
+	IsV1        bool   // true for 6.x.x, false for 7.x.x+
 }
 
-// GetResolvedOPCMs fetches OPCM addresses from the registry, queries their actual versions
+// GetResolvedOPCMs fetches OPCM addresses from the registry, queries their OPCM versions
 // on-chain using the provided querier, filters to only include stable versions >= 6.x.x,
-// and returns them sorted by version ascending.
+// and returns them sorted by OPCM version ascending.
 // Prerelease versions (e.g., rc, beta) are excluded.
-func GetResolvedOPCMs(chainID uint64, queryVersion VersionQuerier) ([]ResolvedOPCM, error) {
+func GetResolvedOPCMs(chainID uint64, queryOPCMVersion OPCMVersionQuerier) ([]ResolvedOPCM, error) {
 	registryOPCMs, err := GetOPCMsForChain(chainID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get OPCMs from registry: %w", err)
@@ -327,13 +328,13 @@ func GetResolvedOPCMs(chainID uint64, queryVersion VersionQuerier) ([]ResolvedOP
 
 	var resolved []ResolvedOPCM
 	for _, opcm := range registryOPCMs {
-		actualVersion, err := queryVersion(opcm.Address)
+		opcmVersion, err := queryOPCMVersion(opcm.Address)
 		if err != nil {
 			// Skip OPCMs we can't query
 			continue
 		}
 
-		sv, err := ParseSemver(actualVersion)
+		sv, err := ParseSemver(opcmVersion)
 		if err != nil {
 			// Skip OPCMs with invalid versions
 			continue
@@ -350,23 +351,23 @@ func GetResolvedOPCMs(chainID uint64, queryVersion VersionQuerier) ([]ResolvedOP
 		}
 
 		resolved = append(resolved, ResolvedOPCM{
-			Address: opcm.Address,
-			Version: sv,
-			IsV1:    sv.IsV1OPCM(),
+			Address:     opcm.Address,
+			OPCMVersion: sv,
+			IsV1:        sv.IsV1OPCM(),
 		})
 	}
 
-	// Sort by version ascending
+	// Sort by OPCM version ascending
 	sort.Slice(resolved, func(i, j int) bool {
-		return resolved[i].Version.Compare(resolved[j].Version) < 0
+		return resolved[i].OPCMVersion.Compare(resolved[j].OPCMVersion) < 0
 	})
 
 	return resolved, nil
 }
 
-// FilterByLastUsedVersion filters resolved OPCMs to only include those with version > lastVersion.
+// FilterByLastUsedOPCMVersion filters resolved OPCMs to only include those with OPCM version > lastVersion.
 // If lastVersion is empty, returns all OPCMs.
-func FilterByLastUsedVersion(opcms []ResolvedOPCM, lastVersion string) ([]ResolvedOPCM, error) {
+func FilterByLastUsedOPCMVersion(opcms []ResolvedOPCM, lastVersion string) ([]ResolvedOPCM, error) {
 	if lastVersion == "" {
 		return opcms, nil
 	}
@@ -378,7 +379,7 @@ func FilterByLastUsedVersion(opcms []ResolvedOPCM, lastVersion string) ([]Resolv
 
 	var result []ResolvedOPCM
 	for _, opcm := range opcms {
-		if opcm.Version.Compare(lastSV) > 0 {
+		if opcm.OPCMVersion.Compare(lastSV) > 0 {
 			result = append(result, opcm)
 		}
 	}
