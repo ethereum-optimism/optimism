@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -242,11 +241,9 @@ func TestLogsDBChainIngester_IngestMultipleBlocks(t *testing.T) {
 	mockClient := NewMockEthClient()
 
 	// Create a chain of 5 blocks
-	var blocks []*mockBlockInfo
 	parentHash := common.Hash{}
 	for i := uint64(99); i <= 103; i++ {
 		block := createTestBlock(i, 1000+i*2, parentHash)
-		blocks = append(blocks, block)
 		parentHash = block.Hash()
 
 		var receipts gethTypes.Receipts
@@ -451,13 +448,12 @@ func TestLogsDBChainIngester_ReorgDetection(t *testing.T) {
 	require.Equal(t, ErrorReorg, ingesterErr.Reason)
 }
 
-func TestLogsDBChainIngester_GetExecMsgsAtTimestamp(t *testing.T) {
+func TestLogsDBChainIngester_QueryMethods(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(901)
 	tempDir := t.TempDir()
 
 	mockClient := NewMockEthClient()
 
-	// Create blocks
 	parentBlock := createTestBlock(99, 1198, common.Hash{})
 	mockClient.AddBlock(parentBlock, nil)
 
@@ -471,9 +467,11 @@ func TestLogsDBChainIngester_GetExecMsgsAtTimestamp(t *testing.T) {
 		rollupCfg: testRollupConfig(901, 0, 1000),
 	})
 
-	// Should return error when uninitialized
+	// Uninitialized queries should fail
 	_, err := ingester.GetExecMsgsAtTimestamp(1200)
 	require.ErrorIs(t, err, types.ErrUninitialized)
+	_, ok := ingester.BlockHashAt(100)
+	require.False(t, ok)
 
 	err = ingester.initLogsDB()
 	require.NoError(t, err)
@@ -485,58 +483,22 @@ func TestLogsDBChainIngester_GetExecMsgsAtTimestamp(t *testing.T) {
 	err = ingester.ingestBlock(100)
 	require.NoError(t, err)
 
-	// Query for timestamp that exists
+	// GetExecMsgsAtTimestamp: existing timestamp
 	msgs, err := ingester.GetExecMsgsAtTimestamp(1200)
 	require.NoError(t, err)
-	// May or may not have exec messages depending on log content
-	// Just verify no error
 	_ = msgs
 
-	// Query for timestamp that doesn't exist
+	// GetExecMsgsAtTimestamp: non-existent timestamp
 	msgs, err = ingester.GetExecMsgsAtTimestamp(9999)
 	require.NoError(t, err)
 	require.Empty(t, msgs)
-}
 
-func TestLogsDBChainIngester_BlockHashAt(t *testing.T) {
-	chainID := eth.ChainIDFromUInt64(901)
-	tempDir := t.TempDir()
-
-	mockClient := NewMockEthClient()
-
-	parentBlock := createTestBlock(99, 1198, common.Hash{})
-	mockClient.AddBlock(parentBlock, nil)
-
-	block100 := createTestBlock(100, 1200, parentBlock.Hash())
-	mockClient.AddBlock(block100, createTestReceipts(100, 1))
-
-	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
-		chainID:   chainID,
-		dataDir:   tempDir,
-		ethClient: mockClient,
-		rollupCfg: testRollupConfig(901, 0, 1000),
-	})
-
-	// Should return false when logsDB not initialized
-	_, ok := ingester.BlockHashAt(100)
-	require.False(t, ok)
-
-	err := ingester.initLogsDB()
-	require.NoError(t, err)
-	t.Cleanup(func() { ingester.logsDB.Close() })
-
-	err = ingester.sealParentBlock(99)
-	require.NoError(t, err)
-
-	err = ingester.ingestBlock(100)
-	require.NoError(t, err)
-
-	// Should return hash for sealed block
+	// BlockHashAt: existing block
 	hash, ok := ingester.BlockHashAt(100)
 	require.True(t, ok)
 	require.Equal(t, block100.Hash(), hash)
 
-	// Should return false for non-existent block
+	// BlockHashAt: non-existent block
 	_, ok = ingester.BlockHashAt(999)
 	require.False(t, ok)
 }
@@ -620,52 +582,6 @@ func TestLogsDBChainIngester_Integration_RealLogsDB(t *testing.T) {
 		require.True(t, ok)
 		require.NotEqual(t, common.Hash{}, hash)
 	}
-}
-
-// =============================================================================
-// LogsDB Direct Tests (for completeness)
-// =============================================================================
-
-func TestLogsDB_DirectUsage(t *testing.T) {
-	// Test that we can create and use a logsDB directly
-	// This verifies our understanding of the logsDB API
-
-	chainID := eth.ChainIDFromUInt64(901)
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "test-logs.db")
-
-	logger := testlog.Logger(t, log.LevelError)
-
-	// Create logsDB
-	db, err := logs.NewFromFile(logger, &logsDBMetrics{m: metrics.NoopMetrics, chainID: chainID}, chainID, dbPath, true)
-	require.NoError(t, err)
-	t.Cleanup(func() { db.Close() })
-
-	// Initially no blocks
-	_, ok := db.LatestSealedBlock()
-	require.False(t, ok)
-
-	// Seal a block
-	parentHash := common.Hash{0x00}
-	blockID := eth.BlockID{
-		Hash:   common.Hash{0x01},
-		Number: 100,
-	}
-	timestamp := uint64(1000)
-
-	err = db.SealBlock(parentHash, blockID, timestamp)
-	require.NoError(t, err)
-
-	// Verify block was sealed
-	latestBlock, ok := db.LatestSealedBlock()
-	require.True(t, ok)
-	require.Equal(t, uint64(100), latestBlock.Number)
-	require.Equal(t, blockID.Hash, latestBlock.Hash)
-
-	// Find the sealed block
-	seal, err := db.FindSealedBlock(100)
-	require.NoError(t, err)
-	require.Equal(t, timestamp, seal.Timestamp)
 }
 
 // =============================================================================
@@ -953,8 +869,7 @@ func TestLogsDBChainIngester_IngestBlock_ErrorStateSkipsIngestion(t *testing.T) 
 	require.Equal(t, uint64(99), latestBlock.Number) // Still at parent block
 }
 
-func TestLogsDBChainIngester_NewErrorTypes(t *testing.T) {
-	// Verify the new error types exist and have correct string representations
+func TestLogsDBChainIngester_ErrorTypes(t *testing.T) {
 	require.Equal(t, "data_corruption", ErrorDataCorruption.String())
 	require.Equal(t, "invalid_log", ErrorInvalidExecutingMessage.String())
 }

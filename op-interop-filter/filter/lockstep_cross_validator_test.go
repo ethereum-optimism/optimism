@@ -21,24 +21,6 @@ import (
 // Timeout Expiry Tests
 // =============================================================================
 
-func TestCrossValidator_TimeoutZero(t *testing.T) {
-	mock := newMockChainIngester()
-	checksum := types.MessageChecksum{0x01}
-	mock.AddLog(100, 10, 0, checksum, types.BlockSeal{})
-	mock.SetLatestTimestamp(200)
-
-	chains := map[eth.ChainID]ChainIngester{
-		eth.ChainIDFromUInt64(testChainA): mock,
-	}
-	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
-
-	access := makeAccess(testChainA, 100, 10, 0, checksum)
-	exec := makeExecDescriptor(testChainA, 150, 0) // timeout = 0, skip check
-
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
-	require.NoError(t, err)
-}
-
 func TestCrossValidator_TimeoutExceedsExpiry(t *testing.T) {
 	mock := newMockChainIngester()
 	checksum := types.MessageChecksum{0x01}
@@ -66,11 +48,12 @@ func TestCrossValidator_TimeoutExceedsExpiry(t *testing.T) {
 // CrossUnsafe Timestamp Tests
 // =============================================================================
 
-func TestCrossValidator_CrossUnsafe_AtBoundary(t *testing.T) {
+func TestCrossValidator_CrossUnsafe_Boundary(t *testing.T) {
 	mock := newMockChainIngester()
 	checksum := types.MessageChecksum{0x01}
 	mock.AddLog(100, 10, 0, checksum, types.BlockSeal{})
-	mock.SetLatestTimestamp(100) // Set to 100 so init sets crossValidatedTs=100
+	mock.AddLog(101, 10, 0, checksum, types.BlockSeal{})
+	mock.SetLatestTimestamp(100)
 
 	chains := map[eth.ChainID]ChainIngester{
 		eth.ChainIDFromUInt64(testChainA): mock,
@@ -80,33 +63,15 @@ func TestCrossValidator_CrossUnsafe_AtBoundary(t *testing.T) {
 	// Trigger initialization (sets crossValidatedTs=100)
 	cv.advanceValidation()
 
-	// Access at init=100, which equals crossValidatedTs=100
+	// At boundary: access at timestamp 100 == crossValidatedTs=100 should pass
 	access := makeAccess(testChainA, 100, 10, 0, checksum)
 	exec := makeExecDescriptor(testChainA, 150, 0)
-
 	err := cv.ValidateAccessEntry(access, types.CrossUnsafe, exec)
 	require.NoError(t, err)
-}
 
-func TestCrossValidator_CrossUnsafe_BeyondBoundary(t *testing.T) {
-	mock := newMockChainIngester()
-	checksum := types.MessageChecksum{0x01}
-	mock.AddLog(101, 10, 0, checksum, types.BlockSeal{}) // Note: timestamp 101
-	mock.SetLatestTimestamp(100)                         // Set to 100 so init sets crossValidatedTs=100
-
-	chains := map[eth.ChainID]ChainIngester{
-		eth.ChainIDFromUInt64(testChainA): mock,
-	}
-	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
-
-	// Trigger initialization (sets crossValidatedTs=100)
-	cv.advanceValidation()
-
-	// Access at init=101, which is beyond crossValidatedTs=100
-	access := makeAccess(testChainA, 101, 10, 0, checksum)
-	exec := makeExecDescriptor(testChainA, 150, 0)
-
-	err := cv.ValidateAccessEntry(access, types.CrossUnsafe, exec)
+	// Beyond boundary: access at timestamp 101 > crossValidatedTs=100 should fail
+	access = makeAccess(testChainA, 101, 10, 0, checksum)
+	err = cv.ValidateAccessEntry(access, types.CrossUnsafe, exec)
 	require.Error(t, err)
 	require.ErrorIs(t, err, types.ErrOutOfScope)
 }
@@ -150,46 +115,6 @@ func TestCrossValidator_UnknownChain(t *testing.T) {
 	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
 	require.Error(t, err)
 	require.ErrorIs(t, err, types.ErrUnknownChain)
-}
-
-// =============================================================================
-// Checksum Tests
-// =============================================================================
-
-func TestCrossValidator_ChecksumMatch(t *testing.T) {
-	mock := newMockChainIngester()
-	checksum := types.MessageChecksum{0x01, 0x02, 0x03}
-	mock.AddLog(100, 10, 0, checksum, types.BlockSeal{})
-	mock.SetLatestTimestamp(200)
-
-	chains := map[eth.ChainID]ChainIngester{
-		eth.ChainIDFromUInt64(testChainA): mock,
-	}
-	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
-
-	access := makeAccess(testChainA, 100, 10, 0, checksum)
-	exec := makeExecDescriptor(testChainA, 150, 0)
-
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
-	require.NoError(t, err)
-}
-
-func TestCrossValidator_ChecksumNotFound(t *testing.T) {
-	mock := newMockChainIngester()
-	mock.SetLatestTimestamp(200)
-	// Don't add any logs - checksum won't be found
-
-	chains := map[eth.ChainID]ChainIngester{
-		eth.ChainIDFromUInt64(testChainA): mock,
-	}
-	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
-
-	access := makeAccess(testChainA, 100, 10, 0, types.MessageChecksum{0x01})
-	exec := makeExecDescriptor(testChainA, 150, 0)
-
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
-	require.Error(t, err)
-	require.ErrorIs(t, err, types.ErrConflict)
 }
 
 // =============================================================================

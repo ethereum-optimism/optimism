@@ -177,77 +177,50 @@ func TestBackend_Failsafe_AllClear(t *testing.T) {
 // Backend Ready State Tests
 // =============================================================================
 
-func TestBackend_Ready_NoChains(t *testing.T) {
+func TestBackend_Ready(t *testing.T) {
+	// No chains = not ready
 	backend := newTestBackend()
-	require.False(t, backend.Ready())
-}
+	require.False(t, backend.Ready(), "should not be ready with no chains")
 
-func TestBackend_Ready_WithChains(t *testing.T) {
+	// With chains
 	backend, mock := newTestBackendWithMockChain(testChainA)
-
 	mock.SetReady(true)
-	require.True(t, backend.Ready())
+	require.True(t, backend.Ready(), "should be ready when chains are ready")
 
 	mock.SetReady(false)
-	require.False(t, backend.Ready())
+	require.False(t, backend.Ready(), "should not be ready when chains are not ready")
 }
 
 // =============================================================================
 // Backend CheckAccessList Tests
 // =============================================================================
 
-func TestBackend_CheckAccessList_FailsafeEnabled(t *testing.T) {
+func TestBackend_CheckAccessList(t *testing.T) {
+	// Failsafe enabled returns error
 	backend, _ := newTestBackendWithMockChain(testChainA)
 	backend.SetFailsafeEnabled(true)
-
 	err := backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(testChainA, 100, 0))
 	require.ErrorIs(t, err, types.ErrFailsafeEnabled)
-}
 
-func TestBackend_CheckAccessList_NotReady(t *testing.T) {
-	backend := newTestBackend() // No chains = not ready
-
-	err := backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(testChainA, 100, 0))
+	// Not ready returns error
+	backend = newTestBackend() // No chains = not ready
+	err = backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(testChainA, 100, 0))
 	require.ErrorIs(t, err, types.ErrUninitialized)
-}
 
-// =============================================================================
-// Safety Level Tests
-// =============================================================================
-
-func TestBackend_CheckAccessList_LocalUnsafe(t *testing.T) {
+	// Unsupported safety level returns error
 	backend, mock := newTestBackendWithMockChain(testChainA)
 	mock.SetReady(true)
-	mock.SetLatestTimestamp(200)
-
-	// Empty access list with LocalUnsafe should pass
-	err := backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(testChainA, 150, 0))
-	require.NoError(t, err)
-}
-
-func TestBackend_CheckAccessList_UnsupportedSafetyLevel(t *testing.T) {
-	backend, mock := newTestBackendWithMockChain(testChainA)
-	mock.SetReady(true)
-
-	err := backend.CheckAccessList(context.Background(), nil, types.Finalized, makeExecDescriptor(testChainA, 100, 0))
+	err = backend.CheckAccessList(context.Background(), nil, types.Finalized, makeExecDescriptor(testChainA, 100, 0))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unsupported safety level")
-}
 
-// =============================================================================
-// CheckAccessList Unknown Executing Chain Test
-// =============================================================================
-
-func TestBackend_CheckAccessList_UnknownExecutingChain(t *testing.T) {
-	backend, mock := newTestBackendWithMockChain(testChainA)
-	mock.SetReady(true)
+	// Unknown executing chain returns error
 	mock.SetLatestTimestamp(200)
-
-	// Execute on chain 999 which is not registered
 	unknownChainID := uint64(999)
-	exec := makeExecDescriptor(unknownChainID, 150, 0)
-
-	err := backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, exec)
-	require.Error(t, err)
+	err = backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(unknownChainID, 150, 0))
 	require.ErrorIs(t, err, types.ErrUnknownChain)
+
+	// LocalUnsafe with empty access list passes
+	err = backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(testChainA, 150, 0))
+	require.NoError(t, err)
 }
