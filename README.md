@@ -26,125 +26,230 @@
 
 <!--TOC-->
 
-## What is Optimism?
+What is Optimism?
 
-[Optimism](https://www.optimism.io/) is a project dedicated to scaling Ethereum's technology and expanding its ability to coordinate people from across the world to build effective decentralized economies and governance systems. The [Optimism Collective](https://www.optimism.io/vision) builds open-source software that powers scalable blockchains and aims to address key governance and economic challenges in the wider Ethereum ecosystem. Optimism operates on the principle of **impact=profit**, the idea that individuals who positively impact the Collective should be proportionally rewarded with profit. **Change the incentives and you change the world.**
+Optimism
+ is a public-good–driven project focused on scaling Ethereum and expanding its ability to coordinate people globally to build decentralized economies, applications, and governance systems.
 
-In this repository you'll find numerous core components of the OP Stack, the decentralized software stack maintained by the Optimism Collective that powers Optimism and forms the backbone of blockchains like [OP Mainnet](https://explorer.optimism.io/) and [Base](https://base.org). The OP Stack is designed to be aggressively open-source — you are welcome to explore, modify, and extend this code.
+At its core, Optimism believes that Ethereum’s future depends not just on better technology, but on better incentives. This philosophy is captured in the principle of:
 
-## Documentation
+Impact = Profit
+Those who create positive impact for the Collective should be proportionally rewarded.
+Change the incentives, and you change the world.
 
-- If you want to build on top of OP Mainnet, refer to the [Optimism Documentation](https://docs.optimism.io)
-- If you want to build your own OP Stack based blockchain, refer to the [OP Stack Guide](https://docs.optimism.io/stack/getting-started) and make sure to understand this repository's [Development and Release Process](#development-and-release-process)
+Optimism is stewarded by the Optimism Collective
+ — a governance and economic system that funds public goods, supports builders, and maintains open-source infrastructure that benefits the entire Ethereum ecosystem.
 
-## Specification
+The OP Stack
 
-Detailed specifications for the OP Stack can be found within the [OP Stack Specs](https://github.com/ethereum-optimism/specs) repository.
+This repository contains the core implementation of the OP Stack, a modular, open-source, and production-ready Layer 2 blockchain stack maintained by the Optimism Collective.
 
-## Community
+The OP Stack powers:
 
-General discussion happens most frequently on the [Optimism discord](https://discord.gg/optimism).
-Governance discussion can also be found on the [Optimism Governance Forum](https://gov.optimism.io/).
+OP Mainnet
 
-## Contributing
+Base
 
-The OP Stack is a collaborative project. By collaborating on free, open software and shared standards, the Optimism Collective aims to prevent siloed software development and rapidly accelerate the development of the Ethereum ecosystem. Come contribute, build the future, and redefine power, together.
+And other Optimism-aligned chains
 
-[CONTRIBUTING.md](./CONTRIBUTING.md) contains a detailed explanation of the contributing process for this repository. Make sure to use the [Developer Quick Start](./CONTRIBUTING.md#development-quick-start) to properly set up your development environment.
+The stack is designed to be:
 
-[Good First Issues](https://github.com/ethereum-optimism/optimism/issues?q=is:open+is:issue+label:D-good-first-issue) are a great place to look for tasks to tackle if you're not sure where to start, and see [CONTRIBUTING.md](./CONTRIBUTING.md) for info on larger projects.
+Modular – components can be swapped or extended
 
-## Security Policy and Vulnerability Reporting
+Open-source by default – permissive licensing and public development
 
-Please refer to the canonical [Security Policy](https://github.com/ethereum-optimism/.github/blob/master/SECURITY.md) document for detailed information about how to report vulnerabilities in this codebase.
-Bounty hunters are encouraged to check out the [Optimism Immunefi bug bounty program](https://immunefi.com/bounty/optimism/).
-The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vulnerabilities.
+Production-grade – used by real networks securing billions in value
 
-## Directory Structure
+Ethereum-aligned – inherits Ethereum’s security and values
 
-<pre>
-├── <a href="./cannon">cannon</a>: Onchain MIPS instruction emulator for fault proofs
-├── <a href="./devnet-sdk">devnet-sdk</a>: Comprehensive toolkit for standardized devnet interactions
-├── <a href="./docs">docs</a>: A collection of documents including audits and post-mortems
-├── <a href="./kurtosis-devnet">kurtosis-devnet</a>: OP-Stack Kurtosis devnet
-├── <a href="./op-acceptance-tests">op-acceptance-tests</a>: Acceptance tests and configuration for OP Stack
-├── <a href="./op-alt-da">op-alt-da</a>: Alternative Data Availability mode (beta)
-├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
-├── <a href="./op-chain-ops">op-chain-ops</a>: State surgery utilities
-├── <a href="./op-challenger">op-challenger</a>: Dispute game challenge agent
-├── <a href="./op-conductor">op-conductor</a>: High-availability sequencer service
-├── <a href="./op-deployer">op-deployer</a>: CLI tool for deploying and upgrading OP Stack smart contracts
-├── <a href="./op-devstack">op-devstack</a>: Flexible test frontend for integration and acceptance testing
-├── <a href="./op-dispute-mon">op-dispute-mon</a>: Off-chain service to monitor dispute games
-├── <a href="./op-dripper">op-dripper</a>: Controlled token distribution service
-├── <a href="./op-e2e">op-e2e</a>: End-to-End testing of all bedrock components in Go
-├── <a href="./op-faucet">op-faucet</a>: Dev-faucet with support for multiple chains
-├── <a href="./op-fetcher">op-fetcher</a>: Data fetching utilities
-├── <a href="./op-interop-mon">op-interop-mon</a>: Interoperability monitoring service
-├── <a href="./op-node">op-node</a>: Rollup consensus-layer client
-├── <a href="./op-preimage">op-preimage</a>: Go bindings for Preimage Oracle
-├── <a href="./op-program">op-program</a>: Fault proof program
-├── <a href="./op-proposer">op-proposer</a>: L2-Output Submitter, submits proposals to L1
-├── <a href="./op-service">op-service</a>: Common codebase utilities
-├── <a href="./op-supervisor">op-supervisor</a>: Service to monitor chains and determine cross-chain message safety
-├── <a href="./op-sync-tester">op-sync-tester</a>: Sync testing utilities
-├── <a href="./op-test-sequencer">op-test-sequencer</a>: Test sequencer for development
-├── <a href="./op-up">op-up</a>: Deployment and management utilities
-├── <a href="./op-validator">op-validator</a>: Tool for validating Optimism chain configurations and deployments
-├── <a href="./op-wheel">op-wheel</a>: Database utilities
-├── <a href="./ops">ops</a>: Various operational packages
-├── <a href="./packages">packages</a>
-│   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
-</pre>
+You are encouraged to explore, fork, modify, and build on this codebase.
 
-## Development and Release Process
+Who This Repository Is For
 
-### Overview
+This repo is relevant if you are:
 
-Please read this section carefully if you're planning to fork or make frequent PRs into this repository.
+Building dApps or infrastructure on OP Mainnet
 
-### Production Releases
+Launching your own OP Stack–based chain
 
-Production releases are always tags, versioned as `<component-name>/v<semver>`.
-For example, an `op-node` release might be versioned as `op-node/v1.1.2`, and  smart contract releases might be versioned as `op-contracts/v1.0.0`.
-Release candidates are versioned in the format `op-node/v1.1.2-rc.1`.
-We always start with `rc.1` rather than `rc`.
+Operating nodes, sequencers, or validators
 
-For contract releases, refer to the GitHub release notes for a given release which will list the specific contracts being released. Not all contracts are considered production ready within a release and many are under active development.
+Contributing to Ethereum scaling infrastructure
 
-Tags of the form `v<semver>`, such as `v1.1.4`, indicate releases of all Go code only, and **DO NOT** include smart contracts.
-This naming scheme is required by Golang.
-In the above list, this means these `v<semver>` releases contain all `op-*` components and exclude all `contracts-*` components.
+Researching rollups, fault proofs, or modular blockchain design
 
-`op-geth` embeds upstream geth’s version inside its own version as follows: `vMAJOR.GETH_MAJOR GETH_MINOR GETH_PATCH.PATCH`.
-Basically, geth’s version is our minor version.
-For example if geth is at `v1.12.0`, the corresponding op-geth version would be `v1.101200.0`.
-Note that we pad out to three characters for the geth minor version and two characters for the geth patch version.
-Since we cannot left-pad with zeroes, the geth major version is not padded.
+Documentation
 
-See the [Node Software Releases](https://docs.optimism.io/builders/node-operators/releases) page of the documentation for more information about releases for the latest node components.
+Start here depending on your goals:
 
-The full set of components that have releases are:
+Build on OP Mainnet
+→ Optimism Documentation
 
-- `op-batcher`
-- `op-contracts`
-- `op-challenger`
-- `op-node`
-- `op-proposer`
+Launch or customize an OP Stack chain
+→ OP Stack Guide
 
-All other components and packages should be considered development components only and do not have releases.
+Contribute to this repository
+→ Read the Development and Release Process
+ below
 
-### Development branch
+Specifications
 
-The primary development branch is [`develop`](https://github.com/ethereum-optimism/optimism/tree/develop/).
-`develop` contains the most up-to-date software that remains backwards compatible with the latest experimental [network deployments](https://docs.optimism.io/chain/networks).
-If you're making a backwards compatible change, please direct your pull request towards `develop`.
+Formal technical specifications for the OP Stack are maintained separately in the
+OP Stack Specs
+ repository.
 
-**Changes to contracts within `packages/contracts-bedrock/src` are usually NOT considered backwards compatible.**
-Some exceptions to this rule exist for cases in which we absolutely must deploy some new contract after a tag has already been fully deployed.
-If you're changing or adding a contract and you're unsure about which branch to make a PR into, default to using a feature branch.
-Feature branches are typically used when there are conflicts between 2 projects touching the same code, to avoid conflicts from merging both into `develop`.
+These specs define:
 
-## License
+Protocol behavior
 
-All other files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/master/LICENSE) unless stated otherwise.
+Fault proof systems
+
+Cross-chain messaging
+
+Consensus and derivation rules
+
+If you are implementing or auditing OP Stack components, this repo is essential.
+
+Community & Governance
+
+Optimism is governed and built in public.
+
+General discussion & developer support
+→ Optimism Discord
+
+Governance proposals & deliberation
+→ Optimism Governance Forum
+
+Participation is open — builders, researchers, and community members are encouraged to contribute.
+
+Contributing
+
+The OP Stack is a collaborative, community-driven project.
+
+By working on shared standards and open infrastructure, the Optimism Collective aims to:
+
+Avoid siloed development
+
+Accelerate Ethereum scaling
+
+Fund and sustain public goods
+
+Getting Started
+
+Read CONTRIBUTING.md
+ for contribution guidelines
+
+Follow the Developer Quick Start
+ to set up your environment
+
+Look for Good First Issues
+ if you’re new
+
+Larger initiatives and long-term projects are also documented in CONTRIBUTING.md.
+
+Security Policy & Vulnerability Reporting
+
+Security is taken seriously across the OP Stack.
+
+Report vulnerabilities according to the official
+Security Policy
+
+Bug bounty hunters should see the
+Optimism Immunefi Program
+
+with rewards of up to $2,000,042 for critical, in-scope vulnerabilities
+
+Repository Structure
+
+Below is a high-level overview of the major components in this monorepo:
+
+<pre> ├── cannon : Onchain MIPS emulator for fault proofs ├── devnet-sdk : Toolkit for standardized devnet interactions ├── docs : Audits, post-mortems, and technical documents ├── kurtosis-devnet : Kurtosis-based OP Stack devnet ├── op-acceptance-tests : Acceptance tests and configurations ├── op-alt-da : Alternative Data Availability (beta) ├── op-batcher : Submits L2 transaction batches to L1 ├── op-chain-ops : State surgery and chain utilities ├── op-challenger : Dispute game challenge agent ├── op-conductor : High-availability sequencer service ├── op-deployer : CLI for deploying & upgrading contracts ├── op-devstack : Flexible integration testing frontend ├── op-dispute-mon : Dispute monitoring service ├── op-dripper : Controlled token distribution service ├── op-e2e : End-to-end tests (Go) ├── op-faucet : Multi-chain development faucet ├── op-node : Rollup consensus-layer client ├── op-program : Fault proof program ├── op-proposer : Submits L2 outputs to L1 ├── op-service : Shared utilities and libraries ├── op-supervisor : Cross-chain message safety monitor ├── ops : Operational tooling └── packages └── contracts-bedrock : Core OP Stack smart contracts </pre>
+Development & Release Process
+Overview
+
+If you plan to fork, run nodes, or submit frequent PRs, read this section carefully.
+
+Production Releases
+
+Releases are tag-based, versioned as:
+
+<component-name>/v<semver>
+
+
+Example:
+
+op-node/v1.1.2
+
+op-contracts/v1.0.0
+
+Release candidates use:
+
+<component-name>/v<semver>-rc.X
+
+
+Tags like v1.1.4 (without component prefix):
+
+Include all Go-based op-* components
+
+Exclude smart contracts
+
+Required due to Golang versioning rules
+
+Smart Contracts
+
+Not all contracts in a release are production-ready
+
+Refer to GitHub release notes for deployed contracts
+
+Most contracts are under active development
+
+op-geth Versioning
+
+op-geth embeds upstream Geth versions:
+
+vMAJOR.GETH_MAJOR GETH_MINOR GETH_PATCH.PATCH
+
+
+Example:
+
+Geth v1.12.0
+
+op-geth → v1.101200.0
+
+Released Components
+
+Only the following components have official releases:
+
+op-batcher
+
+op-contracts
+
+op-challenger
+
+op-node
+
+op-proposer
+
+All others should be considered development-only.
+
+Development Branch
+
+Primary branch: develop
+
+Contains the latest backwards-compatible changes
+
+Compatible with current experimental networks
+
+⚠️ Contracts in packages/contracts-bedrock/src are usually NOT backwards compatible.
+
+If unsure:
+
+Use a feature branch
+
+Avoid breaking develop
+
+License
+
+Unless otherwise stated, all files in this repository are licensed under the
+MIT License
+.
