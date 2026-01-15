@@ -56,17 +56,23 @@ func NewBondClaimer(l log.Logger, m BondClaimMetrics, contractCreator BondContra
 
 func (c *Claimer) ClaimBonds(ctx context.Context, games []types.GameMetadata) (err error) {
 	for _, game := range games {
-		err = errors.Join(err, c.claimBonds(ctx, game))
+		contract, contractErr := c.contractCreator(game)
+		if contractErr != nil {
+			err = errors.Join(err, fmt.Errorf("failed to create bond contract: %w", contractErr))
+			continue
+		}
+
+		anyCreditFound, claimErr := c.claimBonds(ctx, contract, game)
+		err = errors.Join(err, claimErr)
+
+		if !anyCreditFound {
+			err = errors.Join(err, c.closeGame(ctx, contract, game))
+		}
 	}
 	return err
 }
 
-func (c *Claimer) claimBonds(ctx context.Context, game types.GameMetadata) error {
-	contract, err := c.contractCreator(game)
-	if err != nil {
-		return fmt.Errorf("failed to create bond contract: %w", err)
-	}
-
+func (c *Claimer) claimBonds(ctx context.Context, contract BondContract, game types.GameMetadata) (bool, error) {
 	anyCreditFound := false
 	var claimErr error
 	for _, claimant := range c.claimants {
@@ -74,11 +80,7 @@ func (c *Claimer) claimBonds(ctx context.Context, game types.GameMetadata) error
 		claimErr = errors.Join(claimErr, err)
 		anyCreditFound = anyCreditFound || hasCredit
 	}
-
-	if !anyCreditFound {
-		claimErr = errors.Join(claimErr, c.closeGame(ctx, contract, game))
-	}
-	return claimErr
+	return anyCreditFound, claimErr
 }
 
 // claimBond attempts to claim credit for a single address.
