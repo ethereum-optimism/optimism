@@ -146,8 +146,11 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		})
 	}
 
+	// supervisorEnabled when interop system is active
+	supervisorEnabled := interopSys != nil
+
 	metrics := &testutils.TestDerivationMetrics{}
-	ec := engine.NewEngineController(ctx, eng, log, opnodemetrics.NoopMetrics, cfg, syncCfg, l1, sys.Register("engine-controller", nil, opts))
+	ec := engine.NewEngineController(ctx, eng, log, opnodemetrics.NoopMetrics, cfg, syncCfg, supervisorEnabled, l1, sys.Register("engine-controller", nil, opts))
 
 	if mm, ok := interopSys.(*indexing.IndexingMode); ok {
 		mm.SetEngineController(ec)
@@ -155,9 +158,9 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 
 	var finalizer driver.Finalizer
 	if cfg.AltDAEnabled() {
-		finalizer = finality.NewAltDAFinalizer(ctx, log, cfg, nil, l1, altDASrc, ec)
+		finalizer = finality.NewAltDAFinalizer(ctx, log, cfg, nil, supervisorEnabled, l1, altDASrc, ec)
 	} else {
-		finalizer = finality.NewFinalizer(ctx, log, cfg, nil, l1, ec)
+		finalizer = finality.NewFinalizer(ctx, log, cfg, nil, supervisorEnabled, l1, ec)
 	}
 	sys.Register("finalizer", finalizer, opts)
 
@@ -165,7 +168,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	sys.Register("attributes-handler", attrHandler, opts)
 	ec.SetAttributesResetter(attrHandler)
 
-	indexingMode := interopSys != nil
+	indexingMode := supervisorEnabled
 	pipeline := derive.NewDerivationPipeline(log, cfg, depSet, l1, blobsSrc, altDASrc, eng, metrics, indexingMode, l1ChainConfig)
 	pipelineDeriver := derive.NewPipelineDeriver(ctx, pipeline)
 	sys.Register("pipeline", pipelineDeriver, opts)

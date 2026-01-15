@@ -172,8 +172,9 @@ func (s *interopE2ESystem) newNodeForL2(
 		Driver: driver.Config{
 			SequencerEnabled: isSequencer,
 		},
-		Rollup:        *l2Out.RollupCfg,
-		DependencySet: depSet,
+		Rollup:            *l2Out.RollupCfg,
+		DependencySet:     depSet,
+		SupervisorEnabled: true,
 		P2PSigner: &p2p.PreparedSigner{
 			Signer: opsigner.NewLocalSigner(&p2pKey)},
 		RPC: oprpc.CLIConfig{
