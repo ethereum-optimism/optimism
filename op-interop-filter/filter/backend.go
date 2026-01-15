@@ -90,9 +90,10 @@ func (b *Backend) Stop(ctx context.Context) error {
 	return result
 }
 
-// FailsafeEnabled returns true if failsafe is manually enabled OR any chain has an error.
+// FailsafeEnabled returns true if failsafe is manually enabled OR any chain has an error
+// OR the cross-validator has an error.
 func (b *Backend) FailsafeEnabled() bool {
-	return b.manualFailsafe.Load() || len(b.GetChainErrors()) > 0
+	return b.manualFailsafe.Load() || len(b.GetChainErrors()) > 0 || b.crossValidator.Error() != nil
 }
 
 // SetFailsafeEnabled sets the manual failsafe override.
@@ -123,6 +124,11 @@ func (b *Backend) Ready() bool {
 	return len(b.chains) > 0
 }
 
+// supportedSafetyLevel returns true if the safety level is supported for access list checks.
+func supportedSafetyLevel(level types.SafetyLevel) bool {
+	return level == types.LocalUnsafe || level == types.CrossUnsafe
+}
+
 // CheckAccessList validates the given access list entries.
 func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
 	minSafety types.SafetyLevel, execDescriptor types.ExecutingDescriptor) error {
@@ -137,7 +143,7 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 		return types.ErrUninitialized
 	}
 
-	if minSafety != types.LocalUnsafe && minSafety != types.CrossUnsafe {
+	if !supportedSafetyLevel(minSafety) {
 		b.metrics.RecordCheckAccessList(false)
 		return fmt.Errorf("unsupported safety level %s: only %s and %s are supported",
 			minSafety, types.LocalUnsafe, types.CrossUnsafe)

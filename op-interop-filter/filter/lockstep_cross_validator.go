@@ -11,7 +11,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/safemath"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -42,14 +41,18 @@ type LockstepCrossValidator struct {
 	// Single global cross-validated timestamp
 	crossValidatedTs atomic.Uint64
 
+	// Error state for validation failures
+	errMu sync.RWMutex
+	err   *ValidatorError
+
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 }
 
 // NewLockstepCrossValidator creates a new LockstepCrossValidator.
-// startTimestamp is the initial cross-validated timestamp (typically the
-// chain head timestamp at startup, before backfill begins).
+// The cross-validated timestamp is lazily initialized from the minimum ingested
+// timestamp once all chains are ready.
 func NewLockstepCrossValidator(
 	parentCtx context.Context,
 	logger log.Logger,
@@ -57,11 +60,10 @@ func NewLockstepCrossValidator(
 	messageExpiryWindow uint64,
 	validationInterval time.Duration,
 	chains map[eth.ChainID]ChainIngester,
-	startTimestamp uint64,
 ) *LockstepCrossValidator {
 	ctx, cancel := context.WithCancel(parentCtx)
 
-	v := &LockstepCrossValidator{
+	return &LockstepCrossValidator{
 		log:                 logger.New("component", "cross-validator"),
 		metrics:             m,
 		messageExpiryWindow: messageExpiryWindow,
@@ -70,8 +72,6 @@ func NewLockstepCrossValidator(
 		ctx:                 ctx,
 		cancel:              cancel,
 	}
-	v.crossValidatedTs.Store(startTimestamp)
-	return v
 }
 
 // Start starts the validation loop
@@ -92,6 +92,23 @@ func (v *LockstepCrossValidator) Stop() error {
 	return nil
 }
 
+// Error returns the current validation error state, if any.
+func (v *LockstepCrossValidator) Error() *ValidatorError {
+	v.errMu.RLock()
+	defer v.errMu.RUnlock()
+	return v.err
+}
+
+// setError sets the validation error state.
+func (v *LockstepCrossValidator) setError(msg string) {
+	v.errMu.Lock()
+	defer v.errMu.Unlock()
+	v.err = &ValidatorError{
+		Message:   msg,
+		Timestamp: time.Now(),
+	}
+}
+
 // CrossValidatedTimestamp returns the global cross-validated timestamp.
 func (v *LockstepCrossValidator) CrossValidatedTimestamp() (uint64, bool) {
 	ts := v.crossValidatedTs.Load()
@@ -107,10 +124,25 @@ func (v *LockstepCrossValidator) ValidateAccessEntry(
 	minSafety types.SafetyLevel,
 	execDescriptor types.ExecutingDescriptor,
 ) error {
+	// Check that we have ingested data for the requested timestamp
+	minIngestedTs, ok := v.getMinIngestedTimestamp()
+	if !ok || access.Timestamp > minIngestedTs {
+		return fmt.Errorf("timestamp %d not yet ingested (min ingested: %d): %w",
+			access.Timestamp, minIngestedTs, types.ErrOutOfScope)
+	}
+
 	// Check timeout expiry first
 	if execDescriptor.Timeout > 0 {
-		expiresAt := safemath.SaturatingAdd(access.Timestamp, v.messageExpiryWindow)
-		maxExecTimestamp := safemath.SaturatingAdd(execDescriptor.Timestamp, execDescriptor.Timeout)
+		expiresAt := access.Timestamp + v.messageExpiryWindow
+		if expiresAt < access.Timestamp {
+			return fmt.Errorf("overflow in expiry calculation: timestamp %d + window %d: %w",
+				access.Timestamp, v.messageExpiryWindow, types.ErrConflict)
+		}
+		maxExecTimestamp := execDescriptor.Timestamp + execDescriptor.Timeout
+		if maxExecTimestamp < execDescriptor.Timestamp {
+			return fmt.Errorf("overflow in max exec timestamp calculation: timestamp %d + timeout %d: %w",
+				execDescriptor.Timestamp, execDescriptor.Timeout, types.ErrConflict)
+		}
 		if expiresAt < maxExecTimestamp {
 			return fmt.Errorf("initiating message will expire before timeout: "+
 				"init %d + expiry %d = %d < exec %d + timeout %d = %d: %w",
@@ -153,8 +185,21 @@ func (v *LockstepCrossValidator) validateExecutingMessage(
 		return fmt.Errorf("source chain %s: %w", execMsg.ChainID, types.ErrUnknownChain)
 	}
 
-	if err := ValidateMessageTiming(execMsg.Timestamp, inclusionTimestamp, v.messageExpiryWindow); err != nil {
-		return err
+	// Timing validation: init timestamp must be before inclusion timestamp
+	if !(execMsg.Timestamp < inclusionTimestamp) {
+		return fmt.Errorf("initiating message timestamp %d not before inclusion timestamp %d: %w",
+			execMsg.Timestamp, inclusionTimestamp, types.ErrConflict)
+	}
+
+	// Timing validation: message must not be expired
+	expiresAt := execMsg.Timestamp + v.messageExpiryWindow
+	if expiresAt < execMsg.Timestamp {
+		return fmt.Errorf("overflow in expiry calculation: timestamp %d + window %d: %w",
+			execMsg.Timestamp, v.messageExpiryWindow, types.ErrConflict)
+	}
+	if expiresAt < inclusionTimestamp {
+		return fmt.Errorf("initiating message expired: init %d + expiry window %d = %d < inclusion %d: %w",
+			execMsg.Timestamp, v.messageExpiryWindow, expiresAt, inclusionTimestamp, types.ErrConflict)
 	}
 
 	query := types.ContainsQuery{
@@ -185,6 +230,11 @@ func (v *LockstepCrossValidator) runValidationLoop() {
 
 // advanceValidation tries to advance the cross-validated timestamp one step at a time.
 func (v *LockstepCrossValidator) advanceValidation() {
+	// Stop if we've already hit a validation error
+	if v.Error() != nil {
+		return
+	}
+
 	// All chains must be ready and error-free
 	for _, ingester := range v.chains {
 		if ingester.Error() != nil {
@@ -202,6 +252,13 @@ func (v *LockstepCrossValidator) advanceValidation() {
 
 	currentTs := v.crossValidatedTs.Load()
 
+	// Lazy initialization: start from the minimum ingested timestamp once all chains are ready
+	if currentTs == 0 {
+		v.crossValidatedTs.Store(minIngestedTs)
+		v.log.Info("Cross-validator initialized", "startTimestamp", minIngestedTs)
+		return
+	}
+
 	// Try to advance one timestamp at a time until we catch up or hit an error
 	for {
 		nextTs := currentTs + 1
@@ -214,11 +271,7 @@ func (v *LockstepCrossValidator) advanceValidation() {
 		// Validate all messages at this timestamp across all chains
 		if err := v.validateTimestamp(nextTs); err != nil {
 			v.log.Error("Cross-validation failed", "timestamp", nextTs, "err", err)
-			// TODO: Flag the specific invalid executing message instead.
-			// Implement alongside reorg logic in chain ingester.
-			for _, ingester := range v.chains {
-				ingester.SetError(ErrorValidationFailed, err.Error())
-			}
+			v.setError(err.Error())
 			return
 		}
 
@@ -270,9 +323,6 @@ func (v *LockstepCrossValidator) getMinIngestedTimestamp() (uint64, bool) {
 			minTs = ts
 			first = false
 		}
-	}
-	if first {
-		return 0, false
 	}
 	return minTs, true
 }

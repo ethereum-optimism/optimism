@@ -16,7 +16,7 @@ type IncludedMessage struct {
 
 // ChainIngester provides access to chain logs and state.
 // Implementations include:
-//   - MockChainIngester: in-memory for testing
+//   - mockChainIngester: in-memory for testing
 //   - LogsDBChainIngester: RPC-backed with logsdb for production
 type ChainIngester interface {
 	// Start begins the ingester's background processing.
@@ -65,4 +65,8 @@ type CrossValidator interface {
 
 	// CrossValidatedTimestamp returns the global cross-validated timestamp.
 	CrossValidatedTimestamp() (uint64, bool)
+
+	// Error returns the current error state, if any.
+	// Validation errors (invalid executing messages) are tracked here.
+	Error() *ValidatorError
 }

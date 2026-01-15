@@ -2,9 +2,11 @@ package flags
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -21,8 +23,18 @@ func prefixEnvVars(name string) []string {
 var (
 	L2RPCsFlag = &cli.StringSliceFlag{
 		Name:    "l2-rpcs",
-		Usage:   "L2 RPC endpoints to connect to (chain ID is queried from each endpoint)",
+		Usage:   "L2 RPC endpoints to connect to (chain ID is queried from each endpoint and matched to rollup configs)",
 		EnvVars: prefixEnvVars("L2_RPCS"),
+	}
+	NetworksFlag = &cli.StringSliceFlag{
+		Name:    "networks",
+		Usage:   fmt.Sprintf("Predefined networks to load rollup configs from. Available: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
+		EnvVars: prefixEnvVars("NETWORKS"),
+	}
+	RollupConfigsFlag = &cli.StringSliceFlag{
+		Name:    "rollup-configs",
+		Usage:   "Paths to custom rollup config JSON files (for dev/test chains not in superchain registry)",
+		EnvVars: prefixEnvVars("ROLLUP_CONFIGS"),
 	}
 	DataDirFlag = &cli.StringFlag{
 		Name:    "data-dir",
@@ -71,6 +83,8 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	NetworksFlag,
+	RollupConfigsFlag,
 	DataDirFlag,
 	BackfillDurationFlag,
 	MessageExpiryWindowFlag,
@@ -97,5 +111,11 @@ func CheckRequired(ctx *cli.Context) error {
 			return fmt.Errorf("flag %s is required", name)
 		}
 	}
+
+	// At least one of --networks or --rollup-configs must be provided
+	if !ctx.IsSet(NetworksFlag.Name) && !ctx.IsSet(RollupConfigsFlag.Name) {
+		return fmt.Errorf("at least one of --%s or --%s is required", NetworksFlag.Name, RollupConfigsFlag.Name)
+	}
+
 	return nil
 }

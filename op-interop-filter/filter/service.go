@@ -148,12 +148,9 @@ func (s *Service) initMetricsServer(cfg *Config) error {
 func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 	chains := make(map[eth.ChainID]ChainIngester)
 
-	// Track minimum head timestamp across chains for cross-validator start
-	var minHeadTimestamp uint64
-
 	// Create chain ingesters for each L2 RPC
 	for _, rpcURL := range cfg.L2RPCs {
-		// Query chain ID and head timestamp from the RPC
+		// Query chain ID from the RPC
 		ethClient, err := ethclient.Dial(rpcURL)
 		if err != nil {
 			return fmt.Errorf("failed to connect to %s: %w", rpcURL, err)
@@ -171,9 +168,10 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 		chainID := eth.ChainIDFromBig(chainIDBig)
 		headTimestamp := header.Time
 
-		// Track min head timestamp
-		if minHeadTimestamp == 0 || headTimestamp < minHeadTimestamp {
-			minHeadTimestamp = headTimestamp
+		// Look up rollup config for this chain ID
+		rollupCfg, ok := cfg.RollupConfigs[chainID]
+		if !ok {
+			return fmt.Errorf("no rollup config found for chain %s from RPC %s (use --networks or --rollup-configs)", chainID, rpcURL)
 		}
 
 		if _, exists := chains[chainID]; exists {
@@ -191,6 +189,7 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 			cfg.DataDir,
 			cfg.BackfillDuration,
 			cfg.PollInterval,
+			rollupCfg,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create chain ingester for chain %s: %w", chainID, err)
@@ -199,9 +198,6 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 		chains[chainID] = ingester
 	}
 
-	s.log.Info("Cross-validator will start at timestamp", "timestamp", minHeadTimestamp)
-
-	// Create cross-validator with known start timestamp
 	crossValidator := NewLockstepCrossValidator(
 		ctx,
 		s.log,
@@ -209,7 +205,6 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 		cfg.MessageExpiryWindow,
 		cfg.ValidationInterval,
 		chains,
-		minHeadTimestamp,
 	)
 
 	s.backend = NewBackend(ctx, BackendParams{
