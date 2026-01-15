@@ -18,7 +18,7 @@ use reth_optimism_primitives::{bedrock::is_dup_tx, OpPrimitives, OpReceipt};
 use reth_primitives_traits::NodePrimitives;
 use reth_provider::{
     providers::ProviderNodeTypes, DBProvider, DatabaseProviderFactory, OriginalValuesKnown,
-    ProviderFactory, StageCheckpointReader, StageCheckpointWriter, StateWriter,
+    ProviderFactory, StageCheckpointReader, StageCheckpointWriter, StateWriteConfig, StateWriter,
     StaticFileProviderFactory, StatsReader,
 };
 use reth_stages::{StageCheckpoint, StageId};
@@ -228,7 +228,11 @@ where
             ExecutionOutcome::new(Default::default(), receipts, first_block, Default::default());
 
         // finally, write the receipts
-        provider.write_state(&execution_outcome, OriginalValuesKnown::Yes)?;
+        provider.write_state(
+            &execution_outcome,
+            OriginalValuesKnown::Yes,
+            StateWriteConfig::default(),
+        )?;
     }
 
     // Only commit if we have imported as many receipts as the number of transactions.
