@@ -30,7 +30,7 @@ func TestBlobsEndpoints(t *testing.T) {
 	// shared setup: in-memory blob store
 	blobStore := blobstore.New()
 	zero := uint64(0)
-	beaconApi := NewBeacon(l, blobStore, zero, uint64(12), &zero)
+	beaconApi := NewBeacon(l, blobStore, zero, uint64(12))
 	t.Cleanup(func() { _ = beaconApi.Close() })
 	require.NoError(t, beaconApi.Start("127.0.0.1:0"))
 
