@@ -550,7 +550,7 @@ commands:
       features:
         description: "Comma-separated list of features to restore the cache for"
         type: string
-        default: ""
+        default: "default"
       prefix:
         description: "Prefix to add to the cache key"
         type: string
@@ -3126,8 +3126,8 @@ jobs:
           components: llvm-tools-preview
       - rust-prepare-and-restore-cache:
           directory: kona
-          binaries: kona-client
           needs_clang: true
+          profile: release
       - gcp-cli/install
       - gcp-oidc-authenticate:
           gcp_cred_config_file_path: /tmp/gcp_cred_config.json
