@@ -56,49 +56,59 @@ func NewBondClaimer(l log.Logger, m BondClaimMetrics, contractCreator BondContra
 
 func (c *Claimer) ClaimBonds(ctx context.Context, games []types.GameMetadata) (err error) {
 	for _, game := range games {
+		contract, contractErr := c.contractCreator(game)
+		if contractErr != nil {
+			err = errors.Join(err, fmt.Errorf("failed to create bond contract: %w", contractErr))
+			continue
+		}
+
+		anyCreditFound := false
 		for _, claimant := range c.claimants {
-			err = errors.Join(err, c.claimBond(ctx, game, claimant))
+			hasCredit, claimErr := c.claimBond(ctx, contract, game, claimant)
+			err = errors.Join(err, claimErr)
+			anyCreditFound = anyCreditFound || hasCredit
+		}
+
+		if !anyCreditFound {
+			err = errors.Join(err, c.closeGame(ctx, contract, game))
 		}
 	}
 	return err
 }
 
-func (c *Claimer) claimBond(ctx context.Context, game types.GameMetadata, addr common.Address) error {
+// claimBond attempts to claim credit for a single address.
+// Returns true if the address had credit > 0 (regardless of whether the claim succeeded).
+func (c *Claimer) claimBond(ctx context.Context, contract BondContract, game types.GameMetadata, addr common.Address) (bool, error) {
 	c.logger.Debug("Attempting to claim bonds for", "game", game.Proxy, "addr", addr)
-
-	contract, err := c.contractCreator(game)
-	if err != nil {
-		return fmt.Errorf("failed to create bond contract: %w", err)
-	}
 
 	credit, status, err := contract.GetCredit(ctx, addr)
 	if err != nil {
-		return fmt.Errorf("failed to get credit: %w", err)
+		return false, fmt.Errorf("failed to get credit: %w", err)
 	}
 
 	if status == types.GameStatusInProgress {
 		c.logger.Debug("Not claiming credit from in progress game", "game", game.Proxy, "addr", addr, "status", status)
-		return nil
+		return true, nil // Game is in progress, don't try to close it
 	}
 	if credit.Cmp(big.NewInt(0)) == 0 {
 		c.logger.Debug("No credit to claim", "game", game.Proxy, "addr", addr)
-		return c.closeGame(ctx, contract, game)
+		return false, nil
 	}
 
 	candidate, err := contract.ClaimCreditTx(ctx, addr)
 	if errors.Is(err, contracts.ErrSimulationFailed) {
 		c.logger.Debug("Credit still locked", "game", game.Proxy, "addr", addr)
-		return nil
+		return true, nil // Credit exists but is locked
 	} else if err != nil {
-		return fmt.Errorf("failed to create credit claim tx: %w", err)
+		return true, fmt.Errorf("failed to create credit claim tx: %w", err)
 	}
 
 	if err = c.txSender.SendAndWaitSimple("claim credit", candidate); err != nil {
-		return fmt.Errorf("failed to claim credit: %w", err)
+		return true, fmt.Errorf("failed to claim credit: %w", err)
 	}
 
 	c.metrics.RecordBondClaimed(credit.Uint64())
-	return nil
+	return true, nil
 }
 
 func (c *Claimer) closeGame(ctx context.Context, contract BondContract, game types.GameMetadata) error {
