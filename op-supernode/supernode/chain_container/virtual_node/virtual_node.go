@@ -14,6 +14,8 @@ import (
 	"github.com/google/uuid"
 )
 
+// VIRTUAL_NODE_CHAIN_ID_LABEL is the name of the label used to differentiate
+// metrics registered by virtual nodes.
 const VIRTUAL_NODE_CHAIN_ID_LABEL = "virtual_node_chain_id"
 
 // defaultInnerNodeFactory is the default factory that creates a real op-node
