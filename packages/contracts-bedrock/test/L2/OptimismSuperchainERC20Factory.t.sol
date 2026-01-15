@@ -6,6 +6,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
 import { CREATE3, Bytes32AddressLib } from "@rari-capital/solmate/src/utils/CREATE3.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Target contract
 import { IOptimismSuperchainERC20 } from "interfaces/L2/IOptimismSuperchainERC20.sol";
@@ -90,5 +91,14 @@ contract OptimismSuperchainERC20Factory_Deploy_Test is OptimismSuperchainERC20Fa
         // Act
         vm.prank(_caller);
         l2OptimismSuperchainERC20Factory.deploy(_remoteToken, _name, _symbol, _decimals);
+    }
+}
+
+/// @title OptimismSuperchainERC20Factory_Version_Test
+/// @notice Tests the `version` function of the `OptimismSuperchainERC20Factory` contract.
+contract OptimismSuperchainERC20Factory_Version_Test is OptimismSuperchainERC20Factory_TestInit {
+    /// @notice Tests that version returns a valid semver string.
+    function test_version_validFormat_succeeds() external view {
+        SemverComp.parse(l2OptimismSuperchainERC20Factory.version());
     }
 }
