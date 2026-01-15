@@ -42,7 +42,7 @@ abstract contract OptimismSuperchainERC20Factory_TestInit is CommonTest {
 /// @notice Tests the `deploy` function of the `OptimismSuperchainERC20Factory` contract.
 contract OptimismSuperchainERC20Factory_Deploy_Test is OptimismSuperchainERC20Factory_TestInit {
     /// @notice Test that calling `deploy` with valid parameters succeeds.
-    function test_deploy_succeeds(
+    function testFuzz_deploy_succeeds(
         address _caller,
         address _remoteToken,
         string memory _name,
@@ -72,7 +72,7 @@ contract OptimismSuperchainERC20Factory_Deploy_Test is OptimismSuperchainERC20Fa
     }
 
     /// @notice Test that calling `deploy` with the same parameters twice reverts.
-    function test_deploy_sameTwice_reverts(
+    function testFuzz_deploy_sameTwice_reverts(
         address _caller,
         address _remoteToken,
         string memory _name,
