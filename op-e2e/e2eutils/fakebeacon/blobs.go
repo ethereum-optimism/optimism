@@ -120,14 +120,9 @@ func (f *FakeBeacon) Start(addr string) error {
 				return
 			}
 
-			var proof eth.Bytes48
-			if f.fuluTime == nil || time.Now().Before(time.Unix(int64(*f.fuluTime), 0)) {
-				proof = eth.Bytes48(bundle.Proofs[ix])
-			} else {
-				// From Fulu onwards, a blob proof is not provided.
-				// Derivation should not rely on a valid proof here.
-				proof = eth.Bytes48(kzg4844.Proof(hexutil.MustDecode("0xc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")))
-			}
+			// From Fulu onwards, a blob proof is not provided.
+			// Derivation should not rely on a valid proof here.
+			proof := eth.Bytes48(kzg4844.Proof(hexutil.MustDecode("0xc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")))
 
 			sidecars[i] = &eth.APIBlobSidecar{
 				Index:         eth.Uint64String(ix),
