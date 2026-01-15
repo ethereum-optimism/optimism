@@ -6,18 +6,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"os"
-	"path/filepath"
-	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/BurntSushi/toml"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/opcmregistry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -116,195 +114,103 @@ func DefaultPrivkey(t *testing.T) (string, *ecdsa.PrivateKey, *devkeys.MnemonicD
 	return pkHex, pk, dk
 }
 
-// pastUpgradeExtraInstructionTOML represents an extra instruction in the TOML file
-type pastUpgradeExtraInstructionTOML struct {
-	Key     string `toml:"key"`
-	Data    string `toml:"data,omitempty"`     // string data (will be converted to bytes)
-	DataHex string `toml:"data_hex,omitempty"` // hex-encoded data
+// lastUsedOPCMVersionSelector is the selector for SystemConfig.lastUsedOPCMVersion()
+// keccak256("lastUsedOPCMVersion()")[:4] = 0x9fabcc84
+var lastUsedOPCMVersionSelector = []byte{0x9f, 0xab, 0xcc, 0x84}
+
+// versionSelector is the selector for ISemver.version()
+// keccak256("version()")[:4] = 0x54fd4d50
+var versionSelector = []byte{0x54, 0xfd, 0x4d, 0x50}
+
+// ContractCaller abstracts contract calls for both script.Host and ethclient.Client
+type ContractCaller interface {
+	Call(to common.Address, data []byte) ([]byte, error)
 }
 
-// pastDisputeGameConfigTOML represents a dispute game config in the TOML file (V2 only)
-type pastDisputeGameConfigTOML struct {
-	GameType   string `toml:"game_type"`            // "CANNON", "PERMISSIONED_CANNON", "CANNON_KONA", etc.
-	Enabled    bool   `toml:"enabled"`              // whether this game type is enabled
-	Prestate   string `toml:"prestate"`             // prestate hash for this game type
-	InitBond   string `toml:"init_bond,omitempty"`  // initial bond in wei (optional)
-	Proposer   string `toml:"proposer,omitempty"`   // proposer address (PERMISSIONED only)
-	Challenger string `toml:"challenger,omitempty"` // challenger address (PERMISSIONED only)
+// HostCaller adapts script.Host to ContractCaller
+type HostCaller struct {
+	Host *script.Host
 }
 
-// pastUpgradeTOML represents a single upgrade entry in the TOML file
-type pastUpgradeTOML struct {
-	Name          string            `toml:"name"`
-	OpcmVersion   int               `toml:"opcm_version"`
-	OpcmAddresses map[string]string `toml:"opcm_addresses"` // keys are chain IDs as strings
-	// V1-only fields
-	CannonPrestate     string `toml:"cannon_prestate,omitempty"`
-	CannonKonaPrestate string `toml:"cannon_kona_prestate,omitempty"`
-	// V2-only fields
-	DisputeGameConfigs []pastDisputeGameConfigTOML       `toml:"dispute_game_configs,omitempty"`
-	ExtraInstructions  []pastUpgradeExtraInstructionTOML `toml:"extra_instructions,omitempty"`
+func (h *HostCaller) Call(to common.Address, data []byte) ([]byte, error) {
+	result, _, err := h.Host.Call(
+		common.Address{19: 0x01}, // dummy caller
+		to,
+		data,
+		1_000_000,
+		uint256.NewInt(0),
+	)
+	return result, err
 }
 
-// pastUpgradesTOML represents the structure of the past_upgrades.toml file
-type pastUpgradesTOML struct {
-	Upgrades []pastUpgradeTOML `toml:"upgrades"`
+// RPCCaller adapts ethclient.Client to ContractCaller
+type RPCCaller struct {
+	Ctx    context.Context
+	Client *ethclient.Client
 }
 
-// PastUpgradeExtraInstruction represents an extra instruction for V2 upgrades
-type PastUpgradeExtraInstruction struct {
-	Key  string
-	Data []byte
+func (r *RPCCaller) Call(to common.Address, data []byte) ([]byte, error) {
+	msg := ethereum.CallMsg{To: &to, Data: data}
+	return r.Client.CallContract(r.Ctx, msg, nil)
 }
 
-// PastDisputeGameConfig represents a dispute game config for V2 upgrades.
-type PastDisputeGameConfig struct {
-	GameType   string
-	Enabled    bool
-	Prestate   common.Hash
-	InitBond   *big.Int
-	Proposer   common.Address // PERMISSIONED only
-	Challenger common.Address // PERMISSIONED only
-}
-
-// PastUpgradeConfig defines configuration for a past upgrade.
-type PastUpgradeConfig struct {
-	Name               string
-	OpcmVersion        int // 1 or 2
-	OpcmAddresses      map[uint64]common.Address
-	CannonPrestate     common.Hash                   // V1 only
-	CannonKonaPrestate common.Hash                   // V1 only
-	DisputeGameConfigs []PastDisputeGameConfig       // V2 only
-	ExtraInstructions  []PastUpgradeExtraInstruction // V2 only
-}
-
-var (
-	pastUpgradesOnce sync.Once
-	pastUpgrades     []PastUpgradeConfig
-	pastUpgradesErr  error
-)
-
-// getRepoRoot finds the repository root by looking for the go.mod file
-func getRepoRoot() (string, error) {
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		return "", os.ErrNotExist
-	}
-
-	dir := filepath.Dir(filename)
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", os.ErrNotExist
-		}
-		dir = parent
-	}
-}
-
-// loadPastUpgrades loads the past upgrades from the TOML file in contracts-bedrock
-func loadPastUpgrades() ([]PastUpgradeConfig, error) {
-	pastUpgradesOnce.Do(func() {
-		repoRoot, err := getRepoRoot()
-		if err != nil {
-			pastUpgradesErr = err
-			return
-		}
-
-		tomlPath := filepath.Join(repoRoot, "packages", "contracts-bedrock", "past_upgrades.toml")
-		var tomlConfig pastUpgradesTOML
-		if _, err := toml.DecodeFile(tomlPath, &tomlConfig); err != nil {
-			pastUpgradesErr = err
-			return
-		}
-
-		for _, upgrade := range tomlConfig.Upgrades {
-			opcmAddresses := make(map[uint64]common.Address)
-			for chainIDStr, addrStr := range upgrade.OpcmAddresses {
-				var chainID uint64
-				if _, err := fmt.Sscanf(chainIDStr, "%d", &chainID); err != nil {
-					continue // skip invalid chain IDs
-				}
-				opcmAddresses[chainID] = common.HexToAddress(addrStr)
-			}
-
-			config := PastUpgradeConfig{
-				Name:          upgrade.Name,
-				OpcmVersion:   upgrade.OpcmVersion,
-				OpcmAddresses: opcmAddresses,
-			}
-
-			if upgrade.OpcmVersion == 1 {
-				// V1: Parse prestates directly
-				config.CannonPrestate = common.HexToHash(upgrade.CannonPrestate)
-				config.CannonKonaPrestate = common.HexToHash(upgrade.CannonKonaPrestate)
-			} else if upgrade.OpcmVersion == 2 {
-				// V2: Parse dispute game configs
-				for _, dgc := range upgrade.DisputeGameConfigs {
-					var initBond *big.Int
-					if dgc.InitBond != "" {
-						initBond = new(big.Int)
-						initBond.SetString(dgc.InitBond, 10)
-					}
-					config.DisputeGameConfigs = append(config.DisputeGameConfigs, PastDisputeGameConfig{
-						GameType:   dgc.GameType,
-						Enabled:    dgc.Enabled,
-						Prestate:   common.HexToHash(dgc.Prestate),
-						InitBond:   initBond,
-						Proposer:   common.HexToAddress(dgc.Proposer),
-						Challenger: common.HexToAddress(dgc.Challenger),
-					})
-				}
-
-				// Parse extra instructions
-				for _, instr := range upgrade.ExtraInstructions {
-					var data []byte
-					if instr.DataHex != "" {
-						data = common.FromHex(instr.DataHex)
-					} else {
-						data = []byte(instr.Data)
-					}
-					config.ExtraInstructions = append(config.ExtraInstructions, PastUpgradeExtraInstruction{
-						Key:  instr.Key,
-						Data: data,
-					})
-				}
-			}
-
-			pastUpgrades = append(pastUpgrades, config)
-		}
-	})
-
-	return pastUpgrades, pastUpgradesErr
-}
-
-// GetPastUpgrades returns the list of past upgrades loaded from past_upgrades.toml.
-func GetPastUpgrades(t *testing.T) []PastUpgradeConfig {
-	upgrades, err := loadPastUpgrades()
-	require.NoError(t, err, "Failed to load past upgrades")
-	return upgrades
-}
-
-// RunPastUpgrades executes all past OPCM upgrades in-memory only (no broadcast).
-func RunPastUpgrades(t *testing.T, host *script.Host, chainID uint64, prank common.Address, systemConfigProxy common.Address) {
-	t.Helper()
-	for _, upgrade := range GetPastUpgrades(t) {
-		runSingleUpgrade(t, host, chainID, prank, systemConfigProxy, upgrade)
-	}
-}
-
-// runSingleUpgrade executes a single upgrade on the given host.
-func runSingleUpgrade(t *testing.T, host *script.Host, chainID uint64, prank, systemConfigProxy common.Address, upgrade PastUpgradeConfig) bool {
-	t.Helper()
-
-	opcmAddr, ok := upgrade.OpcmAddresses[chainID]
-	if !ok {
+// isEVMRevert checks if an error is an EVM execution revert
+func isEVMRevert(err error) bool {
+	if err == nil {
 		return false
 	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "execution reverted") || strings.Contains(errStr, "revert")
+}
 
-	upgradeConfig := buildUpgradeConfig(t, prank, opcmAddr, systemConfigProxy, upgrade)
+// decodeABIString decodes an ABI-encoded string from call response data.
+func decodeABIString(data []byte) (string, error) {
+	if len(data) < 64 {
+		return "", fmt.Errorf("invalid response length: %d", len(data))
+	}
+
+	length := new(big.Int).SetBytes(data[32:64]).Int64()
+	stringStart := int64(64)
+	stringEnd := stringStart + length
+
+	if stringEnd > int64(len(data)) {
+		return "", fmt.Errorf("malformed response")
+	}
+
+	return string(data[stringStart:stringEnd]), nil
+}
+
+// getOPCMVersion queries the OPCM contract's version() function.
+func getOPCMVersion(caller ContractCaller, opcmAddr common.Address) (string, error) {
+	data, err := caller.Call(opcmAddr, versionSelector)
+	if err != nil {
+		return "", fmt.Errorf("failed to call version(): %w", err)
+	}
+	return decodeABIString(data)
+}
+
+// getLastUsedOPCMVersion queries SystemConfig.lastUsedOPCMVersion() and returns the version string.
+// Returns (version, true, nil) on success, ("", false, nil) if call reverted (pre-6.x.x chain).
+func getLastUsedOPCMVersion(caller ContractCaller, systemConfigProxy common.Address) (string, bool, error) {
+	data, err := caller.Call(systemConfigProxy, lastUsedOPCMVersionSelector)
+	if err != nil {
+		if isEVMRevert(err) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	version, err := decodeABIString(data)
+	if err != nil {
+		return "", true, nil // call succeeded but response malformed
+	}
+	return version, true, nil
+}
+
+// runSingleOPCMUpgradeResolved executes a single OPCM upgrade on the given host.
+func runSingleOPCMUpgradeResolved(t *testing.T, host *script.Host, prank, systemConfigProxy common.Address, opcm opcmregistry.ResolvedOPCM) bool {
+	t.Helper()
+
+	upgradeConfig := buildOPCMUpgradeConfig(t, prank, opcm.Address, systemConfigProxy, opcm.Version)
 	if upgradeConfig == nil {
 		return false
 	}
@@ -314,71 +220,79 @@ func runSingleUpgrade(t *testing.T, host *script.Host, chainID uint64, prank, sy
 
 	err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
 	if err != nil {
-		t.Logf("%s upgrade failed (may already be applied): %v", upgrade.Name, err)
+		t.Logf("OPCM %s (v%s) upgrade failed: %v", opcm.Address.Hex(), opcm.Version.Raw, err)
 		return false
 	}
-	t.Logf("Successfully executed %s upgrade", upgrade.Name)
+	t.Logf("Successfully executed OPCM %s (v%s) upgrade", opcm.Address.Hex(), opcm.Version.Raw)
 	return true
 }
 
-// buildUpgradeConfig builds the upgrade config for the given upgrade.
-func buildUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy common.Address, upgrade PastUpgradeConfig) *embedded.UpgradeOPChainInput {
+// buildOPCMUpgradeConfig builds the upgrade config for the given OPCM.
+func buildOPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy common.Address, version opcmregistry.Semver) *embedded.UpgradeOPChainInput {
 	t.Helper()
 
-	switch upgrade.OpcmVersion {
-	case 1:
+	if version.IsV1OPCM() {
+		// V1 OPCM (6.x.x) - uses ChainConfigs with prestates
 		return &embedded.UpgradeOPChainInput{
 			Prank: prank,
 			Opcm:  opcmAddr,
 			ChainConfigs: []embedded.OPChainConfig{{
 				SystemConfigProxy:  systemConfigProxy,
-				CannonPrestate:     upgrade.CannonPrestate,
-				CannonKonaPrestate: upgrade.CannonKonaPrestate,
+				CannonPrestate:     opcmregistry.DummyCannonPrestate,
+				CannonKonaPrestate: opcmregistry.DummyCannonKonaPrestate,
 			}},
 		}
-	case 2:
-		cfg := buildV2UpgradeConfig(t, prank, opcmAddr, systemConfigProxy, upgrade)
-		return &cfg
-	default:
-		return nil
 	}
+
+	// V2 OPCM (7.x.x+) - uses UpgradeInputV2 with dispute game configs
+	cfg := buildV2OPCMUpgradeConfig(t, prank, opcmAddr, systemConfigProxy)
+	return &cfg
 }
 
-func buildV2UpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy common.Address, upgrade PastUpgradeConfig) embedded.UpgradeOPChainInput {
+// buildV2OPCMUpgradeConfig builds a V2 upgrade config with dummy dispute game configs
+func buildV2OPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy common.Address) embedded.UpgradeOPChainInput {
 	t.Helper()
 
-	var disputeGameConfigs []embedded.DisputeGameConfig
-	for _, dgc := range upgrade.DisputeGameConfigs {
-		var gameArgs []byte
-		var err error
+	// Build dispute game configs with dummy prestates
+	// CANNON and PERMISSIONED_CANNON are the standard game types
+	cannonArgs, err := abi.Arguments{{Type: deployer.Bytes32Type}}.Pack(opcmregistry.DummyCannonPrestate)
+	require.NoError(t, err)
 
-		if dgc.GameType == "PERMISSIONED_CANNON" || dgc.GameType == "SUPER_PERMISSIONED_CANNON" {
-			gameArgs, err = abi.Arguments{
-				{Type: deployer.Bytes32Type},
-				{Type: deployer.AddressType},
-				{Type: deployer.AddressType},
-			}.Pack(dgc.Prestate, dgc.Proposer, dgc.Challenger)
-		} else {
-			gameArgs, err = abi.Arguments{{Type: deployer.Bytes32Type}}.Pack(dgc.Prestate)
-		}
-		require.NoError(t, err)
+	permissionedArgs, err := abi.Arguments{
+		{Type: deployer.Bytes32Type},
+		{Type: deployer.AddressType},
+		{Type: deployer.AddressType},
+	}.Pack(opcmregistry.DummyCannonPrestate, common.Address{}, common.Address{})
+	require.NoError(t, err)
 
-		disputeGameConfigs = append(disputeGameConfigs, embedded.DisputeGameConfig{
-			Enabled:  dgc.Enabled,
-			InitBond: dgc.InitBond,
-			GameType: stringToGameType(dgc.GameType),
-			GameArgs: gameArgs,
-		})
+	cannonKonaArgs, err := abi.Arguments{{Type: deployer.Bytes32Type}}.Pack(opcmregistry.DummyCannonKonaPrestate)
+	require.NoError(t, err)
+
+	disputeGameConfigs := []embedded.DisputeGameConfig{
+		{
+			Enabled:  true,
+			InitBond: big.NewInt(0),
+			GameType: embedded.GameTypeCannon,
+			GameArgs: cannonArgs,
+		},
+		{
+			Enabled:  true,
+			InitBond: big.NewInt(0),
+			GameType: embedded.GameTypePermissionedCannon,
+			GameArgs: permissionedArgs,
+		},
+		{
+			Enabled:  true,
+			InitBond: big.NewInt(0),
+			GameType: embedded.GameTypeCannonKona,
+			GameArgs: cannonKonaArgs,
+		},
 	}
 
+	// Sort by game type (required by OPCM)
 	sort.Slice(disputeGameConfigs, func(i, j int) bool {
 		return disputeGameConfigs[i].GameType < disputeGameConfigs[j].GameType
 	})
-
-	var extraInstructions []embedded.ExtraInstruction
-	for _, instr := range upgrade.ExtraInstructions {
-		extraInstructions = append(extraInstructions, embedded.ExtraInstruction{Key: instr.Key, Data: instr.Data})
-	}
 
 	return embedded.UpgradeOPChainInput{
 		Prank: prank,
@@ -386,32 +300,78 @@ func buildV2UpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy commo
 		UpgradeInputV2: &embedded.UpgradeInputV2{
 			SystemConfig:       systemConfigProxy,
 			DisputeGameConfigs: disputeGameConfigs,
-			ExtraInstructions:  extraInstructions,
+			ExtraInstructions:  nil,
 		},
 	}
 }
 
-// stringToGameType converts a game type string to embedded.GameType
-func stringToGameType(gameType string) embedded.GameType {
-	switch gameType {
-	case "CANNON":
-		return embedded.GameTypeCannon
-	case "PERMISSIONED_CANNON":
-		return embedded.GameTypePermissionedCannon
-	case "SUPER_CANNON":
-		return embedded.GameTypeSuperCannon
-	case "SUPER_PERMISSIONED_CANNON":
-		return embedded.GameTypeSuperPermCannon
-	case "CANNON_KONA":
-		return embedded.GameTypeCannonKona
-	case "SUPER_CANNON_KONA":
-		return embedded.GameTypeSuperCannonKona
-	default:
-		panic(fmt.Sprintf("unknown game type: %s", gameType))
+// deployDummyCaller deploys DummyCallerGeneric at the prank address with the given OPCM address.
+func deployDummyCaller(t *testing.T, rpcClient *rpc.Client, afactsFS foundry.StatDirFs, prank, opcmAddr common.Address) {
+	t.Helper()
+
+	artifacts := &foundry.ArtifactsFS{FS: afactsFS}
+	artifact, err := artifacts.ReadArtifact("UpgradeOPChain.s.sol", "DummyCallerGeneric")
+	require.NoError(t, err, "failed to read DummyCallerGeneric artifact")
+
+	err = rpcClient.Call(nil, "anvil_setCode", prank, hexutil.Encode(artifact.DeployedBytecode.Object))
+	require.NoError(t, err, "failed to deploy DummyCallerGeneric")
+
+	err = rpcClient.Call(nil, "anvil_setStorageAt", prank, common.Hash{}, common.BytesToHash(opcmAddr.Bytes()))
+	require.NoError(t, err, "failed to set OPCM address in storage")
+}
+
+// RunPastUpgrades executes all past OPCM upgrades in-memory only (no broadcast).
+// It fetches OPCM addresses from the superchain-registry, queries their actual versions on-chain,
+// and applies upgrades in version order, skipping any that have already been applied.
+func RunPastUpgrades(t *testing.T, host *script.Host, chainID uint64, prank common.Address, systemConfigProxy common.Address) {
+	t.Helper()
+
+	caller := &HostCaller{Host: host}
+
+	// Create version querier that uses the host to query on-chain
+	queryVersion := func(addr common.Address) (string, error) {
+		return getOPCMVersion(caller, addr)
+	}
+
+	// Get resolved OPCMs (fetches from registry, queries versions on-chain, filters >= 6.x.x)
+	resolved, err := opcmregistry.GetResolvedOPCMs(chainID, queryVersion)
+	if err != nil {
+		t.Logf("Failed to get resolved OPCMs: %v", err)
+		return
+	}
+
+	if len(resolved) == 0 {
+		t.Logf("No OPCMs >= 6.x.x found for chain %d", chainID)
+		return
+	}
+
+	// Query the current lastUsedOPCMVersion from SystemConfig
+	lastVersion, hasLastVersion, err := getLastUsedOPCMVersion(caller, systemConfigProxy)
+	if err != nil {
+		t.Fatalf("Failed to query lastUsedOPCMVersion: %v", err)
+	}
+	if !hasLastVersion {
+		t.Logf("SystemConfig.lastUsedOPCMVersion() reverted - chain is pre-6.x.x, will apply all upgrades from 6.x.x")
+		lastVersion = ""
+	} else {
+		t.Logf("SystemConfig.lastUsedOPCMVersion() = %s", lastVersion)
+	}
+
+	// Filter to only include OPCMs with version > lastUsedOPCMVersion
+	toApply, err := opcmregistry.FilterByLastUsedVersion(resolved, lastVersion)
+	if err != nil {
+		t.Logf("Warning: failed to filter by lastUsedOPCMVersion: %v", err)
+		toApply = resolved
+	}
+
+	for _, opcm := range toApply {
+		runSingleOPCMUpgradeResolved(t, host, prank, systemConfigProxy, opcm)
 	}
 }
 
 // RunPastUpgradesWithRPC runs past upgrades and broadcasts them using Anvil impersonation.
+// It fetches OPCM data from the superchain-registry and applies upgrades in version order,
+// skipping any upgrades that have already been applied based on SystemConfig.lastUsedOPCMVersion().
 func RunPastUpgradesWithRPC(t *testing.T, l1RPCUrl string, afactsFS foundry.StatDirFs, lgr log.Logger, chainID uint64, prank common.Address, systemConfigProxy common.Address) {
 	t.Helper()
 
@@ -434,15 +394,48 @@ func RunPastUpgradesWithRPC(t *testing.T, l1RPCUrl string, afactsFS foundry.Stat
 	networkChainID, err := ethClient.ChainID(ctx)
 	require.NoError(t, err)
 
-	// Process each upgrade: deploy DummyCaller with correct OPCM, run upgrade, broadcast
-	for _, upgrade := range GetPastUpgrades(t) {
-		opcmAddr, ok := upgrade.OpcmAddresses[chainID]
-		if !ok {
-			continue
-		}
+	caller := &RPCCaller{Ctx: ctx, Client: ethClient}
 
-		// Deploy DummyCallerGeneric with this upgrade's OPCM address
-		deployDummyCaller(t, rpcClient, afactsFS, prank, opcmAddr)
+	// Create version querier that uses RPC to query on-chain
+	queryVersion := func(addr common.Address) (string, error) {
+		return getOPCMVersion(caller, addr)
+	}
+
+	// Get resolved OPCMs (fetches from registry, queries versions on-chain, filters >= 6.x.x)
+	resolved, err := opcmregistry.GetResolvedOPCMs(chainID, queryVersion)
+	if err != nil {
+		t.Logf("Failed to get resolved OPCMs: %v", err)
+		return
+	}
+
+	if len(resolved) == 0 {
+		t.Logf("No OPCMs >= 6.x.x found for chain %d", chainID)
+		return
+	}
+
+	// Query the current lastUsedOPCMVersion from SystemConfig
+	lastVersion, hasLastVersion, err := getLastUsedOPCMVersion(caller, systemConfigProxy)
+	if err != nil {
+		t.Fatalf("Failed to query lastUsedOPCMVersion: %v", err)
+	}
+	if !hasLastVersion {
+		t.Logf("SystemConfig.lastUsedOPCMVersion() reverted - chain is pre-6.x.x, will apply all upgrades from 6.x.x")
+		lastVersion = ""
+	} else {
+		t.Logf("SystemConfig.lastUsedOPCMVersion() = %s", lastVersion)
+	}
+
+	// Filter to only include OPCMs with version > lastUsedOPCMVersion
+	toApply, err := opcmregistry.FilterByLastUsedVersion(resolved, lastVersion)
+	if err != nil {
+		t.Logf("Warning: failed to filter by lastUsedOPCMVersion: %v", err)
+		toApply = resolved
+	}
+
+	// Process each OPCM upgrade: deploy DummyCaller with correct OPCM, run upgrade, broadcast
+	for _, opcm := range toApply {
+		// Deploy DummyCallerGeneric with this OPCM's address
+		deployDummyCaller(t, rpcClient, afactsFS, prank, opcm.Address)
 
 		// Create fresh broadcaster and host for this upgrade
 		bcaster := NewImpersonationBroadcaster(lgr, ethClient, rpcClient, prank, networkChainID)
@@ -450,32 +443,17 @@ func RunPastUpgradesWithRPC(t *testing.T, l1RPCUrl string, afactsFS foundry.Stat
 		require.NoError(t, err)
 
 		// Run the upgrade
-		if !runSingleUpgrade(t, host, chainID, prank, systemConfigProxy, upgrade) {
+		if !runSingleOPCMUpgradeResolved(t, host, prank, systemConfigProxy, opcm) {
 			continue
 		}
 
 		// Broadcast this upgrade's transactions
 		if _, err = bcaster.Broadcast(ctx); err != nil {
-			t.Logf("Warning: %s broadcast failed: %v", upgrade.Name, err)
+			t.Logf("Warning: OPCM %s (v%s) broadcast failed: %v", opcm.Address.Hex(), opcm.Version.Raw, err)
 		} else {
-			t.Logf("Successfully broadcast %s upgrade", upgrade.Name)
+			t.Logf("Successfully broadcast OPCM %s (v%s) upgrade", opcm.Address.Hex(), opcm.Version.Raw)
 		}
 	}
-}
-
-// deployDummyCaller deploys DummyCallerGeneric at the prank address with the given OPCM address.
-func deployDummyCaller(t *testing.T, rpcClient *rpc.Client, afactsFS foundry.StatDirFs, prank, opcmAddr common.Address) {
-	t.Helper()
-
-	artifacts := &foundry.ArtifactsFS{FS: afactsFS}
-	artifact, err := artifacts.ReadArtifact("UpgradeOPChain.s.sol", "DummyCallerGeneric")
-	require.NoError(t, err, "failed to read DummyCallerGeneric artifact")
-
-	err = rpcClient.Call(nil, "anvil_setCode", prank, hexutil.Encode(artifact.DeployedBytecode.Object))
-	require.NoError(t, err, "failed to deploy DummyCallerGeneric")
-
-	err = rpcClient.Call(nil, "anvil_setStorageAt", prank, common.Hash{}, common.BytesToHash(opcmAddr.Bytes()))
-	require.NoError(t, err, "failed to set OPCM address in storage")
 }
 
 // ImpersonationBroadcaster broadcasts transactions using Anvil impersonation.
