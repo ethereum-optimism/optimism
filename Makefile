@@ -20,8 +20,12 @@ build-contracts:
 	(cd packages/contracts-bedrock && just build)
 .PHONY: build-contracts
 
-lint-go: ## Lints Go code with specific linters
-	golangci-lint run ./...
+build-customlint:
+	make -C linter build
+.PHONY: build-customlint
+
+lint-go: build-customlint ## Lints Go code with specific linters
+	./linter/bin/op-golangci-lint run ./...
 	go mod tidy -diff
 .PHONY: lint-go
 
