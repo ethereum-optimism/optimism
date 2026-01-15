@@ -357,26 +357,32 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 	// I _think_ this is ok since we are expect to actually
 	// rewind _from_ a safe block and therefore _to_ a safe block...
 	// If I'm wrong about that, we will just need to expose engine.BlockAtTimestamp
+	c.log.Info("chain_container/RewindEngine: rewinding engine to timestamp", "timestamp", timestamp)
 	targetSafeBlock, err := c.engine.SafeBlockAtTimestamp(ctx, timestamp)
 	if err != nil {
 		return fmt.Errorf("failed to get safe block at timestamp %d: %w", timestamp, err)
 	}
+	c.log.Info("chain_container/RewindEngine: inferred target safe block", "number", targetSafeBlock.Number, "hash", targetSafeBlock.Hash)
 	currentFinalizedBlock, err := c.engine.FinalizedBlock(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get finalized block by hash %d: %w", timestamp, err)
 	}
+	c.log.Info("chain_container/RewindEngine: inferred current finalized block", "number", currentFinalizedBlock.Number, "hash", currentFinalizedBlock.Hash)
 
 	// Pause the container to stop it restarting the vn when we kill it
 	err = c.Pause(ctx)
 	if err != nil {
 		return err
 	}
+	c.log.Info("chain_container/RewindEngine: paused container")
 
 	// stop the vn
 	err = c.vn.Stop(ctx)
 	if err != nil {
 		return err
 	}
+
+	c.log.Info("chain_container/RewindEngine: stopped vn")
 
 	// Don't move finalized block forward, only back:
 	var targetFinalizedBlock eth.L2BlockRef
@@ -405,11 +411,13 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 		return fmt.Errorf("failed to rewind engine: %+v", res.PayloadStatus)
 	}
 
+	c.log.Info("chain_container/RewindEngine: executed engine rewind", "forkChoiceState", fcs)
 	// resume the chain container to trigger a new vn to be started
 	err = c.Resume(ctx)
 	if err != nil {
 		return err
 	}
+	c.log.Info("chain_container/RewindEngine: resumed container")
 
 	return nil
 }
