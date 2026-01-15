@@ -43,6 +43,13 @@ library PastUpgrades {
         bool isV1;
     }
 
+    /// @notice Struct for resolved OPCM with on-chain version
+    struct ResolvedOPCM {
+        address addr;
+        string version;
+        SemverComp.Semver semver;
+    }
+
     /// @notice Fetches OPCM addresses from the superchain-registry via FFI.
     /// @param _chainId The chain ID to fetch OPCMs for.
     /// @return opcms_ Array of OPCM info structs.
@@ -85,6 +92,71 @@ library PastUpgrades {
     /// @return version_ The version string.
     function getOPCMVersion(address _opcm) internal view returns (string memory version_) {
         return ISemver(_opcm).version();
+    }
+
+    /// @notice Runs all past upgrades for the current chain.
+    /// @param _delegateCaller The address to use as the delegate caller.
+    /// @param _systemConfig The SystemConfig proxy address.
+    /// @param _superchainConfig The SuperchainConfig proxy address.
+    /// @param _disputeGameFactory The DisputeGameFactory (needed for V2 upgrades).
+    function runPastUpgrades(
+        address _delegateCaller,
+        ISystemConfig _systemConfig,
+        ISuperchainConfig _superchainConfig,
+        IDisputeGameFactory _disputeGameFactory
+    )
+        internal
+    {
+        // Fetch OPCMs from registry via FFI
+        OPCMInfo[] memory opcms = fetchOPCMs(block.chainid);
+
+        if (opcms.length == 0) {
+            console.log("PastUpgrades: No OPCMs found for chain %d", block.chainid);
+            return;
+        }
+
+        // Resolve on-chain versions and filter to >= 6.x.x
+        ResolvedOPCM[] memory resolved = _resolveAndFilterOPCMs(opcms);
+
+        if (resolved.length == 0) {
+            console.log("PastUpgrades: No OPCMs >= 6.x.x found for chain %d", block.chainid);
+            return;
+        }
+
+        // Sort by on-chain version ascending
+        _sortResolvedOPCMs(resolved);
+
+        // Get the last used OPCM version to skip already-applied upgrades
+        (string memory lastVersion, bool hasLastVersion) = tryGetLastUsedOPCMVersion(_systemConfig);
+
+        if (!hasLastVersion) {
+            console.log("PastUpgrades: SystemConfig.lastUsedOPCMVersion() reverted - chain is pre-6.x.x");
+        } else {
+            console.log("PastUpgrades: lastUsedOPCMVersion = %s", lastVersion);
+        }
+
+        for (uint256 i = 0; i < resolved.length; i++) {
+            ResolvedOPCM memory opcm = resolved[i];
+
+            // Skip if already applied (version <= lastUsedOPCMVersion)
+            if (hasLastVersion && bytes(lastVersion).length > 0 && SemverComp.lte(opcm.version, lastVersion)) {
+                console.log(
+                    "PastUpgrades: Skipping OPCM %s (v%s) - already applied (lastUsed=%s)",
+                    opcm.addr,
+                    opcm.version,
+                    lastVersion
+                );
+                continue;
+            }
+
+            console.log("PastUpgrades: Running upgrade with OPCM %s (v%s)", opcm.addr, opcm.version);
+
+            if (opcm.semver.major == 6) {
+                executeV1Upgrade(opcm.addr, _delegateCaller, _systemConfig, _superchainConfig);
+            } else {
+                executeV2Upgrade(opcm.addr, _delegateCaller, _systemConfig, _superchainConfig, _disputeGameFactory);
+            }
+        }
     }
 
     /// @notice Executes a single V1 OPCM upgrade.
@@ -233,66 +305,44 @@ library PastUpgrades {
         }
     }
 
-    /// @notice Runs all past upgrades for the current chain.
-    /// @param _delegateCaller The address to use as the delegate caller.
-    /// @param _systemConfig The SystemConfig proxy address.
-    /// @param _superchainConfig The SuperchainConfig proxy address.
-    /// @param _disputeGameFactory The DisputeGameFactory (needed for V2 upgrades).
-    function runPastUpgrades(
-        address _delegateCaller,
-        ISystemConfig _systemConfig,
-        ISuperchainConfig _superchainConfig,
-        IDisputeGameFactory _disputeGameFactory
-    )
-        internal
-    {
-        // Fetch OPCMs from registry via FFI
-        OPCMInfo[] memory opcms = fetchOPCMs(block.chainid);
-
-        if (opcms.length == 0) {
-            console.log("PastUpgrades: No OPCMs found for chain %d", block.chainid);
-            return;
+    /// @notice Resolves on-chain versions for OPCMs and filters to >= 6.x.x
+    /// @param _opcms The OPCMs from FFI
+    /// @return resolved_ The resolved and filtered OPCMs
+    function _resolveAndFilterOPCMs(OPCMInfo[] memory _opcms) private view returns (ResolvedOPCM[] memory resolved_) {
+        // First pass: count valid OPCMs
+        uint256 count = 0;
+        for (uint256 i = 0; i < _opcms.length; i++) {
+            string memory version = getOPCMVersion(_opcms[i].addr);
+            SemverComp.Semver memory sv = SemverComp.parse(version);
+            if (sv.major >= 6) {
+                count++;
+            }
         }
 
-        // Get the last used OPCM version to skip already-applied upgrades
-        (string memory lastVersion, bool hasLastVersion) = tryGetLastUsedOPCMVersion(_systemConfig);
-
-        if (!hasLastVersion) {
-            console.log("PastUpgrades: SystemConfig.lastUsedOPCMVersion() reverted - chain is pre-6.x.x");
-        } else {
-            console.log("PastUpgrades: lastUsedOPCMVersion = %s", lastVersion);
+        // Second pass: populate array
+        resolved_ = new ResolvedOPCM[](count);
+        uint256 idx = 0;
+        for (uint256 i = 0; i < _opcms.length; i++) {
+            string memory version = getOPCMVersion(_opcms[i].addr);
+            SemverComp.Semver memory sv = SemverComp.parse(version);
+            if (sv.major >= 6) {
+                resolved_[idx] = ResolvedOPCM({ addr: _opcms[i].addr, version: version, semver: sv });
+                idx++;
+            }
         }
+    }
 
-        for (uint256 i = 0; i < opcms.length; i++) {
-            address opcmAddr = opcms[i].addr;
-
-            // Get the actual on-chain version
-            string memory actualVersion = getOPCMVersion(opcmAddr);
-            SemverComp.Semver memory sv = SemverComp.parse(actualVersion);
-
-            // Skip OPCMs before 6.x.x
-            if (sv.major < 6) {
-                console.log("PastUpgrades: Skipping OPCM %s (v%s) - version < 6.x.x", opcmAddr, actualVersion);
-                continue;
-            }
-
-            // Skip if already applied (version <= lastUsedOPCMVersion)
-            if (hasLastVersion && bytes(lastVersion).length > 0 && SemverComp.lte(actualVersion, lastVersion)) {
-                console.log(
-                    "PastUpgrades: Skipping OPCM %s (v%s) - already applied (lastUsed=%s)",
-                    opcmAddr,
-                    actualVersion,
-                    lastVersion
-                );
-                continue;
-            }
-
-            console.log("PastUpgrades: Running upgrade with OPCM %s (v%s)", opcmAddr, actualVersion);
-
-            if (sv.major == 6) {
-                executeV1Upgrade(opcmAddr, _delegateCaller, _systemConfig, _superchainConfig);
-            } else {
-                executeV2Upgrade(opcmAddr, _delegateCaller, _systemConfig, _superchainConfig, _disputeGameFactory);
+    /// @notice Sorts resolved OPCMs by semver ascending (bubble sort)
+    /// @param _resolved The array to sort in-place
+    function _sortResolvedOPCMs(ResolvedOPCM[] memory _resolved) private pure {
+        uint256 n = _resolved.length;
+        for (uint256 i = 0; i < n; i++) {
+            for (uint256 j = i + 1; j < n; j++) {
+                if (SemverComp.lt(_resolved[j].version, _resolved[i].version)) {
+                    ResolvedOPCM memory temp = _resolved[i];
+                    _resolved[i] = _resolved[j];
+                    _resolved[j] = temp;
+                }
             }
         }
     }

@@ -10,11 +10,23 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
+
+// HTTP client configuration
+const (
+	httpTimeout     = 30 * time.Second // Request timeout
+	maxResponseSize = 10 * 1024 * 1024 // 10MB max response size
+)
+
+// httpClient is a shared HTTP client with timeout
+var httpClient = &http.Client{
+	Timeout: httpTimeout,
+}
 
 // Chain ID constants
 const (
@@ -76,7 +88,7 @@ func fetchVersions(chainID uint64) (Versions, error) {
 		return nil, fmt.Errorf("unsupported chain ID: %d", chainID)
 	}
 
-	resp, err := http.Get(url)
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch %s: %w", url, err)
 	}
@@ -86,7 +98,9 @@ func fetchVersions(chainID uint64) (Versions, error) {
 		return nil, fmt.Errorf("failed to fetch %s: status %d", url, resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	// Limit response size to prevent memory exhaustion
+	limitedReader := io.LimitReader(resp.Body, maxResponseSize)
+	body, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
