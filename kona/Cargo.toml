@@ -172,7 +172,7 @@ reth-codecs = { git = "https://github.com/paradigmxyz/reth", tag = "v1.6.0" }
 notify = "8.2"
 url = "2.5.7"
 http = "1.4.0"
-lru = "0.16.2"
+lru = "0.16.3"
 glob = "0.3.3"
 dirs = "6.0.0"
 eyre = "0.6.12"

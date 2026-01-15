@@ -4671,7 +4671,7 @@ dependencies = [
  "kona-registry",
  "kona-std-fpvm",
  "kona-std-fpvm-proc",
- "lru 0.16.2",
+ "lru 0.16.3",
  "op-alloy-consensus 0.22.4",
  "op-alloy-rpc-types-engine",
  "op-revm 14.1.0",
@@ -5222,7 +5222,7 @@ dependencies = [
  "kona-protocol",
  "kona-registry",
  "lazy_static",
- "lru 0.16.2",
+ "lru 0.16.3",
  "op-alloy-consensus 0.22.4",
  "op-alloy-rpc-types-engine",
  "op-revm 14.1.0",
@@ -5328,7 +5328,7 @@ dependencies = [
  "kona-genesis",
  "kona-macros",
  "kona-protocol",
- "lru 0.16.2",
+ "lru 0.16.3",
  "metrics",
  "op-alloy-consensus 0.22.4",
  "op-alloy-network",
@@ -5351,7 +5351,7 @@ dependencies = [
  "kona-genesis",
  "kona-macros",
  "kona-protocol",
- "lru 0.16.2",
+ "lru 0.16.3",
  "metrics",
  "op-alloy-consensus 0.22.4",
  "rstest",
@@ -6178,9 +6178,9 @@ dependencies = [
 
 [[package]]
 name = "lru"
-version = "0.16.2"
+version = "0.16.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96051b46fc183dc9cd4a223960ef37b9af631b55191852a8274bfef064cda20f"
+checksum = "a1dc47f592c06f33f8e3aea9591776ec7c9f9e4124778ff8a3c3b87159f7e593"
 dependencies = [
  "hashbrown 0.16.1",
 ]
@@ -9856,7 +9856,7 @@ dependencies = [
  "hyper-rustls",
  "hyper-util",
  "jsonrpsee",
- "lru 0.16.2",
+ "lru 0.16.3",
  "metrics",
  "metrics-derive",
  "metrics-exporter-prometheus 0.16.2",
