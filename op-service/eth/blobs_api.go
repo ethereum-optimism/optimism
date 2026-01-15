@@ -46,6 +46,7 @@ type APIGetBlobSidecarsResponse struct {
 
 type APIBeaconBlobsResponse struct {
 	// There are other fields but we only include the ones we're interested in.
+
 	Data []*Blob `json:"data"`
 }
 
