@@ -3116,8 +3116,9 @@ jobs:
       version:
         description: The version to build (kona-client, kona-client-int)
         type: string
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+    machine:
+      image: <<pipeline.parameters.base_image>>
+      docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
