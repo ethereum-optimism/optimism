@@ -136,23 +136,59 @@ pub type OpProofsStorageResult<T> = Result<T, OpProofsStorageError>;
 #[cfg(test)]
 mod test {
     use super::*;
+    use reth_execution_errors::BlockValidationError;
 
     #[test]
     fn test_op_proofs_store_error_to_db_error() {
         let original_error = OpProofsStorageError::NoBlocksFound;
-        let db_error: DatabaseError = original_error.into();
-        let converted_error: OpProofsStorageError = db_error.into();
 
+        let db_error = DatabaseError::from(original_error);
+        assert!(matches!(db_error, DatabaseError::Custom(_)));
+
+        let converted_error = OpProofsStorageError::from(db_error);
         assert!(matches!(converted_error, OpProofsStorageError::NoBlocksFound))
     }
 
     #[test]
     fn test_db_error_to_op_proofs_store_error() {
         let original_error = DatabaseError::Decode;
-        let op_proofs_store_error: OpProofsStorageError = original_error.into();
-        let converted_error: DatabaseError = op_proofs_store_error.into();
-        println!("{:?}", converted_error);
 
+        let op_proofs_store_error = OpProofsStorageError::from(original_error);
+        assert!(matches!(
+            op_proofs_store_error,
+            OpProofsStorageError::DatabaseError(DatabaseError::Decode)
+        ));
+
+        let converted_error = DatabaseError::from(op_proofs_store_error);
         assert!(matches!(converted_error, DatabaseError::Decode))
+    }
+
+    #[test]
+    fn test_conversion_from_lock_error() {
+        let lock = tokio::sync::Mutex::new(());
+        let _guard = lock.try_lock().unwrap();
+        let lock_error = lock.try_lock().err().unwrap();
+        let op_proofs_store_error = OpProofsStorageError::from(lock_error);
+        assert!(matches!(op_proofs_store_error, OpProofsStorageError::TryLockError));
+    }
+
+    #[test]
+    fn test_conversion_from_block_execution_error() {
+        let block_execution_error =
+            BlockExecutionError::Validation(BlockValidationError::IncrementBalanceFailed);
+
+        let op_proofs_store_error = OpProofsStorageError::from(block_execution_error);
+        assert!(
+            matches!(op_proofs_store_error, OpProofsStorageError::ExecutionError(err) if matches!(*err, BlockExecutionError::Validation(BlockValidationError::IncrementBalanceFailed)))
+        )
+    }
+
+    #[test]
+    fn test_conversion_from_provider_error() {
+        let provider_error = ProviderError::SenderRecoveryError;
+        let op_proofs_store_error = OpProofsStorageError::from(provider_error);
+        assert!(
+            matches!(op_proofs_store_error, OpProofsStorageError::ProviderError(err) if matches!(*err, ProviderError::SenderRecoveryError))
+        )
     }
 }
