@@ -305,16 +305,16 @@ func buildV2OPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy c
 	}
 }
 
-// deployDummyCaller deploys DummyCallerGeneric at the prank address with the given OPCM address.
+// deployDummyCaller deploys DummyCaller at the prank address with the given OPCM address.
 func deployDummyCaller(t *testing.T, rpcClient *rpc.Client, afactsFS foundry.StatDirFs, prank, opcmAddr common.Address) {
 	t.Helper()
 
 	artifacts := &foundry.ArtifactsFS{FS: afactsFS}
-	artifact, err := artifacts.ReadArtifact("UpgradeOPChain.s.sol", "DummyCallerGeneric")
-	require.NoError(t, err, "failed to read DummyCallerGeneric artifact")
+	artifact, err := artifacts.ReadArtifact("DummyCaller.sol", "DummyCaller")
+	require.NoError(t, err, "failed to read DummyCaller artifact")
 
 	err = rpcClient.Call(nil, "anvil_setCode", prank, hexutil.Encode(artifact.DeployedBytecode.Object))
-	require.NoError(t, err, "failed to deploy DummyCallerGeneric")
+	require.NoError(t, err, "failed to deploy DummyCaller")
 
 	err = rpcClient.Call(nil, "anvil_setStorageAt", prank, common.Hash{}, common.BytesToHash(opcmAddr.Bytes()))
 	require.NoError(t, err, "failed to set OPCM address in storage")
@@ -434,7 +434,7 @@ func RunPastUpgradesWithRPC(t *testing.T, l1RPCUrl string, afactsFS foundry.Stat
 
 	// Process each OPCM upgrade: deploy DummyCaller with correct OPCM, run upgrade, broadcast
 	for _, opcm := range toApply {
-		// Deploy DummyCallerGeneric with this OPCM's address
+		// Deploy DummyCaller with this OPCM's address
 		deployDummyCaller(t, rpcClient, afactsFS, prank, opcm.Address)
 
 		// Create fresh broadcaster and host for this upgrade

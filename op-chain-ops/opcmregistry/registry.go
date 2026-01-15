@@ -149,18 +149,20 @@ type OPCMInfo struct {
 
 // Semver represents a parsed semantic version
 type Semver struct {
-	Major int
-	Minor int
-	Patch int
-	Raw   string
+	Major      int
+	Minor      int
+	Patch      int
+	Raw        string
+	Prerelease string // e.g., "rc.1", "beta.2", empty for stable releases
 }
 
 // ParseSemver parses a semantic version string like "6.0.0" or "6.0.0-rc.1"
 func ParseSemver(v string) (Semver, error) {
-	// Strip any suffix like "-rc.1"
 	base := v
+	prerelease := ""
 	if idx := strings.Index(v, "-"); idx != -1 {
 		base = v[:idx]
+		prerelease = v[idx+1:]
 	}
 
 	parts := strings.Split(base, ".")
@@ -179,7 +181,12 @@ func ParseSemver(v string) (Semver, error) {
 		return Semver{}, fmt.Errorf("invalid patch version: %s", v)
 	}
 
-	return Semver{Major: major, Minor: minor, Patch: patch, Raw: v}, nil
+	return Semver{Major: major, Minor: minor, Patch: patch, Raw: v, Prerelease: prerelease}, nil
+}
+
+// IsPrerelease returns true if this is a prerelease version (e.g., rc, beta, alpha)
+func (s Semver) IsPrerelease() bool {
+	return s.Prerelease != ""
 }
 
 // Compare returns -1 if s < other, 0 if s == other, 1 if s > other
@@ -214,6 +221,7 @@ func (s Semver) IsV1OPCM() bool {
 // Returns unique OPCMs sorted by registry version ascending, deduplicated by address.
 // Note: The version in the registry (e.g., "1.6.0") is NOT the OPCM contract version (e.g., "6.0.0").
 // The actual OPCM version must be queried on-chain via opcm.version().
+// Prerelease versions (e.g., rc, beta) are excluded - only stable releases are returned.
 func GetOPCMsForChain(chainID uint64) ([]OPCMInfo, error) {
 	versions, err := getVersionsForChain(chainID)
 	if err != nil {
@@ -231,6 +239,15 @@ func GetOPCMsForChain(chainID uint64) ([]OPCMInfo, error) {
 		}
 
 		opcmVersion := versionConfig.OPContractsManager.Version
+
+		// Skip prerelease versions (rc, beta, alpha, etc.)
+		sv, err := ParseSemver(opcmVersion)
+		if err != nil {
+			continue
+		}
+		if sv.IsPrerelease() {
+			continue
+		}
 
 		opcms = append(opcms, OPCMInfo{
 			Version: opcmVersion,
@@ -299,8 +316,9 @@ type ResolvedOPCM struct {
 }
 
 // GetResolvedOPCMs fetches OPCM addresses from the registry, queries their actual versions
-// on-chain using the provided querier, filters to only include versions >= 6.x.x,
+// on-chain using the provided querier, filters to only include stable versions >= 6.x.x,
 // and returns them sorted by version ascending.
+// Prerelease versions (e.g., rc, beta) are excluded.
 func GetResolvedOPCMs(chainID uint64, queryVersion VersionQuerier) ([]ResolvedOPCM, error) {
 	registryOPCMs, err := GetOPCMsForChain(chainID)
 	if err != nil {
@@ -318,6 +336,11 @@ func GetResolvedOPCMs(chainID uint64, queryVersion VersionQuerier) ([]ResolvedOP
 		sv, err := ParseSemver(actualVersion)
 		if err != nil {
 			// Skip OPCMs with invalid versions
+			continue
+		}
+
+		// Skip prerelease versions (rc, beta, alpha, etc.)
+		if sv.IsPrerelease() {
 			continue
 		}
 

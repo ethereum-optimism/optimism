@@ -79,19 +79,14 @@ library PastUpgrades {
         view
         returns (string memory version_, bool success_)
     {
+        // This code is EIP-150 safe because it only runs in tests and the tests would fail if the
+        // call reverts for some reason.
         // eip150-safe
         try _systemConfig.lastUsedOPCMVersion() returns (string memory v_) {
             return (v_, true);
         } catch {
             return ("", false);
         }
-    }
-
-    /// @notice Gets the actual OPCM version by calling version() on the contract.
-    /// @param _opcm The OPCM address.
-    /// @return version_ The version string.
-    function getOPCMVersion(address _opcm) internal view returns (string memory version_) {
-        return ISemver(_opcm).version();
     }
 
     /// @notice Runs all past upgrades for the current chain.
@@ -312,7 +307,7 @@ library PastUpgrades {
         // First pass: count valid OPCMs
         uint256 count = 0;
         for (uint256 i = 0; i < _opcms.length; i++) {
-            string memory version = getOPCMVersion(_opcms[i].addr);
+            string memory version = ISemver(_opcms[i].addr).version();
             SemverComp.Semver memory sv = SemverComp.parse(version);
             if (sv.major >= 6) {
                 count++;
@@ -323,7 +318,7 @@ library PastUpgrades {
         resolved_ = new ResolvedOPCM[](count);
         uint256 idx = 0;
         for (uint256 i = 0; i < _opcms.length; i++) {
-            string memory version = getOPCMVersion(_opcms[i].addr);
+            string memory version = ISemver(_opcms[i].addr).version();
             SemverComp.Semver memory sv = SemverComp.parse(version);
             if (sv.major >= 6) {
                 resolved_[idx] = ResolvedOPCM({ addr: _opcms[i].addr, version: version, semver: sv });
