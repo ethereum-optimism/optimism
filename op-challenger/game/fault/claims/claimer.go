@@ -38,17 +38,19 @@ type Claimer struct {
 	contractCreator BondContractCreator
 	txSender        TxSender
 	claimants       []common.Address
+	selective       bool
 }
 
 var _ BondClaimer = (*Claimer)(nil)
 
-func NewBondClaimer(l log.Logger, m BondClaimMetrics, contractCreator BondContractCreator, txSender TxSender, claimants ...common.Address) *Claimer {
+func NewBondClaimer(l log.Logger, m BondClaimMetrics, contractCreator BondContractCreator, txSender TxSender, selective bool, claimants ...common.Address) *Claimer {
 	return &Claimer{
 		logger:          l,
 		metrics:         m,
 		contractCreator: contractCreator,
 		txSender:        txSender,
 		claimants:       claimants,
+		selective:       selective,
 	}
 }
 
@@ -100,6 +102,11 @@ func (c *Claimer) claimBond(ctx context.Context, game types.GameMetadata, addr c
 }
 
 func (c *Claimer) closeGame(ctx context.Context, contract BondContract, game types.GameMetadata) error {
+	if c.selective {
+		c.logger.Debug("Skipping game close in selective claim resolution mode", "game", game.Proxy)
+		return nil
+	}
+
 	bondMode, err := contract.GetBondDistributionMode(ctx, rpcblock.Latest)
 	if err != nil {
 		return fmt.Errorf("failed to get bond distribution mode: %w", err)

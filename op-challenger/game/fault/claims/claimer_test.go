@@ -138,6 +138,17 @@ func TestClaimer_ClaimBonds(t *testing.T) {
 		require.Equal(t, 0, m.RecordBondClaimedCalls)
 	})
 
+	t.Run("ZeroCreditSkipsCloseWhenSelectiveMode", func(t *testing.T) {
+		gameAddr := common.HexToAddress("0x1234")
+		c, m, contract, txSender := newTestClaimerWithSelective(t, true)
+		contract.credit[txSender.From()] = 0
+		contract.bondDistributionMode = faultTypes.UndecidedDistributionMode
+		err := c.ClaimBonds(context.Background(), []types.GameMetadata{{Proxy: gameAddr}})
+		require.NoError(t, err)
+		require.Equal(t, 0, txSender.sends)
+		require.Equal(t, 0, m.RecordBondClaimedCalls)
+	})
+
 	t.Run("MultipleBondClaimFails", func(t *testing.T) {
 		gameAddr := common.HexToAddress("0x1234")
 		c, m, contract, txSender := newTestClaimer(t)
@@ -151,6 +162,10 @@ func TestClaimer_ClaimBonds(t *testing.T) {
 }
 
 func newTestClaimer(t *testing.T, claimants ...common.Address) (*Claimer, *mockClaimMetrics, *stubBondContract, *mockTxSender) {
+	return newTestClaimerWithSelective(t, false, claimants...)
+}
+
+func newTestClaimerWithSelective(t *testing.T, selective bool, claimants ...common.Address) (*Claimer, *mockClaimMetrics, *stubBondContract, *mockTxSender) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	m := &mockClaimMetrics{}
 	txSender := &mockTxSender{}
@@ -161,7 +176,7 @@ func newTestClaimer(t *testing.T, claimants ...common.Address) (*Claimer, *mockC
 	if len(claimants) == 0 {
 		claimants = []common.Address{txSender.From()}
 	}
-	c := NewBondClaimer(logger, m, contractCreator, txSender, claimants...)
+	c := NewBondClaimer(logger, m, contractCreator, txSender, selective, claimants...)
 	return c, m, bondContract, txSender
 }
 
