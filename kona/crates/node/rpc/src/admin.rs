@@ -1,6 +1,6 @@
 //! Admin RPC Module
 
-use crate::AdminApiServer;
+use crate::{AdminApiServer, RollupBoostAdminClient, SequencerAdminAPIClient};
 use alloy_primitives::B256;
 use async_trait::async_trait;
 use core::fmt::Debug;
@@ -12,7 +12,6 @@ use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rollup_boost::{
     ExecutionMode, GetExecutionModeResponse, SetExecutionModeRequest, SetExecutionModeResponse,
 };
-use thiserror::Error;
 use tokio::sync::oneshot;
 
 /// The query types to the network actor for the admin api.
@@ -33,6 +32,8 @@ pub enum RollupBoostAdminQuery {
     SetExecutionMode {
         /// The execution mode to set.
         execution_mode: ExecutionMode,
+        /// The sender to send the response confirming the execution mode was updated.
+        sender: oneshot::Sender<()>,
     },
     /// An admin rpc request to get the execution mode.
     GetExecutionMode {
@@ -42,45 +43,54 @@ pub enum RollupBoostAdminQuery {
 }
 
 type NetworkAdminQuerySender = tokio::sync::mpsc::Sender<NetworkAdminQuery>;
-type RollupBoostAdminQuerySender = tokio::sync::mpsc::Sender<RollupBoostAdminQuery>;
 
 /// The admin rpc server.
 #[derive(Debug)]
-pub struct AdminRpc<SequencerAdminAPIClient> {
+pub struct AdminRpc<RollupBoostAdminClient, SequencerAdminAPIClient> {
     /// The sequencer admin API client.
     pub sequencer_admin_client: Option<SequencerAdminAPIClient>,
     /// The sender to the network actor.
     pub network_sender: NetworkAdminQuerySender,
     /// The sender to the rollup boost component of the engine actor.
     /// Only set when rollup boost is enabled.
-    pub rollup_boost_sender: Option<RollupBoostAdminQuerySender>,
+    pub rollup_boost_client: Option<RollupBoostAdminClient>,
 }
 
-impl<S: SequencerAdminAPIClient> AdminRpc<S> {
+impl<RollupBoostAdminClient_, SequencerAdminAPIClient_>
+    AdminRpc<RollupBoostAdminClient_, SequencerAdminAPIClient_>
+where
+    RollupBoostAdminClient_: RollupBoostAdminClient,
+    SequencerAdminAPIClient_: SequencerAdminAPIClient,
+{
     /// Constructs a new [`AdminRpc`] given the sequencer sender, network sender, and execution
     /// mode.
     ///
     /// # Parameters
     ///
-    /// - `sequencer_sender`: The sender to the sequencer actor.
+    /// - `sequencer_sender`: The [`SequencerAdminAPIClient`] used to fulfill sequencer admin
+    ///   queries.
     /// - `network_sender`: The sender to the network actor.
-    /// - `rollup_boost_sender`: Sender of admin queries to the rollup boost component of the engine
-    ///   actor.
-    ///
+    /// - `rollup_boost_sender`: The [`RollupBoostAdminClient`] used to fulfill rollup boost admin
+    ///   queries.
     /// # Returns
     ///
     /// A new [`AdminRpc`] instance.
     pub const fn new(
-        sequencer_admin_client: Option<S>,
+        sequencer_admin_client: Option<SequencerAdminAPIClient_>,
         network_sender: NetworkAdminQuerySender,
-        rollup_boost_sender: Option<RollupBoostAdminQuerySender>,
+        rollup_boost_client: Option<RollupBoostAdminClient_>,
     ) -> Self {
-        Self { sequencer_admin_client, network_sender, rollup_boost_sender }
+        Self { sequencer_admin_client, network_sender, rollup_boost_client }
     }
 }
 
 #[async_trait]
-impl<S: SequencerAdminAPIClient + 'static> AdminApiServer for AdminRpc<S> {
+impl<RollupBoostAdminClient_, SequencerAdminAPIClient_> AdminApiServer
+    for AdminRpc<RollupBoostAdminClient_, SequencerAdminAPIClient_>
+where
+    RollupBoostAdminClient_: RollupBoostAdminClient + 'static + Send + Sync,
+    SequencerAdminAPIClient_: SequencerAdminAPIClient + 'static + Send + Sync,
+{
     async fn admin_post_unsafe_payload(
         &self,
         payload: OpExecutionPayloadEnvelope,
@@ -180,34 +190,19 @@ impl<S: SequencerAdminAPIClient + 'static> AdminApiServer for AdminRpc<S> {
         &self,
         request: SetExecutionModeRequest,
     ) -> RpcResult<SetExecutionModeResponse> {
-        let Some(ref rollup_boost_sender) = self.rollup_boost_sender else {
+        let Some(ref client) = self.rollup_boost_client else {
             return Err(ErrorObject::from(ErrorCode::MethodNotFound));
         };
 
-        rollup_boost_sender
-            .send(RollupBoostAdminQuery::SetExecutionMode {
-                execution_mode: request.execution_mode,
-            })
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
-        Ok(SetExecutionModeResponse { execution_mode: request.execution_mode })
+        client.set_execution_mode(request).await
     }
 
     async fn get_execution_mode(&self) -> RpcResult<GetExecutionModeResponse> {
-        let Some(ref rollup_boost_sender) = self.rollup_boost_sender else {
+        let Some(ref client) = self.rollup_boost_client else {
             return Err(ErrorObject::from(ErrorCode::MethodNotFound));
         };
 
-        let (tx, rx) = oneshot::channel();
-
-        rollup_boost_sender
-            .send(RollupBoostAdminQuery::GetExecutionMode { sender: tx })
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
-
-        rx.await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
-            .map(|execution_mode| GetExecutionModeResponse { execution_mode })
+        client.get_execution_mode().await
     }
 
     async fn admin_reset_derivation_pipeline(&self) -> RpcResult<()> {
@@ -221,60 +216,4 @@ impl<S: SequencerAdminAPIClient + 'static> AdminApiServer for AdminRpc<S> {
             .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
-}
-
-/// The admin API client for the sequencer actor.
-#[async_trait]
-pub trait SequencerAdminAPIClient: Send + Sync + Debug {
-    /// Check if the sequencer is active.
-    async fn is_sequencer_active(&self) -> Result<bool, SequencerAdminAPIError>;
-
-    /// Check if the conductor is enabled.
-    async fn is_conductor_enabled(&self) -> Result<bool, SequencerAdminAPIError>;
-
-    /// Check if in recovery mode.
-    async fn is_recovery_mode(&self) -> Result<bool, SequencerAdminAPIError>;
-
-    /// Start the sequencer.
-    async fn start_sequencer(&self) -> Result<(), SequencerAdminAPIError>;
-
-    /// Stop the sequencer.
-    async fn stop_sequencer(&self) -> Result<B256, SequencerAdminAPIError>;
-
-    /// Set recovery mode.
-    async fn set_recovery_mode(&self, mode: bool) -> Result<(), SequencerAdminAPIError>;
-
-    /// Override the leader.
-    async fn override_leader(&self) -> Result<(), SequencerAdminAPIError>;
-
-    /// Reset the derivation pipeline.
-    async fn reset_derivation_pipeline(&self) -> Result<(), SequencerAdminAPIError>;
-}
-
-/// Errors that can occur when using the sequencer admin API.
-#[derive(Debug, Error)]
-pub enum SequencerAdminAPIError {
-    /// Error sending request.
-    #[error("Error sending request: {0}.")]
-    RequestError(String),
-
-    /// Error receiving response.
-    #[error("Error receiving response: {0}.")]
-    ResponseError(String),
-
-    /// Error stopping sequencer.
-    #[error("Error stopping sequencer: {0}.")]
-    StopError(#[from] StopSequencerError),
-
-    /// Error overriding leader.
-    #[error("Error overriding leader: {0}.")]
-    LeaderOverrideError(String),
-}
-
-/// Errors that can occur when using the sequencer admin API.
-#[derive(Debug, Error)]
-pub enum StopSequencerError {
-    /// Sequencer stopped successfully, followed by some error.
-    #[error("Sequencer stopped successfully, followed by error: {0}.")]
-    ErrorAfterSequencerWasStopped(String),
 }

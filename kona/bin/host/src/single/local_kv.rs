@@ -2,9 +2,8 @@
 //! using the [SingleChainHost] config.
 
 use super::SingleChainHost;
-use crate::KeyValueStore;
+use crate::{KeyValueStore, Result};
 use alloy_primitives::B256;
-use anyhow::Result;
 use kona_preimage::PreimageKey;
 use kona_proof::boot::{
     L1_CONFIG_KEY, L1_HEAD_KEY, L2_CHAIN_ID_KEY, L2_CLAIM_BLOCK_NUMBER_KEY, L2_CLAIM_KEY,

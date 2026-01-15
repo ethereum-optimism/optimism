@@ -9,40 +9,28 @@ use jsonrpsee::{
     core::{RpcResult, SubscriptionResult},
     types::ErrorCode,
 };
-use kona_engine::{EngineQueries, EngineQuerySender};
 
-use crate::DevEngineApiServer;
+use crate::{DevEngineApiServer, EngineRpcClient};
 use jsonrpsee::core::to_json_raw_value;
 
 /// Implementation of the development RPC API.
 #[derive(Debug)]
-pub struct DevEngineRpc {
+pub struct DevEngineRpc<EngineRpcClient_> {
     /// The engine query sender.
-    engine_query_sender: EngineQuerySender,
+    engine_client: EngineRpcClient_,
 }
 
-impl DevEngineRpc {
+impl<EngineRpcClient_: EngineRpcClient> DevEngineRpc<EngineRpcClient_> {
     /// Creates a new [`DevEngineRpc`] instance.
-    pub const fn new(engine_query_sender: EngineQuerySender) -> Self {
-        Self { engine_query_sender }
+    pub const fn new(engine_client: EngineRpcClient_) -> Self {
+        Self { engine_client }
     }
 
     /// Gets an engine queue length watcher for subscriptions.
     async fn engine_queue_length_watcher(
         &self,
     ) -> Result<tokio::sync::watch::Receiver<usize>, jsonrpsee::core::SubscriptionError> {
-        let (query_tx, query_rx) = tokio::sync::oneshot::channel();
-
-        if let Err(e) =
-            self.engine_query_sender.send(EngineQueries::QueueLengthReceiver(query_tx)).await
-        {
-            tracing::warn!(target: "rpc::dev", ?e, "Failed to send engine state receiver query. The engine query handler is likely closed.");
-            return Err(jsonrpsee::core::SubscriptionError::from(
-                "Internal error. Failed to send engine state receiver query. The engine query handler is likely closed.",
-            ));
-        }
-
-        query_rx.await.map_err(|_| jsonrpsee::core::SubscriptionError::from("Internal error. Failed to receive engine task receiver query. The engine query handler is likely closed."))
+        self.engine_client.dev_subscribe_to_engine_queue_length().await.map_err(|_| jsonrpsee::core::SubscriptionError::from("Internal error. Failed to receive engine task receiver query. The engine query handler is likely closed."))
     }
 
     async fn send_queue_length_update(
@@ -64,7 +52,19 @@ impl DevEngineRpc {
 }
 
 #[async_trait]
-impl DevEngineApiServer for DevEngineRpc {
+impl<EngineRpcClient_: EngineRpcClient + 'static> DevEngineApiServer
+    for DevEngineRpc<EngineRpcClient_>
+{
+    async fn dev_task_queue_length(&self) -> RpcResult<usize> {
+        self.engine_client.dev_get_task_queue_length().await.map_err(|_| {
+            jsonrpsee::types::ErrorObjectOwned::owned(
+                ErrorCode::InternalError.code(),
+                "Failed to receive task queue length",
+                None::<()>,
+            )
+        })
+    }
+
     async fn dev_subscribe_engine_queue_length(
         &self,
         sink: PendingSubscriptionSink,
@@ -88,27 +88,5 @@ impl DevEngineApiServer for DevEngineRpc {
 
         tracing::warn!(target: "rpc::dev::engine_queue_size", "Subscription to engine queue size has been closed.");
         Ok(())
-    }
-
-    async fn dev_task_queue_length(&self) -> RpcResult<usize> {
-        let (query_tx, query_rx) = tokio::sync::oneshot::channel();
-
-        self.engine_query_sender.send(EngineQueries::TaskQueueLength(query_tx)).await.map_err(
-            |_| {
-                jsonrpsee::types::ErrorObjectOwned::owned(
-                    ErrorCode::InternalError.code(),
-                    "Engine query channel closed",
-                    None::<()>,
-                )
-            },
-        )?;
-
-        query_rx.await.map_err(|_| {
-            jsonrpsee::types::ErrorObjectOwned::owned(
-                ErrorCode::InternalError.code(),
-                "Failed to receive task queue length",
-                None::<()>,
-            )
-        })
     }
 }

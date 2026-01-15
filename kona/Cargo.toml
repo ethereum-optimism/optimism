@@ -253,6 +253,7 @@ arbtest = "0.3.2"
 proptest = "1.9.0"
 criterion = "0.5.1"
 mockall = "0.14.0"
+httpmock = "0.8.2"
 
 # Serialization
 rkyv = "0.8.12"

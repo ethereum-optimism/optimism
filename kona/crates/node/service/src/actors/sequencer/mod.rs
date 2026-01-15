@@ -12,10 +12,8 @@ pub use origin_selector::{
 mod actor;
 pub use actor::SequencerActor;
 
-mod admin_api_client;
-pub use admin_api_client::{QueuedSequencerAdminAPIClient, SequencerAdminQuery};
-
 mod admin_api_impl;
+pub use admin_api_impl::SequencerAdminQuery;
 
 mod metrics;
 
@@ -26,11 +24,17 @@ mod conductor;
 
 pub use conductor::{Conductor, ConductorClient, ConductorError};
 
+mod engine_client;
+pub use engine_client::{QueuedSequencerEngineClient, SequencerEngineClient};
+
 #[cfg(test)]
 pub use conductor::MockConductor;
+
+#[cfg(test)]
+pub use engine_client::MockSequencerEngineClient;
 
 #[cfg(test)]
 pub use origin_selector::MockOriginSelector;
 
 #[cfg(test)]
-mod admin_api_impl_test;
+mod tests;

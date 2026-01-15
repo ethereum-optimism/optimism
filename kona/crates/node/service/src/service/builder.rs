@@ -1,7 +1,8 @@
 //! Contains the builder for the [`RollupNode`].
 
 use crate::{
-    EngineConfig, InteropMode, NetworkConfig, RollupNode, SequencerConfig, service::node::L1Config,
+    EngineConfig, InteropMode, NetworkConfig, RollupNode, SequencerConfig,
+    actors::DerivationDelegateClient, service::node::L1Config,
 };
 use alloy_primitives::Bytes;
 use alloy_provider::RootProvider;
@@ -19,6 +20,20 @@ use url::Url;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_providers_alloy::OnlineBeaconClient;
 use kona_rpc::RpcBuilder;
+
+/// Configuration for Derivation Delegate mode.
+#[derive(Debug, Clone)]
+pub struct DerivationDelegateConfig {
+    /// The L2 consensus layer RPC URL to delegate derivation to.
+    /// This CL must expose the `optimism_syncStatus` RPC endpoint.
+    pub l2_cl_url: Url,
+}
+
+impl Default for DerivationDelegateConfig {
+    fn default() -> Self {
+        Self { l2_cl_url: Url::parse("http://localhost:9545").unwrap() }
+    }
+}
 
 /// The [`L1ConfigBuilder`] is used to construct a [`L1Config`].
 #[derive(Debug)]
@@ -55,6 +70,9 @@ pub struct RollupNodeBuilder {
     pub sequencer_config: Option<SequencerConfig>,
     /// Whether to run the node in interop mode.
     pub interop_mode: InteropMode,
+    /// Optional configuration for Derivation Delegate mode.
+    /// When present, the node does not run derivation, instead trusting the configured delegate.
+    pub derivation_delegate_config: Option<DerivationDelegateConfig>,
 }
 
 impl RollupNodeBuilder {
@@ -76,6 +94,7 @@ impl RollupNodeBuilder {
             rpc_config,
             interop_mode: InteropMode::default(),
             sequencer_config: None,
+            derivation_delegate_config: None,
         }
     }
 
@@ -92,6 +111,15 @@ impl RollupNodeBuilder {
     /// Appends the [`SequencerConfig`] to the builder.
     pub fn with_sequencer_config(self, sequencer_config: SequencerConfig) -> Self {
         Self { sequencer_config: Some(sequencer_config), ..self }
+    }
+
+    /// Sets the Derivation Delegate configuration, trusting the configured delegate for safe head
+    /// updates.
+    pub fn with_derivation_delegate_config(
+        self,
+        derivation_delegate_config: Option<DerivationDelegateConfig>,
+    ) -> Self {
+        Self { derivation_delegate_config, ..self }
     }
 
     /// Assembles the [`RollupNode`] service.
@@ -135,6 +163,12 @@ impl RollupNodeBuilder {
         let p2p_config = self.p2p_config;
         let sequencer_config = self.sequencer_config.unwrap_or_default();
 
+        let derivation_delegate_provider = self.derivation_delegate_config.as_ref().map(|config| {
+            DerivationDelegateClient::new(config.l2_cl_url.clone()).expect(
+                "Failed to create Derivation Delegate provider despite config being present",
+            )
+        });
+
         RollupNode {
             config: rollup_config,
             l1_config,
@@ -145,6 +179,7 @@ impl RollupNodeBuilder {
             rpc_builder: self.rpc_config,
             p2p_config,
             sequencer_config,
+            derivation_delegate_provider,
         }
     }
 }

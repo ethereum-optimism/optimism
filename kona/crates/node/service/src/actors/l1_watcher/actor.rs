@@ -23,57 +23,62 @@ use tokio::{
 };
 use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 
+use super::L1WatcherDerivationClient;
+
 /// An L1 chain watcher that checks for L1 block updates over RPC.
 #[derive(Debug)]
-pub struct L1WatcherActor<BS, L1P>
+pub struct L1WatcherActor<BlockStream, L1Provider, L1WatcherDerivationClient_>
 where
-    BS: Stream<Item = BlockInfo> + Unpin + Send,
-    L1P: Provider,
+    BlockStream: Stream<Item = BlockInfo> + Unpin + Send,
+    L1Provider: Provider,
+    L1WatcherDerivationClient_: L1WatcherDerivationClient,
 {
     /// The [`RollupConfig`] to tell if ecotone is active.
     /// This is used to determine if the L1 watcher should check for unsafe block signer updates.
     rollup_config: Arc<RollupConfig>,
     /// The L1 provider.
-    l1_provider: L1P,
+    l1_provider: L1Provider,
     /// The inbound queries to the L1 watcher.
     inbound_queries: mpsc::Receiver<L1WatcherQueries>,
     /// The latest L1 head block.
     latest_head: watch::Sender<Option<BlockInfo>>,
-    /// The latest L1 finalized block.
-    latest_finalized: watch::Sender<Option<BlockInfo>>,
+    /// Client used to interact with the [`crate::DerivationActor`].
+    derivation_client: L1WatcherDerivationClient_,
     /// The block signer sender.
     block_signer_sender: mpsc::Sender<Address>,
     /// The cancellation token, shared between all tasks.
     cancellation: CancellationToken,
     /// A stream over the latest head.
-    head_stream: BS,
+    head_stream: BlockStream,
     /// A stream over the finalized block accepted as canonical.
-    finalized_stream: BS,
+    finalized_stream: BlockStream,
 }
-impl<BS, L1P> L1WatcherActor<BS, L1P>
+impl<BlockStream, L1Provider, L1WatcherDerivationClient_>
+    L1WatcherActor<BlockStream, L1Provider, L1WatcherDerivationClient_>
 where
-    BS: Stream<Item = BlockInfo> + Unpin + Send,
-    L1P: Provider,
+    BlockStream: Stream<Item = BlockInfo> + Unpin + Send,
+    L1Provider: Provider,
+    L1WatcherDerivationClient_: L1WatcherDerivationClient,
 {
     /// Instantiate a new [`L1WatcherActor`].
     #[allow(clippy::too_many_arguments)]
     pub const fn new(
         rollup_config: Arc<RollupConfig>,
-        l1_provider: L1P,
+        l1_provider: L1Provider,
         l1_query_rx: mpsc::Receiver<L1WatcherQueries>,
         l1_head_updates_tx: watch::Sender<Option<BlockInfo>>,
-        finalized_l1_block_tx: watch::Sender<Option<BlockInfo>>,
+        derivation_client: L1WatcherDerivationClient_,
         signer: mpsc::Sender<Address>,
         cancellation: CancellationToken,
-        head_stream: BS,
-        finalized_stream: BS,
+        head_stream: BlockStream,
+        finalized_stream: BlockStream,
     ) -> Self {
         Self {
             rollup_config,
             l1_provider,
             inbound_queries: l1_query_rx,
             latest_head: l1_head_updates_tx,
-            latest_finalized: finalized_l1_block_tx,
+            derivation_client,
             block_signer_sender: signer,
             cancellation,
             head_stream,
@@ -83,10 +88,12 @@ where
 }
 
 #[async_trait]
-impl<BS, L1P> NodeActor for L1WatcherActor<BS, L1P>
+impl<BlockStream, L1Provider, L1WatcherDerivationClient_> NodeActor
+    for L1WatcherActor<BlockStream, L1Provider, L1WatcherDerivationClient_>
 where
-    BS: Stream<Item = BlockInfo> + Unpin + Send + 'static,
-    L1P: Provider + 'static,
+    BlockStream: Stream<Item = BlockInfo> + Unpin + Send + 'static,
+    L1Provider: Provider + 'static,
+    L1WatcherDerivationClient_: L1WatcherDerivationClient + 'static,
 {
     type Error = L1WatcherActorError<BlockInfo>;
     type StartData = ();
@@ -114,6 +121,10 @@ where
                     Some(head_block_info) => {
                         // Send the head update event to all consumers.
                         self.latest_head.send_replace(Some(head_block_info));
+                        self.derivation_client.send_new_l1_head(head_block_info).await.map_err(|e| {
+                            warn!(target: "l1_watcher", "Error sending l1 head update to derivation actor: {e}");
+                            L1WatcherActorError::DerivationClientError(e)
+                        })?;
 
                         // For each log, attempt to construct a [`SystemConfigLog`].
                         // Build the [`SystemConfigUpdate`] from the log.
@@ -144,7 +155,10 @@ where
                         return Err(L1WatcherActorError::StreamEnded);
                     }
                     Some(finalized_block_info) => {
-                        self.latest_finalized.send_replace(Some(finalized_block_info));
+                        self.derivation_client.send_finalized_l1_block(finalized_block_info).await.map_err(|e| {
+                            warn!(target: "l1_watcher", "Error sending finalized l1 block update to derivation actor: {e}");
+                            L1WatcherActorError::DerivationClientError(e)
+                        })?;
                     }
                 },
                 inbound_query = self.inbound_queries.recv() => match inbound_query {
@@ -201,10 +215,12 @@ where
     }
 }
 
-impl<BS, L1P> CancellableContext for L1WatcherActor<BS, L1P>
+impl<BlockStream, L1Provider, L1WatcherDerivationClient_> CancellableContext
+    for L1WatcherActor<BlockStream, L1Provider, L1WatcherDerivationClient_>
 where
-    BS: Stream<Item = BlockInfo> + Unpin + Send + 'static,
-    L1P: Provider,
+    BlockStream: Stream<Item = BlockInfo> + Unpin + Send + 'static,
+    L1Provider: Provider,
+    L1WatcherDerivationClient_: L1WatcherDerivationClient + 'static,
 {
     fn cancelled(&self) -> WaitForCancellationFuture<'_> {
         self.cancellation.cancelled()

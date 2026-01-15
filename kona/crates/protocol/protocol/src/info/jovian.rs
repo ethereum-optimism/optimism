@@ -1,9 +1,17 @@
 //! Jovian L1 Block Info transaction types.
 
+use crate::{
+    DecodeError, L1BlockInfoIsthmus,
+    info::{
+        L1BlockInfoBedrockBaseFields, L1BlockInfoEcotoneBaseFields,
+        bedrock_base::ambassador_impl_L1BlockInfoBedrockBaseFields,
+        ecotone_base::ambassador_impl_L1BlockInfoEcotoneBaseFields,
+        isthmus::{L1BlockInfoIsthmusBaseFields, ambassador_impl_L1BlockInfoIsthmusBaseFields},
+    },
+};
 use alloc::vec::Vec;
-use alloy_primitives::{Address, B256, Bytes, U256};
-
-use crate::DecodeError;
+use alloy_primitives::{Address, B256, Bytes};
+use ambassador::{self, Delegate};
 
 /// Represents the fields within an Jovian L1 block info transaction.
 ///
@@ -25,34 +33,38 @@ use crate::DecodeError;
 /// | 8       | OperatorFeeConstant      |
 /// | 2       | DAFootprintGasScalar     |
 /// +---------+--------------------------+
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Default, Copy)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Default, Copy, Delegate)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[allow(clippy::duplicated_attributes)]
+#[delegate(L1BlockInfoBedrockBaseFields, target = "base")]
+#[delegate(L1BlockInfoEcotoneBaseFields, target = "base")]
+#[delegate(L1BlockInfoIsthmusBaseFields, target = "base")]
 pub struct L1BlockInfoJovian {
-    /// The current L1 origin block number
-    pub number: u64,
-    /// The current L1 origin block's timestamp
-    pub time: u64,
-    /// The current L1 origin block's basefee
-    pub base_fee: u64,
-    /// The current L1 origin block's hash
-    pub block_hash: B256,
-    /// The current sequence number
-    pub sequence_number: u64,
-    /// The address of the batch submitter
-    pub batcher_address: Address,
-    /// The current blob base fee on L1
-    pub blob_base_fee: u128,
-    /// The fee scalar for L1 blobspace data
-    pub blob_base_fee_scalar: u32,
-    /// The fee scalar for L1 data
-    pub base_fee_scalar: u32,
-    /// The operator fee scalar
-    pub operator_fee_scalar: u32,
-    /// The operator fee constant
-    pub operator_fee_constant: u64,
+    /// Fields inherited from Isthmus.
+    #[cfg_attr(feature = "serde", serde(flatten))]
+    pub base: L1BlockInfoIsthmus,
     /// The DA footprint gas scalar
     pub da_footprint_gas_scalar: u16,
 }
+/// Accessors to fields available in Jovian and later.
+pub trait L1BlockInfoJovianBaseFields: L1BlockInfoIsthmusBaseFields {
+    /// The DA footprint gas scalar
+    fn da_footprint_gas_scalar(&self) -> u16;
+}
+
+impl L1BlockInfoJovianBaseFields for L1BlockInfoJovian {
+    fn da_footprint_gas_scalar(&self) -> u16 {
+        self.da_footprint_gas_scalar
+    }
+}
+
+/// Accessors for all Jovian fields.
+pub trait L1BlockInfoJovianFields:
+    L1BlockInfoIsthmusBaseFields + L1BlockInfoJovianBaseFields
+{
+}
+
+impl L1BlockInfoJovianFields for L1BlockInfoJovian {}
 
 impl L1BlockInfoJovian {
     /// The default DA footprint gas scalar
@@ -72,20 +84,20 @@ impl L1BlockInfoJovian {
     /// Encodes the [`L1BlockInfoJovian`] object into Ethereum transaction calldata.
     pub fn encode_calldata(&self) -> Bytes {
         let mut buf = Vec::with_capacity(Self::L1_INFO_TX_LEN);
-        buf.extend_from_slice(Self::L1_INFO_TX_SELECTOR.as_ref());
-        buf.extend_from_slice(self.base_fee_scalar.to_be_bytes().as_ref());
-        buf.extend_from_slice(self.blob_base_fee_scalar.to_be_bytes().as_ref());
-        buf.extend_from_slice(self.sequence_number.to_be_bytes().as_ref());
-        buf.extend_from_slice(self.time.to_be_bytes().as_ref());
-        buf.extend_from_slice(self.number.to_be_bytes().as_ref());
-        buf.extend_from_slice(U256::from(self.base_fee).to_be_bytes::<32>().as_ref());
-        buf.extend_from_slice(U256::from(self.blob_base_fee).to_be_bytes::<32>().as_ref());
-        buf.extend_from_slice(self.block_hash.as_ref());
-        buf.extend_from_slice(self.batcher_address.into_word().as_ref());
-        buf.extend_from_slice(self.operator_fee_scalar.to_be_bytes().as_ref());
-        buf.extend_from_slice(self.operator_fee_constant.to_be_bytes().as_ref());
-        buf.extend_from_slice(self.da_footprint_gas_scalar.to_be_bytes().as_ref());
+        self.encode_calldata_header(&mut buf);
+        self.encode_calldata_body(&mut buf);
         buf.into()
+    }
+
+    /// Encodes the header part of the [`L1BlockInfoJovian`] object.
+    pub fn encode_calldata_header(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(Self::L1_INFO_TX_SELECTOR.as_ref());
+    }
+
+    /// Encodes the base part of the [`L1BlockInfoJovian`] object.
+    pub fn encode_calldata_body(&self, buf: &mut Vec<u8>) {
+        self.base.encode_calldata_body(buf);
+        buf.extend_from_slice(self.da_footprint_gas_scalar.to_be_bytes().as_ref());
     }
 
     /// Decodes the [`L1BlockInfoJovian`] object from ethereum transaction calldata.
@@ -93,57 +105,15 @@ impl L1BlockInfoJovian {
         if r.len() != Self::L1_INFO_TX_LEN {
             return Err(DecodeError::InvalidJovianLength(Self::L1_INFO_TX_LEN, r.len()));
         }
+        Self::decode_calldata_body(r)
+    }
 
+    /// Decodes the body of the [`L1BlockInfoJovian`] object.
+    pub fn decode_calldata_body(r: &[u8]) -> Result<Self, DecodeError> {
         // SAFETY: For all below slice operations, the full
         //         length is validated above to be `178`.
 
-        // SAFETY: 4 bytes are copied directly into the array
-        let mut base_fee_scalar = [0u8; 4];
-        base_fee_scalar.copy_from_slice(&r[4..8]);
-        let base_fee_scalar = u32::from_be_bytes(base_fee_scalar);
-
-        // SAFETY: 4 bytes are copied directly into the array
-        let mut blob_base_fee_scalar = [0u8; 4];
-        blob_base_fee_scalar.copy_from_slice(&r[8..12]);
-        let blob_base_fee_scalar = u32::from_be_bytes(blob_base_fee_scalar);
-
-        // SAFETY: 8 bytes are copied directly into the array
-        let mut sequence_number = [0u8; 8];
-        sequence_number.copy_from_slice(&r[12..20]);
-        let sequence_number = u64::from_be_bytes(sequence_number);
-
-        // SAFETY: 8 bytes are copied directly into the array
-        let mut time = [0u8; 8];
-        time.copy_from_slice(&r[20..28]);
-        let time = u64::from_be_bytes(time);
-
-        // SAFETY: 8 bytes are copied directly into the array
-        let mut number = [0u8; 8];
-        number.copy_from_slice(&r[28..36]);
-        let number = u64::from_be_bytes(number);
-
-        // SAFETY: 8 bytes are copied directly into the array
-        let mut base_fee = [0u8; 8];
-        base_fee.copy_from_slice(&r[60..68]);
-        let base_fee = u64::from_be_bytes(base_fee);
-
-        // SAFETY: 16 bytes are copied directly into the array
-        let mut blob_base_fee = [0u8; 16];
-        blob_base_fee.copy_from_slice(&r[84..100]);
-        let blob_base_fee = u128::from_be_bytes(blob_base_fee);
-
-        let block_hash = B256::from_slice(r[100..132].as_ref());
-        let batcher_address = Address::from_slice(r[144..164].as_ref());
-
-        // SAFETY: 4 bytes are copied directly into the array
-        let mut operator_fee_scalar = [0u8; 4];
-        operator_fee_scalar.copy_from_slice(&r[164..168]);
-        let operator_fee_scalar = u32::from_be_bytes(operator_fee_scalar);
-
-        // SAFETY: 8 bytes are copied directly into the array
-        let mut operator_fee_constant = [0u8; 8];
-        operator_fee_constant.copy_from_slice(&r[168..176]);
-        let operator_fee_constant = u64::from_be_bytes(operator_fee_constant);
+        let base = L1BlockInfoIsthmus::decode_calldata_body(r)?;
 
         // SAFETY: 2 bytes are copied directly into the array
         let mut da_footprint_gas_scalar = [0u8; 2];
@@ -155,25 +125,60 @@ impl L1BlockInfoJovian {
             da_footprint_gas_scalar = Self::DEFAULT_DA_FOOTPRINT_GAS_SCALAR;
         }
 
-        Ok(Self {
-            number,
-            time,
-            base_fee,
-            block_hash,
-            sequence_number,
-            batcher_address,
-            blob_base_fee,
-            blob_base_fee_scalar,
-            base_fee_scalar,
-            operator_fee_scalar,
-            operator_fee_constant,
+        Ok(Self::new(
+            base.number(),
+            base.time(),
+            base.base_fee(),
+            base.block_hash(),
+            base.sequence_number(),
+            base.batcher_address(),
+            base.blob_base_fee(),
+            base.blob_base_fee_scalar(),
+            base.base_fee_scalar(),
+            base.operator_fee_scalar(),
+            base.operator_fee_constant(),
             da_footprint_gas_scalar,
-        })
+        ))
+    }
+
+    /// Construct from all values.
+    #[allow(clippy::too_many_arguments)]
+    pub const fn new(
+        number: u64,
+        time: u64,
+        base_fee: u64,
+        block_hash: B256,
+        sequence_number: u64,
+        batcher_address: Address,
+        blob_base_fee: u128,
+        blob_base_fee_scalar: u32,
+        base_fee_scalar: u32,
+        operator_fee_scalar: u32,
+        operator_fee_constant: u64,
+        da_footprint_gas_scalar: u16,
+    ) -> Self {
+        Self {
+            base: L1BlockInfoIsthmus::new(
+                number,
+                time,
+                base_fee,
+                block_hash,
+                sequence_number,
+                batcher_address,
+                blob_base_fee,
+                blob_base_fee_scalar,
+                base_fee_scalar,
+                operator_fee_scalar,
+                operator_fee_constant,
+            ),
+            da_footprint_gas_scalar,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use alloc::vec;
     use alloy_primitives::keccak256;
@@ -197,20 +202,20 @@ mod tests {
 
     #[test]
     fn test_l1_block_info_jovian_roundtrip_calldata_encoding() {
-        let info = L1BlockInfoJovian {
-            number: 1,
-            time: 2,
-            base_fee: 3,
-            block_hash: B256::from([4; 32]),
-            sequence_number: 5,
-            batcher_address: Address::from_slice(&[6; 20]),
-            blob_base_fee: 7,
-            blob_base_fee_scalar: 8,
-            base_fee_scalar: 9,
-            operator_fee_scalar: 10,
-            operator_fee_constant: 11,
-            da_footprint_gas_scalar: 12,
-        };
+        let info = L1BlockInfoJovian::new(
+            1,
+            2,
+            3,
+            B256::from([4; 32]),
+            5,
+            Address::from_slice(&[6; 20]),
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+        );
 
         let calldata = info.encode_calldata();
         let decoded_info = L1BlockInfoJovian::decode_calldata(&calldata).unwrap();

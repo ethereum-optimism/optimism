@@ -266,6 +266,7 @@ where
         }
 
         // Let the gate know we are dialing the address.
+        // Note: libp2p-dns will automatically resolve DNS multiaddrs at the transport layer.
         self.connection_gate.dialing(&addr);
 
         // Dial
@@ -392,7 +393,7 @@ where
     pub fn handle_event(&mut self, event: SwarmEvent<Event>) -> Option<OpNetworkPayloadEnvelope> {
         match event {
             SwarmEvent::Behaviour(behavior_event) => {
-                return self.handle_gossip_event(behavior_event)
+                return self.handle_gossip_event(behavior_event);
             }
             SwarmEvent::ConnectionEstablished { peer_id, .. } => {
                 let peer_count = self.swarm.connected_peers().count();
@@ -409,6 +410,10 @@ where
             }
             SwarmEvent::OutgoingConnectionError { peer_id: _peer_id, error, .. } => {
                 debug!(target: "gossip", "Outgoing connection error: {:?}", error);
+                // Remove the peer from current_dials so it can be dialed again
+                if let Some(peer_id) = _peer_id {
+                    self.connection_gate.remove_dial(&peer_id);
+                }
                 kona_macros::inc!(
                     gauge,
                     crate::Metrics::GOSSIPSUB_CONNECTION,

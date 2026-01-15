@@ -21,7 +21,7 @@ kona-genesis.workspace = true
 kona-derive.workspace = true
 kona-protocol.workspace = true
 kona-providers-alloy.workspace = true
-kona-rpc.workspace = true
+kona-rpc = { workspace = true, features = ["client"] }
 kona-peers.workspace = true
 kona-macros.workspace = true
 
@@ -61,7 +61,7 @@ tokio-stream.workspace = true
 strum = { workspace = true, features = ["derive"] }
 backon.workspace = true
 derive_more = { workspace = true, features = ["debug"] }
-jsonrpsee = { workspace = true, features = ["server"] }
+jsonrpsee = { workspace = true, features = ["server", "http-client"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tower.workspace = true
 http-body-util.workspace = true

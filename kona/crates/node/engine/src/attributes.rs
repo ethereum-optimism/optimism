@@ -158,8 +158,11 @@ impl AttributesMatch {
 
             if &attr_tx != block_tx.inner.inner.inner() {
                 warn!(target: "engine", ?attr_tx, ?block_tx, "Transaction mismatch in derived attributes");
-                return AttributesMismatch::TransactionContent(attr_tx.tx_hash(), block_tx.tx_hash())
-                    .into()
+                return AttributesMismatch::TransactionContent(
+                    attr_tx.tx_hash(),
+                    block_tx.tx_hash(),
+                )
+                .into();
             }
         }
 
@@ -200,7 +203,7 @@ impl AttributesMatch {
             // base fee params.
             Some((0, 0)) => {
                 let BaseFeeParams { max_change_denominator, elasticity_multiplier } =
-                    config.chain_op_config.as_canyon_base_fee_params();
+                    config.chain_op_config.post_canyon_params();
 
                 (elasticity_multiplier, max_change_denominator)
             }
@@ -244,7 +247,7 @@ impl AttributesMatch {
                 BaseFeeParams { max_change_denominator: ad, elasticity_multiplier: ae },
                 BaseFeeParams { max_change_denominator: bd, elasticity_multiplier: be },
             )
-            .into()
+            .into();
         }
 
         Self::Match
@@ -293,7 +296,7 @@ impl AttributesMatch {
 
         // Check transactions
         if let mismatch @ Self::Mismatch(_) = Self::check_transactions(attributes_txs, block) {
-            return mismatch
+            return mismatch;
         }
 
         let Some(gas_limit) = attributes.attributes().gas_limit else {
