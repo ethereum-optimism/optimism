@@ -15,7 +15,7 @@ going through the formal version update proposal process outlined in this docume
 ## Update Process
 
 1. **Minimum Delay Period**: A new Foundry version must be at least 3 month old before it can be
-   considered for adoption.
+   considered for adoption. 3 Months is a good minimum delay period to allow for the community to use the new version and for any security vulnerabilities to be discovered and addressed.
 2. Only stable releases are recommended to be proposed for adoption.
 3. Nightly builds must only be considered for adoption if it includes a bug fix that addresses a non-trivial security vulnerability. This path does not need to follow the 3 month delay period.
 4. **Proposal Submission**: Before any Foundry version upgrades are made, a detailed proposal must
@@ -49,7 +49,7 @@ Approval" section above. They may request additional information or clarificatio
 ## Implementation
 
 If approved, the Foundry version upgrade will be implemented across the entire OP Stack codebase.
-This process will be managed by the development team to ensure consistency and minimize potential
+This process will be managed by the person who submitted the proposal to ensure consistency and minimize potential
 issues. The upgrade will apply to all components simultaneously, including:
 
 - `mise.toml`: Update `forge`, `cast`, and `anvil` version entries
