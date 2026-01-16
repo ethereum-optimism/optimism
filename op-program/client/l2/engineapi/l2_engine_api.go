@@ -473,7 +473,7 @@ func (ea *L2EngineAPI) forkchoiceUpdated(_ context.Context, state *eth.Forkchoic
 			PayloadID:     id,
 		}
 	}
-	if ea.backend.GetCanonicalHash(block.NumberU64()) != state.HeadBlockHash {
+	if ea.backend.GetCanonicalHash(block.NumberU64()) != state.HeadBlockHash || ea.backend.Config().Optimism != nil {
 		// Block is not canonical, set head.
 		if latestValid, err := ea.backend.SetCanonical(block); err != nil {
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid, LatestValidHash: &latestValid}}, err

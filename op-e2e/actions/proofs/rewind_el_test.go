@@ -9,18 +9,12 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
 
 func runRewindELTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
-	testSetup := func(dc *genesis.DeployConfig) {
-		dc.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
-		// Set non-trivial excess blob gas so that the L1 miner's blob logic is
-		// properly tested.
-		dc.L1GenesisBlockExcessBlobGas = ptr(hexutil.Uint64(1e8))
-	}
+	testSetup := func(dc *genesis.DeployConfig) {}
 	bcfg := helpers.NewBatcherCfg(func(c *actionsHelpers.BatcherCfg) {
 		c.DataAvailabilityType = flags.BlobsType
 	})
@@ -63,8 +57,14 @@ func runRewindELTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	require.NoError(t, err)
 	require.Equal(t, eth.ExecutionValid, res.PayloadStatus.Status, "forkchoice update failed")
 
+	l2unSafeHead := env.Engine.L2Chain().CurrentBlock()
+	require.Equal(t, uint64(0), l2unSafeHead.Number.Uint64())
+
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
 	require.Equal(t, uint64(0), l2SafeHead.Number.Uint64())
+
+	l2finalizedHead := env.Engine.L2Chain().CurrentFinalBlock()
+	require.Equal(t, uint64(0), l2finalizedHead.Number.Uint64())
 }
 
 func Test_ProgramAction_RewindEL(gt *testing.T) {
