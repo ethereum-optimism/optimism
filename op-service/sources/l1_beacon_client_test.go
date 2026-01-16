@@ -55,8 +55,6 @@ func KZGProofFromHex(s string) (kzg4844.Proof, error) {
 	return out, nil
 }
 
-var badProof, _ = KZGProofFromHex("0xc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
-
 func TestBeaconClientNoErrorPrimary(t *testing.T) {
 	indices := []uint64{5, 7, 2}
 	index0, blob0 := makeTestBlob(indices[0])
