@@ -8,6 +8,10 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/utils/semver-utils.sh"
 
+# Determine the target branch.
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/../ops/get-target-branch.sh"
+
 # Path to semver-lock.json.
 SEMVER_LOCK="snapshots/semver-lock.json"
 
@@ -31,7 +35,6 @@ temp_dir=$(mktemp -d)
 trap 'rm -rf "$temp_dir"' EXIT
 
 # Exit early if semver-lock.json has not changed.
-TARGET_BRANCH="${TARGET_BRANCH:-develop}"
 UPSTREAM_REF="origin/${TARGET_BRANCH}"
 if ! {
   git diff "$UPSTREAM_REF"...HEAD --name-only

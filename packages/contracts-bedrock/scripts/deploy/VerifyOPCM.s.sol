@@ -118,8 +118,8 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["optimismPortalInteropImpl"] = "OptimismPortalInterop";
         fieldNameOverrides["mipsImpl"] = "MIPS64";
         fieldNameOverrides["ethLockboxImpl"] = "ETHLockbox";
-        fieldNameOverrides["faultDisputeGameV2Impl"] = "FaultDisputeGameV2";
-        fieldNameOverrides["permissionedDisputeGameV2Impl"] = "PermissionedDisputeGameV2";
+        fieldNameOverrides["faultDisputeGameImpl"] = "FaultDisputeGame";
+        fieldNameOverrides["permissionedDisputeGameImpl"] = "PermissionedDisputeGame";
         fieldNameOverrides["permissionlessDisputeGame1"] = "FaultDisputeGame";
         fieldNameOverrides["permissionlessDisputeGame2"] = "FaultDisputeGame";
         fieldNameOverrides["permissionedDisputeGame1"] = "PermissionedDisputeGame";
@@ -652,21 +652,6 @@ contract VerifyOPCM is Script {
     function _isSuperDisputeGamesEnabled(IOPContractsManager _opcm) internal view returns (bool) {
         bytes32 bitmap = _opcm.devFeatureBitmap();
         return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
-    }
-
-    /// @notice Checks if a contract is a V1 dispute game implementation.
-    /// @param _contractName The name to check.
-    /// @return True if this is a V1 dispute game.
-    function _isV1DisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
-        return LibString.eq(_contractName, "FaultDisputeGame") || LibString.eq(_contractName, "PermissionedDisputeGame");
-    }
-
-    /// @notice Checks if a contract is a V2 dispute game implementation.
-    /// @param _contractName The name to check.
-    /// @return True if this is a V2 dispute game.
-    function _isV2DisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
-        return LibString.eq(_contractName, "FaultDisputeGameV2")
-            || LibString.eq(_contractName, "PermissionedDisputeGameV2");
     }
 
     /// @notice Checks if a contract is a Super dispute game implementation.

@@ -26,8 +26,8 @@ import "src/dispute/lib/Errors.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IPreimageOracle } from "interfaces/dispute/IBigStepper.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
-import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
 
 contract ClaimCreditReenter {
     Vm internal immutable vm;
@@ -233,7 +233,7 @@ contract FaultDisputeGame_Version_Test is FaultDisputeGame_TestInit {
 
 /// @title FaultDisputeGame_Constructor_Test
 /// @notice Tests the constructor of the `FaultDisputeGame` contract.
-contract FaultDisputeGameV2_Constructor_Test is FaultDisputeGame_TestInit {
+contract FaultDisputeGame_Constructor_Test is FaultDisputeGame_TestInit {
     function setUp() public virtual override {
         super.setUp();
     }
@@ -244,12 +244,12 @@ contract FaultDisputeGameV2_Constructor_Test is FaultDisputeGame_TestInit {
         _maxGameDepth = bound(_maxGameDepth, LibPosition.MAX_POSITION_BITLEN, type(uint256).max - 1);
         vm.expectRevert(MaxDepthTooLarge.selector);
         DeployUtils.create1({
-            _name: "FaultDisputeGameV2",
+            _name: "FaultDisputeGame",
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
-                    IFaultDisputeGameV2.__constructor__,
+                    IFaultDisputeGame.__constructor__,
                     (
-                        IFaultDisputeGameV2.GameConstructorParams({
+                        IFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: _maxGameDepth,
                             splitDepth: _maxGameDepth + 1,
                             clockExtension: Duration.wrap(3 hours),
@@ -268,12 +268,12 @@ contract FaultDisputeGameV2_Constructor_Test is FaultDisputeGame_TestInit {
         _splitDepth = bound(_splitDepth, maxGameDepth - 1, type(uint256).max);
         vm.expectRevert(InvalidSplitDepth.selector);
         DeployUtils.create1({
-            _name: "FaultDisputeGameV2",
+            _name: "FaultDisputeGame",
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
-                    IFaultDisputeGameV2.__constructor__,
+                    IFaultDisputeGame.__constructor__,
                     (
-                        IFaultDisputeGameV2.GameConstructorParams({
+                        IFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: maxGameDepth,
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
@@ -292,12 +292,12 @@ contract FaultDisputeGameV2_Constructor_Test is FaultDisputeGame_TestInit {
         _splitDepth = bound(_splitDepth, 0, minSplitDepth - 1);
         vm.expectRevert(InvalidSplitDepth.selector);
         DeployUtils.create1({
-            _name: "FaultDisputeGameV2",
+            _name: "FaultDisputeGame",
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
-                    IFaultDisputeGameV2.__constructor__,
+                    IFaultDisputeGame.__constructor__,
                     (
-                        IFaultDisputeGameV2.GameConstructorParams({
+                        IFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: 2 ** 3,
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
@@ -324,12 +324,12 @@ contract FaultDisputeGameV2_Constructor_Test is FaultDisputeGame_TestInit {
 
         vm.expectRevert(InvalidClockExtension.selector);
         DeployUtils.create1({
-            _name: "FaultDisputeGameV2",
+            _name: "FaultDisputeGame",
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
-                    IFaultDisputeGameV2.__constructor__,
+                    IFaultDisputeGame.__constructor__,
                     (
-                        IFaultDisputeGameV2.GameConstructorParams({
+                        IFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: 16,
                             splitDepth: 8,
                             clockExtension: Duration.wrap(_clockExtension),
@@ -409,7 +409,7 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
     /// @notice Tests that the game cannot be initialized with incorrect CWIA calldata length
     ///         caused by additional immutable args data
     function test_initialize_extraImmutableArgsBytes_reverts(uint256 _extraByteCount) public {
-        (bytes memory correctArgs,,) = getFaultDisputeGameV2ImmutableArgs(absolutePrestate);
+        (bytes memory correctArgs,,) = getFaultDisputeGameImmutableArgs(absolutePrestate);
 
         // We bound the upper end to 23.5KB to ensure that the minimal proxy never surpasses the
         // contract size limit in this test, as CWIA proxies store the immutable args in their
@@ -420,7 +420,7 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
         copyBytes(correctArgs, immutableArgs);
 
         // Set up dispute game implementation with target immutableArgs
-        setupFaultDisputeGameV2(immutableArgs);
+        setupFaultDisputeGame(immutableArgs);
 
         Claim claim = _dummyClaim();
         vm.expectRevert(IFaultDisputeGame.BadExtraData.selector);
@@ -434,7 +434,7 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
     /// @notice Tests that the game cannot be initialized with incorrect CWIA calldata length
     ///         caused by missing immutable args data
     function test_initialize_missingImmutableArgsBytes_reverts(uint256 _truncatedByteCount) public {
-        (bytes memory correctArgs,,) = getFaultDisputeGameV2ImmutableArgs(absolutePrestate);
+        (bytes memory correctArgs,,) = getFaultDisputeGameImmutableArgs(absolutePrestate);
 
         _truncatedByteCount = (_truncatedByteCount % correctArgs.length) + 1;
         bytes memory immutableArgs = new bytes(correctArgs.length - _truncatedByteCount);
@@ -442,7 +442,7 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
         copyBytes(correctArgs, immutableArgs);
 
         // Set up dispute game implementation with target immutableArgs
-        setupFaultDisputeGameV2(immutableArgs);
+        setupFaultDisputeGame(immutableArgs);
 
         Claim claim = _dummyClaim();
         vm.expectRevert(IFaultDisputeGame.BadExtraData.selector);
@@ -505,13 +505,13 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
     }
 
     /// @notice Tests that initialization reverts when oracle challenge period is too large.
-    /// @dev V2 validates oracle challenge period during initialize(), not constructor
+    /// @dev Validates oracle challenge period during initialize(), not constructor
     function testFuzz_initialize_oracleChallengePeriodTooLarge_reverts(uint256 _challengePeriod) public {
         // Bound to values larger than uint64.max
         _challengePeriod = bound(_challengePeriod, uint256(type(uint64).max) + 1, type(uint256).max);
 
         // Get the current AlphabetVM from the setup
-        (, AlphabetVM vm_,) = setupFaultDisputeGameV2(absolutePrestate);
+        (, AlphabetVM vm_,) = setupFaultDisputeGame(absolutePrestate);
 
         // Mock the VM's oracle to return invalid challenge period
         vm.mockCall(

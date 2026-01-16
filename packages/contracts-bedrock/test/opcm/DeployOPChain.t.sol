@@ -182,7 +182,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         // Check dispute game deployments
         // Validate permissionedDisputeGame (PDG) address
         IOPContractsManager.Implementations memory impls = IOPContractsManager(opcmAddr).implementations();
-        address expectedPDGAddress = impls.permissionedDisputeGameV2Impl;
+        address expectedPDGAddress = impls.permissionedDisputeGameImpl;
         address actualPDGAddress = address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
         assertNotEq(actualPDGAddress, address(0), "PDG address should be non-zero");
         assertEq(actualPDGAddress, expectedPDGAddress, "PDG address should match expected address");

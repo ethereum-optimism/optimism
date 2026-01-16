@@ -119,11 +119,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             for (uint256 j = 0; j < refsByType[i].length; j++) {
                 VerifyOPCM.OpcmContractRef memory ref = refsByType[i][j];
 
-                // TODO(#17262): Remove these skips once these contracts are no longer behind a feature flag
-                // This script doesn't work for features that are in-development, so skip for now
-                if (_isDisputeGameV2ContractRef(ref)) {
-                    continue;
-                }
+                // TODO(#17262): Remove this skip once Super dispute games are no longer behind a feature flag
                 if (_isSuperDisputeGameContractRef(ref)) {
                     continue;
                 }
@@ -475,10 +471,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         // Ensure we actually tested some components (currently: opcmV2, opcmMigrator)
         assertGt(componentsWithUtilsTested, 0, "Should have tested at least one component with opcmUtils");
-    }
-
-    function _isDisputeGameV2ContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {
-        return LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
     }
 
     function _isSuperDisputeGameContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {

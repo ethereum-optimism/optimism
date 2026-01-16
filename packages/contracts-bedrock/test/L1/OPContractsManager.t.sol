@@ -33,8 +33,7 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
-import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -621,17 +620,17 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
         address registeredImpl =
             address(chainDeployOutput1.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
 
-        // Verify implementation address matches permissionedDisputeGameV2Impl
+        // Verify implementation address matches permissionedDisputeGameImpl
         assertEq(
             registeredImpl,
-            address(impls.permissionedDisputeGameV2Impl),
+            address(impls.permissionedDisputeGameImpl),
             "DisputeGameFactory should have v2 PermissionedDisputeGame implementation registered"
         );
 
         // Verify that the returned fault dispute game is the v2 implementation
         assertEq(
             address(output.faultDisputeGame),
-            address(impls.permissionedDisputeGameV2Impl),
+            address(impls.permissionedDisputeGameImpl),
             "addGameType should return v2 PermissionedDisputeGame implementation"
         );
     }
@@ -662,17 +661,17 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
         // Get the v2 implementation address from OPCM
         IOPContractsManager.Implementations memory impls = opcm.implementations();
 
-        // Verify implementation address matches permissionedDisputeGameV2Impl
+        // Verify implementation address matches permissionedDisputeGameImpl
         assertEq(
             registeredImpl,
-            address(impls.faultDisputeGameV2Impl),
+            address(impls.faultDisputeGameImpl),
             "DisputeGameFactory should have v2 FaultDisputeGame implementation registered"
         );
 
         // Verify that the returned fault dispute game is the v2 implementation
         assertEq(
             address(output.faultDisputeGame),
-            address(impls.faultDisputeGameV2Impl),
+            address(impls.faultDisputeGameImpl),
             "addGameType should return v2 FaultDisputeGame implementation"
         );
     }
@@ -2305,8 +2304,8 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase, DisputeGames 
     function test_deployPermissioned_succeeds() public {
         // Sanity-check setup is consistent with devFeatures flag
         IOPContractsManager.Implementations memory impls = IOPContractsManager(opcmAddr).implementations();
-        address pdgImpl = address(impls.permissionedDisputeGameV2Impl);
-        address fdgImpl = address(impls.faultDisputeGameV2Impl);
+        address pdgImpl = address(impls.permissionedDisputeGameImpl);
+        address fdgImpl = address(impls.faultDisputeGameImpl);
         assertFalse(pdgImpl == address(0), "PDG implementation address should be non-zero");
         assertFalse(fdgImpl == address(0), "FDG implementation address should be non-zero");
 

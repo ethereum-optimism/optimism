@@ -693,7 +693,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO);
         assertEq(
             address(disputeGameFactory.gameImpls(GameTypes.CANNON)),
-            opcmV2.implementations().faultDisputeGameV2Impl,
+            opcmV2.implementations().faultDisputeGameImpl,
             "game impl not restored"
         );
         assertEq(disputeGameFactory.initBonds(GameTypes.CANNON), originalBond, "init bond not restored");
@@ -705,7 +705,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO);
         assertEq(
             address(disputeGameFactory.gameImpls(GameTypes.CANNON)),
-            opcmV2.implementations().faultDisputeGameV2Impl,
+            opcmV2.implementations().faultDisputeGameImpl,
             "initial game impl mismatch"
         );
 

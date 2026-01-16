@@ -54,8 +54,8 @@ type DeployImplementationsOutput struct {
 	AnchorStateRegistryImpl          common.Address `json:"anchorStateRegistryImplAddress"`
 	SuperchainConfigImpl             common.Address `json:"superchainConfigImplAddress"`
 	ProtocolVersionsImpl             common.Address `json:"protocolVersionsImplAddress"`
-	FaultDisputeGameV2Impl           common.Address `json:"faultDisputeGameV2ImplAddress"`
-	PermissionedDisputeGameV2Impl    common.Address `json:"permissionedDisputeGameV2ImplAddress"`
+	FaultDisputeGameImpl             common.Address `json:"faultDisputeGameImplAddress"`
+	PermissionedDisputeGameImpl      common.Address `json:"permissionedDisputeGameImplAddress"`
 	SuperFaultDisputeGameImpl        common.Address `json:"superFaultDisputeGameImplAddress"`
 	SuperPermissionedDisputeGameImpl common.Address `json:"superPermissionedDisputeGameImplAddress"`
 	StorageSetterImpl                common.Address `json:"storageSetterImplAddress"`

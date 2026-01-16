@@ -76,8 +76,8 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	st.ImplementationsDeployment.DisputeGameFactoryImpl = impls.DisputeGameFactory
 	st.ImplementationsDeployment.MipsImpl = impls.MipsSingleton
 	st.ImplementationsDeployment.PreimageOracleImpl = impls.PreimageOracleSingleton
-	st.ImplementationsDeployment.FaultDisputeGameV2Impl = impls.FaultDisputeGameV2
-	st.ImplementationsDeployment.PermissionedDisputeGameV2Impl = impls.PermissionedDisputeGameV2
+	st.ImplementationsDeployment.FaultDisputeGameImpl = impls.FaultDisputeGame
+	st.ImplementationsDeployment.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
 	st.ImplementationsDeployment.OpcmDeployerImpl = impls.OpcmDeployer
 	st.ImplementationsDeployment.OpcmGameTypeAdderImpl = impls.OpcmGameTypeAdder
 	st.ImplementationsDeployment.OpcmUpgraderImpl = impls.OpcmUpgrader
@@ -161,11 +161,11 @@ func makeChainState(chainID common.Hash, impls opcm.ReadImplementationAddressesO
 	opChainContracts.DelayedWethPermissionedGameProxy = dco.DelayedWETHPermissionedGameProxy
 	opChainContracts.DelayedWethPermissionlessGameProxy = dco.DelayedWETHPermissionlessGameProxy
 
-	if (impls.PermissionedDisputeGameV2 != common.Address{}) {
-		opChainContracts.PermissionedDisputeGameImpl = impls.PermissionedDisputeGameV2
+	if (impls.PermissionedDisputeGame != common.Address{}) {
+		opChainContracts.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
 	}
-	if (impls.FaultDisputeGameV2 != common.Address{}) {
-		opChainContracts.FaultDisputeGameImpl = impls.FaultDisputeGameV2
+	if (impls.FaultDisputeGame != common.Address{}) {
+		opChainContracts.FaultDisputeGameImpl = impls.FaultDisputeGame
 	}
 
 	return &state.ChainState{
