@@ -87,7 +87,7 @@ Recommended specifications:
 Before starting the node with the sidecar enabled, you must initialize the proof storage. This command snapshots the current state of the main database to seed the sidecar.
 
 ```bash
-op-reth initialize-op-proofs \
+op-reth proofs init \
   --datadir=path/to/reth-datadir \
   --proofs-history.storage-path=/path/to/proof-db
 ```
@@ -119,22 +119,22 @@ Configuration Flags
 
 We provide custom CLI commands to manage the proof history manually.
 
-`prune-op-proofs`
+`op-reth proofs prune`
 Manually triggers the pruning process. Useful for reclaiming space immediately.
 
 ```bash
-op-reth prune-op-proofs \
+op-reth proofs prune \
   --datadir=/path/to/reth-datadir \
   --proofs-history.storage-path=/path/to/proof-db \
   --proofs-history.window=600000 \
   --proofs-history.prune-batch-size=10000
 ```
 
-`unwind-op-proofs`
+`op-reth proofs unwind`
 Manually unwinds the proof history to a specific block. Useful for recovering from corrupted states.
 
 ```bash
-op-reth unwind-op-proofs \
+op-reth proofs unwind \
   --datadir=/path/to/reth-datadir \
   --proofs-history.storage-path=/path/to/proofs-db \
   --target=90
@@ -167,8 +167,8 @@ Benchmark Configuration
 The test script iterates through the block range, spawning 10 concurrent workers. Each worker selects an address round-robin from a pre-defined set, dynamically calculates the storage slot for balanceOf[address], and sends an eth_getProof request.
 
 Visual Proof:
-- [Grafana Snapshot: Proof Metrics](https://snapshots.raintank.io/dashboard/snapshot/bzYXscOCugsxO6C2bzFB1XbskxG0KFdo)
-- [Grafana Snapshot: Reth Metrics](https://snapshots.raintank.io/dashboard/snapshot/hxZaChzsrez3Q3w52IHj0Wab3H1wndUg)
+- [Grafana Snapshot: Proof Metrics](https://snapshots.raintank.io/dashboard/snapshot/l74zCP4SXr1qcOR2RWFEiscZnDxGla8Z)
+- [Grafana Snapshot: Reth Metrics](https://snapshots.raintank.io/dashboard/snapshot/DRoQMVF0m13d4tMRjhoAzHdfbjBA0eql)
 
 ## Limitations
 
