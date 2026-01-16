@@ -124,44 +124,44 @@ kona-macros = { path = "crates/utilities/macros", version = "0.1.2", default-fea
 
 # Alloy
 alloy-rlp = { version = "0.3.12", default-features = false }
-alloy-trie = { version = "0.9.1", default-features = false }
-alloy-eips = { version = "1.1.3", default-features = false }
-alloy-serde = { version = "1.1.3", default-features = false }
-alloy-signer = { version = "1.1.3", default-features = false }
-alloy-chains = { version = "0.2.22", default-features = false }
-alloy-network = { version = "1.1.3", default-features = false }
-alloy-genesis = { version = "1.1.3", default-features = false }
-alloy-provider = { version = "1.1.3", default-features = false }
-alloy-hardforks = { version = "0.4.5", default-features = false }
-alloy-sol-types = { version = "1.4.1", default-features = false }
-alloy-consensus = { version = "1.1.3", default-features = false }
-alloy-transport = { version = "1.1.3", default-features = false }
-alloy-rpc-types = { version = "1.1.3", default-features = false }
-alloy-rpc-client = { version = "1.1.3", default-features = false }
-alloy-primitives = { version = "1.4.1", default-features = false }
-alloy-signer-local = { version = "1.1.3", default-features = false }
-alloy-node-bindings = { version = "1.1.3", default-features = false }
-alloy-rpc-types-eth = { version = "1.1.3", default-features = false }
-alloy-transport-http = { version = "1.1.3", default-features = false }
-alloy-rpc-types-engine = { version = "1.1.3", default-features = false }
-alloy-rpc-types-beacon = { version = "1.1.3", default-features = false }
-alloy-network-primitives = { version = "1.1.3", default-features = false }
-alloy-json-rpc = { version = "1.1.3", default-features = false }
+alloy-trie = { version = "0.9.3", default-features = false }
+alloy-eips = { version = "1.4.3", default-features = false }
+alloy-serde = { version = "1.4.3", default-features = false }
+alloy-signer = { version = "1.4.3", default-features = false }
+alloy-chains = { version = "0.2.27", default-features = false }
+alloy-network = { version = "1.4.3", default-features = false }
+alloy-genesis = { version = "1.4.3", default-features = false }
+alloy-provider = { version = "1.4.3", default-features = false }
+alloy-hardforks = { version = "0.4.7", default-features = false }
+alloy-sol-types = { version = "1.5.2", default-features = false }
+alloy-consensus = { version = "1.4.3", default-features = false }
+alloy-transport = { version = "1.4.3", default-features = false }
+alloy-rpc-types = { version = "1.4.3", default-features = false }
+alloy-rpc-client = { version = "1.4.3", default-features = false }
+alloy-primitives = { version = "1.5.2", default-features = false }
+alloy-signer-local = { version = "1.4.3", default-features = false }
+alloy-node-bindings = { version = "1.4.3", default-features = false }
+alloy-rpc-types-eth = { version = "1.4.3", default-features = false }
+alloy-transport-http = { version = "1.4.3", default-features = false }
+alloy-rpc-types-engine = { version = "1.4.3", default-features = false }
+alloy-rpc-types-beacon = { version = "1.4.3", default-features = false }
+alloy-network-primitives = { version = "1.4.3", default-features = false }
+alloy-json-rpc = { version = "1.4.3", default-features = false }
 
 # OP Alloy
-op-alloy-network = { version = "0.22.4", default-features = false }
-op-alloy-provider = { version = "0.22.4", default-features = false }
-alloy-op-hardforks = { version = "0.4.5", default-features = false }
-op-alloy-consensus = { version = "0.22.4", default-features = false }
-op-alloy-rpc-types = { version = "0.22.4", default-features = false }
-op-alloy-rpc-jsonrpsee = { version = "0.22.4", default-features = false }
-op-alloy-rpc-types-engine = { version = "0.22.4", default-features = false }
+op-alloy-network = { version = "0.23.1", default-features = false }
+op-alloy-provider = { version = "0.23.1", default-features = false }
+alloy-op-hardforks = { version = "0.4.7", default-features = false }
+op-alloy-consensus = { version = "0.23.1", default-features = false }
+op-alloy-rpc-types = { version = "0.23.1", default-features = false }
+op-alloy-rpc-jsonrpsee = { version = "0.23.1", default-features = false }
+op-alloy-rpc-types-engine = { version = "0.23.1", default-features = false }
 
 # Execution
-revm = { version = "33.1.0", default-features = false }
-op-revm = { version = "14.1.0", default-features = false }
-alloy-evm = { version = "0.24.2", default-features = false }
-alloy-op-evm = { version = "0.24.2", default-features = false }
+revm = { version = "33.0.0", default-features = false }
+op-revm = { version = "14.0.0", default-features = false }
+alloy-evm = { version = "0.25.2", default-features = false }
+alloy-op-evm = { version = "0.25.2", default-features = false }
 
 # Reth (pinned to v1.6.0 for kona-supervisor-storage)
 reth-db-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.6.0" }
@@ -170,28 +170,28 @@ reth-codecs = { git = "https://github.com/paradigmxyz/reth", tag = "v1.6.0" }
 
 # General
 notify = "8.2"
-url = "2.5.7"
+url = "2.5.8"
 http = "1.4.0"
-lru = "0.16.2"
+lru = "0.16.3"
 glob = "0.3.3"
 dirs = "6.0.0"
 eyre = "0.6.12"
 spin = "0.10.0"
-clap = "4.5.53"
-tower = "0.5.2"
+clap = "4.5.54"
+tower = "0.5.3"
 bytes = "1.11.0"
 vergen = "9.0.6"
-tokio = "1.48.0"
+tokio = "1.49.0"
 rayon = "1.11.0"
 strum = "0.27"
 cfg-if = "1.0.4"
 rstest = "0.26.1"
-ratatui = "0.29.0"
+ratatui = "0.30.0"
 futures = "0.3.31"
 futures-util = "0.3.31"
 reqwest = "0.12.24"
 auto_impl = "1.3.0"
-tempfile = "3.23.0"
+tempfile = "3.24.0"
 test-fuzz = "7.2.5"
 arbitrary = "1.4.2"
 multihash = "0.19.3"
@@ -199,12 +199,12 @@ crossterm = "0.29.0"
 color-eyre = "0.6.5"
 jsonrpsee = "0.26.0"
 jsonrpsee-types = "0.26.0"
-tokio-util = "0.7.17"
+tokio-util = "0.7.18"
 rustls = { version = "0.23", default-features = false }
 rustls-pemfile = { version = "2.2", default-features = false }
 vergen-git2 = "1.0.7"
 async-trait = "0.1.89"
-tokio-stream = "0.1.17"
+tokio-stream = "0.1.18"
 async-stream = "0.3.6"
 async-channel = "2.5.0"
 http-body-util = "0.1.3"
@@ -217,12 +217,12 @@ backon = { version = "1.6.0", default-features = false }
 tabled = { version = "0.20.0", default-features = false }
 anyhow = { version = "1.0.100", default-features = false }
 thiserror = { version = "2.0.17", default-features = false }
-derive_more = { version = "2.1.0", default-features = false }
+derive_more = { version = "2.1.1", default-features = false }
 lazy_static = { version = "1.5.0", default-features = false }
 
 # Compression
 getrandom = "0.3.4"
-miniz_oxide = "0.8.9"
+miniz_oxide = "0.9.0"
 alloc-no-stdlib = "2.0.4"
 brotli = { version = "8.0.2", default-features = false }
 
@@ -231,7 +231,7 @@ snap = "1.1.1"
 discv5 = "0.10.2"
 libp2p = "0.56.0"
 libp2p-stream = "0.4.0-alpha"
-libp2p-identity = "0.2.12"
+libp2p-identity = "0.2.13"
 openssl = "0.10.75"
 ipnet = "2.11.0"
 
@@ -239,7 +239,7 @@ ipnet = "2.11.0"
 tracing-loki = "0.2.6"
 tracing-subscriber = "0.3.22"
 tracing-appender = "0.2.4"
-tracing = { version = "0.1.43", default-features = false }
+tracing = { version = "0.1.44", default-features = false }
 
 # Metrics
 metrics = { version = "0.24.3", default-features = false }
@@ -256,12 +256,12 @@ mockall = "0.14.0"
 httpmock = "0.8.2"
 
 # Serialization
-rkyv = "0.8.12"
+rkyv = "0.8.14"
 serde_repr = "0.1.20"
-ethereum_ssz = "0.10.0"
-toml = { version = "0.9.8", default-features = false }
+ethereum_ssz = "0.10.1"
+toml = { version = "0.9.11", default-features = false }
 serde = { version = "1.0.228", default-features = false }
-serde_json = { version = "1.0.145", default-features = false }
+serde_json = { version = "1.0.149", default-features = false }
 
 # K/V database
 rocksdb = { version = "0.24.0", default-features = false }
@@ -274,5 +274,5 @@ secp256k1 = { version = "0.31.1", default-features = false }
 ark-bls12-381 = { version = "0.5.0", default-features = false }
 
 # Rollup Boost (required for rollup-boost integration)
-rollup-boost = { git = "https://github.com/flashbots/rollup-boost.git", rev = "7fda98f" }
+rollup-boost = "0.7.12"
 parking_lot = "0.12.5"

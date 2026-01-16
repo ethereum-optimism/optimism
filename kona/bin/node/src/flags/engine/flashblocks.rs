@@ -7,6 +7,7 @@ const DEFAULT_FLASHBLOCKS_PORT: u16 = 1112;
 
 const DEFAULT_FLASHBLOCKS_BUILDER_WS_INITIAL_RECONNECT_MS: u64 = 10;
 const DEFAULT_FLASHBLOCKS_BUILDER_WS_MAX_RECONNECT_MS: u64 = 5000;
+const DEFAULT_FLASHBLOCKS_BUILDER_WS_CONNECT_TIMEOUT_MS: u64 = 5000;
 const DEFAULT_FLASHBLOCKS_BUILDER_WS_PING_INTERVAL_MS: u64 = 500;
 const DEFAULT_FLASHBLOCKS_BUILDER_WS_PONG_TIMEOUT_MS: u64 = 1500;
 
@@ -87,6 +88,15 @@ pub struct FlashblocksWebsocketFlags {
     )]
     pub flashblock_builder_ws_max_reconnect_ms: u64,
 
+    /// Timeout for connection attempt
+    #[arg(
+        long,
+        visible_alias = "rollup-boost.flashblocks-connect-timeout-ms",
+        env = "KONA_NODE_FLASHBLOCKS_BUILDER_WS_CONNECT_TIMEOUT_MS",
+        default_value_t = DEFAULT_FLASHBLOCKS_BUILDER_WS_CONNECT_TIMEOUT_MS
+    )]
+    pub flashblock_builder_ws_connect_timeout_ms: u64,
+
     /// Interval in milliseconds between ping messages sent to upstream servers to detect
     /// unresponsive connections
     #[arg(
@@ -124,6 +134,9 @@ impl FlashblocksFlags {
                 flashblock_builder_ws_max_reconnect_ms: self
                     .flashblocks_ws_config
                     .flashblock_builder_ws_max_reconnect_ms,
+                flashblock_builder_ws_connect_timeout_ms: self
+                    .flashblocks_ws_config
+                    .flashblock_builder_ws_connect_timeout_ms,
                 flashblock_builder_ws_ping_interval_ms: self
                     .flashblocks_ws_config
                     .flashblock_builder_ws_ping_interval_ms,
@@ -140,6 +153,7 @@ impl Default for FlashblocksWebsocketFlags {
         Self {
             flashblock_builder_ws_initial_reconnect_ms: 10,
             flashblock_builder_ws_max_reconnect_ms: 5000,
+            flashblock_builder_ws_connect_timeout_ms: 5000,
             flashblock_builder_ws_ping_interval_ms: 500,
             flashblock_builder_ws_pong_timeout_ms: 1500,
         }

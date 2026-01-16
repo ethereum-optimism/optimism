@@ -60,7 +60,7 @@ async-stream.workspace = true
 tokio-stream.workspace = true
 strum = { workspace = true, features = ["derive"] }
 backon.workspace = true
-derive_more = { workspace = true, features = ["debug"] }
+derive_more = { workspace = true, features = ["debug", "eq"] }
 jsonrpsee = { workspace = true, features = ["server", "http-client"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tower.workspace = true
