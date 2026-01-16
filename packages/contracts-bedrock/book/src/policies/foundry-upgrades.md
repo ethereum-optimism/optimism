@@ -37,7 +37,7 @@ going through the formal version update proposal process outlined in this docume
 
 To submit a Foundry version upgrade proposal, create a new pull request to the
 [`ethereum-optimism/design-docs`][1] repository, adding a new file in the `foundry/` subfolder.
-Please use a format similar to the [Foundry update proposal format][2], adapted for Foundry.
+Please use the [Foundry update proposal format][2].
 Ensure that all sections are filled out comprehensively. Incomplete proposals may be delayed or
 rejected.
 
