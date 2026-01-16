@@ -18,7 +18,7 @@ use reth_evm::{
     op_revm::{constants::L1_BLOCK_CONTRACT, L1BlockInfo},
     ConfigureEvm, Database,
 };
-use reth_execution_types::ExecutionOutcome;
+use reth_execution_types::BlockExecutionOutput;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{transaction::OpTransaction, L2_TO_L1_MESSAGE_PASSER_ADDRESS};
 use reth_optimism_txpool::{
@@ -375,12 +375,8 @@ impl<Txs> OpBuilder<'_, Txs> {
         let sealed_block = Arc::new(block.sealed_block().clone());
         debug!(target: "payload_builder", id=%ctx.attributes().payload_id(), sealed_block_header = ?sealed_block.header(), "sealed built block");
 
-        let execution_outcome = ExecutionOutcome::new(
-            db.take_bundle(),
-            vec![execution_result.receipts],
-            block.number(),
-            Vec::new(),
-        );
+        let execution_outcome =
+            BlockExecutionOutput { state: db.take_bundle(), result: execution_result };
 
         // create the executed block data
         let executed: BuiltPayloadExecutedBlock<N> = BuiltPayloadExecutedBlock {
