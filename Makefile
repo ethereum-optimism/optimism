@@ -34,7 +34,7 @@ golang-docker: ## Builds Docker images for Go components using buildx
 	GIT_COMMIT=$$(git rev-parse HEAD) \
 	GIT_DATE=$$(git show -s --format='%ct') \
 	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
-	KONA_VERSION=$$(jq -r .version kona-proofs/version.json) \
+	KONA_VERSION=$$(jq -r .version kona/version.json) \
 	docker buildx bake \
 			--progress plain \
 			--load \
@@ -332,6 +332,10 @@ go-tests-short-ci: ## Runs short Go tests with gotestsum for CI (assumes deps bu
 go-tests-ci: ## Runs comprehensive Go tests with gotestsum for CI (assumes deps built by CI)
 	$(MAKE) _go-tests-ci-internal GO_TEST_FLAGS=""
 .PHONY: go-tests-ci
+
+go-tests-ci-kona-action: ## Runs action tests for kona with gotestsum for CI (assumes deps built by CI)
+	$(MAKE) _go-tests-ci-internal GO_TEST_FLAGS="-count=1 -timeout 60m -run Test_ProgramAction"
+.PHONY: go-tests-ci-kona-action
 
 go-tests-fraud-proofs-ci: ## Runs fraud proofs Go tests with gotestsum for CI (assumes deps built by CI)
 	@echo "Setting up test directories..."

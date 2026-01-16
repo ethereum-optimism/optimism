@@ -8,7 +8,6 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
-	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -27,7 +26,7 @@ type GenericGameLoader interface {
 }
 
 type L1HeaderSource interface {
-	HeaderByHash(context.Context, common.Hash) (*gethTypes.Header, error)
+	BlockRefByHash(ctx context.Context, hash common.Hash) (eth.BlockRef, error)
 }
 
 type ActorCreator func(ctx context.Context, logger log.Logger, l1Head eth.BlockID) (Actor, error)
@@ -79,11 +78,11 @@ func NewGenericGamePlayer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to load game L1 head: %w", err)
 	}
-	l1Header, err := l1HeaderSource.HeaderByHash(ctx, l1HeadHash)
+	l1Header, err := l1HeaderSource.BlockRefByHash(ctx, l1HeadHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load L1 header %v: %w", l1HeadHash, err)
 	}
-	l1Head := eth.HeaderBlockID(l1Header)
+	l1Head := l1Header.ID()
 
 	actor, err := createActor(ctx, logger, l1Head)
 	if err != nil {

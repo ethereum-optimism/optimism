@@ -1,0 +1,22 @@
+# Rollup Configs
+
+Rollup configurations are a consensus construct used to configure an Optimism Consensus client.
+When an OP Stack chain is deployed into production or consensus nodes are configured to sync the chain,
+certain consensus parameters can be configured. These parameters are defined in the
+[OP Stack specs][specs].
+
+Consensus parameters are consumed by OP Stack software through the `RollupConfig` type defined in the
+[`kona-genesis`][genesis] crate.
+
+## `RollupConfig` Type
+
+The [`RollupConfig`][rc] type is defined in [`kona-genesis`][genesis].
+
+Rollup configs can be loaded for a given chain id using [`kona-registry`][registry].
+The `ROLLUP_CONFIG` mapping in the `kona-registry` provides a mapping from chain ids
+to rollup config.
+
+[specs]: https://specs.optimism.io/
+[genesis]: https://docs.rs/kona-genesis/latest/kona_genesis/index.html
+[rc]: https://docs.rs/kona-genesis/latest/kona_genesis/struct.RollupConfig.html
+[registry]: https://docs.rs/kona-registry/latest/kona_registry/index.html

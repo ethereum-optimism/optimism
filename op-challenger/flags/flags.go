@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/flags"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/superchain"
@@ -48,6 +49,16 @@ var (
 		Name:    "l1-eth-rpc",
 		Usage:   "HTTP provider URL for L1.",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
+	}
+	L1RPCProviderKind = &cli.GenericFlag{
+		Name: "l1-rpc-kind",
+		Usage: "The kind of RPC provider, used to inform optimal transactions receipts fetching, and thus reduce costs. Valid options: " +
+			openum.EnumString(sources.RPCProviderKinds),
+		EnvVars: prefixEnvVars("L1_RPC_KIND"),
+		Value: func() *sources.RPCProviderKind {
+			out := sources.RPCKindStandard
+			return &out
+		}(),
 	}
 	L1BeaconFlag = &cli.StringFlag{
 		Name:    "l1-beacon",
@@ -262,6 +273,7 @@ var requiredFlags = []cli.Flag{
 
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
+	L1RPCProviderKind,
 	RollupRpcFlag,
 	NetworkFlag,
 	FactoryAddressFlag,
@@ -589,6 +601,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 	return &config.Config{
 		// Required Flags
 		L1EthRpc:                l1EthRpc,
+		L1RPCKind:               sources.RPCProviderKind(strings.ToLower(ctx.String(L1RPCProviderKind.Name))),
 		L1Beacon:                l1Beacon,
 		GameTypes:               enabledGameTypes,
 		GameFactoryAddress:      gameFactoryAddress,

@@ -1,0 +1,13 @@
+set positional-arguments
+
+# default recipe to display help information
+default:
+  @just --list
+
+# Generate file bindings
+bind:
+  KONA_BIND=true cargo build
+
+# Update the `superchain-registry` git submodule source
+source:
+  git submodule update --remote --init --recursive

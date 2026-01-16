@@ -721,19 +721,23 @@ func (r *Runner) Run(selectedChecks map[string]bool) bool {
 }
 
 // runRetryClean re-runs failed checks that have retry-clean enabled after a clean build.
+// If a retry succeeds, also runs any dependent checks that were skipped.
 func (r *Runner) runRetryClean() {
 	// Group retry checks by their phase's build command
 	checksByBuild := make(map[string][]string)
+	phaseByBuild := make(map[string]*Phase)
 	for _, checkName := range r.retryCleanChecks {
 		check := r.getCheck(checkName)
 		if check == nil {
 			continue
 		}
 		// Find the phase this check belongs to
-		for _, phase := range r.config.Phases {
+		for i := range r.config.Phases {
+			phase := &r.config.Phases[i]
 			for _, c := range phase.Checks {
 				if c.Name == checkName {
 					checksByBuild[phase.Build] = append(checksByBuild[phase.Build], checkName)
+					phaseByBuild[phase.Build] = phase
 					break
 				}
 			}
@@ -771,12 +775,78 @@ func (r *Runner) runRetryClean() {
 			}
 		}
 
-		// Re-run the failed checks
-		for _, checkName := range checkNames {
-			if r.interrupted.Load() {
-				return
+		// Re-run the failed checks and their skipped dependents
+		phase := phaseByBuild[buildCmd]
+		r.runRetryChecksWithDependents(checkNames, phase)
+	}
+}
+
+// runRetryChecksWithDependents runs retry checks and any dependents that were skipped.
+func (r *Runner) runRetryChecksWithDependents(checkNames []string, phase *Phase) {
+	// Track which checks have passed during retry
+	retryPassed := make(map[string]bool)
+
+	// Run the initially failed checks
+	for _, checkName := range checkNames {
+		if r.interrupted.Load() {
+			return
+		}
+		if r.runRetryCheck(checkName) {
+			retryPassed[checkName] = true
+		}
+	}
+
+	// Now run any skipped dependents whose dependencies have now passed
+	if phase == nil {
+		return
+	}
+
+	// Keep running dependents until no more can be unblocked.
+	// Track processed checks to detect circular dependencies or unexpected loops.
+	processed := make(map[string]bool)
+	maxIterations := len(phase.Checks) + 1 // Safety limit
+	for iteration := 0; iteration < maxIterations; iteration++ {
+		if r.interrupted.Load() {
+			return
+		}
+
+		unblockedAny := false
+		for _, check := range phase.Checks {
+			// Skip if already processed in this retry phase
+			if processed[check.Name] {
+				continue
 			}
-			r.runRetryCheck(checkName)
+
+			state := r.states[check.Name]
+			if state == nil || state.status != "skipped" {
+				continue
+			}
+
+			// Check if all dependencies have now passed
+			allDepsPassed := true
+			for _, dep := range check.Depends {
+				depState := r.states[dep]
+				if depState == nil {
+					continue
+				}
+				if depState.status != "pass" {
+					allDepsPassed = false
+					break
+				}
+			}
+
+			if allDepsPassed && len(check.Depends) > 0 {
+				// This check was skipped but its deps now pass - run it
+				processed[check.Name] = true
+				if r.runRetryCheck(check.Name) {
+					retryPassed[check.Name] = true
+				}
+				unblockedAny = true
+			}
+		}
+
+		if !unblockedAny {
+			break
 		}
 	}
 }
@@ -824,16 +894,25 @@ func (r *Runner) doBuildClean(phaseName, buildCmd string) error {
 }
 
 // runRetryCheck re-runs a single check and updates the results.
-func (r *Runner) runRetryCheck(name string) {
+// Returns true if the retry succeeded.
+func (r *Runner) runRetryCheck(name string) bool {
 	check := r.getCheck(name)
 	if check == nil {
-		return
+		return false
 	}
+
+	// Check if this was a skipped check (not a retry-clean check)
+	state := r.states[name]
+	wasSkipped := state != nil && state.status == "skipped"
 
 	sm := ysmrr.NewSpinnerManager(
 		ysmrr.WithSpinnerColor(colors.FgHiBlue),
 	)
-	spinner := sm.AddSpinner(fmt.Sprintf("%s (retry)", name))
+	label := "(retry)"
+	if wasSkipped {
+		label = "(unblocked)"
+	}
+	spinner := sm.AddSpinner(fmt.Sprintf("%s %s", name, label))
 	sm.Start()
 
 	startTime := time.Now()
@@ -856,43 +935,64 @@ func (r *Runner) runRetryCheck(name string) {
 
 	if err == nil {
 		// Retry succeeded - update results
-		spinner.UpdateMessage(fmt.Sprintf("%s (retry) %s", name, timeStr))
+		spinner.UpdateMessage(fmt.Sprintf("%s %s %s", name, label, timeStr))
 		spinner.Complete()
 		sm.Stop()
 
-		// Update totals: was failed, now passed
-		r.totalFailed--
-		r.totalPassed++
+		if wasSkipped {
+			// Was skipped, now passed
+			r.totalSkipped--
+			r.totalPassed++
+		} else {
+			// Was failed, now passed
+			r.totalFailed--
+			r.totalPassed++
 
-		// Remove from failed checks list
-		newFailed := []string{}
-		for _, n := range r.failedChecks {
-			if n != name {
-				newFailed = append(newFailed, n)
+			// Remove from failed checks list
+			newFailed := []string{}
+			for _, n := range r.failedChecks {
+				if n != name {
+					newFailed = append(newFailed, n)
+				}
 			}
+			r.failedChecks = newFailed
 		}
-		r.failedChecks = newFailed
 
-		// Update result
+		// Update state and result
+		if state != nil {
+			state.status = "pass"
+		}
 		r.results[name] = &CheckResult{
 			Name:     name,
 			Success:  true,
 			Output:   output,
 			Duration: duration,
 		}
+		return true
 	} else {
 		// Retry also failed
-		spinner.UpdateMessage(fmt.Sprintf("%s (retry) %s", name, timeStr))
+		spinner.UpdateMessage(fmt.Sprintf("%s %s %s", name, label, timeStr))
 		spinner.Error()
 		sm.Stop()
 
-		// Update result with new output
+		if wasSkipped {
+			// Was skipped, now failed
+			r.totalSkipped--
+			r.totalFailed++
+			r.failedChecks = append(r.failedChecks, name)
+		}
+
+		// Update state and result
+		if state != nil {
+			state.status = "fail"
+		}
 		r.results[name] = &CheckResult{
 			Name:     name,
 			Success:  false,
 			Output:   output,
 			Duration: duration,
 		}
+		return false
 	}
 }
 

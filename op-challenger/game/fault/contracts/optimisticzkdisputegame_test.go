@@ -8,6 +8,7 @@ import (
 	"time"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -264,6 +265,45 @@ func TestZKGame_ClaimCreditTx(t *testing.T) {
 
 				stubRpc.SetError(zkGameAddr, methodClaimCredit, rpcblock.Latest, []interface{}{addr}, errors.New("still locked"))
 				tx, err := game.ClaimCreditTx(context.Background(), addr)
+				require.ErrorIs(t, err, ErrSimulationFailed)
+				require.Equal(t, txmgr.TxCandidate{}, tx)
+			})
+		})
+	}
+}
+
+func TestZKGame_GetBondDistributionMode(t *testing.T) {
+	for _, version := range zkVersions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, game := setupZKDisputeGameTest(t, version)
+			stubRpc.SetResponse(zkGameAddr, methodBondDistributionMode, rpcblock.Latest, nil, []interface{}{uint8(faultTypes.NormalDistributionMode)})
+
+			mode, err := game.GetBondDistributionMode(context.Background(), rpcblock.Latest)
+			require.NoError(t, err)
+			require.Equal(t, faultTypes.NormalDistributionMode, mode)
+		})
+	}
+}
+
+func TestZKGame_CloseGameTx(t *testing.T) {
+	for _, version := range zkVersions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			t.Run("Success", func(t *testing.T) {
+				stubRpc, game := setupZKDisputeGameTest(t, version)
+				stubRpc.SetResponse(zkGameAddr, methodCloseGame, rpcblock.Latest, nil, nil)
+
+				tx, err := game.CloseGameTx(context.Background())
+				require.NoError(t, err)
+				stubRpc.VerifyTxCandidate(tx)
+			})
+
+			t.Run("SimulationFails", func(t *testing.T) {
+				stubRpc, game := setupZKDisputeGameTest(t, version)
+				stubRpc.SetError(zkGameAddr, methodCloseGame, rpcblock.Latest, nil, errors.New("game not ready"))
+
+				tx, err := game.CloseGameTx(context.Background())
 				require.ErrorIs(t, err, ErrSimulationFailed)
 				require.Equal(t, txmgr.TxCandidate{}, tx)
 			})

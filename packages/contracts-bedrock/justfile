@@ -85,20 +85,25 @@ test-dev *ARGS: build-go-ffi
   FOUNDRY_PROFILE=lite forge test {{ARGS}}
 
 # Default block number for the forked upgrade path.
+# Block numbers are calculated deterministically based on the current week.
+# The block is set to approximately Sunday 00:00 UTC of each week.
+# This allows for consistent caching while automatically updating weekly.
+#
+# Note: We use a recipe instead of top-level exports to avoid eager evaluation
+# of both chains' block numbers when only one is needed.
 
-export sepoliaBlockNumber := "9770063"
-export mainnetBlockNumber := "23942395"
-
-export pinnedBlockNumber := if env_var_or_default("FORK_BASE_CHAIN", "") == "mainnet" {
-    mainnetBlockNumber
-} else if env_var_or_default("FORK_BASE_CHAIN", "") == "sepolia" {
-    sepoliaBlockNumber
-} else {
-    mainnetBlockNumber
-}
-
+# Calculates and prints the pinned block number for the current ETH_RPC_URL.
+# Uses the most recent Sunday at 00:00 UTC as the target timestamp.
 print-pinned-block-number:
-  echo $pinnedBlockNumber
+  #!/usr/bin/env bash
+  set -euo pipefail
+  # Calculate most recent Sunday at 00:00 UTC
+  now=$(date -u +%s)
+  dow=$(date -u +%w)  # 0=Sunday
+  h=$(date -u +%H); m=$(date -u +%M); s=$(date -u +%S)
+  secs_since_midnight=$(( 10#$h * 3600 + 10#$m * 60 + 10#$s ))
+  sunday_midnight=$(( now - secs_since_midnight - dow * 86400 ))
+  cast find-block "$sunday_midnight" --rpc-url $ETH_RPC_URL
 
 # Prepares the environment for upgrade path variant of contract tests and coverage.
 # Env Vars:
@@ -109,7 +114,9 @@ print-pinned-block-number:
 #   when the L1 chain is upgraded.
 prepare-upgrade-env *ARGS : build-go-ffi
   #!/bin/bash
-  export FORK_BLOCK_NUMBER=$pinnedBlockNumber
+  set -euo pipefail
+  pinnedBlock=$(just print-pinned-block-number)
+  export FORK_BLOCK_NUMBER="${FORK_BLOCK_NUMBER:-$pinnedBlock}"
   echo "Running upgrade tests at block $FORK_BLOCK_NUMBER"
   export FORK_RPC_URL=$ETH_RPC_URL
   export FORK_RETRIES=10
@@ -139,8 +146,10 @@ anvil-fork:
 # Helpful for debugging.
 test-upgrade-against-anvil *ARGS: build-go-ffi
   #!/bin/bash
-  echo "Running upgrade tests at block $pinnedBlockNumber"
-  export FORK_BLOCK_NUMBER=$pinnedBlockNumber
+  set -euo pipefail
+  pinnedBlock=$(just print-pinned-block-number)
+  echo "Running upgrade tests at block $pinnedBlock"
+  export FORK_BLOCK_NUMBER="${FORK_BLOCK_NUMBER:-$pinnedBlock}"
   export FORK_RPC_URL=http://127.0.0.1:8545
   export FORK_TEST=true
   forge test {{ARGS}} \

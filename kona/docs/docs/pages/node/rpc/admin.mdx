@@ -1,0 +1,128 @@
+# Admin RPC Methods
+
+The `admin` api provides methods for controlling and monitoring Kona's consensus node operations.
+
+## `admin_postUnsafePayload`
+
+Posts an unsafe payload to the network.
+
+| Client | Method invocation                                           |
+| ------ | ----------------------------------------------------------- |
+| RPC    | `{"method": "admin_postUnsafePayload", "params": [payload]}` |
+
+### Parameters
+
+- `payload` (`OpExecutionPayloadEnvelope`): The execution payload envelope to post
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_postUnsafePayload","params":[{...payload...}]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+## `admin_sequencerActive`
+
+Returns whether the sequencer is currently active.
+
+| Client | Method invocation                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "admin_sequencerActive"}`               |
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_sequencerActive","params":[]}
+{"jsonrpc":"2.0","id":1,"result":true}
+```
+
+**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
+
+## `admin_startSequencer`
+
+Starts the sequencer.
+
+| Client | Method invocation                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "admin_startSequencer"}`                |
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_startSequencer","params":[]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
+
+## `admin_stopSequencer`
+
+Stops the sequencer and returns the hash of the last processed block.
+
+| Client | Method invocation                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "admin_stopSequencer"}`                 |
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_stopSequencer","params":[]}
+{"jsonrpc":"2.0","id":1,"result":"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"}
+```
+
+**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
+
+## `admin_conductorEnabled`
+
+Returns whether the conductor is enabled.
+
+| Client | Method invocation                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "admin_conductorEnabled"}`              |
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_conductorEnabled","params":[]}
+{"jsonrpc":"2.0","id":1,"result":false}
+```
+
+**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
+
+## `admin_setRecoverMode`
+
+Sets the recovery mode for the sequencer.
+
+| Client | Method invocation                                         |
+| ------ | --------------------------------------------------------- |
+| RPC    | `{"method": "admin_setRecoverMode", "params": [mode]}`    |
+
+### Parameters
+
+- `mode` (`bool`): Whether to enable recovery mode (true) or disable it (false)
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_setRecoverMode","params":[true]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
+
+## `admin_overrideLeader`
+
+Overrides the leader in the conductor.
+
+| Client | Method invocation                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "admin_overrideLeader"}`                |
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_overrideLeader","params":[]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).

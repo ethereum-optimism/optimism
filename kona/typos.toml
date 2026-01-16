@@ -1,0 +1,81 @@
+[files]
+extend-exclude = [
+    "target",
+    "Cargo.lock",
+]
+
+[default]
+extend-ignore-re = [
+    # Base64 encoded strings (common in tests and configs)
+    "[A-Za-z0-9+/]{20,}={0,2}",
+]
+
+[default.extend-words]
+# Valid Rust/Cargo terms
+crate = "crate"
+crates = "crates"
+
+# Blockchain/Ethereum specific terms
+alloy = "alloy"
+anvil = "anvil"
+asm = "asm"
+asterisc = "asterisc"
+batcher = "batcher"
+bedrock = "bedrock"
+bootnode = "bootnode"
+cannon = "cannon"
+chainid = "chainid"
+codegen = "codegen"
+derivation = "derivation"
+enr = "enr"
+ethereum = "ethereum"
+fpvm = "fpvm"
+hel = "hel"          # Part of hostname bootnode-hetzner-hel
+interop = "interop"
+kona = "kona"
+libmdbx = "libmdbx"
+merkle = "merkle"
+mips = "mips"
+mpsc = "mpsc"
+optimism = "optimism"
+preimage = "preimage"
+revm = "revm"
+risc = "risc"
+rollup = "rollup"
+rpc = "rpc"
+sequencer = "sequencer"
+ser = "ser"          # Serialization abbreviation
+serde = "serde"
+supervisor = "supervisor"
+superchain = "superchain"
+trie = "trie"
+txs = "txs"          # Transactions abbreviation
+udeps = "udeps"      # Unused dependencies tool
+usize = "usize"
+workspaces = "workspaces"
+
+# Technical abbreviations and acronyms
+api = "api"
+cli = "cli"
+cfg = "cfg"
+const = "const"
+env = "env"
+impl = "impl"
+io = "io"
+lru = "lru"
+mpt = "mpt"          # Merkle Patricia Trie
+msg = "msg"
+mut = "mut"
+nums = "nums"
+num = "num"
+ok = "ok"
+std = "std"
+structs = "structs"
+ty = "ty"            # Type abbreviation
+vec = "vec"
+typ = "typ"
+
+# Additional allowed words from typos scan
+flate = "flate"      # zlib-flate tool name
+ratatui = "ratatui"  # TUI crate name
+superseed = "superseed"  # Superseed network name (proper noun)

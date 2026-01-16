@@ -1,0 +1,87 @@
+[package]
+name = "kona-node"
+version = "1.0.0-rc.1"
+description = "Kona Consensus Node"
+
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+keywords.workspace = true
+repository.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# workspace
+kona-rpc.workspace = true
+kona-peers.workspace = true
+kona-genesis = { workspace = true, features = ["tabled"] }
+kona-protocol.workspace = true
+
+kona-cli = { workspace = true, features = ["secrets"] }
+kona-gossip = { workspace = true, features = ["metrics"] }
+kona-disc = { workspace = true, features = ["metrics"] }
+kona-derive = { workspace = true, features = ["metrics"] }
+kona-engine = { workspace = true, features = ["metrics"] }
+kona-registry = { workspace = true, features = ["tabled"] }
+kona-sources = { workspace = true }
+kona-node-service = { workspace = true, features = ["metrics"] }
+kona-providers-alloy = { workspace = true, features = ["metrics"] }
+
+# alloy
+alloy-chains.workspace = true
+alloy-genesis.workspace = true
+alloy-signer.workspace = true
+alloy-provider.workspace = true
+alloy-transport.workspace = true
+alloy-transport-http.workspace = true
+alloy-primitives.workspace = true
+alloy-signer-local.workspace = true
+alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
+
+# op-alloy
+op-alloy-provider.workspace = true
+op-alloy-network.workspace = true
+op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+
+# general
+url.workspace = true
+http.workspace = true
+dirs.workspace = true
+strum.workspace = true
+discv5.workspace = true
+tabled.workspace = true
+libp2p.workspace = true
+derive_more.workspace = true
+anyhow.workspace = true
+futures.workspace = true
+metrics.workspace = true
+reqwest.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+tokio-stream.workspace = true
+tokio-util.workspace = true
+serde_json = { workspace = true, features = ["std"] }
+jsonrpsee = { workspace = true, features = ["server"] }
+clap = { workspace = true, features = ["derive", "env"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
+
+# rollup boost
+rollup-boost.workspace = true
+
+[dev-dependencies]
+rstest.workspace = true
+tempfile.workspace = true
+
+[build-dependencies]
+vergen = { workspace = true, features = ["build", "cargo", "emit_and_set"] }
+vergen-git2.workspace = true
+
+[features]
+default = [ "asm-keccak" ]
+asm-keccak = [ "alloy-primitives/asm-keccak" ]

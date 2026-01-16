@@ -132,9 +132,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when an invalid upgrade sequence is provided.
     error OPContractsManagerV2_InvalidUpgradeSequence(string _lastVersion, string _thisVersion);
 
-    /// @notice Container of blueprint and implementation contract addresses.
-    IOPContractsManagerContainer public immutable contractsContainer;
-
     /// @notice Address of the Standard Validator for this OPCM release.
     IOPContractsManagerStandardValidator public immutable opcmStandardValidator;
 
@@ -150,24 +147,21 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.0.2
+    /// @custom:semver 7.0.3
     function version() public pure returns (string memory) {
-        return "7.0.2";
+        return "7.0.3";
     }
 
-    /// @param _contractsContainer The container of blueprint and implementation contract addresses.
     /// @param _standardValidator The standard validator for this OPCM release.
     /// @param _migrator The migrator contract for this OPCM release.
     /// @param _utils The utility functions for the OPContractsManager.
     constructor(
-        IOPContractsManagerContainer _contractsContainer,
         IOPContractsManagerStandardValidator _standardValidator,
         IOPContractsManagerMigrator _migrator,
         IOPContractsManagerUtils _utils
     )
         OPContractsManagerUtilsCaller(_utils)
     {
-        contractsContainer = _contractsContainer;
         opcmStandardValidator = _standardValidator;
         opcmMigrator = _migrator;
         opcmV2 = this;
@@ -977,19 +971,19 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
     /// @notice Returns the blueprint contract addresses.
     function blueprints() public view returns (IOPContractsManagerContainer.Blueprints memory) {
-        return contractsContainer.blueprints();
+        return contractsContainer().blueprints();
     }
 
     /// @notice Returns the implementation contract addresses.
     function implementations() public view returns (IOPContractsManagerContainer.Implementations memory) {
-        return contractsContainer.implementations();
+        return contractsContainer().implementations();
     }
 
     /// @notice Returns the status of a development feature.
     /// @param _feature The feature to check.
     /// @return True if the feature is enabled, false otherwise.
     function isDevFeatureEnabled(bytes32 _feature) public view returns (bool) {
-        return contractsContainer.isDevFeatureEnabled(_feature);
+        return contractsContainer().isDevFeatureEnabled(_feature);
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -1004,9 +998,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         return opcmV2.version();
     }
 
+    /// @notice Returns the contracts container.
+    /// @return The contracts container.
+    function contractsContainer() public view returns (IOPContractsManagerContainer) {
+        return opcmUtils.contractsContainer();
+    }
+
     /// @notice Returns the development feature bitmap.
     /// @return The development feature bitmap.
     function devFeatureBitmap() public view returns (bytes32) {
-        return contractsContainer.devFeatureBitmap();
+        return contractsContainer().devFeatureBitmap();
     }
 }

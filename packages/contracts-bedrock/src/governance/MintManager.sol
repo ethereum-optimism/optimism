@@ -39,7 +39,8 @@ contract MintManager is Ownable {
     }
 
     /// @notice Only the token owner is allowed to mint a certain amount of the
-    ///         governance token per year.
+    ///         governance token per year. The first mint is uncapped to allow growing
+    ///         the token supply from zero to a non-zero value.
     /// @param _account The account receiving minted tokens.
     /// @param _amount  The amount of tokens to mint.
     function mint(address _account, uint256 _amount) public onlyOwner {

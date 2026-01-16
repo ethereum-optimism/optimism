@@ -49,7 +49,7 @@ func (m *StubDGFContract) HasProposedSince(_ context.Context, _ common.Address, 
 }
 
 func (m *StubDGFContract) ProposalTx(_ context.Context, _ uint32, _ common.Hash, _ []byte) (txmgr.TxCandidate, error) {
-	panic("not implemented")
+	return txmgr.TxCandidate{}, nil
 }
 
 func (m *StubDGFContract) Version(_ context.Context) (string, error) {
@@ -76,12 +76,9 @@ func (p *mockRollupEndpointProvider) Close() {}
 func setup(t *testing.T, testName string) (*L2OutputSubmitter, *mockRollupEndpointProvider, *MockL2OOContract, *StubDGFContract, *txmgrmocks.TxManager, *testlog.CapturingHandler) {
 	ep := newEndpointProvider()
 
-	l2OutputOracleAddr := common.HexToAddress("0x3F8A862E63E759a77DA22d384027D21BF096bA9E")
-
 	proposerConfig := ProposerConfig{
-		PollInterval:       time.Microsecond,
-		ProposalInterval:   time.Microsecond,
-		L2OutputOracleAddr: &l2OutputOracleAddr,
+		PollInterval:     time.Microsecond,
+		ProposalInterval: time.Microsecond,
 	}
 
 	txmgr := txmgrmocks.NewTxManager(t)
@@ -117,7 +114,6 @@ func setup(t *testing.T, testName string) (*L2OutputSubmitter, *mockRollupEndpoi
 		l2OutputSubmitter.l2ooContract = mockL2OOContract
 	}
 
-	txmgr.On("BlockNumber", mock.Anything).Return(uint64(100), nil).Once()
 	txmgr.On("Send", mock.Anything, mock.Anything).
 		Return(&types.Receipt{Status: uint64(1), TxHash: common.Hash{}}, nil).
 		Once().
@@ -131,52 +127,36 @@ func setup(t *testing.T, testName string) (*L2OutputSubmitter, *mockRollupEndpoi
 }
 
 func TestL2OutputSubmitter_OutputRetry(t *testing.T) {
-	tests := []struct {
-		name string
-	}{
-		{name: "L2OO"},
-		{name: "DGF"},
-	}
-
 	proposerAddr := common.Address{0xab}
 	const numFails = 3
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ps, ep, l2ooContract, dgfContract, txmgr, logs := setup(t, tt.name)
 
-			ep.rollupClient.On("SyncStatus").Return(&eth.SyncStatus{FinalizedL2: eth.L2BlockRef{Number: 42}}, nil).Times(numFails + 1)
-			ep.rollupClient.ExpectOutputAtBlock(42, nil, fmt.Errorf("TEST: failed to fetch output")).Times(numFails)
-			ep.rollupClient.ExpectOutputAtBlock(
-				42,
-				&eth.OutputResponse{
-					Version:  eth.OutputVersionV0,
-					BlockRef: eth.L2BlockRef{Number: 42},
-					Status: &eth.SyncStatus{
-						CurrentL1:   eth.L1BlockRef{Hash: common.Hash{}},
-						FinalizedL2: eth.L2BlockRef{Number: 42},
-					},
-				},
-				nil,
-			)
+	ps, ep, _, dgfContract, txmgr, logs := setup(t, "DGF")
 
-			txmgr.On("From").Return(proposerAddr).Times(numFails + 1)
+	ep.rollupClient.On("SyncStatus").Return(&eth.SyncStatus{FinalizedL2: eth.L2BlockRef{Number: 42}}, nil).Times(numFails + 1)
+	ep.rollupClient.ExpectOutputAtBlock(42, nil, fmt.Errorf("TEST: failed to fetch output")).Times(numFails)
+	ep.rollupClient.ExpectOutputAtBlock(
+		42,
+		&eth.OutputResponse{
+			Version:  eth.OutputVersionV0,
+			BlockRef: eth.L2BlockRef{Number: 42},
+			Status: &eth.SyncStatus{
+				CurrentL1:   eth.L1BlockRef{Hash: common.Hash{}},
+				FinalizedL2: eth.L2BlockRef{Number: 42},
+			},
+		},
+		nil,
+	)
 
-			if tt.name == "L2OO" {
-				l2ooContract.On("NextBlockNumber", mock.AnythingOfType("*bind.CallOpts")).Return(big.NewInt(42), nil).Times(numFails + 1)
-			}
-			ps.wg.Add(1)
-			ps.loop()
+	txmgr.On("From").Return(proposerAddr).Times(numFails + 1)
 
-			ep.rollupClient.AssertExpectations(t)
-			if tt.name == "L2OO" {
-				l2ooContract.AssertExpectations(t)
-			} else {
-				require.Equal(t, numFails+1, dgfContract.hasProposedCount)
-			}
+	ps.wg.Add(1)
+	ps.loop()
 
-			require.Len(t, logs.FindLogs(testlog.NewMessageContainsFilter("Error getting proposal")), numFails)
-			require.NotNil(t, logs.FindLog(testlog.NewMessageFilter("Proposer tx successfully published")))
-			require.NotNil(t, logs.FindLog(testlog.NewMessageFilter("loop returning")))
-		})
-	}
+	ep.rollupClient.AssertExpectations(t)
+
+	require.Equal(t, numFails+1, dgfContract.hasProposedCount)
+
+	require.Len(t, logs.FindLogs(testlog.NewMessageContainsFilter("Error getting proposal")), numFails)
+	require.NotNil(t, logs.FindLog(testlog.NewMessageFilter("Proposer tx successfully published")))
+	require.NotNil(t, logs.FindLog(testlog.NewMessageFilter("loop returning")))
 }

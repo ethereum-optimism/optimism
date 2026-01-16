@@ -335,9 +335,7 @@ rules:
         - packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol
         - packages/contracts-bedrock/src/dispute/DelayedWETH.sol
         - packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol
-        - packages/contracts-bedrock/src/dispute/v2/FaultDisputeGameV2.sol
         - packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol
-        - packages/contracts-bedrock/src/dispute/v2/PermissionedDisputeGameV2.sol
         - packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
         - packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol
         - packages/contracts-bedrock/src/governance/MintManager.sol
@@ -410,3 +408,16 @@ rules:
         - packages/contracts-bedrock/test
       exclude:
         - packages/contracts-bedrock/test/setup/Test.sol
+
+  - id: sol-safety-opcmv2-immutable-prefix
+    languages: [solidity]
+    severity: ERROR
+    message: All immutable variables in OPContractsManagerV2 must start with 'opcm'
+    pattern-regex: |
+      ^\s*(?!/\*|//|\*)\w+\s+public\s+immutable\s+(?!(?:opcm\w*|contractsContainer\s*;))\w+;
+    # To add more allowed names, add them to the regex alternation in the negative lookahead.
+    # Example (to add standardValidator as an allowed variable name that does not start with 'opcm'):
+    # pattern-regex: ^\s*(?!/\*|//|\*)\w+\s+public\s+immutable\s+(?!(?:opcm\w*|contractsContainer\s*;|standardValidator\s*;))\w+;
+    paths:
+      include:
+        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol

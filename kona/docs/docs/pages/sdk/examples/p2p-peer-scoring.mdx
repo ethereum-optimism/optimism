@@ -1,0 +1,352 @@
+import { Callout } from 'vocs/components'
+
+# Configuring P2P Network Peer Scoring
+
+Peer scoring is a critical mechanism in Kona's P2P network that evaluates the behavior and 
+reliability of peers. By assigning scores to peers based on their performance, the network 
+can prioritize connections with well-behaved peers and disconnect from malicious or poorly 
+performing ones, ensuring overall network health and resilience.
+
+This guide demonstrates how to configure peer scoring in Kona's P2P stack, including basic 
+setup, advanced configurations, and monitoring strategies.
+
+## Understanding Peer Scoring
+
+Peer scoring in Kona evaluates peers based on multiple factors:
+- **Message Delivery**: How reliably peers deliver messages
+- **Mesh Participation**: Active participation in gossipsub mesh
+- **Invalid Messages**: Penalties for invalid or malformed messages
+- **IP Colocation**: Penalties for multiple peers from the same IP
+- **Behavior Patterns**: General peer behavior and responsiveness
+
+<Callout type="info">
+  Peer scoring helps maintain network quality by identifying and removing peers that:
+  - Fail to deliver messages reliably
+  - Send invalid or spam messages
+  - Exhibit malicious behavior patterns
+  - Have poor network connectivity
+</Callout>
+
+## Peer Score Levels
+
+Kona supports two peer scoring levels:
+
+```rust
+use kona_peers::PeerScoreLevel;
+
+// Disable peer scoring entirely
+let no_scoring = PeerScoreLevel::Off;
+
+// Enable light peer scoring with default parameters
+let light_scoring = PeerScoreLevel::Light;
+```
+
+### Score Calculation Parameters
+
+The scoring system uses several key parameters:
+
+```rust
+use kona_peers::PeerScoreLevel;
+use std::time::Duration;
+
+// Key scoring constants
+const DECAY_TO_ZERO: f64 = 0.01;  // Decay factor for scores
+const MESH_WEIGHT: f64 = -0.7;     // Weight for mesh delivery
+const MAX_IN_MESH_SCORE: f64 = 10.0;  // Maximum score for mesh participation
+
+// Calculate decay factor for a given duration
+let block_time = Duration::from_secs(2);  // OP Stack default
+let epoch = block_time * 6;
+let decay = PeerScoreLevel::score_decay(epoch * 10, block_time);
+```
+
+## Basic Configuration
+
+### Using CLI Flags
+
+Configure peer scoring via command-line flags:
+
+```bash
+# Enable light peer scoring (default)
+kona node --p2p.scoring light
+
+# Disable peer scoring
+kona node --p2p.scoring off
+
+# Configure with peer banning
+kona node \
+  --p2p.scoring light \
+  --p2p.ban.peers \
+  --p2p.ban.threshold -100 \
+  --p2p.ban.duration 60
+```
+
+### Programmatic Configuration
+
+Configure peer scoring in code:
+
+```rust
+use kona_node_service::NetworkConfig;
+use kona_peers::{PeerScoreLevel, PeerMonitoring};
+use kona_genesis::RollupConfig;
+use libp2p::Multiaddr;
+use alloy_primitives::Address;
+use std::time::Duration;
+
+// Create network configuration with peer scoring
+let mut config = NetworkConfig::new(
+    rollup_config,
+    discovery_listen,
+    gossip_address,
+    unsafe_block_signer,
+);
+
+// Set peer scoring level
+config.scoring = PeerScoreLevel::Light;
+
+// Configure peer monitoring and banning
+config.monitor_peers = Some(PeerMonitoring {
+    ban_threshold: -100.0,  // Ban peers with score below -100
+    ban_duration: Duration::from_secs(3600),  // Ban for 1 hour
+});
+```
+
+## Advanced Configuration
+
+### Topic Scoring Parameters
+
+Configure topic-specific scoring based on block time:
+
+```rust
+use kona_peers::PeerScoreLevel;
+use libp2p::gossipsub::{TopicHash, TopicScoreParams};
+use std::collections::HashMap;
+
+// Get topic score parameters for OP Stack (2 second blocks)
+let block_time = 2; // seconds
+let topic_params = PeerScoreLevel::topic_score_params(block_time);
+
+// Create topic scores for specific topics
+let topics = vec![
+    TopicHash::from_raw("/optimism/10/0/blocks"),
+    TopicHash::from_raw("/optimism/10/1/blocks"),
+];
+let topic_scores = PeerScoreLevel::topic_scores(topics, block_time);
+```
+
+<Callout type="warning">
+  Topic scoring is being phased out in the OP Stack. It's disabled by default 
+  and should only be enabled for backwards compatibility or debugging purposes.
+  
+  Use the `--p2p.topic-scoring` flag to enable if needed.
+</Callout>
+
+### Gossipsub Mesh Parameters
+
+Fine-tune gossipsub mesh parameters for optimal performance:
+
+```rust
+use kona_gossip::default_config_builder;
+
+// Create custom gossipsub configuration
+let gossip_config = default_config_builder()
+    .mesh_n(8)        // Target mesh degree (D)
+    .mesh_n_low(6)    // Lower bound (Dlo)
+    .mesh_n_high(12)  // Upper bound (Dhi)
+    .gossip_lazy(6)   // Gossip degree (Dlazy)
+    .flood_publish(false)  // Don't flood publish
+    .build()
+    .expect("valid config");
+
+// Apply to network configuration
+config.gossip_config = gossip_config;
+```
+
+### Peer Score Thresholds
+
+Configure thresholds that determine peer treatment:
+
+```rust
+use libp2p::gossipsub::PeerScoreThresholds;
+
+// Default thresholds used by Kona
+const DEFAULT_THRESHOLDS: PeerScoreThresholds = PeerScoreThresholds {
+    gossip_threshold: -10.0,      // Below this: no gossip propagation
+    publish_threshold: -40.0,      // Below this: ignore published messages
+    graylist_threshold: -40.0,     // Below this: remove from mesh
+    accept_px_threshold: 20.0,     // Above this: accept peer exchange
+    opportunistic_graft_threshold: 0.05,  // Threshold for opportunistic grafting
+};
+```
+
+## Complete Example
+
+Here's a comprehensive example configuring P2P with peer scoring:
+
+```rust
+use kona_node_service::NetworkConfig;
+use kona_peers::{PeerScoreLevel, PeerMonitoring};
+use kona_genesis::RollupConfig;
+use kona_gossip::{GaterConfig, default_config_builder};
+use kona_disc::LocalNode;
+use libp2p::{Multiaddr, identity::Keypair};
+use alloy_primitives::Address;
+use std::time::Duration;
+use std::net::IpAddr;
+
+async fn setup_p2p_with_scoring() -> NetworkConfig {
+    // Load rollup configuration
+    let rollup_config = RollupConfig {
+        l2_chain_id: 10.into(),  // OP Mainnet
+        block_time: 2,
+        // ... other config
+    };
+    
+    // Generate or load keypair
+    let keypair = Keypair::generate_secp256k1();
+    
+    // Configure discovery
+    let discovery_address = LocalNode::new(
+        keypair.clone().try_into_secp256k1().unwrap().secret(),
+        "0.0.0.0".parse::<IpAddr>().unwrap(),
+        9222,  // TCP port
+        9223,  // UDP port
+    );
+    
+    // Configure gossip listening address
+    let mut gossip_address = Multiaddr::from("0.0.0.0".parse::<IpAddr>().unwrap());
+    gossip_address.push(libp2p::multiaddr::Protocol::Tcp(9222));
+    
+    // Set unsafe block signer
+    let unsafe_block_signer = Address::from([0u8; 20]);
+    
+    // Create base configuration
+    let mut config = NetworkConfig::new(
+        rollup_config.clone(),
+        discovery_address,
+        gossip_address,
+        unsafe_block_signer,
+    );
+    
+    // Configure peer scoring
+    config.scoring = PeerScoreLevel::Light;
+    
+    // Enable peer monitoring with banning
+    config.monitor_peers = Some(PeerMonitoring {
+        ban_threshold: -100.0,
+        ban_duration: Duration::from_secs(3600),
+    });
+    
+    // Configure gossipsub parameters
+    config.gossip_config = default_config_builder()
+        .mesh_n(8)
+        .mesh_n_low(6)
+        .mesh_n_high(12)
+        .gossip_lazy(6)
+        .flood_publish(false)
+        .heartbeat_interval(Duration::from_millis(500))
+        .build()
+        .expect("valid gossipsub config");
+    
+    // Configure connection gater for peer redialing
+    config.gater_config = GaterConfig {
+        peer_redialing: Some(500),  // Max redial attempts
+        dial_period: Duration::from_secs(3600),  // Reset period
+    };
+    
+    // Set the keypair
+    config.keypair = keypair;
+    
+    // Optionally disable topic scoring (recommended)
+    config.topic_scoring = false;
+    
+    config
+}
+```
+
+## CLI Configuration Examples
+
+### Development Setup
+
+Minimal scoring for local development:
+
+```bash
+kona node \
+  --p2p.scoring off \
+  --p2p.listen.ip 127.0.0.1 \
+  --p2p.listen.tcp 9222
+```
+
+### Production Setup
+
+Full peer scoring with monitoring:
+
+```bash
+kona node \
+  --p2p.scoring light \
+  --p2p.ban.peers \
+  --p2p.ban.threshold -100 \
+  --p2p.ban.duration 60 \
+  --p2p.gossip.mesh.d 8 \
+  --p2p.gossip.mesh.lo 6 \
+  --p2p.gossip.mesh.dhi 12 \
+  --p2p.redial 500 \
+  --p2p.redial.period 60
+```
+
+### High-Security Setup
+
+Strict scoring with aggressive banning:
+
+```bash
+kona node \
+  --p2p.scoring light \
+  --p2p.ban.peers \
+  --p2p.ban.threshold -50 \
+  --p2p.ban.duration 120 \
+  --p2p.redial 100 \
+  --p2p.discovery.interval 3
+```
+
+## Monitoring Peer Scores
+
+Kona inspects peer scores every 15 seconds and can automatically ban poorly performing peers:
+
+```rust
+use kona_gossip::PEER_SCORE_INSPECT_FREQUENCY;
+
+// Inspection happens every 15 seconds
+assert_eq!(*PEER_SCORE_INSPECT_FREQUENCY, Duration::from_secs(15));
+
+// The network handler automatically:
+// 1. Checks all connected peer scores
+// 2. Identifies peers below ban threshold
+// 3. Disconnects and bans problematic peers
+// 4. Updates metrics for monitoring
+```
+
+<Callout type="note">
+  Peer scores and banning events are recorded in metrics. Monitor these metrics
+  to understand your node's peer health:
+  - `kona_gossip_peer_scores`: Histogram of peer scores
+  - `kona_gossip_banned_peers`: Counter of banned peers
+  - `kona_gossip_peer_connection_duration_seconds`: Connection durations
+</Callout>
+
+## Best Practices
+
+1. **Start with Light Scoring**: Use `PeerScoreLevel::Light` for most deployments
+2. **Monitor Before Banning**: Run without banning initially to understand score distributions
+3. **Adjust Thresholds Gradually**: Start with default -100 threshold and adjust based on observations
+4. **Consider Network Conditions**: Increase ban duration in hostile environments
+5. **Balance Security and Connectivity**: Overly aggressive scoring can isolate your node
+6. **Disable Topic Scoring**: Unless specifically needed for compatibility
+7. **Use Metrics**: Monitor peer scores and ban events to tune configuration
+
+## Related Resources
+
+- [kona-peers](https://github.com/op-rs/kona/tree/main/crates/node/peers) - Peer management and scoring
+- [kona-gossip](https://github.com/op-rs/kona/tree/main/crates/node/gossip) - Gossipsub implementation
+- [kona-node-service](https://github.com/op-rs/kona/tree/main/crates/node/service) - Network service implementation
+- [libp2p gossipsub](https://docs.rs/libp2p-gossipsub) - Underlying gossipsub protocol
+- [OP Stack P2P Spec](https://specs.optimism.io/protocol/rollup-node-p2p.html) - Protocol specification

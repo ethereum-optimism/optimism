@@ -1,0 +1,49 @@
+[package]
+name = "kona-disc"
+version = "0.1.2"
+description = "Discovery service for the OP Stack"
+
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Kona
+kona-peers.workspace = true
+kona-macros.workspace = true
+kona-genesis.workspace = true
+
+# Alloy
+alloy-rlp.workspace = true
+
+# Networking
+discv5 = { workspace = true, features = ["libp2p"] }
+libp2p.workspace = true
+
+# Misc
+tokio.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+derive_more.workspace = true
+backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
+rand = { workspace = true, features = ["thread_rng"] }
+
+# `metrics` feature
+metrics = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile.workspace = true
+serde_json.workspace = true
+kona-cli.workspace = true
+
+[features]
+default = []
+metrics = [ "dep:metrics", "libp2p/metrics" ]

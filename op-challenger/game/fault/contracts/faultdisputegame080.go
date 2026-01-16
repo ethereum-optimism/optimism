@@ -161,3 +161,7 @@ func (f *FaultDisputeGameContract080) DefendTx(ctx context.Context, parent types
 func (f *FaultDisputeGameContract080) GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (types.BondDistributionMode, error) {
 	return types.LegacyDistributionMode, nil
 }
+
+func (f *FaultDisputeGameContract080) CloseGameTx(ctx context.Context) (txmgr.TxCandidate, error) {
+	return txmgr.TxCandidate{}, ErrCloseGameNotSupported
+}

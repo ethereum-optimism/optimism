@@ -1,0 +1,146 @@
+---
+layout: landing
+---
+
+import { HomePage } from 'vocs/components'
+import { SdkShowcase } from '../components/SdkShowcase'
+import { CodeGroup, Code } from '../components/CodeGroup'
+
+<div className="full-width pt-16 lg:pt-24 min-h-114">
+  <div className="flex flex-col lg:flex-row items-center justify-between full-width-inner">
+  <div className="lg:w-1/2 mb-4 lg:mb-0 lg:pr-8 self-start">
+    <div className="mb-2">
+      <h1 className="text-5xl lg:text-7xl font-bold mb-8 bg-gradient-to-r from-black to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent leading-tight">
+        Kona
+      </h1>
+      <p className="text-2xl lg:text-3xl text-gray-600 dark:text-gray-400 mb-8 leading-relaxed">
+        OP Stack Components built in Rust
+      </p>
+      <p className="text-lg lg:text-lg text-gray-600 dark:text-gray-400 mb-4 leading-relaxed">
+        A comprehensive suite of low-level OP Stack types, portable `no_std`
+        components, and services built in Rust. Kona provides a rollup node
+        implementation called the `kona-node` that is spec-compliant, performant,
+        and modular as well as the Kona Fault Proof implementation. Built by <a className="font-bold underline" href="https://www.oplabs.co/">OP Labs</a>.
+      </p>
+    </div>
+  </div>
+  <div className="lg:w-1/2 self-start">
+    <CodeGroup>
+      <Code
+        title="Run a Node"
+        code={`# Install the kona-node
+cargo install kona-node
+
+# Start the node
+kona-node --chain base --port 8545`}
+      />
+      <Code
+        title="Build a Node"
+        code={`# Clone the repository
+git clone https://github.com/op-rs/kona.git
+
+# Build the node
+just build-node
+
+# Run your custom node
+./target/release/kona-node`}
+      />
+    </CodeGroup>
+  </div>
+  </div>
+</div>
+
+<div className="full-width mt-1 mb-32 pb-16">
+  <div className="flex flex-wrap items-center justify-between gap-6 full-width-inner">
+    <div className="flex flex-wrap gap-2 sm:gap-4">
+      <a
+        href="/node/run/overview"
+        className="inline-flex items-center justify-center px-3 py-2 sm:px-4 sm:py-2 md:px-6 md:py-3 border border-gray-300 dark:border-gray-700 text-sm sm:text-base font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
+      >
+        Run a Node
+      </a>
+      <a
+        href="/node/install/overview"
+        className="inline-flex items-center justify-center px-3 py-2 sm:px-4 sm:py-2 md:px-6 md:py-3 border border-gray-300 dark:border-gray-700 text-sm sm:text-base font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
+      >
+        Build a Node
+      </a>
+      <a
+        href="/intro/why"
+        className="inline-flex items-center justify-center px-3 py-2 sm:px-4 sm:py-2 md:px-6 md:py-3 border border-gray-300 dark:border-gray-700 text-sm sm:text-base font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
+      >
+        Why Kona
+      </a>
+    </div>
+
+    <div className="flex flex-wrap gap-2 sm:gap-4 mt-4 lg:mt-0">
+      <div className="bg-white/10 dark:bg-white/5 backdrop-blur-md border border-white/20 dark:border-white/10 rounded-lg px-3 py-2 sm:px-4 sm:py-2 md:px-6 md:py-3 text-sm sm:text-base">
+        <span className="text-gray-600 dark:text-gray-400">⭐ </span>
+        <span className="font-semibold">200+ </span>
+        <span className="text-gray-600 dark:text-gray-400">stars</span>
+      </div>
+      <div className="bg-white/10 dark:bg-white/5 backdrop-blur-md border border-white/20 dark:border-white/10 rounded-lg px-3 py-2 sm:px-4 sm:py-2 md:px-6 md:py-3 text-sm sm:text-base">
+        <span className="text-gray-600 dark:text-gray-400">👥 </span>
+        <span className="font-semibold">50+ </span>
+        <span className="text-gray-600 dark:text-gray-400">contributors</span>
+      </div>
+      <div className="bg-white/10 dark:bg-white/5 backdrop-blur-md border border-white/20 dark:border-white/10 rounded-lg px-3 py-2 sm:px-4 sm:py-2 md:px-6 md:py-3 text-sm sm:text-base">
+        <span className="text-gray-600 dark:text-gray-400">📜 </span>
+        <span className="font-semibold">MIT </span>
+        <span className="text-gray-600 dark:text-gray-400">license</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div className="full-width">
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 full-width-inner">
+    <div className="text-center">
+      <div className="bg-white/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl p-6 hover:bg-black/5 dark:hover:bg-white/10 transition-colors h-full">
+        <div className="text-4xl mb-4">🔒</div>
+        <h3 className="text-lg font-semibold mb-3">Secure</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+          Built with Rust's memory safety guarantees and comprehensive test coverage for production reliability.
+        </p>
+      </div>
+    </div>
+    <div className="text-center">
+      <div className="bg-white/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl p-6 hover:bg-black/5 dark:hover:bg-white/10 transition-colors h-full">
+        <div className="text-4xl mb-4">⚡</div>
+        <h3 className="text-lg font-semibold mb-3">Performant</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+          Optimized for minimal resource usage with `no_std` compatibility and efficient execution.
+        </p>
+      </div>
+    </div>
+    <div className="text-center">
+      <div className="bg-white/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl p-6 hover:bg-black/5 dark:hover:bg-white/10 transition-colors h-full">
+        <div className="text-4xl mb-4">🧩</div>
+        <h3 className="text-lg font-semibold mb-3">Customizable</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+          Extensible architecture with composable crates that can be used independently or together.
+        </p>
+      </div>
+    </div>
+    <div className="text-center">
+      <div className="bg-white/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl p-6 hover:bg-black/5 dark:hover:bg-white/10 transition-colors h-full">
+        <div className="text-4xl mb-4">🌐</div>
+        <h3 className="text-lg font-semibold mb-3">Extensible</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+          Supports multiple proof backends including FPVM, SP-1, Risc0, and other verifiable environments.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div className="full-width mt-20">
+  <div className="full-width-inner">
+    <h3 className="text-2xl lg:text-2xl font-bold mb-4 pb-2">Built with Kona SDK</h3>
+    <p className="text-gray-600 dark:text-gray-400 mb-16 pb-4 text-lg lg:text-lg">
+      Production implementations using Kona's modular architecture
+    </p>
+    <SdkShowcase />
+  </div>
+</div>

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -114,7 +115,9 @@ func (o *OutputTraceProvider) GetL2BlockNumberChallenge(ctx context.Context) (*t
 	if err != nil {
 		return nil, err
 	}
-	header, err := o.l2Client.HeaderByNumber(ctx, new(big.Int).SetUint64(outputBlock))
+	tCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	header, err := o.l2Client.HeaderByNumber(tCtx, new(big.Int).SetUint64(outputBlock))
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve L2 block header %v: %w", outputBlock, err)
 	}

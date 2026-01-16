@@ -215,6 +215,74 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			err: false,
 		},
 		{
+			name: "EIP1559Params_ZeroDenominatorNonZeroElasticity",
+			log: &types.Log{
+				Topics: []common.Hash{
+					ConfigUpdateEventABIHash,
+					ConfigUpdateEventVersion0,
+					SystemConfigUpdateEIP1559Params,
+				},
+			},
+			hook: func(t *testing.T, log *types.Log) *types.Log {
+				// denominator = 0, elasticity = 1 (invalid combination)
+				params := []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1}
+				numberData, err := oneUint256.Pack(new(big.Int).SetBytes(params))
+				require.NoError(t, err)
+				data, err := bytesArgs.Pack(numberData)
+				require.NoError(t, err)
+				log.Data = data
+				return log
+			},
+			config: eth.SystemConfig{},
+			err:    true,
+		},
+		{
+			name: "EIP1559Params_NonZeroDenominatorZeroElasticity",
+			log: &types.Log{
+				Topics: []common.Hash{
+					ConfigUpdateEventABIHash,
+					ConfigUpdateEventVersion0,
+					SystemConfigUpdateEIP1559Params,
+				},
+			},
+			hook: func(t *testing.T, log *types.Log) *types.Log {
+				// denominator = 1, elasticity = 0 (invalid combination)
+				params := []byte{0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0}
+				numberData, err := oneUint256.Pack(new(big.Int).SetBytes(params))
+				require.NoError(t, err)
+				data, err := bytesArgs.Pack(numberData)
+				require.NoError(t, err)
+				log.Data = data
+				return log
+			},
+			config: eth.SystemConfig{},
+			err:    true,
+		},
+		{
+			name: "EIP1559Params_BothZero",
+			log: &types.Log{
+				Topics: []common.Hash{
+					ConfigUpdateEventABIHash,
+					ConfigUpdateEventVersion0,
+					SystemConfigUpdateEIP1559Params,
+				},
+			},
+			hook: func(t *testing.T, log *types.Log) *types.Log {
+				// denominator = 0, elasticity = 0 (valid - uses pre-Holocene constants)
+				params := []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}
+				numberData, err := oneUint256.Pack(new(big.Int).SetBytes(params))
+				require.NoError(t, err)
+				data, err := bytesArgs.Pack(numberData)
+				require.NoError(t, err)
+				log.Data = data
+				return log
+			},
+			config: eth.SystemConfig{
+				EIP1559Params: eth.Bytes8{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
+			},
+			err: false,
+		},
+		{
 			name: "OperatorFeeParams",
 			log: &types.Log{
 				Topics: []common.Hash{

@@ -1,0 +1,354 @@
+# Rollup RPC Methods
+
+The `optimism` API provides methods for interacting with Kona's rollup state and configuration.
+
+## `optimism_outputAtBlock`
+
+Returns the output root at a specific block number, including the L2 block reference, withdrawal storage root, state root, and sync status.
+
+| Client | Method invocation                                              |
+| ------ | -------------------------------------------------------------- |
+| RPC    | `{"method": "optimism_outputAtBlock", "params": [blockNumber]}` |
+
+### Parameters
+
+- `blockNumber` (`BlockNumberOrTag`): The block number to get the output for. Can be a number, "latest", "earliest", "pending", "safe", or "finalized".
+
+### Returns
+
+`OutputResponse` - An object containing:
+- `version` (`string`): The output version hash
+- `outputRoot` (`string`): The output root hash
+- `blockRef` (`L2BlockInfo`): Reference to the L2 block
+- `withdrawalStorageRoot` (`string`): The withdrawal storage root
+- `stateRoot` (`string`): The state root
+- `syncStatus` (`SyncStatus`): The current sync status of the node
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"optimism_outputAtBlock","params":["latest"]}
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "version": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "outputRoot": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+    "blockRef": {
+      "hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      "number": 12345,
+      "parentHash": "0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba",
+      "timestamp": 1699123456,
+      "l1Origin": {
+        "hash": "0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321",
+        "number": 18123456
+      },
+      "sequenceNumber": 42
+    },
+    "withdrawalStorageRoot": "0x567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234",
+    "stateRoot": "0xcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+    "syncStatus": {
+      "current_l1": {
+        "hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "number": 18123456
+      },
+      "current_l1_finalized": {
+        "hash": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "number": 18123400
+      },
+      "head_l1": {
+        "hash": "0x3333333333333333333333333333333333333333333333333333333333333333",
+        "number": 18123460
+      },
+      "safe_l1": {
+        "hash": "0x4444444444444444444444444444444444444444444444444444444444444444",
+        "number": 18123450
+      },
+      "finalized_l1": {
+        "hash": "0x5555555555555555555555555555555555555555555555555555555555555555",
+        "number": 18123400
+      },
+      "unsafe_l2": {
+        "hash": "0x6666666666666666666666666666666666666666666666666666666666666666",
+        "number": 12350,
+        "parentHash": "0x7777777777777777777777777777777777777777777777777777777777777777",
+        "timestamp": 1699123500,
+        "l1Origin": {
+          "hash": "0x8888888888888888888888888888888888888888888888888888888888888888",
+          "number": 18123460
+        },
+        "sequenceNumber": 47
+      },
+      "safe_l2": {
+        "hash": "0x9999999999999999999999999999999999999999999999999999999999999999",
+        "number": 12345,
+        "parentHash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "timestamp": 1699123456,
+        "l1Origin": {
+          "hash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "number": 18123456
+        },
+        "sequenceNumber": 42
+      },
+      "finalized_l2": {
+        "hash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "number": 12340,
+        "parentHash": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "timestamp": 1699123400,
+        "l1Origin": {
+          "hash": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "number": 18123400
+        },
+        "sequenceNumber": 37
+      },
+      "cross_unsafe_l2": {
+        "hash": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "number": 12350,
+        "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "timestamp": 1699123500,
+        "l1Origin": {
+          "hash": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "number": 18123460
+        },
+        "sequenceNumber": 47
+      },
+      "local_safe_l2": {
+        "hash": "0x0000000000000000000000000000000000000000000000000000000000000003",
+        "number": 12345,
+        "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000004",
+        "timestamp": 1699123456,
+        "l1Origin": {
+          "hash": "0x0000000000000000000000000000000000000000000000000000000000000005",
+          "number": 18123456
+        },
+        "sequenceNumber": 42
+      }
+    }
+  }
+}
+```
+
+## `optimism_syncStatus`
+
+Returns the current synchronization status of the rollup node, including information about L1 and L2 block states.
+
+| Client | Method invocation                            |
+| ------ | -------------------------------------------- |
+| RPC    | `{"method": "optimism_syncStatus", "params": []}` |
+
+### Returns
+
+`SyncStatus` - An object containing detailed sync information:
+- `current_l1` (`BlockInfo`): The current L1 block that derivation is idled at
+- `current_l1_finalized` (`BlockInfo`): The current L1 finalized block (legacy/deprecated)
+- `head_l1` (`BlockInfo`): The L1 head block reference
+- `safe_l1` (`BlockInfo`): The L1 safe head block reference
+- `finalized_l1` (`BlockInfo`): The finalized L1 block reference
+- `unsafe_l2` (`L2BlockInfo`): The unsafe L2 block reference (absolute tip)
+- `safe_l2` (`L2BlockInfo`): The safe L2 block reference (derived from L1)
+- `finalized_l2` (`L2BlockInfo`): The finalized L2 block reference
+- `cross_unsafe_l2` (`L2BlockInfo`): Cross-unsafe L2 block with verified cross-L2 dependencies
+- `local_safe_l2` (`L2BlockInfo`): Local safe L2 block derived from L1, not yet cross-verified
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"optimism_syncStatus","params":[]}
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "current_l1": {
+      "hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "number": 18123456
+    },
+    "current_l1_finalized": {
+      "hash": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "number": 18123400
+    },
+    "head_l1": {
+      "hash": "0x3333333333333333333333333333333333333333333333333333333333333333",
+      "number": 18123460
+    },
+    "safe_l1": {
+      "hash": "0x4444444444444444444444444444444444444444444444444444444444444444",
+      "number": 18123450
+    },
+    "finalized_l1": {
+      "hash": "0x5555555555555555555555555555555555555555555555555555555555555555",
+      "number": 18123400
+    },
+    "unsafe_l2": {
+      "hash": "0x6666666666666666666666666666666666666666666666666666666666666666",
+      "number": 12350,
+      "parentHash": "0x7777777777777777777777777777777777777777777777777777777777777777",
+      "timestamp": 1699123500,
+      "l1Origin": {
+        "hash": "0x8888888888888888888888888888888888888888888888888888888888888888",
+        "number": 18123460
+      },
+      "sequenceNumber": 47
+    },
+    "safe_l2": {
+      "hash": "0x9999999999999999999999999999999999999999999999999999999999999999",
+      "number": 12345,
+      "parentHash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "timestamp": 1699123456,
+      "l1Origin": {
+        "hash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "number": 18123456
+      },
+      "sequenceNumber": 42
+    },
+    "finalized_l2": {
+      "hash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "number": 12340,
+      "parentHash": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "timestamp": 1699123400,
+      "l1Origin": {
+        "hash": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "number": 18123400
+      },
+      "sequenceNumber": 37
+    },
+    "cross_unsafe_l2": {
+      "hash": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "number": 12350,
+      "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000001",
+      "timestamp": 1699123500,
+      "l1Origin": {
+        "hash": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "number": 18123460
+      },
+      "sequenceNumber": 47
+    },
+    "local_safe_l2": {
+      "hash": "0x0000000000000000000000000000000000000000000000000000000000000003",
+      "number": 12345,
+      "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000004",
+      "timestamp": 1699123456,
+      "l1Origin": {
+        "hash": "0x0000000000000000000000000000000000000000000000000000000000000005",
+        "number": 18123456
+      },
+      "sequenceNumber": 42
+    }
+  }
+}
+```
+
+## `optimism_rollupConfig`
+
+Returns the rollup configuration parameters that define the rollup chain's behavior and properties.
+
+| Client | Method invocation                              |
+| ------ | ---------------------------------------------- |
+| RPC    | `{"method": "optimism_rollupConfig", "params": []}` |
+
+### Returns
+
+`RollupConfig` - An object containing the complete rollup configuration:
+- `genesis` (`ChainGenesis`): The genesis state of the rollup
+- `blockTime` (`number`): The block time of the L2 in seconds
+- `maxSequencerDrift` (`number`): Maximum sequencer drift in seconds
+- `seqWindowSize` (`number`): The sequencer window size
+- `channelTimeout` (`number`): Number of L1 blocks between channel open/close
+- `graniteChannelTimeout` (`number`): Channel timeout after Granite hardfork
+- `l1ChainId` (`number`): The L1 chain ID
+- `l2ChainId` (`number`): The L2 chain ID
+- `batchInboxAddress` (`string`): L1 address where batches are sent
+- `depositContractAddress` (`string`): L1 address for deposits
+- `l1SystemConfigAddress` (`string`): L1 address for system config
+- `protocolVersionsAddress` (`string`): L1 address for protocol versions
+- Additional configuration fields for hardforks, fees, and interoperability
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"optimism_rollupConfig","params":[]}
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "genesis": {
+      "l1": {
+        "hash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        "number": 18000000
+      },
+      "l2": {
+        "hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+        "number": 0,
+        "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "timestamp": 1699000000,
+        "l1Origin": {
+          "hash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          "number": 18000000
+        },
+        "sequenceNumber": 0
+      },
+      "l2Time": 1699000000,
+      "systemConfig": {
+        "batcherAddr": "0x1234567890123456789012345678901234567890",
+        "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+        "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240",
+        "gasLimit": 30000000
+      }
+    },
+    "blockTime": 2,
+    "maxSequencerDrift": 600,
+    "seqWindowSize": 3600,
+    "channelTimeout": 300,
+    "graniteChannelTimeout": 50,
+    "l1ChainId": 1,
+    "l2ChainId": 10,
+    "batchInboxAddress": "0xff00000000000000000000000000000000000010",
+    "depositContractAddress": "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed",
+    "l1SystemConfigAddress": "0x229047fed2591dbec1eF1118d64F7aF3dB9EB290",
+    "protocolVersionsAddress": "0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935",
+    "superchainConfigAddress": "0x95703e0982140D16f8ebA6d158FccEde42f04a4C",
+    "blobs_data": 1710374400,
+    "interopMessageExpiryWindow": 3600,
+    "chainOpConfig": {
+      "canyon_denominator": 250,
+      "canyon_elasticity": 6
+    }
+  }
+}
+```
+
+## `optimism_version`
+
+Returns the software version of the Kona rollup node.
+
+| Client | Method invocation                        |
+| ------ | ---------------------------------------- |
+| RPC    | `{"method": "optimism_version", "params": []}` |
+
+### Returns
+
+`string` - The version string of the Kona software (e.g., "0.1.0")
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"optimism_version","params":[]}
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": "0.1.0"
+}
+```
+
+## Deprecated Methods
+
+### `optimism_safeHeadAtL1Block`
+
+This RPC endpoint is **not supported** in Kona. It was used to track the safe head for every L1 block, but this is no longer necessary post-interop. Calling this method will return a "Method not found" error.
+
+| Client | Method invocation                                                   |
+| ------ | ------------------------------------------------------------------- |
+| RPC    | `{"method": "optimism_safeHeadAtL1Block", "params": [blockNumber]}` |
+
+### Returns
+
+This method returns an error with code `-32601` (Method not found).

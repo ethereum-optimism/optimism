@@ -22,7 +22,7 @@ import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
@@ -30,6 +30,7 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.sol";
