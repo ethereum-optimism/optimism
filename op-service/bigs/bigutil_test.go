@@ -1,6 +1,7 @@
 package bigs
 
 import (
+	"math"
 	"math/big"
 	"testing"
 
@@ -40,4 +41,23 @@ func TestIsNegative(t *testing.T) {
 
 	require.False(t, IsNegative(big.NewInt(0)))
 	require.False(t, IsNegative(big.NewInt(1)))
+}
+
+func TestUint64Strict(t *testing.T) {
+	require.Equal(t, uint64(0), Uint64Strict(big.NewInt(0)))
+	require.Equal(t, uint64(42), Uint64Strict(big.NewInt(42)))
+
+	max := new(big.Int).SetUint64(math.MaxUint64)
+	require.Equal(t, uint64(math.MaxUint64), Uint64Strict(max))
+
+	require.Panics(t, func() {
+		Uint64Strict(big.NewInt(-1))
+	})
+	require.Panics(t, func() {
+		Uint64Strict(nil)
+	})
+	require.Panics(t, func() {
+		tooLarge := new(big.Int).Add(max, big.NewInt(1))
+		Uint64Strict(tooLarge)
+	})
 }
