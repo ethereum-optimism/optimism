@@ -24,16 +24,6 @@
   <a href="#license">License</a>
 </p>
 
-# 🚧 Important information
-
-We have taken the decision to move `Kona` to `https://github.com/ethereum-optimism/optimism`. Once `https://github.com/ethereum-optimism/optimism/pull/18569` gets merged, `op-rs` operations are going to be transferred to `ethereum-optimism/optimism`.
-
-This repository will get archived mid January 2026.
-
-
-The commit/contribution history will be maintained, thanks for contributing to `op-rs/kona` and we can't wait to see you in `https://github.com/ethereum-optimism/optimism`!
-
-
 ## What's Kona?
 
 Originally a suite of portable implementations of the OP Stack rollup state transition,
@@ -65,8 +55,11 @@ getting started with building your own programs, and a reference for the librari
 - [`driver`](./crates/proof/driver): Stateful derivation pipeline driver.
 - [`interop`](./crates/protocol/interop): Core functionality and primitives for the [Interop feature](https://specs.optimism.io/interop/overview.html) of the OP Stack.
 - [`registry`](./crates/protocol/registry): Rust bindings for the [superchain-registry][superchain-registry].
-- [`comp`](./crates/batcher/comp): Compression types for the OP Stack.
 - [`hardforks`](./crates/protocol/hardforks): Consensus layer hardfork types for the OP Stack including network upgrade transactions.
+
+**Batcher**
+
+- [`comp`](./crates/batcher/comp): Compression types and utilities for the OP Stack batcher.
 
 **Proof**
 
@@ -88,9 +81,19 @@ getting started with building your own programs, and a reference for the librari
 - [`peers`](./crates/node/peers): Networking Utilities ported from reth.
 - [`sources`](./crates/node/sources): Data source types and utilities for the kona-node.
 
+**Supervisor**
+
+- [`core`](./crates/supervisor/core): Core supervisor functionality.
+- [`service`](./crates/supervisor/service): Supervisor service implementation.
+- [`rpc`](./crates/supervisor/rpc): Supervisor RPC types and client.
+- [`storage`](./crates/supervisor/storage): Database storage layer.
+- [`types`](./crates/supervisor/types): Common types for supervisor components.
+- [`metrics`](./crates/supervisor/metrics): Metrics collection for supervisor.
+
 **Providers**
 
 - [`providers-alloy`](./crates/providers/providers-alloy): Provider implementations for `kona-derive` backed by [Alloy][alloy].
+- [`providers-local`](./crates/providers/providers-local): Local buffered provider for caching and reorg handling.
 
 **Utilities**
 
@@ -112,7 +115,7 @@ provers! Kona is also used by:
 - [`kailua`][kailua]
 
 To build your own backend for kona, or build a new application on top of its libraries,
-see the [SDK section of the docs](https://rollup.yoga/node/design/intro).
+see the [SDK section of the docs](https://rollup.yoga/sdk/overview).
 
 ## MSRV
 

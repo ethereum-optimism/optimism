@@ -4,12 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build Commands
 - Build workspace: `just b` or `just build-native`
+- Build rollup node: `just build-node`
+- Build supervisor: `just build-supervisor`
 - Lint: `just l` or `just lint-native`
+- Lint all targets (native + cannon + asterisc): `just la` or `just lint-all`
+- Lint typos: `just lint-typos`
 - Format: `just f` or `just fmt-native-fix`
+- Check formatting: `just fmt-native-check`
 - Run all tests: `just t` or `just tests`
+- Run online tests: `just test-online`
 - Run specific test: `cargo nextest run --package [package-name] --test [test-name]`
 - Run single test: `cargo nextest run --package [package-name] --test [test-name] -- [test_function_name]`
-- Documentation: `just test-docs`
+- Documentation tests: `just test-docs`
+- Run benchmarks: `just benches`
+- Check no_std compatibility: `just check-no-std`
+- Check unused dependencies: `just check-udeps`
+- Build cannon client: `just build-cannon-client`
+- Build asterisc client: `just build-asterisc-client`
 
 ## Code Style
 - MSRV: 1.88
@@ -39,8 +50,10 @@ Kona is a monorepo for OP Stack types, components, and services built in Rust. T
 - **`genesis`**: Genesis types for OP Stack chains
 - **`interop`**: Core functionality for OP Stack Interop features
 - **`registry`**: Rust bindings for superchain-registry
-- **`comp`**: Compression types and utilities
 - **`hardforks`**: Consensus layer hardfork types and network upgrade transactions
+
+### Batcher (`crates/batcher/`)
+- **`comp`**: Compression types and utilities for the OP Stack batcher
 
 ### Proof (`crates/proof/`)
 - **`executor`**: `no_std` stateless block executor
@@ -49,13 +62,16 @@ Kona is a monorepo for OP Stack types, components, and services built in Rust. T
 - **`mpt`**: Merkle Patricia Trie utilities for client program
 - **`preimage`**: High-level PreimageOracle ABI interfaces
 - **`std-fpvm`**: Platform-specific Fault Proof VM kernel APIs
+- **`std-fpvm-proc`**: Proc macro for Fault Proof Program entrypoints
 - **`driver`**: Stateful derivation pipeline driver
 
 ### Node (`crates/node/`)
 - **`service`**: OP Stack rollup node service implementation
 - **`engine`**: Extensible rollup node engine client
 - **`rpc`**: OP Stack RPC types and extensions
-- **`p2p`**: P2P networking including Gossip and Discovery
+- **`gossip`**: OP Stack P2P Networking - Gossip
+- **`disc`**: OP Stack P2P Networking - Discovery
+- **`peers`**: Networking utilities ported from reth
 - **`sources`**: Data source types and utilities
 
 ### Supervisor (`crates/supervisor/`)
@@ -64,6 +80,16 @@ Kona is a monorepo for OP Stack types, components, and services built in Rust. T
 - **`rpc`**: Supervisor RPC types and client
 - **`storage`**: Database storage layer
 - **`types`**: Common types for supervisor components
+- **`metrics`**: Metrics collection for supervisor
+
+### Providers (`crates/providers/`)
+- **`providers-alloy`**: Provider implementations backed by Alloy
+- **`providers-local`**: Local buffered provider for caching and reorg handling
+
+### Utilities (`crates/utilities/`)
+- **`cli`**: Standard CLI utilities used across binaries
+- **`serde`**: Serialization helpers
+- **`macros`**: Utility macros
 
 ### Development Workflow
 
@@ -91,3 +117,8 @@ Kona is a monorepo for OP Stack types, components, and services built in Rust. T
 - OP-specific extensions via op-alloy
 - Modular feature flags for different compilation targets
 - Workspace-level dependency management with version pinning
+
+### External Resources
+- Documentation: https://rollup.yoga
+- OP Stack Specs: https://specs.optimism.io
+- Rustdocs: https://docs.rs/kona-node/latest/
