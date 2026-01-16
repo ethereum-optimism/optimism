@@ -18,7 +18,7 @@ use alloy_consensus::{
 use alloy_primitives::B64;
 use core::fmt::Debug;
 use reth_chainspec::EthChainSpec;
-use reth_consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator};
+use reth_consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator, ReceiptRootBloom};
 use reth_consensus_common::validation::{
     validate_against_parent_eip1559_base_fee, validate_against_parent_hash_number,
     validate_against_parent_timestamp, validate_cancun_gas, validate_header_base_fee,
@@ -79,8 +79,9 @@ where
         &self,
         block: &RecoveredBlock<N::Block>,
         result: &BlockExecutionResult<N::Receipt>,
+        receipt_root_bloom: Option<ReceiptRootBloom>,
     ) -> Result<(), ConsensusError> {
-        validate_block_post_execution(block.header(), &self.chain_spec, result)
+        validate_block_post_execution(block.header(), &self.chain_spec, result, receipt_root_bloom)
     }
 }
 
@@ -410,7 +411,8 @@ mod tests {
         let post_execution = <OpBeaconConsensus<OpChainSpec> as FullConsensus<OpPrimitives>>::validate_block_post_execution(
             &beacon_consensus,
             &block,
-            &result
+            &result,
+            None,
         );
 
         // validate blob, it should pass blob gas used validation
@@ -479,7 +481,8 @@ mod tests {
         let post_execution = <OpBeaconConsensus<OpChainSpec> as FullConsensus<OpPrimitives>>::validate_block_post_execution(
             &beacon_consensus,
             &block,
-            &result
+            &result,
+            None,
         );
 
         // validate blob, it should fail blob gas used validation post execution.
