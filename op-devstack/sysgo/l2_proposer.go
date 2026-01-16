@@ -115,16 +115,15 @@ func WithProposerPostDeploy(orch *Orchestrator, proposerID stack.L2ProposerID, l
 		opt(proposerID, proposerCLIConfig)
 	}
 
-	// If interop is scheduled, or if we cannot do the pre-interop connection, then set up with supervisor
-	if l2Net.genesis.Config.InteropTime != nil || l2CLID == nil {
-		require.NotNil(supervisorID, "need supervisor to connect to in interop")
+	// If supervisor is available, use it. Otherwise, connect to L2 CL.
+	if supervisorID != nil {
 		supervisorNode, ok := orch.supervisors.Get(*supervisorID)
-		require.True(ok)
+		require.True(ok, "supervisor not found")
 		proposerCLIConfig.SupervisorRpcs = []string{supervisorNode.UserRPC()}
 	} else {
-		require.NotNil(l2CLID, "need L2 CL to connect to pre-interop")
+		require.NotNil(l2CLID, "need L2 CL to connect to when no supervisor")
 		l2CL, ok := orch.l2CLs.Get(*l2CLID)
-		require.True(ok)
+		require.True(ok, "L2 CL not found")
 		proposerCLIConfig.RollupRpc = l2CL.UserRPC()
 	}
 

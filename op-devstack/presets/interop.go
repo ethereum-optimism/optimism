@@ -257,17 +257,15 @@ func NewMultiSupervisorInterop(t devtest.T) *MultiSupervisorInterop {
 	return out
 }
 
-// MinimalInteropNoSupervisor is like SingleChainInterop but with SupervisorEnabled=false.
-// This enables testing interop contract deployment with local finality (no supervisor coordination).
-// The supervisor still runs (required by op-geth for interop) but op-node uses local promotion.
+// MinimalInteropNoSupervisor is like Minimal but with interop contracts deployed.
+// No supervisor is running - this tests interop contract deployment with local finality.
 type MinimalInteropNoSupervisor struct {
-	SingleChainInterop
+	Minimal
 }
 
-// WithMinimalInteropNoSupervisor specifies a single-chain interop system but without indexing mode.
-// This means SupervisorEnabled=false in op-node, so local finality is used.
+// WithMinimalInteropNoSupervisor specifies a minimal system with interop contracts but no supervisor.
 func WithMinimalInteropNoSupervisor() stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultSingleChainInteropNoIndexingSystem(&sysgo.DefaultSingleChainInteropSystemIDs{}))
+	return stack.MakeCommon(sysgo.DefaultMinimalInteropSystem(&sysgo.DefaultMinimalSystemIDs{}))
 }
 
 // NewMinimalInteropNoSupervisor creates a MinimalInteropNoSupervisor preset for acceptance tests.
@@ -276,29 +274,29 @@ func NewMinimalInteropNoSupervisor(t devtest.T) *MinimalInteropNoSupervisor {
 	orch := Orchestrator()
 	orch.Hydrate(system)
 
-	t.Gate().GreaterOrEqual(len(system.Supervisors()), 1, "expected at least one supervisor")
-
 	l1Net := system.L1Network(match.FirstL1Network)
-	l2A := system.L2Network(match.Assume(t, match.L2ChainA))
+	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
+	sequencerCL := l2.L2CLNode(match.Assume(t, match.WithSequencerActive(t.Ctx())))
+	sequencerEL := l2.L2ELNode(match.Assume(t, match.EngineFor(sequencerCL)))
+
 	out := &MinimalInteropNoSupervisor{
-		SingleChainInterop: SingleChainInterop{
-			Log:           t.Logger(),
-			T:             t,
-			system:        system,
-			Supervisor:    dsl.NewSupervisor(system.Supervisor(match.Assume(t, match.FirstSupervisor)), orch.ControlPlane()),
-			ControlPlane:  orch.ControlPlane(),
-			L1Network:     dsl.NewL1Network(l1Net),
-			L1EL:          dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
-			L2ChainA:      dsl.NewL2Network(l2A, orch.ControlPlane()),
-			L2ELA:         dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL)), orch.ControlPlane()),
-			L2CLA:         dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane()),
-			Wallet:        dsl.NewRandomHDWallet(t, 30),
-			FaucetA:       dsl.NewFaucet(l2A.Faucet(match.Assume(t, match.FirstFaucet))),
-			L2BatcherA:    dsl.NewL2Batcher(l2A.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+		Minimal: Minimal{
+			Log:          t.Logger(),
+			T:            t,
+			ControlPlane: orch.ControlPlane(),
+			system:       system,
+			L1Network:    dsl.NewL1Network(l1Net),
+			L1EL:         dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
+			L2Chain:      dsl.NewL2Network(l2, orch.ControlPlane()),
+			L2Batcher:    dsl.NewL2Batcher(l2.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+			L2EL:         dsl.NewL2ELNode(sequencerEL, orch.ControlPlane()),
+			L2CL:         dsl.NewL2CLNode(sequencerCL, orch.ControlPlane()),
+			Wallet:       dsl.NewRandomHDWallet(t, 30),
+			FaucetL2:     dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet))),
 		},
 	}
 	out.FaucetL1 = dsl.NewFaucet(out.L1Network.Escape().Faucet(match.Assume(t, match.FirstFaucet)))
 	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
-	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
+	out.FunderL2 = dsl.NewFunder(out.Wallet, out.FaucetL2, out.L2EL)
 	return out
 }

@@ -13,7 +13,7 @@ import (
 )
 
 // TestInteropContractsDeployed verifies that interop contracts are deployed at genesis
-// when supervisor is running but SupervisorEnabled=false in op-node.
+// without any supervisor running.
 // Note: CrossL2Inbox is only deployed when there are 2+ chains in the dependency set.
 // This test uses a single-chain setup, so only L2ToL2CrossDomainMessenger is deployed.
 func TestInteropContractsDeployed(gt *testing.T) {
@@ -24,10 +24,10 @@ func TestInteropContractsDeployed(gt *testing.T) {
 
 	// Wait for interop activation - for interop at genesis this is block 0,
 	// but the upgrade transactions run in the first block
-	activationBlock := sys.L2ChainA.AwaitActivation(t, forks.Interop)
+	activationBlock := sys.L2Chain.AwaitActivation(t, forks.Interop)
 	logger.Info("interop activated", "block", activationBlock.Number, "hash", activationBlock.Hash)
 
-	client := sys.L2ELA.Escape().L2EthClient()
+	client := sys.L2EL.Escape().L2EthClient()
 
 	// Verify L2ToL2CrossDomainMessenger is deployed
 	// (CrossL2Inbox is only deployed when there are 2+ chains in dependency set)
@@ -43,12 +43,11 @@ func TestInteropContractsDeployed(gt *testing.T) {
 	require.NoError(err)
 	require.NotEmpty(code, "L2ToL2CrossDomainMessenger implementation should have code")
 
-	logger.Info("interop contracts deployed successfully with local finality (no supervisor coordination)")
+	logger.Info("interop contracts deployed successfully without supervisor")
 }
 
 // TestLocalFinalityWithoutSupervisor verifies that local finality and promotion work
-// correctly when interop is active but SupervisorEnabled=false in op-node.
-// The supervisor still runs (required by op-geth) but op-node doesn't wait for it.
+// correctly when interop is active but no supervisor is running.
 func TestLocalFinalityWithoutSupervisor(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewMinimalInteropNoSupervisor(t)
@@ -60,7 +59,7 @@ func TestLocalFinalityWithoutSupervisor(gt *testing.T) {
 	for i := 0; i < 30; i++ {
 		time.Sleep(time.Second * 2)
 
-		status := sys.L2CLA.SyncStatus()
+		status := sys.L2CL.SyncStatus()
 		require.NotNil(status)
 
 		logger.Info("chain status",
@@ -69,13 +68,13 @@ func TestLocalFinalityWithoutSupervisor(gt *testing.T) {
 			"finalized", status.FinalizedL2.Number,
 		)
 
-		// Without supervisor coordination (SupervisorEnabled=false), local promotion should work:
+		// Without supervisor, local promotion should work:
 		// - UnsafeL2 should advance (sequencer producing blocks)
 		// - SafeL2 should advance (after batches submitted to L1)
 
 		if status.UnsafeL2.Number >= targetBlocks &&
 			status.SafeL2.Number >= targetBlocks-2 {
-			logger.Info("local finality working without supervisor coordination!")
+			logger.Info("local finality working without supervisor!")
 			return
 		}
 	}
