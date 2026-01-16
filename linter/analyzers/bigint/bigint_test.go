@@ -15,5 +15,5 @@ func TestBigIntUint64(t *testing.T) {
 		t.Fatalf("build analyzers: %v", err)
 	}
 
-	analysistest.Run(t, testdata, analyzers[0], "uint64")
+	analysistest.Run(t, testdata, analyzers[0], "bigint")
 }
