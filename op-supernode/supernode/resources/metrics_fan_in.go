@@ -51,7 +51,9 @@ func (r *MetricsFanIn) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.NotFound(w, req)
 		return
 	}
+	var handler http.Handler
 	r.mu.RLock()
-	r.handler.ServeHTTP(w, req)
+	handler = r.handler
 	r.mu.RUnlock()
+	handler.ServeHTTP(w, req)
 }
