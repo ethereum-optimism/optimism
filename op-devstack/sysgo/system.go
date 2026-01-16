@@ -337,6 +337,53 @@ func DefaultSingleChainInteropSystem(dest *DefaultSingleChainInteropSystemIDs) s
 	return opt
 }
 
+// DefaultSingleChainInteropNoIndexingSystem creates a single-chain interop system without indexing mode.
+// This means SupervisorEnabled=false in op-node, so local finality is used instead of supervisor coordination.
+// The supervisor still runs (required by op-geth and proposer for interop).
+func DefaultSingleChainInteropNoIndexingSystem(dest *DefaultSingleChainInteropSystemIDs) stack.Option[*Orchestrator] {
+	ids := NewDefaultSingleChainInteropSystemIDs(DefaultL1ID, DefaultL2AID)
+	opt := stack.Combine[*Orchestrator]()
+
+	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
+		o.P().Logger().Info("Setting up (no indexing mode)")
+	}))
+
+	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
+
+	opt.Add(WithDeployer(),
+		WithDeployerOptions(
+			WithLocalContractSources(),
+			WithCommons(ids.L1.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2A.ChainID()),
+			WithInteropAtGenesis(),
+		),
+	)
+
+	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
+
+	opt.Add(WithSupervisor(ids.Supervisor, ids.Cluster, ids.L1EL))
+
+	// Note: L2CLSequencer() but NOT L2CLIndexing() - this means SupervisorEnabled=false in op-node
+	opt.Add(WithL2ELNode(ids.L2AEL, L2ELWithSupervisor(ids.Supervisor)))
+	opt.Add(WithL2CLNode(ids.L2ACL, ids.L1CL, ids.L1EL, ids.L2AEL, L2CLSequencer()))
+	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2ACL, ids.L1EL, ids.L2AEL))
+	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
+
+	// Note: NOT using WithManagedBySupervisor - local finality should work without supervisor coordination
+	// Proposer still needs supervisor connection for interop
+	opt.Add(WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, &ids.Supervisor))
+
+	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL}))
+
+	opt.Add(WithL2MetricsDashboard())
+
+	opt.Add(stack.Finally(func(orch *Orchestrator) {
+		*dest = ids
+	}))
+
+	return opt
+}
+
 // baseInteropSystem defines a system that supports interop with a single chain
 // Components which are shared across multiple chains are not started, allowing them to be added later including
 // any additional chains that have been added.
