@@ -29,8 +29,8 @@ lint-go: build-customlint ## Lints Go code with specific linters
 	go mod tidy -diff
 .PHONY: lint-go
 
-lint-go-fix: ## Lints Go code with specific linters and fixes reported issues
-	golangci-lint run ./... --fix
+lint-go-fix: build-customlint ## Lints Go code with specific linters and fixes reported issues
+	./linter/bin/op-golangci-lint run ./... --fix
 .PHONY: lint-go-fix
 
 golang-docker: ## Builds Docker images for Go components using buildx
