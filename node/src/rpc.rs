@@ -24,6 +24,7 @@
 //! use reth_rpc::TraceApi;
 //! use reth_rpc_eth_types::{EthConfig, EthStateCache};
 //! use reth_tasks::{pool::BlockingTaskGuard, TaskManager};
+//! use reth_trie_db::ChangesetCache;
 //! use std::sync::Arc;
 //!
 //! #[tokio::main]
@@ -37,7 +38,7 @@
 //!         .with_loaded_toml_config(sepolia)
 //!         .unwrap()
 //!         .attach(Arc::new(db))
-//!         .with_provider_factory::<_, OpEvmConfig>()
+//!         .with_provider_factory::<_, OpEvmConfig>(ChangesetCache::new())
 //!         .await
 //!         .unwrap()
 //!         .with_genesis()

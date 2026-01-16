@@ -81,6 +81,7 @@ reth-revm = { workspace = true, features = ["std"] }
 reth-rpc.workspace = true
 reth-rpc-eth-types.workspace = true
 reth-stages-types.workspace = true
+reth-trie-db.workspace = true
 
 alloy-network.workspace = true
 alloy-op-hardforks.workspace = true
@@ -125,6 +126,7 @@ test-utils = [
     "reth-optimism-primitives/arbitrary",
     "reth-primitives-traits/test-utils",
     "reth-trie-common/test-utils",
+    "reth-trie-db/test-utils",
     "reth-stages-types/test-utils",
 ]
 reth-codec = ["reth-optimism-primitives/reth-codec"]
