@@ -171,6 +171,12 @@ func TestL1EthRpcRequired(t *testing.T) {
 	require.ErrorIs(t, config.Check(), ErrMissingL1EthRPC)
 }
 
+func TestL1EthRpcKindRequired(t *testing.T) {
+	config := validConfig(t, gameTypes.CannonGameType)
+	config.L1RPCKind = ""
+	require.ErrorIs(t, config.Check(), ErrMissingL1RPCKind)
+}
+
 func TestL1BeaconRequired(t *testing.T) {
 	config := validConfig(t, gameTypes.CannonGameType)
 	config.L1Beacon = ""

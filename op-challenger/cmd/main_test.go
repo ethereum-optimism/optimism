@@ -8,6 +8,7 @@ import (
 	"time"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/superchain"
 	"github.com/stretchr/testify/require"
 
@@ -80,6 +81,17 @@ func TestL1ETHRPCAddress(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--l1-eth-rpc", "--l1-eth-rpc="+url))
 		require.Equal(t, url, cfg.L1EthRpc)
 		require.Equal(t, url, cfg.TxMgrConfig.L1RPCURL)
+	})
+}
+
+func TestL1ETHRPCKind(t *testing.T) {
+	t.Run("Valid", func(t *testing.T) {
+		const kind = sources.RPCKindAlchemy
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType, "--l1-rpc-kind", kind.String()))
+		require.Equal(t, kind, cfg.L1RPCKind)
+	})
+	t.Run("Invalid", func(t *testing.T) {
+		verifyArgsInvalid(t, "invalid value \"bob\" for flag -l1-rpc-kind", addRequiredArgs(gameTypes.AlphabetGameType, "--l1-rpc-kind", "bob"))
 	})
 }
 

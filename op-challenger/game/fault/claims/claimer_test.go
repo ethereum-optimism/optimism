@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -50,6 +52,7 @@ func TestClaimer_ClaimBonds(t *testing.T) {
 		contract.credit[claimant1] = 1
 		contract.credit[claimant2] = 2
 		contract.credit[claimant3] = 0
+		contract.bondDistributionMode = faultTypes.NormalDistributionMode
 		err := c.ClaimBonds(context.Background(), []types.GameMetadata{{Proxy: gameAddr}})
 		require.NoError(t, err)
 		require.Equal(t, 2, txSender.sends)
@@ -89,10 +92,57 @@ func TestClaimer_ClaimBonds(t *testing.T) {
 		require.Equal(t, 0, m.RecordBondClaimedCalls)
 	})
 
-	t.Run("ZeroCreditReturnsNil", func(t *testing.T) {
+	t.Run("ZeroCreditClosesGameWhenUndecided", func(t *testing.T) {
 		gameAddr := common.HexToAddress("0x1234")
 		c, m, contract, txSender := newTestClaimer(t)
 		contract.credit[txSender.From()] = 0
+		contract.bondDistributionMode = faultTypes.UndecidedDistributionMode
+		err := c.ClaimBonds(context.Background(), []types.GameMetadata{{Proxy: gameAddr}})
+		require.NoError(t, err)
+		require.Equal(t, 1, txSender.sends)
+		require.Equal(t, 0, m.RecordBondClaimedCalls)
+	})
+
+	t.Run("ZeroCreditSkipsCloseWhenAlreadyClosed", func(t *testing.T) {
+		gameAddr := common.HexToAddress("0x1234")
+		c, m, contract, txSender := newTestClaimer(t)
+		contract.credit[txSender.From()] = 0
+		contract.bondDistributionMode = faultTypes.NormalDistributionMode
+		err := c.ClaimBonds(context.Background(), []types.GameMetadata{{Proxy: gameAddr}})
+		require.NoError(t, err)
+		require.Equal(t, 0, txSender.sends)
+		require.Equal(t, 0, m.RecordBondClaimedCalls)
+	})
+
+	t.Run("ZeroCreditSkipsCloseWhenLegacyMode", func(t *testing.T) {
+		gameAddr := common.HexToAddress("0x1234")
+		c, m, contract, txSender := newTestClaimer(t)
+		contract.credit[txSender.From()] = 0
+		contract.bondDistributionMode = faultTypes.LegacyDistributionMode
+		contract.closeGameNotSupported = true
+		err := c.ClaimBonds(context.Background(), []types.GameMetadata{{Proxy: gameAddr}})
+		require.NoError(t, err)
+		require.Equal(t, 0, txSender.sends)
+		require.Equal(t, 0, m.RecordBondClaimedCalls)
+	})
+
+	t.Run("ZeroCreditSkipsCloseWhenSimulationFails", func(t *testing.T) {
+		gameAddr := common.HexToAddress("0x1234")
+		c, m, contract, txSender := newTestClaimer(t)
+		contract.credit[txSender.From()] = 0
+		contract.bondDistributionMode = faultTypes.UndecidedDistributionMode
+		contract.closeGameSimulationFails = true
+		err := c.ClaimBonds(context.Background(), []types.GameMetadata{{Proxy: gameAddr}})
+		require.NoError(t, err)
+		require.Equal(t, 0, txSender.sends)
+		require.Equal(t, 0, m.RecordBondClaimedCalls)
+	})
+
+	t.Run("ZeroCreditSkipsCloseWhenSelectiveMode", func(t *testing.T) {
+		gameAddr := common.HexToAddress("0x1234")
+		c, m, contract, txSender := newTestClaimerWithSelective(t, true)
+		contract.credit[txSender.From()] = 0
+		contract.bondDistributionMode = faultTypes.UndecidedDistributionMode
 		err := c.ClaimBonds(context.Background(), []types.GameMetadata{{Proxy: gameAddr}})
 		require.NoError(t, err)
 		require.Equal(t, 0, txSender.sends)
@@ -112,6 +162,10 @@ func TestClaimer_ClaimBonds(t *testing.T) {
 }
 
 func newTestClaimer(t *testing.T, claimants ...common.Address) (*Claimer, *mockClaimMetrics, *stubBondContract, *mockTxSender) {
+	return newTestClaimerWithSelective(t, false, claimants...)
+}
+
+func newTestClaimerWithSelective(t *testing.T, selective bool, claimants ...common.Address) (*Claimer, *mockClaimMetrics, *stubBondContract, *mockTxSender) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	m := &mockClaimMetrics{}
 	txSender := &mockTxSender{}
@@ -122,7 +176,7 @@ func newTestClaimer(t *testing.T, claimants ...common.Address) (*Claimer, *mockC
 	if len(claimants) == 0 {
 		claimants = []common.Address{txSender.From()}
 	}
-	c := NewBondClaimer(logger, m, contractCreator, txSender, claimants...)
+	c := NewBondClaimer(logger, m, contractCreator, txSender, selective, claimants...)
 	return c, m, bondContract, txSender
 }
 
@@ -156,9 +210,12 @@ func (s *mockTxSender) SendAndWaitSimple(_ string, _ ...txmgr.TxCandidate) error
 }
 
 type stubBondContract struct {
-	credit               map[common.Address]int64
-	status               types.GameStatus
-	claimSimulationFails bool
+	credit                   map[common.Address]int64
+	status                   types.GameStatus
+	claimSimulationFails     bool
+	bondDistributionMode     faultTypes.BondDistributionMode
+	closeGameSimulationFails bool
+	closeGameNotSupported    bool
 }
 
 func (s *stubBondContract) GetCredit(_ context.Context, addr common.Address) (*big.Int, types.GameStatus, error) {
@@ -167,6 +224,20 @@ func (s *stubBondContract) GetCredit(_ context.Context, addr common.Address) (*b
 
 func (s *stubBondContract) ClaimCreditTx(_ context.Context, _ common.Address) (txmgr.TxCandidate, error) {
 	if s.claimSimulationFails {
+		return txmgr.TxCandidate{}, fmt.Errorf("failed: %w", contracts.ErrSimulationFailed)
+	}
+	return txmgr.TxCandidate{}, nil
+}
+
+func (s *stubBondContract) GetBondDistributionMode(_ context.Context, _ rpcblock.Block) (faultTypes.BondDistributionMode, error) {
+	return s.bondDistributionMode, nil
+}
+
+func (s *stubBondContract) CloseGameTx(_ context.Context) (txmgr.TxCandidate, error) {
+	if s.closeGameNotSupported {
+		return txmgr.TxCandidate{}, contracts.ErrCloseGameNotSupported
+	}
+	if s.closeGameSimulationFails {
 		return txmgr.TxCandidate{}, fmt.Errorf("failed: %w", contracts.ErrSimulationFailed)
 	}
 	return txmgr.TxCandidate{}, nil

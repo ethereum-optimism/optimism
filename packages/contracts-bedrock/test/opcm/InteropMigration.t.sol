@@ -247,7 +247,7 @@ contract InteropMigrationV1_Test is Test {
         input.set(input.opcm.selector, address(mockOPCMRevert));
 
         InteropMigrationOutput output = new InteropMigrationOutput();
-        vm.expectRevert("InteropMigration: migrate failed");
+        vm.expectRevert("MockOPCMRevert: revert migrate");
         migration.run(input, output);
     }
 
@@ -335,7 +335,7 @@ contract InteropMigrationV2_Test is Test {
         input.set(input.opcm.selector, address(mockOPCMRevert));
 
         InteropMigrationOutput output = new InteropMigrationOutput();
-        vm.expectRevert("InteropMigration: migrate failed");
+        vm.expectRevert("MockOPCMRevert: revert migrate");
         migration.run(input, output);
     }
 

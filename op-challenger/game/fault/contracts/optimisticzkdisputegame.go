@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -64,6 +65,8 @@ type OptimisticZKDisputeGameContract interface {
 	GetChallengerMetadata(ctx context.Context, block rpcblock.Block) (ChallengerMetadata, error)
 	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error)
 	ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error)
+	GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (types.BondDistributionMode, error)
+	CloseGameTx(ctx context.Context) (txmgr.TxCandidate, error)
 }
 
 type OptimisticZKDisputeGameContractLatest struct {
@@ -94,6 +97,24 @@ func (g *OptimisticZKDisputeGameContractLatest) GetCredit(ctx context.Context, r
 func (g *OptimisticZKDisputeGameContractLatest) ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error) {
 	defer g.metrics.StartContractRequest("ClaimCredit")()
 	call := g.contract.Call(methodClaimCredit, recipient)
+	_, err := g.multiCaller.SingleCall(ctx, rpcblock.Latest, call)
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("%w: %w", ErrSimulationFailed, err)
+	}
+	return call.ToTxCandidate()
+}
+
+func (g *OptimisticZKDisputeGameContractLatest) GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (types.BondDistributionMode, error) {
+	result, err := g.multiCaller.SingleCall(ctx, block, g.contract.Call(methodBondDistributionMode))
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch bond mode: %w", err)
+	}
+	return types.BondDistributionMode(result.GetUint8(0)), nil
+}
+
+func (g *OptimisticZKDisputeGameContractLatest) CloseGameTx(ctx context.Context) (txmgr.TxCandidate, error) {
+	defer g.metrics.StartContractRequest("CloseGame")()
+	call := g.contract.Call(methodCloseGame)
 	_, err := g.multiCaller.SingleCall(ctx, rpcblock.Latest, call)
 	if err != nil {
 		return txmgr.TxCandidate{}, fmt.Errorf("%w: %w", ErrSimulationFailed, err)

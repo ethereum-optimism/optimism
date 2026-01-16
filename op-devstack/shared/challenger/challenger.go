@@ -79,12 +79,12 @@ func applyCannonKonaConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Gene
 	if err := applyVmConfig(root, &c.CannonKona, c.Datadir, rollupCfgs, l1Genesis, l2Geneses); err != nil {
 		return err
 	}
-	c.CannonKona.Server = root + "kona-proofs/bin/kona-host"
+	c.CannonKona.Server = root + "kona/target/release/kona-host"
 	absRoot, err := filepath.Abs(root)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path to prestate dir: %w", err)
 	}
-	c.CannonKonaAbsolutePreStateBaseURL, err = url.Parse("file:" + absRoot + "/kona-proofs/prestates")
+	c.CannonKonaAbsolutePreStateBaseURL, err = url.Parse("file:" + absRoot + "/kona/prestates")
 	if err != nil {
 		return fmt.Errorf("failed to create kona prestates url: %w", err)
 	}

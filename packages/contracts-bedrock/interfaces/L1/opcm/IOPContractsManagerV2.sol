@@ -93,7 +93,6 @@ interface IOPContractsManagerV2 {
     error UnexpectedPreambleData(bytes data);
 
     function __constructor__(
-        IOPContractsManagerContainer _contractsContainer,
         IOPContractsManagerStandardValidator _standardValidator,
         IOPContractsManagerMigrator _migrator,
         IOPContractsManagerUtils _utils

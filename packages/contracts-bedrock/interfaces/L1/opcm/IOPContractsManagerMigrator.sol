@@ -39,9 +39,5 @@ interface IOPContractsManagerMigrator {
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) external;
 
-    function __constructor__(
-        IOPContractsManagerContainer _contractsContainer,
-        IOPContractsManagerUtils _utils
-    )
-        external;
+    function __constructor__(IOPContractsManagerUtils _utils) external;
 }

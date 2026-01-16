@@ -1,0 +1,74 @@
+[package]
+name = "kona-gossip"
+version = "0.1.2"
+description = "Gossip protocol implementation for the OP Stack"
+
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Kona
+kona-peers.workspace = true
+kona-macros.workspace = true
+kona-genesis.workspace = true
+kona-disc.workspace = true
+
+# Alloy
+alloy-rlp.workspace = true
+alloy-eips.workspace = true
+alloy-consensus.workspace = true
+alloy-rpc-types-engine.workspace = true
+alloy-primitives = { workspace = true, features = ["k256", "getrandom"] }
+
+# Op Alloy
+op-alloy-consensus = { workspace = true, features = ["k256"] }
+op-alloy-rpc-types-engine = { workspace = true, features = ["std", "serde"] }
+
+# Networking
+snap.workspace = true
+futures.workspace = true
+libp2p-stream.workspace = true
+discv5 = { workspace = true, features = ["libp2p"] }
+openssl = { workspace = true, features = ["vendored"] }
+libp2p-identity = { workspace = true, features = ["secp256k1"] }
+libp2p = { workspace = true, features = ["macros", "tokio", "tcp", "noise", "gossipsub", "ping", "yamux", "identify"] }
+ipnet = { workspace = true, features = ["serde"] }
+
+# Misc
+serde.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+serde_repr.workspace = true
+lazy_static.workspace = true
+derive_more = { workspace = true, features = ["display", "deref", "debug"] }
+
+# `metrics` feature
+metrics = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile.workspace = true
+multihash.workspace = true
+serde_json.workspace = true
+alloy-eips.workspace = true
+alloy-chains.workspace = true
+
+rand = { workspace = true, features = ["thread_rng"] }
+arbitrary = { workspace = true, features = ["derive"] }
+alloy-primitives = { workspace = true, features = ["arbitrary"] }
+alloy-rpc-types-engine = { workspace = true, features = ["std"] }
+alloy-consensus = { workspace = true, features = ["arbitrary", "k256"] }
+op-alloy-consensus = { workspace = true, features = ["arbitrary", "k256"] }
+
+[features]
+default = []
+metrics = [ "dep:metrics", "kona-disc/metrics", "libp2p/metrics" ]

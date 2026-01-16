@@ -1,0 +1,27 @@
+[package]
+name = "kona-std-fpvm-proc"
+description = "Proc macro entry point for `kona-std-fpvm` targeted programs."
+version = "0.2.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+# General
+cfg-if.workspace = true
+
+# Workspace
+kona-std-fpvm.workspace = true
+
+# Proc Macros
+quote = "1.0"
+proc-macro2 = "1.0"
+syn = { version = "2.0", features = ["full"] }
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["kona-std-fpvm"]

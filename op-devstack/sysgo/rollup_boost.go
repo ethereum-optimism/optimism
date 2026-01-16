@@ -1,7 +1,6 @@
 package sysgo
 
 import (
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
+	"github.com/ethereum-optimism/optimism/op-service/tasks"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 )
 
@@ -82,8 +82,6 @@ func (r *RollupBoostNode) Start() {
 	cfg := r.cfg
 	r.p.Require().NotNil(cfg, "rollup-boost config not initialized")
 
-	args, env := cfg.LaunchSpec(r.p)
-
 	if r.wsProxy == nil {
 		r.wsProxy = tcpproxy.New(r.p.Logger())
 		r.p.Require().NoError(r.wsProxy.Start())
@@ -98,12 +96,34 @@ func (r *RollupBoostNode) Start() {
 		r.p.Cleanup(func() { r.rpcProxy.Close() })
 	}
 
+	args, env := cfg.LaunchSpec(r.p)
+
+	// Create channel for discovering flashblocks WS port from process logs.
+	// When using port 0, the OS assigns the port at bind time and the process logs it.
+	flashblocksWSChan := make(chan string, 1)
+	defer close(flashblocksWSChan)
+
 	// Parse Rust-structured logs and forward into Go logger with attributes
 	logOut := logpipe.ToLogger(r.logger.New("stream", "stdout"))
 	logErr := logpipe.ToLogger(r.logger.New("stream", "stderr"))
 
+	// Log parsing callback to extract bound addresses from process output
+	onLogEntry := func(e logpipe.LogEntry) {
+		msg := e.LogMessage()
+		// Flashblocks WS - custom log message from outbound.rs
+		if strings.HasPrefix(msg, "Flashblocks WebSocketPublisher listening on ") {
+			addr := strings.TrimPrefix(msg, "Flashblocks WebSocketPublisher listening on ")
+			select {
+			case flashblocksWSChan <- "ws://" + addr:
+			default:
+			}
+		}
+	}
+
 	stdOut := logpipe.LogCallback(func(line []byte) {
-		logOut(logpipe.ParseRustStructuredLogs(line))
+		e := logpipe.ParseRustStructuredLogs(line)
+		logOut(e)
+		onLogEntry(e)
 	})
 	stdErr := logpipe.LogCallback(func(line []byte) {
 		logErr(logpipe.ParseRustStructuredLogs(line))
@@ -122,6 +142,9 @@ func (r *RollupBoostNode) Start() {
 	err = r.sub.Start(execPath, args, env)
 	r.p.Require().NoError(err, "start rollup-boost")
 
+	// RPC port: still uses pre-allocation because rollup-boost doesn't log the actual
+	// bound RPC address when using port 0. This requires a Rust change to fix.
+	// TODO: Update rollup-boost to log "RPC server listening on {addr}" and parse it here.
 	rpcUpstreamURL := "http://" + cfg.RPCHost + ":" + strconv.Itoa(int(cfg.RPCPort))
 	waitTCPReady(r.p, rpcUpstreamURL, 5*time.Second)
 	r.logger.Info("rollup-boost upstream RPC ready", "rpc", rpcUpstreamURL)
@@ -129,17 +152,13 @@ func (r *RollupBoostNode) Start() {
 	waitTCPReady(r.p, r.rpcProxyURL, 10*time.Second)
 	r.logger.Info("rollup-boost proxy RPC ready", "proxy_rpc", r.rpcProxyURL)
 
-	// WS: wait for upstream first, then configure and test proxy
+	// Flashblocks WS: discover port from logs, then configure proxy
 	if cfg.EnableFlashblocks {
-		wsUpstreamHostport := net.JoinHostPort(cfg.FlashblocksHost, strconv.Itoa(cfg.FlashblocksPort))
-		wsUpstreamURL := "ws://" + wsUpstreamHostport
+		var flashblocksAddr string
+		r.p.Require().NoError(tasks.Await(r.p.Ctx(), flashblocksWSChan, &flashblocksAddr), "need Flashblocks WS address from logs")
+		r.logger.Info("rollup-boost upstream WS ready", "upstream_ws", flashblocksAddr)
 
-		// Wait for upstream WS TCP endpoint
-		waitTCPReady(r.p, wsUpstreamURL, 5*time.Second)
-		r.logger.Info("rollup-boost upstream WS ready", "upstream_ws", wsUpstreamURL)
-
-		r.wsProxy.SetUpstream(ProxyAddr(r.p.Require(), wsUpstreamURL))
-		waitWSReady(r.p, r.wsProxyURL, 10*time.Second)
+		r.wsProxy.SetUpstream(ProxyAddr(r.p.Require(), flashblocksAddr))
 		r.logger.Info("rollup-boost proxy WS ready", "proxy_ws", r.wsProxyURL)
 	}
 }
@@ -272,15 +291,15 @@ func (cfg *RollupBoostConfig) LaunchSpec(p devtest.P) (args []string, env []stri
 		if cfg.FlashblocksHost == "" {
 			cfg.FlashblocksHost = "127.0.0.1"
 		}
-		if cfg.FlashblocksPort <= 0 {
-			portStr, err := getAvailableLocalPort()
-			p.Require().NoError(err, "allocate flashblocks port")
-			portVal, err := strconv.Atoi(portStr)
-			p.Require().NoError(err, "parse flashblocks port")
-			cfg.FlashblocksPort = portVal
+		args = append(args, "--flashblocks", "--flashblocks-host="+cfg.FlashblocksHost)
+		if cfg.FlashblocksPort > 0 {
+			// Use explicitly configured port
+			args = append(args, "--flashblocks-port="+strconv.Itoa(cfg.FlashblocksPort))
+		} else {
+			// Use port 0 to let the OS assign a port atomically at bind time.
+			// The actual port will be discovered by parsing the process logs.
+			args = append(args, "--flashblocks-port=0")
 		}
-		fbPortStr := strconv.Itoa(cfg.FlashblocksPort)
-		args = append(args, "--flashblocks", "--flashblocks-host="+cfg.FlashblocksHost, "--flashblocks-port="+fbPortStr)
 		if cfg.FlashblocksBuilderURL != "" {
 			args = append(args, "--flashblocks-builder-url="+cfg.FlashblocksBuilderURL)
 		}
@@ -319,14 +338,16 @@ func (cfg *RollupBoostConfig) LaunchSpec(p devtest.P) (args []string, env []stri
 	if cfg.DebugHost == "" {
 		cfg.DebugHost = "127.0.0.1"
 	}
-	if cfg.DebugPort <= 0 {
-		portStr, err := getAvailableLocalPort()
-		p.Require().NoError(err, "allocate rollup-boost debug port")
-		portVal, err := strconv.Atoi(portStr)
-		p.Require().NoError(err, "parse rollup-boost debug port")
-		cfg.DebugPort = portVal
+	args = append(args, "--debug-host="+cfg.DebugHost)
+	if cfg.DebugPort > 0 {
+		// Use explicitly configured port
+		args = append(args, "--debug-server-port="+strconv.Itoa(cfg.DebugPort))
+	} else {
+		// Use port 0 to let the OS assign a port atomically at bind time.
+		// The debug server logs its bound address, but we don't need to parse it
+		// since the debug port is only used for manual debugging.
+		args = append(args, "--debug-server-port=0")
 	}
-	args = append(args, "--debug-host="+cfg.DebugHost, "--debug-server-port="+strconv.Itoa(cfg.DebugPort))
 
 	args = append(args, cfg.ExtraArgs...)
 

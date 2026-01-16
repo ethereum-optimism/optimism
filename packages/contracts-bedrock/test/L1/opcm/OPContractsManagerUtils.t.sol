@@ -97,8 +97,8 @@ contract OPContractsManagerUtils_TestInit is Test {
             anchorStateRegistryImpl: makeAddr("anchorStateRegistryImpl"),
             delayedWETHImpl: makeAddr("delayedWETHImpl"),
             mipsImpl: makeAddr("mipsImpl"),
-            faultDisputeGameV2Impl: makeAddr("faultDisputeGameV2Impl"),
-            permissionedDisputeGameV2Impl: makeAddr("permissionedDisputeGameV2Impl"),
+            faultDisputeGameImpl: makeAddr("faultDisputeGameImpl"),
+            permissionedDisputeGameImpl: makeAddr("permissionedDisputeGameImpl"),
             superFaultDisputeGameImpl: makeAddr("superFaultDisputeGameImpl"),
             superPermissionedDisputeGameImpl: makeAddr("superPermissionedDisputeGameImpl"),
             storageSetterImpl: address(storageSetter)

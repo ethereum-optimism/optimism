@@ -341,11 +341,11 @@ contract OPContractsManagerUtils {
     function getGameImpl(GameType _gameType) public view returns (IDisputeGame) {
         IOPContractsManagerContainer.Implementations memory impls = implementations();
         if (_gameType.raw() == GameTypes.CANNON.raw()) {
-            return IDisputeGame(impls.faultDisputeGameV2Impl);
+            return IDisputeGame(impls.faultDisputeGameImpl);
         } else if (_gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
-            return IDisputeGame(impls.permissionedDisputeGameV2Impl);
+            return IDisputeGame(impls.permissionedDisputeGameImpl);
         } else if (_gameType.raw() == GameTypes.CANNON_KONA.raw()) {
-            return IDisputeGame(impls.faultDisputeGameV2Impl);
+            return IDisputeGame(impls.faultDisputeGameImpl);
         } else if (_gameType.raw() == GameTypes.SUPER_CANNON.raw()) {
             return IDisputeGame(impls.superFaultDisputeGameImpl);
         } else if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {

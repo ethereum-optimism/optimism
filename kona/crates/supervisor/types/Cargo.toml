@@ -1,0 +1,39 @@
+[package]
+name = "kona-supervisor-types"
+description = "Types used by the OP Stack supervisor"
+version = "0.1.1"
+
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+
+# workspace
+kona-interop = { workspace = true, features = ["serde"] }
+kona-protocol = { workspace = true, features = ["serde"] }
+
+# alloy
+alloy-eips.workspace = true
+alloy-primitives = { workspace = true, features = ["map", "rlp", "serde"] }
+alloy-serde = { workspace = true }
+
+# op-alloy
+op-alloy-consensus.workspace = true
+
+# general
+serde.workspace = true
+derive_more = { workspace = true, default-features = false, features = ["constructor"] }
+thiserror = {workspace = true}
+
+[dev-dependencies]
+serde_json.workspace = true

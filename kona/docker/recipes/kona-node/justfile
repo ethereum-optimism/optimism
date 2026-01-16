@@ -1,0 +1,15 @@
+# Generates a JWT secret, if one does not already exist.
+generate-jwt:
+  @echo "Attempting to generate JWT secret"
+  @bash ./generate-jwt.sh
+
+# Spins up the docker environment
+up: generate-jwt
+  docker compose --env-file ./cfg.env up -d
+
+# Winds down the docker containers gracefully
+down:
+  docker compose --env-file ./cfg.env down
+
+# Restarts the environment
+restart: down up

@@ -1,0 +1,67 @@
+# Supported Targets
+
+Kona seeks to support all FPVM targets that LLVM and `rustc` can offer introductory support for. Below is a matrix of features that Kona offers
+for each FPVM target:
+
+| Target                 | Build Pipeline | IO  | malloc |
+| ---------------------- | -------------- | --- | ------ |
+| `cannon` & `cannon-rs` | ✅             | ✅  | ✅     |
+| `asterisc`             | ✅             | ✅  | ✅     |
+
+If there is a feature that you would like to see supported, please [open an issue][new-issue] or [consider contributing][contributing]!
+
+## Asterisc (RISC-V)
+
+Asterisc is based off of the `rv64gc` target architecture, which defines the following extensions:
+
+- `RV32I` support - 32 bit base instruction set
+  - `FENCE`, `ECALL`, `EBREAK` are hardwired to implement a minimal subset of systemcalls of the linux kernel
+    - Work in progress. All syscalls used by the Golang `risc64` runtime.
+- `RV64I` support
+- `RV32M`+`RV64M`: Multiplication support
+- `RV32A`+`RV64A`: Atomics support
+- `RV{32,64}{D,F,Q}`: no-op: No floating points support (since no IEEE754 determinism with rounding modes etc., nor worth the complexity)
+- `Zifencei`: `FENCE.I` no-op: No need for `FENCE.I`
+- `Zicsr`: no-op: some support for Control-and-status registers may come later though.
+- `Ztso`: no-op: no need for Total Store Ordering
+- other: revert with error code on unrecognized instructions
+
+`asterisc` supports a plethora of syscalls, documented [in the repository][asterisc-syscalls]. `kona` offers an interface for
+programs to directly invoke a select few syscalls:
+
+1. `EXIT` - Terminate the process with the provided exit code.
+1. `WRITE` - Write the passed buffer to the passed file descriptor.
+1. `READ` - Read the specified number of bytes from the passed file descriptor.
+
+[asterisc-syscalls]: https://github.com/ethereum-optimism/asterisc/blob/master/docs/golang.md#linux-syscalls-used-by-go
+
+## Cannon (MIPS64r2)
+
+Cannon is based off of the `mips64r2` target architecture, specified in [MIPS® Architecture For Programmers Volume II-A: The MIPS64® Instruction Set Reference Manual](https://s3-eu-west-1.amazonaws.com/downloads-mips/documents/MIPS_Architecture_MIPS64_InstructionSet_%20AFP_P_MD00087_06.05.pdf)
+
+### Syscalls
+
+Syscalls supported by `cannon` can be found within the `cannon` specification [here][cannon-syscalls].
+
+[cannon-syscalls]: https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html#syscalls
+
+[op-stack]: https://github.com/ethereum-optimism/optimism
+[op-program]: https://github.com/ethereum-optimism/optimism/tree/develop/op-program
+[cannon]: https://github.com/ethereum-optimism/optimism/tree/develop/cannon
+[cannon-rs]: https://github.com/op-rs/cannon-rs
+[asterisc]: https://github.com/ethereum-optimism/asterisc
+[fp-specs]: https://specs.optimism.io/experimental/fault-proof/index.html
+[fpp-specs]: https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program
+[preimage-specs]: https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle
+[cannon-specs]: https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine
+[l2-output-root]: https://specs.optimism.io/protocol/proposals.html#l2-output-commitment-construction
+[op-succinct]: https://github.com/succinctlabs/op-succinct
+[revm]: https://github.com/bluealloy/revm
+
+[kona]: https://github.com/op-rs/kona
+[issues]: https://github.com/op-rs/kona/issues
+[new-issue]: https://github.com/op-rs/kona/issues/new
+[contributing]: https://github.com/op-rs/kona/tree/main/CONTRIBUTING.md
+
+[op-labs]: https://github.com/ethereum-optimism
+[bad-boi-labs]: https://github.com/BadBoiLabs

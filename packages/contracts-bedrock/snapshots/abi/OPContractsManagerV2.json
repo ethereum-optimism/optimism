@@ -2,11 +2,6 @@
   {
     "inputs": [
       {
-        "internalType": "contract IOPContractsManagerContainer",
-        "name": "_contractsContainer",
-        "type": "address"
-      },
-      {
         "internalType": "contract IOPContractsManagerStandardValidator",
         "name": "_standardValidator",
         "type": "address"
@@ -393,12 +388,12 @@
           },
           {
             "internalType": "address",
-            "name": "faultDisputeGameV2Impl",
+            "name": "faultDisputeGameImpl",
             "type": "address"
           },
           {
             "internalType": "address",
-            "name": "permissionedDisputeGameV2Impl",
+            "name": "permissionedDisputeGameImpl",
             "type": "address"
           },
           {

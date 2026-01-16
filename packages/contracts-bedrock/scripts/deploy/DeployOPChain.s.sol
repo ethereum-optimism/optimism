@@ -31,6 +31,11 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
 
 contract DeployOPChain is Script {
+    /// @notice The default init bond for the dispute games.
+    uint256 public constant DEFAULT_INIT_BOND = 0.08 ether;
+
+    /// @notice The output of the DeployOPChain script. This is the same as the DeployOPChainOutput type in the
+    /// op-deployer package.
     struct Output {
         IProxyAdmin opChainProxyAdmin;
         IAddressManager addressManager;
@@ -49,33 +54,40 @@ contract DeployOPChain is Script {
         IDelayedWETH delayedWETHPermissionlessGameProxy;
     }
 
+    /// @notice Runs the DeployOPChain script with the given input.
+    /// @param _input The input to the script.
+    /// @return output_ The output of the script.
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        require(_input.length > 0, "DeployOPChain: input cannot be empty");
         Types.DeployOPChainInput memory input = abi.decode(_input, (Types.DeployOPChainInput));
         Output memory output_ = run(input);
         return abi.encode(output_);
     }
 
+    /// @notice Runs the DeployOPChain script with the given input.
+    /// @param _input The input to the script.
+    /// @return output_ The output of the script.
     function run(Types.DeployOPChainInput memory _input) public returns (Output memory output_) {
         checkInput(_input);
 
-        // Check if OPCM v2 should be used.
-        bool useV2 = isDevFeatureOpcmV2Enabled(_input.opcm);
+        // Check if OPCM v2 should be used, both v1 and v2 share the same interface for this function.
+        bool useV2 = IOPContractsManager(_input.opcm).isDevFeatureEnabled(DevFeatures.OPCM_V2);
 
         if (useV2) {
             IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_input.opcm);
-            IOPContractsManagerV2.FullConfig memory config = toOPCMV2DeployInput(_input);
+            IOPContractsManagerV2.FullConfig memory config = _toOPCMV2DeployInput(_input);
 
             vm.broadcast(msg.sender);
             IOPContractsManagerV2.ChainContracts memory chainContracts = opcmV2.deploy(config);
-            output_ = fromOPCMV2OutputToOutput(chainContracts);
+            output_ = _fromOPCMV2OutputToOutput(chainContracts);
         } else {
             IOPContractsManager opcm = IOPContractsManager(_input.opcm);
-            IOPContractsManager.DeployInput memory deployInput = toOPCMV1DeployInput(_input);
+            IOPContractsManager.DeployInput memory deployInput = _toOPCMV1DeployInput(_input);
 
             vm.broadcast(msg.sender);
             IOPContractsManager.DeployOutput memory deployOutput = opcm.deploy(deployInput);
 
-            output_ = fromOPCMV1OutputToOutput(deployOutput);
+            output_ = _fromOPCMV1OutputToOutput(deployOutput);
         }
 
         checkOutput(_input, output_);
@@ -99,21 +111,10 @@ contract DeployOPChain is Script {
 
     // -------- Features --------
 
-    /// @notice Checks if OPCM v2 dev feature flag is enabled from the contract's dev feature bitmap.
-    function isDevFeatureOpcmV2Enabled(address _opcmAddr) internal view returns (bool) {
-        // Both v1 and v2 share the same interface for this function.
-        return IOPContractsManager(_opcmAddr).isDevFeatureEnabled(DevFeatures.OPCM_V2);
-    }
-
-    function isDevFeatureV2DisputeGamesEnabled(address _opcmAddr) internal view returns (bool) {
-        IOPContractsManager opcm = IOPContractsManager(_opcmAddr);
-        return DevFeatures.isDevFeatureEnabled(opcm.devFeatureBitmap(), DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
-    }
-
     /// @notice Converts Types.DeployOPChainInput to IOPContractsManager.DeployInput.
     /// @param _input The input parameters.
     /// @return deployInput_ The deployed input parameters.
-    function toOPCMV1DeployInput(Types.DeployOPChainInput memory _input)
+    function _toOPCMV1DeployInput(Types.DeployOPChainInput memory _input)
         internal
         pure
         returns (IOPContractsManager.DeployInput memory deployInput_)
@@ -147,7 +148,7 @@ contract DeployOPChain is Script {
     /// @notice Converts Types.DeployOPChainInput to IOPContractsManagerV2.FullConfig.
     /// @param _input The input parameters.
     /// @return config_ The deployed input parameters.
-    function toOPCMV2DeployInput(Types.DeployOPChainInput memory _input)
+    function _toOPCMV2DeployInput(Types.DeployOPChainInput memory _input)
         internal
         pure
         returns (IOPContractsManagerV2.FullConfig memory config_)
@@ -167,7 +168,7 @@ contract DeployOPChain is Script {
 
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: cannonEnabled,
-            initBond: cannonEnabled ? 0.08 ether : 0, // Standard init bond if enabled
+            initBond: cannonEnabled ? DEFAULT_INIT_BOND : 0,
             gameType: GameTypes.CANNON,
             gameArgs: abi.encode(cannonConfig)
         });
@@ -182,7 +183,7 @@ contract DeployOPChain is Script {
 
         disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: permissionedCannonEnabled,
-            initBond: 0.08 ether, // Standard init bond
+            initBond: DEFAULT_INIT_BOND,
             gameType: GameTypes.PERMISSIONED_CANNON,
             gameArgs: abi.encode(pdgConfig)
         });
@@ -193,7 +194,7 @@ contract DeployOPChain is Script {
 
         disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: cannonKonaEnabled,
-            initBond: cannonKonaEnabled ? 0.08 ether : 0, // Standard init bond if enabled
+            initBond: cannonKonaEnabled ? DEFAULT_INIT_BOND : 0,
             gameType: GameTypes.CANNON_KONA,
             gameArgs: abi.encode(cannonKonaConfig)
         });
@@ -220,7 +221,7 @@ contract DeployOPChain is Script {
     /// @notice Converts IOPContractsManagerV2.ChainContracts to Output.
     /// @param _chainContracts The chain contracts.
     /// @return output_ The output parameters.
-    function fromOPCMV2OutputToOutput(IOPContractsManagerV2.ChainContracts memory _chainContracts)
+    function _fromOPCMV2OutputToOutput(IOPContractsManagerV2.ChainContracts memory _chainContracts)
         internal
         pure
         returns (Output memory output_)
@@ -247,7 +248,7 @@ contract DeployOPChain is Script {
     /// @notice Converts IOPContractsManager.DeployOutput to Output.
     /// @param _deployOutput The deploy output.
     /// @return output_ The output parameters.
-    function fromOPCMV1OutputToOutput(IOPContractsManager.DeployOutput memory _deployOutput)
+    function _fromOPCMV1OutputToOutput(IOPContractsManager.DeployOutput memory _deployOutput)
         internal
         pure
         returns (Output memory output_)
@@ -273,6 +274,8 @@ contract DeployOPChain is Script {
 
     // -------- Validations --------
 
+    /// @notice Checks if the input is valid.
+    /// @param _i The input to check.
     function checkInput(Types.DeployOPChainInput memory _i) public view {
         require(_i.opChainProxyAdminOwner != address(0), "DeployOPChainInput: opChainProxyAdminOwner not set");
         require(_i.systemConfigOwner != address(0), "DeployOPChainInput: systemConfigOwner not set");
@@ -297,6 +300,9 @@ contract DeployOPChain is Script {
         require(_i.disputeAbsolutePrestate.raw() != bytes32(0), "DeployOPChainInput: disputeAbsolutePrestate not set");
     }
 
+    /// @notice Checks if the output is valid.
+    /// @param _i The input to check.
+    /// @param _o The output to check.
     function checkOutput(Types.DeployOPChainInput memory _i, Output memory _o) public {
         // With 16 addresses, we'd get a stack too deep error if we tried to do this inline as a
         // single call to `Solarray.addresses`. So we split it into two calls.
@@ -321,6 +327,9 @@ contract DeployOPChain is Script {
         _assertValidDeploy(_i, _o);
     }
 
+    /// @notice Asserts that the deploy is valid.
+    /// @param _i The input to check.
+    /// @param _o The output to check.
     function _assertValidDeploy(Types.DeployOPChainInput memory _i, Output memory _o) internal {
         Types.ContractSet memory proxies = Types.ContractSet({
             L1CrossDomainMessenger: address(_o.l1CrossDomainMessengerProxy),
@@ -342,15 +351,15 @@ contract DeployOPChain is Script {
         // Check dispute games and get superchain config
         address expectedPDGImpl = address(_o.permissionedDisputeGame);
 
-        if (isDevFeatureOpcmV2Enabled(_i.opcm)) {
+        if (IOPContractsManager(_i.opcm).isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
             // OPCM v2: use implementations from v2 contract
             IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_i.opcm);
-            expectedPDGImpl = opcmV2.implementations().permissionedDisputeGameV2Impl;
+            expectedPDGImpl = opcmV2.implementations().permissionedDisputeGameImpl;
         } else {
             // OPCM v1: use implementations from v1 contract
             IOPContractsManager opcm = IOPContractsManager(_i.opcm);
             // With v2 game contracts enabled, we use the predeployed pdg implementation
-            expectedPDGImpl = opcm.implementations().permissionedDisputeGameV2Impl;
+            expectedPDGImpl = opcm.implementations().permissionedDisputeGameImpl;
         }
 
         ChainAssertions.checkDisputeGameFactory(
@@ -397,10 +406,13 @@ contract DeployOPChain is Script {
         });
 
         require(_o.addressManager.owner() == address(_o.opChainProxyAdmin), "AM-10");
-        assertValidOPChainProxyAdmin(_i, _o);
+        _assertValidOPChainProxyAdmin(_i, _o);
     }
 
-    function assertValidOPChainProxyAdmin(Types.DeployOPChainInput memory _doi, Output memory _doo) internal {
+    /// @notice Asserts that the OPChainProxyAdmin is valid based on the input and output of the deployment.
+    /// @param _doi The input to the deployment.
+    /// @param _doo The output of the deployment.
+    function _assertValidOPChainProxyAdmin(Types.DeployOPChainInput memory _doi, Output memory _doo) internal {
         IProxyAdmin admin = _doo.opChainProxyAdmin;
         require(admin.owner() == _doi.opChainProxyAdminOwner, "OPCPA-10");
         require(
@@ -458,6 +470,7 @@ contract DeployOPChain is Script {
         );
     }
 
+    /// @notice Returns the starting anchor root for the permissioned game.
     function startingAnchorRoot() public pure returns (bytes memory) {
         // WARNING: For now always hardcode the starting permissioned game anchor root to 0xdead,
         // and we do not set anything for the permissioned game. This is because we currently only

@@ -769,6 +769,39 @@ func TestFaultDisputeGame_ClaimCreditTx(t *testing.T) {
 	}
 }
 
+func TestFaultDisputeGame_CloseGameTx(t *testing.T) {
+	unsupportedVersions := []string{vers080, vers0180, vers111, vers120, vers131}
+	for _, version := range versions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			supported := !slices.Contains(unsupportedVersions, version.version)
+
+			if supported {
+				t.Run("Success", func(t *testing.T) {
+					stubRpc, game := setupFaultDisputeGameTest(t, version)
+					stubRpc.SetResponse(fdgAddr, methodCloseGame, rpcblock.Latest, nil, nil)
+					tx, err := game.CloseGameTx(context.Background())
+					require.NoError(t, err)
+					stubRpc.VerifyTxCandidate(tx)
+				})
+
+				t.Run("SimulationFails", func(t *testing.T) {
+					stubRpc, game := setupFaultDisputeGameTest(t, version)
+					stubRpc.SetError(fdgAddr, methodCloseGame, rpcblock.Latest, nil, errors.New("game not ready"))
+					tx, err := game.CloseGameTx(context.Background())
+					require.ErrorIs(t, err, ErrSimulationFailed)
+					require.Equal(t, txmgr.TxCandidate{}, tx)
+				})
+			} else {
+				_, game := setupFaultDisputeGameTest(t, version)
+				tx, err := game.CloseGameTx(context.Background())
+				require.ErrorIs(t, err, ErrCloseGameNotSupported)
+				require.Equal(t, txmgr.TxCandidate{}, tx)
+			}
+		})
+	}
+}
+
 func TestFaultDisputeGame_IsResolved(t *testing.T) {
 	for _, version := range versions {
 		version := version

@@ -1,0 +1,329 @@
+# P2P RPC Methods
+
+The `p2p` api provides methods for interacting with Kona's P2P stack.
+
+## Peer Information Methods
+
+### `opp2p_self`
+
+Returns information about the local node in the form of `PeerInfo`.
+
+| Client | Method invocation          |
+| ------ | -------------------------- |
+| RPC    | `{"method": "opp2p_self"}` |
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_self","params":[]}
+{"jsonrpc":"2.0","id":1,"result":{"peerID":"16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x","nodeID":"0x311d8222ffc44e9c86f403d57f454bd823e7dc9d3c8e97171ddd862910352f31","userAgent":"kona","protocolVersion":"","ENR":"enr:-Jm4QBAdUpUqrpTj6yQor5mwif6RRmY11dlj-Um3TqKmJiYha4SUNqdJr2eM3pRsFVCwVikYcBk__5JVTwngUeimKxcCgmlkgnY0gmlwhC36_pOHb3BzdGFja4Xc76gFAIlzZWNwMjU2azGhA2WTa6OqvnWbRmoeuhRRu-BTPgP8y4_MY6snTsNW0gHBg3RjcIIj5oN1ZHCCn7U","addresses":["/ip4/127.0.0.1/tcp/9190/p2p/16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x","/ip4/172.18.0.9/tcp/9190/p2p/16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"],"protocols":["/ipfs/id/push/1.0.0","/meshsub/1.1.0","/ipfs/ping/1.0.0","/meshsub/1.2.0","/ipfs/id/1.0.0","/opstack/req/payload_by_number/2151908/0/","/meshsub/1.0.0","/floodsub/1.0.0"],"connectedness":1,"direction":1,"protected":false,"chainID":11155420,"latency":0,"gossipBlocks":true,"scores":{"gossip":{"total":0.0,"blocks":{"timeInMesh":0.0,"firstMessageDeliveries":0.0,"meshMessageDeliveries":0.0,"invalidMessageDeliveries":0.0},"IPColocationFactor":0.0,"behavioralPenalty":0.0},"reqResp":{"validResponses":0.0,"errorResponses":0.0,"rejectedPayloads":0.0}}}}
+```
+
+### `opp2p_peerCount`
+
+Returns the count of connected peers for both discovery and gossip networks.
+
+| Client | Method invocation               |
+| ------ | ------------------------------- |
+| RPC    | `{"method": "opp2p_peerCount"}` |
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_peerCount","params":[]}
+{"jsonrpc":"2.0","id":1,"result":{"connectedDiscovery":15,"connectedGossip":12}}
+```
+
+### `opp2p_peers`
+
+Returns information about peers. If `connected` parameter is true, only returns connected peers.
+
+| Client | Method invocation                                     |
+| ------ | ----------------------------------------------------- |
+| RPC    | `{"method": "opp2p_peers", "params": [connected]}` |
+
+#### Parameters
+
+- `connected` (boolean): If true, only returns connected peers
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_peers","params":[true]}
+{"jsonrpc":"2.0","id":1,"result":{"totalConnected":2,"peers":{"16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x":{"peerID":"16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x","nodeID":"0x311d8222ffc44e9c86f403d57f454bd823e7dc9d3c8e97171ddd862910352f31","userAgent":"kona","protocolVersion":"","addresses":["/ip4/127.0.0.1/tcp/9190"],"protocols":["/ipfs/ping/1.0.0","/meshsub/1.1.0"],"connectedness":1,"direction":2,"protected":false,"chainID":11155420,"latency":50000000,"gossipBlocks":true,"scores":{"gossip":{"total":1.5,"blocks":{"timeInMesh":100.0,"firstMessageDeliveries":10.0,"meshMessageDeliveries":5.0,"invalidMessageDeliveries":0.0},"IPColocationFactor":0.0,"behavioralPenalty":0.0},"reqResp":{"validResponses":25.0,"errorResponses":1.0,"rejectedPayloads":0.0}}}},"bannedPeers":[],"bannedIPS":[],"bannedSubnets":[]}}
+```
+
+### `opp2p_peerStats`
+
+Returns statistical information about peers including connection counts and topic subscriptions.
+
+| Client | Method invocation                |
+| ------ | -------------------------------- |
+| RPC    | `{"method": "opp2p_peerStats"}` |
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_peerStats","params":[]}
+{"jsonrpc":"2.0","id":1,"result":{"connected":12,"table":50,"blocksTopic":8,"blocksTopicV2":10,"blocksTopicV3":5,"blocksTopicV4":2,"banned":3,"known":75}}
+```
+
+### `opp2p_discoveryTable`
+
+Returns the discovery table entries as a list of ENR strings.
+
+| Client | Method invocation                     |
+| ------ | ------------------------------------- |
+| RPC    | `{"method": "opp2p_discoveryTable"}` |
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_discoveryTable","params":[]}
+{"jsonrpc":"2.0","id":1,"result":["enr:-Jm4QBAdUpUqrpTj6yQor5mwif6RRmY11dlj-Um3TqKmJiYha4SUNqdJr2eM3pRsFVCwVikYcBk__5JVTwngUeimKxcCgmlkgnY0gmlwhC36_pOHb3BzdGFja4Xc76gFAIlzZWNwMjU2azGhA2WTa6OqvnWbRmoeuhRRu-BTPgP8y4_MY6snTsNW0gHBg3RjcIIj5oN1ZHCCn7U","enr:-Km4QBqBrKNq7F5L1dSrWW8Y1k8k4V2L2nTsNtGuKPpPwp3L_rBVMaQCQpnc2sBB-c2yV_n4qgM2_2yfcNjVXr4OFgCgmlkgnY0gmlwhH8AAAGHb3BzdGFja4OFAoAE"]}
+```
+
+## Peer Blocking Methods
+
+### `opp2p_blockPeer`
+
+Blocks a specific peer by peer ID, preventing any connections to or from that peer.
+
+| Client | Method invocation                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "opp2p_blockPeer", "params": [peerID]}` |
+
+#### Parameters
+
+- `peerID` (string): The peer ID to block
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_blockPeer","params":["16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+### `opp2p_unblockPeer`
+
+Unblocks a previously blocked peer by peer ID.
+
+| Client | Method invocation                                     |
+| ------ | ----------------------------------------------------- |
+| RPC    | `{"method": "opp2p_unblockPeer", "params": [peerID]}` |
+
+#### Parameters
+
+- `peerID` (string): The peer ID to unblock
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_unblockPeer","params":["16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+### `opp2p_listBlockedPeers`
+
+Returns a list of all blocked peer IDs.
+
+| Client | Method invocation                      |
+| ------ | -------------------------------------- |
+| RPC    | `{"method": "opp2p_listBlockedPeers"}` |
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_listBlockedPeers","params":[]}
+{"jsonrpc":"2.0","id":1,"result":["16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x","16Uiu2HAm7Th3s3C1VHmKrYzA9nPzV4b3vqL8z1x8WZzGk2t9DjRK"]}
+```
+
+## Address Blocking Methods
+
+### `opp2p_blockAddr`
+
+Blocks connections from a specific IP address.
+
+| Client | Method invocation                                  |
+| ------ | -------------------------------------------------- |
+| RPC    | `{"method": "opp2p_blockAddr", "params": [address]}` |
+
+#### Parameters
+
+- `address` (string): The IP address to block (IPv4 or IPv6)
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_blockAddr","params":["192.168.1.100"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+### `opp2p_unblockAddr`
+
+Unblocks a previously blocked IP address.
+
+| Client | Method invocation                                     |
+| ------ | ----------------------------------------------------- |
+| RPC    | `{"method": "opp2p_unblockAddr", "params": [address]}` |
+
+#### Parameters
+
+- `address` (string): The IP address to unblock (IPv4 or IPv6)
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_unblockAddr","params":["192.168.1.100"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+### `opp2p_listBlockedAddrs`
+
+Returns a list of all blocked IP addresses.
+
+| Client | Method invocation                      |
+| ------ | -------------------------------------- |
+| RPC    | `{"method": "opp2p_listBlockedAddrs"}` |
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_listBlockedAddrs","params":[]}
+{"jsonrpc":"2.0","id":1,"result":["192.168.1.100","10.0.0.50","2001:db8::1"]}
+```
+
+## Subnet Blocking Methods
+
+### `opp2p_blockSubnet`
+
+Blocks connections from an entire IP subnet using CIDR notation.
+
+| Client | Method invocation                                  |
+| ------ | -------------------------------------------------- |
+| RPC    | `{"method": "opp2p_blockSubnet", "params": [subnet]}` |
+
+#### Parameters
+
+- `subnet` (string): The subnet to block in CIDR notation (e.g., "192.168.1.0/24")
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_blockSubnet","params":["192.168.1.0/24"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+### `opp2p_unblockSubnet`
+
+Unblocks a previously blocked IP subnet.
+
+| Client | Method invocation                                    |
+| ------ | ---------------------------------------------------- |
+| RPC    | `{"method": "opp2p_unblockSubnet", "params": [subnet]}` |
+
+#### Parameters
+
+- `subnet` (string): The subnet to unblock in CIDR notation
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_unblockSubnet","params":["192.168.1.0/24"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+### `opp2p_listBlockedSubnets`
+
+Returns a list of all blocked IP subnets.
+
+| Client | Method invocation                        |
+| ------ | ---------------------------------------- |
+| RPC    | `{"method": "opp2p_listBlockedSubnets"}` |
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_listBlockedSubnets","params":[]}
+{"jsonrpc":"2.0","id":1,"result":["192.168.1.0/24","10.0.0.0/16","2001:db8::/32"]}
+```
+
+## Peer Protection Methods
+
+### `opp2p_protectPeer`
+
+Protects a peer from being disconnected due to connection limits or other automatic pruning mechanisms.
+
+| Client | Method invocation                                    |
+| ------ | ---------------------------------------------------- |
+| RPC    | `{"method": "opp2p_protectPeer", "params": [peerID]}` |
+
+#### Parameters
+
+- `peerID` (string): The peer ID to protect
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_protectPeer","params":["16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+### `opp2p_unprotectPeer`
+
+Removes protection from a peer, allowing it to be disconnected by automatic pruning mechanisms.
+
+| Client | Method invocation                                      |
+| ------ | ------------------------------------------------------ |
+| RPC    | `{"method": "opp2p_unprotectPeer", "params": [peerID]}` |
+
+#### Parameters
+
+- `peerID` (string): The peer ID to unprotect
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_unprotectPeer","params":["16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+## Connection Management Methods
+
+### `opp2p_connectPeer`
+
+Attempts to establish a connection to a specific peer using a multiaddress.
+
+| Client | Method invocation                                      |
+| ------ | ------------------------------------------------------ |
+| RPC    | `{"method": "opp2p_connectPeer", "params": [multiaddr]}` |
+
+#### Parameters
+
+- `multiaddr` (string): The multiaddress of the peer to connect to
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_connectPeer","params":["/ip4/127.0.0.1/tcp/9190/p2p/16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+### `opp2p_disconnectPeer`
+
+Disconnects from a specific peer by peer ID.
+
+| Client | Method invocation                                       |
+| ------ | ------------------------------------------------------- |
+| RPC    | `{"method": "opp2p_disconnectPeer", "params": [peerID]}` |
+
+#### Parameters
+
+- `peerID` (string): The peer ID to disconnect from
+
+#### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_disconnectPeer","params":["16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```

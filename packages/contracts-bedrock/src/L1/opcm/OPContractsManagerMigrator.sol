@@ -46,19 +46,8 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when the starting respected game type is not a valid super game type.
     error OPContractsManagerMigrator_InvalidStartingRespectedGameType();
 
-    /// @notice Container of blueprint and implementation contract addresses.
-    IOPContractsManagerContainer public immutable contractsContainer;
-
-    /// @param _contractsContainer The container of blueprint and implementation contract addresses.
     /// @param _utils The utility functions for the OPContractsManager.
-    constructor(
-        IOPContractsManagerContainer _contractsContainer,
-        IOPContractsManagerUtils _utils
-    )
-        OPContractsManagerUtilsCaller(_utils)
-    {
-        contractsContainer = _contractsContainer;
-    }
+    constructor(IOPContractsManagerUtils _utils) OPContractsManagerUtilsCaller(_utils) { }
 
     /// @notice Migrates one or more OP Stack chains to use the Super Root dispute games and shared
     ///         dispute game contracts.
@@ -159,7 +148,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // Separate context to avoid stack too deep (isolate the implementations variable).
         {
             // Grab the implementations.
-            IOPContractsManagerContainer.Implementations memory impls = contractsContainer.implementations();
+            IOPContractsManagerContainer.Implementations memory impls = contractsContainer().implementations();
 
             // Initialize the new ETHLockbox.
             _upgrade(
@@ -264,5 +253,11 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // (OptimismPortalInterop). If the portal is not on the interop version, this call will
         // fail.
         portal.migrateToSuperRoots(_newLockbox, _newASR);
+    }
+
+    /// @notice Returns the contracts container.
+    /// @return The contracts container.
+    function contractsContainer() public view returns (IOPContractsManagerContainer) {
+        return opcmUtils.contractsContainer();
     }
 }

@@ -145,41 +145,29 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 }
 
 func (s *Service) initRPCServer(cfg *Config) error {
-	opts := []oprpc.Option{
-		oprpc.WithLogger(s.log),
-	}
-
-	// Load JWT secret if path is provided (generates new secret if file is empty)
-	if cfg.JWTSecretPath != "" {
-		secret, err := oprpc.ObtainJWTSecret(s.log, cfg.JWTSecretPath, true)
-		if err != nil {
-			return fmt.Errorf("failed to obtain JWT secret: %w", err)
-		}
-		opts = append(opts, oprpc.WithJWTSecret(secret[:]))
-	}
-
+	// Create server without JWT - root route stays public for supervisor API
 	server := oprpc.NewServer(
 		cfg.RPC.ListenAddr,
 		cfg.RPC.ListenPort,
 		s.version,
-		opts...,
+		oprpc.WithLogger(s.log),
 	)
 
-	// Register supervisor query API
+	// Register supervisor query API on root (public, no auth)
 	server.AddAPI(rpc.API{
 		Namespace:     "supervisor",
 		Service:       &QueryFrontend{backend: s.backend},
 		Authenticated: false,
 	})
 
-	// Register admin API (opt-in)
-	if cfg.RPC.EnableAdmin {
-		s.log.Info("Admin RPC enabled")
-		server.AddAPI(rpc.API{
-			Namespace:     "admin",
-			Service:       &AdminFrontend{backend: s.backend},
-			Authenticated: true,
-		})
+	// Register admin API (opt-in, requires JWT)
+	if cfg.RPC.EnableAdmin && cfg.JWTSecretPath != "" {
+		secret, err := oprpc.ObtainJWTSecret(s.log, cfg.JWTSecretPath, true)
+		if err != nil {
+			return fmt.Errorf("failed to obtain JWT secret: %w", err)
+		}
+		server.AddHandler("/admin", newJWTProtectedAdminHandler(s.backend, secret[:]))
+		s.log.Info("Admin RPC enabled", "route", "/admin")
 	}
 
 	s.rpcServer = server

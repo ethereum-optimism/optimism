@@ -7,6 +7,7 @@ import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { DummyCaller } from "scripts/libraries/DummyCaller.sol";
 
 contract UpgradeSuperchainConfig is Script {
     struct Input {
@@ -31,14 +32,16 @@ contract UpgradeSuperchainConfig is Script {
         // 2/2 or similar.
         address prank = _input.prank;
 
-        bytes memory code = _getDummyCallerCode(useOPCMv2);
+        bytes memory code = _getDummyCallerCode();
         vm.etch(prank, code);
 
         vm.store(prank, bytes32(0), bytes32(uint256(uint160(opcm))));
         vm.label(prank, "DummyCaller");
 
-        (bool success,) = _upgrade(prank, useOPCMv2, _input);
-        require(success, "UpgradeSuperchainConfig: upgradeSuperchainConfig failed");
+        // Call into the DummyCaller. This will perform the delegatecall under the hood.
+        // The DummyCaller uses a fallback that reverts on failure, so no need to check success.
+        vm.broadcast(msg.sender);
+        _upgrade(prank, useOPCMv2, _input);
     }
 
     /// @notice Asserts that the input is valid.
@@ -50,12 +53,10 @@ contract UpgradeSuperchainConfig is Script {
         require(address(_input.superchainConfig) != address(0), "UpgradeSuperchainConfig: superchainConfig not set");
     }
 
-    /// @notice Helper function to get the proper dummy caller code based on the OPCM version.
-    /// @param _useOPCMv2 Whether to use OPCM v2.
+    /// @notice Helper function to get the dummy caller code.
     /// @return code The code of the dummy caller.
-    function _getDummyCallerCode(bool _useOPCMv2) internal view returns (bytes memory) {
-        if (_useOPCMv2) return vm.getDeployedCode("UpgradeSuperchainConfig.s.sol:DummyCallerV2");
-        else return vm.getDeployedCode("UpgradeSuperchainConfig.s.sol:DummyCaller");
+    function _getDummyCallerCode() internal pure returns (bytes memory) {
+        return type(DummyCaller).runtimeCode;
     }
 
     /// @notice Helper function to upgrade the OPCM based on the OPCM version. Performs the decoding of the upgrade
@@ -63,48 +64,20 @@ contract UpgradeSuperchainConfig is Script {
     /// @param _prank The address of the dummy caller contract.
     /// @param _useOPCMv2 Whether to use OPCM v2.
     /// @param _input The input.
-    /// @return success Whether the upgrade succeeded.
-    /// @return result The result of the upgrade (bool, bytes memory).
-    function _upgrade(address _prank, bool _useOPCMv2, Input memory _input) internal returns (bool, bytes memory) {
-        // Call into the DummyCaller to perform the delegatecall
-        vm.broadcast(msg.sender);
+    function _upgrade(address _prank, bool _useOPCMv2, Input memory _input) internal {
+        bytes memory data;
         if (_useOPCMv2) {
-            return DummyCallerV2(_prank).upgradeSuperchain(
+            data = abi.encodeCall(
+                IOPContractsManagerV2.upgradeSuperchain,
                 IOPContractsManagerV2.SuperchainUpgradeInput({
                     superchainConfig: _input.superchainConfig,
                     extraInstructions: _input.extraInstructions
                 })
             );
         } else {
-            return DummyCaller(_prank).upgradeSuperchainConfig(_input.superchainConfig);
+            data = abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, _input.superchainConfig);
         }
-    }
-}
-
-/// @title DummyCaller
-/// @notice This contract is used to mimic the contract that is used as the source of the delegatecall to the OPCM.
-contract DummyCaller {
-    address internal _opcmAddr;
-
-    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig) external returns (bool, bytes memory) {
-        bytes memory data = abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (_superchainConfig));
-        (bool success, bytes memory result) = _opcmAddr.delegatecall(data);
-        return (success, result);
-    }
-}
-
-/// @title DummyCallerV2
-/// @notice This contract is used to mimic the contract that is used as the source of the delegatecall to the OPCM v2.
-/// Uses IOPContractsManagerV2.SuperchainUpgradeInput type for the upgrade input.
-contract DummyCallerV2 {
-    address internal _opcmAddr;
-
-    function upgradeSuperchain(IOPContractsManagerV2.SuperchainUpgradeInput memory _superchainUpgradeInput)
-        external
-        returns (bool, bytes memory)
-    {
-        bytes memory data = abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (_superchainUpgradeInput));
-        (bool success, bytes memory result) = _opcmAddr.delegatecall(data);
-        return (success, result);
+        (bool success,) = _prank.call(data);
+        require(success, "UpgradeSuperchainConfig: upgrade failed");
     }
 }

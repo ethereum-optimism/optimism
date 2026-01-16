@@ -30,6 +30,9 @@
 /op-e2e/actions/proofs @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
 /op-e2e/faultproofs    @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
 
+# Kona
+/kona                  @ethereum-optimism/kona-reviewers
+
 # Ops
 /.cursor/rules/solidity-styles.mdc @ethereum-optimism/contract-reviewers
 

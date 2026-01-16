@@ -1,0 +1,131 @@
+@import 'tailwindcss';
+
+@layer components {
+  .dark {
+    --vocs-color-accent: #87ceeb;
+  }
+}
+
+.vocs_LandingPage_button {
+  border-radius: 4px;
+  height: 36px;
+}
+
+.vocs_LandingPage_codeGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+}
+
+.vocs_DesktopTopNav, .vocs_DesktopTopNav_withLogo {
+  padding: 0 2rem;
+}
+
+.vocs_DesktopTopNav_logoWrapper {
+  display: none;
+}
+
+.vocs_LandingPage_install .vocs_CodeBlock_content {
+  font-size: 18px;
+}
+
+.vocs_accent_border {
+  border-color: var(--vocs-color-accent);
+}
+
+/* Override ALL vocs layout constraints */
+.vocs_LandingPage_root,
+.vocs_LandingPage_root > div,
+.vocs_LandingPage_root > div > div,
+.vocs_LandingPage_root * {
+  max-width: none !important;
+}
+
+/* Force full width on the main content area */
+.vocs_Content_root {
+  max-width: none !important;
+}
+
+.vocs_Content_main {
+  max-width: none !important;
+}
+
+/* Override any container classes */
+[class*="container"] {
+  max-width: none !important;
+}
+
+/* Force full width on our custom sections */
+.full-width {
+  width: 100vw !important;
+  max-width: none !important;
+  margin-left: calc(-50vw + 50%) !important;
+  margin-right: calc(-50vw + 50%) !important;
+}
+
+.full-width-inner {
+  max-width: 1400px !important;
+  margin: 0 auto !important;
+  padding: 0 8rem !important;
+}
+
+@media (max-width: 1440px) {
+  .full-width-inner {
+    padding: 0 6rem !important;
+  }
+}
+
+@media (max-width: 1200px) {
+  .full-width-inner {
+    padding: 0 4rem !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  .full-width-inner {
+    padding: 0 3rem !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .full-width-inner {
+    padding: 0 2rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .full-width-inner {
+    padding: 0 1rem !important;
+  }
+}
+
+/* Hide only the logo in the navbar, keep navigation */
+.vocs_Header_logo {
+  display: none !important;
+}
+
+.vocs_Header_logoContainer {
+  display: none !important;
+}
+
+/* Hide only the logo in mobile navigation, keep the rest */
+.vocs_MobileTopNav_group .vocs_Header_logo,
+.vocs_MobileTopNav_group .vocs_Header_logoContainer,
+.vocs_MobileTopNav_group a[href="/"] {
+  display: none !important;
+}
+
+/* Hide the home link that contains the logo */
+.vocs_Header_root a[href="/"] {
+  display: none !important;
+}
+
+/* Adjust navbar layout without logo */
+.vocs_Header_nav {
+  justify-content: flex-start !important;
+}
+
+/* .vocs_Header_root { */
+/*   padding-left: 2rem !important; */
+/* } */

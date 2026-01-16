@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliutil"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
@@ -296,4 +298,11 @@ func AddGameType(ctx context.Context, cfg AddGameTypeConfig) (opcm.AddGameTypeOu
 	}
 
 	return output, calldata, nil
+}
+
+// AddGameTypeV2CLI is the CLI command for adding a new game type to the chain using the OPContractsManager V2
+// This command is just an alias for the upgrade command with the default upgrader, therefore users can perform V1 upgrades
+// through it.
+func AddGameTypeOPCMV2CLI(cliCtx *cli.Context) error {
+	return upgrade.UpgradeCLI(embedded.DefaultUpgrader)(cliCtx)
 }

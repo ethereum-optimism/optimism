@@ -4,13 +4,11 @@ package sysgo
 import (
 	"encoding/hex"
 	"encoding/json"
-	"net"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -20,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
+	"github.com/ethereum-optimism/optimism/op-service/tasks"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 )
 
@@ -142,16 +141,16 @@ func (cfg *OPRBuilderNodeConfig) LaunchSpec(p devtest.P) (args []string, env []s
 		if cfg.FlashblocksAddr == "" {
 			cfg.FlashblocksAddr = "127.0.0.1"
 		}
-		if cfg.FlashblocksPort <= 0 {
-			portStr, err := getAvailableLocalPort()
-			p.Require().NoError(err, "allocate flashblocks port")
-			portVal, err := strconv.Atoi(portStr)
-			p.Require().NoError(err, "parse flashblocks port")
-			cfg.FlashblocksPort = portVal
-		}
-		fbPortStr := strconv.Itoa(cfg.FlashblocksPort)
 		args = append(args, "--flashblocks.enabled")
-		args = append(args, "--flashblocks.addr="+cfg.FlashblocksAddr, "--flashblocks.port="+fbPortStr)
+		args = append(args, "--flashblocks.addr="+cfg.FlashblocksAddr)
+		if cfg.FlashblocksPort > 0 {
+			// Use explicitly configured port
+			args = append(args, "--flashblocks.port="+strconv.Itoa(cfg.FlashblocksPort))
+		} else {
+			// Use port 0 to let the OS assign a port atomically at bind time.
+			// The actual port will be discovered by parsing the process logs.
+			args = append(args, "--flashblocks.port=0")
+		}
 	}
 
 	// P2P configuration: enforce deterministic identity and static peering to the sequencer EL.
@@ -176,30 +175,28 @@ func (cfg *OPRBuilderNodeConfig) LaunchSpec(p devtest.P) (args []string, env []s
 	if cfg.EnableRPC {
 		args = append(args, "--http")
 		args = append(args, "--http.addr="+cfg.RPCAddr)
-		if cfg.RPCPort <= 0 {
-			portStr, err := getAvailableLocalPort()
-			p.Require().NoError(err, "allocate rpc port")
-			portVal, err := strconv.Atoi(portStr)
-			p.Require().NoError(err, "parse rpc port")
-			cfg.RPCPort = portVal
+		if cfg.RPCPort > 0 {
+			// Use explicitly configured port
+			args = append(args, "--http.port="+strconv.Itoa(cfg.RPCPort))
+		} else {
+			// Use port 0 to let the OS assign a port atomically at bind time.
+			// The actual port will be discovered by parsing the process logs.
+			args = append(args, "--http.port=0")
 		}
-		rpcPortStr := strconv.Itoa(cfg.RPCPort)
-		args = append(args, "--http.port="+rpcPortStr)
 		args = append(args, "--http.api="+cfg.RPCAPI)
-
 	}
 
 	if cfg.AuthRPCAddr != "" {
 		args = append(args, "--authrpc.addr="+cfg.AuthRPCAddr)
 	}
-	if cfg.AuthRPCPort <= 0 {
-		portStr, err := getAvailableLocalPort()
-		p.Require().NoError(err, "allocate auth rpc port")
-		portVal, err := strconv.Atoi(portStr)
-		p.Require().NoError(err, "parse auth rpc port")
-		cfg.AuthRPCPort = portVal
+	if cfg.AuthRPCPort > 0 {
+		// Use explicitly configured port
+		args = append(args, "--authrpc.port="+strconv.Itoa(cfg.AuthRPCPort))
+	} else {
+		// Use port 0 to let the OS assign a port atomically at bind time.
+		// The actual port will be discovered by parsing the process logs.
+		args = append(args, "--authrpc.port=0")
 	}
-	args = append(args, "--authrpc.port="+strconv.Itoa(cfg.AuthRPCPort))
 	if cfg.AuthRPCJWTPath != "" {
 		args = append(args, "--authrpc.jwtsecret="+cfg.AuthRPCJWTPath)
 	}
@@ -217,22 +214,16 @@ func (cfg *OPRBuilderNodeConfig) LaunchSpec(p devtest.P) (args []string, env []s
 	if cfg.Chain != "" {
 		args = append(args, "--chain="+cfg.Chain)
 	}
-	if cfg.WithUnusedPorts {
-		args = append(args, "--with-unused-ports")
-	}
 	if cfg.DisableDiscovery {
 		args = append(args, "--disable-discovery")
 	}
 
-	if !cfg.WithUnusedPorts {
-		if cfg.P2PPort <= 0 {
-			portStr, err := getAvailableLocalPort()
-			p.Require().NoError(err, "allocate p2p port")
-			portVal, err := strconv.Atoi(portStr)
-			p.Require().NoError(err, "parse p2p port")
-			cfg.P2PPort = portVal
-		}
+	if cfg.P2PPort > 0 {
+		// Use explicitly configured P2P port
 		args = append(args, "--port="+strconv.Itoa(cfg.P2PPort))
+	} else {
+		// Use --with-unused-ports to let reth assign P2P port atomically at bind time.
+		args = append(args, "--with-unused-ports")
 	}
 
 	if cfg.DataDir == "" {
@@ -365,12 +356,60 @@ func (b *OPRBuilderNode) Start() {
 
 	args, env := cfg.LaunchSpec(b.p)
 
-	// Forward structured logs to Go logger
+	// Create channels for discovering ports from process logs.
+	// When using port 0, the OS assigns ports at bind time and the process logs them.
+	flashblocksWSChan := make(chan string, 1)
+	httpRPCChan := make(chan string, 1)
+	authRPCChan := make(chan string, 1)
+	defer close(flashblocksWSChan)
+	defer close(httpRPCChan)
+	defer close(authRPCChan)
+
+	// Forward structured logs to Go logger and parse for port discovery
 	logOut := logpipe.ToLogger(b.logger.New("component", "op-OPRbuilderNode", "src", "stdout"))
 	logErr := logpipe.ToLogger(b.logger.New("component", "op-OPRbuilderNode", "src", "stderr"))
 
+	// Log parsing callback to extract bound addresses from process output
+	onLogEntry := func(e logpipe.LogEntry) {
+		msg := e.LogMessage()
+		// Flashblocks WS - custom log message from wspub.rs
+		if strings.HasPrefix(msg, "Flashblocks WebSocketPublisher listening on ") {
+			addr := strings.TrimPrefix(msg, "Flashblocks WebSocketPublisher listening on ")
+			if validURL := parseAndValidateAddr(addr, "ws"); validURL != "" {
+				select {
+				case flashblocksWSChan <- validURL:
+				default:
+				}
+			}
+		}
+		// HTTP RPC - standard reth log message
+		if msg == "RPC HTTP server started" {
+			if addr, ok := e.FieldValue("url").(string); ok {
+				if validURL := parseAndValidateAddr(addr, "http"); validURL != "" {
+					select {
+					case httpRPCChan <- validURL:
+					default:
+					}
+				}
+			}
+		}
+		// Auth RPC - standard reth log message
+		if msg == "RPC auth server started" {
+			if addr, ok := e.FieldValue("url").(string); ok {
+				if validURL := parseAndValidateAddr(addr, "http"); validURL != "" {
+					select {
+					case authRPCChan <- validURL:
+					default:
+					}
+				}
+			}
+		}
+	}
+
 	stdOut := logpipe.LogCallback(func(line []byte) {
-		logOut(logpipe.ParseRustStructuredLogs(line))
+		e := logpipe.ParseRustStructuredLogs(line)
+		logOut(e)
+		onLogEntry(e)
 	})
 	stdErr := logpipe.LogCallback(func(line []byte) {
 		logErr(logpipe.ParseRustStructuredLogs(line))
@@ -389,33 +428,26 @@ func (b *OPRBuilderNode) Start() {
 	err = b.sub.Start(execPath, args, env)
 	b.p.Require().NoError(err, "start OPRBuilderNode")
 
-	const readinessTimeout = 15 * time.Second
-
+	// Wait for ports to be discovered from logs, then configure proxies
 	if cfg.EnableRPC {
-		rpcUpstreamHostport := net.JoinHostPort(cfg.RPCAddr, strconv.Itoa(cfg.RPCPort))
-		rpcUpstreamURL := "http://" + rpcUpstreamHostport
-		waitTCPReady(b.p, rpcUpstreamURL, readinessTimeout)
-		b.logger.Info("OPRBuilderNode upstream RPC ready", "rpc", rpcUpstreamURL)
-		b.rpcProxy.SetUpstream(ProxyAddr(b.p.Require(), rpcUpstreamURL))
-		waitTCPReady(b.p, b.rpcProxyURL, readinessTimeout)
+		var httpRPCAddr string
+		b.p.Require().NoError(tasks.Await(b.p.Ctx(), httpRPCChan, &httpRPCAddr), "need HTTP RPC address from logs")
+		b.logger.Info("OPRBuilderNode upstream RPC ready", "rpc", httpRPCAddr)
+		b.rpcProxy.SetUpstream(ProxyAddr(b.p.Require(), httpRPCAddr))
 		b.logger.Info("OPRBuilderNode proxy RPC ready", "proxy_rpc", b.rpcProxyURL)
 
-		authUpstreamHostport := net.JoinHostPort(cfg.RPCAddr, strconv.Itoa(cfg.AuthRPCPort))
-		authUpstreamURL := "http://" + authUpstreamHostport
-		waitTCPReady(b.p, authUpstreamURL, readinessTimeout)
-		b.logger.Info("OPRBuilderNode upstream auth RPC ready", "auth_rpc", authUpstreamURL)
-		b.authProxy.SetUpstream(ProxyAddr(b.p.Require(), authUpstreamURL))
-		waitTCPReady(b.p, b.authProxyURL, readinessTimeout)
+		var authRPCAddr string
+		b.p.Require().NoError(tasks.Await(b.p.Ctx(), authRPCChan, &authRPCAddr), "need Auth RPC address from logs")
+		b.logger.Info("OPRBuilderNode upstream auth RPC ready", "auth_rpc", authRPCAddr)
+		b.authProxy.SetUpstream(ProxyAddr(b.p.Require(), authRPCAddr))
 		b.logger.Info("OPRBuilderNode proxy auth RPC ready", "proxy_auth_rpc", b.authProxyURL)
 	}
 
 	if cfg.EnableFlashblocks {
-		wsUpstreamHostport := net.JoinHostPort(cfg.FlashblocksAddr, strconv.Itoa(cfg.FlashblocksPort))
-		wsUpstreamURL := "ws://" + wsUpstreamHostport
-		waitWSReady(b.p, wsUpstreamURL, readinessTimeout)
-		b.logger.Info("OPRBuilderNode upstream WS ready", "ws", wsUpstreamURL)
-		b.wsProxy.SetUpstream(ProxyAddr(b.p.Require(), wsUpstreamURL))
-		waitWSReady(b.p, b.wsProxyURL, readinessTimeout)
+		var flashblocksAddr string
+		b.p.Require().NoError(tasks.Await(b.p.Ctx(), flashblocksWSChan, &flashblocksAddr), "need Flashblocks WS address from logs")
+		b.logger.Info("OPRBuilderNode upstream WS ready", "ws", flashblocksAddr)
+		b.wsProxy.SetUpstream(ProxyAddr(b.p.Require(), flashblocksAddr))
 		b.logger.Info("OPRBuilderNode proxy WS ready", "proxy_ws", b.wsProxyURL)
 	}
 }

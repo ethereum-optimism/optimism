@@ -1,0 +1,66 @@
+[package]
+name = "kona-supervisor-core"
+version = "0.1.0"
+
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
+
+[dependencies]
+# workspace
+kona-interop.workspace = true
+kona-protocol.workspace = true
+kona-supervisor-types.workspace = true
+kona-supervisor-rpc = { workspace = true, features = ["jsonrpsee", "client"] }
+kona-supervisor-storage.workspace = true
+kona-supervisor-metrics.workspace = true
+kona-genesis.workspace = true
+
+# alloy
+alloy-eips.workspace = true
+alloy-network.workspace = true
+alloy-provider = { workspace = true, features = ["reqwest"] }
+alloy-primitives = { workspace = true, features = ["map", "rlp", "serde"] }
+alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
+alloy-rpc-client.workspace = true
+alloy-rpc-types-eth.workspace = true
+alloy-consensus.workspace = true
+
+# op-alloy
+op-alloy-rpc-types = { workspace = true, features = ["jsonrpsee"] }
+op-alloy-consensus.workspace = true
+
+# jsonrpsee
+jsonrpsee = { workspace = true, features = [ "macros", "server", "client", "ws-client" ] }
+
+# general
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true 
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync", "macros"] }
+tokio-util.workspace = true
+auto_impl.workspace = true
+reqwest = { workspace = true }
+futures = { workspace = true }
+derive_more = { workspace = true, features = ["try_from"] }
+
+# `metrics` feature
+metrics = { workspace = true }
+
+[dev-dependencies]
+serde_json.workspace = true
+tempfile.workspace = true
+alloy-transport.workspace = true
+kona-interop = {workspace = true, features = ["std", "test-utils"]}
+mockall.workspace = true
+
+[lints]
+workspace = true

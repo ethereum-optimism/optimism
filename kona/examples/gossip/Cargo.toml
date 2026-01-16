@@ -1,0 +1,20 @@
+[package]
+name = "example-gossip"
+version = "0.0.0"
+publish = false
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+tracing.workspace = true
+kona-cli.workspace = true
+kona-disc.workspace = true
+kona-node-service.workspace = true
+kona-registry.workspace = true
+libp2p.workspace = true
+clap = { workspace = true, features = ["derive", "env"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio-util.workspace = true
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
+discv5.workspace = true
