@@ -7,4 +7,4 @@
 # Pattern: s|<original>|<replacement>|g
 
 # Replace upstream op-geth with Boba's fork
-s|github.com/ethereum-optimism/op-geth v[^ ]*|github.com/bobanetwork/op-geth v0.0.0-20251216190032-bdb3c55eb405|g
+s|github.com/ethereum-optimism/op-geth v[^ ]*|github.com/bobanetwork/op-geth v0.0.0-20260114142656-ce13a07c6ec2|
