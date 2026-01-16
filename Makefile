@@ -12,7 +12,7 @@
 #
 
 SHELL := /usr/bin/env bash
-.PHONY: all build test clean submodule-update help patch-apply patch-restore
+.PHONY: all build test clean submodule-update help patch-apply patch-restore docker-build
 
 # Directories
 REPO_ROOT := $(shell pwd)
@@ -24,6 +24,9 @@ BUILD_DIR := $(REPO_ROOT)/.boba-build
 UPSTREAM_TARGETS := op-node op-batcher op-proposer op-challenger op-program \
                     op-dispute-mon op-conductor op-supervisor op-wheel \
                     op-deployer op-faucet cannon
+
+# Docker container components to build
+DOCKER_TARGETS := op-node op-batcher op-proposer op-challenger op-dispute-mon op-supervisor op-conductor
 
 # Default target
 all: build
@@ -39,6 +42,7 @@ help:
 	@echo ""
 	@echo "Targets:"
 	@echo "  build              - Build all Go binaries (with Boba patches)"
+	@echo "  docker-build       - Build all Docker containers"
 	@echo "  test               - Run tests"
 	@echo "  clean              - Clean build artifacts and restore patches"
 	@echo "  submodule-update   - Update upstream submodule to latest"
@@ -48,9 +52,13 @@ help:
 	@echo "Individual component targets:"
 	@echo "  $(UPSTREAM_TARGETS)"
 	@echo ""
+	@echo "Docker targets:"
+	@echo "  $(DOCKER_TARGETS)"
+	@echo ""
 	@echo "Environment variables:"
 	@echo "  BOBA_KEEP_PATCHES=1  - Don't restore patches after build"
-	@echo "  BOBA_DRY_RUN=1       - Prepare but don't build"
+	@echo "  PLATFORM=linux/arm64 - Target platform for docker-build"
+	@echo "  TARGETS=\"op-node\"    - Specific targets for docker-build"
 	@echo ""
 
 # Apply patches to submodule
@@ -184,3 +192,41 @@ endif
 	cd $(SUBMODULE) && git fetch origin && git checkout $(REF)
 	git add $(SUBMODULE)
 	@echo "Submodule pinned to $(REF). Review changes and commit when ready."
+
+# Build all Docker containers
+# Usage: make docker-build
+#        make docker-build PLATFORM=linux/arm64
+#        make docker-build TARGETS="op-node op-batcher"
+docker-build: patch-apply
+	@echo "Building Docker containers..."
+	@# Setup buildx builder if needed
+	@docker buildx inspect buildx-build >/dev/null 2>&1 || \
+		docker buildx create --driver=docker-container --name=buildx-build --bootstrap --use
+	@# Set build variables
+	$(eval GIT_COMMIT := $(shell git rev-parse HEAD))
+	$(eval GIT_DATE := $(shell git show -s --format='%ct'))
+	$(eval GIT_VERSION := $(shell git describe --tags --always 2>/dev/null || echo "dev"))
+	$(eval PLATFORM := $(or $(PLATFORM),linux/amd64))
+	$(eval TARGETS := $(or $(TARGETS),$(DOCKER_TARGETS)))
+	$(eval KONA_VERSION := $(shell jq -r .version $(SUBMODULE)/kona/version.json))
+	@echo "Building targets: $(TARGETS)"
+	@echo "Platform: $(PLATFORM)"
+	@echo "Git commit: $(GIT_COMMIT)"
+	@echo "Git version: $(GIT_VERSION)"
+	@# Run docker buildx bake
+	cd $(SUBMODULE) && \
+		GIT_COMMIT=$(GIT_COMMIT) \
+		GIT_DATE=$(GIT_DATE) \
+		GIT_VERSION=$(GIT_VERSION) \
+		PLATFORMS=$(PLATFORM) \
+		KONA_VERSION=$(KONA_VERSION) \
+		docker buildx bake \
+			--progress plain \
+			--builder=buildx-build \
+			--load \
+			-f docker-bake.hcl \
+			$(TARGETS)
+	@if [ "$(BOBA_KEEP_PATCHES)" != "1" ]; then \
+		$(MAKE) patch-restore; \
+	fi
+	@echo "Docker build complete."
