@@ -25,5 +25,6 @@ func Uint64Strict(val *big.Int) uint64 {
 	if !val.IsUint64() {
 		panic("bigs.Uint64Strict: value does not fit in uint64")
 	}
+	//nolint:bigint // This is the one place we want to allow it.
 	return val.Uint64()
 }
