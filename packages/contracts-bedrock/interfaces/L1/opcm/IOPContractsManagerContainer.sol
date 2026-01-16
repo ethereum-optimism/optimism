@@ -8,10 +8,6 @@ interface IOPContractsManagerContainer {
         address proxyAdmin;
         address l1ChugSplashProxy;
         address resolvedDelegateProxy;
-        address permissionedDisputeGame1;
-        address permissionedDisputeGame2;
-        address permissionlessDisputeGame1;
-        address permissionlessDisputeGame2;
     }
 
     struct Implementations {
@@ -29,8 +25,8 @@ interface IOPContractsManagerContainer {
         address anchorStateRegistryImpl;
         address delayedWETHImpl;
         address mipsImpl;
-        address faultDisputeGameV2Impl;
-        address permissionedDisputeGameV2Impl;
+        address faultDisputeGameImpl;
+        address permissionedDisputeGameImpl;
         address superFaultDisputeGameImpl;
         address superPermissionedDisputeGameImpl;
         address storageSetterImpl;

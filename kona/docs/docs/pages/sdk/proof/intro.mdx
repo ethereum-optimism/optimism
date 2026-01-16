@@ -1,0 +1,61 @@
+# Kona Proof SDK
+
+Welcome to the Kona Proof SDK, a powerful set of libraries designed
+from first principles to build proofs with the OP Stack STF on top
+of the OP Stack's FPVMs and other verifiable backends like [SP-1][sp-1],
+[Risc0][rzero], [Intel TDX][tdx], and [AMD SEV-SNP][sev-snp]. At its
+core, Kona is built on the principles of modularity, extensibility,
+and developer empowerment.
+
+## A Foundation of Flexibility
+
+The kona repository is more than a fault proof program for the OP Stack
+— it's an ecosystem of interoperable components, each crafted with
+reusability and extensibility as primary goals. While we provide
+[Fault Proof VM](/glossary#fault-proof-vm) and "online" backends
+for key components like `kona-derive` and `kona-executor`, the true
+power of `kona` lies in its adaptability.
+
+## Extend Without Forking
+
+One of Kona's standout features is its ability to support custom
+features and data sources without requiring you to fork the entire
+project. Through careful use of Rust's powerful trait system and
+abstract interfaces, we've created a framework that allows you to
+plug in your own features and ideas seamlessly.
+
+## What You'll Learn
+
+In this section of the developer book, we'll dive deep into the Kona SDK, covering:
+* **Building on the FPVM Backend**: Learn how to leverage the Fault Proof VM tooling to create your own fault proof programs.
+* **Creating Custom Backends**: Discover the process of designing and implementing your own backend to run `kona-client` or a variation of it on different targets.
+* **Extending Core Components**: Explore techniques for creating new constructs that integrate smoothly with crates like `kona-derive` and `kona-executor`.
+
+Whether you're looking to use Kona as-is, extend its functionality, or create entirely new programs based on its libraries,
+this guide is intended to provide you with the knowledge and tools you need to succeed.
+
+[sp-1]: https://github.com/succinctlabs/sp1
+[rzero]: https://github.com/risc0/risc0
+[tdx]: https://www.intel.com/content/www/us/en/developer/tools/trust-domain-extensions/documentation.html
+[sev-snp]: https://www.amd.com/en/developer/sev.html
+
+[op-stack]: https://github.com/ethereum-optimism/optimism
+[op-program]: https://github.com/ethereum-optimism/optimism/tree/develop/op-program
+[cannon]: https://github.com/ethereum-optimism/optimism/tree/develop/cannon
+[cannon-rs]: https://github.com/op-rs/cannon-rs
+[asterisc]: https://github.com/ethereum-optimism/asterisc
+[fp-specs]: https://specs.optimism.io/experimental/fault-proof/index.html
+[fpp-specs]: https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program
+[preimage-specs]: https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle
+[cannon-specs]: https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine
+[l2-output-root]: https://specs.optimism.io/protocol/proposals.html#l2-output-commitment-construction
+[op-succinct]: https://github.com/succinctlabs/op-succinct
+[revm]: https://github.com/bluealloy/revm
+
+[kona]: https://github.com/op-rs/kona
+[issues]: https://github.com/op-rs/kona/issues
+[new-issue]: https://github.com/op-rs/kona/issues/new
+[contributing]: https://github.com/op-rs/kona/tree/main/CONTRIBUTING.md
+
+[op-labs]: https://github.com/ethereum-optimism
+[bad-boi-labs]: https://github.com/BadBoiLabs

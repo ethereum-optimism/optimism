@@ -40,7 +40,7 @@ func (m *TestTxManager) WaitOnJammingTx(ctx context.Context) error {
 }
 
 func (m *TestTxManager) makeStuckTx(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
-	gasTipCap, _, blobBaseFee, err := m.SuggestGasPriceCaps(ctx)
+	gasTipCap, _, gasBlobTipCap, blobBaseFee, err := m.SuggestGasPriceCaps(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (m *TestTxManager) makeStuckTx(ctx context.Context, candidate TxCandidate) 
 			Sidecar:    sidecar,
 			Nonce:      nonce,
 		}
-		if err := finishBlobTx(message, m.chainID, gasTipCap, gasFeeCap, blobFeeCap, candidate.Value); err != nil {
+		if err := finishBlobTx(message, m.chainID, gasBlobTipCap, gasFeeCap, blobFeeCap, candidate.Value); err != nil {
 			return nil, err
 		}
 		txMessage = message

@@ -53,26 +53,6 @@
             "internalType": "address",
             "name": "resolvedDelegateProxy",
             "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionedDisputeGame1",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionedDisputeGame2",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionlessDisputeGame1",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "permissionlessDisputeGame2",
-            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManager.Blueprints",
@@ -206,12 +186,12 @@
           },
           {
             "internalType": "address",
-            "name": "faultDisputeGameV2Impl",
+            "name": "faultDisputeGameImpl",
             "type": "address"
           },
           {
             "internalType": "address",
-            "name": "permissionedDisputeGameV2Impl",
+            "name": "permissionedDisputeGameImpl",
             "type": "address"
           },
           {

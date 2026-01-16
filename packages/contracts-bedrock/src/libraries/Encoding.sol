@@ -15,6 +15,9 @@ library Encoding {
     /// @notice Thrown when a provided Super Root proof has no Output Roots.
     error Encoding_EmptySuperRoot();
 
+    /// @notice Thrown when attempting to decode an invalid Super Root Proof encoding.
+    error Encoding_InvalidSuperRootEncoding();
+
     /// @notice RLP encodes the L2 transaction that would be generated when a given deposit is sent
     ///         to the L2 system. Useful for searching for a deposit in the L2 system. The
     ///         transaction is prefixed with 0x7e to identify its EIP-2718 type.
@@ -297,5 +300,47 @@ library Encoding {
         }
 
         return encoded;
+    }
+
+    /// @notice Decodes a super root proof from the preimage of a Super Root.
+    /// @param _super Encoded super root proof.
+    /// @return Decoded super root proof.
+    function decodeSuperRootProof(bytes memory _super) internal pure returns (Types.SuperRootProof memory) {
+        if (_super.length < 9) {
+            revert Encoding_InvalidSuperRootEncoding();
+        }
+        uint8 version = uint8(_super[0]);
+        if (version != 0x01) {
+            revert Encoding_InvalidSuperRootVersion();
+        }
+
+        uint256 offset = 1;
+        uint64 superTimestamp;
+        assembly {
+            superTimestamp := shr(192, mload(add(_super, add(32, offset))))
+        }
+        offset += 8;
+
+        if (_super.length <= offset) {
+            revert Encoding_EmptySuperRoot();
+        }
+        if ((_super.length - offset) % 64 != 0) {
+            revert Encoding_InvalidSuperRootEncoding();
+        }
+
+        Types.OutputRootWithChainId[] memory outputRoots =
+            new Types.OutputRootWithChainId[]((_super.length - offset) / 64);
+        for (uint256 i = 0; i < outputRoots.length; i++) {
+            uint256 chainId;
+            bytes32 root;
+            assembly {
+                chainId := mload(add(_super, add(32, offset)))
+                root := mload(add(_super, add(32, add(offset, 0x20))))
+            }
+            offset += 64;
+            outputRoots[i] = Types.OutputRootWithChainId({ chainId: chainId, root: root });
+        }
+
+        return Types.SuperRootProof({ version: bytes1(version), timestamp: superTimestamp, outputRoots: outputRoots });
     }
 }

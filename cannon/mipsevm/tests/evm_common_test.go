@@ -21,7 +21,6 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/register"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 )
 
 type insnCache interface {
@@ -632,21 +631,6 @@ func TestEVM_MMap(t *testing.T) {
 		Run(t, cases)
 }
 
-func TestEVM_SysGetRandom_isImplemented(t *testing.T) {
-	t.Parallel()
-	// Assert we have at least one vm with the working getrandom syscall
-	foundVmWithSyscallEnabled := false
-	for _, vers := range GetMipsVersionTestCases(t) {
-		features := versions.FeaturesForVersion(vers.Version)
-		foundVmWithSyscallEnabled = foundVmWithSyscallEnabled || features.SupportWorkingSysGetRandom
-	}
-	require.True(t, foundVmWithSyscallEnabled)
-
-	// Assert that latest version has a working getrandom ssycall
-	latestFeatures := versions.FeaturesForVersion(versions.GetExperimentalVersion())
-	require.True(t, latestFeatures.SupportWorkingSysGetRandom)
-}
-
 func TestEVM_SysGetRandom(t *testing.T) {
 	t.Parallel()
 
@@ -702,18 +686,12 @@ func TestEVM_SysGetRandom(t *testing.T) {
 	}
 
 	setExpectations := func(t require.TestingT, testCase testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
-		isNoop := !versions.FeaturesForVersion(vm.Version).SupportWorkingSysGetRandom
 		expectedMemory := testCase.expectedRandDataMask&randomData | ^testCase.expectedRandDataMask&startingMemory
 
 		expected.ExpectStep()
-		if isNoop {
-			expected.ActiveThread().Registers[register.RegSyscallRet1] = 0
-			expected.ActiveThread().Registers[register.RegSyscallErrno] = 0
-		} else {
-			expected.ActiveThread().Registers[register.RegSyscallRet1] = testCase.expectedReturnValue
-			expected.ActiveThread().Registers[register.RegSyscallErrno] = 0
-			expected.ExpectMemoryWrite(effAddr, expectedMemory)
-		}
+		expected.ActiveThread().Registers[register.RegSyscallRet1] = testCase.expectedReturnValue
+		expected.ActiveThread().Registers[register.RegSyscallErrno] = 0
+		expected.ExpectMemoryWrite(effAddr, expectedMemory)
 		return ExpectNormalExecution()
 	}
 
@@ -984,10 +962,6 @@ func TestEVM_RandomProgram(t *testing.T) {
 		v := v
 		t.Run(v.Name, func(t *testing.T) {
 			t.Parallel()
-
-			if !versions.FeaturesForVersion(v.Version).SupportWorkingSysGetRandom {
-				t.Skip("Skipping vm version that does not support working sys_getrandom")
-			}
 
 			validator := testutil.NewEvmValidator(t, v.StateHashFn, v.Contracts)
 

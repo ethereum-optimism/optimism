@@ -95,7 +95,7 @@ type TxManager interface {
 
 	// SuggestGasPriceCaps suggests what the new tip, base fee, and blob base fee should be based on
 	// the current L1 conditions. `blobBaseFee` will be nil if 4844 is not yet active.
-	SuggestGasPriceCaps(ctx context.Context) (tipCap *big.Int, baseFee *big.Int, blobBaseFee *big.Int, err error)
+	SuggestGasPriceCaps(ctx context.Context) (tipCap *big.Int, baseFee *big.Int, blobTipCap *big.Int, blobBaseFee *big.Int, err error)
 }
 
 // ETHBackend is the set of methods that the transaction manager uses to resubmit gas & determine
@@ -166,6 +166,10 @@ func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLI
 func NewSimpleTxManagerFromConfig(name string, l log.Logger, m metrics.TxMetricer, conf *Config) (*SimpleTxManager, error) {
 	if err := conf.Check(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
+	if conf.GasPriceEstimatorFn == nil {
+		conf.GasPriceEstimatorFn = DefaultGasPriceEstimatorFn
 	}
 
 	return &SimpleTxManager{
@@ -349,14 +353,12 @@ func (m *SimpleTxManager) prepare(ctx context.Context, candidate TxCandidate) (*
 // NOTE: Otherwise, the [SimpleTxManager] will query the specified backend for an estimate.
 func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
 	m.l.Debug("crafting Transaction", "blobs", len(candidate.Blobs), "calldata_size", len(candidate.TxData))
-	gasTipCap, baseFee, blobBaseFee, err := m.SuggestGasPriceCaps(ctx)
+	gasTipCap, baseFee, blobTipCap, blobBaseFee, err := m.SuggestGasPriceCaps(ctx)
 	if err != nil {
 		m.metr.RPCError()
 		return nil, fmt.Errorf("failed to get gas price info or it's too high: %w", err)
 	}
 	gasFeeCap := calcGasFeeCap(baseFee, gasTipCap)
-
-	gasLimit := candidate.GasLimit
 
 	var sidecar *types.BlobTxSidecar
 	var blobHashes []common.Hash
@@ -376,6 +378,59 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		}
 	}
 
+	candidate.GasLimit, err = m.estimateOrValidateCandidateTxGas(ctx, candidate, gasTipCap, gasFeeCap, blobHashes, blobBaseFee)
+	if err != nil {
+		return nil, err
+	}
+
+	var txMessage types.TxData
+	if sidecar != nil {
+		if blobBaseFee == nil {
+			return nil, errors.New("expected non-nil blobBaseFee")
+		}
+		blobFeeCap := m.calcBlobFeeCap(blobBaseFee)
+		message := &types.BlobTx{
+			To:         *candidate.To,
+			Data:       candidate.TxData,
+			Gas:        candidate.GasLimit,
+			BlobHashes: blobHashes,
+			Sidecar:    sidecar,
+		}
+
+		// graceful upgrade to using blob tip oracle, for now we just compare the fees based on current codebase and the new bgpo module
+		{
+			oracleSavings := blobTipCap.Cmp(gasTipCap) < 0
+
+			// TODO(18618): before activating the blob tip oracle, confirm in prod that we mostly get oracleSavings == true, otherwise
+			// it is not worth it using the oracle
+			m.l.Info("Comparison between blobTipCap and gasTipCap", "blobTipCap", blobTipCap, "gasTipCap", gasTipCap, "oracle_blob_savings", oracleSavings)
+
+			// TODO(18618): when activating the blob tip oracle, we should remove the assignment and use the suggested blob tip cap from the oracle
+			blobTipCap = gasTipCap
+		}
+
+		if err := finishBlobTx(message, m.chainID, blobTipCap, gasFeeCap, blobFeeCap, candidate.Value); err != nil {
+			return nil, fmt.Errorf("failed to create blob transaction: %w", err)
+		}
+		txMessage = message
+	} else {
+		txMessage = &types.DynamicFeeTx{
+			ChainID:   m.chainID,
+			To:        candidate.To,
+			GasTipCap: gasTipCap,
+			GasFeeCap: gasFeeCap,
+			Value:     candidate.Value,
+			Data:      candidate.TxData,
+			Gas:       candidate.GasLimit,
+		}
+	}
+	return m.signWithNextNonce(ctx, txMessage) // signer sets the nonce field of the tx
+}
+
+// estimateOrValidateCandidateTxGas either:
+// a) validates and returns the candidate.GasLimit (if set) using CallContract
+// b) estimates the gas limit using backend.EstimatGas and returns it.
+func (m *SimpleTxManager) estimateOrValidateCandidateTxGas(ctx context.Context, candidate TxCandidate, gasTipCap, gasFeeCap *big.Int, blobHashes []common.Hash, blobBaseFee *big.Int) (uint64, error) {
 	// Calculate the intrinsic gas for the transaction
 	callMsg := ethereum.CallMsg{
 		From:      m.cfg.From,
@@ -390,49 +445,20 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		callMsg.BlobHashes = blobHashes
 	}
 	// If the gas limit is set, we can use that as the gas
-	if gasLimit == 0 {
+	if candidate.GasLimit == 0 {
 		gas, err := m.backend.EstimateGas(ctx, callMsg)
 		if err != nil {
-			return nil, fmt.Errorf("failed to estimate gas: %w", errutil.TryAddRevertReason(err))
+			return 0, fmt.Errorf("failed to estimate gas: %w", errutil.TryAddRevertReason(err))
 		}
-		gasLimit = gas
-	} else {
-		callMsg.Gas = gasLimit
-		_, err := m.backend.CallContract(ctx, callMsg, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to call: %w", errutil.TryAddRevertReason(err))
-		}
+		return gas, nil
 	}
 
-	var txMessage types.TxData
-	if sidecar != nil {
-		if blobBaseFee == nil {
-			return nil, errors.New("expected non-nil blobBaseFee")
-		}
-		blobFeeCap := m.calcBlobFeeCap(blobBaseFee)
-		message := &types.BlobTx{
-			To:         *candidate.To,
-			Data:       candidate.TxData,
-			Gas:        gasLimit,
-			BlobHashes: blobHashes,
-			Sidecar:    sidecar,
-		}
-		if err := finishBlobTx(message, m.chainID, gasTipCap, gasFeeCap, blobFeeCap, candidate.Value); err != nil {
-			return nil, fmt.Errorf("failed to create blob transaction: %w", err)
-		}
-		txMessage = message
-	} else {
-		txMessage = &types.DynamicFeeTx{
-			ChainID:   m.chainID,
-			To:        candidate.To,
-			GasTipCap: gasTipCap,
-			GasFeeCap: gasFeeCap,
-			Value:     candidate.Value,
-			Data:      candidate.TxData,
-			Gas:       gasLimit,
-		}
+	callMsg.Gas = candidate.GasLimit
+	_, err := m.backend.CallContract(ctx, callMsg, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to call: %w", errutil.TryAddRevertReason(err))
 	}
-	return m.signWithNextNonce(ctx, txMessage) // signer sets the nonce field of the tx
+	return candidate.GasLimit, nil
 }
 
 func (m *SimpleTxManager) GetMinBaseFee() *big.Int {
@@ -886,7 +912,9 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 // multiple of the suggested values.
 func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
 	m.txLogger(tx, true).Info("bumping gas price for transaction")
-	tip, baseFee, blobBaseFee, err := m.SuggestGasPriceCaps(ctx)
+	tip, baseFee, blobTipCap, blobBaseFee, err := m.SuggestGasPriceCaps(ctx)
+	// TODO(18618): when activating the blob tip oracle, integrate blobTipCap into the rest of the logic around bumping the gas price when replacing txs
+	_ = blobTipCap
 	if err != nil {
 		m.txLogger(tx, false).Warn("failed to get suggested gas tip and base fee", "err", err)
 		return nil, err
@@ -985,24 +1013,20 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 // SuggestGasPriceCaps suggests what the new tip, base fee, and blob base fee should be based on
 // the current L1 conditions. `blobBaseFee` will be nil if 4844 is not yet active.
 // Note that an error will be returned if MaxTipCap or MaxBaseFee is exceeded.
-func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *big.Int, *big.Int, error) {
+func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
 	cCtx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
 
-	estimatorFn := m.gasPriceEstimatorFn
-	if estimatorFn == nil {
-		estimatorFn = DefaultGasPriceEstimatorFn
-	}
-
-	tip, baseFee, blobFee, err := estimatorFn(cCtx, m.backend)
+	tip, baseFee, blobTipCap, blobBaseFee, err := m.gasPriceEstimatorFn(cCtx, m.backend)
 	if err != nil {
 		m.metr.RPCError()
-		return nil, nil, nil, fmt.Errorf("failed to get gas price estimates: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to get gas price estimates: %w", err)
 	}
 
 	m.metr.RecordTipCap(tip)
 	m.metr.RecordBaseFee(baseFee)
-	m.metr.RecordBlobBaseFee(blobFee)
+	m.metr.RecordBlobBaseFee(blobBaseFee)
+	m.metr.RecordBlobTipCap(blobTipCap)
 
 	// Enforce minimum base fee and tip cap
 	minTipCap := m.cfg.MinTipCap.Load()
@@ -1010,12 +1034,21 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	minBaseFee := m.cfg.MinBaseFee.Load()
 	maxBaseFee := m.cfg.MaxBaseFee.Load()
 
+	// Enforce minimum tip cap (for non-blob txs)
 	if minTipCap != nil && tip.Cmp(minTipCap) == -1 {
 		m.l.Debug("Enforcing min tip cap", "minTipCap", minTipCap, "origTipCap", tip)
 		tip = new(big.Int).Set(minTipCap)
 	}
 	if maxTipCap != nil && tip.Cmp(maxTipCap) > 0 {
-		return nil, nil, nil, fmt.Errorf("tip is too high: %v, cap:%v", tip, maxTipCap)
+		return nil, nil, nil, nil, fmt.Errorf("tip is too high: %v, cap:%v", tip, maxTipCap)
+	}
+
+	// Comparing if the configured min tip cap is higher than the suggested blob tip cap, and if so, it means we are overpaying for the transaction
+	if minTipCap != nil && blobTipCap.Cmp(minTipCap) == -1 {
+		m.l.Warn("Suggested blobTipCap is lower than the configured min tip cap for blob txs", "minTipCap", minTipCap, "blobTipCap", blobTipCap)
+	}
+	if maxTipCap != nil && blobTipCap.Cmp(maxTipCap) > 0 {
+		return nil, nil, nil, nil, fmt.Errorf("blob tip cap is too high: %v, cap:%v", blobTipCap, maxTipCap)
 	}
 
 	if minBaseFee != nil && baseFee.Cmp(minBaseFee) == -1 {
@@ -1023,10 +1056,11 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 		baseFee = new(big.Int).Set(minBaseFee)
 	}
 	if maxBaseFee != nil && baseFee.Cmp(maxBaseFee) > 0 {
-		return nil, nil, nil, fmt.Errorf("baseFee is too high: %v, cap:%v", baseFee, maxBaseFee)
+		return nil, nil, nil, nil, fmt.Errorf("baseFee is too high: %v, cap:%v", baseFee, maxBaseFee)
 	}
 
-	return tip, baseFee, blobFee, nil
+	m.l.Info("Suggested gas price caps", "gasTipCap", tip, "baseFee", baseFee, "blobTipCap", blobTipCap, "blobBaseFee", blobBaseFee)
+	return tip, baseFee, blobTipCap, blobBaseFee, nil
 }
 
 // checkLimits checks that the tip and baseFee have not increased by more than the configured multipliers

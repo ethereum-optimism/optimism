@@ -1,0 +1,25 @@
+# JSON-RPC
+
+The `kona-node` supports JSON-RPC for interacting with the node.
+
+By default, `kona-node` exposes an HTTP JSON-RPC server. A WebSocket JSON-RPC
+endpoint is also available and can be enabled with the `--rpc.ws-enabled` flag
+or the `KONA_NODE_RPC_WS_ENABLED` environment variable. IPC transport is not
+supported.
+
+### Namespaces
+
+JSON-RPC methods are grouped into namespaces, which are listed below:
+
+| Namespace                    | Description                                                                                            | Sensitive |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------ | --------- |
+| [`p2p`](/node/rpc/p2p)        | The `p2p` API allows you to configure the p2p stack.                                                   | Maybe     |
+| [`rollup`](/node/rpc/rollup)  | The `rollup` API provides OP Stack specific rpc methods.                                               | No        |
+| [`admin`](/node/rpc/admin)    | The `admin` API allows you to configure your node.                                                     | **Yes**   |
+
+
+### Interacting with the RPC
+
+Kona enables these RPC methods by default.
+
+You can interact with the RPC using any JSON-RPC client, such as `curl`, `httpie`, or a custom client in your preferred programming language.

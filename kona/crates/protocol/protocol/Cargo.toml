@@ -1,0 +1,129 @@
+[package]
+name = "kona-protocol"
+version = "0.4.5"
+description = "Optimism protocol-specific types"
+
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Workspace
+kona-genesis.workspace = true
+
+# OP Alloy
+op-alloy-consensus.workspace = true
+op-alloy-rpc-types.workspace = true
+op-alloy-rpc-types-engine.workspace = true
+
+# Alloy
+alloy-primitives = { workspace = true, features = ["map"] }
+alloy-rlp.workspace = true
+alloy-hardforks.workspace = true
+alloy-eips.workspace = true
+alloy-consensus.workspace = true
+alloy-rpc-types-eth.workspace = true
+alloy-rpc-types-engine.workspace = true
+
+# Misc
+tracing.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+unsigned-varint.workspace = true
+derive_more = { workspace = true, features = ["display"] }
+
+# Compression
+brotli.workspace = true
+miniz_oxide.workspace = true
+alloc-no-stdlib.workspace = true
+
+# `arbitrary` feature
+arbitrary = { workspace = true, features = ["derive"], optional = true }
+
+# `serde` feature
+serde = { workspace = true, optional = true }
+alloy-serde = { workspace = true, optional = true }
+
+# `test-utils` feature
+spin = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, features = ["fmt"], optional = true }
+
+[dev-dependencies]
+brotli = { workspace = true, features = ["std"] }
+spin.workspace = true
+rand = { workspace = true, features = ["std", "std_rng"] }
+rstest.workspace = true
+proptest.workspace = true
+serde_json.workspace = true
+alloy-sol-types.workspace = true
+tokio = { workspace = true, features = ["full"] }
+arbitrary = { workspace = true, features = ["derive"] }
+tracing-subscriber = { workspace = true, features = ["fmt"] }
+alloy-primitives = { workspace = true, features = ["arbitrary"] }
+op-alloy-consensus.workspace = true
+alloy-rpc-types-eth.workspace = true
+op-alloy-rpc-types.workspace = true
+
+kona-registry.workspace = true
+
+[features]
+default = []
+std = [
+	"alloy-consensus/std",
+	"alloy-eips/std",
+	"alloy-primitives/std",
+	"alloy-rlp/std",
+	"alloy-rpc-types-engine/std",
+	"alloy-rpc-types-eth/std",
+	"alloy-serde?/std",
+	"brotli/std",
+	"derive_more/std",
+	"kona-genesis/std",
+	"miniz_oxide/std",
+	"op-alloy-consensus/std",
+	"op-alloy-rpc-types-engine/std",
+	"op-alloy-rpc-types/std",
+	"serde?/std",
+	"spin?/std",
+	"thiserror/std",
+	"tracing/std",
+	"unsigned-varint/std",
+]
+test-utils = [ "dep:spin", "dep:tracing-subscriber" ]
+arbitrary = [
+	"alloy-consensus/arbitrary",
+	"alloy-eips/arbitrary",
+	"alloy-primitives/arbitrary",
+	"alloy-primitives/rand",
+	"alloy-rpc-types-engine/arbitrary",
+	"alloy-rpc-types-eth/arbitrary",
+	"alloy-serde?/arbitrary",
+	"dep:arbitrary",
+	"kona-genesis/arbitrary",
+	"op-alloy-consensus/arbitrary",
+	"op-alloy-rpc-types-engine/arbitrary",
+	"op-alloy-rpc-types/arbitrary",
+	"std",
+]
+serde = [
+	"alloy-consensus/serde",
+	"alloy-eips/serde",
+	"alloy-hardforks/serde",
+	"alloy-primitives/serde",
+	"alloy-rpc-types-engine/serde",
+	"alloy-rpc-types-eth/serde",
+	"dep:alloy-serde",
+	"dep:serde",
+	"kona-genesis/serde",
+	"op-alloy-consensus/serde",
+	"op-alloy-rpc-types-engine/serde",
+	"op-alloy-rpc-types/serde",
+	"tracing-subscriber?/serde",
+]

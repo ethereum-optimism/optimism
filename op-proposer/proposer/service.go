@@ -38,7 +38,6 @@ type ProposerConfig struct {
 	// How frequently to post L2 outputs when the DisputeGameFactory is configured
 	ProposalInterval time.Duration
 
-	L2OutputOracleAddr     *common.Address
 	DisputeGameFactoryAddr *common.Address
 	DisputeGameType        uint32
 
@@ -96,7 +95,6 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 	ps.AllowNonFinalized = cfg.AllowNonFinalized
 	ps.WaitNodeSync = cfg.WaitNodeSync
 
-	ps.initL2ooAddress(cfg)
 	ps.initDGF(cfg)
 
 	if err := ps.initRPCClients(ctx, cfg); err != nil {
@@ -218,15 +216,6 @@ func (ps *ProposerService) initMetricsServer(cfg *CLIConfig) error {
 	ps.Log.Info("Started metrics server", "addr", metricsSrv.Addr())
 	ps.metricsSrv = metricsSrv
 	return nil
-}
-
-func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) {
-	l2ooAddress, err := opservice.ParseAddress(cfg.L2OOAddress)
-	if err != nil {
-		// Return no error & set no L2OO related configuration fields.
-		return
-	}
-	ps.L2OutputOracleAddr = &l2ooAddress
 }
 
 func (ps *ProposerService) initDGF(cfg *CLIConfig) {

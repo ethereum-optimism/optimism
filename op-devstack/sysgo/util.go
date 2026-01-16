@@ -1,18 +1,17 @@
 package sysgo
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net"
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,24 +36,45 @@ func propagateEnvVarOrDefault(envVarName string, defaultValue string) string {
 }
 
 var availableLocalPortMutex sync.Mutex
+var recentlyAllocatedPorts = make(map[int]struct{})
 
 // getAvailableLocalPort searches for and returns a currently unused local port.
+// Tracks recently allocated ports to avoid returning the same port twice
+// (the OS may recycle a port immediately after we release it).
 // Note: this function is threadsafe.
 func getAvailableLocalPort() (string, error) {
 	availableLocalPortMutex.Lock()
 	defer availableLocalPortMutex.Unlock()
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return "", fmt.Errorf("could not listen on ephemeral port: %w", err)
-	}
-	defer ln.Close()
+	// Keep listeners open while looping so the OS won't return the same port twice
+	var heldListeners []net.Listener
+	defer func() {
+		for _, ln := range heldListeners {
+			ln.Close()
+		}
+	}()
 
-	addr, ok := ln.Addr().(*net.TCPAddr)
-	if !ok {
-		return "", errors.New("listener did not return a TCP addr")
+	const maxAttempts = 100
+	for range maxAttempts {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return "", fmt.Errorf("could not listen on ephemeral port: %w", err)
+		}
+		heldListeners = append(heldListeners, ln)
+
+		addr, ok := ln.Addr().(*net.TCPAddr)
+		if !ok {
+			return "", errors.New("listener did not return a TCP addr")
+		}
+		port := addr.Port
+
+		if _, used := recentlyAllocatedPorts[port]; used {
+			continue
+		}
+		recentlyAllocatedPorts[port] = struct{}{}
+		return strconv.Itoa(port), nil
 	}
-	return strconv.Itoa(addr.Port), nil
+	return "", errors.New("failed to allocate unique port after max attempts")
 }
 
 // waitTCPReady parses a URL and waits for its TCP endpoint to become ready using EventuallyWithT.
@@ -73,14 +93,20 @@ func waitTCPReady(p devtest.P, rawURL string, timeout time.Duration) {
 	}, timeout, 100*time.Millisecond, waitMsg)
 }
 
-// waitWSReady attempts an actual WebSocket handshake to confirm readiness using EventuallyWithT.
-func waitWSReady(p devtest.P, rawURL string, timeout time.Duration) {
-	p.Helper()
-	waitWSMsg := fmt.Sprintf("WebSocket endpoint %s not ready within %v", rawURL, timeout)
-	p.Require().EventuallyWithT(func(c *assert.CollectT) {
-		ctx, cancel := context.WithTimeout(context.Background(), 750*time.Millisecond)
-		err := opclient.ProbeWS(ctx, rawURL)
-		cancel()
-		assert.NoError(c, err, "WebSocket handshake to %s should succeed", rawURL)
-	}, timeout, 100*time.Millisecond, waitWSMsg)
+// parseAndValidateAddr ensures the address has a scheme and is a valid URL.
+// Returns the validated URL string or empty string if invalid.
+// This is used to parse addresses from process (e.g. op-rbuilder) log output.
+func parseAndValidateAddr(addr, defaultScheme string) string {
+	if addr == "" {
+		return ""
+	}
+	// Add scheme if not present
+	if !strings.Contains(addr, "://") {
+		addr = defaultScheme + "://" + addr
+	}
+	u, err := url.Parse(addr)
+	if err != nil || u.Host == "" || u.Hostname() == "" {
+		return ""
+	}
+	return u.String()
 }

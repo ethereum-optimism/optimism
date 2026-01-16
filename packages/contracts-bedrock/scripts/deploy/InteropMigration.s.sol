@@ -6,6 +6,7 @@ import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { IOPContractsManagerInteropMigrator, IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { Duration, Proposal, Hash } from "src/dispute/lib/Types.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DummyCaller } from "scripts/libraries/DummyCaller.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 
@@ -194,16 +195,15 @@ contract InteropMigration is Script {
         // as the source of the delegatecall to the OPCM. In practice this will be the governance
         // 2/2 or similar.
         address prank = _imi.prank();
-        bytes memory code = vm.getDeployedCode("InteropMigration.s.sol:DummyCaller");
+        bytes memory code = type(DummyCaller).runtimeCode;
         vm.etch(prank, code);
         vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(opcm)))));
         vm.label(prank, "DummyCaller");
 
-        // Call into the DummyCaller. This will perform the delegatecall under the hood and
-        // return the result.
+        // Call into the DummyCaller. This will perform the delegatecall under the hood.
+        // The DummyCaller uses a fallback that reverts on failure, so no need to check success.
         vm.broadcast(msg.sender);
-        (bool success,) = DummyCaller(prank).migrate(inputs);
-        require(success, "InteropMigration: migrate failed");
+        IOPContractsManagerInteropMigrator(prank).migrate(inputs);
 
         // After migration all portals will have the same DGF
         IOptimismPortal portal = IOptimismPortal(payable(opChainConfigs[0].systemConfigProxy.optimismPortal()));
@@ -223,18 +223,5 @@ contract InteropMigration is Script {
                 "InteropMigration: disputeGameFactory mismatch"
             );
         }
-    }
-}
-
-contract DummyCaller {
-    address internal _opcmAddr;
-
-    function migrate(IOPContractsManagerInteropMigrator.MigrateInput memory _migrateInput)
-        external
-        returns (bool, bytes memory)
-    {
-        bytes memory data = abi.encodeCall(DummyCaller.migrate, _migrateInput);
-        (bool success, bytes memory result) = _opcmAddr.delegatecall(data);
-        return (success, result);
     }
 }

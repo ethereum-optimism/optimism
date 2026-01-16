@@ -1468,7 +1468,7 @@ func runChallengerTest(gt *testing.T, test *transitionTest, actors *dsl.InteropA
 	gameDepth := challengerTypes.Depth(30)
 	rollupCfgs, err := super.NewRollupConfigsFromParsed(actors.ChainA.RollupCfg, actors.ChainB.RollupCfg)
 	require.NoError(t, err)
-	provider := super.NewSuperTraceProvider(logger, rollupCfgs, prestateProvider, actors.Supervisor, l1Head, gameDepth, startTimestamp, endTimestamp)
+	provider := super.NewSupervisorSuperTraceProvider(logger, rollupCfgs, prestateProvider, actors.Supervisor, l1Head, gameDepth, startTimestamp, endTimestamp)
 	var agreedPrestate []byte
 	if test.disputedTraceIndex > 0 {
 		agreedPrestate, err = provider.GetPreimageBytes(t.Ctx(), challengerTypes.NewPosition(gameDepth, big.NewInt(test.disputedTraceIndex-1)))

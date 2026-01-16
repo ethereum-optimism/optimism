@@ -5,11 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/client"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
-	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -27,14 +25,8 @@ type GenericGameLoader interface {
 	GetStatus(context.Context) (gameTypes.GameStatus, error)
 }
 
-type SyncValidator interface {
-	// ValidateNodeSynced checks that the local node is sufficiently up to date to play the game.
-	// It returns client.ErrNotInSync if the node is too far behind.
-	ValidateNodeSynced(ctx context.Context, gameL1Head eth.BlockID) error
-}
-
 type L1HeaderSource interface {
-	HeaderByHash(context.Context, common.Hash) (*gethTypes.Header, error)
+	BlockRefByHash(ctx context.Context, hash common.Hash) (eth.BlockRef, error)
 }
 
 type ActorCreator func(ctx context.Context, logger log.Logger, l1Head eth.BlockID) (Actor, error)
@@ -43,7 +35,7 @@ type GamePlayer struct {
 	actor              Actor
 	loader             GenericGameLoader
 	logger             log.Logger
-	syncValidator      SyncValidator
+	syncValidator      gameTypes.SyncValidator
 	prestateValidators []PrestateValidator
 	status             gameTypes.GameStatus
 	gameL1Head         eth.BlockID
@@ -59,7 +51,7 @@ func NewGenericGamePlayer(
 	logger log.Logger,
 	addr common.Address,
 	loader GenericGameLoader,
-	syncValidator SyncValidator,
+	syncValidator gameTypes.SyncValidator,
 	validators []PrestateValidator,
 	l1HeaderSource L1HeaderSource,
 	createActor ActorCreator,
@@ -86,11 +78,11 @@ func NewGenericGamePlayer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to load game L1 head: %w", err)
 	}
-	l1Header, err := l1HeaderSource.HeaderByHash(ctx, l1HeadHash)
+	l1Header, err := l1HeaderSource.BlockRefByHash(ctx, l1HeadHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load L1 header %v: %w", l1HeadHash, err)
 	}
-	l1Head := eth.HeaderBlockID(l1Header)
+	l1Head := l1Header.ID()
 
 	actor, err := createActor(ctx, logger, l1Head)
 	if err != nil {
@@ -127,7 +119,7 @@ func (g *GamePlayer) ProgressGame(ctx context.Context) gameTypes.GameStatus {
 		g.logger.Trace("Skipping completed game")
 		return g.status
 	}
-	if err := g.syncValidator.ValidateNodeSynced(ctx, g.gameL1Head); errors.Is(err, client.ErrNotInSync) {
+	if err := g.syncValidator.ValidateNodeSynced(ctx, g.gameL1Head); errors.Is(err, gameTypes.ErrNotInSync) {
 		g.logger.Warn("Local node not sufficiently up to date", "err", err)
 		return g.status
 	} else if err != nil {

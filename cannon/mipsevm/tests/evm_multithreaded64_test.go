@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 )
 
 func TestEVM_MT64_LL(t *testing.T) {
@@ -608,7 +607,6 @@ var NoopSyscalls64 = map[string]uint32{
 	"SysPipe2":        5287,
 	"SysEpollCtl":     5208,
 	"SysEpollPwait":   5272,
-	"SysGetRandom":    5313,
 	"SysUname":        5061,
 	//"SysStat64":       UndefinedSysNr,
 	"SysGetuid": 5100,
@@ -624,49 +622,46 @@ var NoopSyscalls64 = map[string]uint32{
 	"SysTimerDelete":  5220,
 }
 
-func getNoopSyscalls64(vmVersion versions.StateVersion) map[string]uint32 {
-	noOpCalls := maps.Clone(NoopSyscalls64)
-	features := versions.FeaturesForVersion(vmVersion)
-	if features.SupportWorkingSysGetRandom {
-		delete(noOpCalls, "SysGetRandom")
-	}
-	return noOpCalls
-}
-
-func getSupportedSyscalls(vmVersion versions.StateVersion) []uint32 {
-	supportedSyscalls := []uint32{arch.SysMmap, arch.SysBrk, arch.SysClone, arch.SysExitGroup, arch.SysRead, arch.SysWrite, arch.SysFcntl, arch.SysExit, arch.SysSchedYield, arch.SysGetTID, arch.SysFutex, arch.SysOpen, arch.SysNanosleep, arch.SysClockGetTime, arch.SysGetpid, arch.SysEventFd2}
-
-	features := versions.FeaturesForVersion(vmVersion)
-	if features.SupportWorkingSysGetRandom {
-		supportedSyscalls = append(supportedSyscalls, arch.SysGetRandom)
-	}
-	return supportedSyscalls
+var SupportedSyscalls64 = []uint32{
+	arch.SysMmap,
+	arch.SysBrk,
+	arch.SysClone,
+	arch.SysExitGroup,
+	arch.SysRead,
+	arch.SysWrite,
+	arch.SysFcntl,
+	arch.SysExit,
+	arch.SysSchedYield,
+	arch.SysGetTID,
+	arch.SysFutex,
+	arch.SysOpen,
+	arch.SysNanosleep,
+	arch.SysClockGetTime,
+	arch.SysGetpid,
+	arch.SysEventFd2,
+	arch.SysGetRandom,
 }
 
 func TestEVM_NoopSyscall64(t *testing.T) {
 	t.Parallel()
 	for _, vmVersion := range GetMipsVersionTestCases(t) {
-		noOpCalls := getNoopSyscalls64(vmVersion.Version)
-		testNoopSyscall(t, vmVersion, noOpCalls)
+		testNoopSyscall(t, vmVersion, NoopSyscalls64)
 	}
 }
 
 func TestEVM_UnsupportedSyscall64(t *testing.T) {
 	t.Parallel()
-	for _, vmVersion := range GetMipsVersionTestCases(t) {
-		var noopSyscallNums = maps.Values(getNoopSyscalls64(vmVersion.Version))
-		var SupportedSyscalls = getSupportedSyscalls(vmVersion.Version)
-		unsupportedSyscalls := make([]uint32, 0, 400)
-		for i := 5000; i < 5400; i++ {
-			candidate := uint32(i)
-			if slices.Contains(SupportedSyscalls, candidate) || slices.Contains(noopSyscallNums, candidate) {
-				continue
-			}
-			unsupportedSyscalls = append(unsupportedSyscalls, candidate)
+	noopSyscallNums := maps.Values(NoopSyscalls64)
+	unsupportedSyscalls := make([]uint32, 0, 400)
+	for i := 5000; i < 5400; i++ {
+		candidate := uint32(i)
+		if slices.Contains(SupportedSyscalls64, candidate) || slices.Contains(noopSyscallNums, candidate) {
+			continue
 		}
-
-		unsupported := unsupportedSyscalls
-		testUnsupportedSyscall(t, vmVersion, unsupported)
+		unsupportedSyscalls = append(unsupportedSyscalls, candidate)
+	}
+	for _, vmVersion := range GetMipsVersionTestCases(t) {
+		testUnsupportedSyscall(t, vmVersion, unsupportedSyscalls)
 	}
 }
 

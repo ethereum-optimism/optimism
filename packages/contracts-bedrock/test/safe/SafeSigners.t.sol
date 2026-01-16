@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
-import { SafeSigners } from "src/safe/SafeSigners.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
 import "test/safe-tools/SafeTestTools.sol";
+
+// Contracts
+import { SafeSigners } from "src/safe/SafeSigners.sol";
 
 /// @title SafeSigners_TestInit
 /// @notice Reusable test initialization for `SafeSigners` tests.

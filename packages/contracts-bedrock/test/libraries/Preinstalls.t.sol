@@ -6,9 +6,28 @@ import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 import { IEIP712 } from "interfaces/universal/IEIP712.sol";
 
+/// @title Preinstalls_Harness
+/// @notice Harness contract to expose internal Preinstalls library functions for testing.
+contract Preinstalls_Harness {
+    function getDeployedCode(address _addr, uint256 _chainID) external pure returns (bytes memory) {
+        return Preinstalls.getDeployedCode(_addr, _chainID);
+    }
+
+    function getName(address _addr) external pure returns (string memory) {
+        return Preinstalls.getName(_addr);
+    }
+}
+
 /// @title Preinstalls_TestInit
 /// @notice Reusable test initialization for `Preinstalls` tests.
 abstract contract Preinstalls_TestInit is CommonTest {
+    Preinstalls_Harness internal harness;
+
+    function setUp() public virtual override {
+        super.setUp();
+        harness = new Preinstalls_Harness();
+    }
+
     function assertPreinstall(address _addr, bytes memory _code) internal view {
         assertNotEq(_code.length, 0, "must have code");
         assertNotEq(_addr.code.length, 0, "deployed preinstall account must have code");
@@ -43,6 +62,26 @@ contract Preinstalls_GetPermit2Code_Test is Preinstalls_TestInit {
             "expecting default domain separator"
         );
         assertEq(defaultCode, Preinstalls.Permit2TemplateCode, "template is using chain ID 1");
+    }
+}
+
+/// @title Preinstalls_GetDeployedCode_Test
+/// @notice Tests the `getDeployedCode` function of the `Preinstalls` library.
+contract Preinstalls_GetDeployedCode_Test is Preinstalls_TestInit {
+    /// @notice Tests that getDeployedCode reverts for an unknown address.
+    function test_getDeployedCode_unknownAddress_reverts() external {
+        vm.expectRevert(bytes("Preinstalls: unknown preinstall"));
+        harness.getDeployedCode(address(0x1234), block.chainid);
+    }
+}
+
+/// @title Preinstalls_GetName_Test
+/// @notice Tests the `getName` function of the `Preinstalls` library.
+contract Preinstalls_GetName_Test is Preinstalls_TestInit {
+    /// @notice Tests that getName reverts for an unknown address.
+    function test_getName_unknownAddress_reverts() external {
+        vm.expectRevert(bytes("Preinstalls: unnamed preinstall"));
+        harness.getName(address(0x1234));
     }
 }
 

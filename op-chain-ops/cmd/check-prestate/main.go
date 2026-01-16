@@ -97,7 +97,7 @@ func main() {
 	switch prestateType {
 	case "cannon32", "cannon64", "interop":
 		prestateImpl = prestate.NewOPProgramPrestate()
-	case "cannon-kona":
+	case "cannon64-kona":
 		prestateImpl = prestate.NewKonaPrestate()
 	default:
 		log.Crit("Invalid prestate type", "type", prestateType)

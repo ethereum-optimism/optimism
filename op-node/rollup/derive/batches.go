@@ -302,7 +302,8 @@ func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logge
 	return BatchAccept, parentBlock
 }
 
-// checkSpanBatch performs the full SpanBatch validation rules.
+// checkSpanBatch checks the full SpanBatch semantic validation rules on a syntactically-correct
+// span batch.
 func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef,
 	batch *SpanBatch, l1InclusionBlock eth.L1BlockRef, l2Fetcher SafeBlockFetcher,
 ) BatchValidity {

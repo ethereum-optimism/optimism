@@ -1,0 +1,60 @@
+[package]
+name = "kona-registry"
+version = "0.4.5"
+description = "A registry of superchain configs"
+
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Workspace
+kona-genesis = { workspace = true, features = ["serde"] }
+
+# Alloy
+alloy-primitives = { workspace = true, features = ["map"] }
+alloy-genesis.workspace = true
+alloy-eips.workspace = true 
+alloy-hardforks.workspace = true
+alloy-chains = { workspace = true, features = ["serde"] }
+alloy-op-hardforks = { workspace = true }
+
+# `serde`
+serde = { workspace = true, features = ["derive", "alloc"] }
+serde_json = { workspace = true, features = ["raw_value"] }
+
+# misc
+lazy_static = { workspace = true, features = ["spin_no_std"] }
+
+# `tabled` feature
+tabled = { workspace = true, features = ["derive"], optional = true }
+
+[build-dependencies]
+toml = { workspace = true, features = ["parse", "serde"] }
+serde = { workspace = true }
+serde_json = { workspace = true, features = ["raw_value"] }
+kona-genesis = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+alloy-eips.workspace = true
+
+[features]
+default = []
+tabled = [ "dep:tabled", "std" ]
+std = [
+	"alloy-chains/std",
+	"alloy-eips/std",
+	"alloy-genesis/std",
+	"alloy-primitives/std",
+	"kona-genesis/std",
+	"serde/std",
+	"serde_json/std",
+	"tabled?/std",
+]

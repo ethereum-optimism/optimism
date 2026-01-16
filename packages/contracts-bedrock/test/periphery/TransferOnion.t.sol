@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
-import { Test } from "forge-std/Test.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
 
-// Target contract
+// Contracts
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { TransferOnion } from "src/periphery/TransferOnion.sol";
 
 /// @title TransferOnion_TestInit

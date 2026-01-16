@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/confdepth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -208,18 +207,14 @@ func TestOriginSelectorAdvances(t *testing.T) {
 		}
 
 		if recoverMode {
-			// In recovery mode (only) we make two RPC calls.
+			// In recovery mode (only) we make an RPC call to find the next origin.
 			// First, cover the case where the nextOrigin
 			// is not ready yet by simulating a NotFound error.
-			l1.ExpectL1BlockRefByHash(c.Hash, c, nil)
 			l1.ExpectL1BlockRefByNumber(d.Number, eth.BlockRef{}, ethereum.NotFound)
-			_, err := s.FindL1Origin(ctx, l2Head)
-			require.ErrorIs(t, err, derive.ErrTemporary)
-			require.ErrorIs(t, err, ethereum.NotFound)
+			requireL1OriginAt(l2Head, c)
 
 			// Now, simulate the block being ready, and ensure
 			// that the origin advances to the next block.
-			l1.ExpectL1BlockRefByHash(c.Hash, c, nil)
 			l1.ExpectL1BlockRefByNumber(d.Number, d, nil)
 			requireL1OriginAt(l2Head, d)
 		} else {
@@ -344,7 +339,7 @@ func TestOriginSelectorFetchesNextOrigin(t *testing.T) {
 //
 // There are 3 blocks [a, b, c]. After advancing to b, a reorg is simulated
 // where b is reorged and replaced by providing a `c` next that has a different parent hash.
-// The origin should still provide c as the next origin so upstream services can detect the reorg.
+// A sentinel error should be returned.
 func TestOriginSelectorHandlesReorg(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -384,6 +379,11 @@ func TestOriginSelectorHandlesReorg(t *testing.T) {
 		require.Equal(t, l1ref, next)
 	}
 
+	requireFindL1OriginError := func(e error) {
+		_, err := s.FindL1Origin(ctx, l2Head)
+		require.ErrorIs(t, err, e)
+	}
+
 	requireFindl1OriginEqual(a)
 
 	// Selection is stable until the next origin is fetched
@@ -413,9 +413,8 @@ func TestOriginSelectorHandlesReorg(t *testing.T) {
 	handled = s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
 	require.True(t, handled)
 
-	// The next origin should be `c` now, otherwise an upstream service cannot detect the reorg
-	// and the origin will be stuck at `b`
-	requireFindl1OriginEqual(c)
+	// We shuold get a sentinel error
+	requireFindL1OriginError(ErrNextL1OriginOrphaned)
 }
 
 // TestOriginSelectorRespectsOriginTiming ensures that the origin selector
@@ -593,7 +592,7 @@ func TestOriginSelectorStrictConfDepth(t *testing.T) {
 	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
 
 	_, err := s.FindL1Origin(ctx, l2Head)
-	require.ErrorContains(t, err, "sequencer time drift")
+	require.ErrorIs(t, err, ErrNextL1OriginRequired)
 }
 
 func u64ptr(n uint64) *uint64 {
@@ -779,11 +778,11 @@ func TestOriginSelectorHandlesLateL1Blocks(t *testing.T) {
 	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
 
 	_, err := s.FindL1Origin(ctx, l2Head)
-	require.ErrorContains(t, err, "sequencer time drift")
+	require.ErrorIs(t, err, ErrNextL1OriginRequired)
 
 	l1Head = c
 	_, err = s.FindL1Origin(ctx, l2Head)
-	require.ErrorContains(t, err, "sequencer time drift")
+	require.ErrorIs(t, err, ErrNextL1OriginRequired)
 
 	l1Head = d
 	next, err := s.FindL1Origin(ctx, l2Head)
@@ -810,4 +809,197 @@ func TestOriginSelectorMiscEvent(t *testing.T) {
 	// This event is not handled
 	handled := s.OnEvent(context.Background(), rollup.L1TemporaryErrorEvent{})
 	require.False(t, handled)
+}
+
+func TestFindL1OriginOfNextL2Block(t *testing.T) {
+	cfg := &rollup.Config{
+		MaxSequencerDrift: 1800, // Use Fjord constant value
+		BlockTime:         2,
+	}
+
+	los := NewL1OriginSelector(context.Background(), testlog.Logger(t, log.LevelDebug), cfg, &testutils.MockL1Source{})
+
+	require.Panics(t, func() {
+		_, _ = los.findL1OriginOfNextL2Block(
+			eth.L2BlockRef{},
+			eth.L1BlockRef{},
+			eth.L1BlockRef{},
+			false)
+	})
+
+	type testCase struct {
+		name                string
+		l2Head              eth.L2BlockRef
+		currentL1Origin     eth.L1BlockRef
+		nextL1Origin        eth.L1BlockRef
+		matchAutoderivation bool
+		expectedResult      eth.L1BlockRef
+		expectedError       error
+	}
+
+	tcs := []testCase{}
+
+	// Scenarios with valid data, no drift concerns
+	// but availability of next l1 origin is modulated.
+	//
+	// L1 chain: a100(1200) <- [ a101(1212) ]
+	//            /\
+	// L2 chain    \_ b1000(1220)
+	a100 := eth.L1BlockRef{
+		Number: 100,
+		Hash:   common.Hash{'a', '1', '0', '0'},
+		Time:   1200,
+	}
+	a101 := eth.L1BlockRef{
+		Number:     101,
+		ParentHash: a100.Hash,
+		Hash:       common.Hash{'a', '0', '0'},
+		Time:       1212,
+	}
+	b1000 := eth.L2BlockRef{
+		Number:   1000,
+		Hash:     common.Hash{'b', '1', '0', '0', '0'},
+		L1Origin: a100.ID(),
+		Time:     1220,
+	}
+
+	tcs = append(tcs,
+		testCase{
+			name:            "normal operation, progress because we can",
+			l2Head:          b1000,
+			currentL1Origin: a100,
+			nextL1Origin:    a101,
+			expectedResult:  a101,
+		},
+		testCase{
+			name:                "recover mode, progress because we can",
+			l2Head:              b1000,
+			currentL1Origin:     a100,
+			nextL1Origin:        a101,
+			expectedResult:      a101,
+			matchAutoderivation: true,
+		},
+		testCase{
+			name:            "normal operation, don't need to progress",
+			l2Head:          b1000,
+			currentL1Origin: a100,
+			expectedResult:  a100,
+		},
+		testCase{
+			name:                "recover mode, need to progress but can't",
+			l2Head:              b1000,
+			currentL1Origin:     a100,
+			matchAutoderivation: true,
+			expectedError:       ErrNextL1OriginRequired,
+		},
+	)
+
+	// Bad input data / reorg scenarios
+	// L1 chain: c100(1200) <-[x]- c101(1212)
+	//            /\
+	// L2 chain    \_[x]- d/e1000(1220)
+	c100 := eth.L1BlockRef{
+		Number: 100,
+		Hash:   common.Hash{'a', '1', '0', '0'},
+		Time:   1200,
+	}
+	c101 := eth.L1BlockRef{
+		Number:     101,
+		ParentHash: common.Hash{}, // does not point to c100
+		Hash:       common.Hash{'a', '0', '0'},
+		Time:       1212,
+	}
+	d1000 := eth.L2BlockRef{
+		Number:   1000,
+		L1Origin: c100.ID(),
+		Hash:     common.Hash{'d', '1', '0', '0', '0'},
+		Time:     1220,
+	}
+	e1000 := eth.L2BlockRef{
+		Number:   1000,
+		L1Origin: eth.BlockID{}, // does not point to c100
+		Hash:     common.Hash{'d', '1', '0', '0', '0'},
+		Time:     1220,
+	}
+	tcs = append(tcs,
+		testCase{
+			name:            "L1 reorg",
+			currentL1Origin: c100,
+			nextL1Origin:    c101,
+			l2Head:          d1000,
+			expectedResult:  c101,
+			expectedError:   ErrNextL1OriginOrphaned,
+		},
+		testCase{
+			name:            "Invalid l1 origin",
+			currentL1Origin: c100,
+			nextL1Origin:    c101,
+			l2Head:          e1000,
+			expectedResult:  c100,
+			expectedError:   ErrInvalidL1Origin,
+		})
+
+	// Drift at maximum,
+	// L1 chain: a100(1200) <- [ a101(1212) ]
+	//            /\
+	// L2 chain    \_ f1000(3000)
+	f1000 := eth.L2BlockRef{
+		Number:   1000,
+		L1Origin: a100.ID(),
+		Hash:     common.Hash{'f', '1', '0', '0', '0'},
+		Time:     3000,
+	}
+	tcs = append(tcs,
+		testCase{
+			name:            "Drift at maximum, nextL1Origin available",
+			currentL1Origin: a100,
+			nextL1Origin:    a101,
+			l2Head:          f1000,
+			expectedResult:  a101,
+		},
+		testCase{
+			name:            "Drift at maximum, nextL1Origin unavailable",
+			currentL1Origin: a100,
+			l2Head:          f1000,
+			expectedError:   ErrNextL1OriginRequired,
+		})
+
+	// Negative drift,
+	// L1 chain: a100(1200) <- a101(1212)
+	//            /\
+	// L2 chain    \_ g1000(1200)
+	// Current drift is 0
+	// adopting the nextLOrigin would make it negative (add 2 subtract 12)
+	g1000 := eth.L2BlockRef{
+		Number:   1000,
+		L1Origin: a100.ID(),
+		Hash:     common.Hash{'g', '1', '0', '0', '0'},
+		Time:     1200,
+	}
+	tcs = append(tcs,
+		testCase{
+			name:            "Negative drift",
+			currentL1Origin: a100,
+			nextL1Origin:    a101,
+			l2Head:          g1000,
+			expectedResult:  a100,
+		})
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := los.findL1OriginOfNextL2Block(
+				tc.l2Head,
+				tc.currentL1Origin,
+				tc.nextL1Origin,
+				tc.matchAutoderivation)
+			if tc.expectedError != nil {
+				require.ErrorIs(t, err, tc.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+			if result != tc.expectedResult {
+				t.Errorf("expected result %v, got %v", tc.expectedResult, result)
+			}
+		})
+	}
 }

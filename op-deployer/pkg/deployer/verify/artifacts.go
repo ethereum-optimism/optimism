@@ -43,6 +43,7 @@ var contractNameExceptions = map[string]string{
 	"OpcmUpgrader":                "OPContractsManager.sol/OPContractsManagerUpgrader.json",
 	"OpcmInteropMigrator":         "OPContractsManager.sol/OPContractsManagerInteropMigrator.json",
 	"OpcmStandardValidator":       "OPContractsManagerStandardValidator.sol/OPContractsManagerStandardValidator.json",
+	"OpcmMigrator":                "OPContractsManagerMigrator.sol/OPContractsManagerMigrator.json",
 	"OpcmV2":                      "OPContractsManagerV2.sol/OPContractsManagerV2.json",
 	"OpcmContainer":               "OPContractsManagerContainer.sol/OPContractsManagerContainer.json",
 	"OpcmUtils":                   "OPContractsManagerUtils.sol/OPContractsManagerUtils.json",

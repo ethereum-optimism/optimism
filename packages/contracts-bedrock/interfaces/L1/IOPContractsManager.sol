@@ -192,10 +192,6 @@ interface IOPContractsManager {
         address proxyAdmin;
         address l1ChugSplashProxy;
         address resolvedDelegateProxy;
-        address permissionedDisputeGame1;
-        address permissionedDisputeGame2;
-        address permissionlessDisputeGame1;
-        address permissionlessDisputeGame2;
     }
 
     /// @notice The latest implementation contracts for the OP Stack.
@@ -214,8 +210,8 @@ interface IOPContractsManager {
         address anchorStateRegistryImpl;
         address delayedWETHImpl;
         address mipsImpl;
-        address faultDisputeGameV2Impl;
-        address permissionedDisputeGameV2Impl;
+        address faultDisputeGameImpl;
+        address permissionedDisputeGameImpl;
         address superFaultDisputeGameImpl;
         address superPermissionedDisputeGameImpl;
     }
@@ -303,6 +299,8 @@ interface IOPContractsManager {
     error PrestateRequired();
 
     error InvalidDevFeatureAccess(bytes32 devFeature);
+
+    error OPContractsManager_V2Enabled();
 
     // -------- Methods --------
 

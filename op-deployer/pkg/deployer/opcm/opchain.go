@@ -43,6 +43,7 @@ type DeployOPChainInput struct {
 
 	OperatorFeeScalar   uint32
 	OperatorFeeConstant uint64
+	SuperchainConfig    common.Address
 
 	UseCustomGasToken bool
 }
@@ -109,8 +110,8 @@ type ReadImplementationAddressesOutput struct {
 	DisputeGameFactory           common.Address
 	MipsSingleton                common.Address
 	PreimageOracleSingleton      common.Address
-	FaultDisputeGameV2           common.Address
-	PermissionedDisputeGameV2    common.Address
+	FaultDisputeGame             common.Address
+	PermissionedDisputeGame      common.Address
 	SuperFaultDisputeGame        common.Address
 	SuperPermissionedDisputeGame common.Address
 	OpcmDeployer                 common.Address

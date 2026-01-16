@@ -9,7 +9,7 @@
 # It will default to the target platform.
 ARG TARGET_BASE_IMAGE=alpine:3.20
 
-# The ubuntu target base image is used for the op-challenger build with kona and asterisc.
+# The ubuntu target base image is used for the op-challenger build with kona.
 ARG UBUNTU_TARGET_BASE_IMAGE=ubuntu:22.04
 
 # The version of kona to use.
@@ -170,6 +170,11 @@ ARG OP_SUPERNODE_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-supernode && make op-supernode  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_SUPERNODE_VERSION"
 
+FROM --platform=$BUILDPLATFORM builder AS op-interop-filter-builder
+ARG OP_INTEROP_FILTER_VERSION=v0.0.0
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-interop-filter && make op-interop-filter  \
+  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_INTEROP_FILTER_VERSION"
+
 FROM --platform=$BUILDPLATFORM builder AS op-test-sequencer-builder
 ARG OP_TEST_SEQUENCER_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-test-sequencer && make op-test-sequencer  \
@@ -261,6 +266,10 @@ CMD ["op-supervisor"]
 FROM $TARGET_BASE_IMAGE AS op-supernode-target
 COPY --from=op-supernode-builder /app/op-supernode/bin/op-supernode /usr/local/bin/
 CMD ["op-supernode"]
+
+FROM $TARGET_BASE_IMAGE AS op-interop-filter-target
+COPY --from=op-interop-filter-builder /app/op-interop-filter/bin/op-interop-filter /usr/local/bin/
+CMD ["op-interop-filter"]
 
 FROM $TARGET_BASE_IMAGE AS op-test-sequencer-target
 COPY --from=op-test-sequencer-builder /app/op-test-sequencer/bin/op-test-sequencer /usr/local/bin/

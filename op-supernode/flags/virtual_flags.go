@@ -137,21 +137,23 @@ func renameFlagWithEnv(f cli.Flag, name string, envs []string, aliases []string)
 	}
 }
 
-// prefixEnvVar prefixes the env vars of the given flag with the given middle string
-// e.g. "VN_ALL_" or "VN_123_".
-func prefixEnvVar(f cli.Flag, mid string) []string {
+// upgradeEnvVarPrefixes returns a slice of the env vars of the given flag
+// each with a modified prefix, formed by the OP_SUPERNODE prefix
+// followed by given infix such as "VN_ALL"
+// e.g. "OP_NODE_FINALITY_DELAY" becomes "OP_SUPERNODE_VN_ALL_FINALITY_DELAY"
+// or "OP_SUPERNODE_VN_123_FINALITY_DELAY".
+func upgradeEnvVarPrefixes(f cli.Flag, existingPrefix, newInfix string) []string {
 	envs := f.(interface{ GetEnvVars() []string }).GetEnvVars()
 	if len(envs) == 0 {
 		return nil
 	}
 	out := make([]string, 0, len(envs))
 	for _, e := range envs {
-		idx := strings.Index(e, "_")
-		if idx < 0 {
-			continue
+		suffix := strings.TrimPrefix(e, existingPrefix+"_")
+		if suffix == e {
+			panic("encountered unprefixed flag")
 		}
-		suffix := e[idx+1:]
-		out = append(out, EnvVarPrefix+"_"+mid+suffix)
+		out = append(out, EnvVarPrefix+"_"+newInfix+"_"+suffix)
 	}
 	return out
 }

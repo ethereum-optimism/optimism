@@ -10,8 +10,9 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 
 // Interfaces
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 /// @title AnchorStateRegistry_TestInit
@@ -467,7 +468,7 @@ contract AnchorStateRegistry_GetStartingAnchorRoot_Test is AnchorStateRegistry_T
         // Mock the game's anchor root to be different from the starting anchor root.
         vm.mockCall(
             address(gameProxy),
-            abi.encodeCall(gameProxy.rootClaim, ()),
+            abi.encodeCall(IDisputeGame.rootClaim, ()),
             abi.encode(Claim.wrap(keccak256(abi.encode(123))))
         );
 

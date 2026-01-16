@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/hashicorp/go-multierror"
@@ -30,6 +31,12 @@ var (
 	ConfigUpdateEventABI      = "ConfigUpdate(uint256,uint8,bytes)"
 	ConfigUpdateEventABIHash  = crypto.Keccak256Hash([]byte(ConfigUpdateEventABI))
 	ConfigUpdateEventVersion0 = common.Hash{}
+)
+
+var (
+	ErrUnknownEventVersion  = errors.New("unknown SystemConfig event version")
+	ErrUnknownEventType     = errors.New("unknown SystemConfig event type")
+	ErrInvalidEIP1559Params = errors.New("invalid EIP-1559 parameters")
 )
 
 // UpdateSystemConfigWithL1Receipts filters all L1 receipts to find config updates and applies the config updates to the given sysCfg
@@ -79,7 +86,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 	// indexed 0
 	version := ev.Topics[1]
 	if version != ConfigUpdateEventVersion0 {
-		return fmt.Errorf("unrecognized SystemConfig update event version: %s", version)
+		return fmt.Errorf("%w: %s", ErrUnknownEventVersion, version)
 	}
 	// indexed 1
 	updateType := ev.Topics[2]
@@ -150,11 +157,11 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		destSysCfg.DAFootprintGasScalar = daFootprintGasScalar
 		return nil
 	default:
-		return fmt.Errorf("unrecognized L1 sysCfg update type: %s", updateType)
+		return fmt.Errorf("%w: %s", ErrUnknownEventType, updateType)
 	}
 }
 
-var ErrParsingSystemConfig = NewCriticalError(errors.New("error parsing system config"))
+var ErrParsingSystemConfig = errors.New("error parsing system config")
 
 func parseSystemConfigUpdateBatcher(data []byte) (common.Address, error) {
 	reader := bytes.NewReader(data)
@@ -228,6 +235,10 @@ func parseSystemConfigUpdateEIP1559Params(data []byte) (eth.Bytes32, error) {
 	}
 	if !solabi.EmptyReader(reader) {
 		return eth.Bytes32{}, fmt.Errorf("%w: too many bytes", ErrParsingSystemConfig)
+	}
+	// Validate the EIP-1559 params (last 8 bytes of the 32-byte value)
+	if err := eip1559.ValidateHolocene1559Params(params[24:32]); err != nil {
+		return eth.Bytes32{}, fmt.Errorf("%w: %w", ErrInvalidEIP1559Params, err)
 	}
 	return params, nil
 }

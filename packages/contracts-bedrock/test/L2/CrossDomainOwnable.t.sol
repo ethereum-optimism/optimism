@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
+import { Test } from "test/setup/Test.sol";
 import { VmSafe } from "forge-std/Vm.sol";
-import { Test } from "forge-std/Test.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
