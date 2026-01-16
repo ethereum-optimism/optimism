@@ -5,7 +5,6 @@ import { Script } from "forge-std/Script.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { IOPContractsManagerInteropMigrator, IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerMigrator } from "interfaces/L1/opcm/IOPContractsManagerMigrator.sol";
-import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { DummyCaller } from "scripts/libraries/DummyCaller.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";

@@ -68,7 +68,7 @@ func (c *Contract) callContractMethodString(ctx context.Context, methodName stri
 		abi.Arguments{
 			abi.Argument{
 				Name:    "string",
-				Type:    mustType("string"),
+				Type:    MustType("string"),
 				Indexed: false,
 			},
 		},
