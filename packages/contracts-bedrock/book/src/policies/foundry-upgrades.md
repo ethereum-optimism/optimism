@@ -7,7 +7,7 @@ OP Stack codebase.
 
 The OP Stack codebase maintains a single, unified Foundry version across all components. This ensures
 consistency, simplifies maintenance, and reduces the risk of version-related issues. Foundry is a
-critical dependency in our supply chain, and if compromised, it could result in draining the bridge.
+critical dependency in our supply chain, and if compromised can have severe consequences.
 
 **Important**: New Foundry versions must not be introduced to any part of the codebase without
 going through the formal version update proposal process outlined in this document.
