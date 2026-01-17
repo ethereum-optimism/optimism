@@ -1003,22 +1003,24 @@ func (oc *OpConductor) shouldWaitForHealthRecovery() bool {
 		return false
 	}
 
-	// This should never happen, but if it does we will default to the old behavior of waiting.
-	if oc.progressCheckFn == nil {
-		oc.log.Warn("progress check function is not set, will wait for health recovery")
-		return true
-	}
+	if oc.cfg.HealthRecoveryCheckInterval > 0 && oc.cfg.HealthRecoveryCallTimeout > 0 {
+		// This should never happen, but if it does we will default to the old behavior of waiting.
+		if oc.progressCheckFn == nil {
+			oc.log.Warn("progress check function is not set, will wait for health recovery")
+			return true
+		}
 
-	// If we get an error while checking progress that indicates a problem talking to the sequencer so we won't wait.
-	progressing, err := oc.progressCheckFn(oc.shutdownCtx, oc.cfg.HealthRecoveryCheckInterval)
-	if err != nil {
-		oc.log.Warn("failed to check sequencer progress while waiting for health recovery, will not wait", "err", err)
-		return false
-	}
+		// If we get an error while checking progress that indicates a problem talking to the sequencer so we won't wait.
+		progressing, err := oc.progressCheckFn(oc.shutdownCtx, oc.cfg.HealthRecoveryCheckInterval)
+		if err != nil {
+			oc.log.Warn("failed to check sequencer progress while waiting for health recovery, will not wait", "err", err)
+			return false
+		}
 
-	if !progressing {
-		oc.log.Warn("sequencer not making progress while waiting for health recovery, will not wait")
-		return false
+		if !progressing {
+			oc.log.Warn("sequencer not making progress while waiting for health recovery, will not wait")
+			return false
+		}
 	}
 
 	return true

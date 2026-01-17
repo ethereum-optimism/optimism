@@ -146,12 +146,6 @@ func (c *Config) Check() error {
 	if err := c.RollupCfg.Check(); err != nil {
 		return errors.Wrap(err, "invalid rollup config")
 	}
-	if c.HealthRecoveryCheckInterval <= 0 {
-		return fmt.Errorf("health recovery check interval must be greater than 0")
-	}
-	if c.HealthRecoveryCallTimeout <= 0 {
-		return fmt.Errorf("health recovery call timeout must be greater than 0")
-	}
 	if err := c.MetricsConfig.Check(); err != nil {
 		return errors.Wrap(err, "invalid metrics config")
 	}
