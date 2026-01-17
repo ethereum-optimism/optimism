@@ -43,7 +43,7 @@ var (
 
 const (
 	defaultBlockProgressCheckInterval = 3 * time.Second
-	defaultBlockProgressCallTimeout   = 10 * time.Second
+	defaultBlockProgressCallTimeout   = 1 * time.Second
 )
 
 // New creates a new OpConductor instance.
@@ -1019,6 +1019,7 @@ func (oc *OpConductor) shouldWaitForHealthRecovery() bool {
 		return false
 	}
 
+	// Todo: is this check needed?
 	if oc.progressCheckFn == nil {
 		oc.log.Warn("progress check function is not set, transferring leadership")
 		return false
@@ -1026,11 +1027,12 @@ func (oc *OpConductor) shouldWaitForHealthRecovery() bool {
 
 	progressing, err := oc.progressCheckFn(oc.shutdownCtx, oc.blockProgressCheckInterval)
 	if err != nil {
-		oc.log.Warn("failed to check sequencer progress while waiting for health recovery", "err", err)
+		oc.log.Warn("failed to check sequencer progress while waiting for health recovery, will stop waiting", "err", err)
 		return false
 	}
+
 	if !progressing {
-		oc.log.Warn("sequencer not making progress while unhealthy leader, transferring leadership")
+		oc.log.Warn("sequencer not making progress while waiting for health recovery, will stop waiting")
 		return false
 	}
 
