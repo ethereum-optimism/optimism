@@ -41,6 +41,11 @@ var (
 	ErrNoUnsafeHead       = errors.New("no unsafe head")
 )
 
+const (
+	defaultBlockProgressCheckInterval = 3 * time.Second
+	defaultBlockProgressCallTimeout   = 10 * time.Second
+)
+
 // New creates a new OpConductor instance.
 func New(ctx context.Context, cfg *Config, log log.Logger, version string) (*OpConductor, error) {
 	return NewOpConductor(ctx, cfg, log, metrics.NewMetrics(), version, nil, nil, nil)
@@ -61,21 +66,29 @@ func NewOpConductor(
 		return nil, errors.Wrap(err, "invalid config")
 	}
 
-	oc := &OpConductor{
-		log:          log,
-		version:      version,
-		cfg:          cfg,
-		metrics:      m,
-		pauseCh:      make(chan struct{}),
-		pauseDoneCh:  make(chan struct{}),
-		resumeCh:     make(chan struct{}),
-		resumeDoneCh: make(chan struct{}),
-		actionCh:     make(chan struct{}, 1),
-		ctrl:         ctrl,
-		cons:         cons,
-		hmon:         hmon,
-		retryBackoff: func() time.Duration { return time.Duration(rand.Intn(2000)) * time.Millisecond },
+	progressInterval := time.Duration(cfg.HealthCheck.Interval) * time.Second
+	if progressInterval == 0 {
+		progressInterval = defaultBlockProgressCheckInterval
 	}
+
+	oc := &OpConductor{
+		log:                        log,
+		version:                    version,
+		cfg:                        cfg,
+		metrics:                    m,
+		pauseCh:                    make(chan struct{}),
+		pauseDoneCh:                make(chan struct{}),
+		resumeCh:                   make(chan struct{}),
+		resumeDoneCh:               make(chan struct{}),
+		actionCh:                   make(chan struct{}, 1),
+		ctrl:                       ctrl,
+		cons:                       cons,
+		hmon:                       hmon,
+		retryBackoff:               func() time.Duration { return time.Duration(rand.Intn(2000)) * time.Millisecond },
+		blockProgressCheckInterval: progressInterval,
+		blockProgressCallTimeout:   defaultBlockProgressCallTimeout,
+	}
+	oc.progressCheckFn = oc.sequencerIsMakingProgress
 	oc.loopActionFn = oc.loopAction
 
 	// explicitly set all atomic.Bool values
@@ -399,6 +412,10 @@ type OpConductor struct {
 	retryBackoff func() time.Duration
 
 	flashblocksHandler ws.FlashblockHandler
+
+	blockProgressCheckInterval time.Duration
+	blockProgressCallTimeout   time.Duration
+	progressCheckFn            func(ctx context.Context, wait time.Duration) (bool, error)
 }
 
 type state struct {
@@ -949,6 +966,41 @@ func (oc *OpConductor) updateSequencerActiveStatus() error {
 	return nil
 }
 
+func (oc *OpConductor) sequencerIsMakingProgress(ctx context.Context, wait time.Duration) (bool, error) {
+	first, err := oc.latestUnsafeBlockWithTimeout(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	if wait > 0 {
+		timer := time.NewTimer(wait)
+		defer timer.Stop()
+
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-timer.C:
+		}
+	}
+
+	second, err := oc.latestUnsafeBlockWithTimeout(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	return second.NumberU64() > first.NumberU64(), nil
+}
+
+func (oc *OpConductor) latestUnsafeBlockWithTimeout(ctx context.Context) (eth.BlockInfo, error) {
+	reqCtx := ctx
+	if oc.blockProgressCallTimeout > 0 {
+		var cancel context.CancelFunc
+		reqCtx, cancel = context.WithTimeout(ctx, oc.blockProgressCallTimeout)
+		defer cancel()
+	}
+	return oc.ctrl.LatestUnsafeBlock(reqCtx)
+}
+
 // shouldWaitForHealthRecovery determines if the conductor should wait for the sequencer
 // to recover health naturally instead of transferring leadership.
 func (oc *OpConductor) shouldWaitForHealthRecovery() bool {
@@ -964,6 +1016,21 @@ func (oc *OpConductor) shouldWaitForHealthRecovery() bool {
 
 	// Don't wait if rollup boost healthcheck is enabled and partially healthy - transfer leadership instead
 	if (oc.cfg.RollupBoostEnabled || oc.cfg.RollupBoostNextEnabled) && errors.Is(oc.hcerr, health.ErrRollupBoostPartiallyHealthy) {
+		return false
+	}
+
+	if oc.progressCheckFn == nil {
+		oc.log.Warn("progress check function is not set, transferring leadership")
+		return false
+	}
+
+	progressing, err := oc.progressCheckFn(oc.shutdownCtx, oc.blockProgressCheckInterval)
+	if err != nil {
+		oc.log.Warn("failed to check sequencer progress while waiting for health recovery", "err", err)
+		return false
+	}
+	if !progressing {
+		oc.log.Warn("sequencer not making progress while unhealthy leader, transferring leadership")
 		return false
 	}
 
