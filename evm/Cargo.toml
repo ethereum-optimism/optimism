@@ -44,7 +44,6 @@ op-revm.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-reth-chain.workspace = true
 reth-evm = { workspace = true, features = ["test-utils"] }
 reth-revm = { workspace = true, features = ["test-utils"] }
 alloy-genesis.workspace = true

@@ -295,10 +295,11 @@ mod tests {
     use alloy_genesis::Genesis;
     use alloy_primitives::{bytes, map::HashMap, Address, LogData, B256};
     use op_revm::OpSpecId;
-    use reth_chain::Chain;
     use reth_chainspec::ChainSpec;
     use reth_evm::execute::ProviderError;
-    use reth_execution_types::{AccountRevertInit, BundleStateInit, ExecutionOutcome, RevertsInit};
+    use reth_execution_types::{
+        AccountRevertInit, BundleStateInit, Chain, ExecutionOutcome, RevertsInit,
+    };
     use reth_optimism_chainspec::{OpChainSpec, BASE_MAINNET};
     use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt};
     use reth_primitives_traits::{Account, RecoveredBlock};
