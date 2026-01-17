@@ -960,14 +960,10 @@ func (oc *OpConductor) sequencerIsMakingProgress(ctx context.Context, wait time.
 		return false, err
 	}
 
-	// Todo: simpler way to sleep?
-	timer := time.NewTimer(wait)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return false, ctx.Err()
-	case <-timer.C:
+	if wait > 0 {
+		if err := oc.contextAwareWait(ctx, wait); err != nil {
+			return false, err
+		}
 	}
 
 	second, err := oc.latestUnsafeBlockWithTimeout(ctx)
@@ -985,6 +981,19 @@ func (oc *OpConductor) latestUnsafeBlockWithTimeout(ctx context.Context) (eth.Bl
 	reqCtx, cancel = context.WithTimeout(ctx, oc.cfg.HealthRecoveryCallTimeout)
 	defer cancel()
 	return oc.ctrl.LatestUnsafeBlock(reqCtx)
+}
+
+// contextAwareWait waits for the given duration or exits early if the context is cancelled.
+func (oc *OpConductor) contextAwareWait(ctx context.Context, wait time.Duration) error {
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // shouldWaitForHealthRecovery determines if the conductor should wait for the sequencer
