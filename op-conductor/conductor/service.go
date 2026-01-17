@@ -42,8 +42,10 @@ var (
 )
 
 const (
+	// Give and unhealthy leader 3 seconds to produce a new block before transferring leadership.
 	defaultBlockProgressCheckInterval = 3 * time.Second
-	defaultBlockProgressCallTimeout   = 1 * time.Second
+	// Calls to eth_getBlockByNumber should be very fast, and we don't want to block the action loop for too long.
+	defaultBlockProgressCallTimeout = 1 * time.Second
 )
 
 // New creates a new OpConductor instance.
@@ -1019,20 +1021,21 @@ func (oc *OpConductor) shouldWaitForHealthRecovery() bool {
 		return false
 	}
 
-	// Todo: is this check needed?
+	// This should never happen, but if it does we will default to the old behavior of waiting.
 	if oc.progressCheckFn == nil {
-		oc.log.Warn("progress check function is not set, transferring leadership")
-		return false
+		oc.log.Warn("progress check function is not set, will wait for health recovery")
+		return true
 	}
 
+	// If we get an error while checking progress that indicates a problem talking to the sequencer so we won't wait.
 	progressing, err := oc.progressCheckFn(oc.shutdownCtx, oc.blockProgressCheckInterval)
 	if err != nil {
-		oc.log.Warn("failed to check sequencer progress while waiting for health recovery, will stop waiting", "err", err)
+		oc.log.Warn("failed to check sequencer progress while waiting for health recovery, will not wait", "err", err)
 		return false
 	}
 
 	if !progressing {
-		oc.log.Warn("sequencer not making progress while waiting for health recovery, will stop waiting")
+		oc.log.Warn("sequencer not making progress while waiting for health recovery, will not wait")
 		return false
 	}
 
