@@ -1220,3 +1220,102 @@ func (s *OpConductorTestSuite) TestRollupBoostPartialFailure() {
 	s.ctrl.AssertNumberOfCalls(s.T(), "StopSequencer", 1)
 	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 1)
 }
+
+func (s *OpConductorTestSuite) TestShouldWaitForHealthRecovery_DisabledWhenIntervalZero() {
+	s.conductor.prevState = &state{leader: true, healthy: false, active: false}
+	s.conductor.hcerr = health.ErrSequencerNotHealthy
+	s.conductor.cfg.HealthRecoveryCheckInterval = 0
+	s.conductor.cfg.HealthRecoveryCallTimeout = time.Second
+
+	calls := 0
+	s.conductor.progressCheckFn = func(ctx context.Context, wait time.Duration) (bool, error) {
+		calls++
+		return true, nil
+	}
+
+	s.True(s.conductor.shouldWaitForHealthRecovery())
+	s.Equal(0, calls, "progress check should be skipped when recovery interval is disabled")
+}
+
+func (s *OpConductorTestSuite) TestShouldWaitForHealthRecovery_DisabledWhenTimeoutZero() {
+	s.conductor.prevState = &state{leader: true, healthy: false, active: false}
+	s.conductor.hcerr = health.ErrSequencerNotHealthy
+	s.conductor.cfg.HealthRecoveryCheckInterval = 100 * time.Millisecond
+	s.conductor.cfg.HealthRecoveryCallTimeout = 0
+
+	calls := 0
+	s.conductor.progressCheckFn = func(ctx context.Context, wait time.Duration) (bool, error) {
+		calls++
+		return true, nil
+	}
+
+	s.True(s.conductor.shouldWaitForHealthRecovery())
+	s.Equal(0, calls, "progress check should be skipped when recovery timeout is disabled")
+}
+
+func (s *OpConductorTestSuite) TestShouldWaitForHealthRecovery_WithProgressCheckCalled() {
+	s.conductor.prevState = &state{leader: true, healthy: false, active: false}
+	s.conductor.hcerr = health.ErrSequencerNotHealthy
+	s.conductor.cfg.HealthRecoveryCheckInterval = 100 * time.Millisecond
+	s.conductor.cfg.HealthRecoveryCallTimeout = time.Second
+
+	calls := 0
+	s.conductor.progressCheckFn = func(ctx context.Context, wait time.Duration) (bool, error) {
+		calls++
+		s.Equal(s.conductor.cfg.HealthRecoveryCheckInterval, wait)
+		return true, nil
+	}
+
+	s.conductor.shouldWaitForHealthRecovery()
+	s.Equal(1, calls, "progress check should run when recovery timing is configured")
+}
+
+func (s *OpConductorTestSuite) TestShouldWaitForHealthRecovery_ReturnsTrueWhenProgressing() {
+	s.conductor.prevState = &state{leader: true, healthy: false, active: false}
+	s.conductor.hcerr = health.ErrSequencerNotHealthy
+	s.conductor.cfg.HealthRecoveryCheckInterval = 100 * time.Millisecond
+	s.conductor.cfg.HealthRecoveryCallTimeout = time.Second
+
+	s.conductor.progressCheckFn = func(ctx context.Context, wait time.Duration) (bool, error) {
+		return true, nil
+	}
+
+	s.True(s.conductor.shouldWaitForHealthRecovery())
+}
+
+func (s *OpConductorTestSuite) TestShouldWaitForHealthRecovery_NilProgressCheckFn() {
+	s.conductor.prevState = &state{leader: true, healthy: false, active: false}
+	s.conductor.hcerr = health.ErrSequencerNotHealthy
+	s.conductor.cfg.HealthRecoveryCheckInterval = 100 * time.Millisecond
+	s.conductor.cfg.HealthRecoveryCallTimeout = time.Second
+
+	s.conductor.progressCheckFn = nil
+
+	s.True(s.conductor.shouldWaitForHealthRecovery())
+}
+
+func (s *OpConductorTestSuite) TestShouldWaitForHealthRecovery_NotProgressing() {
+	s.conductor.prevState = &state{leader: true, healthy: false, active: false}
+	s.conductor.hcerr = health.ErrSequencerNotHealthy
+	s.conductor.cfg.HealthRecoveryCheckInterval = 100 * time.Millisecond
+	s.conductor.cfg.HealthRecoveryCallTimeout = time.Second
+
+	s.conductor.progressCheckFn = func(ctx context.Context, wait time.Duration) (bool, error) {
+		return false, nil
+	}
+
+	s.False(s.conductor.shouldWaitForHealthRecovery())
+}
+
+func (s *OpConductorTestSuite) TestShouldWaitForHealthRecovery_ProgressCheckError() {
+	s.conductor.prevState = &state{leader: true, healthy: false, active: false}
+	s.conductor.hcerr = health.ErrSequencerNotHealthy
+	s.conductor.cfg.HealthRecoveryCheckInterval = 100 * time.Millisecond
+	s.conductor.cfg.HealthRecoveryCallTimeout = time.Second
+
+	s.conductor.progressCheckFn = func(ctx context.Context, wait time.Duration) (bool, error) {
+		return false, errors.New("boom")
+	}
+
+	s.False(s.conductor.shouldWaitForHealthRecovery())
+}
