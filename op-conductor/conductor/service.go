@@ -41,13 +41,6 @@ var (
 	ErrNoUnsafeHead       = errors.New("no unsafe head")
 )
 
-const (
-	// Give and unhealthy leader 3 seconds to produce a new block before transferring leadership.
-	defaultBlockProgressCheckInterval = 3 * time.Second
-	// Calls to eth_getBlockByNumber should be very fast, and we don't want to block the action loop for too long.
-	defaultBlockProgressCallTimeout = 1 * time.Second
-)
-
 // New creates a new OpConductor instance.
 func New(ctx context.Context, cfg *Config, log log.Logger, version string) (*OpConductor, error) {
 	return NewOpConductor(ctx, cfg, log, metrics.NewMetrics(), version, nil, nil, nil)
@@ -68,28 +61,24 @@ func NewOpConductor(
 		return nil, errors.Wrap(err, "invalid config")
 	}
 
-	progressInterval := time.Duration(cfg.HealthCheck.Interval) * time.Second
-	if progressInterval == 0 {
-		progressInterval = defaultBlockProgressCheckInterval
-	}
-
 	oc := &OpConductor{
-		log:                        log,
-		version:                    version,
-		cfg:                        cfg,
-		metrics:                    m,
-		pauseCh:                    make(chan struct{}),
-		pauseDoneCh:                make(chan struct{}),
-		resumeCh:                   make(chan struct{}),
-		resumeDoneCh:               make(chan struct{}),
-		actionCh:                   make(chan struct{}, 1),
-		ctrl:                       ctrl,
-		cons:                       cons,
-		hmon:                       hmon,
-		retryBackoff:               func() time.Duration { return time.Duration(rand.Intn(2000)) * time.Millisecond },
-		blockProgressCheckInterval: progressInterval,
-		blockProgressCallTimeout:   defaultBlockProgressCallTimeout,
+		log:                         log,
+		version:                     version,
+		cfg:                         cfg,
+		metrics:                     m,
+		pauseCh:                     make(chan struct{}),
+		pauseDoneCh:                 make(chan struct{}),
+		resumeCh:                    make(chan struct{}),
+		resumeDoneCh:                make(chan struct{}),
+		actionCh:                    make(chan struct{}, 1),
+		ctrl:                        ctrl,
+		cons:                        cons,
+		hmon:                        hmon,
+		retryBackoff:                func() time.Duration { return time.Duration(rand.Intn(2000)) * time.Millisecond },
+		healthRecoveryCheckInterval: cfg.HealthRecoveryCheckInterval,
+		healthRecoveryCallTimeout:   cfg.HealthRecoveryCallTimeout,
 	}
+	// Todo: Why not use sequencerIsMakingProgress directly instead of setting it as a function?
 	oc.progressCheckFn = oc.sequencerIsMakingProgress
 	oc.loopActionFn = oc.loopAction
 
@@ -415,9 +404,9 @@ type OpConductor struct {
 
 	flashblocksHandler ws.FlashblockHandler
 
-	blockProgressCheckInterval time.Duration
-	blockProgressCallTimeout   time.Duration
-	progressCheckFn            func(ctx context.Context, wait time.Duration) (bool, error)
+	healthRecoveryCheckInterval time.Duration
+	healthRecoveryCallTimeout   time.Duration
+	progressCheckFn             func(ctx context.Context, wait time.Duration) (bool, error)
 }
 
 type state struct {
@@ -995,9 +984,9 @@ func (oc *OpConductor) sequencerIsMakingProgress(ctx context.Context, wait time.
 
 func (oc *OpConductor) latestUnsafeBlockWithTimeout(ctx context.Context) (eth.BlockInfo, error) {
 	reqCtx := ctx
-	if oc.blockProgressCallTimeout > 0 {
+	if oc.healthRecoveryCallTimeout > 0 {
 		var cancel context.CancelFunc
-		reqCtx, cancel = context.WithTimeout(ctx, oc.blockProgressCallTimeout)
+		reqCtx, cancel = context.WithTimeout(ctx, oc.healthRecoveryCallTimeout)
 		defer cancel()
 	}
 	return oc.ctrl.LatestUnsafeBlock(reqCtx)
@@ -1028,7 +1017,7 @@ func (oc *OpConductor) shouldWaitForHealthRecovery() bool {
 	}
 
 	// If we get an error while checking progress that indicates a problem talking to the sequencer so we won't wait.
-	progressing, err := oc.progressCheckFn(oc.shutdownCtx, oc.blockProgressCheckInterval)
+	progressing, err := oc.progressCheckFn(oc.shutdownCtx, oc.healthRecoveryCheckInterval)
 	if err != nil {
 		oc.log.Warn("failed to check sequencer progress while waiting for health recovery, will not wait", "err", err)
 		return false

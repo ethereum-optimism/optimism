@@ -146,6 +146,18 @@ var (
 		Usage:   "Minimum number of peers required to be considered healthy",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_MIN_PEER_COUNT"),
 	}
+	HealthRecoveryCheckInterval = &cli.DurationFlag{
+		Name:    "health-recovery.check-interval",
+		Usage:   "Interval in seconds to wait between block progress checks while waiting for health recovery.",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTH_RECOVERY_CHECK_INTERVAL"),
+		Value:   3 * time.Second,
+	}
+	HealthRecoveryCallTimeout = &cli.DurationFlag{
+		Name:    "health-recovery.call-timeout",
+		Usage:   "Timeout in seconds for each block progress check RPC call while waiting for health recovery.",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTH_RECOVERY_CALL_TIMEOUT"),
+		Value:   1 * time.Second,
+	}
 	Paused = &cli.BoolFlag{
 		Name:    "paused",
 		Usage:   "Whether the conductor is paused",
@@ -238,6 +250,8 @@ var optionalFlags = []cli.Flag{
 	HealthcheckExecutionP2pCheckApi,
 	HealthCheckRollupBoostPartialHealthinessToleranceLimit,
 	HealthCheckRollupBoostPartialHealthinessToleranceIntervalSeconds,
+	HealthRecoveryCheckInterval,
+	HealthRecoveryCallTimeout,
 }
 
 func init() {

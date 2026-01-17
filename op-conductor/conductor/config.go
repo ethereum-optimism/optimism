@@ -89,6 +89,12 @@ type Config struct {
 	// HealthCheck is the health check configuration.
 	HealthCheck HealthCheckConfig
 
+	// HealthRecoveryCheckInterval overrides how often to poll for latest block while waiting for health recovery.
+	HealthRecoveryCheckInterval time.Duration
+
+	// HealthRecoveryCallTimeout is the timeout for each RPC call while waiting for health recovery.
+	HealthRecoveryCallTimeout time.Duration
+
 	// RollupCfg is the rollup config.
 	RollupCfg rollup.Config
 
@@ -139,6 +145,12 @@ func (c *Config) Check() error {
 	}
 	if err := c.RollupCfg.Check(); err != nil {
 		return errors.Wrap(err, "invalid rollup config")
+	}
+	if c.HealthRecoveryCheckInterval <= 0 {
+		return fmt.Errorf("health recovery check interval must be greater than 0")
+	}
+	if c.HealthRecoveryCallTimeout <= 0 {
+		return fmt.Errorf("health recovery call timeout must be greater than 0")
 	}
 	if err := c.MetricsConfig.Check(); err != nil {
 		return errors.Wrap(err, "invalid metrics config")
@@ -206,14 +218,16 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 			RollupBoostPartialHealthinessToleranceLimit:           ctx.Uint64(flags.HealthCheckRollupBoostPartialHealthinessToleranceLimit.Name),
 			RollupBoostPartialHealthinessToleranceIntervalSeconds: ctx.Uint64(flags.HealthCheckRollupBoostPartialHealthinessToleranceIntervalSeconds.Name),
 		},
-		RollupCfg:           *rollupCfg,
-		RPCEnableProxy:      ctx.Bool(flags.RPCEnableProxy.Name),
-		RollupBoostWsURL:    ctx.String(flags.RollupBoostWsURL.Name),
-		WebsocketServerPort: ctx.Int(flags.WebsocketServerPort.Name),
-		LogConfig:           oplog.ReadCLIConfig(ctx),
-		MetricsConfig:       opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:         oppprof.ReadCLIConfig(ctx),
-		RPC:                 oprpc.ReadCLIConfig(ctx),
+		HealthRecoveryCheckInterval: ctx.Duration(flags.HealthRecoveryCheckInterval.Name),
+		HealthRecoveryCallTimeout:   ctx.Duration(flags.HealthRecoveryCallTimeout.Name),
+		RollupCfg:                   *rollupCfg,
+		RPCEnableProxy:              ctx.Bool(flags.RPCEnableProxy.Name),
+		RollupBoostWsURL:            ctx.String(flags.RollupBoostWsURL.Name),
+		WebsocketServerPort:         ctx.Int(flags.WebsocketServerPort.Name),
+		LogConfig:                   oplog.ReadCLIConfig(ctx),
+		MetricsConfig:               opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:                 oppprof.ReadCLIConfig(ctx),
+		RPC:                         oprpc.ReadCLIConfig(ctx),
 	}, nil
 }
 
