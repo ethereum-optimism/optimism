@@ -952,21 +952,22 @@ func (oc *OpConductor) updateSequencerActiveStatus() error {
 	return nil
 }
 
+// An extremely simple way to know if the sequencer is building blocks.
+// Checks the block height, then waits, then checks again.
 func (oc *OpConductor) sequencerIsMakingProgress(ctx context.Context, wait time.Duration) (bool, error) {
 	first, err := oc.latestUnsafeBlockWithTimeout(ctx)
 	if err != nil {
 		return false, err
 	}
 
-	if wait > 0 {
-		timer := time.NewTimer(wait)
-		defer timer.Stop()
+	// Todo: simpler way to sleep?
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
 
-		select {
-		case <-ctx.Done():
-			return false, ctx.Err()
-		case <-timer.C:
-		}
+	select {
+	case <-ctx.Done():
+		return false, ctx.Err()
+	case <-timer.C:
 	}
 
 	second, err := oc.latestUnsafeBlockWithTimeout(ctx)
@@ -978,6 +979,7 @@ func (oc *OpConductor) sequencerIsMakingProgress(ctx context.Context, wait time.
 }
 
 func (oc *OpConductor) latestUnsafeBlockWithTimeout(ctx context.Context) (eth.BlockInfo, error) {
+	// Todo: Is this first assignment necessary?
 	reqCtx := ctx
 	var cancel context.CancelFunc
 	reqCtx, cancel = context.WithTimeout(ctx, oc.cfg.HealthRecoveryCallTimeout)

@@ -89,7 +89,7 @@ type Config struct {
 	// HealthCheck is the health check configuration.
 	HealthCheck HealthCheckConfig
 
-	// HealthRecoveryCheckInterval overrides how often to poll for latest block while waiting for health recovery.
+	// HealthRecoveryCheckInterval is how often to poll for latest block while waiting for health recovery.
 	HealthRecoveryCheckInterval time.Duration
 
 	// HealthRecoveryCallTimeout is the timeout for each RPC call while waiting for health recovery.
