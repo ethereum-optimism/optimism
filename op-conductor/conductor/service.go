@@ -62,23 +62,20 @@ func NewOpConductor(
 	}
 
 	oc := &OpConductor{
-		log:                         log,
-		version:                     version,
-		cfg:                         cfg,
-		metrics:                     m,
-		pauseCh:                     make(chan struct{}),
-		pauseDoneCh:                 make(chan struct{}),
-		resumeCh:                    make(chan struct{}),
-		resumeDoneCh:                make(chan struct{}),
-		actionCh:                    make(chan struct{}, 1),
-		ctrl:                        ctrl,
-		cons:                        cons,
-		hmon:                        hmon,
-		retryBackoff:                func() time.Duration { return time.Duration(rand.Intn(2000)) * time.Millisecond },
-		healthRecoveryCheckInterval: cfg.HealthRecoveryCheckInterval,
-		healthRecoveryCallTimeout:   cfg.HealthRecoveryCallTimeout,
+		log:          log,
+		version:      version,
+		cfg:          cfg,
+		metrics:      m,
+		pauseCh:      make(chan struct{}),
+		pauseDoneCh:  make(chan struct{}),
+		resumeCh:     make(chan struct{}),
+		resumeDoneCh: make(chan struct{}),
+		actionCh:     make(chan struct{}, 1),
+		ctrl:         ctrl,
+		cons:         cons,
+		hmon:         hmon,
+		retryBackoff: func() time.Duration { return time.Duration(rand.Intn(2000)) * time.Millisecond },
 	}
-	// Todo: Why not use sequencerIsMakingProgress directly instead of setting it as a function?
 	oc.progressCheckFn = oc.sequencerIsMakingProgress
 	oc.loopActionFn = oc.loopAction
 
@@ -404,9 +401,7 @@ type OpConductor struct {
 
 	flashblocksHandler ws.FlashblockHandler
 
-	healthRecoveryCheckInterval time.Duration
-	healthRecoveryCallTimeout   time.Duration
-	progressCheckFn             func(ctx context.Context, wait time.Duration) (bool, error)
+	progressCheckFn func(ctx context.Context, wait time.Duration) (bool, error)
 }
 
 type state struct {
@@ -984,11 +979,9 @@ func (oc *OpConductor) sequencerIsMakingProgress(ctx context.Context, wait time.
 
 func (oc *OpConductor) latestUnsafeBlockWithTimeout(ctx context.Context) (eth.BlockInfo, error) {
 	reqCtx := ctx
-	if oc.healthRecoveryCallTimeout > 0 {
-		var cancel context.CancelFunc
-		reqCtx, cancel = context.WithTimeout(ctx, oc.healthRecoveryCallTimeout)
-		defer cancel()
-	}
+	var cancel context.CancelFunc
+	reqCtx, cancel = context.WithTimeout(ctx, oc.cfg.HealthRecoveryCallTimeout)
+	defer cancel()
 	return oc.ctrl.LatestUnsafeBlock(reqCtx)
 }
 
@@ -1017,7 +1010,7 @@ func (oc *OpConductor) shouldWaitForHealthRecovery() bool {
 	}
 
 	// If we get an error while checking progress that indicates a problem talking to the sequencer so we won't wait.
-	progressing, err := oc.progressCheckFn(oc.shutdownCtx, oc.healthRecoveryCheckInterval)
+	progressing, err := oc.progressCheckFn(oc.shutdownCtx, oc.cfg.HealthRecoveryCheckInterval)
 	if err != nil {
 		oc.log.Warn("failed to check sequencer progress while waiting for health recovery, will not wait", "err", err)
 		return false
