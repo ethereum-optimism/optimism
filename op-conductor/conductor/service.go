@@ -1006,11 +1006,6 @@ func (oc *OpConductor) shouldWaitForHealthRecovery() bool {
 		return false
 	}
 
-	// Don't wait if rollup boost healthcheck is enabled and partially healthy - transfer leadership instead
-	if (oc.cfg.RollupBoostEnabled || oc.cfg.RollupBoostNextEnabled) && errors.Is(oc.hcerr, health.ErrRollupBoostPartiallyHealthy) {
-		return false
-	}
-
 	if oc.cfg.HealthRecoveryCheckInterval > 0 && oc.cfg.HealthRecoveryCallTimeout > 0 {
 		// This should never happen, but if it does we will default to the old behavior of waiting.
 		if oc.progressCheckFn == nil {
@@ -1026,9 +1021,14 @@ func (oc *OpConductor) shouldWaitForHealthRecovery() bool {
 		}
 
 		if !progressing {
-			oc.log.Warn("sequencer not making progress while waiting for health recovery, will not wait")
+			oc.log.Warn("sequencer not making progress while waiting for health recovery, will not wait any longer")
 			return false
 		}
+	}
+
+	// Don't wait if rollup boost healthcheck is enabled and partially healthy - transfer leadership instead
+	if (oc.cfg.RollupBoostEnabled || oc.cfg.RollupBoostNextEnabled) && errors.Is(oc.hcerr, health.ErrRollupBoostPartiallyHealthy) {
+		return false
 	}
 
 	return true
