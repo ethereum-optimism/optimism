@@ -975,10 +975,7 @@ func (oc *OpConductor) sequencerIsMakingProgress(ctx context.Context, wait time.
 }
 
 func (oc *OpConductor) latestUnsafeBlockWithTimeout(ctx context.Context) (eth.BlockInfo, error) {
-	// Todo: Is this first assignment necessary?
-	reqCtx := ctx
-	var cancel context.CancelFunc
-	reqCtx, cancel = context.WithTimeout(ctx, oc.cfg.HealthRecoveryCallTimeout)
+	reqCtx, cancel := context.WithTimeout(ctx, oc.cfg.HealthRecoveryCallTimeout)
 	defer cancel()
 	return oc.ctrl.LatestUnsafeBlock(reqCtx)
 }
