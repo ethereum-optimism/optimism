@@ -19,6 +19,16 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
+func runLegacyAndNew(t *testing.T, baseName string, fn func(t *testing.T, hintL2ChainIDs bool)) {
+	t.Helper()
+	t.Run("legacy_"+baseName, func(t *testing.T) {
+		fn(t, false)
+	})
+	t.Run(baseName, func(t *testing.T) {
+		fn(t, true)
+	})
+}
+
 func mockPreimageOracle(t *testing.T, hintL2ChainIDs bool) (po *PreimageOracle, hintsMock *mock.Mock, preimages map[common.Hash][]byte) {
 	// Prepare the pre-images
 	preimages = make(map[common.Hash][]byte)
@@ -67,11 +77,11 @@ func testBlock(t *testing.T, block *types.Block, hintL2ChainIDs bool) {
 	gotBlock := po.BlockByHash(block.Hash(), chainID)
 	hints.AssertExpectations(t)
 
-	require.Equal(t, gotBlock.Hash(), block.Hash())
+	require.Equal(t, block.Hash(), gotBlock.Hash())
 	expectedTxs := block.Transactions()
 	require.Equal(t, len(expectedTxs), len(gotBlock.Transactions()), "expecting equal tx list length")
 	for i, tx := range gotBlock.Transactions() {
-		require.Equalf(t, tx.Hash(), expectedTxs[i].Hash(), "expecting tx %d to match", i)
+		require.Equalf(t, expectedTxs[i].Hash(), tx.Hash(), "expecting tx %d to match", i)
 	}
 }
 
@@ -95,8 +105,8 @@ func TestPreimageOracleNodeByHash(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		chainID := eth.ChainIDFromUInt64(rng.Uint64())
-		t.Run(fmt.Sprintf("legacy_node_%d", i), func(t *testing.T) {
-			po, hints, preimages := mockPreimageOracle(t, false)
+		runLegacyAndNew(t, fmt.Sprintf("node_%d", i), func(t *testing.T, hintL2ChainIDs bool) {
+			po, hints, preimages := mockPreimageOracle(t, hintL2ChainIDs)
 
 			node := make([]byte, 123)
 			rng.Read(node)
@@ -104,22 +114,12 @@ func TestPreimageOracleNodeByHash(t *testing.T) {
 			h := crypto.Keccak256Hash(node)
 			preimages[preimage.Keccak256Key(h).PreimageKey()] = node
 
-			hints.On("hint", LegacyStateNodeHint(h).Hint()).Once().Return()
-			gotNode := po.NodeByHash(h, chainID)
-			hints.AssertExpectations(t)
-			require.Equal(t, hexutil.Bytes(node), hexutil.Bytes(gotNode), "node matches")
-		})
+			if hintL2ChainIDs {
+				hints.On("hint", StateNodeHint{Hash: h, ChainID: chainID}.Hint()).Once().Return()
+			} else {
+				hints.On("hint", LegacyStateNodeHint(h).Hint()).Once().Return()
+			}
 
-		t.Run(fmt.Sprintf("node_%d", i), func(t *testing.T) {
-			po, hints, preimages := mockPreimageOracle(t, true)
-
-			node := make([]byte, 123)
-			rng.Read(node)
-
-			h := crypto.Keccak256Hash(node)
-			preimages[preimage.Keccak256Key(h).PreimageKey()] = node
-
-			hints.On("hint", StateNodeHint{Hash: h, ChainID: chainID}.Hint()).Once().Return()
 			gotNode := po.NodeByHash(h, chainID)
 			hints.AssertExpectations(t)
 			require.Equal(t, hexutil.Bytes(node), hexutil.Bytes(gotNode), "node matches")
@@ -132,34 +132,24 @@ func TestPreimageOracleCodeByHash(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		chainID := eth.ChainIDFromUInt64(rng.Uint64())
-		t.Run(fmt.Sprintf("legacy_code_%d", i), func(t *testing.T) {
-			po, hints, preimages := mockPreimageOracle(t, false)
+		runLegacyAndNew(t, fmt.Sprintf("code_%d", i), func(t *testing.T, hintL2ChainIDs bool) {
+			po, hints, preimages := mockPreimageOracle(t, hintL2ChainIDs)
 
-			node := make([]byte, 123)
-			rng.Read(node)
+			code := make([]byte, 123)
+			rng.Read(code)
 
-			h := crypto.Keccak256Hash(node)
-			preimages[preimage.Keccak256Key(h).PreimageKey()] = node
+			h := crypto.Keccak256Hash(code)
+			preimages[preimage.Keccak256Key(h).PreimageKey()] = code
 
-			hints.On("hint", LegacyCodeHint(h).Hint()).Once().Return()
-			gotNode := po.CodeByHash(h, chainID)
+			if hintL2ChainIDs {
+				hints.On("hint", CodeHint{Hash: h, ChainID: chainID}.Hint()).Once().Return()
+			} else {
+				hints.On("hint", LegacyCodeHint(h).Hint()).Once().Return()
+			}
+
+			gotCode := po.CodeByHash(h, chainID)
 			hints.AssertExpectations(t)
-			require.Equal(t, hexutil.Bytes(node), hexutil.Bytes(gotNode), "code matches")
-		})
-
-		t.Run(fmt.Sprintf("code_%d", i), func(t *testing.T) {
-			po, hints, preimages := mockPreimageOracle(t, true)
-
-			node := make([]byte, 123)
-			rng.Read(node)
-
-			h := crypto.Keccak256Hash(node)
-			preimages[preimage.Keccak256Key(h).PreimageKey()] = node
-
-			hints.On("hint", CodeHint{Hash: h, ChainID: chainID}.Hint()).Once().Return()
-			gotNode := po.CodeByHash(h, chainID)
-			hints.AssertExpectations(t)
-			require.Equal(t, hexutil.Bytes(node), hexutil.Bytes(gotNode), "code matches")
+			require.Equal(t, hexutil.Bytes(code), hexutil.Bytes(gotCode), "code matches")
 		})
 	}
 }
@@ -169,24 +159,19 @@ func TestPreimageOracleOutputByRoot(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		chainID := eth.ChainIDFromUInt64(rng.Uint64())
-		t.Run(fmt.Sprintf("legacy_output_%d", i), func(t *testing.T) {
-			po, hints, preimages := mockPreimageOracle(t, false)
+		runLegacyAndNew(t, fmt.Sprintf("output_%d", i), func(t *testing.T, hintL2ChainIDs bool) {
+			po, hints, preimages := mockPreimageOracle(t, hintL2ChainIDs)
 			output := testutils.RandomOutputV0(rng)
 
 			h := common.Hash(eth.OutputRoot(output))
 			preimages[preimage.Keccak256Key(h).PreimageKey()] = output.Marshal()
-			hints.On("hint", LegacyL2OutputHint(h).Hint()).Once().Return()
-			gotOutput := po.OutputByRoot(h, chainID)
-			hints.AssertExpectations(t)
-			require.Equal(t, hexutil.Bytes(output.Marshal()), hexutil.Bytes(gotOutput.Marshal()), "output matches")
-		})
-		t.Run(fmt.Sprintf("output_%d", i), func(t *testing.T) {
-			po, hints, preimages := mockPreimageOracle(t, true)
-			output := testutils.RandomOutputV0(rng)
 
-			h := common.Hash(eth.OutputRoot(output))
-			preimages[preimage.Keccak256Key(h).PreimageKey()] = output.Marshal()
-			hints.On("hint", L2OutputHint{Hash: h, ChainID: chainID}.Hint()).Once().Return()
+			if hintL2ChainIDs {
+				hints.On("hint", L2OutputHint{Hash: h, ChainID: chainID}.Hint()).Once().Return()
+			} else {
+				hints.On("hint", LegacyL2OutputHint(h).Hint()).Once().Return()
+			}
+
 			gotOutput := po.OutputByRoot(h, chainID)
 			hints.AssertExpectations(t)
 			require.Equal(t, hexutil.Bytes(output.Marshal()), hexutil.Bytes(gotOutput.Marshal()), "output matches")
