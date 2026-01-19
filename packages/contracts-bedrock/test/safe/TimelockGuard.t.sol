@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
-import { Safe } from "safe-contracts/Safe.sol";
-import { GuardManager } from "safe-contracts/base/GuardManager.sol";
-import { ITransactionGuard } from "interfaces/safe/ITransactionGuard.sol";
+// Testing
 import "test/safe-tools/SafeTestTools.sol";
-import { Reverter } from "test/mocks/Callers.sol";
+import { Test } from "test/setup/Test.sol";
+import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 
+// Contracts
+import { Safe } from "safe-contracts/Safe.sol";
 import { TimelockGuard } from "src/safe/TimelockGuard.sol";
 import { SaferSafes } from "src/safe/SaferSafes.sol";
+
+// Libraries
+import { GuardManager } from "safe-contracts/base/GuardManager.sol";
+
+// Interfaces
+import { ITransactionGuard } from "interfaces/safe/ITransactionGuard.sol";
 
 using TransactionBuilder for TransactionBuilder.Transaction;
 
@@ -703,9 +709,10 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
     function test_checkTransaction_failedTransaction_succeeds() external {
         // Build a transaction that will revert (call a contract that always reverts)
         TransactionBuilder.Transaction memory dummyTx = _createEmptyTransaction(safeInstance);
-        Reverter reverter = new Reverter();
-        dummyTx.params.to = address(reverter);
-        // empty data triggers fallback, which reverts
+        address target = address(0x1234);
+        dummyTx.params.to = target;
+        // Make the target revert
+        vm.mockCallRevert(target, bytes(hex""), bytes(hex""));
         dummyTx.updateTransaction();
         dummyTx.scheduleTransaction(timelockGuard);
 

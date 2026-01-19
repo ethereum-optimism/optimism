@@ -1,0 +1,48 @@
+[package]
+name = "kona-supervisor"
+version = "0.1.0"
+description = "Kona Supervisor"
+
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+# Workspace
+kona-supervisor-service.workspace = true
+kona-supervisor-core.workspace = true
+kona-cli.workspace = true
+kona-interop.workspace = true
+kona-genesis.workspace = true
+kona-protocol.workspace = true
+
+alloy-network.workspace = true
+alloy-provider.workspace = true
+alloy-rpc-types-engine.workspace = true
+
+clap = { workspace = true, features = ["derive", "env"] }
+tokio = { workspace = true, features = [ "full", "macros"] }
+anyhow = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
+tracing = { workspace = true }
+serde.workspace = true
+serde_json.workspace = true
+glob.workspace = true
+reqwest.workspace = true
+metrics.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+kona-registry.workspace = true
+
+[build-dependencies]
+vergen = { workspace = true, features = ["build", "cargo", "emit_and_set"] }
+vergen-git2.workspace = true
+
+[lints]
+workspace = true

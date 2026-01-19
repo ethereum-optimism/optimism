@@ -64,7 +64,10 @@ Individual contract versioning could be deprecated when the following conditions
 
 Versioning for monorepo releases works as follows:
 
-- Monorepo releases continue to follow the `op-contracts/vX.Y.Z` naming convention.
+- Monorepo releases follow the `op-contracts/vX.Y.Z` naming convention for core protocol contracts.
+- Additional release namespaces exist for specialized contract categories:
+  - `op-safe-contracts/vX.Y.Z`: Safe multisig extensions (SaferSafes, LivenessModule2, TimelockGuard, DeputyPauseModule, etc.)
+- Each namespace maintains its own independent semver versioning.
 - The version used for the next release is determined by the highest version bump of any individual contract in the release.
   - Example 1: The monorepo is at `op-contracts/v1.5.0`. Clarifying comments are made in contracts, so all contracts only bump the patch version. The next monorepo release will be `op-contracts/v1.5.1`.
   - Example 2: The monorepo is at `op-contracts/v1.5.1`. Various tech debt and code is cleaned up in contracts, but no features are added, so at most, contracts bumped the minor version. The next monorepo release will be `op-contracts/v1.6.0`.
@@ -79,3 +82,13 @@ Versioning for monorepo releases works as follows:
 The [OPCM](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OPContractsManager.sol) is the contract that manages the deployment of all contracts on L1.
 
 The `OPCM` is the source of truth for the contracts that belong in a release, available as on-chain addresses by querying [the `getImplementations` function](https://github.com/ethereum-optimism/optimism/blob/4c8764f0453e141555846d8c9dd2af9edbc1d014/packages/contracts-bedrock/src/L1/OPContractsManager.sol#L1061).
+
+### OPCM Semver Rules
+
+OPCM follows a specific versioning scheme that differs from individual contract versioning:
+
+- **Major version bump**: Used when there is a new required sequential upgrade. Each new upgrade in the upgrade sequence (e.g., U16, U17, U18) requires a major version bump to the OPCM.
+- **Minor version bump**: Used when an OPCM is replacing an existing OPCM for the same upgrade. This applies when:
+  - Fixing bugs in an OPCM for a given upgrade (e.g., fixes for the Superchain Config bug)
+  - Releasing an updated OPCM variant for the same upgrade (e.g., U16a replacing U16)
+- **Patch version bump**: Used during active development on the `develop` branch. This is the expected behavior for day-to-day development work.

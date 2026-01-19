@@ -136,7 +136,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 
 	var interopSys interop.SubSystem
 	if cfg.InteropTime != nil {
-		mm := indexing.NewIndexingMode(log, cfg, "127.0.0.1", 0, interopJWTSecret, l1, eng, &opmetrics.NoopRPCMetrics{})
+		mm := indexing.NewIndexingMode(log, cfg, "127.0.0.1", 0, interopJWTSecret, l1, eng, &opmetrics.NoopRPCMetrics{}, 5_000)
 		mm.TestDisableEventDeduplication()
 		interopSys = mm
 		sys.Register("interop", interopSys, opts)

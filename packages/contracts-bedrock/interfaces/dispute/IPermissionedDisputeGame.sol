@@ -63,11 +63,11 @@ interface IPermissionedDisputeGame is IDisputeGame {
     error UnexpectedList();
     error UnexpectedRootClaim(Claim rootClaim);
     error UnexpectedString();
+    error UnknownChainId();
     error ValidStep();
     error InvalidBondDistributionMode();
     error GameNotFinalized();
     error GameNotResolved();
-    error ReservedGameType();
     error GamePaused();
     event Move(uint256 indexed parentIndex, Claim indexed claim, address indexed claimant);
     event GameClosed(BondDistributionMode bondDistributionMode);
@@ -111,6 +111,7 @@ interface IPermissionedDisputeGame is IDisputeGame {
     function move(Claim _disputed, uint256 _challengeIndex, Claim _claim, bool _isAttack) external payable;
     function normalModeCredit(address) external view returns (uint256);
     function refundModeCredit(address) external view returns (uint256);
+    function rootClaimByChainId(uint256 _chainId) external pure returns (Claim rootClaim_);
     function resolutionCheckpoints(uint256)
         external
         view
@@ -130,13 +131,11 @@ interface IPermissionedDisputeGame is IDisputeGame {
 
     error BadAuth();
 
-    function proposer() external view returns (address proposer_);
-    function challenger() external view returns (address challenger_);
+    function proposer() external pure returns (address proposer_);
+    function challenger() external pure returns (address challenger_);
 
     function __constructor__(
-        IFaultDisputeGame.GameConstructorParams memory _params,
-        address _proposer,
-        address _challenger
+        IFaultDisputeGame.GameConstructorParams memory _params
     )
         external;
 }

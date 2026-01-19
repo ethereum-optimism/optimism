@@ -1,0 +1,54 @@
+[package]
+name = "kona-supervisor-storage"
+version = "0.1.0"
+
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
+
+[dependencies]
+# Workspace
+kona-protocol.workspace = true
+kona-interop.workspace = true
+kona-supervisor-types.workspace = true
+kona-supervisor-metrics.workspace = true
+
+# Alloy
+alloy-primitives = { workspace = true, features = ["map", "rlp", "serde", "rand"] }
+alloy-eips = { workspace = true }
+
+# Op-Alloy
+op-alloy-consensus.workspace = true
+
+# Misc
+serde = { workspace = true, features = ["derive"] }
+derive_more.workspace = true
+bytes.workspace = true
+modular-bitfield.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+eyre.workspace = true
+metrics.workspace = true
+
+#reth
+reth-db-api = { workspace = true }
+reth-db = { workspace = true }
+reth-codecs = { workspace = true }
+
+# HTTP client and TLS for remote signer
+tokio = { workspace = true, features = ["full"] }
+
+[dev-dependencies]
+test-fuzz = { workspace = true }
+tempfile = { workspace = true }
+tokio.workspace = true
+kona-cli.workspace = true
+
+[lints]
+workspace = true

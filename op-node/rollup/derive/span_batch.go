@@ -446,9 +446,14 @@ func (b *SpanBatch) GetBatchType() int {
 	return SpanBatchType
 }
 
-// GetTimestamp returns timestamp of the first block in the span
+// GetTimestamp returns the timestamp of the first block in the span
 func (b *SpanBatch) GetTimestamp() uint64 {
 	return b.Batches[0].Timestamp
+}
+
+// GetLastTimestamp returns the timestamp of the last block in the span
+func (b *SpanBatch) GetLastTimestamp() uint64 {
+	return b.peek(0).Timestamp
 }
 
 // TxCount returns the tx count for the batch
@@ -476,9 +481,14 @@ func (b *SpanBatch) LogContext(log log.Logger) log.Logger {
 	)
 }
 
-// GetStartEpochNum returns epoch number(L1 origin block number) of the first block in the span
+// GetStartEpochNum returns epoch number (L1 origin block number) of the first block in the span
 func (b *SpanBatch) GetStartEpochNum() rollup.Epoch {
 	return b.Batches[0].EpochNum
+}
+
+// GetLastEpochNum returns epoch number (L1 origin block number) of the last block in the span
+func (b *SpanBatch) GetLastEpochNum() rollup.Epoch {
+	return b.peek(0).EpochNum
 }
 
 // CheckOriginHash checks if the l1OriginCheck matches the first 20 bytes of given hash, probably L1 block hash from the current canonical L1 chain.
@@ -582,13 +592,21 @@ func (b *SpanBatch) ToRawSpanBatch() (*RawSpanBatch, error) {
 
 // GetSingularBatches converts SpanBatchElements after L2 safe head to SingularBatches.
 // Since SpanBatchElement does not contain EpochHash, set EpochHash from the given L1 blocks.
-// The result SingularBatches do not contain ParentHash yet. It must be set by BatchQueue.
+// The result SingularBatches do not contain ParentHash yet. It must be set by the BatchQueue/Stage.
+//
+// If the span batch is overlapping the safe head, it may happen that the batch is found to be invalid
+// only at this point and that the span batch passed the previous span batch prefix checks.
+// In this case, an error is returned and the whole span batch must be dropped.
 func (b *SpanBatch) GetSingularBatches(l1Origins []eth.L1BlockRef, l2SafeHead eth.L2BlockRef) ([]*SingularBatch, error) {
 	var singularBatches []*SingularBatch
 	originIdx := 0
 	for _, batch := range b.Batches {
 		if batch.Timestamp <= l2SafeHead.Time {
 			continue
+		}
+		if uint64(batch.EpochNum) < l2SafeHead.L1Origin.Number {
+			return nil, fmt.Errorf("future batch (ts: %d) L1 origin %d behind safe head (ts: %d) origin %d",
+				batch.Timestamp, batch.EpochNum, l2SafeHead.Time, l2SafeHead.L1Origin.Number)
 		}
 		singularBatch := SingularBatch{
 			EpochNum:     batch.EpochNum,
@@ -605,7 +623,7 @@ func (b *SpanBatch) GetSingularBatches(l1Origins []eth.L1BlockRef, l2SafeHead et
 			}
 		}
 		if !originFound {
-			return nil, fmt.Errorf("unable to find L1 origin for the epoch number: %d", batch.EpochNum)
+			return nil, fmt.Errorf("unable to find L1 origin for batch (ts: %d) with epoch number: %d", batch.Timestamp, batch.EpochNum)
 		}
 		singularBatches = append(singularBatches, &singularBatch)
 	}

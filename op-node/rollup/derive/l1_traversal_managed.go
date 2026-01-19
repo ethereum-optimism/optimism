@@ -112,8 +112,9 @@ func (l1t *L1TraversalManaged) ProvideNextL1(ctx context.Context, nextL1 eth.L1B
 			nextL1, nextL1.ParentID(), err))
 	}
 	if err := UpdateSystemConfigWithL1Receipts(&l1t.sysCfg, receipts, l1t.cfg, nextL1.Time); err != nil {
-		// the sysCfg changes should always be formatted correctly.
-		return NewCriticalError(fmt.Errorf("failed to update L1 sysCfg with receipts from block %s: %w", nextL1, err))
+		// if UpdateSystemConfigWithL1Receipts returns an error, it is because one or more of the receipts are malformed or invalid
+		// failure to apply is just informational, so we just log the error and continue
+		l1t.log.Warn("failed to fully update L1 sysCfg with receipts from block", "block", nextL1, "error", err)
 	}
 
 	logger.Info("Derivation continued with next L1 block")

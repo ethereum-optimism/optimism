@@ -399,3 +399,34 @@ func (d *InteropDSL) ActSyncSupernode(t helpers.Testing, opts ...actSyncSupernod
 		chain.Sequencer.ActL2PipelineFull(t) // node to complete syncing to L1 head.
 	}
 }
+
+// SubmitBatchesAndAdvanceL1 submits the latest batches for all chains and synchronizes supervisor the latest data on  L1
+func (d *InteropDSL) SubmitBatchesAndAdvanceL1(t helpers.Testing, l1BlockTimeSeconds uint64) {
+	d.Actors.ChainA.Batcher.ActSubmitAll(t)
+	d.Actors.ChainB.Batcher.ActSubmitAll(t)
+
+	d.AdvanceL1(
+		func(o *AdvanceL1Opts) {
+			o.L1BlockTimeSeconds = l1BlockTimeSeconds
+		},
+		WithActIncludeTx(d.Actors.L1Miner.ActL1IncludeTx(d.Actors.ChainA.BatcherAddr)),
+		WithActIncludeTx(d.Actors.L1Miner.ActL1IncludeTx(d.Actors.ChainB.BatcherAddr)),
+	)
+
+	for _, chain := range []*Chain{d.Actors.ChainA, d.Actors.ChainB} {
+		status := chain.Sequencer.SyncStatus()
+		require.Equalf(t, status.UnsafeL2, status.LocalSafeL2, "Chain %v did not fully advance local safe head", chain.ChainID)
+		chain.Sequencer.SyncSupervisor(t)
+	}
+	d.Actors.Supervisor.ProcessFull(t)
+}
+
+// SubmitBatches checks if there are any pending batches to be submitted for either chain,
+// and if so, submits them and advances L1 to process them.
+func (d *InteropDSL) SubmitBatches(t helpers.Testing, l1BlockTimeSeconds uint64) {
+	statusA := d.Actors.ChainA.Sequencer.SyncStatus()
+	statusB := d.Actors.ChainB.Sequencer.SyncStatus()
+	if statusA.UnsafeL2.Number != statusA.LocalSafeL2.Number || statusB.UnsafeL2.Number != statusB.LocalSafeL2.Number {
+		d.SubmitBatchesAndAdvanceL1(t, l1BlockTimeSeconds)
+	}
+}

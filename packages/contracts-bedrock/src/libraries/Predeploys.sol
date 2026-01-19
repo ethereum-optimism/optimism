@@ -113,6 +113,12 @@ library Predeploys {
     /// @notice Address of the SuperchainTokenBridge predeploy.
     address internal constant SUPERCHAIN_TOKEN_BRIDGE = 0x4200000000000000000000000000000000000028;
 
+    /// @notice Address of the NativeAssetLiquidity predeploy.
+    address internal constant NATIVE_ASSET_LIQUIDITY = 0x4200000000000000000000000000000000000029;
+
+    /// @notice Address of the LiquidityController predeploy.
+    address internal constant LIQUIDITY_CONTROLLER = 0x420000000000000000000000000000000000002a;
+
     /// @notice Address of the FeeSplitter predeploy.
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
 
@@ -148,6 +154,8 @@ library Predeploys {
         if (_addr == OPTIMISM_SUPERCHAIN_ERC20_FACTORY) return "OptimismSuperchainERC20Factory";
         if (_addr == OPTIMISM_SUPERCHAIN_ERC20_BEACON) return "OptimismSuperchainERC20Beacon";
         if (_addr == SUPERCHAIN_TOKEN_BRIDGE) return "SuperchainTokenBridge";
+        if (_addr == LIQUIDITY_CONTROLLER) return "LiquidityController";
+        if (_addr == NATIVE_ASSET_LIQUIDITY) return "NativeAssetLiquidity";
         if (_addr == FEE_SPLITTER) return "FeeSplitter";
         revert("Predeploys: unnamed predeploy");
     }
@@ -161,7 +169,8 @@ library Predeploys {
     function isSupportedPredeploy(
         address _addr,
         uint256 _fork,
-        bool _enableCrossL2Inbox
+        bool _enableCrossL2Inbox,
+        bool _isCustomGasToken
     )
         internal
         pure
@@ -175,7 +184,9 @@ library Predeploys {
             || _addr == L1_FEE_VAULT || _addr == OPERATOR_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS
             || _addr == GOVERNANCE_TOKEN || _addr == FEE_SPLITTER
             || (_fork >= uint256(Fork.INTEROP) && _enableCrossL2Inbox && _addr == CROSS_L2_INBOX)
-            || (_fork >= uint256(Fork.INTEROP) && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+            || (_fork >= uint256(Fork.INTEROP) && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            || (_isCustomGasToken && _addr == LIQUIDITY_CONTROLLER)
+            || (_isCustomGasToken && _addr == NATIVE_ASSET_LIQUIDITY);
     }
 
     function isPredeployNamespace(address _addr) internal pure returns (bool) {

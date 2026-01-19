@@ -42,6 +42,18 @@ library Constants {
     ///         transactions.
     address internal constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
 
+    /// @notice The address used by OPCM to check if the contract is running in a testing
+    ///         environment. This address doesn't have any code on production networks but can be
+    ///         made to have code in tests with cheatcodes.
+    address internal constant TESTING_ENVIRONMENT_ADDRESS = address(0xbeefcafe);
+
+    /// @notice Special constant key for the PermittedProxyDeployment instruction.
+    string internal constant PERMITTED_PROXY_DEPLOYMENT_KEY = "PermittedProxyDeployment";
+
+    /// @notice Special constant value for the PermittedProxyDeployment instruction to permit all
+    ///         contracts to be deployed. Only to be used for deployments.
+    bytes internal constant PERMIT_ALL_CONTRACTS_INSTRUCTION = bytes("ALL");
+
     /// @notice Returns the default values for the ResourceConfig. These are the recommended values
     ///         for a production network.
     function DEFAULT_RESOURCE_CONFIG() internal pure returns (IResourceMetering.ResourceConfig memory) {

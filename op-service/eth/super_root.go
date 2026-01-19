@@ -78,6 +78,28 @@ func (o *SuperV1) Marshal() []byte {
 	return buf
 }
 
+func (o *SuperV1) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&superV1JsonMarshalling{
+		Timestamp: hexutil.Uint64(o.Timestamp),
+		Chains:    o.Chains,
+	})
+}
+
+func (o *SuperV1) UnmarshalJSON(input []byte) error {
+	var dec superV1JsonMarshalling
+	if err := json.Unmarshal(input, &dec); err != nil {
+		return err
+	}
+	o.Timestamp = uint64(dec.Timestamp)
+	o.Chains = dec.Chains
+	return nil
+}
+
+type superV1JsonMarshalling struct {
+	Timestamp hexutil.Uint64     `json:"timestamp"`
+	Chains    []ChainIDAndOutput `json:"chains"`
+}
+
 func UnmarshalSuperRoot(data []byte) (Super, error) {
 	if len(data) < 1 {
 		return nil, ErrInvalidSuperRoot

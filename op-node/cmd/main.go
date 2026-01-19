@@ -57,7 +57,7 @@ func main() {
 		},
 		{
 			Name:        "doc",
-			Subcommands: doc.NewSubcommands(metrics.NewMetrics("default")),
+			Subcommands: doc.NewSubcommands(metrics.NewMetrics("default", nil)),
 		},
 		{
 			Name:        "networks",
@@ -79,7 +79,7 @@ func RollupNodeMain(ctx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.
 	oplog.SetGlobalLogHandler(log.Handler())
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, log)
 	opservice.WarnOnDeprecatedFlags(ctx, flags.DeprecatedFlags, log)
-	m := metrics.NewMetrics("default")
+	m := metrics.NewMetrics("default", nil)
 
 	cfg, err := opnode.NewConfig(ctx, log)
 	if err != nil {
@@ -94,7 +94,7 @@ func RollupNodeMain(ctx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.
 		cfg.Rollup.LogDescription(log, chaincfg.L2ChainIDToNetworkDisplayName)
 	}
 
-	n, err := node.New(ctx.Context, cfg, log, VersionWithMeta, m)
+	n, err := node.New(ctx.Context, cfg, log, VersionWithMeta, m, nil)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create the rollup node: %w", err)
 	}

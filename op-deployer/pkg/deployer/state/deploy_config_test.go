@@ -36,6 +36,8 @@ func TestCombineDeployConfig(t *testing.T) {
 		},
 		UseRevenueShare:    true,
 		ChainFeesRecipient: common.HexToAddress("0x123"),
+		// CustomGasToken defaults to disabled (all fields nil/empty)
+		CustomGasToken: CustomGasToken{},
 	}
 	state := State{
 		SuperchainDeployment: &addresses.SuperchainContracts{ProtocolVersionsProxy: common.HexToAddress("0x123")},

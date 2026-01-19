@@ -1,0 +1,64 @@
+import { Callout } from 'vocs/components'
+
+# Docker
+
+There are two ways to obtain a Kona Docker image:
+
+1. [GitHub](#github)
+2. [Building it from source](#building-the-docker-image)
+
+Once you have obtained the Docker image, you can run the node.
+
+Jump ahead to [Run a Node using Docker page](/node/run/docker).
+
+
+## GitHub
+
+Kona docker images are published with every release on GitHub Container Registry.
+
+You can obtain the latest `kona-node` image with:
+
+```bash
+docker pull ghcr.io/op-rs/kona/kona-node
+```
+
+<Callout type="note">
+Specify a specific version (e.g. v0.1.0) like so.
+
+```bash
+docker pull ghcr.io/op-rs/kona/kona-node:v0.1.0
+```
+</Callout>
+
+You can test the image with:
+
+```bash
+docker run --rm ghcr.io/op-rs/kona/kona-node --version
+```
+
+If you can see the [latest release](https://github.com/op-rs/kona/releases) version,
+then you've successfully installed Kona via Docker.
+
+
+## Building the Docker image
+
+To build the image from source, navigate to the root of the repository and run:
+
+```bash
+just build-local kona-node
+```
+
+<Callout type="note">
+This will create an image with the tag `kona:local`. To specify a custom
+tag, just pass it in after `kona-node` in the command above, like so:
+
+```bash
+just build-local kona-node my-custom-tag
+```
+</Callout>
+
+The build will likely take several minutes. Once it's built, test it with:
+
+```bash
+docker run kona:local --version
+```

@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -47,6 +48,7 @@ type frameData struct {
 // ChannelBuilder uses a ChannelOut to create a channel with output frame
 // size approximation.
 type ChannelBuilder struct {
+	log       log.Logger
 	cfg       ChannelConfig
 	rollupCfg *rollup.Config
 
@@ -87,8 +89,9 @@ type ChannelBuilder struct {
 	outputBytes int
 }
 
-func NewChannelBuilderWithChannelOut(cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64, channelOut derive.ChannelOut) *ChannelBuilder {
+func NewChannelBuilderWithChannelOut(log log.Logger, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64, channelOut derive.ChannelOut) *ChannelBuilder {
 	cb := &ChannelBuilder{
+		log:       log.With("channel_id", channelOut.ID()),
 		cfg:       cfg,
 		rollupCfg: rollupCfg,
 		co:        channelOut,
@@ -224,8 +227,7 @@ func (c *ChannelBuilder) updateDurationTimeout(l1BlockNum uint64) {
 	if c.cfg.MaxChannelDuration == 0 {
 		return
 	}
-	timeout := l1BlockNum + c.cfg.MaxChannelDuration
-	c.updateTimeout(timeout, ErrMaxDurationReached)
+	c.updateTimeout(l1BlockNum+c.cfg.MaxChannelDuration, ErrMaxDurationReached)
 }
 
 // updateSwTimeout updates the block timeout with the sequencer window timeout
@@ -244,6 +246,7 @@ func (c *ChannelBuilder) updateSwTimeout(l1InfoNumber uint64) {
 // full error reason in case the timeout is hit in the future.
 func (c *ChannelBuilder) updateTimeout(timeoutBlockNum uint64, reason error) {
 	if c.timeout == 0 || c.timeout > timeoutBlockNum {
+		c.log.Debug("setting timeout", "number", timeoutBlockNum, "timeout", c.timeout)
 		c.timeout = timeoutBlockNum
 		c.timeoutReason = reason
 	}
@@ -252,15 +255,10 @@ func (c *ChannelBuilder) updateTimeout(timeoutBlockNum uint64, reason error) {
 // CheckTimeout checks if the channel is timed out at the given block number and
 // in this case marks the channel as full, if it wasn't full already.
 func (c *ChannelBuilder) CheckTimeout(l1BlockNum uint64) {
-	if !c.IsFull() && c.TimedOut(l1BlockNum) {
+	if c.timeout != 0 && !c.IsFull() && l1BlockNum >= c.timeout {
+		c.log.Debug("checking timeout", "l1blockNum", l1BlockNum, "timeout", c.timeout)
 		c.setFullErr(c.timeoutReason)
 	}
-}
-
-// TimedOut returns whether the passed block number is after the timeout block
-// number. If no block timeout is set yet, it returns false.
-func (c *ChannelBuilder) TimedOut(blockNum uint64) bool {
-	return c.timeout != 0 && blockNum >= c.timeout
 }
 
 // IsFull returns whether the channel is full.

@@ -1,0 +1,35 @@
+[package]
+name = "kona-serde"
+version = "0.2.2"
+description = "Serde related helpers for kona"
+
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+alloy-primitives = { workspace = true, features = ["serde"] }
+serde.workspace = true
+serde_json = { workspace = true, features = ["alloc"] }
+
+[dev-dependencies]
+toml = { workspace = true, features = ["parse"] }
+
+[package.metadata.cargo-udeps.ignore]
+development = ["toml"]
+
+[features]
+default = []
+std = [
+	"alloy-primitives/serde",
+	"alloy-primitives/std",
+	"serde/std",
+	"serde_json/std",
+]

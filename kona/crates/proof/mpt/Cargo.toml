@@ -1,0 +1,53 @@
+[package]
+name = "kona-mpt"
+description = "Utilities for interacting with and iterating through a merkle patricia trie"
+version = "0.3.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# General
+thiserror.workspace = true
+serde = { workspace = true, optional = true, features = ["derive", "alloc"] }
+
+# Revm + Alloy
+alloy-rlp.workspace = true
+alloy-trie.workspace = true
+alloy-primitives = { workspace = true, features = ["rlp"] }
+
+# Op-alloy
+op-alloy-rpc-types-engine.workspace = true
+
+[dev-dependencies]
+# Alloy
+alloy-provider = { workspace = true, features = ["reqwest"] }
+alloy-consensus.workspace = true
+alloy-transport-http.workspace = true
+alloy-rpc-types = { workspace = true, features = ["eth", "debug"] }
+
+# General
+rand.workspace = true
+reqwest.workspace = true
+proptest.workspace = true
+tokio = { workspace = true, features = ["full"] }
+criterion = { workspace = true, features = ["html_reports"] }
+pprof = { workspace = true, features = ["criterion", "flamegraph", "frame-pointer"] }
+
+[features]
+default = [ "serde" ]
+serde = [
+	"alloy-primitives/serde",
+	"alloy-trie/serde",
+	"dep:serde",
+	"op-alloy-rpc-types-engine/serde",
+]
+
+[[bench]]
+name = "trie_node"
+harness = false

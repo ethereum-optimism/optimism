@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { Reverter, GasBurner } from "test/mocks/Callers.sol";
+import { GasBurner } from "test/mocks/GasBurner.sol";
 import { stdError } from "forge-std/StdError.sol";
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
@@ -781,7 +781,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         );
 
         vm.store(address(optimismPortal2), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
-        vm.etch(target, address(new Reverter()).code);
+        vm.mockCallRevert(target, bytes(hex"1111"), bytes(hex""));
         vm.deal(address(optimismPortal2), value);
         vm.prank(address(optimismPortal2));
         l1CrossDomainMessenger.relayMessage{ value: value }(
@@ -798,8 +798,9 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         assertEq(l1CrossDomainMessenger.successfulMessages(hash), false);
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
 
-        vm.expectEmit(address(l1CrossDomainMessenger));
+        vm.clearMockedCalls();
 
+        vm.expectEmit(address(l1CrossDomainMessenger));
         emit RelayedMessage(hash);
 
         vm.etch(target, address(0).code);
@@ -926,9 +927,8 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         // Set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
         vm.store(address(optimismPortal2), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
 
-        // Turn the target into a Reverter.
-        vm.etch(target, address(new Reverter()).code);
-
+        // Make the target revert.
+        vm.mockCallRevert(target, bytes(hex"1111"), bytes(hex""));
         // Target should be called with expected data.
         vm.expectCall(target, hex"1111");
 
@@ -955,7 +955,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
 
         // Make the target not revert anymore.
-        vm.etch(target, address(0).code);
+        vm.clearMockedCalls();
 
         // Target should be called with expected data.
         vm.expectCall(target, hex"1111");
@@ -1062,8 +1062,8 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         // Set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
         vm.store(address(optimismPortal2), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
 
-        // Turn the target into a Reverter.
-        vm.etch(target, address(new Reverter()).code);
+        // Make the target revert.
+        vm.mockCallRevert(target, bytes(hex"1111"), bytes(hex""));
 
         // Target should be called with expected data.
         vm.expectCall(target, hex"1111");
@@ -1087,7 +1087,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
 
         // Make the target not revert anymore.
-        vm.etch(target, address(0).code);
+        vm.clearMockedCalls();
 
         // Target should be called with expected data.
         vm.expectCall(target, hex"1111");

@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -35,6 +36,7 @@ import (
 
 var (
 	ErrUnexpectedStatusCode = errors.New("unexpected status code")
+	ErrVMTimeout            = errors.New("VM execution timed out")
 )
 
 type Metricer interface {
@@ -42,24 +44,36 @@ type Metricer interface {
 	metrics.VmMetricer
 	opmetrics.RPCMetricer
 
-	RecordFailure(vmType string)
-	RecordPanic(vmType string)
-	RecordInvalid(vmType string)
+	RecordSetupFailure(vmType string)
+	RecordVmFailure(vmType string, reason string)
 	RecordSuccess(vmType string)
 }
 
 type RunConfig struct {
-	TraceType        types.TraceType
+	GameType         gameTypes.GameType
 	Name             string
 	Prestate         common.Hash
 	PrestateFilename string
 }
 
+type TraceProviderCreator func(
+	ctx context.Context,
+	logger log.Logger,
+	m trace.Metricer,
+	cfg *config.Config,
+	prestateSource prestateFetcher,
+	gameType gameTypes.GameType,
+	localInputs utils.LocalGameInputs,
+	dir string,
+) (types.TraceProvider, error)
+
 type Runner struct {
-	log        log.Logger
-	cfg        *config.Config
-	runConfigs []RunConfig
-	m          Metricer
+	log                  log.Logger
+	cfg                  *config.Config
+	runConfigs           []RunConfig
+	m                    Metricer
+	vmTimeout            time.Duration
+	traceProviderCreator TraceProviderCreator
 
 	running    atomic.Bool
 	ctx        context.Context
@@ -68,12 +82,14 @@ type Runner struct {
 	metricsSrv *httputil.HTTPServer
 }
 
-func NewRunner(logger log.Logger, cfg *config.Config, runConfigs []RunConfig) *Runner {
+func NewRunner(logger log.Logger, cfg *config.Config, runConfigs []RunConfig, vmTimeout time.Duration) *Runner {
 	return &Runner{
-		log:        logger,
-		cfg:        cfg,
-		runConfigs: runConfigs,
-		m:          NewMetrics(runConfigs),
+		log:                  logger,
+		cfg:                  cfg,
+		runConfigs:           runConfigs,
+		m:                    NewMetrics(runConfigs),
+		vmTimeout:            vmTimeout,
+		traceProviderCreator: createTraceProvider,
 	}
 }
 
@@ -98,9 +114,9 @@ func (r *Runner) Start(ctx context.Context) error {
 		rollupClient = cl
 	}
 	var supervisorClient *sources.SupervisorClient
-	if r.cfg.SupervisorRPC != "" {
-		r.log.Info("Dialling supervisor client", "url", r.cfg.SupervisorRPC)
-		cl, err := dial.DialSupervisorClientWithTimeout(ctx, r.log, r.cfg.SupervisorRPC)
+	if r.cfg.SuperRPC != "" {
+		r.log.Info("Dialling supervisor client", "url", r.cfg.SuperRPC)
+		cl, err := dial.DialSupervisorClientWithTimeout(ctx, r.log, r.cfg.SuperRPC)
 		if err != nil {
 			return fmt.Errorf("failed to dial supervisor: %w", err)
 		}
@@ -138,44 +154,47 @@ func (r *Runner) loop(ctx context.Context, runConfig RunConfig, rollupClient *so
 }
 
 func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfig RunConfig, rollupClient *sources.RollupClient, supervisorClient *sources.SupervisorClient, caller *batching.MultiCaller) {
-	recordError := func(err error, traceType string, m Metricer, log log.Logger) {
+	recordError := func(err error, configName string, m Metricer, log log.Logger) {
 		if errors.Is(err, ErrUnexpectedStatusCode) {
 			log.Error("Incorrect status code", "type", runConfig.Name, "err", err)
-			m.RecordInvalid(traceType)
+			m.RecordVmFailure(configName, ReasonIncorrectStatus)
 		} else if errors.Is(err, trace.ErrVMPanic) {
 			log.Error("VM panicked", "type", runConfig.Name)
-			m.RecordPanic(traceType)
+			m.RecordVmFailure(configName, ReasonPanic)
+		} else if errors.Is(err, ErrVMTimeout) {
+			log.Error("VM execution timed out", "type", runConfig.Name, "timeout", r.vmTimeout)
+			m.RecordVmFailure(configName, ReasonTimeout)
 		} else if err != nil {
 			log.Error("Failed to run", "type", runConfig.Name, "err", err)
-			m.RecordFailure(traceType)
+			m.RecordSetupFailure(configName)
 		} else {
 			log.Info("Successfully verified output root", "type", runConfig.Name)
-			m.RecordSuccess(traceType)
+			m.RecordSuccess(configName)
 		}
 	}
 
 	var prestateSource prestateFetcher
 	if strings.HasPrefix(runConfig.PrestateFilename, "file:") {
 		path := runConfig.PrestateFilename[len("file:"):]
-		rlog.Info("Using local file prestate", "type", runConfig.TraceType, "path", path)
+		rlog.Info("Using local file prestate", "type", runConfig.GameType, "path", path)
 		prestateSource = &LocalPrestateFetcher{path: path}
 	} else if runConfig.PrestateFilename != "" {
-		rlog.Info("Using named prestate", "type", runConfig.TraceType, "filename", runConfig.PrestateFilename)
+		rlog.Info("Using named prestate", "type", runConfig.GameType, "filename", runConfig.PrestateFilename)
 		prestateSource = &NamedPrestateFetcher{filename: runConfig.PrestateFilename}
 	} else if runConfig.Prestate == (common.Hash{}) {
-		rlog.Info("Using on chain prestate", "type", runConfig.TraceType)
+		rlog.Info("Using on chain prestate", "type", runConfig.GameType)
 		prestateSource = &OnChainPrestateFetcher{
 			m:                  r.m,
 			gameFactoryAddress: r.cfg.GameFactoryAddress,
-			gameType:           runConfig.TraceType.GameType(),
+			gameType:           runConfig.GameType,
 			caller:             caller,
 		}
 	} else {
-		rlog.Info("Using specific prestate", "type", runConfig.TraceType, "hash", runConfig.Prestate)
+		rlog.Info("Using specific prestate", "type", runConfig.GameType, "hash", runConfig.Prestate)
 		prestateSource = &HashPrestateFetcher{prestateHash: runConfig.Prestate}
 	}
 
-	localInputs, err := createGameInputs(ctx, rlog, rollupClient, supervisorClient, runConfig.Name, runConfig.TraceType)
+	localInputs, err := createGameInputs(ctx, rlog, rollupClient, supervisorClient, runConfig.Name, runConfig.GameType)
 	if err != nil {
 		recordError(err, runConfig.Name, r.m, rlog)
 		return
@@ -189,17 +208,25 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfi
 		recordError(err, runConfig.Name, r.m, rlog)
 		return
 	}
-	err = r.runOnce(ctx, inputsLogger.With("type", runConfig.Name), runConfig.Name, runConfig.TraceType, prestateSource, localInputs, dir)
+	err = r.runOnce(ctx, inputsLogger.With("type", runConfig.Name), runConfig.Name, runConfig.GameType, prestateSource, localInputs, dir)
 	recordError(err, runConfig.Name, r.m, rlog)
 }
 
-func (r *Runner) runOnce(ctx context.Context, logger log.Logger, name string, traceType types.TraceType, prestateSource prestateFetcher, localInputs utils.LocalGameInputs, dir string) error {
-	provider, err := createTraceProvider(ctx, logger, metrics.NewTypedVmMetrics(r.m, name), r.cfg, prestateSource, traceType, localInputs, dir)
+func (r *Runner) runOnce(ctx context.Context, logger log.Logger, name string, gameType gameTypes.GameType, prestateSource prestateFetcher, localInputs utils.LocalGameInputs, dir string) error {
+	if r.vmTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, r.vmTimeout)
+		defer cancel()
+	}
+	provider, err := r.traceProviderCreator(ctx, logger, metrics.NewTypedVmMetrics(r.m, name), r.cfg, prestateSource, gameType, localInputs, dir)
 	if err != nil {
 		return fmt.Errorf("failed to create trace provider: %w", err)
 	}
 	hash, err := provider.Get(ctx, types.RootPosition)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("%w: %w", ErrVMTimeout, err)
+		}
 		return fmt.Errorf("failed to execute trace provider: %w", err)
 	}
 	if hash[0] != mipsevm.VMStatusValid {

@@ -1,0 +1,46 @@
+# Lore
+
+A long time ago, during ETH Denver 2023 in February, [@clabby][clabby]
+and [@refcell][refcell] embarked on a journey to apply the minimal diff
+from `op-geth` to reth, creating the first Rust execution client
+implementation for the OP Stack. This kicked off a series of development
+to bring the OP Stack into a multi-client future.
+
+At the same time, Optimism was undergoing its biggest upgrade yet - Bedrock.
+This upgrade completely redefined Optimism. By sunsetting the OVM, Bedrock
+laid the foundation for the OP Stack, bringing Optimism out of the dark ages.
+The key architectural change was the concept of "minimal diff" which effectively
+applies a minimal set of changes to the Ethereum execution layer (`op-geth`),
+rather than a new virtual machine (the OVM).
+
+Fast forward around 6 months, and `op-reth` was presented at Frontiers 2023.
+It took a lot of debugging the night before to get it to work, but it was
+syncing just in time. This piece of history was [recorded by the wonderful
+folks at Paradigm][recording].
+
+For the next year, a small 6 person team at OP Labs including [@clabby][clabby] and
+[@refcell][refcell] went heads-down to build Fault Proofs for the OP Stack. `op-reth`
+was left in the good hands of the Reth contributors and the community,
+eventually being adopted by folks at Base in production.
+
+Once Fault Proofs were released with guardrails in the spring of 2024,
+[@clabby] and [@refcell] returned to the world of Rust to kick off a new fault
+proof implementation, this time in Rust. Using our learnings from [op-program], we
+built the kona-proof, and [released it at Frontiers 2024][proofs].
+
+After a few hardforks and side quests into interop, [@refcell][refcell] kicked
+off the `kona-node` project to build an OP Stack rollup node in Rust, built off
+the abstractions we built in Kona. It became clear that Kona is more than just
+one OP Stack component, but a monorepo for the entire OP Stack in Rust.
+
+Now, in 2025, [@clabby][clabby], [@theochap][theo], and [@refcell][refcell] are
+cooking on Kona, iteratively building out the OP Stack in Rust. Come join us!
+
+
+[proofs]: https://www.youtube.com/watch?v=mkygYH-07Hw&pp=ygUVZnJvbnRpZXJzIDIwMjQgY2xhYmJ5
+[recording]: https://www.youtube.com/watch?v=AVYggka6_2Y&pp=ygUWZnJvbnRpZXJzIDIwMjMgb3AtcmV0aA%3D%3D
+[refcell]: https://github.com/refcell
+[clabby]: https://github.com/clabby
+[theo]: https://github.com/theochap
+[op-program]: https://github.com/ethereum-optimism/optimism/tree/develop/op-program
+[optimism]: https://github.com/ethereum-optimism/optimism

@@ -6,9 +6,31 @@ This file explains the rules that you should use when reviewing a PR.
 
 You are ONLY to review changes to Solidity files (*.sol). Do NOT leave comments on any other file types.
 
+## OPCM Version Bump Warnings
+
+If the PR modifies `OPContractsManagerV2.sol` and changes the `version` constant with a major or minor version bump, you MUST leave a prominent comment on the PR with the following message:
+
+> ⚠️ **OPCM Version Bump Detected**
+>
+> This PR includes a major or minor version bump to `OPContractsManagerV2.sol`.
+>
+> **Reminder of OPCM versioning rules:**
+> - **Major bump**: Only for a new required sequential upgrade (e.g., U16 → U17)
+> - **Minor bump**: Only for replacing an existing OPCM for the same upgrade (e.g., bug fixes, U16a)
+> - **Patch bump**: Expected for normal development work
+>
+> Please confirm this version bump is intentional and follows the versioning policy.
+
 ## Rules for Reviewing Solidity Files
 
 This section applies to Solidity files ONLY.
+
+### @dev Comments
+
+- Pay close attention to `@dev` natspec comments in the codebase
+- These comments often contain important invariants, requirements, or reminders for developers
+- When reviewing changes to a function, check if there are `@dev` comments that specify conditions or actions that must be taken when modifying that code
+- Flag violations of instructions in `@dev` comments (e.g., "when updating this function, also update X")
 
 ### Style Guide
 

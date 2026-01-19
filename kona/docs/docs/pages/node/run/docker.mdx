@@ -1,0 +1,177 @@
+# Docker Guide
+
+:::info
+
+This guide uses Kona's pre-packaged docker config.
+
+For detailed usage of the `kona-node` binary, head
+over to [the binary guide](/node/run/binary).
+
+:::
+
+Kona provides a [`kona-node` docker recipe][recipe]
+with detailed instructions for running a complete node setup.
+
+## Quick Start
+
+The easiest way to run `kona-node` with Docker is using the provided recipe:
+
+1. **Navigate to the recipe directory:**
+   ```bash
+   cd docker/recipes/kona-node
+   ```
+
+2. **Configure environment variables:**
+   Edit `cfg.env` to set your L1 RPC endpoints:
+   ```bash
+   L1_PROVIDER_RPC=https://your-l1-rpc-endpoint
+   L1_BEACON_API=https://your-l1-beacon-endpoint
+   ```
+
+3. **Start the services:**
+   ```bash
+   just up
+   ```
+
+This will start:
+- `kona-node` - The OP Stack node implementation
+- `op-reth` - Execution layer client  
+- `prometheus` - Metrics collection
+- `grafana` - Monitoring dashboards (accessible at http://localhost:3000)
+
+## Docker Compose
+
+In the [provided docker compose][compose], there are a few services
+aside from the `kona-node` and `op-reth`. These are `prometheus`
+and `grafana` which automatically come provisioned with dashboards
+for monitoring and insight into the `kona-node` and `op-reth` services.
+For more detail into how Prometheus and Grafana work, head over to the
+[Monitoring][monitoring] docs.
+
+The `docker-compose.yaml` uses published images from GitHub Container Registry:
+
+- **`op-reth`**: ghcr.io/paradigmxyz/op-reth:latest
+- **`kona-node`**: ghcr.io/op-rs/kona/kona-node:latest
+
+### Service Configuration
+
+#### kona-node Service
+
+The `kona-node` service is configured with the following key settings:
+
+- **Ports**: 
+  - `5060` - RPC endpoint
+  - `9223` - P2P discovery (TCP/UDP)
+  - `9002` - Metrics
+- **Environment**: L1 RPC and Beacon API endpoints are required
+- **Volumes**: Persistent data storage and JWT token for engine API authentication
+
+#### op-reth Service
+
+The `op-reth` service provides the execution layer:
+
+- **Ports**:
+  - `8545` - HTTP RPC
+  - `8551` - Engine API (authenticated)
+  - `30303` - P2P discovery
+  - `9001` - Metrics
+- **Configuration**: Pre-configured for OP Sepolia testnet
+
+## Configuration
+
+### Network Selection
+
+By default, the recipe is configured for **OP Sepolia**. To sync a different OP Stack chain:
+
+1. Set appropriate L1 endpoints for your target network in `cfg.env`
+2. Modify the docker-compose.yaml:
+   - Update `op-reth --chain` parameter
+   - Update `op-reth --rollup.sequencer-http` endpoint
+   - Update `kona-node --chain` parameter
+
+### RPC Trust Configuration
+
+By default, `kona-node` trusts RPC providers (both L1 and L2). When using public or untrusted RPC endpoints, you should disable trust to enable block hash verification:
+
+```bash
+# In cfg.env or as environment variables:
+KONA_NODE_L1_TRUST_RPC=false
+KONA_NODE_L2_TRUST_RPC=false
+```
+
+Or modify the docker-compose.yaml command:
+```yaml
+kona-node:
+  command: |
+    node
+    --chain op-sepolia
+    --l1-eth-rpc ${L1_PROVIDER_RPC}
+    --l1-beacon ${L1_BEACON_API}
+    --l1-trust-rpc false  # Add this for untrusted L1 RPCs
+    --l2-engine-rpc ws://op-reth:8551
+    --l2-trust-rpc false  # Add this for untrusted L2 RPCs
+```
+
+See the [configuration guide](/node/configuration#rpc-trust-configuration) for more details on RPC trust settings.
+
+### Port Configuration
+
+All host ports can be customized via environment variables in `cfg.env`:
+
+```bash
+# Kona Node ports
+KONA_NODE_RPC_PORT=5060
+KONA_NODE_DISCOVERY_PORT=9223
+KONA_NODE_METRICS_PORT=9002
+
+# OP Reth ports  
+OP_RETH_RPC_PORT=8545
+OP_RETH_ENGINE_PORT=8551
+OP_RETH_METRICS_PORT=9001
+OP_RETH_DISCOVERY_PORT=30303
+
+# Monitoring
+PROMETHEUS_PORT=9090
+```
+
+### Logging
+
+Adjust log levels by setting the `RUST_LOG` environment variable:
+
+```bash
+export RUST_LOG=engine_builder=trace,runtime=debug
+```
+
+## Management Commands
+
+The recipe includes convenient Just commands:
+
+```bash
+# Start all services
+just up
+
+# Stop all services  
+just down
+
+# Restart all services
+just restart
+
+# Generate JWT token (if needed)
+./generate-jwt.sh
+```
+
+## Using Local Images
+
+To use locally built images instead of published ones:
+
+1. **Build the kona-node image:**
+   ```bash
+   just build-local kona-node
+   ```
+
+2. **Update docker-compose.yaml** to use `kona-node:local` instead of the published image.
+
+[monitoring]: ../monitoring.mdx
+
+[recipe]: https://github.com/op-rs/kona/blob/f86052b5dacec7da46b12441aafab2867069f7e7/docker/recipes/kona-node/README.md
+[compose]: https://github.com/op-rs/kona/blob/f86052b5dacec7da46b12441aafab2867069f7e7/docker/recipes/kona-node/docker-compose.yaml

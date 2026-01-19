@@ -27,7 +27,7 @@ type channel struct {
 }
 
 func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64, channelOut derive.ChannelOut) *channel {
-	cb := NewChannelBuilderWithChannelOut(cfg, rollupCfg, latestL1OriginBlockNum, channelOut)
+	cb := NewChannelBuilderWithChannelOut(log, cfg, rollupCfg, latestL1OriginBlockNum, channelOut)
 	return &channel{
 		ChannelBuilder:        cb,
 		log:                   log,

@@ -13,11 +13,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	safetyTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
@@ -83,6 +85,7 @@ type GameCfg struct {
 	l2SequenceNumberSet bool
 	rootClaimSet        bool
 	rootClaim           common.Hash
+	superOutputRoots    []eth.Bytes32
 }
 type GameOpt interface {
 	Apply(cfg *GameCfg)
@@ -119,6 +122,14 @@ func WithL2SequenceNumber(seqNum uint64) GameOpt {
 	})
 }
 
+// WithSuperRootFrom sets the output roots to use in a super root game.
+// The length of outputRoots must match the number of chains in the super root.
+func WithSuperRootFrom(outputRoots ...eth.Bytes32) GameOpt {
+	return gameOptFn(func(c *GameCfg) {
+		c.superOutputRoots = outputRoots
+	})
+}
+
 func NewGameCfg(opts ...GameOpt) *GameCfg {
 	cfg := &GameCfg{}
 	for _, opt := range opts {
@@ -150,13 +161,13 @@ func (f *DisputeGameFactory) GameAtIndex(idx int64) *FaultDisputeGame {
 	return NewFaultDisputeGame(f.t, f.require, gameInfo.Proxy, f.getGameHelper, f.honestTraceForGame, game)
 }
 
-func (f *DisputeGameFactory) GameImpl(gameType challengerTypes.GameType) *FaultDisputeGame {
+func (f *DisputeGameFactory) GameImpl(gameType gameTypes.GameType) *FaultDisputeGame {
 	implAddr := contract.Read(f.dgf.GameImpls(uint32(gameType)))
 	game := bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(implAddr), bindings.WithTest(f.t))
 	return NewFaultDisputeGame(f.t, f.require, implAddr, f.getGameHelper, f.honestTraceForGame, game)
 }
 
-func (f *DisputeGameFactory) GameArgs(gameType challengerTypes.GameType) []byte {
+func (f *DisputeGameFactory) GameArgs(gameType gameTypes.GameType) []byte {
 	return contract.Read(f.dgf.GameArgs(uint32(gameType)))
 }
 
@@ -175,11 +186,15 @@ func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
 	f.require.NotNil(f.supervisor, "supervisor is required to start super games")
 
-	return f.startSuperCannonGameOfType(eoa, challengerTypes.SuperCannonGameType, opts...)
+	return f.startSuperCannonGameOfType(eoa, gameTypes.SuperCannonGameType, opts...)
 }
 
-func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType challengerTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
+func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType gameTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
 	cfg := NewGameCfg(opts...)
+	if len(cfg.superOutputRoots) != 0 && cfg.rootClaimSet {
+		f.t.Error("cannot set both super output roots and root claim in super game")
+		f.t.FailNow()
+	}
 	timestamp := cfg.l2SequenceNumber
 	if !cfg.l2SequenceNumberSet {
 		timestamp = f.supervisor.FetchSyncStatus().SafeTimestamp
@@ -187,9 +202,7 @@ func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType c
 	extraData := f.createSuperGameExtraData(timestamp, cfg)
 	rootClaim := cfg.rootClaim
 	if !cfg.rootClaimSet {
-		// Default to the correct root claim
-		response := f.supervisor.FetchSuperRootAtTimestamp(timestamp)
-		rootClaim = common.Hash(response.SuperRoot)
+		rootClaim = crypto.Keccak256Hash(extraData)
 	}
 	game, addr := f.createNewGame(eoa, gameType, rootClaim, extraData)
 
@@ -201,17 +214,27 @@ func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *Gam
 	if !cfg.allowFuture {
 		f.supervisor.AwaitMinCrossSafeTimestamp(timestamp)
 	}
-	extraData := make([]byte, 32)
-	binary.BigEndian.PutUint64(extraData[24:], timestamp)
+	super, err := f.supervisor.FetchSuperRootAtTimestamp(timestamp).ToSuper()
+	f.require.NoError(err, "Failed to fetch super root for timestamp %v", timestamp)
+
+	superV1, ok := super.(*eth.SuperV1)
+	f.require.Truef(ok, "Unsupported super type %T", super)
+	if len(cfg.superOutputRoots) != 0 {
+		f.require.Len(cfg.superOutputRoots, len(superV1.Chains), "Super output roots length mismatch")
+		for i := range superV1.Chains {
+			superV1.Chains[i].Output = cfg.superOutputRoots[i]
+		}
+	}
+	extraData := superV1.Marshal()
 	return extraData
 }
 
 func (f *DisputeGameFactory) StartCannonGame(eoa *dsl.EOA, opts ...GameOpt) *FaultDisputeGame {
-	return f.startOutputRootGameOfType(eoa, challengerTypes.CannonGameType, f.honestTraceForGame, opts...)
+	return f.startOutputRootGameOfType(eoa, gameTypes.CannonGameType, f.honestTraceForGame, opts...)
 }
 
 func (f *DisputeGameFactory) StartCannonKonaGame(eoa *dsl.EOA, opts ...GameOpt) *FaultDisputeGame {
-	return f.startOutputRootGameOfType(eoa, challengerTypes.CannonKonaGameType, f.honestTraceForGame, opts...)
+	return f.startOutputRootGameOfType(eoa, gameTypes.CannonKonaGameType, f.honestTraceForGame, opts...)
 }
 
 func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challengerTypes.TraceAccessor {
@@ -220,7 +243,7 @@ func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challeng
 	}
 	f.require.NotNil(f.challengerCfg, "Challenger config is required to create honest trace")
 	switch game.GameType() {
-	case challengerTypes.CannonGameType:
+	case gameTypes.CannonGameType:
 		return f.honestOutputCannonTrace(
 			game,
 			f.challengerCfg.CannonAbsolutePreStateBaseURL,
@@ -228,7 +251,7 @@ func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challeng
 			f.challengerCfg.Cannon,
 			vm.NewOpProgramServerExecutor(f.log),
 		)
-	case challengerTypes.CannonKonaGameType:
+	case gameTypes.CannonKonaGameType:
 		return f.honestOutputCannonTrace(
 			game,
 			f.challengerCfg.CannonKonaAbsolutePreStateBaseURL,
@@ -288,7 +311,7 @@ func (f *DisputeGameFactory) honestOutputCannonTrace(
 
 func (f *DisputeGameFactory) startOutputRootGameOfType(
 	eoa *dsl.EOA,
-	gameType challengerTypes.GameType,
+	gameType gameTypes.GameType,
 	honestTraceProvider func(game *FaultDisputeGame) challengerTypes.TraceAccessor,
 	opts ...GameOpt) *FaultDisputeGame {
 	cfg := NewGameCfg(opts...)
@@ -318,7 +341,7 @@ func (f *DisputeGameFactory) createOutputGameExtraData(blockNum uint64, cfg *Gam
 	return extraData
 }
 
-func (f *DisputeGameFactory) createNewGame(eoa *dsl.EOA, gameType challengerTypes.GameType, claim common.Hash, extraData []byte) (*bindings.FaultDisputeGame, common.Address) {
+func (f *DisputeGameFactory) createNewGame(eoa *dsl.EOA, gameType gameTypes.GameType, claim common.Hash, extraData []byte) (*bindings.FaultDisputeGame, common.Address) {
 	f.log.Info("Creating dispute game", "gameType", gameType, "claim", claim.Hex(), "extradata", common.Bytes2Hex(extraData))
 
 	// Pull some metadata we need to construct a new game
@@ -337,7 +360,7 @@ func (f *DisputeGameFactory) createNewGame(eoa *dsl.EOA, gameType challengerType
 	return bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(gameAddr), bindings.WithTest(f.t)), gameAddr
 }
 
-func (f *DisputeGameFactory) initBond(gameType challengerTypes.GameType) eth.ETH {
+func (f *DisputeGameFactory) initBond(gameType gameTypes.GameType) eth.ETH {
 	return eth.WeiBig(contract.Read(f.dgf.InitBonds(uint32(gameType))))
 }
 

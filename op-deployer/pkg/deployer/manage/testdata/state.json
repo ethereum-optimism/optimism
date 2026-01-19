@@ -34,6 +34,12 @@
           "batcher": "0x0000000000000000000000000000000000000006",
           "proposer": "0x0000000000000000000000000000000000000007",
           "challenger": "0xfd1d2e729ae8eee2e146c033bf4400fe75284301"
+        },
+        "customGasToken": {
+          "enabled": false,
+          "name": "",
+          "symbol": "",
+          "initialLiquidity": null
         }
       }
     ],

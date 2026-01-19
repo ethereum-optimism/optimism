@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-proposer/bindings"
 	"github.com/ethereum-optimism/optimism/op-proposer/contracts"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer/source"
@@ -25,9 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var (
-	ErrProposerNotRunning = errors.New("proposer is not running")
-)
+var ErrProposerNotRunning = errors.New("proposer is not running")
 
 type L1Client interface {
 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
@@ -48,7 +45,7 @@ type L2OOContract interface {
 type DGFContract interface {
 	Version(ctx context.Context) (string, error)
 	HasProposedSince(ctx context.Context, proposer common.Address, cutoff time.Time, gameType uint32) (bool, time.Time, common.Hash, error)
-	ProposalTx(ctx context.Context, gameType uint32, outputRoot common.Hash, l2BlockNum uint64) (txmgr.TxCandidate, error)
+	ProposalTx(ctx context.Context, gameType uint32, outputRoot common.Hash, extraData []byte) (txmgr.TxCandidate, error)
 }
 
 type RollupClient interface {
@@ -98,46 +95,11 @@ func NewL2OutputSubmitter(setup DriverSetup) (_ *L2OutputSubmitter, err error) {
 		}
 	}()
 
-	if setup.Cfg.L2OutputOracleAddr != nil {
-		return newL2OOSubmitter(ctx, cancel, setup)
-	} else if setup.Cfg.DisputeGameFactoryAddr != nil {
-		return newDGFSubmitter(ctx, cancel, setup)
-	} else {
-		return nil, errors.New("neither the `L2OutputOracle` nor `DisputeGameFactory` addresses were provided")
-	}
-}
-
-func newL2OOSubmitter(ctx context.Context, cancel context.CancelFunc, setup DriverSetup) (*L2OutputSubmitter, error) {
-	l2ooContract, err := bindings.NewL2OutputOracleCaller(*setup.Cfg.L2OutputOracleAddr, setup.L1Client)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to create L2OO at address %s: %w", setup.Cfg.L2OutputOracleAddr, err)
+	if setup.Cfg.DisputeGameFactoryAddr == nil {
+		return nil, errors.New("missing DisputeGameFactory address")
 	}
 
-	cCtx, cCancel := context.WithTimeout(ctx, setup.Cfg.NetworkTimeout)
-	defer cCancel()
-	version, err := l2ooContract.Version(&bind.CallOpts{Context: cCtx})
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-	log.Info("Connected to L2OutputOracle", "address", setup.Cfg.L2OutputOracleAddr, "version", version)
-
-	parsed, err := bindings.L2OutputOracleMetaData.GetAbi()
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-
-	return &L2OutputSubmitter{
-		DriverSetup: setup,
-		done:        make(chan struct{}),
-		ctx:         ctx,
-		cancel:      cancel,
-
-		l2ooContract: l2ooContract,
-		l2ooABI:      parsed,
-	}, nil
+	return newDGFSubmitter(ctx, cancel, setup)
 }
 
 func newDGFSubmitter(ctx context.Context, cancel context.CancelFunc, setup DriverSetup) (*L2OutputSubmitter, error) {
@@ -237,21 +199,24 @@ func (l *L2OutputSubmitter) FetchL2OOOutput(ctx context.Context) (source.Proposa
 		return source.Proposal{}, false, nil
 	}
 
-	output, err := l.FetchOutput(ctx, nextCheckpointBlock)
+	proposal, err := l.FetchOutput(ctx, nextCheckpointBlock)
 	if err != nil {
 		return source.Proposal{}, false, fmt.Errorf("fetching output: %w", err)
 	}
+	if proposal.IsSuperRootProposal() {
+		panic("L2 Output Submitter should not be configured for Super Root proposals")
+	}
 
 	// Always propose if it's part of the Finalized L2 chain. Or if allowed, if it's part of the safe L2 chain.
-	if output.SequenceNum > output.Legacy.FinalizedL2.Number && (!l.Cfg.AllowNonFinalized || output.SequenceNum > output.Legacy.SafeL2.Number) {
+	if proposal.SequenceNum > proposal.Legacy.FinalizedL2.Number && (!l.Cfg.AllowNonFinalized || proposal.SequenceNum > proposal.Legacy.SafeL2.Number) {
 		l.Log.Debug("Not proposing yet, L2 block is not ready for proposal",
-			"l2_proposal", output.SequenceNum,
-			"l2_safe", output.Legacy.SafeL2,
-			"l2_finalized", output.Legacy.FinalizedL2,
+			"l2_proposal", proposal.SequenceNum,
+			"l2_safe", proposal.Legacy.SafeL2,
+			"l2_finalized", proposal.Legacy.FinalizedL2,
 			"allow_non_finalized", l.Cfg.AllowNonFinalized)
-		return output, false, nil
+		return proposal, false, nil
 	}
-	return output, true, nil
+	return proposal, true, nil
 }
 
 // FetchDGFOutput queries the DGF for the latest game and infers whether it is time to make another proposal
@@ -313,95 +278,34 @@ func (l *L2OutputSubmitter) FetchCurrentBlockNumber(ctx context.Context) (uint64
 }
 
 func (l *L2OutputSubmitter) FetchOutput(ctx context.Context, block uint64) (source.Proposal, error) {
-	output, err := l.ProposalSource.ProposalAtSequenceNum(ctx, block)
+	proposal, err := l.ProposalSource.ProposalAtSequenceNum(ctx, block)
 	if err != nil {
-		return source.Proposal{}, fmt.Errorf("fetching output at block %d: %w", block, err)
+		return source.Proposal{}, fmt.Errorf("fetching proposal at block %d: %w", block, err)
 	}
-	if onum := output.SequenceNum; onum != block { // sanity check, e.g. in case of bad RPC caching
-		return source.Proposal{}, fmt.Errorf("output block number %d mismatches requested %d", output.SequenceNum, block)
+	if onum := proposal.SequenceNum; onum != block && !proposal.IsSuperRootProposal() { // sanity check, e.g. in case of bad RPC caching
+		return source.Proposal{}, fmt.Errorf("proposal block number %d mismatches requested %d", proposal.SequenceNum, block)
 	}
-	return output, nil
-}
-
-// ProposeL2OutputTxData creates the transaction data for the ProposeL2Output function
-func (l *L2OutputSubmitter) ProposeL2OutputTxData(output source.Proposal) ([]byte, error) {
-	return proposeL2OutputTxData(l.l2ooABI, output)
-}
-
-// proposeL2OutputTxData creates the transaction data for the ProposeL2Output function
-func proposeL2OutputTxData(abi *abi.ABI, output source.Proposal) ([]byte, error) {
-	return abi.Pack(
-		"proposeL2Output",
-		output.Root,
-		new(big.Int).SetUint64(output.SequenceNum),
-		output.CurrentL1.Hash,
-		new(big.Int).SetUint64(output.CurrentL1.Number))
+	return proposal, nil
 }
 
 func (l *L2OutputSubmitter) ProposeL2OutputDGFTxCandidate(ctx context.Context, output source.Proposal) (txmgr.TxCandidate, error) {
 	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
-	return l.dgfContract.ProposalTx(cCtx, l.Cfg.DisputeGameType, output.Root, output.SequenceNum)
-}
-
-// We wait until l1head advances beyond blocknum. This is used to make sure proposal tx won't
-// immediately fail when checking the l1 blockhash. Note that EstimateGas uses "latest" state to
-// execute the transaction by default, meaning inside the call, the head block is considered
-// "pending" instead of committed. In the case l1blocknum == l1head then, blockhash(l1blocknum)
-// will produce a value of 0 within EstimateGas, and the call will fail when the contract checks
-// that l1blockhash matches blockhash(l1blocknum).
-func (l *L2OutputSubmitter) waitForL1Head(ctx context.Context, blockNum uint64) error {
-	ticker := time.NewTicker(l.Cfg.PollInterval)
-	defer ticker.Stop()
-	l1head, err := l.Txmgr.BlockNumber(ctx)
-	if err != nil {
-		return err
-	}
-	for l1head <= blockNum {
-		l.Log.Debug("Waiting for l1 head > l1blocknum1+1", "l1head", l1head, "l1blocknum", blockNum)
-		select {
-		case <-ticker.C:
-			l1head, err = l.Txmgr.BlockNumber(ctx)
-			if err != nil {
-				return err
-			}
-		case <-l.done:
-			return fmt.Errorf("L2OutputSubmitter is done()")
-		}
-	}
-	return nil
+	return l.dgfContract.ProposalTx(cCtx, l.Cfg.DisputeGameType, output.Root, output.ExtraData())
 }
 
 // sendTransaction creates & sends transactions through the underlying transaction manager.
 func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output source.Proposal) error {
-	l.Log.Info("Proposing output root", "output", output.Root, "block", output.SequenceNum)
-	var receipt *types.Receipt
-	if l.Cfg.DisputeGameFactoryAddr != nil {
-		candidate, err := l.ProposeL2OutputDGFTxCandidate(ctx, output)
-		if err != nil {
-			return err
-		}
-		receipt, err = l.Txmgr.Send(ctx, candidate)
-		if err != nil {
-			return err
-		}
-	} else {
-		err := l.waitForL1Head(ctx, output.Legacy.HeadL1.Number+1)
-		if err != nil {
-			return err
-		}
-		data, err := l.ProposeL2OutputTxData(output)
-		if err != nil {
-			return err
-		}
-		receipt, err = l.Txmgr.Send(ctx, txmgr.TxCandidate{
-			TxData:   data,
-			To:       l.Cfg.L2OutputOracleAddr,
-			GasLimit: 0,
-		})
-		if err != nil {
-			return err
-		}
+	l.Log.Info("Proposing output root", "output", output.Root, "sequenceNum", output.SequenceNum, "extraData", output.ExtraData())
+
+	candidate, err := l.ProposeL2OutputDGFTxCandidate(ctx, output)
+	if err != nil {
+		return fmt.Errorf("failed to create DGF tx candidate: %w", err)
+	}
+
+	receipt, err := l.Txmgr.Send(ctx, candidate)
+	if err != nil {
+		return fmt.Errorf("failed to send proposal tx: %w", err)
 	}
 
 	if receipt.Status == types.ReceiptStatusFailed {
@@ -457,7 +361,6 @@ func (l *L2OutputSubmitter) loop() {
 			return
 		}
 	}
-
 }
 
 func (l *L2OutputSubmitter) waitNodeSync() error {

@@ -393,3 +393,39 @@ func TestGetBlobs(t *testing.T) {
 		})
 	}
 }
+
+func TestRequestDuplicateBlobHashes(t *testing.T) {
+	ctx := context.Background()
+	p := mocks.NewBeaconClient(t)
+	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
+	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
+	client := NewL1BeaconClient(p, L1BeaconClientConfig{})
+	ref := eth.L1BlockRef{Time: 12}
+
+	hash0, sidecar0 := makeTestBlobSidecar(0)
+	hash1, sidecar1 := makeTestBlobSidecar(1)
+	hash2, sidecar2 := makeTestBlobSidecar(2)
+	sameHash := eth.IndexedBlobHash{
+		Index: 3,
+		Hash:  hash0.Hash,
+	}
+	sameHashSidecar := &eth.BlobSidecar{
+		Blob:          sidecar0.Blob,
+		Index:         eth.Uint64String(sameHash.Index),
+		KZGCommitment: sidecar0.KZGCommitment,
+		KZGProof:      sidecar0.KZGProof,
+	}
+	hashes := []eth.IndexedBlobHash{hash0, hash2, hash1, sameHash} // Mix up the order.
+	beaconBlobs := []*eth.Blob{&sidecar0.Blob, &sidecar1.Blob, &sidecar2.Blob, &sameHashSidecar.Blob}
+
+	// construct the mock response for the beacon blobs call
+	beaconBlobsResponse := eth.APIBeaconBlobsResponse{Data: beaconBlobs}
+	p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(beaconBlobsResponse, nil)
+
+	resp, err := client.GetBlobs(ctx, ref, hashes)
+	require.NoError(t, err)
+	for i, blob := range resp {
+		require.NotNil(t, blob, fmt.Sprintf("blob at index %d should not be nil", i))
+	}
+	require.Equal(t, []*eth.Blob{&sidecar0.Blob, &sidecar2.Blob, &sidecar1.Blob, &sameHashSidecar.Blob}, resp)
+}

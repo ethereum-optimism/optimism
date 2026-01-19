@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
@@ -612,10 +612,10 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	// Automatically stop the system at the end of the test
 	t.Cleanup(sys.Close)
 
-	c := clock.SystemClock
+	clk := clock.SystemClock
 	if cfg.SupportL1TimeTravel {
 		sys.TimeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
-		c = sys.TimeTravelClock
+		clk = sys.TimeTravelClock
 	}
 
 	if err := cfg.DeployConfig.Check(testlog.Logger(t, log.LevelInfo)); err != nil {
@@ -736,7 +736,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 
 	// Create a fake Beacon node to hold on to blobs created by the L1 miner, and to serve them to L2
 	bcn := fakebeacon.NewBeacon(testlog.Logger(t, log.LevelInfo).New("role", "l1_cl"),
-		blobstore.New(), l1Genesis.Timestamp, cfg.DeployConfig.L1BlockTime, l1Genesis.Config.OsakaTime)
+		blobstore.New(), l1Genesis.Timestamp, cfg.DeployConfig.L1BlockTime)
 	t.Cleanup(func() {
 		_ = bcn.Close()
 	})
@@ -747,7 +747,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 
 	// Initialize nodes
 	l1Geth, _, err := geth.InitL1(
-		cfg.DeployConfig.L1BlockTime, cfg.L1FinalizedDistance, l1Genesis, c,
+		cfg.DeployConfig.L1BlockTime, cfg.L1FinalizedDistance, l1Genesis, clk,
 		path.Join(cfg.BlobsPath, "l1_el"), bcn, cfg.GethOptions[RoleL1]...)
 	if err != nil {
 		return nil, err
@@ -887,7 +887,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		c.Rollup.LogDescription(cfg.Loggers[name], chaincfg.L2ChainIDToNetworkDisplayName)
 		l := cfg.Loggers[name]
 
-		n, err := opnode.NewOpnode(l, &c, func(err error) {
+		n, err := opnode.NewOpnode(l, &c, clk, func(err error) {
 			t.Error(err)
 		})
 		require.NoError(t, err)
@@ -926,9 +926,9 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	}
 
 	// L2Output Submitter
-	respectedGameType := faultTypes.PermissionedGameType
+	respectedGameType := gameTypes.PermissionedGameType
 	if cfg.AllocType == config.AllocTypeFastGame {
-		respectedGameType = faultTypes.FastGameType
+		respectedGameType = gameTypes.FastGameType
 	}
 	proposerCLIConfig := &l2os.CLIConfig{
 		L1EthRpc:          sys.EthInstances[RoleL1].UserRPC().RPC(),
@@ -1014,7 +1014,12 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	}
 
 	// Batch Submitter
-	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])
+	batcherContext, batcherCancel := context.WithCancel(context.Background())
+	var closeAppFn context.CancelCauseFunc = func(cause error) {
+		t.Fatalf("closeAppFn called, batcher hit a critical error: %v", cause)
+		batcherCancel()
+	}
+	batcher, err := bss.BatcherServiceFromCLIConfig(batcherContext, closeAppFn, "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
 	}

@@ -84,6 +84,8 @@ type Metrics struct {
 	L1SourceCache *metrics.CacheMetrics
 	L2SourceCache *metrics.CacheMetrics
 
+	L2FollowSourceCache *metrics.CacheMetrics
+
 	DerivationIdle prometheus.Gauge
 
 	PipelineResets   *metrics.Event
@@ -156,17 +158,23 @@ type Metrics struct {
 var _ Metricer = (*Metrics)(nil)
 
 // NewMetrics creates a new [Metrics] instance with the given process name.
-func NewMetrics(procName string) *Metrics {
+func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 	if procName == "" {
 		procName = "default"
 	}
 	ns := Namespace + "_" + procName
 
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-	registry.MustRegister(collectors.NewGoCollector())
-	factory := metrics.With(registry)
+	var registerer prometheus.Registerer
+	if labels != nil {
+		registerer = prometheus.WrapRegistererWith(labels, registry)
+	} else {
+		registerer = registry
+	}
+	registerer.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	registerer.MustRegister(collectors.NewGoCollector())
 
+	factory := metrics.With(registerer)
 	return &Metrics{
 		Info: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -185,6 +193,8 @@ func NewMetrics(procName string) *Metrics {
 
 		L1SourceCache: metrics.NewCacheMetrics(factory, ns, "l1_source_cache", "L1 Source cache"),
 		L2SourceCache: metrics.NewCacheMetrics(factory, ns, "l2_source_cache", "L2 Source cache"),
+
+		L2FollowSourceCache: metrics.NewCacheMetrics(factory, ns, "l2_follow_source_cache", "L2 Follow source cache"),
 
 		DerivationIdle: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
