@@ -69,3 +69,5 @@ If the PR changes the Foundry dependency versions, i.e the `forge`, `cast`, and 
 > This PR includes a change to the Foundry dependency versions, i.e the `forge`, `cast`, and `anvil` versions in `mise.toml`.
 >
 > Please include a reference to the approved and merged design document that approves these foundry versions for usage in the PR description. Otherwise, the PR will not be approved.
+>
+> For more information on the Foundry version upgrade process, please see the [Foundry version upgrade policy](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/book/src/policies/foundry-upgrades.md).
