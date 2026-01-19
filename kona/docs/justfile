@@ -1,0 +1,11 @@
+# Run the vocs documentation
+run-vocs:
+  npm install && npm run dev -- --host
+
+# Build the vocs static site
+build-vocs:
+  npm install && npm run build
+
+# Builds and opens the static site in the browser
+open-site: build-vocs
+  open docs/dist/index.html

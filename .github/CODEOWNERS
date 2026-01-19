@@ -13,6 +13,9 @@
 /op-devstack    @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
 
 # Expert areas
+/op-deployer    @ethereum-optimism/platforms-team
+/op-validator   @ethereum-optimism/platforms-team
+
 /op-node/rollup @ethereum-optimism/consensus @ethereum-optimism/go-reviewers
 
 /op-supervisor  @ethereum-optimism/interop @ethereum-optimism/go-reviewers
@@ -26,6 +29,9 @@
 /op-program            @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
 /op-e2e/actions/proofs @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
 /op-e2e/faultproofs    @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
+
+# Kona
+/kona                  @ethereum-optimism/kona-reviewers
 
 # Ops
 /.cursor/rules/solidity-styles.mdc @ethereum-optimism/contract-reviewers

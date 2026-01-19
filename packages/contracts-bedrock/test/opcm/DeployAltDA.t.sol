@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
 
+// Scripts
 import { DeployAltDA } from "scripts/deploy/DeployAltDA.s.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+
+// Interfaces
 import { IDataAvailabilityChallenge } from "interfaces/L1/IDataAvailabilityChallenge.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
-import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 contract DeployAltDA_Test is Test {
     DeployAltDA deployAltDA;

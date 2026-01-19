@@ -8,6 +8,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -19,9 +21,8 @@ var (
 )
 
 type L1Source interface {
-	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
-	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
-	ChainID(ctx context.Context) (*big.Int, error)
+	BlockRefByNumber(ctx context.Context, num uint64) (eth.BlockRef, error)
+	apis.ReceiptsFetcher
 }
 
 type Oracle interface {
@@ -43,12 +44,16 @@ func (f *InputFetcher) FetchInputs(ctx context.Context, blockHash common.Hash, o
 	var inputs []keccakTypes.InputData
 	for _, blockNum := range blockNums {
 		foundRelevantTx := false
-		block, err := f.source.BlockByNumber(ctx, new(big.Int).SetUint64(blockNum))
+		blockRef, err := f.source.BlockRefByNumber(ctx, blockNum)
 		if err != nil {
-			return nil, fmt.Errorf("failed getting tx for block %v: %w", blockNum, err)
+			return nil, fmt.Errorf("failed getting info for block %v: %w", blockNum, err)
 		}
-		for _, tx := range block.Transactions() {
-			inputData, err := f.extractRelevantLeavesFromTx(ctx, oracle, tx, ident)
+		_, receipts, err := f.source.FetchReceipts(ctx, blockRef.Hash)
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve receipts for block %v: %w", blockNum, err)
+		}
+		for _, rcpt := range receipts {
+			inputData, err := f.extractRelevantLeavesFromReceipt(rcpt, oracle, ident)
 			if err != nil {
 				return nil, err
 			}
@@ -67,13 +72,9 @@ func (f *InputFetcher) FetchInputs(ctx context.Context, blockHash common.Hash, o
 	return inputs, nil
 }
 
-func (f *InputFetcher) extractRelevantLeavesFromTx(ctx context.Context, oracle Oracle, tx *types.Transaction, ident keccakTypes.LargePreimageIdent) ([]keccakTypes.InputData, error) {
-	rcpt, err := f.source.TransactionReceipt(ctx, tx.Hash())
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve receipt for tx %v: %w", tx.Hash(), err)
-	}
+func (f *InputFetcher) extractRelevantLeavesFromReceipt(rcpt *types.Receipt, oracle Oracle, ident keccakTypes.LargePreimageIdent) ([]keccakTypes.InputData, error) {
 	if rcpt.Status != types.ReceiptStatusSuccessful {
-		f.log.Trace("Skipping transaction with failed receipt status", "tx", tx.Hash(), "status", rcpt.Status)
+		f.log.Trace("Skipping transaction with failed receipt status", "tx", rcpt.TxHash, "status", rcpt.Status)
 		return nil, nil
 	}
 
@@ -81,29 +82,29 @@ func (f *InputFetcher) extractRelevantLeavesFromTx(ctx context.Context, oracle O
 	var inputs []keccakTypes.InputData
 	for i, txLog := range rcpt.Logs {
 		if txLog.Address != oracle.Addr() {
-			f.log.Trace("Skip tx log not emitted by the oracle contract", "tx", tx.Hash(), "logIndex", i, "targetContract", oracle.Addr(), "actualContract", txLog.Address)
+			f.log.Trace("Skip tx log not emitted by the oracle contract", "tx", rcpt.TxHash, "logIndex", i, "targetContract", oracle.Addr(), "actualContract", txLog.Address)
 			continue
 		}
 		if len(txLog.Data) < 20 {
-			f.log.Trace("Skip tx log with insufficient data (less than 20 bytes)", "tx", tx.Hash(), "logIndex", i, "dataLength", len(txLog.Data))
+			f.log.Trace("Skip tx log with insufficient data (less than 20 bytes)", "tx", rcpt.TxHash, "logIndex", i, "dataLength", len(txLog.Data))
 			continue
 		}
 		caller := common.Address(txLog.Data[0:20])
 		callData := txLog.Data[20:]
 
 		if caller != ident.Claimant {
-			f.log.Trace("Skip tx log from irrelevant claimant", "tx", tx.Hash(), "logIndex", i, "targetClaimant", ident.Claimant, "actualClaimant", caller)
+			f.log.Trace("Skip tx log from irrelevant claimant", "tx", rcpt.TxHash, "logIndex", i, "targetClaimant", ident.Claimant, "actualClaimant", caller)
 			continue
 		}
 		uuid, inputData, err := oracle.DecodeInputData(callData)
 		if errors.Is(err, contracts.ErrInvalidAddLeavesCall) {
-			f.log.Trace("Skip tx log with call data not targeting expected method", "tx", tx.Hash(), "logIndex", i, "err", err)
+			f.log.Trace("Skip tx log with call data not targeting expected method", "tx", rcpt.TxHash, "logIndex", i, "err", err)
 			continue
 		} else if err != nil {
 			return nil, err
 		}
 		if uuid.Cmp(ident.UUID) != 0 {
-			f.log.Trace("Skip tx log with irrelevant UUID", "tx", tx.Hash(), "logIndex", i, "targetUUID", ident.UUID, "actualUUID", uuid)
+			f.log.Trace("Skip tx log with irrelevant UUID", "tx", rcpt.TxHash, "logIndex", i, "targetUUID", ident.UUID, "actualUUID", uuid)
 			continue
 		}
 		inputs = append(inputs, inputData)

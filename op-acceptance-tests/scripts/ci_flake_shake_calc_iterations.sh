@@ -22,12 +22,12 @@ TOTAL_ITER=${1:?TOTAL_ITER is required}
 WORKERS=${2:-${CIRCLE_NODE_TOTAL:-1}}
 WORKER_ID=${3:-$((${CIRCLE_NODE_INDEX:-0} + 1))}
 
-ITER_PER_WORKER=$(( TOTAL_ITER / WORKERS ))
-REMAINDER=$(( TOTAL_ITER % WORKERS ))
+ITER_PER_WORKER=$((TOTAL_ITER / WORKERS))
+REMAINDER=$((TOTAL_ITER % WORKERS))
 
 # Distribute the remainder fairly: the first $REMAINDER workers get one extra iteration
 if [ "$WORKER_ID" -le "$REMAINDER" ] && [ "$REMAINDER" -ne 0 ]; then
-  ITER_COUNT=$(( ITER_PER_WORKER + 1 ))
+  ITER_COUNT=$((ITER_PER_WORKER + 1))
 else
   ITER_COUNT=$ITER_PER_WORKER
 fi
@@ -39,5 +39,3 @@ if [ -n "${BASH_ENV:-}" ]; then
 fi
 
 exit 0
-
-

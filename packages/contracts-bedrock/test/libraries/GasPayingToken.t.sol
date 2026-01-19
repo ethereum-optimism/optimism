@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Target contract
+// Testing
+import { Test } from "test/setup/Test.sol";
+
+// Libraries
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { Test } from "forge-std/Test.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 
 contract GasPayingToken_Harness {

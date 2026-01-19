@@ -1,6 +1,6 @@
 REPO_ROOT := `realpath ..`  # path to the root of the optimism monorepo
 KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
-ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.6.6")
+ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.8.1")
 DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
 ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
 
@@ -13,6 +13,9 @@ jovian:
 
 interop:
     @just acceptance-test "" interop
+
+cgt:
+    @just acceptance-test "" cgt
 
 
 # Run acceptance tests with mise-managed binary
@@ -43,7 +46,7 @@ acceptance-test devnet="" gate="base":
         echo "Building contracts (local build)..."
         cd {{REPO_ROOT}}
         echo " - Updating submodules..."
-        git submodule update --init --recursive
+        git submodule update --init --recursive --single-branch -j 8
         echo " - Installing mise..."
         mise install
         cd packages/contracts-bedrock
@@ -59,6 +62,10 @@ acceptance-test devnet="" gate="base":
             cd {{REPO_ROOT}}
             make cannon-prestates
         fi
+
+        echo "Building Rust binaries (kona-node, kona-supervisor, op-rbuilder, rollup-boost)..."
+        cd {{REPO_ROOT}}
+        just build-rust-release
     fi
 
     cd {{REPO_ROOT}}/op-acceptance-tests
@@ -98,8 +105,7 @@ acceptance-test devnet="" gate="base":
             "--validators" "./acceptance-tests.yaml"
             "--exclude-gates" "flake-shake"
             "--allow-skips"
-            "--timeout" "90m"
-            "--default-timeout" "30m"
+            "--timeout" "120m"
             "--orchestrator" "$ORCHESTRATOR"
             "--show-progress"
         )

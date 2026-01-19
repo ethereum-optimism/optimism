@@ -34,6 +34,11 @@ type L2GenesisInput struct {
 	UseRevenueShare                          bool
 	ChainFeesRecipient                       common.Address
 	L1FeesDepositor                          common.Address
+	UseCustomGasToken                        bool
+	GasPayingTokenName                       string
+	GasPayingTokenSymbol                     string
+	NativeAssetLiquidityAmount               *big.Int
+	LiquidityControllerOwner                 common.Address
 }
 
 type L2GenesisScript script.DeployScriptWithoutOutput[L2GenesisInput]

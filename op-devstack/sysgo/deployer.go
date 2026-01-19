@@ -332,7 +332,7 @@ func WithInteropAtGenesis() DeployerOption {
 
 // WithHardforkSequentialActivation configures a deployment such that L2 chains
 // activate hardforks sequentially, starting from startFork and continuing
-// until (but not including) endFork. Each successive fork is scheduled at
+// until (including) endFork. Each successive fork is scheduled at
 // an increasing offset.
 func WithHardforkSequentialActivation(startFork, endFork opforks.Name, delta *uint64) DeployerOption {
 	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
@@ -341,7 +341,7 @@ func WithHardforkSequentialActivation(startFork, endFork opforks.Name, delta *ui
 			activateWithOffset := false
 			deactivate := false
 			for idx, refFork := range opforks.All {
-				if deactivate || refFork == endFork {
+				if deactivate {
 					l2Cfg.WithForkAtOffset(refFork, nil)
 					deactivate = true
 					continue
@@ -353,6 +353,9 @@ func WithHardforkSequentialActivation(startFork, endFork opforks.Name, delta *ui
 				if startFork == refFork {
 					activateWithOffset = true
 				}
+				if endFork == refFork {
+					deactivate = true
+				}
 			}
 		}
 	}
@@ -362,15 +365,6 @@ func WithHardforkSequentialActivation(startFork, endFork opforks.Name, delta *ui
 func WithSequencingWindow(n uint64) DeployerOption {
 	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
 		builder.WithGlobalOverride("sequencerWindowSize", uint64(n))
-	}
-}
-
-// WithAdditionalDisputeGames adds additional dispute games to all L2s.
-func WithAdditionalDisputeGames(games []state.AdditionalDisputeGame) DeployerOption {
-	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
-		for _, l2Cfg := range builder.L2s() {
-			l2Cfg.WithAdditionalDisputeGames(games)
-		}
 	}
 }
 
@@ -401,6 +395,14 @@ func WithProofMaturityDelaySeconds(n uint64) DeployerOption {
 func WithDisputeGameFinalityDelaySeconds(seconds uint64) DeployerOption {
 	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
 		builder.WithGlobalOverride("disputeGameFinalityDelaySeconds", seconds)
+	}
+}
+
+func WithCustomGasToken(name, symbol string, initialLiquidity *big.Int, liquidityControllerOwner common.Address) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithCustomGasToken(name, symbol, initialLiquidity, liquidityControllerOwner)
+		}
 	}
 }
 

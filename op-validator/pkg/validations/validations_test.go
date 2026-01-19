@@ -60,6 +60,12 @@ func TestValidate_Mocked(t *testing.T) {
 				return NewV400Validator(rpcClient)
 			},
 		},
+		{
+			version: standard.ContractsV410Tag,
+			validator: func(rpcClient *rpc.Client) Validator {
+				return NewV410Validator(rpcClient)
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.version), func(t *testing.T) {
@@ -86,6 +92,74 @@ func TestValidate_Mocked(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, []string{"PDDG-40", "PDDG-DWETH-30", "PDDG-ANCHORP-40", "PLDG-40", "PLDG-DWETH-30", "PLDG-ANCHORP-40"}, errCodes)
 			mockRPC.AssertExpectations(t)
+		})
+	}
+}
+
+func TestOPCMStandardValidator(t *testing.T) {
+	callResult := "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004b504444472d34302c504444472d44574554482d33302c504444472d414e43484f52502d34302c504c44472d34302c504c44472d44574554482d33302c504c44472d414e43484f52502d3430000000000000000000000000000000000000000000"
+
+	tests := []struct {
+		name        string
+		input       BaseValidatorInput
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "successful validation",
+			input: BaseValidatorInput{
+				SystemConfigAddress: common.HexToAddress("0x034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
+				AbsolutePrestate:    common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+				L2ChainID:           big.NewInt(11155420),
+				Proposer:            common.HexToAddress("0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"),
+			},
+			expectError: false,
+		},
+		{
+			name: "missing proposer address",
+			input: BaseValidatorInput{
+				SystemConfigAddress: common.HexToAddress("0x034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
+				AbsolutePrestate:    common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+				L2ChainID:           big.NewInt(11155420),
+				Proposer:            common.Address{},
+			},
+			expectError: true,
+			errorMsg:    "proposer address is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var mockRPC *mockrpc.MockRPC
+			if !tt.expectError {
+				mockRPC = mockrpc.NewMockRPC(
+					t,
+					testlog.Logger(t, slog.LevelInfo),
+					mockrpc.WithOkCall("eth_chainId", mockrpc.NullMatcher(), "0xaa36a7"), // sepolia chain ID in hex
+					mockrpc.WithOkCall("eth_call", mockrpc.AnyParamsMatcher(), callResult),
+				)
+			} else {
+				mockRPC = mockrpc.NewMockRPC(t, testlog.Logger(t, slog.LevelInfo))
+			}
+
+			rpcClient, err := rpc.Dial(mockRPC.Endpoint())
+			require.NoError(t, err)
+
+			validator := NewV500Validator(rpcClient)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			errCodes, err := validator.Validate(ctx, tt.input)
+
+			if tt.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errorMsg)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, []string{"PDDG-40", "PDDG-DWETH-30", "PDDG-ANCHORP-40", "PLDG-40", "PLDG-DWETH-30", "PLDG-ANCHORP-40"}, errCodes)
+				mockRPC.AssertExpectations(t)
+			}
 		})
 	}
 }

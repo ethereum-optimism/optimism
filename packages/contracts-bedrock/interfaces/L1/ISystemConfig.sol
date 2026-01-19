@@ -24,6 +24,7 @@ interface ISystemConfig is IProxyAdminOwnedBase {
         address optimismPortal;
         address optimismMintableERC20Factory;
         address delayedWETH;
+        address opcm;
     }
 
     error ReinitializableBase_ZeroInitVersion();
@@ -43,6 +44,7 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     function DELAYED_WETH_SLOT() external view returns (bytes32);
     function START_BLOCK_SLOT() external view returns (bytes32);
     function UNSAFE_BLOCK_SIGNER_SLOT() external view returns (bytes32);
+    function OPCM_SLOT() external view returns (bytes32);
     function VERSION() external view returns (uint256);
     function basefeeScalar() external view returns (uint32);
     function batchInbox() external view returns (address addr_);
@@ -81,11 +83,14 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     function optimismMintableERC20Factory() external view returns (address addr_);
     function optimismPortal() external view returns (address addr_);
     function delayedWETH() external view returns (address addr_);
+    function lastUsedOPCM() external view returns (address addr_);
+    function lastUsedOPCMVersion() external view returns (string memory version_);
     function overhead() external view returns (uint256);
     function owner() external view returns (address);
     function renounceOwnership() external;
     function resourceConfig() external view returns (IResourceMetering.ResourceConfig memory);
     function scalar() external view returns (uint256);
+    function setBatcherHash(address _batcher) external;
     function setBatcherHash(bytes32 _batcherHash) external;
     function setGasConfig(uint256 _overhead, uint256 _scalar) external;
     function setGasConfigEcotone(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) external;
@@ -104,6 +109,7 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     function guardian() external view returns (address);
     function setFeature(bytes32 _feature, bool _enabled) external;
     function isFeatureEnabled(bytes32) external view returns (bool);
+    function isCustomGasToken() external view returns (bool);
 
     function __constructor__() external;
 }

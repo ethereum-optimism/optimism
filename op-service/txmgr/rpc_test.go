@@ -11,14 +11,14 @@ import (
 )
 
 func TestTxmgrRPC(t *testing.T) {
-	minBaseFeeInit := big.NewInt(1000)
-	minPriorityFeeInit := big.NewInt(2000)
+	minBaseFeeInit := big.NewInt(2000)
+	minPriorityFeeInit := big.NewInt(1000)
 	minBlobFeeInit := big.NewInt(3000)
 	feeThresholdInit := big.NewInt(4000)
 	rebroadcastIntervalInit := int64(25)
 	bumpFeeRetryTimeInit := int64(100)
 
-	cfg := Config{}
+	cfg := configWithNumConfs(1)
 	cfg.MinBaseFee.Store(minBaseFeeInit)
 	cfg.MinTipCap.Store(minPriorityFeeInit)
 	cfg.MinBlobTxFee.Store(minBlobFeeInit)
@@ -26,7 +26,7 @@ func TestTxmgrRPC(t *testing.T) {
 	cfg.RebroadcastInterval.Store(rebroadcastIntervalInit)
 	cfg.ResubmissionTimeout.Store(bumpFeeRetryTimeInit)
 
-	h := newTestHarnessWithConfig(t, &cfg)
+	h := newTestHarnessWithConfig(t, cfg)
 
 	appVersion := "test"
 	server := oprpc.NewServer(

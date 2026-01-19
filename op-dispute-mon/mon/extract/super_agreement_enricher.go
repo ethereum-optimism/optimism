@@ -10,19 +10,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
-	ErrSupervisorRpcRequired         = errors.New("supervisor rpc required")
-	ErrAllSupervisorNodesUnavailable = errors.New("all supervisor nodes returned errors")
+	ErrSuperNodeRpcRequired     = errors.New("super node rpc required")
+	ErrAllSuperNodesUnavailable = errors.New("all super nodes returned errors")
 )
 
 type SuperRootProvider interface {
-	SuperRootAtTimestamp(ctx context.Context, timestamp hexutil.Uint64) (eth.SuperRootResponse, error)
+	SuperRootAtTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error)
 }
 
 type SuperAgreementEnricher struct {
@@ -42,11 +40,10 @@ func NewSuperAgreementEnricher(logger log.Logger, metrics OutputMetrics, clients
 }
 
 type superRootResult struct {
-	superRoot            common.Hash
-	isSafe               bool
-	notFound             bool
-	err                  error
-	crossSafeDerivedFrom uint64
+	superRoot common.Hash
+	isSafe    bool
+	notFound  bool
+	err       error
 }
 
 func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
@@ -54,7 +51,7 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 		return nil
 	}
 	if len(e.clients) == 0 {
-		return fmt.Errorf("%w but required for game type %v", ErrSupervisorRpcRequired, game.GameType)
+		return fmt.Errorf("%w but required for game type %v", ErrSuperNodeRpcRequired, game.GameType)
 	}
 
 	results := make([]superRootResult, len(e.clients))
@@ -63,21 +60,20 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 		wg.Add(1)
 		go func(i int, client SuperRootProvider) {
 			defer wg.Done()
-			response, err := client.SuperRootAtTimestamp(ctx, hexutil.Uint64(game.L2SequenceNumber))
-			if errors.Is(err, ethereum.NotFound) {
-				results[i] = superRootResult{notFound: true}
-				return
-			}
+			response, err := client.SuperRootAtTimestamp(ctx, game.L2SequenceNumber)
 			if err != nil {
 				results[i] = superRootResult{err: err}
 				return
 			}
+			if response.Data == nil {
+				results[i] = superRootResult{notFound: true}
+				return
+			}
 
-			superRoot := common.Hash(response.SuperRoot)
+			superRoot := common.Hash(response.Data.SuperRoot)
 			results[i] = superRootResult{
-				superRoot:            superRoot,
-				crossSafeDerivedFrom: response.CrossSafeDerivedFrom.Number,
-				isSafe:               response.CrossSafeDerivedFrom.Number <= game.L1HeadNum,
+				superRoot: superRoot,
+				isSafe:    response.Data.VerifiedRequiredL1.Number <= game.L1HeadNum,
 			}
 		}(i, client)
 	}
@@ -100,7 +96,7 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 
 	// If all results were errors, return an error
 	if len(validResults) == 0 {
-		return fmt.Errorf("failed to get super root at timestamp: %w", ErrAllSupervisorNodesUnavailable)
+		return fmt.Errorf("failed to get super root at timestamp: %w", ErrAllSuperNodesUnavailable)
 	}
 
 	// If all remaining nodes returned "not found", we disagree with any claim.
@@ -129,7 +125,7 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 	}
 
 	if diverged {
-		e.log.Warn("Supervisor nodes disagree on super root",
+		e.log.Warn("Super nodes disagree on super root",
 			"l2SequenceNumber", game.L2SequenceNumber,
 			"firstSuperRoot", firstResult.superRoot,
 			"found", len(foundResults),

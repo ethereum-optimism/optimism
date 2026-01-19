@@ -341,7 +341,7 @@ func SetBalance(addr common.Address, amount *big.Int) HeadFn {
 
 func SetCode(addr common.Address, code hexutil.Bytes) HeadFn {
 	return func(_ *types.Header, headState *state.StateDB) error {
-		headState.SetCode(addr, code)
+		headState.SetCode(addr, code, tracing.CodeChangeUnspecified)
 		return nil
 	}
 }

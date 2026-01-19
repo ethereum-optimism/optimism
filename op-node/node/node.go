@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -103,6 +104,7 @@ type OpNode struct {
 	// Retain the config to test for active features rather than test for runtime state.
 	cfg        *config.Config
 	log        log.Logger
+	clock      clock.Clock
 	appVersion string
 	metrics    *metrics.Metrics
 
@@ -121,6 +123,8 @@ type OpNode struct {
 	p2pMu     gosync.Mutex          // protects p2pNode
 	p2pSigner p2p.Signer            // p2p gossip application messages will be signed with this signer
 	runCfg    *runcfg.RuntimeConfig // runtime configurables
+
+	l2FollowSource *sources.FollowClient // (Optional) L2 Follow source when derivation disabled
 
 	safeDB closableSafeDB
 
@@ -153,15 +157,15 @@ type OpNode struct {
 // New creates a new OpNode instance.
 // The provided ctx argument is for the span of initialization only;
 // the node will immediately Stop(ctx) before finishing initialization if the context is canceled during initialization.
-func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion string, m *metrics.Metrics) (*OpNode, error) {
-	return NewWithOverride(ctx, cfg, log, appVersion, m, InitializationOverrides{})
+func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion string, m *metrics.Metrics, clk clock.Clock) (*OpNode, error) {
+	return NewWithOverride(ctx, cfg, log, appVersion, m, clk, InitializationOverrides{})
 }
 
 // NewWithOverride creates a new OpNode instance with optional initialization overrides.
 // This allows callers to override specific initialization steps, enabling resource sharing
 // (e.g., shared L1Client across multiple nodes) without duplicating connections or caches.
 // If override is nil or any of its fields are nil, the default initialization is used for those steps.
-func NewWithOverride(ctx context.Context, cfg *config.Config, log log.Logger, appVersion string, m *metrics.Metrics, override InitializationOverrides) (*OpNode, error) {
+func NewWithOverride(ctx context.Context, cfg *config.Config, log log.Logger, appVersion string, m *metrics.Metrics, clk clock.Clock, override InitializationOverrides) (*OpNode, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
@@ -169,6 +173,7 @@ func NewWithOverride(ctx context.Context, cfg *config.Config, log log.Logger, ap
 	n := &OpNode{
 		cfg:        cfg,
 		log:        log,
+		clock:      clk,
 		appVersion: appVersion,
 		metrics:    m,
 		rollupHalt: cfg.RollupHalt,
@@ -201,10 +206,19 @@ type InitializationOverrides struct {
 // some later initialization steps depend on the node being partially initialized with other components,
 // so order is important to ensure that all resources are available when needed.
 func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides InitializationOverrides) error {
-
 	n.log.Info("Initializing rollup node", "version", n.appVersion)
 
 	var err error
+
+	safe := "enabled"
+	if cfg.Sync.FollowSourceEnabled() {
+		safe = cfg.Sync.L2FollowSourceEndpoint
+		n.l2FollowSource, err = initFollowSource(ctx, cfg, n)
+		if err != nil {
+			return fmt.Errorf("failed to init l2 follow source: %w", err)
+		}
+	}
+	n.log.Info("Safety levels", "unsafe", "enabled", "safe", safe)
 
 	n.eventSys, n.eventDrain, err = initEventSystem(n)
 	if err != nil {
@@ -587,7 +601,12 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 		return nil, nil, nil, nil, fmt.Errorf("cfg.Rollup.ChainOpConfig is nil. Please see https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.11.0: %w", err)
 	}
 
-	l2Driver := driver.NewDriver(node.eventSys, node.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.L1ChainConfig, cfg.DependencySet, l2Source, node.l1Source,
+	var upstreamFollowSource driver.UpstreamFollowSource
+	if node.cfg.Sync.FollowSourceEnabled() {
+		upstreamFollowSource = driver.NewL2FollowSource(node.l2FollowSource, node.l1Source)
+	}
+
+	l2Driver := driver.NewDriver(node.eventSys, node.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.L1ChainConfig, cfg.DependencySet, l2Source, node.l1Source, upstreamFollowSource,
 		node.beacon, node, node, node.log, node.metrics, cfg.ConfigPersistence, safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode)
 
 	// Wire up IndexingMode to engine controller for direct procedure call
@@ -598,6 +617,18 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 	}
 
 	return l2Source, sys, l2Driver, safeDB, nil
+}
+
+func initFollowSource(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.FollowClient, error) {
+	rpcClient, _, err := cfg.L2FollowSource.Setup(ctx, node.log, &node.cfg.Rollup, node.metrics)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup L2 follow source RPC client: %w", err)
+	}
+	l2FollowSource, err := sources.NewFollowClient(rpcClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create follow client: %w", err)
+	}
+	return l2FollowSource, nil
 }
 
 func initRPCServer(cfg *config.Config, node *OpNode) (*oprpc.Server, error) {
@@ -705,7 +736,7 @@ func initP2P(cfg *config.Config, node *OpNode) (*p2p.NodeP2P, error) {
 		}
 		// embed syncDeriver and tracer(optional) to the blockReceiver to handle unsafe payloads via p2p
 		rec := p2p.NewBlockReceiver(node.log, node.metrics, node.l2Driver.SyncDeriver, node.cfg.Tracer)
-		p2pNode, err := p2p.NewNodeP2P(node.resourcesCtx, &cfg.Rollup, node.log, cfg.P2P, rec, node.l2Source, node.runCfg, node.metrics)
+		p2pNode, err := p2p.NewNodeP2P(node.resourcesCtx, &cfg.Rollup, node.log, cfg.P2P, rec, node.l2Source, node.runCfg, node.metrics, node.clock)
 		if err != nil {
 			return nil, err
 		}
@@ -984,4 +1015,15 @@ func (n *OpNode) getP2PNodeIfEnabled() *p2p.NodeP2P {
 	n.p2pMu.Lock()
 	defer n.p2pMu.Unlock()
 	return n.p2pNode
+}
+
+func (n *OpNode) SafeDB() SafeDBReader {
+	return n.safeDB
+}
+
+func (n *OpNode) SyncStatus() *eth.SyncStatus {
+	if n.l2Driver == nil || n.l2Driver.StatusTracker == nil {
+		return &eth.SyncStatus{}
+	}
+	return n.l2Driver.StatusTracker.SyncStatus()
 }

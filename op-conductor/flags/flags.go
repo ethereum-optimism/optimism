@@ -98,15 +98,26 @@ var (
 	}
 	RollupBoostEnabled = &cli.BoolFlag{
 		Name:    "rollup-boost.enabled",
-		Usage:   "Should be set to true if execution.rpc points to a rollup boost instance, false otherwise. If true, rollup boost specific healthchecks will be performed against the rollup boost instance.",
+		Usage:   "Enable the rollup-boost healthcheck that uses HTTP status codes (200/206/503). Healthchecks are performed against execution.rpc + '/healthz' (path appended automatically). Mutually exclusive with rollup-boost.next-enabled.",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "ROLLUP_BOOST_ENABLED"),
 		Value:   false,
 	}
 	RollupBoostHealthcheckTimeout = &cli.DurationFlag{
 		Name:    "rollup-boost.healthcheck-timeout",
-		Usage:   "Timeout for rollup boost healthcheck",
+		Usage:   "Timeout for rollup-boost healthchecks (applies to both standard and next)",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "ROLLUP_BOOST_HEALTHCHECK_TIMEOUT"),
 		Value:   5 * time.Second,
+	}
+	RollupBoostNextEnabled = &cli.BoolFlag{
+		Name:    "rollup-boost.next-enabled",
+		Usage:   "Enable rollup-boost healthcheck using JSON response parsing. Requires rollup-boost.next-healthcheck-url. Mutually exclusive with rollup-boost.enabled.",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "ROLLUP_BOOST_NEXT_ENABLED"),
+		Value:   false,
+	}
+	RollupBoostNextHealthcheckURL = &cli.StringFlag{
+		Name:    "rollup-boost.next-healthcheck-url",
+		Usage:   "Full URL including path for the rollup-boost health endpoint (e.g., 'http://localhost:8080/healthz'). Required when rollup-boost.next-enabled is true.",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "ROLLUP_BOOST_NEXT_HEALTHCHECK_URL"),
 	}
 	HealthCheckInterval = &cli.Uint64Flag{
 		Name:    "healthcheck.interval",
@@ -219,6 +230,8 @@ var optionalFlags = []cli.Flag{
 	SupervisorRPC,
 	RollupBoostEnabled,
 	RollupBoostHealthcheckTimeout,
+	RollupBoostNextEnabled,
+	RollupBoostNextHealthcheckURL,
 	HealthcheckExecutionP2pEnabled,
 	HealthcheckExecutionP2pMinPeerCount,
 	HealthcheckExecutionP2pRPCUrl,

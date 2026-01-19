@@ -1,12 +1,16 @@
 package sysgo
 
 import (
+	"strconv"
+	"strings"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/log"
 	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -30,6 +34,7 @@ type OpGeth struct {
 	supervisorRPC string
 	l2Geth        *geth.GethInstance
 	readOnly      bool
+	cfg           *L2ELConfig
 
 	authRPC string
 	userRPC string
@@ -112,10 +117,45 @@ func (n *OpGeth) Start() {
 		func(ethCfg *ethconfig.Config, nodeCfg *gn.Config) error {
 			ethCfg.InteropMessageRPC = n.supervisorRPC
 			ethCfg.InteropMempoolFiltering = true
+
+			listenAddr := n.cfg.P2PAddr
+			port := n.cfg.P2PPort
+			listenAddr = listenAddr + ":" + strconv.Itoa(port)
+
 			nodeCfg.P2P = p2p.Config{
 				NoDiscovery: true,
-				ListenAddr:  "127.0.0.1:0",
+				ListenAddr:  listenAddr,
 				MaxPeers:    10,
+			}
+
+			if n.cfg.P2PNodeKeyHex != "" {
+				priv, err := crypto.HexToECDSA(strings.TrimPrefix(n.cfg.P2PNodeKeyHex, "0x"))
+				if err != nil {
+					return err
+				}
+				nodeCfg.P2P.PrivateKey = priv
+			}
+			if len(n.cfg.StaticPeers) > 0 {
+				nodes := make([]*enode.Node, 0, len(n.cfg.StaticPeers))
+				for _, p := range n.cfg.StaticPeers {
+					nn, err := enode.Parse(enode.ValidSchemes, p)
+					if err != nil {
+						return err
+					}
+					nodes = append(nodes, nn)
+				}
+				nodeCfg.P2P.StaticNodes = nodes
+			}
+			if len(n.cfg.TrustedPeers) > 0 {
+				nodes := make([]*enode.Node, 0, len(n.cfg.TrustedPeers))
+				for _, p := range n.cfg.TrustedPeers {
+					nn, err := enode.Parse(enode.ValidSchemes, p)
+					if err != nil {
+						return err
+					}
+					nodes = append(nodes, nn)
+				}
+				nodeCfg.P2P.TrustedNodes = nodes
 			}
 			return nil
 		})
@@ -173,6 +213,7 @@ func WithOpGeth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 			jwtPath:       jwtPath,
 			jwtSecret:     jwtSecret,
 			supervisorRPC: supervisorRPC,
+			cfg:           cfg,
 		}
 		l2EL.Start()
 		p.Cleanup(func() {

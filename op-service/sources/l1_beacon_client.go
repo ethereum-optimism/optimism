@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"slices"
 	"strconv"
 	"sync"
 
@@ -344,9 +343,13 @@ func (cl *L1BeaconClient) beaconBlobs(ctx context.Context, slot uint64, hashes [
 			return nil, fmt.Errorf("compute blob kzg commitment: %w", err)
 		}
 		got := eth.KZGToVersionedHash(commitment)
-		idx := slices.IndexFunc(hashes, func(indexedHash eth.IndexedBlobHash) bool {
-			return got == indexedHash.Hash
-		})
+		idx := -1
+		for i, indexedHash := range hashes {
+			if got == indexedHash.Hash && blobs[i] == nil {
+				idx = i
+				break
+			}
+		}
 		if idx == -1 {
 			return nil, fmt.Errorf("received a blob hash that does not match any expected hash: %s", got)
 		}

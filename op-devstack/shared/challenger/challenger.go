@@ -12,7 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
@@ -79,7 +79,7 @@ func applyCannonKonaConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Gene
 	if err := applyVmConfig(root, &c.CannonKona, c.Datadir, rollupCfgs, l1Genesis, l2Geneses); err != nil {
 		return err
 	}
-	c.CannonKona.Server = root + "kona/bin/kona-host"
+	c.CannonKona.Server = root + "kona/target/release/kona-host"
 	absRoot, err := filepath.Abs(root)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path to prestate dir: %w", err)
@@ -153,44 +153,44 @@ func WithCannonKonaConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, 
 	}
 }
 
-func WithCannonTraceType() Option {
+func WithCannonGameType() Option {
 	return func(c *config.Config) error {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypeCannon)
+		c.GameTypes = append(c.GameTypes, gameTypes.CannonGameType)
 		return nil
 	}
 }
 
-func WithCannonKonaTraceType() Option {
+func WithCannonKonaGameType() Option {
 	return func(c *config.Config) error {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypeCannonKona)
+		c.GameTypes = append(c.GameTypes, gameTypes.CannonKonaGameType)
 		return nil
 	}
 }
 
-func WithPermissionedTraceType() Option {
+func WithPermissionedGameType() Option {
 	return func(c *config.Config) error {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypePermissioned)
+		c.GameTypes = append(c.GameTypes, gameTypes.PermissionedGameType)
 		return nil
 	}
 }
 
-func WithSuperCannonTraceType() Option {
+func WithSuperCannonGameType() Option {
 	return func(c *config.Config) error {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypeSuperCannon)
+		c.GameTypes = append(c.GameTypes, gameTypes.SuperCannonGameType)
 		return nil
 	}
 }
 
-func WithSuperPermissionedTraceType() Option {
+func WithSuperPermissionedGameType() Option {
 	return func(c *config.Config) error {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypeSuperPermissioned)
+		c.GameTypes = append(c.GameTypes, gameTypes.SuperPermissionedGameType)
 		return nil
 	}
 }
 
 func WithFastGames() Option {
 	return func(c *config.Config) error {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypeFast)
+		c.GameTypes = append(c.GameTypes, gameTypes.FastGameType)
 		return nil
 	}
 }

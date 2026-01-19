@@ -19,7 +19,7 @@ type SuperGameHelper struct {
 }
 
 func NewSuperGameHelper(t *testing.T, require *require.Assertions, client *ethclient.Client, opts *bind.TransactOpts, privKey *ecdsa.PrivateKey,
-	game contracts.FaultDisputeGameContract, factoryAddr common.Address, addr common.Address, correctOutputProvider *super.SuperTraceProvider, system DisputeSystem) *SuperGameHelper {
+	game contracts.FaultDisputeGameContract, factoryAddr common.Address, addr common.Address, correctOutputProvider super.SuperTraceProvider, system DisputeSystem) *SuperGameHelper {
 	return &SuperGameHelper{
 		SplitGameHelper: SplitGameHelper{
 			T:                     t,

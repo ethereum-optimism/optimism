@@ -30,6 +30,8 @@ var (
 	SuperchainETHBridge           types.Address = common.HexToAddress("0x4200000000000000000000000000000000000024")
 	ETHLiquidity                  types.Address = common.HexToAddress("0x4200000000000000000000000000000000000025")
 	SuperchainTokenBridge         types.Address = common.HexToAddress("0x4200000000000000000000000000000000000028")
+	NativeAssetLiquidity          types.Address = common.HexToAddress("0x4200000000000000000000000000000000000029")
+	LiquidityController           types.Address = common.HexToAddress("0x420000000000000000000000000000000000002a")
 	FeeSplitter                   types.Address = common.HexToAddress("0x420000000000000000000000000000000000002B")
 	GovernanceToken               types.Address = common.HexToAddress("0x4200000000000000000000000000000000000042")
 	Create2Deployer               types.Address = common.HexToAddress("0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2")

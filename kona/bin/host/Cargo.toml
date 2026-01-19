@@ -1,0 +1,82 @@
+[package]
+name = "kona-host"
+version = "1.0.2"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# Proof
+kona-mpt.workspace = true
+kona-client.workspace = true
+kona-executor.workspace = true
+kona-std-fpvm.workspace = true
+kona-proof-interop.workspace = true
+kona-proof = { workspace = true, features = ["std"] }
+kona-preimage = { workspace = true, features = ["std"] }
+
+# Protocol
+kona-driver.workspace = true
+kona-derive.workspace = true
+kona-registry.workspace = true
+kona-protocol = { workspace = true, features = ["std", "serde"] }
+kona-genesis = { workspace = true, features = ["std", "serde"] }
+
+# Services
+kona-cli.workspace = true
+kona-providers-alloy.workspace = true
+
+# Alloy
+alloy-rlp.workspace = true
+alloy-transport.workspace = true
+alloy-eips = { workspace = true, features = ["kzg"] }
+alloy-serde.workspace = true
+alloy-provider = { workspace = true, features = ["reqwest"] }
+alloy-consensus = { workspace = true, features = ["std"] }
+alloy-rpc-client.workspace = true
+alloy-transport-http.workspace = true
+alloy-rpc-types = { workspace = true, features = ["eth", "debug"] }
+alloy-primitives = { workspace = true, features = ["serde"] }
+alloy-rpc-types-beacon.workspace = true
+
+# Op Alloy
+op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+op-alloy-network.workspace = true
+alloy-op-evm = { workspace = true, features = ["std"] }
+
+# Revm
+revm = { workspace = true, features = ["std", "c-kzg", "secp256k1", "portable", "blst"] }
+
+# General
+anyhow.workspace = true
+tracing.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+async-trait.workspace = true
+rocksdb = { workspace = true, features = ["snappy", "bindgen-runtime"] }
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+clap = { workspace = true, features = ["derive", "env"] }
+tracing-subscriber = { workspace = true, features = ["fmt"] }
+thiserror.workspace = true
+
+# KZG
+ark-ff.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[features]
+default = [ "interop", "single" ]
+single = []
+interop = [ "single" ]
+
+[[bin]]
+name = "kona-host"
+path = "src/bin/host.rs"

@@ -35,7 +35,6 @@ func ExtractEmbedded(destDir string) (foundry.StatDirFs, error) {
 	defer zr.Close()
 	reader := io.NopCloser(zr)
 
-	// Untar into a unique subdirectory to avoid collisions with pre-existing paths
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to ensure destination dir: %w", err)
 	}
@@ -54,6 +53,7 @@ func ExtractEmbedded(destDir string) (foundry.StatDirFs, error) {
 		return nil, fmt.Errorf("forge-artifacts directory not found within embedded artifacts: %w", err)
 	}
 
+	// TODO(#18346): Change this to provide the parent directory of the forge-artifacts directory
 	return os.DirFS(forgeArtifactsDir).(foundry.StatDirFs), nil
 }
 
@@ -94,5 +94,6 @@ func ExtractFromFile(destDir string, tarFilePath string) (foundry.StatDirFs, err
 		return nil, fmt.Errorf("forge-artifacts directory not found within embedded artifacts: %w", err)
 	}
 
+	// TODO(#18346): Change this to provide the parent directory of the forge-artifacts directory
 	return os.DirFS(forgeArtifactsDir).(foundry.StatDirFs), nil
 }

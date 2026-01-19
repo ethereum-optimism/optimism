@@ -1,16 +1,10 @@
 package rollup
 
-// This file contains ephemeral feature toggles which should be removed
+// This file contains ephemeral feature toggles for the next
+// fork while it is in development. They should be removed
 // after the fork scope is locked.
 
-func (c *Config) IsMinBaseFee(time uint64) bool {
-	return c.IsJovian(time) // Replace with return false to disable
-}
-
-func (c *Config) IsDAFootprintBlockLimit(time uint64) bool {
-	return c.IsJovian(time) // Replace with return false to disable
-}
-
-func (c *Config) IsOperatorFeeFix(time uint64) bool {
-	return c.IsJovian(time) // Replace with return false to disable
-}
+// Example:
+// func (c *Config) IsMinBaseFee(time uint64) bool {
+// 	return c.IsJovian(time) // Replace with return false to disable
+// }

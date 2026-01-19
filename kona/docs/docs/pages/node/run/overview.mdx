@@ -1,0 +1,38 @@
+# Run a Node
+
+Now that you have [installed the `kona-node`](/node/install/overview),
+it's time to run it.
+
+In this section, we'll guide you through running the kona-node on
+various networks and with different configurations.
+
+
+## Supported Networks
+
+Kona uses the [superchain-registry][scr] to dynamically load
+chain configurations for the specified network. As such, Kona
+can only support networks that are defined this way.
+
+[scr]: https://github.com/ethereum-optimism/superchain-registry
+
+To view available networks, the `kona-node` binary provides
+a `registry` subcommand that lists all available networks:
+
+```bash
+kona-node registry
+```
+
+:::tip
+Want to add support for a new network?
+Feel free to [add a chain](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#adding-a-chain)
+to the superchain-registry!
+:::
+
+
+## Configuration & Monitoring
+
+Learn how to configure and monitor your node:
+
+-   **[Configuration](/node/configuration)** - Configure your node
+-   **[Monitoring](/node/monitoring)** - Set up logs, metrics, and observability
+

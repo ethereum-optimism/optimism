@@ -8,8 +8,6 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
 
-// Libraries
-
 /// @notice Base setup contract for SuperchainRevSharesCalculator tests.
 contract SuperchainRevSharesCalculator_TestInit is CommonTest {
     uint256 internal constant BASIS_POINT_SCALE = 10_000;

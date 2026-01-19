@@ -18,8 +18,8 @@ contract L1Withdrawer_TestInit is CommonTest {
     event WithdrawalGasLimitUpdated(uint32 oldWithdrawalGasLimit, uint32 newWithdrawalGasLimit);
 
     // Test state
-    uint256 minWithdrawalAmount = 10 ether;
-    uint32 withdrawalGasLimit = 1_000_000;
+    uint256 minWithdrawalAmount = 2 ether;
+    uint32 withdrawalGasLimit = 800_000;
 
     uint32 internal constant MIN_WITHDRAWAL_GAS_LIMIT = 800_000;
 

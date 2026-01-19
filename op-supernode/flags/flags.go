@@ -96,12 +96,12 @@ func FullDynamicFlags(chains []uint64) []cli.Flag {
 	for _, f := range opnodeflags.Flags {
 		baseName := f.Names()[0]
 		// vn.all.* env var/alias prefixing
-		allEnvs := prefixEnvVar(f, "VN_ALL_")
+		allEnvs := upgradeEnvVarPrefixes(f, opnodeflags.EnvVarPrefix, "VN_ALL")
 		allAliases := prefixAliases(f, VNFlagGlobalPrefix)
 		final = append(final, renameFlagWithEnv(f, VNFlagGlobalPrefix+baseName, allEnvs, allAliases))
 		// per-chain
 		for _, id := range chains {
-			perChainEnvs := prefixEnvVar(f, fmt.Sprintf("VN_%d_", id))
+			perChainEnvs := upgradeEnvVarPrefixes(f, opnodeflags.EnvVarPrefix, fmt.Sprintf("VN_%d", id))
 			perAliases := prefixAliases(f, fmt.Sprintf("%s%d.", VNFlagNamePrefix, id))
 			final = append(final, renameFlagWithEnv(f, fmt.Sprintf("%s%d.%s", VNFlagNamePrefix, id, baseName), perChainEnvs, perAliases))
 		}

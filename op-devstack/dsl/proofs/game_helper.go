@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -138,7 +139,7 @@ func (gs *GameHelper) AuthEOA(eoa *dsl.EOA) *GameHelper {
 func (gs *GameHelper) CreateGameWithClaims(
 	eoa *dsl.EOA,
 	factory *DisputeGameFactory,
-	gameType challengerTypes.GameType,
+	gameType gameTypes.GameType,
 	rootClaim common.Hash,
 	extraData []byte,
 	moves []GameHelperMove,

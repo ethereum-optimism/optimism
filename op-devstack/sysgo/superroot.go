@@ -7,7 +7,6 @@ import (
 	"math/big"
 	"os"
 	"path"
-	"regexp"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
@@ -31,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/lmittmann/w3"
 	w3eth "github.com/lmittmann/w3/module/eth"
+	"github.com/stretchr/testify/require"
 )
 
 func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack.L2CLNodeID, supervisorID stack.SupervisorID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
@@ -233,31 +233,30 @@ func getInteropCannonAbsolutePrestate(t devtest.CommonT) common.Hash {
 }
 
 func getInteropCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
-	return common.HexToHash(findKonaVariable(t, "KONA_INTEROP_PRESTATE_HASH"))
+	return loadKonaVersions(t).InteropPrestateHash
 }
 
 func getCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
-	return common.HexToHash(findKonaVariable(t, "KONA_PRESTATE_HASH"))
+	return loadKonaVersions(t).PrestateHash
 }
 
-func findKonaVariable(t devtest.CommonT, name string) string {
-	konaJustfilePath := "kona/justfile"
-	root, err := findMonorepoRoot(konaJustfilePath)
+func loadKonaVersions(t devtest.CommonT) konaVersions {
+	konaVersionPath := "kona/version.json"
+	root, err := findMonorepoRoot(konaVersionPath)
 	t.Require().NoError(err)
-	p := path.Join(root, konaJustfilePath)
+	p := path.Join(root, konaVersionPath)
 	data, err := os.ReadFile(p)
-	t.Require().NoError(err, "Failed to read kona justfile")
-	justfileVariableMatcher := regexp.MustCompile("([_A-Z]+) := \"([^\"]*)\"")
-	variables := justfileVariableMatcher.FindAllStringSubmatch(string(data), -1)
-	for _, matches := range variables {
-		key := matches[1]
-		value := matches[2]
-		if key == name {
-			return value
-		}
-	}
-	t.Require().True(false, "Did not find required kona variable")
-	return ""
+	t.Require().NoError(err, "Failed to read kona versions")
+	var versions konaVersions
+	err = json.Unmarshal(data, &versions)
+	require.NoError(t, err, "Failed to parse kona versions")
+	return versions
+}
+
+type konaVersions struct {
+	Version             string      `json:"version"`
+	PrestateHash        common.Hash `json:"prestateHash"`
+	InteropPrestateHash common.Hash `json:"interopPrestateHash"`
 }
 
 func getAbsolutePrestate(t devtest.CommonT, prestatePath string) common.Hash {

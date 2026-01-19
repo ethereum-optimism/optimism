@@ -7,9 +7,9 @@ if [[ ! -e "$1" ]]; then exit 1; fi
 if [[ ! -e "$2" ]]; then exit 1; fi
 
 if uname | grep -q "Darwin"; then
-    MOD_TIME_FMT="-f %m"
+  MOD_TIME_FMT="-f %m"
 else
-    MOD_TIME_FMT="-c %Y"
+  MOD_TIME_FMT="-c %Y"
 fi
 
 FILE_1_AGE=$(stat "$MOD_TIME_FMT" "$1")

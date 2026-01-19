@@ -1,4 +1,4 @@
-  # Test validation exclusions configuration
+# Test validation exclusions configuration
 # This file contains lists of paths and test names that should be excluded
 # from various validation checks in the test validation script.
 
@@ -49,7 +49,6 @@ src_validation = [
 # infrastructure beyond standard harnesses or different setup contracts patterns.
 contract_name_validation = [
     "test/dispute/FaultDisputeGame.t.sol",                # Contains contracts not matching FaultDisputeGame base name
-    "test/dispute/v2/FaultDisputeGameV2.t.sol",           # Contains contracts not matching FaultDisputeGameV2 base name
     "test/dispute/SuperFaultDisputeGame.t.sol",           # Contains contracts not matching SuperFaultDisputeGame base name
     "test/L1/ResourceMetering.t.sol",                     # Contains contracts not matching ResourceMetering base name
     "test/L1/OPContractsManagerStandardValidator.t.sol",  # Contains contracts not matching OPContractsManagerStandardValidator base name
@@ -97,5 +96,6 @@ contracts = [
     "OptimismPortal2_UpgradeInterop_Test",      # Interop tests hosted in the OptimismPortal2 test file
     "TransactionBuilder",                       # Transaction builder helper library in TimelockGuard test file
     "Constants_Test",                           # Invalid naming pattern - doesn't specify function or Uncategorized
-    "LivenessModule2_TestUtils",                 # Test utils library in LivenessModule2 test file
+    "LivenessModule2_TestUtils",                # Test utils library in LivenessModule2 test file
+    "L1Block_SetCustomGasToken_Test",           # Custom gas token tests hosted in the L1Block test file
 ]
