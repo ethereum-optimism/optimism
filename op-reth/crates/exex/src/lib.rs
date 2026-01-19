@@ -445,3 +445,406 @@ where
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::default::Default;
+
+    use alloy_eips::{eip1898::BlockWithParent, BlockNumHash, NumHash};
+
+    use reth_execution_types::{Chain, ExecutionOutcome};
+    use reth_trie::{updates::TrieUpdatesSorted, HashedPostStateSorted};
+
+    use reth_optimism_trie::{
+        db::MdbxProofsStorage, BlockStateDiff, OpProofsStorage, OpProofsStore,
+    };
+
+    use alloy_consensus::private::alloy_primitives::B256;
+    use reth_db::test_utils::tempdir_path;
+    use reth_ethereum_primitives::{Block, Receipt};
+    use reth_primitives_traits::RecoveredBlock;
+    use std::{collections::BTreeMap, sync::Arc, time::Duration};
+
+    // -------------------------------------------------------------------------
+    // Helpers: deterministic blocks and deterministic Chain with precomputed updates
+    // -------------------------------------------------------------------------
+    fn b256(byte: u8) -> B256 {
+        B256::new([byte; 32])
+    }
+
+    // deterministic hash from block number: 0 -> 0x00.., 1 -> 0x01.., etc.
+    fn hash_for_num(num: u64) -> B256 {
+        // if you only care about small test numbers, this is enough:
+        b256(num as u8)
+
+        // If you want to avoid wrapping when num > 255, use something like:
+        // let mut out = [0u8; 32];
+        // out[0..8].copy_from_slice(&num.to_be_bytes());
+        // B256::new(out)
+    }
+
+    fn mk_block(num: u64) -> RecoveredBlock<Block> {
+        let mut b: RecoveredBlock<Block> = Default::default();
+        b.set_block_number(num);
+        b.set_hash(hash_for_num(num));
+        b.set_parent_hash(hash_for_num(num - 1));
+        b
+    }
+
+    fn mk_chain_with_updates(
+        from: u64,
+        to: u64,
+        hash_override: Option<B256>,
+    ) -> Chain<reth_ethereum_primitives::EthPrimitives> {
+        let mut blocks: Vec<RecoveredBlock<Block>> = Vec::new();
+        let mut trie_updates: BTreeMap<u64, Arc<TrieUpdatesSorted>> = BTreeMap::new();
+        let mut hashed_state: BTreeMap<u64, Arc<HashedPostStateSorted>> = BTreeMap::new();
+
+        for n in from..=to {
+            let mut b = mk_block(n);
+            if let Some(hash) = hash_override {
+                b.set_hash(hash);
+            }
+            blocks.push(b);
+
+            trie_updates.insert(n, Arc::new(TrieUpdatesSorted::default()));
+            hashed_state.insert(n, Arc::new(HashedPostStateSorted::default()));
+        }
+
+        let execution_outcome: ExecutionOutcome<Receipt> = ExecutionOutcome {
+            bundle: Default::default(),
+            receipts: Vec::new(),
+            requests: Vec::new(),
+            first_block: from,
+        };
+
+        Chain::new(blocks, execution_outcome, trie_updates, hashed_state)
+    }
+
+    // Init_storage to the genesis block
+    async fn init_storage<S: OpProofsStore>(storage: OpProofsStorage<S>) {
+        let genesis_block = NumHash::new(0, b256(0x00));
+        storage
+            .set_earliest_block_number(genesis_block.number, genesis_block.hash)
+            .await
+            .expect("set earliest");
+        storage
+            .store_trie_updates(
+                BlockWithParent::new(genesis_block.hash, genesis_block),
+                BlockStateDiff::default(),
+            )
+            .await
+            .expect("store trie update");
+    }
+
+    // Initialize exex with config
+    fn build_test_exex<NodeT, Store>(
+        ctx: ExExContext<NodeT>,
+        storage: OpProofsStorage<Store>,
+    ) -> OpProofsExEx<NodeT, Store>
+    where
+        NodeT: FullNodeComponents,
+        Store: OpProofsStore + Clone + 'static,
+    {
+        OpProofsExEx::new(ctx, storage, 20, Duration::from_secs(3600), 1000)
+    }
+
+    #[tokio::test]
+    async fn handle_notification_chain_committed() {
+        // MDBX proofs storage
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
+
+        init_storage(proofs.clone()).await;
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let collector = LiveTrieCollector::new(
+            ctx.components.components.evm_config.clone(),
+            ctx.components.provider.clone(),
+            &proofs,
+        );
+        let exex = build_test_exex(ctx, proofs.clone());
+
+        // Notification: chain committed 1..5
+        let new_chain = Arc::new(mk_chain_with_updates(1, 5, None));
+        let notif = ExExNotification::ChainCommitted { new: new_chain };
+
+        exex.handle_notification(notif, &collector).await.expect("handle chain commit");
+
+        let latest =
+            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        assert_eq!(latest, 5);
+    }
+
+    #[tokio::test]
+    async fn handle_notification_chain_committed_skips_already_processed() {
+        // MDBX proofs storage
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
+
+        init_storage(proofs.clone()).await;
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let collector = LiveTrieCollector::new(
+            ctx.components.components.evm_config.clone(),
+            ctx.components.provider.clone(),
+            &proofs,
+        );
+
+        let exex = build_test_exex(ctx, proofs.clone());
+
+        // Notification: chain committed 1..5
+        let new_chain = Arc::new(mk_chain_with_updates(1, 5, None));
+        let notif = ExExNotification::ChainCommitted { new: new_chain };
+
+        exex.handle_notification(notif, &collector).await.expect("handle chain commit");
+
+        let latest =
+            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        assert_eq!(latest, 5);
+
+        // Try to handle already processed notification
+        let new_chain = Arc::new(mk_chain_with_updates(5, 5, Some(hash_for_num(10))));
+        let notif = ExExNotification::ChainCommitted { new: new_chain };
+        exex.handle_notification(notif, &collector).await.expect("handle chain commit");
+        let latest = proofs.get_latest_block_number().await.expect("get latest block").expect("ok");
+        assert_eq!(latest.0, 5);
+        assert_eq!(latest.1, hash_for_num(5)); // block was not updated
+    }
+
+    #[tokio::test]
+    async fn handle_notification_chain_reorged() {
+        // MDBX proofs storage
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
+
+        init_storage(proofs.clone()).await;
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let collector = LiveTrieCollector::new(
+            ctx.components.components.evm_config.clone(),
+            ctx.components.provider.clone(),
+            &proofs,
+        );
+
+        let exex = build_test_exex(ctx, proofs.clone());
+
+        // Notification: chain committed 1..10
+        let new_chain = Arc::new(mk_chain_with_updates(1, 10, None));
+        let notif = ExExNotification::ChainCommitted { new: new_chain };
+
+        exex.handle_notification(notif, &collector).await.expect("handle chain commit");
+
+        let latest =
+            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        assert_eq!(latest, 10);
+
+        // Now the tip is 10, and we want to reorg from block 6..12
+        let old_chain = Arc::new(mk_chain_with_updates(6, 10, None));
+        let new_chain = Arc::new(mk_chain_with_updates(6, 12, None));
+
+        // Notification: chain reorged 6..12
+        let notif = ExExNotification::ChainReorged { new: new_chain, old: old_chain };
+
+        exex.handle_notification(notif, &collector).await.expect("handle chain re-orged");
+        let latest =
+            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        assert_eq!(latest, 12);
+    }
+
+    #[tokio::test]
+    async fn handle_notification_chain_reorged_skips_beyond_stored_blocks() {
+        // MDBX proofs storage
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
+
+        init_storage(proofs.clone()).await;
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let collector = LiveTrieCollector::new(
+            ctx.components.components.evm_config.clone(),
+            ctx.components.provider.clone(),
+            &proofs,
+        );
+
+        let exex = build_test_exex(ctx, proofs.clone());
+
+        // Notification: chain committed 1..10
+        let new_chain = Arc::new(mk_chain_with_updates(1, 10, None));
+        let notif = ExExNotification::ChainCommitted { new: new_chain };
+
+        exex.handle_notification(notif, &collector).await.expect("handle chain commit");
+
+        let latest =
+            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        assert_eq!(latest, 10);
+
+        // Now the tip is 10, and we want to reorg from block 12..15
+        let old_chain = Arc::new(mk_chain_with_updates(12, 15, None));
+        let new_chain = Arc::new(mk_chain_with_updates(10, 20, None));
+
+        // Notification: chain reorged 12..15
+        let notif = ExExNotification::ChainReorged { new: new_chain, old: old_chain };
+
+        exex.handle_notification(notif, &collector).await.expect("handle chain re-orged");
+        let latest =
+            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        assert_eq!(latest, 10);
+    }
+
+    #[tokio::test]
+    async fn handle_notification_chain_reverted() {
+        // MDBX proofs storage
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
+
+        init_storage(proofs.clone()).await;
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let collector = LiveTrieCollector::new(
+            ctx.components.components.evm_config.clone(),
+            ctx.components.provider.clone(),
+            &proofs,
+        );
+
+        let exex = build_test_exex(ctx, proofs.clone());
+
+        // Notification: chain committed 1..10
+        let new_chain = Arc::new(mk_chain_with_updates(1, 10, None));
+        let notif = ExExNotification::ChainCommitted { new: new_chain };
+
+        exex.handle_notification(notif, &collector).await.expect("handle chain commit");
+
+        let latest =
+            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        assert_eq!(latest, 10);
+
+        // Now the tip is 10, and we want to revert from block 9..10
+        let old_chain = Arc::new(mk_chain_with_updates(9, 10, None));
+
+        // Notification: chain reverted 9..10
+        let notif = ExExNotification::ChainReverted { old: old_chain };
+
+        exex.handle_notification(notif, &collector).await.expect("handle chain reverted");
+        let latest =
+            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        assert_eq!(latest, 8);
+    }
+
+    #[tokio::test]
+    async fn handle_notification_chain_reverted_skips_beyond_stored_blocks() {
+        // MDBX proofs storage
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
+
+        init_storage(proofs.clone()).await;
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let collector = LiveTrieCollector::new(
+            ctx.components.components.evm_config.clone(),
+            ctx.components.provider.clone(),
+            &proofs,
+        );
+
+        let exex = build_test_exex(ctx, proofs.clone());
+
+        // Notification: chain committed 1..10
+        let new_chain = Arc::new(mk_chain_with_updates(1, 10, None));
+        let notif = ExExNotification::ChainCommitted { new: new_chain };
+
+        exex.handle_notification(notif, &collector).await.expect("handle chain commit");
+
+        let latest =
+            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        assert_eq!(latest, 10);
+
+        // Now the tip is 10, and we want to revert from block 9..10
+        let old_chain = Arc::new(mk_chain_with_updates(9, 10, None));
+
+        // Notification: chain reverted 9..10
+        let notif = ExExNotification::ChainReverted { old: old_chain };
+
+        exex.handle_notification(notif, &collector).await.expect("handle chain reverted");
+        let latest =
+            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        assert_eq!(latest, 8);
+    }
+
+    #[tokio::test]
+    async fn ensure_initialized_errors_on_storage_not_initialized() {
+        // MDBX proofs storage
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let exex = build_test_exex(ctx, proofs.clone());
+        let _ = exex.ensure_initialized().await.expect_err("should return error");
+    }
+
+    #[tokio::test]
+    async fn ensure_initialized_errors_when_prune_exceeds_threshold() {
+        // MDBX proofs storage
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
+
+        init_storage(proofs.clone()).await;
+
+        for i in 1..1100 {
+            proofs
+                .store_trie_updates(
+                    BlockWithParent::new(
+                        hash_for_num(i - 1),
+                        BlockNumHash::new(i, hash_for_num(i)),
+                    ),
+                    BlockStateDiff::default(),
+                )
+                .await
+                .expect("store trie update");
+        }
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let exex = build_test_exex(ctx, proofs.clone());
+        let _ = exex.ensure_initialized().await.expect_err("should return error");
+    }
+
+    #[tokio::test]
+    async fn ensure_initialized_succeeds() {
+        // MDBX proofs storage
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
+
+        init_storage(proofs.clone()).await;
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let exex = build_test_exex(ctx, proofs.clone());
+        exex.ensure_initialized().await.expect("should not return error");
+    }
+}
