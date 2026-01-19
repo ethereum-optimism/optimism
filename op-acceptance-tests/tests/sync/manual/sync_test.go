@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 func TestVerifierManualSync(gt *testing.T) {
@@ -57,4 +58,52 @@ func TestVerifierManualSync(gt *testing.T) {
 	res := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
 	require.Equal(startBlockNum+delta, res.Number)
 	require.Equal(sys.L2EL.BlockRefByNumber(startBlockNum+delta).Hash, res.Hash)
+
+	// Check safe and finalized is stil at genesis
+	safe := sys.L2ELB.SafeHead().IsGenesis()
+	finalized := sys.L2ELB.FinalizedHead().IsGenesis()
+	currentUnsafe := sys.L2ELB.UnsafeHead()
+	logger.Info("Current", "unsafe head num", currentUnsafe.BlockRef.Number)
+	rewindDelta := uint64(2)
+	rewindTarget := currentUnsafe.BlockRef.Number - rewindDelta
+	prevUnsafe := sys.L2ELB.BlockRefByNumber(rewindTarget)
+
+	// Try to rewind unsafe head
+	logger.Info("ForkchoiceUpdateRaw", "target", prevUnsafe.ID().Number)
+	sys.L2ELB.ForkchoiceUpdateRaw(prevUnsafe.Hash, safe.BlockRef.Hash, finalized.BlockRef.Hash, nil).IsValid()
+	// As expected, did not rewind
+	require.Equal(sys.L2ELB.UnsafeHead().BlockRef.Hash, currentUnsafe.BlockRef.Hash)
+
+	// Lets trigger a manual rewind using reorg
+	// We first create a altered payload
+	payload := sys.L2ELB.PayloadByNumber(rewindTarget)
+	// Inject diff and patch hash. To get VALID from engine_newPayload
+	payload.ExecutionPayload.FeeRecipient = common.MaxAddress
+	actual, ok := payload.CheckBlockHash()
+	require.False(ok)
+	payload.ExecutionPayload.BlockHash = actual
+	_, ok = payload.CheckBlockHash()
+	require.True(ok)
+	// Now inject to the EL
+	logger.Info("NewPayloadRaw", "target", payload.ID().Number)
+	sys.L2ELB.NewPayloadRaw(payload).IsValid()
+	// FCU to the forked target
+	logger.Info("ForkchoiceUpdateRaw", "target", payload.ID().Number)
+	sys.L2ELB.ForkchoiceUpdateRaw(actual, safe.BlockRef.Hash, finalized.BlockRef.Hash, nil).IsValid()
+	// Check unsafe reorg is triggered
+	newUnsafe := sys.L2ELB.UnsafeHead().BlockRef
+	require.Equal(newUnsafe.Hash, actual)
+	require.Equal(newUnsafe.Number, rewindTarget)
+	logger.Info("Reorg", "targetNum", rewindTarget, "prev", prevUnsafe.Hash, "curr", actual)
+
+	// Now FCU to trigger a rewind
+	logger.Info("ForkchoiceUpdate", "target", rewindTarget)
+	sys.L2ELB.ForkchoiceUpdate(sys.L2EL, rewindTarget, 0, 0, nil).IsValid()
+	// Check unsafe rewind is triggered
+	rewindedUnsafe := sys.L2ELB.UnsafeHead().BlockRef
+	require.Equal(rewindedUnsafe.Number, prevUnsafe.Number)
+	require.Equal(rewindedUnsafe.Hash, prevUnsafe.Hash)
+	logger.Info("Rewind", "targetNum", rewindTarget, "curr", prevUnsafe.Hash)
+	// Check canonical
+	require.Equal(sys.L2EL.BlockRefByNumber(rewindedUnsafe.Number).Hash, rewindedUnsafe.Hash)
 }
