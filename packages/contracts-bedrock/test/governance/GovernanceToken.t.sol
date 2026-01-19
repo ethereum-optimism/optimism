@@ -37,6 +37,8 @@ contract GovernanceToken_Mint_Test is GovernanceToken_TestInit {
     /// @notice Tests that the owner can successfully call `mint` with various amounts.
     function testFuzz_mint_fromOwner_succeeds(address _recipient, uint256 _amount) external {
         vm.assume(_recipient != address(0));
+        // ERC20Votes uses uint224 for checkpoints, so bound amount to prevent overflow
+        _amount = bound(_amount, 0, type(uint224).max);
 
         vm.prank(owner);
         governanceToken.mint(_recipient, _amount);
