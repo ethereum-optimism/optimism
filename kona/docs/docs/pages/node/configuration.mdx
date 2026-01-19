@@ -1,0 +1,185 @@
+# Kona Node CLI Reference
+
+This document lists all CLI flags for the `kona-node node` subcommand, grouped by category. All flags can be provided as command-line arguments or via environment variables.
+
+:::note
+For more details on each flag, see the inline help (`kona-node node --help`) or the source code.
+:::
+
+## Default Ports
+
+| Service         | Default Port | Flag/Env                                 |
+|-----------------|--------------|------------------------------------------|
+| RPC HTTP        | 9545         | `--port` / `KONA_NODE_RPC_PORT`      |
+| RPC WebSocket   | 9545         | (same as HTTP, enabled with `--rpc.ws-enabled`) |
+| P2P TCP         | 9222         | `--p2p.listen.tcp` / `KONA_NODE_P2P_LISTEN_TCP_PORT` |
+| P2P UDP         | 9223         | `--p2p.listen.udp` / `KONA_NODE_P2P_LISTEN_UDP_PORT` |
+| Supervisor RPC  | 9333         | `--supervisor.port` / `KONA_NODE_SEQUENCER_PORT`     |
+| Conductor RPC   | 8547         | `--conductor.rpc` / `KONA_NODE_CONDUCTOR_RPC`        |
+
+## Core Node Arguments
+
+| Flag | Env | Description | Required | Default |
+|------|-----|-------------|----------|---------|
+| `--mode <verifier/sequencer>` | `KONA_NODE_MODE` | Mode of operation for the node | Yes | `verifier` |
+| `--l1-eth-rpc <URL>` | `KONA_NODE_L1_ETH_RPC` | URL of the L1 execution client RPC API | Yes | - |
+| `--l1-trust-rpc <true/false>` | `KONA_NODE_L1_TRUST_RPC` | Whether to trust the L1 RPC without verification | No | `true` |
+| `--l1-beacon <URL>` | `KONA_NODE_L1_BEACON` | URL of the L1 beacon API | Yes | - |
+| `--l2-engine-rpc <URL>` | `KONA_NODE_L2_ENGINE_RPC` | URL of the engine API endpoint of an L2 execution client | Yes | - |
+| `--l2-trust-rpc <true/false>` | `KONA_NODE_L2_TRUST_RPC` | Whether to trust the L2 RPC without verification | No | `true` |
+| `--l2-engine-jwt-secret <PATH>` | `KONA_NODE_L2_ENGINE_AUTH` | Path to file containing the hex-encoded JWT secret for the execution client | No | - |
+| `--l2-config-file <PATH>` | `KONA_NODE_ROLLUP_CONFIG` | Path to a custom L2 rollup configuration file | No | - |
+| `--l1-runtime-config-reload-interval <SECONDS>` | `KONA_NODE_L1_RUNTIME_CONFIG_RELOAD_INTERVAL` | Poll interval for reloading runtime config | No | `600` |
+
+## Global Arguments
+
+| Flag | Env | Description | Required | Default |
+|------|-----|-------------|----------|---------|
+| `--l2-chain-id <ID/NAME>` or `-c <ID/NAME>` | `KONA_NODE_L2_CHAIN_ID` | L2 chain ID (numeric) or chain name (string) | No | `10` (Optimism) |
+
+### Chain ID Support
+
+The `--l2-chain-id` flag supports flexible chain identification using the `alloy_chains` crate:
+
+**Numeric Chain IDs:**
+```bash
+kona-node --l2-chain-id 10 node [args...]      # Optimism mainnet
+kona-node --l2-chain-id 8453 node [args...]    # Base mainnet
+kona-node --l2-chain-id 1 node [args...]       # Ethereum mainnet
+```
+
+**String Chain Names:**
+```bash
+kona-node --l2-chain-id optimism node [args...]
+kona-node --l2-chain-id base node [args...]
+kona-node --l2-chain-id mainnet node [args...]
+```
+
+**Short Flag and Environment Variable:**
+```bash
+kona-node -c optimism node [args...]
+export KONA_NODE_L2_CHAIN_ID=optimism && kona-node node [args...]
+```
+
+Supported chain names include all those recognized by `alloy_chains` (e.g., `optimism`, `base`, `mainnet`). Unknown numeric chain IDs are accepted for custom networks.
+
+## P2P Arguments
+
+| Flag | Env | Description | Default |
+|------|-----|-------------|---------|
+| `--p2p.no-discovery` | `KONA_NODE_P2P_NO_DISCOVERY` | Disable Discv5 (node discovery) | `false` |
+| `--p2p.priv.path <PATH>` | `KONA_NODE_P2P_PRIV_PATH` | Path to hex-encoded 32-byte private key for peer ID | - |
+| `--p2p.priv.raw <HEX>` | `KONA_NODE_P2P_PRIV_RAW` | Hex-encoded 32-byte private key for peer ID | - |
+| `--p2p.advertise.ip <IP>` | `KONA_NODE_P2P_ADVERTISE_IP` | IP to advertise to external peers | - |
+| `--p2p.advertise.tcp <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP_PORT` | TCP port to advertise | `0` |
+| `--p2p.advertise.udp <PORT>` | `KONA_NODE_P2P_ADVERTISE_UDP_PORT` | UDP port to advertise | `0` |
+| `--p2p.listen.ip <IP>` | `KONA_NODE_P2P_LISTEN_IP` | IP to bind LibP2P/Discv5 to | `0.0.0.0` |
+| `--p2p.listen.tcp <PORT>` | `KONA_NODE_P2P_LISTEN_TCP_PORT` | TCP port to bind LibP2P to | `9222` |
+| `--p2p.listen.udp <PORT>` | `KONA_NODE_P2P_LISTEN_UDP_PORT` | UDP port to bind Discv5 to | `9223` |
+| `--p2p.peers.lo <N>` | `KONA_NODE_P2P_PEERS_LO` | Low-tide peer count | `20` |
+| `--p2p.peers.hi <N>` | `KONA_NODE_P2P_PEERS_HI` | High-tide peer count | `30` |
+| `--p2p.peers.grace <SECONDS>` | `KONA_NODE_P2P_PEERS_GRACE` | Grace period for new peers | `30` |
+| `--p2p.gossip.mesh.d <N>` | `KONA_NODE_P2P_GOSSIP_MESH_D` | GossipSub mesh target count | `8` |
+| `--p2p.gossip.mesh.lo <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DLO` | GossipSub mesh low watermark | `6` |
+| `--p2p.gossip.mesh.dhi <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DHI` | GossipSub mesh high watermark | `12` |
+| `--p2p.gossip.mesh.dlazy <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DLAZY` | GossipSub gossip target | `6` |
+| `--p2p.gossip.mesh.floodpublish` | `KONA_NODE_P2P_GOSSIP_FLOOD_PUBLISH` | Publish to all known peers | `false` |
+| `--p2p.scoring <none or light>` | `KONA_NODE_P2P_SCORING` | Peer scoring strategy | `light` |
+| `--p2p.ban.peers` | `KONA_NODE_P2P_BAN_PEERS` | Enable peer banning | `false` |
+| `--p2p.ban.threshold <N>` | `KONA_NODE_P2P_BAN_THRESHOLD` | Ban threshold | `-100` |
+| `--p2p.ban.duration <MINUTES>` | `KONA_NODE_P2P_BAN_DURATION` | Ban duration | `60` |
+| `--p2p.discovery.interval <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | Peer discovery interval | `5` |
+| `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | Directory to store the bootstore | - |
+| `--p2p.redial <N>` | `KONA_NODE_P2P_REDIAL` | Peer redialing threshold | `500` |
+| `--p2p.redial.period <MINUTES>` | `KONA_NODE_P2P_REDIAL_PERIOD` | Peer dial period | `60` |
+| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs | - |
+| `--p2p.topic-scoring` | `KONA_NODE_P2P_TOPIC_SCORING` | Enable topic scoring | `false` |
+| `--p2p.discovery.randomize <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
+
+## RPC Arguments
+
+| Flag | Env | Description | Default |
+|------|-----|-------------|---------|
+| `--rpc.disabled` | `KONA_NODE_RPC_DISABLED` | Disable the RPC server | `false` |
+| `--rpc.no-restart` | `KONA_NODE_RPC_NO_RESTART` | Prevent RPC server from restarting | `false` |
+| `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC listening address | `0.0.0.0` |
+| `--port <PORT>` | `KONA_NODE_RPC_PORT` | RPC listening port | `9545` |
+| `--rpc.enable-admin` | `KONA_NODE_RPC_ENABLE_ADMIN` | Enable the admin API | `false` |
+| `--rpc.admin-state <PATH>` | `KONA_NODE_RPC_ADMIN_STATE` | File path for admin state persistence | - |
+| `--rpc.ws-enabled` | `KONA_NODE_RPC_WS_ENABLED` | Enable websocket RPC server | `false` |
+
+## Sequencer Arguments
+
+| Flag | Env | Description | Default |
+|------|-----|-------------|---------|
+| `--sequencer.stopped` | `KONA_NODE_SEQUENCER_STOPPED` | Start sequencer in stopped state | `false` |
+| `--sequencer.max-safe-lag <N>` | `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` | Max L2 safe/unsafe lag | `0` |
+| `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
+| `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | Strictly prepare next L1 origin and create empty L2 blocks | `false` |
+| `--conductor.enabled` | `KONA_NODE_CONDUCTOR_ENABLED` | Enable the conductor service | `false` |
+| `--conductor.rpc <ADDR>` | `KONA_NODE_CONDUCTOR_RPC` | Conductor service RPC endpoint | `127.0.0.1:8547` |
+| `--conductor.rpc.timeout <SECONDS>` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | Conductor service RPC timeout | `1` |
+
+## Supervisor Arguments
+
+| Flag | Env | Description | Default |
+|------|-----|-------------|---------|
+| `--supervisor.rpc-enabled` | `KONA_NODE_SUPERVISOR_RPC_ENABLED` | Enable Supervisor Websocket | `false` |
+| `--supervisor.ip.address <IP>` | `KONA_NODE_SUPERVISOR_IP` | IP to bind Supervisor Websocket RPC server | `0.0.0.0` |
+| `--supervisor.port <PORT>` | `KONA_NODE_SUPERVISOR_PORT` | TCP port for supervisor RPC | `9333` |
+| `--supervisor.jwt.secret <HEX>` | `KONA_NODE_SUPERVISOR_JWT_SECRET` | JWT secret for supervisor websocket authentication | - |
+| `--supervisor.jwt.secret.file <PATH>` | `KONA_NODE_SUPERVISOR_JWT_SECRET_FILE` | Path to file containing JWT secret | - |
+
+## RPC Trust Configuration
+
+The `--l1-trust-rpc` and `--l2-trust-rpc` flags control whether Kona performs additional verification on RPC responses to protect against malicious or faulty RPC providers.
+
+### Trust Modes
+
+**Default Behavior (trust enabled, `true`):**
+- No additional block hash verification is performed
+- Optimized for performance
+- Suitable for local nodes and trusted infrastructure
+- Assumes the RPC provider is reliable and honest
+
+**Verification Mode (trust disabled, `false`):**
+- All fetched blocks have their hashes verified against the requested hashes
+- Protects against malicious RPC providers returning incorrect blocks
+- Recommended for public or third-party RPC endpoints
+- Small performance overhead due to hash verification
+
+### Examples
+
+**Using trusted local RPCs (default):**
+```bash
+kona-node node \
+  --l1-eth-rpc http://localhost:8545 \
+  --l2-engine-rpc http://localhost:8551 \
+  # trust-rpc defaults to true, no need to specify
+```
+
+**Using untrusted public RPCs:**
+```bash
+kona-node node \
+  --l1-eth-rpc https://public-eth-rpc.com \
+  --l1-trust-rpc false \
+  --l2-engine-rpc https://public-l2-rpc.com \
+  --l2-trust-rpc false
+```
+
+**Mixed trust configuration:**
+```bash
+kona-node node \
+  --l1-eth-rpc https://public-eth-rpc.com \
+  --l1-trust-rpc false \
+  --l2-engine-rpc http://localhost:8551 \
+  # L2 trust-rpc defaults to true for local engine
+```
+
+### Security Recommendations
+
+1. **Local Infrastructure**: Keep the default `true` setting for RPCs you control
+2. **Public RPCs**: Always set `--trust-rpc false` when using third-party endpoints
+3. **Shared Infrastructure**: Consider setting `--trust-rpc false` as a precaution
+4. **Performance Testing**: The verification overhead is minimal but can be measured in high-throughput scenarios
+

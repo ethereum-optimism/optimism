@@ -31,6 +31,8 @@ const (
 	SuperchainETHBridge           = "0x4200000000000000000000000000000000000024"
 	ETHLiquidity                  = "0x4200000000000000000000000000000000000025"
 	SuperchainTokenBridge         = "0x4200000000000000000000000000000000000028"
+	NativeAssetLiquidity          = "0x4200000000000000000000000000000000000029"
+	LiquidityController           = "0x420000000000000000000000000000000000002a"
 	FeeSplitter                   = "0x420000000000000000000000000000000000002b"
 	Create2Deployer               = "0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2"
 	MultiCall3                    = "0xcA11bde05977b3631167028862bE2a173976CA11"
@@ -73,6 +75,8 @@ var (
 	SuperchainETHBridgeAddr           = common.HexToAddress(SuperchainETHBridge)
 	ETHLiquidityAddr                  = common.HexToAddress(ETHLiquidity)
 	SuperchainTokenBridgeAddr         = common.HexToAddress(SuperchainTokenBridge)
+	NativeAssetLiquidityAddr          = common.HexToAddress(NativeAssetLiquidity)
+	LiquidityControllerAddr           = common.HexToAddress(LiquidityController)
 	FeeSplitterAddr                   = common.HexToAddress(FeeSplitter)
 	Create2DeployerAddr               = common.HexToAddress(Create2Deployer)
 	MultiCall3Addr                    = common.HexToAddress(MultiCall3)

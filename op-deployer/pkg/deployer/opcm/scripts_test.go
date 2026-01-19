@@ -22,7 +22,6 @@ func TestNewScripts(t *testing.T) {
 		require.NotNil(t, scripts.DeploySuperchain)
 		require.NotNil(t, scripts.DeployAlphabetVM)
 		require.NotNil(t, scripts.DeployAltDA)
-		require.NotNil(t, scripts.DeployAsterisc)
 		require.NotNil(t, scripts.DeployDisputeGame)
 		require.NotNil(t, scripts.DeployMIPS)
 	})

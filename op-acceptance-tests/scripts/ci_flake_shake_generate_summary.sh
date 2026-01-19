@@ -71,4 +71,3 @@ if [ -n "${BASH_ENV:-}" ]; then
 fi
 
 echo "Wrote: $OUT_DIR/daily-summary.json, $OUT_DIR/promotion-ready.json"
-

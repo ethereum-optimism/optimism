@@ -2,11 +2,13 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { Test } from "forge-std/Test.sol";
+import { Test } from "test/setup/Test.sol";
 
-// Contracts
-import { IWETH98 } from "interfaces/universal/IWETH98.sol";
+// Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+
+// Interfaces
+import { IWETH98 } from "interfaces/universal/IWETH98.sol";
 
 /// @title WETH98_TestInit
 /// @notice Reusable test initialization for `WETH98` tests.

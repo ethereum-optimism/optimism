@@ -82,7 +82,7 @@ type IndexingMode struct {
 	engineController EngineController
 }
 
-func NewIndexingMode(log log.Logger, cfg *rollup.Config, addr string, port int, jwtSecret eth.Bytes32, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer) *IndexingMode {
+func NewIndexingMode(log log.Logger, cfg *rollup.Config, addr string, port int, jwtSecret eth.Bytes32, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer, eventQueueSize int) *IndexingMode {
 	log = log.With("mode", "indexing", "chainId", cfg.L2ChainID)
 	ctx, cancel := context.WithCancel(context.Background())
 	out := &IndexingMode{
@@ -91,7 +91,7 @@ func NewIndexingMode(log log.Logger, cfg *rollup.Config, addr string, port int, 
 		l1:        l1,
 		l2:        l2,
 		jwtSecret: jwtSecret,
-		events:    rpc.NewStream[supervisortypes.IndexingEvent](log, 100),
+		events:    rpc.NewStream[supervisortypes.IndexingEvent](log, eventQueueSize),
 
 		lastReset:         newEventTimestamp[struct{}](100 * time.Millisecond),
 		lastUnsafe:        newEventTimestamp[eth.BlockID](100 * time.Millisecond),

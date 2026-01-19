@@ -27,8 +27,8 @@ builds:
         goarch: arm64
     mod_timestamp: "{{ .CommitTimestamp }}"
     ldflags:
-      - -X main.GitCommit={{ .FullCommit }}
-      - -X main.GitDate={{ .CommitDate }}
+      - -X github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version.GitCommit={{ .FullCommit }}
+      - -X github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version.GitDate={{ .CommitDate }}
       - -X github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version.Version={{ .Version }}
       - -X github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version.Meta=
 

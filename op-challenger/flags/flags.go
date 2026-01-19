@@ -8,8 +8,9 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/flags"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/superchain"
@@ -27,19 +28,21 @@ import (
 
 const EnvVarPrefix = "OP_CHALLENGER"
 
-func prefixEnvVars(name string) []string {
-	return opservice.PrefixEnvVar(EnvVarPrefix, name)
+func prefixEnvVars(names ...string) []string {
+
+	envs := make([]string, 0, len(names))
+	for _, name := range names {
+		envs = append(envs, EnvVarPrefix+"_"+name)
+	}
+	return envs
 }
 
 var (
-	faultDisputeVMs = []types.TraceType{
-		types.TraceTypeCannon,
-		types.TraceTypeCannonKona,
-		types.TraceTypeAsterisc,
-		types.TraceTypeAsteriscKona,
-		types.TraceTypeSuperCannon,
-		types.TraceTypeSuperCannonKona,
-		types.TraceTypeSuperAsteriscKona,
+	faultDisputeVMs = []gameTypes.GameType{
+		gameTypes.CannonGameType,
+		gameTypes.CannonKonaGameType,
+		gameTypes.SuperCannonGameType,
+		gameTypes.SuperCannonKonaGameType,
 	}
 	// Required Flags
 	L1EthRpcFlag = &cli.StringFlag{
@@ -47,15 +50,25 @@ var (
 		Usage:   "HTTP provider URL for L1.",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
+	L1RPCProviderKind = &cli.GenericFlag{
+		Name: "l1-rpc-kind",
+		Usage: "The kind of RPC provider, used to inform optimal transactions receipts fetching, and thus reduce costs. Valid options: " +
+			openum.EnumString(sources.RPCProviderKinds),
+		EnvVars: prefixEnvVars("L1_RPC_KIND"),
+		Value: func() *sources.RPCProviderKind {
+			out := sources.RPCKindStandard
+			return &out
+		}(),
+	}
 	L1BeaconFlag = &cli.StringFlag{
 		Name:    "l1-beacon",
 		Usage:   "Address of L1 Beacon API endpoint to use",
 		EnvVars: prefixEnvVars("L1_BEACON"),
 	}
-	SupervisorRpcFlag = &cli.StringFlag{
-		Name:    "supervisor-rpc",
-		Usage:   "Provider URL for supervisor RPC",
-		EnvVars: prefixEnvVars("SUPERVISOR_RPC"),
+	SuperNodeRpcFlag = &cli.StringFlag{
+		Name:    "supernode-rpc",
+		Usage:   "Provider URL for supernode roots",
+		EnvVars: prefixEnvVars("SUPERNODE_RPC"),
 	}
 	RollupRpcFlag = &cli.StringFlag{
 		Name:    "rollup-rpc",
@@ -78,11 +91,12 @@ var (
 			"If empty, the challenger will play all games.",
 		EnvVars: prefixEnvVars("GAME_ALLOWLIST"),
 	}
-	TraceTypeFlag = &cli.StringSliceFlag{
-		Name:    "trace-type",
-		Usage:   "The trace types to support. Valid options: " + openum.EnumString(types.TraceTypes),
-		EnvVars: prefixEnvVars("TRACE_TYPE"),
-		Value:   cli.NewStringSlice(types.TraceTypeCannon.String(), types.TraceTypeAsteriscKona.String(), types.TraceTypeCannonKona.String()),
+	GameTypesFlag = &cli.StringSliceFlag{
+		Name:    "game-types",
+		Aliases: []string{"trace-type"}, // For backwards compatibility
+		Usage:   "The game types to support. Valid options: " + openum.EnumStringer(gameTypes.SupportedGameTypes),
+		EnvVars: prefixEnvVars("GAME_TYPES", "TRACE_TYPE"),
+		Value:   cli.NewStringSlice(gameTypes.CannonGameType.String(), gameTypes.CannonKonaGameType.String()),
 	}
 	DatadirFlag = &cli.StringFlag{
 		Name:    "datadir",
@@ -103,7 +117,7 @@ var (
 	}
 	L2ExperimentalEthRpcFlag = &cli.StringFlag{
 		Name:    "l2-experimental-eth-rpc",
-		Usage:   "L2 Address of L2 JSON-RPC endpoint to use (eth and debug namespace required with execution witness support)  (cannon/asterisc trace type only)",
+		Usage:   "L2 Address of L2 JSON-RPC endpoint to use (eth and debug namespace required with execution witness support)  (cannon game type only)",
 		EnvVars: prefixEnvVars("L2_EXPERIMENTAL_ETH_RPC"),
 	}
 	MaxPendingTransactionsFlag = &cli.Uint64Flag{
@@ -128,40 +142,40 @@ var (
 		Usage:   "List of addresses to claim bonds for, in addition to the configured transaction sender",
 		EnvVars: prefixEnvVars("ADDITIONAL_BOND_CLAIMANTS"),
 	}
-	PreStatesURLFlag = NewVMFlag("prestates-url", EnvVarPrefix, faultDisputeVMs, func(name string, envVars []string, traceTypeInfo string) cli.Flag {
+	PreStatesURLFlag = NewVMFlag("prestates-url", EnvVarPrefix, faultDisputeVMs, func(name string, envVars []string, gameTypeInfo string) cli.Flag {
 		return &cli.StringFlag{
 			Name: name,
 			Usage: "Base URL to absolute prestates to use when generating trace data. " +
 				"Prestates in this directory should be name as <commitment>.bin.gz <commitment>.json.gz or <commitment>.json " +
-				traceTypeInfo,
+				gameTypeInfo,
 			EnvVars: envVars,
 		}
 	})
-	RollupConfigFlag = NewVMFlag("rollup-config", EnvVarPrefix, faultDisputeVMs, func(name string, envVars []string, traceTypeInfo string) cli.Flag {
+	RollupConfigFlag = NewVMFlag("rollup-config", EnvVarPrefix, faultDisputeVMs, func(name string, envVars []string, gameTypeInfo string) cli.Flag {
 		return &cli.StringSliceFlag{
 			Name:    name,
-			Usage:   "Rollup chain parameters " + traceTypeInfo,
+			Usage:   "Rollup chain parameters " + gameTypeInfo,
 			EnvVars: envVars,
 		}
 	})
-	L2GenesisFlag = NewVMFlag("l2-genesis", EnvVarPrefix, faultDisputeVMs, func(name string, envVars []string, traceTypeInfo string) cli.Flag {
+	L2GenesisFlag = NewVMFlag("l2-genesis", EnvVarPrefix, faultDisputeVMs, func(name string, envVars []string, gameTypeInfo string) cli.Flag {
 		return &cli.StringSliceFlag{
 			Name:    name,
-			Usage:   "Paths to the op-geth genesis file " + traceTypeInfo,
+			Usage:   "Paths to the op-geth genesis file " + gameTypeInfo,
 			EnvVars: envVars,
 		}
 	})
-	L1GenesisFlag = NewVMFlag("l1-genesis", EnvVarPrefix, faultDisputeVMs, func(name string, envVars []string, traceTypeInfo string) cli.Flag {
+	L1GenesisFlag = NewVMFlag("l1-genesis", EnvVarPrefix, faultDisputeVMs, func(name string, envVars []string, gameTypeInfo string) cli.Flag {
 		return &cli.StringFlag{
 			Name:    name,
 			Usage:   "Path to the L1 genesis file. Only required if the L1 is not mainnet, sepolia, holesky, or hoodi.",
 			EnvVars: envVars,
 		}
 	})
-	DepsetConfigFlag = NewVMFlag("depset-config", EnvVarPrefix, faultDisputeVMs, func(name string, envVars []string, traceTypeInfo string) cli.Flag {
+	DepsetConfigFlag = NewVMFlag("depset-config", EnvVarPrefix, faultDisputeVMs, func(name string, envVars []string, gameTypeInfo string) cli.Flag {
 		return &cli.StringFlag{
 			Name:    name,
-			Usage:   "Interop dependency set config file " + traceTypeInfo,
+			Usage:   "Interop dependency set config file " + gameTypeInfo,
 			EnvVars: envVars,
 		}
 	})
@@ -175,39 +189,39 @@ var (
 	}
 	CannonBinFlag = &cli.StringFlag{
 		Name:    "cannon-bin",
-		Usage:   "Path to cannon executable to use when generating trace data (cannon trace type only)",
+		Usage:   "Path to cannon executable to use when generating trace data (cannon game type only)",
 		EnvVars: prefixEnvVars("CANNON_BIN"),
 	}
 	CannonServerFlag = &cli.StringFlag{
 		Name:    "cannon-server",
-		Usage:   "Path to executable to use as pre-image oracle server when generating trace data (cannon trace type only)",
+		Usage:   "Path to executable to use as pre-image oracle server when generating trace data (cannon game type only)",
 		EnvVars: prefixEnvVars("CANNON_SERVER"),
 	}
 	CannonPreStateFlag = &cli.StringFlag{
 		Name:    "cannon-prestate",
-		Usage:   "Path to absolute prestate to use when generating trace data (cannon trace type only)",
+		Usage:   "Path to absolute prestate to use when generating trace data (cannon game type only)",
 		EnvVars: prefixEnvVars("CANNON_PRESTATE"),
 	}
 	CannonSnapshotFreqFlag = &cli.UintFlag{
 		Name:    "cannon-snapshot-freq",
-		Usage:   "Frequency of cannon snapshots to generate in VM steps (cannon trace type only)",
+		Usage:   "Frequency of cannon snapshots to generate in VM steps (cannon game type only)",
 		EnvVars: prefixEnvVars("CANNON_SNAPSHOT_FREQ"),
 		Value:   config.DefaultCannonSnapshotFreq,
 	}
 	CannonInfoFreqFlag = &cli.UintFlag{
 		Name:    "cannon-info-freq",
-		Usage:   "Frequency of cannon info log messages to generate in VM steps (cannon trace type only)",
+		Usage:   "Frequency of cannon info log messages to generate in VM steps (cannon game type only)",
 		EnvVars: prefixEnvVars("CANNON_INFO_FREQ"),
 		Value:   config.DefaultCannonInfoFreq,
 	}
 	CannonKonaServerFlag = &cli.StringFlag{
 		Name:    "cannon-kona-server",
-		Usage:   "Path to kona executable to use as pre-image oracle server when generating trace data (cannon-kona trace type only)",
+		Usage:   "Path to kona executable to use as pre-image oracle server when generating trace data (cannon-kona game type only)",
 		EnvVars: prefixEnvVars("CANNON_KONA_SERVER"),
 	}
 	CannonKonaPreStateFlag = &cli.StringFlag{
 		Name:    "cannon-kona-prestate",
-		Usage:   "Path to absolute prestate to use when generating trace data (cannon-kona trace type only)",
+		Usage:   "Path to absolute prestate to use when generating trace data (cannon-kona game type only)",
 		EnvVars: prefixEnvVars("CANNON_KONA_PRESTATE"),
 	}
 	CannonKonaL2CustomFlag = &cli.BoolFlag{
@@ -217,51 +231,6 @@ var (
 		EnvVars: prefixEnvVars("CANNON_KONA_L2_CUSTOM"),
 		Value:   false,
 		Hidden:  true,
-	}
-	AsteriscBinFlag = &cli.StringFlag{
-		Name:    "asterisc-bin",
-		Usage:   "Path to asterisc executable to use when generating trace data (asterisc trace type only)",
-		EnvVars: prefixEnvVars("ASTERISC_BIN"),
-	}
-	AsteriscServerFlag = &cli.StringFlag{
-		Name:    "asterisc-server",
-		Usage:   "Path to executable to use as pre-image oracle server when generating trace data (asterisc trace type only)",
-		EnvVars: prefixEnvVars("ASTERISC_SERVER"),
-	}
-	AsteriscKonaServerFlag = &cli.StringFlag{
-		Name:    "asterisc-kona-server",
-		Usage:   "Path to kona executable to use as pre-image oracle server when generating trace data (asterisc-kona trace type only)",
-		EnvVars: prefixEnvVars("ASTERISC_KONA_SERVER"),
-	}
-	AsteriscKonaL2CustomFlag = &cli.BoolFlag{
-		Name: "asterisc-kona-l2-custom",
-		Usage: "Notify the kona-host that the L2 chain uses custom config to be loaded via the preimage oracle. " +
-			"WARNING: This is incompatible with on-chain testing and must only be used for testing purposes.",
-		EnvVars: prefixEnvVars("ASTERISC_KONA_L2_CUSTOM"),
-		Value:   false,
-		Hidden:  true,
-	}
-	AsteriscPreStateFlag = &cli.StringFlag{
-		Name:    "asterisc-prestate",
-		Usage:   "Path to absolute prestate to use when generating trace data (asterisc trace type only)",
-		EnvVars: prefixEnvVars("ASTERISC_PRESTATE"),
-	}
-	AsteriscKonaPreStateFlag = &cli.StringFlag{
-		Name:    "asterisc-kona-prestate",
-		Usage:   "Path to absolute prestate to use when generating trace data (asterisc-kona trace type only)",
-		EnvVars: prefixEnvVars("ASTERISC_KONA_PRESTATE"),
-	}
-	AsteriscSnapshotFreqFlag = &cli.UintFlag{
-		Name:    "asterisc-snapshot-freq",
-		Usage:   "Frequency of asterisc snapshots to generate in VM steps (asterisc trace type only)",
-		EnvVars: prefixEnvVars("ASTERISC_SNAPSHOT_FREQ"),
-		Value:   config.DefaultAsteriscSnapshotFreq,
-	}
-	AsteriscInfoFreqFlag = &cli.UintFlag{
-		Name:    "asterisc-info-freq",
-		Usage:   "Frequency of asterisc info log messages to generate in VM steps (asterisc trace type only)",
-		EnvVars: prefixEnvVars("ASTERISC_INFO_FREQ"),
-		Value:   config.DefaultAsteriscInfoFreq,
 	}
 	GameWindowFlag = &cli.DurationFlag{
 		Name: "game-window",
@@ -304,12 +273,13 @@ var requiredFlags = []cli.Flag{
 
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
+	L1RPCProviderKind,
 	RollupRpcFlag,
 	NetworkFlag,
 	FactoryAddressFlag,
-	TraceTypeFlag,
+	GameTypesFlag,
 	MaxConcurrencyFlag,
-	SupervisorRpcFlag,
+	SuperNodeRpcFlag,
 	L2EthRpcFlag,
 	L2ExperimentalEthRpcFlag,
 	MaxPendingTransactionsFlag,
@@ -326,14 +296,6 @@ var optionalFlags = []cli.Flag{
 	CannonKonaServerFlag,
 	CannonKonaPreStateFlag,
 	CannonKonaL2CustomFlag,
-	AsteriscBinFlag,
-	AsteriscServerFlag,
-	AsteriscKonaL2CustomFlag,
-	AsteriscKonaServerFlag,
-	AsteriscPreStateFlag,
-	AsteriscKonaPreStateFlag,
-	AsteriscSnapshotFreqFlag,
-	AsteriscInfoFreqFlag,
 	GameWindowFlag,
 	SelectiveClaimResolutionFlag,
 	UnsafeAllowInvalidPrestate,
@@ -367,13 +329,13 @@ func checkOutputProviderFlags(ctx *cli.Context) error {
 
 func CheckCannonBaseFlags(ctx *cli.Context) error {
 	if ctx.IsSet(flags.NetworkFlagName) &&
-		(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannon) || L2GenesisFlag.IsSet(ctx, types.TraceTypeCannon) || L1GenesisFlag.IsSet(ctx, types.TraceTypeCannon) || ctx.Bool(CannonL2CustomFlag.Name)) {
+		(RollupConfigFlag.IsSet(ctx, gameTypes.CannonGameType) || L2GenesisFlag.IsSet(ctx, gameTypes.CannonGameType) || L1GenesisFlag.IsSet(ctx, gameTypes.CannonGameType) || ctx.Bool(CannonL2CustomFlag.Name)) {
 		return fmt.Errorf("flag %v can not be used with %v, %v, %v or %v",
-			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(types.TraceTypeCannon), L2GenesisFlag.EitherFlagName(types.TraceTypeCannon), L1GenesisFlag.EitherFlagName(types.TraceTypeCannon), CannonL2CustomFlag.Name)
+			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(gameTypes.CannonGameType), L2GenesisFlag.EitherFlagName(gameTypes.CannonGameType), L1GenesisFlag.EitherFlagName(gameTypes.CannonGameType), CannonL2CustomFlag.Name)
 	}
-	if ctx.Bool(CannonL2CustomFlag.Name) && !(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannon) && L2GenesisFlag.IsSet(ctx, types.TraceTypeCannon)) {
+	if ctx.Bool(CannonL2CustomFlag.Name) && !(RollupConfigFlag.IsSet(ctx, gameTypes.CannonGameType) && L2GenesisFlag.IsSet(ctx, gameTypes.CannonGameType)) {
 		return fmt.Errorf("flag %v and %v must be set when %v is true",
-			RollupConfigFlag.EitherFlagName(types.TraceTypeCannon), L2GenesisFlag.EitherFlagName(types.TraceTypeCannon), CannonL2CustomFlag.Name)
+			RollupConfigFlag.EitherFlagName(gameTypes.CannonGameType), L2GenesisFlag.EitherFlagName(gameTypes.CannonGameType), CannonL2CustomFlag.Name)
 	}
 	if !ctx.IsSet(CannonBinFlag.Name) {
 		return fmt.Errorf("flag %s is required", CannonBinFlag.Name)
@@ -381,23 +343,23 @@ func CheckCannonBaseFlags(ctx *cli.Context) error {
 	if !ctx.IsSet(CannonServerFlag.Name) {
 		return fmt.Errorf("flag %s is required", CannonServerFlag.Name)
 	}
-	if !PreStatesURLFlag.IsSet(ctx, types.TraceTypeCannon) && !ctx.IsSet(CannonPreStateFlag.Name) {
-		return fmt.Errorf("flag %s or %s is required", PreStatesURLFlag.EitherFlagName(types.TraceTypeCannon), CannonPreStateFlag.Name)
+	if !PreStatesURLFlag.IsSet(ctx, gameTypes.CannonGameType) && !ctx.IsSet(CannonPreStateFlag.Name) {
+		return fmt.Errorf("flag %s or %s is required", PreStatesURLFlag.EitherFlagName(gameTypes.CannonGameType), CannonPreStateFlag.Name)
 	}
 	return nil
 }
 
 func CheckSuperCannonFlags(ctx *cli.Context) error {
-	if !ctx.IsSet(SupervisorRpcFlag.Name) {
-		return fmt.Errorf("flag %v is required", SupervisorRpcFlag.Name)
+	if !ctx.IsSet(SuperNodeRpcFlag.Name) {
+		return fmt.Errorf("flag %v is required", SuperNodeRpcFlag.Name)
 	}
 	if !ctx.IsSet(flags.NetworkFlagName) &&
-		!(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannon) && L2GenesisFlag.IsSet(ctx, types.TraceTypeCannon) && DepsetConfigFlag.IsSet(ctx, types.TraceTypeCannon)) {
+		!(RollupConfigFlag.IsSet(ctx, gameTypes.CannonGameType) && L2GenesisFlag.IsSet(ctx, gameTypes.CannonGameType) && DepsetConfigFlag.IsSet(ctx, gameTypes.CannonGameType)) {
 		return fmt.Errorf("flag %v or %v, %v and %v is required",
 			flags.NetworkFlagName,
-			RollupConfigFlag.EitherFlagName(types.TraceTypeCannon),
-			L2GenesisFlag.EitherFlagName(types.TraceTypeCannon),
-			DepsetConfigFlag.EitherFlagName(types.TraceTypeCannon))
+			RollupConfigFlag.EitherFlagName(gameTypes.CannonGameType),
+			L2GenesisFlag.EitherFlagName(gameTypes.CannonGameType),
+			DepsetConfigFlag.EitherFlagName(gameTypes.CannonGameType))
 	}
 	if err := CheckCannonBaseFlags(ctx); err != nil {
 		return err
@@ -406,18 +368,18 @@ func CheckSuperCannonFlags(ctx *cli.Context) error {
 }
 
 func CheckSuperCannonKonaFlags(ctx *cli.Context) error {
-	if !ctx.IsSet(SupervisorRpcFlag.Name) {
-		return fmt.Errorf("flag %v is required", SupervisorRpcFlag.Name)
+	if !ctx.IsSet(SuperNodeRpcFlag.Name) {
+		return fmt.Errorf("flag %v is required", SuperNodeRpcFlag.Name)
 	}
 	if !ctx.IsSet(flags.NetworkFlagName) &&
-		!(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannonKona) && L2GenesisFlag.IsSet(ctx, types.TraceTypeCannonKona) && DepsetConfigFlag.IsSet(ctx, types.TraceTypeCannonKona)) {
+		!(RollupConfigFlag.IsSet(ctx, gameTypes.CannonKonaGameType) && L2GenesisFlag.IsSet(ctx, gameTypes.CannonKonaGameType) && DepsetConfigFlag.IsSet(ctx, gameTypes.CannonKonaGameType)) {
 		return fmt.Errorf("flag %v or %v, %v and %v is required",
 			flags.NetworkFlagName,
-			RollupConfigFlag.EitherFlagName(types.TraceTypeCannonKona),
-			L2GenesisFlag.EitherFlagName(types.TraceTypeCannonKona),
-			DepsetConfigFlag.EitherFlagName(types.TraceTypeCannonKona))
+			RollupConfigFlag.EitherFlagName(gameTypes.CannonKonaGameType),
+			L2GenesisFlag.EitherFlagName(gameTypes.CannonKonaGameType),
+			DepsetConfigFlag.EitherFlagName(gameTypes.CannonKonaGameType))
 	}
-	if err := CheckCannonKonaBaseFlags(ctx, types.TraceTypeCannonKona); err != nil {
+	if err := CheckCannonKonaBaseFlags(ctx, gameTypes.CannonKonaGameType); err != nil {
 		return err
 	}
 	return nil
@@ -428,9 +390,9 @@ func CheckCannonFlags(ctx *cli.Context) error {
 		return err
 	}
 	if !ctx.IsSet(flags.NetworkFlagName) &&
-		!(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannon) && L2GenesisFlag.IsSet(ctx, types.TraceTypeCannon)) {
+		!(RollupConfigFlag.IsSet(ctx, gameTypes.CannonGameType) && L2GenesisFlag.IsSet(ctx, gameTypes.CannonGameType)) {
 		return fmt.Errorf("flag %v or %v and %v is required",
-			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(types.TraceTypeCannon), L2GenesisFlag.EitherFlagName(types.TraceTypeCannon))
+			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(gameTypes.CannonGameType), L2GenesisFlag.EitherFlagName(gameTypes.CannonGameType))
 	}
 	if err := CheckCannonBaseFlags(ctx); err != nil {
 		return err
@@ -438,16 +400,16 @@ func CheckCannonFlags(ctx *cli.Context) error {
 	return nil
 }
 
-func CheckCannonKonaBaseFlags(ctx *cli.Context, traceType types.TraceType) error {
+func CheckCannonKonaBaseFlags(ctx *cli.Context, gameType gameTypes.GameType) error {
 	if !ctx.IsSet(flags.NetworkFlagName) &&
-		!(RollupConfigFlag.IsSet(ctx, traceType) && L2GenesisFlag.IsSet(ctx, traceType)) {
+		!(RollupConfigFlag.IsSet(ctx, gameType) && L2GenesisFlag.IsSet(ctx, gameType)) {
 		return fmt.Errorf("flag %v or %v and %v is required",
-			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(traceType), L2GenesisFlag.EitherFlagName(traceType))
+			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(gameType), L2GenesisFlag.EitherFlagName(gameType))
 	}
 	if ctx.IsSet(flags.NetworkFlagName) &&
-		(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannonKona) || L2GenesisFlag.IsSet(ctx, types.TraceTypeCannonKona) || L1GenesisFlag.IsSet(ctx, types.TraceTypeCannonKona) || ctx.Bool(CannonKonaL2CustomFlag.Name)) {
+		(RollupConfigFlag.IsSet(ctx, gameTypes.CannonKonaGameType) || L2GenesisFlag.IsSet(ctx, gameTypes.CannonKonaGameType) || L1GenesisFlag.IsSet(ctx, gameTypes.CannonKonaGameType) || ctx.Bool(CannonKonaL2CustomFlag.Name)) {
 		return fmt.Errorf("flag %v can not be used with %v, %v, %v or %v",
-			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(types.TraceTypeCannonKona), L2GenesisFlag.EitherFlagName(types.TraceTypeCannonKona), L1GenesisFlag.EitherFlagName(types.TraceTypeCannonKona), CannonKonaL2CustomFlag.Name)
+			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(gameTypes.CannonKonaGameType), L2GenesisFlag.EitherFlagName(gameTypes.CannonKonaGameType), L1GenesisFlag.EitherFlagName(gameTypes.CannonKonaGameType), CannonKonaL2CustomFlag.Name)
 	}
 	if !ctx.IsSet(CannonBinFlag.Name) {
 		return fmt.Errorf("flag %s is required", CannonBinFlag.Name)
@@ -459,92 +421,19 @@ func CheckCannonKonaFlags(ctx *cli.Context) error {
 	if err := checkOutputProviderFlags(ctx); err != nil {
 		return err
 	}
-	if err := CheckCannonKonaBaseFlags(ctx, types.TraceTypeCannonKona); err != nil {
+	if err := CheckCannonKonaBaseFlags(ctx, gameTypes.CannonKonaGameType); err != nil {
 		return err
 	}
 	if !ctx.IsSet(CannonKonaServerFlag.Name) {
 		return fmt.Errorf("flag %s is required", CannonKonaServerFlag.Name)
 	}
-	if !PreStatesURLFlag.IsSet(ctx, types.TraceTypeCannonKona) && !ctx.IsSet(CannonKonaPreStateFlag.Name) {
-		return fmt.Errorf("flag %s or %s is required", PreStatesURLFlag.EitherFlagName(types.TraceTypeCannonKona), CannonKonaPreStateFlag.Name)
+	if !PreStatesURLFlag.IsSet(ctx, gameTypes.CannonKonaGameType) && !ctx.IsSet(CannonKonaPreStateFlag.Name) {
+		return fmt.Errorf("flag %s or %s is required", PreStatesURLFlag.EitherFlagName(gameTypes.CannonKonaGameType), CannonKonaPreStateFlag.Name)
 	}
 	return nil
 }
 
-func CheckAsteriscBaseFlags(ctx *cli.Context, traceType types.TraceType) error {
-	if !ctx.IsSet(flags.NetworkFlagName) &&
-		!(RollupConfigFlag.IsSet(ctx, traceType) && L2GenesisFlag.IsSet(ctx, traceType)) {
-		return fmt.Errorf("flag %v or %v and %v is required",
-			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(traceType), L2GenesisFlag.EitherFlagName(traceType))
-	}
-	if ctx.IsSet(flags.NetworkFlagName) &&
-		(RollupConfigFlag.IsSet(ctx, types.TraceTypeAsteriscKona) || L2GenesisFlag.IsSet(ctx, types.TraceTypeAsteriscKona) || L1GenesisFlag.IsSet(ctx, types.TraceTypeAsteriscKona) || ctx.Bool(AsteriscKonaL2CustomFlag.Name)) {
-		return fmt.Errorf("flag %v can not be used with %v, %v, %v or %v",
-			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(types.TraceTypeAsteriscKona), L2GenesisFlag.EitherFlagName(types.TraceTypeAsteriscKona), L1GenesisFlag.EitherFlagName(types.TraceTypeAsteriscKona), AsteriscKonaL2CustomFlag.Name)
-	}
-	if !ctx.IsSet(AsteriscBinFlag.Name) {
-		return fmt.Errorf("flag %s is required", AsteriscBinFlag.Name)
-	}
-	return nil
-}
-
-func CheckAsteriscFlags(ctx *cli.Context) error {
-	if err := checkOutputProviderFlags(ctx); err != nil {
-		return err
-	}
-	if err := CheckAsteriscBaseFlags(ctx, types.TraceTypeAsterisc); err != nil {
-		return err
-	}
-	if !ctx.IsSet(AsteriscServerFlag.Name) {
-		return fmt.Errorf("flag %s is required", AsteriscServerFlag.Name)
-	}
-	if !PreStatesURLFlag.IsSet(ctx, types.TraceTypeAsterisc) && !ctx.IsSet(AsteriscPreStateFlag.Name) {
-		return fmt.Errorf("flag %s or %s is required", PreStatesURLFlag.EitherFlagName(types.TraceTypeAsterisc), AsteriscPreStateFlag.Name)
-	}
-	return nil
-}
-
-func CheckAsteriscKonaFlags(ctx *cli.Context) error {
-	if err := checkOutputProviderFlags(ctx); err != nil {
-		return err
-	}
-	if err := CheckAsteriscBaseFlags(ctx, types.TraceTypeAsteriscKona); err != nil {
-		return err
-	}
-	if !ctx.IsSet(AsteriscKonaServerFlag.Name) {
-		return fmt.Errorf("flag %s is required", AsteriscKonaServerFlag.Name)
-	}
-	if !PreStatesURLFlag.IsSet(ctx, types.TraceTypeAsteriscKona) && !ctx.IsSet(AsteriscKonaPreStateFlag.Name) {
-		return fmt.Errorf("flag %s or %s is required", PreStatesURLFlag.EitherFlagName(types.TraceTypeAsteriscKona), AsteriscKonaPreStateFlag.Name)
-	}
-	return nil
-}
-
-func CheckSuperAsteriscKonaFlags(ctx *cli.Context) error {
-	if !ctx.IsSet(SupervisorRpcFlag.Name) {
-		return fmt.Errorf("flag %v is required", SupervisorRpcFlag.Name)
-	}
-	if !ctx.IsSet(flags.NetworkFlagName) &&
-		!(RollupConfigFlag.IsSet(ctx, types.TraceTypeAsteriscKona) && L2GenesisFlag.IsSet(ctx, types.TraceTypeAsteriscKona) && DepsetConfigFlag.IsSet(ctx, types.TraceTypeAsteriscKona)) {
-		return fmt.Errorf("flag %v or %v, %v and %v is required",
-			flags.NetworkFlagName,
-			RollupConfigFlag.EitherFlagName(types.TraceTypeAsteriscKona),
-			L2GenesisFlag.EitherFlagName(types.TraceTypeAsteriscKona),
-			DepsetConfigFlag.EitherFlagName(types.TraceTypeAsteriscKona))
-	}
-	if err := CheckAsteriscBaseFlags(ctx, types.TraceTypeAsteriscKona); err != nil {
-		return err
-	}
-	if !ctx.IsSet(AsteriscKonaServerFlag.Name) {
-		return fmt.Errorf("flag %s is required", AsteriscKonaServerFlag.Name)
-	}
-	if !PreStatesURLFlag.IsSet(ctx, types.TraceTypeAsteriscKona) && !ctx.IsSet(AsteriscKonaPreStateFlag.Name) {
-		return fmt.Errorf("flag %s or %s is required", PreStatesURLFlag.EitherFlagName(types.TraceTypeAsteriscKona), AsteriscKonaPreStateFlag.Name)
-	}
-	return nil
-}
-
-func CheckRequired(ctx *cli.Context, traceTypes []types.TraceType) error {
+func CheckRequired(ctx *cli.Context, types []gameTypes.GameType) error {
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
@@ -553,59 +442,47 @@ func CheckRequired(ctx *cli.Context, traceTypes []types.TraceType) error {
 	if !ctx.IsSet(L2EthRpcFlag.Name) {
 		return fmt.Errorf("flag %s is required", L2EthRpcFlag.Name)
 	}
-	for _, traceType := range traceTypes {
-		switch traceType {
-		case types.TraceTypeCannon, types.TraceTypePermissioned:
+	for _, gameType := range types {
+		switch gameType {
+		case gameTypes.CannonGameType, gameTypes.PermissionedGameType:
 			if err := CheckCannonFlags(ctx); err != nil {
 				return err
 			}
-		case types.TraceTypeCannonKona:
+		case gameTypes.CannonKonaGameType:
 			if err := CheckCannonKonaFlags(ctx); err != nil {
 				return err
 			}
-		case types.TraceTypeAsterisc:
-			if err := CheckAsteriscFlags(ctx); err != nil {
-				return err
-			}
-		case types.TraceTypeAsteriscKona:
-			if err := CheckAsteriscKonaFlags(ctx); err != nil {
-				return err
-			}
-		case types.TraceTypeSuperCannon, types.TraceTypeSuperPermissioned:
+		case gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType:
 			if err := CheckSuperCannonFlags(ctx); err != nil {
 				return err
 			}
-		case types.TraceTypeSuperCannonKona:
+		case gameTypes.SuperCannonKonaGameType:
 			if err := CheckSuperCannonKonaFlags(ctx); err != nil {
 				return err
 			}
-		case types.TraceTypeSuperAsteriscKona:
-			if err := CheckSuperAsteriscKonaFlags(ctx); err != nil {
-				return err
-			}
-		case types.TraceTypeAlphabet, types.TraceTypeFast:
+		case gameTypes.OptimisticZKGameType, gameTypes.AlphabetGameType, gameTypes.FastGameType:
 			if err := checkOutputProviderFlags(ctx); err != nil {
 				return err
 			}
 		default:
-			return fmt.Errorf("invalid trace type %v. must be one of %v", traceType, types.TraceTypes)
+			return fmt.Errorf("invalid game type %v. must be one of %v", gameType, gameTypes.SupportedGameTypes)
 		}
 	}
 	return nil
 }
 
-func parseTraceTypes(ctx *cli.Context) ([]types.TraceType, error) {
-	var traceTypes []types.TraceType
-	for _, typeName := range ctx.StringSlice(TraceTypeFlag.Name) {
-		traceType := new(types.TraceType)
-		if err := traceType.Set(typeName); err != nil {
+func parseGameTypes(ctx *cli.Context) ([]gameTypes.GameType, error) {
+	var result []gameTypes.GameType
+	for _, typeName := range ctx.StringSlice(GameTypesFlag.Name) {
+		gameType, err := gameTypes.SupportedGameTypeFromString(typeName)
+		if err != nil {
 			return nil, err
 		}
-		if !slices.Contains(traceTypes, *traceType) {
-			traceTypes = append(traceTypes, *traceType)
+		if !slices.Contains(result, gameType) {
+			result = append(result, gameType)
 		}
 	}
-	return traceTypes, nil
+	return result, nil
 }
 
 type ChainAddressesSource func(network string) (superchain.AddressesConfig, error)
@@ -656,11 +533,11 @@ func FactoryAddressForNetworks(networks []string, addressSource ChainAddressesSo
 
 // NewConfigFromCLI parses the Config from the provided flags or environment variables.
 func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, error) {
-	traceTypes, err := parseTraceTypes(ctx)
+	enabledGameTypes, err := parseGameTypes(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := CheckRequired(ctx, traceTypes); err != nil {
+	if err := CheckRequired(ctx, enabledGameTypes); err != nil {
 		return nil, err
 	}
 	gameFactoryAddress, err := FactoryAddress(ctx)
@@ -697,30 +574,22 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		}
 	}
 
-	getPrestatesUrl := func(traceType types.TraceType) (*url.URL, error) {
+	getPrestatesUrl := func(gameType gameTypes.GameType) (*url.URL, error) {
 		var preStatesURL *url.URL
-		if PreStatesURLFlag.IsSet(ctx, traceType) {
-			val := PreStatesURLFlag.String(ctx, traceType)
+		if PreStatesURLFlag.IsSet(ctx, gameType) {
+			val := PreStatesURLFlag.String(ctx, gameType)
 			preStatesURL, err = url.Parse(val)
 			if err != nil {
-				return nil, fmt.Errorf("invalid %v (%v): %w", PreStatesURLFlag.SourceFlagName(ctx, traceType), val, err)
+				return nil, fmt.Errorf("invalid %v (%v): %w", PreStatesURLFlag.SourceFlagName(ctx, gameType), val, err)
 			}
 		}
 		return preStatesURL, nil
 	}
-	cannonPreStatesURL, err := getPrestatesUrl(types.TraceTypeCannon)
+	cannonPreStatesURL, err := getPrestatesUrl(gameTypes.CannonGameType)
 	if err != nil {
 		return nil, err
 	}
-	cannonKonaPreStatesURL, err := getPrestatesUrl(types.TraceTypeCannonKona)
-	if err != nil {
-		return nil, err
-	}
-	asteriscPreStatesURL, err := getPrestatesUrl(types.TraceTypeAsterisc)
-	if err != nil {
-		return nil, err
-	}
-	asteriscKonaPreStatesURL, err := getPrestatesUrl(types.TraceTypeAsteriscKona)
+	cannonKonaPreStatesURL, err := getPrestatesUrl(gameTypes.CannonKonaGameType)
 	if err != nil {
 		return nil, err
 	}
@@ -732,8 +601,9 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 	return &config.Config{
 		// Required Flags
 		L1EthRpc:                l1EthRpc,
+		L1RPCKind:               sources.RPCProviderKind(strings.ToLower(ctx.String(L1RPCProviderKind.Name))),
 		L1Beacon:                l1Beacon,
-		TraceTypes:              traceTypes,
+		GameTypes:               enabledGameTypes,
 		GameFactoryAddress:      gameFactoryAddress,
 		GameAllowlist:           allowedGames,
 		GameWindow:              ctx.Duration(GameWindowFlag.Name),
@@ -744,9 +614,9 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		MinUpdateInterval:       ctx.Duration(MinUpdateInterval.Name),
 		AdditionalBondClaimants: claimants,
 		RollupRpc:               ctx.String(RollupRpcFlag.Name),
-		SupervisorRPC:           ctx.String(SupervisorRpcFlag.Name),
+		SuperRPC:                ctx.String(SuperNodeRpcFlag.Name),
 		Cannon: vm.Config{
-			VmType:            types.TraceTypeCannon,
+			VmType:            gameTypes.CannonGameType,
 			L1:                l1EthRpc,
 			L1Beacon:          l1Beacon,
 			L2s:               l2Rpcs,
@@ -755,10 +625,10 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 			Server:            ctx.String(CannonServerFlag.Name),
 			Networks:          networks,
 			L2Custom:          ctx.Bool(CannonL2CustomFlag.Name),
-			RollupConfigPaths: RollupConfigFlag.StringSlice(ctx, types.TraceTypeCannon),
-			L1GenesisPath:     L1GenesisFlag.String(ctx, types.TraceTypeCannon),
-			L2GenesisPaths:    L2GenesisFlag.StringSlice(ctx, types.TraceTypeCannon),
-			DepsetConfigPath:  DepsetConfigFlag.String(ctx, types.TraceTypeCannon),
+			RollupConfigPaths: RollupConfigFlag.StringSlice(ctx, gameTypes.CannonGameType),
+			L1GenesisPath:     L1GenesisFlag.String(ctx, gameTypes.CannonGameType),
+			L2GenesisPaths:    L2GenesisFlag.StringSlice(ctx, gameTypes.CannonGameType),
+			DepsetConfigPath:  DepsetConfigFlag.String(ctx, gameTypes.CannonGameType),
 			SnapshotFreq:      ctx.Uint(CannonSnapshotFreqFlag.Name),
 			InfoFreq:          ctx.Uint(CannonInfoFreqFlag.Name),
 			DebugInfo:         true,
@@ -767,7 +637,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		CannonAbsolutePreState:        ctx.String(CannonPreStateFlag.Name),
 		CannonAbsolutePreStateBaseURL: cannonPreStatesURL,
 		CannonKona: vm.Config{
-			VmType:            types.TraceTypeCannonKona,
+			VmType:            gameTypes.CannonKonaGameType,
 			L1:                l1EthRpc,
 			L1Beacon:          l1Beacon,
 			L2s:               l2Rpcs,
@@ -776,10 +646,10 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 			Server:            ctx.String(CannonKonaServerFlag.Name),
 			Networks:          networks,
 			L2Custom:          ctx.Bool(CannonKonaL2CustomFlag.Name),
-			RollupConfigPaths: RollupConfigFlag.StringSlice(ctx, types.TraceTypeCannonKona),
-			L1GenesisPath:     L1GenesisFlag.String(ctx, types.TraceTypeCannonKona),
-			L2GenesisPaths:    L2GenesisFlag.StringSlice(ctx, types.TraceTypeCannonKona),
-			DepsetConfigPath:  DepsetConfigFlag.String(ctx, types.TraceTypeCannonKona),
+			RollupConfigPaths: RollupConfigFlag.StringSlice(ctx, gameTypes.CannonKonaGameType),
+			L1GenesisPath:     L1GenesisFlag.String(ctx, gameTypes.CannonKonaGameType),
+			L2GenesisPaths:    L2GenesisFlag.StringSlice(ctx, gameTypes.CannonKonaGameType),
+			DepsetConfigPath:  DepsetConfigFlag.String(ctx, gameTypes.CannonKonaGameType),
 			SnapshotFreq:      ctx.Uint(CannonSnapshotFreqFlag.Name),
 			InfoFreq:          ctx.Uint(CannonInfoFreqFlag.Name),
 			DebugInfo:         true,
@@ -788,51 +658,12 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		CannonKonaAbsolutePreState:        ctx.String(CannonKonaPreStateFlag.Name),
 		CannonKonaAbsolutePreStateBaseURL: cannonKonaPreStatesURL,
 		Datadir:                           ctx.String(DatadirFlag.Name),
-		Asterisc: vm.Config{
-			VmType:            types.TraceTypeAsterisc,
-			L1:                l1EthRpc,
-			L1Beacon:          l1Beacon,
-			L2s:               l2Rpcs,
-			L2Experimental:    l2Experimental,
-			VmBin:             ctx.String(AsteriscBinFlag.Name),
-			Server:            ctx.String(AsteriscServerFlag.Name),
-			Networks:          networks,
-			RollupConfigPaths: RollupConfigFlag.StringSlice(ctx, types.TraceTypeAsterisc),
-			L1GenesisPath:     L1GenesisFlag.String(ctx, types.TraceTypeAsterisc),
-			L2GenesisPaths:    L2GenesisFlag.StringSlice(ctx, types.TraceTypeAsterisc),
-			DepsetConfigPath:  DepsetConfigFlag.String(ctx, types.TraceTypeAsterisc),
-			SnapshotFreq:      ctx.Uint(AsteriscSnapshotFreqFlag.Name),
-			InfoFreq:          ctx.Uint(AsteriscInfoFreqFlag.Name),
-			BinarySnapshots:   true,
-		},
-		AsteriscAbsolutePreState:        ctx.String(AsteriscPreStateFlag.Name),
-		AsteriscAbsolutePreStateBaseURL: asteriscPreStatesURL,
-		AsteriscKona: vm.Config{
-			VmType:            types.TraceTypeAsteriscKona,
-			L1:                l1EthRpc,
-			L1Beacon:          l1Beacon,
-			L2s:               l2Rpcs,
-			L2Experimental:    l2Experimental,
-			VmBin:             ctx.String(AsteriscBinFlag.Name),
-			Server:            ctx.String(AsteriscKonaServerFlag.Name),
-			Networks:          networks,
-			L2Custom:          ctx.Bool(AsteriscKonaL2CustomFlag.Name),
-			RollupConfigPaths: RollupConfigFlag.StringSlice(ctx, types.TraceTypeAsteriscKona),
-			L1GenesisPath:     L1GenesisFlag.String(ctx, types.TraceTypeAsteriscKona),
-			L2GenesisPaths:    L2GenesisFlag.StringSlice(ctx, types.TraceTypeAsteriscKona),
-			DepsetConfigPath:  DepsetConfigFlag.String(ctx, types.TraceTypeAsteriscKona),
-			SnapshotFreq:      ctx.Uint(AsteriscSnapshotFreqFlag.Name),
-			InfoFreq:          ctx.Uint(AsteriscInfoFreqFlag.Name),
-			BinarySnapshots:   true,
-		},
-		AsteriscKonaAbsolutePreState:        ctx.String(AsteriscKonaPreStateFlag.Name),
-		AsteriscKonaAbsolutePreStateBaseURL: asteriscKonaPreStatesURL,
-		TxMgrConfig:                         txMgrConfig,
-		MetricsConfig:                       metricsConfig,
-		PprofConfig:                         pprofConfig,
-		SelectiveClaimResolution:            ctx.Bool(SelectiveClaimResolutionFlag.Name),
-		AllowInvalidPrestate:                ctx.Bool(UnsafeAllowInvalidPrestate.Name),
-		ResponseDelay:                       ctx.Duration(ResponseDelayFlag.Name),
-		ResponseDelayAfter:                  ctx.Uint64(ResponseDelayAfterFlag.Name),
+		TxMgrConfig:                       txMgrConfig,
+		MetricsConfig:                     metricsConfig,
+		PprofConfig:                       pprofConfig,
+		SelectiveClaimResolution:          ctx.Bool(SelectiveClaimResolutionFlag.Name),
+		AllowInvalidPrestate:              ctx.Bool(UnsafeAllowInvalidPrestate.Name),
+		ResponseDelay:                     ctx.Duration(ResponseDelayFlag.Name),
+		ResponseDelayAfter:                ctx.Uint64(ResponseDelayAfterFlag.Name),
 	}, nil
 }

@@ -18,6 +18,7 @@ func (*NoopTxMetrics) TxPublished(string)                {}
 func (*NoopTxMetrics) RecordBaseFee(*big.Int)            {}
 func (*NoopTxMetrics) RecordBlobBaseFee(*big.Int)        {}
 func (*NoopTxMetrics) RecordTipCap(*big.Int)             {}
+func (*NoopTxMetrics) RecordBlobTipCap(*big.Int)         {}
 func (*NoopTxMetrics) RPCError()                         {}
 
 type FakeTxMetrics struct {

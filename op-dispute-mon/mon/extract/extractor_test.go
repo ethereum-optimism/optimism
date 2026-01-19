@@ -315,7 +315,7 @@ func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ .
 	}, nil
 }
 
-func (m *mockGameCaller) GetGameMetadata(_ context.Context, _ rpcblock.Block) (contracts.GameMetadata, error) {
+func (m *mockGameCaller) GetExtendedMetadata(_ context.Context, _ rpcblock.Block) (contracts.GameMetadata, error) {
 	m.metadataCalls++
 	if m.metadataErr != nil {
 		return contracts.GameMetadata{}, m.metadataErr

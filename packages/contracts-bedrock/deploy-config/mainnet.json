@@ -60,5 +60,10 @@
   "respectedGameType": 0,
   "useFaultProofs": true,
   "useRevenueShare": true,
-  "chainFeesRecipient": "0xa3d596EAfaB6B13Ab18D40FaE1A962700C84ADEa"
+  "chainFeesRecipient": "0xa3d596EAfaB6B13Ab18D40FaE1A962700C84ADEa",
+  "useCustomGasToken": false,
+  "gasPayingTokenName": "",
+  "gasPayingTokenSymbol": "",
+  "nativeAssetLiquidityAmount": null,
+  "liquidityControllerOwner": "0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A"
 }

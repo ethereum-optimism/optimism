@@ -91,6 +91,10 @@ func (cl *L2CLNode) StopSequencer() common.Hash {
 	return unsafeHead
 }
 
+func (cl *L2CLNode) SetSequencerRecoverMode(b bool) error {
+	return cl.inner.RollupAPI().SetRecoverMode(cl.ctx, b)
+}
+
 func (cl *L2CLNode) SyncStatus() *eth.SyncStatus {
 	ctx, cancel := context.WithTimeout(cl.ctx, DefaultTimeout)
 	defer cancel()
@@ -191,7 +195,8 @@ func (cl *L2CLNode) ReachedRefFn(lvl types.SafetyLevel, target eth.BlockID, atte
 		if err != nil {
 			return err
 		}
-		ethclient := cl.inner.ELs()[0].EthClient()
+
+		ethclient := cl.inner.ELClient()
 		result, err := ethclient.BlockRefByNumber(cl.ctx, target.Number)
 		if err != nil {
 			return err
@@ -230,12 +235,24 @@ func (cl *L2CLNode) Advanced(lvl types.SafetyLevel, delta uint64, attempts int) 
 	cl.require.NoError(cl.AdvancedFn(lvl, delta, attempts)())
 }
 
+func (cl *L2CLNode) AdvancedUnsafe(delta uint64, attempts int) {
+	cl.Advanced(types.LocalUnsafe, delta, attempts)
+}
+
 func (cl *L2CLNode) NotAdvanced(lvl types.SafetyLevel, attempts int) {
 	cl.require.NoError(cl.NotAdvancedFn(lvl, attempts)())
 }
 
+func (cl *L2CLNode) NotAdvancedUnsafe(attempts int) {
+	cl.NotAdvanced(types.LocalUnsafe, attempts)
+}
+
 func (cl *L2CLNode) Reached(lvl types.SafetyLevel, target uint64, attempts int) {
 	cl.require.NoError(cl.ReachedFn(lvl, target, attempts)())
+}
+
+func (cl *L2CLNode) ReachedUnsafe(target uint64, attempts int) {
+	cl.Reached(types.LocalUnsafe, target, attempts)
 }
 
 func (cl *L2CLNode) ReachedRef(lvl types.SafetyLevel, target eth.BlockID, attempts int) {
@@ -279,6 +296,10 @@ func (cl *L2CLNode) Lagged(refNode SyncStatusProvider, lvl types.SafetyLevel, at
 
 func (cl *L2CLNode) Matched(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) {
 	cl.require.NoError(cl.MatchedFn(refNode, lvl, attempts)())
+}
+
+func (cl *L2CLNode) MatchedUnsafe(refNode SyncStatusProvider, attempts int) {
+	cl.Matched(refNode, types.LocalUnsafe, attempts)
 }
 
 func (cl *L2CLNode) PeerInfo() *apis.PeerInfo {
@@ -412,4 +433,24 @@ func (cl *L2CLNode) AppendUnsafePayloadUntilTip(verEL, seqEL *L2ELNode, maxAttem
 
 func (cl *L2CLNode) UnsafeHead() *BlockRefResult {
 	return &BlockRefResult{T: cl.t, BlockRef: cl.HeadBlockRef(types.LocalUnsafe)}
+}
+
+func (cl *L2CLNode) SafeHead() *BlockRefResult {
+	return &BlockRefResult{T: cl.t, BlockRef: cl.HeadBlockRef(types.CrossSafe)}
+}
+
+func (cl *L2CLNode) CurrentL1MatchedFn(refNode *L2CLNode, attempts int) CheckFunc {
+	return func() error {
+		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 1 * time.Second},
+			func() error {
+				currentL1 := cl.SyncStatus().CurrentL1
+				ref := refNode.SyncStatus().CurrentL1
+				if currentL1 == ref {
+					cl.log.Info("CurrentL1 reached", "currentL1", currentL1)
+					return nil
+				}
+				cl.log.Info("Chain sync status", "currentL1", currentL1.Number, "ref", ref)
+				return fmt.Errorf("expected currentL1 to match")
+			})
+	}
 }

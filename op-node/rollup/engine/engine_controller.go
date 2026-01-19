@@ -62,6 +62,7 @@ type ExecEngine interface {
 	NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error)
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 	L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L2BlockRef, error)
+	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 }
 
 // Metrics interface for CLSync functionality
@@ -184,7 +185,6 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 	}
 }
-
 func (e *EngineController) UnsafeL2Head() eth.L2BlockRef {
 	return e.unsafeHead
 }
@@ -867,11 +867,11 @@ func (e *EngineController) SetOriginSelectorResetter(resetter OriginSelectorForc
 func (e *EngineController) ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.forceReset(ctx, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
+	e.forceReset(ctx, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized, false)
 }
 
 // forceReset performs a forced reset to the specified block references
-func (e *EngineController) forceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
+func (e *EngineController) forceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef, signalOnlySeq bool) {
 	// Reset other components before resetting the engine
 	if e.attributesResetter != nil {
 		e.attributesResetter.ForceReset(ctx, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
@@ -890,8 +890,19 @@ func (e *EngineController) forceReset(ctx context.Context, localUnsafe, crossUns
 		e.emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})
 	}
 
-	// Time to apply the changes to the underlying engine
-	e.tryUpdateEngine(ctx)
+	if signalOnlySeq {
+		// Intentionally not propagating ForkchoiceUpdateEvent to other event Deriver avoiding side effects.
+		// If we do tryUpdateEngine instead, it will eventually emit ForkchoiceUpdateEvent, causing block building
+		// to never begin. Use fine grained ForkchoiceUpdateInitEvent to only propagate info to the sequencer component.
+		e.emitter.Emit(ctx, ForkchoiceUpdateInitEvent{
+			UnsafeL2Head:    e.unsafeHead,
+			SafeL2Head:      e.safeHead,
+			FinalizedL2Head: e.finalizedHead,
+		})
+	} else {
+		// Time to apply the changes to the underlying engine
+		e.tryUpdateEngine(ctx)
+	}
 
 	v := EngineResetConfirmedEvent{
 		LocalUnsafe: e.unsafeHead,
@@ -1035,7 +1046,28 @@ func (e *EngineController) onResetEngineRequest(ctx context.Context) {
 		})
 		return
 	}
-	e.forceReset(ctx, result.Unsafe, result.Unsafe, result.Safe, result.Safe, result.Finalized)
+	e.forceReset(ctx, result.Unsafe, result.Unsafe, result.Safe, result.Safe, result.Finalized, false)
+}
+
+// TryInitialResetEngineForSequencer resets engine controller with the info from FindL2Heads and only propagates
+// ForkchoiceUpdateEvent info to the sequencer to trigger sequencer block building, but not propagating
+// ForkchoiceUpdateEvent to other event Deriver avoiding side effects
+func (e *EngineController) TryInitialResetEngineForSequencer(ctx context.Context) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.unsafeHead != (eth.L2BlockRef{}) {
+		// Engine already initialized unsafe head. Early return
+		return
+	}
+	e.log.Info("EngineController Unsafe head was not initialized at the start of the reset")
+	result, err := sync.FindL2Heads(e.ctx, e.rollupCfg, e.l1, e.engine, e.log, e.syncCfg)
+	if err != nil {
+		e.log.Warn("Failed to find L2 Heads to start from while initial reset: %w", err)
+		// Do not emit ResetEvent because it will end propagating ForkchoiceUpdateEvent
+		// Because the engine controller failed to initialize, the next SyncStep will retry this method
+		return
+	}
+	e.forceReset(ctx, result.Unsafe, result.Unsafe, result.Safe, result.Safe, result.Finalized, true)
 }
 
 var ErrEngineSyncing = errors.New("engine is syncing")
@@ -1090,4 +1122,66 @@ func (e *EngineController) startPayload(ctx context.Context, fc eth.ForkchoiceSt
 	default:
 		return eth.PayloadID{}, BlockInsertTemporaryErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
 	}
+}
+
+func (e *EngineController) FollowSource(eSafeBlockRef, eFinalizedRef eth.L2BlockRef) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	followExternalRefs := func(updateUnsafe bool) {
+		// Assume the sanity of external safe and finalized are checked
+		if updateUnsafe {
+			// May interrupt ongoing EL Sync to update the target, or trigger EL Sync
+			e.tryUpdateUnsafe(e.ctx, eSafeBlockRef)
+		}
+		e.tryUpdateLocalSafe(e.ctx, eSafeBlockRef, true, eth.L1BlockRef{})
+		// Directly update the Engine Controller state, bypassing finalizer
+		if e.finalizedHead.Number <= eFinalizedRef.Number {
+			e.promoteFinalized(e.ctx, eFinalizedRef)
+		}
+	}
+
+	logger := e.log.With(
+		"currentUnsafe", e.unsafeHead,
+		"currentSafe", e.safeHead,
+		"externalSafe", eSafeBlockRef,
+		"externalFinalized", eFinalizedRef,
+	)
+
+	logger.Info("Follow Source: Process external refs")
+
+	if e.unsafeHead.Number < eSafeBlockRef.Number {
+		// EL Sync target may be updated
+		logger.Debug("Follow Source: EL Sync: External safe ahead of current unsafe")
+		followExternalRefs(true)
+		return
+	}
+
+	fetchedSafe, err := e.engine.L2BlockRefByNumber(e.ctx, eSafeBlockRef.Number)
+	if errors.Is(err, ethereum.NotFound) {
+		// We queried a block before the EngineController unsafe head number,
+		// but it is not found. This indicates the underlying EL is still syncing.
+		// We do not know if the current EL sync is targeting a chain that will
+		// eventually reorg out this target. So we do not interrupt EL sync;
+		// we only update the local safe head.
+		logger.Debug("Follow Source: EL Sync in progress")
+		followExternalRefs(false)
+		return
+	}
+	if err != nil {
+		logger.Debug("Follow Source: Failed to fetch external safe from local EL", "err", err)
+		return
+	}
+
+	if fetchedSafe == eSafeBlockRef {
+		// External safe is found locally and matches.
+		logger.Debug("Follow Source: Consolidation")
+		followExternalRefs(false)
+		return
+	}
+
+	// External safe is found locally but they differ so trigger reorg.
+	// Reorging may trigger EL Sync, or updating the EL Sync target.
+	logger.Warn("Follow Source: Reorg. May Trigger EL sync")
+	followExternalRefs(true)
 }

@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
+
+// Scripts
+import { DeployAlphabetVM } from "scripts/deploy/DeployAlphabetVM.s.sol";
 
 // Interfaces
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
-
-import { DeployAlphabetVM } from "scripts/deploy/DeployAlphabetVM.s.sol";
 
 contract DeployAlphabetVM2_Test is Test {
     DeployAlphabetVM deployAlphanetVM;

@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
 
+// Scripts
 import { InteropMigrationInput, InteropMigration, InteropMigrationOutput } from "scripts/deploy/InteropMigration.s.sol";
+
+// Libraries
+import { Claim } from "src/dispute/lib/Types.sol";
+
+// Interfaces
 import { IOPContractsManagerInteropMigrator, IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { Claim } from "src/dispute/lib/Types.sol";
 
 contract InteropMigrationInput_Test is Test {
     InteropMigrationInput input;

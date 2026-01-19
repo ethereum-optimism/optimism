@@ -112,10 +112,24 @@
     "type": "address"
   },
   {
+    "bytes": "20",
+    "label": "faultDisputeGameImpl",
+    "offset": 0,
+    "slot": "16",
+    "type": "address"
+  },
+  {
+    "bytes": "20",
+    "label": "permissionedDisputeGameImpl",
+    "offset": 0,
+    "slot": "17",
+    "type": "address"
+  },
+  {
     "bytes": "32",
     "label": "devFeatureBitmap",
     "offset": 0,
-    "slot": "16",
+    "slot": "18",
     "type": "bytes32"
   }
 ]

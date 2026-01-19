@@ -28,6 +28,10 @@ func (c *Contract) ProtocolVersions(ctx context.Context) (common.Address, error)
 	return c.getAddress(ctx, "protocolVersions")
 }
 
+func (c *Contract) OPCMStandardValidator(ctx context.Context) (common.Address, error) {
+	return c.getAddress(ctx, "opcmStandardValidator")
+}
+
 func (c *Contract) getAddress(ctx context.Context, name string) (common.Address, error) {
 	return c.callContractMethod(ctx, name, abi.Arguments{})
 }
@@ -37,7 +41,7 @@ func (c *Contract) GetAddressByNameViaAddressManager(ctx context.Context, name s
 	inputs := abi.Arguments{
 		abi.Argument{
 			Name:    "_name",
-			Type:    mustType("string"),
+			Type:    MustType("string"),
 			Indexed: false,
 		},
 	}
@@ -60,7 +64,7 @@ func (c *Contract) callContractMethod(ctx context.Context, methodName string, in
 		abi.Arguments{
 			abi.Argument{
 				Name:    "address",
-				Type:    mustType("address"),
+				Type:    MustType("address"),
 				Indexed: false,
 			},
 		},
@@ -94,7 +98,7 @@ func (c *Contract) callContractMethod(ctx context.Context, methodName string, in
 	return addr, nil
 }
 
-func mustType(t string) abi.Type {
+func MustType(t string) abi.Type {
 	typ, err := abi.NewType(t, "", nil)
 	if err != nil {
 		panic(err)

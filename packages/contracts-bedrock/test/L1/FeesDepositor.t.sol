@@ -97,6 +97,8 @@ contract FeesDepositor_Receive_Test is FeesDepositor_TestInit {
     }
 
     function testFuzz_receive_atOrAboveThreshold_succeeds(uint256 _sendAmount) external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+
         // Handling the fork tests scenario case for the fork tests
         uint256 depositFeesRecipientBalanceBefore = depositFeesRecipient.balance;
         _sendAmount = bound(_sendAmount, minDepositAmount, type(uint256).max - depositFeesRecipientBalanceBefore);
@@ -123,6 +125,8 @@ contract FeesDepositor_Receive_Test is FeesDepositor_TestInit {
     }
 
     function testFuzz_receive_multipleDeposits_succeeds(uint256 _firstAmount, uint256 _secondAmount) external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+
         // Handling the fork tests scenario
         uint256 depositFeesRecipientBalanceBefore = depositFeesRecipient.balance;
         // First amount should not exceed minDepositAmount (so it doesn't trigger deposit)

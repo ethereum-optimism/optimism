@@ -35,6 +35,14 @@ type l2GenesisOverrides struct {
 	GovernanceTokenOwner                     common.Address            `json:"governanceTokenOwner"`
 }
 
+type cgtConfig struct {
+	UseCustomGasToken          bool
+	GasPayingTokenName         string
+	GasPayingTokenSymbol       string
+	NativeAssetLiquidityAmount *big.Int
+	LiquidityControllerOwner   common.Address
+}
+
 func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, st *state.State, chainID common.Hash) error {
 	lgr := pEnv.Logger.New("stage", "generate-l2-genesis")
 
@@ -75,6 +83,8 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		return fmt.Errorf("failed to calculate L2 genesis overrides: %w", err)
 	}
 
+	cgt := buildCGTConfig(thisIntent)
+
 	if err := script.Run(opcm.L2GenesisInput{
 		L1ChainID:                                new(big.Int).SetUint64(intent.L1ChainID),
 		L2ChainID:                                chainID.Big(),
@@ -102,6 +112,12 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		UseRevenueShare:                          thisIntent.UseRevenueShare,
 		ChainFeesRecipient:                       thisIntent.ChainFeesRecipient,
 		L1FeesDepositor:                          standard.L1FeesDepositor,
+		// Custom Gas Token (CGT) configuration from intent
+		UseCustomGasToken:          cgt.UseCustomGasToken,
+		GasPayingTokenName:         cgt.GasPayingTokenName,
+		GasPayingTokenSymbol:       cgt.GasPayingTokenSymbol,
+		NativeAssetLiquidityAmount: cgt.NativeAssetLiquidityAmount,
+		LiquidityControllerOwner:   cgt.LiquidityControllerOwner,
 	}); err != nil {
 		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}
@@ -121,7 +137,7 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 }
 
 func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIntent) (l2GenesisOverrides, *genesis.UpgradeScheduleDeployConfig, error) {
-	schedule := standard.DefaultHardforkScheduleForTag(standard.CurrentTag)
+	schedule := standard.DefaultHardforkSchedule()
 
 	overrides := defaultOverrides()
 	// Special case for FundDevAccounts since it's both an intent value and an override.
@@ -151,6 +167,26 @@ func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIn
 	}
 
 	return overrides, schedule, nil
+}
+
+// buildCGTConfig returns the CGT configuration when enabled, otherwise an empty config.
+func buildCGTConfig(intent *state.ChainIntent) cgtConfig {
+	if !intent.IsCustomGasTokenEnabled() {
+		return cgtConfig{
+			UseCustomGasToken:          false,
+			GasPayingTokenName:         "",
+			GasPayingTokenSymbol:       "",
+			NativeAssetLiquidityAmount: big.NewInt(0),
+			LiquidityControllerOwner:   common.Address{},
+		}
+	}
+	return cgtConfig{
+		UseCustomGasToken:          true,
+		GasPayingTokenName:         intent.CustomGasToken.Name,
+		GasPayingTokenSymbol:       intent.CustomGasToken.Symbol,
+		NativeAssetLiquidityAmount: intent.GetInitialLiquidity(),
+		LiquidityControllerOwner:   intent.GetLiquidityControllerOwner(),
+	}
 }
 
 func shouldGenerateL2Genesis(thisChainState *state.ChainState) bool {

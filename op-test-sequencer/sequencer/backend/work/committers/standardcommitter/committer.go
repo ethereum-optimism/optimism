@@ -49,6 +49,8 @@ func (n *Committer) Commit(ctx context.Context, block work.SignedBlock) error {
 	err := n.api.CommitBlock(ctx, bl)
 	if err != nil {
 		n.log.Error("Failed to publish block", "block", block, "err", err)
+		return err
 	}
-	return err
+	n.log.Info("Committed block to op-stack", "block", bl.ID())
+	return nil
 }

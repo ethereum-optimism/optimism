@@ -78,6 +78,10 @@ func (p *DB) Ancients() (uint64, error) {
 	panic("not supported")
 }
 
+func (p *DB) AncientBytes(kind string, id uint64, offset uint64, length uint64) ([]byte, error) {
+	panic("not supported")
+}
+
 func (p *DB) Tail() (uint64, error) {
 	panic("not supported")
 }

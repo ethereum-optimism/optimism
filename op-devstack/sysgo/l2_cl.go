@@ -36,6 +36,8 @@ type L2CLConfig struct {
 
 	// NoDiscovery is the flag to enable/disable discovery
 	NoDiscovery bool
+
+	FollowSource string
 }
 
 func L2CLSequencer() L2CLOption {
@@ -50,6 +52,12 @@ func L2CLIndexing() L2CLOption {
 	})
 }
 
+func L2CLFollowSource(source string) L2CLOption {
+	return L2CLOptionFn(func(p devtest.P, id stack.L2CLNodeID, cfg *L2CLConfig) {
+		cfg.FollowSource = source
+	})
+}
+
 func DefaultL2CLConfig() *L2CLConfig {
 	return &L2CLConfig{
 		SequencerSyncMode: nodeSync.CLSync,
@@ -60,6 +68,7 @@ func DefaultL2CLConfig() *L2CLConfig {
 		EnableReqRespSync: true,
 		UseReqRespSync:    true,
 		NoDiscovery:       false,
+		FollowSource:      "",
 	}
 }
 
@@ -105,5 +114,16 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		return WithSuperNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)
 	default:
 		return WithOpNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)
+	}
+}
+
+func WithL2CLNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, l2FollowSourceID stack.L2CLNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+	switch os.Getenv("DEVSTACK_L2CL_KIND") {
+	case "kona":
+		return WithKonaNodeFollowL2(l2CLID, l1CLID, l1ELID, l2ELID, l2FollowSourceID, opts...)
+	case "supernode":
+		panic("supernode does not support following")
+	default:
+		return WithOpNodeFollowL2(l2CLID, l1CLID, l1ELID, l2ELID, l2FollowSourceID, opts...)
 	}
 }

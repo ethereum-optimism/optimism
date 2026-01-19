@@ -1,0 +1,42 @@
+# Kona as a Library
+
+<div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+  <a href="https://github.com/op-rs/kona/actions/workflows/rust_ci.yaml"><img src="https://img.shields.io/github/actions/workflow/status/op-rs/kona/rust_ci.yaml?style=flat&labelColor=1C2C2E&label=ci&color=BEC5C9&logo=GitHub%20Actions&logoColor=BEC5C9" alt="CI" /></a>
+  <a href="https://codecov.io/gh/op-rs/kona"><img src="https://img.shields.io/codecov/c/gh/op-rs/kona?style=flat&labelColor=1C2C2E&logo=Codecov&color=BEC5C9&logoColor=BEC5C9" alt="Codecov" /></a>
+  <a href="https://github.com/op-rs/kona/blob/main/LICENSE.md"><img src="https://img.shields.io/badge/License-MIT-d1d1f6.svg?style=flat&labelColor=1C2C2E&color=BEC5C9&logo=googledocs&label=license&logoColor=BEC5C9" alt="License" /></a>
+  <a href="https://rollup.yoga"><img src="https://img.shields.io/badge/Docs-854a15?style=flat&labelColor=1C2C2E&color=BEC5C9&logo=mdBook&logoColor=BEC5C9" alt="Docs" /></a>
+</div>
+
+
+Kona is designed as a modular, library-first OP Stack implementation in Rust. This design philosophy allows developers to integrate Kona components into their applications and build custom solutions on top of the OP Stack.
+
+## Library Structure
+
+Kona is organized as a collection of focused crates that can be used independently or together:
+
+- **Protocol Libraries**: Core protocol logic and data structures
+- **Node Components**: Modular node architecture for building custom rollup nodes
+- **Proof System**: Fault proof generation and verification
+- **Utilities**: Common utilities and helper functions
+
+## Key Benefits
+
+- **Modularity**: Use only the components you need
+- **Performance**: Rust's zero-cost abstractions and memory safety
+- **Extensibility**: Easy to extend and customize for specific use cases
+- **Reliability**: Strong typing and comprehensive testing
+
+## Getting Started
+
+To use Kona as a library, add the relevant crates to your `Cargo.toml`:
+
+```toml
+[dependencies]
+kona-derive = "0.1"
+kona-protocol = "0.1"
+kona-node = "0.1"
+```
+
+## Examples
+
+See the [Examples](/sdk/examples/intro) section for practical usage examples and integration patterns.

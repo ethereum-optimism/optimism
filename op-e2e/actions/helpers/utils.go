@@ -15,7 +15,7 @@ func DefaultRollupTestParams() *e2eutils.TestParams {
 		MaxSequencerDrift:   40,
 		SequencerWindowSize: 120,
 		ChannelTimeout:      120,
-		L1BlockTime:         15,
+		L1BlockTime:         12, // Many of the action helpers assume a 12s L1 block time
 		AllocType:           config.DefaultAllocType,
 	}
 }

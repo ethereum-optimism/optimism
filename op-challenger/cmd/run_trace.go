@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/runner"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -17,7 +17,6 @@ import (
 )
 
 var (
-	ErrUnknownTraceType    = errors.New("unknown trace type")
 	ErrInvalidPrestateHash = errors.New("invalid prestate hash")
 )
 
@@ -40,16 +39,17 @@ func RunTrace(ctx *cli.Context, _ context.CancelCauseFunc) (cliapp.Lifecycle, er
 		return nil, err
 	}
 	if len(runConfigs) == 0 {
-		// Default to running on-chain version of each enabled trace type
-		for _, traceType := range cfg.TraceTypes {
-			runConfigs = append(runConfigs, runner.RunConfig{TraceType: traceType})
+		// Default to running on-chain version of each enabled game type
+		for _, gameType := range cfg.GameTypes {
+			runConfigs = append(runConfigs, runner.RunConfig{GameType: gameType})
 		}
 	}
-	return runner.NewRunner(logger, cfg, runConfigs), nil
+	vmTimeout := ctx.Duration(VMTimeoutFlag.Name)
+	return runner.NewRunner(logger, cfg, runConfigs, vmTimeout), nil
 }
 
 func runTraceFlags() []cli.Flag {
-	return append(flags.Flags, RunTraceRunFlag)
+	return append(flags.Flags, RunTraceRunFlag, VMTimeoutFlag)
 }
 
 var RunTraceCommand = &cli.Command{
@@ -60,16 +60,24 @@ var RunTraceCommand = &cli.Command{
 	Flags:       runTraceFlags(),
 }
 
+const DefaultVMTimeout = 3 * time.Hour
+
 var (
 	RunTraceRunFlag = &cli.StringSliceFlag{
 		Name: "run",
-		Usage: "Specify a trace to run. Format is traceType/name/prestateHash where " +
-			"traceType is the trace type to use with the prestate (e.g cannon or asterisc-kona), " +
+		Usage: "Specify a trace to run. Format is gameType/name/prestateHash where " +
+			"gameType is the game type to use with the prestate (e.g cannon or cannon-kona), " +
 			"name is an arbitrary name for the prestate to use when reporting metrics and" +
 			"prestateHash is the hex encoded absolute prestate commitment to use. " +
-			"If name is omitted the trace type name is used." +
+			"If name is omitted the game type name is used." +
 			"If the prestateHash is omitted, the absolute prestate hash used for new games on-chain.",
 		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "RUN"),
+	}
+	VMTimeoutFlag = &cli.DurationFlag{
+		Name:    "vm-timeout",
+		Usage:   fmt.Sprintf("Maximum duration for VM execution per run. Default is %s. Set to 0 to disable timeout.", DefaultVMTimeout),
+		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "VM_TIMEOUT"),
+		Value:   DefaultVMTimeout,
 	}
 )
 
@@ -91,14 +99,15 @@ func parseRunArg(arg string) (runner.RunConfig, error) {
 	if len(opts) == 0 {
 		return runner.RunConfig{}, fmt.Errorf("invalid run config %q", arg)
 	}
-	cfg.TraceType = types.TraceType(opts[0])
-	if !slices.Contains(types.TraceTypes, cfg.TraceType) {
-		return runner.RunConfig{}, fmt.Errorf("%w %q for run config %q", ErrUnknownTraceType, opts[0], arg)
+	gameType, err := gameTypes.SupportedGameTypeFromString(opts[0])
+	if err != nil {
+		return runner.RunConfig{}, fmt.Errorf("%w %q for run config %q", err, opts[0], arg)
 	}
+	cfg.GameType = gameType
 	if len(opts) > 1 {
 		cfg.Name = opts[1]
 	} else {
-		cfg.Name = cfg.TraceType.String()
+		cfg.Name = cfg.GameType.String()
 	}
 	if len(opts) > 2 {
 		if strings.HasPrefix(opts[2], "0x") {

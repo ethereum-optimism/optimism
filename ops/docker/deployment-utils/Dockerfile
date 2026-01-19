@@ -1,4 +1,4 @@
-FROM golang:1.23.8-bookworm AS go-base
+FROM golang:1.24.10-bookworm AS go-base
 
 RUN go install github.com/tomwright/dasel/v2/cmd/dasel@master
 

@@ -64,6 +64,10 @@ interface ISuperFaultDisputeGame is IDisputeGame {
     error GameNotFinalized();
     error GameNotResolved();
     error GamePaused();
+    error UnknownChainId();
+    error Encoding_EmptySuperRoot();
+    error Encoding_InvalidSuperRootVersion();
+    error Encoding_InvalidSuperRootEncoding();
     event Move(uint256 indexed parentIndex, Claim indexed claim, address indexed claimant);
     event GameClosed(BondDistributionMode bondDistributionMode);
 
@@ -101,6 +105,7 @@ interface ISuperFaultDisputeGame is IDisputeGame {
     function normalModeCredit(address) external view returns (uint256);
     function l2SequenceNumber() external pure returns (uint256 l2SequenceNumber_);
     function refundModeCredit(address) external view returns (uint256);
+    function rootClaimByChainId(uint256 _chainId) external pure returns (Claim outputRootClaim_);
     function resolutionCheckpoints(uint256)
         external
         view

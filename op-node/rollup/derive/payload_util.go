@@ -104,11 +104,9 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 		})
 	}
 
-	if rollupCfg.IsMinBaseFee(uint64(payload.Timestamp)) {
+	if rollupCfg.IsJovian(uint64(payload.Timestamp)) {
 		// ValidateOptimismExtraData returning a nil error guarantees that m is not nil
 		r.MinBaseFee = *m
-	}
-	if rollupCfg.IsDAFootprintBlockLimit(uint64(payload.Timestamp)) {
 		r.DAFootprintGasScalar = info.DAFootprintGasScalar
 	}
 	return r, nil

@@ -122,7 +122,7 @@ func (m *Miner) Fork(t *testing.T, blockNumber uint64, attrs *eth.PayloadAttribu
 			GasLimit:              &gasLimit,
 			EIP1559Params:         &eip1559Params,
 		}
-		if m.backend.Config().IsMinBaseFee(head.Time) {
+		if m.backend.Config().IsJovian(head.Time) {
 			stub := uint64(1e9)
 			attrs.MinBaseFee = &stub
 		}
@@ -146,7 +146,7 @@ func (m *Miner) MineAt(t *testing.T, head *types.Header, attrs *eth.PayloadAttri
 			GasLimit:              &gasLimit,
 			EIP1559Params:         &eip1559Params,
 		}
-		if m.backend.Config().IsMinBaseFee(head.Time) {
+		if m.backend.Config().IsJovian(head.Time) {
 			stub := uint64(1e9)
 			attrs.MinBaseFee = &stub
 		}

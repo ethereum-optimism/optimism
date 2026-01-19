@@ -1,17 +1,40 @@
 # The Verify Command
 
-Once you have deployed contracts via [bootstrap][bootstrap], you can use the `verify` command to verify the source code on Etherscan. Constructor args used in the verification request are extracted automatically from contract initcode via the tx that created the contract.
+Once you have deployed contracts via [bootstrap][bootstrap] or [apply][apply], you can use the `verify` command to verify the source code on block explorers like Etherscan or Blockscout. The command uses the `forge verify-contract` binary, which automatically handles constructor argument detection and source code verification.
 
 [bootstrap]: bootstrap.md
+[apply]: apply.md
 
 You can call the `verify` command like this:
 
 ```shell
 op-deployer verify \
   --l1-rpc-url <l1 rpc url> \
-  --input-file <filepath to input .json file> \
-  --etherscan-api-key <your free etherscan api key> \
-  --artifacts-locator <l1 forge-artifacts locator>
+  --input-file <filepath to input .json or state.json file> \
+  --verifier-api-key <your api key> \
+  --artifacts-locator <l1 forge-artifacts locator> \
+  --verifier etherscan
+```
+
+For Blockscout verification (uses default URLs for mainnet/sepolia, no API key required):
+
+```shell
+op-deployer verify \
+  --l1-rpc-url <l1 rpc url> \
+  --input-file <filepath to input .json or state.json file> \
+  --artifacts-locator <l1 forge-artifacts locator> \
+  --verifier blockscout
+```
+
+For custom block explorer verification (Etherscan v2-compatible, API key may be required):
+
+```shell
+op-deployer verify \
+  --l1-rpc-url <l1 rpc url> \
+  --input-file <filepath to input .json or state.json file> \
+  --artifacts-locator <l1 forge-artifacts locator> \
+  --verifier custom \
+  --verifier-url <custom etherscan v2 compatible api url>
 ```
 
 ## CLI Args
@@ -22,7 +45,11 @@ Defines the RPC URL of the L1 chain to deploy to (currently only supports mainne
 
 ### `--input-file`
 
-The full filepath to the input .json file. This file should be a key/value store where the key is a contract name and the value is the contract address. The output of the `bootstrap superchain|implementations` commands is a good example of this format, and those output files can be fed directly into `verify`. Unless the `--contract-name` flag is passed, all contracts in the input file will be verified.
+The full filepath to the input file. This can be either:
+- A simple JSON file with contract name/address pairs (output from `bootstrap superchain|implementations`)
+- A complete `state.json` file (output from `apply`)
+
+The verifier automatically detects the file format and extracts all contracts. Unless the `--contract-name` flag is passed, all contracts in the input file will be verified.
 
 Example:
 ```json
@@ -57,6 +84,26 @@ Specifies a single contract name, matching a contract key within the input file,
 
 The locator to forge-artifacts containing the output of the `forge build` command (i.e. compiled bytecode and solidity source code). This can be a local path (with a `file://` prefix), remote URL (with a `http://` or `https://` prefix), or standard contracts tag (with a `tag://op-contracts/v` prefix).
 
+### `--verifier`
+
+The block explorer(s) to use for verification. Supports multiple verifiers separated by commas.
+
+Options:
+- `etherscan` (default): Uses Etherscan for mainnet/sepolia
+- `blockscout`: Uses default Blockscout URLs for mainnet/sepolia
+- `custom`: For custom Etherscan v2-compatible instances (requires `--verifier-url`)
+
+Examples:
+- Single verifier: `--verifier etherscan`
+- Multiple verifiers: `--verifier etherscan,blockscout` (verifies on both)
+
+### `--verifier-url`
+
+The verifier API URL. Usage varies by verifier type:
+- `etherscan`: Ignored (automatically determined from chain ID)
+- `blockscout`: Optional (defaults to standard Blockscout URLs for mainnet/sepolia)
+- `custom`: Required. Example: `https://etherscanv2.compat-api.example.com/api`
+
 ## Output
 
 Output logs will be printed to the console and look something like the following. If the final results show `numFailed=0`, all contracts were verified successfully.
@@ -79,8 +126,53 @@ INFO [03-05|15:57:07.971] --- COMPLETE ---
 INFO [03-05|15:57:07.971] final results                            numVerified=4 numSkipped=1 numFailed=0
 ```
 
-## Known Limitations
+## Automatic Verification
 
-- Does not currently work for contracts in the `opchain` bundle (deployed via `op-deployer apply`) that have constructor args. Those constructor args cannot be extracted from the deployment `tx.Data()` since `OPContractsManager.deploy()` uses factory pattern with CREATE2 to deploy those contracts.
+You can automatically verify contracts after deployment by using the `--verify` flag with `apply` or `bootstrap` commands:
 
-- Currently only supports etherscan block explorers. Blockscout support is planned but not yet implemented.
+```shell
+op-deployer apply \
+  --workdir ./.deployer \
+  --l1-rpc-url <l1 rpc url> \
+  --private-key <deployer private key> \
+  --verify \
+  --verifier-api-key <your api key>
+```
+
+This will verify all deployed contracts at the end of the deployment process.
+
+### Multi-Verifier Deployment
+
+You can verify on multiple block explorers simultaneously:
+
+```shell
+op-deployer bootstrap superchain \
+  --l1-rpc-url <l1 rpc url> \
+  --private-key <deployer private key> \
+  --outfile ./superchain.json \
+  --superchain-proxy-admin-owner <owner address> \
+  --protocol-versions-owner <owner address> \
+  --guardian <guardian address> \
+  --verify \
+  --verifier etherscan,blockscout \
+  --verifier-api-key <etherscan api key>
+```
+
+This will:
+1. Deploy the superchain contracts
+2. Verify on Etherscan (using the API key)
+3. Verify on Blockscout (no API key required)
+4. Report combined results from both verifiers
+
+## Supported Contract Bundles
+
+The verify command now supports all contract bundles:
+- **Superchain** contracts (from `bootstrap superchain`)
+- **Implementations** contracts (from `bootstrap implementations`)
+- **OpChain** contracts (from `apply` - including all chain-specific contracts)
+
+When using a `state.json` file from `apply`, the verifier automatically extracts and verifies contracts from all deployment stages.
+
+## Block Explorer Support
+
+The verification command supports both Etherscan and Blockscout block explorers through the forge binary, alongside any Etherscan v2 compatible APIs.

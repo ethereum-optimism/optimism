@@ -109,12 +109,12 @@ func (n *ExternalL1Geth) Start() {
 			}
 		}
 	}
-	stdOutLogs := logpipe.LogProcessor(func(line []byte) {
+	stdOutLogs := logpipe.LogCallback(func(line []byte) {
 		e := logpipe.ParseGoStructuredLogs(line)
 		logOut(e)
 		onLogEntry(e)
 	})
-	stdErrLogs := logpipe.LogProcessor(func(line []byte) {
+	stdErrLogs := logpipe.LogCallback(func(line []byte) {
 		e := logpipe.ParseGoStructuredLogs(line)
 		logErr(e)
 		onLogEntry(e)
@@ -217,7 +217,7 @@ func WithL1NodesSubprocess(id stack.L1ELNodeID, clID stack.L1CLNodeID) stack.Opt
 			l1Clock = orch.timeTravelClock
 		}
 
-		bcn := fakebeacon.NewBeacon(p.Logger(), blobstore.New(), l1Net.genesis.Timestamp, l1Net.blockTime, l1Net.genesis.Config.OsakaTime)
+		bcn := fakebeacon.NewBeacon(p.Logger(), blobstore.New(), l1Net.genesis.Timestamp, l1Net.blockTime)
 		p.Cleanup(func() {
 			_ = bcn.Close()
 		})

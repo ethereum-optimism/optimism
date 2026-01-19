@@ -117,6 +117,7 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		ConfigPersistence:           configPersistence,
 		SafeDBPath:                  ctx.String(flags.SafeDBPath.Name),
 		Sync:                        *syncConfig,
+		L2FollowSource:              NewL2FollowSourceConfig(ctx),
 		RollupHalt:                  haltOption,
 
 		ConductorEnabled: ctx.Bool(flags.ConductorEnabledFlag.Name),
@@ -192,6 +193,15 @@ func NewL2EndpointConfig(ctx cliiface.Context, logger log.Logger) (*config.L2End
 		L2EngineJWTSecret:   secret,
 		L2EngineCallTimeout: l2RpcTimeout,
 	}, nil
+}
+
+func NewL2FollowSourceConfig(ctx cliiface.Context) *config.L2FollowSourceConfig {
+	l2Addr := ctx.String(flags.L2FollowSource.Name)
+	l2RpcTimeout := ctx.Duration(flags.L2FollowSourceRpcTimeout.Name)
+	return &config.L2FollowSourceConfig{
+		L2RPCAddr:        l2Addr,
+		L2RPCCallTimeout: l2RpcTimeout,
+	}
 }
 
 func NewConfigPersistence(ctx cliiface.Context) config.ConfigPersistence {
@@ -340,25 +350,28 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 	} else if ctx.IsSet(flags.L2EngineSyncEnabled.Name) {
 		log.Error("l2.engine-sync is deprecated and will be removed in a future release. Use --syncmode=execution-layer instead.")
 	}
+	l2FollowSourceEndpoint := ctx.String(flags.L2FollowSource.Name)
+	rrSyncEnabled := ctx.Bool(flags.SyncModeReqRespFlag.Name)
 	// p2p.sync.req-resp=false && syncmode.req-resp=true is not allowed
-	if !ctx.Bool(flags.SyncReqRespName) && ctx.Bool(flags.SyncModeReqRespFlag.Name) {
+	if !ctx.Bool(flags.SyncReqRespName) && rrSyncEnabled {
 		return nil, errors.New("cannot set --p2p.sync.req-resp=false and --syncmode.req-resp=true at the same time")
 	}
 	mode, err := sync.StringToMode(ctx.String(flags.SyncModeFlag.Name))
 	if err != nil {
 		return nil, err
 	}
-
 	engineKind := engine.Kind(ctx.String(flags.L2EngineKind.Name))
 	cfg := &sync.Config{
 		SyncMode:                       mode,
 		SyncModeReqResp:                ctx.Bool(flags.SyncModeReqRespFlag.Name),
 		SkipSyncStartCheck:             ctx.Bool(flags.SkipSyncStartCheck.Name),
 		SupportsPostFinalizationELSync: engineKind.SupportsPostFinalizationELSync(),
+		L2FollowSourceEndpoint:         l2FollowSourceEndpoint,
+		// Sequencer needs a manual initial reset when follow source
+		NeedInitialResetEngine: ctx.Bool(flags.SequencerEnabledFlag.Name) && l2FollowSourceEndpoint != "",
 	}
 	if ctx.Bool(flags.L2EngineSyncEnabled.Name) {
 		cfg.SyncMode = sync.ELSync
 	}
-
 	return cfg, nil
 }

@@ -5,27 +5,27 @@
 # need to have the getting-started.json committed to the repo since it's an
 # invalid JSON file when not filled in, which is annoying.
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 CONTRACTS_BASE=$(dirname "$(dirname "$SCRIPT_DIR")")
 
 reqenv() {
-    if [ -z "${!1}" ]; then
-        echo "Error: environment variable '$1' is undefined"
-        exit 1
-    fi
+  if [ -z "${!1}" ]; then
+    echo "Error: environment variable '$1' is undefined"
+    exit 1
+  fi
 }
 
 append_with_default() {
-    json_key="$1"
-    env_var_name="$2"
-    default_value="$3"
-    var_value="${!env_var_name}"
+  json_key="$1"
+  env_var_name="$2"
+  default_value="$3"
+  var_value="${!env_var_name}"
 
-    if [ -z "$var_value" ] || [ "$var_value" == "None" ]; then
-        var_value="$default_value"
-    fi
+  if [ -z "$var_value" ] || [ "$var_value" == "None" ]; then
+    var_value="$default_value"
+  fi
 
-    echo "  \"$json_key\": \"$var_value\"," >> tmp_config.json
+  echo "  \"$json_key\": \"$var_value\"," >> tmp_config.json
 }
 
 # Check required environment variables
@@ -109,16 +109,16 @@ EOL
 # Append conditional environment variables with their corresponding default values
 # Activate granite fork
 if [ -n "${GRANITE_TIME_OFFSET}" ]; then
-    append_with_default "l2GenesisGraniteTimeOffset" "GRANITE_TIME_OFFSET" "0x0"
+  append_with_default "l2GenesisGraniteTimeOffset" "GRANITE_TIME_OFFSET" "0x0"
 fi
 # Activate holocene fork
 if [ -n "${HOLOCENE_TIME_OFFSET}" ]; then
-    append_with_default "l2GenesisHoloceneTimeOffset" "HOLOCENE_TIME_OFFSET" "0x0"
+  append_with_default "l2GenesisHoloceneTimeOffset" "HOLOCENE_TIME_OFFSET" "0x0"
 fi
 
 # Activate the interop fork
 if [ -n "${INTEROP_TIME_OFFSET}" ]; then
-    append_with_default "l2GenesisInteropTimeOffset" "INTEROP_TIME_OFFSET" "0x0"
+  append_with_default "l2GenesisInteropTimeOffset" "INTEROP_TIME_OFFSET" "0x0"
 fi
 
 # Already forked updates

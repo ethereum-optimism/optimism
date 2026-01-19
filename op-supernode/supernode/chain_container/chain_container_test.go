@@ -31,6 +31,14 @@ type mockVirtualNode struct {
 	stopFunc     func(ctx context.Context) error
 	blockOnStart bool
 	startSignal  chan struct{}
+	// latest safe mock behavior
+	latestSafe eth.BlockID
+	latestErr  error
+
+	// safe head mapping mock behavior
+	safeHeadL1  eth.BlockID
+	safeHeadL2  eth.BlockID
+	safeHeadErr error
 }
 
 func newMockVirtualNode() *mockVirtualNode {
@@ -72,6 +80,33 @@ func (m *mockVirtualNode) Stop(ctx context.Context) error {
 	}
 	return m.stopErr
 }
+
+// SafeTimestamp implements virtual_node.VirtualNode SafeTimestamp
+func (m *mockVirtualNode) LatestSafe(ctx context.Context) (eth.BlockID, error) {
+	return m.latestSafe, m.latestErr
+}
+
+// SafeHeadAtL1 implements virtual_node.VirtualNode SafeHeadAtL1
+func (m *mockVirtualNode) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
+	return m.safeHeadL1, m.safeHeadL2, m.safeHeadErr
+}
+
+// L1AtSafeHead implements virtual_node.VirtualNode L1AtSafeHead
+func (m *mockVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
+	return m.safeHeadL1, m.safeHeadErr
+}
+
+// LastL1 implements virtual_node.VirtualNode LastL1
+func (m *mockVirtualNode) LastL1(ctx context.Context) (eth.BlockID, error) {
+	return m.safeHeadL1, m.safeHeadErr
+}
+
+// CurrentL1 implements virtual_node.VirtualNode CurrentL1
+func (m *mockVirtualNode) CurrentL1(ctx context.Context) (eth.BlockRef, error) {
+	return eth.BlockRef{Hash: m.safeHeadL1.Hash, Number: m.safeHeadL1.Number}, m.safeHeadErr
+}
+
+// SafeDB is not required by VirtualNode in these tests
 
 // Test helpers
 func createTestVNConfig() *opnodecfg.Config {
@@ -595,3 +630,5 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 }
+
+// Output root helper tests removed with simplified interface

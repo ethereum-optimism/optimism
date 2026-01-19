@@ -128,24 +128,20 @@ func OperatorFeeFixUpgradeTransactions() ([]hexutil.Bytes, error) {
 	return upgradeTxns, nil
 }
 
-func JovianNetworkUpgradeTransactions(IsDAFootprintBlockLimit, IsOperatorFeeFix bool) ([]hexutil.Bytes, error) {
+func JovianNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 	upgradeTxs := make([]hexutil.Bytes, 0)
 
-	if IsDAFootprintBlockLimit {
-		txs, err := DAFootprintNetworkUpgradeTransactions()
-		if err != nil {
-			return nil, err
-		}
-		upgradeTxs = append(upgradeTxs, txs...)
+	txs, err := DAFootprintNetworkUpgradeTransactions()
+	if err != nil {
+		return nil, err
 	}
+	upgradeTxs = append(upgradeTxs, txs...)
 
-	if IsOperatorFeeFix {
-		txs, err := OperatorFeeFixUpgradeTransactions()
-		if err != nil {
-			return nil, err
-		}
-		upgradeTxs = append(upgradeTxs, txs...)
+	txs, err = OperatorFeeFixUpgradeTransactions()
+	if err != nil {
+		return nil, err
 	}
+	upgradeTxs = append(upgradeTxs, txs...)
 
 	return upgradeTxs, nil
 }

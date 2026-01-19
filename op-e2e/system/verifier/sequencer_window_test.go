@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -52,12 +51,11 @@ func TestMissingBatchE2E(t *testing.T) {
 	require.Nil(t, err, "Waiting for block on verifier")
 
 	// Assert that the transaction is not found on the verifier
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	_, err = l2Verif.TransactionReceipt(ctx, receipt.TxHash)
-	require.Equal(t, ethereum.NotFound, err, "Found transaction in verifier when it should not have been included")
+	require.NoError(t, geth.WaitUntilTransactionNotFound(l2Verif, receipt.TxHash, 30*time.Second))
 
 	// Wait a short time for the L2 reorg to occur on the sequencer as well.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	err = wait.ForSafeBlock(ctx, seqRollupClient, receipt.BlockNumber.Uint64())
 	require.Nil(t, err, "timeout waiting for L2 reorg on sequencer safe head")
 

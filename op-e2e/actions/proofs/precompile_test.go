@@ -214,12 +214,15 @@ func runPrecompileTest(gt *testing.T, testCfg *helpers.TestCfg[PrecompileTestFix
 	require.Equal(t, receipt.Logs[0].Address, invokerContract)
 	require.Len(t, receipt.Logs[0].Topics, 2)
 	precompileAddress := receipt.Logs[0].Topics[1]
-	var out struct{ Result []byte }
+	var out struct {
+		Result             []byte
+		DelegateCallResult []byte
+	}
 	err = abi.UnpackIntoInterface(&out, "PrecompileInvoked", receipt.Logs[0].Data)
-	precompileResult := out.Result
 	require.NoError(t, err)
 	require.Equal(t, common.HexToAddress(precompileAddress.Hex()), testCase.Address)
-	require.Equal(t, expectedResult, precompileResult)
+	require.Equal(t, expectedResult, out.Result)
+	require.Equal(t, expectedResult, out.DelegateCallResult)
 
 	// instruct the batcher to submit the Invoker precompile tx to l1, and include the transaction.
 	env.Batcher.ActSubmitAll(t)

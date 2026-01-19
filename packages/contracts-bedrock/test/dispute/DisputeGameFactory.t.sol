@@ -11,7 +11,6 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 // Libraries
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -19,13 +18,17 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
-import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { IPermissionedDisputeGameV2 } from "interfaces/dispute/v2/IPermissionedDisputeGameV2.sol";
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 // Mocks
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
+import { SP1MockVerifier } from "test/dispute/zk/mocks/SP1MockVerifier.sol";
+
+// OptimisticZk
+import { OptimisticZkGame } from "src/dispute/zk/OptimisticZkGame.sol";
+import { AccessManager } from "src/dispute/zk/AccessManager.sol";
+import { ISP1Verifier } from "src/dispute/zk/ISP1Verifier.sol";
 
 /// @notice A fake clone used for testing the `DisputeGameFactory` contract's `create` function.
 contract DisputeGameFactory_FakeClone_Harness {
@@ -80,36 +83,12 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         vm_ = new AlphabetVM(_absolutePrestate, preimageOracle_);
     }
 
-    function _getGameConstructorParams(
-        Claim _absolutePrestate,
-        AlphabetVM _vm,
-        GameType _gameType,
-        uint256 _l2ChainId
-    )
+    function _getGameConstructorParams()
         internal
-        view
+        pure
         returns (IFaultDisputeGame.GameConstructorParams memory params_)
     {
         return IFaultDisputeGame.GameConstructorParams({
-            gameType: _gameType,
-            absolutePrestate: _absolutePrestate,
-            maxGameDepth: 2 ** 3,
-            splitDepth: 2 ** 2,
-            clockExtension: Duration.wrap(3 hours),
-            maxClockDuration: Duration.wrap(3.5 days),
-            vm: _vm,
-            weth: delayedWeth,
-            anchorStateRegistry: anchorStateRegistry,
-            l2ChainId: _l2ChainId
-        });
-    }
-
-    function _getGameConstructorParamsV2()
-        internal
-        pure
-        returns (IFaultDisputeGameV2.GameConstructorParams memory params_)
-    {
-        return IFaultDisputeGameV2.GameConstructorParams({
             maxGameDepth: 2 ** 3,
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
@@ -145,7 +124,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         } else {
             disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl));
         }
-        disputeGameFactory.setInitBond(_gameType, 0.08 ether);
+        disputeGameFactory.setInitBond(_gameType, DEFAULT_DISPUTE_GAME_INIT_BOND);
         vm.stopPrank();
     }
 
@@ -155,7 +134,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
         bytes memory immutableArgs;
-        (immutableArgs, vm_, preimageOracle_) = getSuperFaultDisputeGameV2ImmutableArgs(_absolutePrestate);
+        (immutableArgs, vm_, preimageOracle_) = getSuperFaultDisputeGameImmutableArgs(_absolutePrestate);
 
         gameImpl_ = DeployUtils.create1({
             _name: "SuperFaultDisputeGame",
@@ -182,39 +161,8 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         gameImpl_ = setupSuperPermissionedDisputeGame(implArgs);
     }
 
-    /// @notice Sets up a fault game implementation
-    function setupFaultDisputeGame(Claim _absolutePrestate)
-        internal
-        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
-    {
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            return setupFaultDisputeGameV2(_absolutePrestate);
-        } else {
-            return setupFaultDisputeGameV1(_absolutePrestate);
-        }
-    }
-
-    /// @notice Sets up a fault game implementation
-    function setupFaultDisputeGameV1(Claim _absolutePrestate)
-        internal
-        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
-    {
-        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
-        gameImpl_ = DeployUtils.create1({
-            _name: "FaultDisputeGame",
-            _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(
-                    IFaultDisputeGame.__constructor__,
-                    (_getGameConstructorParams(_absolutePrestate, vm_, GameTypes.CANNON, l2ChainId))
-                )
-            )
-        });
-
-        _setGame(gameImpl_, GameTypes.CANNON);
-    }
-
-    /// @notice Sets up immutable data for fault game v2 implementation
-    function getFaultDisputeGameV2ImmutableArgs(Claim _absolutePrestate)
+    /// @notice Sets up immutable data for fault game implementation
+    function getFaultDisputeGameImmutableArgs(Claim _absolutePrestate)
         internal
         returns (bytes memory immutableArgs_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
@@ -230,7 +178,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     }
 
     /// @notice Sets up immutable data for super fault dispute game implementation
-    function getSuperFaultDisputeGameV2ImmutableArgs(Claim _absolutePrestate)
+    function getSuperFaultDisputeGameImmutableArgs(Claim _absolutePrestate)
         internal
         returns (bytes memory immutableArgs_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
@@ -246,65 +194,24 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     }
 
     /// @notice Sets up a fault game v2 implementation
-    function setupFaultDisputeGameV2(Claim _absolutePrestate)
+    function setupFaultDisputeGame(Claim _absolutePrestate)
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
         bytes memory immutableArgs;
-        (immutableArgs, vm_, preimageOracle_) = getFaultDisputeGameV2ImmutableArgs(_absolutePrestate);
-        gameImpl_ = setupFaultDisputeGameV2(immutableArgs);
+        (immutableArgs, vm_, preimageOracle_) = getFaultDisputeGameImmutableArgs(_absolutePrestate);
+        gameImpl_ = setupFaultDisputeGame(immutableArgs);
     }
 
-    function setupFaultDisputeGameV2(bytes memory immutableArgs) internal returns (address gameImpl_) {
+    function setupFaultDisputeGame(bytes memory immutableArgs) internal returns (address gameImpl_) {
         gameImpl_ = DeployUtils.create1({
-            _name: "FaultDisputeGameV2",
+            _name: "FaultDisputeGame",
             _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(IFaultDisputeGameV2.__constructor__, (_getGameConstructorParamsV2()))
+                abi.encodeCall(IFaultDisputeGame.__constructor__, (_getGameConstructorParams()))
             )
         });
 
         _setGame(gameImpl_, GameTypes.CANNON, immutableArgs);
-    }
-
-    function setupPermissionedDisputeGame(
-        Claim _absolutePrestate,
-        address _proposer,
-        address _challenger
-    )
-        internal
-        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
-    {
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            return setupPermissionedDisputeGameV2(_absolutePrestate, _proposer, _challenger);
-        } else {
-            return setupPermissionedDisputeGameV1(_absolutePrestate, _proposer, _challenger);
-        }
-    }
-
-    function setupPermissionedDisputeGameV1(
-        Claim _absolutePrestate,
-        address _proposer,
-        address _challenger
-    )
-        internal
-        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
-    {
-        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
-        gameImpl_ = DeployUtils.create1({
-            _name: "PermissionedDisputeGame",
-            _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(
-                    IPermissionedDisputeGame.__constructor__,
-                    (
-                        _getGameConstructorParams(_absolutePrestate, vm_, GameTypes.PERMISSIONED_CANNON, l2ChainId),
-                        _proposer,
-                        _challenger
-                    )
-                )
-            )
-        });
-
-        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON);
     }
 
     function changeClaimStatus(Claim _claim, VMStatus _status) public pure returns (Claim out_) {
@@ -314,7 +221,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     }
 
     /// @notice Sets up immutable args for PDG v2 implementation
-    function getPermissionedDisputeGameV2ImmutableArgs(
+    function getPermissionedDisputeGameImmutableArgs(
         Claim _absolutePrestate,
         address _proposer,
         address _challenger
@@ -360,7 +267,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     }
 
     /// @notice Deploys PDG v2 implementation and sets it on the DGF
-    function setupPermissionedDisputeGameV2(
+    function setupPermissionedDisputeGame(
         Claim _absolutePrestate,
         address _proposer,
         address _challenger
@@ -370,17 +277,17 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     {
         bytes memory implArgs;
         (implArgs, vm_, preimageOracle_) =
-            getPermissionedDisputeGameV2ImmutableArgs(_absolutePrestate, _proposer, _challenger);
+            getPermissionedDisputeGameImmutableArgs(_absolutePrestate, _proposer, _challenger);
 
-        gameImpl_ = setupPermissionedDisputeGameV2(implArgs);
+        gameImpl_ = setupPermissionedDisputeGame(implArgs);
     }
 
     /// @notice Deploys PDG v2 implementation and sets it on the DGF
-    function setupPermissionedDisputeGameV2(bytes memory _implArgs) internal returns (address gameImpl_) {
+    function setupPermissionedDisputeGame(bytes memory _implArgs) internal returns (address gameImpl_) {
         gameImpl_ = DeployUtils.create1({
-            _name: "PermissionedDisputeGameV2",
+            _name: "PermissionedDisputeGame",
             _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(IPermissionedDisputeGameV2.__constructor__, (_getGameConstructorParamsV2()))
+                abi.encodeCall(IPermissionedDisputeGame.__constructor__, (_getGameConstructorParams()))
             )
         });
 
@@ -396,6 +303,59 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
         _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON, _implArgs);
+    }
+
+    /// @notice Parameters for OptimisticZk game setup
+    struct OptimisticZkGameParams {
+        Duration maxChallengeDuration;
+        Duration maxProveDuration;
+        address proposer;
+        address challenger;
+        bytes32 rollupConfigHash;
+        bytes32 aggregationVkey;
+        bytes32 rangeVkeyCommitment;
+        uint256 challengerBond;
+    }
+
+    /// @notice Sets up an OptimisticZk game implementation
+    function setupOptimisticZkGame(OptimisticZkGameParams memory _params)
+        internal
+        returns (address gameImpl_, AccessManager accessManager_, ISP1Verifier sp1Verifier_)
+    {
+        // Deploy mock verifier
+        sp1Verifier_ = ISP1Verifier(address(new SP1MockVerifier()));
+
+        // Deploy access manager
+        accessManager_ = new AccessManager(2 weeks, disputeGameFactory);
+        accessManager_.setProposer(_params.proposer, true);
+        accessManager_.setChallenger(_params.challenger, true);
+
+        // Deploy game implementation
+        gameImpl_ = address(
+            new OptimisticZkGame(
+                _params.maxChallengeDuration,
+                _params.maxProveDuration,
+                disputeGameFactory,
+                sp1Verifier_,
+                _params.rollupConfigHash,
+                _params.aggregationVkey,
+                _params.rangeVkeyCommitment,
+                _params.challengerBond,
+                anchorStateRegistry,
+                accessManager_
+            )
+        );
+
+        // Set respected game type for OptimisticZk
+        GameType gameType = GameTypes.OPTIMISTIC_ZK_GAME_TYPE;
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(gameType);
+
+        // Register with factory
+        vm.startPrank(disputeGameFactory.owner());
+        disputeGameFactory.setImplementation(gameType, IDisputeGame(gameImpl_));
+        disputeGameFactory.setInitBond(gameType, _params.challengerBond);
+        vm.stopPrank();
     }
 }
 
@@ -456,12 +416,13 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
     {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
         // values.
-        GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
+        uint32 maxGameType = 8;
+        GameType gt = GameType.wrap(uint8(bound(gameType, 0, maxGameType)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
         // Set all three implementations to the same `FakeClone` contract.
-        for (uint8 i; i < 3; i++) {
+        for (uint8 i; i < maxGameType + 1; i++) {
             GameType lgt = GameType.wrap(i);
             disputeGameFactory.setImplementation(lgt, IDisputeGame(address(fakeClone)));
             disputeGameFactory.setInitBond(lgt, _value);
@@ -522,7 +483,8 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
         // values. We skip over game type = 0, since the deploy script set the implementation for
         // that game type.
-        GameType gt = GameType.wrap(uint32(bound(gameType, 2, type(uint32).max)));
+        uint32 maxGameType = 8;
+        GameType gt = GameType.wrap(uint32(bound(gameType, maxGameType + 1, type(uint32).max)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
@@ -535,12 +497,13 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
     function testFuzz_create_sameUUID_reverts(uint32 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
         // values.
-        GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
+        uint32 maxGameType = 8;
+        GameType gt = GameType.wrap(uint8(bound(gameType, 0, maxGameType)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
         // Set all three implementations to the same `FakeClone` contract.
-        for (uint8 i; i < 3; i++) {
+        for (uint8 i; i < maxGameType + 1; i++) {
             disputeGameFactory.setImplementation(GameType.wrap(i), IDisputeGame(address(fakeClone)));
         }
 
@@ -566,7 +529,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
 
     function test_create_implArgs_succeeds() public {
         Claim absolutePrestate = Claim.wrap(bytes32(hex"dead"));
-        (, AlphabetVM vm_,) = setupFaultDisputeGameV2(absolutePrestate);
+        (, AlphabetVM vm_,) = setupFaultDisputeGame(absolutePrestate);
 
         Claim rootClaim = changeClaimStatus(Claim.wrap(bytes32(hex"beef")), VMStatuses.INVALID);
         // extraData should contain the l2BlockNumber as first 32 bytes
@@ -585,24 +548,24 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         assertEq(Timestamp.unwrap(timestamp), block.timestamp);
 
         // Verify the game has the correct parameters via CWIA
-        IFaultDisputeGameV2 gameV2 = IFaultDisputeGameV2(address(proxy));
+        IFaultDisputeGame game_ = IFaultDisputeGame(address(proxy));
 
         // Test CWIA getters
-        assertEq(Claim.unwrap(gameV2.absolutePrestate()), Claim.unwrap(absolutePrestate));
-        assertEq(Claim.unwrap(gameV2.rootClaim()), Claim.unwrap(rootClaim));
-        assertEq(gameV2.extraData(), extraData);
-        assertEq(gameV2.l2ChainId(), l2ChainId);
-        assertEq(address(gameV2.gameCreator()), address(this));
-        assertEq(gameV2.l2BlockNumber(), uint256(type(uint32).max));
-        assertEq(address(gameV2.vm()), address(vm_));
-        assertEq(address(gameV2.weth()), address(delayedWeth));
-        assertEq(address(gameV2.anchorStateRegistry()), address(anchorStateRegistry));
+        assertEq(Claim.unwrap(game_.absolutePrestate()), Claim.unwrap(absolutePrestate));
+        assertEq(Claim.unwrap(game_.rootClaim()), Claim.unwrap(rootClaim));
+        assertEq(game_.extraData(), extraData);
+        assertEq(game_.l2ChainId(), l2ChainId);
+        assertEq(address(game_.gameCreator()), address(this));
+        assertEq(game_.l2BlockNumber(), uint256(type(uint32).max));
+        assertEq(address(game_.vm()), address(vm_));
+        assertEq(address(game_.weth()), address(delayedWeth));
+        assertEq(address(game_.anchorStateRegistry()), address(anchorStateRegistry));
         // Test Constructor args
-        assertEq(GameType.unwrap(gameV2.gameType()), GameType.unwrap(GameTypes.CANNON));
-        assertEq(gameV2.maxGameDepth(), 2 ** 3);
-        assertEq(gameV2.splitDepth(), 2 ** 2);
-        assertEq(Duration.unwrap(gameV2.clockExtension()), Duration.unwrap(Duration.wrap(3 hours)));
-        assertEq(Duration.unwrap(gameV2.maxClockDuration()), Duration.unwrap(Duration.wrap(3.5 days)));
+        assertEq(GameType.unwrap(game_.gameType()), GameType.unwrap(GameTypes.CANNON));
+        assertEq(game_.maxGameDepth(), 2 ** 3);
+        assertEq(game_.splitDepth(), 2 ** 2);
+        assertEq(Duration.unwrap(game_.clockExtension()), Duration.unwrap(Duration.wrap(3 hours)));
+        assertEq(Duration.unwrap(game_.maxClockDuration()), Duration.unwrap(Duration.wrap(3.5 days)));
     }
 }
 

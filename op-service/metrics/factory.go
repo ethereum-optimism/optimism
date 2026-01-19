@@ -30,7 +30,7 @@ type documentor struct {
 	factory promauto.Factory
 }
 
-func With(registry *prometheus.Registry) Factory {
+func With(registry prometheus.Registerer) Factory {
 	return &documentor{
 		factory: promauto.With(registry),
 	}

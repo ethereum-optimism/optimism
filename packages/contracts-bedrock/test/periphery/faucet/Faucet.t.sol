@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
+import { FaucetHelper } from "test/mocks/FaucetHelper.sol";
+
+// Contracts
 import { Faucet } from "src/periphery/faucet/Faucet.sol";
 import { AdminFaucetAuthModule } from "src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol";
-import { FaucetHelper } from "test/mocks/FaucetHelper.sol";
 
 /// @title Faucet_TestInit
 /// @notice Reusable test initialization for `Faucet` tests.

@@ -17,6 +17,9 @@ type Hub struct {
 	// Registered clients
 	clients map[*Client]bool
 
+	// Protects access to clients map
+	mu sync.Mutex
+
 	// Register requests from the clients
 	register chan *Client
 
@@ -28,6 +31,9 @@ type Hub struct {
 
 	// Signal to stop the hub
 	done chan struct{}
+
+	// Signals that the hub has fully stopped
+	stopped chan struct{}
 
 	// Logger
 	log log.Logger
@@ -47,6 +53,7 @@ func newHub(m metrics.Metricer) *Hub {
 		unregister: make(chan *Client),
 		clients:    make(map[*Client]bool),
 		done:       make(chan struct{}),
+		stopped:    make(chan struct{}),
 		log:        log.New("component", "websocket-hub"),
 		metrics:    m,
 	}
@@ -54,6 +61,9 @@ func newHub(m metrics.Metricer) *Hub {
 
 // registerClient adds a client to the hub and updates metrics
 func (h *Hub) registerClient(client *Client) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	h.clients[client] = true
 	clientCount := len(h.clients)
 	h.log.Info("Client registered with hub", "totalClients", clientCount)
@@ -66,6 +76,9 @@ func (h *Hub) registerClient(client *Client) {
 
 // unregisterClient removes a client from the hub, closes it, and updates metrics
 func (h *Hub) unregisterClient(client *Client) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	if _, ok := h.clients[client]; ok {
 		delete(h.clients, client)
 		client.Close()
@@ -85,7 +98,14 @@ func (h *Hub) run() {
 		select {
 		case <-h.done:
 			// Close all remaining client connections
+			h.mu.Lock()
+			var remaining []*Client
 			for client := range h.clients {
+				remaining = append(remaining, client)
+			}
+			h.mu.Unlock()
+
+			for _, client := range remaining {
 				h.unregisterClient(client)
 			}
 			h.metrics.RecordWebSocketClientCount(0)
@@ -93,6 +113,7 @@ func (h *Hub) run() {
 			if h.callbacks.OnShutdown != nil {
 				h.callbacks.OnShutdown()
 			}
+			close(h.stopped)
 			return
 		case client := <-h.register:
 			h.registerClient(client)
@@ -101,19 +122,27 @@ func (h *Hub) run() {
 		case message := <-h.broadcast:
 			successCount := 0
 			dropCount := 0
+			var toClose []*Client
 
+			h.mu.Lock()
 			for client := range h.clients {
 				select {
 				case client.send <- message:
 					// Message sent successfully
 					successCount++
 				default:
-					// Channel is full, client is likely slow/dead
-					// The ping mechanism will detect and clean up dead clients
-					h.log.Debug("Failed to send message to client, channel full")
+					// Channel is full, client is likely slow/dead; mark for close
+					h.log.Warn("Client send channel full, dropping and closing client")
 					dropCount++
+					toClose = append(toClose, client)
 				}
 			}
+			h.mu.Unlock()
+
+			for _, client := range toClose {
+				h.unregisterClient(client)
+			}
+
 			if dropCount > 0 {
 				h.log.Warn("Failed to send message to all clients, dropped", "successCount", successCount, "dropCount", dropCount)
 			}
@@ -188,7 +217,12 @@ func (h *Handler) serveWs(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) readPump(client *Client) {
 	defer func() {
 		// Unregister the client when the read pump exits
-		h.hub.unregister <- client
+		select {
+		case h.hub.unregister <- client:
+		case <-h.hub.done:
+			// Hub already stopping; unregister directly to avoid blocking
+			h.hub.unregisterClient(client)
+		}
 		h.log.Info("WebSocket read pump exited, client unregistered")
 	}()
 
