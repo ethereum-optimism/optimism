@@ -211,9 +211,15 @@ func (b *forgeScriptBackendImpl) Deploy(artifact *foundry.Artifact, label string
 	b.host.AllowCheatcodes(address)    // before constructor execution, give our script cheatcode access
 	b.host.state.MakeExcluded(address) // scripts are persistent across forks
 
-	// disable contract size constraints
+	// disable contract size constraints for script deployment
+	wasNoMaxCodeSize := b.host.noMaxCodeSize
 	b.host.EnforceMaxCodeSize(false)
-	defer b.host.EnforceMaxCodeSize(true)
+	defer func() {
+		// Only re-enable if it wasn't originally disabled
+		if !wasNoMaxCodeSize {
+			b.host.EnforceMaxCodeSize(true)
+		}
+	}()
 
 	// deploy the script
 	deployedAddr, err := b.host.Create(deployer, artifact.Bytecode.Object)

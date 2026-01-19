@@ -3,8 +3,8 @@
 set -euo pipefail
 
 if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <test name> <json file>"
-    exit 1
+  echo "Usage: $0 <test name> <json file>"
+  exit 1
 fi
 
 TEST_NAME="$1"

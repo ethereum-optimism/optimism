@@ -29,6 +29,6 @@ func Main(version string) cliapp.LifecycleAction {
 		opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
 
 		l.Info("Initializing Batch Submitter")
-		return BatcherServiceFromCLIConfig(cliCtx.Context, version, cfg, l)
+		return BatcherServiceFromCLIConfig(cliCtx.Context, closeApp, version, cfg, l)
 	}
 }

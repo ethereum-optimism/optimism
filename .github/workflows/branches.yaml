@@ -1,0 +1,122 @@
+name: branch build
+
+on:
+  push:
+    branches:
+      - 'develop'
+  pull_request:
+    branches:
+      - 'develop'
+    paths:
+      - 'ops/docker/**'
+      - 'packages/contracts-bedrock/**'
+      - 'docker-bake.hcl'
+      - '.github/workflows/branches.yaml'
+      - 'ops/scripts/compute-git-versions.sh'
+
+jobs:
+  prep:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      versions: ${{ steps.prep.outputs.versions }}
+      kona_version: ${{ steps.prep.outputs.kona_version }}
+      date: ${{ steps.prep.outputs.date }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/docker-build-prep
+        id: prep
+
+  local:
+    needs: prep
+    # only build if push to develop, or PR from a local branch (not a fork)
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    strategy:
+      fail-fast: false
+      matrix:
+        image_name:
+          - op-node
+          - op-batcher
+          - op-deployer
+          - op-faucet
+          - op-program
+          - op-proposer
+          - op-challenger
+          - op-dispute-mon
+          - op-conductor
+          - da-server
+          - op-supervisor
+          - op-supernode
+          - op-test-sequencer
+          - cannon
+          - op-dripper
+          - op-interop-mon
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@d04222c229c50320f513afe678b3264869ea11a9
+    with:
+      mode: bake
+      image_name: ${{ matrix.image_name }}
+      bake_file: docker-bake.hcl
+      target: ${{ matrix.image_name }}
+      tag: ${{ github.event_name == 'push' && 'develop' || format('pr-{0}', github.event.pull_request.number) }}
+      gcp_project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
+      registry: us-docker.pkg.dev/oplabs-tools-artifacts/oss
+      env: |
+        GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[matrix.image_name] }}
+        KONA_VERSION=${{ needs.prep.outputs.kona_version }}
+      set: |
+        *.args.GIT_COMMIT=${{ github.sha }}
+        *.args.GIT_DATE=${{ needs.prep.outputs.date }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+  fork:
+    needs: prep
+    # only build if PR from a fork
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        image_name:
+          - op-node
+          - op-batcher
+          - op-deployer
+          - op-faucet
+          - op-program
+          - op-proposer
+          - op-challenger
+          - op-dispute-mon
+          - op-conductor
+          - da-server
+          - op-supervisor
+          - op-supernode
+          - op-test-sequencer
+          - cannon
+          - op-dripper
+          - op-interop-mon
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@d04222c229c50320f513afe678b3264869ea11a9
+    with:
+      mode: bake
+      image_name: ${{ matrix.image_name }}
+      bake_file: docker-bake.hcl
+      target: ${{ matrix.image_name }}
+      tag: 24h
+      registry: ttl.sh/${{ github.sha }}
+      env: |
+        GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[matrix.image_name] }}
+        KONA_VERSION=${{ needs.prep.outputs.kona_version }}
+      set: |
+        *.args.GIT_COMMIT=${{ github.sha }}
+        *.args.GIT_DATE=${{ needs.prep.outputs.date }}
+    permissions:
+      contents: read
+

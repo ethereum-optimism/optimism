@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+// Testing
+import { Test } from "test/setup/Test.sol";
 
-import { Proxy } from "src/universal/Proxy.sol";
-import { ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
+// Scripts
 import { DeploySuperchain } from "scripts/deploy/DeploySuperchain.s.sol";
+
+// Contracts
+import { Proxy } from "src/universal/Proxy.sol";
+
+// Interfaces
+import { ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
 
 contract DeploySuperchain_Test is Test {
     DeploySuperchain deploySuperchain;

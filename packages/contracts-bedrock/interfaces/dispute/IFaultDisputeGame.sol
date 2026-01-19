@@ -6,7 +6,7 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { Types } from "src/libraries/Types.sol";
-import { GameType, Claim, Position, Clock, Hash, Duration, BondDistributionMode } from "src/dispute/lib/Types.sol";
+import { Claim, Position, Clock, Hash, Duration, BondDistributionMode } from "src/dispute/lib/Types.sol";
 
 interface IFaultDisputeGame is IDisputeGame {
     struct ClaimData {
@@ -27,16 +27,10 @@ interface IFaultDisputeGame is IDisputeGame {
     }
 
     struct GameConstructorParams {
-        GameType gameType;
-        Claim absolutePrestate;
         uint256 maxGameDepth;
         uint256 splitDepth;
         Duration clockExtension;
         Duration maxClockDuration;
-        IBigStepper vm;
-        IDelayedWETH weth;
-        IAnchorStateRegistry anchorStateRegistry;
-        uint256 l2ChainId;
     }
 
     error AlreadyInitialized();
@@ -74,11 +68,11 @@ interface IFaultDisputeGame is IDisputeGame {
     error UnexpectedList();
     error UnexpectedRootClaim(Claim rootClaim);
     error UnexpectedString();
+    error UnknownChainId();
     error ValidStep();
     error InvalidBondDistributionMode();
     error GameNotFinalized();
     error GameNotResolved();
-    error ReservedGameType();
     error GamePaused();
     event Move(uint256 indexed parentIndex, Claim indexed claim, address indexed claimant);
     event GameClosed(BondDistributionMode bondDistributionMode);
@@ -121,6 +115,7 @@ interface IFaultDisputeGame is IDisputeGame {
     function move(Claim _disputed, uint256 _challengeIndex, Claim _claim, bool _isAttack) external payable;
     function normalModeCredit(address) external view returns (uint256);
     function refundModeCredit(address) external view returns (uint256);
+    function rootClaimByChainId(uint256 _chainId) external pure returns (Claim rootClaim_);
     function resolutionCheckpoints(uint256)
         external
         view

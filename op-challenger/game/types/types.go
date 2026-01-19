@@ -1,13 +1,18 @@
 package types
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
 
-var ErrInvalidPrestate = errors.New("absolute prestate does not match")
+var (
+	ErrNotInSync       = errors.New("local node too far behind")
+	ErrInvalidPrestate = errors.New("absolute prestate does not match")
+)
 
 type GameStatus uint8
 
@@ -44,4 +49,10 @@ type GameMetadata struct {
 	GameType  uint32
 	Timestamp uint64
 	Proxy     common.Address
+}
+
+type SyncValidator interface {
+	// ValidateNodeSynced checks that the local node is sufficiently up to date to play the game.
+	// It returns client.ErrNotInSync if the node is too far behind.
+	ValidateNodeSynced(ctx context.Context, gameL1Head eth.BlockID) error
 }

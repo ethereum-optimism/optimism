@@ -472,3 +472,57 @@ func TestScriptErrorHandling(t *testing.T) {
 		})
 	}
 }
+
+func TestWithNoMaxCodeSize(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelInfo)
+	af := foundry.OpenArtifactsDir("./testdata/test-artifacts")
+	scriptContext := DefaultContext
+	deployer := scriptContext.Sender
+
+	// Create init code that deploys a contract with >24KB runtime code
+	// Init code structure:
+	// PUSH2 0x6400 (25600 bytes = 25KB)
+	// PUSH1 0x0c (offset where runtime code starts)
+	// PUSH1 0x00 (memory destination)
+	// CODECOPY
+	// PUSH2 0x6400 (size to return)
+	// PUSH1 0x00 (memory offset)
+	// RETURN
+	runtimeSize := 25 * 1024 // 25KB runtime code
+	initCode := []byte{
+		0x61, 0x64, 0x00, // PUSH2 0x6400
+		0x60, 0x0c, // PUSH1 0x0c (12 bytes - length of this init code)
+		0x60, 0x00, // PUSH1 0x00
+		0x39,             // CODECOPY
+		0x61, 0x64, 0x00, // PUSH2 0x6400
+		0x60, 0x00, // PUSH1 0x00
+		0xf3, // RETURN
+	}
+	// Append runtime code (can be any data, we'll use zeros)
+	runtimeCode := make([]byte, runtimeSize)
+	largeBytecode := append(initCode, runtimeCode...)
+
+	t.Run("WithNoMaxCodeSize allows large contracts", func(t *testing.T) {
+		h := NewHost(logger, af, nil, scriptContext, WithNoMaxCodeSize())
+		require.True(t, h.noMaxCodeSize, "noMaxCodeSize flag should be set")
+		require.True(t, h.env.Config().NoMaxCodeSize, "EVM should have NoMaxCodeSize enabled")
+
+		addr, err := h.Create(deployer, largeBytecode)
+		require.NoError(t, err, "Should deploy large contract when NoMaxCodeSize is enabled")
+		require.NotEqual(t, common.Address{}, addr, "Should return valid address")
+
+		// Verify the code was actually deployed
+		code := h.GetCode(addr)
+		require.NotEmpty(t, code, "Contract code should be deployed")
+	})
+
+	t.Run("Default behavior rejects large contracts", func(t *testing.T) {
+		h := NewHost(logger, af, nil, scriptContext)
+		require.False(t, h.noMaxCodeSize, "noMaxCodeSize flag should be false by default")
+		require.False(t, h.env.Config().NoMaxCodeSize, "EVM should enforce max code size by default")
+
+		_, err := h.Create(deployer, largeBytecode)
+		require.Error(t, err, "Should reject large contract by default")
+		require.Contains(t, err.Error(), "max code size", "Error should mention max code size")
+	})
+}

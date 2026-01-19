@@ -68,6 +68,9 @@ type Config struct {
 	// Optional
 	Tracer tracer.Tracer
 
+	// Optional
+	L2FollowSource L2FollowSourceEndpointSetup
+
 	Sync sync.Config
 
 	// To halt when detecting the node does not support a signaled protocol version

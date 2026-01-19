@@ -1,0 +1,21 @@
+# Fault Proof Program Development
+
+This chapter provides an overview of [Fault Proof Program](/glossary#fault-proof-program) development
+on top of the custom FPVM targets supported by [Kona][kona].
+
+At a high level, a Fault Proof Program is not much different from a regular `no_std` Rust program. A custom entrypoint is provided, and the program
+is compiled down to a custom target, which is then executed on the FPVM.
+
+Fault Proof Programs are structured with 3 stages:
+1. **Prologue**: The bootstrapping stage, where the program is loaded into memory and the initial state is set up. During this phase, the program's initial
+    state is written to the FPVM's memory, and the program's entrypoint is set.
+1. **Execution**: The main execution stage, where the program is executed on the FPVM. During this phase, the program's entrypoint is called, and the
+    program is executed until it exits.
+1. **Epilogue**: The finalization stage, where the program's final state is read from the FPVM's memory. During this phase, the program's final state is
+    inspected and properties of the state transition are verified.
+
+The following sections will provide a more in-depth overview of each of these stages, as well as the tools and abstractions provided by Kona for
+developing your own Fault Proof Programs.
+
+
+[kona]: https://github.com/op-rs/kona

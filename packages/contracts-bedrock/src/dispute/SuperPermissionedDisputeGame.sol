@@ -27,9 +27,9 @@ contract SuperPermissionedDisputeGame is SuperFaultDisputeGame {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 0.6.0
+    /// @custom:semver 0.7.0
     function version() public pure override returns (string memory) {
-        return "0.6.0";
+        return "0.7.0";
     }
 
     /// @param _params Parameters for creating a new FaultDisputeGame.
@@ -76,11 +76,12 @@ contract SuperPermissionedDisputeGame is SuperFaultDisputeGame {
         if (tx.origin != proposer()) revert BadAuth();
     }
 
-    function immutableArgsByteCount() internal pure override returns (uint256) {
+    /// @notice Returns the byte count of the game implementation args for this contract.
+    function gameImplArgsByteCount() internal pure override returns (uint256) {
         // Extend expected data length to account for proposer and challenger addresses
         // - 20 bytes: proposer address
         // - 20 bytes: challenger address
-        return super.immutableArgsByteCount() + 40;
+        return super.gameImplArgsByteCount() + 40;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -90,11 +91,14 @@ contract SuperPermissionedDisputeGame is SuperFaultDisputeGame {
     /// @notice Returns the proposer address. The proposer role is allowed to create proposals and participate in the
     /// dispute game.
     function proposer() public pure returns (address proposer_) {
-        proposer_ = _getArgAddress(super.immutableArgsByteCount());
+        proposer_ =
+            _getArgAddress(super._preExtraDataByteCount() + super._extraDataByteCount() + super.gameImplArgsByteCount());
     }
 
     /// @notice Returns the challenger address. The challenger role is allowed to participate in the dispute game.
     function challenger() public pure returns (address challenger_) {
-        challenger_ = _getArgAddress(super.immutableArgsByteCount() + 20);
+        challenger_ = _getArgAddress(
+            super._preExtraDataByteCount() + super._extraDataByteCount() + super.gameImplArgsByteCount() + 20
+        );
     }
 }

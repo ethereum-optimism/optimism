@@ -1,3 +1,9 @@
+# Build all Rust binaries (release) for sysgo tests.
+build-rust-release:
+  cd kona && cargo build --release --bin kona-node --bin kona-supervisor
+  cd op-rbuilder && cargo build --release -p op-rbuilder --bin op-rbuilder
+  cd rollup-boost && cargo build --release -p rollup-boost --bin rollup-boost
+
 # Checks that TODO comments have corresponding issues.
 todo-checker:
   ./ops/scripts/todo-checker.sh
@@ -13,6 +19,11 @@ semgrep-test:
 # Runs shellcheck.
 shellcheck:
   find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -exec sh -c 'echo "Checking $1"; shellcheck "$1"' _ {} \;
+  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -exec shfmt --diff {} \;
+
+# Format shell scripts with shfmt.
+shfmt-fix:
+  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -exec shfmt --write {} \;
 
 # Generates a table of contents for the README.md file.
 toc:
@@ -34,4 +45,3 @@ update-op-geth ref:
 	go mod edit -replace=github.com/ethereum/go-ethereum=github.com/ethereum-optimism/op-geth@"$ver"; \
 	go mod tidy; \
 	echo "Updated op-geth to $ver"
-

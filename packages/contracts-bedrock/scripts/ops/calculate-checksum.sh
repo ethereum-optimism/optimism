@@ -6,7 +6,7 @@ echoerr() {
   echo "$@" 1>&2
 }
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 CONTRACTS_DIR="$SCRIPT_DIR/../.."
 
 cd "$CONTRACTS_DIR"

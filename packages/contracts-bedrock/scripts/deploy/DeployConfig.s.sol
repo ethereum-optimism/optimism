@@ -79,6 +79,13 @@ contract DeployConfig is Script {
     uint256 public daBondSize;
     uint256 public daResolverRefundPercentage;
 
+    // Custom Gas Token Configuration
+    bool public useCustomGasToken;
+    string public gasPayingTokenName;
+    string public gasPayingTokenSymbol;
+    uint256 public nativeAssetLiquidityAmount;
+    address public liquidityControllerOwner;
+
     // V2 Dispute Game Configuration
     uint256 public faultGameV2MaxGameDepth;
     uint256 public faultGameV2SplitDepth;
@@ -140,6 +147,11 @@ contract DeployConfig is Script {
         l2GenesisBlockGasLimit = stdJson.readUint(_json, "$.l2GenesisBlockGasLimit");
         basefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBaseFeeScalar", 1368));
         blobbasefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBlobBaseFeeScalar", 810949));
+        useCustomGasToken = _readOr(_json, "$.useCustomGasToken", false);
+        gasPayingTokenName = _readOr(_json, "$.gasPayingTokenName", "");
+        gasPayingTokenSymbol = _readOr(_json, "$.gasPayingTokenSymbol", "");
+        nativeAssetLiquidityAmount = _readOr(_json, "$.nativeAssetLiquidityAmount", 0);
+        liquidityControllerOwner = _readOr(_json, "$.liquidityControllerOwner", finalSystemOwner);
 
         enableGovernance = _readOr(_json, "$.enableGovernance", false);
         systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");
@@ -263,6 +275,46 @@ contract DeployConfig is Script {
     ///      system be deployed in setUp().
     function setUseUpgradedFork(bool _useUpgradedFork) public {
         useUpgradedFork = _useUpgradedFork;
+    }
+
+    /// @notice Allow the `useCustomGasToken` config to be overridden in testing environments
+    function setUseCustomGasToken(bool _useCustomGasToken) public {
+        useCustomGasToken = _useCustomGasToken;
+    }
+
+    /// @notice Allow the `gasPayingTokenName` config to be overridden in testing environments
+    function setGasPayingTokenName(string memory _gasPayingTokenName) public {
+        gasPayingTokenName = _gasPayingTokenName;
+    }
+
+    /// @notice Allow the `gasPayingTokenSymbol` config to be overridden in testing environments
+    function setGasPayingTokenSymbol(string memory _gasPayingTokenSymbol) public {
+        gasPayingTokenSymbol = _gasPayingTokenSymbol;
+    }
+
+    /// @notice Allow the `nativeAssetLiquidityAmount` config to be overridden in testing environments
+    function setNativeAssetLiquidityAmount(uint256 _nativeAssetLiquidityAmount) public {
+        nativeAssetLiquidityAmount = _nativeAssetLiquidityAmount;
+    }
+
+    /// @notice Allow the `baseFeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setBaseFeeVaultWithdrawalNetwork(uint256 _baseFeeVaultWithdrawalNetwork) public {
+        baseFeeVaultWithdrawalNetwork = _baseFeeVaultWithdrawalNetwork;
+    }
+
+    /// @notice Allow the `l1FeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setL1FeeVaultWithdrawalNetwork(uint256 _l1FeeVaultWithdrawalNetwork) public {
+        l1FeeVaultWithdrawalNetwork = _l1FeeVaultWithdrawalNetwork;
+    }
+
+    /// @notice Allow the `sequencerFeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setSequencerFeeVaultWithdrawalNetwork(uint256 _sequencerFeeVaultWithdrawalNetwork) public {
+        sequencerFeeVaultWithdrawalNetwork = _sequencerFeeVaultWithdrawalNetwork;
+    }
+
+    /// @notice Allow the `operatorFeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setOperatorFeeVaultWithdrawalNetwork(uint256 _operatorFeeVaultWithdrawalNetwork) public {
+        operatorFeeVaultWithdrawalNetwork = _operatorFeeVaultWithdrawalNetwork;
     }
 
     function latestGenesisFork() internal view returns (Fork) {

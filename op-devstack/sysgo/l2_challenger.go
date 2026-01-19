@@ -139,13 +139,13 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 			shared.WithPrivKey(challengerSecret),
 			shared.WithDepset(cluster.DepSet()),
 			shared.WithCannonConfig(rollupCfgs, l1Genesis, l2Geneses, prestateVariant),
-			shared.WithSuperCannonTraceType(),
-			shared.WithSuperPermissionedTraceType(),
+			shared.WithSuperCannonGameType(),
+			shared.WithSuperPermissionedGameType(),
 		}
 		if orch.l2ChallengerOpts.useCannonKonaConfig {
 			options = append(options,
 				shared.WithCannonKonaConfig(rollupCfgs, l1Genesis, l2Geneses),
-				shared.WithCannonKonaTraceType(),
+				shared.WithCannonKonaGameType(),
 			)
 		}
 		cfg, err = shared.NewInteropChallengerConfig(dir, l1EL.UserRPC(), l1CL.beaconHTTPAddr, supervisorNode.UserRPC(), l2ELRPCs, options...)
@@ -170,14 +170,14 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 			shared.WithFactoryAddress(disputeGameFactoryAddr),
 			shared.WithPrivKey(challengerSecret),
 			shared.WithCannonConfig(rollupCfgs, l1Genesis, l2Geneses, prestateVariant),
-			shared.WithCannonTraceType(),
-			shared.WithPermissionedTraceType(),
+			shared.WithCannonGameType(),
+			shared.WithPermissionedGameType(),
 			shared.WithFastGames(),
 		}
 		if orch.l2ChallengerOpts.useCannonKonaConfig {
 			options = append(options,
 				shared.WithCannonKonaConfig(rollupCfgs, l1Genesis, l2Geneses),
-				shared.WithCannonKonaTraceType(),
+				shared.WithCannonKonaGameType(),
 			)
 		}
 		cfg, err = shared.NewPreInteropChallengerConfig(dir, l1EL.UserRPC(), l1CL.beaconHTTPAddr, l2CL.UserRPC(), l2EL.UserRPC(), options...)

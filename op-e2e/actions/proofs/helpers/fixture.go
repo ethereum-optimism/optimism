@@ -32,4 +32,8 @@ type FixtureInputs struct {
 	InteropEnabled bool                              `toml:"use-interop"`
 
 	L2Sources []*FaultProofProgramL2Source
+
+	// L2RPCTracker is an optional observer for L2 JSON-RPC calls made by the host.
+	// It is not serialized as part of the test fixture inputs.
+	L2RPCTracker *L2RPCTracker `toml:"-"`
 }

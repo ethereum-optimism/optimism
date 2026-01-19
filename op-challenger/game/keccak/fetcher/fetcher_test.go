@@ -2,15 +2,15 @@ package fetcher
 
 import (
 	"context"
-	"crypto/ecdsa"
+	"encoding/binary"
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -20,21 +20,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	// Signal to indicate a receipt should be considered missing
-	MissingReceiptStatus = math.MaxUint64
-)
-
 var (
 	oracleAddr     = common.Address{0x99, 0x98}
 	otherAddr      = common.Address{0x12, 0x34}
 	claimantKey, _ = crypto.GenerateKey()
-	otherKey, _    = crypto.GenerateKey()
 	ident          = keccakTypes.LargePreimageIdent{
 		Claimant: crypto.PubkeyToAddress(claimantKey.PublicKey),
 		UUID:     big.NewInt(888),
 	}
-	chainID   = big.NewInt(123)
 	blockHash = common.Hash{0xdd}
 	input1    = keccakTypes.InputData{
 		Input:       []byte{0xbb, 0x11},
@@ -80,36 +73,21 @@ func TestFetchLeaves_ErrorOnUnavailableL1Block(t *testing.T) {
 
 	// No txs means stubL1Source will return an error when we try to fetch the block
 	leaves, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
-	require.ErrorContains(t, err, fmt.Sprintf("failed getting tx for block %v", blockNum))
+	require.ErrorContains(t, err, fmt.Sprintf("failed getting info for block %v", blockNum))
 	require.Empty(t, leaves)
 }
 
 func TestFetchLeaves_SingleTxSingleLog(t *testing.T) {
-	cases := []struct {
-		name       string
-		txSender   *ecdsa.PrivateKey
-		txModifier TxModifier
-	}{
-		{"from EOA claimant address", claimantKey, ValidTx},
-		{"from contract call", otherKey, WithToAddr(otherAddr)},
-		{"from contract creation", otherKey, WithoutToAddr()},
-	}
+	fetcher, oracle, l1Source := setupFetcherTest(t)
+	blockNum := uint64(7)
+	oracle.leafBlocks = []uint64{blockNum}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			fetcher, oracle, l1Source := setupFetcherTest(t)
-			blockNum := uint64(7)
-			oracle.leafBlocks = []uint64{blockNum}
+	proposal := oracle.createProposal(input1)
+	l1Source.createReceipt(blockNum, types.ReceiptStatusSuccessful, proposal)
 
-			proposal := oracle.createProposal(input1)
-			tx := l1Source.createTx(blockNum, tc.txSender, tc.txModifier)
-			l1Source.createLog(tx, proposal)
-
-			inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
-			require.NoError(t, err)
-			require.Equal(t, []keccakTypes.InputData{input1}, inputs)
-		})
-	}
+	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
+	require.NoError(t, err)
+	require.Equal(t, []keccakTypes.InputData{input1}, inputs)
 }
 
 func TestFetchLeaves_SingleTxMultipleLogs(t *testing.T) {
@@ -119,9 +97,7 @@ func TestFetchLeaves_SingleTxMultipleLogs(t *testing.T) {
 
 	proposal1 := oracle.createProposal(input1)
 	proposal2 := oracle.createProposal(input2)
-	tx := l1Source.createTx(blockNum, otherKey, WithToAddr(otherAddr))
-	l1Source.createLog(tx, proposal1)
-	l1Source.createLog(tx, proposal2)
+	l1Source.createReceipt(blockNum, types.ReceiptStatusSuccessful, proposal1, proposal2)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -138,14 +114,10 @@ func TestFetchLeaves_MultipleBlocksAndLeaves(t *testing.T) {
 	proposal2 := oracle.createProposal(input2)
 	proposal3 := oracle.createProposal(input3)
 	proposal4 := oracle.createProposal(input4)
-	block1Tx := l1Source.createTx(block1, claimantKey, ValidTx)
-	block2TxA := l1Source.createTx(block2, claimantKey, ValidTx)
-	l1Source.createTx(block2, claimantKey, ValidTx) // Add tx with no logs
-	block2TxB := l1Source.createTx(block2, otherKey, WithoutToAddr())
-	l1Source.createLog(block1Tx, proposal1)
-	l1Source.createLog(block2TxA, proposal2)
-	l1Source.createLog(block2TxB, proposal3)
-	l1Source.createLog(block2TxB, proposal4)
+	l1Source.createReceipt(block1, types.ReceiptStatusSuccessful, proposal1)
+	l1Source.createReceipt(block1, types.ReceiptStatusSuccessful, proposal2)
+	l1Source.createReceipt(block2, types.ReceiptStatusSuccessful) // Add tx with no logs
+	l1Source.createReceipt(block2, types.ReceiptStatusSuccessful, proposal3, proposal4)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -159,13 +131,12 @@ func TestFetchLeaves_SkipLogFromWrongContract(t *testing.T) {
 
 	// Emit log from an irrelevant contract address
 	proposal1 := oracle.createProposal(input2)
-	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	log1 := l1Source.createLog(tx1, proposal1)
-	log1.Address = otherAddr
+	rcpt := l1Source.createReceipt(blockNum, types.ReceiptStatusSuccessful, proposal1)
+	rcpt.Logs[0].Address = otherAddr
+
 	// Valid tx
 	proposal2 := oracle.createProposal(input1)
-	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	l1Source.createLog(tx2, proposal2)
+	l1Source.createReceipt(blockNum, types.ReceiptStatusSuccessful, proposal2)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -180,12 +151,11 @@ func TestFetchLeaves_SkipProposalWithWrongUUID(t *testing.T) {
 	// Valid tx but with a different UUID
 	proposal1 := oracle.createProposal(input2)
 	proposal1.uuid = big.NewInt(874927294)
-	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	l1Source.createLog(tx1, proposal1)
+	l1Source.createReceipt(blockNum, types.ReceiptStatusSuccessful, proposal1)
+
 	// Valid tx
 	proposal2 := oracle.createProposal(input1)
-	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	l1Source.createLog(tx2, proposal2)
+	l1Source.createReceipt(blockNum, types.ReceiptStatusSuccessful, proposal2)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -200,12 +170,10 @@ func TestFetchLeaves_SkipProposalWithWrongClaimant(t *testing.T) {
 	// Valid tx but with a different claimant
 	proposal1 := oracle.createProposal(input2)
 	proposal1.claimantAddr = otherAddr
-	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	l1Source.createLog(tx1, proposal1)
+	l1Source.createReceipt(blockNum, types.ReceiptStatusSuccessful, proposal1)
 	// Valid tx
 	proposal2 := oracle.createProposal(input1)
-	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	l1Source.createLog(tx2, proposal2)
+	l1Source.createReceipt(blockNum, types.ReceiptStatusSuccessful, proposal2)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -220,12 +188,10 @@ func TestFetchLeaves_SkipInvalidProposal(t *testing.T) {
 	// Set up proposal decoding to fail
 	proposal1 := oracle.createProposal(input2)
 	proposal1.valid = false
-	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	l1Source.createLog(tx1, proposal1)
+	l1Source.createReceipt(blockNum, types.ReceiptStatusSuccessful, proposal1)
 	// Valid tx
 	proposal2 := oracle.createProposal(input1)
-	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	l1Source.createLog(tx2, proposal2)
+	l1Source.createReceipt(blockNum, types.ReceiptStatusSuccessful, proposal2)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -240,13 +206,11 @@ func TestFetchLeaves_SkipProposalWithInsufficientData(t *testing.T) {
 	// Log contains insufficient data
 	// It should hold a 20 byte address followed by the proposal payload
 	proposal1 := oracle.createProposal(input2)
-	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	log1 := l1Source.createLog(tx1, proposal1)
-	log1.Data = proposal1.claimantAddr[:19]
+	rcpt1 := l1Source.createReceipt(blockNum, types.ReceiptStatusSuccessful, proposal1)
+	rcpt1.Logs[0].Data = proposal1.claimantAddr[:19]
 	// Valid tx
 	proposal2 := oracle.createProposal(input1)
-	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	l1Source.createLog(tx2, proposal2)
+	l1Source.createReceipt(blockNum, types.ReceiptStatusSuccessful, proposal2)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -260,13 +224,11 @@ func TestFetchLeaves_SkipProposalMissingCallData(t *testing.T) {
 
 	// Truncate call data from log so that is only contains an address
 	proposal1 := oracle.createProposal(input2)
-	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	log1 := l1Source.createLog(tx1, proposal1)
-	log1.Data = log1.Data[0:20]
+	rcpt1 := l1Source.createReceipt(blockNum, types.ReceiptStatusSuccessful, proposal1)
+	rcpt1.Logs[0].Data = rcpt1.Logs[0].Data[0:20]
 	// Valid tx
 	proposal2 := oracle.createProposal(input1)
-	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	l1Source.createLog(tx2, proposal2)
+	l1Source.createReceipt(blockNum, types.ReceiptStatusSuccessful, proposal2)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
@@ -280,36 +242,26 @@ func TestFetchLeaves_SkipTxWithReceiptStatusFail(t *testing.T) {
 
 	// Valid proposal, but tx reverted
 	proposal1 := oracle.createProposal(input2)
-	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	l1Source.createLog(tx1, proposal1)
-	l1Source.rcptStatus[tx1.Hash()] = types.ReceiptStatusFailed
+	l1Source.createReceipt(blockNum, types.ReceiptStatusFailed, proposal1)
 	// Valid tx
 	proposal2 := oracle.createProposal(input1)
-	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	l1Source.createLog(tx2, proposal2)
+	l1Source.createReceipt(blockNum, types.ReceiptStatusSuccessful, proposal2)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.NoError(t, err)
 	require.Equal(t, []keccakTypes.InputData{input1}, inputs)
 }
 
-func TestFetchLeaves_ErrorsOnMissingReceipt(t *testing.T) {
+func TestFetchLeaves_ErrorsOnMissingReceipts(t *testing.T) {
 	fetcher, oracle, l1Source := setupFetcherTest(t)
 	blockNum := uint64(7)
 	oracle.leafBlocks = []uint64{blockNum}
 
-	// Valid tx
-	proposal1 := oracle.createProposal(input1)
-	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	l1Source.createLog(tx1, proposal1)
-	// Valid proposal, but tx receipt is missing
-	proposal2 := oracle.createProposal(input2)
-	tx2 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	l1Source.createLog(tx2, proposal2)
-	l1Source.rcptStatus[tx2.Hash()] = MissingReceiptStatus
+	// Block exists but receipts return not found
+	l1Source.blocks[blockNum] = uint64ToHash(blockNum)
 
 	input, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
-	require.ErrorContains(t, err, fmt.Sprintf("failed to retrieve receipt for tx %v", tx2.Hash()))
+	require.ErrorContains(t, err, fmt.Sprintf("failed to retrieve receipts for block %v", blockNum))
 	require.Nil(t, input)
 }
 
@@ -320,11 +272,9 @@ func TestFetchLeaves_ErrorsWhenNoValidLeavesInBlock(t *testing.T) {
 
 	// Irrelevant tx - reverted
 	proposal1 := oracle.createProposal(input2)
-	tx1 := l1Source.createTx(blockNum, claimantKey, ValidTx)
-	l1Source.createLog(tx1, proposal1)
-	l1Source.rcptStatus[tx1.Hash()] = types.ReceiptStatusFailed
+	l1Source.createReceipt(blockNum, types.ReceiptStatusFailed, proposal1)
 	// Irrelevant tx - no logs are emitted
-	l1Source.createTx(blockNum, claimantKey, ValidTx)
+	l1Source.createReceipt(blockNum, types.ReceiptStatusSuccessful)
 
 	inputs, err := fetcher.FetchInputs(context.Background(), blockHash, oracle, ident)
 	require.ErrorIs(t, err, ErrNoLeavesFound)
@@ -336,6 +286,8 @@ func setupFetcherTest(t *testing.T) (*InputFetcher, *stubOracle, *stubL1Source) 
 		proposals: make(map[byte]*proposalConfig),
 	}
 	l1Source := &stubL1Source{
+		blocks:     make(map[uint64]common.Hash),
+		rcpts:      make(map[common.Hash]types.Receipts),
 		txs:        make(map[uint64]types.Transactions),
 		rcptStatus: make(map[common.Hash]uint64),
 		logs:       make(map[common.Hash][]*types.Log),
@@ -384,24 +336,6 @@ func (o *stubOracle) DecodeInputData(data []byte) (*big.Int, keccakTypes.InputDa
 	return proposal.uuid, proposal.inputData, nil
 }
 
-type TxModifier func(tx *types.DynamicFeeTx)
-
-var ValidTx TxModifier = func(_ *types.DynamicFeeTx) {
-	// no-op
-}
-
-func WithToAddr(addr common.Address) TxModifier {
-	return func(tx *types.DynamicFeeTx) {
-		tx.To = &addr
-	}
-}
-
-func WithoutToAddr() TxModifier {
-	return func(tx *types.DynamicFeeTx) {
-		tx.To = nil
-	}
-}
-
 func (o *stubOracle) createProposal(input keccakTypes.InputData) *proposalConfig {
 	id := o.nextProposalId
 	o.nextProposalId++
@@ -420,6 +354,11 @@ func (o *stubOracle) createProposal(input keccakTypes.InputData) *proposalConfig
 
 type stubL1Source struct {
 	nextTxId uint64
+
+	// Map block number to block hash
+	blocks map[uint64]common.Hash
+	// Map block hash to receipts
+	rcpts map[common.Hash]types.Receipts
 	// Map block number to tx
 	txs map[uint64]types.Transactions
 	// Map txHash to receipt
@@ -428,78 +367,62 @@ type stubL1Source struct {
 	logs map[common.Hash][]*types.Log
 }
 
-func (s *stubL1Source) ChainID(_ context.Context) (*big.Int, error) {
-	return chainID, nil
-}
-
-func (s *stubL1Source) BlockByNumber(_ context.Context, number *big.Int) (*types.Block, error) {
-	txs, ok := s.txs[number.Uint64()]
+func (s *stubL1Source) BlockRefByNumber(_ context.Context, num uint64) (eth.BlockRef, error) {
+	hash, ok := s.blocks[num]
 	if !ok {
-		return nil, errors.New("not found")
+		return eth.BlockRef{}, errors.New("not found")
 	}
-	return (&types.Block{}).WithBody(types.Body{Transactions: txs}), nil
+	return eth.BlockRef{
+		Number: num,
+		Hash:   hash,
+	}, nil
 }
 
-func (s *stubL1Source) TransactionReceipt(_ context.Context, txHash common.Hash) (*types.Receipt, error) {
-	rcptStatus, ok := s.rcptStatus[txHash]
+func (s *stubL1Source) FetchReceipts(_ context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
+	rcpts, ok := s.rcpts[blockHash]
 	if !ok {
-		rcptStatus = types.ReceiptStatusSuccessful
-	} else if rcptStatus == MissingReceiptStatus {
-		return nil, errors.New("not found")
+		return nil, nil, errors.New("not found")
 	}
-
-	logs := s.logs[txHash]
-	return &types.Receipt{Status: rcptStatus, Logs: logs}, nil
+	return nil, rcpts, nil
 }
 
-func (s *stubL1Source) createTx(blockNum uint64, key *ecdsa.PrivateKey, txMod TxModifier) *types.Transaction {
+func uint64ToHash(num uint64) common.Hash {
+	data := make([]byte, 8)
+	binary.BigEndian.PutUint64(data, num)
+	return crypto.Keccak256Hash(data)
+}
+
+func (s *stubL1Source) createReceipt(blockNum uint64, status uint64, proposals ...*proposalConfig) *types.Receipt {
+	// Make the block exist
+	s.blocks[blockNum] = uint64ToHash(blockNum)
+
 	txId := s.nextTxId
 	s.nextTxId++
 
-	inner := &types.DynamicFeeTx{
-		ChainID:   chainID,
-		Nonce:     txId,
-		To:        &oracleAddr,
-		Value:     big.NewInt(0),
-		GasTipCap: big.NewInt(1),
-		GasFeeCap: big.NewInt(2),
-		Gas:       3,
-		Data:      []byte{},
+	logs := make([]*types.Log, len(proposals))
+	for i, proposal := range proposals {
+		// Concat the claimant address and the proposal id
+		// These will be split back into address and id in fetcher.extractRelevantLeavesFromTx
+		data := append(proposal.claimantAddr[:], proposal.id)
+
+		txLog := &types.Log{
+			Address: oracleAddr,
+			Data:    data,
+			Topics:  []common.Hash{},
+
+			// ignored (zeroed):
+			BlockNumber: 0,
+			TxHash:      common.Hash{},
+			TxIndex:     0,
+			BlockHash:   common.Hash{},
+			Index:       0,
+			Removed:     false,
+		}
+		logs[i] = txLog
 	}
-	txMod(inner)
-	tx := types.MustSignNewTx(key, types.LatestSignerForChainID(inner.ChainID), inner)
-
-	// Track tx internally
-	txSet := s.txs[blockNum]
-	txSet = append(txSet, tx)
-	s.txs[blockNum] = txSet
-
-	return tx
-}
-
-func (s *stubL1Source) createLog(tx *types.Transaction, proposal *proposalConfig) *types.Log {
-	// Concat the claimant address and the proposal id
-	// These will be split back into address and id in fetcher.extractRelevantLeavesFromTx
-	data := append(proposal.claimantAddr[:], proposal.id)
-
-	txLog := &types.Log{
-		Address: oracleAddr,
-		Data:    data,
-		Topics:  []common.Hash{},
-
-		// ignored (zeroed):
-		BlockNumber: 0,
-		TxHash:      common.Hash{},
-		TxIndex:     0,
-		BlockHash:   common.Hash{},
-		Index:       0,
-		Removed:     false,
-	}
-
-	// Track tx log
-	logSet := s.logs[tx.Hash()]
-	logSet = append(logSet, txLog)
-	s.logs[tx.Hash()] = logSet
-
-	return txLog
+	rcpt := &types.Receipt{TxHash: uint64ToHash(txId), Status: status, Logs: logs}
+	blockHash := s.blocks[blockNum]
+	rcpts := s.rcpts[blockHash]
+	s.rcpts[blockHash] = append(rcpts, rcpt)
+	return rcpt
 }

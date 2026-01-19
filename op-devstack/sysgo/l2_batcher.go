@@ -89,7 +89,7 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			L1EthRpc:                 l1EL.UserRPC(),
 			L2EthRpc:                 []string{l2EL.UserRPC()},
 			RollupRpc:                []string{l2CL.UserRPC()},
-			MaxPendingTransactions:   1,
+			MaxPendingTransactions:   7,
 			MaxChannelDuration:       1,
 			MaxL1TxSize:              120_000,
 			TestUseMaxTxSizeForBlobs: false,
@@ -115,8 +115,13 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			opt(batcherID, batcherCLIConfig)
 		}
 
+		batcherContext, cancelBatcherCtx := context.WithCancel(p.Ctx())
+		var closeAppFn context.CancelCauseFunc = func(cause error) {
+			p.Errorf("closeAppFn called, batcher hit a critical error: %v", cause)
+			cancelBatcherCtx()
+		}
 		batcher, err := bss.BatcherServiceFromCLIConfig(
-			p.Ctx(), "0.0.1", batcherCLIConfig,
+			batcherContext, closeAppFn, "0.0.1", batcherCLIConfig,
 			logger)
 		require.NoError(err)
 		require.NoError(batcher.Start(p.Ctx()))

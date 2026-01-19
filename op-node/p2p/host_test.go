@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -120,7 +121,7 @@ func TestP2PFull(t *testing.T) {
 	runCfgB := &testutils.MockRuntimeConfig{P2PSeqAddress: common.Address{0x42}}
 
 	logA := testlog.Logger(t, log.LevelError).New("host", "A")
-	nodeA, err := NewNodeP2P(context.Background(), &rollup.Config{}, logA, &confA, &mockGossipIn{}, nil, runCfgA, metrics.NoopMetrics)
+	nodeA, err := NewNodeP2P(context.Background(), &rollup.Config{}, logA, &confA, &mockGossipIn{}, nil, runCfgA, metrics.NoopMetrics, clock.SystemClock)
 	require.NoError(t, err)
 	defer nodeA.Close()
 
@@ -149,7 +150,7 @@ func TestP2PFull(t *testing.T) {
 
 	logB := testlog.Logger(t, log.LevelError).New("host", "B")
 
-	nodeB, err := NewNodeP2P(context.Background(), &rollup.Config{}, logB, &confB, &mockGossipIn{}, nil, runCfgB, metrics.NoopMetrics)
+	nodeB, err := NewNodeP2P(context.Background(), &rollup.Config{}, logB, &confB, &mockGossipIn{}, nil, runCfgB, metrics.NoopMetrics, clock.SystemClock)
 	require.NoError(t, err)
 	defer nodeB.Close()
 	hostB := nodeB.Host()
@@ -321,7 +322,7 @@ func TestDiscovery(t *testing.T) {
 	resourcesCtx, resourcesCancel := context.WithCancel(context.Background())
 	defer resourcesCancel()
 
-	nodeA, err := NewNodeP2P(context.Background(), rollupCfg, logA, &confA, &mockGossipIn{}, nil, runCfgA, metrics.NoopMetrics)
+	nodeA, err := NewNodeP2P(context.Background(), rollupCfg, logA, &confA, &mockGossipIn{}, nil, runCfgA, metrics.NoopMetrics, clock.SystemClock)
 	require.NoError(t, err)
 	defer nodeA.Close()
 	hostA := nodeA.Host()
@@ -336,7 +337,7 @@ func TestDiscovery(t *testing.T) {
 	confB.DiscoveryDB = discDBC
 
 	// Start B
-	nodeB, err := NewNodeP2P(context.Background(), rollupCfg, logB, &confB, &mockGossipIn{}, nil, runCfgB, metrics.NoopMetrics)
+	nodeB, err := NewNodeP2P(context.Background(), rollupCfg, logB, &confB, &mockGossipIn{}, nil, runCfgB, metrics.NoopMetrics, clock.SystemClock)
 	require.NoError(t, err)
 	defer nodeB.Close()
 	hostB := nodeB.Host()
@@ -351,7 +352,7 @@ func TestDiscovery(t *testing.T) {
 		}})
 
 	// Start C
-	nodeC, err := NewNodeP2P(context.Background(), rollupCfg, logC, &confC, &mockGossipIn{}, nil, runCfgC, metrics.NoopMetrics)
+	nodeC, err := NewNodeP2P(context.Background(), rollupCfg, logC, &confC, &mockGossipIn{}, nil, runCfgC, metrics.NoopMetrics, clock.SystemClock)
 	require.NoError(t, err)
 	defer nodeC.Close()
 	hostC := nodeC.Host()

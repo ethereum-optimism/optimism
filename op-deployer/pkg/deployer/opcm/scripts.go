@@ -10,7 +10,6 @@ import (
 type Scripts struct {
 	DeployAlphabetVM      DeployAlphabetVMScript
 	DeployAltDA           DeployAltDAScript
-	DeployAsterisc        DeployAsteriscScript
 	DeployDisputeGame     DeployDisputeGameScript
 	DeployImplementations DeployImplementationsScript
 	DeployMIPS            DeployMIPSScript
@@ -41,11 +40,6 @@ func NewScripts(host *script.Host) (*Scripts, error) {
 		return nil, fmt.Errorf("failed to load DeployAltDA script: %w", err)
 	}
 
-	deployAsterisc, err := NewDeployAsteriscScript(host)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load DeployAsterisc script: %w", err)
-	}
-
 	deployDisputeGame, err := NewDeployDisputeGameScript(host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load DeployDisputeGame script: %w", err)
@@ -64,7 +58,6 @@ func NewScripts(host *script.Host) (*Scripts, error) {
 	return &Scripts{
 		DeployAlphabetVM:      deployAlphabetVM,
 		DeployAltDA:           deployAltDA,
-		DeployAsterisc:        deployAsterisc,
 		DeployDisputeGame:     deployDisputeGame,
 		DeployMIPS:            deployMIPSScript,
 		DeployImplementations: deployImplementations,

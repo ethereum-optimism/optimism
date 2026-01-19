@@ -7,11 +7,7 @@ variable "REPOSITORY" {
 }
 
 variable "KONA_VERSION" {
-  default = "1.2.0"
-}
-
-variable "ASTERISC_VERSION" {
-  default = "v1.3.0"
+  default = "none"
 }
 
 variable "GIT_COMMIT" {
@@ -70,6 +66,10 @@ variable "OP_SUPERVISOR_VERSION" {
 }
 
 variable "OP_SUPERNODE_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
+variable "OP_INTEROP_FILTER_VERSION" {
   default = "${GIT_VERSION}"
 }
 
@@ -149,7 +149,6 @@ target "op-challenger" {
     GIT_DATE = "${GIT_DATE}"
     OP_CHALLENGER_VERSION = "${OP_CHALLENGER_VERSION}"
     KONA_VERSION="${KONA_VERSION}"
-    ASTERISC_VERSION="${ASTERISC_VERSION}"
   }
   target = "op-challenger-target"
   platforms = split(",", PLATFORMS)
@@ -231,6 +230,19 @@ target "op-supernode" {
   target = "op-supernode-target"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-supernode:${tag}"]
+}
+
+target "op-interop-filter" {
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
+  context = "."
+  args = {
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
+    OP_INTEROP_FILTER_VERSION = "${OP_INTEROP_FILTER_VERSION}"
+  }
+  target = "op-interop-filter-target"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-interop-filter:${tag}"]
 }
 
 target "op-test-sequencer" {

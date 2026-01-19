@@ -1,0 +1,42 @@
+# Prologue
+
+The prologue stage of the program is commonly responsible for bootstrapping the program with inputs from an external
+source, pulled in through the [Host-Client communication](/sdk/fpp-dev/env#host---client-communication) implementation.
+
+As a rule of thumb, the prologue implementation should be kept minimal, and should not do much more than establish
+the inputs for the [execution phase](/sdk/fpp-dev/execution).
+
+## Example
+
+As an example, the prologue stage of the `kona-client` program runs through several steps:
+
+1. Pull in the boot information over the [Preimage Oracle ABI][preimage-specs], containing:
+   - The L1 head hash containing all data required to reproduce the L2 safe chain at the claimed block height.
+   - The latest finalized [L2 output root][l2-output-root].
+   - The [L2 output root][l2-output-root] claim.
+   - The block number of the [L2 output root][l2-output-root] claim.
+   - The L2 chain ID.
+1. Pull in the `RollupConfig` and `L2ChainConfig` corresponding to the passed L2 chain ID.
+1. Validate these values.
+1. Pass the boot information to the execution phase.
+
+[op-stack]: https://github.com/ethereum-optimism/optimism
+[op-program]: https://github.com/ethereum-optimism/optimism/tree/develop/op-program
+[cannon]: https://github.com/ethereum-optimism/optimism/tree/develop/cannon
+[cannon-rs]: https://github.com/op-rs/cannon-rs
+[asterisc]: https://github.com/ethereum-optimism/asterisc
+[fp-specs]: https://specs.optimism.io/experimental/fault-proof/index.html
+[fpp-specs]: https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program
+[preimage-specs]: https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle
+[cannon-specs]: https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine
+[l2-output-root]: https://specs.optimism.io/protocol/proposals.html#l2-output-commitment-construction
+[op-succinct]: https://github.com/succinctlabs/op-succinct
+[revm]: https://github.com/bluealloy/revm
+
+[kona]: https://github.com/op-rs/kona
+[issues]: https://github.com/op-rs/kona/issues
+[new-issue]: https://github.com/op-rs/kona/issues/new
+[contributing]: https://github.com/op-rs/kona/tree/main/CONTRIBUTING.md
+
+[op-labs]: https://github.com/ethereum-optimism
+[bad-boi-labs]: https://github.com/BadBoiLabs

@@ -93,10 +93,10 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 			// deposits may never be ignored. Failing to process them is a critical error.
 			return nil, NewCriticalError(fmt.Errorf("failed to derive some deposits: %w", err))
 		}
-		// apply sysCfg changes
-		if err := UpdateSystemConfigWithL1Receipts(&sysConfig, receipts, ba.rollupCfg, info.Time()); err != nil {
-			return nil, NewCriticalError(fmt.Errorf("failed to apply derived L1 sysCfg updates: %w", err))
-		}
+
+		// errors from UpdateSystemConfigWithL1Receipts are ignored as they represent malformed or invalid updates
+		// and there is no recovery mechanism for malformed updates, we must process past them.
+		_ = UpdateSystemConfigWithL1Receipts(&sysConfig, receipts, ba.rollupCfg, info.Time())
 
 		l1Info = info
 		depositTxs = deposits
@@ -146,7 +146,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	}
 
 	if ba.rollupCfg.IsJovianActivationBlock(nextL2Time) {
-		jovian, err := JovianNetworkUpgradeTransactions(ba.rollupCfg.IsDAFootprintBlockLimit(nextL2Time), ba.rollupCfg.IsOperatorFeeFix(nextL2Time))
+		jovian, err := JovianNetworkUpgradeTransactions()
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to build jovian network upgrade txs: %w", err))
 		}
@@ -206,7 +206,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		r.EIP1559Params = new(eth.Bytes8)
 		*r.EIP1559Params = sysConfig.EIP1559Params
 	}
-	if ba.rollupCfg.IsMinBaseFee(nextL2Time) {
+	if ba.rollupCfg.IsJovian(nextL2Time) {
 		r.MinBaseFee = &sysConfig.MinBaseFee
 	}
 	return r, nil
