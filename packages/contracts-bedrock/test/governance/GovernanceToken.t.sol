@@ -34,25 +34,25 @@ contract GovernanceToken_Constructor_Test is GovernanceToken_TestInit {
 /// @title GovernanceToken_Mint_Test
 /// @notice Tests the `mint` function of the `GovernanceToken` contract.
 contract GovernanceToken_Mint_Test is GovernanceToken_TestInit {
-    /// @notice Tests that the owner can successfully call `mint`.
-    function test_mint_fromOwner_succeeds() external {
-        // Mint 100 tokens.
-        vm.prank(owner);
-        governanceToken.mint(owner, 100);
+    /// @notice Tests that the owner can successfully call `mint` with various amounts.
+    function testFuzz_mint_fromOwner_succeeds(address _recipient, uint256 _amount) external {
+        vm.assume(_recipient != address(0));
 
-        // Balances have updated correctly.
-        assertEq(governanceToken.balanceOf(owner), 100);
-        assertEq(governanceToken.totalSupply(), 100);
+        vm.prank(owner);
+        governanceToken.mint(_recipient, _amount);
+
+        assertEq(governanceToken.balanceOf(_recipient), _amount);
+        assertEq(governanceToken.totalSupply(), _amount);
     }
 
     /// @notice Tests that `mint` reverts when called by a non-owner.
-    function test_mint_fromNotOwner_reverts() external {
-        // Mint 100 tokens as rando.
-        vm.prank(rando);
-        vm.expectRevert("Ownable: caller is not the owner");
-        governanceToken.mint(owner, 100);
+    function testFuzz_mint_fromNotOwner_reverts(address _caller, uint256 _amount) external {
+        vm.assume(_caller != owner);
 
-        // Balance does not update.
+        vm.prank(_caller);
+        vm.expectRevert("Ownable: caller is not the owner");
+        governanceToken.mint(owner, _amount);
+
         assertEq(governanceToken.balanceOf(owner), 0);
         assertEq(governanceToken.totalSupply(), 0);
     }
