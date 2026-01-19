@@ -12,9 +12,17 @@ use reth_primitives_traits::{AlloyBlockHeader, BlockTy, HeaderTy, NodePrimitives
 use reth_revm::cached::CachedReads;
 use reth_storage_api::{BlockReaderIdExt, StateProviderFactory};
 use reth_tasks::TaskExecutor;
-use std::{sync::Arc, time::Instant};
-use tokio::sync::{oneshot, watch};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
+use tokio::{
+    sync::{oneshot, watch},
+    time::sleep,
+};
 use tracing::*;
+
+const CONNECTION_BACKOUT_PERIOD: Duration = Duration::from_secs(5);
 
 /// The `FlashBlockService` maintains an in-memory [`PendingFlashBlock`] built out of a sequence of
 /// [`FlashBlock`]s.
@@ -167,7 +175,13 @@ where
                             self.try_start_build_job();
                         }
                         Some(Err(err)) => {
-                            warn!(target: "flashblocks", %err, "Error receiving flashblock");
+                            warn!(
+                                target: "flashblocks",
+                                %err,
+                                retry_period = CONNECTION_BACKOUT_PERIOD.as_secs(),
+                                "Error receiving flashblock"
+                            );
+                            sleep(CONNECTION_BACKOUT_PERIOD).await;
                         }
                         None => {
                             warn!(target: "flashblocks", "Flashblock stream ended");
