@@ -2,7 +2,6 @@ package sysgo
 
 import (
 	"context"
-	"os"
 	"slices"
 	"strings"
 	"time"
@@ -44,6 +43,17 @@ type RpcCaller interface {
 	CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error
 }
 
+// normalizePeerID normalizes a peer ID string to a canonical format for comparison.
+// This handles differences in encoding between op-geth and op-reth:
+// - Removes "0x" prefix if present
+// - Converts to lowercase
+// This ensures consistent comparison regardless of whether the ID comes from
+// admin_nodeInfo (op-geth format) or admin_peers (op-reth format).
+func normalizePeerID(id string) string {
+	// Remove "0x" prefix if present and convert to lowercase
+	return strings.TrimPrefix(strings.ToLower(id), "0x")
+}
+
 // ConnectP2P creates a p2p peer connection between node1 and node2.
 func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcCaller, acceptor RpcCaller, trusted bool) {
 	var targetInfo p2p.NodeInfo
@@ -65,23 +75,17 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 		require.True(peerAddedTrusted, "should have added trusted peer successfully")
 	}
 
-	// Skip P2P connection verification if SKIP_P2P_CONNECTION_CHECK is set
-	// FIXME(#18570): it seems we have some issues getting op-reth to connect to op-geth. This is a temporary workaround to ensure we can still run the
-	// devstack tests.
-	if os.Getenv("SKIP_P2P_CONNECTION_CHECK") != "" {
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	normalizedExpectedID := normalizePeerID(expectedID)
 	err = wait.For(ctx, time.Second, func() (bool, error) {
 		var peers []peer
 		if err := initiator.CallContext(ctx, &peers, "admin_peers"); err != nil {
 			return false, err
 		}
 		return slices.ContainsFunc(peers, func(p peer) bool {
-			peerID := strings.TrimPrefix(strings.ToLower(p.ID), "0x")
-			return peerID == strings.ToLower(expectedID)
+			normalizedPeerID := normalizePeerID(p.ID)
+			return normalizedPeerID == normalizedExpectedID
 		}), nil
 	})
 	require.NoError(err, "The peer was not connected")
@@ -101,14 +105,15 @@ func DisconnectP2P(ctx context.Context, require *testreq.Assertions, initiator R
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	normalizedExpectedID := normalizePeerID(expectedID)
 	err = wait.For(ctx, time.Second, func() (bool, error) {
 		var peers []peer
 		if err := initiator.CallContext(ctx, &peers, "admin_peers"); err != nil {
 			return false, err
 		}
 		return !slices.ContainsFunc(peers, func(p peer) bool {
-			peerID := strings.TrimPrefix(strings.ToLower(p.ID), "0x")
-			return peerID == strings.ToLower(expectedID)
+			normalizedPeerID := normalizePeerID(p.ID)
+			return normalizedPeerID == normalizedExpectedID
 		}), nil
 	})
 	require.NoError(err, "The peer was not removed")
