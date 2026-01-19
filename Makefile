@@ -29,6 +29,10 @@ lint-go-fix: ## Lints Go code with specific linters and fixes reported issues
 	golangci-lint run ./... --fix
 .PHONY: lint-go-fix
 
+check-op-geth-version: ## Checks that op-geth version in go.mod is valid
+	go run ./ops/scripts/check-op-geth-version
+.PHONY: check-op-geth-version
+
 golang-docker: ## Builds Docker images for Go components using buildx
 	# We don't use a buildx builder here, and just load directly into regular docker, for convenience.
 	GIT_COMMIT=$$(git rev-parse HEAD) \
