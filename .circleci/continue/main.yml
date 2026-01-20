@@ -3354,7 +3354,8 @@ workflows:
             tags:
               only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/ # ensure contract artifacts are embedded in op-deployer binary
             branches:
-              ignore: /.*/
+              only: /.*/
+              #ignore: /.*/
       # Standard (medium) cross-platform docker images go here
       - docker-build:
           matrix:
@@ -3385,7 +3386,8 @@ workflows:
             tags:
               only: /^<<matrix.docker_name>>\/v.*/
             branches:
-              ignore: /.*/
+              only: /.*/
+              #ignore: /.*/
           context:
             - oplabs-gcr-release
           requires:
