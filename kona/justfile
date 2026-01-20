@@ -271,7 +271,32 @@ checkout-kona:
       cd kona
     fi
 
+# Build reproducible prestate at the current commit and output the hash (equivalent to `make reproducible-prestate` for op-program)
+reproducible-prestate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    cd "{{KONA_ROOT}}/docker/fpvm-prestates"
+    CANNON_TAG=$(cat ../../.config/cannon_tag)
+
+    echo "Building kona-client prestate for cannon..."
+    just cannon kona-client HEAD "${CANNON_TAG}"
+
+    echo "Building kona-client-int (interop) prestate for cannon..."
+    just cannon kona-client-int HEAD "${CANNON_TAG}" ./prestate-artifacts-cannon-interop
+
+    echo ""
+    echo "-------------------- Kona Prestates --------------------"
+    echo ""
+    echo "Cannon Absolute prestate hash:"
+    jq -r .pre ../../prestate-artifacts-cannon/prestate-proof.json
+    echo ""
+    echo "Cannon Interop Absolute prestate hash:"
+    jq -r .pre ../../prestate-artifacts-cannon-interop/prestate-proof.json
+    echo ""
+
 clean:
   #!/usr/bin/env bash
   set -euo pipefail
   rm -rf "{{KONA_ROOT}}/build" "{{KONA_ROOT}}/prestates" "{{KONA_ROOT}}/bin"
+  rm -rf "{{KONA_ROOT}}/prestate-artifacts-cannon" "{{KONA_ROOT}}/prestate-artifacts-cannon-interop"
