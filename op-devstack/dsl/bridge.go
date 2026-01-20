@@ -22,11 +22,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
+
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 )
 
 // ProvenWithdrawalParameters is the set of parameters to pass to the ProveWithdrawalTransaction
@@ -407,6 +411,40 @@ func (w *Withdrawal) Prove(user *EOA) {
 	}, 30*time.Second, 1*time.Second, "Sending prove transaction")
 }
 
+// ProveFromGameExtraData proves withdrawal by reading super root proof from dispute game's extraData.
+// This mirrors the CLI --dispute-game flow and doesn't require supervisor-rpc.
+func (w *Withdrawal) ProveFromGameExtraData(user *EOA) {
+	w.t.Log("proveWithdrawal: proving withdrawal from game extraData...")
+	params := w.proveWithdrawalParametersFromGameExtraData()
+
+	tx := bindings.WithdrawalTransaction{
+		Nonce:    params.Nonce,
+		Sender:   params.Sender,
+		Target:   params.Target,
+		Value:    params.Value,
+		GasLimit: params.GasLimit,
+		Data:     params.Data,
+	}
+
+	call := w.bridge.l1Portal.ProveWithdrawalTransactionSuperRoot(
+		tx, params.DisputeGameAddress, params.OutputRootIndex,
+		*params.SuperRootProof, params.OutputRootProof, params.WithdrawalProof)
+
+	w.require.Eventually(func() bool {
+		proveReceipt, err := contractio.Write(call, w.ctx, user.Plan())
+		if err != nil {
+			w.log.Error("Failed to send prove transaction", "err", err)
+			return false
+		}
+		w.require.Equal(types.ReceiptStatusSuccessful, proveReceipt.Status, "prove withdrawal was not successful")
+		w.require.Equal(2, len(proveReceipt.Logs)) // emit WithdrawalProven, WithdrawalProvenExtension1
+
+		w.proveParams = params
+		w.proveReceipt = proveReceipt
+		return true
+	}, 30*time.Second, 1*time.Second, "Sending prove transaction")
+}
+
 // ProveWithdrawalParameters calls ProveWithdrawalParametersForBlock with the most recent L2 output after the latest game.
 // Ported from op-node/withdrawals/utils.go to fit in the op-devstack
 func (w *Withdrawal) proveWithdrawalParameters() ProvenWithdrawalParameters {
@@ -481,6 +519,102 @@ func (w *Withdrawal) proveWithdrawalParametersForEvent(ev *nodebindings.L2ToL1Me
 		OutputRootIndex:    outputRootIndex,
 		OutputRootProof: bindings.OutputRootProof{
 			Version:                  [32]byte{}, // Empty for version 1
+			StateRoot:                l2Header.Root(),
+			MessagePasserStorageRoot: *l2Header.WithdrawalsRoot(),
+			LatestBlockhash:          l2Header.Hash(),
+		},
+		WithdrawalProof: trieNodes,
+	}
+}
+
+// proveWithdrawalParametersFromGameExtraData builds withdrawal parameters by reading super root proof
+// directly from the dispute game's extraData, without requiring supervisor-rpc.
+func (w *Withdrawal) proveWithdrawalParametersFromGameExtraData() ProvenWithdrawalParameters {
+	latestGame := w.bridge.forGamePublished(w.initReceipt.BlockNumber)
+	w.require.True(latestGame.UsesSuperRoots, "Game must use super roots for extraData flow")
+
+	// Load ABI and call extraData on the game contract
+	gameABI := snapshots.LoadSuperFaultDisputeGameABI()
+	extraDataCallData, err := gameABI.Pack("extraData")
+	w.require.NoError(err, "failed to pack extraData call")
+
+	extraDataResult, err := w.bridge.l1Client.EthClient().Call(w.ctx, ethereum.CallMsg{
+		To:   &latestGame.Address,
+		Data: extraDataCallData,
+	}, rpc.LatestBlockNumber)
+	w.require.NoError(err, "failed to call extraData")
+
+	unpackedExtra, err := gameABI.Unpack("extraData", extraDataResult)
+	w.require.NoError(err, "failed to unpack extraData")
+	w.require.NotEmpty(unpackedExtra, "extraData returned empty result")
+	extraDataBytes, ok := unpackedExtra[0].([]byte)
+	w.require.True(ok, "extraData result is not []byte")
+
+	// Decode super root proof from extraData
+	superRootProofDecoded, err := withdrawals.DecodeSuperRootProof(extraDataBytes)
+	w.require.NoError(err, "failed to decode super root proof")
+
+	// Find output root index for this chain
+	var outputRootIndex *big.Int
+	for i, outputRoot := range superRootProofDecoded.OutputRoots {
+		if outputRoot.ChainID.Cmp(w.bridge.rollupCfg.L2ChainID) == 0 {
+			outputRootIndex = big.NewInt(int64(i))
+			break
+		}
+	}
+	w.require.NotNil(outputRootIndex, "target chain ID not found in super root proof")
+
+	// Convert decoded proof to bindings format
+	outputRoots := make([]bindings.OutputRootWithChainID, len(superRootProofDecoded.OutputRoots))
+	for i, root := range superRootProofDecoded.OutputRoots {
+		outputRoots[i] = bindings.OutputRootWithChainID{
+			ChainID: root.ChainID,
+			Root:    root.Root,
+		}
+	}
+	superRootProof := &bindings.SuperRootProof{
+		Version:     superRootProofDecoded.Version,
+		Timestamp:   superRootProofDecoded.Timestamp,
+		OutputRoots: outputRoots,
+	}
+
+	// Get L2 header at game's block number
+	l2Header, err := w.bridge.l2Client.InfoByNumber(w.ctx, latestGame.L2BlockNumber)
+	w.require.NoErrorf(err, "failed to fetch block header %v", latestGame.L2BlockNumber)
+
+	// Parse withdrawal event and build storage proof
+	ev, err := withdrawals.ParseMessagePassed(w.initReceipt)
+	w.require.NoError(err, "failed to parse message passed receipt")
+
+	withdrawalHash, err := withdrawals.WithdrawalHash(ev)
+	w.require.NoError(err, "failed to calculate withdrawal hash")
+	slot := withdrawals.StorageSlotOfWithdrawalHash(withdrawalHash)
+
+	p, err := w.bridge.l2Client.GetProof(w.ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{slot}, hexutil.Uint64(l2Header.NumberU64()).String())
+	w.require.NoError(err, "failed to fetch proof for withdrawal")
+	w.require.Len(p.StorageProof, 1, "invalid amount of storage proofs")
+
+	err = verifyProof(l2Header.Root(), p)
+	w.require.NoError(err, "failed to verify proof for withdrawal")
+
+	trieNodes := make([][]byte, len(p.StorageProof[0].Proof))
+	for i, s := range p.StorageProof[0].Proof {
+		trieNodes[i] = s
+	}
+
+	return ProvenWithdrawalParameters{
+		Nonce:              ev.Nonce,
+		Sender:             ev.Sender,
+		Target:             ev.Target,
+		Value:              ev.Value,
+		GasLimit:           ev.GasLimit,
+		DisputeGameAddress: latestGame.Address,
+		DisputeGameIndex:   latestGame.Index,
+		Data:               ev.Data,
+		SuperRootProof:     superRootProof,
+		OutputRootIndex:    outputRootIndex,
+		OutputRootProof: bindings.OutputRootProof{
+			Version:                  [32]byte{},
 			StateRoot:                l2Header.Root(),
 			MessagePasserStorageRoot: *l2Header.WithdrawalsRoot(),
 			LatestBlockhash:          l2Header.Hash(),

@@ -54,3 +54,45 @@ func TestSuperRootWithdrawal(gt *testing.T) {
 		// Plus received withdrawal amount
 		Add(withdrawalAmount))
 }
+
+// TestSuperRootWithdrawalFromGameExtraData tests proving withdrawal by reading
+// super root proof directly from the dispute game's extraData instead of supervisor-rpc.
+func TestSuperRootWithdrawalFromGameExtraData(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sys.L1Network.WaitForOnline()
+
+	initialL1Balance := eth.HalfEther
+	initialL2Balance := eth.ZeroWei
+	depositAmount := eth.OneThirdEther
+	withdrawalAmount := eth.OneTenthEther
+
+	l1User := sys.FunderL1.NewFundedEOA(initialL1Balance)
+	l2User := l1User.AsEL(sys.L2ELA)
+
+	bridge := sys.StandardBridge(sys.L2ChainA)
+	require.True(t, bridge.UsesSuperRoots(), "Expected interop system to be using super roots")
+
+	deposit := bridge.Deposit(depositAmount, l1User)
+	l1User.VerifyBalanceExact(initialL1Balance.Sub(depositAmount).Sub(deposit.GasCost()))
+	l2User.VerifyBalanceExact(initialL2Balance.Add(depositAmount))
+
+	sys.L2ChainA.WaitForBlock()
+
+	withdrawal := bridge.InitiateWithdrawal(withdrawalAmount, l2User)
+	withdrawal.ProveFromGameExtraData(l1User) // Use extraData flow instead of supervisor
+	l2User.VerifyBalanceExact(initialL2Balance.Add(depositAmount).Sub(withdrawalAmount).Sub(withdrawal.InitiateGasCost()))
+
+	sys.AdvanceTime(bridge.GameResolutionDelay())
+	withdrawal.WaitForDisputeGameResolved()
+
+	sys.AdvanceTime(max(bridge.WithdrawalDelay()-bridge.GameResolutionDelay(), bridge.DisputeGameFinalityDelay()))
+	withdrawal.Finalize(l1User)
+
+	l1User.VerifyBalanceExact(initialL1Balance.
+		Sub(depositAmount).
+		Sub(deposit.GasCost()).
+		Sub(withdrawal.ProveGasCost()).
+		Sub(withdrawal.FinalizeGasCost()).
+		Add(withdrawalAmount))
+}
