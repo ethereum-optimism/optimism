@@ -40,7 +40,7 @@ import (
 )
 
 type TestSequencer struct {
-	id         stack.TestSequencerID
+	id         stack.ComponentID
 	userRPC    string
 	jwtSecret  [32]byte
 	sequencers map[eth.ChainID]seqtypes.SequencerID
@@ -77,20 +77,20 @@ func (s *TestSequencer) hydrate(sys stack.ExtensibleSystem) {
 
 // l2ChainIDs pairs together the CL and EL node IDs for an L2 chain.
 type l2ChainIDs struct {
-	CLID stack.L2CLNodeID
-	ELID stack.L2ELNodeID
+	CLID stack.ComponentID
+	ELID stack.ComponentID
 }
 
-func WithTestSequencer(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLNodeID, l2CLID stack.L2CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID) stack.Option[*Orchestrator] {
+func WithTestSequencer(testSequencerID stack.ComponentID, l1CLID stack.ComponentID, l2CLID stack.ComponentID, l1ELID stack.ComponentID, l2ELID stack.ComponentID) stack.Option[*Orchestrator] {
 	return withTestSequencerImpl(testSequencerID, l1CLID, l1ELID, l2ChainIDs{CLID: l2CLID, ELID: l2ELID})
 }
 
 // WithTestSequencer2L2 creates a test sequencer that can build blocks on two L2 chains.
 // This is useful for testing same-timestamp interop scenarios where we need deterministic
 // block timestamps on both chains.
-func WithTestSequencer2L2(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLNodeID,
-	l2ACLID stack.L2CLNodeID, l2BCLID stack.L2CLNodeID,
-	l1ELID stack.L1ELNodeID, l2AELID stack.L2ELNodeID, l2BELID stack.L2ELNodeID) stack.Option[*Orchestrator] {
+func WithTestSequencer2L2(testSequencerID stack.ComponentID, l1CLID stack.ComponentID,
+	l2ACLID stack.ComponentID, l2BCLID stack.ComponentID,
+	l1ELID stack.ComponentID, l2AELID stack.ComponentID, l2BELID stack.ComponentID) stack.Option[*Orchestrator] {
 	return withTestSequencerImpl(testSequencerID, l1CLID, l1ELID,
 		l2ChainIDs{CLID: l2ACLID, ELID: l2AELID},
 		l2ChainIDs{CLID: l2BCLID, ELID: l2BELID},
@@ -99,7 +99,7 @@ func WithTestSequencer2L2(testSequencerID stack.TestSequencerID, l1CLID stack.L1
 
 // withTestSequencerImpl is the shared implementation for creating test sequencers.
 // It supports any number of L2 chains.
-func withTestSequencerImpl(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2Chains ...l2ChainIDs) stack.Option[*Orchestrator] {
+func withTestSequencerImpl(testSequencerID stack.ComponentID, l1CLID stack.ComponentID, l1ELID stack.ComponentID, l2Chains ...l2ChainIDs) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), testSequencerID))
 		require := p.Require()
@@ -107,21 +107,18 @@ func withTestSequencerImpl(testSequencerID stack.TestSequencerID, l1CLID stack.L
 
 		// Setup L1 components
 		orch.writeDefaultJWT()
-		l1ELComponent, ok := orch.registry.Get(stack.ConvertL1ELNodeID(l1ELID).ComponentID)
+		l1EL, ok := orch.GetL1EL(l1ELID)
 		require.True(ok, "l1 EL node required")
-		l1EL := l1ELComponent.(L1ELNode)
 		l1ELClient, err := ethclient.DialContext(p.Ctx(), l1EL.UserRPC())
 		require.NoError(err)
 		engineCl, err := dialEngine(p.Ctx(), l1EL.AuthRPC(), orch.jwtSecret)
 		require.NoError(err)
 
-		l1CLComponent, ok := orch.registry.Get(stack.ConvertL1CLNodeID(l1CLID).ComponentID)
+		l1CL, ok := orch.GetL1CL(l1CLID)
 		require.True(ok, "l1 CL node required")
-		l1CL := l1CLComponent.(*L1CLNode)
 
-		l1NetComponent, ok := orch.registry.Get(stack.ConvertL1NetworkID(stack.L1NetworkID(l1ELID.ChainID())).ComponentID)
+		l1Net, ok := orch.GetL1Network(stack.NewL1NetworkID(l1ELID.ChainID()))
 		require.True(ok, "l1 net required")
-		l1Net := l1NetComponent.(*L1Network)
 
 		// L1 sequencer IDs
 		bid_L1 := seqtypes.BuilderID("test-l1-builder")
@@ -184,9 +181,8 @@ func withTestSequencerImpl(testSequencerID stack.TestSequencerID, l1CLID stack.L
 			l2EL, ok := orch.GetL2EL(l2Chain.ELID)
 			require.True(ok, "l2 EL node required for chain %d", i)
 
-			l2CLComponent, ok := orch.registry.Get(stack.ConvertL2CLNodeID(l2Chain.CLID).ComponentID)
+			l2CL, ok := orch.GetL2CL(l2Chain.CLID)
 			require.True(ok, "l2 CL node required for chain %d", i)
-			l2CL := l2CLComponent.(L2CLNode)
 
 			// Generate unique IDs for this L2 chain (use suffix for multi-chain, no suffix for single chain)
 			suffix := ""
@@ -320,6 +316,6 @@ func withTestSequencerImpl(testSequencerID stack.TestSequencerID, l1CLID stack.L
 			sequencers: sequencerIDs,
 		}
 		logger.Info("Sequencer User RPC", "http_endpoint", testSequencerNode.userRPC)
-		orch.registry.Register(stack.ConvertTestSequencerID(testSequencerID).ComponentID, testSequencerNode)
+		orch.registry.Register(testSequencerID, testSequencerNode)
 	})
 }

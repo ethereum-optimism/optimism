@@ -1,6 +1,7 @@
 package stack
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -95,8 +96,8 @@ func TestID_TypeSafety(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(420)
 
 	// Create two different ID types with same key and chainID
-	batcherID := NewL2BatcherID2("mynode", chainID)
-	elNodeID := NewL2ELNodeID2("mynode", chainID)
+	batcherID := NewL2BatcherID("mynode", chainID)
+	elNodeID := NewL2ELNodeID("mynode", chainID)
 
 	// They should have different kinds
 	require.Equal(t, KindL2Batcher, batcherID.Kind())
@@ -106,21 +107,21 @@ func TestID_TypeSafety(t *testing.T) {
 	require.Equal(t, "L2Batcher-mynode-420", batcherID.String())
 	require.Equal(t, "L2ELNode-mynode-420", elNodeID.String())
 
-	// The underlying ComponentIDs should be different due to kind
-	require.NotEqual(t, batcherID.AsComponentID(), elNodeID.AsComponentID())
+	// The IDs should be different due to kind
+	require.NotEqual(t, batcherID, elNodeID)
 }
 
 func TestID_MarshalRoundTrip(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(420)
-	original := NewL2BatcherID2("mynode", chainID)
+	original := NewL2BatcherID("mynode", chainID)
 
 	data, err := original.MarshalText()
 	require.NoError(t, err)
 	require.Equal(t, "L2Batcher-mynode-420", string(data))
 
-	// Unmarshal into a zero value - Kind() should still work
-	var parsed L2BatcherID2
-	require.Equal(t, KindL2Batcher, parsed.Kind()) // Works on zero value!
+	// Unmarshal into a ComponentID with kind preset
+	var parsed ComponentID
+	parsed.kind = KindL2Batcher // Must set kind before unmarshal
 
 	err = parsed.UnmarshalText(data)
 	require.NoError(t, err)
@@ -128,8 +129,9 @@ func TestID_MarshalRoundTrip(t *testing.T) {
 }
 
 func TestID_UnmarshalKindMismatch(t *testing.T) {
-	// Try to unmarshal an L2ELNode ID into an L2Batcher ID
-	var batcherID L2BatcherID2
+	// Try to unmarshal an L2ELNode ID into a ComponentID expecting L2Batcher
+	var batcherID ComponentID
+	batcherID.kind = KindL2Batcher
 	err := batcherID.UnmarshalText([]byte("L2ELNode-mynode-420"))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unexpected kind")
@@ -137,7 +139,7 @@ func TestID_UnmarshalKindMismatch(t *testing.T) {
 
 func TestID_ChainOnlyTypes(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(1)
-	networkID := NewL1NetworkID2(chainID)
+	networkID := NewL1NetworkID(chainID)
 
 	require.Equal(t, KindL1Network, networkID.Kind())
 	require.Equal(t, chainID, networkID.ChainID())
@@ -146,14 +148,15 @@ func TestID_ChainOnlyTypes(t *testing.T) {
 	data, err := networkID.MarshalText()
 	require.NoError(t, err)
 
-	var parsed L1NetworkID2
+	var parsed ComponentID
+	parsed.kind = KindL1Network // Must set kind before unmarshal
 	err = parsed.UnmarshalText(data)
 	require.NoError(t, err)
 	require.Equal(t, networkID, parsed)
 }
 
 func TestID_KeyOnlyTypes(t *testing.T) {
-	supervisorID := NewSupervisorID2("mysupervisor")
+	supervisorID := NewSupervisorID("mysupervisor")
 
 	require.Equal(t, KindSupervisor, supervisorID.Kind())
 	require.Equal(t, "mysupervisor", supervisorID.Key())
@@ -162,7 +165,8 @@ func TestID_KeyOnlyTypes(t *testing.T) {
 	data, err := supervisorID.MarshalText()
 	require.NoError(t, err)
 
-	var parsed SupervisorID2
+	var parsed ComponentID
+	parsed.kind = KindSupervisor // Must set kind before unmarshal
 	err = parsed.UnmarshalText(data)
 	require.NoError(t, err)
 	require.Equal(t, supervisorID, parsed)
@@ -172,14 +176,24 @@ func TestID_Sorting(t *testing.T) {
 	chainID1 := eth.ChainIDFromUInt64(100)
 	chainID2 := eth.ChainIDFromUInt64(200)
 
-	ids := []L2BatcherID2{
-		NewL2BatcherID2("charlie", chainID1),
-		NewL2BatcherID2("alice", chainID1),
-		NewL2BatcherID2("alice", chainID2),
-		NewL2BatcherID2("bob", chainID1),
+	ids := []ComponentID{
+		NewL2BatcherID("charlie", chainID1),
+		NewL2BatcherID("alice", chainID1),
+		NewL2BatcherID("alice", chainID2),
+		NewL2BatcherID("bob", chainID1),
 	}
 
-	sorted := SortIDs(ids)
+	// Sort using the ID's comparison
+	sorted := slices.Clone(ids)
+	slices.SortFunc(sorted, func(a, b ComponentID) int {
+		if a.Less(b) {
+			return -1
+		}
+		if b.Less(a) {
+			return 1
+		}
+		return 0
+	})
 
 	// Should be sorted by key first, then by chainID
 	require.Equal(t, "alice", sorted[0].Key())
@@ -194,10 +208,10 @@ func TestID_MapKey(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(420)
 
 	// IDs should work as map keys
-	m := make(map[L2BatcherID2]string)
+	m := make(map[ComponentID]string)
 
-	id1 := NewL2BatcherID2("node1", chainID)
-	id2 := NewL2BatcherID2("node2", chainID)
+	id1 := NewL2BatcherID("node1", chainID)
+	id2 := NewL2BatcherID("node2", chainID)
 
 	m[id1] = "value1"
 	m[id2] = "value2"
@@ -206,7 +220,7 @@ func TestID_MapKey(t *testing.T) {
 	require.Equal(t, "value2", m[id2])
 
 	// Same key+chainID should retrieve same value
-	id1Copy := NewL2BatcherID2("node1", chainID)
+	id1Copy := NewL2BatcherID("node1", chainID)
 	require.Equal(t, "value1", m[id1Copy])
 }
 
@@ -219,25 +233,25 @@ func TestAllIDTypes(t *testing.T) {
 		id       interface{ Kind() ComponentKind }
 		expected ComponentKind
 	}{
-		{"L1ELNode", NewL1ELNodeID2("node", chainID), KindL1ELNode},
-		{"L1CLNode", NewL1CLNodeID2("node", chainID), KindL1CLNode},
-		{"L1Network", NewL1NetworkID2(chainID), KindL1Network},
-		{"L2ELNode", NewL2ELNodeID2("node", chainID), KindL2ELNode},
-		{"L2CLNode", NewL2CLNodeID2("node", chainID), KindL2CLNode},
-		{"L2Network", NewL2NetworkID2(chainID), KindL2Network},
-		{"L2Batcher", NewL2BatcherID2("node", chainID), KindL2Batcher},
-		{"L2Proposer", NewL2ProposerID2("node", chainID), KindL2Proposer},
-		{"L2Challenger", NewL2ChallengerID2("node", chainID), KindL2Challenger},
-		{"RollupBoostNode", NewRollupBoostNodeID2("node", chainID), KindRollupBoostNode},
-		{"OPRBuilderNode", NewOPRBuilderNodeID2("node", chainID), KindOPRBuilderNode},
-		{"Faucet", NewFaucetID2("node", chainID), KindFaucet},
-		{"SyncTester", NewSyncTesterID2("node", chainID), KindSyncTester},
-		{"Supervisor", NewSupervisorID2("node"), KindSupervisor},
-		{"Conductor", NewConductorID2("node"), KindConductor},
-		{"Cluster", NewClusterID2("node"), KindCluster},
-		{"Superchain", NewSuperchainID2("node"), KindSuperchain},
-		{"TestSequencer", NewTestSequencerID2("node"), KindTestSequencer},
-		{"FlashblocksClient", NewFlashblocksClientID2("node", chainID), KindFlashblocksClient},
+		{"L1ELNode", NewL1ELNodeID("node", chainID), KindL1ELNode},
+		{"L1CLNode", NewL1CLNodeID("node", chainID), KindL1CLNode},
+		{"L1Network", NewL1NetworkID(chainID), KindL1Network},
+		{"L2ELNode", NewL2ELNodeID("node", chainID), KindL2ELNode},
+		{"L2CLNode", NewL2CLNodeID("node", chainID), KindL2CLNode},
+		{"L2Network", NewL2NetworkID(chainID), KindL2Network},
+		{"L2Batcher", NewL2BatcherID("node", chainID), KindL2Batcher},
+		{"L2Proposer", NewL2ProposerID("node", chainID), KindL2Proposer},
+		{"L2Challenger", NewL2ChallengerID("node", chainID), KindL2Challenger},
+		{"RollupBoostNode", NewRollupBoostNodeID("node", chainID), KindRollupBoostNode},
+		{"OPRBuilderNode", NewOPRBuilderNodeID("node", chainID), KindOPRBuilderNode},
+		{"Faucet", NewFaucetID("node", chainID), KindFaucet},
+		{"SyncTester", NewSyncTesterID("node", chainID), KindSyncTester},
+		{"Supervisor", NewSupervisorID("node"), KindSupervisor},
+		{"Conductor", NewConductorID("node"), KindConductor},
+		{"Cluster", NewClusterID("node"), KindCluster},
+		{"Superchain", NewSuperchainID("node"), KindSuperchain},
+		{"TestSequencer", NewTestSequencerID("node"), KindTestSequencer},
+		{"FlashblocksClient", NewFlashblocksWSClientID("node", chainID), KindFlashblocksClient},
 	}
 
 	for _, tt := range tests {
@@ -258,11 +272,11 @@ func TestSerializationCompatibility(t *testing.T) {
 		id       interface{ MarshalText() ([]byte, error) }
 		expected string
 	}{
-		{"L2Batcher", NewL2BatcherID2("mynode", chainID), "L2Batcher-mynode-420"},
-		{"L2ELNode", NewL2ELNodeID2("mynode", chainID), "L2ELNode-mynode-420"},
-		{"L1Network", NewL1NetworkID2(eth.ChainIDFromUInt64(1)), "L1Network-1"},
-		{"Supervisor", NewSupervisorID2("mysupervisor"), "Supervisor-mysupervisor"},
-		{"RollupBoostNode", NewRollupBoostNodeID2("boost", chainID), "RollupBoostNode-boost-420"},
+		{"L2Batcher", NewL2BatcherID("mynode", chainID), "L2Batcher-mynode-420"},
+		{"L2ELNode", NewL2ELNodeID("mynode", chainID), "L2ELNode-mynode-420"},
+		{"L1Network", NewL1NetworkID(eth.ChainIDFromUInt64(1)), "L1Network-1"},
+		{"Supervisor", NewSupervisorID("mysupervisor"), "Supervisor-mysupervisor"},
+		{"RollupBoostNode", NewRollupBoostNodeID("boost", chainID), "RollupBoostNode-boost-420"},
 	}
 
 	for _, tt := range tests {
@@ -272,62 +286,4 @@ func TestSerializationCompatibility(t *testing.T) {
 			require.Equal(t, tt.expected, string(data))
 		})
 	}
-}
-
-// TestConversionHelpers verifies that conversion between old and new ID systems
-// preserves all data correctly.
-func TestConversionHelpers(t *testing.T) {
-	chainID := eth.ChainIDFromUInt64(420)
-
-	t.Run("L2BatcherID", func(t *testing.T) {
-		old := NewL2BatcherID("mynode", chainID)
-		new := ConvertL2BatcherID(old)
-		require.Equal(t, KindL2Batcher, new.Kind())
-		require.Equal(t, "mynode", new.Key())
-		require.Equal(t, chainID, new.ChainID())
-		require.Equal(t, old.String(), new.String())
-	})
-
-	t.Run("L2ELNodeID", func(t *testing.T) {
-		old := NewL2ELNodeID("mynode", chainID)
-		new := ConvertL2ELNodeID(old)
-		require.Equal(t, KindL2ELNode, new.Kind())
-		require.Equal(t, "mynode", new.Key())
-		require.Equal(t, chainID, new.ChainID())
-		require.Equal(t, old.String(), new.String())
-	})
-
-	t.Run("L1NetworkID", func(t *testing.T) {
-		old := L1NetworkID(eth.ChainIDFromUInt64(1))
-		new := ConvertL1NetworkID(old)
-		require.Equal(t, KindL1Network, new.Kind())
-		require.Equal(t, eth.ChainIDFromUInt64(1), new.ChainID())
-		require.Equal(t, old.String(), new.String())
-	})
-
-	t.Run("SupervisorID", func(t *testing.T) {
-		old := SupervisorID("mysupervisor")
-		new := ConvertSupervisorID(old)
-		require.Equal(t, KindSupervisor, new.Kind())
-		require.Equal(t, "mysupervisor", new.Key())
-		require.Equal(t, old.String(), new.String())
-	})
-
-	t.Run("RollupBoostNodeID", func(t *testing.T) {
-		old := NewRollupBoostNodeID("boost", chainID)
-		new := ConvertRollupBoostNodeID(old)
-		require.Equal(t, KindRollupBoostNode, new.Kind())
-		require.Equal(t, "boost", new.Key())
-		require.Equal(t, chainID, new.ChainID())
-		require.Equal(t, old.String(), new.String())
-	})
-
-	t.Run("FlashblocksWSClientID", func(t *testing.T) {
-		old := NewFlashblocksWSClientID("fbclient", chainID)
-		new := ConvertFlashblocksClientID(old)
-		require.Equal(t, KindFlashblocksClient, new.Kind())
-		require.Equal(t, "fbclient", new.Key())
-		require.Equal(t, chainID, new.ChainID())
-		require.Equal(t, old.String(), new.String())
-	})
 }

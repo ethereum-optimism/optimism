@@ -7,13 +7,13 @@ import (
 
 type L2ProposerConfig struct {
 	CommonConfig
-	ID     stack.L2ProposerID
+	ID     stack.ComponentID
 	Client client.RPC
 }
 
 type rpcL2Proposer struct {
 	commonImpl
-	id     stack.L2ProposerID
+	id     stack.ComponentID
 	client client.RPC
 }
 
@@ -28,6 +28,6 @@ func NewL2Proposer(cfg L2ProposerConfig) stack.L2Proposer {
 	}
 }
 
-func (r *rpcL2Proposer) ID() stack.L2ProposerID {
+func (r *rpcL2Proposer) ID() stack.ComponentID {
 	return r.id
 }

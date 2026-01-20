@@ -11,7 +11,7 @@ import (
 )
 
 type L2Network struct {
-	id         stack.L2NetworkID
+	id         stack.ComponentID
 	l1ChainID  eth.ChainID
 	genesis    *core.Genesis
 	rollupCfg  *rollup.Config
@@ -20,7 +20,7 @@ type L2Network struct {
 }
 
 func (c *L2Network) hydrate(system stack.ExtensibleSystem) {
-	l1Net := system.L1Network(stack.L1NetworkID(c.l1ChainID))
+	l1Net := system.L1Network(stack.ByID[stack.L1Network](stack.NewL1NetworkID(c.l1ChainID)))
 	sysL2Net := shim.NewL2Network(shim.L2NetworkConfig{
 		NetworkConfig: shim.NetworkConfig{
 			CommonConfig: shim.NewCommonConfig(system.T()),

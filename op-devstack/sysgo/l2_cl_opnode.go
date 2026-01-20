@@ -41,7 +41,7 @@ import (
 type OpNode struct {
 	mu sync.Mutex
 
-	id               stack.L2CLNodeID
+	id               stack.ComponentID
 	opNode           *opnode.Opnode
 	userRPC          string
 	interopEndpoint  string
@@ -49,7 +49,7 @@ type OpNode struct {
 	cfg              *config.Config
 	p                devtest.P
 	logger           log.Logger
-	el               *stack.L2ELNodeID // Optional: nil when using SyncTester
+	el               *stack.ComponentID // Optional: nil when using SyncTester
 	userProxy        *tcpproxy.Proxy
 	interopProxy     *tcpproxy.Proxy
 	clock            clock.Clock
@@ -72,7 +72,7 @@ func (n *OpNode) hydrate(system stack.ExtensibleSystem) {
 		InteropJwtSecret: n.interopJwtSecret,
 	})
 	sysL2CL.SetLabel(match.LabelVendor, string(match.OpNode))
-	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
+	l2Net := system.L2Network(stack.ByID[stack.L2Network](stack.NewL2NetworkID(n.id.ChainID())))
 	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
 	if n.el != nil {
 		for _, el := range l2Net.L2ELNodes() {
@@ -81,14 +81,14 @@ func (n *OpNode) hydrate(system stack.ExtensibleSystem) {
 				return
 			}
 		}
-		rbID := stack.RollupBoostNodeID(*n.el)
+		rbID := stack.NewRollupBoostNodeID(n.el.Key(), n.el.ChainID())
 		for _, rb := range l2Net.RollupBoostNodes() {
 			if rb.ID() == rbID {
 				sysL2CL.(stack.LinkableL2CLNode).LinkRollupBoostNode(rb)
 				return
 			}
 		}
-		oprbID := stack.OPRBuilderNodeID(*n.el)
+		oprbID := stack.NewOPRBuilderNodeID(n.el.Key(), n.el.ChainID())
 		for _, oprb := range l2Net.OPRBuilderNodes() {
 			if oprb.ID() == oprbID {
 				sysL2CL.(stack.LinkableL2CLNode).LinkOPRBuilderNode(oprb)
@@ -162,13 +162,12 @@ func (n *OpNode) Stop() {
 	n.opNode = nil
 }
 
-func WithOpNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, l2FollowSourceID stack.L2CLNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+func WithOpNodeFollowL2(l2CLID stack.ComponentID, l1CLID stack.ComponentID, l1ELID stack.ComponentID, l2ELID stack.ComponentID, l2FollowSourceID stack.ComponentID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		followSource := func(orch *Orchestrator) string {
 			p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
-			l2CLComponent, ok := orch.registry.Get(stack.ConvertL2CLNodeID(l2FollowSourceID).ComponentID)
+			l2CLFollowSource, ok := orch.GetL2CL(l2FollowSourceID)
 			p.Require().True(ok, "l2 CL Follow Source required")
-			l2CLFollowSource := l2CLComponent.(L2CLNode)
 			return l2CLFollowSource.UserRPC()
 		}(orch)
 		opts = append(opts, L2CLFollowSource(followSource))
@@ -176,31 +175,27 @@ func WithOpNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID
 	})
 }
 
-func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+func WithOpNode(l2CLID stack.ComponentID, l1CLID stack.ComponentID, l1ELID stack.ComponentID, l2ELID stack.ComponentID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(withOpNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...))
 }
 
-func withOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) func(orch *Orchestrator) {
+func withOpNode(l2CLID stack.ComponentID, l1CLID stack.ComponentID, l1ELID stack.ComponentID, l2ELID stack.ComponentID, opts ...L2CLOption) func(orch *Orchestrator) {
 	return func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
 
 		require := p.Require()
 
-		l1NetComponent, ok := orch.registry.Get(stack.ConvertL1NetworkID(stack.L1NetworkID(l1CLID.ChainID())).ComponentID)
+		l1Net, ok := orch.GetL1Network(stack.NewL1NetworkID(l1CLID.ChainID()))
 		require.True(ok, "l1 network required")
-		l1Net := l1NetComponent.(*L1Network)
 
-		l2NetComponent, ok := orch.registry.Get(stack.ConvertL2NetworkID(stack.L2NetworkID(l2CLID.ChainID())).ComponentID)
+		l2Net, ok := orch.GetL2Network(stack.NewL2NetworkID(l2CLID.ChainID()))
 		require.True(ok, "l2 network required")
-		l2Net := l2NetComponent.(*L2Network)
 
-		l1ELComponent, ok := orch.registry.Get(stack.ConvertL1ELNodeID(l1ELID).ComponentID)
+		l1EL, ok := orch.GetL1EL(l1ELID)
 		require.True(ok, "l1 EL node required")
-		l1EL := l1ELComponent.(L1ELNode)
 
-		l1CLComponent, ok := orch.registry.Get(stack.ConvertL1CLNodeID(l1CLID).ComponentID)
+		l1CL, ok := orch.GetL1CL(l1CLID)
 		require.True(ok, "l1 CL node required")
-		l1CL := l1CLComponent.(*L1CLNode)
 
 		// Get the L2EL node (which can be a regular EL node or a SyncTesterEL)
 		l2EL, ok := orch.GetL2EL(l2ELID)
@@ -368,7 +363,7 @@ func withOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 
 		// Set the EL field to link to the L2EL node
 		l2CLNode.el = &l2ELID
-		cid := stack.ConvertL2CLNodeID(l2CLID).ComponentID
+		cid := l2CLID
 		require.False(orch.registry.Has(cid), fmt.Sprintf("must not already exist: %s", l2CLID))
 		orch.registry.Register(cid, l2CLNode)
 		l2CLNode.Start()

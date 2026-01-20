@@ -9,13 +9,13 @@ import (
 
 type L2BatcherConfig struct {
 	CommonConfig
-	ID     stack.L2BatcherID
+	ID     stack.ComponentID
 	Client client.RPC
 }
 
 type rpcL2Batcher struct {
 	commonImpl
-	id     stack.L2BatcherID
+	id     stack.ComponentID
 	client *sources.BatcherAdminClient
 }
 
@@ -30,7 +30,7 @@ func NewL2Batcher(cfg L2BatcherConfig) stack.L2Batcher {
 	}
 }
 
-func (r *rpcL2Batcher) ID() stack.L2BatcherID {
+func (r *rpcL2Batcher) ID() stack.ComponentID {
 	return r.id
 }
 

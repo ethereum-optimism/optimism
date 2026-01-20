@@ -16,9 +16,9 @@ func TestMain(m *testing.M) {
 		// Logging can be adjusted with filters globally
 		presets.WithPkgLogFilter(
 			logfilter.DefaultShow( // Random configuration
-				stack.KindSelector(stack.L2ProposerKind).Mute(),
-				stack.KindSelector(stack.L2BatcherKind).And(logfilter.Level(log.LevelError)).Show(),
-				stack.KindSelector(stack.L2CLNodeKind).Mute(),
+				stack.KindSelector(stack.KindL2Proposer).Mute(),
+				stack.KindSelector(stack.KindL2Batcher).And(logfilter.Level(log.LevelError)).Show(),
+				stack.KindSelector(stack.KindL2CLNode).Mute(),
 			),
 			// E.g. allow test interactions through while keeping background resource logs quiet
 		),

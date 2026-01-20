@@ -25,7 +25,7 @@ import (
 type OPRBuilderNode struct {
 	mu sync.Mutex
 
-	id        stack.OPRBuilderNodeID
+	id        stack.ComponentID
 	rollupCfg *rollup.Config
 
 	wsProxyURL string
@@ -251,7 +251,7 @@ func (cfg *OPRBuilderNodeConfig) LaunchSpec(p devtest.P) (args []string, env []s
 }
 
 type OPRBuilderNodeOption interface {
-	Apply(p devtest.P, id stack.OPRBuilderNodeID, cfg *OPRBuilderNodeConfig)
+	Apply(p devtest.P, id stack.ComponentID, cfg *OPRBuilderNodeConfig)
 }
 
 func WithGlobalOPRBuilderNodeOption(opt OPRBuilderNodeOption) stack.Option[*Orchestrator] {
@@ -260,11 +260,11 @@ func WithGlobalOPRBuilderNodeOption(opt OPRBuilderNodeOption) stack.Option[*Orch
 	})
 }
 
-type OPRBuilderNodeOptionFn func(p devtest.P, id stack.OPRBuilderNodeID, cfg *OPRBuilderNodeConfig)
+type OPRBuilderNodeOptionFn func(p devtest.P, id stack.ComponentID, cfg *OPRBuilderNodeConfig)
 
 var _ OPRBuilderNodeOption = OPRBuilderNodeOptionFn(nil)
 
-func (fn OPRBuilderNodeOptionFn) Apply(p devtest.P, id stack.OPRBuilderNodeID, cfg *OPRBuilderNodeConfig) {
+func (fn OPRBuilderNodeOptionFn) Apply(p devtest.P, id stack.ComponentID, cfg *OPRBuilderNodeConfig) {
 	fn(p, id, cfg)
 }
 
@@ -273,7 +273,7 @@ type OPRBuilderNodeOptionBundle []OPRBuilderNodeOption
 
 var _ OPRBuilderNodeOption = OPRBuilderNodeOptionBundle(nil)
 
-func (b OPRBuilderNodeOptionBundle) Apply(p devtest.P, id stack.OPRBuilderNodeID, cfg *OPRBuilderNodeConfig) {
+func (b OPRBuilderNodeOptionBundle) Apply(p devtest.P, id stack.ComponentID, cfg *OPRBuilderNodeConfig) {
 	for _, opt := range b {
 		p.Require().NotNil(opt, "cannot Apply nil OPRBuilderNodeOption")
 		opt.Apply(p, id, cfg)
@@ -282,7 +282,7 @@ func (b OPRBuilderNodeOptionBundle) Apply(p devtest.P, id stack.OPRBuilderNodeID
 
 // OPRBuilderWithP2PConfig sets deterministic P2P identity and static peers for the builder EL.
 func OPRBuilderWithP2PConfig(addr string, port int, nodeKeyHex string, staticPeers, trustedPeers []string) OPRBuilderNodeOption {
-	return OPRBuilderNodeOptionFn(func(p devtest.P, id stack.OPRBuilderNodeID, cfg *OPRBuilderNodeConfig) {
+	return OPRBuilderNodeOptionFn(func(p devtest.P, id stack.ComponentID, cfg *OPRBuilderNodeConfig) {
 		cfg.P2PAddr = addr
 		cfg.P2PPort = port
 		cfg.P2PNodeKeyHex = nodeKeyHex
@@ -293,7 +293,7 @@ func OPRBuilderWithP2PConfig(addr string, port int, nodeKeyHex string, staticPee
 
 // OPRBuilderWithNodeIdentity applies an ELNodeIdentity directly to the builder EL.
 func OPRBuilderWithNodeIdentity(identity *ELNodeIdentity, addr string, staticPeers, trustedPeers []string) OPRBuilderNodeOption {
-	return OPRBuilderNodeOptionFn(func(p devtest.P, id stack.OPRBuilderNodeID, cfg *OPRBuilderNodeConfig) {
+	return OPRBuilderNodeOptionFn(func(p devtest.P, id stack.ComponentID, cfg *OPRBuilderNodeConfig) {
 		cfg.P2PAddr = addr
 		cfg.P2PPort = identity.Port
 		cfg.P2PNodeKeyHex = identity.KeyHex()
@@ -303,13 +303,13 @@ func OPRBuilderWithNodeIdentity(identity *ELNodeIdentity, addr string, staticPee
 }
 
 func OPRBuilderNodeWithExtraArgs(args ...string) OPRBuilderNodeOption {
-	return OPRBuilderNodeOptionFn(func(p devtest.P, id stack.OPRBuilderNodeID, cfg *OPRBuilderNodeConfig) {
+	return OPRBuilderNodeOptionFn(func(p devtest.P, id stack.ComponentID, cfg *OPRBuilderNodeConfig) {
 		cfg.ExtraArgs = append(cfg.ExtraArgs, args...)
 	})
 }
 
 func OPRBuilderNodeWithEnv(env ...string) OPRBuilderNodeOption {
-	return OPRBuilderNodeOptionFn(func(p devtest.P, id stack.OPRBuilderNodeID, cfg *OPRBuilderNodeConfig) {
+	return OPRBuilderNodeOptionFn(func(p devtest.P, id stack.ComponentID, cfg *OPRBuilderNodeConfig) {
 		cfg.Env = append(cfg.Env, env...)
 	})
 }
@@ -336,7 +336,7 @@ func (b *OPRBuilderNode) hydrate(system stack.ExtensibleSystem) {
 		RollupCfg:         b.rollupCfg,
 		FlashblocksClient: wsClient,
 	})
-	system.L2Network(stack.L2NetworkID(b.id.ChainID())).(stack.ExtensibleL2Network).AddOPRBuilderNode(node)
+	system.L2Network(stack.ByID[stack.L2Network](stack.NewL2NetworkID(b.id.ChainID()))).(stack.ExtensibleL2Network).AddOPRBuilderNode(node)
 }
 
 func (b *OPRBuilderNode) Start() {
@@ -480,12 +480,11 @@ func (b *OPRBuilderNode) Stop() {
 }
 
 // WithOPRBuilderNode constructs and starts an OPRbuilderNode using the provided options.
-func WithOPRBuilderNode(id stack.OPRBuilderNodeID, opts ...OPRBuilderNodeOption) stack.Option[*Orchestrator] {
+func WithOPRBuilderNode(id stack.ComponentID, opts ...OPRBuilderNodeOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
-		l2NetComponent, ok := orch.registry.Get(stack.ConvertL2NetworkID(stack.L2NetworkID(id.ChainID())).ComponentID)
+		l2Net, ok := orch.GetL2Network(stack.NewL2NetworkID(id.ChainID()))
 		p.Require().True(ok, "l2 network required")
-		l2Net := l2NetComponent.(*L2Network)
 
 		tempDir := p.TempDir()
 		data, err := json.Marshal(l2Net.genesis)
@@ -510,7 +509,7 @@ func WithOPRBuilderNode(id stack.OPRBuilderNodeID, opts ...OPRBuilderNodeOption)
 		p.Logger().Info("Starting OPRbuilderNode")
 		rb.Start()
 		p.Cleanup(rb.Stop)
-		orch.registry.Register(stack.ConvertOPRBuilderNodeID(id).ComponentID, rb)
+		orch.registry.Register(id, rb)
 	})
 }
 

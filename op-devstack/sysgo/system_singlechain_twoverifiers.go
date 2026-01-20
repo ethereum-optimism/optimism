@@ -9,10 +9,10 @@ import (
 type DefaultSingleChainTwoVerifiersSystemIDs struct {
 	DefaultSingleChainMultiNodeSystemIDs
 
-	L2CLC stack.L2CLNodeID
-	L2ELC stack.L2ELNodeID
+	L2CLC stack.ComponentID
+	L2ELC stack.ComponentID
 
-	TestSequencer stack.TestSequencerID
+	TestSequencer stack.ComponentID
 }
 
 func NewDefaultSingleChainTwoVerifiersSystemIDs(l1ID, l2ID eth.ChainID) DefaultSingleChainTwoVerifiersSystemIDs {
@@ -20,6 +20,7 @@ func NewDefaultSingleChainTwoVerifiersSystemIDs(l1ID, l2ID eth.ChainID) DefaultS
 		DefaultSingleChainMultiNodeSystemIDs: NewDefaultSingleChainMultiNodeSystemIDs(l1ID, l2ID),
 		L2CLC:                                stack.NewL2CLNodeID("c", l2ID),
 		L2ELC:                                stack.NewL2ELNodeID("c", l2ID),
+		TestSequencer:                        stack.NewTestSequencerID("dev"),
 	}
 }
 
@@ -62,11 +63,11 @@ func DefaultSingleChainTwoVerifiersFollowL2System(dest *DefaultSingleChainTwoVer
 	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
 	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}))
+	opt.Add(WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2EL}))
 
 	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CLB, ids.L1EL, ids.L2ELB))
 
-	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{
+	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.ComponentID{
 		ids.L2EL,
 	}))
 

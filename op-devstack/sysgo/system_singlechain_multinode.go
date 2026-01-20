@@ -8,14 +8,14 @@ import (
 type DefaultSingleChainMultiNodeSystemIDs struct {
 	DefaultMinimalSystemIDs
 
-	L2CLB stack.L2CLNodeID
-	L2ELB stack.L2ELNodeID
+	L2CLB stack.ComponentID
+	L2ELB stack.ComponentID
 }
 
 type DefaultSingleChainMultiNodeWithTestSeqSystemIDs struct {
 	DefaultSingleChainMultiNodeSystemIDs
 
-	TestSequencer stack.TestSequencerID
+	TestSequencer stack.ComponentID
 }
 
 func NewDefaultSingleChainMultiNodeSystemIDs(l1ID, l2ID eth.ChainID) DefaultSingleChainMultiNodeSystemIDs {
@@ -30,7 +30,7 @@ func NewDefaultSingleChainMultiNodeSystemIDs(l1ID, l2ID eth.ChainID) DefaultSing
 func NewDefaultSingleChainMultiNodeWithTestSeqSystemIDs(l1ID, l2ID eth.ChainID) DefaultSingleChainMultiNodeWithTestSeqSystemIDs {
 	return DefaultSingleChainMultiNodeWithTestSeqSystemIDs{
 		DefaultSingleChainMultiNodeSystemIDs: NewDefaultSingleChainMultiNodeSystemIDs(l1ID, l2ID),
-		TestSequencer:                        "dev",
+		TestSequencer:                        stack.NewTestSequencerID("dev"),
 	}
 }
 

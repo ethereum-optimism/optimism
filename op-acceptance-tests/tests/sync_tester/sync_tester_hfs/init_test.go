@@ -17,7 +17,7 @@ func TestMain(m *testing.M) {
 		presets.WithCompatibleTypes(compat.SysGo),
 		presets.WithHardforkSequentialActivation(forks.Bedrock, forks.Jovian, 6),
 		presets.WithNoDiscovery(),
-		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {
+		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.ComponentID, cfg *bss.CLIConfig) {
 			// For supporting pre-delta batches
 			cfg.BatchType = derive.SingularBatchType
 			// For supporting pre-Fjord batches
