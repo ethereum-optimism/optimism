@@ -280,10 +280,10 @@ reproducible-prestate:
     CANNON_TAG=$(cat ../../.config/cannon_tag)
 
     echo "Building kona-client prestate for cannon..."
-    just cannon kona-client HEAD "${CANNON_TAG}"
+    just cannon kona-client "${CANNON_TAG}"
 
     echo "Building kona-client-int (interop) prestate for cannon..."
-    just cannon kona-client-int HEAD "${CANNON_TAG}" ./prestate-artifacts-cannon-interop
+    just cannon kona-client-int "${CANNON_TAG}" ./prestate-artifacts-cannon-interop
 
     echo ""
     echo "-------------------- Kona Prestates --------------------"
