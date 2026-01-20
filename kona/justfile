@@ -230,5 +230,5 @@ reproducible-prestate:
 clean:
   #!/usr/bin/env bash
   set -euo pipefail
-  rm -rf "{{KONA_ROOT}}/build" "{{KONA_ROOT}}/bin"
+  rm -rf "{{KONA_ROOT}}/build"
   rm -rf "{{KONA_ROOT}}/prestate-artifacts-cannon" "{{KONA_ROOT}}/prestate-artifacts-cannon-interop"
