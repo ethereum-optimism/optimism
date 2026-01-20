@@ -57,7 +57,7 @@ help:
 	@echo ""
 	@echo "Environment variables:"
 	@echo "  BOBA_KEEP_PATCHES=1  - Don't restore patches after build"
-	@echo "  PLATFORM=linux/arm64 - Target platform for docker-build"
+	@echo "  TAG=v1.16.5          - Image tag for docker-build (default: git commit)"
 	@echo "  TARGETS=\"op-node\"    - Specific targets for docker-build"
 	@echo ""
 
@@ -197,40 +197,41 @@ endif
 	git add $(SUBMODULE)
 	@echo "Submodule pinned to $(REF). Review changes and commit when ready."
 
-# Build all Docker containers
+# Build all Docker containers using podman
 # Usage: make docker-build
-#        make docker-build PLATFORM=linux/arm64
 #        make docker-build TARGETS="op-node op-batcher"
+#        make docker-build TAG=v1.16.5
 docker-build: patch-apply
-	@echo "Building Docker containers..."
-	@# Setup buildx builder if needed
-	@docker buildx inspect buildx-build >/dev/null 2>&1 || \
-		docker buildx create --driver=docker-container --name=buildx-build --bootstrap --use
-	@# Set build variables
+	@echo "Building Docker containers with podman..."
 	$(eval GIT_COMMIT := $(shell git rev-parse HEAD))
 	$(eval GIT_DATE := $(shell git show -s --format='%ct'))
 	$(eval GIT_VERSION := $(shell git describe --tags --always 2>/dev/null || echo "dev"))
-	$(eval PLATFORM := $(or $(PLATFORM),linux/amd64))
+	$(eval TAG := $(or $(TAG),$(GIT_COMMIT)))
 	$(eval TARGETS := $(or $(TARGETS),$(DOCKER_TARGETS)))
 	$(eval KONA_VERSION := $(shell jq -r .version $(SUBMODULE)/kona/version.json))
 	@echo "Building targets: $(TARGETS)"
-	@echo "Platform: $(PLATFORM)"
+	@echo "Tag: $(TAG)"
 	@echo "Git commit: $(GIT_COMMIT)"
 	@echo "Git version: $(GIT_VERSION)"
-	@# Run docker buildx bake
-	cd $(SUBMODULE) && \
-		GIT_COMMIT=$(GIT_COMMIT) \
-		GIT_DATE=$(GIT_DATE) \
-		GIT_VERSION=$(GIT_VERSION) \
-		PLATFORMS=$(PLATFORM) \
-		KONA_VERSION=$(KONA_VERSION) \
-		docker buildx bake \
-			--progress plain \
-			--builder=buildx-build \
-			--load \
-			-f docker-bake.hcl \
-			$(TARGETS)
+	@for target in $(TARGETS); do \
+		echo ""; \
+		echo "=== Building $$target ==="; \
+		version_var=$$(echo $$target | tr '[:lower:]-' '[:upper:]_')_VERSION; \
+		podman build \
+			-f $(SUBMODULE)/ops/docker/op-stack-go/Dockerfile \
+			--target $$target-target \
+			--build-arg GIT_COMMIT=$(GIT_COMMIT) \
+			--build-arg GIT_DATE=$(GIT_DATE) \
+			--build-arg $$version_var=$(GIT_VERSION) \
+			--build-arg KONA_VERSION=$(KONA_VERSION) \
+			-t $$target:$(TAG) \
+			$(SUBMODULE) || exit 1; \
+	done
 	@if [ "$(BOBA_KEEP_PATCHES)" != "1" ]; then \
 		$(MAKE) patch-restore; \
 	fi
-	@echo "Docker build complete."
+	@echo ""
+	@echo "Docker build complete. Images:"
+	@for target in $(TARGETS); do \
+		echo "  $$target:$(TAG)"; \
+	done
