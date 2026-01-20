@@ -34,13 +34,18 @@ func TestBlobsEndpoints(t *testing.T) {
 	t.Cleanup(func() { _ = beaconApi.Close() })
 	require.NoError(t, beaconApi.Start("127.0.0.1:0"))
 
-	blobToCommitmentAndProof := func(blob eth.Blob) (kzg4844.Commitment, kzg4844.Proof) {
+	blobToCommitmentProofAndBundle := func(blob eth.Blob) (kzg4844.Commitment, kzg4844.Proof, engine.BlobsBundle) {
 		kzgBlob := kzg4844.Blob(blob)
 		commitment, err := kzg4844.BlobToCommitment(&kzgBlob)
 		require.NoError(t, err)
 		proof, err := kzg4844.ComputeBlobProof(&kzgBlob, commitment)
 		require.NoError(t, err)
-		return commitment, proof
+		bundle := engine.BlobsBundle{
+			Commitments: []hexutil.Bytes{hexutil.Bytes(commitment[:])},
+			Proofs:      []hexutil.Bytes{hexutil.Bytes(proof[:])},
+			Blobs:       []hexutil.Bytes{hexutil.Bytes(blob[:])},
+		}
+		return commitment, proof, bundle
 	}
 
 	// Prepare bundles for different slots used in subtests.
@@ -50,24 +55,14 @@ func TestBlobsEndpoints(t *testing.T) {
 	for i := range blobSlot10 {
 		blobSlot10[i] = 0x01
 	}
-	commit10, proof10 := blobToCommitmentAndProof(blobSlot10)
-	bundle10 := engine.BlobsBundle{
-		Commitments: []hexutil.Bytes{hexutil.Bytes(commit10[:])},
-		Proofs:      []hexutil.Bytes{hexutil.Bytes(proof10[:])},
-		Blobs:       []hexutil.Bytes{hexutil.Bytes(blobSlot10[:])},
-	}
+	_, _, bundle10 := blobToCommitmentProofAndBundle(blobSlot10)
 	slot10 := uint64(10)
 	require.NoError(t, beaconApi.StoreBlobsBundle(slot10, &bundle10))
 
 	// Slot 20: single blob, we'll query by its versioned hash
 	var blobSlot20 eth.Blob
 	blobSlot20[0] = 0x42
-	commit20, proof20 := blobToCommitmentAndProof(blobSlot20)
-	bundle20 := engine.BlobsBundle{
-		Commitments: []hexutil.Bytes{hexutil.Bytes(commit20[:])},
-		Proofs:      []hexutil.Bytes{hexutil.Bytes(proof20[:])},
-		Blobs:       []hexutil.Bytes{hexutil.Bytes(blobSlot20[:])},
-	}
+	commit20, _, bundle20 := blobToCommitmentProofAndBundle(blobSlot20)
 	slot20 := uint64(20)
 	require.NoError(t, beaconApi.StoreBlobsBundle(slot20, &bundle20))
 
@@ -75,8 +70,8 @@ func TestBlobsEndpoints(t *testing.T) {
 	var blobA, blobB eth.Blob
 	blobA[0] = 0x11
 	blobB[0] = 0x22
-	commitA, proofA := blobToCommitmentAndProof(blobA)
-	commitB, proofB := blobToCommitmentAndProof(blobB)
+	commitA, proofA, _ := blobToCommitmentProofAndBundle(blobA)
+	commitB, proofB, _ := blobToCommitmentProofAndBundle(blobB)
 	bundle15 := engine.BlobsBundle{
 		Commitments: []hexutil.Bytes{hexutil.Bytes(commitA[:]), hexutil.Bytes(commitB[:])},
 		Proofs:      []hexutil.Bytes{hexutil.Bytes(proofA[:]), hexutil.Bytes(proofB[:])},
