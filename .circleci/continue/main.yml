@@ -3340,8 +3340,6 @@ workflows:
           filters:
             tags:
               only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
-            branches:
-              ignore: /.*/
       - contracts-bedrock-build:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -3350,8 +3348,6 @@ workflows:
           filters:
             tags:
               only: /^op-deployer.*/ # ensure contract artifacts are embedded in op-deployer binary
-            branches:
-              ignore: /.*/
       # Standard (medium) cross-platform docker images go here
       - docker-build:
           matrix:
@@ -3381,8 +3377,6 @@ workflows:
           filters:
             tags:
               only: /^<<matrix.docker_name>>\/v.*/
-            branches:
-              ignore: /.*/
           context:
             - oplabs-gcr-release
           requires:
@@ -3434,8 +3428,6 @@ workflows:
           filters:
             tags:
               only: /^op-program\/v.*/
-            branches:
-              ignore: /.*/
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -3450,8 +3442,6 @@ workflows:
           filters:
             tags:
               only: /^op-program\/v.*/
-            branches:
-              ignore: /.*/
 
   scheduled-todo-issues:
     when:
