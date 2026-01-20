@@ -83,12 +83,19 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 		}
 		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsFanIn.SetMetricsRegistry)
 	}
+
 	// Initialize activities
 	interopActivationTimestamp := cfg.RawCtx.Uint64(interop.InteropActivationTimestampFlag.Name)
+	interopActivity := interop.New(log.New("activity", "interop"), interopActivationTimestamp, s.chains, cfg.DataDir, s.l1Client)
 	s.activities = []activity.Activity{
-		interop.New(log.New("activity", "interop"), interopActivationTimestamp, s.chains, cfg.DataDir, s.l1Client),
+		interopActivity,
 		heartbeat.New(log.New("activity", "heartbeat"), 10*time.Second),
 		superroot.New(log.New("activity", "superroot"), s.chains),
+	}
+
+	// Cross-register verification activities with chains
+	for _, chain := range s.chains {
+		chain.RegisterVerifier(interopActivity)
 	}
 
 	// set up http server

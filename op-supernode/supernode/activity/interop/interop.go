@@ -51,6 +51,10 @@ type Interop struct {
 	currentL1s map[eth.ChainID]eth.BlockID
 }
 
+func (i *Interop) Name() string {
+	return "interop"
+}
+
 // New constructs a new Interop activity.
 func New(
 	log gethlog.Logger,
@@ -247,11 +251,6 @@ func (i *Interop) progressInterop() error {
 // checkChainsReady checks if all chains are ready to process the next timestamp.
 // Queries all chains in parallel for better performance.
 func (i *Interop) checkChainsReady(ts uint64) (map[eth.ChainID]eth.BlockID, error) {
-	start := time.Now()
-	defer func() {
-		i.log.Info("checkChainsReady: time taken", "time", time.Since(start))
-	}()
-
 	type result struct {
 		chainID eth.ChainID
 		blockID eth.BlockID
@@ -286,18 +285,10 @@ func (i *Interop) checkChainsReady(ts uint64) (map[eth.ChainID]eth.BlockID, erro
 }
 
 func (i *Interop) loadLogs(ts uint64) error {
-	start := time.Now()
-	defer func() {
-		i.log.Info("loadLogs: time taken", "time", time.Since(start))
-	}()
 	return nil
 }
 
 func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error) {
-	start := time.Now()
-	defer func() {
-		i.log.Info("verifyInteropMessages: time taken", "time", time.Since(start))
-	}()
 	result := Result{Timestamp: ts, L2Heads: make(map[eth.ChainID]eth.BlockID)}
 	for _, chain := range i.chains {
 		blockID := blocksAtTimestamp[chain.ID()]
@@ -307,18 +298,10 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 }
 
 func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID) error {
-	start := time.Now()
-	defer func() {
-		i.log.Info("invalidateBlock: time taken", "time", time.Since(start))
-	}()
 	return nil
 }
 
 func (i *Interop) commitVerifiedResult(timestamp uint64, verifiedResult VerifiedResult) error {
-	start := time.Now()
-	defer func() {
-		i.log.Info("commitVerifiedResult: time taken", "time", time.Since(start))
-	}()
 	return i.verifiedDB.Commit(verifiedResult)
 }
 

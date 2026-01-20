@@ -15,6 +15,7 @@ import (
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	gethlog "github.com/ethereum/go-ethereum/log"
@@ -37,6 +38,7 @@ type ChainContainer interface {
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error)
+	RegisterVerifier(v activity.VerificationActivity)
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode
@@ -58,6 +60,7 @@ type simpleChainContainer struct {
 	appVersion         string
 	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
+	verifiers          []activity.VerificationActivity
 }
 
 // Interface conformance assertions
@@ -111,6 +114,12 @@ func NewChainContainer(
 
 func (c *simpleChainContainer) ID() eth.ChainID {
 	return c.chainID
+}
+
+// RegisterVerifier adds a verification activity to this chain container.
+// This allows late binding when activities and chains have circular dependencies.
+func (c *simpleChainContainer) RegisterVerifier(v activity.VerificationActivity) {
+	c.verifiers = append(c.verifiers, v)
 }
 
 // defaultVirtualNodeFactory is the default factory that creates a real VirtualNode
@@ -305,8 +314,18 @@ func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l
 		return eth.BlockID{}, eth.BlockID{}, err
 	}
 
-	// if there were Verification Activities, we would check if the data could be *verified* at this L1, or would use its L1 block number
-	// but there are currently no verification activities, so we just return the l2 and l1 blocks
+	for _, verifier := range c.verifiers {
+		verified, err := verifier.VerifiedAtTimestamp(ts)
+		if err != nil {
+			c.log.Error("error checking if data could be verified at this L1", "error", err)
+			return eth.BlockID{}, eth.BlockID{}, err
+		}
+		if !verified {
+			c.log.Error("data could not be verified at this timestamp", "verifier", verifier.Name())
+			return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("verification failed for %s at timestamp %d", verifier.Name(), ts)
+		}
+	}
+
 	return l2Block.ID(), l1Block, nil
 }
 

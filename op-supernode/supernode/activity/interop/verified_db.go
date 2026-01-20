@@ -77,7 +77,6 @@ func timestampToKey(ts uint64) []byte {
 // Timestamps must be committed sequentially with no gaps.
 func (v *VerifiedDB) Commit(result VerifiedResult) error {
 	ts := result.Timestamp
-	fmt.Printf("committing verified result: %+v\n", result)
 
 	// Check for sequential commitment
 	if v.initialized {

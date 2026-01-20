@@ -29,6 +29,7 @@ type RPCActivity interface {
 // VerificationActivity is an Activity that can be used to verify the correctness of the Supernode's Chains
 type VerificationActivity interface {
 	Activity
+	Name() string
 	CurrentL1() eth.BlockID
 	VerifiedAtTimestamp(ts uint64) (bool, error)
 }
