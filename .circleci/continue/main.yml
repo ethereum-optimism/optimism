@@ -2494,20 +2494,20 @@ jobs:
           enable-mise-cache: true
       - restore_cache:
           name: Restore kona cache
-          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
+          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/.config/cannon_tag" }}
       - run:
           name: Build kona prestates
           command: just build-prestates
           working_directory: kona
       - save_cache:
-          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
+          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/.config/cannon_tag" }}
           name: Save Kona to cache
           paths:
-            - "kona/prestates/"
+            - "kona/prestate-artifacts-*/"
       - persist_to_workspace:
           root: .
           paths:
-            - "kona/prestates/*"
+            - "kona/prestate-artifacts-*/*"
 
 
   # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
