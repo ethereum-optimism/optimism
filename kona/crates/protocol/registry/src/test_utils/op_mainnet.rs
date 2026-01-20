@@ -45,6 +45,7 @@ pub const OP_MAINNET_CONFIG: RollupConfig = RollupConfig {
     seq_window_size: 3600_u64,
     channel_timeout: 300_u64,
     granite_channel_timeout: 50,
+    fjord_max_sequencer_drift: 1800,
     l1_chain_id: 1_u64,
     l2_chain_id: Chain::optimism_mainnet(),
     chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,

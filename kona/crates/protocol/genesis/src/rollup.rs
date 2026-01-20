@@ -27,6 +27,11 @@ const fn default_granite_channel_timeout() -> u64 {
 }
 
 #[cfg(feature = "serde")]
+const fn default_fjord_max_sequencer_drift() -> u64 {
+    FJORD_MAX_SEQUENCER_DRIFT
+}
+
+#[cfg(feature = "serde")]
 const fn default_interop_message_expiry_window() -> u64 {
     DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW
 }
@@ -55,6 +60,9 @@ pub struct RollupConfig {
     /// The channel timeout after the Granite hardfork.
     #[cfg_attr(feature = "serde", serde(default = "default_granite_channel_timeout"))]
     pub granite_channel_timeout: u64,
+    /// The max sequencer drift after the Fjord hardfork.
+    #[cfg_attr(feature = "serde", serde(default = "default_fjord_max_sequencer_drift"))]
+    pub fjord_max_sequencer_drift: u64,
     /// The L1 chain ID
     pub l1_chain_id: u64,
     /// The L2 chain ID
@@ -115,6 +123,7 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
             seq_window_size: u.arbitrary()?,
             channel_timeout: u.arbitrary()?,
             granite_channel_timeout: u.arbitrary()?,
+            fjord_max_sequencer_drift: u.arbitrary()?,
             l1_chain_id: u.arbitrary()?,
             l2_chain_id: u.arbitrary()?,
             hardforks: HardForkConfig::arbitrary(u)?,
@@ -142,6 +151,7 @@ impl Default for RollupConfig {
             seq_window_size: 0,
             channel_timeout: 0,
             granite_channel_timeout: GRANITE_CHANNEL_TIMEOUT,
+            fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
             l1_chain_id: 0,
             l2_chain_id: Chain::from_id(0),
             hardforks: HardForkConfig::default(),
@@ -331,7 +341,7 @@ impl RollupConfig {
     /// Returns the max sequencer drift for the given timestamp.
     pub fn max_sequencer_drift(&self, timestamp: u64) -> u64 {
         if self.is_fjord_active(timestamp) {
-            FJORD_MAX_SEQUENCER_DRIFT
+            self.fjord_max_sequencer_drift
         } else {
             self.max_sequencer_drift
         }
@@ -775,6 +785,20 @@ mod tests {
     }
 
     #[test]
+    fn test_fjord_max_sequencer_drift() {
+        let mut config = RollupConfig {
+            max_sequencer_drift: 100,
+            hardforks: HardForkConfig { fjord_time: Some(10), ..Default::default() },
+            ..Default::default()
+        };
+        assert_eq!(config.max_sequencer_drift(0), 100);
+        assert_eq!(config.max_sequencer_drift(10), FJORD_MAX_SEQUENCER_DRIFT);
+        config.fjord_max_sequencer_drift = 2892;
+        assert_eq!(config.max_sequencer_drift(0), 100);
+        assert_eq!(config.max_sequencer_drift(10), 2892);
+    }
+
+    #[test]
     #[cfg(feature = "serde")]
     fn test_deserialize_reference_rollup_config() {
         use crate::{OP_MAINNET_BASE_FEE_CONFIG, SystemConfig};
@@ -861,6 +885,7 @@ mod tests {
             seq_window_size: 3600,
             channel_timeout: 300,
             granite_channel_timeout: GRANITE_CHANNEL_TIMEOUT,
+            fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
             l1_chain_id: 3151908,
             l2_chain_id: Chain::from_id(1337),
             hardforks: HardForkConfig {

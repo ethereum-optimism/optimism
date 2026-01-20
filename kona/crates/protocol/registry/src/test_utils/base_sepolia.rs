@@ -45,6 +45,7 @@ pub const BASE_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
     seq_window_size: 3600,
     channel_timeout: 300,
     granite_channel_timeout: 50,
+    fjord_max_sequencer_drift: 1800,
     l1_chain_id: 11155111,
     l2_chain_id: Chain::base_sepolia(),
     chain_op_config: BASE_SEPOLIA_BASE_FEE_CONFIG,
