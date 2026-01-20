@@ -72,7 +72,7 @@ func ExternalELSystemWithEndpointAndSuperchainRegistry(dest *DefaultMinimalExter
 			},
 			blockTime: 12,
 		}
-		o.l1Nets.Set(ids.L1.ChainID(), l1Net)
+		o.registry.Register(stack.ConvertL1NetworkID(ids.L1).ComponentID, l1Net)
 	}))
 
 	opt.Add(WithExtL1Nodes(ids.L1EL, ids.L1CL, networkPreset.L1ELEndpoint, networkPreset.L1CLBeaconEndpoint))

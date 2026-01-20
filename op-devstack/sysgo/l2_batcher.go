@@ -57,26 +57,32 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), batcherID))
 
 		require := p.Require()
-		require.False(orch.batchers.Has(batcherID), "batcher must not already exist")
+		batcherCID := stack.ConvertL2BatcherID(batcherID).ComponentID
+		require.False(orch.registry.Has(batcherCID), "batcher must not already exist")
 
-		l2Net, ok := orch.l2Nets.Get(l2CLID.ChainID())
+		l2NetComponent, ok := orch.registry.Get(stack.ConvertL2NetworkID(stack.L2NetworkID(l2CLID.ChainID())).ComponentID)
 		require.True(ok)
+		l2Net := l2NetComponent.(*L2Network)
 
-		l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID())
+		l1NetComponent, ok := orch.registry.Get(stack.ConvertL1NetworkID(stack.L1NetworkID(l1ELID.ChainID())).ComponentID)
 		require.True(ok)
+		l1Net := l1NetComponent.(*L1Network)
 
 		require.Equal(l2Net.l1ChainID, l1Net.id.ChainID(), "expecting L1EL on L1 of L2CL")
 
 		require.Equal(l2CLID.ChainID(), l2ELID.ChainID(), "L2 CL and EL must be on same L2 chain")
 
-		l1EL, ok := orch.l1ELs.Get(l1ELID)
+		l1ELComponent, ok := orch.registry.Get(stack.ConvertL1ELNodeID(l1ELID).ComponentID)
 		require.True(ok)
+		l1EL := l1ELComponent.(L1ELNode)
 
-		l2CL, ok := orch.l2CLs.Get(l2CLID)
+		l2CLComponent, ok := orch.registry.Get(stack.ConvertL2CLNodeID(l2CLID).ComponentID)
 		require.True(ok)
+		l2CL := l2CLComponent.(L2CLNode)
 
-		l2EL, ok := orch.l2ELs.Get(l2ELID)
+		l2ELComponent, ok := orch.registry.Get(stack.ConvertL2ELNodeID(l2ELID).ComponentID)
 		require.True(ok)
+		l2EL := l2ELComponent.(L2ELNode)
 
 		batcherSecret, err := orch.keys.Secret(devkeys.BatcherRole.Key(l2ELID.ChainID().ToBig()))
 		require.NoError(err)
@@ -141,6 +147,6 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			l2CLRPC: l2CL.UserRPC(),
 			l2ELRPC: l2EL.UserRPC(),
 		}
-		orch.batchers.Set(batcherID, b)
+		orch.registry.Register(stack.ConvertL2BatcherID(batcherID).ComponentID, b)
 	})
 }

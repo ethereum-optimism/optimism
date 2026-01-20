@@ -8,7 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
 	"gopkg.in/yaml.v3"
 )
@@ -136,7 +135,10 @@ func (g *L2MetricsDashboard) startGrafana() {
 func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 	return stack.Finally(func(orch *Orchestrator) {
 		// don't start prometheus or grafana if metrics are disabled or there is nothing exporting metrics.
-		if !areMetricsEnabled() || orch.l2MetricsEndpoints.Len() == 0 {
+		orch.l2MetricsMu.RLock()
+		metricsLen := len(orch.l2MetricsEndpoints)
+		orch.l2MetricsMu.RUnlock()
+		if !areMetricsEnabled() || metricsLen == 0 {
 			return
 		}
 
@@ -144,7 +146,7 @@ func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 
 		prometheusImageTag := getEnvVarOrDefault(prometheusDockerImageTagEnvVar, "v3.7.2")
 		prometheusEndpoint := fmt.Sprintf("http://%s:%s", prometheusHost, prometheusServerPort)
-		promConfig := getPrometheusConfigFilePath(p, &orch.l2MetricsEndpoints)
+		promConfig := getPrometheusConfigFilePath(p, orch)
 		// these are args to run via docker; see dashboard definition below
 		prometheusArgs := []string{
 			"run",
@@ -215,11 +217,12 @@ type prometheusStaticConfig struct {
 }
 
 // Returns the path to the dynamically-generated prometheus.yml file for metrics scraping.
-func getPrometheusConfigFilePath(p devtest.P, metricsEndpoints *locks.RWMap[string, []PrometheusMetricsTarget]) string {
+func getPrometheusConfigFilePath(p devtest.P, orch *Orchestrator) string {
 
 	var scrapeConfigs []prometheusScrapeConfigEntry
 
-	metricsEndpoints.Range(func(name string, endpoints []PrometheusMetricsTarget) bool {
+	orch.l2MetricsMu.RLock()
+	for name, endpoints := range orch.l2MetricsEndpoints {
 		var targets []string
 		for _, endpoint := range endpoints {
 			targets = append(targets, string(endpoint))
@@ -229,8 +232,8 @@ func getPrometheusConfigFilePath(p devtest.P, metricsEndpoints *locks.RWMap[stri
 			Scheme:        "http",
 			StaticConfigs: []prometheusStaticConfig{{Targets: targets}},
 		})
-		return true
-	})
+	}
+	orch.l2MetricsMu.RUnlock()
 
 	yamlConfig := prometheusConfig{
 		Global: prometheusGlobalConfig{

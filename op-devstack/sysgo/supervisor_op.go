@@ -104,11 +104,13 @@ func WithOPSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), supervisorID))
 		require := p.Require()
 
-		l1EL, ok := orch.l1ELs.Get(l1ELID)
+		l1ELComponent, ok := orch.registry.Get(stack.ConvertL1ELNodeID(l1ELID).ComponentID)
 		require.True(ok, "need L1 EL node to connect supervisor to")
+		l1EL := l1ELComponent.(L1ELNode)
 
-		cluster, ok := orch.clusters.Get(clusterID)
+		clusterComponent, ok := orch.registry.Get(stack.ConvertClusterID(clusterID).ComponentID)
 		require.True(ok, "need cluster to determine dependency set")
+		cluster := clusterComponent.(*Cluster)
 
 		require.NotNil(cluster.cfgset, "need a full config set")
 		require.NoError(cluster.cfgset.CheckChains(), "config set must be valid")
@@ -151,7 +153,7 @@ func WithOPSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID
 			logger:  plog,
 			service: nil, // set on start
 		}
-		orch.supervisors.Set(supervisorID, supervisorNode)
+		orch.registry.Register(stack.ConvertSupervisorID(supervisorID).ComponentID, supervisorNode)
 		supervisorNode.Start()
 		orch.p.Cleanup(supervisorNode.Stop)
 	})

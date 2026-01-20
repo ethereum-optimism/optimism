@@ -37,8 +37,10 @@ func WithGameTypeAdded(gameType gameTypes.GameType) stack.Option[*Orchestrator] 
 	opts := stack.FnOption[*Orchestrator]{
 		FinallyFn: func(o *Orchestrator) {
 			absolutePrestate := PrestateForGameType(o.P(), gameType)
-			for _, l2ChainID := range o.l2Nets.Keys() {
-				addGameType(o, absolutePrestate, gameType, o.l1ELs.Keys()[0], l2ChainID)
+			l2NetIDs := o.registry.IDsByKind(stack.KindL2Network)
+			l1ELIDs := o.registry.IDsByKind(stack.KindL1ELNode)
+			for _, l2NetID := range l2NetIDs {
+				addGameType(o, absolutePrestate, gameType, stack.NewL1ELNodeID(l1ELIDs[0].Key(), l1ELIDs[0].ChainID()), l2NetID.ChainID())
 			}
 		},
 	}
@@ -48,8 +50,10 @@ func WithGameTypeAdded(gameType gameTypes.GameType) stack.Option[*Orchestrator] 
 func WithRespectedGameType(gameType gameTypes.GameType) stack.Option[*Orchestrator] {
 	return stack.FnOption[*Orchestrator]{
 		FinallyFn: func(o *Orchestrator) {
-			for _, l2ChainID := range o.l2Nets.Keys() {
-				setRespectedGameType(o, gameType, o.l1ELs.Keys()[0], l2ChainID)
+			l2NetIDs := o.registry.IDsByKind(stack.KindL2Network)
+			l1ELIDs := o.registry.IDsByKind(stack.KindL1ELNode)
+			for _, l2NetID := range l2NetIDs {
+				setRespectedGameType(o, gameType, stack.NewL1ELNodeID(l1ELIDs[0].Key(), l1ELIDs[0].ChainID()), l2NetID.ChainID())
 			}
 		},
 	}
@@ -72,8 +76,10 @@ func WithCannonKonaGameTypeAdded() stack.Option[*Orchestrator] {
 		},
 		FinallyFn: func(o *Orchestrator) {
 			absolutePrestate := getCannonKonaAbsolutePrestate(o.P())
-			for _, l2ChainID := range o.l2Nets.Keys() {
-				addGameType(o, absolutePrestate, gameTypes.CannonKonaGameType, o.l1ELs.Keys()[0], l2ChainID)
+			l2NetIDs := o.registry.IDsByKind(stack.KindL2Network)
+			l1ELIDs := o.registry.IDsByKind(stack.KindL1ELNode)
+			for _, l2NetID := range l2NetIDs {
+				addGameType(o, absolutePrestate, gameTypes.CannonKonaGameType, stack.NewL1ELNodeID(l1ELIDs[0].Key(), l1ELIDs[0].ChainID()), l2NetID.ChainID())
 			}
 		},
 	}
@@ -93,12 +99,14 @@ func setRespectedGameType(o *Orchestrator, gameType gameTypes.GameType, l1ELID s
 	require.NotNil(o.wb, "must have a world builder")
 	l1ChainID := l1ELID.ChainID()
 
-	l2Network, ok := o.l2Nets.Get(l2ChainID)
+	l2NetComponent, ok := o.registry.Get(stack.ConvertL2NetworkID(stack.L2NetworkID(l2ChainID)).ComponentID)
 	require.True(ok, "l2Net must exist")
+	l2Network := l2NetComponent.(*L2Network)
 	portalAddr := l2Network.rollupCfg.DepositContractAddress
 
-	l1EL, ok := o.l1ELs.Get(l1ELID)
+	l1ELComponent, ok := o.registry.Get(stack.ConvertL1ELNodeID(l1ELID).ComponentID)
 	require.True(ok, "l1El must exist")
+	l1EL := l1ELComponent.(L1ELNode)
 
 	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
 	require.NoError(err)
@@ -147,8 +155,9 @@ func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType gameTyp
 
 	opcmAddr := o.wb.output.ImplementationsDeployment.OpcmImpl
 
-	l1EL, ok := o.l1ELs.Get(l1ELID)
+	l1ELComponent, ok := o.registry.Get(stack.ConvertL1ELNodeID(l1ELID).ComponentID)
 	require.True(ok, "l1El must exist")
+	l1EL := l1ELComponent.(L1ELNode)
 
 	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
 	require.NoError(err)

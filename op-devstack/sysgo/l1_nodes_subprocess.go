@@ -160,8 +160,9 @@ func WithL1NodesSubprocess(id stack.L1ELNodeID, clID stack.L1CLNodeID) stack.Opt
 		_, err := os.Stat(execPath)
 		p.Require().NotErrorIs(err, os.ErrNotExist, "geth executable must exist")
 
-		l1Net, ok := orch.l1Nets.Get(id.ChainID())
+		l1NetComponent, ok := orch.registry.Get(stack.ConvertL1NetworkID(stack.L1NetworkID(id.ChainID())).ComponentID)
 		require.True(ok, "L1 network required")
+		l1Net := l1NetComponent.(*L1Network)
 
 		jwtPath, jwtSecret := orch.writeDefaultJWT()
 
@@ -207,7 +208,9 @@ func WithL1NodesSubprocess(id stack.L1ELNodeID, clID stack.L1CLNodeID) stack.Opt
 		l1EL.Start()
 		p.Cleanup(l1EL.Stop)
 		p.Logger().Info("geth is ready", "userRPC", l1EL.userRPC, "authRPC", l1EL.authRPC)
-		require.True(orch.l1ELs.SetIfMissing(id, l1EL), "must be unique L2 EL node")
+		elCID := stack.ConvertL1ELNodeID(id).ComponentID
+		require.False(orch.registry.Has(elCID), "must be unique L1 EL node")
+		orch.registry.Register(elCID, l1EL)
 
 		backend, err := ethclient.DialContext(p.Ctx(), l1EL.userRPC)
 		require.NoError(err)
@@ -233,7 +236,7 @@ func WithL1NodesSubprocess(id stack.L1ELNodeID, clID stack.L1CLNodeID) stack.Opt
 		}
 		fp.Start()
 		p.Cleanup(fp.Stop)
-		orch.l1CLs.Set(clID, &L1CLNode{
+		orch.registry.Register(stack.ConvertL1CLNodeID(clID).ComponentID, &L1CLNode{
 			id:             clID,
 			beaconHTTPAddr: bcn.BeaconAddr(),
 			beacon:         bcn,

@@ -18,7 +18,7 @@ func TestWithL2MetricsDashboard_DisabledIfEndpointsRegisteredButNotExplicitlyEna
 	id := stack.NewL2ELNodeID("test", eth.ChainIDFromUInt64(11111111111))
 	metricsTarget := NewPrometheusMetricsTarget("localhost", "9090", false)
 
-	o := &Orchestrator{}
+	o := &Orchestrator{l2MetricsEndpoints: make(map[string][]PrometheusMetricsTarget)}
 	o.RegisterL2MetricsTargets(id, metricsTarget)
 
 	// This should run without error if disabled

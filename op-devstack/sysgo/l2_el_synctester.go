@@ -180,8 +180,9 @@ func WithSyncTesterL2ELNode(id, readonlyEL stack.L2ELNodeID, opts ...SyncTesterE
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
 		require := p.Require()
 
-		l2Net, ok := orch.l2Nets.Get(readonlyEL.ChainID())
+		l2NetComponent, ok := orch.registry.Get(stack.ConvertL2NetworkID(stack.L2NetworkID(readonlyEL.ChainID())).ComponentID)
 		require.True(ok, "L2 network required")
+		l2Net := l2NetComponent.(*L2Network)
 
 		cfg := DefaultSyncTesterELConfig()
 		orch.SyncTesterELOptions.Apply(p, id, cfg)       // apply global options
@@ -202,6 +203,8 @@ func WithSyncTesterL2ELNode(id, readonlyEL stack.L2ELNodeID, opts ...SyncTesterE
 		syncTesterEL.Start()
 		p.Cleanup(syncTesterEL.Stop)
 		p.Logger().Info("sync tester EL is ready", "userRPC", syncTesterEL.userRPC, "authRPC", syncTesterEL.authRPC)
-		require.True(orch.l2ELs.SetIfMissing(id, syncTesterEL), "must be unique L2 EL node")
+		cid := stack.ConvertL2ELNodeID(id).ComponentID
+		require.False(orch.registry.Has(cid), "must be unique L2 EL node")
+		orch.registry.Register(cid, syncTesterEL)
 	})
 }
