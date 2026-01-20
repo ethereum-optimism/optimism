@@ -3352,7 +3352,7 @@ workflows:
             - initialize
           filters:
             tags:
-              only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/ # ensure contract artifacts are embedded in op-deployer binary
+              only: /^op-deployer.*/ # ensure contract artifacts are embedded in op-deployer binary
             branches:
               only: /.*/
               #ignore: /.*/
