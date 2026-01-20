@@ -82,6 +82,10 @@ patch-apply: $(SUBMODULE)/go.mod
 			fi; \
 		done < "$(OVERLAYS)/go.mod.patch"; \
 	fi
+	@# Apply go.sum patch (uses sed script format)
+	@if [ -f "$(OVERLAYS)/go.sum.patch" ]; then \
+		sed -i -f "$(OVERLAYS)/go.sum.patch" "$(SUBMODULE)/go.sum"; \
+	fi
 	@# Apply contract overlays
 	@if [ -d "$(OVERLAYS)/contracts-bedrock/src/boba" ]; then \
 		mkdir -p "$(SUBMODULE)/packages/contracts-bedrock/src/boba"; \
@@ -119,8 +123,8 @@ patch-apply: $(SUBMODULE)/go.mod
 	@if [ -d "$(OVERLAYS)/kurtosis-devnet" ]; then \
 		cp -r "$(OVERLAYS)/kurtosis-devnet/"* "$(SUBMODULE)/kurtosis-devnet/"; \
 	fi
-	@# Apply git patch files (exclude go.mod.patch which uses sed format)
-	@for patchfile in $$(find "$(OVERLAYS)" -name "*.patch" -type f ! -name "go.mod.patch" 2>/dev/null); do \
+	@# Apply git patch files (exclude go.mod.patch and go.sum.patch which use sed format)
+	@for patchfile in $$(find "$(OVERLAYS)" -name "*.patch" -type f ! -name "go.mod.patch" ! -name "go.sum.patch" 2>/dev/null); do \
 		echo "Applying patch: $$patchfile"; \
 		(cd "$(SUBMODULE)" && patch -p1 < "$$patchfile") || true; \
 	done

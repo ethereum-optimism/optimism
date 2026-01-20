@@ -1,0 +1,14 @@
+# Boba go.sum patch
+# This patch replaces the upstream op-geth checksums with Boba's fork
+#
+# Format: Each line that starts with 's|' is a sed substitution pattern
+#         Lines starting with 'd|' are delete patterns
+#         Lines starting with 'a|' are append patterns (added after matching line)
+
+# Delete upstream op-geth checksum lines
+/github.com\/ethereum-optimism\/op-geth/d
+
+# Add bobanetwork/op-geth checksums (after the bmatcuk /go.mod line to maintain alphabetical order)
+/github.com\/bmatcuk\/doublestar.*\/go.mod/a\
+github.com/bobanetwork/op-geth v0.0.0-20260114142656-ce13a07c6ec2 h1:sOzNUI+tT9T0HieAsz1tVEaZdrwL9vofPi8kwJVHaC8=\
+github.com/bobanetwork/op-geth v0.0.0-20260114142656-ce13a07c6ec2/go.mod h1:zqJYYTNLF8vcZCNKHlgWKsmauBoeFMsrRGLAuqfzEBg=
