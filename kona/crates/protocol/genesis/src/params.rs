@@ -186,16 +186,16 @@ impl BaseFeeConfig {
         }
     }
 
-    /// Returns the inner [BaseFeeParams].
-    pub const fn as_base_fee_params(&self) -> BaseFeeParams {
+    /// Returns the [BaseFeeParams] before Canyon hardfork.
+    pub const fn pre_canyon_params(&self) -> BaseFeeParams {
         BaseFeeParams {
             max_change_denominator: self.eip1559_denominator as u128,
             elasticity_multiplier: self.eip1559_elasticity as u128,
         }
     }
 
-    /// Returns the [BaseFeeParams] for the canyon hardfork.
-    pub const fn as_canyon_base_fee_params(&self) -> BaseFeeParams {
+    /// Returns the [BaseFeeParams] since Canyon hardfork.
+    pub const fn post_canyon_params(&self) -> BaseFeeParams {
         BaseFeeParams {
             max_change_denominator: self.eip1559_denominator_canyon as u128,
             elasticity_multiplier: self.eip1559_elasticity as u128,

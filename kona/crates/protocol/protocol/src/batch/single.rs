@@ -1,6 +1,6 @@
 //! This module contains the [`SingleBatch`] type.
 
-use crate::{BatchValidity, BlockInfo, L2BlockInfo};
+use crate::{BatchDropReason, BatchValidity, BlockInfo, L2BlockInfo};
 use alloc::vec::Vec;
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{BlockHash, Bytes};
@@ -41,7 +41,7 @@ impl SingleBatch {
         let next_timestamp = l2_safe_head.block_info.timestamp + cfg.block_time;
         if self.timestamp > next_timestamp {
             if cfg.is_holocene_active(inclusion_block.timestamp) {
-                return BatchValidity::Drop;
+                return BatchValidity::Drop(BatchDropReason::FutureTimestampHolocene);
             }
             return BatchValidity::Future;
         }
@@ -49,7 +49,7 @@ impl SingleBatch {
             if cfg.is_holocene_active(inclusion_block.timestamp) {
                 return BatchValidity::Past;
             }
-            return BatchValidity::Drop;
+            return BatchValidity::Drop(BatchDropReason::PastTimestampPreHolocene);
         }
         BatchValidity::Accept
     }
@@ -82,18 +82,18 @@ impl SingleBatch {
         // Dependent on the above timestamp check.
         // If the timestamp is correct, then it must build on top of the safe head.
         if self.parent_hash != l2_safe_head.block_info.hash {
-            return BatchValidity::Drop;
+            return BatchValidity::Drop(BatchDropReason::ParentHashMismatch);
         }
 
         // Filter out batches that were included too late.
         if self.epoch_num + cfg.seq_window_size < inclusion_block.number {
-            return BatchValidity::Drop;
+            return BatchValidity::Drop(BatchDropReason::IncludedTooLate);
         }
 
         // Check the L1 origin of the batch
         let mut batch_origin = epoch;
         if self.epoch_num < epoch.number {
-            return BatchValidity::Drop;
+            return BatchValidity::Drop(BatchDropReason::EpochTooOld);
         } else if self.epoch_num == epoch.number {
             // Batch is sticking to the current epoch, continue.
         } else if self.epoch_num == epoch.number + 1 {
@@ -107,16 +107,16 @@ impl SingleBatch {
             }
             batch_origin = l1_blocks[1];
         } else {
-            return BatchValidity::Drop;
+            return BatchValidity::Drop(BatchDropReason::EpochTooFarInFuture);
         }
 
         // Validate the batch epoch hash
         if self.epoch_hash != batch_origin.hash {
-            return BatchValidity::Drop;
+            return BatchValidity::Drop(BatchDropReason::EpochHashMismatch);
         }
 
         if self.timestamp < batch_origin.timestamp {
-            return BatchValidity::Drop;
+            return BatchValidity::Drop(BatchDropReason::TimestampBeforeL1Origin);
         }
 
         // Check if we ran out of sequencer time drift
@@ -124,7 +124,7 @@ impl SingleBatch {
         let max = if let Some(max) = batch_origin.timestamp.checked_add(max_drift) {
             max
         } else {
-            return BatchValidity::Drop;
+            return BatchValidity::Drop(BatchDropReason::SequencerDriftOverflow);
         };
 
         let no_txs = self.transactions.is_empty();
@@ -132,7 +132,7 @@ impl SingleBatch {
             // If the sequencer is ignoring the time drift rule, then drop the batch and force an
             // empty batch instead, as the sequencer is not allowed to include anything
             // past this point without moving to the next epoch.
-            return BatchValidity::Drop;
+            return BatchValidity::Drop(BatchDropReason::SequencerDriftExceeded);
         }
         if self.timestamp > max && no_txs {
             // If the sequencer is co-operating by producing an empty batch,
@@ -146,7 +146,7 @@ impl SingleBatch {
                 let next_origin = l1_blocks[1];
                 // Check if the next L1 Origin could have been adopted
                 if self.timestamp >= next_origin.timestamp {
-                    return BatchValidity::Drop;
+                    return BatchValidity::Drop(BatchDropReason::SequencerDriftNotAdoptedNextOrigin);
                 }
             }
         }
@@ -160,22 +160,22 @@ impl SingleBatch {
                 target: "single_batch",
                 "Sequencer included user transactions in jovian or interop transition block. Dropping batch."
             );
-            return BatchValidity::Drop;
+            return BatchValidity::Drop(BatchDropReason::NonEmptyTransitionBlock);
         }
 
         // We can do this check earlier, but it's intensive so we do it last for the sad-path.
         for tx in self.transactions.iter() {
             if tx.is_empty() {
-                return BatchValidity::Drop;
+                return BatchValidity::Drop(BatchDropReason::EmptyTransaction);
             }
             if tx.as_ref().first() == Some(&(OpTxType::Deposit as u8)) {
-                return BatchValidity::Drop;
+                return BatchValidity::Drop(BatchDropReason::DepositTransaction);
             }
             // If isthmus is not active yet and the transaction is a 7702, drop the batch.
             if !cfg.is_isthmus_active(self.timestamp) &&
                 tx.as_ref().first() == Some(&(OpTxType::Eip7702 as u8))
             {
-                return BatchValidity::Drop;
+                return BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus);
             }
         }
 
@@ -238,7 +238,7 @@ mod tests {
         let batch = SingleBatch { parent_hash: BlockHash::from([0x02; 32]), ..Default::default() };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::ParentHashMismatch)
         );
     }
 
@@ -271,7 +271,7 @@ mod tests {
         let batch = SingleBatch { epoch_num: 1, timestamp: 2, ..Default::default() };
         assert_eq!(
             batch.check_batch_timestamp(&cfg, l2_safe_head, &inclusion_block),
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::FutureTimestampHolocene)
         );
     }
 
@@ -304,7 +304,7 @@ mod tests {
         let batch = SingleBatch { epoch_num: 1, timestamp: 1, ..Default::default() };
         assert_eq!(
             batch.check_batch_timestamp(&cfg, l2_safe_head, &inclusion_block),
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::PastTimestampPreHolocene)
         );
     }
 
@@ -477,7 +477,7 @@ mod tests {
         let inclusion_block = BlockInfo::default();
         assert_eq!(
             single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus)
         );
     }
 
@@ -546,7 +546,7 @@ mod tests {
         let inclusion_block = BlockInfo::default();
         assert_eq!(
             single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::EmptyTransaction)
         );
     }
 
@@ -589,11 +589,12 @@ mod tests {
         let inclusion_block = BlockInfo::default();
         assert_eq!(
             single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::DepositTransaction)
         );
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn test_check_batch_drop_non_empty_interop_transition() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
@@ -626,7 +627,7 @@ mod tests {
         let inclusion_block = BlockInfo::default();
         assert_eq!(
             single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::NonEmptyTransitionBlock)
         );
 
         assert!(

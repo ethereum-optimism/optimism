@@ -43,7 +43,7 @@ impl table::Encode for SafetyHeadRefKey {
 impl table::Decode for SafetyHeadRefKey {
     fn decode(value: &[u8]) -> Result<Self, DatabaseError> {
         if value.is_empty() {
-            return Err(DatabaseError::Decode)
+            return Err(DatabaseError::Decode);
         }
 
         value[0].try_into().map_err(|_| DatabaseError::Decode)

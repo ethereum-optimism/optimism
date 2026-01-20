@@ -1835,6 +1835,19 @@ jobs:
           paths:
             - "/home/circleci/.cache/golangci-lint"
 
+  check-op-geth-version:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: small
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - run:
+          name: check op-geth version
+          command: |
+            make check-op-geth-version
+
   go-tests:
     parameters:
       notify:
@@ -3758,6 +3771,9 @@ workflows:
             - slack
             - circleci-repo-readonly-authenticated-github-token
       - go-lint:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - check-op-geth-version:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - fuzz-golang:

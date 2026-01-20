@@ -157,7 +157,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 	// Ensure L1 chain configuration is provided for the sync node
 	syncNodeCfg.L1ChainConfig = sys.L1GenesisCfg.Config
 
-	syncerNode, err := rollupNode.New(ctx, syncNodeCfg, cfg.Loggers["syncer"], "", metrics.NewMetrics(""), nil)
+	syncerNode, err := rollupNode.New(ctx, syncNodeCfg, cfg.Loggers["syncer"], "", metrics.NewMetrics("", nil), nil)
 	require.NoError(t, err)
 	err = syncerNode.Start(ctx)
 	require.NoError(t, err)

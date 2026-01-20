@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
+const defaultIndexingEventQueueSize = 100
+
 type Config struct {
 	// RPCAddr address to bind RPC server to, to serve external supervisor nodes.
 	// Optional. This will soon be required: running op-node without supervisor is being deprecated.
@@ -43,5 +45,5 @@ func (cfg *Config) Setup(ctx context.Context, logger log.Logger, rollupCfg *roll
 	if err != nil {
 		return nil, err
 	}
-	return indexing.NewIndexingMode(logger, rollupCfg, cfg.RPCAddr, cfg.RPCPort, jwtSecret, l1, l2, m), nil
+	return indexing.NewIndexingMode(logger, rollupCfg, cfg.RPCAddr, cfg.RPCPort, jwtSecret, l1, l2, m, defaultIndexingEventQueueSize), nil
 }

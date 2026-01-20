@@ -2,8 +2,8 @@
 //! [KeyValueStore]s depending on [PreimageKeyType].
 
 use super::KeyValueStore;
+use crate::Result;
 use alloy_primitives::B256;
-use anyhow::Result;
 use kona_preimage::PreimageKeyType;
 
 /// A split implementation of the [KeyValueStore] trait that splits between two separate

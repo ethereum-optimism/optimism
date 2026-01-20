@@ -1,4 +1,5 @@
 use alloy_rpc_types_engine::JwtSecret;
+use kona_node_service::DerivationDelegateConfig;
 use std::path::PathBuf;
 use url::Url;
 
@@ -99,8 +100,8 @@ pub struct L2ClientArgs {
     #[arg(long, visible_alias = "l2.jwt-secret", env = "KONA_NODE_L2_ENGINE_AUTH")]
     pub l2_engine_jwt_secret: Option<PathBuf>,
     /// Hex encoded JWT secret to use for the authenticated engine-API RPC server.
-    /// This MUST be a valid path to a file containing the hex-encoded JWT secret.
-    #[arg(long, visible_alias = "l2.jwt-path", env = "KONA_NODE_L2_ENGINE_JWT_PATH")]
+    /// This MUST be a valid hex-encoded JWT secret of 64 digits.
+    #[arg(long, visible_alias = "l2.jwt-secret-encoded", env = "KONA_NODE_L2_ENGINE_AUTH_ENCODED")]
     pub l2_engine_jwt_encoded: Option<JwtSecret>,
     /// Timeout for http calls in milliseconds.
     #[arg(
@@ -129,5 +130,20 @@ impl Default for L2ClientArgs {
             l2_engine_timeout: DEFAULT_L2_ENGINE_TIMEOUT,
             l2_trust_rpc: DEFAULT_L2_TRUST_RPC,
         }
+    }
+}
+
+/// L2 derivation delegate connection arguments.
+#[derive(Clone, Debug, Default, clap::Args)]
+pub struct DerivationDelegateArgs {
+    /// The source must be an OP Stack L2 CL RPC exposing optimism_syncStatus.
+    #[arg(long, visible_alias = "l2.follow.source", env = "KONA_NODE_L2_FOLLOW_SOURCE")]
+    pub l2_follow_source: Option<Url>,
+}
+
+impl DerivationDelegateArgs {
+    /// Builds the derivation delegate configuration if an L2 CL URL was provided.
+    pub fn config(self) -> Option<DerivationDelegateConfig> {
+        self.l2_follow_source.map(|url| DerivationDelegateConfig { l2_cl_url: url })
     }
 }

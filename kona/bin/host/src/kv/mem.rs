@@ -1,8 +1,8 @@
 //! Contains a concrete implementation of the [KeyValueStore] trait that stores data in memory.
 
 use super::KeyValueStore;
+use crate::Result;
 use alloy_primitives::B256;
-use anyhow::Result;
 use std::collections::HashMap;
 
 /// A simple, synchronous key-value store that stores data in memory. This is useful for testing and

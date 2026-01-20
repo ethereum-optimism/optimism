@@ -1,30 +1,30 @@
 use std::time::Duration;
 
 use crate::{
-    BlockBuildingClient, Conductor, OriginSelector, SequencerActor, UnsafePayloadGossipClient,
+    Conductor, OriginSelector, SequencerActor, SequencerEngineClient, UnsafePayloadGossipClient,
 };
 use kona_derive::AttributesBuilder;
 
 /// SequencerActor metrics-related method implementations.
 impl<
     AttributesBuilder_,
-    BlockBuildingClient_,
     Conductor_,
     OriginSelector_,
+    SequencerEngineClient_,
     UnsafePayloadGossipClient_,
 >
     SequencerActor<
         AttributesBuilder_,
-        BlockBuildingClient_,
         Conductor_,
         OriginSelector_,
+        SequencerEngineClient_,
         UnsafePayloadGossipClient_,
     >
 where
     AttributesBuilder_: AttributesBuilder,
-    BlockBuildingClient_: BlockBuildingClient,
     Conductor_: Conductor,
     OriginSelector_: OriginSelector,
+    SequencerEngineClient_: SequencerEngineClient,
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
 {
     /// Updates the metrics for the sequencer actor.
@@ -67,4 +67,11 @@ pub(super) fn update_block_build_duration_metrics(duration: Duration) {
 pub(super) fn update_seal_duration_metrics(duration: Duration) {
     // Log the block building seal task duration, if metrics are enabled.
     kona_macros::set!(gauge, crate::Metrics::SEQUENCER_BLOCK_BUILDING_SEAL_TASK_DURATION, duration);
+}
+
+#[inline]
+pub(super) fn update_total_transactions_sequenced(transaction_count: u64) {
+    #[cfg(feature = "metrics")]
+    metrics::counter!(crate::Metrics::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED)
+        .increment(transaction_count);
 }

@@ -2,6 +2,7 @@
 extend-exclude = [
     "target",
     "Cargo.lock",
+    "docker/recipes/kona-node-dev/kona-node/bootstores",
 ]
 
 [default]

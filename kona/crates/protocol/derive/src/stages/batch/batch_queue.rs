@@ -144,11 +144,11 @@ where
                         warn!(target: "batch_queue", "[HOLOCENE] Dropping future batch with parent: {}", parent.block_info.number);
                     }
                 }
-                BatchValidity::Drop => {
+                BatchValidity::Drop(reason) => {
                     // If we drop a batch, flush previous batches buffered in the BatchStream
                     // stage.
                     self.prev.flush();
-                    warn!(target: "batch_queue", "Dropping batch with parent: {}", parent.block_info);
+                    warn!(target: "batch_queue", "Dropping batch with parent: {}, reason: {}", parent.block_info, reason);
                     continue;
                 }
                 BatchValidity::Accept => {
@@ -614,7 +614,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_add_batch_drop() {
-        // Construct a single batch with BatchValidity::Drop.
+        // Construct a single batch that will be dropped (BatchValidity::Drop).
         let cfg = Arc::new(RollupConfig::default());
         assert!(!cfg.is_holocene_active(0));
         let batch = SingleBatch {
@@ -987,16 +987,16 @@ mod tests {
             batch_vec.push(Ok(batch));
         }
         // Insert a deposit transaction in the front of the second batch txs
-        let expected = L1BlockInfoBedrock {
-            number: 16988980031808077784,
-            time: 1697121143,
-            base_fee: 10419034451,
-            block_hash: b256!("392012032675be9f94aae5ab442de73c5f4fb1bf30fa7dd0d2442239899a40fc"),
-            sequence_number: 4,
-            batcher_address: address!("6887246668a3b87f54deb3b94ba47a6f63f32985"),
-            l1_fee_overhead: U256::from(0xbc),
-            l1_fee_scalar: U256::from(0xa6fe0),
-        };
+        let expected = L1BlockInfoBedrock::new(
+            16988980031808077784,
+            1697121143,
+            10419034451,
+            b256!("392012032675be9f94aae5ab442de73c5f4fb1bf30fa7dd0d2442239899a40fc"),
+            4,
+            address!("6887246668a3b87f54deb3b94ba47a6f63f32985"),
+            U256::from(0xbc),
+            U256::from(0xa6fe0),
+        );
         let deposit_tx_calldata: Bytes = L1BlockInfoTx::Bedrock(expected).encode_calldata();
         let tx = TxDeposit {
             source_hash: B256::left_padding_from(&[0xde, 0xad]),

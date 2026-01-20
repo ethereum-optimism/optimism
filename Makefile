@@ -20,14 +20,22 @@ build-contracts:
 	(cd packages/contracts-bedrock && just build)
 .PHONY: build-contracts
 
-lint-go: ## Lints Go code with specific linters
-	golangci-lint run ./...
+build-customlint:
+	make -C linter build
+.PHONY: build-customlint
+
+lint-go: build-customlint ## Lints Go code with specific linters
+	./linter/bin/op-golangci-lint run ./...
 	go mod tidy -diff
 .PHONY: lint-go
 
-lint-go-fix: ## Lints Go code with specific linters and fixes reported issues
-	golangci-lint run ./... --fix
+lint-go-fix: build-customlint ## Lints Go code with specific linters and fixes reported issues
+	./linter/bin/op-golangci-lint run ./... --fix
 .PHONY: lint-go-fix
+
+check-op-geth-version: ## Checks that op-geth version in go.mod is valid
+	go run ./ops/scripts/check-op-geth-version
+.PHONY: check-op-geth-version
 
 golang-docker: ## Builds Docker images for Go components using buildx
 	# We don't use a buildx builder here, and just load directly into regular docker, for convenience.

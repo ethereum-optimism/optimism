@@ -170,7 +170,7 @@ where
 
                     match validity {
                         BatchValidity::Accept => self.span = Some(b),
-                        BatchValidity::Drop => {
+                        BatchValidity::Drop(_) => {
                             // Flush the stage.
                             self.flush();
 
