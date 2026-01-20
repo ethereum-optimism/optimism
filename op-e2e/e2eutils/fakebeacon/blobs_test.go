@@ -91,10 +91,7 @@ func TestBlobsEndpoints(t *testing.T) {
 		if r.StatusCode != http.StatusOK {
 			return resp, fmt.Errorf("unexpected status: %d", r.StatusCode)
 		}
-		if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
-			return resp, err
-		}
-		return resp, nil
+		return resp, json.NewDecoder(r.Body).Decode(&resp)
 	}
 
 	t.Run("GetAllBlobsForSlot", func(t *testing.T) {
@@ -131,17 +128,23 @@ func TestBlobsEndpoints(t *testing.T) {
 		// so assert we have exactly two and that both expected blobs are present.
 		require.Len(t, apiResp.Data, 2)
 
-		// Verify both expected blobs are somewhere in the response
-		foundA, foundB := false, false
-		for _, b := range apiResp.Data {
-			if *b == blobA {
-				foundA = true
+		require.Condition(t, func() bool {
+			for _, b := range apiResp.Data {
+				if *b == blobA {
+					return true
+				}
 			}
-			if *b == blobB {
-				foundB = true
+			return false
+		}, "blobA not returned")
+
+		require.Condition(t, func() bool {
+			for _, b := range apiResp.Data {
+				if *b == blobB {
+					return true
+				}
 			}
-		}
-		require.True(t, foundA, "blobA not returned")
-		require.True(t, foundB, "blobB not returned")
+			return false
+		}, "blobB not returned")
+
 	})
 }
