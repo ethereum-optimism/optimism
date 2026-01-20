@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
@@ -20,18 +21,36 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 
 	lgr.Info("deploying superchain")
 
-	dso, err := env.Scripts.DeploySuperchain.Run(
-		opcm.DeploySuperchainInput{
-			SuperchainProxyAdminOwner:  intent.SuperchainRoles.SuperchainProxyAdminOwner,
-			ProtocolVersionsOwner:      intent.SuperchainRoles.ProtocolVersionsOwner,
-			Guardian:                   intent.SuperchainRoles.SuperchainGuardian,
-			Paused:                     false,
-			RequiredProtocolVersion:    rollup.OPStackSupport,
-			RecommendedProtocolVersion: rollup.OPStackSupport,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to deploy superchain: %w", err)
+	input := opcm.DeploySuperchainInput{
+		SuperchainProxyAdminOwner:  intent.SuperchainRoles.SuperchainProxyAdminOwner,
+		ProtocolVersionsOwner:      intent.SuperchainRoles.ProtocolVersionsOwner,
+		Guardian:                   intent.SuperchainRoles.SuperchainGuardian,
+		Paused:                     false,
+		RequiredProtocolVersion:    rollup.OPStackSupport,
+		RecommendedProtocolVersion: rollup.OPStackSupport,
+	}
+
+	var dso opcm.DeploySuperchainOutput
+	var err error
+
+	if env.UseForge {
+		if env.ForgeClient == nil {
+			return fmt.Errorf("Forge client is nil but UseForge is enabled")
+		}
+		if env.Context == nil {
+			env.Context = context.Background()
+		}
+		lgr.Info("using Forge for DeploySuperchain")
+		forgeCaller := opcm.NewDeploySuperchainForgeCaller(env.ForgeClient)
+		dso, _, err = forgeCaller(env.Context, input)
+		if err != nil {
+			return fmt.Errorf("failed to deploy superchain with Forge: %w", err)
+		}
+	} else {
+		dso, err = env.Scripts.DeploySuperchain.Run(input)
+		if err != nil {
+			return fmt.Errorf("failed to deploy superchain: %w", err)
+		}
 	}
 
 	st.SuperchainDeployment = &addresses.SuperchainContracts{
