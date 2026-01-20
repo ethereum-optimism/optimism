@@ -3343,7 +3343,8 @@ workflows:
             tags:
               only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
-              ignore: /.*/
+              only: /.*/
+              #ignore: /.*/
       - contracts-bedrock-build:
           context:
             - circleci-repo-readonly-authenticated-github-token
