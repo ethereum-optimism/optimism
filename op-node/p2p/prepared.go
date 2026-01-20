@@ -96,3 +96,7 @@ func (p *Prepared) ReqRespSyncEnabled() bool {
 func (p *Prepared) GetGossipTimestampThreshold() time.Duration {
 	return 60 * time.Second
 }
+
+func (p *Prepared) GetMaxGossipSize() int {
+	return 10 * (1 << 20)
+}

@@ -28,8 +28,6 @@ import (
 )
 
 const (
-	// maxGossipSize limits the total size of gossip RPC containers as well as decompressed individual messages.
-	maxGossipSize = 10 * (1 << 20)
 	// minGossipSize is used to make sure that there is at least some data to validate the signature against.
 	minGossipSize          = 66
 	maxOutboundQueue       = 256
@@ -61,6 +59,8 @@ type GossipSetupConfigurables interface {
 	ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option
 	// GetGossipTimestampThreshold returns the threshold for rejecting gossip messages with old timestamps
 	GetGossipTimestampThreshold() time.Duration
+	// GetMaxGossipSize returns the threshold for rejecting large gossip messages
+	GetMaxGossipSize() int
 }
 
 type GossipRuntimeConfig interface {
@@ -101,13 +101,12 @@ func BuildSubscriptionFilter(cfg *rollup.Config) pubsub.SubscriptionFilter {
 
 var msgBufPool = sync.Pool{New: func() any {
 	// note: the topic validator concurrency is limited, so pool won't blow up, even with large pre-allocation.
-	x := make([]byte, 0, maxGossipSize)
-	return &x
+	return &bytes.Buffer{}
 }}
 
 // BuildMsgIdFn builds a generic message ID function for gossipsub that can handle compressed payloads,
 // mirroring the eth2 p2p gossip spec.
-func BuildMsgIdFn(cfg *rollup.Config) pubsub.MsgIdFunction {
+func BuildMsgIdFn(cfg *rollup.Config, gossipConf GossipSetupConfigurables) pubsub.MsgIdFunction {
 	return func(pmsg *pb.Message) string {
 		valid := false
 		var data []byte
@@ -115,14 +114,12 @@ func BuildMsgIdFn(cfg *rollup.Config) pubsub.MsgIdFunction {
 		// The validator can throw away the message later when recognized as invalid,
 		// and the unique hash helps detect duplicates.
 		dLen, err := snappy.DecodedLen(pmsg.Data)
-		if err == nil && dLen <= maxGossipSize {
-			res := msgBufPool.Get().(*[]byte)
+		if err == nil && dLen <= gossipConf.GetMaxGossipSize() {
+			res := msgBufPool.Get().(*bytes.Buffer)
 			defer msgBufPool.Put(res)
-			if data, err = snappy.Decode((*res)[:cap(*res)], pmsg.Data); err == nil {
-				if cap(data) > cap(*res) {
-					// if we ended up growing the slice capacity, fine, keep the larger one.
-					*res = data[:cap(data)]
-				}
+			res.Reset()
+			res.Grow(dLen)
+			if data, err = snappy.Decode(res.AvailableBuffer()[:dLen], pmsg.Data); err == nil {
 				valid = true
 			}
 		}
@@ -185,8 +182,8 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, gossi
 		return nil, err
 	}
 	gossipOpts := []pubsub.Option{
-		pubsub.WithMaxMessageSize(maxGossipSize),
-		pubsub.WithMessageIdFn(BuildMsgIdFn(cfg)),
+		pubsub.WithMaxMessageSize(gossipConf.GetMaxGossipSize()),
+		pubsub.WithMessageIdFn(BuildMsgIdFn(cfg, gossipConf)),
 		pubsub.WithNoAuthor(),
 		pubsub.WithMessageSignaturePolicy(pubsub.StrictNoSign),
 		pubsub.WithSubscriptionFilter(BuildSubscriptionFilter(cfg)),
@@ -280,7 +277,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 			log.Warn("invalid snappy compression length data", "err", err, "peer", id)
 			return pubsub.ValidationReject
 		}
-		if outLen > maxGossipSize {
+		if outLen > gossipConf.GetMaxGossipSize() {
 			log.Warn("possible snappy zip bomb, decoded length is too large", "decoded_length", outLen, "peer", id)
 			return pubsub.ValidationReject
 		}
@@ -289,16 +286,14 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 			return pubsub.ValidationReject
 		}
 
-		res := msgBufPool.Get().(*[]byte)
-		defer msgBufPool.Put(res)
-		data, err := snappy.Decode((*res)[:cap(*res)], message.Data)
+		buf := msgBufPool.Get().(*bytes.Buffer)
+		defer msgBufPool.Put(buf)
+		buf.Reset()
+		buf.Grow(outLen)
+		data, err := snappy.Decode((buf.AvailableBuffer()[:outLen]), message.Data)
 		if err != nil {
 			log.Warn("invalid snappy compression", "err", err, "peer", id)
 			return pubsub.ValidationReject
-		}
-		// if we ended up growing the slice capacity, fine, keep the larger one.
-		if cap(data) > cap(*res) {
-			*res = data[:cap(data)]
 		}
 
 		// message starts with compact-encoding secp256k1 encoded signature
@@ -556,12 +551,9 @@ func (p *publisher) BlocksTopicV4Peers() []peer.ID {
 }
 
 func (p *publisher) PublishSignedL2Payload(ctx context.Context, signedEnvelope *opsigner.SignedExecutionPayloadEnvelope) error {
-	res := msgBufPool.Get().(*[]byte)
-	buf := bytes.NewBuffer((*res)[:0])
-	defer func() {
-		*res = buf.Bytes()
-		defer msgBufPool.Put(res)
-	}()
+	buf := msgBufPool.Get().(*bytes.Buffer)
+	defer msgBufPool.Put(buf)
+	buf.Reset()
 
 	buf.Write(signedEnvelope.Signature[:])
 
@@ -581,12 +573,9 @@ func (p *publisher) PublishSignedL2Payload(ctx context.Context, signedEnvelope *
 }
 
 func (p *publisher) SignAndPublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, signer Signer) error {
-	res := msgBufPool.Get().(*[]byte)
-	buf := bytes.NewBuffer((*res)[:0])
-	defer func() {
-		*res = buf.Bytes()
-		defer msgBufPool.Put(res)
-	}()
+	buf := msgBufPool.Get().(*bytes.Buffer)
+	defer msgBufPool.Put(buf)
+	buf.Reset()
 
 	buf.Write(make([]byte, 65))
 

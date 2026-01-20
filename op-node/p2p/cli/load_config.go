@@ -377,5 +377,6 @@ func loadGossipOptions(conf *p2p.Config, ctx cliiface.Context) error {
 	conf.MeshDLazy = ctx.Int(flags.GossipMeshDlazyName)
 	conf.FloodPublish = ctx.Bool(flags.GossipFloodPublishName)
 	conf.GossipTimestampThreshold = ctx.Duration(flags.GossipTimestampThresholdName)
+	conf.MaxGossipSize = ctx.Int(flags.GossipMaxMessageSize) * (1 << 20)
 	return nil
 }

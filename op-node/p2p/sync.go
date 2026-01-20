@@ -226,7 +226,8 @@ type SyncPeerScorer interface {
 type SyncClient struct {
 	log log.Logger
 
-	cfg *rollup.Config
+	cfg        *rollup.Config
+	gossipConf GossipSetupConfigurables
 
 	metrics   SyncClientMetrics
 	appScorer SyncPeerScorer
@@ -281,12 +282,13 @@ type SyncClient struct {
 	syncOnlyReqToStatic bool
 }
 
-func NewSyncClient(log log.Logger, cfg *rollup.Config, host HostNewStream, rcv receivePayloadFn, metrics SyncClientMetrics, appScorer SyncPeerScorer) *SyncClient {
+func NewSyncClient(log log.Logger, cfg *rollup.Config, host HostNewStream, rcv receivePayloadFn, metrics SyncClientMetrics, appScorer SyncPeerScorer, gossipConf GossipSetupConfigurables) *SyncClient {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &SyncClient{
 		log:                 log,
 		cfg:                 cfg,
+		gossipConf:          gossipConf,
 		metrics:             metrics,
 		appScorer:           appScorer,
 		newStreamFn:         host.NewStream,
@@ -674,6 +676,7 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 	// set read timeout (if available)
 	_ = str.SetReadDeadline(time.Now().Add(clientReadResponsetimeout))
 
+	maxGossipSize := (int64)(s.gossipConf.GetMaxGossipSize())
 	// Limit input, as well as output.
 	// Compression may otherwise continue to read ignored data for a small output,
 	// or output more data than desired (zip-bomb)

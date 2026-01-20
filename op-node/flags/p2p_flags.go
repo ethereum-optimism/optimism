@@ -54,6 +54,7 @@ var (
 	GossipMeshDlazyName          = "p2p.gossip.mesh.dlazy"
 	GossipFloodPublishName       = "p2p.gossip.mesh.floodpublish"
 	GossipTimestampThresholdName = "p2p.gossip.timestamp.threshold"
+	GossipMaxMessageSize         = "p2p.gossip.maxmessagesize"
 	SyncReqRespName              = "p2p.sync.req-resp"
 	SyncOnlyReqToStaticName      = "p2p.sync.onlyreqtostatic"
 	P2PPingName                  = "p2p.ping"
@@ -393,6 +394,14 @@ func P2PFlags(envPrefix string) []cli.Flag {
 			Required: false,
 			Value:    60 * time.Second,
 			EnvVars:  p2pEnv(envPrefix, "GOSSIP_TIMESTAMP_THRESHOLD"),
+			Category: P2PCategory,
+		},
+		&cli.IntFlag{
+			Name:     GossipMaxMessageSize,
+			Usage:    "Threshold for rejecting gossip messages with size bigger than this size in megabytes. Default is 10 megabytes.",
+			Required: false,
+			Value:    10,
+			EnvVars:  p2pEnv(envPrefix, "GOSSIP_MAX_MESSAGE_SIZE"),
 			Category: P2PCategory,
 		},
 		&cli.BoolFlag{

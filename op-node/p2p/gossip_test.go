@@ -302,3 +302,7 @@ func (m *mockGossipSetupConfigurablesWithThreshold) ConfigureGossip(rollupCfg *r
 func (m *mockGossipSetupConfigurablesWithThreshold) GetGossipTimestampThreshold() time.Duration {
 	return m.threshold
 }
+
+func (m *mockGossipSetupConfigurablesWithThreshold) GetMaxGossipSize() int {
+	return 10 * (1 << 20)
+}

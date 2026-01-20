@@ -139,6 +139,8 @@ type Config struct {
 	SyncOnlyReqToStatic bool
 
 	EnablePingService bool
+
+	MaxGossipSize int
 }
 
 func DefaultConnManager(conf *Config) (connmgr.ConnManager, error) {
@@ -183,6 +185,10 @@ func (conf *Config) ReqRespSyncEnabled() bool {
 
 func (conf *Config) GetGossipTimestampThreshold() time.Duration {
 	return conf.GossipTimestampThreshold
+}
+
+func (conf *Config) GetMaxGossipSize() int {
+	return conf.MaxGossipSize
 }
 
 const maxMeshParam = 1000
