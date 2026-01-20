@@ -227,6 +227,129 @@ func (m *mockL1Fetcher) ExpectL1BlockRefByNumber(num uint64, ref eth.L1BlockRef,
 	m.Mock.On("L1BlockRefByNumber", num).Once().Return(ref, err)
 }
 
+// TestUpdateFinalizedHead tests the updateFinalizedHead behavior with and without commitments
+func TestUpdateFinalizedHead(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelInfo)
+	cfg := Config{
+		ResolveWindow:   6,
+		ChallengeWindow: 6,
+	}
+
+	t.Run("no commitments with empty lastPrunedCommitment uses l1Finalized", func(t *testing.T) {
+		state := NewState(logger, &NoopMetrics{}, cfg)
+		storage := NewMockDAClient(logger)
+		da := NewAltDAWithState(logger, cfg, storage, &NoopMetrics{}, state)
+
+		// Verify state has no commitments
+		require.True(t, state.NoCommitments())
+		require.Equal(t, eth.L1BlockRef{}, state.lastPrunedCommitment)
+
+		// Call Finalize with l1Finalized
+		l1Finalized := l1Ref(100)
+		da.Finalize(l1Finalized)
+
+		// finalizedHead should be l1Finalized since there are no commitments
+		require.Equal(t, l1Finalized, da.finalizedHead)
+	})
+
+	t.Run("no commitments with lastPrunedCommitment lower than l1Finalized uses l1Finalized", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		state := NewState(logger, &NoopMetrics{}, cfg)
+		storage := NewMockDAClient(logger)
+		da := NewAltDAWithState(logger, cfg, storage, &NoopMetrics{}, state)
+
+		// Track and expire a commitment to set lastPrunedCommitment
+		c1 := RandomCommitment(rng)
+		bn1 := uint64(10)
+		state.TrackCommitment(c1, l1Ref(bn1))
+		require.NoError(t, state.ExpireCommitments(bID(bn1+cfg.ChallengeWindow)))
+		state.Prune(bID(bn1 + cfg.ChallengeWindow))
+
+		// Verify lastPrunedCommitment is set
+		require.Equal(t, l1Ref(bn1), state.lastPrunedCommitment)
+		require.True(t, state.NoCommitments())
+
+		// Call Finalize with l1Finalized higher than lastPrunedCommitment
+		l1Finalized := l1Ref(100)
+		da.Finalize(l1Finalized)
+
+		// finalizedHead should be l1Finalized since it's higher
+		require.Equal(t, l1Finalized, da.finalizedHead)
+	})
+
+	t.Run("no commitments with lastPrunedCommitment higher than l1Finalized uses lastPrunedCommitment", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		state := NewState(logger, &NoopMetrics{}, cfg)
+		storage := NewMockDAClient(logger)
+		da := NewAltDAWithState(logger, cfg, storage, &NoopMetrics{}, state)
+
+		// Track and expire a commitment to set lastPrunedCommitment at a high block
+		c1 := RandomCommitment(rng)
+		bn1 := uint64(200)
+		state.TrackCommitment(c1, l1Ref(bn1))
+		require.NoError(t, state.ExpireCommitments(bID(bn1+cfg.ChallengeWindow)))
+		state.Prune(bID(bn1 + cfg.ChallengeWindow))
+
+		// Verify lastPrunedCommitment is set
+		require.Equal(t, l1Ref(bn1), state.lastPrunedCommitment)
+		require.True(t, state.NoCommitments())
+
+		// Call Finalize with l1Finalized lower than lastPrunedCommitment
+		l1Finalized := l1Ref(100)
+		da.Finalize(l1Finalized)
+
+		// finalizedHead should be lastPrunedCommitment since it's higher
+		require.Equal(t, l1Ref(bn1), da.finalizedHead)
+	})
+
+	t.Run("with pending commitments uses lastPrunedCommitment", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		state := NewState(logger, &NoopMetrics{}, cfg)
+		storage := NewMockDAClient(logger)
+		da := NewAltDAWithState(logger, cfg, storage, &NoopMetrics{}, state)
+
+		// Track a commitment that will be pruned
+		c1 := RandomCommitment(rng)
+		bn1 := uint64(10)
+		state.TrackCommitment(c1, l1Ref(bn1))
+		require.NoError(t, state.ExpireCommitments(bID(bn1+cfg.ChallengeWindow)))
+		state.Prune(bID(bn1 + cfg.ChallengeWindow))
+
+		// Track another commitment that won't be expired/pruned
+		c2 := RandomCommitment(rng)
+		bn2 := uint64(50)
+		state.TrackCommitment(c2, l1Ref(bn2))
+
+		// Verify state has pending commitments
+		require.False(t, state.NoCommitments())
+		require.Equal(t, l1Ref(bn1), state.lastPrunedCommitment)
+
+		// Call Finalize with l1Finalized higher than lastPrunedCommitment
+		l1Finalized := l1Ref(100)
+		da.Finalize(l1Finalized)
+
+		// finalizedHead should be lastPrunedCommitment because there are pending commitments
+		require.Equal(t, l1Ref(bn1), da.finalizedHead)
+	})
+
+	t.Run("finalized head signal handler is called with correct value", func(t *testing.T) {
+		state := NewState(logger, &NoopMetrics{}, cfg)
+		storage := NewMockDAClient(logger)
+		da := NewAltDAWithState(logger, cfg, storage, &NoopMetrics{}, state)
+
+		var receivedHead eth.L1BlockRef
+		da.OnFinalizedHeadSignal(func(ref eth.L1BlockRef) {
+			receivedHead = ref
+		})
+
+		l1Finalized := l1Ref(100)
+		da.Finalize(l1Finalized)
+
+		// Handler should receive the finalized head
+		require.Equal(t, l1Finalized, receivedHead)
+	})
+}
+
 func TestAdvanceChallengeOrigin(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelWarn)
 	ctx := context.Background()
