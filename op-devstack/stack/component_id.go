@@ -94,6 +94,12 @@ func (id ComponentID) Shape() IDShape {
 	return id.shape
 }
 
+// HasChainID returns true if this ID has a chain ID component.
+// This is true for IDShapeKeyAndChain and IDShapeChainOnly shapes.
+func (id ComponentID) HasChainID() bool {
+	return id.shape == IDShapeKeyAndChain || id.shape == IDShapeChainOnly
+}
+
 func (id ComponentID) Key() string {
 	return id.key
 }
