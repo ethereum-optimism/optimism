@@ -148,8 +148,9 @@ cannon:  ## Builds cannon binary
 	make -C ./cannon cannon
 .PHONY: cannon
 
-reproducible-prestate:   ## Builds reproducible-prestate binary
+reproducible-prestate:   ## Builds reproducible prestates for op-program and kona
 	make -C ./op-program reproducible-prestate
+	cd kona && just reproducible-prestate
 .PHONY: reproducible-prestate
 
 cannon-prestates: cannon op-program
