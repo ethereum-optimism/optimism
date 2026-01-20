@@ -40,7 +40,7 @@ RUN cargo chef cook \
         --profile $BUILD_PROFILE \
         --features "$FEATURES" \
         --recipe-path recipe.json \
-        --manifest-path /app/op-reth/crates/bin/op-reth/Cargo.toml
+        --manifest-path /app/op-reth/bin/op-reth/Cargo.toml
 
 # Build op-reth
 COPY . .
@@ -48,7 +48,7 @@ RUN cargo build \
         --profile $BUILD_PROFILE \
         --features "$FEATURES" \
         --bin op-reth \
-        --manifest-path /app/op-reth/crates/bin/op-reth/Cargo.toml
+        --manifest-path /app/op-reth/bin/op-reth/Cargo.toml
 
 # Copy resulting binary
 RUN ls -la /app/target/$BUILD_PROFILE/op-reth

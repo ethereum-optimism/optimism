@@ -646,7 +646,7 @@ workflows:
           name: op-reth-build
           directory: reth
           binaries: op-reth
-          build_command: cd op-reth/crates/bin && cargo build --release --bin op-reth
+          build_command: cd op-reth/bin && cargo build --release --bin op-reth
           needs_clang: true
 
       # Node E2E tests (from node_e2e_sysgo_tests.yaml)

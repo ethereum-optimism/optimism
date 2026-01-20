@@ -17,7 +17,7 @@ all: build-docker run
 # Build op-reth
 build:
 	@echo "Building op-reth binary..."
-	cd ../../../ && cargo build --bin op-reth --manifest-path crates/optimism/bin/Cargo.toml
+	cd ../../../ && cargo build --bin op-reth --manifest-path crates/optimism/bin/op-reth/Cargo.toml
 
 # Build the op-reth Docker image
 build-docker:

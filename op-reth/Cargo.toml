@@ -10,6 +10,7 @@ exclude = [".github/"]
 [workspace]
 members = [
     "bin/op-reth",
+    "bin/proof-bench",
     "crates/chainspec/",
     "crates/cli/",
     "crates/consensus/",
@@ -163,6 +164,7 @@ incremental = false
 [workspace.dependencies]
 # ==================== OP-RETH INTERNAL CRATES ====================
 op-reth = { path = "bin/" }
+op-reth-proof-bench = { path = "bin/proof-bench/" }
 reth-optimism-chainspec = { path = "crates/chainspec/", default-features = false }
 reth-optimism-cli = { path = "crates/cli/", default-features = false }
 reth-optimism-consensus = { path = "crates/consensus/", default-features = false }
@@ -441,6 +443,7 @@ byteorder = "1"
 mini-moka = "0.10"
 moka = "0.12"
 chrono = "0.4.41"
+anyhow = "1.0"
 
 # proc-macros
 proc-macro2 = "1.0"
