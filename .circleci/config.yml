@@ -96,8 +96,10 @@ orbs:
 
 workflows:
   setup:
+    when:
+      equal: ["", << pipeline.git.tag >>]
     jobs:
-      - path-filtering/filter:
+      - path-filtering/filter: &path_filter
           base-revision: develop
           config-path: .circleci/continue/main.yml
           mapping: |
@@ -130,3 +132,15 @@ workflows:
             kona/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/kona.yml
             kona/.* base_image << pipeline.parameters.base_image >> .circleci/continue/kona.yml
             kona/.* go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/kona.yml
+
+  setup-tag:
+    when:
+      not:
+        equal: ["", << pipeline.git.tag >>]
+    jobs:
+      - path-filtering/filter:
+          <<: *path_filter
+          # Tag pipelines can point directly at the base revision (e.g. a tag cut from develop),
+          # resulting in an empty diff and a skipped continuation. Diff against the first parent
+          # to ensure continuation always runs for tag pushes.
+          base-revision: "<< pipeline.git.revision >>^"
