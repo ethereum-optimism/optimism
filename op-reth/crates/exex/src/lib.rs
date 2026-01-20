@@ -19,7 +19,7 @@ use reth_optimism_trie::{
     live::LiveTrieCollector, OpProofStoragePrunerTask, OpProofsStorage, OpProofsStore,
 };
 use reth_provider::{BlockReader, TransactionVariant};
-use reth_trie::{updates::TrieUpdatesSorted, HashedPostStateSorted};
+use reth_trie::{updates::TrieUpdatesSorted, HashedPostStateSorted, SortedTrieData};
 use std::{sync::Arc, time::Duration};
 use tracing::{debug, info};
 
@@ -305,9 +305,10 @@ where
         if let Some(block) = chain.blocks().get(&block_number) {
             // Check if we have BOTH trie updates and hashed state.
             // If either is missing, we fall back to execution to ensure data integrity.
-            if let (Some(trie_updates), Some(hashed_state)) =
-                (chain.trie_updates_at(block_number), chain.hashed_state_at(block_number))
-            {
+            if let Some((trie_updates, hashed_state)) = chain.trie_data_at(block_number).map(|d| {
+                let SortedTrieData { hashed_state, trie_updates } = d.get();
+                (trie_updates, hashed_state)
+            }) {
                 // Use fast path only if we're not scheduled to verify this block
                 if !should_verify {
                     debug!(
@@ -399,12 +400,14 @@ where
                 .blocks()
                 .get(block_number)
                 .ok_or_else(|| eyre::eyre!("Missing block {} in new chain", block_number))?;
-            let trie_updates = new.trie_updates_at(*block_number).ok_or_else(|| {
-                eyre::eyre!("Missing Trie updates for block {} in new chain", block_number)
-            })?;
-            let hashed_state = new.hashed_state_at(*block_number).ok_or_else(|| {
-                eyre::eyre!("Missing Hashed state for block {} in new chain", block_number)
-            })?;
+            let trie_data = new
+                .trie_data_at(*block_number)
+                .ok_or_else(|| {
+                    eyre::eyre!("Missing Trie data for block {} in new chain", block_number)
+                })?
+                .get();
+            let trie_updates = &trie_data.trie_updates;
+            let hashed_state = &trie_data.hashed_state;
 
             block_updates.push((
                 block.block_with_parent(),
@@ -449,22 +452,17 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::default::Default;
-
+    use alloy_consensus::private::alloy_primitives::B256;
     use alloy_eips::{eip1898::BlockWithParent, BlockNumHash, NumHash};
-
+    use reth_db::test_utils::tempdir_path;
+    use reth_ethereum_primitives::{Block, Receipt};
     use reth_execution_types::{Chain, ExecutionOutcome};
-    use reth_trie::{updates::TrieUpdatesSorted, HashedPostStateSorted};
-
     use reth_optimism_trie::{
         db::MdbxProofsStorage, BlockStateDiff, OpProofsStorage, OpProofsStore,
     };
-
-    use alloy_consensus::private::alloy_primitives::B256;
-    use reth_db::test_utils::tempdir_path;
-    use reth_ethereum_primitives::{Block, Receipt};
     use reth_primitives_traits::RecoveredBlock;
-    use std::{collections::BTreeMap, sync::Arc, time::Duration};
+    use reth_trie::{updates::TrieUpdatesSorted, HashedPostStateSorted, LazyTrieData};
+    use std::{collections::BTreeMap, default::Default, sync::Arc, time::Duration};
 
     // -------------------------------------------------------------------------
     // Helpers: deterministic blocks and deterministic Chain with precomputed updates
@@ -498,8 +496,7 @@ mod tests {
         hash_override: Option<B256>,
     ) -> Chain<reth_ethereum_primitives::EthPrimitives> {
         let mut blocks: Vec<RecoveredBlock<Block>> = Vec::new();
-        let mut trie_updates: BTreeMap<u64, Arc<TrieUpdatesSorted>> = BTreeMap::new();
-        let mut hashed_state: BTreeMap<u64, Arc<HashedPostStateSorted>> = BTreeMap::new();
+        let mut trie_data = BTreeMap::new();
 
         for n in from..=to {
             let mut b = mk_block(n);
@@ -508,8 +505,11 @@ mod tests {
             }
             blocks.push(b);
 
-            trie_updates.insert(n, Arc::new(TrieUpdatesSorted::default()));
-            hashed_state.insert(n, Arc::new(HashedPostStateSorted::default()));
+            let data = LazyTrieData::ready(
+                Arc::new(HashedPostStateSorted::default()),
+                Arc::new(TrieUpdatesSorted::default()),
+            );
+            trie_data.insert(n, data);
         }
 
         let execution_outcome: ExecutionOutcome<Receipt> = ExecutionOutcome {
@@ -519,7 +519,7 @@ mod tests {
             first_block: from,
         };
 
-        Chain::new(blocks, execution_outcome, trie_updates, hashed_state)
+        Chain::new(blocks, execution_outcome, trie_data)
     }
 
     // Init_storage to the genesis block

@@ -26,8 +26,8 @@ pub struct BlockStateDiff {
 impl BlockStateDiff {
     /// Extend the [` BlockStateDiff`] from other latest [`BlockStateDiff`]
     pub fn extend_ref(&mut self, other: &Self) {
-        self.sorted_trie_updates.extend_ref(&other.sorted_trie_updates);
-        self.sorted_post_state.extend_ref(&other.sorted_post_state);
+        self.sorted_trie_updates.extend_ref_and_sort(&other.sorted_trie_updates);
+        self.sorted_post_state.extend_ref_and_sort(&other.sorted_post_state);
     }
 }
 
