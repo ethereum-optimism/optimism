@@ -3015,15 +3015,17 @@ workflows:
             - cannon-prestate-quick
   main:
     when:
-      or:
-        - equal: ["webhook", << pipeline.trigger_source >>]
-        - and:
-            - equal: [true, <<pipeline.parameters.main_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
-            - equal: [
-                  << pipeline.parameters.github-event-type >>,
-                  "__not_set__",
-                ] #this is to prevent triggering this workflow as the default value is always set for main_dispatch
+      and:
+        - equal: ["", << pipeline.git.tag >>]
+        - or:
+            - equal: ["webhook", << pipeline.trigger_source >>]
+            - and:
+                - equal: [true, <<pipeline.parameters.main_dispatch>>]
+                - equal: ["api", << pipeline.trigger_source >>]
+                - equal: [
+                      << pipeline.parameters.github-event-type >>,
+                      "__not_set__",
+                    ] #this is to prevent triggering this workflow as the default value is always set for main_dispatch
     jobs:
       - contracts-bedrock-build:
           name: contracts-bedrock-build
