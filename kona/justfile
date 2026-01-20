@@ -215,9 +215,10 @@ build-prestate VARIANT OUTPUT_DIR:
     cp "{{OUTPUT_DIR}}/prestate.bin.gz" "{{OUTPUT_DIR}}/${HASH}.bin.gz"
     echo "Prestate for {{VARIANT}}: ${HASH}"
 
-# Run build-prestates and output the hashes for verification (equivalent to `make reproducible-prestate` for op-program)
-reproducible-prestate:
+build-reproducible-prestate:
     @just build-prestates
+
+output-prestate-hash:
     @echo "-------------------- Kona Prestates --------------------"
     @echo ""
     @echo "Cannon Absolute prestate hash:"
@@ -226,6 +227,8 @@ reproducible-prestate:
     @echo "Cannon Interop Absolute prestate hash:"
     @jq -r .pre {{KONA_ROOT}}/prestate-artifacts-cannon-interop/prestate-proof.json
     @echo ""
+
+reproducible-prestate: build-reproducible-prestate output-prestate-hash
 
 clean:
   #!/usr/bin/env bash
