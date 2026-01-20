@@ -308,15 +308,10 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         });
 
         // Add extra instructions to allow the DelayedWETH proxy to be deployed.
-        // TODO(#18502): Remove the extra instruction for custom gas token after U18 ships.
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
-            new IOPContractsManagerUtils.ExtraInstruction[](2);
+            new IOPContractsManagerUtils.ExtraInstruction[](1);
         extraInstructions[0] =
             IOPContractsManagerUtils.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") });
-        extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
-            key: "overrides.cfg.useCustomGasToken",
-            data: abi.encode(false)
-        });
 
         vm.prank(_delegateCaller, true);
         (bool upgradeSuccess,) = address(_opcm).delegatecall(

@@ -182,11 +182,6 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 					Key:  "PermittedProxyDeployment",
 					Data: []byte("DelayedWETH"),
 				},
-				{
-					// TODO(#18502): Remove this extra instruction after U18 ships.
-					Key:  "overrides.cfg.useCustomGasToken",
-					Data: make([]byte, 32),
-				},
 			},
 		},
 	}
