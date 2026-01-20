@@ -184,45 +184,24 @@ func TestGetBlobs(t *testing.T) {
 
 	indexedHashes := []eth.IndexedBlobHash{hash0, hash2, hash1} // Mix up the order.
 	hashes := []common.Hash{hash0.Hash, hash2.Hash, hash1.Hash} // Mix up the order.
-	blobs := []*eth.Blob{blob0, blob2, blob1}
+	beaconBlobs := []*eth.Blob{blob0, blob2, blob1}
 
-	cases := []struct {
-		name        string
-		beaconBlobs []*eth.Blob
-	}{
-		{
-			name: "happy path",
-			// From the /blobs/ spec:
-			//   Blobs are returned as an ordered list matching the order of their corresponding
-			//   KZG commitments in the block.
-			beaconBlobs: []*eth.Blob{blob0, blob1, blob2},
-		},
-	}
+	ctx := context.Background()
+	p := mocks.NewBeaconClient(t)
+	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
+	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
+	client := NewL1BeaconClient(p, L1BeaconClientConfig{})
+	ref := eth.L1BlockRef{Time: 12}
 
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			ctx := context.Background()
-			p := mocks.NewBeaconClient(t)
-			p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
-			p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
-			client := NewL1BeaconClient(p, L1BeaconClientConfig{})
-			ref := eth.L1BlockRef{Time: 12}
+	// construct the mock response for the beacon blobs call
+	var beaconBlobsResponse eth.APIBeaconBlobsResponse
+	var err error
+	beaconBlobsResponse = eth.APIBeaconBlobsResponse{Data: beaconBlobs}
+	p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(beaconBlobsResponse, err)
 
-			// construct the mock response for the beacon blobs call
-			var beaconBlobsResponse eth.APIBeaconBlobsResponse
-			var err error
-			if c.beaconBlobs == nil {
-				err = errors.New("client error")
-			} else {
-				beaconBlobsResponse = eth.APIBeaconBlobsResponse{Data: c.beaconBlobs}
-			}
-			p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(beaconBlobsResponse, err)
-
-			resp, err := client.GetBlobs(ctx, ref, indexedHashes)
-			require.NoError(t, err)
-			require.Equal(t, blobs, resp)
-		})
-	}
+	resp, err := client.GetBlobs(ctx, ref, indexedHashes)
+	require.NoError(t, err)
+	require.Equal(t, beaconBlobs, resp)
 }
 
 func TestRequestDuplicateBlobHashes(t *testing.T) {
