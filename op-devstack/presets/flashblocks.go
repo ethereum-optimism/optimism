@@ -88,13 +88,3 @@ func NewSingleChainWithFlashblocks(t devtest.T) *SingleChainWithFlashblocks {
 	out.FunderL2 = dsl.NewFunder(out.Wallet, out.FaucetL2, out.L2EL)
 	return out
 }
-
-// NewSingleChainWithFlashblocksAndRules creates a SingleChainWithFlashblocks preset with rules enabled.
-// The rulesConfig specifies the path to the rules configuration file.
-// Note: This function expects the orchestrator to be initialized via DoMain with
-// WithSingleChainSystemWithFlashblocksAndRules(rulesConfig) option.
-func NewSingleChainWithFlashblocksAndRules(t devtest.T) *SingleChainWithFlashblocks {
-	// This uses the same orchestrator as NewSingleChainWithFlashblocks
-	// The rules configuration is set via TestMain using WithSingleChainSystemWithFlashblocksAndRules
-	return NewSingleChainWithFlashblocks(t)
-}

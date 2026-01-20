@@ -662,10 +662,6 @@ func singleChainSystemWithFlashblocksOptsInternal(ids *SingleChainSystemWithFlas
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
 
 	opt.Add(WithL2ELNode(ids.L2EL, L2ELWithP2PConfig("127.0.0.1", seqID.Port, seqID.KeyHex(), nil, nil)))
-	// Sequencer adds builder as regular static peer (not trusted)
-	opt.Add(WithL2ELP2PConnection(ids.L2EL, stack.L2ELNodeID(ids.L2Builder), false))
-	// Builder adds sequencer as trusted peer
-	opt.Add(WithL2ELP2PConnection(stack.L2ELNodeID(ids.L2Builder), ids.L2EL, true))
 
 	// Configure OPRBuilder with rules if enabled
 	builderOpts := []OPRBuilderNodeOption{
@@ -675,6 +671,12 @@ func singleChainSystemWithFlashblocksOptsInternal(ids *SingleChainSystemWithFlas
 		builderOpts = append(builderOpts, OPRBuilderNodeWithExtraArgs("--rules.enabled", "--rules.config-path="+rulesConfig.ConfigPath))
 	}
 	opt.Add(WithOPRBuilderNode(ids.L2Builder, builderOpts...))
+
+	// P2P connections must be added AFTER WithOPRBuilderNode so the builder exists
+	// Sequencer adds builder as regular static peer (not trusted)
+	opt.Add(WithL2ELP2PConnection(ids.L2EL, stack.L2ELNodeID(ids.L2Builder), false))
+	// Builder adds sequencer as trusted peer
+	opt.Add(WithL2ELP2PConnection(stack.L2ELNodeID(ids.L2Builder), ids.L2EL, true))
 	opt.Add(WithRollupBoost(ids.L2RollupBoost, ids.L2EL, RollupBoostWithBuilderNode(ids.L2Builder)))
 
 	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, stack.L2ELNodeID(ids.L2RollupBoost), L2CLSequencer()))

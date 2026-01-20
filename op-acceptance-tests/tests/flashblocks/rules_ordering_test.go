@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -56,107 +57,91 @@ func TestBoostPriorityOrdering(gt *testing.T) {
 	ctx, cancel := context.WithTimeout(topLevelCtx, 90*time.Second)
 	defer cancel()
 
-	// Drive initial blocks to ensure the system is ready
 	driveViaTestSequencer(t, sys, 3)
 
-	// Create funded senders - one for each priority level
-	fundAmount := eth.Ether(1)
-	senderHigh := sys.FunderL2.NewFundedEOA(fundAmount)
-	senderMedium := sys.FunderL2.NewFundedEOA(fundAmount)
-	senderLow := sys.FunderL2.NewFundedEOA(fundAmount)
-	senderNormal := sys.FunderL2.NewFundedEOA(fundAmount)
+	const maxRetries = 3
+	err := retry.Do0(ctx, maxRetries, &retry.FixedStrategy{Dur: 0}, func() error {
+		fundAmount := eth.Ether(1)
+		senderHigh := sys.FunderL2.NewFundedEOA(fundAmount)
+		senderMedium := sys.FunderL2.NewFundedEOA(fundAmount)
+		senderLow := sys.FunderL2.NewFundedEOA(fundAmount)
+		senderNormal := sys.FunderL2.NewFundedEOA(fundAmount)
 
-	// Create a normal (non-boosted) recipient for comparison
-	normalRecipient := sys.Wallet.NewEOA(sys.L2EL)
-	normalRecipientAddr := normalRecipient.Address()
+		normalRecipient := sys.Wallet.NewEOA(sys.L2EL)
+		normalRecipientAddr := normalRecipient.Address()
 
-	logger.Info("Test accounts created",
-		"sender_high", senderHigh.Address().Hex(),
-		"sender_medium", senderMedium.Address().Hex(),
-		"sender_low", senderLow.Address().Hex(),
-		"sender_normal", senderNormal.Address().Hex(),
-		"high_priority_recipient", HighPriorityRecipient.Hex(),
-		"medium_priority_recipient", MediumPriorityRecipient.Hex(),
-		"low_priority_recipient", LowPriorityRecipient.Hex(),
-		"normal_recipient", normalRecipientAddr.Hex(),
-	)
+		sendAmount := eth.OneHundredthEther
+		var wg sync.WaitGroup
+		var txHigh, txMedium, txLow, txNormal *txplan.PlannedTx
 
-	// Send all transactions concurrently with the same value (to ensure fair comparison)
-	sendAmount := eth.OneHundredthEther
-	var wg sync.WaitGroup
-	var txHigh, txMedium, txLow, txNormal *txplan.PlannedTx
+		wg.Add(4)
+		go func() {
+			defer wg.Done()
+			txHigh = senderHigh.Transact(
+				senderHigh.Plan(),
+				txplan.WithTo(&HighPriorityRecipient),
+				txplan.WithValue(sendAmount),
+			)
+		}()
+		go func() {
+			defer wg.Done()
+			txMedium = senderMedium.Transact(
+				senderMedium.Plan(),
+				txplan.WithTo(&MediumPriorityRecipient),
+				txplan.WithValue(sendAmount),
+			)
+		}()
+		go func() {
+			defer wg.Done()
+			txLow = senderLow.Transact(
+				senderLow.Plan(),
+				txplan.WithTo(&LowPriorityRecipient),
+				txplan.WithValue(sendAmount),
+			)
+		}()
+		go func() {
+			defer wg.Done()
+			txNormal = senderNormal.Transact(
+				senderNormal.Plan(),
+				txplan.WithTo(&normalRecipientAddr),
+				txplan.WithValue(sendAmount),
+			)
+		}()
+		wg.Wait()
 
-	wg.Add(4)
+		receiptHigh, err := txHigh.Included.Eval(ctx)
+		if err != nil {
+			return fmt.Errorf("high priority tx inclusion: %w", err)
+		}
+		receiptMedium, err := txMedium.Included.Eval(ctx)
+		if err != nil {
+			return fmt.Errorf("medium priority tx inclusion: %w", err)
+		}
+		receiptLow, err := txLow.Included.Eval(ctx)
+		if err != nil {
+			return fmt.Errorf("low priority tx inclusion: %w", err)
+		}
+		receiptNormal, err := txNormal.Included.Eval(ctx)
+		if err != nil {
+			return fmt.Errorf("normal tx inclusion: %w", err)
+		}
 
-	// Transaction to high priority recipient (weight 5000)
-	go func() {
-		defer wg.Done()
-		txHigh = senderHigh.Transact(
-			senderHigh.Plan(),
-			txplan.WithTo(&HighPriorityRecipient),
-			txplan.WithValue(sendAmount),
+		logger.Info("All transactions confirmed",
+			"high_block", receiptHigh.BlockNumber, "high_index", receiptHigh.TransactionIndex,
+			"medium_block", receiptMedium.BlockNumber, "medium_index", receiptMedium.TransactionIndex,
+			"low_block", receiptLow.BlockNumber, "low_index", receiptLow.TransactionIndex,
+			"normal_block", receiptNormal.BlockNumber, "normal_index", receiptNormal.TransactionIndex,
 		)
-	}()
 
-	// Transaction to medium priority recipient (weight 2000)
-	go func() {
-		defer wg.Done()
-		txMedium = senderMedium.Transact(
-			senderMedium.Plan(),
-			txplan.WithTo(&MediumPriorityRecipient),
-			txplan.WithValue(sendAmount),
-		)
-	}()
+		sameBlock := receiptHigh.BlockNumber.Cmp(receiptMedium.BlockNumber) == 0 &&
+			receiptMedium.BlockNumber.Cmp(receiptLow.BlockNumber) == 0 &&
+			receiptLow.BlockNumber.Cmp(receiptNormal.BlockNumber) == 0
 
-	// Transaction to low priority recipient (weight 500)
-	go func() {
-		defer wg.Done()
-		txLow = senderLow.Transact(
-			senderLow.Plan(),
-			txplan.WithTo(&LowPriorityRecipient),
-			txplan.WithValue(sendAmount),
-		)
-	}()
+		if !sameBlock {
+			return fmt.Errorf("transactions landed in different blocks: high=%d, medium=%d, low=%d, normal=%d",
+				receiptHigh.BlockNumber, receiptMedium.BlockNumber, receiptLow.BlockNumber, receiptNormal.BlockNumber)
+		}
 
-	// Transaction to normal recipient (no boost, weight 0)
-	go func() {
-		defer wg.Done()
-		txNormal = senderNormal.Transact(
-			senderNormal.Plan(),
-			txplan.WithTo(&normalRecipientAddr),
-			txplan.WithValue(sendAmount),
-		)
-	}()
-
-	wg.Wait()
-
-	// Wait for all transactions to be included
-	receiptHigh, err := txHigh.Included.Eval(ctx)
-	require.NoError(t, err, "high priority tx should be included")
-	receiptMedium, err := txMedium.Included.Eval(ctx)
-	require.NoError(t, err, "medium priority tx should be included")
-	receiptLow, err := txLow.Included.Eval(ctx)
-	require.NoError(t, err, "low priority tx should be included")
-	receiptNormal, err := txNormal.Included.Eval(ctx)
-	require.NoError(t, err, "normal tx should be included")
-
-	logger.Info("All transactions confirmed",
-		"high_block", receiptHigh.BlockNumber, "high_index", receiptHigh.TransactionIndex,
-		"medium_block", receiptMedium.BlockNumber, "medium_index", receiptMedium.TransactionIndex,
-		"low_block", receiptLow.BlockNumber, "low_index", receiptLow.TransactionIndex,
-		"normal_block", receiptNormal.BlockNumber, "normal_index", receiptNormal.TransactionIndex,
-	)
-
-	// Verify ordering based on boost weights using transaction index in the block
-	// Lower TransactionIndex = earlier in the block = higher priority
-	sameBlock := receiptHigh.BlockNumber.Cmp(receiptMedium.BlockNumber) == 0 &&
-		receiptMedium.BlockNumber.Cmp(receiptLow.BlockNumber) == 0 &&
-		receiptLow.BlockNumber.Cmp(receiptNormal.BlockNumber) == 0
-
-	if sameBlock {
-		logger.Info("All transactions in same block - verifying boost ordering via transaction index")
-
-		// Verify ordering: high < medium < low < normal (lower index = earlier = higher priority)
 		require.Less(t, receiptHigh.TransactionIndex, receiptMedium.TransactionIndex,
 			"high priority (weight 5000) should have lower tx index than medium priority (weight 2000)")
 		require.Less(t, receiptMedium.TransactionIndex, receiptLow.TransactionIndex,
@@ -169,29 +154,9 @@ func TestBoostPriorityOrdering(gt *testing.T) {
 				receiptHigh.TransactionIndex, receiptMedium.TransactionIndex,
 				receiptLow.TransactionIndex, receiptNormal.TransactionIndex),
 		)
-	} else {
-		// Transactions in different blocks - compare transaction indices within blocks where applicable
-		logger.Info("Transactions in different blocks - comparing indices for transactions in same block",
-			"high_block", receiptHigh.BlockNumber,
-			"medium_block", receiptMedium.BlockNumber,
-			"low_block", receiptLow.BlockNumber,
-			"normal_block", receiptNormal.BlockNumber,
-		)
-
-		// If in same block, higher priority should have lower index
-		if receiptHigh.BlockNumber.Cmp(receiptMedium.BlockNumber) == 0 {
-			require.Less(t, receiptHigh.TransactionIndex, receiptMedium.TransactionIndex,
-				"high priority should have lower tx index than medium in same block")
-		}
-		if receiptMedium.BlockNumber.Cmp(receiptLow.BlockNumber) == 0 {
-			require.Less(t, receiptMedium.TransactionIndex, receiptLow.TransactionIndex,
-				"medium priority should have lower tx index than low in same block")
-		}
-		if receiptLow.BlockNumber.Cmp(receiptNormal.BlockNumber) == 0 {
-			require.Less(t, receiptLow.TransactionIndex, receiptNormal.TransactionIndex,
-				"low priority should have lower tx index than normal in same block")
-		}
-	}
+		return nil
+	})
+	require.NoError(t, err, "boost priority ordering verification failed")
 }
 
 // TestBoostedVsNonBoostedOrdering validates that a boosted transaction appears before
@@ -217,91 +182,71 @@ func TestBoostedVsNonBoostedOrdering(gt *testing.T) {
 	topLevelCtx, span := tracer.Start(ctx, "test boosted vs non-boosted ordering")
 	defer span.End()
 
-	ctx, cancel := context.WithTimeout(topLevelCtx, 60*time.Second)
+	ctx, cancel := context.WithTimeout(topLevelCtx, 90*time.Second)
 	defer cancel()
 
-	// Drive initial blocks
 	driveViaTestSequencer(t, sys, 2)
 
-	// Create two funded senders
-	fundAmount := eth.ThreeHundredthsEther
-	senderBoosted := sys.FunderL2.NewFundedEOA(fundAmount)
-	senderNormal := sys.FunderL2.NewFundedEOA(fundAmount)
+	lowGasTip := big.NewInt(1_000_000_000)
+	highGasTip := big.NewInt(100_000_000_000)
+	highGasFeeCap := big.NewInt(200_000_000_000)
 
-	// Create a normal recipient
-	normalRecipient := sys.Wallet.NewEOA(sys.L2EL)
-	normalRecipientAddr := normalRecipient.Address()
+	const maxRetries = 3
+	err := retry.Do0(ctx, maxRetries, &retry.FixedStrategy{Dur: 0}, func() error {
+		fundAmount := eth.ThreeHundredthsEther
+		senderBoosted := sys.FunderL2.NewFundedEOA(fundAmount)
+		senderNormal := sys.FunderL2.NewFundedEOA(fundAmount)
 
-	// Define gas fee parameters:
-	// - Low priority fee: 1 gwei (for boosted tx)
-	// - High priority fee: 100 gwei (for non-boosted tx) - 100x higher!
-	lowGasTip := big.NewInt(1_000_000_000)    // 1 gwei
-	highGasTip := big.NewInt(100_000_000_000) // 100 gwei
-	// Set fee cap high enough to cover base fee + tip
-	highGasFeeCap := big.NewInt(200_000_000_000) // 200 gwei
+		normalRecipient := sys.Wallet.NewEOA(sys.L2EL)
+		normalRecipientAddr := normalRecipient.Address()
 
-	logger.Info("Test accounts created",
-		"sender_boosted", senderBoosted.Address().Hex(),
-		"sender_normal", senderNormal.Address().Hex(),
-		"boosted_recipient", BoostedRecipient.Hex(),
-		"normal_recipient", normalRecipientAddr.Hex(),
-		"boosted_tx_gas_tip", lowGasTip.String(),
-		"normal_tx_gas_tip", highGasTip.String(),
-	)
+		sendAmount := eth.OneHundredthEther
+		var wg sync.WaitGroup
+		var txBoosted, txNormal *txplan.PlannedTx
 
-	// Send transactions concurrently
-	sendAmount := eth.OneHundredthEther
-	var wg sync.WaitGroup
-	var txBoosted, txNormal *txplan.PlannedTx
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			txBoosted = senderBoosted.Transact(
+				senderBoosted.Plan(),
+				txplan.WithTo(&BoostedRecipient),
+				txplan.WithValue(sendAmount),
+				txplan.WithGasTipCap(lowGasTip),
+			)
+		}()
+		go func() {
+			defer wg.Done()
+			txNormal = senderNormal.Transact(
+				senderNormal.Plan(),
+				txplan.WithTo(&normalRecipientAddr),
+				txplan.WithValue(sendAmount),
+				txplan.WithGasTipCap(highGasTip),
+				txplan.WithGasFeeCap(highGasFeeCap),
+			)
+		}()
+		wg.Wait()
 
-	wg.Add(2)
+		receiptBoosted, err := txBoosted.Included.Eval(ctx)
+		if err != nil {
+			return fmt.Errorf("boosted tx inclusion: %w", err)
+		}
+		receiptNormal, err := txNormal.Included.Eval(ctx)
+		if err != nil {
+			return fmt.Errorf("normal tx inclusion: %w", err)
+		}
 
-	// Transaction to boosted recipient (weight 1000) with LOW priority fee
-	go func() {
-		defer wg.Done()
-		txBoosted = senderBoosted.Transact(
-			senderBoosted.Plan(),
-			txplan.WithTo(&BoostedRecipient),
-			txplan.WithValue(sendAmount),
-			txplan.WithGasTipCap(lowGasTip),
+		logger.Info("Transactions confirmed",
+			"boosted_block", receiptBoosted.BlockNumber,
+			"boosted_index", receiptBoosted.TransactionIndex,
+			"normal_block", receiptNormal.BlockNumber,
+			"normal_index", receiptNormal.TransactionIndex,
 		)
-	}()
 
-	// Transaction to normal recipient (no boost) with HIGH priority fee
-	// This tx has 100x higher gas tip but should still come AFTER the boosted tx
-	go func() {
-		defer wg.Done()
-		txNormal = senderNormal.Transact(
-			senderNormal.Plan(),
-			txplan.WithTo(&normalRecipientAddr),
-			txplan.WithValue(sendAmount),
-			txplan.WithGasTipCap(highGasTip),
-			txplan.WithGasFeeCap(highGasFeeCap),
-		)
-	}()
+		if receiptBoosted.BlockNumber.Cmp(receiptNormal.BlockNumber) != 0 {
+			return fmt.Errorf("transactions landed in different blocks: boosted=%d, normal=%d",
+				receiptBoosted.BlockNumber, receiptNormal.BlockNumber)
+		}
 
-	wg.Wait()
-
-	// Wait for transactions to be included
-	receiptBoosted, err := txBoosted.Included.Eval(ctx)
-	require.NoError(t, err, "boosted tx should be included")
-	receiptNormal, err := txNormal.Included.Eval(ctx)
-	require.NoError(t, err, "normal tx should be included")
-
-	logger.Info("Transactions confirmed",
-		"boosted_hash", receiptBoosted.TxHash.Hex(),
-		"boosted_block", receiptBoosted.BlockNumber,
-		"boosted_index", receiptBoosted.TransactionIndex,
-		"boosted_gas_tip", "1 gwei",
-		"normal_hash", receiptNormal.TxHash.Hex(),
-		"normal_block", receiptNormal.BlockNumber,
-		"normal_index", receiptNormal.TransactionIndex,
-		"normal_gas_tip", "100 gwei",
-	)
-
-	// If both transactions are in the same block, boosted should have lower index (come first)
-	// DESPITE the normal tx having 100x higher gas tip
-	if receiptBoosted.BlockNumber.Cmp(receiptNormal.BlockNumber) == 0 {
 		require.Less(t, receiptBoosted.TransactionIndex, receiptNormal.TransactionIndex,
 			"boosted transaction (weight 1000, 1 gwei tip) should have lower tx index than "+
 				"normal transaction (no boost, 100 gwei tip) - proving rules > gas priority")
@@ -309,16 +254,10 @@ func TestBoostedVsNonBoostedOrdering(gt *testing.T) {
 		logger.Info("Rule-based boost precedence over gas priority verified!",
 			"boosted_index", receiptBoosted.TransactionIndex,
 			"normal_index", receiptNormal.TransactionIndex,
-			"boosted_gas_tip", "1 gwei",
-			"normal_gas_tip", "100 gwei",
-			"conclusion", "rules-based ordering takes precedence over economic incentives",
 		)
-	} else {
-		logger.Info("Transactions in different blocks - ordering verification skipped",
-			"boosted_block", receiptBoosted.BlockNumber,
-			"normal_block", receiptNormal.BlockNumber,
-		)
-	}
+		return nil
+	})
+	require.NoError(t, err, "boosted vs non-boosted ordering verification failed")
 }
 
 // TestSameSenderNonceOrdering verifies that transactions from the same sender
@@ -430,19 +369,11 @@ func TestMultipleSendersWithMixedPriorities(gt *testing.T) {
 	topLevelCtx, span := tracer.Start(ctx, "test multiple senders mixed priorities")
 	defer span.End()
 
-	ctx, cancel := context.WithTimeout(topLevelCtx, 90*time.Second)
+	ctx, cancel := context.WithTimeout(topLevelCtx, 120*time.Second)
 	defer cancel()
 
-	// Drive initial blocks (use 2 to avoid timestamp drift exceeding 5s gossip threshold)
 	driveViaTestSequencer(t, sys, 2)
 
-	fundAmount := eth.ThreeHundredthsEther
-
-	// Create normal recipient for non-boosted transactions
-	normalRecipient := sys.Wallet.NewEOA(sys.L2EL)
-	normalRecipientAddr := normalRecipient.Address()
-
-	// Create senders with their target recipients and weights
 	type senderConfig struct {
 		eoa       *dsl.EOA
 		priority  string
@@ -450,110 +381,115 @@ func TestMultipleSendersWithMixedPriorities(gt *testing.T) {
 		weight    int
 	}
 
-	configs := []struct {
-		priority  string
-		recipient common.Address
-		weight    int
-	}{
-		{"high", HighPriorityRecipient, 5000},
-		{"medium", MediumPriorityRecipient, 2000},
-		{"low", LowPriorityRecipient, 500},
-		{"normal", normalRecipientAddr, 0},
-		{"high", HighPriorityRecipient, 5000},
-		{"normal", normalRecipientAddr, 0},
-	}
-
-	senders := make([]senderConfig, len(configs))
-	for i, cfg := range configs {
-		eoa := sys.FunderL2.NewFundedEOA(fundAmount)
-		senders[i] = senderConfig{
-			eoa:       eoa,
-			priority:  cfg.priority,
-			recipient: cfg.recipient,
-			weight:    cfg.weight,
-		}
-		logger.Debug("Created sender",
-			"index", i,
-			"address", eoa.Address().Hex(),
-			"priority", cfg.priority,
-			"recipient", cfg.recipient.Hex(),
-		)
-	}
-
-	// Send all transactions concurrently
-	sendAmount := eth.OneHundredthEther
-	var wg sync.WaitGroup
-	plannedTxs := make([]*txplan.PlannedTx, len(senders))
-
-	for i := range senders {
-		wg.Add(1)
-		idx := i
-		go func() {
-			defer wg.Done()
-			recipient := senders[idx].recipient
-			plannedTxs[idx] = senders[idx].eoa.Transact(
-				senders[idx].eoa.Plan(),
-				txplan.WithTo(&recipient),
-				txplan.WithValue(sendAmount),
-			)
-		}()
-	}
-	wg.Wait()
-
-	// Wait for all to be included and collect results
 	type txResult struct {
 		receipt  *types.Receipt
 		priority string
 		weight   int
 	}
-	results := make([]txResult, len(senders))
 
-	for i := range senders {
-		receipt, err := plannedTxs[i].Included.Eval(ctx)
-		require.NoError(t, err, fmt.Sprintf("tx%d should be included", i))
-		results[i] = txResult{
-			receipt:  receipt,
-			priority: senders[i].priority,
-			weight:   senders[i].weight,
-		}
-		logger.Info("Transaction confirmed",
-			"index", i,
-			"priority", senders[i].priority,
-			"weight", senders[i].weight,
-			"block", receipt.BlockNumber,
-			"tx_index", receipt.TransactionIndex,
-		)
-	}
+	const maxRetries = 3
+	err := retry.Do0(ctx, maxRetries, &retry.FixedStrategy{Dur: 0}, func() error {
+		fundAmount := eth.ThreeHundredthsEther
 
-	// Group by block and verify ordering within each block
-	blockGroups := make(map[uint64][]txResult)
-	for _, r := range results {
-		blockNum := r.receipt.BlockNumber.Uint64()
-		blockGroups[blockNum] = append(blockGroups[blockNum], r)
-	}
+		normalRecipient := sys.Wallet.NewEOA(sys.L2EL)
+		normalRecipientAddr := normalRecipient.Address()
 
-	for blockNum, txs := range blockGroups {
-		if len(txs) < 2 {
-			continue
+		configs := []struct {
+			priority  string
+			recipient common.Address
+			weight    int
+		}{
+			{"high", HighPriorityRecipient, 5000},
+			{"medium", MediumPriorityRecipient, 2000},
+			{"low", LowPriorityRecipient, 500},
+			{"normal", normalRecipientAddr, 0},
+			{"high", HighPriorityRecipient, 5000},
+			{"normal", normalRecipientAddr, 0},
 		}
 
-		logger.Info("Verifying ordering in block", "block", blockNum, "tx_count", len(txs))
+		senders := make([]senderConfig, len(configs))
+		for i, cfg := range configs {
+			senders[i] = senderConfig{
+				eoa:       sys.FunderL2.NewFundedEOA(fundAmount),
+				priority:  cfg.priority,
+				recipient: cfg.recipient,
+				weight:    cfg.weight,
+			}
+		}
 
-		// Within the same block, higher weight should mean lower tx index
-		for i := 0; i < len(txs); i++ {
-			for j := i + 1; j < len(txs); j++ {
-				if txs[i].weight > txs[j].weight {
-					require.Less(t, txs[i].receipt.TransactionIndex, txs[j].receipt.TransactionIndex,
-						"tx with weight %d should have lower index than tx with weight %d in block %d",
-						txs[i].weight, txs[j].weight, blockNum)
-				} else if txs[i].weight < txs[j].weight {
-					require.Greater(t, txs[i].receipt.TransactionIndex, txs[j].receipt.TransactionIndex,
-						"tx with weight %d should have higher index than tx with weight %d in block %d",
-						txs[i].weight, txs[j].weight, blockNum)
+		sendAmount := eth.OneHundredthEther
+		var wg sync.WaitGroup
+		plannedTxs := make([]*txplan.PlannedTx, len(senders))
+
+		for i := range senders {
+			wg.Add(1)
+			idx := i
+			go func() {
+				defer wg.Done()
+				recipient := senders[idx].recipient
+				plannedTxs[idx] = senders[idx].eoa.Transact(
+					senders[idx].eoa.Plan(),
+					txplan.WithTo(&recipient),
+					txplan.WithValue(sendAmount),
+				)
+			}()
+		}
+		wg.Wait()
+
+		results := make([]txResult, len(senders))
+		for i := range senders {
+			receipt, err := plannedTxs[i].Included.Eval(ctx)
+			if err != nil {
+				return fmt.Errorf("tx%d inclusion: %w", i, err)
+			}
+			results[i] = txResult{
+				receipt:  receipt,
+				priority: senders[i].priority,
+				weight:   senders[i].weight,
+			}
+			logger.Info("Transaction confirmed",
+				"index", i,
+				"priority", senders[i].priority,
+				"weight", senders[i].weight,
+				"block", receipt.BlockNumber,
+				"tx_index", receipt.TransactionIndex,
+			)
+		}
+
+		blockGroups := make(map[uint64][]txResult)
+		for _, r := range results {
+			blockNum := r.receipt.BlockNumber.Uint64()
+			blockGroups[blockNum] = append(blockGroups[blockNum], r)
+		}
+
+		if len(blockGroups) != 1 {
+			blockNumbers := make([]uint64, 0, len(blockGroups))
+			for blockNum := range blockGroups {
+				blockNumbers = append(blockNumbers, blockNum)
+			}
+			return fmt.Errorf("transactions landed in %d different blocks: %v", len(blockGroups), blockNumbers)
+		}
+
+		for blockNum, txs := range blockGroups {
+			logger.Info("Verifying ordering in block", "block", blockNum, "tx_count", len(txs))
+
+			for i := 0; i < len(txs); i++ {
+				for j := i + 1; j < len(txs); j++ {
+					if txs[i].weight > txs[j].weight {
+						require.Less(t, txs[i].receipt.TransactionIndex, txs[j].receipt.TransactionIndex,
+							"tx with weight %d should have lower index than tx with weight %d in block %d",
+							txs[i].weight, txs[j].weight, blockNum)
+					} else if txs[i].weight < txs[j].weight {
+						require.Greater(t, txs[i].receipt.TransactionIndex, txs[j].receipt.TransactionIndex,
+							"tx with weight %d should have higher index than tx with weight %d in block %d",
+							txs[i].weight, txs[j].weight, blockNum)
+					}
 				}
 			}
 		}
-	}
 
-	logger.Info("Multiple senders mixed priorities test completed")
+		logger.Info("Multiple senders mixed priorities test completed successfully")
+		return nil
+	})
+	require.NoError(t, err, "multiple senders mixed priorities verification failed")
 }

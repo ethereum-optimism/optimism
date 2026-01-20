@@ -139,7 +139,7 @@ func websocketListenFor(ctx context.Context, logger log.Logger, wsURL string, he
 				return nil
 			}
 
-			// Handle timeout errors - only continue if we haven't received any other error type
+			// Timeout errors are recoverable - keep reading
 			var netErr net.Error
 			if errors.As(err, &netErr) && netErr.Timeout() {
 				continue
