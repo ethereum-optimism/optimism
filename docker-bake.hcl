@@ -6,10 +6,6 @@ variable "REPOSITORY" {
   default = "oplabs-tools-artifacts/images"
 }
 
-variable "KONA_VERSION" {
-  default = "none"
-}
-
 variable "GIT_COMMIT" {
   default = "dev"
 }
@@ -148,7 +144,6 @@ target "op-challenger" {
     GIT_COMMIT = "${GIT_COMMIT}"
     GIT_DATE = "${GIT_DATE}"
     OP_CHALLENGER_VERSION = "${OP_CHALLENGER_VERSION}"
-    KONA_VERSION="${KONA_VERSION}"
   }
   target = "op-challenger-target"
   platforms = split(",", PLATFORMS)

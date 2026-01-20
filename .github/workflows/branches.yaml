@@ -25,7 +25,6 @@ jobs:
       contents: read
     outputs:
       versions: ${{ steps.prep.outputs.versions }}
-      kona_version: ${{ steps.prep.outputs.kona_version }}
       date: ${{ steps.prep.outputs.date }}
     steps:
       - name: Harden the runner
@@ -73,7 +72,6 @@ jobs:
       registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
       env: |
         GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[matrix.image_name] }}
-        KONA_VERSION=${{ needs.prep.outputs.kona_version }}
       set: |
         *.args.GIT_COMMIT=${{ github.sha }}
         *.args.GIT_DATE=${{ needs.prep.outputs.date }}
@@ -115,7 +113,6 @@ jobs:
       registry: ttl.sh/${{ github.sha }}
       env: |
         GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[matrix.image_name] }}
-        KONA_VERSION=${{ needs.prep.outputs.kona_version }}
       set: |
         *.args.GIT_COMMIT=${{ github.sha }}
         *.args.GIT_DATE=${{ needs.prep.outputs.date }}
