@@ -66,16 +66,20 @@ func TestBlobsEndpoints(t *testing.T) {
 	slot20 := uint64(20)
 	require.NoError(t, beaconApi.StoreBlobsBundle(slot20, &bundle20))
 
-	// Slot 15: two blobs; used to test multiple versioned_hashes query
-	var blobA, blobB eth.Blob
+	// Slot 15: four blobs; used to test multiple versioned_hashes query
+	var blobA, blobB, blobC, blobD eth.Blob
 	blobA[0] = 0x11
 	blobB[0] = 0x22
+	blobC[0] = 0x33
+	blobD[0] = 0x44
 	commitA, proofA, _ := blobToCommitmentProofAndBundle(blobA)
 	commitB, proofB, _ := blobToCommitmentProofAndBundle(blobB)
+	commitC, proofC, _ := blobToCommitmentProofAndBundle(blobC)
+	commitD, proofD, _ := blobToCommitmentProofAndBundle(blobD)
 	bundle15 := engine.BlobsBundle{
-		Commitments: []hexutil.Bytes{hexutil.Bytes(commitA[:]), hexutil.Bytes(commitB[:])},
-		Proofs:      []hexutil.Bytes{hexutil.Bytes(proofA[:]), hexutil.Bytes(proofB[:])},
-		Blobs:       []hexutil.Bytes{hexutil.Bytes(blobA[:]), hexutil.Bytes(blobB[:])},
+		Commitments: []hexutil.Bytes{hexutil.Bytes(commitA[:]), hexutil.Bytes(commitB[:]), hexutil.Bytes(commitC[:]), hexutil.Bytes(commitD[:])},
+		Proofs:      []hexutil.Bytes{hexutil.Bytes(proofA[:]), hexutil.Bytes(proofB[:]), hexutil.Bytes(proofC[:]), hexutil.Bytes(proofD[:])},
+		Blobs:       []hexutil.Bytes{hexutil.Bytes(blobA[:]), hexutil.Bytes(blobB[:]), hexutil.Bytes(blobC[:]), hexutil.Bytes(blobD[:])},
 	}
 	slot15 := uint64(15)
 	require.NoError(t, beaconApi.StoreBlobsBundle(slot15, &bundle15))
@@ -115,14 +119,15 @@ func TestBlobsEndpoints(t *testing.T) {
 		require.Equal(t, blobSlot20, *apiResp.Data[0])
 	})
 
-	t.Run("GetBlobsByMultipleVersionedHashes", func(t *testing.T) {
+	t.Run("GetBlobsByMultipleVersionedHashesProperSubset", func(t *testing.T) {
 		t.Parallel()
 		vhA := eth.KZGToVersionedHash(commitA)
-		vhB := eth.KZGToVersionedHash(commitB)
+		vhC := eth.KZGToVersionedHash(commitC)
 
 		// Provide two versioned_hashes params;
 		// Let's reverse the order in the query params for a stronger test
-		url := fmt.Sprintf("%s/eth/v1/beacon/blobs/%d?versioned_hashes=%s&versioned_hashes=%s", beaconApi.BeaconAddr(), slot15, vhB.Hex(), vhA.Hex())
+		// And remember we stored 4 blobs in this slot, so the query is for a proper subset
+		url := fmt.Sprintf("%s/eth/v1/beacon/blobs/%d?versioned_hashes=%s&versioned_hashes=%s", beaconApi.BeaconAddr(), slot15, vhC.Hex(), vhA.Hex())
 		apiResp, err := getBlobs(url)
 		require.NoError(t, err)
 		// Both blobs should be returned (order is not strictly specified by the endpoint),
@@ -140,12 +145,12 @@ func TestBlobsEndpoints(t *testing.T) {
 
 		require.Condition(t, func() bool {
 			for _, b := range apiResp.Data {
-				if *b == blobB {
+				if *b == blobC {
 					return true
 				}
 			}
 			return false
-		}, "blobB not returned")
+		}, "blobC not returned")
 
 	})
 }
