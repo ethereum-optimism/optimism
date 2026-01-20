@@ -120,8 +120,9 @@ func TestBlobsEndpoints(t *testing.T) {
 		vhA := eth.KZGToVersionedHash(commitA)
 		vhB := eth.KZGToVersionedHash(commitB)
 
-		// Provide two versioned_hashes params; order shouldn't matter in behavior
-		url := fmt.Sprintf("%s/eth/v1/beacon/blobs/%d?versioned_hashes=%s&versioned_hashes=%s", beaconApi.BeaconAddr(), slot15, vhA.Hex(), vhB.Hex())
+		// Provide two versioned_hashes params;
+		// Let's reverse the order in the query params for a stronger test
+		url := fmt.Sprintf("%s/eth/v1/beacon/blobs/%d?versioned_hashes=%s&versioned_hashes=%s", beaconApi.BeaconAddr(), slot15, vhB.Hex(), vhA.Hex())
 		apiResp, err := getBlobs(url)
 		require.NoError(t, err)
 		// Both blobs should be returned (order is not strictly specified by the endpoint),
