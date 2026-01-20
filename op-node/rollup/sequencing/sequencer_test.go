@@ -26,8 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
-const defaultSealingDuration = 50 * time.Millisecond
-
 type FakeAttributesBuilder struct {
 	cfg *rollup.Config
 	rng *rand.Rand

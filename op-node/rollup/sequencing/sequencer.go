@@ -21,6 +21,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
+// defaultSealingDuration defines the expected time it takes to seal the block
+const defaultSealingDuration = 50 * time.Millisecond
+
 var (
 	ErrSequencerAlreadyStarted = errors.New("sequencer already running")
 	ErrSequencerAlreadyStopped = errors.New("sequencer not running")
@@ -139,7 +142,7 @@ func NewSequencer(driverCtx context.Context, log log.Logger, rollupCfg *rollup.C
 	eng attributes.EngineController,
 ) *Sequencer {
 	if sealingDuration <= 0 {
-		sealingDuration = time.Millisecond * 50
+		sealingDuration = defaultSealingDuration
 	}
 	return &Sequencer{
 		ctx:              driverCtx,
