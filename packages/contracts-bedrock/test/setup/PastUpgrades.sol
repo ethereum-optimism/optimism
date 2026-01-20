@@ -10,6 +10,7 @@ import { Process } from "scripts/libraries/Process.sol";
 
 // Testing
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { DisputeGames } from "test/setup/DisputeGames.sol";
 
 // Libraries
 import { Claim, GameTypes } from "src/dispute/lib/Types.sol";
@@ -249,13 +250,13 @@ library PastUpgrades {
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.PermissionedDisputeGameConfig({
                     absolutePrestate: Claim.wrap(DUMMY_CANNON_PRESTATE),
-                    proposer: address(0),
-                    challenger: address(0)
+                    proposer: DisputeGames.permissionedGameProposer(_disputeGameFactory),
+                    challenger: DisputeGames.permissionedGameChallenger(_disputeGameFactory)
                 })
             )
         });
 
-        // CANNON_KONA (game type 3)
+        // CANNON_KONA (game type 8)
         disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: _disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
@@ -265,7 +266,7 @@ library PastUpgrades {
             )
         });
 
-        // Sort by game type (already sorted: 0, 1, 3)
+        // Sort by game type (already sorted: 0, 1, 8)
         _sortDisputeGameConfigs(disputeGameConfigs);
 
         // Execute the V2 upgrade

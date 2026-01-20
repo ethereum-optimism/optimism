@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { FeatureFlags } from "./FeatureFlags.sol";
 import { ByteUtils } from "./ByteUtils.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { console2 as console } from "forge-std/console2.sol";
@@ -18,7 +17,7 @@ import "../../interfaces/dispute/IDisputeGameFactory.sol";
 import { IFaultDisputeGame } from "../../interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "../../interfaces/dispute/IPermissionedDisputeGame.sol";
 
-contract DisputeGames is FeatureFlags {
+library DisputeGames {
     using ByteUtils for bytes;
 
     /// @notice The address of the foundry Vm contract.

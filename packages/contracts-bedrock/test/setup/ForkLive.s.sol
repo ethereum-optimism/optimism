@@ -8,6 +8,7 @@ import { StdAssertions } from "forge-std/StdAssertions.sol";
 import { stdToml } from "forge-std/StdToml.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
 import { PastUpgrades } from "test/setup/PastUpgrades.sol";
+import { FeatureFlags } from "test/setup/FeatureFlags.sol";
 
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
@@ -48,7 +49,7 @@ import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManager
 ///         superchain-registry.
 ///         This contract must not have constructor logic because it is set into state using `etch`.
 
-contract ForkLive is Deployer, StdAssertions, DisputeGames {
+contract ForkLive is Deployer, StdAssertions, FeatureFlags {
     using stdToml for string;
     using LibString for string;
 
@@ -267,8 +268,8 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
         // Grab the existing PermissionedDisputeGame parameters.
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        address challenger = permissionedGameChallenger(disputeGameFactory);
-        address proposer = permissionedGameProposer(disputeGameFactory);
+        address challenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
+        address proposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
 
         // Prepare the upgrade input.
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
