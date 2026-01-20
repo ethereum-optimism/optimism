@@ -847,4 +847,30 @@ mod tests {
         let exex = build_test_exex(ctx, proofs.clone());
         exex.ensure_initialized().await.expect("should not return error");
     }
+
+    #[tokio::test]
+    async fn handle_notification_errors_on_empty_storage() {
+        // MDBX proofs storage - empty
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let collector = LiveTrieCollector::new(
+            ctx.components.components.evm_config.clone(),
+            ctx.components.provider.clone(),
+            &proofs,
+        );
+
+        let exex = build_test_exex(ctx, proofs.clone());
+
+        // Any notification will do
+        let new_chain = Arc::new(mk_chain_with_updates(1, 5, None));
+        let notif = ExExNotification::ChainCommitted { new: new_chain };
+
+        let err = exex.handle_notification(notif, &collector).await.unwrap_err();
+        assert_eq!(err.to_string(), "No blocks stored in proofs storage");
+    }
 }

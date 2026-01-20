@@ -205,6 +205,7 @@ reth-ethereum-primitives = { git = "https://github.com/paradigmxyz/reth", tag = 
 reth-evm = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2", default-features = false }
 reth-evm-ethereum = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2", default-features = false }
 reth-exex = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
+reth-exex-test-utils = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
 reth-execution-errors = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2", default-features = false }
 reth-execution-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2", default-features = false }
 reth-fs-util = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
@@ -382,6 +383,7 @@ test-fuzz = "7"
 rstest = "0.24.0"
 test-case = "3"
 serial_test = "3.2"
+mockall = "0.14"
 
 # ==================== COMPRESSION ====================
 brotli = "8"
