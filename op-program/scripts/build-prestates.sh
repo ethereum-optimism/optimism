@@ -1,54 +1,64 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPTS_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-KONA_REPO_URL=https://github.com/op-rs/kona
+# Get the repo root (two levels up from op-program/scripts/)
+REPO_ROOT=$(cd "${SCRIPTS_DIR}/../.." && pwd)
 
 TMP_DIR=$(mktemp -d)
+WORKTREE_DIR="${TMP_DIR}/optimism"
+
 function cleanup() {
+  git -C "${REPO_ROOT}" worktree remove "${WORKTREE_DIR}" --force 2>/dev/null || true
   rm -rf "${TMP_DIR}"
 }
 trap cleanup EXIT
-echo "Using temp dir: ${TMP_DIR}"
-cd "${TMP_DIR}"
 
-# Need to check out a fresh copy of the monorepo so we can switch to specific tags without it also affecting the
-# contents of this script (which is checked into the repo).
-git clone https://github.com/ethereum-optimism/optimism --recurse-submodules
+echo "Creating worktree in: ${WORKTREE_DIR}"
+# Create a detached worktree - we'll checkout specific tags in the build functions
+git -C "${REPO_ROOT}" worktree add "${WORKTREE_DIR}" HEAD --detach
 
 STATES_DIR="${SCRIPTS_DIR}/../temp/states"
 LOGS_DIR="${SCRIPTS_DIR}/../temp/logs"
-REPO_DIR="${TMP_DIR}/optimism"
-BIN_DIR="${REPO_DIR}/op-program/bin/"
+BIN_DIR="${WORKTREE_DIR}/op-program/bin/"
 VERSIONS_FILE="${STATES_DIR}/versions.json"
 
 mkdir -p "${STATES_DIR}" "${LOGS_DIR}"
 
-cd "${REPO_DIR}"
+cd "${WORKTREE_DIR}"
 
-function build_kona_prestate() {
+# Legacy kona versions that were tagged in the old op-rs/kona repo before migration
+LEGACY_KONA_VERSIONS=(
+  "kona-client/v1.1.6"
+  "kona-client/v1.1.7"
+  "kona-client/v1.2.0"
+  "kona-client/v1.2.1"
+  "kona-client/v1.2.2"
+  "kona-client/v1.2.4"
+  "kona-client/v1.2.5"
+  "kona-client/v1.2.7"
+)
+LEGACY_KONA_REPO="https://github.com/op-rs/kona"
+LEGACY_KONA_DIR="${TMP_DIR}/kona-legacy"
+
+function build_legacy_kona_prestate() {
   local version=$1
-  if [[ -z "${version}" ]]; then
-    echo "Error: version is required"
-    exit 1
-  fi
-  local short_version
-  short_version=$(echo "${version}" | cut -c 14-)
-  local log_file="${LOGS_DIR}/build-kona-${short_version}.txt"
+  local short_version=$2
+  local log_file=$3
   echo "Building Version: ${version} Logs: ${log_file}"
 
-  mkdir -p kona-prestate-build
-  cd kona-prestate-build
+  mkdir -p "${LEGACY_KONA_DIR}"
+  cd "${LEGACY_KONA_DIR}"
 
   if [[ -d kona ]]; then
     cd kona
     git checkout --force "${version}" > "${log_file}" 2>&1
   else
-    git clone -b "${version}" "$KONA_REPO_URL" kona > "${log_file}" 2>&1
+    git clone -b "${version}" "${LEGACY_KONA_REPO}" kona > "${log_file}" 2>&1
     cd kona
   fi
   # kona doesn't define a just dependency in its mise config.
   # but the monorepo does and it should be preinstalled by now. So let's setup the just shim.
-  MISE_DEFAULT_CONFIG_FILENAME="${REPO_DIR}"/mise.toml mise use just > "${log_file}" 2>&1
+  MISE_DEFAULT_CONFIG_FILENAME="${WORKTREE_DIR}"/mise.toml mise use just > "${log_file}" 2>&1
 
   cd docker/fpvm-prestates
   rm -rf ../../prestate-artifacts-cannon
@@ -65,18 +75,43 @@ function build_kona_prestate() {
   cp ../../prestate-artifacts-cannon/prestate.bin.gz "${STATES_DIR}/${prestate_hash}.bin.gz"
   VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${prestate_hash}\", \"type\": \"cannon64-kona-interop\"}]")
   echo "Built kona-interop ${version}: ${prestate_hash}"
+
+  cd "${WORKTREE_DIR}"
+}
+
+function build_kona_prestate() {
+  local version=$1
+  local short_version=$2
+  local log_file=$3
+  echo "Building kona version: ${version} Logs: ${log_file}"
+
+  git checkout --force "${version}" > "${log_file}" 2>&1
+
+  # Clean previous build artifacts
+  rm -rf kona/prestate-artifacts-*
+
+  # Build kona prestates using the standard build target
+  (cd kona && just reproducible-prestate) >> "${log_file}" 2>&1
+
+  # Collect cannon prestate
+  local prestate_hash
+  prestate_hash=$(jq -r .pre kona/prestate-artifacts-cannon/prestate-proof.json)
+  cp kona/prestate-artifacts-cannon/prestate.bin.gz "${STATES_DIR}/${prestate_hash}.bin.gz"
+  VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${prestate_hash}\", \"type\": \"cannon64-kona\"}]")
+  echo "Built cannon64-kona ${version}: ${prestate_hash}"
+
+  # Collect interop prestate
+  prestate_hash=$(jq -r .pre kona/prestate-artifacts-cannon-interop/prestate-proof.json)
+  cp kona/prestate-artifacts-cannon-interop/prestate.bin.gz "${STATES_DIR}/${prestate_hash}.bin.gz"
+  VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${prestate_hash}\", \"type\": \"cannon64-kona-interop\"}]")
+  echo "Built cannon64-kona-interop ${version}: ${prestate_hash}"
 }
 
 function build_op_program_prestate() {
   local VERSION=$1
-  if [[ -z "${VERSION}" ]]; then
-    echo "Error: VERSION is required"
-    exit 1
-  fi
-  local SHORT_VERSION # declared separately from assignment to avoid masking failures
-  SHORT_VERSION=$(echo "${VERSION}" | cut -c 13-)
-  local LOG_FILE="${LOGS_DIR}/build-${SHORT_VERSION}.txt"
-  echo "Building Version: ${VERSION} Logs: ${LOG_FILE}"
+  local SHORT_VERSION=$2
+  local LOG_FILE=$3
+  echo "Building op-program version: ${VERSION} Logs: ${LOG_FILE}"
   # use --force to overwrite any mise.toml changes
   git checkout --force "${VERSION}" > "${LOG_FILE}" 2>&1
   if [ -f mise.toml ]; then
@@ -94,7 +129,7 @@ EOF
     mise install -v -y >> "${LOG_FILE}" 2>&1
   fi
   rm -rf "${BIN_DIR}"
-  make reproducible-prestate >> "${LOG_FILE}" 2>&1
+  make -C op-program reproducible-prestate >> "${LOG_FILE}" 2>&1
 
   if [ -f "${BIN_DIR}/prestate-proof.json" ]; then
     local HASH
@@ -130,46 +165,60 @@ VERSIONS_JSON="[]"
 readarray -t VERSIONS < <(git tag --list 'op-program/v*' --sort taggerdate)
 
 for i in "${!VERSIONS[@]}"; do
+  tag="${VERSIONS[i]}"
+  # e.g. op-program/v1.2.3 -> v1.2.3
+  short_version="${tag#*/}"
+  log_file="${LOGS_DIR}/build-op-program-${short_version}.txt"
+
   pushd .
-  build_op_program_prestate "${VERSIONS[i]}"
+  build_op_program_prestate "${tag}" "${short_version}" "${log_file}"
   popd
   # after every 10 builds, cleanup docker artifacts to reclaim disk space
-  if [ "$CIRCLECI" = "true" ]; then
+  if [ "${CIRCLECI:-}" = "true" ]; then
     if (( (i + 1) % 10 == 0 )); then
       echo "Pruning docker build artifacts after ${i} builds"
       docker system prune -f
     fi
   fi
 done
-echo "${VERSIONS_JSON}" > "${VERSIONS_FILE}"
 
-# ignore alpha, beta, and older kona-client releases. The cannon prestate builds are not well supported on these versions
-EXCLUDED=(
-  "kona-client/v1.0.0"
-  "kona-client/v1.0.1"
-  "kona-client/v1.0.2"
-  "kona-client/v1.1.0-rc.1"
-  "kona-client/v1.1.0-rc.3"
-  "kona-client/v1.1.3"
-)
-printf "%s\n" "${EXCLUDED[@]}" > excluded.txt
+# Build legacy kona prestates from the old op-rs/kona repo
+for i in "${!LEGACY_KONA_VERSIONS[@]}"; do
+  tag="${LEGACY_KONA_VERSIONS[i]}"
+  short_version="${tag#*/}"
+  log_file="${LOGS_DIR}/build-kona-${short_version}.txt"
 
-readarray -t KONA_VERSIONS < <(git ls-remote --tags "$KONA_REPO_URL" | grep kona-client/ \
-  | sed 's|.*refs/tags/||' | sed 's/\^{}//' | sort -u \
-  | grep -v beta | grep -v alpha | grep -v -F -f excluded.txt)
+  pushd .
+  build_legacy_kona_prestate "${tag}" "${short_version}" "${log_file}"
+  popd
+  if [ "${CIRCLECI:-}" = "true" ]; then
+    if (( (i + 1) % 10 == 0 )); then
+      echo "Pruning docker build artifacts after ${i} builds"
+      docker system prune -f
+    fi
+  fi
+done
+
+# Build kona prestates from tags in this monorepo (versions after migration)
+readarray -t KONA_VERSIONS < <(git tag --list 'kona-client/v*' --sort taggerdate)
 
 for i in "${!KONA_VERSIONS[@]}"; do
+  tag="${KONA_VERSIONS[i]}"
+  # e.g. kona-client/v1.2.3 -> v1.2.3
+  short_version="${tag#*/}"
+  log_file="${LOGS_DIR}/build-kona-${short_version}.txt"
+
   pushd .
-  build_kona_prestate "${KONA_VERSIONS[i]}"
+  build_kona_prestate "${tag}" "${short_version}" "${log_file}"
   popd
   # after every 10 builds, cleanup docker artifacts to reclaim disk space
-  if [ "$CIRCLECI" = "true" ]; then
+  if [ "${CIRCLECI:-}" = "true" ]; then
     if (( (i + 1) % 10 == 0 )); then
       echo "Pruning docker build artifacts after ${i} builds"
       docker system prune -f
     fi
   fi
 done
-echo "${VERSIONS_JSON}" > "${VERSIONS_FILE}"
 
+echo "${VERSIONS_JSON}" > "${VERSIONS_FILE}"
 echo "All prestates successfully built and available in ${STATES_DIR}"
