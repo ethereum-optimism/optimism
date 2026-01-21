@@ -136,7 +136,7 @@ func (i *Interop) progressAndRecord() error {
 		return err
 	}
 
-	// Handle the result by comitting verified results or invalidating blocks
+	// Handle the result by committing verified results or invalidating blocks
 	err = i.handleResult(result)
 	if err != nil {
 		i.log.Error("failed to handle result", "err", err)
@@ -236,13 +236,16 @@ func (i *Interop) handleResult(result Result) error {
 		return nil
 	}
 
-	// if the result is empty, return nil
-	// if the result is invalid, invalidate the blocks
+	// if the result is invalid, invalidate the blocks and return
 	if !result.IsValid() {
 		i.log.Error("interop validation failed", "results", result)
 		for chainID, invalidHead := range result.InvalidHeads {
-			i.invalidateBlock(chainID, invalidHead)
+			if err := i.invalidateBlock(chainID, invalidHead); err != nil {
+				i.log.Error("failed to invalidate block", "chainID", chainID, "blockID", invalidHead, "err", err)
+				return err
+			}
 		}
+		return nil
 	}
 
 	// if the result is valid, commit the verified result
