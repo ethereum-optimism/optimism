@@ -1,0 +1,70 @@
+[package]
+name = "op-revm"
+description = "Optimism variant of Revm"
+version = "15.0.0"
+authors.workspace = true
+edition.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+rust-version.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true
+
+[dependencies]
+# revm
+revm.workspace = true
+auto_impl.workspace = true
+
+# Optional
+serde = { workspace = true, features = ["derive", "rc"], optional = true }
+
+[dev-dependencies]
+rstest.workspace = true
+alloy-sol-types.workspace = true
+sha2.workspace = true
+serde_json = { workspace = true, features = ["alloc", "preserve_order"] }
+serde = { workspace = true, features = ["derive"] }
+alloy-primitives.workspace = true
+
+[features]
+default = ["std", "c-kzg", "secp256k1", "portable", "blst"]
+std = [
+	"serde?/std",
+	"revm/std",
+	"alloy-sol-types/std",
+	"sha2/std",
+	"serde_json/std",
+	"alloy-primitives/std",
+]
+hashbrown = ["revm/hashbrown"]
+serde = ["dep:serde", "revm/serde", "alloy-primitives/serde"]
+portable = ["revm/portable"]
+
+dev = [
+	"memory_limit",
+	"optional_balance_check",
+	"optional_block_gas_limit",
+	"optional_eip3541",
+	"optional_eip3607",
+	"optional_no_base_fee",
+]
+memory_limit = ["revm/memory_limit"]
+optional_balance_check = ["revm/optional_balance_check"]
+optional_block_gas_limit = ["revm/optional_block_gas_limit"]
+optional_eip3541 = ["revm/optional_eip3541"]
+optional_eip3607 = ["revm/optional_eip3607"]
+optional_no_base_fee = ["revm/optional_no_base_fee"]
+optional_fee_charge = ["revm/optional_fee_charge"]
+
+# See comments in `revm-precompile`
+secp256k1 = ["revm/secp256k1"]
+c-kzg = ["revm/c-kzg"]
+blst = ["revm/blst"]
+bn = ["revm/bn"]
