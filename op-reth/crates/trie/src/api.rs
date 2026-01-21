@@ -170,7 +170,6 @@ pub trait OpProofsStore: Send + Sync + Debug {
     fn prune_earliest_state(
         &self,
         new_earliest_block_ref: BlockWithParent,
-        diff: BlockStateDiff,
     ) -> impl Future<Output = OpProofsStorageResult<WriteCounts>> + Send;
 
     /// Remove account, storage and trie updates from historical storage for all blocks till

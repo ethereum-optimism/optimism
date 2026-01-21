@@ -538,10 +538,9 @@ where
     async fn prune_earliest_state(
         &self,
         new_earliest_block_ref: BlockWithParent,
-        diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts> {
         self.metrics.block_metrics.earliest_number.set(new_earliest_block_ref.block.number as f64);
-        self.storage.prune_earliest_state(new_earliest_block_ref, diff).await
+        self.storage.prune_earliest_state(new_earliest_block_ref).await
     }
 
     #[inline]

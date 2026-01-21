@@ -2,7 +2,7 @@
 use crate::prune::metrics::Metrics;
 use crate::{
     prune::error::{OpProofStoragePrunerResult, PrunerError, PrunerOutput},
-    BlockStateDiff, OpProofsStorage, OpProofsStore,
+    OpProofsStorage, OpProofsStore,
 };
 use alloy_eips::{eip1898::BlockWithParent, BlockNumHash};
 use reth_provider::BlockHashReader;
@@ -114,21 +114,6 @@ where
         end_block: u64,
     ) -> Result<PrunerOutput, PrunerError> {
         let batch_start_time = Instant::now();
-        let mut batch_diff = BlockStateDiff::default();
-
-        // Fetch all diffs from (start_block + 1) to end_block (inclusive)
-        for i in (start_block + 1)..=end_block {
-            let diff = self.provider.fetch_trie_updates(i).await.inspect_err(|err| {
-                error!(
-                    target: "trie::pruner",
-                    block = i,
-                    ?err,
-                    "Failed to fetch trie updates for block during pruning"
-                )
-            })?;
-            batch_diff.extend_ref(&diff);
-        }
-        let fetch_duration = batch_start_time.elapsed();
 
         // Fetch block hashes for the new earliest block of this batch
         let new_earliest_block_hash = self
@@ -158,14 +143,15 @@ where
             })?
             .ok_or(PrunerError::BlockNotFound(parent_block_num))?;
 
+        let fetch_duration = batch_start_time.elapsed();
+
         let block_with_parent = BlockWithParent {
             parent: parent_block_hash,
             block: BlockNumHash { number: end_block, hash: new_earliest_block_hash },
         };
 
         // Commit this batch
-        let write_counts =
-            self.provider.prune_earliest_state(block_with_parent, batch_diff).await?;
+        let write_counts = self.provider.prune_earliest_state(block_with_parent).await?;
 
         let duration = batch_start_time.elapsed();
         let batch_output = PrunerOutput {
@@ -203,7 +189,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::MdbxProofsStorage;
+    use crate::{db::MdbxProofsStorage, BlockStateDiff};
     use alloy_eips::{BlockHashOrNumber, NumHash};
     use alloy_primitives::{BlockNumber, B256, U256};
     use mockall::mock;

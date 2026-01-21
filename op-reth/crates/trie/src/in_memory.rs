@@ -609,89 +609,86 @@ impl OpProofsStore for InMemoryProofsStorage {
     async fn prune_earliest_state(
         &self,
         new_earliest_block_ref: BlockWithParent,
-        diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts> {
         let mut write_counts = WriteCounts::default();
         let mut inner = self.inner.write().await;
+        let new_earliest = new_earliest_block_ref.block.number;
 
-        let branches_diff = diff.sorted_trie_updates;
-        let leaves_diff = diff.sorted_post_state;
+        // 1. Account Branches
+        // Identify keys to move (blocks <= new_earliest but > 0)
+        let account_keys: Vec<_> = inner
+            .account_branches
+            .keys()
+            .filter(|(block, _)| *block > 0 && *block <= new_earliest)
+            .copied()
+            .collect();
 
-        // Apply branch updates to the earliest state (block 0)
-        for (path, branch) in &branches_diff.account_nodes {
-            write_counts.account_trie_updates_written_total += 1;
-            match branch {
-                Some(br) => _ = inner.account_branches.insert((0, *path), Some(br.clone())),
-                None => _ = inner.account_branches.remove(&(0, *path)),
+        for key in account_keys {
+            if let Some(branch) = inner.account_branches.remove(&key) {
+                // Determine if we should update the base state (block 0)
+                // In a simpler model without diff calculation, we just overwrite block 0
+                // with the latest version found in the pruned range.
+                // Since keys are sorted by block, this logic naturally keeps the latest if we
+                // iterate in order, but here we are just grabbing all of them.
+                // For correctness in BTreeMap iteration order (which is sorted):
+                inner.account_branches.insert((0, key.1), branch);
+                write_counts.account_trie_updates_written_total += 1;
             }
         }
 
-        // Apply storage trie updates
-        for (hashed_address, storage_updates) in &branches_diff.storage_tries {
-            for (path, branch) in &storage_updates.storage_nodes {
-                match branch {
-                    Some(br) => {
-                        _ = inner
-                            .storage_branches
-                            .insert((0, *hashed_address, *path), Some(br.clone()))
-                    }
-                    None => _ = inner.storage_branches.remove(&(0, *hashed_address, *path)),
-                }
+        // 2. Storage Branches
+        let storage_keys: Vec<_> = inner
+            .storage_branches
+            .keys()
+            .filter(|(block, _, _)| *block > 0 && *block <= new_earliest)
+            .copied()
+            .collect();
+
+        for key in storage_keys {
+            if let Some(branch) = inner.storage_branches.remove(&key) {
+                inner.storage_branches.insert((0, key.1, key.2), branch);
                 write_counts.storage_trie_updates_written_total += 1;
             }
         }
 
-        // Apply account updates
-        for (hashed_address, account) in &leaves_diff.accounts {
-            write_counts.hashed_accounts_written_total += 1;
-            inner.hashed_accounts.insert((0, *hashed_address), *account);
-        }
+        // 3. Hashed Accounts
+        let acc_keys: Vec<_> = inner
+            .hashed_accounts
+            .keys()
+            .filter(|(block, _)| *block > 0 && *block <= new_earliest)
+            .copied()
+            .collect();
 
-        // Apply storage updates
-        for (hashed_address, storage) in &leaves_diff.storages {
-            for (slot, value) in storage.storage_slots_ref() {
-                write_counts.hashed_storages_written_total += 1;
-                inner.hashed_storages.insert((0, *hashed_address, *slot), *value);
+        for key in acc_keys {
+            if let Some(acc) = inner.hashed_accounts.remove(&key) {
+                inner.hashed_accounts.insert((0, key.1), acc);
+                write_counts.hashed_accounts_written_total += 1;
             }
         }
 
-        // Update earliest block number if we have one
-        let new_earliest_block_number = new_earliest_block_ref.block.number;
-        if let Some((_, hash)) = inner.earliest_block {
-            inner.earliest_block = Some((new_earliest_block_number, hash));
+        // 4. Hashed Storages
+        let stor_keys: Vec<_> = inner
+            .hashed_storages
+            .keys()
+            .filter(|(block, _, _)| *block > 0 && *block <= new_earliest)
+            .copied()
+            .collect();
+
+        for key in stor_keys {
+            if let Some(val) = inner.hashed_storages.remove(&key) {
+                inner.hashed_storages.insert((0, key.1, key.2), val);
+                write_counts.hashed_storages_written_total += 1;
+            }
         }
 
-        // Remove all data for blocks before new_earliest_block_number (except block 0)
-        let mut length_before_prune = inner.account_branches.len();
-        inner
-            .account_branches
-            .retain(|(block, _), _| *block == 0 || *block >= new_earliest_block_number);
-        write_counts.account_trie_updates_written_total +=
-            (length_before_prune - inner.account_branches.len()) as u64;
+        // Update earliest block pointer
+        if let Some((_, hash)) = inner.earliest_block {
+            inner.earliest_block = Some((new_earliest, hash));
+        }
 
-        length_before_prune = inner.storage_branches.len();
-        inner
-            .storage_branches
-            .retain(|(block, _, _), _| *block == 0 || *block >= new_earliest_block_number);
-        write_counts.storage_trie_updates_written_total +=
-            (length_before_prune - inner.storage_branches.len()) as u64;
-
-        length_before_prune = inner.hashed_accounts.len();
-        inner
-            .hashed_accounts
-            .retain(|(block, _), _| *block == 0 || *block >= new_earliest_block_number);
-        write_counts.hashed_accounts_written_total +=
-            (length_before_prune - inner.hashed_accounts.len()) as u64;
-
-        length_before_prune = inner.hashed_storages.len();
-        inner
-            .hashed_storages
-            .retain(|(block, _, _), _| *block == 0 || *block >= new_earliest_block_number);
-        write_counts.hashed_storages_written_total +=
-            (length_before_prune - inner.hashed_storages.len()) as u64;
-
-        inner.trie_updates.retain(|block, _| *block >= new_earliest_block_number);
-        inner.post_states.retain(|block, _| *block >= new_earliest_block_number);
+        // 5. Cleanup Metadata
+        inner.trie_updates.retain(|block, _| *block > new_earliest);
+        inner.post_states.retain(|block, _| *block > new_earliest);
 
         Ok(write_counts)
     }
