@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -34,11 +33,6 @@ type L1Client interface {
 	// CallContract executes an Ethereum contract call with the specified data as the
 	// input.
 	CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
-}
-
-type L2OOContract interface {
-	Version(*bind.CallOpts) (string, error)
-	NextBlockNumber(*bind.CallOpts) (*big.Int, error)
 }
 
 type DGFContract interface {
@@ -288,7 +282,7 @@ func (l *L2OutputSubmitter) loop() {
 				l.Log.Warn("Error getting proposal", "err", err)
 				continue
 			} else if !shouldPropose {
-				// debug logging already in Fetch(DGF|L2OO)Output
+				// debug logging already in FetchDGFOutput
 				continue
 			}
 

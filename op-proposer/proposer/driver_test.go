@@ -3,7 +3,6 @@ package proposer
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"testing"
 	"time"
 
@@ -16,27 +15,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	txmgrmocks "github.com/ethereum-optimism/optimism/op-service/txmgr/mocks"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
-
-type MockL2OOContract struct {
-	mock.Mock
-}
-
-func (m *MockL2OOContract) Version(opts *bind.CallOpts) (string, error) {
-	args := m.Called(opts)
-	return args.String(0), args.Error(1)
-}
-
-func (m *MockL2OOContract) NextBlockNumber(opts *bind.CallOpts) (*big.Int, error) {
-	args := m.Called(opts)
-	return args.Get(0).(*big.Int), args.Error(1)
-}
 
 type StubDGFContract struct {
 	hasProposedCount int
@@ -72,7 +56,7 @@ func (p *mockRollupEndpointProvider) RollupClient(context.Context) (dial.RollupC
 
 func (p *mockRollupEndpointProvider) Close() {}
 
-func setup(t *testing.T) (*L2OutputSubmitter, *mockRollupEndpointProvider, *MockL2OOContract, *StubDGFContract, *txmgrmocks.TxManager, *testlog.CapturingHandler) {
+func setup(t *testing.T) (*L2OutputSubmitter, *mockRollupEndpointProvider, *StubDGFContract, *txmgrmocks.TxManager, *testlog.CapturingHandler) {
 	ep := newEndpointProvider()
 
 	proposerConfig := ProposerConfig{
@@ -100,7 +84,6 @@ func setup(t *testing.T) (*L2OutputSubmitter, *mockRollupEndpointProvider, *Mock
 		cancel:      cancel,
 	}
 	var mockDGFContract *StubDGFContract
-	var mockL2OOContract *MockL2OOContract
 	mockDGFContract = new(StubDGFContract)
 	l2OutputSubmitter.dgfContract = mockDGFContract
 
@@ -113,14 +96,14 @@ func setup(t *testing.T) (*L2OutputSubmitter, *mockRollupEndpointProvider, *Mock
 			close(l2OutputSubmitter.done)
 		})
 
-	return &l2OutputSubmitter, ep, mockL2OOContract, mockDGFContract, txmgr, logs
+	return &l2OutputSubmitter, ep, mockDGFContract, txmgr, logs
 }
 
 func TestL2OutputSubmitter_OutputRetry(t *testing.T) {
 	proposerAddr := common.Address{0xab}
 	const numFails = 3
 
-	ps, ep, _, dgfContract, txmgr, logs := setup(t)
+	ps, ep, dgfContract, txmgr, logs := setup(t)
 
 	ep.rollupClient.On("SyncStatus").Return(&eth.SyncStatus{FinalizedL2: eth.L2BlockRef{Number: 42}}, nil).Times(numFails + 1)
 	ep.rollupClient.ExpectOutputAtBlock(42, nil, fmt.Errorf("TEST: failed to fetch output")).Times(numFails)
