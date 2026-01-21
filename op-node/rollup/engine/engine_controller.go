@@ -601,7 +601,7 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 		"fcu2_time", common.PrettyDuration(fcu2Finish.Sub(fcu2Start)),
 		"total_time", common.PrettyDuration(totalTime),
 		"mgas", float64(envelope.ExecutionPayload.GasUsed)/1000000,
-		"mgasps", float64(envelope.ExecutionPayload.GasUsed)*1000/float64(totalTime.Milliseconds()))
+		"mgasps", float64(envelope.ExecutionPayload.GasUsed)*1000/float64(totalTime.Milliseconds() + 1)) // +1 to avoid division by zero
 
 	return nil
 }
