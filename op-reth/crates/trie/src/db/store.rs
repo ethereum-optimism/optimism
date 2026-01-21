@@ -330,6 +330,16 @@ impl MdbxProofsStorage {
                 loop {
                     if entry.block_number >= survivor_block {
                         // Reached the survivor version (or newer). Stop deleting for this key.
+
+                        // If the survivor is a tombstone (None), delete it too.
+                        // Since we just deleted all older history, a tombstone at the start of
+                        // history is redundant (it implies "does not
+                        // exist").
+                        if entry.block_number == survivor_block && entry.value.0.is_none() {
+                            cur.delete_current()?;
+                            deleted_count += 1;
+                        }
+
                         break;
                     }
 
@@ -2438,11 +2448,13 @@ mod tests {
             assert!(v.block_number >= 3, "path1 at block 1 should be pruned");
         }
 
-        // path1 survivor at block 3 (tombstone) should remain
-        let v3 =
-            cur.seek_by_key_subkey(StoredNibbles::from(path1), 3).unwrap().expect("Tombstone at 3");
-        assert_eq!(v3.block_number, 3);
-        assert!(v3.value.0.is_none());
+        // path1 at block 1 should be gone.
+        // path1 survivor at block 3 (tombstone) should ALSO be gone now (optimization).
+        // So seeking for path1 should return None.
+        assert!(
+            cur.seek_by_key_subkey(StoredNibbles::from(path1), 0).unwrap().is_none(),
+            "path1 should be completely removed including tombstone"
+        );
 
         // path2 entries should be pruned (blocks < 5)
         // Survivor for path2 is at block 2.
