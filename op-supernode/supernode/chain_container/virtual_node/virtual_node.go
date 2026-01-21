@@ -5,7 +5,6 @@ import (
 	"errors"
 	"math"
 	"sync"
-	"time"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	opmetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -215,10 +214,6 @@ var ErrL1AtSafeHeadNotFound = errors.New("l1 at safe head not found")
 // L1AtSafeHead finds the earliest L1 block at which the provided L2 block became safe,
 // using the monotonicity of SafeDB (L2 safe head number is non-decreasing over L1).
 func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
-	start := time.Now()
-	defer func() {
-		v.log.Debug("L1AtSafeHead: time taken", "time", time.Since(start))
-	}()
 	v.mu.Lock()
 	inner := v.inner
 	v.mu.Unlock()

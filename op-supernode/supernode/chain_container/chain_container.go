@@ -273,6 +273,10 @@ func (c *simpleChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus,
 	return st, nil
 }
 
+func (c *simpleChainContainer) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error) {
+	return c.safeDBAtL2(ctx, l2Block)
+}
+
 // OutputRootAtL2BlockNumber computes the L2 output root for the specified L2 block number.
 func (c *simpleChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
 	if c.engine == nil {

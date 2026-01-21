@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
-	gethlog "github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 )
 
@@ -36,7 +36,7 @@ func init() {
 
 // Interop is a VerificationActivity that can also run background work as a RunnableActivity.
 type Interop struct {
-	log                 gethlog.Logger
+	log                 log.Logger
 	chains              map[eth.ChainID]cc.ChainContainer
 	activationTimestamp uint64
 
@@ -47,8 +47,8 @@ type Interop struct {
 	cancel  context.CancelFunc
 	started bool
 
-	l1Client   *sources.L1Client
-	currentL1s map[eth.ChainID]eth.BlockID
+	l1Client  *sources.L1Client
+	currentL1 eth.BlockID
 }
 
 func (i *Interop) Name() string {
@@ -57,7 +57,7 @@ func (i *Interop) Name() string {
 
 // New constructs a new Interop activity.
 func New(
-	log gethlog.Logger,
+	log log.Logger,
 	activationTimestamp uint64,
 	chains map[eth.ChainID]cc.ChainContainer,
 	dataDir string,
@@ -73,7 +73,7 @@ func New(
 		chains:              chains,
 		l1Client:            l1Client,
 		verifiedDB:          verifiedDB,
-		currentL1s:          make(map[eth.ChainID]eth.BlockID),
+		currentL1:           eth.BlockID{},
 		activationTimestamp: activationTimestamp,
 	}
 }
@@ -99,25 +99,9 @@ func (i *Interop) Start(ctx context.Context) error {
 		case <-i.ctx.Done():
 			return i.ctx.Err()
 		case <-ticker.C:
-			// Check the L1s of each chain prior to performing interop
-			currentL1s, err := i.collectCurrentL1s()
+			err := i.progressAndRecord()
 			if err != nil {
-				i.log.Error("failed to collect current L1s", "err", err)
-				time.Sleep(2 * time.Second)
-				continue
-			}
-			// Perform the interop evaluation
-			err = i.progressInterop()
-			if err != nil {
-				i.log.Error("failed to process interop", "err", err)
-				time.Sleep(2 * time.Second)
-				continue
-			}
-			// Once the interop is complete, update the current L1s
-			// This ensures the current L1s were available for the whole interop process.
-			err = i.updateCurrentL1s(currentL1s)
-			if err != nil {
-				i.log.Error("failed to update current L1s", "err", err)
+				i.log.Error("failed to process and record interop", "err", err)
 				time.Sleep(2 * time.Second)
 				continue
 			}
@@ -138,53 +122,73 @@ func (i *Interop) Stop(ctx context.Context) error {
 	return nil
 }
 
-// collectCurrentL1s collects the current L1 heads of all chains.
-// currentL1 is *not* the L1 head related to the verified timestamp, but rather the
-// furthest L1 head that has been processed by the chain.
-func (i *Interop) collectCurrentL1s() (map[eth.ChainID]eth.BlockID, error) {
-	currentL1s := map[eth.ChainID]eth.BlockID{}
-	for _, chain := range i.chains {
-		status, err := chain.SyncStatus(i.ctx)
-		if err != nil {
-			return nil, fmt.Errorf("chain %s not ready: %w", chain.ID(), err)
-		}
-		block := status.CurrentL1
-		// Check if the block is empty (derivation pipeline hasn't started yet)
-		if block == (eth.BlockRef{}) {
-			return nil, fmt.Errorf("chain %s not ready: CurrentL1 not yet populated", chain.ID())
-		}
-		currentL1s[chain.ID()] = block.ID()
+func (i *Interop) progressAndRecord() error {
+	// Check the L1s of each chain prior to performing interop
+	localCurrentL1, err := i.collectCurrentL1()
+	if err != nil {
+		i.log.Error("failed to collect current L1", "err", err)
+		return err
 	}
-	return currentL1s, nil
-}
-
-var ErrInconsistentL1Heads = errors.New("inconsistent L1 heads")
-
-// updateCurrentL1s updates the current processed L1s if they are consistent
-func (i *Interop) updateCurrentL1s(currentL1s map[eth.ChainID]eth.BlockID) error {
-	for _, l1Head := range currentL1s {
-		i.log.Info("updating current L1s", "l1Head", l1Head)
-		// if the current L1 head is empty, no inconsistency to consider
-		if l1Head == (eth.BlockID{}) {
-			continue
-		}
-		header, err := i.l1Client.L1BlockRefByNumber(i.ctx, l1Head.Number)
-		if err != nil {
-			return err
-		}
-		if header.ID() != l1Head {
-			return ErrInconsistentL1Heads
-		}
+	// Perform the interop evaluation
+	result, err := i.progressInterop()
+	if err != nil {
+		i.log.Error("failed to process interop", "err", err)
+		return err
 	}
-	i.currentL1s = currentL1s
-	i.log.Info("updated current L1s", "currentL1s", currentL1s)
+
+	// Handle the result by comitting verified results or invalidating blocks
+	err = i.handleResult(result)
+	if err != nil {
+		i.log.Error("failed to handle result", "err", err)
+		return err
+	}
+	// if the result is invalid, exit without updating the current L1s
+	if !result.IsEmpty() && !result.IsValid() {
+		i.log.Warn("result is invalid, skipping current L1 update", "results", result)
+		return nil
+	}
+
+	// Once interop is complete and recorded, update the current L1s
+	// the current L1s being considered by the Activity right now depend on what progress was made:
+	// - if interop failed to run, the current L1s are not updated
+	// - if interop ran but did not advance the verified timestamp, the CurrentL1 values collected are used directly
+	// - if interop ran and advanced the verified timestamp, the CurrentL1 is the L1 head at the verified timestamp
+	// this is because the individual chains may advance their CurrentL1, and if progress is being made, we might not be done using the collected L1s.
+	i.mu.Lock()
+	if !result.IsEmpty() {
+		// the new CurrentL1 is the L1 head at the verified timestamp
+		i.currentL1 = result.L1Head
+	} else {
+		// the new CurrentL1 is the lowest CurrentL1 from the collected chains
+		i.currentL1 = localCurrentL1
+	}
+	i.mu.Unlock()
 	return nil
 }
 
-func (i *Interop) progressInterop() error {
+// collectCurrentL1 collects the current L1 head of all chains,
+// which is the minimum L1 head of all the derivation pipelines in Chain Containers
+func (i *Interop) collectCurrentL1() (eth.BlockID, error) {
+	var currentL1 eth.BlockID
+	first := true
+	for _, chain := range i.chains {
+		status, err := chain.SyncStatus(i.ctx)
+		if err != nil {
+			return eth.BlockID{}, fmt.Errorf("chain %s not ready: %w", chain.ID(), err)
+		}
+		block := status.CurrentL1
+		if first || block.Number < currentL1.Number {
+			currentL1 = block.ID()
+			first = false
+		}
+	}
+	return currentL1, nil
+}
+
+func (i *Interop) progressInterop() (Result, error) {
 	start := time.Now()
 	defer func() {
-		i.log.Info("progressInterop: time taken", "time", time.Since(start))
+		i.log.Debug("progressInterop: time taken", "time", time.Since(start))
 	}()
 
 	// 0: identify the next timestamp to process.
@@ -206,45 +210,48 @@ func (i *Interop) progressInterop() error {
 	if err != nil {
 		if errors.Is(err, ethereum.NotFound) {
 			// if the chains are not ready, we can return early and wait for the next timestamp
+			// no error is returned, as this is expected behavior
 			i.log.Info("chains not ready, returning early", "timestamp", ts)
-			return nil
+			return Result{}, nil
 		}
 		// other errors should be treated as fatal and returned to the caller
-		return err
+		return Result{}, err
 	}
 
 	// 2: load the logs up through the next timestamp
 	// the previous timestamp is assumed to already be downloaded and verified
 	if err := i.loadLogs(ts); err != nil {
 		i.log.Error("failed to load logs", "err", err)
-		return err
+		return Result{}, err
 	}
 
 	// 3: validate interop messages
-	// logs up through the next timestamp are to be downloaded and verified against other available data
-	result, err := i.verifyInteropMessages(ts, blocksAtTimestamp)
-	if err != nil {
-		i.log.Error("failed to validate interop", "err", err)
-		return err
+	// and return the result and any errors
+	return i.verifyInteropMessages(ts, blocksAtTimestamp)
+}
+
+func (i *Interop) handleResult(result Result) error {
+	// if the result is empty, return nil
+	if result.IsEmpty() {
+		return nil
 	}
 
-	// 3: check if the results are valid.
-	// Any invalid results will be added to the Denylist of the chain containers.
+	// if the result is empty, return nil
+	// if the result is invalid, invalidate the blocks
 	if !result.IsValid() {
 		i.log.Error("interop validation failed", "results", result)
 		for chainID, invalidHead := range result.InvalidHeads {
 			i.invalidateBlock(chainID, invalidHead)
 		}
-		return nil
 	}
 
-	// 4: commit the verified results.
-	err = i.commitVerifiedResult(ts, result.ToVerifiedResult())
+	// if the result is valid, commit the verified result
+	err := i.commitVerifiedResult(result.Timestamp, result.ToVerifiedResult())
 	if err != nil {
-		i.log.Error("failed to commit interop", "err", err)
-		return nil
+		i.log.Error("failed to commit verified result", "err", err)
+		return err
 	}
-	i.log.Info("committed verified result", "timestamp", ts)
+	i.log.Info("committed verified result", "timestamp", result.Timestamp)
 	return nil
 }
 
@@ -308,16 +315,9 @@ func (i *Interop) commitVerifiedResult(timestamp uint64, verifiedResult Verified
 // CurrentL1 returns the L1 block which has been fully considered for interop,
 // whether or not it advanced the verified timestamp.
 func (i *Interop) CurrentL1() eth.BlockID {
-	minCurrentL1 := eth.BlockID{}
-	for _, currentL1 := range i.currentL1s {
-		if minCurrentL1 == (eth.BlockID{}) {
-			minCurrentL1 = currentL1
-		}
-		if currentL1.Number < minCurrentL1.Number {
-			minCurrentL1 = currentL1
-		}
-	}
-	return minCurrentL1
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.currentL1
 }
 
 // VerifiedAtTimestamp returns whether the data is verified at the given timestamp.

@@ -28,6 +28,10 @@ func (r *Result) IsValid() bool {
 	return len(r.InvalidHeads) == 0
 }
 
+func (r *Result) IsEmpty() bool {
+	return r.L1Head == (eth.BlockID{}) && len(r.L2Heads) == 0 && len(r.InvalidHeads) == 0
+}
+
 var ErrInvalidResult = errors.New("result is invalid")
 
 func (r *Result) ToVerifiedResult() VerifiedResult {
