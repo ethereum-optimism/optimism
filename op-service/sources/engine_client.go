@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/eth/catalyst"
@@ -100,6 +101,9 @@ func (s *EngineAPIClient) NewPayload(ctx context.Context, payload *eth.Execution
 	e := s.log.New("block_hash", payload.BlockHash)
 	e.Trace("sending payload for execution")
 
+	fmt.Println("anteva: sending payload for execution", spew.Sdump(payload))
+	spew.Dump(payload)
+
 	var result eth.PayloadStatusV1
 
 	var err error
@@ -117,6 +121,7 @@ func (s *EngineAPIClient) NewPayload(ctx context.Context, payload *eth.Execution
 	e.Trace("Received payload execution result", "status", result.Status, "latestValidHash", result.LatestValidHash, "message", result.ValidationError)
 	if err != nil {
 		e.Error("Payload execution failed", "err", err)
+		panic("anteva: payload execution failed")
 		return nil, fmt.Errorf("failed to execute payload: %w", err)
 	}
 	return &result, nil

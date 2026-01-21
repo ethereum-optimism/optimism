@@ -37,9 +37,10 @@ var (
 	// is too large to be properly represented in SSZ.
 	ErrExtraDataTooLarge = errors.New("extra data too large")
 
-	ErrBadTransactionOffset = errors.New("transactions offset is smaller than extra data offset, aborting")
-	ErrBadWithdrawalsOffset = errors.New("withdrawals offset is smaller than transaction offset, aborting")
-	ErrBadExtraDataOffset   = errors.New("unexpected extra data offset")
+	ErrBadTransactionOffset   = errors.New("transactions offset is smaller than extra data offset, aborting")
+	ErrBadWithdrawalsOffset   = errors.New("withdrawals offset is smaller than transaction offset, aborting")
+	ErrBadOPContainerOffset   = errors.New("OPContainer offset is smaller than withdrawals offset, aborting")
+	ErrBadExtraDataOffset     = errors.New("unexpected extra data offset")
 	ErrScopeTooSmall        = errors.New("scope too small to decode execution payload")
 
 	ErrMissingData = errors.New("execution payload envelope is missing data")
@@ -55,10 +56,13 @@ const (
 	// V2 + BlobGasUsed + ExcessBlobGas
 	blockV3FixedPart = blockV2FixedPart + 8 + 8
 
-	// V3 + WithdrawalsRoot
-	blockV4FixedPart = blockV3FixedPart + 32
+	// V3 + WithdrawalsRoot + OPContainer offset
+	blockV4FixedPart = blockV3FixedPart + 32 + 4
 
 	withdrawalSize = 8 + 8 + 20 + 8
+
+	// OPGasEntry: FromAddress (20) + TxHash (32) + OPGasRefund (8)
+	opGasEntrySize = 20 + 32 + 8
 
 	// MAX_TRANSACTIONS_PER_PAYLOAD in consensus spec
 	// https://github.com/ethereum/consensus-specs/blob/ef434e87165e9a4c82a99f54ffd4974ae113f732/specs/bellatrix/beacon-chain.md#execution
@@ -82,6 +86,10 @@ func (v BlockVersion) HasParentBeaconBlockRoot() bool {
 }
 
 func (v BlockVersion) HasWithdrawalsRoot() bool {
+	return v == BlockV4
+}
+
+func (v BlockVersion) HasOPContainer() bool {
 	return v == BlockV4
 }
 
@@ -110,7 +118,7 @@ func (payload *ExecutionPayload) inferVersion() BlockVersion {
 }
 
 func (payload *ExecutionPayload) SizeSSZ() (full uint32) {
-	return executionPayloadFixedPart(payload.inferVersion()) + uint32(len(payload.ExtraData)) + payload.transactionSize() + payload.withdrawalSize()
+	return executionPayloadFixedPart(payload.inferVersion()) + uint32(len(payload.ExtraData)) + payload.transactionSize() + payload.withdrawalSize() + payload.opContainerSize()
 }
 
 func (payload *ExecutionPayload) withdrawalSize() uint32 {
@@ -119,6 +127,13 @@ func (payload *ExecutionPayload) withdrawalSize() uint32 {
 	}
 
 	return uint32(len(*payload.Withdrawals) * withdrawalSize)
+}
+
+func (payload *ExecutionPayload) opContainerSize() uint32 {
+	if payload.OPContainer == nil || payload.OPContainer.MetadataOPGas == nil {
+		return 0
+	}
+	return uint32(len(payload.OPContainer.MetadataOPGas) * opGasEntrySize)
 }
 
 func (payload *ExecutionPayload) transactionSize() uint32 {
@@ -230,8 +245,14 @@ func (payload *ExecutionPayload) MarshalSSZ(w io.Writer) (n int, err error) {
 		offset += 32
 	}
 
-	if payload.Withdrawals != nil && offset != fixedSize {
-		panic("withdrawals - fixed part size is inconsistent")
+	if payloadVersion.HasOPContainer() {
+		withdrawalSize := payload.withdrawalSize()
+		binary.LittleEndian.PutUint32(buf[offset:offset+4], fixedSize+extraDataSize+transactionSize+withdrawalSize)
+		offset += 4
+	}
+
+	if offset != fixedSize {
+		panic("fixed part size is inconsistent")
 	}
 
 	// dynamic value 1: ExtraData
@@ -243,6 +264,11 @@ func (payload *ExecutionPayload) MarshalSSZ(w io.Writer) (n int, err error) {
 	// dynamic value 3: Withdrawals
 	if payload.Withdrawals != nil {
 		marshalWithdrawals(buf[offset:], *payload.Withdrawals)
+		offset += payload.withdrawalSize()
+	}
+	// dynamic value 4: OPContainer
+	if payload.OPContainer != nil {
+		marshalOPContainer(buf[offset:], payload.OPContainer)
 	}
 
 	return w.Write(buf)
@@ -363,6 +389,19 @@ func (payload *ExecutionPayload) UnmarshalSSZ(version BlockVersion, scope uint32
 		offset += 32
 	}
 
+	opContainerOffset := scope
+	if version.HasOPContainer() {
+		opContainerOffset = binary.LittleEndian.Uint32(buf[offset : offset+4])
+		offset += 4
+
+		if opContainerOffset < withdrawalsOffset {
+			return ErrBadOPContainerOffset
+		}
+		if opContainerOffset > scope {
+			return fmt.Errorf("OPContainer offset is too large: %d", opContainerOffset)
+		}
+	}
+
 	_ = offset // for future extensions: we keep the offset accurate for extensions
 
 	if transactionsOffset > extraDataOffset+32 || transactionsOffset > scope {
@@ -379,12 +418,21 @@ func (payload *ExecutionPayload) UnmarshalSSZ(version BlockVersion, scope uint32
 	}
 	payload.Transactions = txs
 
+	withdrawalsEnd := opContainerOffset
 	if version.HasWithdrawals() {
-		withdrawals, err := unmarshalWithdrawals(buf[withdrawalsOffset:])
+		withdrawals, err := unmarshalWithdrawals(buf[withdrawalsOffset:withdrawalsEnd])
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal withdrawals list: %w", err)
 		}
 		payload.Withdrawals = &withdrawals
+	}
+
+	if version.HasOPContainer() {
+		opContainer, err := unmarshalOPContainer(buf[opContainerOffset:])
+		if err != nil {
+			return fmt.Errorf("failed to unmarshal OP container: %w", err)
+		}
+		payload.OPContainer = opContainer
 	}
 
 	return nil
@@ -423,6 +471,49 @@ func unmarshalWithdrawals(in []byte) (types.Withdrawals, error) {
 		result = append(result, withdrawal)
 	}
 
+	return result, nil
+}
+
+func marshalOPContainer(out []byte, container *types.OPContainer) {
+	if container == nil || container.MetadataOPGas == nil {
+		return
+	}
+	offset := uint32(0)
+	for _, entry := range container.MetadataOPGas {
+		copy(out[offset:offset+20], entry.FromAddress[:])
+		offset += 20
+		copy(out[offset:offset+32], entry.TxHash[:])
+		offset += 32
+		binary.LittleEndian.PutUint64(out[offset:offset+8], entry.OPGasRefund)
+		offset += 8
+	}
+}
+
+func unmarshalOPContainer(in []byte) (*types.OPContainer, error) {
+	if len(in) == 0 {
+		return &types.OPContainer{MetadataOPGas: []types.OPGasEntry{}}, nil
+	}
+	if len(in)%opGasEntrySize != 0 {
+		return nil, errors.New("invalid OPContainer data")
+	}
+	entryCount := len(in) / opGasEntrySize
+	if entryCount > maxTransactionsPerPayload {
+		return nil, fmt.Errorf("too many OP gas entries: %d > %d", entryCount, maxTransactionsPerPayload)
+	}
+	result := &types.OPContainer{
+		MetadataOPGas: make([]types.OPGasEntry, 0, entryCount),
+	}
+	offset := 0
+	for i := 0; i < entryCount; i++ {
+		var entry types.OPGasEntry
+		copy(entry.FromAddress[:], in[offset:offset+20])
+		offset += 20
+		copy(entry.TxHash[:], in[offset:offset+32])
+		offset += 32
+		entry.OPGasRefund = binary.LittleEndian.Uint64(in[offset : offset+8])
+		offset += 8
+		result.MetadataOPGas = append(result.MetadataOPGas, entry)
+	}
 	return result, nil
 }
 

@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -67,6 +68,8 @@ type RPCHeader struct {
 
 	// untrusted info included by RPC, may have to be checked
 	Hash common.Hash `json:"hash"`
+
+	OPContainer *types.OPContainer `json:"opContainer,omitempty" rlp:"optional"`
 }
 
 // checkPostMerge checks that the block header meets all criteria to be a valid ExecutionPayloadHeader,
@@ -122,6 +125,7 @@ func (hdr *RPCHeader) CreateGethHeader() *types.Header {
 		ParentBeaconRoot: hdr.ParentBeaconRoot,
 		// Prague
 		RequestsHash: hdr.RequestsHash,
+		OPContainer:  hdr.OPContainer,
 	}
 }
 
@@ -133,6 +137,8 @@ func (hdr *RPCHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo
 	}
 	if !trustCache {
 		if computed := hdr.computeBlockHash(); computed != hdr.Hash {
+			fmt.Println("anteva: failed to verify rpcheader")
+			spew.Dump(hdr)
 			return nil, fmt.Errorf("failed to verify block hash: computed %s but RPC said %s", computed, hdr.Hash)
 		}
 	}
@@ -154,6 +160,8 @@ type RPCBlock struct {
 
 func (block *RPCBlock) Verify() error {
 	if computed := block.computeBlockHash(); computed != block.Hash {
+		fmt.Println("anteva: failed to verify rpcblock")
+		spew.Dump(block)
 		return fmt.Errorf("failed to verify block hash: computed %s but RPC said %s", computed, block.Hash)
 	}
 	for i, tx := range block.Transactions {
@@ -274,6 +282,7 @@ func (block *RPCBlock) ExecutionPayloadEnvelope(trustCache bool) (*eth.Execution
 		Withdrawals:   block.Withdrawals,
 		BlobGasUsed:   block.BlobGasUsed,
 		ExcessBlobGas: block.ExcessBlobGas,
+		OPContainer:   block.OPContainer,
 	}
 
 	// Only Isthmus execution payloads must set the withdrawals root.

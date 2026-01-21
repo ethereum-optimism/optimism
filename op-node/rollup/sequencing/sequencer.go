@@ -280,6 +280,7 @@ func (d *Sequencer) onBuildSealed(x engine.BuildSealedEvent) {
 	d.log.Info("Sequencer sealed block", "payloadID", x.Info.ID,
 		"block", x.Envelope.ExecutionPayload.ID(),
 		"parent", x.Envelope.ExecutionPayload.ParentID(),
+		"op-container", x.Envelope.ExecutionPayload.OPContainer,
 		"txs", len(x.Envelope.ExecutionPayload.Transactions),
 		"time", uint64(x.Envelope.ExecutionPayload.Timestamp))
 
