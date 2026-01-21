@@ -10,6 +10,7 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 contract ReadSuperchainDeployment is Script {
     struct Input {
@@ -40,7 +41,7 @@ contract ReadSuperchainDeployment is Script {
             isOPCMV2 = true;
         } else {
             require(address(opcm).code.length > 0, "ReadSuperchainDeployment: OPCM address has no code");
-            isOPCMV2 = SemverComp.gte(opcm.version(), "7.0.0");
+            isOPCMV2 = SemverComp.gte(opcm.version(), Constants.OPCM_V2_MIN_VERSION);
         }
 
         if (isOPCMV2) {
