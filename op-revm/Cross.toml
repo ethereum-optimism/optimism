@@ -1,0 +1,10 @@
+[build]
+pre-build = [
+    "apt-get update && apt-get install --assume-yes --no-install-recommends llvm-dev clang libclang-dev",
+]
+
+[target.i686-unknown-linux-gnu]
+image = "ghcr.io/cross-rs/i686-unknown-linux-gnu:latest"
+
+[target.x86_64-unknown-linux-gnu]
+image = "ghcr.io/cross-rs/x86_64-unknown-linux-gnu:latest"

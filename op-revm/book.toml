@@ -1,0 +1,10 @@
+[book]
+authors = ["Dragan Rakita"]
+language = "en"
+multilingual = false
+src = "book/src"
+title = "Revm - Rust Ethereum Virtual Machine"
+
+[output.linkcheck]
+optional = true
+follow-web-links = false

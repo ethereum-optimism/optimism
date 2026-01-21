@@ -1,0 +1,357 @@
+version: 2.1
+
+# op-revm CI Continuation Configuration
+# This file contains ONLY op-revm-specific jobs and workflows.
+# It is merged with main.yml when op-revm/** changes are detected.
+# Shared orbs, commands, and jobs come from main.yml during merge.
+
+orbs:
+  utils: ethereum-optimism/circleci-utils@1.0.23
+
+parameters:
+  # Required parameters (also in main.yml, merged during continuation)
+  default_docker_image:
+    type: string
+    default: cimg/base:2024.01
+  op_revm_dispatch:
+    type: boolean
+    default: false
+
+commands:
+  install-gmp:
+    description: "Install GMP library (required for all-features builds)"
+    steps:
+      - run:
+          name: Install GMP
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y libgmp-dev
+
+# ============================================================================
+# OP-REVM JOBS
+# ============================================================================
+jobs:
+  # Test job - runs cargo test with different Rust versions and feature flags
+  op-revm-test:
+    parameters:
+      rust_version:
+        description: "Rust toolchain version to test with (e.g., 1.88.0, stable, nightly)"
+        type: string
+      flags:
+        description: "Cargo flags (e.g., --no-default-features, --all-features)"
+        type: string
+        default: ""
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare:
+          needs_clang: false
+      - rust-install-toolchain:
+          toolchain_version: << parameters.rust_version >>
+      - rust-restore-build-cache:
+          directory: op-revm
+          prefix: op-revm
+          features: << parameters.flags >>
+      - when:
+          condition:
+            matches:
+              pattern: ".*--all-features.*"
+              value: << parameters.flags >>
+          steps:
+            - install-gmp
+      - run:
+          name: Run cargo test (<< parameters.rust_version >> << parameters.flags >>)
+          working_directory: op-revm
+          no_output_timeout: 30m
+          command: |
+            cargo test --workspace << parameters.flags >>
+      - rust-save-build-cache:
+          directory: op-revm
+          prefix: op-revm
+          features: << parameters.flags >>
+
+  # Check no_std compatibility
+  op-revm-check-no-std:
+    parameters:
+      target:
+        description: "Target architecture"
+        type: string
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare:
+          needs_clang: false
+      - rust-install-toolchain:
+          toolchain_version: stable
+          target: << parameters.target >>
+      - run:
+          name: Check no_std compatibility (<< parameters.target >>)
+          working_directory: op-revm
+          no_output_timeout: 30m
+          command: |
+            cargo check --target << parameters.target >> -p op-revm --no-default-features
+
+  # Check with different feature combinations
+  op-revm-check:
+    parameters:
+      features:
+        description: "Feature combination to check"
+        type: string
+        default: ""
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare:
+          needs_clang: false
+      - rust-install-toolchain:
+          toolchain_version: stable
+      - rust-restore-build-cache:
+          directory: op-revm
+          prefix: op-revm-check
+          features: << parameters.features >>
+      - run:
+          name: Check with features (<< parameters.features >>)
+          working_directory: op-revm
+          no_output_timeout: 30m
+          command: |
+            FEATURES_ARG=""
+            if [ -n "<< parameters.features >>" ]; then
+              FEATURES_ARG="--features=<< parameters.features >>"
+            fi
+            cargo check --workspace --no-default-features $FEATURES_ARG
+      - rust-save-build-cache:
+          directory: op-revm
+          prefix: op-revm-check
+          features: << parameters.features >>
+
+  # Feature powerset check with cargo-hack
+  op-revm-feature-checks:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare:
+          needs_clang: false
+      - rust-install-toolchain:
+          toolchain_version: stable
+      - install-cargo-binstall
+      - install-gmp
+      - rust-restore-build-cache:
+          directory: op-revm
+          prefix: op-revm-hack
+      - run:
+          name: Install cargo-hack
+          command: |
+            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
+      - run:
+          name: Run cargo hack feature powerset
+          working_directory: op-revm
+          no_output_timeout: 30m
+          command: |
+            cargo hack check --feature-powerset --depth 1
+      - rust-save-build-cache:
+          directory: op-revm
+          prefix: op-revm-hack
+
+  # Clippy linting
+  op-revm-clippy:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare:
+          needs_clang: false
+      - rust-install-toolchain:
+          toolchain_version: stable
+          components: clippy
+      - install-gmp
+      - rust-restore-build-cache:
+          directory: op-revm
+          prefix: op-revm-clippy
+          features: all
+      - run:
+          name: Run clippy
+          working_directory: op-revm
+          no_output_timeout: 30m
+          command: |
+            cargo clippy --workspace --all-targets --all-features
+          environment:
+            RUSTFLAGS: -Dwarnings
+      - rust-save-build-cache:
+          directory: op-revm
+          prefix: op-revm-clippy
+          features: all
+
+  # Documentation build
+  op-revm-docs:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare:
+          needs_clang: false
+      - rust-install-toolchain:
+          toolchain_version: stable
+          components: rust-docs
+      - install-gmp
+      - rust-restore-build-cache:
+          directory: op-revm
+          prefix: op-revm-docs
+      - run:
+          name: Build documentation
+          working_directory: op-revm
+          no_output_timeout: 30m
+          command: |
+            cargo doc --workspace --all-features --no-deps --document-private-items
+          environment:
+            RUSTDOCFLAGS: "--cfg docsrs -D warnings"
+      - rust-save-build-cache:
+          directory: op-revm
+          prefix: op-revm-docs
+
+  # Formatting check
+  op-revm-fmt:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare:
+          needs_clang: false
+      - rust-install-toolchain:
+          toolchain_version: stable
+          components: rustfmt
+      - run:
+          name: Check formatting
+          working_directory: op-revm
+          command: |
+            cargo fmt --all --check
+
+  # Feature propagation check with zepter
+  op-revm-zepter:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare:
+          needs_clang: false
+      - install-cargo-binstall
+      - run:
+          name: Install zepter
+          command: |
+            command -v zepter >/dev/null || cargo binstall --no-confirm zepter
+            zepter --version
+      - run:
+          name: Run zepter check
+          working_directory: op-revm
+          command: |
+            time zepter run check
+
+  # Typos check
+  op-revm-typos:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare:
+          needs_clang: false
+      - install-cargo-binstall
+      - run:
+          name: Install typos-cli
+          command: |
+            command -v typos >/dev/null || cargo binstall --no-confirm typos-cli
+      - run:
+          name: Check for typos
+          working_directory: op-revm
+          command: |
+            typos
+
+# ============================================================================
+# OP-REVM WORKFLOWS
+# ============================================================================
+workflows:
+  op-revm-ci:
+    when:
+      or:
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        - and:
+            - equal: [true, <<pipeline.parameters.op_revm_dispatch>>]
+            - equal: ["api", << pipeline.trigger_source >>]
+    jobs:
+      # Test matrix: rust versions x feature flags
+      - op-revm-test:
+          name: op-revm-test-<<matrix.rust_version>>-<<matrix.flags>>
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          matrix:
+            parameters:
+              rust_version: ["1.88.0", "stable", "nightly"]
+              flags: ["--no-default-features", "", "--all-features"]
+
+      # no_std compatibility checks
+      - op-revm-check-no-std:
+          name: op-revm-no-std-<<matrix.target>>
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          matrix:
+            parameters:
+              target: ["riscv32imac-unknown-none-elf", "riscv64imac-unknown-none-elf"]
+
+      # Feature combination checks
+      - op-revm-check:
+          name: op-revm-check-<<matrix.features>>
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          matrix:
+            parameters:
+              features: ["", "serde", "std"]
+
+      # Feature powerset check
+      - op-revm-feature-checks:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Clippy
+      - op-revm-clippy:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Documentation
+      - op-revm-docs:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Formatting
+      - op-revm-fmt:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Feature propagation
+      - op-revm-zepter:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Typos
+      - op-revm-typos:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
