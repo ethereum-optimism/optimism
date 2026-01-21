@@ -32,6 +32,42 @@
 
 In this repository you'll find numerous core components of the OP Stack, the decentralized software stack maintained by the Optimism Collective that powers Optimism and forms the backbone of blockchains like [OP Mainnet](https://explorer.optimism.io/) and [Base](https://base.org). The OP Stack is designed to be aggressively open-source — you are welcome to explore, modify, and extend this code.
 
+## Quick Start
+
+### For Developers Building on OP Mainnet
+
+If you want to build applications on OP Mainnet:
+
+1. **Connect to OP Mainnet**:
+   ```javascript
+   // Using ethers.js
+   const provider = new ethers.JsonRpcProvider('https://mainnet.optimism.io');
+   ```
+
+2. **Deploy contracts**: Use your favorite development framework (Hardhat, Foundry, Remix)
+3. **Explore**: Visit the [Optimism Documentation](https://docs.optimism.io) for tutorials and guides
+
+### For Node Operators
+
+If you want to run your own OP Mainnet node:
+
+1. **Clone this repository**:
+   ```bash
+   git clone https://github.com/ethereum-optimism/optimism.git
+   cd optimism
+   ```
+
+2. **Follow the setup guide**: See [op-node README](./op-node/README.md) for detailed instructions
+3. **Hardware requirements**: Refer to the [Node Operator Guide](https://docs.optimism.io/builders/node-operators/tutorials/node-from-docker)
+
+### For OP Stack Deployers
+
+If you want to deploy your own OP Stack-based blockchain:
+
+1. **Review the OP Stack Guide**: Start with the [OP Stack Getting Started](https://docs.optimism.io/stack/getting-started) guide
+2. **Use op-deployer**: See [op-deployer README](./op-deployer/README.md) for deployment tools
+3. **Understand releases**: Read the [Development and Release Process](#development-and-release-process) section below
+
 ## Documentation
 
 - If you want to build on top of OP Mainnet, refer to the [Optimism Documentation](https://docs.optimism.io)
