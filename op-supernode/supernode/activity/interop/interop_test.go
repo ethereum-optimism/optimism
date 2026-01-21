@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -47,6 +48,8 @@ func (m *mockChainContainer) CurrentL1(ctx context.Context) (eth.BlockRef, error
 	return m.currentL1, m.currentL1Err
 }
 
+func (m *mockChainContainer) RegisterVerifier(v activity.VerificationActivity) {
+}
 func (m *mockChainContainer) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

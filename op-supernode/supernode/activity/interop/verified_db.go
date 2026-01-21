@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/syndtr/goleveldb/leveldb"
+	bolt "go.etcd.io/bbolt"
 )
 
 const (
@@ -20,19 +20,32 @@ var (
 	ErrAlreadyCommitted = errors.New("timestamp already committed")
 )
 
-// VerifiedDB provides persistence for verified timestamps using LevelDB.
+// bucketName is the name of the bbolt bucket used to store verified results.
+var bucketName = []byte("verified")
+
+// VerifiedDB provides persistence for verified timestamps using bbolt.
 type VerifiedDB struct {
-	db            *leveldb.DB
+	db            *bolt.DB
 	lastTimestamp uint64
 	initialized   bool
 }
 
 // OpenVerifiedDB opens or creates a VerifiedDB at the given data directory.
 func OpenVerifiedDB(dataDir string) (*VerifiedDB, error) {
-	dbPath := filepath.Join(dataDir, verifiedDBName)
-	db, err := leveldb.OpenFile(dbPath, nil)
+	dbPath := filepath.Join(dataDir, verifiedDBName+".db")
+	db, err := bolt.Open(dbPath, 0600, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open leveldb at %s: %w", dbPath, err)
+		return nil, fmt.Errorf("failed to open bbolt at %s: %w", dbPath, err)
+	}
+
+	// Ensure the bucket exists
+	err = db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists(bucketName)
+		return err
+	})
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to create bucket: %w", err)
 	}
 
 	vdb := &VerifiedDB{
@@ -50,19 +63,21 @@ func OpenVerifiedDB(dataDir string) (*VerifiedDB, error) {
 
 // initLastTimestamp scans the database to find the highest committed timestamp.
 func (v *VerifiedDB) initLastTimestamp() error {
-	iter := v.db.NewIterator(nil, nil)
-	defer iter.Release()
+	return v.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketName)
+		if b == nil {
+			return nil
+		}
 
-	// Seek to the last key
-	if iter.Last() {
-		key := iter.Key()
+		c := b.Cursor()
+		key, _ := c.Last()
 		if len(key) == 8 {
 			v.lastTimestamp = binary.BigEndian.Uint64(key)
 			v.initialized = true
 		}
-	}
 
-	return iter.Error()
+		return nil
+	})
 }
 
 // timestampToKey converts a timestamp to a big-endian byte key.
@@ -96,8 +111,12 @@ func (v *VerifiedDB) Commit(result VerifiedResult) error {
 
 	// Store in database
 	key := timestampToKey(ts)
-	if err := v.db.Put(key, value, nil); err != nil {
-		return fmt.Errorf("failed to write to leveldb: %w", err)
+	err = v.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketName)
+		return b.Put(key, value)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to write to bbolt: %w", err)
 	}
 
 	// Update state
@@ -110,12 +129,24 @@ func (v *VerifiedDB) Commit(result VerifiedResult) error {
 // Get retrieves the verified result at the given timestamp.
 func (v *VerifiedDB) Get(ts uint64) (VerifiedResult, error) {
 	key := timestampToKey(ts)
-	value, err := v.db.Get(key, nil)
+	var value []byte
+
+	err := v.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketName)
+		val := b.Get(key)
+		if val == nil {
+			return ErrNotFound
+		}
+		// Copy the value since it's only valid for the life of the transaction
+		value = make([]byte, len(val))
+		copy(value, val)
+		return nil
+	})
 	if err != nil {
-		if errors.Is(err, leveldb.ErrNotFound) {
+		if errors.Is(err, ErrNotFound) {
 			return VerifiedResult{}, ErrNotFound
 		}
-		return VerifiedResult{}, fmt.Errorf("failed to read from leveldb: %w", err)
+		return VerifiedResult{}, fmt.Errorf("failed to read from bbolt: %w", err)
 	}
 
 	var result VerifiedResult
@@ -129,7 +160,18 @@ func (v *VerifiedDB) Get(ts uint64) (VerifiedResult, error) {
 // Has returns whether a timestamp has been verified.
 func (v *VerifiedDB) Has(ts uint64) (bool, error) {
 	key := timestampToKey(ts)
-	return v.db.Has(key, nil)
+	var found bool
+
+	err := v.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketName)
+		found = b.Get(key) != nil
+		return nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to check key in bbolt: %w", err)
+	}
+
+	return found, nil
 }
 
 // LastTimestamp returns the most recently committed timestamp.

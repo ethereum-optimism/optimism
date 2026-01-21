@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
 	gethlog "github.com/ethereum/go-ethereum/log"
@@ -30,6 +31,9 @@ func (m *mockCC) Start(ctx context.Context) error  { return nil }
 func (m *mockCC) Stop(ctx context.Context) error   { return nil }
 func (m *mockCC) Pause(ctx context.Context) error  { return nil }
 func (m *mockCC) Resume(ctx context.Context) error { return nil }
+
+func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {
+}
 
 func (m *mockCC) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
 	return eth.L2BlockRef{}, nil

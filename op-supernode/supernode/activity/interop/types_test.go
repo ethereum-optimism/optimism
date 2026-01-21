@@ -153,4 +153,3 @@ func TestVerifiedResult_Structure(t *testing.T) {
 		require.Equal(t, uint64(1000), vr.L2Heads[chainID].Number)
 	})
 }
-
