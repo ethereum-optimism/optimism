@@ -14,6 +14,7 @@ import (
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -129,7 +130,7 @@ func (s *Service) initPProf(cfg *Config) error {
 
 func (s *Service) initMetricsServer(cfg *Config) error {
 	if !cfg.MetricsConfig.Enabled {
-		s.log.Info("Metrics disabled")
+		s.log.Debug("Metrics disabled")
 		return nil
 	}
 	m, ok := s.metrics.(opmetrics.RegistryMetricer)
@@ -140,7 +141,7 @@ func (s *Service) initMetricsServer(cfg *Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to start metrics server: %w", err)
 	}
-	s.log.Info("Started metrics server", "addr", metricsSrv.Addr())
+	s.log.Debug("Started metrics server", "addr", metricsSrv.Addr())
 	s.metricsSrv = metricsSrv
 	return nil
 }
@@ -150,7 +151,7 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 	// Chain ingesters will start ingesting from (startTimestamp - backfillDuration)
 	// and report Ready() once they reach startTimestamp.
 	// Cross-validator initializes to startTimestamp and waits for chains to catch up.
-	startTimestamp := uint64(time.Now().Unix())
+	startTimestamp := uint64(clock.SystemClock.Now().Unix())
 
 	chains := make(map[eth.ChainID]ChainIngester)
 
@@ -162,17 +163,11 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 			return fmt.Errorf("failed to connect to %s: %w", rpcURL, err)
 		}
 		chainIDBig, err := ethClient.ChainID(ctx)
-		if err != nil {
-			ethClient.Close()
-			return fmt.Errorf("failed to query chain ID from %s: %w", rpcURL, err)
-		}
-		header, err := ethClient.HeaderByNumber(ctx, nil) // nil = latest
 		ethClient.Close()
 		if err != nil {
-			return fmt.Errorf("failed to query head block from %s: %w", rpcURL, err)
+			return fmt.Errorf("failed to query chain ID from %s: %w", rpcURL, err)
 		}
 		chainID := eth.ChainIDFromBig(chainIDBig)
-		headTimestamp := header.Time
 
 		// Look up rollup config for this chain ID
 		rollupCfg, ok := cfg.RollupConfigs[chainID]
@@ -184,7 +179,7 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 			return fmt.Errorf("duplicate chain ID %s: multiple RPCs return the same chain ID", chainID)
 		}
 
-		s.log.Info("Creating chain ingester", "chain", chainID, "rpc", rpcURL, "headTimestamp", headTimestamp)
+		s.log.Info("Creating chain ingester", "chain", chainID, "rpc", rpcURL)
 
 		ingester, err := NewLogsDBChainIngester(
 			ctx,

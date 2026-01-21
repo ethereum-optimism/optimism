@@ -28,11 +28,11 @@ type mockChainIngester struct {
 	execMsgs []IncludedMessage
 
 	// State
-	ready            bool
-	err              *IngesterError
-	latestBlock      eth.BlockID
-	latestTimestamp  uint64
-	earliestBlockNum uint64
+	ready                 bool
+	err                   *IngesterError
+	latestBlock           eth.BlockID
+	latestTimestamp       uint64
+	earliestIngestedBlock uint64
 }
 
 // logKey uniquely identifies a log entry
@@ -76,8 +76,8 @@ func (m *mockChainIngester) AddLog(timestamp, blockNum uint64, logIdx uint32, ch
 		m.latestBlock = eth.BlockID{Number: blockNum}
 		m.latestTimestamp = timestamp
 	}
-	if m.earliestBlockNum == 0 || blockNum < m.earliestBlockNum {
-		m.earliestBlockNum = blockNum
+	if m.earliestIngestedBlock == 0 || blockNum < m.earliestIngestedBlock {
+		m.earliestIngestedBlock = blockNum
 	}
 }
 
@@ -93,8 +93,8 @@ func (m *mockChainIngester) AddExecMsg(msg IncludedMessage) {
 		m.latestBlock = eth.BlockID{Number: msg.InclusionBlockNum}
 		m.latestTimestamp = msg.InclusionTimestamp
 	}
-	if m.earliestBlockNum == 0 || msg.InclusionBlockNum < m.earliestBlockNum {
-		m.earliestBlockNum = msg.InclusionBlockNum
+	if m.earliestIngestedBlock == 0 || msg.InclusionBlockNum < m.earliestIngestedBlock {
+		m.earliestIngestedBlock = msg.InclusionBlockNum
 	}
 }
 

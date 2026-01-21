@@ -3,7 +3,6 @@ package filter
 import (
 	"errors"
 	"fmt"
-	"time"
 )
 
 // ErrInvalidLog indicates a malformed executing message log was encountered.
@@ -44,9 +43,8 @@ func (r IngesterErrorReason) String() string {
 // IngesterError represents an error state in a ChainIngester.
 // These are ingestion-level errors tracked per-chain.
 type IngesterError struct {
-	Reason    IngesterErrorReason
-	Message   string
-	Timestamp time.Time
+	Reason  IngesterErrorReason
+	Message string
 }
 
 func (e *IngesterError) Error() string {
@@ -56,8 +54,7 @@ func (e *IngesterError) Error() string {
 // ValidatorError represents an error state in a CrossValidator.
 // These are validation-level errors (invalid executing messages).
 type ValidatorError struct {
-	Message   string
-	Timestamp time.Time
+	Message string
 }
 
 func (e *ValidatorError) Error() string {

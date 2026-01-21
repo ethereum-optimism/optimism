@@ -79,6 +79,9 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 	if backfillDuration <= 0 {
 		return nil, fmt.Errorf("backfill-duration must be positive, got %s", backfillDuration)
 	}
+	if uint64(backfillDuration.Seconds()) > uint64(time.Now().Unix()) {
+		return nil, fmt.Errorf("backfill-duration (%s) exceeds current timestamp", backfillDuration)
+	}
 
 	messageExpiryWindow, err := time.ParseDuration(ctx.String(flags.MessageExpiryWindowFlag.Name))
 	if err != nil {

@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
@@ -24,13 +25,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-const (
-	// progressLogInterval is how often to log ingestion progress.
-	progressLogInterval = 10 * time.Second
-
-	// dataDirPermissions is the permission mode for chain data directories.
-	dataDirPermissions = 0755
-)
+// progressLogInterval is how often to log ingestion progress.
+const progressLogInterval = 10 * time.Second
 
 // EthClient defines the interface for fetching block and receipt data.
 // This allows for dependency injection in tests.
@@ -57,16 +53,12 @@ type LogsDBChainIngester struct {
 	pollInterval     time.Duration
 	rollupCfg        *rollup.Config // Rollup config for block number calculation
 
-	// startingBlock is the first block we need to ingest (set once at init).
-	startingBlock    atomic.Uint64
-	startingBlockSet atomic.Bool
-
 	stopped atomic.Bool
 
 	errorState atomic.Pointer[IngesterError]
 
-	earliestBlockNum atomic.Uint64
-	earliestBlockSet atomic.Bool
+	earliestIngestedBlock    atomic.Uint64
+	earliestIngestedBlockSet atomic.Bool
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -191,9 +183,8 @@ func (c *LogsDBChainIngester) Ready() bool {
 // SetError sets the error state, logs the error, and records metrics.
 func (c *LogsDBChainIngester) SetError(reason IngesterErrorReason, msg string) {
 	err := &IngesterError{
-		Reason:    reason,
-		Message:   msg,
-		Timestamp: time.Now(),
+		Reason:  reason,
+		Message: msg,
 	}
 	c.errorState.Store(err)
 	c.log.Error("Ingester halted", "reason", reason.String(), "msg", msg)
@@ -287,7 +278,7 @@ func (c *LogsDBChainIngester) GetExecMsgsAtTimestamp(timestamp uint64) ([]Includ
 		return nil, types.ErrUninitialized
 	}
 
-	earliest := c.earliestBlockNum.Load()
+	earliest := c.earliestIngestedBlock.Load()
 	latestBlock, ok := c.logsDB.LatestSealedBlock()
 	if earliest == 0 || !ok {
 		return nil, nil
@@ -338,16 +329,29 @@ func (c *LogsDBChainIngester) findAndSetEarliestBlock(latestBlock uint64) {
 		earliest = blockNum
 	}
 
-	c.earliestBlockNum.Store(earliest)
-	c.earliestBlockSet.Store(true)
+	c.earliestIngestedBlock.Store(earliest)
+	c.earliestIngestedBlockSet.Store(true)
 	c.log.Info("Found earliest block in DB", "block", earliest)
+}
+
+// calculateStartingBlock returns the block number where ingestion should start,
+// calculated from startTimestamp and backfillDuration.
+func (c *LogsDBChainIngester) calculateStartingBlock() uint64 {
+	backfillTimestamp := c.startTimestamp - uint64(c.backfillDuration.Seconds())
+
+	startingBlock, err := c.rollupCfg.TargetBlockNumber(backfillTimestamp)
+	if err != nil {
+		// Timestamp is before genesis, start from genesis block
+		return c.rollupCfg.Genesis.L2.Number
+	}
+	return startingBlock
 }
 
 func (c *LogsDBChainIngester) initLogsDB() error {
 	var dbPath string
 	if c.dataDir != "" {
 		chainDir := filepath.Join(c.dataDir, fmt.Sprintf("chain-%s", c.chainID))
-		if err := os.MkdirAll(chainDir, dataDirPermissions); err != nil {
+		if err := os.MkdirAll(chainDir, 0755); err != nil {
 			return fmt.Errorf("failed to create chain directory: %w", err)
 		}
 		dbPath = filepath.Join(chainDir, "logs.db")
@@ -389,7 +393,7 @@ func (c *LogsDBChainIngester) runIngestion() {
 	}
 
 	// Track progress for logging
-	lastLogTime := time.Now()
+	lastLogTime := clock.SystemClock.Now()
 
 	// Use ticker for polling interval
 	ticker := time.NewTicker(c.pollInterval)
@@ -445,10 +449,10 @@ func (c *LogsDBChainIngester) runIngestion() {
 			nextBlock++
 
 			// Progress logging
-			if time.Since(lastLogTime) > progressLogInterval {
-				startingBlock := c.startingBlock.Load()
+			if clock.SystemClock.Since(lastLogTime) > progressLogInterval {
+				startingBlock := c.calculateStartingBlock()
 				if nextBlock <= startingBlock {
-					progress := float64(nextBlock-c.earliestBlockNum.Load()) / float64(startingBlock-c.earliestBlockNum.Load()+1)
+					progress := float64(nextBlock-c.earliestIngestedBlock.Load()) / float64(startingBlock-c.earliestIngestedBlock.Load()+1)
 					c.log.Info("Ingestion progress",
 						"block", nextBlock-1,
 						"target", startingBlock,
@@ -458,7 +462,7 @@ func (c *LogsDBChainIngester) runIngestion() {
 				} else {
 					c.log.Debug("Ingestion progress", "block", nextBlock-1, "head", head.NumberU64())
 				}
-				lastLogTime = time.Now()
+				lastLogTime = clock.SystemClock.Now()
 			}
 		}
 		// Caught up to head, will wait for next ticker tick
@@ -473,30 +477,14 @@ func (c *LogsDBChainIngester) initIngestion() (uint64, error) {
 	}
 	c.log.Info("Current chain head", "block", head.NumberU64(), "hash", head.Hash())
 
-	// Calculate backfill timestamp (where ingestion starts)
-	// Handle underflow: if backfillDuration > startTimestamp, start from genesis
-	backfillSeconds := uint64(c.backfillDuration.Seconds())
-	var backfillTimestamp uint64
-	if c.startTimestamp > backfillSeconds {
-		backfillTimestamp = c.startTimestamp - backfillSeconds
-	}
-
-	// Use rollup config to calculate block number from the backfill timestamp
-	startingBlock, err := c.rollupCfg.TargetBlockNumber(backfillTimestamp)
-	if err != nil {
-		// Timestamp is before genesis, start from genesis block
-		c.log.Info("Target timestamp before genesis, starting from genesis", "targetTimestamp", backfillTimestamp)
-		startingBlock = c.rollupCfg.Genesis.L2.Number
-	}
+	startingBlock := c.calculateStartingBlock()
 
 	// Clamp to head if needed
 	if startingBlock > head.NumberU64() {
 		startingBlock = head.NumberU64()
 	}
 
-	c.startingBlock.Store(startingBlock)
-	c.startingBlockSet.Store(true)
-	c.log.Info("Determined starting block", "block", startingBlock, "backfillTimestamp", backfillTimestamp, "startTimestamp", c.startTimestamp)
+	c.log.Info("Determined starting block", "block", startingBlock, "startTimestamp", c.startTimestamp)
 
 	// Check if we have existing data to resume from
 	c.mu.RLock()
@@ -508,7 +496,7 @@ func (c *LogsDBChainIngester) initIngestion() (uint64, error) {
 		nextBlock := latestSealed.Number + 1
 		c.log.Info("Resuming from existing DB", "lastSealed", latestSealed.Number, "resumeFrom", nextBlock)
 
-		if !c.earliestBlockSet.Load() {
+		if !c.earliestIngestedBlockSet.Load() {
 			c.findAndSetEarliestBlock(latestSealed.Number)
 		}
 
@@ -533,9 +521,9 @@ func (c *LogsDBChainIngester) checkReorg(head eth.BlockInfo) error {
 	headNum := head.NumberU64()
 
 	// If head is before our earliest block, we can't verify - this is expected
-	if c.earliestBlockSet.Load() && headNum < c.earliestBlockNum.Load() {
+	if c.earliestIngestedBlockSet.Load() && headNum < c.earliestIngestedBlock.Load() {
 		c.log.Debug("Head before our earliest block, can't verify",
-			"head", headNum, "earliest", c.earliestBlockNum.Load())
+			"head", headNum, "earliest", c.earliestIngestedBlock.Load())
 		return nil
 	}
 
@@ -577,8 +565,8 @@ func (c *LogsDBChainIngester) sealParentBlock(blockNum uint64) error {
 		return fmt.Errorf("failed to seal block: %w", err)
 	}
 
-	// Note: We don't set earliestBlockNum here because the parent block is just
-	// an anchor checkpoint. earliestBlockNum will be set in ingestBlock when
+	// Note: We don't set earliestIngestedBlock here because the parent block is just
+	// an anchor checkpoint. earliestIngestedBlock will be set in ingestBlock when
 	// the first block with actual log data is ingested.
 
 	c.log.Info("Sealed parent block", "block", blockNum, "hash", blockID.Hash)
@@ -647,9 +635,9 @@ func (c *LogsDBChainIngester) ingestBlock(blockNum uint64) error {
 
 	// Set earliest block on first successful ingestion (fresh start case).
 	// On restart, findAndSetEarliestBlock handles this instead.
-	if !c.earliestBlockSet.Load() {
-		c.earliestBlockNum.Store(blockNum)
-		c.earliestBlockSet.Store(true)
+	if !c.earliestIngestedBlockSet.Load() {
+		c.earliestIngestedBlock.Store(blockNum)
+		c.earliestIngestedBlockSet.Store(true)
 	}
 
 	return nil

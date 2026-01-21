@@ -106,8 +106,7 @@ func (v *LockstepCrossValidator) setError(msg string) {
 	v.errMu.Lock()
 	defer v.errMu.Unlock()
 	v.err = &ValidatorError{
-		Message:   msg,
-		Timestamp: time.Now(),
+		Message: msg,
 	}
 }
 

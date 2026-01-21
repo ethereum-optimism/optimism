@@ -181,10 +181,10 @@ func TestLogsDBChainIngester_SealParentBlock(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, uint64(99), latestBlock.Number)
 
-	// Note: earliestBlockNum is NOT set in sealParentBlock anymore.
+	// Note: earliestIngestedBlock is NOT set in sealParentBlock anymore.
 	// It's now set in ingestBlock when the first block with actual log data is ingested.
 	// The anchor block is just a checkpoint, not a block with queryable log data.
-	require.False(t, ingester.earliestBlockSet.Load(), "sealParentBlock should not set earliestBlockNum")
+	require.False(t, ingester.earliestIngestedBlockSet.Load(), "sealParentBlock should not set earliestIngestedBlock")
 }
 
 func TestLogsDBChainIngester_IngestBlock(t *testing.T) {
@@ -594,10 +594,9 @@ func TestLogsDBChainIngester_InitIngestion_FreshStart(t *testing.T) {
 
 	mockClient := NewMockEthClient()
 
-	// L2 chain starts at block 100
-	// Head: block 200, timestamp 1200
-	// With backfillDuration=1hr and startTimestamp=1200, backfillTimestamp would be
-	// negative (1200-3600), causing TargetBlockNumber to fail and fall back to genesis.
+	// L2 chain starts at block 100, timestamp 1000
+	// startTimestamp=1100, backfillDuration=200s -> backfillTimestamp=900 (before genesis)
+	// This should cause TargetBlockNumber to fail and fall back to genesis.
 	l2StartBlock := uint64(100)
 	l2StartTimestamp := uint64(1000)
 
@@ -616,9 +615,9 @@ func TestLogsDBChainIngester_InitIngestion_FreshStart(t *testing.T) {
 		rollupCfg: testRollupConfig(901, l2StartBlock, l2StartTimestamp),
 	})
 
-	// Set up for backfill that goes before genesis
-	ingester.startTimestamp = 1200
-	ingester.backfillDuration = time.Hour // 3600 seconds > head timestamp, so backfill goes negative
+	// Set up for backfill that goes before genesis (but no underflow)
+	ingester.startTimestamp = 1100
+	ingester.backfillDuration = 200 * time.Second // backfillTimestamp = 900 < genesis (1000)
 
 	err := ingester.initLogsDB()
 	require.NoError(t, err)
@@ -629,8 +628,7 @@ func TestLogsDBChainIngester_InitIngestion_FreshStart(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should start from L2 start block (genesis fallback)
-	require.True(t, ingester.startingBlockSet.Load())
-	startingBlock := ingester.startingBlock.Load()
+	startingBlock := ingester.calculateStartingBlock()
 	require.Equal(t, l2StartBlock, startingBlock)
 	require.Equal(t, startingBlock, nextBlock)
 }
@@ -697,7 +695,7 @@ func TestLogsDBChainIngester_InitIngestion_ResumeFromExistingDB(t *testing.T) {
 	require.Equal(t, uint64(102), nextBlock) // Should resume after block 101
 
 	// Verify earliest block was found
-	require.True(t, ingester2.earliestBlockSet.Load())
+	require.True(t, ingester2.earliestIngestedBlockSet.Load())
 }
 
 func TestLogsDBChainIngester_InitIngestion_ErrorGettingHead(t *testing.T) {
