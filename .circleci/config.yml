@@ -143,4 +143,8 @@ workflows:
           # Tag pipelines can point directly at the base revision (e.g. a tag cut from develop),
           # resulting in an empty diff and a skipped continuation. Diff against the first parent
           # to ensure continuation always runs for tag pushes.
-          base-revision: "<< pipeline.git.revision >>^"
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
