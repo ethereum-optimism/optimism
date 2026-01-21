@@ -12,8 +12,8 @@ use reth_evm::{execute::Executor, ConfigureEvm};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_optimism_trie::{
-    backfill::BackfillJob, in_memory::InMemoryProofsStorage, live::LiveTrieCollector,
-    OpProofsStorage, OpProofsStorageError,
+    backfill::BackfillJob, live::LiveTrieCollector, MdbxProofsStorage, OpProofsStorage,
+    OpProofsStorageError,
 };
 use reth_primitives_traits::{
     crypto::secp256k1::public_key_to_address, Block as _, RecoveredBlock,
@@ -28,6 +28,7 @@ use reth_revm::database::StateProviderDatabase;
 use reth_testing_utils::generators::sign_tx_with_key_pair;
 use secp256k1::{rand::thread_rng, Keypair, Secp256k1};
 use std::sync::Arc;
+use tempfile::TempDir;
 
 /// Specification for a transaction within a block
 #[derive(Debug, Clone)]
@@ -206,7 +207,7 @@ async fn run_test_scenario<N>(
     provider_factory: ProviderFactory<N>,
     chain_spec: Arc<ChainSpec>,
     key_pair: Keypair,
-    storage: OpProofsStorage<Arc<InMemoryProofsStorage>>,
+    storage: OpProofsStorage<Arc<MdbxProofsStorage>>,
 ) -> eyre::Result<()>
 where
     N: ProviderNodeTypes<
@@ -284,7 +285,8 @@ where
 /// (3) Executes a block and calculates the state root using the stored state
 #[tokio::test]
 async fn test_execute_and_store_block_updates() {
-    let storage = Arc::new(InMemoryProofsStorage::new()).into();
+    let dir = TempDir::new().unwrap();
+    let storage = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")).into();
 
     // Create a keypair for signing transactions
     let secp = Secp256k1::new();
@@ -315,8 +317,9 @@ async fn test_execute_and_store_block_updates() {
 
 #[tokio::test]
 async fn test_execute_and_store_block_updates_missing_parent_block() {
-    let storage: OpProofsStorage<Arc<InMemoryProofsStorage>> =
-        Arc::new(InMemoryProofsStorage::new()).into();
+    let dir = TempDir::new().unwrap();
+    let storage: OpProofsStorage<Arc<MdbxProofsStorage>> =
+        Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")).into();
 
     let secp = Secp256k1::new();
     let key_pair = Keypair::new(&secp, &mut thread_rng());
@@ -366,8 +369,9 @@ async fn test_execute_and_store_block_updates_missing_parent_block() {
 
 #[tokio::test]
 async fn test_execute_and_store_block_updates_state_root_mismatch() {
-    let storage: OpProofsStorage<Arc<InMemoryProofsStorage>> =
-        Arc::new(InMemoryProofsStorage::new()).into();
+    let dir = TempDir::new().unwrap();
+    let storage: OpProofsStorage<Arc<MdbxProofsStorage>> =
+        Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")).into();
 
     let secp = Secp256k1::new();
     let key_pair = Keypair::new(&secp, &mut thread_rng());
@@ -428,7 +432,8 @@ async fn test_execute_and_store_block_updates_state_root_mismatch() {
 /// Test with multiple blocks before and after backfill
 #[tokio::test]
 async fn test_multiple_blocks_before_and_after_backfill() {
-    let storage = Arc::new(InMemoryProofsStorage::new()).into();
+    let dir = TempDir::new().unwrap();
+    let storage = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")).into();
 
     let secp = Secp256k1::new();
     let key_pair = Keypair::new(&secp, &mut thread_rng());
@@ -464,7 +469,8 @@ async fn test_multiple_blocks_before_and_after_backfill() {
 /// Test with blocks containing multiple transactions
 #[tokio::test]
 async fn test_blocks_with_multiple_transactions() {
-    let storage = Arc::new(InMemoryProofsStorage::new()).into();
+    let dir = TempDir::new().unwrap();
+    let storage = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")).into();
 
     let secp = Secp256k1::new();
     let key_pair = Keypair::new(&secp, &mut thread_rng());

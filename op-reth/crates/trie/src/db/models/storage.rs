@@ -133,6 +133,8 @@ pub enum ProofWindowKey {
     EarliestBlock = 0,
     /// Latest block number stored in external storage
     LatestBlock = 1,
+    /// Anchor block from where the  initial state initialization started
+    InitialStateAnchor = 2,
 }
 
 impl Encode for ProofWindowKey {
@@ -148,6 +150,7 @@ impl Decode for ProofWindowKey {
         match value.first() {
             Some(&0) => Ok(Self::EarliestBlock),
             Some(&1) => Ok(Self::LatestBlock),
+            Some(&2) => Ok(Self::InitialStateAnchor),
             _ => Err(DatabaseError::Decode),
         }
     }

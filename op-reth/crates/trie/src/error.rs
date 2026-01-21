@@ -90,6 +90,12 @@ pub enum OpProofsStorageError {
     /// Error occurred while interacting with the provider.
     #[error(transparent)]
     ProviderError(Arc<ProviderError>),
+    /// Backfill detected inconsistent state between proofs storage and source DB.
+    #[error(
+        "Backfill detected inconsistent state. Proofs storage does not match source DB. \
+         Please clear proofs data and retry backfill."
+    )]
+    BackfillInconsistentState,
 }
 
 impl From<TryLockError> for OpProofsStorageError {

@@ -1,10 +1,10 @@
 //! Storage wrapper that records metrics for all operations.
 
 use crate::{
-    api::{OperationDurations, WriteCounts},
+    api::{InitialStateAnchor, OpProofsInitialStateStore, OperationDurations, WriteCounts},
     cursor, BlockStateDiff, OpProofsStorageResult, OpProofsStore,
 };
-use alloy_eips::eip1898::BlockWithParent;
+use alloy_eips::{eip1898::BlockWithParent, BlockNumHash};
 use alloy_primitives::{map::HashMap, B256, U256};
 use derive_more::Constructor;
 use metrics::{Counter, Gauge, Histogram};
@@ -565,6 +565,28 @@ where
     ) -> OpProofsStorageResult<()> {
         self.metrics.block_metrics.earliest_number.set(block_number as f64);
         self.storage.set_earliest_block_number(block_number, hash).await
+    }
+}
+
+impl<S> OpProofsInitialStateStore for OpProofsStorageWithMetrics<S>
+where
+    S: OpProofsInitialStateStore,
+{
+    #[inline]
+    async fn initial_state_anchor(&self) -> OpProofsStorageResult<InitialStateAnchor> {
+        self.storage.initial_state_anchor().await
+    }
+
+    #[inline]
+    async fn set_initial_state_anchor(&self, anchor: BlockNumHash) -> OpProofsStorageResult<()> {
+        self.storage.set_initial_state_anchor(anchor).await
+    }
+
+    #[inline]
+    async fn commit_initial_state(&self) -> OpProofsStorageResult<BlockNumHash> {
+        let block = self.storage.commit_initial_state().await?;
+        self.metrics.block_metrics.earliest_number.set(block.number as f64);
+        Ok(block)
     }
 }
 

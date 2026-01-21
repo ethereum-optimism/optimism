@@ -1,6 +1,6 @@
 use super::{BlockNumberHash, ProofWindow, ProofWindowKey, Tables};
 use crate::{
-    api::WriteCounts,
+    api::{InitialStateAnchor, InitialStateStatus, OpProofsInitialStateStore, WriteCounts},
     db::{
         cursor::Dup,
         models::{
@@ -10,9 +10,11 @@ use crate::{
         },
         MdbxAccountCursor, MdbxStorageCursor, MdbxTrieCursor,
     },
-    BlockStateDiff, OpProofsStorageError, OpProofsStorageResult, OpProofsStore,
+    BlockStateDiff, OpProofsStorageError,
+    OpProofsStorageError::NoBlocksFound,
+    OpProofsStorageResult, OpProofsStore,
 };
-use alloy_eips::{eip1898::BlockWithParent, NumHash};
+use alloy_eips::{eip1898::BlockWithParent, BlockNumHash, NumHash};
 use alloy_primitives::{map::HashMap, B256, U256};
 #[cfg(feature = "metrics")]
 use metrics::{gauge, Label};
@@ -573,7 +575,7 @@ impl MdbxProofsStorage {
 
         // Update proof window's latest block
         let mut proof_window_cursor = tx.new_cursor::<ProofWindow>()?;
-        proof_window_cursor.append(
+        proof_window_cursor.upsert(
             ProofWindowKey::LatestBlock,
             &BlockNumberHash::new(block_number, block_ref.block.hash),
         )?;
@@ -584,6 +586,25 @@ impl MdbxProofsStorage {
             hashed_accounts_written_total: change_set.hashed_account_keys.len() as u64,
             hashed_storages_written_total: change_set.hashed_storage_keys.len() as u64,
         })
+    }
+
+    /// Return `BlockNumHash` for the initial state anchor.
+    fn get_initial_state_anchor(&self) -> OpProofsStorageResult<Option<BlockNumHash>> {
+        self.env.view(|tx| {
+            let mut cur = tx.cursor_read::<ProofWindow>()?;
+            Ok(cur.seek_exact(ProofWindowKey::InitialStateAnchor)?.map(|(_k, v)| v.into()))
+        })?
+    }
+
+    /// Return latest key for a table
+    fn get_latest_key<T>(&self) -> OpProofsStorageResult<Option<T::Key>>
+    where
+        T: Table,
+    {
+        self.env.view(|tx| {
+            let mut cursor = tx.cursor_read::<T>()?;
+            Ok(cursor.last()?.map(|(k, _)| k))
+        })?
     }
 }
 
@@ -948,7 +969,7 @@ impl OpProofsStore for MdbxProofsStorage {
             let new_latest_block =
                 BlockNumberHash::new(to.block.number.saturating_sub(1), to.parent);
             let mut proof_window_cursor = tx.new_cursor::<ProofWindow>()?;
-            proof_window_cursor.append(ProofWindowKey::LatestBlock, &new_latest_block)?;
+            proof_window_cursor.upsert(ProofWindowKey::LatestBlock, &new_latest_block)?;
 
             Ok(())
         })?
@@ -977,7 +998,7 @@ impl OpProofsStore for MdbxProofsStorage {
             // todo: refactor to use block hash from the block to add. We need to pass the
             // BlockNumHash type for the latest_common_block_number
             let mut proof_window_cursor = tx.new_cursor::<ProofWindow>()?;
-            proof_window_cursor.append(
+            proof_window_cursor.upsert(
                 ProofWindowKey::LatestBlock,
                 &BlockNumberHash::new(
                     latest_common_block_number,
@@ -998,6 +1019,46 @@ impl OpProofsStore for MdbxProofsStorage {
         hash: B256,
     ) -> OpProofsStorageResult<()> {
         self.set_earliest_block_number_hash(block_number, hash).await
+    }
+}
+
+impl OpProofsInitialStateStore for MdbxProofsStorage {
+    async fn initial_state_anchor(&self) -> OpProofsStorageResult<InitialStateAnchor> {
+        // 1) NotStarted: no anchor row
+        let Some(block) = self.get_initial_state_anchor()? else {
+            return Ok(InitialStateAnchor::default());
+        };
+
+        // 2) Completed: anchor exists + earliest is set
+        let completed = self.get_earliest_block_number().await?.is_some();
+
+        // 3) InProgress / Completed: populate details
+        Ok(InitialStateAnchor {
+            block: Some(block),
+            status: if completed {
+                InitialStateStatus::Completed
+            } else {
+                InitialStateStatus::InProgress
+            },
+            latest_account_trie_key: self.get_latest_key::<AccountTrieHistory>()?,
+            latest_storage_trie_key: self.get_latest_key::<StorageTrieHistory>()?,
+            latest_hashed_account_key: self.get_latest_key::<HashedAccountHistory>()?,
+            latest_hashed_storage_key: self.get_latest_key::<HashedStorageHistory>()?,
+        })
+    }
+
+    async fn set_initial_state_anchor(&self, anchor: BlockNumHash) -> OpProofsStorageResult<()> {
+        self.env.update(|tx| {
+            let mut cur = tx.cursor_write::<ProofWindow>()?;
+            cur.insert(ProofWindowKey::InitialStateAnchor, &anchor.into())?;
+            Ok(())
+        })?
+    }
+
+    async fn commit_initial_state(&self) -> OpProofsStorageResult<BlockNumHash> {
+        let anchor = self.get_initial_state_anchor()?.ok_or(NoBlocksFound)?;
+        self.set_earliest_block_number(anchor.number, anchor.hash).await?;
+        Ok(anchor)
     }
 }
 
