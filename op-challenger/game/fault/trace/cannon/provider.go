@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
@@ -60,7 +61,7 @@ func (p *CannonTraceProvider) Get(ctx context.Context, pos types.Position) (comm
 	if !traceIndex.IsUint64() {
 		return common.Hash{}, errors.New("trace index out of bounds")
 	}
-	proof, err := p.loadProof(ctx, traceIndex.Uint64())
+	proof, err := p.loadProof(ctx, bigs.Uint64Strict(traceIndex))
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -77,7 +78,7 @@ func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Positio
 	if !traceIndex.IsUint64() {
 		return nil, nil, nil, errors.New("trace index out of bounds")
 	}
-	proof, err := p.loadProof(ctx, traceIndex.Uint64())
+	proof, err := p.loadProof(ctx, bigs.Uint64Strict(traceIndex))
 	if err != nil {
 		return nil, nil, nil, err
 	}

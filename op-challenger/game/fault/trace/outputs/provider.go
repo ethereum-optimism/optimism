@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -60,7 +61,7 @@ func (o *OutputTraceProvider) ClaimedBlockNumber(pos types.Position) (uint64, er
 		return 0, fmt.Errorf("%w: %v", ErrIndexTooBig, traceIndex)
 	}
 
-	outputBlock := traceIndex.Uint64() + o.prestateBlock + 1
+	outputBlock := bigs.Uint64Strict(traceIndex) + o.prestateBlock + 1
 	if outputBlock > o.poststateBlock {
 		outputBlock = o.poststateBlock
 	}

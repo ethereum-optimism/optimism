@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -405,7 +406,7 @@ func (s *mockPreimageOracleContract) AddLeaves(uuid *big.Int, startingBlockIndex
 	metadata, ok := s.metadata[uuid.String()]
 	require.True(s.t, ok, "adding leaves without init")
 	require.True(s.t, startingBlockIndex.IsUint64())
-	require.EqualValues(s.t, metadata.BlocksProcessed, startingBlockIndex.Uint64())
+	require.EqualValues(s.t, metadata.BlocksProcessed, bigs.Uint64Strict(startingBlockIndex))
 
 	expectedCommitments := len(input) / keccakTypes.BlockSize
 	if finalize {

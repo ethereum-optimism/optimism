@@ -15,6 +15,7 @@ import (
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -286,7 +287,7 @@ func TestClock_EncodingDecoding(t *testing.T) {
 		clock := decodeClock(encoded)
 		require.Equal(t, 0*time.Second, clock.Duration)
 		require.Equal(t, time.Unix(0, 0), clock.Timestamp)
-		require.Equal(t, encoded.Uint64(), packClock(clock).Uint64())
+		require.Equal(t, bigs.Uint64Strict(encoded), bigs.Uint64Strict(packClock(clock)))
 	})
 }
 
@@ -319,7 +320,7 @@ func TestGetClaim(t *testing.T) {
 			position := big.NewInt(2)
 			clock := big.NewInt(1234)
 			stubRpc.SetResponse(fdgAddr, methodClaim, rpcblock.Latest, []interface{}{idx}, []interface{}{parentIndex, counteredBy, claimant, bond, value, position, clock})
-			status, err := game.GetClaim(context.Background(), idx.Uint64())
+			status, err := game.GetClaim(context.Background(), bigs.Uint64Strict(idx))
 			require.NoError(t, err)
 			require.Equal(t, faultTypes.Claim{
 				ClaimData: faultTypes.ClaimData{
@@ -330,7 +331,7 @@ func TestGetClaim(t *testing.T) {
 				CounteredBy:         counteredBy,
 				Claimant:            claimant,
 				Clock:               decodeClock(big.NewInt(1234)),
-				ContractIndex:       int(idx.Uint64()),
+				ContractIndex:       int(bigs.Uint64Strict(idx)),
 				ParentContractIndex: 1,
 			}, status)
 		})

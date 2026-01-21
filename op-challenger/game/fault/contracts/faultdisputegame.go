@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -208,7 +209,7 @@ func (f *FaultDisputeGameContractLatest) GetGameRange(ctx context.Context) (pres
 func getBlockNumber(result *batching.CallResult, idx int) uint64 {
 	val := result.GetBigInt(idx)
 	if val.IsUint64() {
-		return val.Uint64()
+		return bigs.Uint64Strict(val)
 	}
 	return math.MaxUint64
 }
@@ -317,7 +318,7 @@ func (f *FaultDisputeGameContractLatest) GetSplitDepth(ctx context.Context) (typ
 	if err != nil {
 		return 0, fmt.Errorf("failed to retrieve split depth: %w", err)
 	}
-	return types.Depth(splitDepth.GetBigInt(0).Uint64()), nil
+	return types.Depth(bigs.Uint64Strict(splitDepth.GetBigInt(0))), nil
 }
 
 func (f *FaultDisputeGameContractLatest) GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error) {
@@ -467,7 +468,7 @@ func (f *FaultDisputeGameContractLatest) GetMaxGameDepth(ctx context.Context) (t
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch max game depth: %w", err)
 	}
-	return types.Depth(result.GetBigInt(0).Uint64()), nil
+	return types.Depth(bigs.Uint64Strict(result.GetBigInt(0))), nil
 }
 
 func (f *FaultDisputeGameContractLatest) GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
@@ -503,7 +504,7 @@ func (f *FaultDisputeGameContractLatest) GetClaimCount(ctx context.Context) (uin
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch claim count: %w", err)
 	}
-	return result.GetBigInt(0).Uint64(), nil
+	return bigs.Uint64Strict(result.GetBigInt(0)), nil
 }
 
 func (f *FaultDisputeGameContractLatest) GetClaim(ctx context.Context, idx uint64) (types.Claim, error) {
