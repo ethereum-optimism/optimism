@@ -83,8 +83,7 @@ func setup(t *testing.T) (*L2OutputSubmitter, *mockRollupEndpointProvider, *Stub
 		ctx:         ctx,
 		cancel:      cancel,
 	}
-	var mockDGFContract *StubDGFContract
-	mockDGFContract = new(StubDGFContract)
+	mockDGFContract := new(StubDGFContract)
 	l2OutputSubmitter.dgfContract = mockDGFContract
 
 	txmgr.On("Send", mock.Anything, mock.Anything).
