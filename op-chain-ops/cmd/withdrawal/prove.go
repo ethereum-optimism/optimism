@@ -46,16 +46,6 @@ var (
 	}
 
 	// Prove using SuperRoots Flags
-	SupervisorFlag = &cli.StringFlag{
-		Name:    "supervisor",
-		Usage:   "HTTP provider URL for supervisor. Only required for proving using super roots.",
-		EnvVars: op_service.PrefixEnvVar(EnvVarPrefix, "SUPERVISOR"),
-	}
-	DepSetFlag = &cli.StringFlag{
-		Name:    "depset",
-		Usage:   "Path to the dependency set file. Only required for proving using super roots.",
-		EnvVars: op_service.PrefixEnvVar(EnvVarPrefix, "DEPSET"),
-	}
 	RollupConfigFlag = &cli.StringFlag{
 		Name:    "rollup.config",
 		Usage:   "Path to the rollup config of the target chain. Only required for proving using super roots.",
@@ -63,7 +53,7 @@ var (
 	}
 	DisputeGameFlag = &cli.StringFlag{
 		Name:    "dispute-game",
-		Usage:   "Address of SuperFaultDisputeGame. When provided, reads super root proof from on-chain extraData instead of supervisor-rpc. Requires --rollup.config but not --supervisor or --depset.",
+		Usage:   "Address of SuperFaultDisputeGame. Required when proving super root withdrawals. Reads super root proof from on-chain extraData.",
 		EnvVars: op_service.PrefixEnvVar(EnvVarPrefix, "DISPUTE_GAME"),
 	}
 )
@@ -139,39 +129,33 @@ func ProveWithdrawal(ctx *cli.Context) error {
 			return err
 		}
 	} else {
-		// Check if --dispute-game flag is provided for the new flow
-		if disputeGameStr := ctx.String(DisputeGameFlag.Name); disputeGameStr != "" {
-			logger.Info("Proving withdrawal using super root from dispute game extraData")
-			disputeGameAddr := common.HexToAddress(disputeGameStr)
+		disputeGameStr := ctx.String(DisputeGameFlag.Name)
+		if disputeGameStr == "" {
+			return errors.New("--dispute-game is required when proving super root withdrawals")
+		}
 
-			// Load rollup config (still required for timestamp→block number conversion)
-			rollupCfg, err := loadRollupConfig(ctx, RollupConfigFlag.Name)
-			if err != nil {
-				return fmt.Errorf("failed to load rollup config: %w", err)
-			}
+		logger.Info("Proving withdrawal using super root from dispute game extraData")
+		disputeGameAddr := common.HexToAddress(disputeGameStr)
 
-			txData, err = txDataForSuperRootProofFromGame(
-				ctx.Context,
-				l1Client,
-				l1EthClient,
-				proofClient,
-				l2Client,
-				txHash,
-				disputeGameAddr,
-				portalAddr,
-				portal,
-				rollupCfg,
-			)
-			if err != nil {
-				return err
-			}
-		} else {
-			// Existing supervisor-based flow
-			logger.Info("Proving withdrawal using super root from supervisor")
-			txData, err = txDataForSuperRootProof(ctx, l1EthClient, proofClient, l2Client, txHash, factory, portal)
-			if err != nil {
-				return err
-			}
+		rollupCfg, err := loadRollupConfig(ctx, RollupConfigFlag.Name)
+		if err != nil {
+			return fmt.Errorf("failed to load rollup config: %w", err)
+		}
+
+		txData, err = txDataForSuperRootProofFromGame(
+			ctx.Context,
+			l1Client,
+			l1EthClient,
+			proofClient,
+			l2Client,
+			txHash,
+			disputeGameAddr,
+			portalAddr,
+			portal,
+			rollupCfg,
+		)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -212,70 +196,6 @@ func txDataForOutputRootProof(ctx context.Context, proofClient *gethclient.Clien
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pack output root prove withdrawal transaction: %w", err)
-	}
-	return txData, nil
-}
-
-func txDataForSuperRootProof(ctx *cli.Context, l1EthClient apis.EthClient, proofClient *gethclient.Client, l2Client *ethclient.Client, txHash common.Hash, factory *opnode_bindings.DisputeGameFactoryCaller, portal *bindingspreview.OptimismPortal2) ([]byte, error) {
-	supervisorClient, err := createSupervisorClient(ctx, SupervisorFlag.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create supervisor client: %w", err)
-	}
-	rollupCfg, err := loadRollupConfig(ctx, RollupConfigFlag.Name)
-	if err != nil {
-		return nil, err
-	}
-	depSet, err := loadDepsetConfig(ctx, DepSetFlag.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	portalL2ChainID, err := l2ChainIDForPortal(ctx.Context, l1EthClient, portal)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get portal chain ID: %w", err)
-	}
-	if portalL2ChainID != rollupCfg.L2ChainID.Uint64() {
-		return nil, fmt.Errorf("portal chain ID %d does not match the provided rollup config chain ID %d", portalL2ChainID, rollupCfg.L2ChainID.Uint64())
-	}
-
-	params, err := withdrawals.ProveWithdrawalParametersSuperRoots(
-		ctx.Context,
-		rollupCfg,
-		depSet,
-		proofClient,
-		l2Client,
-		l2Client,
-		txHash,
-		supervisorClient,
-		factory,
-		&portal.OptimismPortal2Caller,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create withdrawal proof parameters: %w", err)
-	}
-	txData, err := w3.MustNewFunc("proveWithdrawalTransaction("+
-		"(uint256 Nonce, address Sender, address Target, uint256 Value, uint256 GasLimit, bytes Data),"+
-		"address DisputeGameProxy,"+
-		"uint256 OutputRootIndex,"+
-		"(bytes1 Version, uint64 Timestamp, (uint256 ChainID, bytes32 Root)[] OutputRoots),"+
-		"(bytes32 Version, bytes32 StateRoot, bytes32 MessagePasserStorageRoot, bytes32 LatestBlockhash),"+
-		"bytes[])", "").EncodeArgs(
-		bindingspreview.TypesWithdrawalTransaction{
-			Nonce:    params.Nonce,
-			Sender:   params.Sender,
-			Target:   params.Target,
-			Value:    params.Value,
-			GasLimit: params.GasLimit,
-			Data:     params.Data,
-		},
-		params.DisputeGameProxy,
-		params.OutputRootIndex,
-		params.SuperRootProof,
-		params.OutputRootProof,
-		params.WithdrawalProof,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to pack super root prove withdrawal transaction: %w", err)
 	}
 	return txData, nil
 }
@@ -452,8 +372,6 @@ func proveFlags() []cli.Flag {
 		TxFlag,
 		PortalAddressFlag,
 		// Super Roots Flags
-		SupervisorFlag,
-		DepSetFlag,
 		RollupConfigFlag,
 		DisputeGameFlag,
 	}

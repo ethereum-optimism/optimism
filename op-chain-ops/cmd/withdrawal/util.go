@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -9,12 +8,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
-	"github.com/ethereum-optimism/optimism/op-service/dial"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 )
@@ -68,25 +65,4 @@ func loadRollupConfig(ctx *cli.Context, rollupConfigFlag string) (*rollup.Config
 	defer file.Close()
 	var rollupConfig rollup.Config
 	return &rollupConfig, rollupConfig.ParseRollupConfig(file)
-}
-
-func loadDepsetConfig(ctx *cli.Context, depSetFlag string) (depset.DependencySet, error) {
-	data, err := os.ReadFile(ctx.String(depSetFlag))
-	if err != nil {
-		return nil, fmt.Errorf("failed to read depset config: %w", err)
-	}
-	var depsetConfig depset.StaticConfigDependencySet
-	err = json.Unmarshal(data, &depsetConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse depset config: %w", err)
-	}
-	return &depsetConfig, nil
-}
-
-func createSupervisorClient(ctx *cli.Context, supervisorFlag string) (*sources.SupervisorClient, error) {
-	cl, err := dial.DialSupervisorClientWithTimeout(ctx.Context, log.Root(), ctx.String(supervisorFlag))
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial supervisor: %w", err)
-	}
-	return cl, nil
 }
