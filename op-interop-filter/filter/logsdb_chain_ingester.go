@@ -278,11 +278,11 @@ func (c *LogsDBChainIngester) GetExecMsgsAtTimestamp(timestamp uint64) ([]Includ
 		return nil, types.ErrUninitialized
 	}
 
-	earliest := c.earliestIngestedBlock.Load()
 	latestBlock, ok := c.logsDB.LatestSealedBlock()
-	if earliest == 0 || !ok {
+	if !c.earliestIngestedBlockSet.Load() || !ok {
 		return nil, nil
 	}
+	earliest := c.earliestIngestedBlock.Load()
 
 	var results []IncludedMessage
 	for blockNum := earliest; blockNum <= latestBlock.Number; blockNum++ {
