@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -87,7 +88,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	// get latest block
 	latestBlock, err := ethCl.BlockByNumber(context.Background(), nil)
 	require.NoError(t, err)
-	require.Equal(t, sequencer.L2Unsafe().Number, latestBlock.Number().Uint64())
+	require.Equal(t, sequencer.L2Unsafe().Number, latestBlock.NumberU64())
 
 	transactions := latestBlock.Transactions()
 	// L1Block: 1 set-L1-info + 2 deploys + 2 upgradeTo + 1 enable ecotone on GPO + 1 4788 deploy
@@ -133,7 +134,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	// The L1 info tx does not get included until after the Ecotone upgrade.
 	// The scalars are thus empty during activation, and only deposits are included, so the L1 fee is unused.
 	require.True(t, cost.IsUint64())
-	require.Equal(t, cost.Uint64(), uint64(0), "expecting zero scalars within activation block")
+	require.Equal(t, bigs.Uint64Strict(cost), uint64(0), "expecting zero scalars within activation block")
 
 	// Check that Ecotone was activated
 	isEcotone, err := gasPriceOracle.IsEcotone(nil)
@@ -159,7 +160,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 		require.NoError(t, err)
 		timeBig := new(big.Int).SetBytes(timeValue)
 		require.True(t, timeBig.IsUint64())
-		require.Equal(t, expectedTime, timeBig.Uint64(), msg)
+		require.Equal(t, expectedTime, bigs.Uint64Strict(timeBig), msg)
 	}
 	// The header will always have the beacon-block-root, at the very start.
 	require.NotNil(t, latestBlock.BeaconRoot())
@@ -198,7 +199,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	require.NoError(t, err)
 	// The GPO getL1Fee contract returns the L1 fee with approximate signature overhead pre-included,
 	// like the pre-regolith L1 fee. We do the full fee check below. Just sanity check it is not zero anymore first.
-	require.Greater(t, cost.Uint64(), uint64(0), "expecting non-zero scalars after activation block")
+	require.Greater(t, bigs.Uint64Strict(cost), uint64(0), "expecting non-zero scalars after activation block")
 
 	// Get L1Block info
 	l1Block, err := bindings.NewL1BlockCaller(predeploys.L1BlockAddr, ethCl)
@@ -211,7 +212,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	require.NoError(t, err)
 	l1Basefee, err := l1Block.Basefee(nil)
 	require.NoError(t, err)
-	require.Equal(t, l1OriginBlock.BaseFee().Uint64(), l1Basefee.Uint64(), "basefee must match")
+	require.Equal(t, bigs.Uint64Strict(l1OriginBlock.BaseFee()), bigs.Uint64Strict(l1Basefee), "basefee must match")
 
 	// calldataGas*(l1BaseFee*16*l1BaseFeeScalar + l1BlobBaseFee*l1BlobBaseFeeScalar)/16e6
 	// _getCalldataGas in GPO adds the cost of 68 non-zero bytes for signature/rlp overhead.

@@ -8,6 +8,7 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	upgradesHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -81,7 +82,7 @@ func BatchInLastPossibleBlocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		sequencer.ActL2EndBlock(t)
 	}
 	verifyChainStateOnSequencer := func(l1Number, unsafeHead, unsafeHeadOrigin, safeHead, safeHeadOrigin uint64) {
-		require.Equal(t, l1Number, miner.L1Chain().CurrentHeader().Number.Uint64())
+		require.Equal(t, l1Number, bigs.Uint64Strict(miner.L1Chain().CurrentHeader().Number))
 		require.Equal(t, unsafeHead, sequencer.L2Unsafe().Number)
 		require.Equal(t, unsafeHeadOrigin, sequencer.L2Unsafe().L1Origin.Number)
 		require.Equal(t, safeHead, sequencer.L2Safe().Number)
@@ -201,7 +202,7 @@ func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	}
 
 	verifyChainStateOnSequencer := func(l1Number, unsafeHead, unsafeHeadOrigin, safeHead, safeHeadOrigin uint64) {
-		require.Equal(t, l1Number, miner.L1Chain().CurrentHeader().Number.Uint64())
+		require.Equal(t, l1Number, bigs.Uint64Strict(miner.L1Chain().CurrentHeader().Number))
 		require.Equal(t, unsafeHead, sequencer.L2Unsafe().Number)
 		require.Equal(t, unsafeHeadOrigin, sequencer.L2Unsafe().L1Origin.Number)
 		require.Equal(t, safeHead, sequencer.L2Safe().Number)
@@ -209,7 +210,7 @@ func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	}
 
 	verifyChainStateOnVerifier := func(l1Number, unsafeHead, unsafeHeadOrigin, safeHead, safeHeadOrigin uint64) {
-		require.Equal(t, l1Number, miner.L1Chain().CurrentHeader().Number.Uint64())
+		require.Equal(t, l1Number, bigs.Uint64Strict(miner.L1Chain().CurrentHeader().Number))
 		require.Equal(t, unsafeHead, verifier.L2Unsafe().Number)
 		require.Equal(t, unsafeHeadOrigin, verifier.L2Unsafe().L1Origin.Number)
 		require.Equal(t, safeHead, verifier.L2Safe().Number)

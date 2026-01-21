@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/interop/dsl"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/stretchr/testify/require"
@@ -78,7 +79,7 @@ func TestReset(gt *testing.T) {
 			require.Equal(t, head, status.LocalSafeL2.ID())
 			require.Equal(t, uint64(prevBlockNum), status.SafeL2.Number)
 			// Local-safe does not count as "safe" in RPC
-			n := actors.ChainA.SequencerEngine.L2Chain().CurrentSafeBlock().Number.Uint64()
+			n := bigs.Uint64Strict(actors.ChainA.SequencerEngine.L2Chain().CurrentSafeBlock().Number)
 			require.Equal(t, uint64(prevBlockNum), n)
 		}
 

@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
@@ -276,7 +277,7 @@ type disputeGame struct {
 // when required by the respected game type
 func (b *StandardBridge) forGamePublished(l2BlockNumber *big.Int) disputeGame {
 	respectedGameType := b.RespectedGameType()
-	l2SequenceNumber := l2BlockNumber.Uint64()
+	l2SequenceNumber := bigs.Uint64Strict(l2BlockNumber)
 	superRootsActive := b.UsesSuperRoots()
 	if superRootsActive {
 		l2SequenceNumber = b.rollupCfg.TimestampForBlock(l2SequenceNumber)
@@ -298,7 +299,7 @@ func (b *StandardBridge) forGamePublished(l2BlockNumber *big.Int) disputeGame {
 			bindings.WithTest(b.t))
 		seqNum, err := contractio.Read(gameContract.L2SequenceNumber(), b.ctx)
 		b.require.NoError(err, "Failed to read sequence number")
-		gameSeqNum = seqNum.Uint64()
+		gameSeqNum = bigs.Uint64Strict(seqNum)
 		b.log.Info("Found latest game", "index", gameIndex, "seqNum", gameSeqNum)
 		return gameSeqNum >= l2SequenceNumber
 	}, 90*time.Second, 100*time.Millisecond, "did not find a game of type %v at or after l2 sequence number %v", respectedGameType, l2SequenceNumber)
@@ -585,7 +586,7 @@ func hasOperatorFee(rcpt *types.Receipt) bool {
 
 func (b *StandardBridge) receiptTimestamp(rcpt *types.Receipt, client apis.EthClient) *uint64 {
 	b.require.NotNil(rcpt.BlockNumber, "receipt missing block number")
-	blockInfo, err := client.InfoByNumber(b.ctx, rcpt.BlockNumber.Uint64())
+	blockInfo, err := client.InfoByNumber(b.ctx, bigs.Uint64Strict(rcpt.BlockNumber))
 	b.require.NoError(err, "failed to fetch block info for receipt")
 	ts := blockInfo.Time()
 	return &ts

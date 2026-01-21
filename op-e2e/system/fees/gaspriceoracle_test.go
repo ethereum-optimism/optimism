@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/stretchr/testify/require"
@@ -64,7 +65,7 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	receipt, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
 	require.NoError(t, err, "Waiting for sysconfig set gas config update tx")
 
-	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, receipt.BlockNumber.Uint64(), l2Seq, txTimeoutDuration)
+	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, bigs.Uint64Strict(receipt.BlockNumber), l2Seq, txTimeoutDuration)
 	require.NoError(t, err, "waiting for L2 block to include the sysconfig update")
 
 	baseFeeScalar, err := gpoContract.BaseFeeScalar(&bind.CallOpts{})
@@ -89,7 +90,7 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	receipt, err = wait.ForReceiptOK(ctx, l1Client, tx.Hash())
 	require.NoError(t, err, "Waiting for sysconfig set gas config update tx")
 
-	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, receipt.BlockNumber.Uint64(), l2Seq, txTimeoutDuration)
+	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, bigs.Uint64Strict(receipt.BlockNumber), l2Seq, txTimeoutDuration)
 	require.NoError(t, err, "waiting for L2 block to include the sysconfig update")
 
 	baseFeeScalar, err = gpoContract.BaseFeeScalar(&bind.CallOpts{})

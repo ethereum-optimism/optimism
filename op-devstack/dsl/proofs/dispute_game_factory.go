@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
@@ -393,7 +394,7 @@ type ethClientHeaderProvider struct {
 }
 
 func (p *ethClientHeaderProvider) HeaderByNumber(ctx context.Context, blockNum *big.Int) (*types.Header, error) {
-	info, err := p.client.InfoByNumber(ctx, blockNum.Uint64())
+	info, err := p.client.InfoByNumber(ctx, bigs.Uint64Strict(blockNum))
 	if err != nil {
 		return nil, err
 	}
