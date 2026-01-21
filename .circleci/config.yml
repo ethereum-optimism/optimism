@@ -56,9 +56,6 @@ parameters:
   acceptance_tests_dispatch:
     type: boolean
     default: false
-  kurtosis_acceptance_tests_dispatch:
-    type: boolean
-    default: false
   sync_test_op_node_dispatch:
     type: boolean
     default: false
@@ -117,7 +114,6 @@ workflows:
             .* contracts_coverage_dispatch << pipeline.parameters.contracts_coverage_dispatch >> .circleci/continue/main.yml
             .* heavy_fuzz_dispatch << pipeline.parameters.heavy_fuzz_dispatch >> .circleci/continue/main.yml
             .* acceptance_tests_dispatch << pipeline.parameters.acceptance_tests_dispatch >> .circleci/continue/main.yml
-            .* kurtosis_acceptance_tests_dispatch << pipeline.parameters.kurtosis_acceptance_tests_dispatch >> .circleci/continue/main.yml
             .* sync_test_op_node_dispatch << pipeline.parameters.sync_test_op_node_dispatch >> .circleci/continue/main.yml
             .* ai_contracts_test_dispatch << pipeline.parameters.ai_contracts_test_dispatch >> .circleci/continue/main.yml
             .* github-event-type << pipeline.parameters.github-event-type >> .circleci/continue/main.yml

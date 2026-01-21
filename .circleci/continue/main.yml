@@ -50,9 +50,6 @@ parameters:
   acceptance_tests_dispatch:
     type: boolean
     default: false
-  kurtosis_acceptance_tests_dispatch:
-    type: boolean
-    default: false
   sync_test_op_node_dispatch:
     type: boolean
     default: false
@@ -2960,59 +2957,6 @@ jobs:
           destination: flaky-test-reports
 
 workflows:
-  # Nightly Kurtosis acceptance tests
-  scheduled-kurtosis-acceptance-tests:
-    when:
-      or:
-        - equal: [build_daily, <<pipeline.schedule.name>>]
-        - and:
-            - equal:
-                [
-                  true,
-                  << pipeline.parameters.kurtosis_acceptance_tests_dispatch >>,
-                ]
-            - equal: ["api", << pipeline.trigger_source >>]
-    jobs:
-      - contracts-bedrock-build: # needed for in-process tests that some suites may use
-          build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate-quick: # needed for sysgo tests (if any package is in-memory)
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - op-acceptance-tests-kurtosis:
-          name: kurtosis-simple-nightly
-          devnet: simple
-          gate: base
-          no_output_timeout: 60m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
-      - op-acceptance-tests-kurtosis:
-          name: kurtosis-jovian-nightly
-          devnet: jovian
-          gate: jovian
-          no_output_timeout: 60m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
-      - op-acceptance-tests-kurtosis:
-          name: kurtosis-interop-nightly
-          devnet: interop
-          gate: interop
-          no_output_timeout: 60m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
   main:
     when:
       and:
