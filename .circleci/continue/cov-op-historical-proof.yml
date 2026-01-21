@@ -2,7 +2,7 @@ name: coverage-op-historical-proof
 
 on:
   push:
-    branches: [ unstable, main]
+    branches: [ develop ]
   pull_request:
   workflow_dispatch:
 
@@ -23,7 +23,7 @@ jobs:
 
       - name: Install llvm
         run: |
-          sudo apt-get update 
+          sudo apt-get update
           sudo apt-get install -y llvm
           cargo install cargo-llvm-cov
 

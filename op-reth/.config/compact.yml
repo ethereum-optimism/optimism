@@ -34,7 +34,7 @@ jobs:
       - name: Checkout base
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.base_ref || 'main' }}
+          ref: ${{ github.base_ref || 'develop' }}
       # On `main` branch, generates test vectors and serializes them to disk using `Compact`.
       - name: Generate compact vectors
         run: |

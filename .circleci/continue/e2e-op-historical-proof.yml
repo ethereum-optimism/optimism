@@ -2,7 +2,7 @@ name: e2e-op-historical-proof
 
 on:
   push:
-    branches: [ unstable, main]
+    branches: [ develop ]
   pull_request:
   workflow_dispatch:
 
