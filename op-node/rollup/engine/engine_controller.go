@@ -593,7 +593,7 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 		e.requestForkchoiceUpdate(ctx)
 	}
 
-	totalTime := fcu2Finish.Sub(newPayloadStart)
+	totalTime := fcu2Finish.Sub(newPayloadStart).Milliseconds()
 	e.log.Info("Inserted new L2 unsafe block (synchronous)",
 		"hash", envelope.ExecutionPayload.BlockHash,
 		"number", uint64(envelope.ExecutionPayload.BlockNumber),
