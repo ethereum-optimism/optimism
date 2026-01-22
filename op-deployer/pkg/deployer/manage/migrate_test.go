@@ -292,20 +292,20 @@ func TestMigrateCLIV2Flags(t *testing.T) {
 	// Set V2-specific flags
 	flagSet.String(OPCMImplFlag.Name, "0xaf334f4537e87f5155d135392ff6d52f1866465e", "doc")
 	flagSet.String(SystemConfigProxyFlag.Name, "0x034edD2A225f7f429A63E0f1D2084B9E0A93b538", "doc")
-	flagSet.Bool(DisputeGameEnabledFlag.Name, true, "doc")
+	flagSet.Bool(MigrateDisputeGameEnabledFlag.Name, true, "doc")
 	flagSet.String(InitialBondFlag.Name, "1000000000000000000", "doc")
 	flagSet.Uint64(DisputeGameTypeFlag.Name, 0, "doc")
 	flagSet.String(DisputeAbsolutePrestateFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000abc", "doc")
 	flagSet.String(StartingAnchorRootFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000def", "doc")
 	flagSet.Uint64(StartingAnchorL2SequenceNumberFlag.Name, 1, "doc")
-	flagSet.Uint64(StartingRespectedGameTypeFlag.Name, 0, "doc")
+	flagSet.Uint64(MigrateStartingRespectedGameTypeFlag.Name, 0, "doc")
 
 	ctx := cli.NewContext(app, flagSet, nil)
 
 	// Parse V2 flags
 	opcmAddr := common.HexToAddress(ctx.String(OPCMImplFlag.Name))
 	systemConfigProxy := common.HexToAddress(ctx.String(SystemConfigProxyFlag.Name))
-	disputeGameEnabled := ctx.Bool(DisputeGameEnabledFlag.Name)
+	disputeGameEnabled := ctx.Bool(MigrateDisputeGameEnabledFlag.Name)
 	initBondStr := ctx.String(InitialBondFlag.Name)
 	initBond, ok := new(big.Int).SetString(initBondStr, 10)
 	require.True(t, ok)
@@ -313,7 +313,7 @@ func TestMigrateCLIV2Flags(t *testing.T) {
 	gameArgs := common.FromHex(ctx.String(DisputeAbsolutePrestateFlag.Name))
 	startingAnchorRoot := common.HexToHash(ctx.String(StartingAnchorRootFlag.Name))
 	startingAnchorL2SeqNum := ctx.Uint64(StartingAnchorL2SequenceNumberFlag.Name)
-	startingRespectedGameType := uint32(ctx.Uint64(StartingRespectedGameTypeFlag.Name))
+	startingRespectedGameType := uint32(ctx.Uint64(MigrateStartingRespectedGameTypeFlag.Name))
 
 	// Verify values
 	require.Equal(t, common.HexToAddress("0xaf334f4537e87f5155d135392ff6d52f1866465e"), opcmAddr)
@@ -325,47 +325,6 @@ func TestMigrateCLIV2Flags(t *testing.T) {
 	require.Equal(t, common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000def"), startingAnchorRoot)
 	require.Equal(t, uint64(1), startingAnchorL2SeqNum)
 	require.Equal(t, uint32(0), startingRespectedGameType)
-}
-
-func TestMigrateCLIMissingRequiredFlags(t *testing.T) {
-	testCases := []struct {
-		name        string
-		setupFlags  func(*flag.FlagSet)
-		expectedErr string
-	}{
-		{
-			name: "missing opcm impl",
-			setupFlags: func(fs *flag.FlagSet) {
-				fs.String(SystemConfigProxyFlag.Name, "0x034edD2A225f7f429A63E0f1D2084B9E0A93b538", "doc")
-			},
-			expectedErr: OPCMImplFlag.Name,
-		},
-		{
-			name: "missing system config proxy",
-			setupFlags: func(fs *flag.FlagSet) {
-				fs.String(OPCMImplFlag.Name, "0xaf334f4537e87f5155d135392ff6d52f1866465e", "doc")
-			},
-			expectedErr: SystemConfigProxyFlag.Name,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			app := cli.NewApp()
-			flagSet := flag.NewFlagSet(fmt.Sprintf("test-%s", tc.name), flag.ContinueOnError)
-			tc.setupFlags(flagSet)
-
-			ctx := cli.NewContext(app, flagSet, nil)
-
-			// Verify that the expected flag is not set
-			switch tc.expectedErr {
-			case OPCMImplFlag.Name:
-				require.Empty(t, ctx.String(OPCMImplFlag.Name))
-			case SystemConfigProxyFlag.Name:
-				require.Empty(t, ctx.String(SystemConfigProxyFlag.Name))
-			}
-		})
-	}
 }
 
 func TestMigrateCLIV2Uint32Overflow(t *testing.T) {
@@ -429,13 +388,13 @@ func TestMigrateCLIV2Uint32Overflow(t *testing.T) {
 			flagSet.String(OPCMImplFlag.Name, "0xaf334f4537e87f5155d135392ff6d52f1866465e", "doc")
 			flagSet.String(SystemConfigProxyFlag.Name, "0x034edD2A225f7f429A63E0f1D2084B9E0A93b538", "doc")
 			flagSet.String(L1ProxyAdminOwnerFlag.Name, "0x1Eb2fFc903729a0F03966B917003800b145F56E2", "doc")
-			flagSet.Bool(DisputeGameEnabledFlag.Name, true, "doc")
+			flagSet.Bool(MigrateDisputeGameEnabledFlag.Name, true, "doc")
 			flagSet.String(InitialBondFlag.Name, "1000000000000000000", "doc")
 			flagSet.Uint64(DisputeGameTypeFlag.Name, tc.disputeGameType, "doc")
 			flagSet.String(DisputeAbsolutePrestateFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000abc", "doc")
 			flagSet.String(StartingAnchorRootFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000def", "doc")
 			flagSet.Uint64(StartingAnchorL2SequenceNumberFlag.Name, 1, "doc")
-			flagSet.Uint64(StartingRespectedGameTypeFlag.Name, tc.startingRespectedGameType, "doc")
+			flagSet.Uint64(MigrateStartingRespectedGameTypeFlag.Name, tc.startingRespectedGameType, "doc")
 			flagSet.String(deployer.ArtifactsLocatorFlag.Name, "tag://op-contracts/v1.6.0", "doc")
 			flagSet.String(deployer.CacheDirFlag.Name, t.TempDir(), "doc")
 
@@ -443,7 +402,7 @@ func TestMigrateCLIV2Uint32Overflow(t *testing.T) {
 
 			// Parse the flags to validate uint32 bounds
 			disputeGameTypeU64 := ctx.Uint64(DisputeGameTypeFlag.Name)
-			startingRespectedGameTypeU64 := ctx.Uint64(StartingRespectedGameTypeFlag.Name)
+			startingRespectedGameTypeU64 := ctx.Uint64(MigrateStartingRespectedGameTypeFlag.Name)
 
 			// Simulate the validation logic from MigrateCLIV2
 			var validationErr error

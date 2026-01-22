@@ -30,6 +30,64 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestCLIMigrateRequiredFlags tests that required flags are validated for both OPCM v1 and v2
+func TestCLIMigrateRequiredFlags(t *testing.T) {
+	// Test common required flags (apply to both v1 and v2)
+
+	t.Run("missing l1-rpc-url", func(t *testing.T) {
+		runner := NewCLITestRunner(t)
+		runner.ExpectErrorContains(t, []string{
+			"manage", "migrate",
+			"--private-key", "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			"--opcm-impl-address", common.Address{0x02}.Hex(),
+			// Intentionally omit --l1-rpc-url
+		}, nil, "missing required flag: l1-rpc-url")
+	})
+
+	t.Run("missing private-key", func(t *testing.T) {
+		runner := NewCLITestRunner(t)
+		runner.ExpectErrorContains(t, []string{
+			"manage", "migrate",
+			"--l1-rpc-url", "http://localhost:8545",
+			"--opcm-impl-address", common.Address{0x02}.Hex(),
+			// Intentionally omit --private-key
+		}, nil, "missing required flag: private-key")
+	})
+
+	t.Run("missing opcm-impl-address", func(t *testing.T) {
+		runner := NewCLITestRunner(t)
+		runner.ExpectErrorContains(t, []string{
+			"manage", "migrate",
+			"--l1-rpc-url", "http://localhost:8545",
+			"--private-key", "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			// Intentionally omit --opcm-impl-address
+		}, nil, "missing required flag: opcm-impl-address")
+	})
+
+	t.Run("missing system-config-proxy-address", func(t *testing.T) {
+		runner := NewCLITestRunner(t)
+		runner.ExpectErrorContains(t, []string{
+			"manage", "migrate",
+			"--l1-rpc-url", "http://localhost:8545",
+			"--private-key", "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			"--opcm-impl-address", common.Address{0x02}.Hex(),
+			// Intentionally omit --system-config-proxy-address
+		}, nil, "missing required flag: system-config-proxy-address")
+	})
+
+	t.Run("missing starting-anchor-root", func(t *testing.T) {
+		runner := NewCLITestRunner(t)
+		runner.ExpectErrorContains(t, []string{
+			"manage", "migrate",
+			"--l1-rpc-url", "http://localhost:8545",
+			"--private-key", "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			"--opcm-impl-address", common.Address{0x02}.Hex(),
+			"--system-config-proxy-address", common.Address{0x03}.Hex(),
+			// Intentionally omit --starting-anchor-root
+		}, nil, "missing required flag: starting-anchor-root")
+	})
+}
+
 // TestCLIMigrateV1 tests the migrate-v1 CLI command for OPCM v1
 func TestCLIMigrateV1(t *testing.T) {
 	lgr := testlog.Logger(t, slog.LevelDebug)
@@ -202,7 +260,7 @@ func TestCLIMigrateV1(t *testing.T) {
 		"--l1-proxy-admin-owner-address", superchainProxyAdminOwner.Hex(),
 		"--opcm-impl-address", impls.Opcm.Hex(),
 		"--system-config-proxy-address", systemConfigProxy.Hex(),
-		"--permissionless", "true",
+		"--permissionless",
 		"--proposer-address", common.Address{'P'}.Hex(),
 		"--challenger-address", common.Address{'C'}.Hex(),
 		"--starting-anchor-root", "0x0000000000000000000000000000000000000000000000000000000000000abc",
@@ -421,7 +479,7 @@ func TestCLIMigrateV2(t *testing.T) {
 	// Game type 4 is only for starting-respected-game-type
 	output := runner.ExpectSuccessWithNetwork(t, []string{
 		"manage",
-		"migrate-v2",
+		"migrate",
 		"--l1-proxy-admin-owner-address", superchainProxyAdminOwner.Hex(),
 		"--l1-rpc-url", l1RPC,
 		"--private-key", pkHex,

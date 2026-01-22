@@ -155,6 +155,11 @@ func (i *InteropMigrationInput) EncodedMigrateInputV1() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode migrate input v1: %w", err)
 	}
+
+	if len(data) < 4 {
+		return nil, fmt.Errorf("failed to encode migrate input v1: data is too short")
+	}
+
 	// Skip the function selector (first 4 bytes)
 	return data[4:], nil
 }
@@ -167,6 +172,11 @@ func (i *InteropMigrationInput) EncodedMigrateInputV2() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode migrate input v2: %w", err)
 	}
+
+	if len(data) < 4 {
+		return nil, fmt.Errorf("failed to encode migrate input v2: data is too short")
+	}
+
 	// Skip the function selector (first 4 bytes)
 	return data[4:], nil
 }
@@ -199,6 +209,8 @@ func Migrate(host *script.Host, input InteropMigrationInput) (InteropMigrationOu
 	return opcm.RunScriptSingle[ScriptInput, InteropMigrationOutput](host, scriptInput, "InteropMigration.s.sol", "InteropMigration")
 }
 
+// MigrateCLI is the main function for the migrate command. It validates required flags and runs the migration,
+// using the OPCM to determine the input version it should use.
 func MigrateCLI(cliCtx *cli.Context) error {
 	logCfg := oplog.ReadCLIConfig(cliCtx)
 	lgr := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
@@ -207,205 +219,182 @@ func MigrateCLI(cliCtx *cli.Context) error {
 	ctx, cancel := context.WithCancel(cliCtx.Context)
 	defer cancel()
 
+	// Validate common required flags for both OPCM v1 and v2 before version detection
 	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlag.Name)
 	if l1RPCUrl == "" {
 		return fmt.Errorf("missing required flag: %s", deployer.L1RPCURLFlag.Name)
 	}
 
 	privateKey := cliCtx.String(deployer.PrivateKeyFlag.Name)
+	if privateKey == "" {
+		return fmt.Errorf("missing required flag: %s", deployer.PrivateKeyFlag.Name)
+	}
 	privateKeyECDSA, err := crypto.HexToECDSA(strings.TrimPrefix(privateKey, "0x"))
 	if err != nil {
 		return fmt.Errorf("failed to parse private key: %w", err)
 	}
 
-	l1RPC, err := rpc.Dial(l1RPCUrl)
-	if err != nil {
-		return fmt.Errorf("failed to dial RPC %s: %w", l1RPCUrl, err)
+	// Get OPCM address
+	opcmFlag := cliCtx.String(OPCMImplFlag.Name)
+	if opcmFlag == "" {
+		return fmt.Errorf("missing required flag: %s", OPCMImplFlag.Name)
 	}
-	l1Client := ethclient.NewClient(l1RPC)
+	opcmAddr := common.HexToAddress(opcmFlag)
 
-	opcmAddr := common.HexToAddress(cliCtx.String(OPCMImplFlag.Name))
+	// Get system config proxy address
+	systemConfigProxyFlag := cliCtx.String(SystemConfigProxyFlag.Name)
+	if systemConfigProxyFlag == "" {
+		return fmt.Errorf("missing required flag: %s", SystemConfigProxyFlag.Name)
+	}
 
+	// Get starting anchor root
+	startingAnchorRootFlag := cliCtx.String(StartingAnchorRootFlag.Name)
+	if startingAnchorRootFlag == "" {
+		return fmt.Errorf("missing required flag: %s", StartingAnchorRootFlag.Name)
+	}
+
+	// Get initial bond
 	initBondStr := cliCtx.String(InitialBondFlag.Name)
+	if initBondStr == "" {
+		return fmt.Errorf("missing required flag: %s", InitialBondFlag.Name)
+	}
 	initBond, ok := new(big.Int).SetString(initBondStr, 10)
 	if !ok {
 		return fmt.Errorf("failed to parse initial bond: %s", initBondStr)
 	}
 
-	input := InteropMigrationInput{
-		Prank: common.HexToAddress(cliCtx.String(L1ProxyAdminOwnerFlag.Name)),
-		Opcm:  opcmAddr,
-		MigrateInputV1: &MigrateInputV1{
-			UsePermissionlessGame: cliCtx.Bool(PermissionlessFlag.Name),
-			StartingAnchorRoot: Proposal{
-				Root:             common.HexToHash(cliCtx.String(StartingAnchorRootFlag.Name)),
-				L2SequenceNumber: new(big.Int).SetUint64(cliCtx.Uint64(StartingAnchorL2SequenceNumberFlag.Name)),
-			},
-			GameParameters: GameParameters{
-				Proposer:         common.HexToAddress(cliCtx.String(ProposerFlag.Name)),
-				Challenger:       common.HexToAddress(cliCtx.String(ChallengerFlag.Name)),
-				MaxGameDepth:     cliCtx.Uint64(DisputeMaxGameDepthFlag.Name),
-				SplitDepth:       cliCtx.Uint64(DisputeSplitDepthFlag.Name),
-				InitBond:         initBond,
-				ClockExtension:   cliCtx.Uint64(DisputeClockExtensionFlag.Name),
-				MaxClockDuration: cliCtx.Uint64(DisputeMaxClockDurationFlag.Name),
-			},
-			OpChainConfigs: []OPChainConfig{
-				{
-					SystemConfigProxy:  common.HexToAddress(cliCtx.String(SystemConfigProxyFlag.Name)),
-					CannonPrestate:     common.HexToHash(cliCtx.String(DisputeAbsolutePrestateCannonFlag.Name)),
-					CannonKonaPrestate: common.HexToHash(cliCtx.String(DisputeAbsolutePrestateCannonKonaFlag.Name)),
-				},
-			},
-		},
-	}
-
-	artifactsLocatorStr := cliCtx.String(deployer.ArtifactsLocatorFlag.Name)
-	artifactsLocator := new(artifacts.Locator)
-	if err := artifactsLocator.UnmarshalText([]byte(artifactsLocatorStr)); err != nil {
-		return fmt.Errorf("failed to parse artifacts locator: %w", err)
-	}
-
-	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
-	artifactsFS, err := artifacts.Download(ctx, artifactsLocator, ioutil.BarProgressor(), cacheDir)
-	if err != nil {
-		return fmt.Errorf("failed to download artifacts: %w", err)
-	}
-
-	l1ChainID, err := l1Client.ChainID(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get chain ID: %w", err)
-	}
-
-	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(privateKeyECDSA, l1ChainID))
-	deployerAddr := crypto.PubkeyToAddress(privateKeyECDSA.PublicKey)
-	bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-		Logger:  lgr,
-		ChainID: l1ChainID,
-		Client:  l1Client,
-		Signer:  signer,
-		From:    deployerAddr,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create broadcaster: %w", err)
-	}
-
-	l1Host, err := env.DefaultForkedScriptHost(
-		ctx,
-		bcaster,
-		lgr,
-		deployerAddr,
-		artifactsFS,
-		l1RPC,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create script host: %w", err)
-	}
-
-	output, err := Migrate(l1Host, input)
-	if err != nil {
-		return fmt.Errorf("failed to run interop migration: %w", err)
-	}
-
-	enc := json.NewEncoder(cliCtx.App.Writer)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(output); err != nil {
-		return fmt.Errorf("failed to encode interop migration output: %w", err)
-	}
-
-	return nil
-}
-
-func MigrateCLIV2(cliCtx *cli.Context) error {
-	logCfg := oplog.ReadCLIConfig(cliCtx)
-	lgr := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
-	oplog.SetGlobalLogHandler(lgr.Handler())
-
-	ctx, cancel := context.WithCancel(cliCtx.Context)
-	defer cancel()
-
-	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlag.Name)
-	if l1RPCUrl == "" {
-		return fmt.Errorf("missing required flag: %s", deployer.L1RPCURLFlag.Name)
-	}
-
-	privateKey := cliCtx.String(deployer.PrivateKeyFlag.Name)
-	privateKeyECDSA, err := crypto.HexToECDSA(strings.TrimPrefix(privateKey, "0x"))
-	if err != nil {
-		return fmt.Errorf("failed to parse private key: %w", err)
-	}
-
+	// Get L1 RPC to check OPCM version
 	l1RPC, err := rpc.Dial(l1RPCUrl)
 	if err != nil {
 		return fmt.Errorf("failed to dial RPC %s: %w", l1RPCUrl, err)
 	}
 	l1Client := ethclient.NewClient(l1RPC)
+	defer l1Client.Close()
 
-	opcmAddr := common.HexToAddress(cliCtx.String(OPCMImplFlag.Name))
+	opcmContract := opcm.NewContract(opcmAddr, l1Client)
 
-	initBondStr := cliCtx.String(InitialBondFlag.Name)
-	initBond, ok := new(big.Int).SetString(initBondStr, 10)
-	if !ok {
-		return fmt.Errorf("failed to parse initial bond: %s", initBondStr)
-	}
-
-	// ABI-encode the FaultDisputeGameConfig struct
-	// FaultDisputeGameConfig contains a single field: absolutePrestate (bytes32)
-	absolutePrestateHex := cliCtx.String(DisputeAbsolutePrestateFlag.Name)
-	absolutePrestate := common.HexToHash(absolutePrestateHex)
-
-	bytes32Type, err := abi.NewType("bytes32", "", nil)
+	versionStr, err := opcmContract.GenericStringGetter(ctx, "version")
 	if err != nil {
-		return fmt.Errorf("failed to create bytes32 ABI type: %w", err)
+		return fmt.Errorf("failed to get OPCM version: %w", err)
 	}
 
-	gameArgs, err := abi.Arguments{{Type: bytes32Type}}.Pack(absolutePrestate)
+	// Parse version string (format: "major.minor.patch")
+	// If version < 7.0.0, use v1, otherwise use v2
+	isOPCMv2, err := deployer.IsVersionAtLeast(versionStr, 7, 0, 0)
 	if err != nil {
-		return fmt.Errorf("failed to ABI-encode game args: %w", err)
+		return fmt.Errorf("failed to parse OPCM version %s: %w", versionStr, err)
 	}
 
-	startingRespectedGameTypeU64 := cliCtx.Uint64(StartingRespectedGameTypeFlag.Name)
-	if startingRespectedGameTypeU64 > 0xFFFFFFFF {
-		return fmt.Errorf("startingRespectedGameType %d exceeds uint32 max value", startingRespectedGameTypeU64)
-	}
-	startingRespectedGameType := uint32(startingRespectedGameTypeU64)
-
-	systemConfigProxy := common.HexToAddress(cliCtx.String(SystemConfigProxyFlag.Name))
-
-	disputeGameTypeU64 := cliCtx.Uint64(DisputeGameTypeFlag.Name)
-	if disputeGameTypeU64 > 0xFFFFFFFF {
-		return fmt.Errorf("disputeGameType %d exceeds uint32 max value", disputeGameTypeU64)
-	}
-	disputeGameType := uint32(disputeGameTypeU64)
-
-	var prankAddr common.Address
-	if prankFlag := cliCtx.String(L1ProxyAdminOwnerFlag.Name); prankFlag != "" {
-		prankAddr = common.HexToAddress(prankFlag)
-	} else {
+	// Get L1 proxy admin owner address
+	l1ProxyAdminOwnerFlag := cliCtx.String(L1ProxyAdminOwnerFlag.Name)
+	if l1ProxyAdminOwnerFlag == "" {
 		return fmt.Errorf("missing required flag: %s", L1ProxyAdminOwnerFlag.Name)
 	}
 
 	input := InteropMigrationInput{
-		Prank: prankAddr,
+		Prank: common.HexToAddress(l1ProxyAdminOwnerFlag),
 		Opcm:  opcmAddr,
-		MigrateInputV2: &MigrateInputV2{
+	}
+
+	if isOPCMv2 {
+		disputeAbsolutePrestateFlag := cliCtx.String(DisputeAbsolutePrestateFlag.Name)
+		if disputeAbsolutePrestateFlag == "" {
+			return fmt.Errorf("missing required flag for OPCM v2: %s", DisputeAbsolutePrestateFlag.Name)
+		}
+
+		disputeGameTypeU64 := cliCtx.Uint64(DisputeGameTypeFlag.Name)
+		if disputeGameTypeU64 > 0xFFFFFFFF {
+			return fmt.Errorf("disputeGameType %d exceeds uint32 max value", disputeGameTypeU64)
+		}
+		disputeGameType := uint32(disputeGameTypeU64)
+
+		migrateStartingRespectedGameTypeU64 := cliCtx.Uint64(MigrateStartingRespectedGameTypeFlag.Name)
+		if migrateStartingRespectedGameTypeU64 > 0xFFFFFFFF {
+			return fmt.Errorf("startingRespectedGameType %d exceeds uint32 max value", migrateStartingRespectedGameTypeU64)
+		}
+		migrateStartingRespectedGameType := uint32(migrateStartingRespectedGameTypeU64)
+
+		// ABI-encode the FaultDisputeGameConfig struct
+		// FaultDisputeGameConfig contains a single field: absolutePrestate (bytes32)
+		absolutePrestateHex := cliCtx.String(DisputeAbsolutePrestateFlag.Name)
+		absolutePrestate := common.HexToHash(absolutePrestateHex)
+
+		bytes32Type, err := abi.NewType("bytes32", "", nil)
+		if err != nil {
+			return fmt.Errorf("failed to create bytes32 ABI type: %w", err)
+		}
+
+		gameArgs, err := abi.Arguments{{Type: bytes32Type}}.Pack(absolutePrestate)
+		if err != nil {
+			return fmt.Errorf("failed to ABI-encode game args: %w", err)
+		}
+
+		// V2 Migration Input
+		input.MigrateInputV2 = &MigrateInputV2{
 			ChainSystemConfigs: []common.Address{
-				systemConfigProxy,
+				common.HexToAddress(systemConfigProxyFlag),
 			},
 			DisputeGameConfigs: []DisputeGameConfig{
 				{
-					Enabled:  cliCtx.Bool(DisputeGameEnabledFlag.Name),
+					Enabled:  cliCtx.Bool(MigrateDisputeGameEnabledFlag.Name),
 					InitBond: initBond,
 					GameType: disputeGameType,
 					GameArgs: gameArgs,
 				},
 			},
 			StartingAnchorRoot: Proposal{
-				Root:             common.HexToHash(cliCtx.String(StartingAnchorRootFlag.Name)),
+				Root:             common.HexToHash(startingAnchorRootFlag),
 				L2SequenceNumber: new(big.Int).SetUint64(cliCtx.Uint64(StartingAnchorL2SequenceNumberFlag.Name)),
 			},
-			StartingRespectedGameType: startingRespectedGameType,
-		},
+			StartingRespectedGameType: migrateStartingRespectedGameType,
+		}
+	} else {
+		// Validate V1-specific required flags
+		proposerFlag := cliCtx.String(ProposerFlag.Name)
+		if proposerFlag == "" {
+			return fmt.Errorf("missing required flag for OPCM v1: %s", ProposerFlag.Name)
+		}
+
+		challengerFlag := cliCtx.String(ChallengerFlag.Name)
+		if challengerFlag == "" {
+			return fmt.Errorf("missing required flag for OPCM v1: %s", ChallengerFlag.Name)
+		}
+
+		cannonPrestateFlag := cliCtx.String(DisputeAbsolutePrestateCannonFlag.Name)
+		if cannonPrestateFlag == "" {
+			return fmt.Errorf("missing required flag for OPCM v1: %s", DisputeAbsolutePrestateCannonFlag.Name)
+		}
+
+		cannonKonaPrestateFlag := cliCtx.String(DisputeAbsolutePrestateCannonKonaFlag.Name)
+		if cannonKonaPrestateFlag == "" {
+			return fmt.Errorf("missing required flag for OPCM v1: %s", DisputeAbsolutePrestateCannonKonaFlag.Name)
+		}
+
+		// V1 Migration Input
+		input.MigrateInputV1 = &MigrateInputV1{
+			UsePermissionlessGame: cliCtx.Bool(PermissionlessFlag.Name),
+			StartingAnchorRoot: Proposal{
+				Root:             common.HexToHash(startingAnchorRootFlag),
+				L2SequenceNumber: new(big.Int).SetUint64(cliCtx.Uint64(StartingAnchorL2SequenceNumberFlag.Name)),
+			},
+			GameParameters: GameParameters{
+				Proposer:         common.HexToAddress(proposerFlag),
+				Challenger:       common.HexToAddress(challengerFlag),
+				MaxGameDepth:     cliCtx.Uint64(DisputeMaxGameDepthFlag.Name),
+				SplitDepth:       cliCtx.Uint64(DisputeSplitDepthFlag.Name),
+				InitBond:         initBond,
+				ClockExtension:   cliCtx.Uint64(DisputeClockExtensionFlag.Name),
+				MaxClockDuration: cliCtx.Uint64(DisputeMaxClockDurationFlag.Name),
+			},
+			// At the moment we only support a single chain config
+			OpChainConfigs: []OPChainConfig{
+				{
+					SystemConfigProxy:  common.HexToAddress(systemConfigProxyFlag),
+					CannonPrestate:     common.HexToHash(cannonPrestateFlag),
+					CannonKonaPrestate: common.HexToHash(cannonKonaPrestateFlag),
+				},
+			},
+		}
 	}
 
 	artifactsLocatorStr := cliCtx.String(deployer.ArtifactsLocatorFlag.Name)

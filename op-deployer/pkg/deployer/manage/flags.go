@@ -119,18 +119,6 @@ var (
 		Usage:   "Starting anchor L2 sequence number.",
 		EnvVars: deployer.PrefixEnvVar("STARTING_ANCHOR_L2_SEQUENCE_NUMBER"),
 	}
-	StartingRespectedGameTypeFlag = &cli.Uint64Flag{
-		Name:    "starting-respected-game-type",
-		Usage:   "Starting respected game type for OPCM v2 migration. Defaults to 4 (Super Cannon).",
-		EnvVars: deployer.PrefixEnvVar("STARTING_RESPECTED_GAME_TYPE"),
-		Value:   4,
-	}
-	DisputeGameEnabledFlag = &cli.BoolFlag{
-		Name:    "dispute-game-enabled",
-		Usage:   "Whether the dispute game should be enabled. Used for OPCM v2 migration.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_GAME_ENABLED"),
-		Value:   true,
-	}
 	SaltMixerFlag = &cli.StringFlag{
 		Name:    "salt-mixer",
 		Usage:   "String value for the salt mixer, used in CREATE2 address calculation. Default to keccak256(\"op-stack-contract-impls-salt-v0\").",
@@ -146,6 +134,19 @@ var (
 		Name:    "l2-chain-id",
 		Usage:   "Chain ID of the L2 network to retrieve from state. Must be specified when --workdir is set.",
 		EnvVars: deployer.PrefixEnvVar("CHAIN_ID"),
+	}
+	// OPCM v2 flags
+	MigrateStartingRespectedGameTypeFlag = &cli.Uint64Flag{
+		Name:    "starting-respected-game-type",
+		Usage:   "Starting respected game type for OPCM v2 migration. Defaults to 4 (Super Cannon).",
+		EnvVars: deployer.PrefixEnvVar("STARTING_RESPECTED_GAME_TYPE"),
+		Value:   4,
+	}
+	MigrateDisputeGameEnabledFlag = &cli.BoolFlag{
+		Name:    "dispute-game-enabled",
+		Usage:   "Whether the dispute game should be enabled. Used for OPCM v2 migration.",
+		EnvVars: deployer.PrefixEnvVar("DISPUTE_GAME_ENABLED"),
+		Value:   true,
 	}
 )
 
@@ -190,7 +191,7 @@ var Commands = cli.Commands{
 	},
 	&cli.Command{
 		Name:  "migrate",
-		Usage: "Migrates the chain to use superproofs (OPCM v1, version < 7.0.0)",
+		Usage: "migrates the chain to use superproofs. It supports both OPCM v1 and v2.",
 		Flags: append([]cli.Flag{
 			deployer.CacheDirFlag,
 			deployer.L1RPCURLFlag,
@@ -212,32 +213,14 @@ var Commands = cli.Commands{
 			// The following flags represent one item in The EncodedChainConfigs array
 			//
 			SystemConfigProxyFlag,
-			OPChainProxyAdminFlag,
 			DisputeAbsolutePrestateCannonFlag,
 			DisputeAbsolutePrestateCannonKonaFlag,
-		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
-		Action: MigrateCLI,
-	},
-	&cli.Command{
-		Name:  "migrate-v2",
-		Usage: "Migrates the chain to use superproofs (OPCM v2, version >= 7.0.0)",
-		Flags: append([]cli.Flag{
-			deployer.CacheDirFlag,
-			deployer.L1RPCURLFlag,
-			deployer.PrivateKeyFlag,
-			deployer.ArtifactsLocatorFlag,
-			L1ProxyAdminOwnerFlag,
-			OPCMImplFlag,
-			StartingAnchorRootFlag,
-			StartingAnchorL2SequenceNumberFlag,
-			InitialBondFlag,
-			SystemConfigProxyFlag,
-			OPChainProxyAdminFlag,
-			StartingRespectedGameTypeFlag,
-			DisputeGameEnabledFlag,
+			// OPCM v2 flags
+			MigrateStartingRespectedGameTypeFlag,
+			MigrateDisputeGameEnabledFlag,
 			DisputeGameTypeFlag,
 			DisputeAbsolutePrestateFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
-		Action: MigrateCLIV2,
+		Action: MigrateCLI,
 	},
 }

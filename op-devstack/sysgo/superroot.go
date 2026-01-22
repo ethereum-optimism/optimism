@@ -7,12 +7,11 @@ import (
 	"math/big"
 	"os"
 	"path"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
@@ -346,24 +345,15 @@ var (
 	versionFn             = w3.MustNewFunc("version()", "string")
 )
 
+// isOPCMV2 is a helper function that checks the OPCM version and returns true if it is at least 7.0.0
 func isOPCMV2(t devtest.CommonT, client *w3.Client, opcmAddr common.Address) bool {
 	var version string
 	err := client.Call(w3eth.CallFunc(opcmAddr, versionFn).Returns(&version))
 	t.Require().NoError(err, "failed to get OPCM version")
 
-	// Parse version string (format: "major.minor.patch")
-	// V2 starts at version 7.0.0
-	parts := strings.Split(strings.TrimPrefix(version, "v"), ".")
-	if len(parts) < 1 {
-		return false
-	}
-
-	major := 0
-	if n, err := strconv.Atoi(parts[0]); err == nil {
-		major = n
-	}
-
-	return major >= 7
+	isVersionAtLeast, err := deployer.IsVersionAtLeast(version, 7, 0, 0)
+	t.Require().NoError(err, "failed to check OPCM version")
+	return isVersionAtLeast
 }
 
 func getOptimismPortal(t devtest.CommonT, client *w3.Client, systemConfigProxy common.Address) common.Address {
