@@ -12,8 +12,9 @@ use reth_primitives_traits::Account;
 use reth_trie::{
     hashed_cursor::{HashedCursor, HashedStorageCursor},
     trie_cursor::{TrieCursor, TrieStorageCursor},
-    updates::TrieUpdatesSorted,
-    BranchNodeCompact, HashedPostStateSorted, Nibbles, StoredNibbles,
+};
+use reth_trie_common::{
+    updates::TrieUpdatesSorted, BranchNodeCompact, HashedPostStateSorted, Nibbles, StoredNibbles,
 };
 use std::{fmt::Debug, time::Duration};
 

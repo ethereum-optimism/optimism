@@ -14,8 +14,8 @@ use reth_primitives_traits::Account;
 use reth_trie::{
     hashed_cursor::{HashedCursor, HashedStorageCursor},
     trie_cursor::{TrieCursor, TrieStorageCursor},
-    BranchNodeCompact, Nibbles,
 };
+use reth_trie_common::{BranchNodeCompact, Nibbles};
 use std::{
     fmt::Debug,
     future::Future,

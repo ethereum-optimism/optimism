@@ -22,7 +22,7 @@ use reth_db::{
     tables, TableSet, TableType, TableViewer,
 };
 use reth_primitives_traits::Account;
-use reth_trie::{BranchNodeCompact, StoredNibbles};
+use reth_trie_common::{BranchNodeCompact, StoredNibbles};
 use std::fmt;
 
 tables! {

@@ -20,6 +20,7 @@ reth-primitives-traits.workspace = true
 reth-provider.workspace = true
 reth-revm.workspace = true
 reth-trie = { workspace = true, features = ["serde"] }
+reth-trie-common = { workspace = true, features = ["serde"] }
 reth-tasks.workspace = true
 
 # `metrics` feature
@@ -74,7 +75,7 @@ serial_test.workspace = true
 [features]
 serde-bincode-compat = [
     "reth-primitives-traits/serde-bincode-compat",
-    "reth-trie/serde-bincode-compat",
+    "reth-trie-common/serde-bincode-compat",
     "alloy-consensus/serde-bincode-compat",
     "alloy-eips/serde-bincode-compat",
     "alloy-genesis/serde-bincode-compat",

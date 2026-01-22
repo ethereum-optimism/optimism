@@ -14,7 +14,7 @@ use reth_provider::{
     StateRootProvider,
 };
 use reth_revm::database::StateProviderDatabase;
-use reth_trie::{updates::TrieUpdatesSorted, HashedPostStateSorted};
+use reth_trie_common::{updates::TrieUpdatesSorted, HashedPostStateSorted};
 use std::{sync::Arc, time::Instant};
 use tracing::info;
 

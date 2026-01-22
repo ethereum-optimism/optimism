@@ -4,7 +4,7 @@ use reth_db::{
     table::{self, Decode, Encode},
     DatabaseError,
 };
-use reth_trie::StoredNibbles;
+use reth_trie_common::StoredNibbles;
 use serde::{Deserialize, Serialize};
 
 /// The keys of the entries in the history tables.

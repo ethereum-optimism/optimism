@@ -8789,6 +8789,7 @@ dependencies = [
  "reth-tasks",
  "reth-testing-utils",
  "reth-trie",
+ "reth-trie-common",
  "secp256k1 0.30.0",
  "serde",
  "serial_test",

@@ -12,12 +12,14 @@ use reth_execution_errors::{StateProofError, StateRootError, StorageRootError, T
 use reth_trie::{
     hashed_cursor::HashedPostStateCursorFactory,
     metrics::TrieRootMetrics,
-    proof::{Proof, StorageProof},
+    proof::{self, Proof},
     trie_cursor::InMemoryTrieCursorFactory,
-    updates::TrieUpdates,
     witness::TrieWitness,
-    AccountProof, HashedPostState, HashedPostStateSorted, HashedStorage, MultiProof,
-    MultiProofTargets, StateRoot, StorageMultiProof, StorageRoot, TrieInput, TrieType,
+    StateRoot, StorageRoot, TrieType,
+};
+use reth_trie_common::{
+    updates::TrieUpdates, AccountProof, HashedPostState, HashedPostStateSorted, HashedStorage,
+    MultiProof, MultiProofTargets, StorageMultiProof, StorageProof, TrieInput,
 };
 
 /// Extends [`Proof`] with operations specific for working with [`OpProofsStorage`].
@@ -114,7 +116,7 @@ pub trait DatabaseStorageProof<'tx, S> {
         address: Address,
         slot: B256,
         storage: HashedStorage,
-    ) -> Result<reth_trie::StorageProof, StateProofError>;
+    ) -> Result<StorageProof, StateProofError>;
 
     /// Generates the storage multiproof for target slots based on [`TrieInput`].
     fn overlay_storage_multiproof(
@@ -127,7 +129,7 @@ pub trait DatabaseStorageProof<'tx, S> {
 }
 
 impl<'tx, S> DatabaseStorageProof<'tx, S>
-    for StorageProof<
+    for proof::StorageProof<
         'static,
         OpProofsTrieCursorFactory<'tx, S>,
         OpProofsHashedAccountCursorFactory<'tx, S>,
@@ -150,7 +152,7 @@ where
         address: Address,
         slot: B256,
         hashed_storage: HashedStorage,
-    ) -> Result<reth_trie::StorageProof, StateProofError> {
+    ) -> Result<StorageProof, StateProofError> {
         let hashed_address = keccak256(address);
         let prefix_set = hashed_storage.construct_prefix_set();
         let state_sorted = HashedPostStateSorted::new(

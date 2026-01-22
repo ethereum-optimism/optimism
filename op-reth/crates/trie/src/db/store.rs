@@ -26,9 +26,8 @@ use reth_db::{
     Database, DatabaseEnv, DatabaseError,
 };
 use reth_primitives_traits::Account;
-use reth_trie::{
-    hashed_cursor::HashedCursor,
-    trie_cursor::TrieCursor,
+use reth_trie::{hashed_cursor::HashedCursor, trie_cursor::TrieCursor};
+use reth_trie_common::{
     updates::{StorageTrieUpdates, TrieUpdates},
     BranchNodeCompact, HashedPostState, Nibbles, StoredNibbles,
 };

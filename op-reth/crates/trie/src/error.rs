@@ -4,7 +4,7 @@ use alloy_primitives::B256;
 use reth_db::DatabaseError;
 use reth_execution_errors::BlockExecutionError;
 use reth_provider::ProviderError;
-use reth_trie::Nibbles;
+use reth_trie_common::Nibbles;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::TryLockError;

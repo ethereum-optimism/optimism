@@ -20,11 +20,13 @@ use reth_revm::{
 };
 use reth_trie::{
     hashed_cursor::HashedCursor,
-    proof::{Proof, StorageProof},
-    updates::TrieUpdates,
+    proof::{self, Proof},
     witness::TrieWitness,
-    AccountProof, HashedPostState, HashedStorage, KeccakKeyHasher, MultiProof, MultiProofTargets,
-    StateRoot, StorageMultiProof, StorageRoot, TrieInput,
+    StateRoot, StorageRoot,
+};
+use reth_trie_common::{
+    updates::TrieUpdates, AccountProof, HashedPostState, HashedStorage, KeccakKeyHasher,
+    MultiProof, MultiProofTargets, StorageMultiProof, StorageProof, TrieInput,
 };
 use std::fmt::Debug;
 
@@ -112,9 +114,15 @@ impl<'a, Storage: OpProofsStore + Clone> StorageRootProvider
         address: Address,
         slot: B256,
         storage: HashedStorage,
-    ) -> ProviderResult<reth_trie::StorageProof> {
-        StorageProof::overlay_storage_proof(self.storage, self.block_number, address, slot, storage)
-            .map_err(ProviderError::from)
+    ) -> ProviderResult<StorageProof> {
+        proof::StorageProof::overlay_storage_proof(
+            self.storage,
+            self.block_number,
+            address,
+            slot,
+            storage,
+        )
+        .map_err(ProviderError::from)
     }
 
     fn storage_multiproof(
@@ -123,7 +131,7 @@ impl<'a, Storage: OpProofsStore + Clone> StorageRootProvider
         slots: &[B256],
         storage: HashedStorage,
     ) -> ProviderResult<StorageMultiProof> {
-        StorageProof::overlay_storage_multiproof(
+        proof::StorageProof::overlay_storage_multiproof(
             self.storage,
             self.block_number,
             address,

@@ -18,8 +18,8 @@ use reth_primitives_traits::Account;
 use reth_trie::{
     hashed_cursor::{HashedCursor, HashedStorageCursor},
     trie_cursor::{TrieCursor, TrieStorageCursor},
-    BranchNodeCompact, Nibbles, StoredNibbles,
 };
+use reth_trie_common::{BranchNodeCompact, Nibbles, StoredNibbles};
 
 /// Generic alias for dup cursor for T
 pub(crate) type Dup<'tx, T> = <<DatabaseEnv as Database>::TX as DbTx>::DupCursor<T>;

@@ -8,8 +8,8 @@ use reth_primitives_traits::Account;
 use reth_trie::{
     hashed_cursor::{HashedCursor, HashedStorageCursor},
     trie_cursor::{TrieCursor, TrieStorageCursor},
-    BranchNodeCompact, Nibbles,
 };
+use reth_trie_common::{BranchNodeCompact, Nibbles};
 
 /// Manages reading storage or account trie nodes from [`TrieCursor`].
 #[derive(Debug, Clone, Constructor)]
