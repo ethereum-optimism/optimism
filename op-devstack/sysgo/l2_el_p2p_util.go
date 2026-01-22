@@ -96,7 +96,7 @@ func DisconnectP2P(ctx context.Context, require *testreq.Assertions, initiator R
 	expectedID := targetNode.ID().String()
 
 	var peerRemoved bool
-	require.NoError(initiator.CallContext(ctx, &peerRemoved, "admin_removePeer", targetInfo.ENR), "add peer")
+	require.NoError(initiator.CallContext(ctx, &peerRemoved, "admin_removePeer", targetInfo.Enode), "remove peer")
 	require.True(peerRemoved, "should have removed peer successfully")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
