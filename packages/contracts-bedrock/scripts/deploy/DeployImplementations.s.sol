@@ -1045,7 +1045,7 @@ contract DeployImplementations is Script {
             );
             require(
                 address(_output.protocolVersionsImpl) != address(0),
-                "DeployImplementations: protocolVersionsImpl should be set to 0 for OPCM v2"
+                "DeployImplementations:  protocolVersionsImpl must be deployed for OPCM v1"
             );
         }
 

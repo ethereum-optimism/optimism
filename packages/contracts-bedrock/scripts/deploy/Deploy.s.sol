@@ -233,6 +233,7 @@ contract Deploy is Deployer {
     ///         1. The SuperchainConfig contract
     ///         2. The ProtocolVersions contract
     function deploySuperchain() public {
+        _isOPCMv2 = DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2);
         console.log("Setting up Superchain");
         DeploySuperchain ds = new DeploySuperchain();
 
@@ -281,6 +282,7 @@ contract Deploy is Deployer {
     function deployImplementations(bool _isInterop) public {
         // TODO _isInterop is no longer being used in DeployImplementations, this might no longer be necessary
         require(_isInterop == cfg.useInterop(), "Deploy: Interop setting mismatch.");
+        _isOPCMv2 = DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2);
 
         console.log("Deploying implementations");
 
