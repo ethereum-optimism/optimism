@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"fmt"
 	"math/big"
 
@@ -34,9 +35,29 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		return fmt.Errorf("error making deploy OP chain input: %w", err)
 	}
 
-	dco, err = env.Scripts.DeployOPChain.Run(dci)
-	if err != nil {
-		return fmt.Errorf("error deploying OP chain: %w", err)
+	if env.UseForge {
+		if env.ForgeClient == nil {
+			return fmt.Errorf("Forge client is nil but UseForge is enabled")
+		}
+		if env.Context == nil {
+			env.Context = context.Background()
+		}
+		lgr.Info("using Forge for DeployOPChain")
+		forgeCaller := opcm.NewDeployOPChainForgeCaller(env.ForgeClient)
+		forgeOpts := []string{
+			"--rpc-url", env.L1RPCUrl,
+			"--broadcast",
+			"--private-key", env.PrivateKey,
+		}
+		dco, _, err = forgeCaller(env.Context, dci, forgeOpts...)
+		if err != nil {
+			return fmt.Errorf("failed to deploy OP Chain with Forge: %w", err)
+		}
+	} else {
+		dco, err = env.Scripts.DeployOPChain.Run(dci)
+		if err != nil {
+			return fmt.Errorf("error deploying OP chain: %w", err)
+		}
 	}
 
 	readInput := opcm.ReadImplementationAddressesInput{
@@ -51,14 +72,27 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		Opcm:                              dci.Opcm,
 	}
 
-	readImplementations, err := opcm.NewReadImplementationAddressesScript(env.L1ScriptHost)
-	if err != nil {
-		return fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
-	}
+	var impls opcm.ReadImplementationAddressesOutput
+	if env.UseForge {
+		lgr.Info("using Forge for ReadImplementationAddresses")
+		forgeCaller := opcm.NewReadImplementationAddressesForgeCaller(env.ForgeClient)
+		forgeOpts := []string{
+			"--rpc-url", env.L1RPCUrl,
+		}
+		impls, _, err = forgeCaller(env.Context, readInput, forgeOpts...)
+		if err != nil {
+			return fmt.Errorf("failed to run ReadImplementationAddresses with Forge: %w", err)
+		}
+	} else {
+		readImplementations, err := opcm.NewReadImplementationAddressesScript(env.L1ScriptHost)
+		if err != nil {
+			return fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
+		}
 
-	impls, err := readImplementations.Run(readInput)
-	if err != nil {
-		return fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
+		impls, err = readImplementations.Run(readInput)
+		if err != nil {
+			return fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
+		}
 	}
 
 	st.Chains = append(st.Chains, makeChainState(chainID, impls, dco))

@@ -828,6 +828,22 @@ if [ "$DEPLOY_TYPE" == "1" ] || [ "$DEPLOY_TYPE" == "2" ]; then
         [[ "$VERIFIER_TYPE" == *"etherscan"* ]] && [ -n "$ETHERSCAN_API_KEY" ] && CMD+=("--verifier-api-key" "$ETHERSCAN_API_KEY")
     fi
     
+    USE_FORGE=false
+    if [ -n "${DEPLOYER_USE_FORGE:-}" ]; then
+        USE_FORGE=true
+        echo -e "${GREEN}✓ Using Forge from environment${NC}"
+    else
+        echo ""
+        echo -e "${YELLOW}Deployment Engine${NC}"
+        echo "  1) Use default Go scripts (recommended)"
+        echo "  2) Use Forge scripts"
+        echo ""
+        read -r -p "Select deployment engine [1-2, default 1]: " ENGINE_CHOICE
+        [ "$ENGINE_CHOICE" == "2" ] && USE_FORGE=true
+    fi
+    
+    [ "$USE_FORGE" == "true" ] && CMD+=("--use-forge")
+    
     if "${CMD[@]}"; then
         echo ""
         echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"

@@ -40,9 +40,17 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 		if env.Context == nil {
 			env.Context = context.Background()
 		}
+		if env.PrivateKey == "" {
+			return fmt.Errorf("private key is required when UseForge is enabled")
+		}
 		lgr.Info("using Forge for DeploySuperchain")
 		forgeCaller := opcm.NewDeploySuperchainForgeCaller(env.ForgeClient)
-		dso, _, err = forgeCaller(env.Context, input)
+		forgeOpts := []string{
+			"--rpc-url", env.L1RPCUrl,
+			"--broadcast",
+			"--private-key", env.PrivateKey,
+		}
+		dso, _, err = forgeCaller(env.Context, input, forgeOpts...)
 		if err != nil {
 			return fmt.Errorf("failed to deploy superchain with Forge: %w", err)
 		}
