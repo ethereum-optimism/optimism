@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +28,6 @@ func TestCLAdvanceMultiple(gt *testing.T) {
 
 	// Check L2A advances
 	unsafeA := sys.L2ACL.SyncStatus().UnsafeL2
-	unsafeATime := unsafeA.Time
 	numA := unsafeA.Number
 	numB := sys.L2BCL.SyncStatus().UnsafeL2.Number
 
@@ -50,8 +50,8 @@ func TestCLAdvanceMultiple(gt *testing.T) {
 
 	// Check L2A advances
 	unsafeA = sys.L2ACL.SyncStatus().UnsafeL2
-	require.Greater(t, unsafeA.Number, uint64(0))
-	unsafeATime = unsafeA.Time
+	require.Greater(t, unsafeA.Number, uint64(0)) // should be block 1, TODO assert this
+	unsafeATime := unsafeA.Time
 	numA = unsafeA.Number
 
 	sys.L2A.WaitForBlock()
@@ -69,7 +69,17 @@ func TestCLAdvanceMultiple(gt *testing.T) {
 	}
 	engineController := engine_controller.NewEngineControllerWithL2AndRollup(foo{ec, ed}, sys.L2A.Escape().RollupConfig())
 
+	////   _______  [synthetic]
+	//    /
+	// [0] <- [1] <- [2]
+	// sf             u
+	//
+	// The method FCUs to synthetic first, and then back to 1.
 	err = engineController.RewindToTimestamp(context.Background(), unsafeATime)
 	require.NoError(t, err)
 
+	// Check reset works as expected
+	resetUnsafe, err := sys.L2A.L2ELNodes()[0].Escape().L2EthClient().BlockRefByLabel(context.Background(), eth.Unsafe)
+	require.NoError(t, err)
+	require.Less(t, resetUnsafe.Number, unsafeA.Number)
 }

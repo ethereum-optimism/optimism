@@ -87,14 +87,7 @@ func (e *simpleEngineController) blockNumberAtTimestamp(ts uint64) (uint64, erro
 }
 
 func (e *simpleEngineController) blockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
-	if e.l2 == nil {
-		return eth.L2BlockRef{}, ErrNoEngineClient
-	}
-	if e.rollup == nil {
-		return eth.L2BlockRef{}, ErrNoRollupConfig
-	}
-	// Compute the target block directly from rollup config
-	num, err := e.rollup.TargetBlockNumber(ts)
+	num, err := e.blockNumberAtTimestamp(ts)
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
@@ -104,14 +97,7 @@ func (e *simpleEngineController) blockAtTimestamp(ctx context.Context, ts uint64
 // SafeBlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp,
 // clamped to the current SAFE head. Must return ethereum.NotFound if no safe block is available at the timestamp.
 func (e *simpleEngineController) SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
-	if e.l2 == nil {
-		return eth.L2BlockRef{}, ErrNoEngineClient
-	}
-	if e.rollup == nil {
-		return eth.L2BlockRef{}, ErrNoRollupConfig
-	}
-	// Compute the target block directly from rollup config
-	num, err := e.rollup.TargetBlockNumber(ts)
+	num, err := e.blockNumberAtTimestamp(ts)
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
@@ -176,14 +162,6 @@ func (e *simpleEngineController) ForkchoiceUpdate(ctx context.Context, state *et
 
 func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
 
-	////         [synthetic]
-	//         /
-	// [0] <- [1] <- [2]
-	// sf             u
-	//
-	//
-	//
-	//
 	if e.l2 == nil {
 		return ErrNoEngineClient
 	}
@@ -239,7 +217,7 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 		return fmt.Errorf("failed to FCU to synthetic block: %+v", res.PayloadStatus)
 	}
 
-	e.log.Info("enginer-controller: executed FCU to synthetic block", "fcs", fcs)
+	e.log.Info("engine-controller: executed FCU to synthetic block", "fcs", fcs)
 
 	// Next, FCU to the targetSafeBlock
 	fcs = eth.ForkchoiceState{
@@ -255,7 +233,7 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 		return fmt.Errorf("failed to rewind engine: %+v", res.PayloadStatus)
 	}
 
-	e.log.Info("enginer-controller: executed FCU to synthetic block", "fcs", fcs)
+	e.log.Info("engine-controller: executed FCU to synthetic block", "fcs", fcs)
 
 	resultingUnsafeBlock, err := e.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
 	if err != nil {
