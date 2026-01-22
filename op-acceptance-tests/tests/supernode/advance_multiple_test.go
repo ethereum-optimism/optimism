@@ -48,6 +48,17 @@ func TestCLAdvanceMultiple(gt *testing.T) {
 		return newA > numA && newB > numB
 	}, 30*time.Second, waitTime)
 
+	// Check L2A advances
+	unsafeA = sys.L2ACL.SyncStatus().UnsafeL2
+	require.Greater(t, unsafeA.Number, uint64(0))
+	unsafeATime = unsafeA.Time
+	numA = unsafeA.Number
+
+	sys.L2A.WaitForBlock()
+
+	unsafeA = sys.L2ACL.SyncStatus().UnsafeL2
+	require.Greater(t, unsafeA.Number, uint64(1))
+
 	// create a supernode engine controller, and use that to
 	// rewind one of the chains
 	ec := sys.L2A.L2ELNodes()[0].Escape().L2EngineClient()
@@ -56,7 +67,7 @@ func TestCLAdvanceMultiple(gt *testing.T) {
 		apis.EngineClient
 		apis.L2EthClient
 	}
-	engineController := engine_controller.NewEngineControllerWithL2(foo{ec, ed})
+	engineController := engine_controller.NewEngineControllerWithL2AndRollup(foo{ec, ed}, sys.L2A.Escape().RollupConfig())
 
 	err = engineController.RewindToTimestamp(context.Background(), unsafeATime)
 	require.NoError(t, err)
