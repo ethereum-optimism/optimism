@@ -30,8 +30,6 @@ cd "${WORKTREE_DIR}"
 LEGACY_KONA_VERSIONS=(
   "kona-client/v1.1.6"
   "kona-client/v1.1.7"
-  "kona-client/v1.2.0"
-  "kona-client/v1.2.1"
   "kona-client/v1.2.2"
   "kona-client/v1.2.4"
   "kona-client/v1.2.5"
