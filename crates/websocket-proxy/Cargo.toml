@@ -43,3 +43,7 @@ name = "websocket_proxy"
 [dev-dependencies]
 testcontainers.workspace = true
 testcontainers-modules.workspace = true
+redis-test.workspace = true
+
+[features]
+integration = []

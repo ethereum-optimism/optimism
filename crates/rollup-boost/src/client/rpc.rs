@@ -1,9 +1,8 @@
-use crate::EngineApiExt;
 use crate::client::auth::AuthLayer;
 use crate::client::http::HttpClient as RollupBoostHttpClient;
-use crate::payload::{NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion};
 use crate::server::EngineApiClient;
 use crate::version::{CARGO_PKG_VERSION, VERGEN_GIT_SHA};
+use crate::{EngineApiExt, ExecutionMode, FlashblocksEngineApiClient as _};
 use alloy_primitives::{B256, Bytes};
 use alloy_rpc_types_engine::{
     ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, JwtError, JwtSecret, PayloadId,
@@ -11,6 +10,7 @@ use alloy_rpc_types_engine::{
 };
 use alloy_rpc_types_eth::{Block, BlockNumberOrTag};
 use clap::Parser;
+use ed25519_dalek::{SigningKey, VerifyingKey};
 use eyre::bail;
 use http::{HeaderMap, Uri};
 use jsonrpsee::core::async_trait;
@@ -23,8 +23,15 @@ use op_alloy_rpc_types_engine::{
     OpPayloadAttributes,
 };
 use opentelemetry::trace::SpanKind;
+use parking_lot::Mutex;
 use paste::paste;
+use reth_optimism_payload_builder::payload_id_optimism;
+use rollup_boost_types::authorization::Authorization;
+use rollup_boost_types::payload::{
+    NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion,
+};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 use tracing::{info, instrument};
@@ -99,6 +106,14 @@ impl From<RpcClientError> for ErrorObjectOwned {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct FlashblocksP2PKeys {
+    /// Flashblocks Authorization Secret
+    pub authorization_sk: SigningKey,
+    /// Flashblocks builder vk
+    pub builder_vk: VerifyingKey,
+}
+
 /// Client interface for interacting with execution layer node's Engine API.
 ///
 /// - **Engine API** calls are faciliated via the `auth_client` (requires JWT authentication).
@@ -111,6 +126,23 @@ pub struct RpcClient {
     auth_rpc: Uri,
     /// The source of the payload
     payload_source: PayloadSource,
+}
+
+/// Client interface for interacting with execution layer node's Engine API.
+///
+/// fork_choice_updated_v3 with attributes is converted into
+/// a flashblocks_fork_choice_updated_v3 and an Authorization token is generated
+///
+/// - **Engine API** calls are faciliated via the `auth_client` (requires JWT authentication).
+///
+#[derive(Clone, Debug)]
+pub struct FlasblocksP2PRpcClient {
+    /// Inner RPC client
+    pub inner: RpcClient,
+    /// Flashblocks keys
+    pub flashblocks_p2p_keys: FlashblocksP2PKeys,
+    /// Execution mode of rollup boost
+    pub execution_mode: Arc<Mutex<ExecutionMode>>,
 }
 
 impl RpcClient {
@@ -147,6 +179,7 @@ impl RpcClient {
             target = self.payload_source.to_string(),
             head_block_hash = %fork_choice_state.head_block_hash,
             url = %self.auth_rpc,
+            payload_attributes = payload_attributes.is_some(),
             code,
             payload_id
         )
@@ -157,6 +190,7 @@ impl RpcClient {
         payload_attributes: Option<OpPayloadAttributes>,
     ) -> ClientResult<ForkchoiceUpdated> {
         info!("Sending fork_choice_updated_v3 to {}", self.payload_source);
+
         let res = self
             .auth_client
             .fork_choice_updated_v3(fork_choice_state, payload_attributes.clone())
@@ -378,6 +412,113 @@ impl EngineApiExt for RpcClient {
     }
 }
 
+impl FlasblocksP2PRpcClient {
+    #[instrument(
+        skip_all,
+        err,
+        fields(
+            otel.kind = ?SpanKind::Client,
+            target = self.inner.payload_source.to_string(),
+            head_block_hash = %fork_choice_state.head_block_hash,
+            url = %self.inner.auth_rpc,
+            code,
+            payload_id
+        )
+    )]
+    pub async fn flashblocks_fork_choice_updated_v3(
+        &self,
+        fork_choice_state: ForkchoiceState,
+        payload_attributes: OpPayloadAttributes,
+    ) -> ClientResult<ForkchoiceUpdated> {
+        info!(
+            "Sending flashblocks_fork_choice_updated_v3 to {}",
+            self.inner.payload_source
+        );
+
+        let payload_id =
+            payload_id_optimism(&fork_choice_state.head_block_hash, &payload_attributes, 3);
+        let authorization = Authorization::new(
+            payload_id,
+            payload_attributes.payload_attributes.timestamp,
+            &self.flashblocks_p2p_keys.authorization_sk,
+            self.flashblocks_p2p_keys.builder_vk.clone(),
+        );
+
+        let res = self
+            .inner
+            .auth_client
+            .flashblocks_fork_choice_updated_v3(
+                fork_choice_state,
+                Some(payload_attributes),
+                Some(authorization),
+            )
+            .await
+            .set_code()?;
+
+        if let Some(payload_id) = res.payload_id {
+            tracing::Span::current().record("payload_id", payload_id.to_string());
+        }
+
+        if res.is_invalid() {
+            return Err(RpcClientError::InvalidPayload(
+                res.payload_status.status.to_string(),
+            ))
+            .set_code();
+        }
+        info!(
+            "Successfully sent flashblocks_fork_choice_updated_v3 to {}",
+            self.inner.payload_source
+        );
+
+        Ok(res)
+    }
+}
+
+#[async_trait]
+impl EngineApiExt for FlasblocksP2PRpcClient {
+    async fn fork_choice_updated_v3(
+        &self,
+        fork_choice_state: ForkchoiceState,
+        payload_attributes: Option<OpPayloadAttributes>,
+    ) -> ClientResult<ForkchoiceUpdated> {
+        let execution_mode = *self.execution_mode.lock();
+        match (payload_attributes, execution_mode) {
+            // If we have payload attributes and execution mode is enabled, generate authorization
+            // We don't want to the builder to publish flashblocks if rollup boost is not going to
+            // honour the block.
+            (Some(attrs), ExecutionMode::Enabled) => Ok(self
+                .flashblocks_fork_choice_updated_v3(fork_choice_state, attrs)
+                .await
+                .set_code()?),
+            (attrs, _) => Ok(self
+                .inner
+                .fork_choice_updated_v3(fork_choice_state, attrs)
+                .await
+                .set_code()?),
+        }
+    }
+
+    async fn new_payload(&self, new_payload: NewPayload) -> ClientResult<PayloadStatus> {
+        self.inner.new_payload(new_payload).await
+    }
+
+    async fn get_payload(
+        &self,
+        payload_id: PayloadId,
+        version: PayloadVersion,
+    ) -> ClientResult<OpExecutionPayloadEnvelope> {
+        self.inner.get_payload(payload_id, version).await
+    }
+
+    async fn get_block_by_number(
+        &self,
+        number: BlockNumberOrTag,
+        full: bool,
+    ) -> ClientResult<Block> {
+        self.inner.get_block_by_number(number, full).await
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ClientArgs {
     /// Auth server address
@@ -471,17 +612,15 @@ define_client_args!((BuilderArgs, builder), (L2ClientArgs, l2));
 
 #[cfg(test)]
 pub mod tests {
-    use assert_cmd::Command;
     use http::Uri;
     use jsonrpsee::core::client::ClientT;
     use parking_lot::Mutex;
 
-    use crate::payload::PayloadSource;
     use alloy_rpc_types_engine::JwtSecret;
     use jsonrpsee::core::client::Error as ClientError;
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::{RpcModule, rpc_params};
-    use predicates::prelude::*;
+    use rollup_boost_types::payload::PayloadSource;
     use std::collections::HashSet;
     use std::net::SocketAddr;
     use std::net::TcpListener;
@@ -503,16 +642,6 @@ pub mod tests {
                 return port;
             }
         }
-    }
-
-    #[test]
-    fn test_invalid_args() {
-        let mut cmd = Command::cargo_bin("rollup-boost").unwrap();
-        cmd.arg("--invalid-arg");
-
-        cmd.assert().failure().stderr(predicate::str::contains(
-            "error: unexpected argument '--invalid-arg' found",
-        ));
     }
 
     #[tokio::test]

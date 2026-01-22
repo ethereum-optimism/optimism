@@ -1,13 +1,24 @@
 use backoff::{ExponentialBackoff, ExponentialBackoffBuilder};
-use clap::Parser;
+use clap::{Args, Parser};
+use ed25519_dalek::{SigningKey, VerifyingKey};
 use std::time::Duration;
 use url::Url;
 
-#[derive(Parser, Clone, Debug)]
-pub struct FlashblocksArgs {
-    /// Enable Flashblocks client
-    #[arg(long, env, default_value = "false")]
-    pub flashblocks: bool,
+use hex::FromHex;
+
+#[derive(Args, Clone, Debug)]
+#[group(requires = "flashblocks_ws")]
+pub struct FlashblocksWsArgs {
+    /// Enable Flashblocks Websocket client
+    #[arg(
+        // Keep the flag as "flashblocks" for backward compatibility
+        long = "flashblocks",
+        id = "flashblocks_ws",
+        conflicts_with = "flashblocks_p2p",
+        env,
+        default_value = "false"
+    )]
+    pub flashblocks_ws: bool,
 
     /// Flashblocks Builder WebSocket URL
     #[arg(long, env, default_value = "ws://127.0.0.1:1111")]
@@ -80,4 +91,44 @@ impl FlashblocksWebsocketConfig {
     pub fn pong_interval(&self) -> Duration {
         Duration::from_millis(self.flashblock_builder_ws_pong_timeout_ms)
     }
+}
+
+#[derive(Args, Clone, Debug)]
+#[group(requires = "flashblocks_p2p")]
+pub struct FlashblocksP2PArgs {
+    /// Enable Flashblocks P2P Authorization
+    #[arg(
+        long,
+        id = "flashblocks_p2p",
+        conflicts_with = "flashblocks_ws",
+        env,
+        required = false
+    )]
+    pub flashblocks_p2p: bool,
+
+    #[arg(
+        long = "flashblocks-authorizer-sk",
+        env = "FLASHBLOCKS_AUTHORIZER_SK",
+        value_parser = parse_sk,
+        required = false,
+    )]
+    pub authorizer_sk: SigningKey,
+
+    #[arg(
+        long = "flashblocks-builder-vk",
+        env = "FLASHBLOCKS_BUILDER_VK",
+        value_parser = parse_vk,
+        required = false,
+    )]
+    pub builder_vk: VerifyingKey,
+}
+
+pub fn parse_sk(s: &str) -> eyre::Result<SigningKey> {
+    let bytes = <[u8; 32]>::from_hex(s.trim())?;
+    Ok(SigningKey::from_bytes(&bytes))
+}
+
+pub fn parse_vk(s: &str) -> eyre::Result<VerifyingKey> {
+    let bytes = <[u8; 32]>::from_hex(s.trim())?;
+    Ok(VerifyingKey::from_bytes(&bytes)?)
 }

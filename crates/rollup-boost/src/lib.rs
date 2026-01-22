@@ -33,9 +33,6 @@ pub use health::*;
 #[cfg(test)]
 pub mod tests;
 
-mod payload;
-pub use payload::*;
-
 mod selection;
 pub use selection::*;
 

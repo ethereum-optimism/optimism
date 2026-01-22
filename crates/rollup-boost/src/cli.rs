@@ -4,15 +4,15 @@ use std::{net::SocketAddr, path::PathBuf};
 use tokio::signal::unix::{SignalKind, signal as unix_signal};
 use tracing::{Level, info};
 
-use crate::payload::PayloadSource;
 use crate::{
-    BlockSelectionPolicy, ClientArgs, DebugServer, FlashblocksArgs, ProxyLayer, RollupBoostServer,
+    BlockSelectionPolicy, ClientArgs, DebugServer, FlashblocksP2PArgs, FlashblocksWsArgs,
+    ProxyLayer, RollupBoostServer,
     client::rpc::{BuilderArgs, L2ClientArgs},
     debug_api::ExecutionMode,
     get_version, init_metrics,
     probe::ProbeLayer,
 };
-use crate::{FlashblocksService, RpcClient};
+use rollup_boost_types::payload::PayloadSource;
 
 #[derive(Clone, Debug, clap::Args)]
 pub struct RollupBoostLibArgs {
@@ -39,7 +39,10 @@ pub struct RollupBoostLibArgs {
     pub ignore_unhealthy_builders: bool,
 
     #[clap(flatten)]
-    pub flashblocks: FlashblocksArgs,
+    pub flashblocks_ws: Option<FlashblocksWsArgs>,
+
+    #[clap(flatten)]
+    pub flashblocks_p2p: Option<FlashblocksP2PArgs>,
 
     /// Duration in seconds between async health checks on the builder
     #[arg(long, env, default_value = "60")]
@@ -119,27 +122,12 @@ impl RollupBoostServiceArgs {
 
         let (probe_layer, probes) = ProbeLayer::new();
 
-        let (health_handle, rpc_module) = if self.lib.flashblocks.flashblocks {
-            let rollup_boost = RollupBoostServer::<FlashblocksService>::new_from_args(
-                self.lib.clone(),
-                probes.clone(),
-            )?;
-            let health_handle = rollup_boost
-                .spawn_health_check(self.lib.health_check_interval, self.lib.max_unsafe_interval);
-            let debug_server = DebugServer::new(rollup_boost.execution_mode.clone());
-            debug_server.run(&debug_addr).await?;
-            let rpc_module: RpcModule<()> = rollup_boost.try_into()?;
-            (health_handle, rpc_module)
-        } else {
-            let rollup_boost =
-                RollupBoostServer::<RpcClient>::new_from_args(self.lib.clone(), probes.clone())?;
-            let health_handle = rollup_boost
-                .spawn_health_check(self.lib.health_check_interval, self.lib.max_unsafe_interval);
-            let debug_server = DebugServer::new(rollup_boost.execution_mode.clone());
-            debug_server.run(&debug_addr).await?;
-            let rpc_module: RpcModule<()> = rollup_boost.try_into()?;
-            (health_handle, rpc_module)
-        };
+        let rollup_boost = RollupBoostServer::new_from_args(self.lib.clone(), probes.clone())?;
+        let health_handle = rollup_boost
+            .spawn_health_check(self.lib.health_check_interval, self.lib.max_unsafe_interval);
+        let debug_server = DebugServer::new(rollup_boost.execution_mode.clone());
+        debug_server.run(&debug_addr).await?;
+        let rpc_module: RpcModule<()> = rollup_boost.try_into()?;
 
         // Build and start the server
         let http_middleware =
@@ -209,5 +197,270 @@ impl std::str::FromStr for LogFormat {
             "text" => Ok(LogFormat::Text),
             _ => Err("Invalid log format".into()),
         }
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use std::result::Result;
+
+    use super::*;
+
+    const SECRET: &str = "f79ae8046bc11c9927afe911db7143c51a806c4a537cc08e0d37140b0192f430";
+    const FLASHBLOCKS_SK: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    const FLASHBLOCKS_VK: &str = "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210";
+
+    #[test]
+    fn test_parse_args_minimal() -> Result<(), Box<dyn std::error::Error>> {
+        let args = RollupBoostServiceArgs::try_parse_from(["rollup-boost"])?;
+
+        assert!(!args.tracing);
+        assert!(!args.metrics);
+        assert_eq!(args.rpc_host, "127.0.0.1");
+        assert_eq!(args.rpc_port, 8081);
+        assert!(args.lib.flashblocks_ws.is_none());
+        assert!(args.lib.flashblocks_p2p.is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_args_missing_flashblocks_flag() -> Result<(), Box<dyn std::error::Error>> {
+        let args = RollupBoostServiceArgs::try_parse_from([
+            "rollup-boost",
+            "--builder-jwt-token",
+            SECRET,
+            "--l2-jwt-token",
+            SECRET,
+            "--flashblocks-authorizer-sk",
+            FLASHBLOCKS_SK,
+            "--flashblocks-builder-vk",
+            FLASHBLOCKS_VK,
+        ]);
+
+        assert!(
+            args.is_err(),
+            "flashblocks args should be invalid without --flashblocks-p2p flag"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_args_with_flashblocks_flag() -> Result<(), Box<dyn std::error::Error>> {
+        let args = RollupBoostServiceArgs::try_parse_from([
+            "rollup-boost",
+            "--builder-jwt-token",
+            SECRET,
+            "--l2-jwt-token",
+            SECRET,
+            "--flashblocks-p2p",
+            "--flashblocks-authorizer-sk",
+            FLASHBLOCKS_SK,
+            "--flashblocks-builder-vk",
+            FLASHBLOCKS_VK,
+        ])?;
+
+        let flashblocks = args
+            .lib
+            .flashblocks_p2p
+            .expect("flashblocks should be Some when flag is passed");
+        assert!(flashblocks.flashblocks_p2p);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_args_with_flashblocks_custom_values() -> Result<(), Box<dyn std::error::Error>> {
+        let args = RollupBoostServiceArgs::try_parse_from([
+            "rollup-boost",
+            "--builder-jwt-token",
+            SECRET,
+            "--l2-jwt-token",
+            SECRET,
+            "--flashblocks-p2p",
+            "--flashblocks-authorizer-sk",
+            FLASHBLOCKS_SK,
+            "--flashblocks-builder-vk",
+            FLASHBLOCKS_VK,
+        ])?;
+
+        let flashblocks = args
+            .lib
+            .flashblocks_p2p
+            .expect("flashblocks should be Some when flag is passed");
+        assert!(flashblocks.flashblocks_p2p);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_args_with_all_options() -> Result<(), Box<dyn std::error::Error>> {
+        let args = RollupBoostServiceArgs::try_parse_from([
+            "rollup-boost",
+            "--builder-jwt-token",
+            SECRET,
+            "--l2-jwt-token",
+            SECRET,
+            "--health-check-interval",
+            "120",
+            "--max-unsafe-interval",
+            "20",
+            "--rpc-host",
+            "0.0.0.0",
+            "--rpc-port",
+            "9090",
+            "--tracing",
+            "--metrics",
+            "--metrics-host",
+            "192.168.1.1",
+            "--metrics-port",
+            "8080",
+            "--log-level",
+            "debug",
+            "--log-format",
+            "json",
+            "--debug-host",
+            "localhost",
+            "--debug-server-port",
+            "6666",
+            "--execution-mode",
+            "disabled",
+            "--flashblocks-p2p",
+            "--flashblocks-authorizer-sk",
+            FLASHBLOCKS_SK,
+            "--flashblocks-builder-vk",
+            FLASHBLOCKS_VK,
+        ])?;
+
+        assert_eq!(args.lib.health_check_interval, 120);
+        assert_eq!(args.lib.max_unsafe_interval, 20);
+        assert_eq!(args.rpc_host, "0.0.0.0");
+        assert_eq!(args.rpc_port, 9090);
+        assert!(args.tracing);
+        assert!(args.metrics);
+        assert_eq!(args.metrics_host, "192.168.1.1");
+        assert_eq!(args.metrics_port, 8080);
+        assert_eq!(args.log_level, Level::DEBUG);
+        assert_eq!(args.debug_host, "localhost");
+        assert_eq!(args.debug_server_port, 6666);
+
+        let flashblocks = args
+            .lib
+            .flashblocks_p2p
+            .expect("flashblocks should be Some when flag is passed");
+        assert!(flashblocks.flashblocks_p2p);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_args_missing_jwt_succeeds_at_parse_time() {
+        // JWT validation happens at runtime, not parse time, so this should succeed
+        let result =
+            RollupBoostServiceArgs::try_parse_from(["rollup-boost", "--builder-jwt-token", SECRET]);
+
+        assert!(result.is_ok());
+        let args = result.unwrap();
+        assert!(args.lib.builder.builder_jwt_token.is_some());
+        assert!(args.lib.l2_client.l2_jwt_token.is_none());
+    }
+
+    #[test]
+    fn test_parse_args_invalid_flashblocks_sk() {
+        let result = RollupBoostServiceArgs::try_parse_from([
+            "rollup-boost",
+            "--builder-jwt-token",
+            SECRET,
+            "--l2-jwt-token",
+            SECRET,
+            "--flashblocks-p2p",
+            "--flashblocks-authorizer-sk",
+            "invalid_hex",
+            "--flashblocks-builder-vk",
+            FLASHBLOCKS_VK,
+        ]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_args_invalid_flashblocks_vk() {
+        let result = RollupBoostServiceArgs::try_parse_from([
+            "rollup-boost",
+            "--builder-jwt-token",
+            SECRET,
+            "--l2-jwt-token",
+            SECRET,
+            "--flashblocks-p2p",
+            "--flashblocks-authorizer-sk",
+            FLASHBLOCKS_SK,
+            "--flashblocks-builder-vk",
+            "invalid_hex",
+        ]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_log_format_parsing() -> Result<(), Box<dyn std::error::Error>> {
+        let json_args = RollupBoostServiceArgs::try_parse_from([
+            "rollup-boost",
+            "--builder-jwt-token",
+            SECRET,
+            "--l2-jwt-token",
+            SECRET,
+            "--log-format",
+            "json",
+        ])?;
+
+        match json_args.log_format {
+            LogFormat::Json => {}
+            LogFormat::Text => panic!("Expected Json format"),
+        }
+
+        let text_args = RollupBoostServiceArgs::try_parse_from([
+            "rollup-boost",
+            "--builder-jwt-token",
+            SECRET,
+            "--l2-jwt-token",
+            SECRET,
+            "--log-format",
+            "text",
+        ])?;
+
+        match text_args.log_format {
+            LogFormat::Text => {}
+            LogFormat::Json => panic!("Expected Text format"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_args_with_jwt_paths() -> Result<(), Box<dyn std::error::Error>> {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        let mut builder_jwt_file = NamedTempFile::new()?;
+        writeln!(builder_jwt_file, "{}", SECRET)?;
+        let builder_jwt_path = builder_jwt_file.path();
+
+        let mut l2_jwt_file = NamedTempFile::new()?;
+        writeln!(l2_jwt_file, "{}", SECRET)?;
+        let l2_jwt_path = l2_jwt_file.path();
+
+        let args = RollupBoostServiceArgs::try_parse_from([
+            "rollup-boost",
+            "--builder-jwt-path",
+            builder_jwt_path.to_str().unwrap(),
+            "--l2-jwt-path",
+            l2_jwt_path.to_str().unwrap(),
+        ])?;
+
+        assert!(args.lib.builder.builder_jwt_path.is_some());
+        assert!(args.lib.l2_client.l2_jwt_path.is_some());
+
+        Ok(())
     }
 }

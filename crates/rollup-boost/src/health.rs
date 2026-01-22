@@ -173,7 +173,7 @@ mod tests {
 
     use super::*;
     use crate::Probes;
-    use crate::payload::PayloadSource;
+    use rollup_boost_types::{self, payload::PayloadSource};
     use serial_test::serial;
 
     pub struct MockHttpServer {

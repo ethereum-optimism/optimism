@@ -1,4 +1,4 @@
-use crate::payload::{OpExecutionPayloadEnvelope, PayloadSource};
+use rollup_boost_types::payload::{OpExecutionPayloadEnvelope, PayloadSource};
 use serde::{Deserialize, Serialize};
 
 /// Defines the strategy for choosing between the builder block and the L2 client block
