@@ -40,7 +40,7 @@ type l2Provider interface {
 	OutputV0AtBlockNumber(ctx context.Context, blockNum uint64) (*eth.OutputV0, error)
 	PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error)
 	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
-	NewPayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) (*eth.PayloadStatusV1, error)
+	NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error)
 	Close()
 }
 
@@ -181,7 +181,7 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 	syntheticPayload.ExecutionPayload.FeeRecipient = common.Address{}
 	syntheticBlockHash, _ := syntheticPayload.CheckBlockHash()
 	syntheticPayload.ExecutionPayload.BlockHash = syntheticBlockHash
-	status, err := e.l2.NewPayload(ctx, syntheticPayload)
+	status, err := e.l2.NewPayload(ctx, syntheticPayload.ExecutionPayload, syntheticPayload.ParentBeaconBlockRoot)
 	if err != nil {
 		return err
 	}
