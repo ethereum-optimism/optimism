@@ -5,6 +5,9 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
+// Libraries
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
+
 // Interfaces
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProtocolVersions, ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
@@ -19,6 +22,7 @@ abstract contract ProtocolVersions_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
         required = ProtocolVersion.wrap(deploy.cfg().requiredProtocolVersion());
         recommended = ProtocolVersion.wrap(deploy.cfg().recommendedProtocolVersion());
     }

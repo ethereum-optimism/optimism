@@ -224,6 +224,9 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         _faultGameV2ClockExtension = bound(_faultGameV2ClockExtension, 1, 7 days);
         _faultGameV2MaxClockDuration = bound(_faultGameV2MaxClockDuration, _faultGameV2ClockExtension * 2, 30 days);
 
+        // Check which OPCM version is deployed
+        bool opcmV2Enabled = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPCM_V2);
+
         DeployImplementations.Input memory input = DeployImplementations.Input(
             _withdrawalDelaySeconds,
             _minProposalSizeBytes,
@@ -237,16 +240,13 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             _faultGameV2ClockExtension, // faultGameV2ClockExtension (bounded)
             _faultGameV2MaxClockDuration, // faultGameV2MaxClockDuration (bounded)
             superchainConfigProxy,
-            protocolVersionsProxy,
+            opcmV2Enabled ? IProtocolVersions(address(0)) : protocolVersionsProxy,
             superchainProxyAdmin,
             l1ProxyAdminOwner,
             challenger
         );
 
         DeployImplementations.Output memory output = deployImplementations.run(input);
-
-        // Check which OPCM version is deployed
-        bool opcmV2Enabled = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPCM_V2);
 
         // Basic assertions
         assertNotEq(address(output.anchorStateRegistryImpl), address(0), "100");
@@ -480,10 +480,12 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         vm.expectRevert("DeployImplementations: superchainConfigProxy not set");
         deployImplementations.run(input);
 
-        input = defaultInput();
-        input.protocolVersionsProxy = IProtocolVersions(address(0));
-        vm.expectRevert("DeployImplementations: protocolVersionsProxy not set");
-        deployImplementations.run(input);
+        if (!isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            input = defaultInput();
+            input.protocolVersionsProxy = IProtocolVersions(address(0));
+            vm.expectRevert("DeployImplementations: protocolVersionsProxy not set");
+            deployImplementations.run(input);
+        }
 
         input = defaultInput();
         input.superchainProxyAdmin = IProxyAdmin(address(0));
@@ -570,7 +572,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             10800, // faultGameV2ClockExtension
             302400, // faultGameV2MaxClockDuration
             superchainConfigProxy,
-            protocolVersionsProxy,
+            isDevFeatureEnabled(DevFeatures.OPCM_V2) ? IProtocolVersions(address(0)) : protocolVersionsProxy,
             superchainProxyAdmin,
             l1ProxyAdminOwner,
             challenger

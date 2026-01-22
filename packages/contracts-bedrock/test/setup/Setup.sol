@@ -295,7 +295,6 @@ abstract contract Setup is FeatureFlags {
         l1ERC721Bridge = IL1ERC721Bridge(artifacts.mustGetAddress("L1ERC721BridgeProxy"));
         l1OptimismMintableERC20Factory =
             IOptimismMintableERC20Factory(artifacts.mustGetAddress("OptimismMintableERC20FactoryProxy"));
-        protocolVersions = IProtocolVersions(artifacts.mustGetAddress("ProtocolVersionsProxy"));
         superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
         anchorStateRegistry = IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
         disputeGameFactory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
@@ -303,6 +302,7 @@ abstract contract Setup is FeatureFlags {
         if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
             opcmV2 = IOPContractsManagerV2(artifacts.mustGetAddress("OPContractsManagerV2"));
         } else {
+            protocolVersions = IProtocolVersions(artifacts.mustGetAddress("ProtocolVersionsProxy"));
             opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
         }
         proxyAdmin = IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin"));

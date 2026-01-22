@@ -240,25 +240,28 @@ contract Initializer_Test is CommonTest {
             })
         );
         // ProtocolVersionsImpl
-        contracts.push(
-            InitializeableContract({
-                name: "ProtocolVersionsImpl",
-                target: EIP1967Helper.getImplementation(address(protocolVersions)),
-                initCalldata: abi.encodeCall(
-                    protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
-                )
-            })
-        );
-        // ProtocolVersionsProxy
-        contracts.push(
-            InitializeableContract({
-                name: "ProtocolVersionsProxy",
-                target: address(protocolVersions),
-                initCalldata: abi.encodeCall(
-                    protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
-                )
-            })
-        );
+        if (!isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            contracts.push(
+                InitializeableContract({
+                    name: "ProtocolVersionsImpl",
+                    target: EIP1967Helper.getImplementation(address(protocolVersions)),
+                    initCalldata: abi.encodeCall(
+                        protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
+                    )
+                })
+            );
+            // ProtocolVersionsProxy
+
+            contracts.push(
+                InitializeableContract({
+                    name: "ProtocolVersionsProxy",
+                    target: address(protocolVersions),
+                    initCalldata: abi.encodeCall(
+                        protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
+                    )
+                })
+            );
+        }
         // L1StandardBridgeImpl
         contracts.push(
             InitializeableContract({
@@ -430,6 +433,10 @@ contract Initializer_Test is CommonTest {
 
             // If the contract does not have an `initialize()` function, skip it.
             if (bytes(Process.bash(cmd)).length == 0) {
+                continue;
+            }
+
+            if (isDevFeatureEnabled(DevFeatures.OPCM_V2) && LibString.eq(contractName, "ProtocolVersions")) {
                 continue;
             }
 

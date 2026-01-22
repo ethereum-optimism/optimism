@@ -14,6 +14,7 @@ type DeploySuperchainInput struct {
 	Paused                     bool                   `toml:"paused"`
 	RecommendedProtocolVersion params.ProtocolVersion `toml:"recommendedProtocolVersion"`
 	RequiredProtocolVersion    params.ProtocolVersion `toml:"requiredProtocolVersion"`
+	IsOPCMv2                   bool                   `toml:"isOPCMv2"`
 }
 
 type DeploySuperchainOutput struct {

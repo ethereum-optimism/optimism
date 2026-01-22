@@ -245,6 +245,9 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled) {
                 continue;
             }
+            if (isDevFeatureEnabled(DevFeatures.OPCM_V2) && LibString.eq(ref.name, "ProtocolVersions")) {
+                continue;
+            }
 
             // Get the code for the implementation.
             bytes memory implCode = ref.addr.code;

@@ -527,6 +527,15 @@ contract VerifyOPCM is Script {
             }
             // If feature is enabled, continue with normal verification
         }
+        if (_isOPCMV2() && LibString.eq(_target.name, "ProtocolVersions")) {
+            if (_target.addr == address(0)) {
+                console.log("[SKIP] ProtocolVersions not deployed (feature disabled)");
+                return true; // Consider this "verified" when feature is off
+            } else {
+                console.log("[FAIL] ERROR: ProtocolVersions deployed but feature disabled");
+                success = false;
+            }
+        }
 
         // Load artifact information (bytecode, immutable refs) for detailed comparison
         ArtifactInfo memory artifact = _loadArtifactInfo(artifactPath);

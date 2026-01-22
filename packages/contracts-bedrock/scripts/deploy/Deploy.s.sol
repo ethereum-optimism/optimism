@@ -55,6 +55,8 @@ import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMin
 contract Deploy is Deployer {
     using stdJson for string;
 
+    bool internal _isOPCMv2;
+
     ////////////////////////////////////////////////////////////////
     //                        Modifiers                           //
     ////////////////////////////////////////////////////////////////
@@ -130,6 +132,7 @@ contract Deploy is Deployer {
     /// @notice Deploy all of the L1 contracts necessary for a full Superchain with a single Op Chain.
     function run() public {
         console.log("Deploying a fresh OP Stack including SuperchainConfig");
+        _isOPCMv2 = DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2);
         _run({ _needsSuperchain: true });
     }
 
@@ -139,7 +142,7 @@ contract Deploy is Deployer {
     function runWithSuperchain(address payable _superchainConfigProxy, address payable _protocolVersionsProxy) public {
         require(_superchainConfigProxy != address(0), "Deploy: must specify address for superchain config proxy");
         require(_protocolVersionsProxy != address(0), "Deploy: must specify address for protocol versions proxy");
-
+        _isOPCMv2 = DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2);
         vm.chainId(cfg.l1ChainID());
 
         console.log("Deploying a fresh OP Stack with existing SuperchainConfig and ProtocolVersions");
@@ -148,9 +151,11 @@ contract Deploy is Deployer {
         artifacts.save("SuperchainConfigImpl", scProxy.implementation());
         artifacts.save("SuperchainConfigProxy", _superchainConfigProxy);
 
-        IProxy pvProxy = IProxy(_protocolVersionsProxy);
-        artifacts.save("ProtocolVersionsImpl", pvProxy.implementation());
-        artifacts.save("ProtocolVersionsProxy", _protocolVersionsProxy);
+        if (!_isOPCMv2) {
+            IProxy pvProxy = IProxy(_protocolVersionsProxy);
+            artifacts.save("ProtocolVersionsImpl", pvProxy.implementation());
+            artifacts.save("ProtocolVersionsProxy", _protocolVersionsProxy);
+        }
 
         _run({ _needsSuperchain: false });
     }
@@ -158,6 +163,7 @@ contract Deploy is Deployer {
     /// @notice Deploy all L1 contracts and write the state diff to a file.
     ///         Used to generate kontrol tests.
     function runWithStateDiff() public stateDiff {
+        _isOPCMv2 = DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2);
         _run({ _needsSuperchain: true });
     }
 
@@ -236,11 +242,12 @@ contract Deploy is Deployer {
                 guardian: cfg.superchainConfigGuardian(),
                 // TODO: when DeployAuthSystem is done, finalSystemOwner should be replaced with the Foundation Upgrades
                 // Safe
-                protocolVersionsOwner: cfg.finalSystemOwner(),
+                protocolVersionsOwner: _isOPCMv2 ? address(0) : cfg.finalSystemOwner(),
                 superchainProxyAdminOwner: cfg.finalSystemOwner(),
                 paused: false,
-                recommendedProtocolVersion: bytes32(cfg.recommendedProtocolVersion()),
-                requiredProtocolVersion: bytes32(cfg.requiredProtocolVersion())
+                recommendedProtocolVersion: _isOPCMv2 ? bytes32(0) : bytes32(cfg.recommendedProtocolVersion()),
+                requiredProtocolVersion: _isOPCMv2 ? bytes32(0) : bytes32(cfg.requiredProtocolVersion()),
+                isOPCMv2: _isOPCMv2
             })
         );
 
@@ -253,12 +260,16 @@ contract Deploy is Deployer {
 
         // First run assertions for the ProtocolVersions and SuperchainConfig proxy contracts.
         Types.ContractSet memory contracts = _proxies();
-        ChainAssertions.checkProtocolVersions({ _contracts: contracts, _cfg: cfg, _isProxy: true });
+        if (!_isOPCMv2) {
+            ChainAssertions.checkProtocolVersions({ _contracts: contracts, _cfg: cfg, _isProxy: true });
+        }
         ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isProxy: true });
 
         // Then replace the ProtocolVersions proxy with the implementation address and run assertions on it.
-        contracts.ProtocolVersions = artifacts.mustGetAddress("ProtocolVersionsImpl");
-        ChainAssertions.checkProtocolVersions({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+        if (!_isOPCMv2) {
+            contracts.ProtocolVersions = artifacts.mustGetAddress("ProtocolVersionsImpl");
+            ChainAssertions.checkProtocolVersions({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+        }
 
         // Finally replace the SuperchainConfig proxy with the implementation address and run assertions on it.
         contracts.SuperchainConfig = artifacts.mustGetAddress("SuperchainConfigImpl");
@@ -291,7 +302,9 @@ contract Deploy is Deployer {
                 faultGameV2SplitDepth: cfg.faultGameV2SplitDepth(),
                 faultGameV2ClockExtension: cfg.faultGameV2ClockExtension(),
                 faultGameV2MaxClockDuration: cfg.faultGameV2MaxClockDuration(),
-                protocolVersionsProxy: IProtocolVersions(artifacts.mustGetAddress("ProtocolVersionsProxy")),
+                protocolVersionsProxy: _isOPCMv2
+                    ? IProtocolVersions(address(0))
+                    : IProtocolVersions(artifacts.mustGetAddress("ProtocolVersionsProxy")),
                 superchainConfigProxy: superchainConfigProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
                 l1ProxyAdminOwner: superchainProxyAdmin.owner(),

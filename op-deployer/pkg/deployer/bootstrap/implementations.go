@@ -110,8 +110,14 @@ func (c *ImplementationsConfig) Check() error {
 	if c.SuperchainConfigProxy == (common.Address{}) {
 		return errors.New("superchain config proxy must be specified")
 	}
-	if c.ProtocolVersionsProxy == (common.Address{}) {
-		return errors.New("protocol versions proxy must be specified")
+	if !deployer.IsDevFeatureEnabled(c.DevFeatureBitmap, deployer.OPCMV2DevFlag) {
+		if c.ProtocolVersionsProxy == (common.Address{}) {
+			return errors.New("protocol versions proxy must be specified")
+		}
+	} else {
+		if c.ProtocolVersionsProxy != (common.Address{}) {
+			return errors.New("protocol versions proxy should be set to 0 for OPCM v2")
+		}
 	}
 	if c.L1ProxyAdminOwner == (common.Address{}) {
 		return errors.New("l1 proxy admin owner must be specified")

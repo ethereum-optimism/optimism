@@ -107,6 +107,9 @@ contract DeployImplementations is Script {
 
     bytes32 internal _salt = DeployUtils.DEFAULT_SALT;
 
+    // Set to true if OPCM v2 was deployed.
+    bool internal _isOPCMv2;
+
     // -------- Core Deployment Methods --------
 
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
@@ -116,11 +119,14 @@ contract DeployImplementations is Script {
     }
 
     function run(Input memory _input) public returns (Output memory output_) {
+        _isOPCMv2 = DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPCM_V2);
         assertValidInput(_input);
 
         // Deploy the implementations.
         deploySuperchainConfigImpl(output_);
-        deployProtocolVersionsImpl(output_);
+        if (!_isOPCMv2) {
+            deployProtocolVersionsImpl(output_);
+        }
         deploySystemConfigImpl(output_);
         deployL1CrossDomainMessengerImpl(output_);
         deployL1ERC721BridgeImpl(output_);
@@ -328,10 +334,7 @@ contract DeployImplementations is Script {
         // forgefmt: disable-end
         vm.stopBroadcast();
 
-        // Check if OPCM V2 should be deployed
-        bool deployV2 = DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPCM_V2);
-
-        if (deployV2) {
+        if (_isOPCMv2) {
             IOPContractsManagerV2 opcmV2 = createOPCMContractV2(_input, _output, blueprints);
             vm.label(address(opcmV2), "OPContractsManagerV2");
             _output.opcmV2 = opcmV2;
@@ -910,7 +913,7 @@ contract DeployImplementations is Script {
         _output.storageSetterImpl = impl;
     }
 
-    function assertValidInput(Input memory _input) private pure {
+    function assertValidInput(Input memory _input) private view {
         // Validate V2 game depth parameters are sensible
         require(
             _input.faultGameV2MaxGameDepth > 0 && _input.faultGameV2MaxGameDepth <= 125,
@@ -951,9 +954,17 @@ contract DeployImplementations is Script {
         require(
             address(_input.superchainConfigProxy) != address(0), "DeployImplementations: superchainConfigProxy not set"
         );
-        require(
-            address(_input.protocolVersionsProxy) != address(0), "DeployImplementations: protocolVersionsProxy not set"
-        );
+        if (!_isOPCMv2) {
+            require(
+                address(_input.protocolVersionsProxy) != address(0),
+                "DeployImplementations: protocolVersionsProxy not set"
+            );
+        } else {
+            require(
+                address(_input.protocolVersionsProxy) == address(0),
+                "DeployImplementations: protocolVersionsProxy should be set to 0 for OPCM v2"
+            );
+        }
         require(
             address(_input.superchainProxyAdmin) != address(0), "DeployImplementations: superchainProxyAdmin not set"
         );
@@ -965,18 +976,27 @@ contract DeployImplementations is Script {
         // With 12 addresses, we'd get a stack too deep error if we tried to do this inline as a
         // single call to `Solarray.addresses`. So we split it into two calls.
 
-        // Check which OPCM version was deployed
-        bool deployedV2 = DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPCM_V2);
-
-        address[] memory addrs1 = Solarray.addresses(
-            deployedV2 ? address(_output.opcmV2) : address(_output.opcm),
-            address(_output.optimismPortalImpl),
-            address(_output.delayedWETHImpl),
-            address(_output.preimageOracleSingleton),
-            address(_output.mipsSingleton),
-            address(_output.superchainConfigImpl),
-            address(_output.protocolVersionsImpl)
-        );
+        address[] memory addrs1;
+        if (_isOPCMv2) {
+            addrs1 = Solarray.addresses(
+                address(_output.opcmV2),
+                address(_output.optimismPortalImpl),
+                address(_output.delayedWETHImpl),
+                address(_output.preimageOracleSingleton),
+                address(_output.mipsSingleton),
+                address(_output.superchainConfigImpl)
+            );
+        } else {
+            addrs1 = Solarray.addresses(
+                address(_output.opcm),
+                address(_output.optimismPortalImpl),
+                address(_output.delayedWETHImpl),
+                address(_output.preimageOracleSingleton),
+                address(_output.mipsSingleton),
+                address(_output.superchainConfigImpl),
+                address(_output.protocolVersionsImpl)
+            );
+        }
 
         address[] memory addrs2 = Solarray.addresses(
             address(_output.systemConfigImpl),
@@ -1001,7 +1021,7 @@ contract DeployImplementations is Script {
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
 
         // Validate OPCM V2 flag
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPCM_V2)) {
+        if (_isOPCMv2) {
             require(
                 address(_output.opcmV2) != address(0),
                 "DeployImplementations: OPCM V2 flag enabled but OPCM V2 not deployed"
@@ -1009,6 +1029,10 @@ contract DeployImplementations is Script {
             require(
                 address(_output.opcm) == address(0),
                 "DeployImplementations: OPCM V2 flag enabled but OPCM V1 was deployed"
+            );
+            require(
+                address(_output.protocolVersionsImpl) == address(0),
+                "DeployImplementations: protocolVersionsImpl should be set to 0 for OPCM v2"
             );
         } else {
             require(
@@ -1018,6 +1042,10 @@ contract DeployImplementations is Script {
             require(
                 address(_output.opcmV2) == address(0),
                 "DeployImplementations: OPCM V2 flag disabled but OPCM V2 was deployed"
+            );
+            require(
+                address(_output.protocolVersionsImpl) != address(0),
+                "DeployImplementations: protocolVersionsImpl should be set to 0 for OPCM v2"
             );
         }
 
@@ -1048,7 +1076,7 @@ contract DeployImplementations is Script {
         ChainAssertions.checkMIPS(_output.mipsSingleton, _output.preimageOracleSingleton);
 
         // Only check OPCM V1 if it was deployed
-        if (!DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPCM_V2)) {
+        if (!_isOPCMv2) {
             Types.ContractSet memory proxies;
             proxies.SuperchainConfig = address(_input.superchainConfigProxy);
             proxies.ProtocolVersions = address(_input.protocolVersionsProxy);

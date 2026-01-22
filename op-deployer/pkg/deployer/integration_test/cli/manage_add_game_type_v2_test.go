@@ -269,12 +269,13 @@ func deployDependencies(t *testing.T, runner *CLITestRunner) common.Address {
 		ArtifactsLocator:           artifacts.EmbeddedLocator,
 		Logger:                     runner.lgr,
 		SuperchainProxyAdminOwner:  superchainProxyAdminOwner,
-		ProtocolVersionsOwner:      common.Address{'P'},
+		ProtocolVersionsOwner:      common.Address{},
 		Guardian:                   common.Address{'G'},
 		Paused:                     false,
-		RequiredProtocolVersion:    params.ProtocolVersionV0{Major: 1}.Encode(),
-		RecommendedProtocolVersion: params.ProtocolVersionV0{Major: 2}.Encode(),
+		RequiredProtocolVersion:    params.ProtocolVersion{},
+		RecommendedProtocolVersion: params.ProtocolVersion{},
 		CacheDir:                   testCacheDir,
+		IsOPCMv2:                   true,
 	})
 	require.NoError(t, err, "Failed to deploy superchain contracts")
 

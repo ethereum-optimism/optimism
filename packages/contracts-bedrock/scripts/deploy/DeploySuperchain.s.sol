@@ -25,6 +25,7 @@ contract DeploySuperchain is Script {
         bool paused;
         bytes32 recommendedProtocolVersion;
         bytes32 requiredProtocolVersion;
+        bool isOPCMv2;
     }
 
     /// @notice InternalInput is created based on Input by converting the bytes32 protocol versions to ProtocolVersion
@@ -42,6 +43,7 @@ contract DeploySuperchain is Script {
         bool paused;
         ProtocolVersion recommendedProtocolVersion;
         ProtocolVersion requiredProtocolVersion;
+        bool isOPCMv2;
     }
 
     struct Output {
@@ -75,7 +77,9 @@ contract DeploySuperchain is Script {
         // Deploy and initialize the superchain contracts.
         deploySuperchainImplementationContracts(internalInput, output_);
         deployAndInitializeSuperchainConfig(internalInput, output_);
-        deployAndInitializeProtocolVersions(internalInput, output_);
+        if (!_input.isOPCMv2) {
+            deployAndInitializeProtocolVersions(internalInput, output_);
+        }
 
         // Transfer ownership of the ProxyAdmin from the deployer to the specified owner.
         transferProxyAdminOwnership(internalInput, output_);
@@ -103,7 +107,7 @@ contract DeploySuperchain is Script {
         _output.superchainProxyAdmin = superchainProxyAdmin;
     }
 
-    function deploySuperchainImplementationContracts(InternalInput memory, Output memory _output) private {
+    function deploySuperchainImplementationContracts(InternalInput memory _input, Output memory _output) private {
         // Deploy implementation contracts.
         ISuperchainConfig superchainConfigImpl = ISuperchainConfig(
             DeployUtils.createDeterministic({
@@ -112,19 +116,20 @@ contract DeploySuperchain is Script {
                 _salt: _salt
             })
         );
-        IProtocolVersions protocolVersionsImpl = IProtocolVersions(
-            DeployUtils.createDeterministic({
-                _name: "ProtocolVersions",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProtocolVersions.__constructor__, ())),
-                _salt: _salt
-            })
-        );
-
+        if (!_input.isOPCMv2) {
+            IProtocolVersions protocolVersionsImpl = IProtocolVersions(
+                DeployUtils.createDeterministic({
+                    _name: "ProtocolVersions",
+                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IProtocolVersions.__constructor__, ())),
+                    _salt: _salt
+                })
+            );
+            vm.label(address(protocolVersionsImpl), "ProtocolVersionsImpl");
+            _output.protocolVersionsImpl = protocolVersionsImpl;
+        }
         vm.label(address(superchainConfigImpl), "SuperchainConfigImpl");
-        vm.label(address(protocolVersionsImpl), "ProtocolVersionsImpl");
 
         _output.superchainConfigImpl = superchainConfigImpl;
-        _output.protocolVersionsImpl = protocolVersionsImpl;
     }
 
     function deployAndInitializeSuperchainConfig(InternalInput memory _input, Output memory _output) private {
@@ -196,15 +201,30 @@ contract DeploySuperchain is Script {
 
     function assertValidInput(InternalInput memory _input) internal pure {
         require(_input.guardian != address(0), "DeploySuperchain: guardian not set");
-        require(_input.protocolVersionsOwner != address(0), "DeploySuperchain: protocolVersionsOwner not set");
-        require(
-            ProtocolVersion.unwrap(_input.requiredProtocolVersion) != 0,
-            "DeploySuperchain: requiredProtocolVersion not set"
-        );
-        require(
-            ProtocolVersion.unwrap(_input.recommendedProtocolVersion) != 0,
-            "DeploySuperchain: recommendedProtocolVersion not set"
-        );
+        if (!_input.isOPCMv2) {
+            require(_input.protocolVersionsOwner != address(0), "DeploySuperchain: protocolVersionsOwner not set");
+            require(
+                ProtocolVersion.unwrap(_input.requiredProtocolVersion) != 0,
+                "DeploySuperchain: requiredProtocolVersion not set"
+            );
+            require(
+                ProtocolVersion.unwrap(_input.recommendedProtocolVersion) != 0,
+                "DeploySuperchain: recommendedProtocolVersion not set"
+            );
+        } else {
+            require(
+                _input.protocolVersionsOwner == address(0),
+                "DeploySuperchain: protocolVersionsOwner should be set to 0 for OPCM v2"
+            );
+            require(
+                ProtocolVersion.unwrap(_input.requiredProtocolVersion) == 0,
+                "DeploySuperchain: requiredProtocolVersion should be set to 0 for OPCM v2"
+            );
+            require(
+                ProtocolVersion.unwrap(_input.recommendedProtocolVersion) == 0,
+                "DeploySuperchain: recommendedProtocolVersion should be set to 0 for OPCM v2"
+            );
+        }
         require(_input.superchainProxyAdminOwner != address(0), "DeploySuperchain: superchainProxyAdminOwner not set");
     }
 
@@ -212,27 +232,39 @@ contract DeploySuperchain is Script {
         assertValidContractAddresses(_input, _output);
         assertValidSuperchainProxyAdmin(_input, _output);
         assertValidSuperchainConfig(_input, _output);
-        assertValidProtocolVersions(_input, _output);
+        if (!_input.isOPCMv2) {
+            assertValidProtocolVersions(_input, _output);
+        }
     }
 
-    function assertValidContractAddresses(InternalInput memory, Output memory _output) internal {
-        address[] memory addrs = Solarray.addresses(
-            address(_output.superchainProxyAdmin),
-            address(_output.superchainConfigImpl),
-            address(_output.superchainConfigProxy),
-            address(_output.protocolVersionsImpl),
-            address(_output.protocolVersionsProxy)
-        );
+    function assertValidContractAddresses(InternalInput memory _input, Output memory _output) internal {
+        address[] memory addrs;
+        if (_input.isOPCMv2) {
+            addrs = Solarray.addresses(
+                address(_output.superchainProxyAdmin),
+                address(_output.superchainConfigImpl),
+                address(_output.superchainConfigProxy)
+            );
+        } else {
+            addrs = Solarray.addresses(
+                address(_output.superchainProxyAdmin),
+                address(_output.superchainConfigImpl),
+                address(_output.superchainConfigProxy),
+                address(_output.protocolVersionsImpl),
+                address(_output.protocolVersionsProxy)
+            );
+        }
         DeployUtils.assertValidContractAddresses(addrs);
 
         // To read the implementations we prank as the zero address due to the proxyCallIfNotAdmin modifier.
         vm.startPrank(address(0));
         address actualSuperchainConfigImpl = IProxy(payable(address(_output.superchainConfigProxy))).implementation();
-        address actualProtocolVersionsImpl = IProxy(payable(address(_output.protocolVersionsProxy))).implementation();
+        address actualProtocolVersionsImpl =
+            _input.isOPCMv2 ? address(0) : IProxy(payable(address(_output.protocolVersionsProxy))).implementation();
         vm.stopPrank();
 
         require(actualSuperchainConfigImpl == address(_output.superchainConfigImpl), "100"); // nosemgrep:
-            // sol-style-malformed-require
+        // sol-style-malformed-require
         require(actualProtocolVersionsImpl == address(_output.protocolVersionsImpl), "200"); // nosemgrep:
             // sol-style-malformed-require
     }
@@ -299,7 +331,8 @@ contract DeploySuperchain is Script {
             _input.superchainProxyAdminOwner,
             _input.paused,
             ProtocolVersion.wrap(uint256(_input.recommendedProtocolVersion)),
-            ProtocolVersion.wrap(uint256(_input.requiredProtocolVersion))
+            ProtocolVersion.wrap(uint256(_input.requiredProtocolVersion)),
+            _input.isOPCMv2
         );
     }
 }

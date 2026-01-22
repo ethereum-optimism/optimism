@@ -76,15 +76,18 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
         deployImplementations = new DeployImplementations();
         deployOPChain = new DeployOPChain();
 
+        bool isOPCMv2 = isDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         // 1) DeploySuperchain
         DeploySuperchain.Output memory dso = deploySuperchain.run(
             DeploySuperchain.Input({
                 superchainProxyAdminOwner: superchainProxyAdminOwner,
-                protocolVersionsOwner: protocolVersionsOwner,
+                protocolVersionsOwner: isOPCMv2 ? address(0) : protocolVersionsOwner,
                 guardian: guardian,
                 paused: paused,
-                requiredProtocolVersion: requiredProtocolVersion,
-                recommendedProtocolVersion: recommendedProtocolVersion
+                requiredProtocolVersion: isOPCMv2 ? bytes32(0) : requiredProtocolVersion,
+                recommendedProtocolVersion: isOPCMv2 ? bytes32(0) : recommendedProtocolVersion,
+                isOPCMv2: isOPCMv2
             })
         );
 

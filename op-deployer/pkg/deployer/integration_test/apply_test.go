@@ -101,6 +101,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			Paused:                     false,
 			RecommendedProtocolVersion: params.ProtocolVersion{0x01, 0x02, 0x03, 0x04},
 			RequiredProtocolVersion:    params.ProtocolVersion{0x01, 0x02, 0x03, 0x04},
+			IsOPCMv2:                   false,
 		})
 		require.NoError(t, err)
 
@@ -225,6 +226,7 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 			}
 			if deployer.IsDevFeatureEnabled(tt.devFeature, deployer.OPCMV2DevFlag) {
 				cfg.DevFeatureBitmap = deployer.OPCMV2DevFlag
+				cfg.ProtocolVersionsProxy = common.Address{}
 			}
 
 			runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, cfg)
@@ -418,6 +420,9 @@ func TestEndToEndApply(t *testing.T) {
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmDeployerImpl, "OPCM deployer implementation should be zero")
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmUpgraderImpl, "OPCM upgrader implementation should be zero")
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmInteropMigratorImpl, "OPCM interop migrator implementation should be zero")
+		require.Equal(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsProxy, "ProtocolVersions proxy should be zero")
+		require.Equal(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsImpl, "ProtocolVersions implementation should be zero")
+		require.Equal(t, common.Address{}, st.SuperchainRoles.ProtocolVersionsOwner, "ProtocolVersions owner should be zero")
 	})
 }
 

@@ -42,15 +42,23 @@ contract DeploySuperchain_Test is Test {
         address _guardian,
         bool _paused,
         bytes32 _recommendedProtocolVersion,
-        bytes32 _requiredProtocolVersion
+        bytes32 _requiredProtocolVersion,
+        bool _isOPCMv2
     )
         public
     {
         vm.assume(_superchainProxyAdminOwner != address(0));
-        vm.assume(_protocolVersionsOwner != address(0));
         vm.assume(_guardian != address(0));
-        vm.assume(_recommendedProtocolVersion != bytes32(0));
-        vm.assume(_requiredProtocolVersion != bytes32(0));
+
+        if (_isOPCMv2) {
+            _protocolVersionsOwner = address(0);
+            _requiredProtocolVersion = bytes32(0);
+            _recommendedProtocolVersion = bytes32(0);
+        } else {
+            vm.assume(_protocolVersionsOwner != address(0));
+            vm.assume(_requiredProtocolVersion != bytes32(0));
+            vm.assume(_recommendedProtocolVersion != bytes32(0));
+        }
 
         DeploySuperchain.Input memory dsi = DeploySuperchain.Input(
             _guardian,
@@ -58,7 +66,8 @@ contract DeploySuperchain_Test is Test {
             _superchainProxyAdminOwner,
             _paused,
             _recommendedProtocolVersion,
-            _requiredProtocolVersion
+            _requiredProtocolVersion,
+            _isOPCMv2
         );
 
         // Run the deployment script.
@@ -66,10 +75,13 @@ contract DeploySuperchain_Test is Test {
 
         // Assert inputs were properly passed through to the contract initializers.
         assertEq(address(dso.superchainProxyAdmin.owner()), _superchainProxyAdminOwner, "100");
-        assertEq(address(dso.protocolVersionsProxy.owner()), _protocolVersionsOwner, "200");
         assertEq(address(dso.superchainConfigProxy.guardian()), _guardian, "300");
-        assertEq(unwrap(dso.protocolVersionsProxy.required()), _requiredProtocolVersion, "500");
-        assertEq(unwrap(dso.protocolVersionsProxy.recommended()), _recommendedProtocolVersion, "600");
+
+        if (!_isOPCMv2) {
+            assertEq(address(dso.protocolVersionsProxy.owner()), _protocolVersionsOwner, "200");
+            assertEq(unwrap(dso.protocolVersionsProxy.required()), _requiredProtocolVersion, "500");
+            assertEq(unwrap(dso.protocolVersionsProxy.recommended()), _recommendedProtocolVersion, "600");
+        }
 
         // Architecture assertions.
         // We prank as the zero address due to the Proxy's `proxyCallIfNotAdmin` modifier.
@@ -78,8 +90,13 @@ contract DeploySuperchain_Test is Test {
 
         vm.startPrank(address(0));
         assertEq(superchainConfigProxy.implementation(), address(dso.superchainConfigImpl), "700");
-        assertEq(protocolVersionsProxy.implementation(), address(dso.protocolVersionsImpl), "800");
-        assertEq(superchainConfigProxy.admin(), protocolVersionsProxy.admin(), "900");
+        if (!_isOPCMv2) {
+            assertEq(protocolVersionsProxy.implementation(), address(dso.protocolVersionsImpl), "800");
+            assertEq(superchainConfigProxy.admin(), protocolVersionsProxy.admin(), "900");
+        } else {
+            assertEq(address(dso.protocolVersionsProxy), address(0), "1100");
+            assertEq(address(dso.protocolVersionsImpl), address(0), "1200");
+        }
         assertEq(superchainConfigProxy.admin(), address(dso.superchainProxyAdmin), "1000");
         vm.stopPrank();
     }
@@ -113,6 +130,39 @@ contract DeploySuperchain_Test is Test {
         deploySuperchain.run(input);
     }
 
+    function testFuzz_run_filledProtocolVersionsOwnerV2_reverts(address _protocolVersionsOwner) public {
+        vm.assume(_protocolVersionsOwner != address(0));
+        DeploySuperchain.Input memory input = defaultInput();
+        input.requiredProtocolVersion = bytes32(0);
+        input.recommendedProtocolVersion = bytes32(0);
+        input.isOPCMv2 = true;
+        input.protocolVersionsOwner = _protocolVersionsOwner;
+        vm.expectRevert("DeploySuperchain: protocolVersionsOwner should be set to 0 for OPCM v2");
+        deploySuperchain.run(input);
+    }
+
+    function testFuzz_run_filledRequiredProtocolVersionV2_reverts(bytes32 _requiredProtocolVersion) public {
+        vm.assume(_requiredProtocolVersion != bytes32(0));
+        DeploySuperchain.Input memory input = defaultInput();
+        input.recommendedProtocolVersion = bytes32(0);
+        input.protocolVersionsOwner = address(0);
+        input.requiredProtocolVersion = _requiredProtocolVersion;
+        input.isOPCMv2 = true;
+        vm.expectRevert("DeploySuperchain: requiredProtocolVersion should be set to 0 for OPCM v2");
+        deploySuperchain.run(input);
+    }
+
+    function testFuzz_run_filledRecommendedProtocolVersionV2_reverts(bytes32 _recommendedProtocolVersion) public {
+        vm.assume(_recommendedProtocolVersion != bytes32(0));
+        DeploySuperchain.Input memory input = defaultInput();
+        input.recommendedProtocolVersion = _recommendedProtocolVersion;
+        input.protocolVersionsOwner = address(0);
+        input.requiredProtocolVersion = bytes32(0);
+        input.isOPCMv2 = true;
+        vm.expectRevert("DeploySuperchain: recommendedProtocolVersion should be set to 0 for OPCM v2");
+        deploySuperchain.run(input);
+    }
+
     function test_reuseAddresses_succeeds() public {
         DeploySuperchain.Input memory input = defaultInput();
 
@@ -134,7 +184,8 @@ contract DeploySuperchain_Test is Test {
             defaultProxyAdminOwner,
             defaultPaused,
             defaultRecommendedProtocolVersion,
-            defaultRequiredProtocolVersion
+            defaultRequiredProtocolVersion,
+            false
         );
     }
 }
