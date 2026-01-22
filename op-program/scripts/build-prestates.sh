@@ -92,7 +92,6 @@ function build_prestates() {
     # jq should already be preinstalled in the mise cache.
     # Replace mise.toml with a minimal one to avoid conflicts with other preinstalled dependencies.
     GO_VERSION=$(mise config get tools.go)
-    JUST_VERSION=$(mise config get tools.just)
     cat > mise.toml << EOF
 [tools]
 go = "${GO_VERSION}"
@@ -169,7 +168,6 @@ for i in "${!VERSIONS[@]}"; do
 done
 
 # Build legacy kona prestates from the old op-rs/kona repo.
-# This section will be removed once we no longer need to verify those historical prestates.
 for i in "${!LEGACY_KONA_VERSIONS[@]}"; do
   tag="${LEGACY_KONA_VERSIONS[i]}"
   log_file="${LOGS_DIR}/build-legacy-${tag//\//-}.txt"
