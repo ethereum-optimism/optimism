@@ -15,8 +15,8 @@
 pub mod api;
 pub use api::{BlockStateDiff, OpProofsStore};
 
-pub mod backfill;
-pub use backfill::BackfillJob;
+pub mod initialize;
+pub use initialize::InitializationJob;
 
 pub mod in_memory;
 pub use in_memory::{

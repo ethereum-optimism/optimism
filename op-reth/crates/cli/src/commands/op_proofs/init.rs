@@ -7,7 +7,9 @@ use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, Environ
 use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_primitives::OpPrimitives;
-use reth_optimism_trie::{db::MdbxProofsStorage, BackfillJob, OpProofsStorage, OpProofsStore};
+use reth_optimism_trie::{
+    db::MdbxProofsStorage, InitializationJob, OpProofsStorage, OpProofsStore,
+};
 use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory};
 use std::{path::PathBuf, sync::Arc};
 use tracing::info;
@@ -78,7 +80,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
                 provider_factory.database_provider_ro()?.disable_long_read_transaction_safety();
             let db_tx = db_provider.into_tx();
 
-            BackfillJob::new(storage.clone(), &db_tx).run(best_number, best_hash).await?;
+            InitializationJob::new(storage.clone(), &db_tx).run(best_number, best_hash).await?;
         }
 
         info!(

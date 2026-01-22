@@ -12,7 +12,7 @@ use reth_evm::{execute::Executor, ConfigureEvm};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_optimism_trie::{
-    backfill::BackfillJob, live::LiveTrieCollector, MdbxProofsStorage, OpProofsStorage,
+    initialize::InitializationJob, live::LiveTrieCollector, MdbxProofsStorage, OpProofsStorage,
     OpProofsStorageError,
 };
 use reth_primitives_traits::{
@@ -58,10 +58,10 @@ struct BlockSpec {
 /// Configuration for a test scenario
 #[derive(Debug, Constructor)]
 struct TestScenario {
-    /// Blocks to execute before running the backfill job
-    blocks_before_backfill: Vec<BlockSpec>,
-    /// Blocks to execute after backfill using the live collector
-    blocks_after_backfill: Vec<BlockSpec>,
+    /// Blocks to execute before running the initialization job
+    blocks_before_initialization: Vec<BlockSpec>,
+    /// Blocks to execute after initialization using the live collector
+    blocks_after_initialization: Vec<BlockSpec>,
 }
 
 /// Helper to create a chain spec with a genesis account funded
@@ -219,8 +219,8 @@ where
     let mut last_block_hash = genesis_hash;
     let mut last_block_number = 0u64;
 
-    // Execute blocks before backfill
-    for (idx, block_spec) in scenario.blocks_before_backfill.iter().enumerate() {
+    // Execute blocks before initialization
+    for (idx, block_spec) in scenario.blocks_before_initialization.iter().enumerate() {
         let block_number = idx as u64 + 1;
         let mut block = create_block_from_spec(
             block_spec,
@@ -241,14 +241,14 @@ where
     {
         let provider = provider_factory.db_ref();
         let tx = provider.tx()?;
-        let backfill_job = BackfillJob::new(storage.clone(), &tx);
-        backfill_job.run(last_block_number, last_block_hash).await?;
+        let initialization_job = InitializationJob::new(storage.clone(), &tx);
+        initialization_job.run(last_block_number, last_block_hash).await?;
     }
 
-    // Execute blocks after backfill using live collector
+    // Execute blocks after initialization using live collector
     let evm_config = EthEvmConfig::ethereum(chain_spec.clone());
 
-    for (idx, block_spec) in scenario.blocks_after_backfill.iter().enumerate() {
+    for (idx, block_spec) in scenario.blocks_after_initialization.iter().enumerate() {
         let block_number = last_block_number + idx as u64 + 1;
         let mut block = create_block_from_spec(
             block_spec,
@@ -281,7 +281,7 @@ where
 
 /// End-to-end test of a single live collector iteration.
 /// (1) Creates a chain with some state
-/// (2) Stores the genesis state into storage via backfill
+/// (2) Stores the genesis state into storage via initialization
 /// (3) Executes a block and calculates the state root using the stored state
 #[tokio::test]
 async fn test_execute_and_store_block_updates() {
@@ -303,9 +303,9 @@ async fn test_execute_and_store_block_updates() {
     init_genesis(&provider_factory).unwrap();
 
     // Define the test scenario:
-    // - No blocks before backfill
-    // - Backfill to genesis (block 0)
-    // - Execute one block with a single transaction after backfill
+    // - No blocks before initialization
+    // - Initialization to genesis (block 0)
+    // - Execute one block with a single transaction after initialization
     let recipient = Address::repeat_byte(0x42);
     let scenario = TestScenario::new(
         vec![],
@@ -329,10 +329,10 @@ async fn test_execute_and_store_block_updates_missing_parent_block() {
     let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
     init_genesis(&provider_factory).unwrap();
 
-    // No blocks before backfill; backfill only inserts genesis.
+    // No blocks before initialization; initialization only inserts genesis.
     let scenario = TestScenario::new(vec![], vec![]);
 
-    // Run backfill (block 0 only)
+    // Run initialization (block 0 only)
     run_test_scenario(
         scenario,
         provider_factory.clone(),
@@ -381,7 +381,7 @@ async fn test_execute_and_store_block_updates_state_root_mismatch() {
     let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
     init_genesis(&provider_factory).unwrap();
 
-    // Run normal scenario: no blocks before backfill, one block after.
+    // Run normal scenario: no blocks before initialization, one block after.
     let recipient = Address::repeat_byte(0x42);
     let scenario = TestScenario::new(
         vec![],
@@ -429,9 +429,9 @@ async fn test_execute_and_store_block_updates_state_root_mismatch() {
     assert!(matches!(err, OpProofsStorageError::StateRootMismatch { .. }));
 }
 
-/// Test with multiple blocks before and after backfill
+/// Test with multiple blocks before and after initialization
 #[tokio::test]
-async fn test_multiple_blocks_before_and_after_backfill() {
+async fn test_multiple_blocks_before_and_after_initialization() {
     let dir = TempDir::new().unwrap();
     let storage = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")).into();
 
@@ -444,8 +444,8 @@ async fn test_multiple_blocks_before_and_after_backfill() {
     init_genesis(&provider_factory).unwrap();
 
     // Define the test scenario:
-    // - Execute 3 blocks before backfill (will be committed to db)
-    // - Backfill to block 3
+    // - Execute 3 blocks before initialization (will be committed to db)
+    // - Initialization to block 3
     // - Execute 2 more blocks using the live collector
     let recipient1 = Address::repeat_byte(0x42);
     let recipient2 = Address::repeat_byte(0x43);
