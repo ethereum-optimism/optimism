@@ -123,9 +123,9 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 	outfile := cliCtx.String(OutfileFlagName)
 	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
 
-	isOPCMv2 := false
-	if common.HexToHash(DevFeatureBitmapFlagName) == deployer.OPCMV2DevFlag {
-		isOPCMv2 = true
+	devFeatureBitmap := common.HexToHash(cliCtx.String(DevFeatureBitmapFlagName))
+	isOPCMv2 := deployer.IsDevFeatureEnabled(devFeatureBitmap, deployer.OPCMV2DevFlag)
+	if isOPCMv2 {
 		protocolVersionsOwner = common.Address{}
 		requiredVersionStr = ""
 		recommendedVersionStr = ""
