@@ -350,7 +350,7 @@ func TestSpanBatchTxsRecoverV(t *testing.T) {
 			var spanBatchTxs spanBatchTxs
 			var txTypes []int
 			var txSigs []spanBatchSignature
-			var originalVs []uint64
+			var originalVs []*big.Int
 			yParityBits := new(big.Int)
 			protectedBits := new(big.Int)
 			totalLegacyTxCount := 0
@@ -372,8 +372,8 @@ func TestSpanBatchTxsRecoverV(t *testing.T) {
 				txSig.r, _ = uint256.FromBig(r)
 				txSig.s, _ = uint256.FromBig(s)
 				txSigs = append(txSigs, txSig)
-				originalVs = append(originalVs, bigs.Uint64Strict(v))
-				yParityBit, err := convertVToYParity(bigs.Uint64Strict(v), int(tx.Type()))
+				originalVs = append(originalVs, v)
+				yParityBit, err := convertVToYParity(v, int(tx.Type()))
 				require.NoError(t, err)
 				yParityBits.SetBit(yParityBits, idx, yParityBit)
 			}
@@ -386,11 +386,14 @@ func TestSpanBatchTxsRecoverV(t *testing.T) {
 			err := spanBatchTxs.recoverV(chainID)
 			require.NoError(t, err)
 
-			var recoveredVs []uint64
+			var recoveredVs []*big.Int
 			for _, txSig := range spanBatchTxs.txSigs {
 				recoveredVs = append(recoveredVs, txSig.v)
 			}
-			require.Equal(t, originalVs, recoveredVs, "recovered v mismatch")
+			require.Equal(t, len(originalVs), len(recoveredVs), "recovered v length mismatch")
+			for i := range originalVs {
+				require.Truef(t, bigs.Equal(originalVs[i], recoveredVs[i]), "original v %v mismatch with recovered v %v", originalVs[i], recoveredVs[i])
+			}
 		})
 	}
 }
@@ -419,6 +422,13 @@ func TestSpanBatchTxsRoundTrip(t *testing.T) {
 		err = sbt2.recoverV(chainID)
 		require.NoError(t, err)
 
+		// require.Equal looks into the internals of structs instead of using their Equal method (or Cmp for *big.Int)
+		// So we need to normalize the *big.Int instances before comparing
+		for i, v := range sbt.txSigs {
+			normalizedV := new(big.Int).SetBytes(v.v.Bytes())
+			require.True(t, normalizedV.Cmp(v.v) == 0, "Normalization changed the logical value unexpectedly")
+			sbt.txSigs[i].v = normalizedV
+		}
 		require.Equal(t, sbt, &sbt2)
 	}
 }
@@ -466,7 +476,7 @@ func TestSpanBatchTxsRecoverVInvalidTxType(t *testing.T) {
 	var sbt spanBatchTxs
 
 	sbt.txTypes = []int{types.DepositTxType}
-	sbt.txSigs = []spanBatchSignature{{v: 0, r: nil, s: nil}}
+	sbt.txSigs = []spanBatchSignature{{v: big.NewInt(0), r: nil, s: nil}}
 	sbt.yParityBits = new(big.Int)
 	sbt.protectedBits = new(big.Int)
 
