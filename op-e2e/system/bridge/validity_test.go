@@ -26,7 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/bindings"
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/fuzzerutils"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -383,7 +382,7 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 			fromAddr := crypto.PubkeyToAddress(transactor.Account.Key.PublicKey)
 			fromBalance, err := l2Verif.BalanceAt(context.Background(), fromAddr, nil)
 			require.NoError(t, err)
-			require.Greaterf(t, bigs.Uint64Strict(fromBalance), uint64(700_000_000_000), "insufficient balance for %s", fromAddr)
+			require.Truef(t, fromBalance.Cmp(big.NewInt(700_000_000_000)) > 0, "insufficient balance for %s", fromAddr)
 
 			// Initiate Withdrawal
 			withdrawAmount := big.NewInt(500_000_000_000)
