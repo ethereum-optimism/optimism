@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -87,7 +86,7 @@ func TestOutputAlphabetGame_ReclaimBond(t *testing.T) {
 
 	// The dispute game should have a zero balance
 	balance := game.WethBalance(ctx, game.Addr)
-	require.Zero(t, bigs.Uint64Strict(balance))
+	require.Zero(t, balance.BitLen(), "Expected zero WETH balance, got %v", balance)
 
 	alice := sys.Cfg.Secrets.Addresses().Alice
 
