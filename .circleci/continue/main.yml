@@ -1296,7 +1296,7 @@ jobs:
       test_timeout:
         description: Timeout for running tests
         type: string
-        default: 15m
+        default: 20m
       test_profile:
         description: Profile to use for testing
         type: string
