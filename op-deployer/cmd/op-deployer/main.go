@@ -5,10 +5,16 @@ import (
 	"os"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/cli"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version"
 )
 
 func main() {
+	// Ensure cleanup happens on exit
+	defer func() {
+		_ = artifacts.CleanupAll()
+	}()
+
 	app := cli.NewApp(version.VersionWithMeta)
 	app.Writer = os.Stdout
 	app.ErrWriter = os.Stderr
