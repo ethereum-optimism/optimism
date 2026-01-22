@@ -25,9 +25,7 @@ func getGlobalTracker() *TempDirTracker {
 		go func() {
 			defer close(globalCleanupDone)
 			<-sigChan
-			if err := globalTracker.Cleanup(); err != nil {
-				// We can't log here as the process is shutting down
-			}
+			_ = globalTracker.Cleanup() // We can't log here as the process is shutting down
 		}()
 	})
 	return globalTracker

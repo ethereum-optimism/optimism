@@ -229,7 +229,7 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, anvil.Start())
 	t.Cleanup(func() {
-		anvil.Stop()
+		require.NoError(t, anvil.Stop())
 	})
 
 	l1RPCUrl := anvil.RPCUrl()
