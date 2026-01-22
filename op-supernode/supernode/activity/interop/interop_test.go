@@ -840,6 +840,19 @@ func TestProgressAndRecord_ValidResult_SetsL1ToResultL1Head(t *testing.T) {
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
+	// Override verifyFn to return a valid result with a specific L1Head
+	expectedL1Head := eth.BlockID{Number: 150, Hash: common.HexToHash("0xL1Result")}
+	interop.verifyFn = func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error) {
+		return Result{
+			Timestamp: ts,
+			L1Head:    expectedL1Head,
+			L2Heads: map[eth.ChainID]eth.BlockID{
+				mock.id: blocksAtTimestamp[mock.id],
+			},
+			InvalidHeads: nil, // valid result
+		}, nil
+	}
+
 	// Verify currentL1 starts empty
 	require.Equal(t, eth.BlockID{}, interop.currentL1)
 
@@ -847,12 +860,8 @@ func TestProgressAndRecord_ValidResult_SetsL1ToResultL1Head(t *testing.T) {
 
 	require.NoError(t, err)
 	// When result is valid (non-empty), currentL1 should be set to result.L1Head
-	// Note: The current implementation sets result.L1Head which is empty (eth.BlockID{})
-	// because verifyInteropMessages doesn't populate L1Head. This test verifies current behavior.
-	// The currentL1 will be result.L1Head (which may be empty in stub implementation)
-	// This is the expected behavior based on the code:
-	// if !result.IsEmpty() { i.currentL1 = result.L1Head }
-	require.Equal(t, eth.BlockID{}, interop.currentL1) // result.L1Head is empty in stub
+	require.Equal(t, expectedL1Head.Number, interop.currentL1.Number)
+	require.Equal(t, expectedL1Head.Hash, interop.currentL1.Hash)
 }
 
 func TestProgressAndRecord_InvalidResult_DoesNotUpdateL1(t *testing.T) {
@@ -872,17 +881,26 @@ func TestProgressAndRecord_InvalidResult_DoesNotUpdateL1(t *testing.T) {
 	initialL1 := eth.BlockID{Number: 50, Hash: common.HexToHash("0x50")}
 	interop.currentL1 = initialL1
 
-	// First, make a valid progress to initialize the DB
+	// Override verifyFn to return an invalid result (has InvalidHeads)
+	interop.verifyFn = func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error) {
+		return Result{
+			Timestamp: ts,
+			L1Head:    eth.BlockID{Number: 999, Hash: common.HexToHash("0xShouldNotBeUsed")},
+			L2Heads: map[eth.ChainID]eth.BlockID{
+				mock.id: blocksAtTimestamp[mock.id],
+			},
+			InvalidHeads: map[eth.ChainID]eth.BlockID{
+				mock.id: {Number: 100, Hash: common.HexToHash("0xBAD")}, // marks result as invalid
+			},
+		}, nil
+	}
+
 	err := interop.progressAndRecord()
+
 	require.NoError(t, err)
-
-	// Now we need to test invalid result. Since verifyInteropMessages is a stub
-	// that always returns valid results, we test the logic by calling handleResult
-	// directly with an invalid result and checking currentL1 behavior.
-	// The actual progressAndRecord would need the stub to be changed to produce invalid results.
-
-	// For now, verify valid result updated currentL1
-	// This confirms the valid path works; invalid path requires stub modification or direct test
+	// When result is invalid, currentL1 should NOT be updated (remains at initial value)
+	require.Equal(t, initialL1.Number, interop.currentL1.Number)
+	require.Equal(t, initialL1.Hash, interop.currentL1.Hash)
 }
 
 func TestProgressAndRecord_CollectL1Error_ReturnsError(t *testing.T) {

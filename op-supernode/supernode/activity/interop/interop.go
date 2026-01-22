@@ -49,6 +49,8 @@ type Interop struct {
 
 	l1Client  *sources.L1Client
 	currentL1 eth.BlockID
+
+	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
 }
 
 func (i *Interop) Name() string {
@@ -68,7 +70,7 @@ func New(
 		log.Error("failed to open verified DB", "err", err)
 		return nil
 	}
-	return &Interop{
+	i := &Interop{
 		log:                 log,
 		chains:              chains,
 		l1Client:            l1Client,
@@ -76,6 +78,10 @@ func New(
 		currentL1:           eth.BlockID{},
 		activationTimestamp: activationTimestamp,
 	}
+	// default to using the verifyInteropMessages function
+	// (can be overridden by tests)
+	i.verifyFn = i.verifyInteropMessages
+	return i
 }
 
 // Start begins the Interop activity background loop and blocks until ctx is canceled.
@@ -227,7 +233,7 @@ func (i *Interop) progressInterop() (Result, error) {
 
 	// 3: validate interop messages
 	// and return the result and any errors
-	return i.verifyInteropMessages(ts, blocksAtTimestamp)
+	return i.verifyFn(ts, blocksAtTimestamp)
 }
 
 func (i *Interop) handleResult(result Result) error {
