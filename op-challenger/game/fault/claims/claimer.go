@@ -20,7 +20,7 @@ type TxSender interface {
 }
 
 type BondClaimMetrics interface {
-	RecordBondClaimed(amount uint64)
+	RecordBondClaimed(amount *big.Int)
 }
 
 type BondContract interface {
@@ -114,7 +114,7 @@ func (c *Claimer) claimBond(ctx context.Context, contract BondContract, game typ
 		return true, fmt.Errorf("failed to claim credit: %w", err)
 	}
 
-	c.metrics.RecordBondClaimed(credit.Uint64())
+	c.metrics.RecordBondClaimed(credit)
 	return true, nil
 }
 

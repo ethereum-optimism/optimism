@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
@@ -30,6 +31,9 @@ type Env struct {
 	Deployer     common.Address
 	Logger       log.Logger
 	Scripts      *opcm.Scripts
+	ForgeClient  *forge.Client
+	UseForge     bool
+	Context      context.Context
 }
 
 type StateWriter interface {

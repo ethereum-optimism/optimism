@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -58,7 +59,7 @@ func NewL2Sources(ctx context.Context, logger log.Logger, configs []*rollup.Conf
 	}
 	rollupConfigs := make(map[uint64]*rollup.Config)
 	for _, rollupCfg := range configs {
-		rollupConfigs[rollupCfg.L2ChainID.Uint64()] = rollupCfg
+		rollupConfigs[bigs.Uint64Strict(rollupCfg.L2ChainID)] = rollupCfg
 	}
 	l2RPCs := make(map[uint64]client.RPC)
 	for _, rpc := range l2Clients {
@@ -86,7 +87,7 @@ func NewL2Sources(ctx context.Context, logger log.Logger, configs []*rollup.Conf
 
 	sources := make(map[uint64]*L2Source)
 	for _, rollupCfg := range rollupConfigs {
-		chainID := rollupCfg.L2ChainID.Uint64()
+		chainID := bigs.Uint64Strict(rollupCfg.L2ChainID)
 		l2RPC, ok := l2RPCs[chainID]
 		if !ok {
 			return nil, fmt.Errorf("%w: %v", ErrNoL2ForRollup, chainID)
@@ -111,6 +112,6 @@ func loadChainID(ctx context.Context, rpc client.RPC) (uint64, error) {
 		if err != nil {
 			return 0, err
 		}
-		return (*big.Int)(&id).Uint64(), nil
+		return bigs.Uint64Strict((*big.Int)(&id)), nil
 	})
 }

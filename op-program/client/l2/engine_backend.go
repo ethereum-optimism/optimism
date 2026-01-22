@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	l2Types "github.com/ethereum-optimism/optimism/op-program/client/l2/types"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -145,7 +146,7 @@ func (o *OracleBackedL2Chain) GetBlockByHash(hash common.Hash) *types.Block {
 
 func (o *OracleBackedL2Chain) GetBlock(hash common.Hash, number uint64) *types.Block {
 	var block *types.Block
-	if o.oracleHead.Number.Uint64() < number {
+	if bigs.Uint64Strict(o.oracleHead.Number) < number {
 		// For blocks above the chain head, only consider newly built blocks
 		// Avoids requesting an unknown block from the oracle which would panic.
 		block = o.blocks[hash]

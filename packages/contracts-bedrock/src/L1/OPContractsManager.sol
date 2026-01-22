@@ -864,11 +864,19 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 _disputeGameFactory: disputeGameFactory
             });
 
-            if (_opChainConfig.cannonKonaPrestate.raw() != bytes32(0)) {
+            // Get the actual CANNON_KONA implementation to determine if it exists and to read its prestate
+            IDisputeGame cannonKonaGame = getGameImplementation(dgf, GameTypes.CANNON_KONA);
+
+            // Only upgrade CANNON_KONA if prestate is explicitly provided OR if CANNON_KONA already exists.
+            // This avoids silently enabling CANNON_KONA with an unintended prestate.
+            if (_opChainConfig.cannonKonaPrestate.raw() != bytes32(0) || address(cannonKonaGame) != address(0)) {
+                Claim cannonKonaPrestate = _opChainConfig.cannonKonaPrestate.raw() != bytes32(0)
+                    ? _opChainConfig.cannonKonaPrestate
+                    : getAbsolutePrestate(disputeGameFactory, address(cannonKonaGame), GameTypes.CANNON_KONA);
                 setNewPermissionlessGameImpl({
                     _impls: _impls,
                     _l2ChainId: _l2ChainId,
-                    _newAbsolutePrestate: _opChainConfig.cannonKonaPrestate,
+                    _newAbsolutePrestate: cannonKonaPrestate,
                     // CANNON and CANNON_KONA use the same weth and asr proxy addresses
                     _newDelayedWeth: getWETH(dgf, permissionlessDisputeGame, GameTypes.CANNON),
                     _newAnchorStateRegistryProxy: getAnchorStateRegistry(dgf, permissionlessDisputeGame, GameTypes.CANNON),
@@ -1906,9 +1914,12 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 6.1.0
+    /// @dev This needs to stay at 6.x.x because the next release will ship OPCMv2. Since we are
+    ///      not actually planning to release a 7.x.x of OPCMv1, it needs to stay at 6.x.x to avoid
+    ///      errors in the versioning rules of OPCMv2.
+    /// @custom:semver 6.0.3
     function version() public pure virtual returns (string memory) {
-        return "6.1.0";
+        return "6.0.3";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

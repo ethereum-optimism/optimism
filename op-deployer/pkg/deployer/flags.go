@@ -29,6 +29,7 @@ const (
 	ContractNameFlagName     = flags.ContractNameFlagName
 	VerifierTypeFlagName     = flags.VerifierTypeFlagName
 	VerifierUrlFlagName      = flags.VerifierUrlFlagName
+	UseForgeFlagName         = flags.UseForgeFlagName
 )
 
 var (
@@ -134,6 +135,12 @@ var (
 		EnvVars: PrefixEnvVar("VERIFY"),
 		Value:   false,
 	}
+	UseForgeFlag = &cli.BoolFlag{
+		Name:    UseForgeFlagName,
+		Usage:   "use Forge instead of script.Host for deployment scripts",
+		EnvVars: PrefixEnvVar("USE_FORGE"),
+		Value:   false,
+	}
 )
 
 var GlobalFlags = append([]cli.Flag{CacheDirFlag}, oplog.CLIFlags(EnvVarPrefix)...)
@@ -155,6 +162,7 @@ var ApplyFlags = []cli.Flag{
 	VerifierAPIKeyFlag,
 	VerifierFlag,
 	VerifierUrlFlag,
+	UseForgeFlag,
 }
 
 var UpgradeFlags = []cli.Flag{

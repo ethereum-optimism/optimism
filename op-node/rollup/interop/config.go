@@ -34,7 +34,11 @@ func (cfg *Config) Check() error {
 
 // Setup creates an interop sub-system. This drives the node syncing.
 // If setup returns a nil system (without error) the node should fall back to legacy mode.
-func (cfg *Config) Setup(ctx context.Context, logger log.Logger, rollupCfg *rollup.Config, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer) (SubSystem, error) {
+func (cfg *Config) Setup(ctx context.Context, logger log.Logger, rollupCfg *rollup.Config, supervisorEnabled bool, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer) (SubSystem, error) {
+	if !supervisorEnabled {
+		logger.Info("Supervisor disabled, using legacy sync mode")
+		return nil, nil // a `nil` system will result in legacy mode.
+	}
 	if cfg.RPCAddr == "" {
 		logger.Warn("No interop RPC configured, falling back to legacy sync mode.")
 		return nil, nil // a `nil` system will result in legacy mode.

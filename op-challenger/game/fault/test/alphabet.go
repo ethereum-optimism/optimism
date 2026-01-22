@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
 func NewAlphabetWithProofProvider(t *testing.T, startingL2BlockNumber *big.Int, maxDepth types.Depth, oracleError error) *AlphabetWithProofProvider {
@@ -35,7 +36,7 @@ func (a *AlphabetWithProofProvider) GetStepData(ctx context.Context, i types.Pos
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	traceIndex := i.TraceIndex(a.depth).Uint64()
+	traceIndex := bigs.Uint64Strict(i.TraceIndex(a.depth))
 	data := types.NewPreimageOracleData([]byte{byte(traceIndex)}, []byte{byte(traceIndex - 1)}, uint32(traceIndex-1))
 	return preimage, []byte{byte(traceIndex - 1)}, data, nil
 }

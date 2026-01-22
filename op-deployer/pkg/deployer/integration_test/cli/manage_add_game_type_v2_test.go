@@ -15,7 +15,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -127,6 +129,11 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 	// Deploy the OPCM V2 contract.
 	opcmV2 := deployDependencies(t, runner)
 
+	// Run past upgrades before testing the V2 command.
+	// This is necessary when forking a network at a block before certain upgrades were executed.
+	_, afactsFS := testutil.LocalArtifacts(t)
+	shared.RunPastUpgradesWithRPC(t, runner.l1RPC, afactsFS, lgr, 11155111, l1ProxyAdminOwner, systemConfigProxy)
+
 	bytes32Type := deployer.Bytes32Type
 	addressType := deployer.AddressType
 
@@ -174,11 +181,6 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 				{
 					Key:  "PermittedProxyDeployment",
 					Data: []byte("DelayedWETH"),
-				},
-				{
-					// TODO(#18502): Remove this extra instruction after U18 ships.
-					Key:  "overrides.cfg.useCustomGasToken",
-					Data: make([]byte, 32),
 				},
 			},
 		},
