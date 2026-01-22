@@ -86,7 +86,7 @@ var Commands = cli.Commands{
 		Action: UpgradeCLI(v500.DefaultUpgrader),
 	},
 	&cli.Command{
-		Name:  "v6.0.0-rc.1",
+		Name:  "v6.0.0-rc.2",
 		Usage: "upgrades a chain to version v6.0.0 (U18)",
 		Flags: append([]cli.Flag{
 			deployer.L1RPCURLFlag,

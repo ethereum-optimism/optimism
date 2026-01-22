@@ -33,6 +33,10 @@ func (u *UpgradeOPChainInput) OpChainConfigs() ([]byte, error) {
 	return data[4:], nil
 }
 
+func (u *UpgradeOPChainInput) UpgradeInput() ([]byte, error) {
+	return u.OpChainConfigs()
+}
+
 type UpgradeOPChain struct {
 	Run func(input common.Address)
 }
