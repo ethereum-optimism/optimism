@@ -148,6 +148,7 @@ func (e *simpleEngineController) ForkchoiceUpdate(ctx context.Context, state *et
 }
 
 func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
+
 	if e.l2 == nil {
 		return ErrNoEngineClient
 	}
@@ -203,6 +204,8 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 		return fmt.Errorf("failed to FCU to synthetic block: %+v", res.PayloadStatus)
 	}
 
+	e.log.Info("enginer-controller: executed FCU to synthetic block", "fcs", fcs)
+
 	// Next, FCU to the targetSafeBlock
 	fcs = eth.ForkchoiceState{
 		HeadBlockHash:      targetSafeBlock.Hash,
@@ -217,13 +220,15 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 		return fmt.Errorf("failed to rewind engine: %+v", res.PayloadStatus)
 	}
 
+	e.log.Info("enginer-controller: executed FCU to synthetic block", "fcs", fcs)
+
 	resultingUnsafeBlock, err := e.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
 	if err != nil {
 		return err
 	}
 
 	if resultingUnsafeBlock.Number != targetSafeBlock.Number {
-		return fmt.Errorf("unexpected unsafe block number: %d != %d", resultingUnsafeBlock.Number, targetUnsafeBlock.Number)
+		return fmt.Errorf("unexpected unsafe block number: %d != %d", resultingUnsafeBlock.Number, targetSafeBlock.Number)
 	}
 
 	resultingSafeBlock, err := e.l2.L2BlockRefByLabel(ctx, eth.Safe)

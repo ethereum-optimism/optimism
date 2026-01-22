@@ -87,6 +87,9 @@ func (m *mockL2) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceStat
 }
 func (m *mockL2) Close() {
 }
+func (m *mockL2) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+	return nil, nil
+}
 
 var _ l2Provider = (*mockL2)(nil)
 

@@ -1,12 +1,15 @@
 package supernode
 
 import (
+	"context"
 	"net/url"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +26,9 @@ func TestCLAdvanceMultiple(gt *testing.T) {
 	waitTime := time.Duration(blockTime+1) * time.Second
 
 	// Check L2A advances
-	numA := sys.L2ACL.SyncStatus().UnsafeL2.Number
+	unsafeA := sys.L2ACL.SyncStatus().UnsafeL2
+	unsafeATime := unsafeA.Time
+	numA := unsafeA.Number
 	numB := sys.L2BCL.SyncStatus().UnsafeL2.Number
 
 	// Check that the two CLs are on different chains
@@ -42,5 +47,18 @@ func TestCLAdvanceMultiple(gt *testing.T) {
 		newB := sys.L2BCL.SyncStatus().UnsafeL2.Number
 		return newA > numA && newB > numB
 	}, 30*time.Second, waitTime)
+
+	// create a supernode engine controller, and use that to
+	// rewind one of the chains
+	ec := sys.L2A.L2ELNodes()[0].Escape().L2EngineClient()
+	ed := sys.L2A.L2ELNodes()[0].Escape().L2EthClient()
+	type foo struct {
+		apis.EngineClient
+		apis.L2EthClient
+	}
+	engineController := engine_controller.NewEngineControllerWithL2(foo{ec, ed})
+
+	err = engineController.RewindToTimestamp(context.Background(), unsafeATime)
+	require.NoError(t, err)
 
 }

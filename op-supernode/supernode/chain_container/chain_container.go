@@ -370,10 +370,12 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 	// rewind the chain container
 	err = c.engine.RewindToTimestamp(ctx, timestamp)
 	if err != nil {
+		// TODO if this fails, should we try to resume the container?
+		// we probably want to retry
 		return err
 	}
 
-	c.log.Info("chain_container/RewindEngine: executed engine rewind", "forkChoiceState", fcs)
+	c.log.Info("chain_container/RewindEngine: executed engine rewind")
 	// resume the chain container to trigger a new vn to be started
 	err = c.Resume(ctx)
 	if err != nil {
