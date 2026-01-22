@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
+	"github.com/ethereum/go-ethereum"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -723,6 +724,7 @@ func TestChainContainer_VerifiedAt(t *testing.T) {
 
 		// Should return an error when verification fails
 		require.Error(t, err)
+		require.ErrorIs(t, err, ethereum.NotFound)
 		require.Equal(t, eth.BlockID{}, l2)
 		require.Equal(t, eth.BlockID{}, l1)
 	})

@@ -726,7 +726,7 @@ func TestHandleResult_ValidResult_CommitsToDb(t *testing.T) {
 	require.True(t, has)
 }
 
-func TestHandleResult_InvalidResult_StillCommitsToDb(t *testing.T) {
+func TestHandleResult_InvalidResult_DoesNotCommitToDb(t *testing.T) {
 	t.Parallel()
 	dataDir := t.TempDir()
 
@@ -751,10 +751,10 @@ func TestHandleResult_InvalidResult_StillCommitsToDb(t *testing.T) {
 	err := interop.handleResult(invalidResult)
 
 	require.NoError(t, err)
-	// Invalid results still get committed (with the invalid heads recorded)
+	// Invalid results trigger block invalidation but are NOT committed to the verified DB
 	has, err := interop.verifiedDB.Has(1000)
 	require.NoError(t, err)
-	require.True(t, has)
+	require.False(t, has)
 }
 
 func TestHandleResult_InvalidResult_MultipleInvalidHeads(t *testing.T) {
@@ -786,10 +786,10 @@ func TestHandleResult_InvalidResult_MultipleInvalidHeads(t *testing.T) {
 	err := interop.handleResult(invalidResult)
 
 	require.NoError(t, err)
-	// Result should still be committed
+	// Invalid results trigger block invalidation but are NOT committed to the verified DB
 	has, err := interop.verifiedDB.Has(1000)
 	require.NoError(t, err)
-	require.True(t, has)
+	require.False(t, has)
 }
 
 // =============================================================================
