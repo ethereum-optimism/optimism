@@ -24,7 +24,7 @@ func TestOutputAlphabetGame_ChallengerWins(t *testing.T) {
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-	game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 3, common.Hash{0xff})
+	game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 3, disputegame.WithOutputRoot(common.Hash{0xff}))
 	correctTrace := game.CreateHonestActor(ctx, "sequencer")
 	game.LogGameData(ctx)
 
@@ -81,7 +81,7 @@ func TestOutputAlphabetGame_ReclaimBond(t *testing.T) {
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-	game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 3, common.Hash{0xff})
+	game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 3, disputegame.WithOutputRoot(common.Hash{0xff}))
 	game.LogGameData(ctx)
 
 	// The dispute game should have a zero balance
@@ -151,7 +151,7 @@ func TestOutputAlphabetGame_ValidOutputRoot(t *testing.T) {
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-	game := disputeGameFactory.StartOutputAlphabetGameWithCorrectRoot(ctx, "sequencer", 2)
+	game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 2)
 	correctTrace := game.CreateHonestActor(ctx, "sequencer")
 	game.LogGameData(ctx)
 	claim := game.DisputeLastBlock(ctx)
@@ -190,9 +190,9 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 		var game *disputegame.OutputAlphabetGameHelper
 		if isRootCorrect {
-			game = disputeGameFactory.StartOutputAlphabetGameWithCorrectRoot(ctx, "sequencer", 1)
+			game = disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 1)
 		} else {
-			game = disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 1, common.Hash{0xaa, 0xbb, 0xcc})
+			game = disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 1, disputegame.WithOutputRoot(common.Hash{0xaa, 0xbb, 0xcc}))
 		}
 		claim := game.DisputeLastBlock(ctx)
 
@@ -256,7 +256,7 @@ func TestOutputAlphabetGame_FreeloaderEarnsNothing(t *testing.T) {
 	require.Nil(t, err)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-	game := disputeGameFactory.StartOutputAlphabetGameWithCorrectRoot(ctx, "sequencer", 2)
+	game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 2)
 	correctTrace := game.CreateHonestActor(ctx, "sequencer")
 	game.LogGameData(ctx)
 	claim := game.DisputeLastBlock(ctx)
@@ -319,14 +319,14 @@ func TestHighestActedL1BlockMetric(t *testing.T) {
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	honestChallenger := disputeGameFactory.StartChallenger(ctx, "Honest", challenger.WithAlphabet(), challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
-	game1 := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 1, common.Hash{0xaa})
+	game1 := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 1, disputegame.WithOutputRoot(common.Hash{0xaa}))
 	sys.AdvanceTime(game1.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	game1.WaitForGameStatus(ctx, types.GameStatusDefenderWon)
 
-	disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 2, common.Hash{0xaa})
-	disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 3, common.Hash{0xaa})
+	disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 2, disputegame.WithOutputRoot(common.Hash{0xaa}))
+	disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 3, disputegame.WithOutputRoot(common.Hash{0xaa}))
 
 	honestChallenger.WaitL1HeadActedOn(ctx, l1Client)
 

@@ -116,7 +116,7 @@ func TestDisputePrecompile(t *testing.T) {
 		})
 
 		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-		game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", receipt.BlockNumber.Uint64(), common.Hash{0x01, 0xaa})
+		game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", receipt.BlockNumber.Uint64(), disputegame.WithOutputRoot(common.Hash{0x01, 0xaa}))
 		require.NotNil(t, game)
 		outputRootClaim := game.DisputeLastBlock(ctx)
 		game.LogGameData(ctx)
