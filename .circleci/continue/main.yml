@@ -3033,11 +3033,13 @@ workflows:
           build_args: --deny-warnings --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - slack
       - check-kontrol-build:
           requires:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - slack
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
           name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.features>>
@@ -3056,6 +3058,7 @@ workflows:
                 - OPCM_V2,OPTIMISM_PORTAL_INTEROP
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - slack
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests <<matrix.features>>
           test_list: find test -name "*.t.sol"
@@ -3065,6 +3068,7 @@ workflows:
               features: *features_matrix
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - slack
           check_changed_patterns: contracts-bedrock,op-node
       - contracts-bedrock-coverage:
           # Generate coverage reports.
@@ -3077,6 +3081,7 @@ workflows:
               features: *features_matrix
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - slack
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.features>>
           fork_op_chain: op
@@ -3088,6 +3093,7 @@ workflows:
               features: *features_matrix
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - slack
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade <<matrix.fork_op_chain>>-mainnet
           fork_op_chain: <<matrix.fork_op_chain>>
@@ -3098,11 +3104,13 @@ workflows:
               fork_op_chain: ["base", "ink", "unichain"]
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - slack
       - contracts-bedrock-checks:
           requires:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - slack
       - contracts-bedrock-checks-fast:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -3268,11 +3276,13 @@ workflows:
           notify: true
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - slack
       - todo-issues:
           name: todo-issues-check
           check_closed: false
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - slack
       - shellcheck/check:
           name: shell-check
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
