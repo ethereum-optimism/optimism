@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -26,18 +27,24 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 
-	// Extract embedded artifacts
 	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 	require.NoError(t, err)
 
-	// Create Forge client
 	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
 	require.NoError(t, err)
 
-	// Create a test host for other scripts (even though we won't use it for DeploySuperchain)
-	// We use LocalArtifacts which should have compatible versions
 	_, afacts := testutil.LocalArtifacts(t)
 	lgr := testlog.Logger(t, slog.LevelInfo)
+	anvil, err := devnet.NewAnvil(lgr)
+	require.NoError(t, err)
+	require.NoError(t, anvil.Start())
+	t.Cleanup(func() {
+		require.NoError(t, anvil.Stop())
+	})
+
+	l1RPCUrl := anvil.RPCUrl()
+	privateKey := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+
 	host, err := env.DefaultScriptHost(
 		broadcaster.NoopBroadcaster(),
 		lgr,
@@ -46,11 +53,9 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Load scripts (needed for Env, even though we'll use Forge for DeploySuperchain)
 	opcmScripts, err := opcm.NewScripts(host)
 	require.NoError(t, err)
 
-	// Create test input
 	intent := &state.Intent{
 		SuperchainRoles: &addresses.SuperchainRoles{
 			SuperchainProxyAdminOwner: common.BigToAddress(big.NewInt(1)),
@@ -62,7 +67,6 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 		Version: 1,
 	}
 
-	// Create Env with Forge enabled
 	pEnv := &Env{
 		Logger:      lgr,
 		Scripts:     opcmScripts,
@@ -71,24 +75,22 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 		Context:     ctx,
 		Broadcaster: broadcaster.NoopBroadcaster(),
 		StateWriter: NoopStateWriter(),
+		L1RPCUrl:    l1RPCUrl,
+		PrivateKey:  privateKey,
 	}
 
-	// Test DeploySuperchain with Forge
 	err = DeploySuperchain(pEnv, intent, st)
 	require.NoError(t, err)
 
-	// Verify the deployment was successful
 	require.NotNil(t, st.SuperchainDeployment)
 	require.NotNil(t, st.SuperchainRoles)
 
-	// Verify addresses are set
 	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.SuperchainProxyAdminImpl)
 	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.SuperchainConfigProxy)
 	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.SuperchainConfigImpl)
 	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsProxy)
 	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsImpl)
 
-	// Verify roles match
 	require.Equal(t, intent.SuperchainRoles.SuperchainProxyAdminOwner, st.SuperchainRoles.SuperchainProxyAdminOwner)
 	require.Equal(t, intent.SuperchainRoles.ProtocolVersionsOwner, st.SuperchainRoles.ProtocolVersionsOwner)
 	require.Equal(t, intent.SuperchainRoles.SuperchainGuardian, st.SuperchainRoles.SuperchainGuardian)
@@ -98,17 +100,24 @@ func TestDeploySuperchain_WithForgeEverywhere(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 
-	// Extract embedded artifacts
 	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 	require.NoError(t, err)
 
-	// Create Forge client
 	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
 	require.NoError(t, err)
 
-	// Create a test host for other scripts (even though we won't use it for DeploySuperchain)
 	_, afacts := testutil.LocalArtifacts(t)
 	lgr := testlog.Logger(t, slog.LevelInfo)
+	anvil, err := devnet.NewAnvil(lgr)
+	require.NoError(t, err)
+	require.NoError(t, anvil.Start())
+	t.Cleanup(func() {
+		require.NoError(t, anvil.Stop())
+	})
+
+	l1RPCUrl := anvil.RPCUrl()
+	privateKey := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+
 	host, err := env.DefaultScriptHost(
 		broadcaster.NoopBroadcaster(),
 		lgr,
@@ -117,11 +126,9 @@ func TestDeploySuperchain_WithForgeEverywhere(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Load scripts (needed for Env, even though we'll use Forge for DeploySuperchain)
 	opcmScripts, err := opcm.NewScripts(host)
 	require.NoError(t, err)
 
-	// Create test input
 	intent := &state.Intent{
 		SuperchainRoles: &addresses.SuperchainRoles{
 			SuperchainProxyAdminOwner: common.BigToAddress(big.NewInt(1)),
@@ -133,7 +140,6 @@ func TestDeploySuperchain_WithForgeEverywhere(t *testing.T) {
 		Version: 1,
 	}
 
-	// Create Env with UseForge enabled
 	pEnv := &Env{
 		Logger:      lgr,
 		Scripts:     opcmScripts,
@@ -142,17 +148,16 @@ func TestDeploySuperchain_WithForgeEverywhere(t *testing.T) {
 		Context:     ctx,
 		Broadcaster: broadcaster.NoopBroadcaster(),
 		StateWriter: NoopStateWriter(),
+		L1RPCUrl:    l1RPCUrl,
+		PrivateKey:  privateKey,
 	}
 
-	// Test DeploySuperchain with Forge
 	err = DeploySuperchain(pEnv, intent, st)
 	require.NoError(t, err)
 
-	// Verify the deployment was successful
 	require.NotNil(t, st.SuperchainDeployment)
 	require.NotNil(t, st.SuperchainRoles)
 
-	// Verify addresses are set
 	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.SuperchainProxyAdminImpl)
 	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.SuperchainConfigProxy)
 	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.SuperchainConfigImpl)
@@ -164,18 +169,14 @@ func TestDeploySuperchain_WithForge_ManualCall(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 
-	// Extract embedded artifacts
 	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 	require.NoError(t, err)
 
-	// Create Forge client
 	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
 	require.NoError(t, err)
 
-	// Create Forge caller directly (similar to TestNewDeploySuperchainScriptForge)
 	deploySuperchain := opcm.NewDeploySuperchainForgeCaller(forgeClient)
 
-	// Create input matching what DeploySuperchain would use
 	input := opcm.DeploySuperchainInput{
 		Guardian:                   common.BigToAddress(big.NewInt(1)),
 		ProtocolVersionsOwner:      common.BigToAddress(big.NewInt(2)),
@@ -185,13 +186,11 @@ func TestDeploySuperchain_WithForge_ManualCall(t *testing.T) {
 		RecommendedProtocolVersion: params.ProtocolVersion(rollup.OPStackSupport),
 	}
 
-	// Call Forge script
 	output, recompiled, err := deploySuperchain(ctx, input)
 	require.NoError(t, err)
 	require.False(t, recompiled, "script should not be recompiled")
 	require.NotNil(t, output)
 
-	// Verify output addresses are set
 	require.NotEqual(t, common.Address{}, output.SuperchainProxyAdmin)
 	require.NotEqual(t, common.Address{}, output.SuperchainConfigProxy)
 	require.NotEqual(t, common.Address{}, output.SuperchainConfigImpl)
