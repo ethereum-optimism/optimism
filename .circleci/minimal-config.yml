@@ -1,0 +1,284 @@
+version: 2.1
+
+# ============================================================================
+# MINIMAL CIRCLECI CONFIGURATION FOR BOBA FORK
+# ============================================================================
+#
+# PURPOSE:
+# This is a simplified CircleCI configuration for the Boba fork of Optimism.
+# It focuses ONLY on building and publishing Docker images for op-* components,
+# without the extensive testing and validation of the upstream repository.
+#
+# RATIONALE:
+# - We maintain a minimal diff from upstream Optimism (via git submodule)
+# - Upstream code has already passed all tests
+# - Our changes are typically limited to injecting Boba-specific dependencies
+# - Maintaining the full upstream CI is complex and frequently breaks
+#
+# WHAT THIS CONFIG DOES:
+# 1. Builds Docker images for all op-* components on development branches
+# 2. Publishes images to GCP Artifact Registry
+# 3. Supports tagged releases with manual approval
+#
+# HOW IT WORKS:
+#
+# Development Builds:
+# - Triggers on: 'develop' branch OR branches matching '*/op-{component}/*'
+# - Example branch names that trigger builds:
+#   - develop
+#   - jyellick/op-node/v1.13.0
+#   - hotfix/op-batcher/fix-issue
+# - Builds: Single platform (linux/amd64) for speed
+# - Tags: commit SHA and branch name
+#
+# Release Builds:
+# - Triggers on: Git tags matching 'op-{component}/v*-boba'
+# - Example: 'op-node/v1.13.0-boba'
+# - Requires: Manual approval in CircleCI UI
+# - Builds: Multi-platform (linux/amd64, linux/arm64)
+# - Tags: commit SHA, version (e.g., v1.13.0), and 'latest'
+# - IMPORTANT: Only the tagged component is built (not all components)
+#
+# REQUIRED ENVIRONMENT VARIABLES (set in CircleCI contexts):
+# - GCP_PROJECT_ID: GCP project ID
+# - GCP_WIP_ID: Workload Identity Pool ID for OIDC auth
+# - GCP_WIP_PROVIDER_ID: Workload Identity Pool Provider ID
+# - GCP_SERVICE_ACCOUNT_EMAIL: Service account for pushing images
+#
+# HOW TO RELEASE:
+# 1. Create a git tag: git tag op-node/v1.13.0-boba
+# 2. Push the tag: git push origin op-node/v1.13.0-boba
+# 3. Go to CircleCI and approve the 'hold' job
+# 4. The tagged component will be built and pushed with version tags
+#
+# ============================================================================
+
+orbs:
+  gcp-cli: circleci/gcp-cli@3.0.1
+
+commands:
+  gcp-oidc-authenticate:
+    description: "Authenticate with GCP using a CircleCI OIDC token"
+    parameters:
+      project_id:
+        type: env_var_name
+        default: GCP_PROJECT_ID
+      project_number:
+        type: env_var_name
+        default: GCP_PROJECT_NUMBER
+      workload_identity_pool_id:
+        type: env_var_name
+        default: GCP_WIP_ID
+      workload_identity_pool_provider_id:
+        type: env_var_name
+        default: GCP_WIP_PROVIDER_ID
+      service_account_email:
+        type: env_var_name
+        default: GCP_SERVICE_ACCOUNT_EMAIL
+    steps:
+      - run:
+          name: "Authenticate with GCP"
+          command: |
+            echo $CIRCLE_OIDC_TOKEN > /tmp/oidc_token.json
+            # Use project number for workload identity pool path, fall back to project_id if not set
+            PROJECT_FOR_WIP="${<< parameters.project_number >>:-${<< parameters.project_id >>}}"
+            gcloud iam workload-identity-pools create-cred-config \
+                "projects/${PROJECT_FOR_WIP}/locations/global/workloadIdentityPools/${<< parameters.workload_identity_pool_id >>}/providers/${<< parameters.workload_identity_pool_provider_id >>}"\
+                --output-file="/tmp/gcp_cred_config.json" \
+                --service-account="${<< parameters.service_account_email >>}" \
+                --credential-source-file=/tmp/oidc_token.json
+            gcloud auth login --brief --cred-file "/tmp/gcp_cred_config.json"
+            echo "export GOOGLE_APPLICATION_CREDENTIALS='/tmp/gcp_cred_config.json'" >> "$BASH_ENV"
+
+jobs:
+  docker-build:
+    environment:
+      DOCKER_BUILDKIT: 1
+    parameters:
+      docker_name:
+        description: "Docker buildx bake target"
+        type: string
+      docker_tags:
+        description: "Docker image tags, comma-separated"
+        type: string
+      registry:
+        description: "Docker registry"
+        type: string
+        default: "us-docker.pkg.dev"
+      platforms:
+        description: "Docker platforms to build for"
+        type: string
+        default: "linux/amd64,linux/arm64"
+      publish:
+        description: "Whether to publish to registry"
+        type: boolean
+        default: false
+      release:
+        description: "Whether this is a release build"
+        type: boolean
+        default: false
+    machine:
+      image: ubuntu-2404:current
+      docker_layer_caching: true
+    steps:
+      - checkout
+      - run:
+          name: "Initialize submodules"
+          command: |
+            git submodule update --init --recursive
+      - run:
+          name: "Apply Boba patches"
+          command: |
+            make patch-apply
+      - run:
+          name: "Install mise"
+          command: |
+            # Install mise if not already present
+            if command -v mise &> /dev/null; then
+              echo "mise already installed at $(command -v mise)"
+            else
+              curl https://mise.run | sh
+            fi
+
+            # Set up environment
+            echo "export PATH=\"$HOME/.local/bin:\$PATH\"" >> "$BASH_ENV"
+            echo "eval \"\$($HOME/.local/bin/mise activate --shims)\"" >> "$BASH_ENV"
+            source "$BASH_ENV"
+
+            # Install dependencies from mise.toml (in submodule)
+            cd optimism
+            mise install -v -y
+      - when:
+          condition: <<parameters.publish>>
+          steps:
+            - gcp-cli/install
+            - gcp-oidc-authenticate
+      - run:
+          name: "Build and Push Docker Image"
+          command: |
+            # Change to submodule directory where docker-bake.hcl lives
+            cd optimism
+
+            # Set build variables
+            export REGISTRY="<<parameters.registry>>"
+            export REPOSITORY="${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images"
+            export IMAGE_TAGS="<<parameters.docker_tags>>"
+            export GIT_COMMIT="$CIRCLE_SHA1"
+            export GIT_DATE="$(git show -s --format='%ct')"
+            export PLATFORMS="<<parameters.platforms>>"
+
+            # Set version
+            if [ "<<parameters.release>>" == "true" ] && [ -n "$CIRCLE_TAG" ]; then
+              # Extract version from tag (e.g., op-node/v1.13.0-boba -> v1.13.0)
+              export GIT_VERSION="${CIRCLE_TAG#*/}"
+              # Strip the -boba suffix from the version for Docker tags
+              export GIT_VERSION="${GIT_VERSION%-boba}"
+              export IMAGE_TAGS="${IMAGE_TAGS},${GIT_VERSION},latest"
+              echo "Release build: $GIT_VERSION"
+            else
+              export GIT_VERSION="untagged"
+              echo "Development build"
+            fi
+
+            # Setup buildx
+            docker buildx create --driver=docker-container --name=buildx-build --bootstrap --use
+
+            # Configure output destination
+            DOCKER_OUTPUT_DESTINATION=""
+            if [ "<<parameters.publish>>" == "true" ]; then
+              # Authenticate with registry
+              gcloud auth configure-docker <<parameters.registry>>
+              echo "Building and publishing to registry"
+              DOCKER_OUTPUT_DESTINATION="--push"
+            else
+              # Build locally without pushing
+              echo "Building locally (not publishing)"
+              if [[ $PLATFORMS == *,* ]]; then
+                echo "Multi-platform build without publishing - using type=image,push=false"
+                DOCKER_OUTPUT_DESTINATION="--set=*.output=type=image,push=false"
+              else
+                echo "Single-platform build - loading into docker"
+                DOCKER_OUTPUT_DESTINATION="--load"
+              fi
+            fi
+
+            # Let them cook!
+            KONA_VERSION=$(jq -r .version kona/version.json) \
+            docker buildx bake \
+              --progress plain \
+              --builder=buildx-build \
+              -f docker-bake.hcl \
+              $DOCKER_OUTPUT_DESTINATION \
+              <<parameters.docker_name>>
+          no_output_timeout: 45m
+
+workflows:
+  version: 2
+
+  # Development builds on develop branch and release branches (local only, no publish)
+  develop:
+    jobs:
+      - docker-build:
+          name: <<matrix.docker_name>>-dev
+          docker_tags: <<pipeline.git.revision>>
+          platforms: "linux/amd64"  # Single platform for speed
+          publish: false  # Don't publish, just build locally
+          matrix:
+            parameters:
+              docker_name:
+                - op-node
+                - op-batcher
+                - op-proposer
+                - op-challenger
+                - op-dispute-mon
+                - op-supervisor
+                - op-conductor
+          filters:
+            branches:
+              only:
+                - develop
+                - /.*\/op-node\/.*/
+                - /.*\/op-batcher\/.*/
+                - /.*\/op-proposer\/.*/
+                - /.*\/op-challenger\/.*/
+                - /.*\/op-dispute-mon\/.*/
+                - /.*\/op-supervisor\/.*/
+                - /.*\/op-conductor\/.*/
+
+  # Release workflow with manual approval
+  release:
+    jobs:
+      # Manual approval gate
+      - hold:
+          type: approval
+          filters:
+            tags:
+              only: /^(op-node|op-batcher|op-proposer|op-challenger|op-dispute-mon|op-supervisor|op-conductor)\/v.*-boba$/
+            branches:
+              ignore: /.*/
+
+      # Build and release after approval
+      - docker-build:
+          name: <<matrix.docker_name>>-release
+          docker_tags: <<pipeline.git.revision>>
+          publish: true  # Actually push to registry
+          release: true
+          matrix:
+            parameters:
+              docker_name:
+                - op-node
+                - op-batcher
+                - op-proposer
+                - op-challenger
+                - op-dispute-mon
+                - op-supervisor
+                - op-conductor
+          filters:
+            tags:
+              only: /^<<matrix.docker_name>>\/v.*-boba$/
+            branches:
+              ignore: /.*/
+          context:
+            - oplabs-gcr-release
+          requires:
+            - hold

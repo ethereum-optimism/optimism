@@ -1,357 +1,186 @@
-# provide JUSTFLAGS for just-backed targets
-include ./justfiles/flags.mk
+# Boba Makefile
+#
+# This Makefile wraps the upstream optimism build system with Boba-specific patches.
+# It applies go.mod patches and overlays before building.
+#
+# Usage:
+#   make build          - Build all Go binaries
+#   make op-node        - Build specific target
+#   make test           - Run tests
+#   make clean          - Clean build artifacts
+#   make submodule-update - Update upstream submodule
+#
 
-BEDROCK_TAGS_REMOTE?=origin
-OP_STACK_GO_BUILDER?=us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:latest
+SHELL := /usr/bin/env bash
+.PHONY: all build test clean submodule-update help patch-apply patch-restore
 
-# Requires at least Python v3.9; specify a minor version below if needed
-PYTHON?=python3
+# Directories
+REPO_ROOT := $(shell pwd)
+SUBMODULE := $(REPO_ROOT)/optimism
+OVERLAYS := $(REPO_ROOT)/overlays
+BUILD_DIR := $(REPO_ROOT)/.boba-build
 
-help: ## Prints this help message
-	@grep -h -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+# Targets that are forwarded to the submodule Makefile
+UPSTREAM_TARGETS := op-node op-batcher op-proposer op-challenger op-program \
+                    op-dispute-mon op-conductor op-supervisor op-wheel \
+                    op-deployer op-faucet cannon
 
-build: build-go build-contracts ## Builds Go components and contracts-bedrock
-.PHONY: build
+# Default target
+all: build
 
-build-go: submodules op-node op-proposer op-batcher op-challenger op-dispute-mon op-program cannon ## Builds main Go components
-.PHONY: build-go
-
-build-contracts:
-	(cd packages/contracts-bedrock && just build)
-.PHONY: build-contracts
-
-lint-go: ## Lints Go code with specific linters
-	golangci-lint run ./...
-	go mod tidy -diff
-.PHONY: lint-go
-
-lint-go-fix: ## Lints Go code with specific linters and fixes reported issues
-	golangci-lint run ./... --fix
-.PHONY: lint-go-fix
-
-golang-docker: ## Builds Docker images for Go components using buildx
-	# We don't use a buildx builder here, and just load directly into regular docker, for convenience.
-	GIT_COMMIT=$$(git rev-parse HEAD) \
-	GIT_DATE=$$(git show -s --format='%ct') \
-	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
-	KONA_VERSION=$$(jq -r .version kona-proofs/version.json) \
-	docker buildx bake \
-			--progress plain \
-			--load \
-			-f docker-bake.hcl \
-			op-node op-batcher op-proposer op-challenger op-dispute-mon op-supervisor
-.PHONY: golang-docker
-
-docker-builder-clean: ## Removes the Docker buildx builder
-	docker buildx rm buildx-build
-.PHONY: docker-builder-clean
-
-docker-builder: ## Creates a Docker buildx builder
-	docker buildx create \
-		--driver=docker-container --name=buildx-build --bootstrap --use
-.PHONY: docker-builder
-
-compute-git-versions: ## Computes GIT_VERSION for all images and outputs JSON
-	@GIT_COMMIT=$$(git rev-parse HEAD) ./ops/scripts/compute-git-versions.sh
-.PHONY: compute-git-versions
-
-# add --print to dry-run
-cross-op-node: ## Builds cross-platform Docker image for op-node
-	# We don't use a buildx builder here, and just load directly into regular docker, for convenience.
-	GIT_COMMIT=$$(git rev-parse HEAD) \
-	GIT_DATE=$$(git show -s --format='%ct') \
-	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
-	PLATFORMS="linux/arm64" \
-	GIT_VERSION=$(shell tags=$$(git tag --points-at $(GITCOMMIT) | grep '^op-node/' | sed 's/op-node\///' | sort -V); \
-             preferred_tag=$$(echo "$$tags" | grep -v -- '-rc' | tail -n 1); \
-             if [ -z "$$preferred_tag" ]; then \
-                 if [ -z "$$tags" ]; then \
-                     echo "untagged"; \
-                 else \
-                     echo "$$tags" | tail -n 1; \
-                 fi \
-             else \
-                 echo $$preferred_tag; \
-             fi) \
-	docker buildx bake \
-			--progress plain \
-			--builder=buildx-build \
-			--load \
-			--no-cache \
-			-f docker-bake.hcl \
-			op-node
-.PHONY: cross-op-node
-
-contracts-bedrock-docker: ## Builds Docker image for Bedrock contracts
-	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
-	docker buildx bake \
-			--progress plain \
-			--load \
-			-f docker-bake.hcl \
-		  contracts-bedrock
-.PHONY: contracts-bedrock-docker
-
-submodules: ## Updates git submodules
+# Initialize submodules if needed
+$(SUBMODULE)/go.mod:
 	git submodule update --init --recursive
-.PHONY: submodules
 
+# Help
+help:
+	@echo "Boba Build System"
+	@echo "================="
+	@echo ""
+	@echo "Targets:"
+	@echo "  build              - Build all Go binaries (with Boba patches)"
+	@echo "  test               - Run tests"
+	@echo "  clean              - Clean build artifacts and restore patches"
+	@echo "  submodule-update   - Update upstream submodule to latest"
+	@echo "  patch-apply        - Apply Boba patches to submodule"
+	@echo "  patch-restore      - Restore submodule to upstream state"
+	@echo ""
+	@echo "Individual component targets:"
+	@echo "  $(UPSTREAM_TARGETS)"
+	@echo ""
+	@echo "Environment variables:"
+	@echo "  BOBA_KEEP_PATCHES=1  - Don't restore patches after build"
+	@echo "  BOBA_DRY_RUN=1       - Prepare but don't build"
+	@echo ""
 
-op-node: ## Builds op-node binary
-	just $(JUSTFLAGS) ./op-node/op-node
-.PHONY: op-node
-
-generate-mocks-op-node: ## Generates mocks for op-node
-	make -C ./op-node generate-mocks
-.PHONY: generate-mocks-op-node
-
-generate-mocks-op-service: ## Generates mocks for op-service
-	make -C ./op-service generate-mocks
-.PHONY: generate-mocks-op-service
-
-op-batcher: ## Builds op-batcher binary
-	just $(JUSTFLAGS) ./op-batcher/op-batcher
-.PHONY: op-batcher
-
-op-proposer: ## Builds op-proposer binary
-	just $(JUSTFLAGS) ./op-proposer/op-proposer
-.PHONY: op-proposer
-
-op-challenger: ## Builds op-challenger binary
-	make -C ./op-challenger op-challenger
-.PHONY: op-challenger
-
-op-dispute-mon: ## Builds op-dispute-mon binary
-	make -C ./op-dispute-mon op-dispute-mon
-.PHONY: op-dispute-mon
-
-op-supernode: ## Builds op-supernode binary
-	just $(JUSTFLAGS) ./op-supernode/op-supernode
-.PHONY: op-supernode
-
-op-interop-filter: ## Builds op-interop-filter binary
-	just $(JUSTFLAGS) ./op-interop-filter/op-interop-filter
-.PHONY: op-interop-filter
-
-op-program: ## Builds op-program binary
-	make -C ./op-program op-program
-.PHONY: op-program
-
-cannon:  ## Builds cannon binary
-	make -C ./cannon cannon
-.PHONY: cannon
-
-reproducible-prestate:   ## Builds reproducible-prestate binary
-	make -C ./op-program reproducible-prestate
-.PHONY: reproducible-prestate
-
-cannon-prestates: cannon op-program
-	go run ./op-program/builder/main.go build-all-prestates
-.PHONY: cannon-prestates
-
-mod-tidy: ## Cleans up unused dependencies in Go modules
-	# Below GOPRIVATE line allows mod-tidy to be run immediately after
-	# releasing new versions. This bypasses the Go modules proxy, which
-	# can take a while to index new versions.
-	#
-	# See https://proxy.golang.org/ for more info.
-	export GOPRIVATE="github.com/ethereum-optimism" && go mod tidy
-.PHONY: mod-tidy
-
-clean: ## Removes all generated files under bin/
-	rm -rf ./bin
-	cd packages/contracts-bedrock/ && forge clean
-.PHONY: clean
-
-nuke: clean ## Completely clean the project directory
-	git clean -Xdf
-.PHONY: nuke
-
-test-unit: ## Runs unit tests for individual components
-	make -C ./op-node test
-	make -C ./op-proposer test
-	make -C ./op-batcher test
-	make -C ./op-e2e test
-	(cd packages/contracts-bedrock && just test)
-.PHONY: test-unit
-
-# Remove the baseline-commit to generate a base reading & show all issues
-semgrep: ## Runs Semgrep checks
-	$(eval DEV_REF := $(shell git rev-parse develop))
-	SEMGREP_REPO_NAME=ethereum-optimism/optimism semgrep ci --baseline-commit=$(DEV_REF)
-.PHONY: semgrep
-
-op-program-client: ## Builds op-program-client binary
-	make -C ./op-program op-program-client
-.PHONY: op-program-client
-
-op-program-host: ## Builds op-program-host binary
-	make -C ./op-program op-program-host
-.PHONY: op-program-host
-
-make-pre-test: ## Makes pre-test setup
-	make -C ./op-e2e pre-test
-.PHONY: make-pre-test
-
-# Common prerequisites and package list for Go tests
-TEST_DEPS := op-program-client op-program-host cannon build-contracts cannon-prestates make-pre-test
-
-# Excludes: op-validator, op-deployer/pkg/{validation,deployer/{bootstrap,manage,opcm,pipeline,upgrade}} (need RPC)
-TEST_PKGS := \
-	./op-alt-da/... \
-	./op-batcher/... \
-	./op-chain-ops/... \
-	./op-node/... \
-	./op-proposer/... \
-	./op-challenger/... \
-	./op-faucet/... \
-	./op-dispute-mon/... \
-	./op-conductor/... \
-	./op-program/... \
-	./op-service/... \
-	./op-supervisor/... \
-	./op-test-sequencer/... \
-	./op-fetcher/... \
-	./op-e2e/system/... \
-	./op-e2e/e2eutils/... \
-	./op-e2e/opgeth/... \
-	./op-e2e/interop/... \
-	./op-e2e/actions/altda \
-	./op-e2e/actions/batcher \
-	./op-e2e/actions/derivation \
-	./op-e2e/actions/helpers \
-	./op-e2e/actions/interop \
-	./op-e2e/actions/proofs \
-	./op-e2e/actions/proposer \
-	./op-e2e/actions/safedb \
-	./op-e2e/actions/sequencer \
-	./op-e2e/actions/sync \
-	./op-e2e/actions/upgrades \
-	./packages/contracts-bedrock/scripts/checks/... \
-	./op-dripper/... \
-	./devnet-sdk/... \
-	./kurtosis-devnet/... \
-	./op-devstack/... \
-	./op-deployer/pkg/deployer/artifacts/... \
-	./op-deployer/pkg/deployer/broadcaster/... \
-	./op-deployer/pkg/deployer/clean/... \
-	./op-deployer/pkg/deployer/integration_test/ \
-	./op-deployer/pkg/deployer/integration_test/cli/... \
-	./op-deployer/pkg/deployer/standard/... \
-	./op-deployer/pkg/deployer/state/... \
-	./op-deployer/pkg/deployer/verify/... \
-	./op-sync-tester/... \
-	./op-supernode/...
-
-FRAUD_PROOF_TEST_PKGS := \
-	./op-e2e/faultproofs/...
-
-# Includes: op-validator, op-deployer/pkg/{bootstrap,manage,opcm,pipeline,upgrade} (need RPC)
-RPC_TEST_PKGS := \
-	./op-validator/pkg/validations/... \
-	./op-deployer/pkg/deployer/bootstrap/... \
-	./op-deployer/pkg/deployer/manage/... \
-	./op-deployer/pkg/deployer/opcm/... \
-	./op-deployer/pkg/deployer/pipeline/... \
-	./op-deployer/pkg/deployer/upgrade/...
-
-# All test packages used by CI (combination of all package groups)
-ALL_TEST_PACKAGES := $(TEST_PKGS) $(RPC_TEST_PKGS) $(FRAUD_PROOF_TEST_PKGS)
-
-# Common test environment variables
-# For setting PARALLEL, nproc is for linux, sysctl for Mac and then fallback to 4 if neither is available
-define DEFAULT_TEST_ENV_VARS
-export ENABLE_KURTOSIS=true && \
-export OP_E2E_CANNON_ENABLED="false" && \
-export OP_E2E_USE_HTTP=true && \
-export ENABLE_ANVIL=true && \
-export PARALLEL=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-endef
-
-# Additional CI-specific environment variables
-define CI_ENV_VARS
-export OP_TESTLOG_FILE_LOGGER_OUTDIR=$$(realpath ./tmp/testlogs) && \
-export SEPOLIA_RPC_URL="https://ci-sepolia-l1-archive.optimism.io" && \
-export MAINNET_RPC_URL="https://ci-mainnet-l1-archive.optimism.io" && \
-export NAT_INTEROP_LOADTEST_TARGET=10 && \
-export NAT_INTEROP_LOADTEST_TIMEOUT=30s
-endef
-
-# Test timeout (can be overridden via environment)
-TEST_TIMEOUT ?= 10m
-
-go-tests: $(TEST_DEPS) ## Runs comprehensive Go tests across all packages (cached for fast repeated runs)
-	$(DEFAULT_TEST_ENV_VARS) && \
-	go test -parallel=$$PARALLEL -timeout=$(TEST_TIMEOUT) $(TEST_PKGS)
-.PHONY: go-tests
-
-go-tests-short: $(TEST_DEPS) ## Runs comprehensive Go tests with -short flag
-	$(DEFAULT_TEST_ENV_VARS) && \
-	go test -short -parallel=$$PARALLEL -timeout=$(TEST_TIMEOUT) $(TEST_PKGS)
-.PHONY: go-tests-short
-
-# Internal target for running Go tests with gotestsum for CI
-# Usage: make _go-tests-ci-internal GO_TEST_FLAGS="-short"
-_go-tests-ci-internal:
-	@echo "Setting up test directories..."
-	mkdir -p ./tmp/test-results ./tmp/testlogs
-	@echo "Running Go tests with gotestsum..."
-	$(DEFAULT_TEST_ENV_VARS) && \
-	$(CI_ENV_VARS) && \
-	if [ -n "$$CIRCLE_NODE_TOTAL" ] && [ "$$CIRCLE_NODE_TOTAL" -gt 1 ]; then \
-		export NODE_INDEX=$${CIRCLE_NODE_INDEX:-0} && \
-		export NODE_TOTAL=$${CIRCLE_NODE_TOTAL:-1} && \
-		export PARALLEL_PACKAGES=$$(echo "$(ALL_TEST_PACKAGES)" | tr ' ' '\n' | awk -v idx=$$NODE_INDEX -v total=$$NODE_TOTAL 'NR % total == idx' | tr '\n' ' ') && \
-		if [ -n "$$PARALLEL_PACKAGES" ]; then \
-			echo "Node $$NODE_INDEX/$$NODE_TOTAL running packages: $$PARALLEL_PACKAGES"; \
-			gotestsum --format=testname \
-				--junitfile=./tmp/test-results/results-$$NODE_INDEX.xml \
-				--jsonfile=./tmp/testlogs/log-$$NODE_INDEX.json \
-				--rerun-fails=3 \
-				--rerun-fails-max-failures=50 \
-				--packages="$$PARALLEL_PACKAGES" \
-				-- -parallel=$$PARALLEL -coverprofile=coverage-$$NODE_INDEX.out $(GO_TEST_FLAGS) -timeout=$(TEST_TIMEOUT) -tags="ci"; \
-		else \
-			echo "ERROR: Node $$NODE_INDEX/$$NODE_TOTAL has no packages to run! Perhaps parallelism is set too high? (ALL_TEST_PACKAGES has $$(echo '$(ALL_TEST_PACKAGES)' | wc -w) packages)"; \
-			exit 1; \
-		fi; \
-	else \
-		gotestsum --format=testname \
-			--junitfile=./tmp/test-results/results.xml \
-			--jsonfile=./tmp/testlogs/log.json \
-			--rerun-fails=3 \
-			--rerun-fails-max-failures=50 \
-			--packages="$(ALL_TEST_PACKAGES)" \
-			-- -parallel=$$PARALLEL -coverprofile=coverage.out $(GO_TEST_FLAGS) -timeout=$(TEST_TIMEOUT) -tags="ci"; \
+# Apply patches to submodule
+patch-apply: $(SUBMODULE)/go.mod
+	@echo "Applying Boba patches..."
+	@mkdir -p $(BUILD_DIR)
+	@# Backup go.mod and go.sum if not already done
+	@if [ ! -f "$(BUILD_DIR)/go.mod.upstream" ]; then \
+		cp "$(SUBMODULE)/go.mod" "$(BUILD_DIR)/go.mod.upstream"; \
 	fi
-.PHONY: _go-tests-ci-internal
+	@if [ ! -f "$(BUILD_DIR)/go.sum.upstream" ]; then \
+		cp "$(SUBMODULE)/go.sum" "$(BUILD_DIR)/go.sum.upstream"; \
+	fi
+	@# Apply go.mod patch
+	@if [ -f "$(OVERLAYS)/go.mod.patch" ]; then \
+		while IFS= read -r line; do \
+			[[ "$$line" =~ ^#.*$$ ]] && continue; \
+			[[ -z "$$line" ]] && continue; \
+			if [[ "$$line" =~ ^s\| ]]; then \
+				sed -i "$$line" "$(SUBMODULE)/go.mod"; \
+			fi; \
+		done < "$(OVERLAYS)/go.mod.patch"; \
+	fi
+	@# Apply contract overlays
+	@if [ -d "$(OVERLAYS)/contracts-bedrock/src/boba" ]; then \
+		mkdir -p "$(SUBMODULE)/packages/contracts-bedrock/src/boba"; \
+		cp -r "$(OVERLAYS)/contracts-bedrock/src/boba/"* "$(SUBMODULE)/packages/contracts-bedrock/src/boba/"; \
+	fi
+	@if [ -d "$(OVERLAYS)/contracts-bedrock/deployments" ]; then \
+		for dir in $(OVERLAYS)/contracts-bedrock/deployments/*/; do \
+			dirname=$$(basename "$$dir"); \
+			mkdir -p "$(SUBMODULE)/packages/contracts-bedrock/deployments/$$dirname"; \
+			cp -r "$$dir"* "$(SUBMODULE)/packages/contracts-bedrock/deployments/$$dirname/"; \
+		done; \
+	fi
+	@if [ -d "$(OVERLAYS)/contracts-bedrock/deploy-config" ]; then \
+		mkdir -p "$(SUBMODULE)/packages/contracts-bedrock/deploy-config"; \
+		cp "$(OVERLAYS)/contracts-bedrock/deploy-config/"*.json "$(SUBMODULE)/packages/contracts-bedrock/deploy-config/" 2>/dev/null || true; \
+	fi
+	@# Copy patched OpenZeppelin contracts (for regenesis support)
+	@if [ -d "$(OVERLAYS)/contracts-bedrock/lib/openzeppelin-contracts-patched" ]; then \
+		cp -r "$(OVERLAYS)/contracts-bedrock/lib/openzeppelin-contracts-patched" "$(SUBMODULE)/packages/contracts-bedrock/lib/"; \
+	fi
+	@# Add Boba remappings to foundry.toml
+	@if [ -f "$(OVERLAYS)/foundry-remappings.txt" ]; then \
+		if [ ! -f "$(BUILD_DIR)/foundry.toml.upstream" ]; then \
+			cp "$(SUBMODULE)/packages/contracts-bedrock/foundry.toml" "$(BUILD_DIR)/foundry.toml.upstream"; \
+		fi; \
+		while IFS= read -r line; do \
+			[[ "$$line" =~ ^#.*$$ ]] && continue; \
+			[[ -z "$$line" ]] && continue; \
+			if ! grep -q "$$line" "$(SUBMODULE)/packages/contracts-bedrock/foundry.toml"; then \
+				sed -i "/^remappings = \[/a\  '$$line'," "$(SUBMODULE)/packages/contracts-bedrock/foundry.toml"; \
+			fi; \
+		done < "$(OVERLAYS)/foundry-remappings.txt"; \
+	fi
+	@# Copy kurtosis-devnet overlays (e.g., boba-local.yaml)
+	@if [ -d "$(OVERLAYS)/kurtosis-devnet" ]; then \
+		cp -r "$(OVERLAYS)/kurtosis-devnet/"* "$(SUBMODULE)/kurtosis-devnet/"; \
+	fi
+	@# Apply git patch files (exclude go.mod.patch which uses sed format)
+	@for patchfile in $$(find "$(OVERLAYS)" -name "*.patch" -type f ! -name "go.mod.patch" 2>/dev/null); do \
+		echo "Applying patch: $$patchfile"; \
+		(cd "$(SUBMODULE)" && patch -p1 < "$$patchfile") || true; \
+	done
+	@echo "Patches applied."
 
-go-tests-short-ci: ## Runs short Go tests with gotestsum for CI (assumes deps built by CI)
-	$(MAKE) _go-tests-ci-internal GO_TEST_FLAGS="-short"
-.PHONY: go-tests-short-ci
+# Restore submodule to upstream state
+patch-restore:
+	@echo "Restoring upstream state..."
+	@if [ -f "$(BUILD_DIR)/go.mod.upstream" ]; then \
+		cp "$(BUILD_DIR)/go.mod.upstream" "$(SUBMODULE)/go.mod"; \
+	fi
+	@if [ -f "$(BUILD_DIR)/go.sum.upstream" ]; then \
+		cp "$(BUILD_DIR)/go.sum.upstream" "$(SUBMODULE)/go.sum"; \
+	fi
+	@if [ -f "$(BUILD_DIR)/foundry.toml.upstream" ]; then \
+		cp "$(BUILD_DIR)/foundry.toml.upstream" "$(SUBMODULE)/packages/contracts-bedrock/foundry.toml"; \
+	fi
+	@# Remove overlay files from submodule
+	@rm -rf "$(SUBMODULE)/packages/contracts-bedrock/src/boba" 2>/dev/null || true
+	@rm -rf "$(SUBMODULE)/packages/contracts-bedrock/deployments/boba-"* 2>/dev/null || true
+	@rm -f "$(SUBMODULE)/packages/contracts-bedrock/deploy-config/boba-"*.json 2>/dev/null || true
+	@rm -rf "$(SUBMODULE)/packages/contracts-bedrock/lib/openzeppelin-contracts-patched" 2>/dev/null || true
+	@rm -f "$(SUBMODULE)/kurtosis-devnet/boba-"*.yaml 2>/dev/null || true
+	@# Revert any applied patches
+	@(cd "$(SUBMODULE)" && git checkout -- . 2>/dev/null) || true
+	@echo "Restored."
 
-go-tests-ci: ## Runs comprehensive Go tests with gotestsum for CI (assumes deps built by CI)
-	$(MAKE) _go-tests-ci-internal GO_TEST_FLAGS=""
-.PHONY: go-tests-ci
+# Build all targets
+build: patch-apply
+	@echo "Building with Boba patches..."
+	cd $(SUBMODULE) && go mod tidy && $(MAKE) build
+	@if [ "$(BOBA_KEEP_PATCHES)" != "1" ]; then \
+		$(MAKE) patch-restore; \
+	fi
 
-go-tests-fraud-proofs-ci: ## Runs fraud proofs Go tests with gotestsum for CI (assumes deps built by CI)
-	@echo "Setting up test directories..."
-	mkdir -p ./tmp/test-results ./tmp/testlogs
-	@echo "Running Go tests with gotestsum..."
-	$(DEFAULT_TEST_ENV_VARS) && \
-	$(CI_ENV_VARS) && \
-	export OP_E2E_CANNON_ENABLED="true" && \
-	gotestsum --format=testname \
-		--junitfile=./tmp/test-results/results.xml \
-		--jsonfile=./tmp/testlogs/log.json \
-		--rerun-fails=3 \
-		--rerun-fails-max-failures=50 \
-		--packages="$(FRAUD_PROOF_TEST_PKGS)" \
-		-- -parallel=$$PARALLEL -coverprofile=coverage.out -timeout=$(TEST_TIMEOUT)
-.PHONY: go-tests-fraud-proofs-ci
+# Test
+test: patch-apply
+	cd $(SUBMODULE) && go mod tidy && $(MAKE) test
+	@if [ "$(BOBA_KEEP_PATCHES)" != "1" ]; then \
+		$(MAKE) patch-restore; \
+	fi
 
-test: go-tests ## Runs comprehensive Go tests (alias for go-tests)
-.PHONY: test
+# Individual component targets
+$(UPSTREAM_TARGETS): patch-apply
+	cd $(SUBMODULE) && go mod tidy && $(MAKE) $@
+	@if [ "$(BOBA_KEEP_PATCHES)" != "1" ]; then \
+		$(MAKE) patch-restore; \
+	fi
 
-update-op-geth: ## Updates the Geth version used in the project
-	./ops/scripts/update-op-geth.py
-.PHONY: update-op-geth
+# Clean
+clean: patch-restore
+	rm -rf $(BUILD_DIR)
+	cd $(SUBMODULE) && $(MAKE) clean 2>/dev/null || true
+
+# Update submodule
+submodule-update:
+	@echo "Updating upstream submodule..."
+	cd $(SUBMODULE) && git fetch origin && git checkout origin/develop
+	git add $(SUBMODULE)
+	@echo "Submodule updated. Review changes and commit when ready."
+
+# Pin submodule to specific tag/commit
+# Usage: make submodule-pin REF=op-node/v1.16.0
+submodule-pin:
+ifndef REF
+	$(error REF is required. Usage: make submodule-pin REF=op-node/v1.16.0)
+endif
+	@echo "Pinning upstream submodule to $(REF)..."
+	cd $(SUBMODULE) && git fetch origin && git checkout $(REF)
+	git add $(SUBMODULE)
+	@echo "Submodule pinned to $(REF). Review changes and commit when ready."
