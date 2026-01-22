@@ -10,6 +10,7 @@ import (
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
@@ -221,7 +222,7 @@ func TestZKGetProposal(t *testing.T) {
 			actualClaim, actualSeqNum, err := game.GetProposal(context.Background())
 			require.NoError(t, err)
 			require.Equal(t, rootClaim, actualClaim)
-			require.Equal(t, l2SequenceNumber.Uint64(), actualSeqNum)
+			require.Equal(t, bigs.Uint64Strict(l2SequenceNumber), actualSeqNum)
 		})
 	}
 }

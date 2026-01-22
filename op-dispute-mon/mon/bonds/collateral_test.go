@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -113,8 +114,8 @@ func TestCalculateRequiredCollateral(t *testing.T) {
 	require.Len(t, actual, 2)
 	require.Contains(t, actual, weth1)
 	require.Contains(t, actual, weth2)
-	require.Equal(t, actual[weth1].Required.Uint64(), uint64(5+7+2+3+6+9+4+1))
-	require.Equal(t, actual[weth1].Actual.Uint64(), weth1Balance.Uint64())
-	require.Equal(t, actual[weth2].Required.Uint64(), uint64(23+46))
-	require.Equal(t, actual[weth2].Actual.Uint64(), weth2Balance.Uint64())
+	require.Equal(t, bigs.Uint64Strict(actual[weth1].Required), uint64(5+7+2+3+6+9+4+1))
+	require.Equal(t, bigs.Uint64Strict(actual[weth1].Actual), bigs.Uint64Strict(weth1Balance))
+	require.Equal(t, bigs.Uint64Strict(actual[weth2].Required), uint64(23+46))
+	require.Equal(t, bigs.Uint64Strict(actual[weth2].Actual), bigs.Uint64Strict(weth2Balance))
 }

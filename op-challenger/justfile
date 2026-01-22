@@ -22,4 +22,7 @@ clean:
     rm -f {{BINARY}}
 
 # Run tests
-test: (go_test "./...")
+test:
+  # Required for cannon/provider_test TestLastStepCacheAccuracy
+  cd ../cannon && make cannon elf
+  @just go_test "./..."

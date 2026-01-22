@@ -371,9 +371,17 @@ func (h *Host) Call(from common.Address, to common.Address, input []byte, gas ui
 
 	defer func() {
 		if r := recover(); r != nil {
-			// Cast to a string to check the error message. If it's not a string it's
-			// an unexpected panic and we should re-raise it.
-			rStr, ok := r.(string)
+			// Try to get the panic message as a string. It could be a plain string
+			// or an error type (e.g., from errors.New or fmt.Errorf).
+			var rStr string
+			var ok bool
+			if rStr, ok = r.(string); !ok {
+				// Not a string, try error interface
+				if rErr, errOk := r.(error); errOk {
+					rStr = rErr.Error()
+					ok = true
+				}
+			}
 			if !ok || !strings.Contains(strings.ToLower(rStr), "revision id 1") {
 				fmt.Println("panic", rStr)
 				panic(r)

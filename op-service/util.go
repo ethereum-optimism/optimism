@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"golang.org/x/mod/modfile"
 
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 
@@ -115,17 +116,23 @@ func CloseAction(ctx context.Context, fn func(ctx context.Context) error) error 
 	}
 }
 
-// FindMonorepoRoot will recursively search upwards for a go.mod file.
-// This depends on the structure of the monorepo having a go.mod file at the root.
+// FindMonorepoRoot will recursively search upwards for the monorepo's go.mod file.
+// It verifies that the go.mod file belongs to the optimism monorepo by checking the module path.
 func FindMonorepoRoot(startDir string) (string, error) {
 	dir, err := filepath.Abs(startDir)
 	if err != nil {
 		return "", err
 	}
 	for {
-		modulePath := filepath.Join(dir, "go.mod")
-		if _, err := os.Stat(modulePath); err == nil {
-			return dir, nil
+		goModPath := filepath.Join(dir, "go.mod")
+		if content, err := os.ReadFile(goModPath); err == nil {
+			modFile, err := modfile.Parse(goModPath, content, nil)
+			if err != nil {
+				return "", fmt.Errorf("parsing go.mod: %w", err)
+			}
+			if modFile.Module.Mod.Path == "github.com/ethereum-optimism/optimism" {
+				return dir, nil
+			}
 		}
 		parentDir := filepath.Dir(dir)
 		// Check if we reached the filesystem root
