@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -21,7 +20,7 @@ type TxSender interface {
 }
 
 type BondClaimMetrics interface {
-	RecordBondClaimed(amount uint64)
+	RecordBondClaimed(amount *big.Int)
 }
 
 type BondContract interface {
@@ -115,7 +114,7 @@ func (c *Claimer) claimBond(ctx context.Context, contract BondContract, game typ
 		return true, fmt.Errorf("failed to claim credit: %w", err)
 	}
 
-	c.metrics.RecordBondClaimed(bigs.Uint64Strict(credit))
+	c.metrics.RecordBondClaimed(credit)
 	return true, nil
 }
 
