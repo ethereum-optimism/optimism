@@ -295,13 +295,12 @@ func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (
 	if c.vn == nil {
 		return eth.BlockID{}, fmt.Errorf("virtual node not initialized")
 	}
-	c.log.Info("safeDBAtL2", "l2", l2)
 	status, err := c.SyncStatus(ctx)
 	if err != nil {
 		return eth.BlockID{}, err
 	}
 	currentL1 := status.CurrentL1
-	c.log.Info("latest L1 just for good measure", "l1", currentL1)
+	c.log.Debug("safeDBAtL2", "l2", l2, "currentL1", currentL1, "err", err)
 	return c.vn.L1AtSafeHead(ctx, l2)
 }
 
