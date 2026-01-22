@@ -353,24 +353,8 @@ func (c *simpleChainContainer) attachInProcRollupClient() error {
 }
 
 func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint64) error {
-	// TODO this will fail if the block	 is not yet safe.
-	// I _think_ this is ok since we are expect to actually
-	// rewind _from_ a safe block and therefore _to_ a safe block...
-	// If I'm wrong about that, we will just need to expose engine.BlockAtTimestamp
-	c.log.Info("chain_container/RewindEngine: rewinding engine to timestamp", "timestamp", timestamp)
-	targetSafeBlock, err := c.engine.SafeBlockAtTimestamp(ctx, timestamp)
-	if err != nil {
-		return fmt.Errorf("failed to get safe block at timestamp %d: %w", timestamp, err)
-	}
-	c.log.Info("chain_container/RewindEngine: inferred target safe block", "number", targetSafeBlock.Number, "hash", targetSafeBlock.Hash)
-	currentFinalizedBlock, err := c.engine.FinalizedBlock(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get finalized block by hash %d: %w", timestamp, err)
-	}
-	c.log.Info("chain_container/RewindEngine: inferred current finalized block", "number", currentFinalizedBlock.Number, "hash", currentFinalizedBlock.Hash)
-
 	// Pause the container to stop it restarting the vn when we kill it
-	err = c.Pause(ctx)
+	err := c.Pause(ctx)
 	if err != nil {
 		return err
 	}
@@ -381,34 +365,12 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 	if err != nil {
 		return err
 	}
-
 	c.log.Info("chain_container/RewindEngine: stopped vn")
 
-	// Don't move finalized block forward, only back:
-	var targetFinalizedBlock eth.L2BlockRef
-	if currentFinalizedBlock.Time < targetSafeBlock.Number {
-		targetFinalizedBlock = currentFinalizedBlock
-	} else {
-		targetFinalizedBlock = targetSafeBlock
-	}
-
-	// TODO we could use debug_setHead here (as op-wheel does)
-	// to prune away the blocks we rewound over.
-	// For now I am considering that as an optimization.
-	// This method is not supported by reth.
-
-	// rewind the engine
-	fcs := eth.ForkchoiceState{
-		HeadBlockHash:      targetSafeBlock.Hash,
-		SafeBlockHash:      targetSafeBlock.Hash,
-		FinalizedBlockHash: targetFinalizedBlock.Hash,
-	}
-	res, err := c.engine.ForkchoiceUpdate(ctx, &fcs)
+	// rewind the chain container
+	err = c.engine.RewindToTimestamp(ctx, timestamp)
 	if err != nil {
-		return fmt.Errorf("failed to rewind engine: %w", err)
-	}
-	if res.PayloadStatus.Status != eth.ExecutionValid {
-		return fmt.Errorf("failed to rewind engine: %+v", res.PayloadStatus)
+		return err
 	}
 
 	c.log.Info("chain_container/RewindEngine: executed engine rewind", "forkChoiceState", fcs)

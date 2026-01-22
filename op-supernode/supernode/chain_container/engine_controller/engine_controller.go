@@ -3,6 +3,7 @@ package engine_controller
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -10,6 +11,7 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	gethlog "github.com/ethereum/go-ethereum/log"
 )
 
@@ -25,6 +27,8 @@ type EngineController interface {
 	OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error)
 	// ForkchoiceUpdate
 	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState) (*eth.ForkchoiceUpdatedResult, error)
+	// RewindToTimestamp rewinds the L2 execution layer to block at or before the given timestamp.
+	RewindToTimestamp(ctx context.Context, timestamp uint64) error
 	// Close releases any underlying RPC resources.
 	Close() error
 }
@@ -36,6 +40,7 @@ type l2Provider interface {
 	OutputV0AtBlockNumber(ctx context.Context, blockNum uint64) (*eth.OutputV0, error)
 	PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error)
 	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
+	NewPayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) (*eth.PayloadStatusV1, error)
 	Close()
 }
 
@@ -140,6 +145,106 @@ func (e *simpleEngineController) ForkchoiceUpdate(ctx context.Context, state *et
 		return nil, ErrNoEngineClient
 	}
 	return e.l2.ForkchoiceUpdate(ctx, state, nil) // use nil PayloadAttributes to avoid triggering block building
+}
+
+func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
+	if e.l2 == nil {
+		return ErrNoEngineClient
+	}
+
+	targetSafeBlock, err := e.SafeBlockAtTimestamp(ctx, timestamp)
+	if err != nil {
+		return err
+	}
+
+	currentFinalizedBlock, err := e.l2.L2BlockRefByLabel(ctx, eth.Finalized)
+	if err != nil {
+		return err
+	}
+
+	// Don't move finalized block forward, only back:
+	// TODO convert this to a helper / lambda
+	var targetFinalizedBlock eth.L2BlockRef
+	if currentFinalizedBlock.Time < targetSafeBlock.Number {
+		targetFinalizedBlock = currentFinalizedBlock
+	} else {
+		targetFinalizedBlock = targetSafeBlock
+	}
+
+	syntheticPayload, err := e.l2.PayloadByNumber(ctx, targetSafeBlock.Number)
+	if err != nil {
+		return err
+	}
+
+	// create a synthetic block to FCU to,
+	// this will reorg out the unwanted blocks:
+	syntheticPayload.ExecutionPayload.FeeRecipient = common.Address{}
+	syntheticBlockHash, _ := syntheticPayload.CheckBlockHash()
+	syntheticPayload.ExecutionPayload.BlockHash = syntheticBlockHash
+	status, err := e.l2.NewPayload(ctx, syntheticPayload)
+	if err != nil {
+		return err
+	}
+
+	if status.Status != eth.ExecutionValid {
+		return fmt.Errorf("failed to create synthetic payload: %+v", status)
+	}
+
+	fcs := eth.ForkchoiceState{
+		HeadBlockHash:      syntheticBlockHash,
+		SafeBlockHash:      syntheticBlockHash,
+		FinalizedBlockHash: targetFinalizedBlock.Hash,
+	}
+	res, err := e.l2.ForkchoiceUpdate(ctx, &fcs, nil)
+	if err != nil {
+		return fmt.Errorf("failed to FCU to synthetic block: %w", err)
+	}
+	if res.PayloadStatus.Status != eth.ExecutionValid {
+		return fmt.Errorf("failed to FCU to synthetic block: %+v", res.PayloadStatus)
+	}
+
+	// Next, FCU to the targetSafeBlock
+	fcs = eth.ForkchoiceState{
+		HeadBlockHash:      targetSafeBlock.Hash,
+		SafeBlockHash:      targetSafeBlock.Hash,
+		FinalizedBlockHash: targetFinalizedBlock.Hash,
+	}
+	res, err = e.l2.ForkchoiceUpdate(ctx, &fcs, nil)
+	if err != nil {
+		return fmt.Errorf("failed to rewind engine: %w", err)
+	}
+	if res.PayloadStatus.Status != eth.ExecutionValid {
+		return fmt.Errorf("failed to rewind engine: %+v", res.PayloadStatus)
+	}
+
+	resultingUnsafeBlock, err := e.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
+	if err != nil {
+		return err
+	}
+
+	if resultingUnsafeBlock.Number != targetSafeBlock.Number {
+		return fmt.Errorf("unexpected unsafe block number: %d != %d", resultingUnsafeBlock.Number, targetUnsafeBlock.Number)
+	}
+
+	resultingSafeBlock, err := e.l2.L2BlockRefByLabel(ctx, eth.Safe)
+	if err != nil {
+		return err
+	}
+
+	if resultingSafeBlock.Number != targetSafeBlock.Number {
+		return fmt.Errorf("unexpected safe block number: %d != %d", resultingSafeBlock.Number, targetSafeBlock.Number)
+	}
+
+	resultingFinalizedBlock, err := e.l2.L2BlockRefByLabel(ctx, eth.Finalized)
+	if err != nil {
+		return err
+	}
+
+	if resultingFinalizedBlock.Number != targetFinalizedBlock.Number {
+		return fmt.Errorf("unexpected finalized block number: %d != %d", resultingFinalizedBlock.Number, targetFinalizedBlock.Number)
+	}
+
+	return nil
 }
 
 func (e *simpleEngineController) Close() error {
