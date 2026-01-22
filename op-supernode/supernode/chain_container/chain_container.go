@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
+	"github.com/ethereum/go-ethereum"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -326,7 +327,7 @@ func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l
 		}
 		if !verified {
 			c.log.Error("data could not be verified at this timestamp", "verifier", verifier.Name())
-			return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("verification failed for %s at timestamp %d", verifier.Name(), ts)
+			return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("verifier %s does not have data at this timestamp: %w", verifier.Name(), ethereum.NotFound)
 		}
 	}
 
