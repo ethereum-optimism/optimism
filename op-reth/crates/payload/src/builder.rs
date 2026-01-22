@@ -52,7 +52,6 @@ pub struct OpPayloadBuilder<
     Attrs = OpPayloadBuilderAttributes<TxTy<<Evm as ConfigureEvm>::Primitives>>,
 > {
     /// The rollup's compute pending block configuration option.
-    // TODO(clabby): Implement this feature.
     pub compute_pending_block: bool,
     /// The type responsible for creating the evm.
     pub evm_config: Evm,

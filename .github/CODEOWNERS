@@ -33,6 +33,9 @@
 # Kona
 /kona                  @ethereum-optimism/kona-reviewers
 
+# OP-Reth
+/op-reth                @ethereum-optimism/kona-reviewers
+
 # Ops
 /.cursor/rules/solidity-styles.mdc @ethereum-optimism/contract-reviewers
 

@@ -65,6 +65,9 @@ parameters:
   ai_contracts_test_dispatch:
     type: boolean
     default: false
+  op_reth_dispatch:
+    type: boolean
+    default: false
   github-event-type:
     type: string
     default: "__not_set__"
@@ -132,6 +135,10 @@ workflows:
             kona/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/kona.yml
             kona/.* base_image << pipeline.parameters.base_image >> .circleci/continue/kona.yml
             kona/.* go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/kona.yml
+            op-reth/.* op_reth_dispatch true .circleci/continue/op-reth.yml
+            op-reth/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/op-reth.yml
+            op-reth/.* base_image << pipeline.parameters.base_image >> .circleci/continue/op-reth.yml
+            op-reth/.* go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/op-reth.yml
 
   setup-tag:
     when:
