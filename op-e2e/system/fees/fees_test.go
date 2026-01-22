@@ -184,7 +184,8 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	// Simple transfer from signer to random account
 	startBalance := balanceAt(fromAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
 
-	require.Greater(t, bigs.Uint64Strict(startBalance), bigs.Uint64Strict(big.NewInt(params.Ether)))
+	require.True(t, startBalance.Cmp(big.NewInt(params.Ether)) > 0,
+		"Expected start balance (%v) to be greater than 1 ether (%v)", startBalance, params.Ether)
 
 	transferAmount := big.NewInt(params.Ether)
 	gasTip := big.NewInt(10)
