@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
@@ -371,8 +372,8 @@ func TestSpanBatchTxsRecoverV(t *testing.T) {
 				txSig.r, _ = uint256.FromBig(r)
 				txSig.s, _ = uint256.FromBig(s)
 				txSigs = append(txSigs, txSig)
-				originalVs = append(originalVs, v.Uint64())
-				yParityBit, err := convertVToYParity(v.Uint64(), int(tx.Type()))
+				originalVs = append(originalVs, bigs.Uint64Strict(v))
+				yParityBit, err := convertVToYParity(bigs.Uint64Strict(v), int(tx.Type()))
 				require.NoError(t, err)
 				yParityBits.SetBit(yParityBits, idx, yParityBit)
 			}

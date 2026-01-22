@@ -8,6 +8,7 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -265,7 +266,7 @@ func (btx *spanBatchTxs) recoverV(chainID *big.Int) error {
 				v = 27 + bit
 			} else {
 				// EIP-155
-				v = chainID.Uint64()*2 + 35 + bit
+				v = bigs.Uint64Strict(chainID)*2 + 35 + bit
 			}
 		case types.AccessListTxType:
 			v = bit
@@ -447,7 +448,7 @@ func (sbtx *spanBatchTxs) AddTxs(txs [][]byte, chainID *big.Int) error {
 		v, r, s := tx.RawSignatureValues()
 		R, _ := uint256.FromBig(r)
 		S, _ := uint256.FromBig(s)
-		txSig.v = v.Uint64()
+		txSig.v = bigs.Uint64Strict(v)
 		txSig.r = R
 		txSig.s = S
 		sbtx.txSigs = append(sbtx.txSigs, txSig)
