@@ -32,7 +32,7 @@ const (
 	maxResponseSize = 10 * 1024 * 1024 // 10MB
 	maxRetries      = 4                // 1 initial + 3 retries
 	memoryCacheSize = 10               // Number of URLs to cache in memory
-	fileCacheTTL    = 10 * time.Minute // How long file cache entries remain valid
+	fileCacheTTL    = 30 * time.Minute // How long file cache entries remain valid
 	cacheSubdir     = "opcmregistry"
 )
 
@@ -56,15 +56,15 @@ var (
 
 // Registry fetches and caches OPCM version data from the superchain-registry.
 type Registry struct {
-	memoryCache *caching.LRUCache[string, Versions]
-	downloader  *httputil.Downloader
+	memoryCache  *caching.LRUCache[string, Versions]
+	downloader   *httputil.Downloader
 	fileCacheDir string
 }
 
 // NewRegistry creates a new Registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		memoryCache:  caching.NewLRUCache[string, Versions](nil, "opcmregistry", memoryCacheSize),
+		memoryCache: caching.NewLRUCache[string, Versions](nil, "opcmregistry", memoryCacheSize),
 		downloader: &httputil.Downloader{
 			Client:  &http.Client{Timeout: httpTimeout},
 			MaxSize: maxResponseSize,
