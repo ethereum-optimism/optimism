@@ -10,7 +10,7 @@ members = [
 [workspace.dependencies]
 rollup-boost = { path = "crates/rollup-boost" }
 flashblocks-rpc = { path = "crates/flashblocks-rpc" }
-rollup-boost-types = { path = "crates/rollup-boost-types" }
+rollup-boost-types = { version = "0.1.0", path = "crates/rollup-boost-types" }
 
 backoff = "0.4.0"
 clap = { version = "4", features = ["derive", "env"] }

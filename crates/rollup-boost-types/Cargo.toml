@@ -2,7 +2,9 @@
 name = "rollup-boost-types"
 version = "0.1.0"
 edition = "2024"
+description = "Core types for Rollup Boost"
 license = "MIT"
+readme = "../../README.md"
 
 [dependencies]
 alloy-primitives = { workspace = true }
