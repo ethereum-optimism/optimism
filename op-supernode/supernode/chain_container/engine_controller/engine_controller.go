@@ -160,106 +160,132 @@ func (e *simpleEngineController) ForkchoiceUpdate(ctx context.Context, state *et
 	return e.l2.ForkchoiceUpdate(ctx, state, nil) // use nil PayloadAttributes to avoid triggering block building
 }
 
+// RewindToTimestamp rewinds the L2 execution layer to the block at or before the given timestamp.
+//
+// The rewind is performed in two steps:
+//  1. Insert a synthetic block (modified fee recipient) and FCU to it, which triggers a reorg
+//     that orphans all blocks after the target.
+//  2. FCU back to the original target block, completing the rewind.
+//
+// This two-step approach is necessary because a direct FCU to an existing block won't reorg
+// if that block is already in the canonical chain.
 func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
-
 	if e.l2 == nil {
 		return ErrNoEngineClient
 	}
 
 	targetBlock, err := e.blockAtTimestamp(ctx, timestamp)
 	if err != nil {
-		return fmt.Errorf("engine-controller/rewind: failed to get target unsafe block at timestamp %d: %w", timestamp, err)
+		return fmt.Errorf("failed to get target block at timestamp %d: %w", timestamp, err)
 	}
 
-	currentFinalizedBlock, err := e.l2.L2BlockRefByLabel(ctx, eth.Finalized)
+	targetSafeBlock, targetFinalizedBlock, err := e.computeRewindTargets(ctx, targetBlock)
 	if err != nil {
-		return fmt.Errorf("engine-controller/rewind: failed to get current finalized block: %w", err)
+		return err
 	}
 
-	// Don't move finalized block forward, only back:
-	// TODO convert this to a helper / lambda
-	var targetFinalizedBlock eth.L2BlockRef
-	if currentFinalizedBlock.Number < targetBlock.Number {
-		targetFinalizedBlock = currentFinalizedBlock
-	} else {
-		targetFinalizedBlock = targetBlock
-	}
-
-	syntheticPayload, err := e.l2.PayloadByNumber(ctx, targetBlock.Number)
+	syntheticBlockHash, err := e.insertSyntheticPayload(ctx, targetBlock.Number)
 	if err != nil {
-		return fmt.Errorf("engine-controller/rewind: failed to get payload for target safe block number %d: %w", targetBlock.Number, err)
+		return err
 	}
 
-	// create a synthetic block to FCU to,
-	// this will reorg out the unwanted blocks:
-	syntheticPayload.ExecutionPayload.FeeRecipient = common.MaxAddress
-	syntheticBlockHash, _ := syntheticPayload.CheckBlockHash()
-	syntheticPayload.ExecutionPayload.BlockHash = syntheticBlockHash
-	status, err := e.l2.NewPayload(ctx, syntheticPayload.ExecutionPayload, syntheticPayload.ParentBeaconBlockRoot)
+	// Step 1: FCU to the synthetic block to trigger a reorg
+	if err := e.forkchoiceUpdate(ctx, syntheticBlockHash, targetSafeBlock.Hash, targetFinalizedBlock.Hash); err != nil {
+		return fmt.Errorf("failed to FCU to synthetic block: %w", err)
+	}
+	e.log.Info("executed FCU to synthetic block", "syntheticHead", syntheticBlockHash, "safe", targetSafeBlock.Hash, "finalized", targetFinalizedBlock.Hash)
+
+	// Step 2: FCU to the actual target block
+	if err := e.forkchoiceUpdate(ctx, targetBlock.Hash, targetSafeBlock.Hash, targetFinalizedBlock.Hash); err != nil {
+		return fmt.Errorf("failed to FCU to target block: %w", err)
+	}
+	e.log.Info("executed FCU to target block", "head", targetBlock.Hash, "safe", targetSafeBlock.Hash, "finalized", targetFinalizedBlock.Hash)
+
+	return e.verifyRewindState(ctx, targetBlock, targetSafeBlock, targetFinalizedBlock)
+}
+
+// computeRewindTargets determines the safe and finalized block targets for the rewind.
+// Safe and finalized are clamped to not move forward (only backward or stay the same).
+func (e *simpleEngineController) computeRewindTargets(ctx context.Context, targetBlock eth.L2BlockRef) (safe, finalized eth.L2BlockRef, err error) {
+	currentSafe, err := e.l2.L2BlockRefByLabel(ctx, eth.Safe)
 	if err != nil {
-		return fmt.Errorf("engine-controller/rewind: failed to insert synthetic payload: %w", err)
+		return eth.L2BlockRef{}, eth.L2BlockRef{}, fmt.Errorf("failed to get current safe block: %w", err)
 	}
 
+	currentFinalized, err := e.l2.L2BlockRefByLabel(ctx, eth.Finalized)
+	if err != nil {
+		return eth.L2BlockRef{}, eth.L2BlockRef{}, fmt.Errorf("failed to get current finalized block: %w", err)
+	}
+
+	return earliest(currentSafe, targetBlock), earliest(currentFinalized, targetBlock), nil
+}
+
+// insertSyntheticPayload creates and inserts a synthetic block derived from the block at the given number.
+// The synthetic block has a modified fee recipient to produce a different block hash.
+// Returns the hash of the synthetic block.
+func (e *simpleEngineController) insertSyntheticPayload(ctx context.Context, blockNumber uint64) (common.Hash, error) {
+	envelope, err := e.l2.PayloadByNumber(ctx, blockNumber)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to get payload for block %d: %w", blockNumber, err)
+	}
+
+	// Modify the payload to create a synthetic block with a different hash
+	envelope.ExecutionPayload.FeeRecipient = common.MaxAddress
+	syntheticHash, _ := envelope.CheckBlockHash()
+	envelope.ExecutionPayload.BlockHash = syntheticHash
+
+	status, err := e.l2.NewPayload(ctx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to insert synthetic payload: %w", err)
+	}
 	if status.Status != eth.ExecutionValid {
-		return fmt.Errorf("failed to insert synthetic payload: %+v", status)
+		return common.Hash{}, fmt.Errorf("synthetic payload rejected: %s", status.Status)
 	}
 
+	return syntheticHash, nil
+}
+
+// forkchoiceUpdate sends a forkchoice update to the engine and validates the response.
+func (e *simpleEngineController) forkchoiceUpdate(ctx context.Context, head, safe, finalized common.Hash) error {
 	fcs := eth.ForkchoiceState{
-		HeadBlockHash:      syntheticBlockHash,
-		SafeBlockHash:      syntheticBlockHash,
-		FinalizedBlockHash: targetFinalizedBlock.Hash,
+		HeadBlockHash:      head,
+		SafeBlockHash:      safe,
+		FinalizedBlockHash: finalized,
 	}
 	res, err := e.l2.ForkchoiceUpdate(ctx, &fcs, nil)
 	if err != nil {
-		return fmt.Errorf("failed to FCU to synthetic block: %w", err)
+		return err
 	}
 	if res.PayloadStatus.Status != eth.ExecutionValid {
-		return fmt.Errorf("failed to FCU to synthetic block: %+v", res.PayloadStatus)
+		return fmt.Errorf("forkchoice update rejected: %s", res.PayloadStatus.Status)
 	}
+	return nil
+}
 
-	e.log.Info("engine-controller: executed FCU to synthetic block", "fcs", fcs)
-
-	// Next, FCU to the targetSafeBlock
-	fcs = eth.ForkchoiceState{
-		HeadBlockHash:      targetBlock.Hash,
-		SafeBlockHash:      targetBlock.Hash,
-		FinalizedBlockHash: targetFinalizedBlock.Hash,
-	}
-	res, err = e.l2.ForkchoiceUpdate(ctx, &fcs, nil)
+// verifyRewindState checks that the engine state matches the expected targets after a rewind.
+func (e *simpleEngineController) verifyRewindState(ctx context.Context, targetUnsafe, targetSafe, targetFinalized eth.L2BlockRef) error {
+	unsafe, err := e.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
 	if err != nil {
-		return fmt.Errorf("failed to rewind engine: %w", err)
+		return fmt.Errorf("failed to verify unsafe block: %w", err)
 	}
-	if res.PayloadStatus.Status != eth.ExecutionValid {
-		return fmt.Errorf("failed to rewind engine: %+v", res.PayloadStatus)
+	if unsafe.Number != targetUnsafe.Number {
+		return fmt.Errorf("unexpected unsafe block number: got %d, want %d", unsafe.Number, targetUnsafe.Number)
 	}
 
-	e.log.Info("engine-controller: executed FCU to synthetic block", "fcs", fcs)
-
-	resultingUnsafeBlock, err := e.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
+	safe, err := e.l2.L2BlockRefByLabel(ctx, eth.Safe)
 	if err != nil {
-		return fmt.Errorf("engine-controller/rewind: failed to get unsafe block: %w", err)
+		return fmt.Errorf("failed to verify safe block: %w", err)
+	}
+	if safe.Number != targetSafe.Number {
+		return fmt.Errorf("unexpected safe block number: got %d, want %d", safe.Number, targetSafe.Number)
 	}
 
-	if resultingUnsafeBlock.Number != targetBlock.Number {
-		return fmt.Errorf("unexpected unsafe block number: %d != %d", resultingUnsafeBlock.Number, targetBlock.Number)
-	}
-
-	resultingSafeBlock, err := e.l2.L2BlockRefByLabel(ctx, eth.Safe)
+	finalized, err := e.l2.L2BlockRefByLabel(ctx, eth.Finalized)
 	if err != nil {
-		return fmt.Errorf("engine-controller/rewind: failed to get safe block: %w", err)
+		return fmt.Errorf("failed to verify finalized block: %w", err)
 	}
-
-	if resultingSafeBlock.Number != targetBlock.Number {
-		return fmt.Errorf("unexpected safe block number: %d != %d", resultingSafeBlock.Number, targetBlock.Number)
-	}
-
-	resultingFinalizedBlock, err := e.l2.L2BlockRefByLabel(ctx, eth.Finalized)
-	if err != nil {
-		return fmt.Errorf("engine-controller/rewind: failed to get finalized block: %w", err)
-	}
-
-	if resultingFinalizedBlock.Number != targetFinalizedBlock.Number {
-		return fmt.Errorf("unexpected finalized block number: %d != %d", resultingFinalizedBlock.Number, targetFinalizedBlock.Number)
+	if finalized.Number != targetFinalized.Number {
+		return fmt.Errorf("unexpected finalized block number: got %d, want %d", finalized.Number, targetFinalized.Number)
 	}
 
 	return nil
@@ -274,3 +300,10 @@ func (e *simpleEngineController) Close() error {
 
 // Interface conformance assertion
 var _ EngineController = (*simpleEngineController)(nil)
+
+func earliest(a, b eth.L2BlockRef) eth.L2BlockRef {
+	if a.Number < b.Number {
+		return a
+	}
+	return b
+}
