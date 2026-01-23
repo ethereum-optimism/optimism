@@ -6,7 +6,7 @@ on:
   pull_request:
   merge_group:
   push:
-    branches: [unstable, main]
+    branches: [ develop ]
   schedule:
     # Run once a day at 3:00 UTC
     - cron: "0 3 * * *"
@@ -29,7 +29,7 @@ jobs:
       RUST_BACKTRACE: 1
     strategy:
       matrix:
-        network: ["ethereum", "optimism"]
+        network: ["optimism"]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
@@ -66,19 +66,3 @@ jobs:
         uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-
-  era-files:
-    name: era1 file integration tests once a day
-    if: github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: rui314/setup-mold@v1
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@nextest
-      - uses: mozilla-actions/sccache-action@v0.0.9
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-      - name: run era1 files integration tests
-        run: cargo nextest run --release --package reth-era --test it -- --ignored

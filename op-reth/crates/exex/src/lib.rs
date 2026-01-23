@@ -174,7 +174,6 @@ where
     /// Ensure proofs storage is initialized
     async fn ensure_initialized(&self) -> eyre::Result<()> {
         // Check if proofs storage is initialized
-        #[cfg_attr(not(feature = "metrics"), expect(unused_variables))]
         let earliest_block_number = match self.storage.get_earliest_block_number().await? {
             Some((n, _)) => n,
             None => {

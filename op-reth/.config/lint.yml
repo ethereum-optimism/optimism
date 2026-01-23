@@ -4,7 +4,7 @@ on:
   pull_request:
   merge_group:
   push:
-    branches: [unstable, main]
+    branches: [ develop ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -20,7 +20,7 @@ jobs:
         include:
           - type: ethereum
             args: --workspace --lib --examples --tests --benches --locked
-            features: "ethereum asm-keccak jemalloc jemalloc-prof min-error-logs min-warn-logs min-info-logs min-debug-logs min-trace-logs"
+            features: "asm-keccak jemalloc jemalloc-prof min-error-logs min-warn-logs min-info-logs min-debug-logs min-trace-logs"
     steps:
       - uses: actions/checkout@v6
       - uses: rui314/setup-mold@v1
@@ -264,9 +264,9 @@ jobs:
         uses: taiki-e/install-action@cargo-hack
       - run: |
           cargo hack check \
-            --package reth-codecs \
-            --package reth-primitives-traits \
-            --package reth-primitives \
+            --all-targets \
+            --package reth-optimism-trie \
+            --package reth-optimism-exex \
             --feature-powerset \
             --depth 2
         env:

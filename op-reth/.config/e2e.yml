@@ -6,7 +6,7 @@ on:
   pull_request:
   merge_group:
   push:
-    branches: [unstable, main]
+    branches: [ develop ]
 
 env:
   CARGO_TERM_COLOR: always

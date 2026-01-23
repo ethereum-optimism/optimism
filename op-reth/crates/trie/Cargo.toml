@@ -42,7 +42,7 @@ bincode.workspace = true
 # misc
 thiserror.workspace = true
 auto_impl.workspace = true
-eyre.workspace = true
+eyre = { workspace = true, optional = true }
 strum.workspace = true
 tracing.workspace = true
 derive_more.workspace = true
@@ -68,6 +68,7 @@ reth-testing-utils.workspace = true
 reth-storage-errors.workspace = true
 secp256k1.workspace = true
 mockall.workspace = true
+eyre.workspace = true
 
 # misc
 serial_test.workspace = true
@@ -85,4 +86,5 @@ metrics = [
     "reth-trie/metrics",
     "dep:reth-metrics",
     "dep:metrics",
+    "dep:eyre",
 ]

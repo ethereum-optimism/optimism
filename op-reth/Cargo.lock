@@ -1597,7 +1597,6 @@ version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "812e12b5285cc515a9c72a5c1d3b6d46a19dac5acfef5265968c166106e31dd3"
 dependencies = [
- "arbitrary",
  "serde_core",
 ]
 
@@ -2112,6 +2111,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3e64b0cc0439b12df2fa678eae89a1c56a529fd067a9115f7827f1fffd22b32"
 
 [[package]]
+<<<<<<< HEAD:op-reth/Cargo.lock
+=======
+name = "cmake"
+version = "0.1.57"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75443c44cd6b379beb8c5b45d85d0773baf31cce901fe7bb252f4eff3008ef7d"
+dependencies = [
+ "cc",
+]
+
+[[package]]
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 name = "coins-bip32"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6586,12 +6597,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "relative-path"
-version = "1.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba39f3699c378cd8970968dcbff9c43159ea4cfbd88d43c00b22f2ef10a435d2"
-
-[[package]]
 name = "reqwest"
 version = "0.12.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6642,8 +6647,13 @@ checksum = "1e061d1b48cb8d38042de4ae0a7a6401009d6143dc80d2e2d6f31f0bdd6470c7"
 
 [[package]]
 name = "reth-basic-payload-builder"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6666,8 +6676,13 @@ dependencies = [
 
 [[package]]
 name = "reth-chain-state"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6697,8 +6712,13 @@ dependencies = [
 
 [[package]]
 name = "reth-chainspec"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -6717,8 +6737,13 @@ dependencies = [
 
 [[package]]
 name = "reth-cli"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-genesis",
  "clap",
@@ -6731,8 +6756,13 @@ dependencies = [
 
 [[package]]
 name = "reth-cli-commands"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -6815,8 +6845,13 @@ dependencies = [
 
 [[package]]
 name = "reth-cli-runner"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "reth-tasks",
  "tokio",
@@ -6825,8 +6860,13 @@ dependencies = [
 
 [[package]]
 name = "reth-cli-util"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -6845,8 +6885,13 @@ dependencies = [
 
 [[package]]
 name = "reth-codecs"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6865,8 +6910,13 @@ dependencies = [
 
 [[package]]
 name = "reth-codecs-derive"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6875,8 +6925,13 @@ dependencies = [
 
 [[package]]
 name = "reth-config"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "eyre",
  "humantime-serde",
@@ -6891,8 +6946,13 @@ dependencies = [
 
 [[package]]
 name = "reth-consensus"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -6904,8 +6964,13 @@ dependencies = [
 
 [[package]]
 name = "reth-consensus-common"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6916,8 +6981,13 @@ dependencies = [
 
 [[package]]
 name = "reth-consensus-debug-client"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6942,8 +7012,13 @@ dependencies = [
 
 [[package]]
 name = "reth-db"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "derive_more",
@@ -6968,8 +7043,13 @@ dependencies = [
 
 [[package]]
 name = "reth-db-api"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-genesis",
@@ -6996,8 +7076,13 @@ dependencies = [
 
 [[package]]
 name = "reth-db-common"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-genesis",
@@ -7026,8 +7111,13 @@ dependencies = [
 
 [[package]]
 name = "reth-db-models"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -7041,8 +7131,13 @@ dependencies = [
 
 [[package]]
 name = "reth-discv4"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -7066,8 +7161,13 @@ dependencies = [
 
 [[package]]
 name = "reth-discv5"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -7090,8 +7190,13 @@ dependencies = [
 
 [[package]]
 name = "reth-dns-discovery"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "data-encoding",
@@ -7114,8 +7219,13 @@ dependencies = [
 
 [[package]]
 name = "reth-downloaders"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7149,8 +7259,13 @@ dependencies = [
 
 [[package]]
 name = "reth-e2e-test-utils"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7207,8 +7322,13 @@ dependencies = [
 
 [[package]]
 name = "reth-ecies"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "aes",
  "alloy-primitives",
@@ -7235,8 +7355,13 @@ dependencies = [
 
 [[package]]
 name = "reth-engine-local"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -7260,8 +7385,13 @@ dependencies = [
 
 [[package]]
 name = "reth-engine-primitives"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7285,8 +7415,13 @@ dependencies = [
 
 [[package]]
 name = "reth-engine-service"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "futures",
  "pin-project",
@@ -7308,8 +7443,13 @@ dependencies = [
 
 [[package]]
 name = "reth-engine-tree"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eip7928",
@@ -7367,8 +7507,13 @@ dependencies = [
 
 [[package]]
 name = "reth-engine-util"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-rpc-types-engine",
@@ -7395,8 +7540,13 @@ dependencies = [
 
 [[package]]
 name = "reth-era"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7410,8 +7560,13 @@ dependencies = [
 
 [[package]]
 name = "reth-era-downloader"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "bytes",
@@ -7426,8 +7581,13 @@ dependencies = [
 
 [[package]]
 name = "reth-era-utils"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -7448,8 +7608,13 @@ dependencies = [
 
 [[package]]
 name = "reth-errors"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "reth-consensus",
  "reth-execution-errors",
@@ -7459,8 +7624,13 @@ dependencies = [
 
 [[package]]
 name = "reth-eth-wire"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-chains",
  "alloy-primitives",
@@ -7488,8 +7658,13 @@ dependencies = [
 
 [[package]]
 name = "reth-eth-wire-types"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -7511,9 +7686,37 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD:op-reth/Cargo.lock
 name = "reth-ethereum-consensus"
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+name = "reth-ethereum-cli"
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+dependencies = [
+ "clap",
+ "eyre",
+ "reth-chainspec",
+ "reth-cli",
+ "reth-cli-commands",
+ "reth-cli-runner",
+ "reth-db",
+ "reth-node-api",
+ "reth-node-builder",
+ "reth-node-core",
+ "reth-node-ethereum",
+ "reth-node-metrics",
+ "reth-rpc-server-types",
+ "reth-tracing",
+ "tracing",
+]
+
+[[package]]
+name = "reth-ethereum-consensus"
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7528,8 +7731,13 @@ dependencies = [
 
 [[package]]
 name = "reth-ethereum-engine-primitives"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -7546,8 +7754,13 @@ dependencies = [
 
 [[package]]
 name = "reth-ethereum-forks"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-eip2124",
  "alloy-hardforks",
@@ -7560,8 +7773,13 @@ dependencies = [
 
 [[package]]
 name = "reth-ethereum-payload-builder"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7589,8 +7807,13 @@ dependencies = [
 
 [[package]]
 name = "reth-ethereum-primitives"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7609,8 +7832,13 @@ dependencies = [
 
 [[package]]
 name = "reth-etl"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "rayon",
  "reth-db-api",
@@ -7619,8 +7847,13 @@ dependencies = [
 
 [[package]]
 name = "reth-evm"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7643,8 +7876,13 @@ dependencies = [
 
 [[package]]
 name = "reth-evm-ethereum"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7664,8 +7902,13 @@ dependencies = [
 
 [[package]]
 name = "reth-execution-errors"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-evm",
  "alloy-primitives",
@@ -7677,8 +7920,13 @@ dependencies = [
 
 [[package]]
 name = "reth-execution-types"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7695,8 +7943,13 @@ dependencies = [
 
 [[package]]
 name = "reth-exex"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7732,9 +7985,47 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD:op-reth/Cargo.lock
 name = "reth-exex-types"
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+name = "reth-exex-test-utils"
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+dependencies = [
+ "alloy-eips",
+ "eyre",
+ "futures-util",
+ "reth-chainspec",
+ "reth-config",
+ "reth-consensus",
+ "reth-db",
+ "reth-db-common",
+ "reth-ethereum-primitives",
+ "reth-evm-ethereum",
+ "reth-execution-types",
+ "reth-exex",
+ "reth-network",
+ "reth-node-api",
+ "reth-node-builder",
+ "reth-node-core",
+ "reth-node-ethereum",
+ "reth-payload-builder",
+ "reth-primitives-traits",
+ "reth-provider",
+ "reth-tasks",
+ "reth-transaction-pool",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
+name = "reth-exex-types"
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -7747,8 +8038,13 @@ dependencies = [
 
 [[package]]
 name = "reth-fs-util"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "serde",
  "serde_json",
@@ -7757,8 +8053,13 @@ dependencies = [
 
 [[package]]
 name = "reth-invalid-block-hooks"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -7785,8 +8086,13 @@ dependencies = [
 
 [[package]]
 name = "reth-ipc"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "bytes",
  "futures",
@@ -7805,8 +8111,13 @@ dependencies = [
 
 [[package]]
 name = "reth-libmdbx"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "bitflags 2.10.0",
  "byteorder",
@@ -7821,8 +8132,13 @@ dependencies = [
 
 [[package]]
 name = "reth-mdbx-sys"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "bindgen 0.71.1",
  "cc",
@@ -7830,8 +8146,13 @@ dependencies = [
 
 [[package]]
 name = "reth-metrics"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "futures",
  "metrics",
@@ -7842,8 +8163,13 @@ dependencies = [
 
 [[package]]
 name = "reth-net-banlist"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "ipnet",
@@ -7851,8 +8177,13 @@ dependencies = [
 
 [[package]]
 name = "reth-net-nat"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "futures-util",
  "if-addrs",
@@ -7865,8 +8196,13 @@ dependencies = [
 
 [[package]]
 name = "reth-network"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7921,8 +8257,13 @@ dependencies = [
 
 [[package]]
 name = "reth-network-api"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -7946,8 +8287,13 @@ dependencies = [
 
 [[package]]
 name = "reth-network-p2p"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7969,8 +8315,13 @@ dependencies = [
 
 [[package]]
 name = "reth-network-peers"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -7984,8 +8335,13 @@ dependencies = [
 
 [[package]]
 name = "reth-network-types"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-eip2124",
  "humantime-serde",
@@ -7998,8 +8354,13 @@ dependencies = [
 
 [[package]]
 name = "reth-nippy-jar"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "anyhow",
  "bincode",
@@ -8015,8 +8376,13 @@ dependencies = [
 
 [[package]]
 name = "reth-node-api"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-rpc-types-engine",
  "eyre",
@@ -8039,8 +8405,13 @@ dependencies = [
 
 [[package]]
 name = "reth-node-builder"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8108,8 +8479,13 @@ dependencies = [
 
 [[package]]
 name = "reth-node-core"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8164,8 +8540,13 @@ dependencies = [
 
 [[package]]
 name = "reth-node-ethereum"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-eips",
  "alloy-network",
@@ -8202,8 +8583,13 @@ dependencies = [
 
 [[package]]
 name = "reth-node-ethstats"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -8226,8 +8612,13 @@ dependencies = [
 
 [[package]]
 name = "reth-node-events"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8250,8 +8641,13 @@ dependencies = [
 
 [[package]]
 name = "reth-node-metrics"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "bytes",
  "eyre",
@@ -8279,8 +8675,13 @@ dependencies = [
 
 [[package]]
 name = "reth-node-types"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "reth-chainspec",
  "reth-db-api",
@@ -8290,55 +8691,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "reth-op"
-version = "1.10.2"
-dependencies = [
- "reth-chainspec",
- "reth-cli-util",
- "reth-codecs",
- "reth-consensus",
- "reth-consensus-common",
- "reth-db",
- "reth-engine-local",
- "reth-eth-wire",
- "reth-evm",
- "reth-exex",
- "reth-network",
- "reth-network-api",
- "reth-node-api",
- "reth-node-builder",
- "reth-node-core",
- "reth-optimism-chainspec",
- "reth-optimism-cli",
- "reth-optimism-consensus",
- "reth-optimism-evm",
- "reth-optimism-node",
- "reth-optimism-primitives",
- "reth-optimism-rpc",
- "reth-primitives-traits",
- "reth-provider",
- "reth-revm",
- "reth-rpc",
- "reth-rpc-api",
- "reth-rpc-builder",
- "reth-rpc-eth-types",
- "reth-storage-api",
- "reth-tasks",
- "reth-transaction-pool",
- "reth-trie",
- "reth-trie-db",
-]
-
-[[package]]
 name = "reth-optimism-chainspec"
-version = "1.10.2"
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
  "alloy-eips",
  "alloy-genesis",
  "alloy-hardforks",
- "alloy-op-hardforks",
  "alloy-primitives",
  "derive_more",
  "miniz_oxide",
@@ -8409,29 +8770,23 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-consensus"
-version = "1.10.2"
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
 dependencies = [
- "alloy-chains",
  "alloy-consensus",
  "alloy-eips",
  "alloy-primitives",
  "alloy-trie",
- "op-alloy-consensus",
  "reth-chainspec",
  "reth-consensus",
  "reth-consensus-common",
- "reth-db-common",
  "reth-execution-types",
  "reth-optimism-chainspec",
  "reth-optimism-forks",
- "reth-optimism-node",
  "reth-optimism-primitives",
  "reth-primitives-traits",
- "reth-provider",
- "reth-revm",
  "reth-storage-api",
  "reth-storage-errors",
- "reth-trie",
  "reth-trie-common",
  "revm",
  "thiserror 2.0.18",
@@ -8440,12 +8795,12 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-evm"
-version = "1.10.2"
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
  "alloy-evm",
- "alloy-genesis",
  "alloy-op-evm",
  "alloy-primitives",
  "op-alloy-consensus",
@@ -8460,7 +8815,6 @@ dependencies = [
  "reth-optimism-forks",
  "reth-optimism-primitives",
  "reth-primitives-traits",
- "reth-revm",
  "reth-rpc-eth-api",
  "reth-storage-errors",
  "revm",
@@ -8499,7 +8853,8 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-flashblocks"
-version = "1.10.2"
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8510,7 +8865,6 @@ dependencies = [
  "eyre",
  "futures-util",
  "metrics",
- "op-alloy-consensus",
  "op-alloy-rpc-types-engine",
  "reth-chain-state",
  "reth-engine-primitives",
@@ -8528,7 +8882,6 @@ dependencies = [
  "reth-tasks",
  "ringbuffer",
  "serde_json",
- "test-case",
  "tokio",
  "tokio-tungstenite",
  "tracing",
@@ -8537,7 +8890,8 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-forks"
-version = "1.10.2"
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
 dependencies = [
  "alloy-op-hardforks",
  "alloy-primitives",
@@ -8609,7 +8963,8 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-payload-builder"
-version = "1.10.2"
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8648,28 +9003,23 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-primitives"
-version = "1.10.2"
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
  "alloy-primitives",
  "alloy-rlp",
+<<<<<<< HEAD:op-reth/Cargo.lock
  "arbitrary",
  "bincode",
  "bytes",
  "modular-bitfield",
+=======
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
  "op-alloy-consensus",
- "proptest",
- "proptest-arbitrary-interop",
- "rand 0.8.5",
- "rand 0.9.2",
- "reth-codecs",
  "reth-primitives-traits",
- "reth-zstd-compressors",
- "rstest",
- "secp256k1 0.30.0",
  "serde",
- "serde_json",
  "serde_with",
 ]
 
@@ -8746,13 +9096,11 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-storage"
-version = "1.10.2"
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
 dependencies = [
  "alloy-consensus",
- "reth-codecs",
  "reth-optimism-primitives",
- "reth-prune-types",
- "reth-stages-types",
  "reth-storage-api",
 ]
 
@@ -8765,7 +9113,7 @@ dependencies = [
  "alloy-genesis",
  "alloy-primitives",
  "auto_impl",
- "bincode 1.3.3",
+ "bincode",
  "bytes",
  "derive_more",
  "eyre",
@@ -8803,7 +9151,8 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-txpool"
-version = "1.10.2"
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8824,12 +9173,10 @@ dependencies = [
  "reth-chain-state",
  "reth-chainspec",
  "reth-metrics",
- "reth-optimism-chainspec",
  "reth-optimism-evm",
  "reth-optimism-forks",
  "reth-optimism-primitives",
  "reth-primitives-traits",
- "reth-provider",
  "reth-storage-api",
  "reth-transaction-pool",
  "serde",
@@ -8840,8 +9187,13 @@ dependencies = [
 
 [[package]]
 name = "reth-payload-builder"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -8861,8 +9213,13 @@ dependencies = [
 
 [[package]]
 name = "reth-payload-builder-primitives"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "pin-project",
  "reth-payload-primitives",
@@ -8873,8 +9230,13 @@ dependencies = [
 
 [[package]]
 name = "reth-payload-primitives"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8896,8 +9258,13 @@ dependencies = [
 
 [[package]]
 name = "reth-payload-util"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -8906,8 +9273,13 @@ dependencies = [
 
 [[package]]
 name = "reth-payload-validator"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-rpc-types-engine",
@@ -8916,8 +9288,13 @@ dependencies = [
 
 [[package]]
 name = "reth-primitives"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "once_cell",
@@ -8929,8 +9306,13 @@ dependencies = [
 
 [[package]]
 name = "reth-primitives-traits"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8962,8 +9344,13 @@ dependencies = [
 
 [[package]]
 name = "reth-provider"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -9006,8 +9393,13 @@ dependencies = [
 
 [[package]]
 name = "reth-prune"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -9034,8 +9426,13 @@ dependencies = [
 
 [[package]]
 name = "reth-prune-types"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "arbitrary",
@@ -9045,12 +9442,66 @@ dependencies = [
  "serde",
  "strum 0.27.2",
  "thiserror 2.0.18",
+<<<<<<< HEAD:op-reth/Cargo.lock
+=======
+]
+
+[[package]]
+name = "reth-ress-protocol"
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+dependencies = [
+ "alloy-consensus",
+ "alloy-primitives",
+ "alloy-rlp",
+ "futures",
+ "reth-eth-wire",
+ "reth-ethereum-primitives",
+ "reth-network",
+ "reth-network-api",
+ "reth-storage-errors",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+]
+
+[[package]]
+name = "reth-ress-provider"
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+dependencies = [
+ "alloy-consensus",
+ "alloy-primitives",
+ "eyre",
+ "futures",
+ "parking_lot",
+ "reth-chain-state",
+ "reth-errors",
+ "reth-ethereum-primitives",
+ "reth-evm",
+ "reth-node-api",
+ "reth-primitives-traits",
+ "reth-ress-protocol",
+ "reth-revm",
+ "reth-storage-api",
+ "reth-tasks",
+ "reth-tokio-util",
+ "reth-trie",
+ "schnellru",
+ "tokio",
+ "tracing",
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 ]
 
 [[package]]
 name = "reth-revm"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "reth-primitives-traits",
@@ -9062,8 +9513,13 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-dyn-abi",
@@ -9144,8 +9600,13 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-api"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-eip7928",
  "alloy-eips",
@@ -9174,8 +9635,13 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-builder"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-network",
  "alloy-provider",
@@ -9215,8 +9681,13 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-convert"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-evm",
@@ -9241,8 +9712,13 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-engine-api"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -9271,8 +9747,13 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-eth-api"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-dyn-abi",
@@ -9315,8 +9796,13 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-eth-types"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -9363,8 +9849,13 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-layer"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-rpc-types-engine",
  "http",
@@ -9377,8 +9868,13 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-server-types"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -9393,8 +9889,13 @@ dependencies = [
 
 [[package]]
 name = "reth-stages"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -9442,8 +9943,13 @@ dependencies = [
 
 [[package]]
 name = "reth-stages-api"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -9469,8 +9975,13 @@ dependencies = [
 
 [[package]]
 name = "reth-stages-types"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "arbitrary",
@@ -9483,8 +9994,13 @@ dependencies = [
 
 [[package]]
 name = "reth-static-file"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "parking_lot",
@@ -9503,8 +10019,13 @@ dependencies = [
 
 [[package]]
 name = "reth-static-file-types"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "clap",
@@ -9516,8 +10037,13 @@ dependencies = [
 
 [[package]]
 name = "reth-storage-api"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -9540,8 +10066,13 @@ dependencies = [
 
 [[package]]
 name = "reth-storage-errors"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -9557,8 +10088,13 @@ dependencies = [
 
 [[package]]
 name = "reth-tasks"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "auto_impl",
  "dyn-clone",
@@ -9575,8 +10111,13 @@ dependencies = [
 
 [[package]]
 name = "reth-testing-utils"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -9591,8 +10132,13 @@ dependencies = [
 
 [[package]]
 name = "reth-tokio-util"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "tokio",
  "tokio-stream",
@@ -9601,8 +10147,13 @@ dependencies = [
 
 [[package]]
 name = "reth-tracing"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "clap",
  "eyre",
@@ -9620,8 +10171,13 @@ dependencies = [
 
 [[package]]
 name = "reth-tracing-otlp"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "clap",
  "eyre",
@@ -9638,8 +10194,13 @@ dependencies = [
 
 [[package]]
 name = "reth-transaction-pool"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -9653,8 +10214,6 @@ dependencies = [
  "parking_lot",
  "paste",
  "pin-project",
- "proptest",
- "proptest-arbitrary-interop",
  "rand 0.9.2",
  "reth-chain-state",
  "reth-chainspec",
@@ -9681,8 +10240,13 @@ dependencies = [
 
 [[package]]
 name = "reth-trie"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -9707,8 +10271,13 @@ dependencies = [
 
 [[package]]
 name = "reth-trie-common"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -9734,8 +10303,13 @@ dependencies = [
 
 [[package]]
 name = "reth-trie-db"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "metrics",
@@ -9754,8 +10328,13 @@ dependencies = [
 
 [[package]]
 name = "reth-trie-parallel"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -9779,8 +10358,13 @@ dependencies = [
 
 [[package]]
 name = "reth-trie-sparse"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -9798,8 +10382,13 @@ dependencies = [
 
 [[package]]
 name = "reth-trie-sparse-parallel"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -9816,8 +10405,13 @@ dependencies = [
 
 [[package]]
 name = "reth-zstd-compressors"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b73c5dd31bd3eced2e994d60"
+=======
+version = "1.10.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.1#c9dad4765df6c96a427d513227e09767e8e56f14"
+>>>>>>> 9f2dad97e2 (chore: use reth versioned deps (#627)):Cargo.lock
 dependencies = [
  "zstd",
 ]
@@ -10144,36 +10738,6 @@ name = "route-recognizer"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "afab94fb28594581f62d981211a9a4d53cc8130bbcbbb89a0440d9b8e81a7746"
-
-[[package]]
-name = "rstest"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03e905296805ab93e13c1ec3a03f4b6c4f35e9498a3d5fa96dc626d22c03cd89"
-dependencies = [
- "futures-timer",
- "futures-util",
- "rstest_macros",
- "rustc_version 0.4.1",
-]
-
-[[package]]
-name = "rstest_macros"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef0053bbffce09062bee4bcc499b0fbe7a57b879f1efe088d6d8d4c7adcdef9b"
-dependencies = [
- "cfg-if",
- "glob",
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "regex",
- "relative-path",
- "rustc_version 0.4.1",
- "syn 2.0.114",
- "unicode-ident",
-]
 
 [[package]]
 name = "ruint"

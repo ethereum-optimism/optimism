@@ -6,7 +6,7 @@ on:
   pull_request:
   merge_group:
   push:
-    branches: [unstable, main]
+    branches: [ develop ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -26,12 +26,9 @@ jobs:
       EDGE_FEATURES: ${{ matrix.storage == 'edge' && 'edge' || '' }}
     strategy:
       matrix:
-        type: [ethereum, optimism]
+        type: [optimism]
         storage: [stable, edge]
         include:
-          - type: ethereum
-            features: asm-keccak ethereum
-            exclude_args: ""
           - type: optimism
             features: asm-keccak
             exclude_args: --exclude reth --exclude reth-bench --exclude "example-*" --exclude "reth-ethereum-*" --exclude "*-ethereum"
@@ -57,41 +54,6 @@ jobs:
             --exclude ef-tests --no-tests=warn \
             -E "!kind(test) and not binary(e2e_testsuite)"
 
-  state:
-    name: Ethereum state tests
-    runs-on: ubuntu-latest
-    env:
-      RUST_LOG: info,sync=error
-      RUST_BACKTRACE: 1
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v6
-      - name: Checkout ethereum/tests
-        uses: actions/checkout@v6
-        with:
-          repository: ethereum/tests
-          ref: 81862e4848585a438d64f911a19b3825f0f4cd95
-          path: testing/ef-tests/ethereum-tests
-          submodules: recursive
-          fetch-depth: 1
-      - name: Download & extract EEST fixtures (public)
-        shell: bash
-        env:
-          EEST_TESTS_TAG: v4.5.0
-        run: |
-          set -euo pipefail
-          mkdir -p testing/ef-tests/execution-spec-tests
-          URL="https://github.com/ethereum/execution-spec-tests/releases/download/${EEST_TESTS_TAG}/fixtures_stable.tar.gz"
-          curl -L "$URL" | tar -xz --strip-components=1 -C testing/ef-tests/execution-spec-tests
-      - uses: rui314/setup-mold@v1
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@nextest
-      - uses: mozilla-actions/sccache-action@v0.0.9
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-      - run: cargo nextest run --release -p ef-tests --features "asm-keccak ef-tests"
-
   doc:
     name: doc tests
     runs-on: ubuntu-latest
@@ -113,7 +75,7 @@ jobs:
     name: unit success
     runs-on: ubuntu-latest
     if: always()
-    needs: [test, state, doc]
+    needs: [test, doc]
     timeout-minutes: 30
     steps:
       - name: Decide whether the needed jobs succeeded or failed
