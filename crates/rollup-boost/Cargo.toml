@@ -1,6 +1,6 @@
 [package]
 name = "rollup-boost"
-version = "0.7.12"
+version = "0.7.13"
 edition = "2024"
 description = "Rollup Boost is a sidecar for optimism rollups that enables rollup extensions"
 rust-version = "1.85"
@@ -8,7 +8,7 @@ license = "MIT"
 readme = "../../README.md"
 
 [dependencies]
-# Internal 
+# Internal
 rollup-boost-types.workspace = true
 
 tracing.workspace = true
