@@ -95,8 +95,8 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     event BalanceChanged(address account, uint256 balance);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.1
-    string public constant version = "1.0.1";
+    /// @custom:semver 1.0.2
+    string public constant version = "1.0.2";
 
     /// @notice The fixed cost of resolving a challenge.
     /// @dev The value is estimated by measuring the cost of resolving with `bytes(0)`
@@ -392,9 +392,9 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
         address challenger = _resolvedChallenge.challenger;
 
         // approximate the cost of resolving a challenge with the provided pre-image size
-        uint256 resolutionCost = (
-            fixedResolutionCost + _preImageLength * variableResolutionCost / variableResolutionCostPrecision
-        ) * block.basefee;
+        uint256 resolutionCost =
+            (fixedResolutionCost + _preImageLength * variableResolutionCost / variableResolutionCostPrecision)
+                * block.basefee;
 
         // refund bond exceeding the resolution cost to the challenger
         if (lockedBond > resolutionCost) {

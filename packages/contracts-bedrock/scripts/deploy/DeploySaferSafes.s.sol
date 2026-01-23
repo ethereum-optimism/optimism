@@ -30,9 +30,7 @@ contract DeploySaferSafes is Script {
     function _deploy() internal returns (Output memory output_) {
         output_.saferSafesSingleton = ISaferSafes(
             DeployUtils.createDeterministic({
-                _name: "SaferSafes",
-                _args: DeployUtils.encodeConstructor(bytes("")),
-                _salt: DeployUtils.DEFAULT_SALT
+                _name: "SaferSafes", _args: DeployUtils.encodeConstructor(bytes("")), _salt: DeployUtils.DEFAULT_SALT
             })
         );
         vm.label(address(output_.saferSafesSingleton), "SaferSafesSingleton");

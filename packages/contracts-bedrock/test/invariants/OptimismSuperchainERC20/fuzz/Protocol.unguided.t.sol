@@ -56,9 +56,8 @@ contract ProtocolUnguided is ProtocolHandler, CompatibleAssert {
     {
         vm.prank(sender);
         // revert is possible in bound, but is not part of the external call
-        try OptimismSuperchainERC20(allSuperTokens[bound(tokenIndex, 0, allSuperTokens.length)]).initialize(
-            remoteToken, name, symbol, decimals
-        ) {
+        try OptimismSuperchainERC20(allSuperTokens[bound(tokenIndex, 0, allSuperTokens.length)])
+            .initialize(remoteToken, name, symbol, decimals) {
             compatibleAssert(false);
         } catch { }
     }

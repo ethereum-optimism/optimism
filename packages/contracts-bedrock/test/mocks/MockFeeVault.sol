@@ -12,7 +12,11 @@ contract MockFeeVault {
     event Withdrawal(uint256 value, address to, address from);
     event Withdrawal(uint256 value, address to, address from, Types.WithdrawalNetwork withdrawalNetwork);
 
-    constructor(address payable _recipient, uint256 _minWithdrawalAmount, Types.WithdrawalNetwork _withdrawalNetwork) {
+    constructor(
+        address payable _recipient,
+        uint256 _minWithdrawalAmount,
+        Types.WithdrawalNetwork _withdrawalNetwork
+    ) {
         RECIPIENT = _recipient;
         MIN_WITHDRAWAL_AMOUNT = _minWithdrawalAmount;
         WITHDRAWAL_NETWORK = _withdrawalNetwork;

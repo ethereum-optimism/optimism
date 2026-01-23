@@ -1,0 +1,50 @@
+{
+  "../../kona/crates/protocol/registry/superchain-registry": {
+    "rev": "300d18077f2799e21e5f2becb64f9cf04c9a0760"
+  },
+  "../../op-rbuilder": {
+    "rev": "272d462d980a43e7caf568df0fbbc0c2e0066207"
+  },
+  "../../reth": {
+    "rev": "8fa01eb62eb145112c8285f02aee12c2b4e2bd4d"
+  },
+  "../../rollup-boost": {
+    "rev": "196237bab2a02298de994b439e0455abb1ac512f"
+  },
+  "lib/forge-std": {
+    "rev": "6853b9ec7df5dc0c213b05ae67785ad4f4baa0ea"
+  },
+  "lib/kontrol-cheatcodes": {
+    "rev": "2c48ae1ab44228c199dca29414c0b4b18a3434e6"
+  },
+  "lib/lib-keccak": {
+    "rev": "3b1e7bbb4cc23e9228097cfebe42aedaf3b8f2b9"
+  },
+  "lib/openzeppelin-contracts": {
+    "rev": "ecd2ca2cd7cac116f7a37d0e474bbb3d7d5e1c4d"
+  },
+  "lib/openzeppelin-contracts-upgradeable": {
+    "rev": "0a2cb9a445c365870ed7a8ab461b12acf3e27d63"
+  },
+  "lib/openzeppelin-contracts-v5": {
+    "rev": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+  },
+  "lib/safe-contracts": {
+    "branch": {
+      "name": "v1.4.1",
+      "rev": "bf943f80fec5ac647159d26161446ac5d716a294"
+    }
+  },
+  "lib/solady": {
+    "rev": "502cc1ea718e6fa73b380635ee0868b0740595f0"
+  },
+  "lib/solady-v0.0.245": {
+    "rev": "e0ef35adb0ccd1032794731a995cb599bba7b537"
+  },
+  "lib/solmate": {
+    "rev": "8f9b23f8838670afda0fd8983f2c41e8037ae6bc"
+  },
+  "lib/superchain-registry": {
+    "rev": "84bce73573f130008d84bae6e924163bab589a11"
+  }
+}

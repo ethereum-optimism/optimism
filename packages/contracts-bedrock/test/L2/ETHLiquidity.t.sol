@@ -165,7 +165,7 @@ contract ETHLiquidity_Fund_Test is ETHLiquidity_TestInit {
     function testFuzz_fund_succeeds(uint256 _amount, address _caller) public {
         // Assume
         vm.assume(_amount > 0); // Fund amount must be greater than 0
-        // Bound amount reasonably, e.g., up to 1 million ETH
+            // Bound amount reasonably, e.g., up to 1 million ETH
         _amount = bound(_amount, 1, STARTING_LIQUIDITY_BALANCE);
         vm.assume(_caller != address(0));
         vm.assume(_caller != address(ethLiquidity)); // Prevent contract from calling itself

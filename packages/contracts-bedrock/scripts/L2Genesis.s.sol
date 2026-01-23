@@ -234,12 +234,12 @@ contract L2Genesis is Script {
     ///      LEGACY_ERC20_ETH and L1_MESSAGE_SENDER are deprecated and are not set.
     function setPredeployImplementations(Input memory _input) internal {
         setLegacyMessagePasser(); // 0
-        // 01: legacy, not used in OP-Stack
+            // 01: legacy, not used in OP-Stack
         setDeployerWhitelist(); // 2
-        // 3,4,5: legacy, not used in OP-Stack.
+            // 3,4,5: legacy, not used in OP-Stack.
         setWETH(); // 6: WETH (not behind a proxy)
         setL2CrossDomainMessenger(_input.l1CrossDomainMessengerProxy); // 7
-        // 8,9,A,B,C,D,E: legacy, not used in OP-Stack.
+            // 8,9,A,B,C,D,E: legacy, not used in OP-Stack.
         setGasPriceOracle(); // f
         setL2StandardBridge(_input.l1StandardBridgeProxy); // 10
         setSequencerFeeVault(_input); // 11
@@ -253,7 +253,7 @@ contract L2Genesis is Script {
         setBaseFeeVault(_input); // 19
         setL1FeeVault(_input); // 1A
         setOperatorFeeVault(_input); // 1B
-        // 1C,1D,1E,1F: not used.
+            // 1C,1D,1E,1F: not used.
         setSchemaRegistry(); // 20
         setEAS(); // 21
         setGovernanceToken(_input); // 42: OP (not behind a proxy)
@@ -300,9 +300,8 @@ contract L2Genesis is Script {
 
         IL2CrossDomainMessenger(impl).initialize({ _l1CrossDomainMessenger: ICrossDomainMessenger(address(0)) });
 
-        IL2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).initialize({
-            _l1CrossDomainMessenger: ICrossDomainMessenger(_l1CrossDomainMessengerProxy)
-        });
+        IL2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
+            .initialize({ _l1CrossDomainMessenger: ICrossDomainMessenger(_l1CrossDomainMessengerProxy) });
     }
 
     /// @notice This predeploy is following the safety invariant #1.
@@ -311,9 +310,8 @@ contract L2Genesis is Script {
 
         IL2StandardBridge(payable(impl)).initialize({ _otherBridge: IStandardBridge(payable(address(0))) });
 
-        IL2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).initialize({
-            _otherBridge: IStandardBridge(_l1StandardBridgeProxy)
-        });
+        IL2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))
+            .initialize({ _otherBridge: IStandardBridge(_l1StandardBridgeProxy) });
     }
 
     /// @notice This predeploy is following the safety invariant #1.
@@ -343,9 +341,8 @@ contract L2Genesis is Script {
 
         IOptimismMintableERC20Factory(impl).initialize({ _bridge: address(0) });
 
-        IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY).initialize({
-            _bridge: Predeploys.L2_STANDARD_BRIDGE
-        });
+        IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY)
+            .initialize({ _bridge: Predeploys.L2_STANDARD_BRIDGE });
     }
 
     /// @notice This predeploy is following the safety invariant #2,
@@ -551,17 +548,15 @@ contract L2Genesis is Script {
     function setLiquidityController(Input memory _input) internal {
         address impl = _setImplementationCode(Predeploys.LIQUIDITY_CONTROLLER);
 
-        ILiquidityController(impl).initialize({
-            _owner: _input.liquidityControllerOwner,
-            _gasPayingTokenName: "",
-            _gasPayingTokenSymbol: ""
-        });
+        ILiquidityController(impl)
+            .initialize({ _owner: _input.liquidityControllerOwner, _gasPayingTokenName: "", _gasPayingTokenSymbol: "" });
 
-        ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).initialize({
-            _owner: _input.liquidityControllerOwner,
-            _gasPayingTokenName: _input.gasPayingTokenName,
-            _gasPayingTokenSymbol: _input.gasPayingTokenSymbol
-        });
+        ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER)
+            .initialize({
+                _owner: _input.liquidityControllerOwner,
+                _gasPayingTokenName: _input.gasPayingTokenName,
+                _gasPayingTokenSymbol: _input.gasPayingTokenSymbol
+            });
     }
 
     /// @notice This predeploy is following the safety invariant #1.
@@ -733,11 +728,10 @@ contract L2Genesis is Script {
         /// Initialize the implementation using max value for min withdrawal amount to make it unusable
         IFeeVault(payable(impl)).initialize(address(0), type(uint256).max, Types.WithdrawalNetwork.L1);
         // Initialize the predeploy
-        IFeeVault(payable(_vaultAddr)).initialize({
-            _recipient: recipient,
-            _minWithdrawalAmount: minWithdrawalAmount,
-            _withdrawalNetwork: network
-        });
+        IFeeVault(payable(_vaultAddr))
+            .initialize({
+                _recipient: recipient, _minWithdrawalAmount: minWithdrawalAmount, _withdrawalNetwork: network
+            });
     }
 
     /// @notice Funds the default dev accounts with ether

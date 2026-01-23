@@ -163,9 +163,7 @@ abstract contract FeeVault is Initializable {
             require(success, "FeeVault: failed to send ETH to L2 fee recipient");
         } else {
             IL2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)).initiateWithdrawal{ value: value_ }({
-                _target: recipientAddr,
-                _gasLimit: _WITHDRAWAL_MIN_GAS,
-                _data: hex""
+                _target: recipientAddr, _gasLimit: _WITHDRAWAL_MIN_GAS, _data: hex""
             });
         }
     }

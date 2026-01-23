@@ -31,7 +31,14 @@ contract RevenueSharingIntegration_Test is CommonTest {
     }
 
     /// @notice Helper to fund vaults
-    function _fundVaults(uint256 _sequencerFees, uint256 _baseFees, uint256 _l1Fees, uint256 _operatorFees) private {
+    function _fundVaults(
+        uint256 _sequencerFees,
+        uint256 _baseFees,
+        uint256 _l1Fees,
+        uint256 _operatorFees
+    )
+        private
+    {
         vm.deal(address(sequencerFeeVault), _sequencerFees);
         vm.deal(address(baseFeeVault), _baseFees);
         vm.deal(address(l1FeeVault), _l1Fees);
@@ -248,8 +255,9 @@ contract RevenueSharingIntegration_Test is CommonTest {
 
         {
             // Get share info from calculator first
-            ISharesCalculator.ShareInfo[] memory shareInfo =
-                superchainRevSharesCalculator.getRecipientsAndAmounts(_sequencerFees, _baseFees, _operatorFees, _l1Fees);
+            ISharesCalculator.ShareInfo[] memory shareInfo = superchainRevSharesCalculator.getRecipientsAndAmounts(
+                _sequencerFees, _baseFees, _operatorFees, _l1Fees
+            );
 
             // Calculate expected values
             uint256 grossRevenue = _sequencerFees + _baseFees + _operatorFees + _l1Fees;

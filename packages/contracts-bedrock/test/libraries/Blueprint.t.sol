@@ -172,7 +172,13 @@ contract Blueprint_DeployFrom_Test is Blueprint_TestInit {
 
     /// @dev Here we deploy a simple mock contract to test that constructor args are appended
     ///      properly.
-    function testFuzz_deployFrom_withConstructorArgs_succeeds(uint256 _x, bytes memory _y, bytes32 _salt) public {
+    function testFuzz_deployFrom_withConstructorArgs_succeeds(
+        uint256 _x,
+        bytes memory _y,
+        bytes32 _salt
+    )
+        public
+    {
         bytes memory blueprintInitcode = blueprint.blueprintDeployerBytecode(type(ConstructorArgMock).creationCode);
 
         // Deploy the blueprint.

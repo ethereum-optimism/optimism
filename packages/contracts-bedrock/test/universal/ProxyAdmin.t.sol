@@ -51,7 +51,9 @@ abstract contract ProxyAdmin_TestInit is Test {
         chugsplash = IL1ChugSplashProxy(
             DeployUtils.create1({
                 _name: "L1ChugSplashProxy",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1ChugSplashProxy.__constructor__, (address(admin))))
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IL1ChugSplashProxy.__constructor__, (address(admin)))
+                )
             })
         );
 

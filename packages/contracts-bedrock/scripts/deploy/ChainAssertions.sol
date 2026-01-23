@@ -134,7 +134,14 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1CrossDomainMessenger is setup correctly
-    function checkL1CrossDomainMessenger(IL1CrossDomainMessenger _messenger, Vm _vm, bool _isProxy) internal view {
+    function checkL1CrossDomainMessenger(
+        IL1CrossDomainMessenger _messenger,
+        Vm _vm,
+        bool _isProxy
+    )
+        internal
+        view
+    {
         console.log(
             "Running chain assertions on the L1CrossDomainMessenger %s at %s",
             _isProxy ? "proxy" : "implementation",
@@ -144,10 +151,7 @@ library ChainAssertions {
 
         // Check that the contract is initialized
         DeployUtils.assertInitialized({
-            _contractAddress: address(_messenger),
-            _isProxy: _isProxy,
-            _slot: 0,
-            _offset: 20
+            _contractAddress: address(_messenger), _isProxy: _isProxy, _slot: 0, _offset: 20
         });
 
         if (_isProxy) {
@@ -370,10 +374,7 @@ library ChainAssertions {
 
         // Check that the contract is initialized
         DeployUtils.assertInitialized({
-            _contractAddress: address(superchainConfig),
-            _isProxy: _isProxy,
-            _slot: 0,
-            _offset: 0
+            _contractAddress: address(superchainConfig), _isProxy: _isProxy, _slot: 0, _offset: 0
         });
 
         if (_isProxy) {
@@ -440,17 +441,19 @@ library ChainAssertions {
         require(keccak256(rdProxyPreamble.initcode) == keccak256(vm.getCode("ResolvedDelegateProxy")), "CHECK-OPCM-200");
     }
 
-    function checkAnchorStateRegistryProxy(IAnchorStateRegistry _anchorStateRegistryProxy, bool _isProxy) internal {
+    function checkAnchorStateRegistryProxy(
+        IAnchorStateRegistry _anchorStateRegistryProxy,
+        bool _isProxy
+    )
+        internal
+    {
         DeployUtils.assertValidContractAddress(address(_anchorStateRegistryProxy));
         if (_isProxy) {
             DeployUtils.assertERC1967ImplementationSet(address(_anchorStateRegistryProxy));
         }
 
         DeployUtils.assertInitialized({
-            _contractAddress: address(_anchorStateRegistryProxy),
-            _isProxy: _isProxy,
-            _slot: 0,
-            _offset: 0
+            _contractAddress: address(_anchorStateRegistryProxy), _isProxy: _isProxy, _slot: 0, _offset: 0
         });
 
         // The below check cannot be done in the standard validator because the assertion only applies at deploy time.

@@ -141,8 +141,7 @@ abstract contract OPContractsManagerUtilsCaller {
         internal
         returns (address payable)
     {
-        return payable(
-            abi.decode(
+        return payable(abi.decode(
                 _delegatecall(
                     abi.encodeCall(
                         IOPContractsManagerUtils.loadOrDeployProxy,
@@ -150,8 +149,7 @@ abstract contract OPContractsManagerUtilsCaller {
                     )
                 ),
                 (address)
-            )
-        );
+            ));
     }
 
     /// @notice Upgrades a contract by resetting the initialized slot and calling the initializer.
@@ -159,7 +157,14 @@ abstract contract OPContractsManagerUtilsCaller {
     /// @param _target The target of the contract.
     /// @param _implementation The implementation of the contract.
     /// @param _data The data to call the initializer with.
-    function _upgrade(IProxyAdmin _proxyAdmin, address _target, address _implementation, bytes memory _data) internal {
+    function _upgrade(
+        IProxyAdmin _proxyAdmin,
+        address _target,
+        address _implementation,
+        bytes memory _data
+    )
+        internal
+    {
         _upgrade(_proxyAdmin, _target, _implementation, _data, bytes32(0), 0);
     }
 

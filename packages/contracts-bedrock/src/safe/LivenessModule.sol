@@ -58,8 +58,8 @@ contract LivenessModule is ISemver {
     uint256 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.0
-    string public constant version = "1.3.0";
+    /// @custom:semver 1.3.1
+    string public constant version = "1.3.1";
 
     // Constructor to initialize the Safe and baseModule instances
     constructor(
@@ -164,9 +164,7 @@ contract LivenessModule is ISemver {
 
             // We now attempt remove the owner from the safe.
             _removeOwner({
-                _prevOwner: _previousOwners[i],
-                _ownerToRemove: _ownersToRemove[i],
-                _newOwnersCount: ownersCount
+                _prevOwner: _previousOwners[i], _ownerToRemove: _ownersToRemove[i], _newOwnersCount: ownersCount
             });
 
             // when all owners are removed and the sole owner is the fallback owner, the

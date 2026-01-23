@@ -281,10 +281,7 @@ library DeployUtils {
 
     /// @notice Builds an L1ChugSplashProxy with a dummy implementation.
     /// @param _proxyImplName Name of the implementation contract.
-    function buildL1ChugSplashProxyWithImpl(string memory _proxyImplName)
-        internal
-        returns (IL1ChugSplashProxy proxy_)
-    {
+    function buildL1ChugSplashProxyWithImpl(string memory _proxyImplName) internal returns (IL1ChugSplashProxy proxy_) {
         proxy_ = IL1ChugSplashProxy(
             create1({
                 _name: "L1ChugSplashProxy",
@@ -364,7 +361,15 @@ library DeployUtils {
     ///      type(uint8).max (if an implementation contract).
     ///      A call to `initialize` will set proxies to 1 and a call to _disableInitializers will set implementations to
     ///      type(uint8).max.
-    function assertInitialized(address _contractAddress, bool _isProxy, uint256 _slot, uint256 _offset) internal view {
+    function assertInitialized(
+        address _contractAddress,
+        bool _isProxy,
+        uint256 _slot,
+        uint256 _offset
+    )
+        internal
+        view
+    {
         bytes32 slotVal = vm.load(_contractAddress, bytes32(_slot));
         uint8 val = uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF);
         if (_isProxy) {
@@ -390,7 +395,13 @@ library DeployUtils {
     /// @param _etchTo Address of the contract to etch.
     /// @param _cname The contract name (also used to label the contract).
     /// @param _artifactPath The path to the artifact to etch.
-    function etchLabelAndAllowCheatcodes(address _etchTo, string memory _cname, string memory _artifactPath) internal {
+    function etchLabelAndAllowCheatcodes(
+        address _etchTo,
+        string memory _cname,
+        string memory _artifactPath
+    )
+        internal
+    {
         vm.etch(_etchTo, vm.getDeployedCode(_artifactPath));
         vm.label(_etchTo, _cname);
         vm.allowCheatcodes(_etchTo);

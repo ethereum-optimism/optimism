@@ -64,7 +64,11 @@ contract OPContractsManagerContainer {
     /// @param _blueprints The blueprint contract addresses.
     /// @param _implementations The implementation contract addresses.
     /// @param _devFeatureBitmap The bitmap of development features that are enabled.
-    constructor(Blueprints memory _blueprints, Implementations memory _implementations, bytes32 _devFeatureBitmap) {
+    constructor(
+        Blueprints memory _blueprints,
+        Implementations memory _implementations,
+        bytes32 _devFeatureBitmap
+    ) {
         bps = _blueprints;
         impls = _implementations;
         devFeatureBitmap = _devFeatureBitmap;

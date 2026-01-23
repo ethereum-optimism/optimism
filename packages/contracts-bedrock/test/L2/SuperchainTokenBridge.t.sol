@@ -60,7 +60,13 @@ abstract contract SuperchainTokenBridge_TestInit is Test {
 /// @notice Tests the `sendERC20` function of the `SuperchainTokenBridge` contract.
 contract SuperchainTokenBridge_SendERC20_Test is SuperchainTokenBridge_TestInit {
     /// @notice Tests the `sendERC20` function reverts when the address `_to` is zero.
-    function testFuzz_sendERC20_zeroAddressTo_reverts(address _sender, uint256 _amount, uint256 _chainId) public {
+    function testFuzz_sendERC20_zeroAddressTo_reverts(
+        address _sender,
+        uint256 _amount,
+        uint256 _chainId
+    )
+        public
+    {
         // Expect the revert with `ZeroAddress` selector
         vm.expectRevert(ISuperchainTokenBridge.ZeroAddress.selector);
 

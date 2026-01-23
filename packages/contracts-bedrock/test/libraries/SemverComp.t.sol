@@ -39,7 +39,15 @@ abstract contract SemverComp_TestInit is Test {
     /// @param _major The expected major version.
     /// @param _minor The expected minor version.
     /// @param _patch The expected patch version.
-    function assertParsedEq(string memory _semver, uint256 _major, uint256 _minor, uint256 _patch) internal view {
+    function assertParsedEq(
+        string memory _semver,
+        uint256 _major,
+        uint256 _minor,
+        uint256 _patch
+    )
+        internal
+        view
+    {
         (uint256 major, uint256 minor, uint256 patch) = harness.parse(_semver);
         assertEq(major, _major, "major mismatch");
         assertEq(minor, _minor, "minor mismatch");

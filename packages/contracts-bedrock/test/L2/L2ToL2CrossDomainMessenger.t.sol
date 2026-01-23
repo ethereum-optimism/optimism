@@ -177,7 +177,13 @@ contract L2ToL2CrossDomainMessenger_CrossDomainMessageContext_Test is L2ToL2Cros
 /// @notice Tests the `sendMessage` function of the `L2ToL2CrossDomainMessenger` contract.
 contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMessenger_TestInit {
     /// @notice Tests that `sendMessage` succeeds and emits the correct event.
-    function testFuzz_sendMessage_succeeds(uint256 _destination, address _target, bytes calldata _message) external {
+    function testFuzz_sendMessage_succeeds(
+        uint256 _destination,
+        address _target,
+        bytes calldata _message
+    )
+        external
+    {
         // Ensure the destination is not the same as the source, otherwise the function will revert
         vm.assume(_destination != block.chainid);
 
@@ -249,7 +255,12 @@ contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMesseng
 
     /// @notice Tests that the `sendMessage` function reverts when destination is the same as the
     ///         source chain.
-    function testFuzz_sendMessage_destinationSameChain_reverts(address _target, bytes calldata _message) external {
+    function testFuzz_sendMessage_destinationSameChain_reverts(
+        address _target,
+        bytes calldata _message
+    )
+        external
+    {
         // Expect a revert with the MessageDestinationSameChain selector
         vm.expectRevert(MessageDestinationSameChain.selector);
 
@@ -275,9 +286,7 @@ contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMesseng
 
         // Call `senderMessage` with the L2ToL2CrossDomainMessenger as the target to provoke revert
         l2ToL2CrossDomainMessenger.sendMessage({
-            _destination: _destination,
-            _target: Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            _message: _message
+            _destination: _destination, _target: Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _message: _message
         });
     }
 }

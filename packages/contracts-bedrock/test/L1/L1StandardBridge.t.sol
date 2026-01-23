@@ -271,10 +271,7 @@ contract L1StandardBridge_Paused_Test is CommonTest {
         vm.prank(address(l1StandardBridge.messenger()));
         vm.expectRevert("StandardBridge: paused");
         l1StandardBridge.finalizeBridgeETH{ value: 100 }({
-            _from: address(2),
-            _to: address(3),
-            _amount: 100,
-            _extraData: hex""
+            _from: address(2), _to: address(3), _amount: 100, _extraData: hex""
         });
     }
 
@@ -286,10 +283,7 @@ contract L1StandardBridge_Paused_Test is CommonTest {
         vm.prank(address(l1StandardBridge.messenger()));
         vm.expectRevert("StandardBridge: paused");
         l1StandardBridge.finalizeETHWithdrawal{ value: 100 }({
-            _from: address(2),
-            _to: address(3),
-            _amount: 100,
-            _extraData: hex""
+            _from: address(2), _to: address(3), _amount: 100, _extraData: hex""
         });
     }
 
@@ -455,7 +449,12 @@ contract L1StandardBridge_DepositETH_Test is L1StandardBridge_TestInit {
     }
 
     /// @notice Tests that depositETH reverts when custom gas token is enabled for EOA with 7702 delegation.
-    function testFuzz_depositETH_fromEOA7702WithCustomGasToken_reverts(uint256 _value, uint32 _minGasLimit) external {
+    function testFuzz_depositETH_fromEOA7702WithCustomGasToken_reverts(
+        uint256 _value,
+        uint32 _minGasLimit
+    )
+        external
+    {
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
         _value = bound(_value, 1, type(uint128).max);
 
@@ -765,9 +764,8 @@ contract L1StandardBridge_FinalizeERC20Withdrawal_Test is CommonTest {
     function test_finalizeERC20Withdrawal_succeeds() external {
         deal(address(L1Token), address(l1StandardBridge), 100, true);
 
-        uint256 slot = stdstore.target(address(l1StandardBridge)).sig("deposits(address,address)").with_key(
-            address(L1Token)
-        ).with_key(address(L2Token)).find();
+        uint256 slot = stdstore.target(address(l1StandardBridge)).sig("deposits(address,address)")
+            .with_key(address(L1Token)).with_key(address(L2Token)).find();
 
         // Give the L1 bridge some ERC20 tokens
         vm.store(address(l1StandardBridge), bytes32(slot), bytes32(uint256(100)));

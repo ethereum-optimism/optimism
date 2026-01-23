@@ -36,8 +36,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     address private spacer_253_0_20;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.11.0
-    string public constant version = "2.11.0";
+    /// @custom:semver 2.11.1
+    string public constant version = "2.11.1";
 
     /// @notice Contract of the SystemConfig.
     ISystemConfig public systemConfig;
@@ -50,7 +50,13 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     /// @notice Initializes the contract.
     /// @param _systemConfig Contract of the SystemConfig contract on this network.
     /// @param _portal Contract of the OptimismPortal contract on this network.
-    function initialize(ISystemConfig _systemConfig, IOptimismPortal _portal) external reinitializer(initVersion()) {
+    function initialize(
+        ISystemConfig _systemConfig,
+        IOptimismPortal _portal
+    )
+        external
+        reinitializer(initVersion())
+    {
         // Initialization transactions must come from the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();
 
@@ -82,11 +88,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     /// @inheritdoc CrossDomainMessenger
     function _sendMessage(address _to, uint64 _gasLimit, uint256 _value, bytes memory _data) internal override {
         portal.depositTransaction{ value: _value }({
-            _to: _to,
-            _value: _value,
-            _gasLimit: _gasLimit,
-            _isCreation: false,
-            _data: _data
+            _to: _to, _value: _value, _gasLimit: _gasLimit, _isCreation: false, _data: _data
         });
     }
 

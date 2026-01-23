@@ -66,7 +66,15 @@ library MerkleTrie {
     /// @param _proof Merkle trie inclusion proof for the key.
     /// @param _root  Known root of the Merkle trie.
     /// @return value_ Value of the key if it exists.
-    function get(bytes memory _key, bytes[] memory _proof, bytes32 _root) internal pure returns (bytes memory value_) {
+    function get(
+        bytes memory _key,
+        bytes[] memory _proof,
+        bytes32 _root
+    )
+        internal
+        pure
+        returns (bytes memory value_)
+    {
         require(_key.length > 0, "MerkleTrie: empty key");
 
         TrieNode[] memory proof = _parseProof(_proof);

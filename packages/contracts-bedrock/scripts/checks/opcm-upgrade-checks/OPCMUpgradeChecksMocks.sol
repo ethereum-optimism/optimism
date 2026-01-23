@@ -8,7 +8,12 @@ uint8 constant UPGRADE_INTERNAL_CALL = 2;
 
 interface IUpgradeable {
     function upgrade() external;
-    function upgradeAndCall(address _newImplementation, address _newImplementationCode, bytes memory _data) external;
+    function upgradeAndCall(
+        address _newImplementation,
+        address _newImplementationCode,
+        bytes memory _data
+    )
+        external;
 }
 
 ///////// INDIRECT UPGRADE CALLS //////////

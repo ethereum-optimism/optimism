@@ -62,7 +62,12 @@ contract OPContractsManagerContainer_Constructor_Test is OPContractsManagerConta
     /// @notice Tests that the constructor succeeds with any dev bitmap when in a test environment.
     /// @param _chainId The chain ID to use.
     /// @param _devFeatureBitmap The dev feature bitmap to use.
-    function testFuzz_constructor_devBitmapInTestEnv_succeeds(uint64 _chainId, bytes32 _devFeatureBitmap) public {
+    function testFuzz_constructor_devBitmapInTestEnv_succeeds(
+        uint64 _chainId,
+        bytes32 _devFeatureBitmap
+    )
+        public
+    {
         // Etch code into the magic testing address so we're recognized as a test env.
         vm.etch(Constants.TESTING_ENVIRONMENT_ADDRESS, hex"01");
 

@@ -66,8 +66,8 @@ contract MIPS64 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS64 contract.
-    /// @custom:semver 1.10.0
-    string public constant version = "1.10.0";
+    /// @custom:semver 1.10.1
+    string public constant version = "1.10.1";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -437,7 +437,7 @@ contract MIPS64 is ISemver {
                     newThread.registers[i] = thread.registers[i];
                 }
                 newThread.registers[29] = a1; // set stack pointer
-                // the child will perceive a 0 value as returned value instead, and no error
+                    // the child will perceive a 0 value as returned value instead, and no error
                 newThread.registers[2] = 0;
                 newThread.registers[7] = 0;
                 state.nextThreadID++;
@@ -530,11 +530,9 @@ contract MIPS64 is ISemver {
                     }
                     uint64 effAddr = a1 & arch.ADDRESS_MASK;
                     // First verify the effAddr path
-                    if (
-                        !MIPS64Memory.isValidProof(
+                    if (!MIPS64Memory.isValidProof(
                             state.memRoot, effAddr, MIPS64Memory.memoryProofOffset(MEM_PROOF_OFFSET, 1)
-                        )
-                    ) {
+                        )) {
                         revert InvalidMemoryProof();
                     }
                     // Recompute the new root after updating effAddr
@@ -542,11 +540,9 @@ contract MIPS64 is ISemver {
                         MIPS64Memory.writeMem(effAddr, MIPS64Memory.memoryProofOffset(MEM_PROOF_OFFSET, 1), secs);
                     handleMemoryUpdate(state, effAddr);
                     // Verify the second memory proof against the newly computed root
-                    if (
-                        !MIPS64Memory.isValidProof(
+                    if (!MIPS64Memory.isValidProof(
                             state.memRoot, effAddr + 8, MIPS64Memory.memoryProofOffset(MEM_PROOF_OFFSET, 2)
-                        )
-                    ) {
+                        )) {
                         revert InvalidSecondMemoryProof();
                     }
                     state.memRoot =
@@ -864,7 +860,14 @@ contract MIPS64 is ISemver {
         return inactiveStack == EMPTY_THREAD_ROOT && currentStackIsAlmostEmpty;
     }
 
-    function computeThreadRoot(bytes32 _currentRoot, ThreadState memory _thread) internal pure returns (bytes32 out_) {
+    function computeThreadRoot(
+        bytes32 _currentRoot,
+        ThreadState memory _thread
+    )
+        internal
+        pure
+        returns (bytes32 out_)
+    {
         // w_i = hash(w_0 ++ hash(thread))
         bytes32 threadRoot = outputThreadState(_thread);
         out_ = keccak256(abi.encodePacked(_currentRoot, threadRoot));
@@ -895,7 +898,7 @@ contract MIPS64 is ISemver {
             from, to := copyMem(from, to, 8) // lo
             from, to := copyMem(from, to, 8) // hi
             from := mload(from) // offset to registers
-            // Copy registers
+                // Copy registers
             for { let i := 0 } lt(i, 32) { i := add(i, 1) } { from, to := copyMem(from, to, 8) }
 
             // Clean up end of memory
@@ -955,7 +958,7 @@ contract MIPS64 is ISemver {
                 c, m := putField(c, m, 8) // lo
                 c, m := putField(c, m, 8) // hi
                 m := mload(m) // offset to registers
-                // Unpack register calldata into memory
+                    // Unpack register calldata into memory
                 for { let i := 0 } lt(i, 32) { i := add(i, 1) } { c, m := putField(c, m, 8) }
             }
         }

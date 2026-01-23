@@ -25,7 +25,13 @@ interface ISchemaRegistry {
     /// @param resolver An optional schema resolver.
     /// @param revocable Whether the schema allows revocations explicitly.
     /// @return The UID of the new schema.
-    function register(string calldata schema, ISchemaResolver resolver, bool revocable) external returns (bytes32);
+    function register(
+        string calldata schema,
+        ISchemaResolver resolver,
+        bool revocable
+    )
+        external
+        returns (bytes32);
 
     /// @dev Returns an existing schema by UID
     /// @param uid The UID of the schema to retrieve.

@@ -41,8 +41,8 @@ contract ProtocolVersions is OwnableUpgradeable, ISemver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.1
-    string public constant version = "1.1.1";
+    /// @custom:semver 1.1.2
+    string public constant version = "1.1.2";
 
     /// @notice Constructs the ProtocolVersion contract.
     constructor() {
@@ -53,7 +53,14 @@ contract ProtocolVersions is OwnableUpgradeable, ISemver {
     /// @param _owner             Initial owner of the contract.
     /// @param _required          Required protocol version to operate on this chain.
     /// @param _recommended       Recommended protocol version to operate on thi chain.
-    function initialize(address _owner, ProtocolVersion _required, ProtocolVersion _recommended) external initializer {
+    function initialize(
+        address _owner,
+        ProtocolVersion _required,
+        ProtocolVersion _recommended
+    )
+        external
+        initializer
+    {
         __Ownable_init();
         transferOwnership(_owner);
         _setRequired(_required);

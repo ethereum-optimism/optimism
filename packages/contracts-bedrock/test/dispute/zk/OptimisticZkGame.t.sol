@@ -484,7 +484,7 @@ contract OptimisticZkGame_Resolve_Test is OptimisticZkGame_TestInit {
 
         // The proposer loses their 1 ether stake.
         assertEq(proposer.balance, 1 ether); // started with 2, lost 1.
-        // The contract balance is zero.
+            // The contract balance is zero.
         assertEq(address(game).balance, 0);
     }
 

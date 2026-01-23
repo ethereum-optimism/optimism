@@ -121,7 +121,14 @@ library Blueprint {
 
     /// @notice Parses the code at the given `_target` as a blueprint and deploys the resulting initcode
     /// with the given `_data` appended, i.e. `_data` is the ABI-encoded constructor arguments.
-    function deployFrom(address _target, bytes32 _salt, bytes memory _data) internal returns (address newContract_) {
+    function deployFrom(
+        address _target,
+        bytes32 _salt,
+        bytes memory _data
+    )
+        internal
+        returns (address newContract_)
+    {
         Preamble memory preamble = parseBlueprintPreamble(address(_target).code);
         if (preamble.ercVersion != 0) revert UnsupportedERCVersion(preamble.ercVersion);
         if (preamble.preambleData.length != 0) revert UnexpectedPreambleData(preamble.preambleData);

@@ -17,7 +17,8 @@ contract DevFeatures_isDevFeatureEnabled_Test is Test {
     bytes32 internal constant FEATURES_AB_INVERTED = ~FEATURES_AB;
     bytes32 internal constant EMPTY_FEATURES =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
-    bytes32 internal constant ALL_FEATURES = bytes32(0x1111111111111111111111111111111111111111111111111111111111111111);
+    bytes32 internal constant ALL_FEATURES =
+        bytes32(0x1111111111111111111111111111111111111111111111111111111111111111);
 
     /// @notice Tests that a single feature matches itself exactly.
     function test_isDevFeatureEnabled_singleFeatureExactMatch_succeeds() public pure {
@@ -108,7 +109,13 @@ contract DevFeatures_isDevFeatureEnabled_Test is Test {
     }
 
     /// @notice Fuzz test: feature is found when bitmap is a superset containing the feature.
-    function testFuzz_isDevFeatureEnabled_featureInSuperset_succeeds(bytes32 _bitmap, bytes32 _feature) public pure {
+    function testFuzz_isDevFeatureEnabled_featureInSuperset_succeeds(
+        bytes32 _bitmap,
+        bytes32 _feature
+    )
+        public
+        pure
+    {
         vm.assume(_feature != bytes32(0));
         bytes32 superset = _bitmap | _feature;
         assertTrue(DevFeatures.isDevFeatureEnabled(superset, _feature));

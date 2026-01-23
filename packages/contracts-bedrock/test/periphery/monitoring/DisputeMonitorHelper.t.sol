@@ -216,7 +216,12 @@ contract DisputeMonitorHelper_GetUnresolvedGames_Test is DisputeMonitorHelper_Te
     /// @notice Fuzz test that getting unresolved games between two timestamps returns empty array.
     /// @param _timestamp1 The timestamp for the first game.
     /// @param _gap The gap between the two game timestamps.
-    function testFuzz_getUnresolvedGames_betweenTimestamps_succeeds(uint256 _timestamp1, uint256 _gap) external {
+    function testFuzz_getUnresolvedGames_betweenTimestamps_succeeds(
+        uint256 _timestamp1,
+        uint256 _gap
+    )
+        external
+    {
         // Bound timestamps to ensure valid range with a gap of at least 2.
         _timestamp1 = bound(_timestamp1, 1, type(uint64).max - 1000);
         _gap = bound(_gap, 2, 1000);
@@ -371,9 +376,8 @@ contract DisputeMonitorHelper_Search_Test is DisputeMonitorHelper_TestInit {
                 // Different assertions for different cases.
                 if (
                     (direction == DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ && randomTimestamp < rangeStart)
-                        || (
-                            direction == DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ && randomTimestamp > rangeEnd
-                        )
+                        || (direction == DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ
+                            && randomTimestamp > rangeEnd)
                 ) {
                     // If we fall outside of the range, expect the max index representing that no
                     // valid game was found.

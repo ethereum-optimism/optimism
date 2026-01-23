@@ -187,18 +187,19 @@ library SafeTestLib {
         bytes32 txDataHash;
         {
             uint256 _nonce = instance.safe.nonce();
-            txDataHash = instance.safe.getTransactionHash({
-                to: to,
-                value: value,
-                data: data,
-                operation: operation,
-                safeTxGas: safeTxGas,
-                baseGas: baseGas,
-                gasPrice: gasPrice,
-                gasToken: gasToken,
-                refundReceiver: refundReceiver,
-                _nonce: _nonce
-            });
+            txDataHash = instance.safe
+                .getTransactionHash({
+                    to: to,
+                    value: value,
+                    data: data,
+                    operation: operation,
+                    safeTxGas: safeTxGas,
+                    baseGas: baseGas,
+                    gasPrice: gasPrice,
+                    gasToken: gasToken,
+                    refundReceiver: refundReceiver,
+                    _nonce: _nonce
+                });
         }
 
         (v, r, s) = Vm(VM_ADDR).sign(pk, txDataHash);
@@ -208,7 +209,14 @@ library SafeTestLib {
     ///      This version of getPrevOwner will call to the Safe contract to get the current list of owners.
     ///      Note that this will break vm.expectRevert() tests by making a call which does not revert..
     /// @param _owner The owner whose previous owner we want to find
-    function getPrevOwner(SafeInstance memory instance, address _owner) internal view returns (address prevOwner_) {
+    function getPrevOwner(
+        SafeInstance memory instance,
+        address _owner
+    )
+        internal
+        view
+        returns (address prevOwner_)
+    {
         address[] memory owners = instance.safe.getOwners();
         prevOwner_ = getPrevOwnerFromList(_owner, owners);
     }
@@ -370,7 +378,14 @@ library SafeTestLib {
 
     /// @dev Removes an owner from the safe. If not provided explicitly, the identification of the prevOwner is handled
     ///      automatically.
-    function removeOwner(SafeInstance memory instance, address prevOwner, address owner, uint256 threshold) internal {
+    function removeOwner(
+        SafeInstance memory instance,
+        address prevOwner,
+        address owner,
+        uint256 threshold
+    )
+        internal
+    {
         prevOwner = prevOwner > address(0) ? prevOwner : SafeTestLib.getPrevOwner(instance, owner);
         execTransaction(
             instance, address(instance.safe), 0, abi.encodeCall(OwnerManager.removeOwner, (prevOwner, owner, threshold))
@@ -379,7 +394,14 @@ library SafeTestLib {
 
     /// @dev Replaces an old owner with a new owner. If not provided explicitly, the identification of the prevOwner is
     ///      handled automatically.
-    function swapOwner(SafeInstance memory instance, address prevOwner, address oldOwner, address newOwner) internal {
+    function swapOwner(
+        SafeInstance memory instance,
+        address prevOwner,
+        address oldOwner,
+        address newOwner
+    )
+        internal
+    {
         prevOwner = prevOwner > address(0) ? prevOwner : SafeTestLib.getPrevOwner(instance, oldOwner);
         execTransaction(
             instance, address(instance.safe), 0, abi.encodeCall(OwnerManager.swapOwner, (prevOwner, oldOwner, newOwner))
@@ -411,18 +433,19 @@ library SafeTestLib {
         bytes32 safeTxHash;
         {
             uint256 _nonce = instance.safe.nonce();
-            safeTxHash = instance.safe.getTransactionHash({
-                to: to,
-                value: value,
-                data: data,
-                operation: operation,
-                safeTxGas: safeTxGas,
-                baseGas: baseGas,
-                gasPrice: gasPrice,
-                gasToken: gasToken,
-                refundReceiver: refundReceiver,
-                _nonce: _nonce
-            });
+            safeTxHash = instance.safe
+                .getTransactionHash({
+                    to: to,
+                    value: value,
+                    data: data,
+                    operation: operation,
+                    safeTxGas: safeTxGas,
+                    baseGas: baseGas,
+                    gasPrice: gasPrice,
+                    gasToken: gasToken,
+                    refundReceiver: refundReceiver,
+                    _nonce: _nonce
+                });
         }
 
         if (signatures.length == 0) {
@@ -441,18 +464,19 @@ library SafeTestLib {
             }
         }
 
-        return instance.safe.execTransaction({
-            to: to,
-            value: value,
-            data: data,
-            operation: operation,
-            safeTxGas: safeTxGas,
-            baseGas: baseGas,
-            gasPrice: gasPrice,
-            gasToken: gasToken,
-            refundReceiver: payable(refundReceiver),
-            signatures: signatures
-        });
+        return instance.safe
+            .execTransaction({
+                to: to,
+                value: value,
+                data: data,
+                operation: operation,
+                safeTxGas: safeTxGas,
+                baseGas: baseGas,
+                gasPrice: gasPrice,
+                gasToken: gasToken,
+                refundReceiver: payable(refundReceiver),
+                signatures: signatures
+            });
     }
 
     /// @dev Executes either a CALL or DELEGATECALL transaction.

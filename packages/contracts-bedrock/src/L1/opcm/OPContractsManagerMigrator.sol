@@ -97,8 +97,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
             new IOPContractsManagerUtils.ExtraInstruction[](1);
         extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
-            data: bytes(Constants.PERMIT_ALL_CONTRACTS_INSTRUCTION)
+            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: bytes(Constants.PERMIT_ALL_CONTRACTS_INSTRUCTION)
         });
 
         // Deploy the new ETHLockbox.

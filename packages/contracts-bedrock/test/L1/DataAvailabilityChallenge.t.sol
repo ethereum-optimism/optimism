@@ -78,7 +78,12 @@ contract DataAvailabilityChallenge_SetResolverRefundPercentage_Test is DataAvail
     }
 
     /// @notice Test that the `setResolverRefundPercentage` function reverts if sender is not owner.
-    function testFuzz_setResolverRefundPercentage_onlyOwner_reverts(address _notOwner, uint256 _percentage) public {
+    function testFuzz_setResolverRefundPercentage_onlyOwner_reverts(
+        address _notOwner,
+        uint256 _percentage
+    )
+        public
+    {
         vm.assume(_notOwner != dataAvailabilityChallenge.owner());
         _percentage = bound(_percentage, 0, 100);
 
@@ -574,11 +579,11 @@ contract DataAvailabilityChallenge_Resolve_Test is DataAvailabilityChallenge_Tes
         uint256 zeroAddressBalanceBeforeResolve = address(0).balance;
 
         // Assert challenger balance after bond distribution
-        uint256 resolutionCost = (
-            dataAvailabilityChallenge.fixedResolutionCost()
-                + preImage.length * dataAvailabilityChallenge.variableResolutionCost()
-                    / dataAvailabilityChallenge.variableResolutionCostPrecision()
-        ) * block.basefee;
+        uint256 resolutionCost =
+            (dataAvailabilityChallenge.fixedResolutionCost()
+                    + preImage.length
+                    * dataAvailabilityChallenge.variableResolutionCost()
+                    / dataAvailabilityChallenge.variableResolutionCostPrecision()) * block.basefee;
         uint256 challengerRefund = bondSize > resolutionCost ? bondSize - resolutionCost : 0;
         uint256 resolverRefund = resolutionCost * dataAvailabilityChallenge.resolverRefundPercentage() / 100;
         resolverRefund = resolverRefund > resolutionCost ? resolutionCost : resolverRefund;

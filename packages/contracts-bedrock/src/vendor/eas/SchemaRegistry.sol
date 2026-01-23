@@ -20,11 +20,18 @@ contract SchemaRegistry is ISchemaRegistry, ISemver {
     uint256[MAX_GAP - 1] private __gap;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.1-beta.2
-    string public constant version = "1.3.1-beta.2";
+    /// @custom:semver 1.3.1-beta.3
+    string public constant version = "1.3.1-beta.3";
 
     /// @inheritdoc ISchemaRegistry
-    function register(string calldata schema, ISchemaResolver resolver, bool revocable) external returns (bytes32) {
+    function register(
+        string calldata schema,
+        ISchemaResolver resolver,
+        bool revocable
+    )
+        external
+        returns (bytes32)
+    {
         SchemaRecord memory schemaRecord =
             SchemaRecord({ uid: EMPTY_UID, schema: schema, resolver: resolver, revocable: revocable });
 

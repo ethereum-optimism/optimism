@@ -361,7 +361,9 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "ETHLockboxImpl",
                 target: EIP1967Helper.getImplementation(address(ethLockbox)),
-                initCalldata: abi.encodeCall(ethLockbox.initialize, (ISystemConfig(address(0)), new IOptimismPortal2[](0)))
+                initCalldata: abi.encodeCall(
+                    ethLockbox.initialize, (ISystemConfig(address(0)), new IOptimismPortal2[](0))
+                )
             })
         );
 
@@ -370,7 +372,9 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "ETHLockboxProxy",
                 target: address(ethLockbox),
-                initCalldata: abi.encodeCall(ethLockbox.initialize, (ISystemConfig(address(0)), new IOptimismPortal2[](0)))
+                initCalldata: abi.encodeCall(
+                    ethLockbox.initialize, (ISystemConfig(address(0)), new IOptimismPortal2[](0))
+                )
             })
         );
     }

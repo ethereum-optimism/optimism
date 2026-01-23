@@ -27,9 +27,9 @@ contract SuperPermissionedDisputeGame is SuperFaultDisputeGame {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 0.7.0
+    /// @custom:semver 0.7.1
     function version() public pure override returns (string memory) {
-        return "0.7.0";
+        return "0.7.1";
     }
 
     /// @param _params Parameters for creating a new FaultDisputeGame.
@@ -91,8 +91,9 @@ contract SuperPermissionedDisputeGame is SuperFaultDisputeGame {
     /// @notice Returns the proposer address. The proposer role is allowed to create proposals and participate in the
     /// dispute game.
     function proposer() public pure returns (address proposer_) {
-        proposer_ =
-            _getArgAddress(super._preExtraDataByteCount() + super._extraDataByteCount() + super.gameImplArgsByteCount());
+        proposer_ = _getArgAddress(
+            super._preExtraDataByteCount() + super._extraDataByteCount() + super.gameImplArgsByteCount()
+        );
     }
 
     /// @notice Returns the challenger address. The challenger role is allowed to participate in the dispute game.

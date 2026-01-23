@@ -749,9 +749,7 @@ contract VerifyOPCM is Script {
 
         // Put together the artifact info struct.
         return ArtifactInfo({
-            bytecode: bytecode,
-            deployedBytecode: deployedBytecode,
-            immutableRefs: _parseImmutableRefs(artifactJson)
+            bytecode: bytecode, deployedBytecode: deployedBytecode, immutableRefs: _parseImmutableRefs(artifactJson)
         });
     }
 

@@ -35,8 +35,8 @@ contract SuperchainETHBridge is ISemver {
     event RelayETH(address indexed from, address indexed to, uint256 amount, uint256 source);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.1
-    string public constant version = "1.0.1";
+    /// @custom:semver 1.0.2
+    string public constant version = "1.0.2";
 
     /// @notice Sends ETH to some target address on another chain.
     /// @param _to       Address to send ETH to.
@@ -48,11 +48,12 @@ contract SuperchainETHBridge is ISemver {
         // NOTE: 'burn' will soon change to 'deposit'.
         IETHLiquidity(Predeploys.ETH_LIQUIDITY).burn{ value: msg.value }();
 
-        msgHash_ = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).sendMessage({
-            _destination: _chainId,
-            _target: address(this),
-            _message: abi.encodeCall(this.relayETH, (msg.sender, _to, msg.value))
-        });
+        msgHash_ = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            .sendMessage({
+                _destination: _chainId,
+                _target: address(this),
+                _message: abi.encodeCall(this.relayETH, (msg.sender, _to, msg.value))
+            });
 
         emit SendETH(msg.sender, _to, msg.value, _chainId);
     }

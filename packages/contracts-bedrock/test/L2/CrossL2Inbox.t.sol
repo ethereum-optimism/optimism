@@ -175,7 +175,12 @@ contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
     /// @notice Test that a valid tx calling `validateMessage` doesn't warm the slot for the next
     ///         one.
     /// forge-config: default.isolate = true
-    function test_validateMessage_validDoesntWarm_reverts(Identifier memory _id, bytes32 _messageHash) external {
+    function test_validateMessage_validDoesntWarm_reverts(
+        Identifier memory _id,
+        bytes32 _messageHash
+    )
+        external
+    {
         // Bound values types to ensure they are not too large
         _id.blockNumber = bound(_id.blockNumber, 0, type(uint64).max);
         _id.logIndex = bound(_id.logIndex, 0, type(uint32).max);

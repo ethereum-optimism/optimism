@@ -90,7 +90,15 @@ library MIPS64Memory {
     /// @param _proofOffset The offset of the memory proof in calldata.
     /// @param _val The value to write.
     /// @return newMemRoot_ The new memory root after modification
-    function writeMem(uint64 _addr, uint256 _proofOffset, uint64 _val) internal pure returns (bytes32 newMemRoot_) {
+    function writeMem(
+        uint64 _addr,
+        uint256 _proofOffset,
+        uint64 _val
+    )
+        internal
+        pure
+        returns (bytes32 newMemRoot_)
+    {
         unchecked {
             validateMemoryProofAvailability(_proofOffset);
             assembly {
@@ -141,7 +149,15 @@ library MIPS64Memory {
     /// @param _addr The _addr proven.
     /// @param _proofOffset The offset of the memory proof in calldata.
     /// @return valid_ True iff it is a valid proof.
-    function isValidProof(bytes32 _memRoot, uint64 _addr, uint256 _proofOffset) internal pure returns (bool valid_) {
+    function isValidProof(
+        bytes32 _memRoot,
+        uint64 _addr,
+        uint256 _proofOffset
+    )
+        internal
+        pure
+        returns (bool valid_)
+    {
         (, valid_) = readMemUnchecked(_memRoot, _addr, _proofOffset);
     }
 
@@ -150,7 +166,14 @@ library MIPS64Memory {
     ///     Equal to the offset of the first memory proof (at _proofIndex 0).
     /// @param _proofIndex The index of the proof in the calldata.
     /// @return offset_ The offset of the memory proof at the given _proofIndex in the calldata.
-    function memoryProofOffset(uint256 _proofDataOffset, uint8 _proofIndex) internal pure returns (uint256 offset_) {
+    function memoryProofOffset(
+        uint256 _proofDataOffset,
+        uint8 _proofIndex
+    )
+        internal
+        pure
+        returns (uint256 offset_)
+    {
         unchecked {
             // A proof of 64-bit memory, with 32-byte leaf values, is (64-5)=59 bytes32 entries.
             // And the leaf value itself needs to be encoded as well: (59 + 1) = 60 bytes32 entries.

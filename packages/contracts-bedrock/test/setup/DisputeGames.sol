@@ -184,7 +184,13 @@ library DisputeGames {
         _mockGameArg(_dgf, _gameType, GameArg.PROPOSER, value);
     }
 
-    function mockGameImplChallenger(IDisputeGameFactory _dgf, GameType _gameType, address _challenger) internal {
+    function mockGameImplChallenger(
+        IDisputeGameFactory _dgf,
+        GameType _gameType,
+        address _challenger
+    )
+        internal
+    {
         bytes memory value = abi.encodePacked(_challenger);
         _mockGameArg(_dgf, _gameType, GameArg.CHALLENGER, value);
     }

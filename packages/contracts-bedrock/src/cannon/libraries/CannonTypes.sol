@@ -39,13 +39,27 @@ library LPPMetadataLib {
         }
     }
 
-    function setBlocksProcessed(LPPMetaData _self, uint32 _blocksProcessed) internal pure returns (LPPMetaData self_) {
+    function setBlocksProcessed(
+        LPPMetaData _self,
+        uint32 _blocksProcessed
+    )
+        internal
+        pure
+        returns (LPPMetaData self_)
+    {
         assembly {
             self_ := or(shl(96, _blocksProcessed), and(_self, not(shl(96, U32_MASK))))
         }
     }
 
-    function setBytesProcessed(LPPMetaData _self, uint32 _bytesProcessed) internal pure returns (LPPMetaData self_) {
+    function setBytesProcessed(
+        LPPMetaData _self,
+        uint32 _bytesProcessed
+    )
+        internal
+        pure
+        returns (LPPMetaData self_)
+    {
         assembly {
             self_ := or(shl(64, _bytesProcessed), and(_self, not(shl(64, U32_MASK))))
         }

@@ -41,7 +41,13 @@ contract DeployUtils_AssertUniqueAddresses_Test is DeployUtils_TestInit {
 
     /// @param _length The length of the array of addresses.
     /// @param _seed The seed for generating the addresses.
-    function testFuzz_assertUniqueAddresses_withUniqueAddresses_succeeds(uint8 _length, bytes32 _seed) public pure {
+    function testFuzz_assertUniqueAddresses_withUniqueAddresses_succeeds(
+        uint8 _length,
+        bytes32 _seed
+    )
+        public
+        pure
+    {
         vm.assume(_length != 0);
 
         address[] memory addresses = new address[](_length);
@@ -76,11 +82,12 @@ contract DeployUtils_AssertUniqueAddresses_Test is DeployUtils_TestInit {
 
         // Unfortunately it's not possible to use vm.expectRevert() here because the revert
         // message is not a calldata argument so we need to externalize the call
-        DeployUtils_AssertUniqueAddresses_Test(this).helper_assertUniqueAddresses_withDuplicateAddress_reverts(
-            string.concat(
-                "DeployUtils: check failed, duplicates at ", vm.toString(_duplicateIndex), ",", vm.toString(_length)
-            ),
-            addresses
-        );
+        DeployUtils_AssertUniqueAddresses_Test(this)
+            .helper_assertUniqueAddresses_withDuplicateAddress_reverts(
+                string.concat(
+                    "DeployUtils: check failed, duplicates at ", vm.toString(_duplicateIndex), ",", vm.toString(_length)
+                ),
+                addresses
+            );
     }
 }

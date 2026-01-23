@@ -246,17 +246,16 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
         // every time rather than adding or removing this code for each upgrade.
         vm.prank(superchainPAO, true);
-        (bool success, bytes memory reason) = address(_opcm).delegatecall(
-            abi.encodeCall(
-                IOPContractsManagerV2.upgradeSuperchain,
-                (
-                    IOPContractsManagerV2.SuperchainUpgradeInput({
-                        superchainConfig: superchainConfig,
-                        extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
-                    })
+        (bool success, bytes memory reason) = address(_opcm)
+            .delegatecall(
+                abi.encodeCall(
+                    IOPContractsManagerV2.upgradeSuperchain,
+                    (IOPContractsManagerV2.SuperchainUpgradeInput({
+                            superchainConfig: superchainConfig,
+                            extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
+                        }))
                 )
-            )
-        );
+            );
         if (success == false) {
             // Only acceptable revert reason is downgrade not allowed.
             assertTrue(
@@ -314,18 +313,17 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
             IOPContractsManagerUtils.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") });
 
         vm.prank(_delegateCaller, true);
-        (bool upgradeSuccess,) = address(_opcm).delegatecall(
-            abi.encodeCall(
-                IOPContractsManagerV2.upgrade,
-                (
-                    IOPContractsManagerV2.UpgradeInput({
-                        systemConfig: systemConfig,
-                        disputeGameConfigs: disputeGameConfigs,
-                        extraInstructions: extraInstructions
-                    })
+        (bool upgradeSuccess,) = address(_opcm)
+            .delegatecall(
+                abi.encodeCall(
+                    IOPContractsManagerV2.upgrade,
+                    (IOPContractsManagerV2.UpgradeInput({
+                            systemConfig: systemConfig,
+                            disputeGameConfigs: disputeGameConfigs,
+                            extraInstructions: extraInstructions
+                        }))
                 )
-            )
-        );
+            );
         assertTrue(upgradeSuccess, "upgrade failed");
     }
 
@@ -381,7 +379,13 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
     /// @param _contractName The name of the contract to save
     /// @param _tomlPath The path to the superchain config file
     /// @param _tomlKey The key in the superchain config file to get the proxy address
-    function saveProxyAndImpl(string memory _contractName, string memory _tomlPath, string memory _tomlKey) internal {
+    function saveProxyAndImpl(
+        string memory _contractName,
+        string memory _tomlPath,
+        string memory _tomlKey
+    )
+        internal
+    {
         address proxy = vm.parseTomlAddress(_tomlPath, _tomlKey);
         artifacts.save(string.concat(_contractName, "Proxy"), proxy);
 

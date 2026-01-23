@@ -79,7 +79,9 @@ contract DeployDisputeGame is Script {
             impl = IPermissionedDisputeGame(
                 DeployUtils.createDeterministic({
                     _name: "PermissionedDisputeGame",
-                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IPermissionedDisputeGame.__constructor__, (args))),
+                    _args: DeployUtils.encodeConstructor(
+                        abi.encodeCall(IPermissionedDisputeGame.__constructor__, (args))
+                    ),
                     _salt: DeployUtils.DEFAULT_SALT
                 })
             );

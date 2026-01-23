@@ -37,7 +37,7 @@ library SafeSigners {
     /// @notice Extract the signers from a set of signatures.
     ///         This method is based closely on the code in the Safe.checkNSignatures() method.
     ///         https://github.com/safe-global/safe-contracts/blob/e870f514ad34cd9654c72174d6d4a839e3c6639f/contracts/Safe.sol#L274
-    ///         It has been modified by removing all signature _validation_ code. We trust the Safe to properly validate
+    /// It has been modified by removing all signature _validation_ code. We trust the Safe to properly validate
     ///         the signatures.
     ///         This method therefore simply extracts the addresses from the signatures.
     function getNSigners(

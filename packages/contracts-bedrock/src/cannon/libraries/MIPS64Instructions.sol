@@ -172,12 +172,7 @@ library MIPS64Instructions {
             // ALU
             // Note: swr outputs more than 8 bytes without the u64_mask
             ExecuteMipsInstructionParams memory params = ExecuteMipsInstructionParams({
-                insn: _args.insn,
-                opcode: _args.opcode,
-                fun: _args.fun,
-                rs: rs,
-                rt: rt,
-                mem: mem
+                insn: _args.insn, opcode: _args.opcode, fun: _args.fun, rs: rs, rt: rt, mem: mem
             });
             uint64 val = executeMipsInstruction(params) & U64_MASK;
 
@@ -835,7 +830,14 @@ library MIPS64Instructions {
     /// registers.
     /// @param _linkReg The register to store the link to the instruction after the delay slot instruction.
     /// @param _dest The destination to jump to.
-    function handleJump(CoreStepLogicParams memory _cpuAndRegisters, uint64 _linkReg, uint64 _dest) internal pure {
+    function handleJump(
+        CoreStepLogicParams memory _cpuAndRegisters,
+        uint64 _linkReg,
+        uint64 _dest
+    )
+        internal
+        pure
+    {
         unchecked {
             if (_cpuAndRegisters.cpu.nextPC != _cpuAndRegisters.cpu.pc + 4) {
                 revert("MIPS64: jump in delay slot");

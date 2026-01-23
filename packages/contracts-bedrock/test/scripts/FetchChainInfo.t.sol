@@ -319,9 +319,8 @@ contract FetchChainInfoTest is Test {
 
         ModernMockContract(payable(ctx.optimismPortal)).set_respectedGameType(GameTypes.PERMISSIONED_CANNON);
         OracleMock(payable(ctx.mips)).set_oracle(ctx.preimageOracle);
-        DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(
-            GameTypes.PERMISSIONED_CANNON, ctx.permissionedGame
-        );
+        DisputeGameFactoryMock(payable(ctx.disputeGameFactory))
+            .set_gameImpl(GameTypes.PERMISSIONED_CANNON, ctx.permissionedGame);
 
         PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_challenger(TEST_CHALLENGER);
         PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_proposer(TEST_PROPOSER);
@@ -448,13 +447,11 @@ contract FetchChainInfoTest is Test {
 
         DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(GameTypes.CANNON, ctx.permissionlessGame);
         if (_withCannonKona) {
-            DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(
-                GameTypes.CANNON_KONA, ctx.permissionlessCannonKonaGame
-            );
+            DisputeGameFactoryMock(payable(ctx.disputeGameFactory))
+                .set_gameImpl(GameTypes.CANNON_KONA, ctx.permissionlessCannonKonaGame);
         }
-        DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(
-            GameTypes.PERMISSIONED_CANNON, ctx.permissionedGame
-        );
+        DisputeGameFactoryMock(payable(ctx.disputeGameFactory))
+            .set_gameImpl(GameTypes.PERMISSIONED_CANNON, ctx.permissionedGame);
 
         // Set up required properties on permissioned game
         PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_challenger(TEST_CHALLENGER);
@@ -498,13 +495,11 @@ contract FetchChainInfoTest is Test {
 
         DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(GameTypes.CANNON, ctx.permissionlessGame);
         if (_withCannonKona) {
-            DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(
-                GameTypes.CANNON_KONA, ctx.permissionlessCannonKonaGame
-            );
+            DisputeGameFactoryMock(payable(ctx.disputeGameFactory))
+                .set_gameImpl(GameTypes.CANNON_KONA, ctx.permissionlessCannonKonaGame);
         }
-        DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(
-            GameTypes.PERMISSIONED_CANNON, ctx.permissionedGame
-        );
+        DisputeGameFactoryMock(payable(ctx.disputeGameFactory))
+            .set_gameImpl(GameTypes.PERMISSIONED_CANNON, ctx.permissionedGame);
 
         PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_challenger(TEST_CHALLENGER);
         PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_proposer(TEST_PROPOSER);

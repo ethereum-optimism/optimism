@@ -39,7 +39,13 @@ abstract contract SuperchainERC20_TestInit is Test {
 /// @notice Tests the `crosschainMint` function of the `SuperchainERC20` contract.
 contract SuperchainERC20_CrosschainMint_Test is SuperchainERC20_TestInit {
     /// @notice Tests the `crosschainMint` function reverts when the caller is not the bridge.
-    function testFuzz_crosschainMint_callerNotBridge_reverts(address _caller, address _to, uint256 _amount) public {
+    function testFuzz_crosschainMint_callerNotBridge_reverts(
+        address _caller,
+        address _to,
+        uint256 _amount
+    )
+        public
+    {
         // Ensure the caller is not the bridge
         vm.assume(_caller != SUPERCHAIN_TOKEN_BRIDGE);
 
@@ -83,7 +89,13 @@ contract SuperchainERC20_CrosschainMint_Test is SuperchainERC20_TestInit {
 /// @notice Tests the `crosschainBurn` function of the `SuperchainERC20` contract.
 contract SuperchainERC20_CrosschainBurn_Test is SuperchainERC20_TestInit {
     /// @notice Tests the `crosschainBurn` function reverts when the caller is not the bridge.
-    function testFuzz_crosschainBurn_callerNotBridge_reverts(address _caller, address _from, uint256 _amount) public {
+    function testFuzz_crosschainBurn_callerNotBridge_reverts(
+        address _caller,
+        address _from,
+        uint256 _amount
+    )
+        public
+    {
         // Ensure the caller is not the bridge
         vm.assume(_caller != SUPERCHAIN_TOKEN_BRIDGE);
 

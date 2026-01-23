@@ -204,10 +204,7 @@ interface IEAS {
     /// @param multiRequests The arguments of the multi attestation requests. The requests should be grouped by distinct
     ///        schema ids to benefit from the best batching optimization.
     /// @return The UIDs of the new attestations.
-    function multiAttest(MultiAttestationRequest[] calldata multiRequests)
-        external
-        payable
-        returns (bytes32[] memory);
+    function multiAttest(MultiAttestationRequest[] calldata multiRequests) external payable returns (bytes32[] memory);
 
     /// @notice Attests to multiple schemas using via provided EIP712 signatures.
     ///
@@ -348,9 +345,7 @@ interface IEAS {
     /// @param multiDelegatedRequests The arguments of the delegated multi revocation attestation requests. The requests
     /// should be
     ///        grouped by distinct schema ids to benefit from the best batching optimization.
-    function multiRevokeByDelegation(MultiDelegatedRevocationRequest[] calldata multiDelegatedRequests)
-        external
-        payable;
+    function multiRevokeByDelegation(MultiDelegatedRevocationRequest[] calldata multiDelegatedRequests) external payable;
 
     /// @notice Timestamps the specified bytes32 data.
     /// @param data The data to timestamp.

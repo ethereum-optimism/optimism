@@ -19,7 +19,13 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 contract MockOPCMV1 {
     event UpgradeCalled(address indexed superchainConfig);
 
-    function isDevFeatureEnabled(bytes32 /* _feature */ ) public pure returns (bool) {
+    function isDevFeatureEnabled(
+        bytes32 /* _feature */
+    )
+        public
+        pure
+        returns (bool)
+    {
         return false;
     }
 
@@ -121,12 +127,9 @@ contract UpgradeSuperchainConfigV2_Run_Test is Test {
 
         // UpgradeCalled should be emitted by the prank since it's a delegate call.
         vm.expectEmit(address(prank));
-        emit UpgradeCalled(
-            IOPContractsManagerV2.SuperchainUpgradeInput({
-                superchainConfig: superchainConfig,
-                extraInstructions: extraInstructions
-            })
-        );
+        emit UpgradeCalled(IOPContractsManagerV2.SuperchainUpgradeInput({
+                superchainConfig: superchainConfig, extraInstructions: extraInstructions
+            }));
         upgradeSuperchainConfig.run(input);
     }
 

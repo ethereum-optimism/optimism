@@ -74,8 +74,11 @@ fs_permissions = [
 
 # 5159 error code is selfdestruct error code
 ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159]
-deny_warnings = true
+deny = "warnings"
 ffi = true
+
+[lint]
+exclude_lints = ["mixed-case-function", "unsafe-typecast", "asm-keccak256", "screaming-snake-case-immutable", "mixed-case-variable", "divide-before-multiply", "unaliased-plain-import", "screaming-snake-case-const", "unsafe-cheatcode", "erc20-unchecked-transfer", "unaliased-plain-import", "named-struct-fields", "incorrect-shift", "unchecked-call", "unwrapped-modifier-logic", "unwrapped-modifier-logic", "pascal-case-struct", "unused-import"]
 
 # We set the gas limit to max int64 to avoid running out of gas during testing, since the default
 # gas limit is 1B and some of our tests require more gas than that, such as

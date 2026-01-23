@@ -45,7 +45,9 @@ contract L1Withdrawer_Constructor_Test is L1Withdrawer_TestInit {
             DeployUtils.create1({
                 _name: "L1Withdrawer",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IL1Withdrawer.__constructor__, (_minWithdrawalAmount, _recipient, _withdrawalGasLimit))
+                    abi.encodeCall(
+                        IL1Withdrawer.__constructor__, (_minWithdrawalAmount, _recipient, _withdrawalGasLimit)
+                    )
                 )
             })
         );

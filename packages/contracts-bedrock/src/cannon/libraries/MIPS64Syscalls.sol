@@ -295,7 +295,7 @@ library MIPS64Syscalls {
                     if lt(space, datLen) { datLen := space } // if less space than data, shorten data
                     if lt(a2, datLen) { datLen := a2 } // if requested to read less, read less
                     dat := shr(sub(256, mul(datLen, 8)), dat) // right-align data
-                    // position data to insert into memory word
+                        // position data to insert into memory word
                     dat := shl(mul(sub(sub(WORD_SIZE_BYTES, datLen), alignment), 8), dat)
                     // mask all bytes after start
                     let mask := sub(shl(mul(sub(WORD_SIZE_BYTES, alignment), 8), 1), 1)

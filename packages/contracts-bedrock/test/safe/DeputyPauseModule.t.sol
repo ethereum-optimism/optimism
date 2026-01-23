@@ -424,7 +424,13 @@ contract DeputyPauseModule_Pause_Test is DeputyPauseModule_TestInit {
     /// @param _nonce1 First nonce.
     /// @param _nonce2 Second nonce.
     /// @param _identifier The identifier to pause.
-    function testFuzz_pause_differentNonces_succeeds(bytes32 _nonce1, bytes32 _nonce2, address _identifier) external {
+    function testFuzz_pause_differentNonces_succeeds(
+        bytes32 _nonce1,
+        bytes32 _nonce2,
+        address _identifier
+    )
+        external
+    {
         // Make sure that the nonces are different.
         vm.assume(_nonce1 != _nonce2);
 

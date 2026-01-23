@@ -16,7 +16,7 @@ contract EventLogger {
             let dataSize := _data.length
             let memDataOffset := mload(0x40) // load free memory pointer
             calldatacopy(memDataOffset, _data.offset, dataSize) // args: to, from, size
-            // after the event-logging is done, the memory is not used, so no mem pointer to update/restore.
+                // after the event-logging is done, the memory is not used, so no mem pointer to update/restore.
 
             let topicsCount := _topics.length
             let t0 := calldataload(add(_topics.offset, mul(32, 0)))
