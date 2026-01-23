@@ -22,6 +22,12 @@ reth-optimism-forks.workspace = true
 
 clap = { workspace = true, features = ["derive", "env"] }
 tracing.workspace = true
+<<<<<<< HEAD:op-reth/bin/op-reth/Cargo.toml
+=======
+eyre.workspace = true
+futures-util.workspace = true
+tokio.workspace = true
+>>>>>>> 63539a84d4 (chore: mv proof args to rollup node (#625)):crates/optimism/bin/op-reth/Cargo.toml
 
 [lints]
 workspace = true

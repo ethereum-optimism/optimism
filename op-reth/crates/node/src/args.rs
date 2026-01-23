@@ -2,8 +2,10 @@
 
 //! clap [Args](clap::Args) for optimism rollup configuration
 
+use clap::builder::ArgPredicate;
 use op_alloy_consensus::interop::SafetyLevel;
 use reth_optimism_txpool::supervisor::DEFAULT_SUPERVISOR_URL;
+use std::{path::PathBuf, time::Duration};
 use url::Url;
 
 /// Parameters for rollup configuration
@@ -82,6 +84,66 @@ pub struct RollupArgs {
     /// Requires `flashblocks_url` to be set.
     #[arg(long, default_value_t = false, requires = "flashblocks_url")]
     pub flashblock_consensus: bool,
+
+    /// If true, initialize external-proofs exex to save and serve trie nodes to provide proofs
+    /// faster.
+    #[arg(
+        long = "proofs-history",
+        value_name = "PROOFS_HISTORY",
+        default_value_ifs([
+            ("proofs-history.storage-path", ArgPredicate::IsPresent, "true")
+        ])
+    )]
+    pub proofs_history: bool,
+
+    /// The path to the storage DB for proofs history.
+    #[arg(long = "proofs-history.storage-path", value_name = "PROOFS_HISTORY_STORAGE_PATH")]
+    pub proofs_history_storage_path: Option<PathBuf>,
+
+    /// The window to span blocks for proofs history. Value is the number of blocks.
+    /// Default is 1 month of blocks based on 2 seconds block time.
+    /// 30 * 24 * 60 * 60 / 2 = `1_296_000`
+    #[arg(
+        long = "proofs-history.window",
+        default_value_t = 1_296_000,
+        value_name = "PROOFS_HISTORY_WINDOW"
+    )]
+    pub proofs_history_window: u64,
+
+    /// Interval between proof-storage prune runs. Accepts human-friendly durations
+    /// like "100s", "5m", "1h". Defaults to 15s.
+    ///
+    /// - Shorter intervals prune smaller batches more often, so each prune run tends to be faster
+    ///   and the blocking pause for writes is shorter, at the cost of more frequent pauses.
+    /// - Longer intervals prune larger batches less often, which reduces how often pruning runs,
+    ///   but each run can take longer and block writes for longer.
+    ///
+    /// A shorter interval is preferred so that prune
+    /// runs stay small and don’t stall writes for too long.
+    ///
+    /// CLI: `--proofs-history.prune-interval 10m`
+    #[arg(
+        long = "proofs-history.prune-interval",
+        value_name = "PROOFS_HISTORY_PRUNE_INTERVAL",
+        default_value = "15s",
+        value_parser = humantime::parse_duration
+    )]
+    pub proofs_history_prune_interval: Duration,
+    /// Verification interval: perform full block execution every N blocks for data integrity.
+    /// - 0: Disabled (Default) (always use fast path with pre-computed data from notifications)
+    /// - 1: Always verify (always execute blocks, slowest)
+    /// - N: Verify every Nth block (e.g., 100 = every 100 blocks)
+    ///
+    /// Periodic verification helps catch data corruption or consensus bugs while maintaining
+    /// good performance.
+    ///
+    /// CLI: `--proofs-history.verification-interval 100`
+    #[arg(
+        long = "proofs-history.verification-interval",
+        value_name = "PROOFS_HISTORY_VERIFICATION_INTERVAL",
+        default_value_t = 0
+    )]
+    pub proofs_history_verification_interval: u64,
 }
 
 impl Default for RollupArgs {
@@ -99,6 +161,11 @@ impl Default for RollupArgs {
             min_suggested_priority_fee: 1_000_000,
             flashblocks_url: None,
             flashblock_consensus: false,
+            proofs_history: false,
+            proofs_history_storage_path: None,
+            proofs_history_window: 1_296_000,
+            proofs_history_prune_interval: Duration::from_secs(15),
+            proofs_history_verification_interval: 0,
         }
     }
 }

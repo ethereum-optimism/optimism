@@ -64,6 +64,7 @@ clap.workspace = true
 serde.workspace = true
 eyre.workspace = true
 url.workspace = true
+humantime.workspace = true
 
 # test-utils dependencies
 reth-e2e-test-utils = { workspace = true, optional = true }
