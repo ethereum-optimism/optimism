@@ -11,7 +11,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
@@ -390,10 +389,7 @@ func TestSpanBatchTxsRecoverV(t *testing.T) {
 			for _, txSig := range spanBatchTxs.txSigs {
 				recoveredVs = append(recoveredVs, txSig.v)
 			}
-			require.Equal(t, len(originalVs), len(recoveredVs), "recovered v length mismatch")
-			for i := range originalVs {
-				require.Truef(t, bigs.Equal(originalVs[i], recoveredVs[i]), "original v %v mismatch with recovered v %v", originalVs[i], recoveredVs[i])
-			}
+			requireEqual(t, originalVs, recoveredVs, "recovered v mismatch")
 		})
 	}
 }
@@ -422,14 +418,7 @@ func TestSpanBatchTxsRoundTrip(t *testing.T) {
 		err = sbt2.recoverV(chainID)
 		require.NoError(t, err)
 
-		// require.Equal looks into the internals of structs instead of using their Equal method (or Cmp for *big.Int)
-		// So we need to normalize the *big.Int instances before comparing
-		for i, v := range sbt.txSigs {
-			normalizedV := new(big.Int).SetBytes(v.v.Bytes())
-			require.True(t, normalizedV.Cmp(v.v) == 0, "Normalization changed the logical value unexpectedly")
-			sbt.txSigs[i].v = normalizedV
-		}
-		require.Equal(t, sbt, &sbt2)
+		requireEqual(t, sbt, &sbt2)
 	}
 }
 

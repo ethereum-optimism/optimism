@@ -2,14 +2,17 @@ package derive
 
 import (
 	"bytes"
+	"fmt"
 	"math/big"
 	"math/rand"
+	"reflect"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -164,7 +167,7 @@ func TestBatchRoundTrip(t *testing.T) {
 			_, err := DeriveSpanBatch(&dec, blockTime, genesisTimestamp, chainID)
 			require.NoError(t, err)
 		}
-		require.Equal(t, batch, &dec, "Batch not equal test case %v", i)
+		requireEqual(t, batch, &dec, "Batch not equal test case %v", i)
 	}
 }
 
@@ -212,6 +215,34 @@ func TestBatchRoundTripRLP(t *testing.T) {
 			_, err = DeriveSpanBatch(&dec, blockTime, genesisTimestamp, chainID)
 			require.NoError(t, err)
 		}
-		require.Equal(t, batch, &dec, "Batch not equal test case %v", i)
+		requireEqual(t, batch, &dec, "Batch not equal test case %v", i)
+	}
+}
+
+// requireEqual compares two values for equality using cmp.Diff with options
+// that handle *big.Int comparison correctly (using Cmp() for logical equality
+// rather than reflect.DeepEqual which compares internal structure).
+func requireEqual(t *testing.T, expected, actual any, msgAndArgs ...any) {
+	t.Helper()
+	opts := cmp.Options{
+		// Compare *big.Int using Cmp() for logical equality
+		cmp.Comparer(func(a, b *big.Int) bool {
+			if a == nil && b == nil {
+				return true
+			}
+			if a == nil || b == nil {
+				return false
+			}
+			return a.Cmp(b) == 0
+		}),
+		// Allow comparison of unexported fields in all structs
+		cmp.Exporter(func(reflect.Type) bool { return true }),
+	}
+	if diff := cmp.Diff(expected, actual, opts); diff != "" {
+		if len(msgAndArgs) > 0 {
+			t.Errorf("%v:\n%s", fmt.Sprintf(msgAndArgs[0].(string), msgAndArgs[1:]), diff)
+		} else {
+			t.Errorf("values not equal:\n%s", diff)
+		}
 	}
 }
