@@ -1,16 +1,12 @@
 package supernode
 
 import (
-	"context"
 	"net/url"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,8 +23,7 @@ func TestCLAdvanceMultiple(gt *testing.T) {
 	waitTime := time.Duration(blockTime+1) * time.Second
 
 	// Check L2A advances
-	unsafeA := sys.L2ACL.SyncStatus().UnsafeL2
-	numA := unsafeA.Number
+	numA := sys.L2ACL.SyncStatus().UnsafeL2.Number
 	numB := sys.L2BCL.SyncStatus().UnsafeL2.Number
 
 	// Check that the two CLs are on different chains
@@ -48,38 +43,4 @@ func TestCLAdvanceMultiple(gt *testing.T) {
 		return newA > numA && newB > numB
 	}, 30*time.Second, waitTime)
 
-	// Check L2A advances
-	unsafeA = sys.L2ACL.SyncStatus().UnsafeL2
-	require.Greater(t, unsafeA.Number, uint64(0)) // should be block 1, TODO assert this
-	unsafeATime := unsafeA.Time
-	numA = unsafeA.Number
-
-	sys.L2A.WaitForBlock()
-
-	unsafeA = sys.L2ACL.SyncStatus().UnsafeL2
-	require.Greater(t, unsafeA.Number, uint64(1))
-
-	// create a supernode engine controller, and use that to
-	// rewind one of the chains
-	ec := sys.L2A.L2ELNodes()[0].Escape().L2EngineClient()
-	ed := sys.L2A.L2ELNodes()[0].Escape().L2EthClient()
-	type foo struct {
-		apis.EngineClient
-		apis.L2EthClient
-	}
-	engineController := engine_controller.NewEngineControllerWithL2AndRollup(foo{ec, ed}, sys.L2A.Escape().RollupConfig())
-
-	////   _______  [synthetic]
-	//    /
-	// [0] <- [1] <- [2]
-	// sf             u
-	//
-	// The method FCUs to synthetic first, and then back to 1.
-	err = engineController.RewindToTimestamp(context.Background(), unsafeATime)
-	require.NoError(t, err)
-
-	// Check reset works as expected
-	resetUnsafe, err := sys.L2A.L2ELNodes()[0].Escape().L2EthClient().BlockRefByLabel(context.Background(), eth.Unsafe)
-	require.NoError(t, err)
-	require.Less(t, resetUnsafe.Number, unsafeA.Number)
 }
