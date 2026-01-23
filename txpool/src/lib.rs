@@ -9,6 +9,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod validator;
+use op_alloy_consensus::OpBlock;
 pub use validator::{OpL1BlockInfo, OpTransactionValidator};
 
 pub mod conditional;
@@ -24,8 +25,8 @@ pub mod estimated_da_size;
 use reth_transaction_pool::{CoinbaseTipOrdering, Pool, TransactionValidationTaskExecutor};
 
 /// Type alias for default optimism transaction pool
-pub type OpTransactionPool<Client, S, T = OpPooledTransaction> = Pool<
-    TransactionValidationTaskExecutor<OpTransactionValidator<Client, T>>,
+pub type OpTransactionPool<Client, S, T = OpPooledTransaction, B = OpBlock> = Pool<
+    TransactionValidationTaskExecutor<OpTransactionValidator<Client, T, B>>,
     CoinbaseTipOrdering<T>,
     S,
 >;
