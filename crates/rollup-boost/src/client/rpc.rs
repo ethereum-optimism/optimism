@@ -25,7 +25,6 @@ use op_alloy_rpc_types_engine::{
 use opentelemetry::trace::SpanKind;
 use parking_lot::Mutex;
 use paste::paste;
-use reth_optimism_payload_builder::payload_id_optimism;
 use rollup_boost_types::authorization::Authorization;
 use rollup_boost_types::payload::{
     NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion,
@@ -435,8 +434,7 @@ impl FlasblocksP2PRpcClient {
             self.inner.payload_source
         );
 
-        let payload_id =
-            payload_id_optimism(&fork_choice_state.head_block_hash, &payload_attributes, 3);
+        let payload_id = payload_attributes.payload_id(&fork_choice_state.head_block_hash, 3);
         let authorization = Authorization::new(
             payload_id,
             payload_attributes.payload_attributes.timestamp,

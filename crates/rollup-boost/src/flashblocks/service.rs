@@ -391,8 +391,8 @@ impl EngineApiExt for FlashblocksService {
 mod tests {
     use super::*;
     use crate::server::tests::{MockEngineServer, spawn_server};
+    use alloy_rpc_types_engine::JwtSecret;
     use http::Uri;
-    use reth_rpc_layer::JwtSecret;
     use rollup_boost_types::payload::PayloadSource;
     use std::str::FromStr;
 

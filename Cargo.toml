@@ -31,24 +31,20 @@ ed25519-dalek = { version = "2", features = ["serde"] }
 blake3 = "1"
 hex = "0.4"
 
-# Reth deps, use 4231f4b to get latest op-alloy
-reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth", rev = "4231f4b" }
-reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth", rev = "4231f4b" }
-
 # Alloy libraries
-alloy-rpc-types-engine = "1.0.41"
-alloy-rpc-types-eth = "1.0.41"
-alloy-primitives = { version = "1.4.1", features = ["rand"] }
-alloy-serde = "1.0.41"
-alloy-eips = "1.0.41"
-alloy-json-rpc = "1.0.41"
-alloy-consensus = "1.0.41"
-alloy-rpc-types = "1.0.41"
-alloy-genesis = "1.0.41"
-alloy-rpc-client = "1.0.41"
+alloy-rpc-types-engine = "1.4.3"
+alloy-rpc-types-eth = "1.4.3"
+alloy-primitives = { version = "1.5.0", features = ["rand"] }
+alloy-serde = "1.4.3"
+alloy-eips = "1.4.3"
+alloy-json-rpc = "1.4.3"
+alloy-consensus = "1.4.3"
+alloy-rpc-types = "1.4.3"
+alloy-genesis = "1.4.3"
+alloy-rpc-client = "1.4.3"
 alloy-rlp = "0.3.12"
-alloy-provider = "1.0.41"
-op-alloy-network = "0.23.0"
+alloy-provider = "1.4.3"
+op-alloy-network = "0.23.1"
 op-alloy-rpc-types-engine = "0.23.1"
 op-alloy-consensus = "0.23.1"
 op-alloy-rpc-types = "0.23.1"

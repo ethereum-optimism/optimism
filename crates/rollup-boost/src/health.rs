@@ -160,6 +160,7 @@ mod tests {
     use std::net::SocketAddr;
 
     use alloy_consensus::Header;
+    use alloy_rpc_types_engine::JwtSecret;
     use alloy_rpc_types_eth::{Block, Header as EthHeader, Transaction};
 
     use crate::RpcClient;
@@ -167,7 +168,6 @@ mod tests {
     use http_body_util::BodyExt;
     use hyper::service::service_fn;
     use hyper_util::rt::TokioIo;
-    use reth_rpc_layer::JwtSecret;
     use serde_json::json;
     use tokio::net::TcpListener;
 

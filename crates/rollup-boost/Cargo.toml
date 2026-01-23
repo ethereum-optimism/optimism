@@ -28,10 +28,6 @@ ed25519-dalek.workspace = true
 blake3.workspace = true
 hex.workspace = true
 
-# Reth deps
-reth-optimism-payload-builder.workspace = true
-reth-rpc-layer.workspace = true
-
 op-alloy-rpc-types-engine.workspace = true
 alloy-rpc-types-engine.workspace = true
 alloy-rpc-types-eth.workspace = true
