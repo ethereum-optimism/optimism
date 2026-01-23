@@ -32,6 +32,7 @@ type mockVirtualNode struct {
 	stopFunc     func(ctx context.Context) error
 	blockOnStart bool
 	startSignal  chan struct{}
+	stopChan     chan struct{} // closed when Stop() is called, causing Start() to exit
 	// latest safe mock behavior
 	latestSafe eth.BlockID
 	latestErr  error
@@ -45,6 +46,7 @@ type mockVirtualNode struct {
 func newMockVirtualNode() *mockVirtualNode {
 	return &mockVirtualNode{
 		startSignal: make(chan struct{}),
+		stopChan:    make(chan struct{}),
 	}
 }
 
@@ -64,8 +66,12 @@ func (m *mockVirtualNode) Start(ctx context.Context) error {
 	}
 
 	if m.blockOnStart {
-		<-ctx.Done()
-		return ctx.Err()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-m.stopChan:
+			return nil
+		}
 	}
 
 	return m.startErr
@@ -74,6 +80,13 @@ func (m *mockVirtualNode) Start(ctx context.Context) error {
 func (m *mockVirtualNode) Stop(ctx context.Context) error {
 	m.mu.Lock()
 	m.stopCalled++
+	// Close stopChan to signal Start() to exit (only once)
+	select {
+	case <-m.stopChan:
+		// Already closed
+	default:
+		close(m.stopChan)
+	}
 	m.mu.Unlock()
 
 	if m.stopFunc != nil {
@@ -657,19 +670,19 @@ func TestChainContainer_RewindEngine_Integration(t *testing.T) {
 			virtualNodeFactory: func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode {
 				vnCreatedMu.Lock()
 				vnCreatedCount++
-				count := vnCreatedCount
 				vnCreatedMu.Unlock()
 
 				mock := newMockVirtualNode()
+				mock.blockOnStart = true
 				mock.startFunc = func(ctx context.Context) error {
 					vnStartSignals <- struct{}{}
-					// Block until context is cancelled
-					<-ctx.Done()
-					return ctx.Err()
-				}
-				// First VN blocks, subsequent ones also block
-				if count == 1 {
-					mock.blockOnStart = false // Use startFunc instead
+					// Block until Stop() is called or context is cancelled
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-mock.stopChan:
+						return nil
+					}
 				}
 				return mock
 			},
