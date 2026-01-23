@@ -55,9 +55,11 @@ fi
 # Sender just needs to be anything but the default sender (0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38)
 # Otherwise state changes inside of Deploy.s.sol get stored in the state diff under the default script address (0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496)
 # Conflicts with other stuff that happens inside of Kontrol and leads to errors that are hard to debug
+#
+# Note: --gas-limit set to uint64 max (2^64-1) to avoid MemoryLimitOOG errors.
 DEPLOY_CONFIG_PATH=deploy-config/hardhat.json \
   DEPLOYMENT_OUTFILE="$CONTRACT_NAMES" \
-  forge script --sender 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 -vvv scripts/deploy/Deploy.s.sol:Deploy --sig runWithStateDiff
+  forge script --sender 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --gas-limit 18446744073709551615 -vvv scripts/deploy/Deploy.s.sol:Deploy --sig runWithStateDiff
 echo "Created state diff json"
 
 # Clean and store the state diff json in snapshots/state-diff/Kontrol-Deploy.json

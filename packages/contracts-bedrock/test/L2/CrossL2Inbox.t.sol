@@ -166,6 +166,7 @@ contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
         vm.expectRevert(ICrossL2Inbox.NotInAccessList.selector);
         vm.accessList(accessList);
         crossL2Inbox.validateMessage(_idOne, _messageHashOne);
+        vm.noAccessList();
 
         // Send the tx2 but without any access list and check that it reverts since the slot should not be warmed
         vm.expectRevert(ICrossL2Inbox.NotInAccessList.selector);
@@ -175,12 +176,7 @@ contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
     /// @notice Test that a valid tx calling `validateMessage` doesn't warm the slot for the next
     ///         one.
     /// forge-config: default.isolate = true
-    function test_validateMessage_validDoesntWarm_reverts(
-        Identifier memory _id,
-        bytes32 _messageHash
-    )
-        external
-    {
+    function test_validateMessage_validDoesntWarm_reverts(Identifier memory _id, bytes32 _messageHash) external {
         // Bound values types to ensure they are not too large
         _id.blockNumber = bound(_id.blockNumber, 0, type(uint64).max);
         _id.logIndex = bound(_id.logIndex, 0, type(uint32).max);
@@ -200,6 +196,7 @@ contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
         // Validate the message
         vm.accessList(accessList);
         crossL2Inbox.validateMessage(_id, _messageHash);
+        vm.noAccessList();
 
         // Send the same msg but without any access list and check that it reverts since the
         // slot should not be warmed

@@ -229,7 +229,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Returns the expected PreimageOracle version.
     function preimageOracleVersion() public pure returns (string memory) {
-        return "1.1.4";
+        return "1.1.5";
     }
 
     /// @notice Internal function to get version from any contract implementing ISemver.

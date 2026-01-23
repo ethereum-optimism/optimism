@@ -690,22 +690,22 @@ contract SemgrepTest__sol_style_enforce_require_msg {
 
 contract SemgrepTest__sol_safety_try_catch_eip_150 {
     function test() {
+        /// forgefmt: disable-start
         // ok: sol-safety-trycatch-eip150
         // eip150-safe
         try someContract.someFunction() {
-        // ...
-        }
-            catch {
+            // ...
+        } catch {
             // ...
         }
 
         // ruleid: sol-safety-trycatch-eip150
         try someContract.someFunction() {
-        // ...
-        }
-            catch {
+            // ...
+        } catch {
             // ...
         }
+        /// forgefmt: disable-end
     }
 }
 
