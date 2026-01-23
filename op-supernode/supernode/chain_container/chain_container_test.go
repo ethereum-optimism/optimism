@@ -531,56 +531,26 @@ func TestChainContainer_PauseResume(t *testing.T) {
 	})
 }
 
-// TestChainContainer_VirtualNodeIntegration tests interaction with VirtualNode
+// TestChainContainer_RewindEngine tests the RewindEngine method
 func TestChainContainer_RewindEngine(t *testing.T) {
-	t.Run("calls RewindToTimestamp on engine controller", func(t *testing.T) {
+	t.Run("calls RewindToTimestamp on engine controller and stops VN", func(t *testing.T) {
 		// Setup
 		mockVN := newMockVirtualNode()
-		mockVN.blockOnStart = true // Block on start so we can control the lifecycle
-
 		mockEngine := newMockEngineController()
 
-		vnCreatedCount := 0
-		var vnCreatedMu sync.Mutex
-
 		chainID := eth.ChainIDFromUInt64(420)
-		vncfg := createTestVNConfig()
-		cliCfg := createTestCLIConfig()
 		log := createTestLogger()
 
-		// Create container with mock factory
+		// Create container with mocks directly injected (no Start loop needed)
 		c := &simpleChainContainer{
-			vncfg:   vncfg,
-			cfg:     cliCfg,
 			chainID: chainID,
 			log:     log,
-			stopped: make(chan struct{}, 1),
 			engine:  mockEngine,
 			vn:      mockVN,
-			virtualNodeFactory: func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode {
-				vnCreatedMu.Lock()
-				vnCreatedCount++
-				vnCreatedMu.Unlock()
-				newMock := newMockVirtualNode()
-				newMock.blockOnStart = true
-				return newMock
-			},
 		}
 
-		// Start the container in a goroutine
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		startDone := make(chan struct{})
-		go func() {
-			_ = c.Start(ctx)
-			close(startDone)
-		}()
-
-		// Wait for the initial virtual node to start
-		<-mockVN.startSignal
-
 		// Call RewindEngine
+		ctx := context.Background()
 		rewindTimestamp := uint64(1234567890)
 		err := c.RewindEngine(ctx, rewindTimestamp)
 		require.NoError(t, err)
@@ -591,50 +561,121 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		require.Equal(t, rewindTimestamp, mockEngine.rewindTimestamp, "RewindToTimestamp should be called with correct timestamp")
 		mockEngine.mu.Unlock()
 
-		// Verify a new virtual node was created (factory was called)
-		// Give a moment for the container loop to create a new VN after resume
-		time.Sleep(100 * time.Millisecond)
-		vnCreatedMu.Lock()
-		require.GreaterOrEqual(t, vnCreatedCount, 1, "A new virtual node should be created after rewind")
-		vnCreatedMu.Unlock()
-
-		// Verify the old virtual node was stopped
+		// Verify the virtual node was stopped
 		mockVN.mu.Lock()
-		require.GreaterOrEqual(t, mockVN.stopCalled, 1, "Old virtual node should be stopped")
+		require.Equal(t, 1, mockVN.stopCalled, "Virtual node should be stopped once")
 		mockVN.mu.Unlock()
 
-		// Cleanup
-		cancel()
-		<-startDone
+		// Verify container state: paused should be false (resumed), allowing new VN to start
+		require.False(t, c.pause.Load(), "Container should be resumed after rewind")
 	})
 
 	t.Run("returns error when engine rewind fails", func(t *testing.T) {
 		// Setup
 		mockVN := newMockVirtualNode()
-		mockVN.blockOnStart = true
-
 		mockEngine := newMockEngineController()
 		mockEngine.rewindErr = engine_controller.ErrNoRollupConfig
+
+		chainID := eth.ChainIDFromUInt64(420)
+		log := createTestLogger()
+
+		c := &simpleChainContainer{
+			chainID: chainID,
+			log:     log,
+			engine:  mockEngine,
+			vn:      mockVN,
+		}
+
+		// Call RewindEngine - should fail
+		ctx := context.Background()
+		err := c.RewindEngine(ctx, 12345)
+		require.Error(t, err)
+		require.ErrorIs(t, err, engine_controller.ErrNoRollupConfig)
+
+		// Verify the VN was still stopped before the rewind attempt
+		mockVN.mu.Lock()
+		require.Equal(t, 1, mockVN.stopCalled, "Virtual node should be stopped")
+		mockVN.mu.Unlock()
+
+		// Container should still be paused since rewind failed
+		require.True(t, c.pause.Load(), "Container should remain paused after failed rewind")
+	})
+
+	t.Run("returns error when VN stop fails", func(t *testing.T) {
+		// Setup
+		mockVN := newMockVirtualNode()
+		mockVN.stopErr = context.DeadlineExceeded
+		mockEngine := newMockEngineController()
+
+		chainID := eth.ChainIDFromUInt64(420)
+		log := createTestLogger()
+
+		c := &simpleChainContainer{
+			chainID: chainID,
+			log:     log,
+			engine:  mockEngine,
+			vn:      mockVN,
+		}
+
+		// Call RewindEngine - should fail on VN stop
+		ctx := context.Background()
+		err := c.RewindEngine(ctx, 12345)
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+
+		// Verify RewindToTimestamp was NOT called since VN stop failed
+		mockEngine.mu.Lock()
+		require.Equal(t, 0, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should not be called when VN stop fails")
+		mockEngine.mu.Unlock()
+	})
+}
+
+// TestChainContainer_RewindEngine_Integration tests RewindEngine with the Start loop
+func TestChainContainer_RewindEngine_Integration(t *testing.T) {
+	t.Run("new virtual node is created after rewind", func(t *testing.T) {
+		// Track VN creation
+		vnCreatedCount := 0
+		var vnCreatedMu sync.Mutex
+		vnStartSignals := make(chan struct{}, 10)
 
 		chainID := eth.ChainIDFromUInt64(420)
 		vncfg := createTestVNConfig()
 		cliCfg := createTestCLIConfig()
 		log := createTestLogger()
 
+		mockEngine := newMockEngineController()
+
+		// Create container
 		c := &simpleChainContainer{
-			vncfg:   vncfg,
-			cfg:     cliCfg,
-			chainID: chainID,
-			log:     log,
-			stopped: make(chan struct{}, 1),
-			engine:  mockEngine,
-			vn:      mockVN,
+			vncfg:        vncfg,
+			cfg:          cliCfg,
+			chainID:      chainID,
+			log:          log,
+			stopped:      make(chan struct{}, 1),
+			engine:       mockEngine,
+			initOverload: &rollupNode.InitializationOverrides{},
 			virtualNodeFactory: func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode {
-				return newMockVirtualNode()
+				vnCreatedMu.Lock()
+				vnCreatedCount++
+				count := vnCreatedCount
+				vnCreatedMu.Unlock()
+
+				mock := newMockVirtualNode()
+				mock.startFunc = func(ctx context.Context) error {
+					vnStartSignals <- struct{}{}
+					// Block until context is cancelled
+					<-ctx.Done()
+					return ctx.Err()
+				}
+				// First VN blocks, subsequent ones also block
+				if count == 1 {
+					mock.blockOnStart = false // Use startFunc instead
+				}
+				return mock
 			},
 		}
 
-		// Start container
+		// Start the container
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -644,18 +685,46 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 			close(startDone)
 		}()
 
-		<-mockVN.startSignal
+		// Wait for first VN to start
+		select {
+		case <-vnStartSignals:
+		case <-time.After(10 * time.Second):
+			t.Fatal("Timeout waiting for first VN to start")
+		}
 
-		// Call RewindEngine - should fail
-		err := c.RewindEngine(ctx, 12345)
-		require.Error(t, err)
-		require.ErrorIs(t, err, engine_controller.ErrNoRollupConfig)
+		vnCreatedMu.Lock()
+		require.Equal(t, 1, vnCreatedCount, "First VN should be created")
+		vnCreatedMu.Unlock()
+
+		// Call RewindEngine
+		rewindTimestamp := uint64(1234567890)
+		err := c.RewindEngine(ctx, rewindTimestamp)
+		require.NoError(t, err)
+
+		// Wait for new VN to be created and started
+		select {
+		case <-vnStartSignals:
+		case <-time.After(2 * time.Second):
+			t.Fatal("Timeout waiting for new VN to start after rewind")
+		}
+
+		vnCreatedMu.Lock()
+		require.Equal(t, 2, vnCreatedCount, "New VN should be created after rewind")
+		vnCreatedMu.Unlock()
+
+		// Verify engine rewind was called
+		mockEngine.mu.Lock()
+		require.Equal(t, 1, mockEngine.rewindToTimestampCalled)
+		require.Equal(t, rewindTimestamp, mockEngine.rewindTimestamp)
+		mockEngine.mu.Unlock()
 
 		// Cleanup
 		cancel()
 		<-startDone
 	})
 }
+
+// TestChainContainer_VirtualNodeIntegration tests interaction with VirtualNode
 
 func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 	t.Parallel()
