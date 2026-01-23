@@ -97,6 +97,9 @@ func (e *simpleEngineController) blockAtTimestamp(ctx context.Context, ts uint64
 // SafeBlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp,
 // clamped to the current SAFE head. Must return ethereum.NotFound if no safe block is available at the timestamp.
 func (e *simpleEngineController) SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
+	if e.l2 == nil {
+		return eth.L2BlockRef{}, ErrNoEngineClient
+	}
 	num, err := e.blockNumberAtTimestamp(ts)
 	if err != nil {
 		return eth.L2BlockRef{}, err
