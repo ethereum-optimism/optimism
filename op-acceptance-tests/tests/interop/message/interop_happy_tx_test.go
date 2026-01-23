@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -45,12 +46,12 @@ func TestInteropHappyTx(gt *testing.T) {
 	// confirm that the cross-safe safety passed init and exec receipts and that blocks were not reorged
 	dsl.CheckAll(t,
 		sys.L2CLA.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
-			Number: initReceipt.BlockNumber.Uint64(),
+			Number: bigs.Uint64Strict(initReceipt.BlockNumber),
 			Hash:   initReceipt.BlockHash,
 			// TODO(#16598): Make this relative to the block time
 		}, 500),
 		sys.L2CLB.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
-			Number: execReceipt.BlockNumber.Uint64(),
+			Number: bigs.Uint64Strict(execReceipt.BlockNumber),
 			Hash:   execReceipt.BlockHash,
 			// TODO(#16598): Make this relative to the block time
 		}, 500),

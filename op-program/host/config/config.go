@@ -21,6 +21,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -136,14 +137,14 @@ func (c *Config) Check() error {
 	// Make of known rollup chain IDs to whether we have the L2 chain config for it
 	chainIDToHasChainConfig := make(map[uint64]bool, len(c.Rollups))
 	for _, config := range c.Rollups {
-		chainID := config.L2ChainID.Uint64()
+		chainID := bigs.Uint64Strict(config.L2ChainID)
 		if _, ok := chainIDToHasChainConfig[chainID]; ok {
 			return fmt.Errorf("%w for chain ID %v", ErrDuplicateRollup, chainID)
 		}
 		chainIDToHasChainConfig[chainID] = false
 	}
 	for _, config := range c.L2ChainConfigs {
-		chainID := config.ChainID.Uint64()
+		chainID := bigs.Uint64Strict(config.ChainID)
 		if _, ok := chainIDToHasChainConfig[chainID]; !ok {
 			return fmt.Errorf("%w for chain ID %v", ErrNoRollupForGenesis, config.ChainID)
 		}

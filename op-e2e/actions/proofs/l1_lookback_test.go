@@ -6,6 +6,7 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
@@ -42,7 +43,7 @@ func runL1LookbackTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 
 	// Ensure that the safe head has advanced to `NumL2Blocks`.
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
-	require.EqualValues(t, numL2Blocks, l2SafeHead.Number.Uint64())
+	require.EqualValues(t, numL2Blocks, bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Run the FPP on the configured L2 block.
 	env.RunFaultProofProgramFromGenesis(t, numL2Blocks/2, testCfg.CheckResult, testCfg.InputParams...)
@@ -119,7 +120,7 @@ func runL1LookbackTest_ReopenChannel(gt *testing.T, testCfg *helpers.TestCfg[any
 
 	// Ensure that the safe head has advanced to `NumL2Blocks`.
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
-	require.EqualValues(t, numL2Blocks, l2SafeHead.Number.Uint64())
+	require.EqualValues(t, numL2Blocks, bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Run the FPP on the configured L2 block.
 	env.RunFaultProofProgramFromGenesis(t, numL2Blocks/2, testCfg.CheckResult, testCfg.InputParams...)

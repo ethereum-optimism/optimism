@@ -14,6 +14,7 @@ import { Config } from "scripts/libraries/Config.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -1154,7 +1155,7 @@ contract VerifyOPCM is Script {
         }
 
         // If the OPCM contract version is greater than or equal to 7.0.0, then it is OPCM V2.
-        return SemverComp.gte(IOPContractsManager(opcmAddress).version(), "7.0.0");
+        return SemverComp.gte(IOPContractsManager(opcmAddress).version(), Constants.OPCM_V2_MIN_VERSION);
     }
 
     /// @notice Gets the address of the OPCM contract from the environment variables.

@@ -40,7 +40,7 @@ libp2p-stream.workspace = true
 discv5 = { workspace = true, features = ["libp2p"] }
 openssl = { workspace = true, features = ["vendored"] }
 libp2p-identity = { workspace = true, features = ["secp256k1"] }
-libp2p = { workspace = true, features = ["macros", "tokio", "tcp", "noise", "gossipsub", "ping", "yamux", "identify"] }
+libp2p = { workspace = true, features = ["macros", "tokio", "tcp", "dns", "noise", "gossipsub", "ping", "yamux", "identify"] }
 ipnet = { workspace = true, features = ["serde"] }
 
 # Misc

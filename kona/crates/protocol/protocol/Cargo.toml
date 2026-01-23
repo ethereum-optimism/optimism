@@ -54,6 +54,7 @@ alloy-serde = { workspace = true, optional = true }
 # `test-utils` feature
 spin = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, features = ["fmt"], optional = true }
+ambassador = "0.4.2"
 
 [dev-dependencies]
 brotli = { workspace = true, features = ["std"] }

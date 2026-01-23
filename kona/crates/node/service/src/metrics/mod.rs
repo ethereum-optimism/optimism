@@ -33,6 +33,10 @@ impl Metrics {
     pub const SEQUENCER_CONDUCTOR_COMMITMENT_DURATION: &str =
         "kona_node_sequencer_conductor_commitment_duration";
 
+    /// Total number of transactions of sequenced by sequencer.
+    pub const SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED: &str =
+        "kona_node_sequencer_total_transactions_sequenced";
+
     /// Initializes metrics for the node service.
     ///
     /// This does two things:
@@ -85,6 +89,13 @@ impl Metrics {
             Self::SEQUENCER_CONDUCTOR_COMMITMENT_DURATION,
             "Duration of the sequencer conductor commitment"
         );
+
+        // Sequencer total transactions sequenced
+        metrics::describe_counter!(
+            Self::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED,
+            metrics::Unit::Count,
+            "Total count of sequenced transactions"
+        );
     }
 
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
@@ -96,5 +107,8 @@ impl Metrics {
 
         // Derivation critical error
         kona_macros::set!(counter, Self::DERIVATION_CRITICAL_ERROR, 0);
+
+        // Sequencer: reset total transactions sequenced
+        kona_macros::set!(counter, Self::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED, 0);
     }
 }

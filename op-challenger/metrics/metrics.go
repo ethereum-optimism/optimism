@@ -2,6 +2,8 @@ package metrics
 
 import (
 	"io"
+	"math"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -48,7 +50,7 @@ type Metricer interface {
 	RecordPreimageChallengeFailed()
 
 	RecordBondClaimFailed()
-	RecordBondClaimed(amount uint64)
+	RecordBondClaimed(amount *big.Int)
 
 	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
 
@@ -274,8 +276,13 @@ func (m *Metrics) RecordBondClaimFailed() {
 	m.bondClaimFailures.Add(1)
 }
 
-func (m *Metrics) RecordBondClaimed(amount uint64) {
-	m.bondsClaimed.Add(float64(amount))
+func (m *Metrics) RecordBondClaimed(amount *big.Int) {
+	// If the value is too big for a Float64 it will be +Inf, so cap it to MaxFloat64.
+	amt, _ := amount.Float64()
+	if math.IsInf(amt, 1) {
+		amt = math.MaxFloat64
+	}
+	m.bondsClaimed.Add(amt)
 }
 
 func (m *Metrics) RecordClaimResolutionTime(t float64) {

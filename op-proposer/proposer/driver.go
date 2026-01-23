@@ -17,8 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -35,11 +33,6 @@ type L1Client interface {
 	// CallContract executes an Ethereum contract call with the specified data as the
 	// input.
 	CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
-}
-
-type L2OOContract interface {
-	Version(*bind.CallOpts) (string, error)
-	NextBlockNumber(*bind.CallOpts) (*big.Int, error)
 }
 
 type DGFContract interface {
@@ -76,9 +69,6 @@ type L2OutputSubmitter struct {
 	cancel context.CancelFunc
 
 	running atomic.Bool
-
-	l2ooContract L2OOContract
-	l2ooABI      *abi.ABI
 
 	dgfContract DGFContract
 }
@@ -164,59 +154,6 @@ func (l *L2OutputSubmitter) StopL2OutputSubmitting() error {
 
 	l.Log.Info("Proposer stopped")
 	return nil
-}
-
-// FetchL2OOOutput gets the next output proposal for the L2OO.
-// It queries the L2OO for the earliest next block number that should be proposed.
-// It returns the output to propose, and whether the proposal should be submitted at all.
-// The passed context is expected to be a lifecycle context. A network timeout
-// context will be derived from it.
-func (l *L2OutputSubmitter) FetchL2OOOutput(ctx context.Context) (source.Proposal, bool, error) {
-	if l.l2ooContract == nil {
-		return source.Proposal{}, false, fmt.Errorf("L2OutputOracle contract not set, cannot fetch next output info")
-	}
-
-	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
-	defer cancel()
-	callOpts := &bind.CallOpts{
-		From:    l.Txmgr.From(),
-		Context: cCtx,
-	}
-	nextCheckpointBlockBig, err := l.l2ooContract.NextBlockNumber(callOpts)
-	if err != nil {
-		return source.Proposal{}, false, fmt.Errorf("querying next block number: %w", err)
-	}
-	nextCheckpointBlock := nextCheckpointBlockBig.Uint64()
-	// Fetch the current L2 heads
-	currentBlockNumber, err := l.FetchCurrentBlockNumber(ctx)
-	if err != nil {
-		return source.Proposal{}, false, err
-	}
-
-	// Ensure that we do not submit a block in the future
-	if currentBlockNumber < nextCheckpointBlock {
-		l.Log.Debug("Proposer submission interval has not elapsed", "currentBlockNumber", currentBlockNumber, "nextBlockNumber", nextCheckpointBlock)
-		return source.Proposal{}, false, nil
-	}
-
-	proposal, err := l.FetchOutput(ctx, nextCheckpointBlock)
-	if err != nil {
-		return source.Proposal{}, false, fmt.Errorf("fetching output: %w", err)
-	}
-	if proposal.IsSuperRootProposal() {
-		panic("L2 Output Submitter should not be configured for Super Root proposals")
-	}
-
-	// Always propose if it's part of the Finalized L2 chain. Or if allowed, if it's part of the safe L2 chain.
-	if proposal.SequenceNum > proposal.Legacy.FinalizedL2.Number && (!l.Cfg.AllowNonFinalized || proposal.SequenceNum > proposal.Legacy.SafeL2.Number) {
-		l.Log.Debug("Not proposing yet, L2 block is not ready for proposal",
-			"l2_proposal", proposal.SequenceNum,
-			"l2_safe", proposal.Legacy.SafeL2,
-			"l2_finalized", proposal.Legacy.FinalizedL2,
-			"allow_non_finalized", l.Cfg.AllowNonFinalized)
-		return proposal, false, nil
-	}
-	return proposal, true, nil
 }
 
 // FetchDGFOutput queries the DGF for the latest game and infers whether it is time to make another proposal
@@ -340,19 +277,12 @@ func (l *L2OutputSubmitter) loop() {
 			// A note on retrying: the outer ticker already runs on a short
 			// poll interval, which has a default value of 6 seconds. So no
 			// retry logic is needed around proposal fetching here.
-			var proposal source.Proposal
-			var shouldPropose bool
-			var err error
-			if l.dgfContract == nil {
-				proposal, shouldPropose, err = l.FetchL2OOOutput(ctx)
-			} else {
-				proposal, shouldPropose, err = l.FetchDGFOutput(ctx)
-			}
+			proposal, shouldPropose, err := l.FetchDGFOutput(ctx)
 			if err != nil {
 				l.Log.Warn("Error getting proposal", "err", err)
 				continue
 			} else if !shouldPropose {
-				// debug logging already in Fetch(DGF|L2OO)Output
+				// debug logging already in FetchDGFOutput
 				continue
 			}
 

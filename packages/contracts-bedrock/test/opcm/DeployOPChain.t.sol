@@ -308,6 +308,40 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), 0, "CANNON init bond");
     }
 
+    /// @notice Tests that faultDisputeGame is set to address(0) and permissionedDisputeGame is set to the correct
+    /// implementation for GameTypes.PERMISSIONED_CANNON.
+    function test_run_faultDisputeGamePermissionedCannon_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
+
+        _assertDisputeGames(GameTypes.PERMISSIONED_CANNON);
+    }
+
+    /// @notice Tests that faultDisputeGame is set to address(0) when disputeGameType is GameTypes.CANNON.
+    function test_run_faultDisputeGameCannon_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
+
+        _assertDisputeGames(GameTypes.CANNON);
+    }
+
+    /// @notice Tests that faultDisputeGame is set to address(0) when disputeGameType is GameTypes.CANNON_KONA.
+    function test_run_faultDisputeGameCannonKona_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
+
+        _assertDisputeGames(GameTypes.CANNON_KONA);
+    }
+
+    /// @notice Helper function that runs DeployOPChain.run and asserts DeployOPChain.Output.faultDisputeGame is set to
+    /// address(0) and DeployOPChain.Output.permissionedDisputeGame is set to the correct implementation.
+    function _assertDisputeGames(GameType _gameType) internal {
+        deployOPChainInput.disputeGameType = _gameType;
+
+        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
+
+        address expectedPermissioned = address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
+        assertEq(address(doo.permissionedDisputeGame), expectedPermissioned, "PDG impl");
+        assertEq(address(doo.faultDisputeGame), address(0), "FDG should be set to address(0)");
+    }
+
     /// @notice Checks for additional assertions that are not covered by the basic non-zero and code checks in
     /// `DeployOPChain.checkOutput`.
     /// @param doo The output of the deployment.

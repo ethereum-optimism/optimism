@@ -58,3 +58,5 @@ metrics = [ "dep:metrics", "kona-derive/metrics" ]
 
 [dev-dependencies]
 tokio.workspace = true
+httpmock.workspace = true
+serde_json.workspace = true

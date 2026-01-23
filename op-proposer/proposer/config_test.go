@@ -18,16 +18,6 @@ func TestValidConfigIsValid(t *testing.T) {
 }
 
 func TestRollupRpc(t *testing.T) {
-	t.Run("RequiredWithL2OO", func(t *testing.T) {
-		cfg := validConfig()
-		cfg.DGFAddress = ""
-		cfg.L2OOAddress = common.Address{0xaa}.Hex()
-		cfg.ProposalInterval = 0
-		cfg.RollupRpc = ""
-		cfg.SupervisorRpcs = []string{"http://localhost:8882/supervisor"}
-		require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
-	})
-
 	for _, gameType := range preInteropGameTypes {
 		t.Run("RequiredWithPreInteropGame", func(t *testing.T) {
 			cfg := validConfig()
@@ -52,16 +42,6 @@ func TestRollupRpc(t *testing.T) {
 }
 
 func TestSupervisorRpc(t *testing.T) {
-	t.Run("NotRequiredWithL2OO", func(t *testing.T) {
-		cfg := validConfig()
-		cfg.DGFAddress = ""
-		cfg.L2OOAddress = common.Address{0xaa}.Hex()
-		cfg.ProposalInterval = 0
-		cfg.RollupRpc = "http://localhost/rollup"
-		cfg.SupervisorRpcs = nil
-		require.NoError(t, cfg.Check())
-	})
-
 	for _, gameType := range postInteropGameTypes {
 		t.Run("RequiredWithPostInteropGame", func(t *testing.T) {
 			cfg := validConfig()
@@ -99,7 +79,6 @@ func validConfig() *CLIConfig {
 		L1EthRpc:                     "http://localhost:8888/l1",
 		RollupRpc:                    "http://localhost:8888/l2",
 		SupervisorRpcs:               nil,
-		L2OOAddress:                  "",
 		PollInterval:                 100,
 		AllowNonFinalized:            false,
 		TxMgrConfig:                  txmgr.NewCLIConfig("http://localhost:8888/l1", txmgr.DefaultBatcherFlagValues),

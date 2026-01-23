@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
@@ -325,7 +326,7 @@ func ReadGasPriceOracleL1FeeUpperBoundAt(ctx context.Context, client apis.EthCli
 func ValidateL1FeeMatches(t devtest.T, calculatedFee, receiptFee *big.Int) {
 	require := t.Require()
 	require.NotNil(receiptFee, "L1 fee should be present in receipt")
-	require.Equalf(calculatedFee.Uint64(), receiptFee.Uint64(), "L1 fee mismatch (expected=%d actual=%d)", calculatedFee.Uint64(), receiptFee.Uint64())
+	require.Equalf(bigs.Uint64Strict(calculatedFee), bigs.Uint64Strict(receiptFee), "L1 fee mismatch (expected=%v actual=%v)", calculatedFee, receiptFee)
 }
 
 // CalculateFjordL1Cost calculates L1 cost using Fjord formula with block-specific L1 state

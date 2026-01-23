@@ -192,7 +192,8 @@ impl GossipDriverBuilder {
             .accept(sync_protocol_name)
             .map_err(|_| GossipDriverBuilderError::SyncReqRespAlreadyAccepted)?;
 
-        // Build the swarm.
+        // Build the swarm with DNS+TCP transport.
+        // Note: with_dns() must be called after with_tcp() to wrap TCP with DNS resolution.
         debug!(target: "gossip", "Building Swarm with Peer ID: {}", keypair.public().to_peer_id());
         let swarm = SwarmBuilder::with_existing_identity(keypair)
             .with_tokio()
@@ -204,6 +205,8 @@ impl GossipDriverBuilder {
                 },
                 YamuxConfig::default,
             )
+            .map_err(|_| GossipDriverBuilderError::TcpError)?
+            .with_dns()
             .map_err(|_| GossipDriverBuilderError::TcpError)?
             .with_behaviour(|_| behaviour)
             .map_err(|_| GossipDriverBuilderError::WithBehaviourError)?

@@ -18,7 +18,7 @@ mod seal;
 pub use seal::{SealTask, SealTaskError};
 
 mod consolidate;
-pub use consolidate::{ConsolidateTask, ConsolidateTaskError};
+pub use consolidate::{ConsolidateInput, ConsolidateTask, ConsolidateTaskError};
 
 mod finalize;
 pub use finalize::{FinalizeTask, FinalizeTaskError};

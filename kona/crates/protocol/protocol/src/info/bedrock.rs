@@ -1,10 +1,15 @@
 //! Contains bedrock-specific L1 block info types.
 
+use ambassador::Delegate;
+
+use crate::info::bedrock_base::ambassador_impl_L1BlockInfoBedrockBaseFields;
 use alloc::vec::Vec;
 use alloy_primitives::{Address, B256, Bytes, U256};
 
-use crate::DecodeError;
-
+use crate::{
+    DecodeError,
+    info::{L1BlockInfoBedrockBaseFields, bedrock_base::L1BlockInfoBedrockBase},
+};
 /// Represents the fields within a Bedrock L1 block info transaction.
 ///
 /// Bedrock Binary Format
@@ -21,26 +26,44 @@ use crate::DecodeError;
 // | 32      | L1FeeOverhead            |
 // | 32      | L1FeeScalar              |
 // +---------+--------------------------+
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Default, Copy)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Default, Copy, Delegate)]
+#[delegate(L1BlockInfoBedrockBaseFields, target = "base")]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct L1BlockInfoBedrock {
-    /// The current L1 origin block number
-    pub number: u64,
-    /// The current L1 origin block's timestamp
-    pub time: u64,
-    /// The current L1 origin block's basefee
-    pub base_fee: u64,
-    /// The current L1 origin block's hash
-    pub block_hash: B256,
-    /// The current sequence number
-    pub sequence_number: u64,
-    /// The address of the batch submitter
-    pub batcher_address: Address,
-    /// The fee overhead for L1 data
+    #[cfg_attr(feature = "serde", serde(flatten))]
+    base: L1BlockInfoBedrockBase,
+    /// The fee overhead for L1 data. Deprecated in Ecotone.
     pub l1_fee_overhead: U256,
-    /// The fee scalar for L1 data
+    /// The fee scalar for L1 data. Deprecated in Ecotone.
     pub l1_fee_scalar: U256,
 }
+
+/// Accessors for fields deprecated after Bedrock.
+pub trait L1BlockInfoBedrockOnlyFields {
+    /// The fee overhead for L1 data. Deprecated in Ecotone.
+    fn l1_fee_overhead(&self) -> U256;
+
+    /// The fee scalar for L1 data. Deprecated in Ecotone.
+    fn l1_fee_scalar(&self) -> U256;
+}
+
+impl L1BlockInfoBedrockOnlyFields for L1BlockInfoBedrock {
+    fn l1_fee_overhead(&self) -> U256 {
+        self.l1_fee_overhead
+    }
+
+    fn l1_fee_scalar(&self) -> U256 {
+        self.l1_fee_scalar
+    }
+}
+
+/// Accessors trait for all fields on [`L1BlockInfoBedrock`].
+pub trait L1BlockInfoBedrockFields:
+    L1BlockInfoBedrockBaseFields + L1BlockInfoBedrockOnlyFields
+{
+}
+
+impl L1BlockInfoBedrockFields for L1BlockInfoBedrock {}
 
 impl L1BlockInfoBedrock {
     /// The length of an L1 info transaction in Bedrock.
@@ -54,14 +77,14 @@ impl L1BlockInfoBedrock {
     pub fn encode_calldata(&self) -> Bytes {
         let mut buf = Vec::with_capacity(Self::L1_INFO_TX_LEN);
         buf.extend_from_slice(Self::L1_INFO_TX_SELECTOR.as_ref());
-        buf.extend_from_slice(U256::from(self.number).to_be_bytes::<32>().as_slice());
-        buf.extend_from_slice(U256::from(self.time).to_be_bytes::<32>().as_slice());
-        buf.extend_from_slice(U256::from(self.base_fee).to_be_bytes::<32>().as_slice());
-        buf.extend_from_slice(self.block_hash.as_slice());
-        buf.extend_from_slice(U256::from(self.sequence_number).to_be_bytes::<32>().as_slice());
-        buf.extend_from_slice(self.batcher_address.into_word().as_slice());
-        buf.extend_from_slice(self.l1_fee_overhead.to_be_bytes::<32>().as_slice());
-        buf.extend_from_slice(self.l1_fee_scalar.to_be_bytes::<32>().as_slice());
+        buf.extend_from_slice(U256::from(self.number()).to_be_bytes::<32>().as_slice());
+        buf.extend_from_slice(U256::from(self.time()).to_be_bytes::<32>().as_slice());
+        buf.extend_from_slice(U256::from(self.base_fee()).to_be_bytes::<32>().as_slice());
+        buf.extend_from_slice(self.block_hash().as_slice());
+        buf.extend_from_slice(U256::from(self.sequence_number()).to_be_bytes::<32>().as_slice());
+        buf.extend_from_slice(self.batcher_address().into_word().as_slice());
+        buf.extend_from_slice(self.l1_fee_overhead().to_be_bytes::<32>().as_slice());
+        buf.extend_from_slice(self.l1_fee_scalar().to_be_bytes::<32>().as_slice());
         buf.into()
     }
 
@@ -100,7 +123,7 @@ impl L1BlockInfoBedrock {
         let l1_fee_overhead = U256::from_be_slice(r[196..228].as_ref());
         let l1_fee_scalar = U256::from_be_slice(r[228..260].as_ref());
 
-        Ok(Self {
+        Ok(Self::new(
             number,
             time,
             base_fee,
@@ -109,7 +132,69 @@ impl L1BlockInfoBedrock {
             batcher_address,
             l1_fee_overhead,
             l1_fee_scalar,
-        })
+        ))
+    }
+    /// Construct from all values.
+    #[allow(clippy::too_many_arguments)]
+    pub const fn new(
+        number: u64,
+        time: u64,
+        base_fee: u64,
+        block_hash: B256,
+        sequence_number: u64,
+        batcher_address: Address,
+        l1_fee_overhead: U256,
+        l1_fee_scalar: U256,
+    ) -> Self {
+        Self {
+            base: L1BlockInfoBedrockBase::new(
+                number,
+                time,
+                base_fee,
+                block_hash,
+                sequence_number,
+                batcher_address,
+            ),
+            l1_fee_overhead,
+            l1_fee_scalar,
+        }
+    }
+    /// Construct from default values and `base_fee`.
+    pub fn new_from_base_fee(base_fee: u64) -> Self {
+        Self { base: L1BlockInfoBedrockBase::new_from_base_fee(base_fee), ..Default::default() }
+    }
+    /// Construct from default values and `block_hash`.
+    pub fn new_from_block_hash(block_hash: B256) -> Self {
+        Self { base: L1BlockInfoBedrockBase::new_from_block_hash(block_hash), ..Default::default() }
+    }
+    /// Construct from default values and `sequence_number`.
+    pub fn new_from_sequence_number(sequence_number: u64) -> Self {
+        Self {
+            base: L1BlockInfoBedrockBase::new_from_sequence_number(sequence_number),
+            ..Default::default()
+        }
+    }
+    /// Construct from default values and `batcher_address`.
+    pub fn new_from_batcher_address(batcher_address: Address) -> Self {
+        Self {
+            base: L1BlockInfoBedrockBase::new_from_batcher_address(batcher_address),
+            ..Default::default()
+        }
+    }
+    /// Construct from default values and `l1_fee_scalar`.
+    pub fn new_from_l1_fee_scalar(l1_fee_scalar: U256) -> Self {
+        Self { l1_fee_scalar, ..Default::default() }
+    }
+    /// Construct from default values and `l1_fee_overhead`.
+    pub fn new_from_l1_fee_overhead(l1_fee_overhead: U256) -> Self {
+        Self { l1_fee_overhead, ..Default::default() }
+    }
+    /// Construct from default values, `number` and `block_hash`.
+    pub fn new_from_number_and_block_hash(number: u64, block_hash: B256) -> Self {
+        Self {
+            base: L1BlockInfoBedrockBase::new_from_number_and_block_hash(number, block_hash),
+            ..Default::default()
+        }
     }
 }
 
@@ -129,16 +214,16 @@ mod tests {
 
     #[test]
     fn test_l1_block_info_bedrock_roundtrip_calldata_encoding() {
-        let info = L1BlockInfoBedrock {
-            number: 1,
-            time: 2,
-            base_fee: 3,
-            block_hash: B256::from([4u8; 32]),
-            sequence_number: 5,
-            batcher_address: Address::from([6u8; 20]),
-            l1_fee_overhead: U256::from(7),
-            l1_fee_scalar: U256::from(8),
-        };
+        let info = L1BlockInfoBedrock::new(
+            1,
+            2,
+            3,
+            B256::from([4u8; 32]),
+            5,
+            Address::from([6u8; 20]),
+            U256::from(7),
+            U256::from(8),
+        );
 
         let calldata = info.encode_calldata();
         let decoded_info = L1BlockInfoBedrock::decode_calldata(&calldata).unwrap();

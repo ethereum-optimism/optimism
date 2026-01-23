@@ -271,6 +271,15 @@ var (
 		Value:    false,
 		Category: SequencerCategory,
 	}
+	SequencerSealingDurationFlag = &cli.DurationFlag{
+		Name: "sequencer.sealing-duration",
+		Usage: "This is the amount of the time the sequencer allocates to sealing the block " +
+			"(i.e. it will fetch the payload from the execution engine this much prior to the block's timestamp). " +
+			"If this is <= 0 it is automatically adjusted to 50ms.",
+		EnvVars:  prefixEnvVars("SEQUENCER_SEALING_DURATION"),
+		Value:    50 * time.Millisecond,
+		Category: SequencerCategory,
+	}
 	FinalityLookbackFlag = &cli.Uint64Flag{
 		Name:     "finality.lookback",
 		Usage:    "Number of L1 blocks to look back for finality verification. Uses default calculation if 0 (considers alt-DA challenge/resolve windows if applicable).",
@@ -482,6 +491,7 @@ var optionalFlags = []cli.Flag{
 	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
 	SequencerRecoverMode,
+	SequencerSealingDurationFlag,
 	FinalityLookbackFlag,
 	FinalityDelayFlag,
 	L1EpochPollIntervalFlag,

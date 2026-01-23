@@ -1,5 +1,6 @@
 use std::sync::mpsc::SendError;
 
+use crate::DerivationClientError;
 use alloy_eips::BlockId;
 use alloy_transport::TransportError;
 use thiserror::Error;
@@ -19,4 +20,7 @@ pub enum L1WatcherActorError<T> {
     /// Stream ended unexpectedly.
     #[error("Stream ended unexpectedly")]
     StreamEnded,
+    /// Derivation client error.
+    #[error("derivation client error: {0}")]
+    DerivationClientError(#[from] DerivationClientError),
 }

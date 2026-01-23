@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -90,9 +91,9 @@ func (h *Helper) UploadLargePreimage(ctx context.Context, dataSize int, modifier
 			h.require.NoError(err)
 		}
 		for _, modifier := range modifiers {
-			modifier(startBlock.Uint64(), &inputData)
+			modifier(bigs.Uint64Strict(startBlock), &inputData)
 		}
-		h.t.Logf("Uploading %v parts of preimage %v starting at block %v of about %v Finalize: %v", len(inputData.Commitments), uuid.Uint64(), startBlock.Uint64(), totalBlocks, inputData.Finalize)
+		h.t.Logf("Uploading %v parts of preimage %v starting at block %v of about %v Finalize: %v", len(inputData.Commitments), bigs.Uint64Strict(uuid), bigs.Uint64Strict(startBlock), totalBlocks, inputData.Finalize)
 		tx, err := h.oracle.AddLeaves(uuid, startBlock, inputData.Input, inputData.Commitments, inputData.Finalize)
 		h.require.NoError(err)
 		// Can't use EstimateGas because all the transactions will be sent in a batch, and the contract checks the

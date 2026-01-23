@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	opp "github.com/ethereum-optimism/optimism/op-program/host"
 	oppconf "github.com/ethereum-optimism/optimism/op-program/host/config"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -130,10 +131,10 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 		opts.ToAddr = &cfg.Secrets.Addresses().Bob
 		opts.Value = big.NewInt(1_000)
 	})
-	require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, receipt.BlockNumber.Uint64()))
+	require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, bigs.Uint64Strict(receipt.BlockNumber)))
 
 	t.Logf("Capture current L2 head as agreed starting point. l2Head=%x l2BlockNumber=%v", receipt.BlockHash, receipt.BlockNumber)
-	agreedL2Output, err := rollupClient.OutputAtBlock(ctx, receipt.BlockNumber.Uint64())
+	agreedL2Output, err := rollupClient.OutputAtBlock(ctx, bigs.Uint64Strict(receipt.BlockNumber))
 	require.NoError(t, err, "could not retrieve l2 agreed block")
 	l2Head := agreedL2Output.BlockRef.Hash
 	l2OutputRoot := agreedL2Output.OutputRoot
@@ -162,7 +163,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 	t.Log("Determine L2 claim")
 	l2ClaimBlock, err := l2Seq.BlockByNumber(ctx, big.NewInt(int64(safeBlock.NumberU64()+2)))
 	require.NoError(t, err, "get L2 claim block number")
-	l2ClaimBlockNumber := l2ClaimBlock.Number().Uint64()
+	l2ClaimBlockNumber := bigs.Uint64Strict(l2ClaimBlock.Number())
 	l2Output, err := rollupClient.OutputAtBlock(ctx, l2ClaimBlockNumber)
 	require.NoError(t, err, "could not get expected output")
 	l2Claim := l2Output.OutputRoot
@@ -177,7 +178,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 		opts.Value = big.NewInt(1_000)
 		opts.Nonce = 1
 	})
-	require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, receipt.BlockNumber.Uint64()))
+	require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, bigs.Uint64Strict(receipt.BlockNumber)))
 
 	t.Log("Determine L1 head that includes batch after sequence of empty blocks")
 	l1HeadBlock, err := l1Client.BlockByNumber(ctx, nil)

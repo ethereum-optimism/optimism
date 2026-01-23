@@ -147,9 +147,9 @@ contract FaultDisputeGame is Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.3.0
+    /// @custom:semver 2.4.0
     function version() public pure virtual returns (string memory) {
-        return "2.3.0";
+        return "2.4.0";
     }
 
     /// @notice The starting timestamp of the game
@@ -273,6 +273,7 @@ contract FaultDisputeGame is Clone, ISemver {
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
         // configured starting block number.
         if (l2BlockNumber() <= rootBlockNumber) revert UnexpectedRootClaim(rootClaim());
+        if (l2BlockNumber() > type(uint64).max) revert UnexpectedRootClaim(rootClaim());
 
         // Validate parameters that require access to the VM.
         // The PreimageOracle challenge period must fit into uint64 so we can safely use it here.

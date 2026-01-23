@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -186,7 +187,7 @@ func (b *BlockProcessor) Assemble() (*types.Block, types.Receipts, error) {
 
 func (b *BlockProcessor) Commit() error {
 	isCancun := b.dataProvider.Config().IsCancun(b.header.Number, b.header.Time)
-	root, err := b.state.Commit(b.header.Number.Uint64(), b.dataProvider.Config().IsEIP158(b.header.Number), isCancun)
+	root, err := b.state.Commit(bigs.Uint64Strict(b.header.Number), b.dataProvider.Config().IsEIP158(b.header.Number), isCancun)
 	if err != nil {
 		return fmt.Errorf("state write error: %w", err)
 	}

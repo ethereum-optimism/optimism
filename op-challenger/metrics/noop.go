@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"io"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -38,8 +39,8 @@ func (*NoopMetricsImpl) RecordPreimageChallenged()      {}
 func (*NoopMetricsImpl) RecordPreimageChallengeFailed() {}
 func (*NoopMetricsImpl) RecordLargePreimageCount(_ int) {}
 
-func (*NoopMetricsImpl) RecordBondClaimFailed()   {}
-func (*NoopMetricsImpl) RecordBondClaimed(uint64) {}
+func (*NoopMetricsImpl) RecordBondClaimFailed()     {}
+func (*NoopMetricsImpl) RecordBondClaimed(*big.Int) {}
 
 func (*NoopMetricsImpl) RecordClaimResolutionTime(t float64) {}
 func (*NoopMetricsImpl) RecordGameActTime(t float64)         {}
