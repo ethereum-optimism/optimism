@@ -65,7 +65,7 @@ func testImplementations(t *testing.T, forkRPCURL string) {
 
 	proxyAdminOwner, err := standard.L1ProxyAdminOwner(uint64(chainID.Uint64()))
 	require.NoError(t, err)
-		deploy := func() opcm.DeployImplementationsOutput {
+	deploy := func() opcm.DeployImplementationsOutput {
 		out, err := Implementations(ctx, ImplementationsConfig{
 			L1RPCUrl:                        l1RPC,
 			PrivateKey:                      testutil.AnvilDefaultPrivateKey,
