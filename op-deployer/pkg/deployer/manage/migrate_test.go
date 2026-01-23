@@ -612,10 +612,6 @@ func upgradeChainV2(t *testing.T, host *script.Host, proxyAdminOwner common.Addr
 					Key:  "PermittedProxyDeployment",
 					Data: []byte("DelayedWETH"),
 				},
-				{
-					Key:  "overrides.cfg.useCustomGasToken",
-					Data: make([]byte, 32),
-				},
 			},
 		},
 	}
