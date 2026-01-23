@@ -23,6 +23,14 @@ type SuperRootAtTimestampResponse struct {
 	// CurrentL1 is the highest L1 block that has been fully derived and verified by all chains.
 	CurrentL1 BlockID `json:"current_l1"`
 
+	// CurrentSafeTimestamp is the highest L2 timestamp that is safe across the dependency set at the CurrentL1.
+	// This value is derived from the minimum per-chain safe L2 head timestamp.
+	CurrentSafeTimestamp uint64 `json:"safe_timestamp"`
+
+	// CurrentFinalizedTimestamp is the highest L2 timestamp that is finalized across the dependency set at the CurrentL1.
+	// This value is derived from the minimum per-chain finalized L2 head timestamp.
+	CurrentFinalizedTimestamp uint64 `json:"finalized_timestamp"`
+
 	// OptimisticAtTimestamp is the L2 block that would be applied if verification were assumed to be successful,
 	// and the minimum L1 block required to derive them. If Data is nil, some chains may be absent from this map,
 	// indicating that there is no optimistic block for the chain at the requested timestamp that can be derived

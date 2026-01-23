@@ -40,23 +40,52 @@ func (api *superrootAPI) AtTimestamp(ctx context.Context, timestamp uint64) (eth
 }
 
 func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
-	optimistic := map[eth.ChainID]eth.OutputWithRequiredL1{}
-	minCurrentL1 := eth.BlockID{}
-	minVerifiedRequiredL1 := eth.BlockID{}
-	chainOutputs := make([]eth.ChainIDAndOutput, 0, len(s.chains))
-
+	var (
+		optimistic            = make(map[eth.ChainID]eth.OutputWithRequiredL1, len(s.chains))
+		minCurrentL1          eth.BlockID
+		minVerifiedRequiredL1 eth.BlockID
+		minSafeTimestamp      uint64
+		minFinalizedTimestamp uint64
+		safeInitialized       bool
+		finalizedInitialized  bool
+		chainOutputs          = make([]eth.ChainIDAndOutput, 0, len(s.chains))
+	)
 	// Get current l1s
 	// this informs callers that the chains local views have considered at least up to this L1 block
 	// TODO(#18651): Currently there are no verifiers to consider, but once there are, this needs to be updated to consider if
 	// they have also processed the L1 data.
 	for chainID, chain := range s.chains {
-		currentL1, err := chain.CurrentL1(ctx)
+		status, err := chain.SyncStatus(ctx)
 		if err != nil {
-			s.log.Warn("failed to get current L1", "chain_id", chainID.String(), "err", err)
+			s.log.Warn("failed to get sync status", "chain_id", chainID.String(), "err", err)
 			return eth.SuperRootAtTimestampResponse{}, err
 		}
-		if currentL1.ID().Number < minCurrentL1.Number || minCurrentL1 == (eth.BlockID{}) {
-			minCurrentL1 = currentL1.ID()
+		if status == nil { // defensive
+			status = &eth.SyncStatus{}
+		}
+
+		currentL1 := status.CurrentL1.ID()
+		if currentL1.Number < minCurrentL1.Number || minCurrentL1 == (eth.BlockID{}) {
+			minCurrentL1 = currentL1
+		}
+		// Conservative aggregation across chains: take the minimum timestamps.
+		// If any chain has a zero timestamp (not initialized), the aggregate is zero.
+		if !safeInitialized {
+			minSafeTimestamp = status.SafeL2.Time
+			safeInitialized = true
+		} else if minSafeTimestamp == 0 || status.SafeL2.Time == 0 {
+			minSafeTimestamp = 0
+		} else if status.SafeL2.Time < minSafeTimestamp {
+			minSafeTimestamp = status.SafeL2.Time
+		}
+
+		if !finalizedInitialized {
+			minFinalizedTimestamp = status.FinalizedL2.Time
+			finalizedInitialized = true
+		} else if minFinalizedTimestamp == 0 || status.FinalizedL2.Time == 0 {
+			minFinalizedTimestamp = 0
+		} else if status.FinalizedL2.Time < minFinalizedTimestamp {
+			minFinalizedTimestamp = status.FinalizedL2.Time
 		}
 	}
 
@@ -106,9 +135,11 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		return a.Cmp(b)
 	})
 	response := eth.SuperRootAtTimestampResponse{
-		CurrentL1:             minCurrentL1,
-		OptimisticAtTimestamp: optimistic,
-		ChainIDs:              chainIDs,
+		CurrentL1:                 minCurrentL1,
+		CurrentSafeTimestamp:      minSafeTimestamp,
+		CurrentFinalizedTimestamp: minFinalizedTimestamp,
+		OptimisticAtTimestamp:     optimistic,
+		ChainIDs:                  chainIDs,
 	}
 	if !notFound {
 		// Build super root from collected outputs

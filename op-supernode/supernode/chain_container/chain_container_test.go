@@ -101,9 +101,14 @@ func (m *mockVirtualNode) LastL1(ctx context.Context) (eth.BlockID, error) {
 	return m.safeHeadL1, m.safeHeadErr
 }
 
-// CurrentL1 implements virtual_node.VirtualNode CurrentL1
-func (m *mockVirtualNode) CurrentL1(ctx context.Context) (eth.BlockRef, error) {
-	return eth.BlockRef{Hash: m.safeHeadL1.Hash, Number: m.safeHeadL1.Number}, m.safeHeadErr
+// SyncStatus implements virtual_node.VirtualNode SyncStatus
+func (m *mockVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	if m.safeHeadErr != nil {
+		return nil, m.safeHeadErr
+	}
+	return &eth.SyncStatus{
+		CurrentL1: eth.L1BlockRef{Hash: m.safeHeadL1.Hash, Number: m.safeHeadL1.Number},
+	}, nil
 }
 
 // SafeDB is not required by VirtualNode in these tests
