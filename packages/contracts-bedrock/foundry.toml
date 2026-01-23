@@ -1,5 +1,5 @@
 ################################################################
-#                   PROFILE: DEFAULT (local)                   #
+#                   PROFILE: DEFjusLT (local)                   #
 ################################################################
 
 [profile.default]
@@ -77,15 +77,15 @@ ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-
 deny = "warnings"
 ffi = true
 
-[lint]
-exclude_lints = ["mixed-case-function", "unsafe-typecast", "asm-keccak256", "screaming-snake-case-immutable", "mixed-case-variable", "divide-before-multiply", "unaliased-plain-import", "screaming-snake-case-const", "unsafe-cheatcode", "erc20-unchecked-transfer", "unaliased-plain-import", "named-struct-fields", "incorrect-shift", "unchecked-call", "unwrapped-modifier-logic", "unwrapped-modifier-logic", "pascal-case-struct", "unused-import"]
-
 # We set the gas limit to max int64 to avoid running out of gas during testing, since the default
 # gas limit is 1B and some of our tests require more gas than that, such as
 # test_callWithMinGas_noLeakageLow_succeeds. We use this gas limit since it was the default gas
 # limit prior to https://github.com/foundry-rs/foundry/pull/8274. Due to toml-rs limitations, if
 # you increase the gas limit above this value it must be a string.
 gas_limit = 9223372036854775807
+
+[lint]
+exclude_lints = ["mixed-case-function", "unsafe-typecast", "asm-keccak256", "screaming-snake-case-immutable", "mixed-case-variable", "divide-before-multiply", "unaliased-plain-import", "screaming-snake-case-const", "unsafe-cheatcode", "erc20-unchecked-transfer", "unaliased-plain-import", "named-struct-fields", "incorrect-shift", "unchecked-call", "unwrapped-modifier-logic", "unwrapped-modifier-logic", "pascal-case-struct", "unused-import"]
 
 [fuzz]
 runs = 64

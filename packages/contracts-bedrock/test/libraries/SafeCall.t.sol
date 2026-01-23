@@ -89,7 +89,15 @@ contract SafeCall_Send_Test is SafeCall_TestInit {
 /// @notice Tests the `call` function of the `SafeCall` contract.
 contract SafeCall_Call_Test is SafeCall_TestInit {
     /// @notice Tests that `call` succeeds.
-    function testFuzz_call_succeeds(address from, address to, uint256 gas, uint64 value, bytes memory data) external {
+    function testFuzz_call_succeeds(
+        address from,
+        address to,
+        uint256 gas,
+        uint64 value,
+        bytes memory data
+    )
+        external
+    {
         assumeNot(from);
         assumeNot(to);
 
@@ -152,6 +160,7 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
     }
 
     /// @notice Tests that `callWithMinGas` succeeds for the lower gas bounds.
+    /// forge-config: default.gas_limit = 18446744073709551615
     function test_callWithMinGas_noLeakageLow_succeeds() external {
         SimpleSafeCaller caller = new SimpleSafeCaller();
 
