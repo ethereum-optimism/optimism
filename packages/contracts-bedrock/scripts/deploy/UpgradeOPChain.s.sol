@@ -5,8 +5,9 @@ import { Script } from "forge-std/Script.sol";
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { OPContractsManagerV2 } from "src/L1/opcm/OPContractsManagerV2.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { DummyCaller } from "scripts/libraries/DummyCaller.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 contract UpgradeOPChainInput is BaseDeployIO {
     address internal _prank;
@@ -28,7 +29,7 @@ contract UpgradeOPChainInput is BaseDeployIO {
     /// @param _sel The selector of the field to set.
     /// @param _value The value to set.
     function set(bytes4 _sel, OPContractsManager.OpChainConfig[] memory _value) public {
-        if (OPContractsManager(opcm()).isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+        if (SemverComp.gte(OPContractsManager(opcm()).version(), Constants.OPCM_V2_MIN_VERSION)) {
             revert("UpgradeOPCMInput: cannot set OPCM v1 upgrade input when OPCM v2 is enabled");
         }
         require(_value.length > 0, "UpgradeOPCMInput: cannot set empty array");
@@ -44,7 +45,7 @@ contract UpgradeOPChainInput is BaseDeployIO {
     /// @param _sel The selector of the field to set.
     /// @param _value The value to set.
     function set(bytes4 _sel, OPContractsManagerV2.UpgradeInput memory _value) public {
-        if (!OPContractsManager(opcm()).isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+        if (!SemverComp.gte(OPContractsManager(opcm()).version(), Constants.OPCM_V2_MIN_VERSION)) {
             revert("UpgradeOPCMInput: cannot set OPCM v2 upgrade input when OPCM v1 is enabled");
         }
         require(address(_value.systemConfig) != address(0), "UpgradeOPCMInput: cannot set zero address");
@@ -75,7 +76,7 @@ contract UpgradeOPChain is Script {
         address opcm = _uoci.opcm();
 
         // First, we need to check what version of OPCM is being used.
-        bool useOPCMv2 = OPContractsManager(opcm).isDevFeatureEnabled(DevFeatures.OPCM_V2);
+        bool isOPCMv2 = SemverComp.gte(OPContractsManager(opcm).version(), Constants.OPCM_V2_MIN_VERSION);
 
         // Etch DummyCaller contract. This contract is used to mimic the contract that is used
         // as the source of the delegatecall to the OPCM. In practice this will be the governance
@@ -92,7 +93,7 @@ contract UpgradeOPChain is Script {
         // Call into the DummyCaller. This will perform the delegatecall under the hood.
         // The DummyCaller uses a fallback that reverts on failure, so no need to check success.
         vm.broadcast(msg.sender);
-        _upgrade(prank, useOPCMv2, upgradeInput);
+        _upgrade(prank, isOPCMv2, upgradeInput);
     }
 
     /// @notice Helper function to get the dummy caller code.
@@ -104,11 +105,11 @@ contract UpgradeOPChain is Script {
     /// @notice Helper function to upgrade the OPCM based on the OPCM version. Performs the decoding of the upgrade
     /// input and the delegatecall to the OPCM.
     /// @param _prank The address of the dummy caller contract.
-    /// @param _useOPCMv2 Whether to use OPCM v2.
+    /// @param _isOPCMv2 Whether to use OPCM v2.
     /// @param _upgradeInput The upgrade input.
-    function _upgrade(address _prank, bool _useOPCMv2, bytes memory _upgradeInput) internal {
+    function _upgrade(address _prank, bool _isOPCMv2, bytes memory _upgradeInput) internal {
         bytes memory data;
-        if (_useOPCMv2) {
+        if (_isOPCMv2) {
             data = abi.encodeCall(
                 OPContractsManagerV2.upgrade, abi.decode(_upgradeInput, (OPContractsManagerV2.UpgradeInput))
             );

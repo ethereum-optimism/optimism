@@ -10,6 +10,7 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
@@ -91,7 +92,7 @@ func Test_ProgramAction_JovianMinBaseFee(gt *testing.T) {
 		require.Equal(t, expectedJovianExtraDataWithMinFee, blockAfterSystemConfigChange.Extra(), "block should have updated Jovian extraData with min base fee")
 
 		// Verify base fee is clamped
-		require.GreaterOrEqual(t, blockAfterSystemConfigChange.BaseFee().Uint64(), minBaseFee, "base fee should be >= minimum base fee")
+		require.GreaterOrEqual(t, bigs.Uint64Strict(blockAfterSystemConfigChange.BaseFee()), minBaseFee, "base fee should be >= minimum base fee")
 
 		if !jovianAtGenesis {
 			// Verify Jovian fork activation occurred by checking for the activation log

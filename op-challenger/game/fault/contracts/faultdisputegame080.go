@@ -44,7 +44,7 @@ func (f *FaultDisputeGameContract080) GetExtendedMetadata(ctx context.Context, b
 		return GameMetadata{}, fmt.Errorf("expected 5 results but got %v", len(results))
 	}
 	l1Head := results[0].GetHash(0)
-	l2BlockNumber := results[1].GetBigInt(0).Uint64()
+	l2BlockNumber := getBlockNumber(results[1], 0)
 	rootClaim := results[2].GetHash(0)
 	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
 	if err != nil {

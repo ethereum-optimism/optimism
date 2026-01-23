@@ -19,7 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const virtualNodeVersion = "0.1.0"
@@ -54,10 +53,10 @@ type simpleChainContainer struct {
 	stopped            chan struct{}
 	log                gethlog.Logger
 	chainID            eth.ChainID
-	initOverload       *rollupNode.InitializationOverrides  // Base shared resources for all virtual nodes
-	rpcHandler         *oprpc.Handler                       // Current per-chain RPC handler instance
-	setHandler         func(chainID string, h http.Handler) // Set the RPC handler on the router for the chain
-	setMetricsHandler  func(chainID string, h http.Handler) // Set the metrics handler on the router for the chain
+	initOverload       *rollupNode.InitializationOverrides     // Base shared resources for all virtual nodes
+	rpcHandler         *oprpc.Handler                          // Current per-chain RPC handler instance
+	setHandler         func(chainID string, h http.Handler)    // Set the RPC handler on the router for the chain
+	addMetricsRegistry func(key string, g prometheus.Gatherer) // Set the metrics registry on the global metrics server
 	appVersion         string
 	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
@@ -74,7 +73,7 @@ func NewChainContainer(
 	initOverload *rollupNode.InitializationOverrides,
 	rpcHandler *oprpc.Handler,
 	setHandler func(chainID string, h http.Handler),
-	setMetricsHandler func(chainID string, h http.Handler),
+	addMetricsRegistry func(key string, g prometheus.Gatherer),
 ) ChainContainer {
 	c := &simpleChainContainer{
 		vncfg:              vncfg,
@@ -85,7 +84,7 @@ func NewChainContainer(
 		initOverload:       initOverload,
 		rpcHandler:         rpcHandler,
 		setHandler:         setHandler,
-		setMetricsHandler:  setMetricsHandler,
+		addMetricsRegistry: addMetricsRegistry,
 		appVersion:         virtualNodeVersion,
 		virtualNodeFactory: defaultVirtualNodeFactory,
 	}
@@ -142,12 +141,9 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		// Disable per-VN metrics server and provide metrics registry hook
 		c.vncfg.Metrics.Enabled = false
 		if c.initOverload != nil {
-			chainID := c.chainID.String()
 			c.initOverload.MetricsRegistry = func(reg *prometheus.Registry) {
-				if c.setMetricsHandler != nil {
-					// Mount per-chain metrics handler at /{chain}/metrics via router
-					handler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
-					c.setMetricsHandler(chainID, handler)
+				if c.addMetricsRegistry != nil {
+					c.addMetricsRegistry(c.chainID.String(), reg)
 				}
 			}
 		}

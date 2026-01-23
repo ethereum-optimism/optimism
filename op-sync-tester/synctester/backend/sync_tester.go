@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/session"
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
@@ -132,7 +133,7 @@ func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.Blo
 			logger.Warn("L2 Block has zero receipts", "blockNrHash", blockNrOrHash)
 			return nil, errors.New("no receipts")
 		}
-		target := receipts[0].BlockNumber.Uint64()
+		target := bigs.Uint64Strict(receipts[0].BlockNumber)
 		if target > session.CurrentState.Latest {
 			logger.Warn("Requested block is ahead of sync tester state", "requested", target)
 			return nil, ethereum.NotFound
@@ -153,7 +154,7 @@ func (s *SyncTester) GetBlockByHash(ctx context.Context, hash common.Hash, fullT
 		if err := json.Unmarshal(raw, &header); err != nil {
 			return nil, err
 		}
-		target := header.Number.ToInt().Uint64()
+		target := bigs.Uint64Strict(header.Number.ToInt())
 		if target > session.CurrentState.Latest {
 			logger.Warn("Requested block is ahead of sync tester state", "requested", target)
 			return nil, ethereum.NotFound

@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +16,7 @@ func AssertAncestorDescendantRelationship(t helpers.Testing, chain *Chain, ances
 	for current.Number > ancestor.Number && current.Number > 0 {
 		header, err := chain.SequencerEngine.Eth.APIBackend.HeaderByNumber(t.Ctx(), rpc.BlockNumber(current.Number-1))
 		result = result && assert.NoError(t, err)
-		current = eth.BlockID{Hash: header.Hash(), Number: header.Number.Uint64()}
+		current = eth.BlockID{Hash: header.Hash(), Number: bigs.Uint64Strict(header.Number)}
 	}
 	return result && assert.Equal(t, current, ancestor, "descendant block is not a descendant of the ancestor block")
 }

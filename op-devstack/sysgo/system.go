@@ -337,6 +337,47 @@ func DefaultSingleChainInteropSystem(dest *DefaultSingleChainInteropSystemIDs) s
 	return opt
 }
 
+// DefaultMinimalInteropSystem creates a minimal system with interop contracts but no supervisor.
+// This tests interop contract deployment with local finality (SupervisorEnabled=false in op-node).
+func DefaultMinimalInteropSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Orchestrator] {
+	ids := NewDefaultMinimalSystemIDs(DefaultL1ID, DefaultL2AID)
+	opt := stack.Combine[*Orchestrator]()
+
+	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
+		o.P().Logger().Info("Setting up minimal interop (no supervisor)")
+	}))
+
+	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
+
+	opt.Add(WithDeployer(),
+		WithDeployerOptions(
+			WithLocalContractSources(),
+			WithCommons(ids.L1.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2.ChainID()),
+			WithInteropAtGenesis(),
+		),
+	)
+
+	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
+
+	// No supervisor - interop with local finality only
+	opt.Add(WithL2ELNode(ids.L2EL))
+	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, L2CLSequencer()))
+	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
+	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
+	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
+
+	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}))
+
+	opt.Add(WithL2MetricsDashboard())
+
+	opt.Add(stack.Finally(func(orch *Orchestrator) {
+		*dest = ids
+	}))
+
+	return opt
+}
+
 // baseInteropSystem defines a system that supports interop with a single chain
 // Components which are shared across multiple chains are not started, allowing them to be added later including
 // any additional chains that have been added.

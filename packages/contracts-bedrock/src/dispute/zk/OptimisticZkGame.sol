@@ -146,8 +146,8 @@ contract OptimisticZkGame is Clone, ISemver, IDisputeGame {
     AccessManager internal immutable ACCESS_MANAGER;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.1.0
-    string public constant version = "0.1.0";
+    /// @custom:semver 0.2.0
+    string public constant version = "0.2.0";
 
     /// @notice The starting timestamp of the game.
     Timestamp public createdAt;
@@ -294,6 +294,9 @@ contract OptimisticZkGame is Clone, ISemver, IDisputeGame {
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
         // configured starting block number.
         if (l2SequenceNumber() <= startingProposal.l2SequenceNumber) {
+            revert UnexpectedRootClaim(rootClaim());
+        }
+        if (l2SequenceNumber() > type(uint64).max) {
             revert UnexpectedRootClaim(rootClaim());
         }
 

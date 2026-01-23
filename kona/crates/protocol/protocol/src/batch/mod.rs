@@ -69,7 +69,7 @@ mod element;
 pub use element::{MAX_SPAN_BATCH_ELEMENTS, SpanBatchElement};
 
 mod validity;
-pub use validity::BatchValidity;
+pub use validity::{BatchDropReason, BatchValidity};
 
 mod single;
 pub use single::SingleBatch;

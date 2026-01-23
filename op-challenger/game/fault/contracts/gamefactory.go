@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -103,7 +104,7 @@ func (f *DisputeGameFactoryContract) GetGameCount(ctx context.Context, blockHash
 	if err != nil {
 		return 0, fmt.Errorf("failed to load game count: %w", err)
 	}
-	return result.GetBigInt(0).Uint64(), nil
+	return bigs.Uint64Strict(result.GetBigInt(0)), nil
 }
 
 func (f *DisputeGameFactoryContract) GetGame(ctx context.Context, idx uint64, block rpcblock.Block) (gameTypes.GameMetadata, error) {

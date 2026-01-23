@@ -153,6 +153,13 @@ func WithL1Head(head common.Hash) FixtureInputParam {
 	}
 }
 
+// WithL2RPCTracker sets the L2RPCTracker to observe L2 JSON-RPC calls made by the program host.
+func WithL2RPCTracker(tracker *L2RPCTracker) FixtureInputParam {
+	return func(f *FixtureInputs) {
+		f.L2RPCTracker = tracker
+	}
+}
+
 // RunFaultProofProgram runs the fault proof program for each state transition from genesis up to the provided l2 block num.
 func (env *L2FaultProofEnv) RunFaultProofProgramFromGenesis(t helpers.Testing, finalL2BlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	l2ClaimBlockNum := uint64(0)

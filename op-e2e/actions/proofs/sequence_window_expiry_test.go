@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -55,7 +56,7 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 
 	// Ensure the safe head is still 0.
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
-	require.EqualValues(t, 0, l2SafeHead.Number.Uint64())
+	require.EqualValues(t, 0, bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Ask the sequencer to derive the deposit-only L2 chain.
 	env.Sequencer.ActL1HeadSignal(t)
@@ -63,10 +64,10 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 
 	// Ensure the safe head advanced forcefully.
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
-	require.Greater(t, l2SafeHead.Number.Uint64(), uint64(0),
+	require.Greater(t, bigs.Uint64Strict(l2SafeHead.Number), uint64(0),
 		"The safe head failed to progress after the sequencing window expired (expected deposit-only blocks to be derived).")
 
-	env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64()/2, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgram(t, bigs.Uint64Strict(l2SafeHead.Number)/2, testCfg.CheckResult, testCfg.InputParams...)
 
 	// Set recover mode on the sequencer:
 	env.Sequencer.ActSetRecoverMode(t, true)
@@ -200,7 +201,7 @@ func runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test(gt *testing.T, t
 
 	// Ensure the safe head is still 0.
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
-	require.EqualValues(t, 0, l2SafeHead.Number.Uint64())
+	require.EqualValues(t, 0, bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Cache the next frame data before expiring the sequence window, but don't submit it yet.
 	env.Batcher.ActL2BatchBuffer(t)
@@ -232,7 +233,7 @@ func runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test(gt *testing.T, t
 
 	// Ensure the safe head is still 0.
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
-	require.EqualValues(t, 0, l2SafeHead.Number.Uint64())
+	require.EqualValues(t, 0, bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Ask the sequencer to derive the deposit-only L2 chain.
 	env.Sequencer.ActL1HeadSignal(t)
@@ -240,10 +241,10 @@ func runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test(gt *testing.T, t
 
 	// Ensure the safe head advanced forcefully.
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
-	require.Greater(t, l2SafeHead.Number.Uint64(), uint64(0))
+	require.Greater(t, bigs.Uint64Strict(l2SafeHead.Number), uint64(0))
 
 	// Run the FPP on one of the auto-derived blocks.
-	env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64()/2, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgram(t, bigs.Uint64Strict(l2SafeHead.Number)/2, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 func Test_ProgramAction_SequenceWindowExpired(gt *testing.T) {

@@ -196,10 +196,9 @@ func WithOpGeth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 		useInterop := l2Net.genesis.Config.InteropTime != nil
 
 		supervisorRPC := ""
-		if useInterop {
-			require.NotNil(cfg.SupervisorID, "supervisor is required for interop")
+		if useInterop && cfg.SupervisorID != nil {
 			sup, ok := orch.supervisors.Get(*cfg.SupervisorID)
-			require.True(ok, "supervisor is required for interop")
+			require.True(ok, "supervisor not found")
 			supervisorRPC = sup.UserRPC()
 		}
 

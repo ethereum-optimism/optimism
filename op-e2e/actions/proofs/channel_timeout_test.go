@@ -6,6 +6,7 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -51,7 +52,7 @@ func runChannelTimeoutTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 
 	// Ensure that the safe head has not advanced - the channel is incomplete.
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
-	require.Equal(t, uint64(0), l2SafeHead.Number.Uint64())
+	require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Time out the channel by mining `channelTimeout + 1` empty blocks on L1.
 	for i := uint64(0); i < channelTimeout+1; i++ {
@@ -65,7 +66,7 @@ func runChannelTimeoutTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 
 	// Ensure the safe head has still not advanced.
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
-	require.Equal(t, uint64(0), l2SafeHead.Number.Uint64())
+	require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Ensure that the channel was timed out.
 	require.EqualValues(t, 1, timedOutChannels)
@@ -99,10 +100,10 @@ func runChannelTimeoutTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 
 	// Ensure the safe head has still advanced to L2 block # NumL2Blocks.
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
-	require.EqualValues(t, NumL2Blocks, l2SafeHead.Number.Uint64())
+	require.EqualValues(t, NumL2Blocks, bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Run FPP from genesis up to safe head
-	env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, bigs.Uint64Strict(l2SafeHead.Number), testCfg.CheckResult, testCfg.InputParams...)
 }
 
 func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.TestCfg[any]) {
@@ -145,7 +146,7 @@ func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.Test
 
 	// Ensure that the safe head has not advanced - the channel is incomplete.
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
-	require.Equal(t, uint64(0), l2SafeHead.Number.Uint64())
+	require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Time out the channel by mining `channelTimeout + 1` empty blocks on L1.
 	for i := uint64(0); i < channelTimeout+1; i++ {
@@ -159,7 +160,7 @@ func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.Test
 
 	// Ensure the safe head has still not advanced.
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
-	require.Equal(t, uint64(0), l2SafeHead.Number.Uint64())
+	require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Ensure that the channel was timed out.
 	require.EqualValues(t, 1, timedOutChannels)
@@ -188,7 +189,7 @@ func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.Test
 
 	// Ensure the safe head has still not advanced.
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
-	require.Equal(t, uint64(0), l2SafeHead.Number.Uint64())
+	require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Instruct the batcher to submit the blocks to L1 in a new channel.
 	for _, frame := range [][]byte{firstFrame, finalFrame} {
@@ -207,10 +208,10 @@ func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.Test
 
 	// Ensure the safe head has still advanced to L2 block # NumL2Blocks.
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
-	require.EqualValues(t, NumL2Blocks, l2SafeHead.Number.Uint64())
+	require.EqualValues(t, NumL2Blocks, bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Run FPP from genesis up to safe head
-	env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, bigs.Uint64Strict(l2SafeHead.Number), testCfg.CheckResult, testCfg.InputParams...)
 }
 
 func Test_ProgramAction_ChannelTimeout(gt *testing.T) {

@@ -1,12 +1,9 @@
 use async_trait::async_trait;
-use jsonrpsee::{
-    core::RpcResult,
-    types::{ErrorCode, ErrorObject},
-};
+use jsonrpsee::core::RpcResult;
 use rollup_boost::Health;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 
-use crate::jsonrpsee::{HealthzApiServer, RollupBoostHealthzApiServer};
+use crate::jsonrpsee::HealthzApiServer;
 
 /// Key for the rollup boost health status.
 /// +----------------+-------------------------------+--------------------------------------+-------------------------------+
@@ -73,38 +70,11 @@ pub struct RollupBoostHealthQuery {
 
 /// The healthz rpc server.
 #[derive(Debug, Clone)]
-pub struct HealthzRpc {
-    /// The rollup boost health.
-    pub rollup_boost_health: mpsc::Sender<RollupBoostHealthQuery>,
-}
-
-impl HealthzRpc {
-    /// Constructs a new [`HealthzRpc`] given the rollup boost health sender.
-    pub const fn new(rollup_boost_health: mpsc::Sender<RollupBoostHealthQuery>) -> Self {
-        Self { rollup_boost_health }
-    }
-}
+pub struct HealthzRpc {}
 
 #[async_trait]
 impl HealthzApiServer for HealthzRpc {
     async fn healthz(&self) -> RpcResult<HealthzResponse> {
         Ok(HealthzResponse { version: env!("CARGO_PKG_VERSION").to_string() })
-    }
-}
-
-#[async_trait]
-impl RollupBoostHealthzApiServer for HealthzRpc {
-    async fn rollup_boost_healthz(&self) -> RpcResult<RollupBoostHealthzResponse> {
-        let (tx, rx) = oneshot::channel();
-
-        self.rollup_boost_health
-            .send(RollupBoostHealthQuery { sender: tx })
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
-
-        let rollup_boost_health =
-            rx.await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
-
-        Ok(RollupBoostHealthzResponse { rollup_boost_health })
     }
 }

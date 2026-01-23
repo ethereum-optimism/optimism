@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -40,6 +41,7 @@ type ApplyConfig struct {
 	CacheDir         string
 	privateKeyECDSA  *ecdsa.PrivateKey
 	PreStateBuilder  pipeline.PreStateBuilder
+	UseForge         bool
 }
 
 func (a *ApplyConfig) Check() error {
@@ -110,6 +112,7 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 			Logger:           l,
 			CacheDir:         cacheDir,
 			PreStateBuilder:  preStateBuilder,
+			UseForge:         cliCtx.Bool(UseForgeFlagName),
 		}); err != nil {
 			return err
 		}
@@ -168,6 +171,7 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		StateWriter:        pipeline.WorkdirStateWriter(cfg.Workdir),
 		CacheDir:           cfg.CacheDir,
 		PreStateBuilder:    cfg.PreStateBuilder,
+		UseForge:           cfg.UseForge,
 	}); err != nil {
 		return err
 	}
@@ -190,6 +194,7 @@ type ApplyPipelineOpts struct {
 	StateWriter        pipeline.StateWriter
 	CacheDir           string
 	PreStateBuilder    pipeline.PreStateBuilder
+	UseForge           bool
 }
 
 func ApplyPipeline(
@@ -333,6 +338,19 @@ func ApplyPipeline(
 		return fmt.Errorf("failed to load OPCM script: %w", err)
 	}
 
+	// Initialize Forge client if UseForge flag is enabled
+	var forgeClient *forge.Client
+	if opts.UseForge {
+		// Get the path to artifacts directory for Forge
+		// Forge needs to run from a directory containing foundry.toml
+		// We try to get the path from the artifacts filesystem
+		artifactsPath := fmt.Sprintf("%v", bundle.L1)
+		forgeClient, err = forge.NewStandardClient(artifactsPath)
+		if err != nil {
+			return fmt.Errorf("failed to create Forge client: %w", err)
+		}
+	}
+
 	pEnv := &pipeline.Env{
 		StateWriter:  opts.StateWriter,
 		L1ScriptHost: l1Host,
@@ -341,6 +359,9 @@ func ApplyPipeline(
 		Broadcaster:  bcaster,
 		Deployer:     deployer,
 		Scripts:      opcmScripts,
+		ForgeClient:  forgeClient,
+		UseForge:     opts.UseForge,
+		Context:      ctx,
 	}
 
 	pline := []pipelineStage{

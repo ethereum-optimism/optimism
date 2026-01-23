@@ -19,7 +19,7 @@ use kona_providers_alloy::{OnlineBeaconClient, OnlineBlobProvider};
 use kona_std_fpvm::{FileChannel, FileDescriptor};
 use op_alloy_network::Optimism;
 use serde::Serialize;
-use std::{collections::HashMap, fs, path::PathBuf, str::FromStr, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, str::FromStr, sync::Arc};
 use tokio::{
     sync::RwLock,
     task::{self, JoinHandle},
@@ -93,11 +93,11 @@ pub struct InteropHost {
     /// The rollup configs should be stored as serde-JSON serialized files.
     #[arg(long, alias = "rollup-cfgs", value_delimiter = ',', env)]
     pub rollup_config_paths: Option<Vec<PathBuf>>,
-    /// Path to l1 configs. If provided, the host will use this config instead of attempting to
-    /// look up the configs in the superchain registry.
-    /// The l1 configs should be stored as serde-JSON serialized files.
-    #[arg(long, alias = "l1-cfgs", value_delimiter = ',', env)]
-    pub l1_config_paths: Option<Vec<PathBuf>>,
+    /// Path to l1 config. If provided, the host will use this config instead of attempting to
+    /// look up the config in the superchain registry.
+    /// The l1 config should be stored as serde-JSON serialized files.
+    #[arg(long, alias = "l1-cfg")]
+    pub l1_config_path: Option<PathBuf>,
 }
 
 /// An error that can occur when handling interop hosts
@@ -112,9 +112,9 @@ pub enum InteropHostError {
     /// A JSON parse error.
     #[error("Failed deserializing RollupConfig: {0}")]
     ParseError(#[from] serde_json::Error),
-    /// Impossible to find the L1 chain config for the given chain ID.
-    #[error("L1 chain config not found for chain ID: {0}")]
-    L1ChainConfigNotFound(u64),
+    /// No l1 config found.
+    #[error("No l1 config found")]
+    NoL1Config,
     /// Task failed to execute to completion.
     #[error("Join error: {0}")]
     ExecutionError(#[from] tokio::task::JoinError),
@@ -237,19 +237,15 @@ impl InteropHost {
 
     /// Reads the [`L1ChainConfig`]s from the file system and returns a map of L1 chain ID ->
     /// [`L1ChainConfig`]s.
-    pub fn read_l1_configs(&self) -> Option<Result<HashMap<u64, L1ChainConfig>, InteropHostError>> {
-        let l1_config_paths = self.l1_config_paths.as_ref()?;
+    pub fn read_l1_config(&self) -> Result<L1ChainConfig, InteropHostError> {
+        let path = self.l1_config_path.as_ref().ok_or_else(|| InteropHostError::NoL1Config)?;
 
-        Some(l1_config_paths.iter().try_fold(HashMap::default(), |mut acc, path| {
-            // Read the serialized config from the file system.
-            let ser_config = fs::read_to_string(path)?;
+        // Read the serialized config from the file system.
+        let ser_config = std::fs::read_to_string(path)?;
 
-            // Deserialize the config and return it.
-            let cfg: L1ChainConfig = serde_json::from_str(&ser_config)?;
-
-            acc.insert(cfg.chain_id, cfg);
-            Ok(acc)
-        }))
+        // Deserialize the config and return it.
+        serde_json::from_str(&ser_config)
+            .map_err(|_| InteropHostError::Other("failed to parse L1 config"))
     }
 
     /// Creates the key-value store for the host backend.

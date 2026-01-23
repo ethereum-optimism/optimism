@@ -442,18 +442,16 @@ impl HintHandler for InteropHintHandler {
                     .ok_or(anyhow!("No rollup config found for chain ID: {chain_id}"))?;
 
                 let l1_config = cfg
-                    .read_l1_configs()
-                    // If an error occurred while reading the l1 configs, return the error.
-                    .transpose()?
-                    // Try to find the appropriate l1 config for the chain ID.
-                    .and_then(|configs| configs.get(&rollup_config.l1_chain_id).cloned())
-                    // If we can't find the l1 config, try to find it in the global l1 configs.
-                    .or_else(|| L1_CONFIGS.get(&rollup_config.l1_chain_id).cloned())
-                    .map(Arc::new)
-                    .ok_or(anyhow!(
-                        "No l1 config found for chain ID: {}",
-                        rollup_config.l1_chain_id
-                    ))?;
+                    .read_l1_config()
+                    .or_else(|_| {
+                        L1_CONFIGS.get(&rollup_config.l1_chain_id).cloned().ok_or_else(|| {
+                            anyhow!(
+                                "No L1 config found for chain ID: {}",
+                                rollup_config.l1_chain_id
+                            )
+                        })
+                    })
+                    .map(Arc::new)?;
 
                 // Check if the block is canonical before continuing.
                 let parent_block = l2_provider

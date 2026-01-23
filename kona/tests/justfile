@@ -186,10 +186,10 @@ long-running-test FILTER="" OUTPUT_LOGS_DIR="":
     cd {{SOURCE}} && go test -count=1 -timeout 0 -v ./node/long-running $FILTER
 
 # Run action tests for the single-chain client program on the native target
-action-tests-single test_name='Test_ProgramAction' *args='': action-tests-single-build (action-tests-single-run test_name args)
+action-tests-single test_name='Test_ProgramAction' *args='': action-tests-build (action-tests-single-run test_name args)
 
-# Build action tests for the single-chain client program on the native target
-action-tests-single-build:
+# Build action tests for host program
+action-tests-build:
   #!/bin/bash
 
   echo "Building host program for the native target"
@@ -246,26 +246,20 @@ action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
     -- -count=1 -parallel=$PARALLEL -coverprofile=coverage.out -timeout=60m -run "{{test_name}}"
 
 # Run action tests for the interop client program on the native target
-action-tests-interop test_name='TestInteropFaultProofs' *args='':
+action-tests-interop test_name='TestInteropFaultProofs' *args='': action-tests-build (action-tests-interop-run test_name args)
+
+action-tests-interop-run test_name='TestInteropFaultProofs' *args='':
   #!/bin/bash
 
   echo "Building host program for the native target"
   just build-native --bin kona-host
-  export KONA_HOST_PATH="{{justfile_directory()}}/target/debug/kona-host"
+  export KONA_HOST_PATH="{{SOURCE}}/../target/debug/kona-host"
 
   # GitHub actions patch - do not print logs.
   # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
   echo "Running action tests for the client program on the native target"
 
-  cd {{SOURCE}}/../../op-e2e/actions/interop && GITHUB_ACTIONS=false gotestsum --format=testname -- -run "{{test_name}}" {{args}} -count=1 ./...
-
-action-tests-interop-build test_name='TestInteropFaultProofs' *args='':
-  #!/bin/bash
-  echo "Not implemented. See https://github.com/op-rs/kona/issues/3010"
-
-action-tests-interop-run test_name='TestInteropFaultProofs' *args='':
-  #!/bin/bash
-  echo "Not implemented.  See https://github.com/op-rs/kona/issues/3010"
+  cd {{SOURCE}}/../../op-e2e/actions/interop && GITHUB_ACTIONS=false gotestsum --format=short-verbose -- -count=1 -timeout 60m -run "{{test_name}}" {{args}}
 
 update-packages:
     #!/bin/bash

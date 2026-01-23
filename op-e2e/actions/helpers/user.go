@@ -32,6 +32,7 @@ import (
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
 type L1Bindings struct {
@@ -229,7 +230,7 @@ func (s *BasicUser[B]) ActRandomTxData(t Testing) {
 func (s *BasicUser[B]) PendingNonce(t Testing) uint64 {
 	t.Helper()
 	if s.txOpts.Nonce != nil {
-		return s.txOpts.Nonce.Uint64()
+		return bigs.Uint64Strict(s.txOpts.Nonce)
 	}
 	// fetch from pending state
 	nonce, err := s.env.EthCl.PendingNonceAt(t.Ctx(), s.address)

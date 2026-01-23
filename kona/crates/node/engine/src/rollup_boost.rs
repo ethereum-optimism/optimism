@@ -57,6 +57,9 @@ pub struct FlashblocksWebsocketConfig {
     /// Maximum time for exponential backoff for timeout if builder disconnected
     pub flashblock_builder_ws_max_reconnect_ms: u64,
 
+    /// Timeout for connection attempt
+    pub flashblock_builder_ws_connect_timeout_ms: u64,
+
     /// Interval in milliseconds between ping messages sent to upstream servers to detect
     /// unresponsive connections
     pub flashblock_builder_ws_ping_interval_ms: u64,

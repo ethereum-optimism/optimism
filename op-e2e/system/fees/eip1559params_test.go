@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
@@ -82,7 +83,7 @@ func TestEIP1559Params(t *testing.T) {
 	require.NoError(t, err, "reading elasticity")
 	require.Equal(t, expectedElasticity, elasticity)
 
-	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, receipt.BlockNumber.Uint64(), l2Seq, txTimeoutDuration)
+	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, bigs.Uint64Strict(receipt.BlockNumber), l2Seq, txTimeoutDuration)
 	require.NoError(t, err, "waiting for L2 block to include the sysconfig update")
 
 	h, err := l2Seq.HeaderByNumber(context.Background(), nil)

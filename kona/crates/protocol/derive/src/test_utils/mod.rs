@@ -24,8 +24,7 @@ pub use batch_provider::TestNextBatchProvider;
 
 mod attributes_queue;
 pub use attributes_queue::{
-    TestAttributesBuilder, TestAttributesBuilderError, TestAttributesProvider,
-    new_test_attributes_provider,
+    TestAttributesBuilder, TestAttributesProvider, new_test_attributes_provider,
 };
 
 mod batch_stream;

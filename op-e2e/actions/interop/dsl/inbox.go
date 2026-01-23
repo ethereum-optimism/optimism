@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/inbox"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -99,9 +100,9 @@ func (i *InboxContract) Execute(user *DSLUser, initTx *GeneratedTransaction, arg
 		require.NoError(i.t, err)
 		id := stypes.Identifier{
 			Origin:      ident.Origin,
-			BlockNumber: ident.BlockNumber.Uint64(),
-			LogIndex:    uint32(ident.LogIndex.Uint64()),
-			Timestamp:   ident.Timestamp.Uint64(),
+			BlockNumber: bigs.Uint64Strict(ident.BlockNumber),
+			LogIndex:    uint32(bigs.Uint64Strict(ident.LogIndex)),
+			Timestamp:   bigs.Uint64Strict(ident.Timestamp),
 			ChainID:     eth.ChainIDFromBig(ident.ChainId),
 		}
 		msgHash := crypto.Keccak256Hash(payload)

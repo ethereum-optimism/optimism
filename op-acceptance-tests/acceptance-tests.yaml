@@ -5,13 +5,47 @@
 # base gate as well as any earlier fork gates.
 
 gates:
-  # New tests should be added here first with an owner metadata.
-  # Once we're confident they're not flaky, a PR will be automatically created to remove them from this gate.
+  # ============================================================================
+  # FLAKE-SHAKE GATE
+  # ============================================================================
+  # The flake-shake gate is a quarantine area for new or potentially flaky tests.
+  # Tests here are run repeatedly (100+ iterations daily) to detect flakiness
+  # before they can be promoted to production gates.
+  #
+  # HOW TO ADD A NEW TEST:
+  # ----------------------
+  # 1. Add your test entry to the flake-shake gate (see example below)
+  # 2. Include the `target_gate` metadata to indicate where the test should be
+  #    promoted once it passes stability validation
+  # 3. Include the `owner` metadata for notifications and accountability
+  #
   # Example entry format:
-  # - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/parallelism
-  #   timeout: 10m
-  #   metadata:
-  #     owner: "team-infra"
+  #   - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/myfeature
+  #     name: TestMyFeature        # Optional: specific test name (omit to run all tests in package)
+  #     timeout: 10m               # Optional: test timeout (default varies by gate)
+  #     metadata:
+  #       owner: "my-team"         # Required: team/person responsible for this test
+  #       target_gate: "base"      # Required: destination gate after promotion
+  #
+  # PROMOTION CRITERIA:
+  # -------------------
+  # Tests are automatically promoted when they meet ALL of these criteria:
+  #   - 100% pass rate (zero failures allowed)
+  #   - Minimum 300 total runs accumulated
+  #   - Been in flake-shake for at least 2-3 days
+  #   - No failures in the last 24 hours
+  #
+  # WHAT HAPPENS AT PROMOTION:
+  # --------------------------
+  # When a test meets the promotion criteria, an automated PR is created that:
+  #   1. Removes the test entry from the flake-shake gate
+  #   2. The PR reviewer must then manually add the test to the target gate
+  #      (as specified in the `target_gate` metadata)
+  #
+  # This two-step process ensures human review of all gate promotions.
+  #
+  # For more details, see the README.md section on "Flake-Shake: Test Stability Validation"
+  # ============================================================================
   - id: flake-shake
     description: "Quarantine gate for new and potentially flaky tests requiring stability validation."
     tests:

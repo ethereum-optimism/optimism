@@ -24,6 +24,15 @@
   <a href="#license">License</a>
 </p>
 
+# 🚧 Important information
+
+We have taken the decision to move `Kona` to `https://github.com/ethereum-optimism/optimism`. Once `https://github.com/ethereum-optimism/optimism/pull/18569` gets merged, `op-rs` operations are going to be transferred to `ethereum-optimism/optimism`.
+
+This repository will get archived mid January 2026.
+
+
+The commit/contribution history will be maintained, thanks for contributing to `op-rs/kona` and we can't wait to see you in `https://github.com/ethereum-optimism/optimism`!
+
 
 ## What's Kona?
 

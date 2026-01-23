@@ -529,7 +529,7 @@ where
                 latest_block,
                 "Cannot rewind to future block"
             );
-            return Err(StorageError::FutureData)
+            return Err(StorageError::FutureData);
         }
 
         // total blocks to rewind down to and including tgt block

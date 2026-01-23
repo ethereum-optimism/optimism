@@ -6,6 +6,7 @@ linters:
     - asciicheck
     - misspell
     - errorlint
+    - bigint
 
     # Only enabled in specific cases. See settings and exclusions below
     - exhaustruct
@@ -18,6 +19,11 @@ linters:
     - staticcheck
     - unused
   settings:
+    custom:
+      bigint:
+        type: "module"
+        description: "Optimism big.Int checks"
+        settings: {}
     # Require specifying all fields in op-deployer's OPCM input and output structs
     exhaustruct:
       include:
@@ -61,6 +67,8 @@ linters:
         text: errors.As
       - path: (.+)\.go$
         text: errors.Is
+      - path: (.+)\.go$
+        text: use bigs.Uint64Strict # Ignore violations until code has been updated
     paths:
       - third_party$
       - builtin$

@@ -205,7 +205,7 @@ where
         match self.db.get_safety_head_ref(kona_interop::SafetyLevel::Finalized) {
             Ok(finalized_block) => {
                 let common_ancestor = self.db.derived_to_source(finalized_block.id())?;
-                return Ok(common_ancestor)
+                return Ok(common_ancestor);
             }
             Err(StorageError::FutureData) => { /* fall through to activation block */ }
             Err(err) => {

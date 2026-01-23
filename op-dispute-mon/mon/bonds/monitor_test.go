@@ -9,6 +9,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -46,10 +47,10 @@ func TestCheckBonds(t *testing.T) {
 	require.Len(t, metrics.recorded, 2)
 	require.Contains(t, metrics.recorded, weth1)
 	require.Contains(t, metrics.recorded, weth2)
-	require.Equal(t, metrics.recorded[weth1].Required.Uint64(), uint64(2))
-	require.Equal(t, metrics.recorded[weth1].Actual.Uint64(), weth1Balance.Uint64())
-	require.Equal(t, metrics.recorded[weth2].Required.Uint64(), uint64(46))
-	require.Equal(t, metrics.recorded[weth2].Actual.Uint64(), weth2Balance.Uint64())
+	require.Equal(t, bigs.Uint64Strict(metrics.recorded[weth1].Required), uint64(2))
+	require.Equal(t, bigs.Uint64Strict(metrics.recorded[weth1].Actual), bigs.Uint64Strict(weth1Balance))
+	require.Equal(t, bigs.Uint64Strict(metrics.recorded[weth2].Required), uint64(46))
+	require.Equal(t, bigs.Uint64Strict(metrics.recorded[weth2].Actual), bigs.Uint64Strict(weth2Balance))
 
 	require.NotNil(t, logs.FindLog(
 		testlog.NewMessageFilter("Insufficient collateral"),

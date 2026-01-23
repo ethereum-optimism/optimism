@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
@@ -129,7 +130,7 @@ func TestRelayWithInvalidMessagesSteady(gt *testing.T) {
 		OpaqueData: []byte{34, 56},
 	}))
 	t.Require().NoError(err)
-	ref := l2A.EL.BlockRefByNumber(initTx.Receipt.BlockNumber.Uint64())
+	ref := l2A.EL.BlockRefByNumber(bigs.Uint64Strict(initTx.Receipt.BlockNumber))
 	out := new(txintent.InteropOutput)
 	t.Require().NoError(out.FromReceipt(t.Ctx(), initTx.Receipt, ref.BlockRef(), l2A.EL.ChainID()))
 	t.Require().Len(out.Entries, 1)

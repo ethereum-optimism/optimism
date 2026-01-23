@@ -567,7 +567,7 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 	}
 
 	indexingMode := false
-	sys, err := cfg.InteropConfig.Setup(ctx, node.log, &node.cfg.Rollup, node.l1Source, l2Source, node.metrics)
+	sys, err := cfg.InteropConfig.Setup(ctx, node.log, &node.cfg.Rollup, cfg.SupervisorEnabled, node.l1Source, l2Source, node.metrics)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to setup interop: %w", err)
 	} else if sys != nil { // we continue with legacy mode if no interop sub-system is set up.

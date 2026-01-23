@@ -13,9 +13,9 @@ use op_alloy_consensus::OpTxType;
 use tracing::{info, warn};
 
 use crate::{
-    BatchValidationProvider, BatchValidity, BlockInfo, L2BlockInfo, RawSpanBatch, SingleBatch,
-    SpanBatchBits, SpanBatchElement, SpanBatchError, SpanBatchPayload, SpanBatchPrefix,
-    SpanBatchTransactions,
+    BatchDropReason, BatchValidationProvider, BatchValidity, BlockInfo, L2BlockInfo, RawSpanBatch,
+    SingleBatch, SpanBatchBits, SpanBatchElement, SpanBatchError, SpanBatchPayload,
+    SpanBatchPrefix, SpanBatchTransactions,
 };
 
 /// Container for the inputs required to build a span of L2 blocks in derived form.
@@ -43,7 +43,7 @@ use crate::{
 /// SpanBatch {
 ///   prefix: {
 ///     rel_timestamp,     // Relative to genesis
-///     l1_origin_num,     // Final L1 block number  
+///     l1_origin_num,     // Final L1 block number
 ///     parent_check,      // First 20 bytes of parent hash
 ///     l1_origin_check,   // First 20 bytes of L1 origin hash
 ///   },
@@ -408,7 +408,7 @@ impl SpanBatch {
                     batch_epoch,
                     l2_safe_head.l1_origin
                 );
-                return BatchValidity::Drop;
+                return BatchValidity::Drop(BatchDropReason::L1OriginBeforeSafeHead);
             }
 
             // Find the L1 origin for the batch.
@@ -421,7 +421,7 @@ impl SpanBatch {
                     batch_epoch,
                     batch_timestamp
                 );
-                return BatchValidity::Drop;
+                return BatchValidity::Drop(BatchDropReason::MissingL1Origin);
             };
             origin_index += offset;
 
@@ -439,7 +439,7 @@ impl SpanBatch {
                     l1_origin.timestamp,
                     l1_origin.id()
                 );
-                return BatchValidity::Drop;
+                return BatchValidity::Drop(BatchDropReason::TimestampBeforeL1Origin);
             }
 
             // Check if we ran out of sequencer time drift
@@ -465,7 +465,9 @@ impl SpanBatch {
                                 target: "batch_span",
                                 "batch exceeded sequencer time drift without adopting next origin, and next L1 origin would have been valid"
                             );
-                            return BatchValidity::Drop;
+                            return BatchValidity::Drop(
+                                BatchDropReason::SequencerDriftNotAdoptedNextOrigin,
+                            );
                         } else {
                             info!(
                                 target: "batch_span",
@@ -482,7 +484,7 @@ impl SpanBatch {
                         "batch exceeded sequencer time drift, sequencer must adopt new L1 origin to include transactions again, max_time: {}",
                         l1_origin.timestamp + max_drift
                     );
-                    return BatchValidity::Drop;
+                    return BatchValidity::Drop(BatchDropReason::SequencerDriftExceeded);
                 }
             }
 
@@ -494,7 +496,7 @@ impl SpanBatch {
                         "transaction data must not be empty, but found empty tx, tx_index: {}",
                         i
                     );
-                    return BatchValidity::Drop;
+                    return BatchValidity::Drop(BatchDropReason::EmptyTransaction);
                 }
                 if tx.as_ref().first() == Some(&(OpTxType::Deposit as u8)) {
                     warn!(
@@ -502,7 +504,7 @@ impl SpanBatch {
                         "sequencers may not embed any deposits into batch data, but found tx that has one, tx_index: {}",
                         i
                     );
-                    return BatchValidity::Drop;
+                    return BatchValidity::Drop(BatchDropReason::DepositTransaction);
                 }
 
                 // If isthmus is not active yet and the transaction is a 7702, drop the batch.
@@ -510,7 +512,7 @@ impl SpanBatch {
                     tx.as_ref().first() == Some(&(OpTxType::Eip7702 as u8))
                 {
                     warn!(target: "batch_span", "EIP-7702 transactions are not supported pre-isthmus. tx_index: {}", i);
-                    return BatchValidity::Drop;
+                    return BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus);
                 }
             }
         }
@@ -543,7 +545,7 @@ impl SpanBatch {
                         safe_block.transactions.len(),
                         batch_txs.len()
                     );
-                    return BatchValidity::Drop;
+                    return BatchValidity::Drop(BatchDropReason::OverlappedTxCountMismatch);
                 }
                 let batch_txs_len = batch_txs.len();
                 #[allow(clippy::needless_range_loop)]
@@ -552,7 +554,7 @@ impl SpanBatch {
                     safe_block.transactions[j + deposit_count].encode_2718(&mut buf);
                     if buf != batch_txs[j].0 {
                         warn!(target: "batch_span", "overlapped block's transaction does not match");
-                        return BatchValidity::Drop;
+                        return BatchValidity::Drop(BatchDropReason::OverlappedTxMismatch);
                     }
                 }
                 let safe_block_ref = match L2BlockInfo::from_block_and_genesis(
@@ -566,7 +568,7 @@ impl SpanBatch {
                             "failed to extract L2BlockInfo from execution payload, hash: {}, err: {e}",
                             safe_block_payload.header.hash_slow()
                         );
-                        return BatchValidity::Drop;
+                        return BatchValidity::Drop(BatchDropReason::L2BlockInfoExtractionFailed);
                     }
                 };
                 if safe_block_ref.l1_origin.number != self.batches[i as usize].epoch_num {
@@ -574,7 +576,7 @@ impl SpanBatch {
                         "overlapped block's L1 origin number does not match {}, {}",
                         safe_block_ref.l1_origin.number, self.batches[i as usize].epoch_num
                     );
-                    return BatchValidity::Drop;
+                    return BatchValidity::Drop(BatchDropReason::OverlappedL1OriginMismatch);
                 }
             }
         }
@@ -626,7 +628,7 @@ impl SpanBatch {
                 batch_origin.id(),
                 batch_origin.timestamp
             );
-            return (BatchValidity::Drop, None);
+            return (BatchValidity::Drop(BatchDropReason::SpanBatchPreDelta), None);
         }
 
         if self.starting_timestamp() > next_timestamp {
@@ -639,7 +641,7 @@ impl SpanBatch {
 
             // After holocene is activated, gaps are disallowed.
             if cfg.is_holocene_active(inclusion_block.timestamp) {
-                return (BatchValidity::Drop, None);
+                return (BatchValidity::Drop(BatchDropReason::FutureTimestampHolocene), None);
             }
             return (BatchValidity::Future, None);
         }
@@ -650,7 +652,7 @@ impl SpanBatch {
             return if cfg.is_holocene_active(inclusion_block.timestamp) {
                 (BatchValidity::Past, None)
             } else {
-                (BatchValidity::Drop, None)
+                (BatchValidity::Drop(BatchDropReason::SpanBatchNoNewBlocksPreHolocene), None)
             };
         }
 
@@ -663,13 +665,13 @@ impl SpanBatch {
             if self.starting_timestamp() > l2_safe_head.block_info.timestamp {
                 // Batch timestamp cannot be between safe head and next timestamp.
                 warn!(target: "batch_span", "batch has misaligned timestamp, block time is too short");
-                return (BatchValidity::Drop, None);
+                return (BatchValidity::Drop(BatchDropReason::SpanBatchMisalignedTimestamp), None);
             }
             if !(l2_safe_head.block_info.timestamp - self.starting_timestamp())
                 .is_multiple_of(cfg.block_time)
             {
                 warn!(target: "batch_span", "batch has misaligned timestamp, not overlapped exactly");
-                return (BatchValidity::Drop, None);
+                return (BatchValidity::Drop(BatchDropReason::SpanBatchNotOverlappedExactly), None);
             }
             parent_num = l2_safe_head.block_info.number -
                 (l2_safe_head.block_info.timestamp - self.starting_timestamp()) / cfg.block_time -
@@ -689,13 +691,13 @@ impl SpanBatch {
                 "parent block mismatch, expected: {parent_num}, received: {}. parent hash: {}, parent hash check: {}",
                 parent_block.block_info.number, parent_block.block_info.hash, self.parent_check,
             );
-            return (BatchValidity::Drop, None);
+            return (BatchValidity::Drop(BatchDropReason::ParentHashMismatch), None);
         }
 
         // Filter out batches that were included too late.
         if starting_epoch_num + cfg.seq_window_size < inclusion_block.number {
             warn!(target: "batch_span", "batch was included too late, sequence window expired");
-            return (BatchValidity::Drop, None);
+            return (BatchValidity::Drop(BatchDropReason::IncludedTooLate), None);
         }
 
         // Check the L1 origin of the batch
@@ -706,7 +708,7 @@ impl SpanBatch {
                 starting_epoch_num,
                 parent_block.l1_origin.number + 1
             );
-            return (BatchValidity::Drop, None);
+            return (BatchValidity::Drop(BatchDropReason::EpochTooFarInFuture), None);
         }
 
         // Verify the l1 origin hash for each l1 block.
@@ -725,7 +727,7 @@ impl SpanBatch {
                         l1_check_hash = ?self.l1_origin_check,
                         "batch is for different L1 chain, epoch hash does not match",
                     );
-                    return (BatchValidity::Drop, None);
+                    return (BatchValidity::Drop(BatchDropReason::EpochHashMismatch), None);
                 }
                 origin_checked = true;
                 break;
@@ -738,7 +740,7 @@ impl SpanBatch {
 
         if starting_epoch_num < parent_block.l1_origin.number {
             warn!(target: "batch_span", "dropped batch, epoch is too old, minimum: {:?}", parent_block.block_info.id());
-            return (BatchValidity::Drop, None);
+            return (BatchValidity::Drop(BatchDropReason::EpochTooOld), None);
         }
 
         (BatchValidity::Accept, Some(parent_block))
@@ -756,7 +758,7 @@ mod tests {
     use kona_genesis::{ChainGenesis, HardForkConfig};
     use op_alloy_consensus::OpBlock;
     use tracing::Level;
-    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+    use tracing_subscriber::layer::SubscriberExt;
 
     fn gen_l1_blocks(
         start_num: u64,
@@ -873,7 +875,8 @@ mod tests {
     async fn test_check_batch_missing_l1_block_input() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig::default();
         let l1_blocks = vec![];
@@ -894,7 +897,8 @@ mod tests {
     async fn test_check_batches_is_empty() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig::default();
         let l1_blocks = vec![BlockInfo::default()];
@@ -951,7 +955,8 @@ mod tests {
     async fn test_eager_block_missing_origins() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig::default();
         let block = BlockInfo { number: 9, ..Default::default() };
@@ -978,7 +983,8 @@ mod tests {
     async fn test_check_batch_delta_inactive() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             hardforks: HardForkConfig { delta_time: Some(10), ..Default::default() },
@@ -993,7 +999,7 @@ mod tests {
         let batch = SpanBatch { batches: vec![first], ..Default::default() };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::SpanBatchPreDelta)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -1009,7 +1015,8 @@ mod tests {
     async fn test_check_batch_out_of_order() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             hardforks: HardForkConfig { delta_time: Some(0), ..Default::default() },
@@ -1041,7 +1048,8 @@ mod tests {
     async fn test_check_batch_no_new_blocks() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             hardforks: HardForkConfig { delta_time: Some(0), ..Default::default() },
@@ -1060,7 +1068,7 @@ mod tests {
         let batch = SpanBatch { batches: vec![first], ..Default::default() };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::SpanBatchNoNewBlocksPreHolocene)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -1071,7 +1079,8 @@ mod tests {
     async fn test_check_batch_overlapping_blocks_tx_count_mismatch() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             hardforks: HardForkConfig { delta_time: Some(0), ..Default::default() },
@@ -1123,7 +1132,7 @@ mod tests {
         let batch = SpanBatch { batches: vec![first, second], ..Default::default() };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::OverlappedTxCountMismatch)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -1136,7 +1145,8 @@ mod tests {
     async fn test_check_batch_overlapping_blocks_tx_mismatch() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             hardforks: HardForkConfig { delta_time: Some(0), ..Default::default() },
@@ -1203,7 +1213,7 @@ mod tests {
         let batch = SpanBatch { batches: vec![first, second], ..Default::default() };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::OverlappedTxMismatch)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -1214,7 +1224,8 @@ mod tests {
     async fn test_check_batch_block_timestamp_lt_l1_origin() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             hardforks: HardForkConfig { delta_time: Some(0), ..Default::default() },
@@ -1236,7 +1247,7 @@ mod tests {
         let batch = SpanBatch { batches: vec![first, second, third], ..Default::default() };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::TimestampBeforeL1Origin)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -1251,7 +1262,8 @@ mod tests {
     async fn test_check_batch_misaligned_timestamp() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             hardforks: HardForkConfig { delta_time: Some(0), ..Default::default() },
@@ -1271,7 +1283,7 @@ mod tests {
         let batch = SpanBatch { batches: vec![first, second], ..Default::default() };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::SpanBatchMisalignedTimestamp)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -1282,7 +1294,8 @@ mod tests {
     async fn test_check_batch_misaligned_without_overlap() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             hardforks: HardForkConfig { delta_time: Some(0), ..Default::default() },
@@ -1302,7 +1315,7 @@ mod tests {
         let batch = SpanBatch { batches: vec![first, second], ..Default::default() };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::SpanBatchNotOverlappedExactly)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -1313,7 +1326,8 @@ mod tests {
     async fn test_check_batch_failed_to_fetch_l2_block() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             hardforks: HardForkConfig { delta_time: Some(0), ..Default::default() },
@@ -1345,7 +1359,8 @@ mod tests {
     async fn test_check_batch_parent_hash_fail() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             hardforks: HardForkConfig { delta_time: Some(0), ..Default::default() },
@@ -1379,7 +1394,7 @@ mod tests {
         // parent number = 41 - (10 - 10) / 10 - 1 = 40
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::ParentHashMismatch)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -1390,7 +1405,8 @@ mod tests {
     async fn test_check_sequence_window_expired() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             hardforks: HardForkConfig { delta_time: Some(0), ..Default::default() },
@@ -1426,7 +1442,7 @@ mod tests {
         // parent number = 41 - (10 - 10) / 10 - 1 = 40
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::IncludedTooLate)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -1437,7 +1453,8 @@ mod tests {
     async fn test_starting_epoch_too_far_ahead() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             seq_window_size: 100,
@@ -1476,7 +1493,7 @@ mod tests {
         // parent number = 41 - (10 - 10) / 10 - 1 = 40
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::EpochTooFarInFuture)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -1486,9 +1503,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_epoch_hash_mismatch() {
+        use crate::alloc::string::ToString;
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             seq_window_size: 100,
@@ -1534,7 +1553,7 @@ mod tests {
         };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::EpochHashMismatch)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -1546,7 +1565,8 @@ mod tests {
     async fn test_need_more_l1_blocks() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             seq_window_size: 100,
@@ -1599,7 +1619,8 @@ mod tests {
     async fn test_drop_batch_epoch_too_old() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             seq_window_size: 100,
@@ -1641,7 +1662,7 @@ mod tests {
         };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::EpochTooOld)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -1656,7 +1677,8 @@ mod tests {
     async fn test_check_batch_exceeds_max_seq_drif() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             seq_window_size: 100,
@@ -1695,7 +1717,7 @@ mod tests {
         };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::SequencerDriftNotAdoptedNextOrigin)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -1706,10 +1728,10 @@ mod tests {
     async fn test_continuing_with_empty_batch() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default()
+        let subscriber = tracing_subscriber::Registry::default()
             .with(layer)
-            .with(tracing_subscriber::fmt::layer())
-            .init();
+            .with(tracing_subscriber::fmt::layer());
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             seq_window_size: 100,
@@ -1766,7 +1788,8 @@ mod tests {
     async fn test_check_batch_exceeds_sequencer_time_drift() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             seq_window_size: 100,
@@ -1818,7 +1841,7 @@ mod tests {
         };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::SequencerDriftExceeded)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -1829,7 +1852,8 @@ mod tests {
     async fn test_check_batch_empty_txs() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             seq_window_size: 100,
@@ -1885,7 +1909,7 @@ mod tests {
         };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::EmptyTransaction)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -1896,7 +1920,8 @@ mod tests {
     async fn test_check_batch_with_deposit_tx() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             seq_window_size: 100,
@@ -1946,7 +1971,7 @@ mod tests {
         };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::DepositTransaction)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -1957,7 +1982,8 @@ mod tests {
     async fn test_check_batch_with_eip7702_tx() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             seq_window_size: 100,
@@ -2007,7 +2033,7 @@ mod tests {
         };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -2020,7 +2046,8 @@ mod tests {
     async fn test_check_batch_failed_to_fetch_payload() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             seq_window_size: 100,
@@ -2073,7 +2100,8 @@ mod tests {
     async fn test_check_batch_failed_to_extract_l2_block_info() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let cfg = RollupConfig {
             seq_window_size: 100,
@@ -2126,7 +2154,7 @@ mod tests {
         };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::L2BlockInfoExtractionFailed)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -2141,7 +2169,8 @@ mod tests {
     async fn test_overlapped_blocks_origin_mismatch() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let payload_block_hash =
             b256!("0e2ee9abe94ee4514b170d7039d8151a7469d434a8575dbab5bd4187a27732dd");
@@ -2200,7 +2229,7 @@ mod tests {
         };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::OverlappedL1OriginMismatch)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -2211,7 +2240,8 @@ mod tests {
     async fn test_overlapped_blocks_origin_outdated() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let parent_hash = b256!("1111111111111111111111111111111111111111000000000000000000000000");
         let cfg = RollupConfig {
@@ -2269,7 +2299,7 @@ mod tests {
         };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop
+            BatchValidity::Drop(BatchDropReason::L1OriginBeforeSafeHead)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
@@ -2280,7 +2310,8 @@ mod tests {
     async fn test_check_batch_valid_with_genesis_epoch() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let payload_block_hash =
             b256!("0e2ee9abe94ee4514b170d7039d8151a7469d434a8575dbab5bd4187a27732dd");

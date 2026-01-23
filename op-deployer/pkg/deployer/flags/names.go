@@ -23,6 +23,7 @@ const (
 	ContractNameFlagName     = "contract-name"
 	VerifierTypeFlagName     = "verifier"
 	VerifierUrlFlagName      = "verifier-url"
+	UseForgeFlagName         = "use-forge"
 )
 
 func DefaultCacheDir() string {

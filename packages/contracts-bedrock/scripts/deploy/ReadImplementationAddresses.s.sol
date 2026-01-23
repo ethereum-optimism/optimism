@@ -9,7 +9,8 @@ import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IStaticL1ChugSplashProxy } from "interfaces/legacy/IL1ChugSplashProxy.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 contract ReadImplementationAddresses is Script {
     struct Input {
@@ -63,9 +64,10 @@ contract ReadImplementationAddresses is Script {
         output_.l1StandardBridge = IStaticL1ChugSplashProxy(_input.l1StandardBridgeProxy).getImplementation();
 
         // Check if OPCM v2 is being used
-        bool useV2 = IOPContractsManager(_input.opcm).isDevFeatureEnabled(DevFeatures.OPCM_V2);
+        require(address(_input.opcm).code.length > 0, "ReadImplementationAddresses: OPCM address has no code");
+        bool isOPCMv2 = SemverComp.gte(IOPContractsManager(_input.opcm).version(), Constants.OPCM_V2_MIN_VERSION);
 
-        if (useV2) {
+        if (isOPCMv2) {
             // Get implementations from OPCM V2
             IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_input.opcm);
 

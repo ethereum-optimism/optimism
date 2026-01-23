@@ -1,31 +1,51 @@
 use super::SequencerActor;
-use crate::{
-    BlockBuildingClient, Conductor, OriginSelector, SequencerAdminQuery, UnsafePayloadGossipClient,
-};
+use crate::{Conductor, OriginSelector, SequencerEngineClient, UnsafePayloadGossipClient};
 use alloy_primitives::B256;
 use kona_derive::AttributesBuilder;
-use kona_rpc::{SequencerAdminAPIError, StopSequencerError};
+use kona_rpc::SequencerAdminAPIError;
+use tokio::sync::oneshot;
+
+/// The query types to the sequencer actor for the admin api.
+#[derive(Debug)]
+pub enum SequencerAdminQuery {
+    /// A query to check if the sequencer is active.
+    SequencerActive(oneshot::Sender<Result<bool, SequencerAdminAPIError>>),
+    /// A query to start the sequencer.
+    StartSequencer(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
+    /// A query to stop the sequencer.
+    StopSequencer(oneshot::Sender<Result<B256, SequencerAdminAPIError>>),
+    /// A query to check if the conductor is enabled.
+    ConductorEnabled(oneshot::Sender<Result<bool, SequencerAdminAPIError>>),
+    /// A query to check if the sequencer is in recovery mode.
+    RecoveryMode(oneshot::Sender<Result<bool, SequencerAdminAPIError>>),
+    /// A query to set the recovery mode.
+    SetRecoveryMode(bool, oneshot::Sender<Result<(), SequencerAdminAPIError>>),
+    /// A query to override the leader.
+    OverrideLeader(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
+    /// A query to reset the derivation pipeline.
+    ResetDerivationPipeline(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
+}
 
 /// Handler for the Sequencer Admin API.
 impl<
     AttributesBuilder_,
-    BlockBuildingClient_,
     Conductor_,
     OriginSelector_,
+    SequencerEngineClient_,
     UnsafePayloadGossipClient_,
 >
     SequencerActor<
         AttributesBuilder_,
-        BlockBuildingClient_,
         Conductor_,
         OriginSelector_,
+        SequencerEngineClient_,
         UnsafePayloadGossipClient_,
     >
 where
     AttributesBuilder_: AttributesBuilder,
-    BlockBuildingClient_: BlockBuildingClient,
     Conductor_: Conductor,
     OriginSelector_: OriginSelector,
+    SequencerEngineClient_: SequencerEngineClient,
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
 {
     /// Handles the provided [`SequencerAdminQuery`], sending the response via the provided sender.
@@ -112,11 +132,11 @@ where
 
         self.update_metrics();
 
-        self.block_building_client.get_unsafe_head().await
+        self.engine_client.get_unsafe_head().await
             .map(|h| h.hash())
             .map_err(|e| {
                 error!(target: "sequencer", err=?e, "Error fetching unsafe head after stopping sequencer, which should never happen.");
-                SequencerAdminAPIError::StopError(StopSequencerError::ErrorAfterSequencerWasStopped("current unsafe hash is unavailable.".to_string()))
+                SequencerAdminAPIError::ErrorAfterSequencerWasStopped("current unsafe hash is unavailable.".to_string())
             })
     }
 
@@ -155,7 +175,7 @@ where
 
     pub(super) async fn reset_derivation_pipeline(&mut self) -> Result<(), SequencerAdminAPIError> {
         info!(target: "sequencer", "Resetting derivation pipeline");
-        self.block_building_client.reset_engine_forkchoice().await.map_err(|e| {
+        self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
             error!(target: "sequencer", err=?e, "Failed to reset engine forkchoice");
             SequencerAdminAPIError::RequestError(format!("Failed to reset engine: {e}"))
         })

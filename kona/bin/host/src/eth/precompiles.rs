@@ -1,7 +1,7 @@
 //! Accelerated precompile runner for the host program.
 
+use crate::{HostError, Result};
 use alloy_primitives::{Address, Bytes};
-use anyhow::{Result, anyhow};
 use revm::precompile::{self, Precompile};
 
 /// List of precompiles that are accelerated by the host program.
@@ -25,10 +25,10 @@ pub(crate) fn execute<T: Into<Bytes>>(address: Address, input: T, gas: u64) -> R
         ACCELERATED_PRECOMPILES.iter().find(|precompile| *precompile.address() == address)
     {
         let output = precompile.precompile()(&input.into(), gas)
-            .map_err(|e| anyhow!("Failed precompile execution: {e}"))?;
+            .map_err(|e| HostError::PrecompileExecutionFailed(e.to_string()))?;
 
         Ok(output.bytes.into())
     } else {
-        anyhow::bail!("Precompile not accelerated");
+        Err(HostError::PrecompileNotAccelerated)
     }
 }

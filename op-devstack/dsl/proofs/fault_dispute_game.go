@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
@@ -58,11 +59,11 @@ func (g *FaultDisputeGame) GameType() gameTypes.GameType {
 }
 
 func (g *FaultDisputeGame) MaxDepth() challengerTypes.Depth {
-	return challengerTypes.Depth(contract.Read(g.game.MaxGameDepth()).Uint64())
+	return challengerTypes.Depth(bigs.Uint64Strict(contract.Read(g.game.MaxGameDepth())))
 }
 
 func (g *FaultDisputeGame) SplitDepth() challengerTypes.Depth {
-	return challengerTypes.Depth(contract.Read(g.game.SplitDepth()).Uint64())
+	return challengerTypes.Depth(bigs.Uint64Strict(contract.Read(g.game.SplitDepth())))
 }
 
 func (g *FaultDisputeGame) RootClaim() *Claim {
@@ -70,7 +71,7 @@ func (g *FaultDisputeGame) RootClaim() *Claim {
 }
 
 func (g *FaultDisputeGame) L2SequenceNumber() uint64 {
-	return contract.Read(g.game.L2SequenceNumber()).Uint64()
+	return bigs.Uint64Strict(contract.Read(g.game.L2SequenceNumber()))
 }
 
 func (g *FaultDisputeGame) StartingL2SequenceNumber() uint64 {
@@ -159,7 +160,7 @@ func (g *FaultDisputeGame) allClaims() []bindings.Claim {
 }
 
 func (g *FaultDisputeGame) claimCount() uint64 {
-	return contract.Read(g.game.ClaimDataLen()).Uint64()
+	return bigs.Uint64Strict(contract.Read(g.game.ClaimDataLen()))
 }
 
 func (g *FaultDisputeGame) waitForClaim(timeout time.Duration, errorMsg string, predicate func(claimIdx uint64, claim bindings.Claim) bool) (uint64, bindings.Claim) {

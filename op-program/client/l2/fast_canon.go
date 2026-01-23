@@ -6,6 +6,7 @@ import (
 	"math"
 
 	l2Types "github.com/ethereum-optimism/optimism/op-program/client/l2/types"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -66,10 +67,10 @@ func (o *FastCanonicalBlockHeaderOracle) CurrentHeader() *types.Header {
 }
 
 func (o *FastCanonicalBlockHeaderOracle) GetHeaderByNumber(n uint64) *types.Header {
-	if o.head.Number.Uint64() < n {
+	if bigs.Uint64Strict(o.head.Number) < n {
 		return nil
 	}
-	if o.head.Number.Uint64() == n {
+	if bigs.Uint64Strict(o.head.Number) == n {
 		return o.head
 	}
 
@@ -88,8 +89,8 @@ func (o *FastCanonicalBlockHeaderOracle) GetHeaderByNumber(n uint64) *types.Head
 		return o.fallback.GetHeaderByNumber(n)
 	}
 
-	for h.Number.Uint64() > n {
-		headNumber := h.Number.Uint64()
+	for bigs.Uint64Strict(h.Number) > n {
+		headNumber := bigs.Uint64Strict(h.Number)
 		var currEarliestHistory uint64
 		if params.HistoryServeWindow < headNumber {
 			currEarliestHistory = headNumber - params.HistoryServeWindow
@@ -106,7 +107,7 @@ func (o *FastCanonicalBlockHeaderOracle) GetHeaderByNumber(n uint64) *types.Head
 			return o.fallback.GetHeaderByNumber(n)
 		}
 		h = block.Header()
-		o.cache.Add(h.Number.Uint64(), h)
+		o.cache.Add(bigs.Uint64Strict(h.Number), h)
 	}
 	return h
 }

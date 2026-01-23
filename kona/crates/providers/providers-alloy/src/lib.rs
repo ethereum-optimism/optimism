@@ -7,6 +7,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 mod metrics;
+pub use beacon_client::BeaconClientError;
 pub use metrics::Metrics;
 
 mod beacon_client;

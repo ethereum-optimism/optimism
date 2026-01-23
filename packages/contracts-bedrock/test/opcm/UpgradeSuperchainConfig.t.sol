@@ -12,15 +12,16 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
+// Libraries
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @title MockOPCMV1
 /// @notice This contract is used to mock the OPCM contract and emit an event which we check for in the test.
 contract MockOPCMV1 {
     event UpgradeCalled(address indexed superchainConfig);
 
-    function isDevFeatureEnabled(bytes32 /* _feature */ ) public pure returns (bool) {
-        return false;
+    function version() public pure returns (string memory) {
+        return "6.0.0";
     }
 
     function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig) public {
@@ -33,8 +34,8 @@ contract MockOPCMV1 {
 contract MockOPCMV2 {
     event UpgradeCalled(IOPContractsManagerV2.SuperchainUpgradeInput indexed superchainUpgradeInput);
 
-    function isDevFeatureEnabled(bytes32 _feature) public pure returns (bool) {
-        return _feature == DevFeatures.OPCM_V2;
+    function version() public pure returns (string memory) {
+        return Constants.OPCM_V2_MIN_VERSION;
     }
 
     function upgradeSuperchain(IOPContractsManagerV2.SuperchainUpgradeInput memory _superchainUpgradeInput) public {

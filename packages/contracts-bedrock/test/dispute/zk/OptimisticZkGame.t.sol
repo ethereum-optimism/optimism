@@ -222,6 +222,18 @@ contract OptimisticZkGame_Initialize_Test is OptimisticZkGame_TestInit {
         vm.stopPrank();
     }
 
+    function testFuzz_initialize_blockNumberTooLarge_reverts(uint256 _l2SequenceNumber) public {
+        _l2SequenceNumber = bound(_l2SequenceNumber, uint256(type(uint64).max) + 1, type(uint256).max);
+
+        vm.startPrank(proposer);
+        vm.deal(proposer, 1 ether);
+        vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, rootClaim));
+        disputeGameFactory.create{ value: 1 ether }(
+            gameType, rootClaim, abi.encodePacked(_l2SequenceNumber, parentGameIndex)
+        );
+        vm.stopPrank();
+    }
+
     function test_initialize_parentBlacklisted_reverts() public {
         // Blacklist the game on the anchor state registry (which is what's actually used for validation).
         vm.prank(superchainConfig.guardian());

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum"
@@ -255,7 +256,7 @@ type stubL2HeaderSource struct {
 }
 
 func (s *stubL2HeaderSource) HeaderByNumber(_ context.Context, num *big.Int) (*ethTypes.Header, error) {
-	header, ok := s.headers[num.Uint64()]
+	header, ok := s.headers[bigs.Uint64Strict(num)]
 	if !ok {
 		return nil, ethereum.NotFound
 	}
