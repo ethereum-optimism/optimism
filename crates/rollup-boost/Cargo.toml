@@ -93,8 +93,8 @@ reqwest = "0.12.15"
 testcontainers.workspace = true
 
 [build-dependencies]
-vergen = { version = "9.0.4", features = ["build", "cargo", "emit_and_set"] }
-vergen-git2 = "1.0.5"
+vergen = { version = "9.1.0", features = ["build", "cargo", "emit_and_set"] }
+vergen-git2 = "9.1.0"
 
 [[bin]]
 name = "rollup-boost"
