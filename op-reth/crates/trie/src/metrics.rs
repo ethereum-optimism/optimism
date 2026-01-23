@@ -551,10 +551,10 @@ where
     #[inline]
     async fn replace_updates(
         &self,
-        latest_common_block_number: u64,
-        blocks_to_add: HashMap<BlockWithParent, BlockStateDiff>,
+        latest_common_block: BlockNumHash,
+        blocks_to_add: Vec<(BlockWithParent, BlockStateDiff)>,
     ) -> OpProofsStorageResult<()> {
-        self.storage.replace_updates(latest_common_block_number, blocks_to_add).await
+        self.storage.replace_updates(latest_common_block, blocks_to_add).await
     }
 
     #[inline]

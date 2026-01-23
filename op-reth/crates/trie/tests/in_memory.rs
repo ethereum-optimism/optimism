@@ -1,7 +1,7 @@
 //! Common test suite for [`OpProofsStore`] implementations.
 
-use alloy_eips::{eip1898::BlockWithParent, NumHash};
-use alloy_primitives::{map::HashMap, B256, U256};
+use alloy_eips::{eip1898::BlockWithParent, BlockNumHash, NumHash};
+use alloy_primitives::{B256, U256};
 use reth_optimism_trie::{
     db::MdbxProofsStorage, BlockStateDiff, InMemoryProofsStorage, OpProofsStorageError,
     OpProofsStore,
@@ -1580,7 +1580,7 @@ async fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
     );
 
     // ========== Call replace_updates to replace blocks after 100 ==========
-    let mut blocks_to_add: HashMap<BlockWithParent, BlockStateDiff> = HashMap::default();
+    let mut blocks_to_add: Vec<(BlockWithParent, BlockStateDiff)> = Vec::default();
 
     // New data for block 101
     let new_account_addr = B256::repeat_byte(0x40);
@@ -1611,13 +1611,13 @@ async fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
     new_storage.storage.insert(new_storage_slot, new_storage_value);
     new_post_state.storages.insert(new_storage_addr, new_storage);
 
-    blocks_to_add.insert(
+    blocks_to_add.push((
         block_ref_101,
         BlockStateDiff {
             sorted_trie_updates: new_trie_updates.into_sorted(),
             sorted_post_state: new_post_state.into_sorted(),
         },
-    );
+    ));
 
     // New data for block 102
     let block_102_account_addr = B256::repeat_byte(0x70);
@@ -1630,16 +1630,18 @@ async fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
     let mut post_state_102 = HashedPostState::default();
     post_state_102.accounts.insert(block_102_account_addr, Some(block_102_account));
 
-    blocks_to_add.insert(
+    blocks_to_add.push((
         block_ref_102,
         BlockStateDiff {
             sorted_trie_updates: trie_updates_102.into_sorted(),
             sorted_post_state: post_state_102.into_sorted(),
         },
-    );
+    ));
 
     // Execute replace_updates
-    storage.replace_updates(100, blocks_to_add).await?;
+    storage
+        .replace_updates(BlockNumHash::new(100, block_ref_100.block.hash), blocks_to_add)
+        .await?;
     // ========== Verify that data up to block 100 still exists ==========
     let mut cursor_50 = storage.account_trie_cursor(75)?;
     assert!(

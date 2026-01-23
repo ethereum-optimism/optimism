@@ -3,8 +3,8 @@
 use crate::{
     api::WriteCounts, BlockStateDiff, OpProofsStorageError, OpProofsStorageResult, OpProofsStore,
 };
-use alloy_eips::eip1898::BlockWithParent;
-use alloy_primitives::{map::HashMap, B256, U256};
+use alloy_eips::{eip1898::BlockWithParent, BlockNumHash};
+use alloy_primitives::{B256, U256};
 use reth_db::DatabaseError;
 use reth_primitives_traits::Account;
 use reth_trie::{
@@ -714,10 +714,11 @@ impl OpProofsStore for InMemoryProofsStorage {
 
     async fn replace_updates(
         &self,
-        latest_common_block_number: u64,
-        blocks_to_add: HashMap<BlockWithParent, BlockStateDiff>,
+        latest_common_block: BlockNumHash,
+        blocks_to_add: Vec<(BlockWithParent, BlockStateDiff)>,
     ) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write().await;
+        let latest_common_block_number = latest_common_block.number;
 
         // Remove all updates after latest_common_block_number
         inner.trie_updates.retain(|block, _| *block <= latest_common_block_number);

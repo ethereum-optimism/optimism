@@ -5,7 +5,7 @@ use crate::{
     OpProofsStorageResult,
 };
 use alloy_eips::{eip1898::BlockWithParent, BlockNumHash};
-use alloy_primitives::{map::HashMap, B256, U256};
+use alloy_primitives::{B256, U256};
 use auto_impl::auto_impl;
 use derive_more::{AddAssign, Constructor};
 use reth_primitives_traits::Account;
@@ -183,11 +183,11 @@ pub trait OpProofsStore: Send + Sync + Debug {
         to: BlockWithParent,
     ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
 
-    /// Deletes all updates > `latest_common_block_number` and replaces them with the new updates.
+    /// Deletes all updates > `latest_common_block` and replaces them with the new updates.
     fn replace_updates(
         &self,
-        latest_common_block_number: u64,
-        blocks_to_add: HashMap<BlockWithParent, BlockStateDiff>,
+        latest_common_block: BlockNumHash,
+        blocks_to_add: Vec<(BlockWithParent, BlockStateDiff)>,
     ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
 
     /// Set the earliest block number and hash that has been stored

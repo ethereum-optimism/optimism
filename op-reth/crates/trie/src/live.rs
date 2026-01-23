@@ -4,8 +4,7 @@ use crate::{
     api::OperationDurations, provider::OpProofsStateProviderRef, BlockStateDiff, OpProofsStorage,
     OpProofsStorageError, OpProofsStore,
 };
-use alloy_eips::{eip1898::BlockWithParent, NumHash};
-use alloy_primitives::map::{DefaultHashBuilder, HashMap};
+use alloy_eips::{eip1898::BlockWithParent, BlockNumHash, NumHash};
 use derive_more::Constructor;
 use reth_evm::{execute::Executor, ConfigureEvm};
 use reth_primitives_traits::{AlloyBlockHeader, BlockTy, RecoveredBlock};
@@ -187,22 +186,23 @@ where
 
         let start = Instant::now();
         let mut operation_durations = OperationDurations::default();
-        let latest_common_block_number = block_updates[0].0.block.number.saturating_sub(1);
-
-        let mut block_trie_updates: HashMap<BlockWithParent, BlockStateDiff> =
-            HashMap::with_capacity_and_hasher(block_updates.len(), DefaultHashBuilder::default());
+        let first = &block_updates[0].0;
+        let latest_common_block =
+            BlockNumHash::new(first.block.number.saturating_sub(1), first.parent);
+        let mut block_trie_updates: Vec<(BlockWithParent, BlockStateDiff)> =
+            Vec::with_capacity(block_updates.len());
 
         for (block, trie_updates, hashed_state) in &block_updates {
-            block_trie_updates.insert(
+            block_trie_updates.push((
                 *block,
                 BlockStateDiff {
                     sorted_trie_updates: (**trie_updates).clone(),
                     sorted_post_state: (**hashed_state).clone(),
                 },
-            );
+            ));
         }
 
-        self.storage.replace_updates(latest_common_block_number, block_trie_updates).await?;
+        self.storage.replace_updates(latest_common_block, block_trie_updates).await?;
         let write_duration = start.elapsed();
         operation_durations.total_duration_seconds = write_duration;
         operation_durations.write_duration_seconds = write_duration;

@@ -135,6 +135,17 @@ impl MdbxProofsStorage {
         Ok(())
     }
 
+    /// Internal helper to set latest block number hash within an existing transaction
+    fn inner_set_latest_block_number(
+        tx: &(impl DbTxMut + DbTx),
+        block_number: u64,
+        hash: B256,
+    ) -> OpProofsStorageResult<()> {
+        let mut cursor = tx.cursor_write::<ProofWindow>()?;
+        cursor.upsert(ProofWindowKey::LatestBlock, &BlockNumberHash::new(block_number, hash))?;
+        Ok(())
+    }
+
     /// Persist a batch of versioned history entries to a dup-sorted table.
     ///
     /// # Parameters
@@ -573,11 +584,7 @@ impl MdbxProofsStorage {
         change_set_cursor.append(block_number, change_set)?;
 
         // Update proof window's latest block
-        let mut proof_window_cursor = tx.new_cursor::<ProofWindow>()?;
-        proof_window_cursor.upsert(
-            ProofWindowKey::LatestBlock,
-            &BlockNumberHash::new(block_number, block_ref.block.hash),
-        )?;
+        Self::inner_set_latest_block_number(tx, block_number, block_ref.block.hash)?;
 
         Ok(WriteCounts {
             account_trie_updates_written_total: change_set.account_trie_keys.len() as u64,
@@ -967,8 +974,13 @@ impl OpProofsStore for MdbxProofsStorage {
 
             let new_latest_block =
                 BlockNumberHash::new(to.block.number.saturating_sub(1), to.parent);
-            let mut proof_window_cursor = tx.new_cursor::<ProofWindow>()?;
-            proof_window_cursor.upsert(ProofWindowKey::LatestBlock, &new_latest_block)?;
+
+            // Update proof window's Latest block
+            Self::inner_set_latest_block_number(
+                tx,
+                new_latest_block.number(),
+                *new_latest_block.hash(),
+            )?;
 
             Ok(())
         })?
@@ -976,36 +988,30 @@ impl OpProofsStore for MdbxProofsStorage {
 
     async fn replace_updates(
         &self,
-        latest_common_block_number: u64,
-        blocks_to_add: HashMap<BlockWithParent, BlockStateDiff>,
+        latest_common_block: BlockNumHash,
+        mut blocks_to_add: Vec<(BlockWithParent, BlockStateDiff)>,
     ) -> OpProofsStorageResult<()> {
+        // Sort the vec list by block number
+        blocks_to_add.sort_unstable_by_key(|(bwp, _)| bwp.block.number);
+
         let history_to_delete = self
             .env
-            .view(|tx| self.collect_history_ranged(tx, latest_common_block_number + 1..))??;
+            .view(|tx| self.collect_history_ranged(tx, latest_common_block.number + 1..))??;
 
         self.env.update(|tx| {
-            self.delete_history_ranged(tx, latest_common_block_number + 1.., history_to_delete)?;
+            // Remove the old history
+            self.delete_history_ranged(tx, latest_common_block.number + 1.., history_to_delete)?;
 
-            // Sort by block number: Hashmap does not guarantee order
-            // todo: use a sorted vec instead
-            let mut blocks_to_add_vec: Vec<(BlockWithParent, BlockStateDiff)> =
-                blocks_to_add.into_iter().collect();
-
-            blocks_to_add_vec.sort_unstable_by_key(|(bwp, _)| bwp.block.number);
-
-            // update the proof window
-            // todo: refactor to use block hash from the block to add. We need to pass the
-            // BlockNumHash type for the latest_common_block_number
-            let mut proof_window_cursor = tx.new_cursor::<ProofWindow>()?;
-            proof_window_cursor.upsert(
-                ProofWindowKey::LatestBlock,
-                &BlockNumberHash::new(
-                    latest_common_block_number,
-                    blocks_to_add_vec.first().unwrap().0.parent,
-                ),
+            // Update the ProofWindow Latest Block to latest_common_block so we can perform
+            // `store_trie_updates_append_only`.
+            Self::inner_set_latest_block_number(
+                tx,
+                latest_common_block.number,
+                latest_common_block.hash,
             )?;
 
-            for (block_with_parent, diff) in blocks_to_add_vec {
+            // Apply the new history
+            for (block_with_parent, diff) in blocks_to_add {
                 self.store_trie_updates_append_only(tx, block_with_parent, diff)?;
             }
             Ok(())
@@ -3215,12 +3221,13 @@ mod tests {
         let b3p = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random())); // 3'
         let b4p = BlockWithParent::new(b3p.block.hash, NumHash::new(4, B256::random())); // 4'
 
-        // Build blocks_to_add (HashMap). Order is not guaranteed.
-        let mut blocks_to_add = HashMap::default();
-        blocks_to_add.insert(b3p, make_diff(300)); // new value at height 3
-        blocks_to_add.insert(b4p, make_diff(400)); // new value at height 4
+        // Build blocks_to_add vec.
+        let blocks_to_add = vec![(b3p, make_diff(300)), (b4p, make_diff(400))];
 
-        store.replace_updates(2, blocks_to_add).await.expect("replace_updates succeeds");
+        store
+            .replace_updates(BlockNumHash::new(2, b2.block.hash), blocks_to_add)
+            .await
+            .expect("replace_updates succeeds");
 
         // --- Verify post-conditions ---
 
