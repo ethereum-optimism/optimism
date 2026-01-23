@@ -179,21 +179,24 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 		return fmt.Errorf("failed to get target block at timestamp %d: %w", timestamp, err)
 	}
 
-	targetSafeBlock, targetFinalizedBlock, err := e.computeRewindTargets(ctx, targetBlock)
-	if err != nil {
-		return err
-	}
-
 	syntheticBlockHash, err := e.insertSyntheticPayload(ctx, targetBlock.Number)
 	if err != nil {
 		return err
 	}
 
+	targetSafeBlock, targetFinalizedBlock, err := e.computeRewindTargets(ctx, targetBlock)
+	if err != nil {
+		return err
+	}
+
 	// Step 1: FCU to the synthetic block to trigger a reorg
-	if err := e.forkchoiceUpdate(ctx, syntheticBlockHash, targetSafeBlock.Hash, targetFinalizedBlock.Hash); err != nil {
+	// we use the parent hash of the target block as the safe and finalized block
+	// since these are guaranteed to be in the canonical chain of the synthetic block
+	parentHash := targetBlock.ParentHash
+	if err := e.forkchoiceUpdate(ctx, syntheticBlockHash, parentHash, parentHash); err != nil {
 		return fmt.Errorf("failed to FCU to synthetic block: %w", err)
 	}
-	e.log.Info("executed FCU to synthetic block", "syntheticHead", syntheticBlockHash, "safe", targetSafeBlock.Hash, "finalized", targetFinalizedBlock.Hash)
+	e.log.Info("executed FCU to synthetic block", "syntheticHead", syntheticBlockHash, "safe", parentHash, "finalized", parentHash)
 
 	// Step 2: FCU to the actual target block
 	if err := e.forkchoiceUpdate(ctx, targetBlock.Hash, targetSafeBlock.Hash, targetFinalizedBlock.Hash); err != nil {
