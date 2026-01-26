@@ -222,7 +222,7 @@ impl InMemoryTrieCursor {
             };
 
         // Sort by path for consistent ordering
-        collected_entries.sort_by(|(a, _), (b, _)| a.cmp(b));
+        collected_entries.sort_by_key(|(a, _)| *a);
         self.entries = collected_entries;
         self.is_populated = true;
         Ok(())
