@@ -76,8 +76,8 @@ type OptimismPortal2 struct {
 		GasLimit *big.Int
 		Data     []byte
 	}, proofSubmitter common.Address) TypedCall[any] `sol:"finalizeWithdrawalTransactionExternalProof"`
-	Initialize                 func(disputeGameFactory common.Address, systemConfig common.Address, superchainConfig common.Address) TypedCall[any]                        `sol:"initialize"`
+	Initialize                 func(disputeGameFactory common.Address, systemConfig common.Address, superchainConfig common.Address) TypedCall[any]                `sol:"initialize"`
 	ProveWithdrawalTransaction func(tx WithdrawalTransaction, disputeGameIndex *big.Int, outputRootProof OutputRootProof, withdrawalProof [][]byte) TypedCall[any] `sol:"proveWithdrawalTransaction"`
-	SetRespectedGameType                func(gameType uint32) TypedCall[any]                                                                                                                                                          `sol:"setRespectedGameType"`
-	Receive                             func() TypedCall[any]                                                                                                                                                                         `sol:"receive"`
+	SetRespectedGameType       func(gameType uint32) TypedCall[any]                                                                                                `sol:"setRespectedGameType"`
+	Receive                    func() TypedCall[any]                                                                                                               `sol:"receive"`
 }

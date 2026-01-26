@@ -37,7 +37,6 @@ var (
 		Usage:   "Address of the optimism portal contract.",
 		EnvVars: op_service.PrefixEnvVar(EnvVarPrefix, "PORTAL_ADDRESS"),
 	}
-
 )
 
 func ProveWithdrawal(ctx *cli.Context) error {
