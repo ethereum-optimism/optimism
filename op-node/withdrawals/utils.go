@@ -3,7 +3,6 @@ package withdrawals
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/big"
@@ -46,54 +45,6 @@ type ProvenWithdrawalParameters struct {
 	Data            []byte
 	OutputRootProof bindings.TypesOutputRootProof
 	WithdrawalProof [][]byte // List of trie nodes to prove L2 storage
-}
-
-type SuperRootProofOutputRoot struct {
-	ChainID *big.Int
-	Root    common.Hash
-}
-
-type SuperRootProof struct {
-	Version     [1]byte
-	Timestamp   uint64
-	OutputRoots []SuperRootProofOutputRoot
-}
-
-// DecodeSuperRootProof decodes SuperFaultDisputeGame extraData bytes into SuperRootProof.
-// Format: 1 byte version (0x01) + 8 bytes timestamp (big-endian) + N*(32 bytes chainId + 32 bytes root)
-func DecodeSuperRootProof(data []byte) (SuperRootProof, error) {
-	if len(data) < 9 {
-		return SuperRootProof{}, errors.New("extraData too short: must be at least 9 bytes")
-	}
-	if data[0] != 0x01 {
-		return SuperRootProof{}, fmt.Errorf("invalid super root version: expected 0x01, got 0x%02x", data[0])
-	}
-
-	timestamp := binary.BigEndian.Uint64(data[1:9])
-	remaining := data[9:]
-
-	if len(remaining) == 0 {
-		return SuperRootProof{}, errors.New("extraData contains no output roots")
-	}
-	if len(remaining)%64 != 0 {
-		return SuperRootProof{}, fmt.Errorf("invalid extraData length: %d bytes after header not divisible by 64", len(remaining))
-	}
-
-	numRoots := len(remaining) / 64
-	outputRoots := make([]SuperRootProofOutputRoot, numRoots)
-	for i := 0; i < numRoots; i++ {
-		off := i * 64
-		outputRoots[i] = SuperRootProofOutputRoot{
-			ChainID: new(big.Int).SetBytes(remaining[off : off+32]),
-			Root:    common.BytesToHash(remaining[off+32 : off+64]),
-		}
-	}
-
-	return SuperRootProof{
-		Version:     [1]byte{0x01},
-		Timestamp:   timestamp,
-		OutputRoots: outputRoots,
-	}, nil
 }
 
 // ProveWithdrawalParametersFaultProofs calls ProveWithdrawalParametersForBlock with the most recent L2 output after the latest game.
