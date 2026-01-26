@@ -20,6 +20,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -56,14 +57,20 @@ var (
 
 // Registry fetches and caches OPCM version data from the superchain-registry.
 type Registry struct {
+	log          log.Logger
 	memoryCache  *caching.LRUCache[string, Versions]
 	downloader   *httputil.Downloader
 	fileCacheDir string
 }
 
-// NewRegistry creates a new Registry.
-func NewRegistry() *Registry {
+// NewRegistry creates a new Registry with the given logger.
+// If logger is nil, a no-op logger is used.
+func NewRegistry(logger log.Logger) *Registry {
+	if logger == nil {
+		logger = log.Root()
+	}
 	return &Registry{
+		log:         logger,
 		memoryCache: caching.NewLRUCache[string, Versions](nil, "opcmregistry", memoryCacheSize),
 		downloader: &httputil.Downloader{
 			Client:  &http.Client{Timeout: httpTimeout},
@@ -86,7 +93,7 @@ func defaultCacheDir() string {
 
 func getGlobalRegistry() *Registry {
 	globalRegistryOnce.Do(func() {
-		globalRegistry = NewRegistry()
+		globalRegistry = NewRegistry(nil)
 	})
 	return globalRegistry
 }
@@ -154,6 +161,7 @@ func (r *Registry) loadFromFileCache(url string) ([]byte, bool) {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
+		r.log.Debug("failed to read cache file", "path", path, "err", err)
 		return nil, false
 	}
 
@@ -169,15 +177,19 @@ func (r *Registry) saveToFileCache(url string, data []byte) {
 
 	// Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		r.log.Debug("failed to create cache directory", "path", filepath.Dir(path), "err", err)
 		return
 	}
 
 	// Atomic write via temp file + rename
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0644); err != nil {
+		r.log.Debug("failed to write cache temp file", "path", tmp, "err", err)
 		return
 	}
-	_ = os.Rename(tmp, path)
+	if err := os.Rename(tmp, path); err != nil {
+		r.log.Debug("failed to rename cache temp file", "from", tmp, "to", path, "err", err)
+	}
 }
 
 // fileCachePath returns the file path for caching the given URL.

@@ -7,7 +7,10 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func TestParseSemver(t *testing.T) {
@@ -258,14 +261,16 @@ func TestUrlForChain(t *testing.T) {
 }
 
 func TestFileCachePath(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelDebug)
+
 	t.Run("empty cache dir returns empty path", func(t *testing.T) {
-		r := &Registry{fileCacheDir: ""}
+		r := &Registry{log: logger, fileCacheDir: ""}
 		path := r.fileCachePath("https://example.com/test.toml")
 		require.Empty(t, path)
 	})
 
 	t.Run("valid cache dir returns hashed path", func(t *testing.T) {
-		r := &Registry{fileCacheDir: "/tmp/test-cache"}
+		r := &Registry{log: logger, fileCacheDir: "/tmp/test-cache"}
 		path := r.fileCachePath("https://example.com/test.toml")
 		require.NotEmpty(t, path)
 		require.True(t, filepath.IsAbs(path))
@@ -274,14 +279,14 @@ func TestFileCachePath(t *testing.T) {
 	})
 
 	t.Run("different urls produce different paths", func(t *testing.T) {
-		r := &Registry{fileCacheDir: "/tmp/test-cache"}
+		r := &Registry{log: logger, fileCacheDir: "/tmp/test-cache"}
 		path1 := r.fileCachePath("https://example.com/file1.toml")
 		path2 := r.fileCachePath("https://example.com/file2.toml")
 		require.NotEqual(t, path1, path2)
 	})
 
 	t.Run("same url produces same path", func(t *testing.T) {
-		r := &Registry{fileCacheDir: "/tmp/test-cache"}
+		r := &Registry{log: logger, fileCacheDir: "/tmp/test-cache"}
 		path1 := r.fileCachePath("https://example.com/same.toml")
 		path2 := r.fileCachePath("https://example.com/same.toml")
 		require.Equal(t, path1, path2)
@@ -289,8 +294,9 @@ func TestFileCachePath(t *testing.T) {
 }
 
 func TestFileCacheRoundTrip(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelDebug)
 	tmpDir := t.TempDir()
-	r := &Registry{fileCacheDir: tmpDir}
+	r := &Registry{log: logger, fileCacheDir: tmpDir}
 
 	testURL := "https://example.com/test.toml"
 	testData := []byte(`[releases]
@@ -306,8 +312,9 @@ version = "1.0.0"`)
 }
 
 func TestFileCacheExpiration(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelDebug)
 	tmpDir := t.TempDir()
-	r := &Registry{fileCacheDir: tmpDir}
+	r := &Registry{log: logger, fileCacheDir: tmpDir}
 
 	testURL := "https://example.com/expired.toml"
 	testData := []byte(`test = "data"`)
@@ -327,8 +334,9 @@ func TestFileCacheExpiration(t *testing.T) {
 }
 
 func TestFileCacheNonExistent(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelDebug)
 	tmpDir := t.TempDir()
-	r := &Registry{fileCacheDir: tmpDir}
+	r := &Registry{log: logger, fileCacheDir: tmpDir}
 
 	_, ok := r.loadFromFileCache("https://example.com/nonexistent.toml")
 	require.False(t, ok)
@@ -510,10 +518,22 @@ func TestGetResolvedOPCMs(t *testing.T) {
 }
 
 func TestNewRegistry(t *testing.T) {
-	r := NewRegistry()
-	require.NotNil(t, r)
-	require.NotNil(t, r.memoryCache)
-	require.NotNil(t, r.downloader)
+	t.Run("with nil logger uses default", func(t *testing.T) {
+		r := NewRegistry(nil)
+		require.NotNil(t, r)
+		require.NotNil(t, r.log)
+		require.NotNil(t, r.memoryCache)
+		require.NotNil(t, r.downloader)
+	})
+
+	t.Run("with provided logger", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelDebug)
+		r := NewRegistry(logger)
+		require.NotNil(t, r)
+		require.Equal(t, logger, r.log)
+		require.NotNil(t, r.memoryCache)
+		require.NotNil(t, r.downloader)
+	})
 }
 
 func TestDefaultCacheDir(t *testing.T) {
