@@ -17,6 +17,7 @@ import (
 
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -113,7 +114,7 @@ func TestBrotliBatcherFjord(t *testing.T) {
 		// wait for chain to be marked as "safe" (i.e. confirm batch-submission works)
 		stat, err := rollupClient.SyncStatus(context.Background())
 		require.NoError(t, err)
-		return stat.SafeL2.Number >= receipt.BlockNumber.Uint64()
+		return stat.SafeL2.Number >= bigs.Uint64Strict(receipt.BlockNumber)
 	}, time.Second*20, time.Second, "expected L2 to be batch-submitted and labeled as safe")
 
 	// check that the L2 tx is still canonical

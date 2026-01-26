@@ -3,13 +3,13 @@ pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
 
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { Constants as ScriptConstants } from "scripts/libraries/Constants.sol";
 import { Types } from "scripts/libraries/Types.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -33,6 +33,9 @@ import { GameTypes } from "src/dispute/lib/Types.sol";
 contract DeployOPChain is Script {
     /// @notice The default init bond for the dispute games.
     uint256 public constant DEFAULT_INIT_BOND = 0.08 ether;
+
+    /// @notice Whether to use OPCM v2.
+    bool public isOPCMv2;
 
     /// @notice The output of the DeployOPChain script. This is the same as the DeployOPChainOutput type in the
     /// op-deployer package.
@@ -71,9 +74,10 @@ contract DeployOPChain is Script {
         checkInput(_input);
 
         // Check if OPCM v2 should be used, both v1 and v2 share the same interface for this function.
-        bool useV2 = IOPContractsManager(_input.opcm).isDevFeatureEnabled(DevFeatures.OPCM_V2);
+        require(address(_input.opcm).code.length > 0, "DeployOPChain: OPCM address has no code");
+        isOPCMv2 = SemverComp.gte(IOPContractsManager(_input.opcm).version(), Constants.OPCM_V2_MIN_VERSION);
 
-        if (useV2) {
+        if (isOPCMv2) {
             IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_input.opcm);
             IOPContractsManagerV2.FullConfig memory config = _toOPCMV2DeployInput(_input);
 
@@ -223,9 +227,13 @@ contract DeployOPChain is Script {
     /// @return output_ The output parameters.
     function _fromOPCMV2OutputToOutput(IOPContractsManagerV2.ChainContracts memory _chainContracts)
         internal
-        pure
+        view
         returns (Output memory output_)
     {
+        // PERMISSIONED_CANNON must be enabled.
+        address permissionedDgImpl =
+            address(_chainContracts.disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON));
+
         output_ = Output({
             opChainProxyAdmin: _chainContracts.proxyAdmin,
             addressManager: _chainContracts.addressManager,
@@ -238,10 +246,11 @@ contract DeployOPChain is Script {
             ethLockboxProxy: _chainContracts.ethLockbox,
             disputeGameFactoryProxy: _chainContracts.disputeGameFactory,
             anchorStateRegistryProxy: _chainContracts.anchorStateRegistry,
+            // Explicitly set to address(0) maintaining consistency with OPCM v1 behavior.
             faultDisputeGame: IFaultDisputeGame(address(0)),
-            permissionedDisputeGame: IPermissionedDisputeGame(address(0)),
+            permissionedDisputeGame: IPermissionedDisputeGame(permissionedDgImpl),
             delayedWETHPermissionedGameProxy: _chainContracts.delayedWETH,
-            delayedWETHPermissionlessGameProxy: IDelayedWETH(payable(address(0)))
+            delayedWETHPermissionlessGameProxy: IDelayedWETH(payable(_chainContracts.delayedWETH))
         });
     }
 
@@ -351,7 +360,7 @@ contract DeployOPChain is Script {
         // Check dispute games and get superchain config
         address expectedPDGImpl = address(_o.permissionedDisputeGame);
 
-        if (IOPContractsManager(_i.opcm).isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+        if (isOPCMv2) {
             // OPCM v2: use implementations from v2 contract
             IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_i.opcm);
             expectedPDGImpl = opcmV2.implementations().permissionedDisputeGameImpl;

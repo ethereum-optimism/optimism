@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -173,7 +174,7 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 		// wait for chain to be marked as "safe" (i.e. confirm batch-submission works)
 		stat, err := rollupClient.SyncStatus(context.Background())
 		require.NoError(ct, err)
-		require.GreaterOrEqual(ct, stat.SafeL2.Number, receipt.BlockNumber.Uint64())
+		require.GreaterOrEqual(ct, stat.SafeL2.Number, bigs.Uint64Strict(receipt.BlockNumber))
 	}, time.Second*20, time.Second, "expected L2 to be batch-submitted and labeled as safe")
 
 	// check that the L2 tx is still canonical

@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum-optimism/optimism/op-program/client/interop"
 	"github.com/ethereum-optimism/optimism/op-program/client/interop/types"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
@@ -596,7 +597,7 @@ func TestInteropFaultProofs_MessageExpiry(gt *testing.T) {
 
 	// Advance the chain until the init msg expires
 	msgExpiryTime := system.DepSet().MessageExpiryWindow()
-	end := emitTx.Identifier().Timestamp.Uint64() + msgExpiryTime
+	end := bigs.Uint64Strict(emitTx.Identifier().Timestamp) + msgExpiryTime
 	system.AddL2Block(actors.ChainA, dsl.WithL2BlocksUntilTimestamp(end))
 	system.AddL2Block(actors.ChainB, dsl.WithL2BlocksUntilTimestamp(end))
 	system.SubmitBatchData()

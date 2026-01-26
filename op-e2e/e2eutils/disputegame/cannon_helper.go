@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -316,7 +317,7 @@ func (g *CannonHelper) ChallengeToPreimageLoadAtTarget(ctx context.Context, cann
 	provider, _, outputRootClaim := cannonTraceProviderFunc()
 	splitDepth := g.splitGame.SplitDepth(ctx)
 	execDepth := g.splitGame.ExecDepth(ctx)
-	g.require.NotEqual(outputRootClaim.Position.TraceIndex(execDepth).Uint64(), targetTraceIndex, "cannot move to defend a terminal trace index")
+	g.require.NotEqual(bigs.Uint64Strict(outputRootClaim.Position.TraceIndex(execDepth)), targetTraceIndex, "cannot move to defend a terminal trace index")
 	g.require.EqualValues(splitDepth+1, outputRootClaim.Depth(), "supplied claim must be the root of an execution game")
 	g.require.EqualValues(execDepth%2, 1, "execution game depth must be odd") // since we're challenging the execution root claim
 
@@ -387,7 +388,7 @@ func (g *CannonHelper) VerifyPreimageAtTarget(ctx context.Context, cannonTracePr
 	provider, localContext, outputRootClaim := cannonTraceProviderFunc()
 
 	pos := types.NewPosition(execDepth, new(big.Int).SetUint64(targetTraceIndex))
-	g.require.Equal(targetTraceIndex, pos.TraceIndex(execDepth).Uint64())
+	g.require.Equal(targetTraceIndex, bigs.Uint64Strict(pos.TraceIndex(execDepth)))
 
 	prestate, proof, oracleData, err := provider.GetStepData(ctx, pos)
 	g.require.NoError(err, "Failed to get step data")
@@ -492,22 +493,22 @@ func traceBisection(
 	execClaimPosition, err := claim.Position.RelativeToAncestorAtDepth(splitDepth + 1)
 	require.NoError(t, err)
 
-	claimTraceIndex := execClaimPosition.TraceIndex(execDepth).Uint64()
+	claimTraceIndex := bigs.Uint64Strict(execClaimPosition.TraceIndex(execDepth))
 	t.Logf("Bisecting: Into targetTraceIndex %v: claimIndex=%v at depth=%v. claimPosition=%v execClaimPosition=%v claimTraceIndex=%v",
 		targetTraceIndex, claim.Index, claim.Depth(), claim.Position, execClaimPosition, claimTraceIndex)
 
 	// We always want to position ourselves such that the challenger generates proofs for the targetTraceIndex as prestate
 	if execClaimPosition.Depth() == execDepth-1 {
-		if execClaimPosition.TraceIndex(execDepth).Uint64() == targetTraceIndex {
+		if bigs.Uint64Strict(execClaimPosition.TraceIndex(execDepth)) == targetTraceIndex {
 			newPosition := execClaimPosition.Attack()
 			correct, err := provider.Get(ctx, newPosition)
 			require.NoError(t, err)
 			t.Logf("Bisecting: Attack correctly for step at newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
 			return claim.Attack(ctx, correct)
-		} else if execClaimPosition.TraceIndex(execDepth).Uint64() > targetTraceIndex {
+		} else if bigs.Uint64Strict(execClaimPosition.TraceIndex(execDepth)) > targetTraceIndex {
 			t.Logf("Bisecting: Attack incorrectly for step")
 			return claim.Attack(ctx, common.Hash{0xdd})
-		} else if execClaimPosition.TraceIndex(execDepth).Uint64()+1 == targetTraceIndex {
+		} else if bigs.Uint64Strict(execClaimPosition.TraceIndex(execDepth))+1 == targetTraceIndex {
 			t.Logf("Bisecting: Defend incorrectly for step")
 			return claim.Defend(ctx, common.Hash{0xcc})
 		} else {
@@ -521,9 +522,9 @@ func traceBisection(
 
 	// Attack or Defend depending on whether the claim we're responding to is to the left or right of the trace index
 	// Induce the honest challenger to attack or defend depending on whether our new position will be to the left or right of the trace index
-	if execClaimPosition.TraceIndex(execDepth).Uint64() < targetTraceIndex && claim.Depth() != splitDepth+1 {
+	if bigs.Uint64Strict(execClaimPosition.TraceIndex(execDepth)) < targetTraceIndex && claim.Depth() != splitDepth+1 {
 		newPosition := execClaimPosition.Defend()
-		if newPosition.TraceIndex(execDepth).Uint64() < targetTraceIndex {
+		if bigs.Uint64Strict(newPosition.TraceIndex(execDepth)) < targetTraceIndex {
 			t.Logf("Bisecting: Defend correct. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
 			correct, err := provider.Get(ctx, newPosition)
 			require.NoError(t, err)
@@ -534,7 +535,7 @@ func traceBisection(
 		}
 	} else {
 		newPosition := execClaimPosition.Attack()
-		if newPosition.TraceIndex(execDepth).Uint64() < targetTraceIndex {
+		if bigs.Uint64Strict(newPosition.TraceIndex(execDepth)) < targetTraceIndex {
 			t.Logf("Bisecting: Attack correct. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
 			correct, err := provider.Get(ctx, newPosition)
 			require.NoError(t, err)
@@ -558,10 +559,10 @@ func topGameTraceBisection(
 ) *ClaimHelper {
 	require.True(t, claim.IsOutputRoot(ctx), "bisecting a bottom claim is not supported")
 
-	claimTraceIndex := claim.Position.TraceIndex(splitDepth).Uint64()
+	claimTraceIndex := bigs.Uint64Strict(claim.Position.TraceIndex(splitDepth))
 	if claimTraceIndex < targetTraceIndex {
 		newPosition := claim.Position.Defend()
-		if newPosition.TraceIndex(splitDepth).Uint64() < targetTraceIndex {
+		if bigs.Uint64Strict(newPosition.TraceIndex(splitDepth)) < targetTraceIndex {
 			response, err := provider.Get(ctx, newPosition)
 			require.NoError(t, err)
 			return claim.Defend(ctx, response)
@@ -570,7 +571,7 @@ func topGameTraceBisection(
 		}
 	} else {
 		newPosition := claim.Position.Attack()
-		if newPosition.TraceIndex(splitDepth).Uint64() < targetTraceIndex {
+		if bigs.Uint64Strict(newPosition.TraceIndex(splitDepth)) < targetTraceIndex {
 			response, err := provider.Get(ctx, newPosition)
 			require.NoError(t, err)
 			return claim.Attack(ctx, response)

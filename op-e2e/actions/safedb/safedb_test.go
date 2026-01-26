@@ -6,6 +6,7 @@ import (
 
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/safedb/helpers"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -44,7 +45,7 @@ func TestRecordSafeHeadUpdates(gt *testing.T) {
 
 	// Verify the safe head is recorded
 	l1Head := miner.L1Chain().CurrentBlock()
-	firstSafeHeadUpdateL1Block := l1Head.Number.Uint64()
+	firstSafeHeadUpdateL1Block := bigs.Uint64Strict(l1Head.Number)
 	response, err := verifier.RollupClient().SafeHeadAtL1Block(context.Background(), firstSafeHeadUpdateL1Block)
 	require.NoError(t, err)
 	require.Equal(t, eth.HeaderBlockID(l1Head), response.L1Block)
@@ -103,7 +104,7 @@ func TestRecordSafeHeadUpdates(gt *testing.T) {
 
 	// Verify the safe head is recorded again
 	l1Head = miner.L1Chain().CurrentBlock()
-	firstSafeHeadUpdateL1Block = l1Head.Number.Uint64()
+	firstSafeHeadUpdateL1Block = bigs.Uint64Strict(l1Head.Number)
 	response, err = verifier.RollupClient().SafeHeadAtL1Block(context.Background(), firstSafeHeadUpdateL1Block)
 	require.NoError(t, err)
 	require.Equal(t, eth.HeaderBlockID(l1Head), response.L1Block)

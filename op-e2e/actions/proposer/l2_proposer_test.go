@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindingspreview"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -105,7 +106,7 @@ func runProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64, allocType c
 	require.NoError(t, err)
 	gameCount, err := disputeGameFactoryContract.GameCount(&bind.CallOpts{})
 	require.NoError(t, err)
-	require.Greater(t, gameCount.Uint64(), uint64(0), "game count must be greater than 0")
+	require.Greater(t, bigs.Uint64Strict(gameCount), uint64(0), "game count must be greater than 0")
 	latestGames, err := disputeGameFactoryContract.FindLatestGames(&bind.CallOpts{}, respectedGameType, new(big.Int).Sub(gameCount, common.Big1), common.Big1)
 	require.NoError(t, err)
 	require.Greater(t, len(latestGames), 0, "latest games must be greater than 0")
@@ -115,7 +116,7 @@ func runProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64, allocType c
 	block, err := seqEngine.EthClient().BlockByNumber(t.Ctx(), gameBlockNumber)
 	require.NoError(t, err)
 	require.Less(t, block.Time(), latestGame.Timestamp, "output is registered with L1 timestamp of proposal tx, past L2 block")
-	outputComputed, err := sequencer.RollupClient().OutputAtBlock(t.Ctx(), gameBlockNumber.Uint64())
+	outputComputed, err := sequencer.RollupClient().OutputAtBlock(t.Ctx(), bigs.Uint64Strict(gameBlockNumber))
 	require.NoError(t, err)
 	require.Equal(t, eth.Bytes32(latestGame.RootClaim), outputComputed.OutputRoot, "output roots must match")
 }

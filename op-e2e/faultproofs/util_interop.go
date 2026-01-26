@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/interop"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +32,7 @@ func StartInteropFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts
 	}
 
 	recipe := interopgen.InteropDevRecipe{
-		L1ChainID:        InteropL1ChainID.Uint64(),
+		L1ChainID:        bigs.Uint64Strict(InteropL1ChainID),
 		L2s:              []interopgen.InteropDevL2Recipe{{ChainID: 900200}, {ChainID: 900201}},
 		GenesisTimestamp: uint64(time.Now().Unix() + 3), // start chain 3 seconds from now
 	}

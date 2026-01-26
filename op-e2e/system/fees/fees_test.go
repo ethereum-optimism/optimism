@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -147,7 +148,7 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	if !sys.RollupConfig.IsEcotone(sys.L2GenesisCfg.Timestamp) {
 		overhead, err := gpoContract.Overhead(&bind.CallOpts{})
 		require.Nil(t, err, "reading gpo overhead")
-		require.Equal(t, overhead.Uint64(), cfg.DeployConfig.GasPriceOracleOverhead, "wrong gpo overhead")
+		require.Equal(t, bigs.Uint64Strict(overhead), cfg.DeployConfig.GasPriceOracleOverhead, "wrong gpo overhead")
 
 		scalar, err := gpoContract.Scalar(&bind.CallOpts{})
 		require.Nil(t, err, "reading gpo scalar")
@@ -163,7 +164,7 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	decimals, err := gpoContract.Decimals(&bind.CallOpts{})
 	require.Nil(t, err, "reading gpo decimals")
 
-	require.Equal(t, decimals.Uint64(), uint64(6), "wrong gpo decimals")
+	require.Equal(t, bigs.Uint64Strict(decimals), uint64(6), "wrong gpo decimals")
 
 	baseFeeRecipientStartBalance := balanceAt(predeploys.BaseFeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
 	l1FeeRecipientStartBalance := balanceAt(predeploys.L1FeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
@@ -183,7 +184,8 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	// Simple transfer from signer to random account
 	startBalance := balanceAt(fromAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
 
-	require.Greater(t, startBalance.Uint64(), big.NewInt(params.Ether).Uint64())
+	require.True(t, startBalance.Cmp(big.NewInt(params.Ether)) > 0,
+		"Expected start balance (%v) to be greater than 1 ether (%v)", startBalance, params.Ether)
 
 	transferAmount := big.NewInt(params.Ether)
 	gasTip := big.NewInt(10)
@@ -269,7 +271,7 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 		// Geth Linear Regression: -42.5856 + 102 * 0.8365 = 42.7374
 		// GPO Linear Regression: -42.5856 + 170 * 0.8365 = 99.6194
 		// The additional 68 (170 vs. 102) is due to the GPO adding 68 bytes to account for the signature.
-		require.Greater(t, types.MinTransactionSize.Uint64(), uint64(99))
+		require.Greater(t, bigs.Uint64Strict(types.MinTransactionSize), uint64(99))
 		// Because of this, we don't need to do any adjustment as the GPO and cost func are both bounded to the minimum value.
 		// However, if the fastlz regression output is ever larger than the minimum, this will require an adjustment.
 	} else if sys.RollupConfig.IsRegolith(header.Time) {

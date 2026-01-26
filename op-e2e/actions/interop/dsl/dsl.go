@@ -3,6 +3,7 @@ package dsl
 import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
@@ -270,7 +271,7 @@ func (d *InteropDSL) AdvanceL1(optionalArgs ...func(*AdvanceL1Opts)) {
 	for _, arg := range optionalArgs {
 		arg(&opts)
 	}
-	expectedL1BlockNum := d.Actors.L1Miner.L1Chain().CurrentBlock().Number.Uint64() + 1
+	expectedL1BlockNum := bigs.Uint64Strict(d.Actors.L1Miner.L1Chain().CurrentBlock().Number) + 1
 	d.Actors.L1Miner.ActL1StartBlock(opts.L1BlockTimeSeconds)(d.t)
 	for _, txInclusion := range opts.TxInclusion {
 		txInclusion(d.t)

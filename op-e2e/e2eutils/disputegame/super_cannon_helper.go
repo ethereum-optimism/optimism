@@ -18,6 +18,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -104,7 +105,7 @@ func (g *SuperCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, top
 
 	splitDepth := g.splitGame.SplitDepth(ctx)
 	execDepth := g.splitGame.ExecDepth(ctx)
-	g.require.NotEqual(topGameLeaf.Position.TraceIndex(execDepth).Uint64(), targetTraceIndex, "cannot move to defend a terminal trace index")
+	g.require.NotEqual(bigs.Uint64Strict(topGameLeaf.Position.TraceIndex(execDepth)), targetTraceIndex, "cannot move to defend a terminal trace index")
 	g.require.EqualValues(splitDepth+1, topGameLeaf.Depth(), "supplied claim must be the root of an execution game")
 	g.require.EqualValues(execDepth%2, 0, "execution game depth must be even") // since we're supporting the execution root claim
 

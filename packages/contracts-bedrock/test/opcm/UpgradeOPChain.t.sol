@@ -15,7 +15,7 @@ import { UpgradeOPChain, UpgradeOPChainInput } from "scripts/deploy/UpgradeOPCha
 // Libraries
 import { Claim } from "src/dispute/lib/Types.sol";
 import { GameType } from "src/dispute/lib/LibUDT.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -326,8 +326,8 @@ contract MockOPCMV1 {
         address indexed sysCfgProxy, bytes32 indexed absolutePrestate, bytes32 indexed cannonKonaPrestate
     );
 
-    function isDevFeatureEnabled(bytes32 /* _feature */ ) public pure returns (bool) {
-        return false;
+    function version() public pure returns (string memory) {
+        return "6.0.0";
     }
 
     function upgrade(OPContractsManager.OpChainConfig[] memory _opChainConfigs) public {
@@ -346,8 +346,8 @@ contract MockOPCMV2 {
         IOPContractsManagerUtils.ExtraInstruction[] indexed extraInstructions
     );
 
-    function isDevFeatureEnabled(bytes32 _feature) public pure returns (bool) {
-        return _feature == DevFeatures.OPCM_V2;
+    function version() public pure returns (string memory) {
+        return Constants.OPCM_V2_MIN_VERSION;
     }
 
     function upgrade(OPContractsManagerV2.UpgradeInput memory _upgradeInput) public {

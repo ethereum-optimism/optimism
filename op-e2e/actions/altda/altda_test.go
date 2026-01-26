@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -107,11 +108,11 @@ func NewL2AltDA(t helpers.Testing, params ...AltDAParam) *L2AltDA {
 
 	challengeWindow, err := contract.ChallengeWindow(nil)
 	require.NoError(t, err)
-	require.Equal(t, altDACfg.ChallengeWindow, challengeWindow.Uint64())
+	require.Equal(t, altDACfg.ChallengeWindow, bigs.Uint64Strict(challengeWindow))
 
 	resolveWindow, err := contract.ResolveWindow(nil)
 	require.NoError(t, err)
-	require.Equal(t, altDACfg.ResolveWindow, resolveWindow.Uint64())
+	require.Equal(t, altDACfg.ResolveWindow, bigs.Uint64Strict(resolveWindow))
 
 	return &L2AltDA{
 		log:       log,
@@ -174,7 +175,7 @@ func (a *L2AltDA) ActNewL2Tx(t helpers.Testing) {
 	a.miner.ActL1IncludeTx(a.dp.Addresses.Batcher)(t)
 	a.miner.ActL1EndBlock(t)
 
-	a.lastCommBn = a.miner.L1Chain().CurrentBlock().Number.Uint64()
+	a.lastCommBn = bigs.Uint64Strict(a.miner.L1Chain().CurrentBlock().Number)
 }
 
 func (a *L2AltDA) ActDeleteLastInput(t helpers.Testing) {
@@ -215,7 +216,7 @@ func (a *L2AltDA) ActChallengeInput(t helpers.Testing, comm []byte, bn uint64) {
 
 func (a *L2AltDA) ActExpireLastInput(t helpers.Testing) {
 	reorgWindow := a.altDACfg.ResolveWindow + a.altDACfg.ChallengeWindow
-	for a.miner.L1Chain().CurrentBlock().Number.Uint64() <= a.lastCommBn+reorgWindow {
+	for bigs.Uint64Strict(a.miner.L1Chain().CurrentBlock().Number) <= a.lastCommBn+reorgWindow {
 		a.miner.ActL1StartBlock(12)(t)
 		a.miner.ActL1EndBlock(t)
 	}
@@ -256,7 +257,7 @@ func (a *L2AltDA) GetLastTxBlock(t helpers.Testing) *types.Block {
 }
 
 func (a *L2AltDA) ActL1Finalized(t helpers.Testing) {
-	latest := a.miner.L1Chain().CurrentBlock().Number.Uint64()
+	latest := bigs.Uint64Strict(a.miner.L1Chain().CurrentBlock().Number)
 	a.miner.ActL1Safe(t, latest)
 	a.miner.ActL1Finalize(t, latest)
 	a.sequencer.ActL1FinalizedSignal(t)
@@ -492,7 +493,7 @@ func TestAltDA_SequencerStalledMultiChallenges(gt *testing.T) {
 	comm2 := a.lastComm
 	_, err = a.storage.GetInput(t.Ctx(), altda.Keccak256Commitment(comm2[1:]))
 	require.NoError(t, err)
-	a.lastCommBn = a.miner.L1Chain().CurrentBlock().Number.Uint64()
+	a.lastCommBn = bigs.Uint64Strict(a.miner.L1Chain().CurrentBlock().Number)
 
 	// ensure the second commitment is distinct from the first
 	require.NotEqual(t, comm1, comm2)
