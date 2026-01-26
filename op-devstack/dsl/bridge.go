@@ -22,15 +22,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
-
-	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 )
 
 // ProvenWithdrawalParameters is the set of parameters to pass to the ProveWithdrawalTransaction
@@ -44,8 +40,6 @@ type ProvenWithdrawalParameters struct {
 	DisputeGameAddress common.Address
 	DisputeGameIndex   *big.Int
 	Data               []byte
-	SuperRootProof     *bindings.SuperRootProof // Only set for games using super roots
-	OutputRootIndex    *big.Int                 // Only set for games using super roots
 	OutputRootProof    bindings.OutputRootProof
 	WithdrawalProof    [][]byte // List of trie nodes to prove L2 storage
 }
@@ -58,9 +52,8 @@ type StandardBridge struct {
 	disputeGameFactory  bindings.DisputeGameFactory
 	rollupCfg           *rollup.Config
 
-	l1Client         *L1ELNode
-	l2Client         apis.EthClient
-	supervisorClient apis.SupervisorQueryAPI
+	l1Client *L1ELNode
+	l2Client apis.EthClient
 
 	// L1 bridge contract
 	l1StandardBridge bindings.L1StandardBridge
@@ -88,10 +81,6 @@ func NewStandardBridge(t devtest.T, l2Network *L2Network, supervisor *Supervisor
 		bindings.WithTo(l2Network.Escape().Deployment().L1StandardBridgeProxyAddr()),
 		bindings.WithTest(t))
 
-	var supervisorClient apis.SupervisorQueryAPI
-	if supervisor != nil {
-		supervisorClient = supervisor.inner.QueryAPI()
-	}
 	return &StandardBridge{
 		commonImpl:          commonFromT(t),
 		l1PortalAddr:        l1PortalAddr,
@@ -102,7 +91,6 @@ func NewStandardBridge(t devtest.T, l2Network *L2Network, supervisor *Supervisor
 
 		l1Client:         l1EL,
 		l2Client:         l2Client,
-		supervisorClient: supervisorClient,
 		l1StandardBridge: l1StandardBridge,
 	}
 }
@@ -388,12 +376,7 @@ func (w *Withdrawal) Prove(user *EOA) {
 		Data:     params.Data,
 	}
 
-	var call bindings.TypedCall[any]
-	if params.SuperRootProof == nil {
-		call = w.bridge.l1Portal.ProveWithdrawalTransaction(tx, params.DisputeGameIndex, params.OutputRootProof, params.WithdrawalProof)
-	} else {
-		call = w.bridge.l1Portal.ProveWithdrawalTransactionSuperRoot(tx, params.DisputeGameAddress, params.OutputRootIndex, *params.SuperRootProof, params.OutputRootProof, params.WithdrawalProof)
-	}
+	call := w.bridge.l1Portal.ProveWithdrawalTransaction(tx, params.DisputeGameIndex, params.OutputRootProof, params.WithdrawalProof)
 	// Retry as withdrawals can't be proven in the same block as the game is created.
 	// estimateGas works against the current head so we may need to retry until it has progressed enough.
 	w.require.Eventually(func() bool {
@@ -426,9 +409,7 @@ func (w *Withdrawal) ProveFromGameExtraData(user *EOA) {
 		Data:     params.Data,
 	}
 
-	call := w.bridge.l1Portal.ProveWithdrawalTransactionSuperRoot(
-		tx, params.DisputeGameAddress, params.OutputRootIndex,
-		*params.SuperRootProof, params.OutputRootProof, params.WithdrawalProof)
+	call := w.bridge.l1Portal.ProveWithdrawalTransaction(tx, params.DisputeGameIndex, params.OutputRootProof, params.WithdrawalProof)
 
 	w.require.Eventually(func() bool {
 		proveReceipt, err := contractio.Write(call, w.ctx, user.Plan())
@@ -484,28 +465,6 @@ func (w *Withdrawal) proveWithdrawalParametersForEvent(ev *nodebindings.L2ToL1Me
 		trieNodes[i] = s
 	}
 
-	var superRootProof *bindings.SuperRootProof
-	var outputRootIndex *big.Int
-	if disputeGame.UsesSuperRoots {
-		response, err := w.bridge.supervisorClient.SuperRootAtTimestamp(w.ctx, hexutil.Uint64(disputeGame.SequenceNumber))
-		w.require.NoErrorf(err, "failed to fetch superRoot for at timestamp %v", disputeGame.SequenceNumber)
-		outputRoots := make([]bindings.OutputRootWithChainID, len(response.Chains))
-		for i, chain := range response.Chains {
-			outputRoots[i] = bindings.OutputRootWithChainID{
-				ChainID: chain.ChainID.ToBig(),
-				Root:    chain.Canonical,
-			}
-			if chain.ChainID == eth.ChainIDFromBig(w.bridge.rollupCfg.L2ChainID) {
-				outputRootIndex = big.NewInt(int64(i))
-			}
-		}
-		superRootProof = &bindings.SuperRootProof{
-			Version:     [1]byte{response.Version},
-			Timestamp:   response.Timestamp,
-			OutputRoots: outputRoots,
-		}
-	}
-
 	return ProvenWithdrawalParameters{
 		Nonce:              ev.Nonce,
 		Sender:             ev.Sender,
@@ -515,8 +474,6 @@ func (w *Withdrawal) proveWithdrawalParametersForEvent(ev *nodebindings.L2ToL1Me
 		DisputeGameAddress: disputeGame.Address,
 		DisputeGameIndex:   disputeGame.Index,
 		Data:               ev.Data,
-		SuperRootProof:     superRootProof,
-		OutputRootIndex:    outputRootIndex,
 		OutputRootProof: bindings.OutputRootProof{
 			Version:                  [32]byte{}, // Empty for version 1
 			StateRoot:                l2Header.Root(),
@@ -527,56 +484,11 @@ func (w *Withdrawal) proveWithdrawalParametersForEvent(ev *nodebindings.L2ToL1Me
 	}
 }
 
-// proveWithdrawalParametersFromGameExtraData builds withdrawal parameters by reading super root proof
-// directly from the dispute game's extraData, without requiring supervisor-rpc.
+// proveWithdrawalParametersFromGameExtraData builds withdrawal parameters for super root games.
+// Contract now handles super root proof internally via game.rootClaimByChainId(chainId).
 func (w *Withdrawal) proveWithdrawalParametersFromGameExtraData() ProvenWithdrawalParameters {
 	latestGame := w.bridge.forGamePublished(w.initReceipt.BlockNumber)
 	w.require.True(latestGame.UsesSuperRoots, "Game must use super roots for extraData flow")
-
-	// Load ABI and call extraData on the game contract
-	gameABI := snapshots.LoadSuperFaultDisputeGameABI()
-	extraDataCallData, err := gameABI.Pack("extraData")
-	w.require.NoError(err, "failed to pack extraData call")
-
-	extraDataResult, err := w.bridge.l1Client.EthClient().Call(w.ctx, ethereum.CallMsg{
-		To:   &latestGame.Address,
-		Data: extraDataCallData,
-	}, rpc.LatestBlockNumber)
-	w.require.NoError(err, "failed to call extraData")
-
-	unpackedExtra, err := gameABI.Unpack("extraData", extraDataResult)
-	w.require.NoError(err, "failed to unpack extraData")
-	w.require.NotEmpty(unpackedExtra, "extraData returned empty result")
-	extraDataBytes, ok := unpackedExtra[0].([]byte)
-	w.require.True(ok, "extraData result is not []byte")
-
-	// Decode super root proof from extraData
-	superRootProofDecoded, err := withdrawals.DecodeSuperRootProof(extraDataBytes)
-	w.require.NoError(err, "failed to decode super root proof")
-
-	// Find output root index for this chain
-	var outputRootIndex *big.Int
-	for i, outputRoot := range superRootProofDecoded.OutputRoots {
-		if outputRoot.ChainID.Cmp(w.bridge.rollupCfg.L2ChainID) == 0 {
-			outputRootIndex = big.NewInt(int64(i))
-			break
-		}
-	}
-	w.require.NotNil(outputRootIndex, "target chain ID not found in super root proof")
-
-	// Convert decoded proof to bindings format
-	outputRoots := make([]bindings.OutputRootWithChainID, len(superRootProofDecoded.OutputRoots))
-	for i, root := range superRootProofDecoded.OutputRoots {
-		outputRoots[i] = bindings.OutputRootWithChainID{
-			ChainID: root.ChainID,
-			Root:    root.Root,
-		}
-	}
-	superRootProof := &bindings.SuperRootProof{
-		Version:     superRootProofDecoded.Version,
-		Timestamp:   superRootProofDecoded.Timestamp,
-		OutputRoots: outputRoots,
-	}
 
 	// Get L2 header at game's block number
 	l2Header, err := w.bridge.l2Client.InfoByNumber(w.ctx, latestGame.L2BlockNumber)
@@ -611,8 +523,6 @@ func (w *Withdrawal) proveWithdrawalParametersFromGameExtraData() ProvenWithdraw
 		DisputeGameAddress: latestGame.Address,
 		DisputeGameIndex:   latestGame.Index,
 		Data:               ev.Data,
-		SuperRootProof:     superRootProof,
-		OutputRootIndex:    outputRootIndex,
 		OutputRootProof: bindings.OutputRootProof{
 			Version:                  [32]byte{},
 			StateRoot:                l2Header.Root(),
