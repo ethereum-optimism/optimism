@@ -7,6 +7,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 // Libraries
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 import { Burn } from "src/libraries/Burn.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
@@ -65,6 +66,15 @@ abstract contract DelayedWETH_TestInit is CommonTest {
     }
 }
 
+/// @title DelayedWETH_Version_Test
+/// @notice Tests the `version` function of the `DelayedWETH` contract.
+contract DelayedWETH_Version_Test is DelayedWETH_TestInit {
+    /// @notice Tests that version returns a valid semver string.
+    function test_version_validFormat_succeeds() external view {
+        SemverComp.parse(delayedWeth.version());
+    }
+}
+
 /// @title DelayedWETH_Initialize_Test
 /// @notice Tests the `initialize` function of the `DelayedWETH` contract.
 contract DelayedWETH_Initialize_Test is DelayedWETH_TestInit {
@@ -115,31 +125,39 @@ contract DelayedWETH_Initialize_Test is DelayedWETH_TestInit {
 /// @title DelayedWETH_Unlock_Test
 /// @notice Tests the `unlock` function of the `DelayedWETH` contract.
 contract DelayedWETH_Unlock_Test is DelayedWETH_TestInit {
-    /// @notice Tests that unlocking once is successful.
-    function test_unlock_once_succeeds() public {
-        delayedWeth.unlock(alice, 1 ether);
+    /// @notice Tests that unlocking once is successful with various amounts.
+    /// @param _amount Amount of WETH to unlock.
+    function testFuzz_unlock_validAmount_succeeds(uint256 _amount) public {
+        delayedWeth.unlock(alice, _amount);
         (uint256 amount, uint256 timestamp) = delayedWeth.withdrawals(address(this), alice);
-        assertEq(amount, 1 ether);
+        assertEq(amount, _amount);
         assertEq(timestamp, block.timestamp);
     }
 
     /// @notice Tests that unlocking twice is successful and timestamp/amount is updated.
-    function test_unlock_twice_succeeds() public {
+    /// @param _amount1 First amount of WETH to unlock.
+    /// @param _amount2 Second amount of WETH to unlock.
+    /// @param _timeDelta Time to warp between unlocks.
+    function testFuzz_unlock_multipleUnlocks_succeeds(uint256 _amount1, uint256 _amount2, uint256 _timeDelta) public {
+        _amount1 = bound(_amount1, 0, type(uint128).max);
+        _amount2 = bound(_amount2, 0, type(uint128).max);
+        _timeDelta = bound(_timeDelta, 1, 365 days);
+
         // Unlock once.
         uint256 ts = block.timestamp;
-        delayedWeth.unlock(alice, 1 ether);
+        delayedWeth.unlock(alice, _amount1);
         (uint256 amount1, uint256 timestamp1) = delayedWeth.withdrawals(address(this), alice);
-        assertEq(amount1, 1 ether);
+        assertEq(amount1, _amount1);
         assertEq(timestamp1, ts);
 
         // Go forward in time.
-        vm.warp(ts + 1);
+        vm.warp(ts + _timeDelta);
 
         // Unlock again works.
-        delayedWeth.unlock(alice, 1 ether);
+        delayedWeth.unlock(alice, _amount2);
         (uint256 amount2, uint256 timestamp2) = delayedWeth.withdrawals(address(this), alice);
-        assertEq(amount2, 2 ether);
-        assertEq(timestamp2, ts + 1);
+        assertEq(amount2, _amount1 + _amount2);
+        assertEq(timestamp2, ts + _timeDelta);
     }
 }
 
@@ -147,25 +165,29 @@ contract DelayedWETH_Unlock_Test is DelayedWETH_TestInit {
 /// @notice Tests the `withdraw` function of the `DelayedWETH` contract.
 contract DelayedWETH_Withdraw_Test is DelayedWETH_TestInit {
     /// @notice Tests that withdrawing while unlocked and delay has passed is successful.
-    function test_withdraw_whileUnlocked_succeeds() public {
+    /// @param _amount Amount of WETH to deposit, unlock, and withdraw.
+    function testFuzz_withdraw_afterDelay_succeeds(uint256 _amount) public {
+        _amount = bound(_amount, 1, type(uint96).max);
+
         // Deposit some WETH.
+        vm.deal(alice, _amount);
         vm.prank(alice);
-        delayedWeth.deposit{ value: 1 ether }();
+        delayedWeth.deposit{ value: _amount }();
         uint256 balance = address(alice).balance;
 
         // Unlock the withdrawal.
         vm.prank(alice);
-        delayedWeth.unlock(alice, 1 ether);
+        delayedWeth.unlock(alice, _amount);
 
         // Wait for the delay.
         vm.warp(block.timestamp + delayedWeth.delay() + 1);
 
         // Withdraw the WETH.
         vm.expectEmit(true, true, false, false);
-        emit Withdrawal(address(alice), 1 ether);
+        emit Withdrawal(address(alice), _amount);
         vm.prank(alice);
-        delayedWeth.withdraw(1 ether);
-        assertEq(address(alice).balance, balance + 1 ether);
+        delayedWeth.withdraw(_amount);
+        assertEq(address(alice).balance, balance + _amount);
     }
 
     /// @notice Tests that withdrawing when unlock was not called fails.
@@ -248,26 +270,30 @@ contract DelayedWETH_Withdraw_Test is DelayedWETH_TestInit {
         delayedWeth.withdraw(1 ether);
     }
 
-    /// @notice Tests that withdrawing while unlocked and delay has passed is successful.
-    function test_withdraw_withdrawFromWhileUnlocked_succeeds() public {
+    /// @notice Tests that withdrawing from sub-account while unlocked and delay has passed.
+    /// @param _amount Amount of WETH to deposit, unlock, and withdraw.
+    function testFuzz_withdraw_fromSubAccount_succeeds(uint256 _amount) public {
+        _amount = bound(_amount, 1, type(uint96).max);
+
         // Deposit some WETH.
+        vm.deal(alice, _amount);
         vm.prank(alice);
-        delayedWeth.deposit{ value: 1 ether }();
+        delayedWeth.deposit{ value: _amount }();
         uint256 balance = address(alice).balance;
 
         // Unlock the withdrawal.
         vm.prank(alice);
-        delayedWeth.unlock(alice, 1 ether);
+        delayedWeth.unlock(alice, _amount);
 
         // Wait for the delay.
         vm.warp(block.timestamp + delayedWeth.delay() + 1);
 
         // Withdraw the WETH.
         vm.expectEmit(true, true, false, false);
-        emit Withdrawal(address(alice), 1 ether);
+        emit Withdrawal(address(alice), _amount);
         vm.prank(alice);
-        delayedWeth.withdraw(alice, 1 ether);
-        assertEq(address(alice).balance, balance + 1 ether);
+        delayedWeth.withdraw(alice, _amount);
+        assertEq(address(alice).balance, balance + _amount);
     }
 
     /// @notice Tests that withdrawing when unlock was not called fails.
@@ -436,43 +462,48 @@ contract DelayedWETH_Recover_Test is DelayedWETH_TestInit {
 /// @title DelayedWETH_Hold_Test
 /// @notice Tests the `hold` function of the `DelayedWETH` contract.
 contract DelayedWETH_Hold_Test is DelayedWETH_TestInit {
-    /// @notice Tests that holding WETH succeeds.
-    function test_hold_byOwner_succeeds() public {
-        uint256 amount = 1 ether;
+    /// @notice Tests that holding WETH with a specific amount succeeds.
+    /// @param _amount Amount of WETH to hold.
+    function testFuzz_hold_withAmount_succeeds(uint256 _amount) public {
+        _amount = bound(_amount, 1, type(uint96).max);
 
         // Pretend to be alice and deposit some WETH.
+        vm.deal(alice, _amount);
         vm.prank(alice);
-        delayedWeth.deposit{ value: amount }();
+        delayedWeth.deposit{ value: _amount }();
 
         // Get our balance before.
         uint256 initialBalance = delayedWeth.balanceOf(address(proxyAdminOwner));
 
         // Hold some WETH.
         vm.expectEmit(true, true, true, false);
-        emit Approval(alice, address(proxyAdminOwner), amount);
+        emit Approval(alice, address(proxyAdminOwner), _amount);
         vm.prank(proxyAdminOwner);
-        delayedWeth.hold(alice, amount);
+        delayedWeth.hold(alice, _amount);
 
         // Get our balance after.
         uint256 finalBalance = delayedWeth.balanceOf(address(proxyAdminOwner));
 
         // Verify the transfer.
-        assertEq(finalBalance, initialBalance + amount);
+        assertEq(finalBalance, initialBalance + _amount);
     }
 
-    function test_hold_withoutAmount_succeeds() public {
-        uint256 amount = 1 ether;
+    /// @notice Tests that holding full balance without specifying amount succeeds.
+    /// @param _amount Amount of WETH to deposit and hold.
+    function testFuzz_hold_fullBalance_succeeds(uint256 _amount) public {
+        _amount = bound(_amount, 1, type(uint96).max);
 
         // Pretend to be alice and deposit some WETH.
+        vm.deal(alice, _amount);
         vm.prank(alice);
-        delayedWeth.deposit{ value: amount }();
+        delayedWeth.deposit{ value: _amount }();
 
         // Get our balance before.
         uint256 initialBalance = delayedWeth.balanceOf(address(proxyAdminOwner));
 
         // Hold some WETH.
         vm.expectEmit(true, true, true, false);
-        emit Approval(alice, address(proxyAdminOwner), amount);
+        emit Approval(alice, address(proxyAdminOwner), _amount);
         vm.prank(proxyAdminOwner);
         delayedWeth.hold(alice); // without amount parameter
 
@@ -480,7 +511,7 @@ contract DelayedWETH_Hold_Test is DelayedWETH_TestInit {
         uint256 finalBalance = delayedWeth.balanceOf(address(proxyAdminOwner));
 
         // Verify the transfer.
-        assertEq(finalBalance, initialBalance + amount);
+        assertEq(finalBalance, initialBalance + _amount);
     }
 
     /// @notice Tests that holding WETH by non-owner fails.
