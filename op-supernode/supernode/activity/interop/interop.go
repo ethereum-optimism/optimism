@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
@@ -19,8 +18,9 @@ import (
 
 // Compile-time interface conformance assertions.
 var (
-	_ activity.RunnableActivity     = (*Interop)(nil)
-	_ activity.VerificationActivity = (*Interop)(nil)
+	_            activity.RunnableActivity     = (*Interop)(nil)
+	_            activity.VerificationActivity = (*Interop)(nil)
+	tickerPeriod                               = 500 * time.Millisecond
 )
 
 // InteropActivationTimestampFlag is the CLI flag for the interop activation timestamp.
@@ -47,7 +47,6 @@ type Interop struct {
 	cancel  context.CancelFunc
 	started bool
 
-	l1Client  *sources.L1Client
 	currentL1 eth.BlockID
 
 	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
@@ -63,7 +62,6 @@ func New(
 	activationTimestamp uint64,
 	chains map[eth.ChainID]cc.ChainContainer,
 	dataDir string,
-	l1Client *sources.L1Client,
 ) *Interop {
 	verifiedDB, err := OpenVerifiedDB(dataDir)
 	if err != nil {
@@ -73,7 +71,6 @@ func New(
 	i := &Interop{
 		log:                 log,
 		chains:              chains,
-		l1Client:            l1Client,
 		verifiedDB:          verifiedDB,
 		currentL1:           eth.BlockID{},
 		activationTimestamp: activationTimestamp,
@@ -97,7 +94,7 @@ func (i *Interop) Start(ctx context.Context) error {
 	i.mu.Unlock()
 
 	// Periodically query each chain container for its current safe head and log it.
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(tickerPeriod)
 	defer ticker.Stop()
 
 	for {
@@ -107,7 +104,7 @@ func (i *Interop) Start(ctx context.Context) error {
 		case <-ticker.C:
 			err := i.progressAndRecord()
 			if err != nil {
-				i.log.Error("failed to process and record interop", "err", err)
+				i.log.Error("failed to progress and record interop", "err", err)
 				time.Sleep(2 * time.Second)
 				continue
 			}
@@ -138,7 +135,7 @@ func (i *Interop) progressAndRecord() error {
 	// Perform the interop evaluation
 	result, err := i.progressInterop()
 	if err != nil {
-		i.log.Error("failed to process interop", "err", err)
+		i.log.Error("failed to progress interop", "err", err)
 		return err
 	}
 
@@ -300,10 +297,12 @@ func (i *Interop) checkChainsReady(ts uint64) (map[eth.ChainID]eth.BlockID, erro
 	return blocksAtTimestamp, nil
 }
 
+// TODO(#18743): Interop Algorithm
 func (i *Interop) loadLogs(ts uint64) error {
 	return nil
 }
 
+// TODO(#18743): Interop Algorithm
 func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error) {
 	result := Result{Timestamp: ts, L2Heads: make(map[eth.ChainID]eth.BlockID)}
 	for _, chain := range i.chains {
@@ -313,6 +312,7 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 	return result, nil
 }
 
+// TODO(#18944): Invalidate Block
 func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID) error {
 	return nil
 }

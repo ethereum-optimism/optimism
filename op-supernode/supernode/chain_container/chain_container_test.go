@@ -700,7 +700,6 @@ func TestChainContainer_VerifiedAt(t *testing.T) {
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
-		// Register the mock verifier using the new late-binding method
 		container.RegisterVerifier(mockVerifier)
 
 		// Set up mock engine controller

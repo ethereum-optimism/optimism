@@ -249,13 +249,11 @@ func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID
 			return eth.BlockID{}, ErrL1AtSafeHeadNotFound
 		}
 		prev := cursor.Number - 1
-		//v.log.Debug("L1AtSafeHead: checking previous l1 block", "l1_num", prev)
 		l1Prev, l2Prev, err := db.SafeHeadAtL1(ctx, prev)
 		if err != nil {
 			v.log.Error("L1AtSafeHead: walkback lookup failed, stopping", "probe_l1", prev, "err", err)
 			return eth.BlockID{}, err
 		}
-		//v.log.Debug("L1AtSafeHead: walkback result", "l1_prev", l1Prev.Number, "l2_prev_num", l2Prev.Number, "l2_prev_hash", l2Prev.Hash)
 		if l2Prev.Number >= target.Number {
 			// Still meets or exceeds target; continue walking back
 			cursor = l1Prev

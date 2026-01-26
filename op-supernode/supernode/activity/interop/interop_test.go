@@ -94,7 +94,7 @@ func TestNew_ValidInputs(t *testing.T) {
 		eth.ChainIDFromUInt64(10): newMockChainContainer(10),
 	}
 
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 
 	require.NotNil(t, interop)
 	require.Equal(t, uint64(1000), interop.activationTimestamp)
@@ -110,7 +110,7 @@ func TestNew_InvalidDataDir(t *testing.T) {
 
 	chains := map[eth.ChainID]cc.ChainContainer{}
 
-	interop := New(testLogger(), 1000, chains, invalidDir, nil)
+	interop := New(testLogger(), 1000, chains, invalidDir)
 
 	// New returns nil when DB fails to open
 	require.Nil(t, interop)
@@ -122,7 +122,7 @@ func TestNew_EmptyChains(t *testing.T) {
 
 	chains := map[eth.ChainID]cc.ChainContainer{}
 
-	interop := New(testLogger(), 0, chains, dataDir, nil)
+	interop := New(testLogger(), 0, chains, dataDir)
 
 	require.NotNil(t, interop)
 	require.Empty(t, interop.chains)
@@ -138,7 +138,7 @@ func TestNew_MultipleChains(t *testing.T) {
 		eth.ChainIDFromUInt64(420):  newMockChainContainer(420),
 	}
 
-	interop := New(testLogger(), 500, chains, dataDir, nil)
+	interop := New(testLogger(), 500, chains, dataDir)
 
 	require.NotNil(t, interop)
 	require.Len(t, interop.chains, 3)
@@ -157,7 +157,7 @@ func TestStart_BlocksUntilContextCanceled(t *testing.T) {
 	mock.blockAtTimestamp = eth.L2BlockRef{Number: 50}
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -198,7 +198,7 @@ func TestStart_AlreadyStarted(t *testing.T) {
 	mock.currentL1 = eth.BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -229,7 +229,7 @@ func TestStop_ClosesVerifiedDB(t *testing.T) {
 	dataDir := t.TempDir()
 
 	chains := map[eth.ChainID]cc.ChainContainer{}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 
 	err := interop.Stop(context.Background())
@@ -249,7 +249,7 @@ func TestStop_CancelsRunningContext(t *testing.T) {
 	mock.blockAtTimestampErr = ethereum.NotFound // Keep it in "not ready" state
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 
 	ctx := context.Background()
@@ -286,7 +286,7 @@ func TestStop_NilCancel(t *testing.T) {
 	dataDir := t.TempDir()
 
 	chains := map[eth.ChainID]cc.ChainContainer{}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 
 	// Stop without ever starting - cancel is nil
@@ -312,7 +312,7 @@ func TestCollectCurrentL1_ReturnsMinimum(t *testing.T) {
 		mock1.id: mock1,
 		mock2.id: mock2,
 	}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -331,7 +331,7 @@ func TestCollectCurrentL1_ChainNotReady_Error(t *testing.T) {
 	mock.currentL1Err = errors.New("chain not synced")
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -347,7 +347,7 @@ func TestCollectCurrentL1_EmptyChains(t *testing.T) {
 	dataDir := t.TempDir()
 
 	chains := map[eth.ChainID]cc.ChainContainer{}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -365,7 +365,7 @@ func TestCollectCurrentL1_SingleChain(t *testing.T) {
 	mock.currentL1 = eth.BlockRef{Number: 500, Hash: common.HexToHash("0x5")}
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -394,7 +394,7 @@ func TestCheckChainsReady_AllReady(t *testing.T) {
 		mock1.id: mock1,
 		mock2.id: mock2,
 	}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -420,7 +420,7 @@ func TestCheckChainsReady_OneNotReady(t *testing.T) {
 		mock1.id: mock1,
 		mock2.id: mock2,
 	}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -435,7 +435,7 @@ func TestCheckChainsReady_EmptyChains(t *testing.T) {
 	dataDir := t.TempDir()
 
 	chains := map[eth.ChainID]cc.ChainContainer{}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -460,7 +460,7 @@ func TestCheckChainsReady_ParallelQueries(t *testing.T) {
 		chains[mock.id] = mock
 	}
 
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -487,7 +487,7 @@ func TestProgressInterop_NotInitialized_UsesActivationTimestamp(t *testing.T) {
 	mock.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 5000, chains, dataDir, nil) // activation at 5000
+	interop := New(testLogger(), 5000, chains, dataDir) // activation at 5000
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -507,7 +507,7 @@ func TestProgressInterop_Initialized_UsesNextTimestamp(t *testing.T) {
 	mock.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -534,7 +534,7 @@ func TestProgressInterop_ChainsNotReady_ReturnsEmptyResult(t *testing.T) {
 	mock.blockAtTimestampErr = ethereum.NotFound // Not ready
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -552,7 +552,7 @@ func TestProgressInterop_ChainError(t *testing.T) {
 	mock.blockAtTimestampErr = errors.New("internal error")
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -572,7 +572,7 @@ func TestCurrentL1_ReturnsStoredValue(t *testing.T) {
 	dataDir := t.TempDir()
 
 	chains := map[eth.ChainID]cc.ChainContainer{}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 
 	interop.currentL1 = eth.BlockID{Number: 100, Hash: common.HexToHash("0x1")}
@@ -588,7 +588,7 @@ func TestCurrentL1_EmptyReturnsZero(t *testing.T) {
 	dataDir := t.TempDir()
 
 	chains := map[eth.ChainID]cc.ChainContainer{}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 
 	result := interop.CurrentL1()
@@ -608,7 +608,7 @@ func TestVerifiedAtTimestamp_Exists(t *testing.T) {
 	mock.blockAtTimestamp = eth.L2BlockRef{Number: 100}
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -631,7 +631,7 @@ func TestVerifiedAtTimestamp_NotExists(t *testing.T) {
 	dataDir := t.TempDir()
 
 	chains := map[eth.ChainID]cc.ChainContainer{}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 
 	verified, err := interop.VerifiedAtTimestamp(9999)
@@ -655,7 +655,7 @@ func TestVerifyInteropMessages_CopiesBlocks(t *testing.T) {
 		mock1.id: mock1,
 		mock2.id: mock2,
 	}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 
 	blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
@@ -682,7 +682,7 @@ func TestHandleResult_EmptyResult_ReturnsNil(t *testing.T) {
 	dataDir := t.TempDir()
 
 	chains := map[eth.ChainID]cc.ChainContainer{}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 
 	emptyResult := Result{}
@@ -703,7 +703,7 @@ func TestHandleResult_ValidResult_CommitsToDb(t *testing.T) {
 
 	mock := newMockChainContainer(10)
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 
 	validResult := Result{
@@ -732,7 +732,7 @@ func TestHandleResult_InvalidResult_DoesNotCommitToDb(t *testing.T) {
 
 	mock := newMockChainContainer(10)
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 
 	invalidResult := Result{
@@ -767,7 +767,7 @@ func TestHandleResult_InvalidResult_MultipleInvalidHeads(t *testing.T) {
 		mock1.id: mock1,
 		mock2.id: mock2,
 	}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 
 	invalidResult := Result{
@@ -812,7 +812,7 @@ func TestProgressAndRecord_EmptyResult_SetsL1ToCollectedMinimum(t *testing.T) {
 		mock1.id: mock1,
 		mock2.id: mock2,
 	}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -836,7 +836,7 @@ func TestProgressAndRecord_ValidResult_SetsL1ToResultL1Head(t *testing.T) {
 	mock.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0xL2")}
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -873,7 +873,7 @@ func TestProgressAndRecord_InvalidResult_DoesNotUpdateL1(t *testing.T) {
 	mock.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0xL2")}
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -911,7 +911,7 @@ func TestProgressAndRecord_CollectL1Error_ReturnsError(t *testing.T) {
 	mock.currentL1Err = errors.New("L1 sync error")
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -930,7 +930,7 @@ func TestProgressAndRecord_ProgressInteropError_ReturnsError(t *testing.T) {
 	mock.blockAtTimestampErr = errors.New("internal chain error")
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 1000, chains, dataDir, nil)
+	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -953,7 +953,7 @@ func TestInterop_FullCycle(t *testing.T) {
 	mock.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 100, chains, dataDir, nil)
+	interop := New(testLogger(), 100, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 

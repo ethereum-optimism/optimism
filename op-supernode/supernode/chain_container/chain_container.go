@@ -325,7 +325,7 @@ func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l
 			return eth.BlockID{}, eth.BlockID{}, err
 		}
 		if !verified {
-			c.log.Error("data could not be verified at this timestamp", "verifier", verifier.Name())
+			c.log.Error("verifier does not have data at this timestamp. cannot supply block at this timestamp as verified", "verifier", verifier.Name())
 			return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("verifier %s does not have data at this timestamp: %w", verifier.Name(), ethereum.NotFound)
 		}
 	}

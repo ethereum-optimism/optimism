@@ -18,6 +18,7 @@ var (
 	ErrNotFound         = errors.New("timestamp not found")
 	ErrNonSequential    = errors.New("timestamps must be committed sequentially with no gaps")
 	ErrAlreadyCommitted = errors.New("timestamp already committed")
+	u64Len              = 8
 )
 
 // bucketName is the name of the bbolt bucket used to store verified results.
@@ -71,7 +72,7 @@ func (v *VerifiedDB) initLastTimestamp() error {
 
 		c := b.Cursor()
 		key, _ := c.Last()
-		if len(key) == 8 {
+		if len(key) == u64Len {
 			v.lastTimestamp = binary.BigEndian.Uint64(key)
 			v.initialized = true
 		}
@@ -83,7 +84,7 @@ func (v *VerifiedDB) initLastTimestamp() error {
 // timestampToKey converts a timestamp to a big-endian byte key.
 // Using big-endian ensures lexicographic ordering matches numeric ordering.
 func timestampToKey(ts uint64) []byte {
-	key := make([]byte, 8)
+	key := make([]byte, u64Len)
 	binary.BigEndian.PutUint64(key, ts)
 	return key
 }

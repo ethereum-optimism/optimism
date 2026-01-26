@@ -128,28 +128,3 @@ func TestResult_ToVerifiedResult(t *testing.T) {
 		require.Len(t, r.InvalidHeads, 1)
 	})
 }
-
-func TestVerifiedResult_Structure(t *testing.T) {
-	t.Parallel()
-
-	t.Run("can be created with all fields", func(t *testing.T) {
-		chainID := eth.ChainIDFromUInt64(42161)
-		vr := VerifiedResult{
-			Timestamp: 999,
-			L1Head: eth.BlockID{
-				Hash:   common.HexToHash("0xabcd"),
-				Number: 50,
-			},
-			L2Heads: map[eth.ChainID]eth.BlockID{
-				chainID: {
-					Hash:   common.HexToHash("0xef01"),
-					Number: 1000,
-				},
-			},
-		}
-
-		require.Equal(t, uint64(999), vr.Timestamp)
-		require.Equal(t, uint64(50), vr.L1Head.Number)
-		require.Equal(t, uint64(1000), vr.L2Heads[chainID].Number)
-	})
-}
