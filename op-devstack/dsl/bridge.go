@@ -394,38 +394,6 @@ func (w *Withdrawal) Prove(user *EOA) {
 	}, 30*time.Second, 1*time.Second, "Sending prove transaction")
 }
 
-// ProveFromGameExtraData proves withdrawal by reading super root proof from dispute game's extraData.
-// This mirrors the CLI --dispute-game flow and doesn't require supervisor-rpc.
-func (w *Withdrawal) ProveFromGameExtraData(user *EOA) {
-	w.t.Log("proveWithdrawal: proving withdrawal from game extraData...")
-	params := w.proveWithdrawalParametersFromGameExtraData()
-
-	tx := bindings.WithdrawalTransaction{
-		Nonce:    params.Nonce,
-		Sender:   params.Sender,
-		Target:   params.Target,
-		Value:    params.Value,
-		GasLimit: params.GasLimit,
-		Data:     params.Data,
-	}
-
-	call := w.bridge.l1Portal.ProveWithdrawalTransaction(tx, params.DisputeGameIndex, params.OutputRootProof, params.WithdrawalProof)
-
-	w.require.Eventually(func() bool {
-		proveReceipt, err := contractio.Write(call, w.ctx, user.Plan())
-		if err != nil {
-			w.log.Error("Failed to send prove transaction", "err", err)
-			return false
-		}
-		w.require.Equal(types.ReceiptStatusSuccessful, proveReceipt.Status, "prove withdrawal was not successful")
-		w.require.Equal(2, len(proveReceipt.Logs)) // emit WithdrawalProven, WithdrawalProvenExtension1
-
-		w.proveParams = params
-		w.proveReceipt = proveReceipt
-		return true
-	}, 30*time.Second, 1*time.Second, "Sending prove transaction")
-}
-
 // ProveWithdrawalParameters calls ProveWithdrawalParametersForBlock with the most recent L2 output after the latest game.
 // Ported from op-node/withdrawals/utils.go to fit in the op-devstack
 func (w *Withdrawal) proveWithdrawalParameters() ProvenWithdrawalParameters {
@@ -476,55 +444,6 @@ func (w *Withdrawal) proveWithdrawalParametersForEvent(ev *nodebindings.L2ToL1Me
 		Data:               ev.Data,
 		OutputRootProof: bindings.OutputRootProof{
 			Version:                  [32]byte{}, // Empty for version 1
-			StateRoot:                l2Header.Root(),
-			MessagePasserStorageRoot: *l2Header.WithdrawalsRoot(),
-			LatestBlockhash:          l2Header.Hash(),
-		},
-		WithdrawalProof: trieNodes,
-	}
-}
-
-// proveWithdrawalParametersFromGameExtraData builds withdrawal parameters for super root games.
-// Contract now handles super root proof internally via game.rootClaimByChainId(chainId).
-func (w *Withdrawal) proveWithdrawalParametersFromGameExtraData() ProvenWithdrawalParameters {
-	latestGame := w.bridge.forGamePublished(w.initReceipt.BlockNumber)
-	w.require.True(latestGame.UsesSuperRoots, "Game must use super roots for extraData flow")
-
-	// Get L2 header at game's block number
-	l2Header, err := w.bridge.l2Client.InfoByNumber(w.ctx, latestGame.L2BlockNumber)
-	w.require.NoErrorf(err, "failed to fetch block header %v", latestGame.L2BlockNumber)
-
-	// Parse withdrawal event and build storage proof
-	ev, err := withdrawals.ParseMessagePassed(w.initReceipt)
-	w.require.NoError(err, "failed to parse message passed receipt")
-
-	withdrawalHash, err := withdrawals.WithdrawalHash(ev)
-	w.require.NoError(err, "failed to calculate withdrawal hash")
-	slot := withdrawals.StorageSlotOfWithdrawalHash(withdrawalHash)
-
-	p, err := w.bridge.l2Client.GetProof(w.ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{slot}, hexutil.Uint64(l2Header.NumberU64()).String())
-	w.require.NoError(err, "failed to fetch proof for withdrawal")
-	w.require.Len(p.StorageProof, 1, "invalid amount of storage proofs")
-
-	err = verifyProof(l2Header.Root(), p)
-	w.require.NoError(err, "failed to verify proof for withdrawal")
-
-	trieNodes := make([][]byte, len(p.StorageProof[0].Proof))
-	for i, s := range p.StorageProof[0].Proof {
-		trieNodes[i] = s
-	}
-
-	return ProvenWithdrawalParameters{
-		Nonce:              ev.Nonce,
-		Sender:             ev.Sender,
-		Target:             ev.Target,
-		Value:              ev.Value,
-		GasLimit:           ev.GasLimit,
-		DisputeGameAddress: latestGame.Address,
-		DisputeGameIndex:   latestGame.Index,
-		Data:               ev.Data,
-		OutputRootProof: bindings.OutputRootProof{
-			Version:                  [32]byte{},
 			StateRoot:                l2Header.Root(),
 			MessagePasserStorageRoot: *l2Header.WithdrawalsRoot(),
 			LatestBlockhash:          l2Header.Hash(),
