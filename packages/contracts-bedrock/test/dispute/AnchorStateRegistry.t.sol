@@ -970,7 +970,7 @@ contract AnchorStateRegistry_SetAnchorState_Test is AnchorStateRegistry_TestInit
         assertEq(root.raw(), gameProxy.rootClaim().raw());
 
         // Confirm that the anchor game is now set.
-        IFaultDisputeGame anchorGame = anchorStateRegistry.anchorGame();
+        IDisputeGame anchorGame = anchorStateRegistry.anchorGame();
         assertEq(address(anchorGame), address(gameProxy));
     }
 
