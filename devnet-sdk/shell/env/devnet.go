@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/controller/kt"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/controller/surface"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -33,23 +32,11 @@ type schemeBackend struct {
 	ctrlFactory controllerFactory
 }
 
-func getKurtosisController(env *descriptors.DevnetEnvironment) surfaceGetter {
-	return func() (surface.ControlSurface, error) {
-		return kt.NewKurtosisControllerSurface(env)
-	}
-}
-
 var (
-	ktFetcher = &kurtosisFetcher{
-		devnetFSFactory: newDevnetFS,
-	}
-
 	// schemeToBackend maps URL schemes to their respective data fetcher functions
 	schemeToBackend = map[string]schemeBackend{
-		"":         {fetchFileData, nil},
-		"file":     {fetchFileData, nil},
-		"kt":       {ktFetcher.fetchKurtosisData, getKurtosisController},
-		"ktnative": {fetchKurtosisNativeData, getKurtosisController},
+		"":     {fetchFileData, nil},
+		"file": {fetchFileData, nil},
 	}
 )
 

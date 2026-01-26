@@ -3,5 +3,6 @@
   "files.trimTrailingWhitespace": true,
   "openInGitHub.defaultBranch": "develop",
   "openInGitHub.alwaysUseDefaultBranch": false,
-  "openInGitHub.excludeCurrentRevision": true
+  "openInGitHub.excludeCurrentRevision": true,
+  "makefile.configureOnOpen": false
 }
