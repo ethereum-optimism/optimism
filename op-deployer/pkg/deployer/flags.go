@@ -143,9 +143,9 @@ var (
 	}
 	ValidateFlag = &cli.StringFlag{
 		Name:    "validate",
-		Usage:   "automatically validate deployment after apply. Specify validator version (e.g., v2.0.0) or 'auto' to auto-detect from state.json (default: auto)",
+		Usage:   "automatically validate deployment after apply. Specify validator version (e.g., v2.0.0) or 'auto' to auto-detect from state.json. If not specified, validation is skipped.",
 		EnvVars: PrefixEnvVar("VALIDATE"),
-		Value:   "auto",
+		Value:   "",
 	}
 )
 

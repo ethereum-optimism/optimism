@@ -245,6 +245,7 @@ func TestCLIMigrateV1(t *testing.T) {
 		"apply",
 		"--deployment-target", "live",
 		"--workdir", workDir,
+		"--validate", "auto",
 	}, nil)
 
 	// Verify deployment succeeded regardless of validation errors
@@ -478,6 +479,7 @@ func TestCLIMigrateV2(t *testing.T) {
 		"apply",
 		"--deployment-target", "live",
 		"--workdir", workDir,
+		"--validate", "auto",
 	}, nil)
 
 	// Verify deployment succeeded regardless of validation errors

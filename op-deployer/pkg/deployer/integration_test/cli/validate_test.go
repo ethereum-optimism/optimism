@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"math/big"
 	"path/filepath"
 	"reflect"
@@ -71,9 +70,9 @@ func TestCLIValidate(t *testing.T) {
 		require.NoError(t, intent.WriteToFile(filepath.Join(workDir, "intent.toml")))
 
 		// Apply deployment
-		// Note: Validation will run automatically but may fail due to test chain ID.
-		// We catch this error and verify deployment succeeded despite validation failure.
-		output, runErr := runner.RunWithNetwork(context.Background(), []string{
+		// Note: Validation is skipped for unsupported chain IDs (like test chains).
+		// We verify deployment succeeded, then test validation separately below.
+		runner.ExpectSuccessWithNetwork(t, []string{
 			"apply",
 			"--deployment-target", "live",
 			"--workdir", workDir,
@@ -83,10 +82,6 @@ func TestCLIValidate(t *testing.T) {
 		require.NoError(t, err, "State should be readable after apply")
 		require.NotNil(t, st.AppliedIntent, "Applied intent should exist")
 		require.Len(t, st.Chains, 1, "Should have one chain deployed")
-
-		if runErr != nil {
-			require.Contains(t, output, "validation failed", "Error should be validation-related, not deployment")
-		}
 
 	})
 
