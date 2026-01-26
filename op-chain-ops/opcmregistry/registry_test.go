@@ -268,9 +268,9 @@ func TestFileCachePath(t *testing.T) {
 		r := &Registry{fileCacheDir: "/tmp/test-cache"}
 		path := r.fileCachePath("https://example.com/test.toml")
 		require.NotEmpty(t, path)
-		require.True(t, filepath.IsAbs(path) || filepath.HasPrefix(path, "/"))
+		require.True(t, filepath.IsAbs(path))
 		require.Contains(t, path, "/tmp/test-cache/")
-		require.True(t, filepath.Ext(path) == ".cache")
+		require.Equal(t, ".cache", filepath.Ext(path))
 	})
 
 	t.Run("different urls produce different paths", func(t *testing.T) {
