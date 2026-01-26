@@ -1181,7 +1181,7 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         vm.mockCallRevert(
             address(game),
             abi.encodeCall(game.rootClaimByChainId, (systemConfig.l2ChainId())),
-            abi.encodeWithSelector(UnknownChainId.selector)
+            abi.encodePacked(UnknownChainId.selector)
         );
 
         // Should revert because chainId not found in super root.

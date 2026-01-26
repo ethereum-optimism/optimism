@@ -33,8 +33,6 @@ interface IOptimismPortalInterop is IProxyAdminOwnedBase {
     error OptimismPortal_ProofNotOldEnough();
     error OptimismPortal_Unproven();
     error OptimismPortal_MigratingToSameRegistry();
-    error Encoding_EmptySuperRoot();
-    error Encoding_InvalidSuperRootVersion();
     error OutOfGas();
     error UnexpectedList();
     error UnexpectedString();
