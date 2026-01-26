@@ -183,6 +183,10 @@ func NewV500Validator(client *rpc.Client) *OPCMStandardValidator {
 	return newOPCMStandardValidator(client, standard.ContractsV500Tag)
 }
 
+func NewV600Validator(client *rpc.Client) *OPCMStandardValidator {
+	return newOPCMStandardValidator(client, standard.ContractsV600Tag)
+}
+
 func parseErrors(output string) []string {
 	if idx := strings.Index(output, ":"); idx != -1 && strings.HasPrefix(output, "Chain") {
 		output = output[idx+1:]

@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
@@ -178,8 +179,8 @@ func Test_ProgramAction_HoloceneInvalidBatch(gt *testing.T) {
 		}
 
 		targetHeadNumber := max(testCfg.Custom.blocks)
-		for env.Engine.L2Chain().CurrentBlock().Number.Uint64() < uint64(targetHeadNumber) {
-			parentNum := env.Engine.L2Chain().CurrentBlock().Number.Uint64()
+		for bigs.Uint64Strict(env.Engine.L2Chain().CurrentBlock().Number) < uint64(targetHeadNumber) {
+			parentNum := bigs.Uint64Strict(env.Engine.L2Chain().CurrentBlock().Number)
 
 			if testCfg.Custom.breachMaxSequencerDrift {
 				// prevent L1 origin from progressing

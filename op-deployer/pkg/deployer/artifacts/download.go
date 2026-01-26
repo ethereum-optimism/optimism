@@ -83,6 +83,9 @@ func downloadHTTP(ctx context.Context, u *url.URL, progressor ioutil.Progressor,
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp dir: %w", err)
 	}
+
+	// Register for automatic cleanup on process exit
+	RegisterForCleanup(tmpDir)
 	if strings.HasSuffix(tarballPath, ".tzst") {
 		_, err := ExtractFromFile(tmpDir, tarballPath)
 		if err != nil {

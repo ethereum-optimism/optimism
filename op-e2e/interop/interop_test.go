@@ -25,6 +25,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	gethCore "github.com/ethereum/go-ethereum/core"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
@@ -270,15 +271,15 @@ func TestInteropBlockBuilding(t *testing.T) {
 		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 		emitRec := s2.EmitData(ctx, chainA, "sequencer", "Alice", "hello world")
 		cancel()
-		t.Logf("Emitted a log event in block %d", emitRec.BlockNumber.Uint64())
+		t.Logf("Emitted a log event in block %d", bigs.Uint64Strict(emitRec.BlockNumber))
 
 		// Wait for initiating side to become cross-unsafe
 		require.Eventually(t, func() bool {
 			status, err := rollupClA.SyncStatus(context.Background())
 			require.NoError(t, err)
-			return status.CrossUnsafeL2.Number >= emitRec.BlockNumber.Uint64()
+			return status.CrossUnsafeL2.Number >= bigs.Uint64Strict(emitRec.BlockNumber)
 		}, time.Second*60, time.Second, "wait for emitted data to become cross-unsafe")
-		t.Logf("Reached cross-unsafe block %d", emitRec.BlockNumber.Uint64())
+		t.Logf("Reached cross-unsafe block %d", bigs.Uint64Strict(emitRec.BlockNumber))
 
 		// Identify the log
 		require.Len(t, emitRec.Logs, 1)

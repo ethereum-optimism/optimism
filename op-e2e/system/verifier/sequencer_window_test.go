@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -56,7 +57,7 @@ func TestMissingBatchE2E(t *testing.T) {
 	// Wait a short time for the L2 reorg to occur on the sequencer as well.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	err = wait.ForSafeBlock(ctx, seqRollupClient, receipt.BlockNumber.Uint64())
+	err = wait.ForSafeBlock(ctx, seqRollupClient, bigs.Uint64Strict(receipt.BlockNumber))
 	require.Nil(t, err, "timeout waiting for L2 reorg on sequencer safe head")
 
 	// Assert that the reconciliation process did an L2 reorg on the sequencer to remove the invalid block

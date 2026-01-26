@@ -7,6 +7,7 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -99,7 +100,7 @@ func Test_ProgramAction_HoloceneBatches(gt *testing.T) {
 		}
 
 		targetHeadNumber := max(testCfg.Custom.blocks)
-		for env.Engine.L2Chain().CurrentBlock().Number.Uint64() < uint64(targetHeadNumber) {
+		for bigs.Uint64Strict(env.Engine.L2Chain().CurrentBlock().Number) < uint64(targetHeadNumber) {
 			env.Sequencer.ActL2StartBlock(t)
 			// Send an L2 tx
 			env.Alice.L2.ActResetTxOpts(t)

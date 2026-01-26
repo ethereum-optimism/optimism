@@ -64,7 +64,7 @@ where
             EngineRpcRequest::RollupBoostHealthRequest(health_query) => {
                 trace!(target: "engine", ?health_query, "Received rollup boost health query.");
 
-                let health = self.rollup_boost_server.get_health();
+                let health = self.rollup_boost_server.probes().health();
                 health_query.sender.send(health.into()).unwrap();
             }
         }
@@ -75,13 +75,13 @@ where
     fn handle_rollup_boost_admin_query(&self, admin_query: RollupBoostAdminQuery) {
         match admin_query {
             RollupBoostAdminQuery::SetExecutionMode { execution_mode, sender } => {
-                self.rollup_boost_server.server.set_execution_mode(execution_mode);
+                self.rollup_boost_server.set_execution_mode(execution_mode);
                 let _ = sender.send(()).map_err(|_| {
                     warn!(target: "engine", "set execution mode response channel closed when trying to send");
                 });
             }
             RollupBoostAdminQuery::GetExecutionMode { sender } => {
-                let execution_mode = self.rollup_boost_server.server.get_execution_mode();
+                let execution_mode = self.rollup_boost_server.get_execution_mode();
                 let _ = sender.send(execution_mode).map_err(|_| {
                     warn!(target: "engine", "get execution mode response channel closed when trying to send");
                 });

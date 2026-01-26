@@ -27,12 +27,13 @@ import (
 	_ "github.com/ethereum/go-ethereum/eth/tracers/js"
 	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 )
 
 func InitL1(blockTime uint64, finalizedDistance uint64, genesis *core.Genesis, c clock.Clock, blobPoolDir string, beaconSrv Beacon, opts ...GethOption) (*GethInstance, *FakePoS, error) {
 	ethConfig := &ethconfig.Config{
-		NetworkId: genesis.Config.ChainID.Uint64(),
+		NetworkId: bigs.Uint64Strict(genesis.Config.ChainID),
 		Genesis:   genesis,
 		BlobPool: blobpool.Config{
 			Datadir:   blobPoolDir,
@@ -102,7 +103,7 @@ func (b *gethBackend) HeaderByNumber(_ context.Context, num *big.Int) (*types.He
 			h = b.chain.CurrentFinalBlock()
 		}
 	} else {
-		h = b.chain.GetHeaderByNumber(num.Uint64())
+		h = b.chain.GetHeaderByNumber(bigs.Uint64Strict(num))
 	}
 	if h == nil {
 		return nil, ethereum.NotFound
@@ -130,7 +131,7 @@ type GethOption func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error
 // InitL2 inits a L2 geth node.
 func InitL2(name string, genesis *core.Genesis, jwtPath string, opts ...GethOption) (*GethInstance, error) {
 	ethConfig := &ethconfig.Config{
-		NetworkId:   genesis.Config.ChainID.Uint64(),
+		NetworkId:   bigs.Uint64Strict(genesis.Config.ChainID),
 		Genesis:     genesis,
 		StateScheme: rawdb.HashScheme,
 		Miner: miner.Config{

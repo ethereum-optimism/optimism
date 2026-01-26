@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -75,7 +76,7 @@ func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, jwtPath strin
 
 func newBackend(t e2eutils.TestingBase, genesis *core.Genesis, jwtPath string, options []EngineOption) (*node.Node, *geth.Ethereum, *engineApiBackend) {
 	ethCfg := &ethconfig.Config{
-		NetworkId:   genesis.Config.ChainID.Uint64(),
+		NetworkId:   bigs.Uint64Strict(genesis.Config.ChainID),
 		Genesis:     genesis,
 		StateScheme: rawdb.HashScheme,
 		NoPruning:   true,

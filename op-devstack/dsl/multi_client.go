@@ -10,6 +10,7 @@ import (
 
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/common"
@@ -176,7 +177,7 @@ func (mc *MultiClient) verifyFollowersWithRetry(
 		go func() {
 			defer wg.Done()
 			hash, err := retry.Do(ctx, mc.maxAttempts, mc.retryStrategy, func() (common.Hash, error) {
-				info, err := client.InfoByNumber(ctx, blockNum.Uint64())
+				info, err := client.InfoByNumber(ctx, bigs.Uint64Strict(blockNum))
 				if err != nil {
 					return common.Hash{}, err
 				}

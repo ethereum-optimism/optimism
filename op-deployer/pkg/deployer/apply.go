@@ -172,6 +172,7 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		CacheDir:           cfg.CacheDir,
 		PreStateBuilder:    cfg.PreStateBuilder,
 		UseForge:           cfg.UseForge,
+		PrivateKey:         cfg.PrivateKey,
 	}); err != nil {
 		return err
 	}
@@ -195,6 +196,7 @@ type ApplyPipelineOpts struct {
 	CacheDir           string
 	PreStateBuilder    pipeline.PreStateBuilder
 	UseForge           bool
+	PrivateKey         string
 }
 
 func ApplyPipeline(
@@ -216,11 +218,10 @@ func ApplyPipeline(
 	if intent.L1ContractsLocator.Equal(intent.L2ContractsLocator) {
 		l2ArtifactsFS = l1ArtifactsFS
 	} else {
-		l2Afs, err := artifacts.Download(ctx, intent.L2ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
+		l2ArtifactsFS, err = artifacts.Download(ctx, intent.L2ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
 		if err != nil {
 			return fmt.Errorf("failed to download L2 artifacts: %w", err)
 		}
-		l2ArtifactsFS = l2Afs
 	}
 
 	bundle := pipeline.ArtifactsBundle{
@@ -341,9 +342,6 @@ func ApplyPipeline(
 	// Initialize Forge client if UseForge flag is enabled
 	var forgeClient *forge.Client
 	if opts.UseForge {
-		// Get the path to artifacts directory for Forge
-		// Forge needs to run from a directory containing foundry.toml
-		// We try to get the path from the artifacts filesystem
 		artifactsPath := fmt.Sprintf("%v", bundle.L1)
 		forgeClient, err = forge.NewStandardClient(artifactsPath)
 		if err != nil {
@@ -361,6 +359,8 @@ func ApplyPipeline(
 		Scripts:      opcmScripts,
 		ForgeClient:  forgeClient,
 		UseForge:     opts.UseForge,
+		L1RPCUrl:     opts.L1RPCUrl,
+		PrivateKey:   opts.PrivateKey,
 		Context:      ctx,
 	}
 

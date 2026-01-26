@@ -33,6 +33,8 @@ type Env struct {
 	Scripts      *opcm.Scripts
 	ForgeClient  *forge.Client
 	UseForge     bool
+	L1RPCUrl     string
+	PrivateKey   string
 	Context      context.Context
 }
 

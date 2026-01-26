@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -30,13 +31,13 @@ func TestL2Verifier_SequenceWindow(gt *testing.T) {
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 
 	// Make two sequence windows worth of empty L1 blocks. After we pass the first sequence window, the L2 chain should get blocks
-	for miner.L1Chain().CurrentBlock().Number.Uint64() < sd.RollupCfg.SeqWindowSize*2 {
+	for bigs.Uint64Strict(miner.L1Chain().CurrentBlock().Number) < sd.RollupCfg.SeqWindowSize*2 {
 		miner.ActL1StartBlock(10)(t)
 		miner.ActL1EndBlock(t)
 
 		verifier.ActL2PipelineFull(t)
 
-		l1Head := miner.L1Chain().CurrentBlock().Number.Uint64()
+		l1Head := bigs.Uint64Strict(miner.L1Chain().CurrentBlock().Number)
 		expectedL1Origin := uint64(0)
 		// as soon as we complete the sequence window, we force-adopt the L1 origin
 		if l1Head >= sd.RollupCfg.SeqWindowSize {
@@ -64,7 +65,7 @@ func TestL2Verifier_SequenceWindow(gt *testing.T) {
 	verifier.ActL2PipelineFull(t)
 	require.Equal(t, tip2N.SafeL2, verifier.SyncStatus().SafeL2)
 
-	for miner.L1Chain().CurrentBlock().Number.Uint64() < sd.RollupCfg.SeqWindowSize*2 {
+	for bigs.Uint64Strict(miner.L1Chain().CurrentBlock().Number) < sd.RollupCfg.SeqWindowSize*2 {
 		miner.ActL1StartBlock(10)(t)
 		miner.ActL1EndBlock(t)
 	}

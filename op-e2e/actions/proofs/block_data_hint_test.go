@@ -13,6 +13,7 @@ import (
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -58,24 +59,24 @@ func Test_ProgramAction_BlockDataHint(gt *testing.T) {
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
 
 	// Ensure there is only 1 block on L1.
-	require.Equal(t, uint64(1), l1Head.Number.Uint64())
+	require.Equal(t, uint64(1), bigs.Uint64Strict(l1Head.Number))
 	// Ensure the block is marked as safe before we attempt to fault prove it.
-	require.Equal(t, uint64(1), l2SafeHead.Number.Uint64())
+	require.Equal(t, uint64(1), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Now create a verifier that syncs up to the safe head parent
 	// This simulates a reorg view for the program reexecution
 	verifier, verifierEngine := createVerifier(t, env)
 	verifier.ActL2EventsUntil(t, func(ev event.Event) bool {
-		until := l2SafeHead.Number.Uint64() - 1
+		until := bigs.Uint64Strict(l2SafeHead.Number) - 1
 		ref, err := verifier.Eng.BlockRefByNumber(context.Background(), until)
 		require.NoError(t, err)
 		return ref.Number == until
 	}, 20, false)
 	// Ensure that the block isn't available
-	_, err := verifier.Eng.BlockRefByNumber(context.Background(), l2SafeHead.Number.Uint64())
+	_, err := verifier.Eng.BlockRefByNumber(context.Background(), bigs.Uint64Strict(l2SafeHead.Number))
 	require.ErrorIs(t, err, ethereum.NotFound)
 
-	l2ClaimedBlockNumber := l2SafeHead.Number.Uint64()
+	l2ClaimedBlockNumber := bigs.Uint64Strict(l2SafeHead.Number)
 	syncedRollupClient := env.Sequencer.RollupClient()
 	l2PreBlockNum := l2ClaimedBlockNumber - 1
 	preRoot, err := syncedRollupClient.OutputAtBlock(t.Ctx(), l2PreBlockNum)

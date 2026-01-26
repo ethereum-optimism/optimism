@@ -1,12 +1,28 @@
 package pipeline
 
 import (
+	"context"
+	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_makeDCI_OpcmAddress(t *testing.T) {
@@ -195,4 +211,125 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDeployOPChain_WithForge(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
+	require.NoError(t, err)
+
+	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
+	require.NoError(t, err)
+
+	_, afacts := testutil.LocalArtifacts(t)
+	lgr := testlog.Logger(t, slog.LevelInfo)
+	anvil, err := devnet.NewAnvil(lgr)
+	require.NoError(t, err)
+	require.NoError(t, anvil.Start())
+	t.Cleanup(func() {
+		require.NoError(t, anvil.Stop())
+	})
+
+	l1RPCUrl := anvil.RPCUrl()
+	privateKey := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+
+	l1RPC, err := rpc.Dial(l1RPCUrl)
+	require.NoError(t, err)
+	l1Client := ethclient.NewClient(l1RPC)
+
+	host, err := env.DefaultScriptHost(
+		broadcaster.NoopBroadcaster(),
+		lgr,
+		common.Address{'D'},
+		afacts,
+		script.WithForkHook(func(cfg *script.ForkConfig) (forking.ForkSource, error) {
+			src, err := forking.RPCSourceByNumber(cfg.URLOrAlias, l1RPC, *cfg.BlockNumber)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create RPC fork source: %w", err)
+			}
+			return forking.Cache(src), nil
+		}),
+	)
+	require.NoError(t, err)
+
+	latest, err := l1Client.HeaderByNumber(ctx, nil)
+	require.NoError(t, err)
+
+	_, err = host.CreateSelectFork(
+		script.ForkWithURLOrAlias("main"),
+		script.ForkWithBlockNumberU256(latest.Number),
+	)
+	require.NoError(t, err)
+
+	// Load scripts
+	opcmScripts := &opcm.Scripts{}
+
+	chainID := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000300")
+	salt := common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234")
+
+	// Create test input
+	intent := &state.Intent{
+		GlobalDeployOverrides: make(map[string]any),
+		Chains: []*state.ChainIntent{
+			{
+				ID: chainID,
+				Roles: state.ChainRoles{
+					L1ProxyAdminOwner: common.Address{'A'},
+					SystemConfigOwner: common.Address{'B'},
+					Batcher:           common.Address{'C'},
+					UnsafeBlockSigner: common.Address{'D'},
+					Proposer:          common.Address{'E'},
+					Challenger:        common.Address{'F'},
+				},
+				GasLimit: 60_000_000,
+			},
+		},
+		SuperchainRoles: &addresses.SuperchainRoles{
+			SuperchainProxyAdminOwner: common.Address{'S'},
+			ProtocolVersionsOwner:     common.Address{'P'},
+			SuperchainGuardian:        common.Address{'G'},
+			Challenger:                common.HexToAddress("0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"),
+		},
+	}
+
+	st := &state.State{
+		Version:     1,
+		Create2Salt: salt,
+	}
+
+	pEnv := &Env{
+		Logger:       lgr,
+		Scripts:      opcmScripts,
+		ForgeClient:  forgeClient,
+		UseForge:     true,
+		Context:      ctx,
+		Broadcaster:  broadcaster.NoopBroadcaster(),
+		StateWriter:  NoopStateWriter(),
+		L1ScriptHost: host,
+		L1RPCUrl:     l1RPCUrl,
+		PrivateKey:   privateKey,
+	}
+
+	err = DeploySuperchain(pEnv, intent, st)
+	require.NoError(t, err)
+
+	err = DeployImplementations(pEnv, intent, st)
+	require.NoError(t, err)
+
+	err = DeployOPChain(pEnv, intent, st, chainID)
+	require.NoError(t, err)
+
+	require.Len(t, st.Chains, 1)
+	require.Equal(t, chainID, st.Chains[0].ID)
+
+	chainState := st.Chains[0]
+	require.NotEqual(t, common.Address{}, chainState.OpChainContracts.OpChainProxyAdminImpl)
+	require.NotEqual(t, common.Address{}, chainState.OpChainContracts.AddressManagerImpl)
+	require.NotEqual(t, common.Address{}, chainState.OpChainContracts.L1Erc721BridgeProxy)
+	require.NotEqual(t, common.Address{}, chainState.OpChainContracts.SystemConfigProxy)
+	require.NotEqual(t, common.Address{}, chainState.OpChainContracts.OptimismMintableErc20FactoryProxy)
+	require.NotEqual(t, common.Address{}, chainState.OpChainContracts.L1StandardBridgeProxy)
+	require.NotEqual(t, common.Address{}, chainState.OpChainContracts.L1CrossDomainMessengerProxy)
 }

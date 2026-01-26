@@ -121,9 +121,9 @@ pub struct FlashblocksWebsocketFlags {
 impl FlashblocksFlags {
     /// Converts the flashblocks cli arguments to the flashblocks arguments used by the rollup-boost
     /// server.
-    pub fn as_rollup_boost_args(self) -> rollup_boost::FlashblocksArgs {
-        rollup_boost::FlashblocksArgs {
-            flashblocks: self.flashblocks,
+    pub fn as_rollup_boost_args(self) -> rollup_boost::FlashblocksWsArgs {
+        rollup_boost::FlashblocksWsArgs {
+            flashblocks_ws: self.flashblocks,
             flashblocks_builder_url: self.flashblocks_builder_url,
             flashblocks_host: self.flashblocks_host,
             flashblocks_port: self.flashblocks_port,

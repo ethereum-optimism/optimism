@@ -14,6 +14,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -93,7 +94,7 @@ func (g *SplitGameHelper) WaitForCorrectClaim(ctx context.Context, claimIdx int6
 	g.WaitForClaimCount(ctx, claimIdx+1)
 	claim := g.getClaim(ctx, claimIdx)
 	value := g.correctClaimValue(ctx, claim.Position)
-	g.Require.EqualValuesf(value, claim.Value, "Incorrect claim value at claim %v at position %v", claimIdx, claim.Position.ToGIndex().Uint64())
+	g.Require.EqualValuesf(value, claim.Value, "Incorrect claim value at claim %v at position %v", claimIdx, bigs.Uint64Strict(claim.Position.ToGIndex()))
 }
 
 func (g *SplitGameHelper) correctClaimValue(ctx context.Context, pos types.Position) common.Hash {
@@ -350,9 +351,9 @@ func (g *SplitGameHelper) WaitForInactivity(ctx context.Context, numInactiveBloc
 		select {
 		case head := <-headCh:
 			if lastActiveBlock == 0 {
-				lastActiveBlock = head.Number.Uint64()
+				lastActiveBlock = bigs.Uint64Strict(head.Number)
 				continue
-			} else if lastActiveBlock+uint64(numInactiveBlocks) < head.Number.Uint64() {
+			} else if lastActiveBlock+uint64(numInactiveBlocks) < bigs.Uint64Strict(head.Number) {
 				return
 			}
 			block, err := g.Client.BlockByNumber(ctx, head.Number)
@@ -365,7 +366,7 @@ func (g *SplitGameHelper) WaitForInactivity(ctx context.Context, numInactiveBloc
 			}
 			if numActions != 0 {
 				g.T.Logf("Game %v has %v actions in block %d. Resetting inactivity timeout", g.Addr, numActions, block.NumberU64())
-				lastActiveBlock = head.Number.Uint64()
+				lastActiveBlock = bigs.Uint64Strict(head.Number)
 			}
 		case err := <-headSub.Err():
 			g.Require.NoError(err)
