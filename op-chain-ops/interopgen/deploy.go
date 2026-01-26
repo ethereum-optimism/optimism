@@ -181,6 +181,7 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		Paused:                     superCfg.Paused,
 		RequiredProtocolVersion:    superCfg.RequiredProtocolVersion,
 		RecommendedProtocolVersion: superCfg.RecommendedProtocolVersion,
+		IsOPCMv2:                   superCfg.IsOPCMv2,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy Superchain contracts: %w", err)

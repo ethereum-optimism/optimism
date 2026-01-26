@@ -90,6 +90,8 @@ func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, er
 			RequiredProtocolVersion:    params.OPStackSupport,
 			RecommendedProtocolVersion: params.OPStackSupport,
 			SuperchainConfigGuardian:   superchainConfigGuardian,
+			// TODO(#18942): Update this to configurable values once op-chain-ops fully supports OPCMv2.
+			IsOPCMv2: false,
 		},
 	}
 	world := &WorldConfig{

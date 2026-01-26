@@ -827,6 +827,9 @@ type SuperchainL1DeployConfig struct {
 
 	// SuperchainConfigGuardian represents the GUARDIAN account in the SuperchainConfig. Has the ability to pause withdrawals.
 	SuperchainConfigGuardian common.Address `json:"superchainConfigGuardian"`
+
+	// IsOPCMv2 indicates whether the superchain is using OPCM v2.
+	IsOPCMv2 bool `json:"isOPCMv2"`
 }
 
 func (d *SuperchainL1DeployConfig) Check(log log.Logger) error {
