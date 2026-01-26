@@ -27,16 +27,6 @@ valid proposal is made for a L2 block at or after the initiating transaction was
 go run . prove --l1 <l1-el-rpc> --l2 <l2-el-rpc> --tx <init-tx-hash> --portal-address <portal-addr> --private-key <private-key>
 ```
 
-When proving super roots, provide the dispute game address:
-
-```shell
-go run . prove --l1 <l1-el-rpc> --l2 <l2-el-rpc> --tx <init-tx-hash> --portal-address <portal-addr> --private-key <private-key> \
-  --dispute-game <dispute-game-proxy-address> --rollup.config <path-to-rollup-config>
-```
-
-This reads the super root proof directly from the `SuperFaultDisputeGame` contract's `extraData()`.
-
-
 ### finalize
 
 The `finalize` subcommand finalizes a withdrawal that has previously been proven. The dispute game must have resolved as
