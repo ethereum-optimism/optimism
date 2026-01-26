@@ -10,7 +10,10 @@ import (
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -137,6 +140,19 @@ func txDataForOutputRootProof(ctx context.Context, proofClient *gethclient.Clien
 		return nil, fmt.Errorf("failed to pack output root prove withdrawal transaction: %w", err)
 	}
 	return txData, nil
+}
+
+func l2ChainIDForPortal(ctx context.Context, l1EthClient apis.EthClient, portal *bindingspreview.OptimismPortal2) (uint64, error) {
+	systemConfigAddr, err := portal.SystemConfig(&bind.CallOpts{Context: ctx})
+	if err != nil {
+		return 0, fmt.Errorf("failed to get system config address from portal: %w", err)
+	}
+	systemConfig := bindings.NewSystemConfig(bindings.WithClient(l1EthClient), bindings.WithTo(systemConfigAddr))
+	l2ChainID, err := contractio.Read(systemConfig.L2ChainID(), ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read L2 chain ID from system config: %w", err)
+	}
+	return l2ChainID.Uint64(), nil
 }
 
 func proveFlags() []cli.Flag {

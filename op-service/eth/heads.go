@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
@@ -45,7 +46,7 @@ func WatchHeadChanges(ctx context.Context, src NewHeadSource, fn HeadSignalFn) (
 			case header := <-headChanges:
 				fn(eventsCtx, L1BlockRef{
 					Hash:       header.Hash(),
-					Number:     header.Number.Uint64(),
+					Number:     bigs.Uint64Strict(header.Number),
 					ParentHash: header.ParentHash,
 					Time:       header.Time,
 				})

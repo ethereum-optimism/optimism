@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
@@ -864,7 +865,7 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 	// Receipt is confirmed to be valid from this point on
 	sendState.TxMined(txHash)
 
-	txHeight := receipt.BlockNumber.Uint64()
+	txHeight := bigs.Uint64Strict(receipt.BlockNumber)
 	tip, err := m.backend.HeaderByNumber(ctx, nil)
 	if err != nil {
 		m.metr.RPCError()
@@ -892,7 +893,7 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 	// transaction should be confirmed when txHeight is equal to
 	// tipHeight. The equation is rewritten in this form to avoid
 	// underflows.
-	tipHeight := tip.Number.Uint64()
+	tipHeight := bigs.Uint64Strict(tip.Number)
 	if txHeight+m.cfg.NumConfirmations <= tipHeight+1 {
 		m.l.Info("Transaction confirmed", "tx", txHash,
 			"block", eth.ReceiptBlockID(receipt),

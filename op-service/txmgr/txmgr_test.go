@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
@@ -276,7 +277,7 @@ func (b *mockBackend) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (ui
 	if msg.GasFeeCap.Cmp(msg.GasTipCap) < 0 {
 		return 0, core.ErrTipAboveFeeCap
 	}
-	return b.g.baseFee().Uint64(), nil
+	return bigs.Uint64Strict(b.g.baseFee()), nil
 }
 
 func (b *mockBackend) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
@@ -320,11 +321,11 @@ func (b *mockBackend) TransactionReceipt(ctx context.Context, txHash common.Hash
 	// we can assert the proper tx confirmed in our tests.
 	var blobFeeCap uint64
 	if txInfo.blobFeeCap != nil {
-		blobFeeCap = txInfo.blobFeeCap.Uint64()
+		blobFeeCap = bigs.Uint64Strict(txInfo.blobFeeCap)
 	}
 	return &types.Receipt{
 		TxHash:            txHash,
-		GasUsed:           txInfo.gasFeeCap.Uint64(),
+		GasUsed:           bigs.Uint64Strict(txInfo.gasFeeCap),
 		CumulativeGasUsed: blobFeeCap,
 		BlockNumber:       big.NewInt(int64(txInfo.blockNumber)),
 	}, nil
@@ -387,7 +388,7 @@ func TestTxMgrConfirmAtMinGasPrice(t *testing.T) {
 	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
-	require.Equal(t, gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
+	require.Equal(t, bigs.Uint64Strict(gasPricer.expGasFeeCap()), receipt.GasUsed)
 }
 
 // TestTxMgrNeverConfirmCancel asserts that a Send can be canceled even if no
@@ -491,7 +492,7 @@ func TestTxMgrConfirmsAtHigherGasPrice(t *testing.T) {
 	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
-	require.Equal(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
+	require.Equal(t, bigs.Uint64Strict(h.gasPricer.expGasFeeCap()), receipt.GasUsed)
 }
 
 // TestTxMgrConfirmsBlobTxAtHigherGasPrice asserts that Send properly returns the max gas price
@@ -526,8 +527,8 @@ func TestTxMgrConfirmsBlobTxAtHigherGasPrice(t *testing.T) {
 	require.NotNil(t, receipt)
 	// the fee cap for the blob tx at epoch == 3 should end up higher than the min required gas
 	// (expFeeCap()) since blob tx fee caps are bumped 100% with each epoch.
-	require.Less(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
-	require.Equal(t, h.gasPricer.expBlobFeeCap().Uint64(), receipt.CumulativeGasUsed)
+	require.Less(t, bigs.Uint64Strict(h.gasPricer.expGasFeeCap()), receipt.GasUsed)
+	require.Equal(t, bigs.Uint64Strict(h.gasPricer.expBlobFeeCap()), receipt.CumulativeGasUsed)
 }
 
 // errRpcFailure is a sentinel error used in testing to fail publications.
@@ -641,7 +642,7 @@ func TestTxMgr_EstimateGas(t *testing.T) {
 	candidate.GasLimit = 0
 
 	// Gas estimate
-	gasEstimate := h.gasPricer.baseBaseFee.Uint64()
+	gasEstimate := bigs.Uint64Strict(h.gasPricer.baseBaseFee)
 
 	// Craft the transaction.
 	tx, err := h.mgr.craftTx(context.Background(), candidate)
@@ -743,7 +744,7 @@ func TestTxMgrOnlyOnePublicationSucceeds(t *testing.T) {
 	require.Nil(t, err)
 
 	require.NotNil(t, receipt)
-	require.Equal(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
+	require.Equal(t, bigs.Uint64Strict(h.gasPricer.expGasFeeCap()), receipt.GasUsed)
 }
 
 // TestTxMgrRebroadcastsWithoutGasPriceIncrease tests that the tx manager will rebroadcast a transaction
@@ -820,7 +821,7 @@ func TestTxMgrConfirmsMinGasPriceAfterBumping(t *testing.T) {
 	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
-	require.Equal(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
+	require.Equal(t, bigs.Uint64Strict(h.gasPricer.expGasFeeCap()), receipt.GasUsed)
 }
 
 // TestTxMgrRetriesUnbumpableTx tests that a tx whose fees cannot be bumped will still be
@@ -906,7 +907,7 @@ func TestTxMgrDoesntAbortNonceTooLowAfterMiningTx(t *testing.T) {
 	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
-	require.Equal(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
+	require.Equal(t, bigs.Uint64Strict(h.gasPricer.expGasFeeCap()), receipt.GasUsed)
 }
 
 // TestWaitMinedReturnsReceiptOnFirstSuccess insta-mines a transaction and
@@ -1062,7 +1063,7 @@ func (b *failingBackend) SuggestGasTipCap(_ context.Context) (*big.Int, error) {
 }
 
 func (b *failingBackend) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
-	return b.baseFee.Uint64(), nil
+	return bigs.Uint64Strict(b.baseFee), nil
 }
 
 func (b *failingBackend) NonceAt(_ context.Context, _ common.Address, _ *big.Int) (uint64, error) {

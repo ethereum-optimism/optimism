@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/validate"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -144,7 +145,7 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 			ctx,
 			l,
 			l1RPCUrl,
-			chainID.Uint64(),
+			bigs.Uint64Strict(chainID),
 			stateFile,
 			intent.L1ContractsLocator,
 			cliCtx.String(VerifierTypeFlagName),

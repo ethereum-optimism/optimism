@@ -36,6 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -183,7 +184,7 @@ func fetchChainConfig(ctx context.Context, cl *rpc.Client) (*params.ChainConfig,
 	// if we recognize the chain ID, we can get the chain config
 	id := (*big.Int)(&idResult)
 	if id.IsUint64() {
-		cfg, err := superutil.LoadOPStackChainConfigFromChainID(id.Uint64())
+		cfg, err := superutil.LoadOPStackChainConfigFromChainID(bigs.Uint64Strict(id))
 		if err == nil {
 			return cfg, nil
 		}
@@ -245,7 +246,7 @@ func (d *simChainContext) Engine() consensus.Engine {
 }
 
 func (d *simChainContext) GetHeader(h common.Hash, n uint64) *types.Header {
-	if n == d.head.Number.Uint64() {
+	if n == bigs.Uint64Strict(d.head.Number) {
 		return d.head
 	}
 	panic(fmt.Errorf("header retrieval not supported, cannot fetch %s %d", h, n))
@@ -263,7 +264,7 @@ func (d *simChainContext) GetHeaderByHash(hash common.Hash) *types.Header {
 }
 
 func (d *simChainContext) GetHeaderByNumber(number uint64) *types.Header {
-	if d.head.Number.Uint64() == number {
+	if bigs.Uint64Strict(d.head.Number) == number {
 		return d.head
 	}
 	panic(fmt.Errorf("header retrieval not supported, cannot fetch %d", number))
@@ -294,7 +295,7 @@ func simulate(ctx context.Context, logger log.Logger, conf *params.ChainConfig,
 	}
 
 	// load prestate data into memory db state
-	_, err = state.Commit(header.Number.Uint64()-1, true, conf.IsCancun(header.Number, header.Time))
+	_, err = state.Commit(bigs.Uint64Strict(header.Number)-1, true, conf.IsCancun(header.Number, header.Time))
 	if err != nil {
 		return fmt.Errorf("failed to write state data to underlying DB: %w", err)
 	}

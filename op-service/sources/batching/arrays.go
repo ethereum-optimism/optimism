@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 )
 
@@ -17,7 +18,7 @@ func ReadArray(ctx context.Context, caller *MultiCaller, block rpcblock.Block, c
 	if err != nil {
 		return nil, fmt.Errorf("failed to load array length: %w", err)
 	}
-	count := result.GetBigInt(0).Uint64()
+	count := bigs.Uint64Strict(result.GetBigInt(0))
 	calls := make([]Call, count)
 	for i := uint64(0); i < count; i++ {
 		calls[i] = getCall(new(big.Int).SetUint64(i))

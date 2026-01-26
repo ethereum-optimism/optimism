@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -36,11 +37,11 @@ func FuzzEncodeDecodeWithdrawal(f *testing.F) {
 		err = w.Decode(encoded)
 		require.Nil(t, err)
 
-		require.Equal(t, withdrawal.Nonce.Uint64(), w.Nonce.Uint64())
+		require.Equal(t, bigs.Uint64Strict(withdrawal.Nonce), bigs.Uint64Strict(w.Nonce))
 		require.Equal(t, withdrawal.Sender, w.Sender)
 		require.Equal(t, withdrawal.Target, w.Target)
-		require.Equal(t, withdrawal.Value.Uint64(), w.Value.Uint64())
-		require.Equal(t, withdrawal.GasLimit.Uint64(), w.GasLimit.Uint64())
+		require.Equal(t, bigs.Uint64Strict(withdrawal.Value), bigs.Uint64Strict(w.Value))
+		require.Equal(t, bigs.Uint64Strict(withdrawal.GasLimit), bigs.Uint64Strict(w.GasLimit))
 		require.Equal(t, withdrawal.Data, w.Data)
 	})
 }

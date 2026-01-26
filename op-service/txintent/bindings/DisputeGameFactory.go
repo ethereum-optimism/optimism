@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -69,7 +70,7 @@ func (d *DisputeGameFactory) ParseDisputeGameCreated(log *types.Log) (*DisputeGa
 	}
 	parsed := &DisputeGameCreated{
 		DisputeProxy: common.HexToAddress(log.Topics[1].Hex()),
-		GameType:     uint32(log.Topics[2].Big().Uint64()),
+		GameType:     uint32(bigs.Uint64Strict(log.Topics[2].Big())),
 		RootClaim:    log.Topics[3],
 	}
 

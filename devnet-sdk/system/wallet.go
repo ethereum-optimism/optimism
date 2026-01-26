@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	coreTypes "github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -209,9 +210,9 @@ func (i *executeMessageImpl) Call(ctx context.Context) (any, error) {
 	msg := supervisorTypes.Message{
 		Identifier: supervisorTypes.Identifier{
 			Origin:      i.identifier.Origin,
-			BlockNumber: i.identifier.BlockNumber.Uint64(),
-			LogIndex:    uint32(i.identifier.LogIndex.Uint64()),
-			Timestamp:   i.identifier.Timestamp.Uint64(),
+			BlockNumber: bigs.Uint64Strict(i.identifier.BlockNumber),
+			LogIndex:    uint32(bigs.Uint64Strict(i.identifier.LogIndex)),
+			Timestamp:   bigs.Uint64Strict(i.identifier.Timestamp),
 			ChainID:     eth.ChainIDFromBig(i.identifier.ChainId),
 		},
 		PayloadHash: crypto.Keccak256Hash(i.sentMessage),
