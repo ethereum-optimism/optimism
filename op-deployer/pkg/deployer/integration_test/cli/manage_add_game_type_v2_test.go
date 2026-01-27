@@ -22,7 +22,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -134,23 +133,12 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 	_, afactsFS := testutil.LocalArtifacts(t)
 	shared.RunPastUpgradesWithRPC(t, runner.l1RPC, afactsFS, lgr, 11155111, l1ProxyAdminOwner, systemConfigProxy)
 
-	bytes32Type := deployer.Bytes32Type
-	addressType := deployer.AddressType
-
 	// FaultDisputeGameConfig just needs absolutePrestate (bytes32)
 	testPrestate := common.Hash{'P', 'R', 'E', 'S', 'T', 'A', 'T', 'E'}
-	cannonArgs, err := abi.Arguments{{Type: bytes32Type}}.Pack(testPrestate)
-	require.NoError(t, err)
 
 	// PermissionedDisputeGameConfig needs absolutePrestate, proposer, challenger
 	testProposer := common.Address{'P'}
 	testChallenger := common.Address{'C'}
-	permissionedArgs, err := abi.Arguments{
-		{Type: bytes32Type},
-		{Type: addressType},
-		{Type: addressType},
-	}.Pack(testPrestate, testProposer, testChallenger)
-	require.NoError(t, err)
 
 	testConfig := embedded.UpgradeOPChainInput{
 		Prank: l1ProxyAdminOwner,
@@ -162,19 +150,24 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 					Enabled:  true,
 					InitBond: big.NewInt(1000000000000000000),
 					GameType: embedded.GameTypeCannon,
-					GameArgs: cannonArgs,
+					FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+						AbsolutePrestate: testPrestate,
+					},
 				},
 				{
 					Enabled:  true,
 					InitBond: big.NewInt(1000000000000000000),
 					GameType: embedded.GameTypePermissionedCannon,
-					GameArgs: permissionedArgs,
+					PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
+						AbsolutePrestate: testPrestate,
+						Proposer:         testProposer,
+						Challenger:       testChallenger,
+					},
 				},
 				{
 					Enabled:  false,
 					InitBond: big.NewInt(0),
 					GameType: embedded.GameTypeCannonKona,
-					GameArgs: []byte{}, // Disabled games don't need args
 				},
 			},
 			ExtraInstructions: []embedded.ExtraInstruction{
