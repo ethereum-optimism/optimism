@@ -241,7 +241,7 @@ where
     {
         let provider = provider_factory.db_ref();
         let tx = provider.tx()?;
-        let initialization_job = InitializationJob::new(storage.clone(), &tx);
+        let initialization_job = InitializationJob::new(storage.clone(), tx);
         initialization_job.run(last_block_number, last_block_hash).await?;
     }
 

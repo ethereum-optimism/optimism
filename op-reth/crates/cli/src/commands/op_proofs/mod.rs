@@ -2,6 +2,7 @@
 
 use clap::{Parser, Subcommand};
 use reth_cli::chainspec::ChainSpecParser;
+use reth_cli_commands::common::CliNodeTypes;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_primitives::OpPrimitives;
 use std::sync::Arc;
@@ -19,12 +20,7 @@ pub struct Command<C: ChainSpecParser> {
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> Command<C> {
     /// Execute `op-proofs` command
-    pub async fn execute<
-        N: reth_cli_commands::common::CliNodeTypes<
-            ChainSpec = C::ChainSpec,
-            Primitives = OpPrimitives,
-        >,
-    >(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
         self,
     ) -> eyre::Result<()> {
         match self.command {

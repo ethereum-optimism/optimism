@@ -80,7 +80,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
                 provider_factory.database_provider_ro()?.disable_long_read_transaction_safety();
             let db_tx = db_provider.into_tx();
 
-            InitializationJob::new(storage.clone(), &db_tx).run(best_number, best_hash).await?;
+            InitializationJob::new(storage.clone(), db_tx).run(best_number, best_hash).await?;
         }
 
         info!(

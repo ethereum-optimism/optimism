@@ -8,6 +8,7 @@ use crate::{
 };
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
+use derive_more::Constructor;
 use reth_db::{
     cursor::{DbCursorRO, DbDupCursorRO},
     tables,
@@ -28,10 +29,10 @@ const INITIALIZE_STORAGE_THRESHOLD: usize = 100000;
 const INITIALIZE_LOG_THRESHOLD: usize = 100000;
 
 /// Initialization job for external storage.
-#[derive(Debug)]
-pub struct InitializationJob<'a, Tx: DbTx, S: OpProofsStore + Send> {
+#[derive(Debug, Constructor)]
+pub struct InitializationJob<Tx: DbTx, S: OpProofsStore + Send> {
     storage: S,
-    tx: &'a Tx,
+    tx: Tx,
 }
 
 /// Macro to generate simple cursor iterators for tables
@@ -133,7 +134,6 @@ impl CompletionEstimatable for StoredNibbles {
 /// Initialize a table from a source iterator to a storage function. Handles batching and logging.
 async fn initialize<
     S: Iterator<Item = Result<(Key, Value), DatabaseError>>,
-    F: Future<Output = Result<(), OpProofsStorageError>> + Send,
     Key: CompletionEstimatable + Clone + 'static,
     Value: Clone + 'static,
 >(
@@ -141,7 +141,7 @@ async fn initialize<
     source: S,
     storage_threshold: usize,
     log_threshold: usize,
-    save_fn: impl Fn(Vec<(Key, Value)>) -> F,
+    save_fn: impl AsyncFnOnce(Vec<(Key, Value)>) -> Result<(), OpProofsStorageError> + Send + Copy,
 ) -> Result<u64, OpProofsStorageError> {
     let mut entries = Vec::new();
 
@@ -204,14 +204,9 @@ async fn initialize<
     Ok(total_entries)
 }
 
-impl<'a, Tx: DbTx + Sync, S: OpProofsStore + OpProofsInitialStateStore + Send>
-    InitializationJob<'a, Tx, S>
+impl<Tx: DbTx + Sync, S: OpProofsStore + OpProofsInitialStateStore + Send>
+    InitializationJob<Tx, S>
 {
-    /// Create a new initialization job.
-    pub const fn new(storage: S, tx: &'a Tx) -> Self {
-        Self { storage, tx }
-    }
-
     /// Save mapping of hashed addresses to accounts to storage.
     async fn save_hashed_accounts(
         &self,
@@ -517,7 +512,7 @@ mod tests {
 
         // Run initialization
         let tx = db.tx().unwrap();
-        let job = InitializationJob::new(storage.clone(), &tx);
+        let job = InitializationJob::new(storage.clone(), tx);
         job.initialize_hashed_accounts(None).await.unwrap();
 
         // Verify data was stored (will be in sorted order)
@@ -568,7 +563,7 @@ mod tests {
 
         // Run initialization
         let tx = db.tx().unwrap();
-        let job = InitializationJob::new(storage.clone(), &tx);
+        let job = InitializationJob::new(storage.clone(), tx);
         job.initialize_hashed_storages(None).await.unwrap();
 
         // Verify data was stored for addr1
@@ -616,7 +611,7 @@ mod tests {
 
         // Run initialization
         let tx = db.tx().unwrap();
-        let job = InitializationJob::new(storage.clone(), &tx);
+        let job = InitializationJob::new(storage.clone(), tx);
         job.initialize_accounts_trie(None).await.unwrap();
 
         // Verify data was stored
@@ -675,7 +670,7 @@ mod tests {
 
         // Run initialization
         let tx = db.tx().unwrap();
-        let job = InitializationJob::new(storage.clone(), &tx);
+        let job = InitializationJob::new(storage.clone(), tx);
         job.initialize_storages_trie(None).await.unwrap();
 
         // Verify data was stored for addr1
@@ -752,7 +747,7 @@ mod tests {
 
         // Run full initialization
         let tx = db.tx().unwrap();
-        let job = InitializationJob::new(storage.clone(), &tx);
+        let job = InitializationJob::new(storage.clone(), tx);
         let best_number = 100;
         let best_hash = B256::repeat_byte(0x42);
 
@@ -796,7 +791,7 @@ mod tests {
         storage.commit_initial_state().await.expect("commit anchor");
 
         let tx = db.tx().unwrap();
-        let job = InitializationJob::new(storage.clone(), &tx);
+        let job = InitializationJob::new(storage.clone(), tx);
 
         // Run initialization - should skip
         job.run(100, B256::repeat_byte(0x42)).await.unwrap();
@@ -843,7 +838,7 @@ mod tests {
         // Initialization #1
         {
             let tx = db.tx().unwrap();
-            let job = InitializationJob::new(store.clone(), &tx);
+            let job = InitializationJob::new(store.clone(), tx);
             job.initialize_hashed_accounts(None).await.unwrap();
         }
 
@@ -869,7 +864,7 @@ mod tests {
         // Initialization #2 (restart)
         {
             let tx = db.tx().unwrap();
-            let job = InitializationJob::new(store.clone(), &tx);
+            let job = InitializationJob::new(store.clone(), tx);
             job.initialize_hashed_accounts(Some(k2)).await.unwrap();
         }
 
@@ -933,7 +928,7 @@ mod tests {
         // Initialization #1
         {
             let tx = db.tx().unwrap();
-            let job = InitializationJob::new(store.clone(), &tx);
+            let job = InitializationJob::new(store.clone(), tx);
             job.initialize_hashed_storages(None).await.unwrap();
         }
 
@@ -958,7 +953,7 @@ mod tests {
         // Initialization #2
         {
             let tx = db.tx().unwrap();
-            let job = InitializationJob::new(store.clone(), &tx);
+            let job = InitializationJob::new(store.clone(), tx);
             job.initialize_hashed_storages(Some(HashedStorageKey::new(a2, s21))).await.unwrap();
         }
 
@@ -1023,7 +1018,7 @@ mod tests {
         // Initialization #1
         {
             let tx = db.tx().unwrap();
-            let job = InitializationJob::new(store.clone(), &tx);
+            let job = InitializationJob::new(store.clone(), tx);
             job.initialize_accounts_trie(None).await.unwrap();
         }
 
@@ -1044,7 +1039,7 @@ mod tests {
         // Initialization #2
         {
             let tx = db.tx().unwrap();
-            let job = InitializationJob::new(store.clone(), &tx);
+            let job = InitializationJob::new(store.clone(), tx);
             job.initialize_accounts_trie(Some(p2.clone())).await.unwrap();
         }
 
@@ -1104,7 +1099,7 @@ mod tests {
         // Initialization #1
         {
             let tx = db.tx().unwrap();
-            let job = InitializationJob::new(store.clone(), &tx);
+            let job = InitializationJob::new(store.clone(), tx);
             job.initialize_storages_trie(None).await.unwrap();
         }
 
@@ -1133,7 +1128,7 @@ mod tests {
         // Initialization #2
         {
             let tx = db.tx().unwrap();
-            let job = InitializationJob::new(store.clone(), &tx);
+            let job = InitializationJob::new(store.clone(), tx);
             job.initialize_storages_trie(Some(StorageTrieKey::new(a2, StoredNibbles::from(n2.0))))
                 .await
                 .unwrap();
