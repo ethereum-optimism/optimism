@@ -72,6 +72,16 @@ func NewEngineControllerFromConfig(ctx context.Context, log gethlog.Logger, vncf
 var (
 	ErrNoEngineClient = errors.New("engine client not initialized")
 	ErrNoRollupConfig = errors.New("rollup config not available")
+
+	// Rewind errors
+	ErrRewindTargetBlockNotFound      = errors.New("failed to get target block at timestamp")
+	ErrRewindComputeTargetsFailed     = errors.New("failed to compute rewind targets")
+	ErrRewindInsertSyntheticFailed    = errors.New("failed to insert synthetic payload")
+	ErrRewindSyntheticPayloadRejected = errors.New("synthetic payload rejected by engine")
+	ErrRewindFCUSyntheticFailed       = errors.New("failed to FCU to synthetic block")
+	ErrRewindFCUTargetFailed          = errors.New("failed to FCU to target block")
+	ErrRewindVerificationFailed       = errors.New("rewind state verification failed")
+	ErrRewindFCURejected              = errors.New("forkchoice update rejected by engine")
 )
 
 func (e *simpleEngineController) blockNumberAtTimestamp(ts uint64) (uint64, error) {
@@ -153,22 +163,6 @@ func (e *simpleEngineController) OutputV0AtBlockNumber(ctx context.Context, num 
 //     that orphans all blocks after the target.
 //  2. FCU back to the original target block, completing the rewind.
 //
-// This two-step approach is necessary because a direct FCU to an existing block won't reorg
-// if that block is already in the canonical chain.
-//
-// a. [finalized] <-- [safe] <--
-//
-// b. [finalized] <-- [safe] <-- [target] <-- [unsafe]
-//
-//	               |\
-//	\__ [synthetic]
-//
-// c. [finalized] <-- [safe] <-- [synthetic, unsafe]
-//
-//	|\
-//	 \__ [target]
-//
-// d.[finalized] <-- [safe] <-- [target,unsafe]
 // TODO: in future, we could push the implementation into the engine itself which would reduce the
 // number of RPC calls required and remove the need for the synthetic block to be inserted.
 func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
@@ -177,10 +171,10 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 	}
 
 	// Step 0: infer the target block:
-	// [parent] <-- [target] <-- [unsafe]
+	// [n-1,parent] <-- [n,target] <-- [m>n,unsafe]
 	targetBlock, err := e.blockAtTimestamp(ctx, timestamp)
 	if err != nil {
-		return fmt.Errorf("failed to get target block at timestamp %d: %w", timestamp, err)
+		return fmt.Errorf("%w %d: %w", ErrRewindTargetBlockNotFound, timestamp, err)
 	}
 
 	// Step 1: Insert a synthetic block (modified fee recipient) which
@@ -193,13 +187,13 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 		return err
 	}
 
-	// Step 3: compute rewind targets for safe and finalized heads, ensuring they do not go forwards:
+	// Step 2: compute rewind targets for safe and finalized heads, ensuring they do not go forwards:
 	targetSafeBlock, targetFinalizedBlock, err := e.computeRewindTargets(ctx, targetBlock)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", ErrRewindComputeTargetsFailed, err)
 	}
 
-	// Step 4: FCU to the synthetic block to trigger a reorg, removing the target block
+	// Step 3: FCU to the synthetic block to trigger a reorg, removing the target block
 	// from the canonical chain.
 	// We use the parent hash of the target block as the safe and finalized block
 	// in the FCU since these are guaranteed to be in the canonical chain of the synthetic block.
@@ -208,21 +202,24 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 	//       \_______ [n,synthetic,unsafe]
 	parentHash := targetBlock.ParentHash
 	if err := e.forkchoiceUpdate(ctx, syntheticBlockHash, parentHash, parentHash); err != nil {
-		return fmt.Errorf("failed to FCU to synthetic block: %w", err)
+		return fmt.Errorf("%w: %w", ErrRewindFCUSyntheticFailed, err)
 	}
 	e.log.Info("executed FCU to synthetic block", "syntheticHead", syntheticBlockHash, "safe", parentHash, "finalized", parentHash)
 
-	// Step 5: FCU to the actual target block
+	// Step 4: FCU to the actual target block
 	// [n-1,parent] <-- [n,target, unsafe]
 	//
 	//                  [n,synthetic]
 	if err := e.forkchoiceUpdate(ctx, targetBlock.Hash, parentHash, parentHash); err != nil {
-		return fmt.Errorf("failed to FCU to target block: %w", err)
+		return fmt.Errorf("%w: %w", ErrRewindFCUTargetFailed, err)
 	}
 	e.log.Info("executed FCU to target block", "head", targetBlock.Hash, "safe", targetSafeBlock.Hash, "finalized", targetFinalizedBlock.Hash)
 
-	// Step 6: Verify the rewind state
-	return e.verifyRewindState(ctx, targetBlock, targetSafeBlock, targetFinalizedBlock)
+	// Step 5: Verify the rewind state
+	if err := e.verifyRewindState(ctx, targetBlock, targetSafeBlock, targetFinalizedBlock); err != nil {
+		return fmt.Errorf("%w: %w", ErrRewindVerificationFailed, err)
+	}
+	return nil
 }
 
 // computeRewindTargets determines the safe and finalized block targets for the rewind.
@@ -257,10 +254,10 @@ func (e *simpleEngineController) insertSyntheticPayload(ctx context.Context, blo
 
 	status, err := e.l2.NewPayload(ctx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
-		return common.Hash{}, fmt.Errorf("failed to insert synthetic payload: %w", err)
+		return common.Hash{}, fmt.Errorf("%w: %w", ErrRewindInsertSyntheticFailed, err)
 	}
 	if status.Status != eth.ExecutionValid {
-		return common.Hash{}, fmt.Errorf("synthetic payload rejected: %s", status.Status)
+		return common.Hash{}, fmt.Errorf("%w: status=%s", ErrRewindSyntheticPayloadRejected, status.Status)
 	}
 
 	return syntheticHash, nil
@@ -278,7 +275,7 @@ func (e *simpleEngineController) forkchoiceUpdate(ctx context.Context, head, saf
 		return err
 	}
 	if res.PayloadStatus.Status != eth.ExecutionValid {
-		return fmt.Errorf("forkchoice update rejected: %s", res.PayloadStatus.Status)
+		return fmt.Errorf("%w: status=%s", ErrRewindFCURejected, res.PayloadStatus.Status)
 	}
 	return nil
 }

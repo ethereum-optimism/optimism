@@ -2,6 +2,7 @@ package chain_container
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -351,6 +352,14 @@ func (c *simpleChainContainer) attachInProcRollupClient() error {
 	return nil
 }
 
+// isCriticalRewindError returns true if the error is a critical configuration error
+// that should not be retried.
+func isCriticalRewindError(err error) bool {
+	return errors.Is(err, engine_controller.ErrNoEngineClient) ||
+		errors.Is(err, engine_controller.ErrNoRollupConfig) ||
+		errors.Is(err, engine_controller.ErrRewindComputeTargetsFailed)
+}
+
 func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint64) error {
 	// Pause the container to stop it restarting the vn when we kill it
 	err := c.Pause(ctx)
@@ -366,12 +375,22 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 	}
 	c.log.Info("chain_container/RewindEngine: stopped vn")
 
-	// rewind the chain container
-	err = c.engine.RewindToTimestamp(ctx, timestamp)
-	if err != nil {
-		// TODO if this fails, should we try to resume the container?
-		// we probably want to retry
-		return err
+	for {
+		err = c.engine.RewindToTimestamp(ctx, timestamp)
+		switch {
+		case errors.Is(err, context.DeadlineExceeded):
+			c.log.Error("chain_container/RewindEngine: timeout exceeded")
+			return err
+		case isCriticalRewindError(err):
+			c.log.Crit("chain_container/RewindEngine: critical error", "err", err)
+			return err
+		case err == nil:
+			c.log.Info("chain_container/RewindEngine: executed engine rewind")
+			break
+		default:
+			c.log.Error("chain_container/RewindEngine: temporary error", "err", err)
+			<-time.After(time.Second) // wait until the next retry
+		}
 	}
 
 	c.log.Info("chain_container/RewindEngine: executed engine rewind")
