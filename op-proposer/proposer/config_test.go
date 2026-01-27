@@ -129,6 +129,15 @@ func TestDisallowAllThreeRPCSources(t *testing.T) {
 	require.ErrorIs(t, cfg.Check(), ErrConflictingSource)
 }
 
+func TestRequireSomeRPCSourceForUnknownGameTypes(t *testing.T) {
+	cfg := validConfig()
+	cfg.RollupRpc = ""
+	cfg.SupervisorRpcs = nil
+	cfg.SuperNodeRpcs = nil
+	cfg.DisputeGameType = 492743
+	require.ErrorIs(t, cfg.Check(), ErrMissingSource)
+}
+
 func validConfig() *CLIConfig {
 	return &CLIConfig{
 		L1EthRpc:                     "http://localhost:8888/l1",

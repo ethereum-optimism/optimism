@@ -166,6 +166,9 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 		}
 		ps.ProposalSource = source.NewSuperNodeProposalSource(ps.Log, clients...)
 	}
+	if ps.ProposalSource == nil {
+		return ErrMissingSource
+	}
 	return nil
 }
 

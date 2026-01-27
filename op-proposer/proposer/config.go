@@ -18,6 +18,7 @@ import (
 var (
 	ErrMissingRollupRpc     = errors.New("missing rollup rpc")
 	ErrMissingSupervisorRpc = errors.New("missing supervisor rpc or supernode rpc")
+	ErrMissingSource        = errors.New("missing proposal source rpc (rollup, supervisor, or supernode)")
 	ErrConflictingSource    = errors.New("must specify exactly one of rollup rpc, supervisor rpc, or supernode rpc")
 
 	// preInteropGameTypes are  game types that enforce having a rollup rpc.
@@ -127,6 +128,10 @@ func (c *CLIConfig) Check() error {
 	// Require supervisor or supernode RPC for post interop game types
 	if c.DGFAddress != "" && slices.Contains(postInteropGameTypes, c.DisputeGameType) && len(c.SupervisorRpcs) == 0 && len(c.SuperNodeRpcs) == 0 {
 		return ErrMissingSupervisorRpc
+	}
+	// For unknown game types, allow any source, but require at least one.
+	if sourceCount == 0 {
+		return ErrMissingSource
 	}
 
 	return nil
