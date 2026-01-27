@@ -4,9 +4,8 @@ The devnet descriptor is a standardized format that describes the complete topol
 
 ## Universal Descriptor Format
 
-Both `kurtosis-devnet` and `netchef` emit the same descriptor format, despite being completely different devnet implementations:
+Mulitple implemencations can emit the same descriptor format, despite being completely different devnet implementations. Currently supported:
 
-- **kurtosis-devnet**: Uses Kurtosis to orchestrate containerized devnet deployments
 - **netchef**: Provides a lightweight, local devnet deployment
 
 This standardization enables a powerful ecosystem where tools can be built independently of the underlying devnet implementation.
@@ -94,14 +93,13 @@ The descriptor format is currently in active development, particularly regarding
 ### Endpoint Requirements
 
 - **Current State**: The format does not strictly specify which endpoints must be included in a compliant descriptor
-- **Minimum Known Requirements**: 
+- **Minimum Known Requirements**:
   - RPC endpoints are essential for basic chain interaction
   - Other endpoints may be optional depending on use case
 
 ### Implementation Notes
 
-- `kurtosis-devnet` currently outputs all service endpoints by default, including many that may not be necessary for testing
-- Other devnet implementations can be more selective about which endpoints they expose
+- devnet implementations can be selective about which endpoints they expose
 - Different testing scenarios may require different sets of endpoints
 
 ### Future Development

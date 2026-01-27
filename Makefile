@@ -237,7 +237,6 @@ TEST_PKGS := \
 	./packages/contracts-bedrock/scripts/checks/... \
 	./op-dripper/... \
 	./devnet-sdk/... \
-	./kurtosis-devnet/... \
 	./op-devstack/... \
 	./op-deployer/pkg/deployer/artifacts/... \
 	./op-deployer/pkg/deployer/broadcaster/... \
