@@ -117,6 +117,25 @@ func TestCrossValidator_UnknownChain(t *testing.T) {
 	require.ErrorIs(t, err, types.ErrUnknownChain)
 }
 
+func TestCrossValidator_InitiatingMessageNotFound(t *testing.T) {
+	mock := newMockChainIngester()
+	mock.SetLatestTimestamp(200)
+	// Don't add any logs - the initiating message won't exist
+
+	chains := map[eth.ChainID]ChainIngester{
+		eth.ChainIDFromUInt64(testChainA): mock,
+	}
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
+
+	// Valid chain, valid timing, but log doesn't exist
+	access := makeAccess(testChainA, 100, 10, 0, types.MessageChecksum{0x01})
+	exec := makeExecDescriptor(testChainA, 150, 0)
+
+	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
+	require.Error(t, err)
+	require.ErrorIs(t, err, types.ErrConflict)
+}
+
 // =============================================================================
 // Validation Failure Propagation Test
 // =============================================================================
@@ -374,4 +393,137 @@ func TestAdvanceValidation_StopsAtMinIngested(t *testing.T) {
 	cv.advanceValidation()
 	ts, _ = cv.CrossValidatedTimestamp()
 	require.Equal(t, uint64(100), ts, "should not advance past slow chain")
+}
+
+// =============================================================================
+// validateMessageTiming Tests
+// =============================================================================
+
+func TestValidateMessageTiming(t *testing.T) {
+	tests := []struct {
+		name                string
+		initTimestamp       uint64
+		inclusionTimestamp  uint64
+		messageExpiryWindow uint64
+		timeout             uint64
+		execTimestamp       uint64
+		wantErr             bool
+		errContains         string
+	}{
+		{
+			name:                "valid: basic case without timeout",
+			initTimestamp:       100,
+			inclusionTimestamp:  150,
+			messageExpiryWindow: 100,
+			timeout:             0,
+			execTimestamp:       0,
+			wantErr:             false,
+		},
+		{
+			name:                "valid: message expires exactly at inclusion",
+			initTimestamp:       100,
+			inclusionTimestamp:  200,
+			messageExpiryWindow: 100, // expiresAt = 200
+			timeout:             0,
+			execTimestamp:       0,
+			wantErr:             false,
+		},
+		{
+			name:                "valid: with timeout, message expires after deadline",
+			initTimestamp:       100,
+			inclusionTimestamp:  150,
+			messageExpiryWindow: 100, // expiresAt = 200
+			timeout:             40,  // maxExecTs = 150 + 40 = 190
+			execTimestamp:       150, // 200 >= 190, valid
+			wantErr:             false,
+		},
+		{
+			name:                "invalid: init timestamp equals inclusion",
+			initTimestamp:       100,
+			inclusionTimestamp:  100,
+			messageExpiryWindow: 100,
+			timeout:             0,
+			execTimestamp:       0,
+			wantErr:             true,
+			errContains:         "not before inclusion",
+		},
+		{
+			name:                "invalid: init timestamp after inclusion",
+			initTimestamp:       150,
+			inclusionTimestamp:  100,
+			messageExpiryWindow: 100,
+			timeout:             0,
+			execTimestamp:       0,
+			wantErr:             true,
+			errContains:         "not before inclusion",
+		},
+		{
+			name:                "invalid: overflow in expiry calculation",
+			initTimestamp:       ^uint64(0) - 10, // near max uint64
+			inclusionTimestamp:  ^uint64(0),
+			messageExpiryWindow: 100, // will overflow
+			timeout:             0,
+			execTimestamp:       0,
+			wantErr:             true,
+			errContains:         "overflow in expiry calculation",
+		},
+		{
+			name:                "invalid: message expired at inclusion",
+			initTimestamp:       100,
+			inclusionTimestamp:  250,
+			messageExpiryWindow: 100, // expiresAt = 200 < 250
+			timeout:             0,
+			execTimestamp:       0,
+			wantErr:             true,
+			errContains:         "expired",
+		},
+		{
+			name:                "invalid: timeout overflow",
+			initTimestamp:       100,
+			inclusionTimestamp:  150,
+			messageExpiryWindow: 100,
+			timeout:             ^uint64(0),      // max uint64
+			execTimestamp:       ^uint64(0) - 10, // will overflow when added to timeout
+			wantErr:             true,
+			errContains:         "overflow in max exec timestamp",
+		},
+		{
+			name:                "invalid: expires before timeout deadline",
+			initTimestamp:       100,
+			inclusionTimestamp:  150,
+			messageExpiryWindow: 100, // expiresAt = 200
+			timeout:             51,  // maxExecTs = 150 + 51 = 201
+			execTimestamp:       150, // 200 < 201, invalid
+			wantErr:             true,
+			errContains:         "expire before timeout",
+		},
+		{
+			name:                "valid: expires exactly at timeout deadline",
+			initTimestamp:       100,
+			inclusionTimestamp:  150,
+			messageExpiryWindow: 100, // expiresAt = 200
+			timeout:             50,  // maxExecTs = 150 + 50 = 200
+			execTimestamp:       150, // 200 >= 200, valid (equal is ok)
+			wantErr:             false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateMessageTiming(
+				tt.initTimestamp,
+				tt.inclusionTimestamp,
+				tt.messageExpiryWindow,
+				tt.timeout,
+				tt.execTimestamp,
+			)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errContains)
+				require.ErrorIs(t, err, types.ErrConflict)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

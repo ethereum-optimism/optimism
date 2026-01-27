@@ -484,6 +484,12 @@ func (c *LogsDBChainIngester) initIngestion() (uint64, error) {
 		startingBlock = head.NumberU64()
 	}
 
+	// Guard against underflow: genesis block has no parent to seal
+	if startingBlock == 0 {
+		startingBlock = 1
+		c.log.Info("Starting from block 1 (genesis has no parent to seal)")
+	}
+
 	c.log.Info("Determined starting block", "block", startingBlock, "startTimestamp", c.startTimestamp)
 
 	// Check if we have existing data to resume from

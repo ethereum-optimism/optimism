@@ -65,9 +65,9 @@ func Main(version string) cliapp.LifecycleAction {
 		l.Info("Initializing op-interop-filter", "version", version)
 
 		if !cfg.MessageExpiryWindowExplicit {
-			l.Warn("Using default message expiry window", "window", DefaultMessageExpiryWindow)
+			l.Debug("Using default message expiry window", "window", DefaultMessageExpiryWindow)
 		} else {
-			l.Info("Message expiry window configured", "window", time.Duration(cfg.MessageExpiryWindow)*time.Second)
+			l.Debug("Message expiry window configured", "window", time.Duration(cfg.MessageExpiryWindow)*time.Second)
 		}
 
 		return NewService(cliCtx.Context, cfg, l)

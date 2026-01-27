@@ -119,6 +119,54 @@ func (v *LockstepCrossValidator) CrossValidatedTimestamp() (uint64, bool) {
 	return ts, true
 }
 
+// validateMessageTiming is a pure function that validates temporal constraints for cross-chain messages.
+// Parameters:
+//   - initTimestamp: when the initiating message was created
+//   - inclusionTimestamp: when the executing message is included
+//   - messageExpiryWindow: how long messages remain valid
+//   - timeout: optional max execution delay (0 = disabled)
+//   - execTimestamp: execution timestamp (only used if timeout > 0)
+func validateMessageTiming(
+	initTimestamp, inclusionTimestamp, messageExpiryWindow, timeout, execTimestamp uint64,
+) error {
+	// Rule 1: init must be strictly before inclusion
+	if initTimestamp >= inclusionTimestamp {
+		return fmt.Errorf("initiating message timestamp %d not before inclusion timestamp %d: %w",
+			initTimestamp, inclusionTimestamp, types.ErrConflict)
+	}
+
+	// Rule 2: compute expiry with overflow check
+	expiresAt := initTimestamp + messageExpiryWindow
+	if expiresAt < initTimestamp {
+		return fmt.Errorf("overflow in expiry calculation: timestamp %d + window %d: %w",
+			initTimestamp, messageExpiryWindow, types.ErrConflict)
+	}
+
+	// Rule 3: message must not be expired at inclusion
+	if expiresAt < inclusionTimestamp {
+		return fmt.Errorf("initiating message expired: init %d + expiry window %d = %d < inclusion %d: %w",
+			initTimestamp, messageExpiryWindow, expiresAt, inclusionTimestamp, types.ErrConflict)
+	}
+
+	// Rule 4: if timeout set, message must not expire before timeout deadline
+	if timeout > 0 {
+		maxExecTimestamp := execTimestamp + timeout
+		if maxExecTimestamp < execTimestamp {
+			return fmt.Errorf("overflow in max exec timestamp calculation: timestamp %d + timeout %d: %w",
+				execTimestamp, timeout, types.ErrConflict)
+		}
+		if expiresAt < maxExecTimestamp {
+			return fmt.Errorf("initiating message will expire before timeout: "+
+				"init %d + expiry %d = %d < exec %d + timeout %d = %d: %w",
+				initTimestamp, messageExpiryWindow, expiresAt,
+				execTimestamp, timeout, maxExecTimestamp,
+				types.ErrConflict)
+		}
+	}
+
+	return nil
+}
+
 // ValidateAccessEntry validates a single access list entry against all message validity rules.
 func (v *LockstepCrossValidator) ValidateAccessEntry(
 	access types.Access,
@@ -130,27 +178,6 @@ func (v *LockstepCrossValidator) ValidateAccessEntry(
 	if !ok || access.Timestamp > minIngestedTs {
 		return fmt.Errorf("timestamp %d not yet ingested (min ingested: %d): %w",
 			access.Timestamp, minIngestedTs, types.ErrOutOfScope)
-	}
-
-	// Check timeout expiry first
-	if execDescriptor.Timeout > 0 {
-		expiresAt := access.Timestamp + v.messageExpiryWindow
-		if expiresAt < access.Timestamp {
-			return fmt.Errorf("overflow in expiry calculation: timestamp %d + window %d: %w",
-				access.Timestamp, v.messageExpiryWindow, types.ErrConflict)
-		}
-		maxExecTimestamp := execDescriptor.Timestamp + execDescriptor.Timeout
-		if maxExecTimestamp < execDescriptor.Timestamp {
-			return fmt.Errorf("overflow in max exec timestamp calculation: timestamp %d + timeout %d: %w",
-				execDescriptor.Timestamp, execDescriptor.Timeout, types.ErrConflict)
-		}
-		if expiresAt < maxExecTimestamp {
-			return fmt.Errorf("initiating message will expire before timeout: "+
-				"init %d + expiry %d = %d < exec %d + timeout %d = %d: %w",
-				access.Timestamp, v.messageExpiryWindow, expiresAt,
-				execDescriptor.Timestamp, execDescriptor.Timeout, maxExecTimestamp,
-				types.ErrConflict)
-		}
 	}
 
 	// Check cross-unsafe timestamp
@@ -166,15 +193,31 @@ func (v *LockstepCrossValidator) ValidateAccessEntry(
 		}
 	}
 
-	// Validate core message rules
-	execMsg := &types.ExecutingMessage{
-		ChainID:   access.ChainID,
+	// Validate timing constraints (including timeout if set)
+	if err := validateMessageTiming(
+		access.Timestamp,
+		execDescriptor.Timestamp,
+		v.messageExpiryWindow,
+		execDescriptor.Timeout,
+		execDescriptor.Timestamp,
+	); err != nil {
+		return err
+	}
+
+	// Check that the log exists on the source chain
+	ingester, ok := v.chains[access.ChainID]
+	if !ok {
+		return fmt.Errorf("source chain %s: %w", access.ChainID, types.ErrUnknownChain)
+	}
+
+	query := types.ContainsQuery{
+		Timestamp: access.Timestamp,
 		BlockNum:  access.BlockNumber,
 		LogIdx:    access.LogIndex,
-		Timestamp: access.Timestamp,
 		Checksum:  access.Checksum,
 	}
-	return v.validateExecutingMessage(execMsg, execDescriptor.Timestamp)
+	_, err := ingester.Contains(query)
+	return err
 }
 
 func (v *LockstepCrossValidator) validateExecutingMessage(
@@ -186,21 +229,14 @@ func (v *LockstepCrossValidator) validateExecutingMessage(
 		return fmt.Errorf("source chain %s: %w", execMsg.ChainID, types.ErrUnknownChain)
 	}
 
-	// Timing validation: init timestamp must be before inclusion timestamp
-	if !(execMsg.Timestamp < inclusionTimestamp) {
-		return fmt.Errorf("initiating message timestamp %d not before inclusion timestamp %d: %w",
-			execMsg.Timestamp, inclusionTimestamp, types.ErrConflict)
-	}
-
-	// Timing validation: message must not be expired
-	expiresAt := execMsg.Timestamp + v.messageExpiryWindow
-	if expiresAt < execMsg.Timestamp {
-		return fmt.Errorf("overflow in expiry calculation: timestamp %d + window %d: %w",
-			execMsg.Timestamp, v.messageExpiryWindow, types.ErrConflict)
-	}
-	if expiresAt < inclusionTimestamp {
-		return fmt.Errorf("initiating message expired: init %d + expiry window %d = %d < inclusion %d: %w",
-			execMsg.Timestamp, v.messageExpiryWindow, expiresAt, inclusionTimestamp, types.ErrConflict)
+	// Validate timing constraints (no timeout for background validation)
+	if err := validateMessageTiming(
+		execMsg.Timestamp,
+		inclusionTimestamp,
+		v.messageExpiryWindow,
+		0, 0, // no timeout
+	); err != nil {
+		return err
 	}
 
 	query := types.ContainsQuery{
