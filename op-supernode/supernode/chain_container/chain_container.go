@@ -361,6 +361,13 @@ func isCriticalRewindError(err error) bool {
 }
 
 func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint64) error {
+	if c.vn == nil {
+		return fmt.Errorf("virtual node not initialized")
+	}
+	if c.engine == nil {
+		return fmt.Errorf("engine not initialized")
+	}
+
 	// Pause the container to stop it restarting the vn when we kill it
 	err := c.Pause(ctx)
 	if err != nil {
@@ -379,7 +386,7 @@ retryLoop:
 	for {
 		err = c.engine.RewindToTimestamp(ctx, timestamp)
 		switch {
-		case errors.Is(err, context.DeadlineExceeded), ctx.Err() != nil:
+		case errors.Is(err, context.DeadlineExceeded):
 			c.log.Error("chain_container/RewindEngine: timeout exceeded")
 			return err
 		case isCriticalRewindError(err):
@@ -390,7 +397,11 @@ retryLoop:
 			break retryLoop
 		default:
 			c.log.Error("chain_container/RewindEngine: temporary error", "err", err)
-			<-time.After(time.Second) // wait until the next retry
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Second):
+			}
 		}
 	}
 
