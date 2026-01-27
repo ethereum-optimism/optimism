@@ -375,6 +375,7 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 	}
 	c.log.Info("chain_container/RewindEngine: stopped vn")
 
+retryLoop:
 	for {
 		err = c.engine.RewindToTimestamp(ctx, timestamp)
 		switch {
@@ -386,7 +387,7 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 			return err
 		case err == nil:
 			c.log.Info("chain_container/RewindEngine: executed engine rewind")
-			break
+			break retryLoop
 		default:
 			c.log.Error("chain_container/RewindEngine: temporary error", "err", err)
 			<-time.After(time.Second) // wait until the next retry
