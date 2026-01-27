@@ -210,7 +210,7 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 	// [n-1,parent] <-- [n,target, unsafe]
 	//
 	//                  [n,synthetic]
-	if err := e.forkchoiceUpdate(ctx, targetBlock.Hash, parentHash, parentHash); err != nil {
+	if err := e.forkchoiceUpdate(ctx, targetBlock.Hash, targetSafeBlock.Hash, targetFinalizedBlock.Hash); err != nil {
 		return fmt.Errorf("%w: %w", ErrRewindFCUTargetFailed, err)
 	}
 	e.log.Info("executed FCU to target block", "head", targetBlock.Hash, "safe", targetSafeBlock.Hash, "finalized", targetFinalizedBlock.Hash)
