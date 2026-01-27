@@ -9119,6 +9119,7 @@ dependencies = [
  "eyre",
  "metrics",
  "mockall",
+ "parking_lot",
  "reth-chainspec",
  "reth-codecs",
  "reth-db",

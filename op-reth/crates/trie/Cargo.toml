@@ -40,6 +40,7 @@ serde.workspace = true
 bincode.workspace = true
 
 # misc
+parking_lot.workspace = true
 thiserror.workspace = true
 auto_impl.workspace = true
 eyre = { workspace = true, optional = true }

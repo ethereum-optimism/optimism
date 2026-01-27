@@ -7,7 +7,6 @@ use reth_provider::ProviderError;
 use reth_trie_common::Nibbles;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::sync::TryLockError;
 
 /// Error type for storage operations
 #[derive(Debug, Clone, Error)]
@@ -98,12 +97,6 @@ pub enum OpProofsStorageError {
     InitializeStorageInconsistentState,
 }
 
-impl From<TryLockError> for OpProofsStorageError {
-    fn from(_: TryLockError) -> Self {
-        Self::TryLockError
-    }
-}
-
 impl From<BlockExecutionError> for OpProofsStorageError {
     fn from(error: BlockExecutionError) -> Self {
         Self::ExecutionError(Arc::new(error))
@@ -167,15 +160,6 @@ mod test {
 
         let converted_error = DatabaseError::from(op_proofs_store_error);
         assert!(matches!(converted_error, DatabaseError::Decode))
-    }
-
-    #[test]
-    fn test_conversion_from_lock_error() {
-        let lock = tokio::sync::Mutex::new(());
-        let _guard = lock.try_lock().unwrap();
-        let lock_error = lock.try_lock().err().unwrap();
-        let op_proofs_store_error = OpProofsStorageError::from(lock_error);
-        assert!(matches!(op_proofs_store_error, OpProofsStorageError::TryLockError));
     }
 
     #[test]

@@ -5,6 +5,7 @@ use crate::{
 };
 use alloy_eips::{eip1898::BlockWithParent, BlockNumHash};
 use alloy_primitives::{B256, U256};
+use parking_lot::RwLock;
 use reth_db::DatabaseError;
 use reth_primitives_traits::Account;
 use reth_trie::{
@@ -15,7 +16,6 @@ use reth_trie_common::{
     updates::TrieUpdatesSorted, BranchNodeCompact, HashedPostStateSorted, Nibbles,
 };
 use std::{collections::BTreeMap, sync::Arc};
-use tokio::sync::RwLock;
 
 /// In-memory implementation of [`OpProofsStore`] for testing purposes
 #[derive(Debug, Clone)]
@@ -174,7 +174,7 @@ impl InMemoryTrieCursor {
             return Ok(());
         }
 
-        let storage = self.inner.try_read().map_err(OpProofsStorageError::from)?;
+        let storage = self.inner.try_read().ok_or(OpProofsStorageError::TryLockError)?;
 
         // Common logic: collect latest values for each path
         let mut path_to_latest: std::collections::BTreeMap<
@@ -333,7 +333,7 @@ impl InMemoryStorageCursor {
             return Ok(());
         }
 
-        let storage = self.inner.try_read().map_err(OpProofsStorageError::from)?;
+        let storage = self.inner.try_read().ok_or(OpProofsStorageError::TryLockError)?;
 
         // Collect latest values for each slot
         let mut slot_to_latest: std::collections::BTreeMap<B256, (u64, U256)> =
@@ -489,7 +489,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         &self,
         updates: Vec<(Nibbles, Option<BranchNodeCompact>)>,
     ) -> OpProofsStorageResult<()> {
-        let mut inner = self.inner.write().await;
+        let mut inner = self.inner.write();
 
         for (path, branch) in updates {
             inner.account_branches.insert((0, path), branch);
@@ -503,7 +503,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         hashed_address: B256,
         items: Vec<(Nibbles, Option<BranchNodeCompact>)>,
     ) -> OpProofsStorageResult<()> {
-        let mut inner = self.inner.write().await;
+        let mut inner = self.inner.write();
 
         for (path, branch) in items {
             inner.storage_branches.insert((0, hashed_address, path), branch);
@@ -516,7 +516,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         &self,
         accounts: Vec<(B256, Option<Account>)>,
     ) -> OpProofsStorageResult<()> {
-        let mut inner = self.inner.write().await;
+        let mut inner = self.inner.write();
 
         for (address, account) in accounts {
             inner.hashed_accounts.insert((0, address), account);
@@ -530,7 +530,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         hashed_address: B256,
         storages: Vec<(B256, U256)>,
     ) -> OpProofsStorageResult<()> {
-        let mut inner = self.inner.write().await;
+        let mut inner = self.inner.write();
 
         for (slot, value) in storages {
             inner.hashed_storages.insert((0, hashed_address, slot), value);
@@ -540,12 +540,12 @@ impl OpProofsStore for InMemoryProofsStorage {
     }
 
     async fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let inner = self.inner.read().await;
+        let inner = self.inner.read();
         Ok(inner.earliest_block)
     }
 
     async fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let inner = self.inner.read().await;
+        let inner = self.inner.read();
         // Find the latest block number from trie_updates
         let latest_block = inner.trie_updates.keys().max().copied();
         if let Some(block) = latest_block {
@@ -584,7 +584,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         &self,
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::AccountHashedCursor<'tx>> {
-        let inner = self.inner.try_read()?;
+        let inner = self.inner.try_read().ok_or(OpProofsStorageError::TryLockError)?;
         Ok(InMemoryAccountCursor::new(&inner, max_block_number))
     }
 
@@ -593,13 +593,13 @@ impl OpProofsStore for InMemoryProofsStorage {
         block_ref: BlockWithParent,
         block_state_diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts> {
-        let mut inner = self.inner.write().await;
+        let mut inner = self.inner.write();
 
         Ok(inner.store_trie_updates(block_ref.block.number, block_state_diff))
     }
 
     async fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
-        let inner = self.inner.read().await;
+        let inner = self.inner.read();
 
         let trie_updates = inner.trie_updates.get(&block_number).cloned().unwrap_or_default();
         let post_state = inner.post_states.get(&block_number).cloned().unwrap_or_default();
@@ -612,7 +612,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         new_earliest_block_ref: BlockWithParent,
     ) -> OpProofsStorageResult<WriteCounts> {
         let mut write_counts = WriteCounts::default();
-        let mut inner = self.inner.write().await;
+        let mut inner = self.inner.write();
         let new_earliest = new_earliest_block_ref.block.number;
 
         // 1. Account Branches
@@ -698,7 +698,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         &self,
         unwind_upto_block: BlockWithParent,
     ) -> OpProofsStorageResult<()> {
-        let mut inner = self.inner.write().await;
+        let mut inner = self.inner.write();
         let unwind_upto_block_number = unwind_upto_block.block.number - 1;
 
         // Remove all updates after unwind_upto_block_number
@@ -717,7 +717,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         latest_common_block: BlockNumHash,
         blocks_to_add: Vec<(BlockWithParent, BlockStateDiff)>,
     ) -> OpProofsStorageResult<()> {
-        let mut inner = self.inner.write().await;
+        let mut inner = self.inner.write();
         let latest_common_block_number = latest_common_block.number;
 
         // Remove all updates after latest_common_block_number
@@ -740,7 +740,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         block_number: u64,
         hash: B256,
     ) -> OpProofsStorageResult<()> {
-        let mut inner = self.inner.write().await;
+        let mut inner = self.inner.write();
         inner.earliest_block = Some((block_number, hash));
         Ok(())
     }
