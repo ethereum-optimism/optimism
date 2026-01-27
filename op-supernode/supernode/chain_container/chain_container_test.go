@@ -601,88 +601,45 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		require.True(t, c.pause.Load(), "Container should remain paused after failed rewind")
 	})
 
-	t.Run("does not retry critical errors - ErrNoEngineClient", func(t *testing.T) {
-		// Setup - critical error should not be retried
-		mockVN := newMockVirtualNode()
-		mockEngine := newMockEngineController()
-		mockEngine.rewindErr = engine_controller.ErrNoEngineClient
-
-		chainID := eth.ChainIDFromUInt64(420)
-		log := createTestLogger(t)
-
-		c := &simpleChainContainer{
-			chainID: chainID,
-			log:     log,
-			engine:  mockEngine,
-			vn:      mockVN,
+	t.Run("does not retry critical errors", func(t *testing.T) {
+		criticalErrors := []struct {
+			name string
+			err  error
+		}{
+			{"ErrNoEngineClient", engine_controller.ErrNoEngineClient},
+			{"ErrNoRollupConfig", engine_controller.ErrNoRollupConfig},
+			{"ErrRewindComputeTargetsFailed", engine_controller.ErrRewindComputeTargetsFailed},
 		}
 
-		// Call RewindEngine - should fail immediately without retry
-		ctx := context.Background()
-		err := c.RewindEngine(ctx, 12345)
-		require.Error(t, err)
-		require.ErrorIs(t, err, engine_controller.ErrNoEngineClient)
+		for _, tc := range criticalErrors {
+			t.Run(tc.name, func(t *testing.T) {
+				// Setup - critical error should not be retried
+				mockVN := newMockVirtualNode()
+				mockEngine := newMockEngineController()
+				mockEngine.rewindErr = tc.err
 
-		// Verify RewindToTimestamp was called only once (no retry for critical errors)
-		// mockEngine.mu.Lock()
-		require.Equal(t, 1, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should not be retried for critical errors")
-		// mockEngine.mu.Unlock()
-	})
+				chainID := eth.ChainIDFromUInt64(420)
+				log := createTestLogger(t)
 
-	t.Run("does not retry critical errors - ErrNoRollupConfig", func(t *testing.T) {
-		// Setup - critical error should not be retried
-		mockVN := newMockVirtualNode()
-		mockEngine := newMockEngineController()
-		mockEngine.rewindErr = engine_controller.ErrNoRollupConfig
+				c := &simpleChainContainer{
+					chainID: chainID,
+					log:     log,
+					engine:  mockEngine,
+					vn:      mockVN,
+				}
 
-		chainID := eth.ChainIDFromUInt64(420)
-		log := createTestLogger(t)
+				// Call RewindEngine - should fail immediately without retry
+				ctx := context.Background()
+				err := c.RewindEngine(ctx, 12345)
+				require.Error(t, err)
+				require.ErrorIs(t, err, tc.err)
 
-		c := &simpleChainContainer{
-			chainID: chainID,
-			log:     log,
-			engine:  mockEngine,
-			vn:      mockVN,
+				// Verify RewindToTimestamp was called only once (no retry for critical errors)
+				mockEngine.mu.Lock()
+				require.Equal(t, 1, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should not be retried for critical errors")
+				mockEngine.mu.Unlock()
+			})
 		}
-
-		// Call RewindEngine - should fail immediately without retry
-		ctx := context.Background()
-		err := c.RewindEngine(ctx, 12345)
-		require.Error(t, err)
-		require.ErrorIs(t, err, engine_controller.ErrNoRollupConfig)
-
-		// Verify RewindToTimestamp was called only once (no retry for critical errors)
-		mockEngine.mu.Lock()
-		require.Equal(t, 1, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should not be retried for critical errors")
-		mockEngine.mu.Unlock()
-	})
-
-	t.Run("does not retry critical errors - ErrRewindComputeTargetsFailed", func(t *testing.T) {
-		// Setup - critical error should not be retried
-		mockVN := newMockVirtualNode()
-		mockEngine := newMockEngineController()
-		mockEngine.rewindErr = engine_controller.ErrRewindComputeTargetsFailed
-
-		chainID := eth.ChainIDFromUInt64(420)
-		log := createTestLogger(t)
-
-		c := &simpleChainContainer{
-			chainID: chainID,
-			log:     log,
-			engine:  mockEngine,
-			vn:      mockVN,
-		}
-
-		// Call RewindEngine - should fail immediately without retry
-		ctx := context.Background()
-		err := c.RewindEngine(ctx, 12345)
-		require.Error(t, err)
-		require.ErrorIs(t, err, engine_controller.ErrRewindComputeTargetsFailed)
-
-		// Verify RewindToTimestamp was called only once (no retry for critical errors)
-		mockEngine.mu.Lock()
-		require.Equal(t, 1, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should not be retried for critical errors")
-		mockEngine.mu.Unlock()
 	})
 
 	t.Run("returns error when VN stop fails", func(t *testing.T) {
