@@ -28,7 +28,7 @@ func TestSuperNodeSource_SyncStatus(t *testing.T) {
 		status, err := source.SyncStatus(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, SyncStatus{
-			CurrentL1:   eth.L1BlockRef{Hash: common.Hash{0xaa}, Number: 100},
+			CurrentL1:   eth.BlockID{Hash: common.Hash{0xaa}, Number: 100},
 			SafeL2:      111,
 			FinalizedL2: 222,
 		}, status)
@@ -57,7 +57,7 @@ func TestSuperNodeSource_SyncStatus(t *testing.T) {
 		status, err := source.SyncStatus(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, SyncStatus{
-			CurrentL1:   eth.L1BlockRef{Hash: common.Hash{0x02}, Number: 100},
+			CurrentL1:   eth.BlockID{Hash: common.Hash{0x02}, Number: 100},
 			SafeL2:      123,
 			FinalizedL2: 456,
 		}, status)

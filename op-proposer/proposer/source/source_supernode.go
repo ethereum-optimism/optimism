@@ -86,15 +86,8 @@ func (s *SuperNodeProposalSource) SyncStatus(ctx context.Context) (SyncStatus, e
 		return SyncStatus{}, fmt.Errorf("no available sync status sources: %w", errors.Join(errs...))
 	}
 
-	// CurrentL1 represents the highest L1 block that has been fully derived
-	// and verified by all chains.
-	currentL1 := eth.L1BlockRef{
-		Hash:   earliestResponse.CurrentL1.Hash,
-		Number: earliestResponse.CurrentL1.Number,
-	}
-
 	return SyncStatus{
-		CurrentL1:   currentL1,
+		CurrentL1:   earliestResponse.CurrentL1,
 		SafeL2:      earliestResponse.CurrentSafeTimestamp,
 		FinalizedL2: earliestResponse.CurrentFinalizedTimestamp,
 	}, nil

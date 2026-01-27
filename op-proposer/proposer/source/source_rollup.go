@@ -35,7 +35,7 @@ func (r *RollupProposalSource) SyncStatus(ctx context.Context) (SyncStatus, erro
 		return SyncStatus{}, err
 	}
 	return SyncStatus{
-		CurrentL1:   status.CurrentL1,
+		CurrentL1:   status.CurrentL1.ID(),
 		SafeL2:      status.SafeL2.Number,
 		FinalizedL2: status.FinalizedL2.Number,
 	}, nil

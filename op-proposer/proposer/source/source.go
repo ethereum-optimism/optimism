@@ -59,7 +59,7 @@ type ProposalSource interface {
 }
 
 type SyncStatus struct {
-	CurrentL1   eth.L1BlockRef
+	CurrentL1   eth.BlockID
 	SafeL2      uint64
 	FinalizedL2 uint64
 }
