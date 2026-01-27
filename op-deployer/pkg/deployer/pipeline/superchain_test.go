@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -248,10 +249,19 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 			forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
 			require.NoError(t, err)
 
-			// Create a test host for other scripts (even though we won't use it for DeploySuperchain)
+			// Create a test host for other scripts
 			// We use LocalArtifacts which should have compatible versions
 			_, afacts := testutil.LocalArtifacts(t)
 			lgr := testlog.Logger(t, slog.LevelInfo)
+			anvil, err := devnet.NewAnvil(lgr)
+			require.NoError(t, err)
+			require.NoError(t, anvil.Start())
+			t.Cleanup(func() {
+				require.NoError(t, anvil.Stop())
+			})
+
+			l1RPCUrl := anvil.RPCUrl()
+
 			host, err := env.DefaultScriptHost(
 				broadcaster.NoopBroadcaster(),
 				lgr,
@@ -260,7 +270,7 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			// Load scripts (needed for Env, even though we'll use Forge for DeploySuperchain)
+			// Load scripts
 			opcmScripts, err := opcm.NewScripts(host)
 			require.NoError(t, err)
 
@@ -292,6 +302,8 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 				Context:     ctx,
 				Broadcaster: broadcaster.NoopBroadcaster(),
 				StateWriter: NoopStateWriter(),
+				PrivateKey:  testutil.AnvilDefaultPrivateKey,
+				L1RPCUrl:    l1RPCUrl,
 			}
 
 			// Test DeploySuperchain with Forge
@@ -355,9 +367,18 @@ func TestDeploySuperchain_WithForgeEverywhere(t *testing.T) {
 			forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
 			require.NoError(t, err)
 
-			// Create a test host for other scripts (even though we won't use it for DeploySuperchain)
+			// Create a test host for other scripts
 			_, afacts := testutil.LocalArtifacts(t)
 			lgr := testlog.Logger(t, slog.LevelInfo)
+			anvil, err := devnet.NewAnvil(lgr)
+			require.NoError(t, err)
+			require.NoError(t, anvil.Start())
+			t.Cleanup(func() {
+				require.NoError(t, anvil.Stop())
+			})
+
+			l1RPCUrl := anvil.RPCUrl()
+
 			host, err := env.DefaultScriptHost(
 				broadcaster.NoopBroadcaster(),
 				lgr,
@@ -366,7 +387,7 @@ func TestDeploySuperchain_WithForgeEverywhere(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			// Load scripts (needed for Env, even though we'll use Forge for DeploySuperchain)
+			// Load scripts
 			opcmScripts, err := opcm.NewScripts(host)
 			require.NoError(t, err)
 
@@ -398,6 +419,8 @@ func TestDeploySuperchain_WithForgeEverywhere(t *testing.T) {
 				Context:     ctx,
 				Broadcaster: broadcaster.NoopBroadcaster(),
 				StateWriter: NoopStateWriter(),
+				PrivateKey:  testutil.AnvilDefaultPrivateKey,
+				L1RPCUrl:    l1RPCUrl,
 			}
 
 			// Test DeploySuperchain with Forge
@@ -455,7 +478,7 @@ func TestDeploySuperchain_WithForge_ManualCall(t *testing.T) {
 			forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
 			require.NoError(t, err)
 
-			// Create Forge caller directly (similar to TestNewDeploySuperchainScriptForge)
+			// Create Forge caller directly
 			deploySuperchain := opcm.NewDeploySuperchainForgeCaller(forgeClient)
 
 			// Create input matching what DeploySuperchain would use

@@ -89,7 +89,7 @@ func testSuperchain(t *testing.T, forkRPCURL string) {
 }
 
 func TestSuperchainConfig_Check(t *testing.T) {
-	validPrivateKey := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+	validPrivateKey := testutil.AnvilDefaultPrivateKey
 	lgr := testlog.Logger(t, slog.LevelInfo)
 
 	baseConfig := func() SuperchainConfig {
@@ -256,14 +256,14 @@ func TestSuperchainConfig_Check(t *testing.T) {
 		{
 			name: "privateKey with 0x prefix",
 			mutator: func(cfg *SuperchainConfig) {
-				cfg.PrivateKey = "0x" + validPrivateKey
+				cfg.PrivateKey = validPrivateKey
 			},
 			expectError: false,
 		},
 		{
 			name: "privateKey without 0x prefix",
 			mutator: func(cfg *SuperchainConfig) {
-				cfg.PrivateKey = validPrivateKey
+				cfg.PrivateKey = strings.TrimPrefix(validPrivateKey, "0x")
 			},
 			expectError: false,
 		},
