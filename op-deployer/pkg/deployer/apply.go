@@ -210,8 +210,8 @@ func runValidationAfterApply(ctx context.Context, cliCtx *cli.Context, l log.Log
 				continue
 			}
 			// Check if L1 chain ID is supported (mainnet=1, sepolia=11155111)
-			if l1ChainID.Uint64() != 1 && l1ChainID.Uint64() != 11155111 {
-				l.Info("Skipping validation", "reason", "no validator address available and L1 chain ID not supported", "chain-id", chainID.Hex(), "l1-chain-id", l1ChainID.Uint64())
+			if bigs.Uint64Strict(l1ChainID) != 1 && bigs.Uint64Strict(l1ChainID) != 11155111 {
+				l.Info("Skipping validation", "reason", "no validator address available and L1 chain ID not supported", "chain-id", chainID.Hex(), "l1-chain-id", bigs.Uint64Strict(l1ChainID))
 				continue
 			}
 		}
