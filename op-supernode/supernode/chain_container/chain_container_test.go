@@ -587,7 +587,8 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		}
 
 		// Call RewindEngine - should retry and eventually fail
-		ctx, _ := context.WithTimeout(context.Background(), 2*time.Second) // this will prevent infinite retries
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second) // this will prevent infinite retries
+		defer cancel()
 		err := c.RewindEngine(ctx, 12345)
 		require.Error(t, err)
 		require.ErrorIs(t, err, engine_controller.ErrRewindFCUSyntheticFailed)
