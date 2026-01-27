@@ -138,8 +138,8 @@ impl<Tx: DbTx + Sync, S: OpProofsStore + OpProofsInitialStateStore + Send>
     /// logging.
     fn initialize<
         I: Iterator<Item = Result<(Key, Value), DatabaseError>> + InitTable<Key = Key, Value = Value>,
-        Key: CompletionEstimatable + Clone + 'static,
-        Value: Clone + 'static,
+        Key: CompletionEstimatable + 'static,
+        Value: 'static,
     >(
         &self,
         name: &str,
@@ -147,10 +147,6 @@ impl<Tx: DbTx + Sync, S: OpProofsStore + OpProofsInitialStateStore + Send>
         storage_threshold: usize,
         log_threshold: usize,
     ) -> Result<u64, OpProofsStorageError> {
-        let mut entries = Vec::new();
-
-        let mut total_entries: u64 = 0;
-
         info!("Starting {} initialization", name);
         let start_time = Instant::now();
 
@@ -165,15 +161,16 @@ impl<Tx: DbTx + Sync, S: OpProofsStore + OpProofsInitialStateStore + Send>
         };
 
         let storage = &self.storage;
+        let source_size_hint = source.size_hint().0;
+        let mut batch = Vec::with_capacity(source_size_hint.min(storage_threshold));
+        let mut total_entries: usize = 0;
 
         for entry in source {
-            let entry = entry?;
-
-            entries.push(entry.clone());
+            batch.push(entry?);
             total_entries += 1;
 
-            if total_entries.is_multiple_of(log_threshold as u64) {
-                let progress = entry.0.estimate_progress();
+            if total_entries.is_multiple_of(log_threshold) {
+                let progress = batch.last().expect("non-empty batch").0.estimate_progress();
                 let elapsed = start_time.elapsed();
                 let elapsed_secs = elapsed.as_secs_f64();
 
@@ -194,20 +191,22 @@ impl<Tx: DbTx + Sync, S: OpProofsStore + OpProofsInitialStateStore + Send>
                 );
             }
 
-            if entries.len() >= storage_threshold {
+            if batch.len() >= storage_threshold {
                 info!("Storing {} entries, total entries: {}", name, total_entries);
-                I::store_entries(storage, entries)?;
-                entries = Vec::new();
+                I::store_entries(storage, batch)?;
+                batch = Vec::with_capacity(
+                    (source_size_hint.saturating_sub(total_entries)).min(storage_threshold),
+                );
             }
         }
 
-        if !entries.is_empty() {
+        if !batch.is_empty() {
             info!("Storing final {} entries", name);
-            I::store_entries(storage, entries)?;
+            I::store_entries(storage, batch)?;
         }
 
         info!("{} initialization complete: {} entries", name, total_entries);
-        Ok(total_entries)
+        Ok(total_entries as u64)
     }
 
     /// Initialize hashed accounts data
