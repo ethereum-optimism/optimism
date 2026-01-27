@@ -25,7 +25,7 @@ func FuzzVersionedNonce(f *testing.F) {
 
 		decodedNonce, decodedVersion := crossdomain.DecodeVersionedNonce(encodedNonce)
 
-		require.Equal(t, bigs.Uint64Strict(decodedNonce), bigs.Uint64Strict(inputNonce))
-		require.Equal(t, bigs.Uint64Strict(decodedVersion), bigs.Uint64Strict(inputVersion))
+		require.True(t, bigs.Equal(decodedNonce, inputNonce))
+		require.True(t, bigs.Equal(decodedVersion, inputVersion))
 	})
 }
