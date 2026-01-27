@@ -4,9 +4,9 @@ name: book
 
 on:
   push:
-    branches: [main]
+    branches: [develop]
   pull_request:
-    branches: [main]
+    branches: [develop]
     types: [opened, reopened, synchronize, closed]
   merge_group:
 

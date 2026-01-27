@@ -22,7 +22,6 @@ jobs:
     strategy:
       matrix:
         bin:
-          - cargo run --bin reth --features "dev"
           - cargo run --bin op-reth --features "dev" --manifest-path op-reth/bin/op-reth/Cargo.toml
     steps:
       - uses: rui314/setup-mold@v1

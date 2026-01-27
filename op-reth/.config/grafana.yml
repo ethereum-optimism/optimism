@@ -4,7 +4,7 @@ on:
   pull_request:
   merge_group:
   push:
-    branches: [unstable, main]
+    branches: [develop]
 
 jobs:
   check-dashboard:
