@@ -155,19 +155,39 @@ func (e *simpleEngineController) OutputV0AtBlockNumber(ctx context.Context, num 
 //
 // This two-step approach is necessary because a direct FCU to an existing block won't reorg
 // if that block is already in the canonical chain.
+//
+// a. [finalized] <-- [safe] <--
+//
+// b. [finalized] <-- [safe] <-- [target] <-- [unsafe]
+//
+//	               |\
+//	\__ [synthetic]
+//
+// c. [finalized] <-- [safe] <-- [synthetic, unsafe]
+//
+//	|\
+//	 \__ [target]
+//
+// d.[finalized] <-- [safe] <-- [target,unsafe]
+// TODO: in future, we could push the implementation into the engine itself which would reduce the
+// number of RPC calls required and remove the need for the synthetic block to be inserted.
 func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
 	if e.l2 == nil {
 		return ErrNoEngineClient
 	}
 
 	// Step 0: infer the target block:
+	// [parent] <-- [target] <-- [unsafe]
 	targetBlock, err := e.blockAtTimestamp(ctx, timestamp)
 	if err != nil {
 		return fmt.Errorf("failed to get target block at timestamp %d: %w", timestamp, err)
 	}
 
 	// Step 1: Insert a synthetic block (modified fee recipient) which
-	// is an uncle for all blocks descending from the target block:
+	// is built on the parent of the target block:
+	// [n-1,parent] <-- [n,target] <--...<-- [m>n,unsafe]
+	//
+	//                 [n,synthetic]
 	syntheticBlockHash, err := e.insertSyntheticPayload(ctx, targetBlock.Number)
 	if err != nil {
 		return err
@@ -179,9 +199,13 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 		return err
 	}
 
-	// Step 4: FCU to the synthetic block to trigger a reorg.
+	// Step 4: FCU to the synthetic block to trigger a reorg, removing the target block
+	// from the canonical chain.
 	// We use the parent hash of the target block as the safe and finalized block
-	// since these are guaranteed to be in the canonical chain of the synthetic block.
+	// in the FCU since these are guaranteed to be in the canonical chain of the synthetic block.
+	// [n-1,parent]   [n,target]
+	//      |\
+	//       \_______ [n,synthetic,unsafe]
 	parentHash := targetBlock.ParentHash
 	if err := e.forkchoiceUpdate(ctx, syntheticBlockHash, parentHash, parentHash); err != nil {
 		return fmt.Errorf("failed to FCU to synthetic block: %w", err)
@@ -189,7 +213,10 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 	e.log.Info("executed FCU to synthetic block", "syntheticHead", syntheticBlockHash, "safe", parentHash, "finalized", parentHash)
 
 	// Step 5: FCU to the actual target block
-	if err := e.forkchoiceUpdate(ctx, targetBlock.Hash, targetSafeBlock.Hash, targetFinalizedBlock.Hash); err != nil {
+	// [n-1,parent] <-- [n,target, unsafe]
+	//
+	//                  [n,synthetic]
+	if err := e.forkchoiceUpdate(ctx, targetBlock.Hash, parentHash, parentHash); err != nil {
 		return fmt.Errorf("failed to FCU to target block: %w", err)
 	}
 	e.log.Info("executed FCU to target block", "head", targetBlock.Hash, "safe", targetSafeBlock.Hash, "finalized", targetFinalizedBlock.Hash)
