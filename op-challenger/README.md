@@ -19,15 +19,6 @@ options, run `./bin/op-challenger --help`.
 variables. The help menu shows the available config options and can be
 accessed by running `./op-challenger --help`.
 
-### Running with Cannon on Local Devnet
-
-To run `op-challenger` against the local devnet, first clean and run
-the devnet. From the root of the repository run:
-
-```shell
-cd kurtosis-devnet && just simple-devnet
-```
-
 Then build the `op-challenger` with `make op-challenger`.
 
 Run the `op-challenger` with:

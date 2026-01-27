@@ -80,9 +80,6 @@ cd op-acceptance-tests
 # In-process testing (sysgo orchestrator)
 go run cmd/main.go --orchestrator sysgo --gate base --testdir .. --validators ./acceptance-tests.yaml --acceptor op-acceptor
 
-# External devnet testing (sysext orchestrator)
-go run cmd/main.go --orchestrator sysext --devnet simple --gate base --testdir .. --validators ./acceptance-tests.yaml --kurtosis-dir ../kurtosis-devnet --acceptor op-acceptor
-
 # Remote network testing
 go run cmd/main.go --orchestrator sysext --devnet "kt://my-network" --gate base --testdir .. --validators ./acceptance-tests.yaml --acceptor op-acceptor
 ```
@@ -113,18 +110,6 @@ For integration testing against realistic networks:
    cd op-acceptance-tests
    # This spins up a devnet, then runs op-acceptor
    go run cmd/main.go --orchestrator sysext --devnet "interop" --gate interop --testdir .. --validators ./acceptance-tests.yaml
-   ```
-
-3. **Manual approach** (faster for repeated testing):
-   ```bash
-   # Deploy devnet once
-   cd kurtosis-devnet
-   just isthmus-devnet
-
-   # Run tests multiple times against the same devnet
-   cd op-acceptance-tests
-   # This runs op-acceptor (devnet spin up is skipped due to `--reuse-devnet`)
-   go run cmd/main.go --orchestrator sysext --devnet "interop" --gate interop --testdir .. --validators ./acceptance-tests.yaml --reuse-devnet
    ```
 
 ### Configuration

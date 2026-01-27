@@ -1,5 +1,4 @@
 REPO_ROOT := `realpath ..`  # path to the root of the optimism monorepo
-KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
 ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.8.2")
 DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
 ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
@@ -90,12 +89,6 @@ acceptance-test devnet="" gate="base":
     LOG_LEVEL="$(echo "${LOG_LEVEL:-info}" | grep -E '^(debug|info|warn|error)$' || echo 'info')"
     echo "LOG_LEVEL: $LOG_LEVEL"
 
-    # Deploy devnet for sysext if it's a simple name
-    if [[ "$ORCHESTRATOR" == "sysext" && ! "{{devnet}}" =~ ^(kt://|ktnative://|/) ]]; then
-        echo "Deploying devnet {{devnet}}..."
-        just {{KURTOSIS_DIR}}/{{devnet}}-devnet || true
-    fi
-
     # Build command arguments based on mode
     if [[ "$GATELESS_MODE" == "true" ]]; then
         # Gateless mode - use binary directly
@@ -139,9 +132,6 @@ acceptance-test-docker devnet="simple" gate="base":
     set -euo pipefail
 
     echo -e "DEVNET: {{devnet}}, GATE: {{gate}}\n"
-
-    # First run the appropriate devnet from the kurtosis-devnet directory if needed.
-    just {{KURTOSIS_DIR}}/{{ devnet }}-devnet
 
     # Print which image is being used (for debugging)
     echo "Using acceptor image: {{ACCEPTOR_IMAGE}}"
