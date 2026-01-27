@@ -64,10 +64,8 @@ func (m *mockVirtualNode) Start(ctx context.Context) error {
 	}
 
 	if m.blockOnStart {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+		<-ctx.Done()
+		return ctx.Err()
 	}
 
 	return m.startErr
@@ -141,23 +139,12 @@ type mockEngineController struct {
 func newMockEngineController() *mockEngineController {
 	return &mockEngineController{}
 }
-
 func (m *mockEngineController) SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	return eth.L2BlockRef{}, nil
 }
-
-func (m *mockEngineController) FinalizedBlock(ctx context.Context) (eth.L2BlockRef, error) {
-	return eth.L2BlockRef{}, nil
-}
-
 func (m *mockEngineController) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
 	return nil, nil
 }
-
-func (m *mockEngineController) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState) (*eth.ForkchoiceUpdatedResult, error) {
-	return nil, nil
-}
-
 func (m *mockEngineController) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

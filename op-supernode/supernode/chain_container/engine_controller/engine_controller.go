@@ -20,13 +20,9 @@ type EngineController interface {
 	// SafeBlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp,
 	// clamped to the current SAFE head.
 	// Must return ethereum.NotFound if there is no safe block at the specified timestamp.
-	SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
-	// FinalizedBlock return the Finalized L2 Block
-	FinalizedBlock(ctx context.Context) (eth.L2BlockRef, error)
+	SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)	
 	// OutputV0AtBlockNumber returns the output preimage for the given L2 block number.
 	OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error)
-	// ForkchoiceUpdate
-	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState) (*eth.ForkchoiceUpdatedResult, error)
 	// RewindToTimestamp rewinds the L2 execution layer to block at or before the given timestamp.
 	RewindToTimestamp(ctx context.Context, timestamp uint64) error
 	// Close releases any underlying RPC resources.

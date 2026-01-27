@@ -40,7 +40,6 @@ type ChainContainer interface {
 	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
 	// OptimisticOutputAtTimestamp returns the full Output at the optimistic L2 block for the given timestamp.
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error)
-
 	// RewindEngine rewinds the engine to the highest block with timestamp less than or equal to the given timestamp.
 	RewindEngine(ctx context.Context, timestamp uint64) error
 }
