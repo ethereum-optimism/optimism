@@ -41,7 +41,8 @@ func testAdd[V constraints.Unsigned](t *testing.T) {
 				got, overflowed := SafeAdd(a, b)
 				require.Equal(t, expectedOverflow, overflowed)
 				// masked expected outcome to int size, since it may have overflowed
-				require.Equal(t, bigs.Uint64Strict(expectedSum)&uint64(m), uint64(got))
+				//nolint:bigint // Overflow is explicitly expected and handled here.
+				require.Equal(t, expectedSum.Uint64()&uint64(m), uint64(got))
 			}
 			{
 				got := SaturatingAdd(a, b)
