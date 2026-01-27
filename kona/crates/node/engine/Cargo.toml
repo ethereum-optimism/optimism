@@ -55,7 +55,9 @@ metrics = { workspace = true, optional = true }
 
 # rollup boost
 rollup-boost.workspace = true
+rollup-boost-types.workspace = true
 http.workspace = true
+parking_lot.workspace = true
 
 [dev-dependencies]
 kona-registry.workspace = true

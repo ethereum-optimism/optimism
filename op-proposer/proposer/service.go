@@ -154,6 +154,21 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 		}
 		ps.ProposalSource = source.NewSupervisorProposalSource(ps.Log, clients...)
 	}
+	if len(cfg.SuperNodeRpcs) != 0 {
+		var clients []source.SuperNodeClient
+		for _, url := range cfg.SuperNodeRpcs {
+			cl, err := dial.DialSuperNodeClientWithTimeout(ctx, ps.Log, url,
+				client.WithRPCRecorder(ps.Metrics.NewRecorder("supernode")))
+			if err != nil {
+				return fmt.Errorf("failed to dial supernode RPC client (%v): %w", url, err)
+			}
+			clients = append(clients, cl)
+		}
+		ps.ProposalSource = source.NewSuperNodeProposalSource(ps.Log, clients...)
+	}
+	if ps.ProposalSource == nil {
+		return ErrMissingSource
+	}
 	return nil
 }
 

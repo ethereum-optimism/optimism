@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/validate"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -71,6 +72,11 @@ func NewApp(versionWithMeta string) *cli.App {
 			Name:        "manage",
 			Usage:       "manages the chain",
 			Subcommands: manage.Commands,
+		},
+		{
+			Name:        "validate",
+			Usage:       "validates chain configuration and deployment",
+			Subcommands: validate.Commands(),
 		},
 	}
 	return app

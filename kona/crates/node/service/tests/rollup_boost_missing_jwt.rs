@@ -5,7 +5,7 @@
 mod tests {
     use http::Uri;
     use rollup_boost::{
-        ExecutionMode, FlashblocksArgs, FlashblocksWebsocketConfig, Probes, RollupBoostLibArgs,
+        ExecutionMode, FlashblocksWebsocketConfig, FlashblocksWsArgs, Probes, RollupBoostLibArgs,
         RollupBoostServer,
     };
     use std::sync::Arc;
@@ -32,8 +32,8 @@ mod tests {
             },
             // Default is ExecutionMode::Enabled in the crate; rely on that or set explicitly if
             // needed.
-            flashblocks: FlashblocksArgs {
-                flashblocks: true,
+            flashblocks_ws: Some(FlashblocksWsArgs {
+                flashblocks_ws: true,
                 flashblocks_builder_url: "ws://127.0.0.1:1111".parse().unwrap(),
                 flashblocks_host: "127.0.0.1".to_string(),
                 flashblocks_port: 1112,
@@ -44,7 +44,8 @@ mod tests {
                     flashblock_builder_ws_ping_interval_ms: 500,
                     flashblock_builder_ws_pong_timeout_ms: 1500,
                 },
-            },
+            }),
+            flashblocks_p2p: None,
             block_selection_policy: None,
             execution_mode: ExecutionMode::Enabled,
             external_state_root: false,
@@ -54,9 +55,8 @@ mod tests {
         };
 
         let probes = Arc::new(Probes::default());
-        let err =
-            RollupBoostServer::<rollup_boost::FlashblocksService>::new_from_args(args, probes)
-                .expect_err("expected missing JWT to error");
+        let err = RollupBoostServer::new_from_args(args, probes)
+            .expect_err("expected missing JWT to error");
         let msg = format!("{err}");
         assert!(
             msg.to_lowercase().contains("missing client jwt secret"),

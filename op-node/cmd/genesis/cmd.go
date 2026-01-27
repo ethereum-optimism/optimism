@@ -198,7 +198,7 @@ var Subcommands = cli.Commands{
 			}
 
 			l2GenesisBlock := l2Genesis.ToBlock()
-			rollupConfig, err := config.RollupConfig(eth.BlockRefFromHeader(l1StartBlock.Header()), l2GenesisBlock.Hash(), l2GenesisBlock.Number().Uint64())
+			rollupConfig, err := config.RollupConfig(eth.BlockRefFromHeader(l1StartBlock.Header()), l2GenesisBlock.Hash(), l2GenesisBlock.NumberU64())
 			if err != nil {
 				return err
 			}

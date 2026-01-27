@@ -33,6 +33,18 @@
 # Kona
 /kona                  @ethereum-optimism/kona-reviewers
 
+# op-reth
+/op-reth                  @ethereum-optimism/kona-reviewers
+
+# op-alloy
+/op-alloy                  @ethereum-optimism/kona-reviewers
+
+# Alloy OP Hardforks
+/alloy-op-hardforks         @ethereum-optimism/kona-reviewers
+
+# Alloy
+/alloy-op-evm           @ethereum-optimism/kona-reviewers
+
 # Ops
 /.cursor/rules/solidity-styles.mdc @ethereum-optimism/contract-reviewers
 

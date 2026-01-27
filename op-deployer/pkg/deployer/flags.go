@@ -141,6 +141,12 @@ var (
 		EnvVars: PrefixEnvVar("USE_FORGE"),
 		Value:   false,
 	}
+	ValidateFlag = &cli.StringFlag{
+		Name:    "validate",
+		Usage:   "automatically validate deployment after apply. Specify validator version (e.g., v2.0.0) or 'auto' to auto-detect from state.json. If not specified, validation is skipped.",
+		EnvVars: PrefixEnvVar("VALIDATE"),
+		Value:   "",
+	}
 )
 
 var GlobalFlags = append([]cli.Flag{CacheDirFlag}, oplog.CLIFlags(EnvVarPrefix)...)
@@ -163,6 +169,7 @@ var ApplyFlags = []cli.Flag{
 	VerifierFlag,
 	VerifierUrlFlag,
 	UseForgeFlag,
+	ValidateFlag,
 }
 
 var UpgradeFlags = []cli.Flag{

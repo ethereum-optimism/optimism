@@ -39,6 +39,11 @@ var (
 		Usage:    "Proposer address as hex string (required for OPCMStandardValidator)",
 		Required: false,
 	}
+	ValidatorAddressFlag = &cli.StringFlag{
+		Name:     "validator-address",
+		Usage:    "OPCMStandardValidator contract address (required for custom deployments)",
+		Required: false,
+	}
 	FailOnErrorFlag = &cli.BoolFlag{
 		Name:  "fail",
 		Usage: "Exit with non-zero code if validation errors are found",
@@ -54,6 +59,7 @@ var ValidateFlags = []cli.Flag{
 	SystemConfigFlag,
 	L2ChainIDFlag,
 	ProposerFlag,
+	ValidatorAddressFlag,
 	FailOnErrorFlag,
 }
 
@@ -65,6 +71,7 @@ type Config struct {
 	SystemConfig     common.Address
 	L2ChainID        *big.Int
 	Proposer         common.Address
+	ValidatorAddress common.Address
 }
 
 // NewConfig creates a new Config from CLI context
@@ -82,6 +89,11 @@ func NewConfig(ctx *cli.Context) (*Config, error) {
 		proposer = common.HexToAddress(proposerStr)
 	}
 
+	var validatorAddr common.Address
+	if validatorAddrStr := ctx.String(ValidatorAddressFlag.Name); validatorAddrStr != "" {
+		validatorAddr = common.HexToAddress(validatorAddrStr)
+	}
+
 	return &Config{
 		L1RPCURL:         ctx.String(L1RPCURLFlag.Name),
 		AbsolutePrestate: absolutePrestate,
@@ -89,5 +101,6 @@ func NewConfig(ctx *cli.Context) (*Config, error) {
 		SystemConfig:     systemConfig,
 		L2ChainID:        l2ChainID,
 		Proposer:         proposer,
+		ValidatorAddress: validatorAddr,
 	}, nil
 }

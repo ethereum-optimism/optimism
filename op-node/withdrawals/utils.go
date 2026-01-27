@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/bindings"
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
@@ -130,12 +131,12 @@ func ProveWithdrawalParametersSuperRoots(
 	}
 	l2SequenceNumber := new(big.Int).SetBytes(latestGame.ExtraData[0:32])
 
-	superRoot, err := supervisorClient.SuperRootAtTimestamp(ctx, hexutil.Uint64(l2SequenceNumber.Uint64()))
+	superRoot, err := supervisorClient.SuperRootAtTimestamp(ctx, hexutil.Uint64(bigs.Uint64Strict(l2SequenceNumber)))
 	if err != nil {
 		return ProvenWithdrawalParametersSuperRoots{}, fmt.Errorf("failed to get super root: %w", err)
 	}
 
-	l2BlockNumber, err := rollupCfg.TargetBlockNumber(l2SequenceNumber.Uint64())
+	l2BlockNumber, err := rollupCfg.TargetBlockNumber(bigs.Uint64Strict(l2SequenceNumber))
 	if err != nil {
 		return ProvenWithdrawalParametersSuperRoots{}, fmt.Errorf("failed to get target block number: %w", err)
 	}

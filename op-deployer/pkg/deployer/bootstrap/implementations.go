@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
@@ -51,6 +52,7 @@ type ImplementationsConfig struct {
 	SuperchainProxyAdmin            common.Address     `cli:"superchain-proxy-admin"`
 	Challenger                      common.Address     `cli:"challenger"`
 	CacheDir                        string             `cli:"cache-dir"`
+	UseForge                        bool               `cli:"use-forge"`
 
 	Logger log.Logger
 
@@ -204,77 +206,96 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 		return dio, fmt.Errorf("failed to download artifacts: %w", err)
 	}
 
-	l1Client, err := ethclient.Dial(cfg.L1RPCUrl)
-	if err != nil {
-		return dio, fmt.Errorf("failed to connect to L1 RPC: %w", err)
+	input := opcm.DeployImplementationsInput{
+		WithdrawalDelaySeconds:          new(big.Int).SetUint64(cfg.WithdrawalDelaySeconds),
+		MinProposalSizeBytes:            new(big.Int).SetUint64(cfg.MinProposalSizeBytes),
+		ChallengePeriodSeconds:          new(big.Int).SetUint64(cfg.ChallengePeriodSeconds),
+		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(cfg.ProofMaturityDelaySeconds),
+		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(cfg.DisputeGameFinalityDelaySeconds),
+		MipsVersion:                     new(big.Int).SetUint64(uint64(cfg.MIPSVersion)),
+		DevFeatureBitmap:                cfg.DevFeatureBitmap,
+		FaultGameV2MaxGameDepth:         new(big.Int).SetUint64(cfg.FaultGameMaxGameDepth),
+		FaultGameV2SplitDepth:           new(big.Int).SetUint64(cfg.FaultGameSplitDepth),
+		FaultGameV2ClockExtension:       new(big.Int).SetUint64(cfg.FaultGameClockExtension),
+		FaultGameV2MaxClockDuration:     new(big.Int).SetUint64(cfg.FaultGameMaxClockDuration),
+		SuperchainConfigProxy:           cfg.SuperchainConfigProxy,
+		ProtocolVersionsProxy:           cfg.ProtocolVersionsProxy,
+		SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,
+		L1ProxyAdminOwner:               cfg.L1ProxyAdminOwner,
+		Challenger:                      cfg.Challenger,
 	}
 
-	chainID, err := l1Client.ChainID(ctx)
-	if err != nil {
-		return dio, fmt.Errorf("failed to get chain ID: %w", err)
-	}
+	if cfg.UseForge {
+		lgr.Info("using Forge for DeployImplementations")
+		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", artifactsFS))
+		if err != nil {
+			return dio, fmt.Errorf("failed to create forge client: %w", err)
+		}
 
-	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(cfg.privateKeyECDSA, chainID))
-	chainDeployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
+		forgeCaller := opcm.NewDeployImplementationsForgeCaller(forgeClient)
+		forgeOpts := []string{
+			"--rpc-url", cfg.L1RPCUrl,
+			"--broadcast",
+			"--private-key", cfg.PrivateKey,
+		}
+		dio, _, err = forgeCaller(ctx, input, forgeOpts...)
+		if err != nil {
+			return dio, fmt.Errorf("failed to deploy implementations with Forge: %w", err)
+		}
+	} else {
+		l1Client, err := ethclient.Dial(cfg.L1RPCUrl)
+		if err != nil {
+			return dio, fmt.Errorf("failed to connect to L1 RPC: %w", err)
+		}
 
-	bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-		Logger:  lgr,
-		ChainID: chainID,
-		Client:  l1Client,
-		Signer:  signer,
-		From:    chainDeployer,
-	})
-	if err != nil {
-		return dio, fmt.Errorf("failed to create broadcaster: %w", err)
-	}
+		chainID, err := l1Client.ChainID(ctx)
+		if err != nil {
+			return dio, fmt.Errorf("failed to get chain ID: %w", err)
+		}
 
-	l1RPC, err := rpc.Dial(cfg.L1RPCUrl)
-	if err != nil {
-		return dio, fmt.Errorf("failed to connect to L1 RPC: %w", err)
-	}
+		signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(cfg.privateKeyECDSA, chainID))
+		chainDeployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
 
-	l1Host, err := env.DefaultForkedScriptHost(
-		ctx,
-		bcaster,
-		lgr,
-		chainDeployer,
-		artifactsFS,
-		l1RPC,
-	)
-	if err != nil {
-		return dio, fmt.Errorf("failed to create script host: %w", err)
-	}
+		bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
+			Logger:  lgr,
+			ChainID: chainID,
+			Client:  l1Client,
+			Signer:  signer,
+			From:    chainDeployer,
+		})
+		if err != nil {
+			return dio, fmt.Errorf("failed to create broadcaster: %w", err)
+		}
 
-	opcmScripts, err := opcm.NewScripts(l1Host)
-	if err != nil {
-		return dio, fmt.Errorf("failed to load OPCM scripts: %w", err)
-	}
+		l1RPC, err := rpc.Dial(cfg.L1RPCUrl)
+		if err != nil {
+			return dio, fmt.Errorf("failed to connect to L1 RPC: %w", err)
+		}
 
-	if dio, err = opcmScripts.DeployImplementations.Run(
-		opcm.DeployImplementationsInput{
-			WithdrawalDelaySeconds:          new(big.Int).SetUint64(cfg.WithdrawalDelaySeconds),
-			MinProposalSizeBytes:            new(big.Int).SetUint64(cfg.MinProposalSizeBytes),
-			ChallengePeriodSeconds:          new(big.Int).SetUint64(cfg.ChallengePeriodSeconds),
-			ProofMaturityDelaySeconds:       new(big.Int).SetUint64(cfg.ProofMaturityDelaySeconds),
-			DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(cfg.DisputeGameFinalityDelaySeconds),
-			MipsVersion:                     new(big.Int).SetUint64(uint64(cfg.MIPSVersion)),
-			DevFeatureBitmap:                cfg.DevFeatureBitmap,
-			FaultGameV2MaxGameDepth:         new(big.Int).SetUint64(cfg.FaultGameMaxGameDepth),
-			FaultGameV2SplitDepth:           new(big.Int).SetUint64(cfg.FaultGameSplitDepth),
-			FaultGameV2ClockExtension:       new(big.Int).SetUint64(cfg.FaultGameClockExtension),
-			FaultGameV2MaxClockDuration:     new(big.Int).SetUint64(cfg.FaultGameMaxClockDuration),
-			SuperchainConfigProxy:           cfg.SuperchainConfigProxy,
-			ProtocolVersionsProxy:           cfg.ProtocolVersionsProxy,
-			SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,
-			L1ProxyAdminOwner:               cfg.L1ProxyAdminOwner,
-			Challenger:                      cfg.Challenger,
-		},
-	); err != nil {
-		return dio, fmt.Errorf("error deploying implementations: %w", err)
-	}
+		l1Host, err := env.DefaultForkedScriptHost(
+			ctx,
+			bcaster,
+			lgr,
+			chainDeployer,
+			artifactsFS,
+			l1RPC,
+		)
+		if err != nil {
+			return dio, fmt.Errorf("failed to create script host: %w", err)
+		}
 
-	if _, err := bcaster.Broadcast(ctx); err != nil {
-		return dio, fmt.Errorf("failed to broadcast: %w", err)
+		opcmScripts, err := opcm.NewScripts(l1Host)
+		if err != nil {
+			return dio, fmt.Errorf("failed to load OPCM scripts: %w", err)
+		}
+
+		if dio, err = opcmScripts.DeployImplementations.Run(input); err != nil {
+			return dio, fmt.Errorf("error deploying implementations: %w", err)
+		}
+
+		if _, err := bcaster.Broadcast(ctx); err != nil {
+			return dio, fmt.Errorf("failed to broadcast: %w", err)
+		}
 	}
 
 	lgr.Info("deployed implementations")

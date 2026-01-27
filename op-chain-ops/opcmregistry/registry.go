@@ -4,9 +4,14 @@
 package opcmregistry
 
 import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
-	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -15,18 +20,22 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 )
 
-// HTTP client configuration
+// Configuration
 const (
-	httpTimeout     = 30 * time.Second // Request timeout
-	maxResponseSize = 10 * 1024 * 1024 // 10MB max response size
+	httpTimeout     = 30 * time.Second
+	maxResponseSize = 10 * 1024 * 1024 // 10MB
+	maxRetries      = 4                // 1 initial + 3 retries
+	memoryCacheSize = 10               // Number of URLs to cache in memory
+	fileCacheTTL    = 30 * time.Minute // How long file cache entries remain valid
+	cacheSubdir     = "opcmregistry"
 )
-
-// httpClient is a shared HTTP client with timeout
-var httpClient = &http.Client{
-	Timeout: httpTimeout,
-}
 
 // Chain ID constants
 const (
@@ -39,6 +48,178 @@ const (
 	standardVersionsMainnetURL = "https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/main/validation/standard/standard-versions-mainnet.toml"
 	standardVersionsSepoliaURL = "https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/main/validation/standard/standard-versions-sepolia.toml"
 )
+
+// Global registry instance
+var (
+	globalRegistry     *Registry
+	globalRegistryOnce sync.Once
+)
+
+// Registry fetches and caches OPCM version data from the superchain-registry.
+type Registry struct {
+	log          log.Logger
+	memoryCache  *caching.LRUCache[string, Versions]
+	downloader   *httputil.Downloader
+	fileCacheDir string
+}
+
+// NewRegistry creates a new Registry with the given logger.
+// If logger is nil, a no-op logger is used.
+func NewRegistry(logger log.Logger) *Registry {
+	if logger == nil {
+		logger = log.Root()
+	}
+	return &Registry{
+		log:         logger,
+		memoryCache: caching.NewLRUCache[string, Versions](nil, "opcmregistry", memoryCacheSize),
+		downloader: &httputil.Downloader{
+			Client:  &http.Client{Timeout: httpTimeout},
+			MaxSize: maxResponseSize,
+		},
+		fileCacheDir: defaultCacheDir(),
+	}
+}
+
+func defaultCacheDir() string {
+	if dir := os.Getenv("XDG_CACHE_HOME"); dir != "" {
+		return filepath.Join(dir, cacheSubdir)
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".cache", cacheSubdir)
+}
+
+func getGlobalRegistry() *Registry {
+	globalRegistryOnce.Do(func() {
+		globalRegistry = NewRegistry(nil)
+	})
+	return globalRegistry
+}
+
+// FetchVersions retrieves the versions data for the given chain, using cache when available.
+// Cache priority: memory -> file -> network (with retry)
+func (r *Registry) FetchVersions(ctx context.Context, chainID uint64) (Versions, error) {
+	url, err := urlForChain(chainID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check memory cache
+	if versions, ok := r.memoryCache.Get(url); ok {
+		return versions, nil
+	}
+
+	// Check file cache
+	if data, ok := r.loadFromFileCache(url); ok {
+		var versions Versions
+		if err := toml.Unmarshal(data, &versions); err == nil {
+			r.memoryCache.Add(url, versions)
+			return versions, nil
+		}
+		// Corrupted cache file, fall through to fetch
+	}
+
+	// Fetch with retry
+	data, err := retry.Do(ctx, maxRetries, retry.Exponential(), func() ([]byte, error) {
+		var buf bytes.Buffer
+		if err := r.downloader.Download(ctx, url, &buf); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse
+	var versions Versions
+	if err := toml.Unmarshal(data, &versions); err != nil {
+		return nil, fmt.Errorf("failed to parse TOML: %w", err)
+	}
+
+	// Store in both caches
+	r.memoryCache.Add(url, versions)
+	r.saveToFileCache(url, data)
+
+	return versions, nil
+}
+
+// loadFromFileCache attempts to load data from the file cache.
+// Returns the data and true if found and not expired, nil and false otherwise.
+func (r *Registry) loadFromFileCache(url string) ([]byte, bool) {
+	path := r.fileCachePath(url)
+	if path == "" {
+		return nil, false
+	}
+
+	info, err := os.Stat(path)
+	if err != nil || time.Since(info.ModTime()) > fileCacheTTL {
+		return nil, false
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		r.log.Debug("failed to read cache file", "path", path, "err", err)
+		return nil, false
+	}
+
+	return data, true
+}
+
+// saveToFileCache saves data to the file cache.
+func (r *Registry) saveToFileCache(url string, data []byte) {
+	path := r.fileCachePath(url)
+	if path == "" {
+		return
+	}
+
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		r.log.Debug("failed to create cache directory", "path", filepath.Dir(path), "err", err)
+		return
+	}
+
+	// Atomic write via temp file + rename
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
+		r.log.Debug("failed to write cache temp file", "path", tmp, "err", err)
+		return
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		r.log.Debug("failed to rename cache temp file", "from", tmp, "to", path, "err", err)
+	}
+}
+
+// fileCachePath returns the file path for caching the given URL.
+func (r *Registry) fileCachePath(url string) string {
+	if r.fileCacheDir == "" {
+		return ""
+	}
+	hash := sha256.Sum256([]byte(url))
+	return filepath.Join(r.fileCacheDir, hex.EncodeToString(hash[:])+".cache")
+}
+
+func urlForChain(chainID uint64) (string, error) {
+	switch chainID {
+	case MainnetChainID:
+		return standardVersionsMainnetURL, nil
+	case SepoliaChainID:
+		return standardVersionsSepoliaURL, nil
+	default:
+		return "", fmt.Errorf("unsupported chain ID: %d", chainID)
+	}
+}
+
+// getVersionsForChain is the internal function used by public APIs.
+func getVersionsForChain(chainID uint64) (Versions, error) {
+	return getGlobalRegistry().FetchVersions(context.Background(), chainID)
+}
+
+// -----------------------------------------------------------------------------
+// TOML data types
+// -----------------------------------------------------------------------------
 
 // Dummy prestates for testing - actual values don't matter for upgrade tests
 var (
@@ -70,74 +251,9 @@ type VersionConfig struct {
 // Versions maps release tags to their contract configurations
 type Versions map[string]VersionConfig
 
-// Cache for fetched versions
-var (
-	versionsCache   = make(map[uint64]Versions)
-	versionsCacheMu sync.RWMutex
-)
-
-// fetchVersions fetches the standard versions TOML from GitHub for a given chain
-func fetchVersions(chainID uint64) (Versions, error) {
-	var url string
-	switch chainID {
-	case MainnetChainID:
-		url = standardVersionsMainnetURL
-	case SepoliaChainID:
-		url = standardVersionsSepoliaURL
-	default:
-		return nil, fmt.Errorf("unsupported chain ID: %d", chainID)
-	}
-
-	resp, err := httpClient.Get(url)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch %s: %w", url, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to fetch %s: status %d", url, resp.StatusCode)
-	}
-
-	// Limit response size to prevent memory exhaustion
-	limitedReader := io.LimitReader(resp.Body, maxResponseSize)
-	body, err := io.ReadAll(limitedReader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	var versions Versions
-	if err := toml.Unmarshal(body, &versions); err != nil {
-		return nil, fmt.Errorf("failed to parse TOML: %w", err)
-	}
-
-	return versions, nil
-}
-
-// getVersionsForChain returns the versions for a chain, fetching from GitHub if needed
-func getVersionsForChain(chainID uint64) (Versions, error) {
-	versionsCacheMu.RLock()
-	if v, ok := versionsCache[chainID]; ok {
-		versionsCacheMu.RUnlock()
-		return v, nil
-	}
-	versionsCacheMu.RUnlock()
-
-	versionsCacheMu.Lock()
-	defer versionsCacheMu.Unlock()
-
-	// Double-check after acquiring write lock
-	if v, ok := versionsCache[chainID]; ok {
-		return v, nil
-	}
-
-	versions, err := fetchVersions(chainID)
-	if err != nil {
-		return nil, err
-	}
-
-	versionsCache[chainID] = versions
-	return versions, nil
-}
+// -----------------------------------------------------------------------------
+// OPCM types and functions
+// -----------------------------------------------------------------------------
 
 // OPCMInfo contains information about an OPCM from the registry.
 // Note: This only contains registry metadata. The actual OPCM version (and whether it's V1/V2)

@@ -1,0 +1,250 @@
+version: 2.1
+
+# alloy-op-hardforks CI Continuation Configuration
+# This file contains ONLY alloy-op-hardforks-specific jobs and workflows.
+# It is merged with main.yml when alloy-op-hardforks/** changes are detected.
+# Shared orbs, commands, and jobs come from main.yml during merge.
+
+# Orbs used by alloy-op-hardforks jobs (also in main.yml, merged during continuation)
+orbs:
+  utils: ethereum-optimism/circleci-utils@1.0.23
+
+parameters:
+  # Required parameters (also in main.yml, merged during continuation)
+  default_docker_image:
+    type: string
+    default: cimg/base:2024.01
+  alloy_op_hardforks_dispatch:
+    type: boolean
+    default: false
+
+jobs:
+  # ============================================================================
+  # alloy-op-hardforks Jobs (migrated from alloy-op-hardforks/.github/workflows/ci.yml)
+  # ============================================================================
+
+  # alloy-op-hardforks Rust CI - Tests with matrix (from ci.yml)
+  alloy-op-hardforks-cargo-tests:
+    parameters:
+      rust_version:
+        description: The Rust version to test with (stable, beta, nightly, or MSRV)
+        type: string
+      feature_flags:
+        description: The feature flags to use (empty, --no-default-features, --all-features)
+        type: string
+        default: ""
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    environment:
+      CARGO_TERM_COLOR: always
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: alloy-op-hardforks
+          prefix: alloy-op-hardforks-tests-<<parameters.rust_version>>
+      - rust-install-toolchain:
+          toolchain_version: <<parameters.rust_version>>
+      - run:
+          name: Build alloy-op-hardforks (<<parameters.rust_version>> <<parameters.feature_flags>>)
+          working_directory: alloy-op-hardforks
+          no_output_timeout: 30m
+          command: |
+            cargo build --workspace <<parameters.feature_flags>>
+      - run:
+          name: Test alloy-op-hardforks (<<parameters.rust_version>> <<parameters.feature_flags>>)
+          working_directory: alloy-op-hardforks
+          no_output_timeout: 30m
+          command: |
+            cargo test --workspace <<parameters.feature_flags>>
+      - rust-save-build-cache:
+          directory: alloy-op-hardforks
+          prefix: alloy-op-hardforks-tests-<<parameters.rust_version>>
+
+  # alloy-op-hardforks Rust CI - Check no_std compatibility (from ci.yml)
+  alloy-op-hardforks-check-no-std:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    environment:
+      CARGO_TERM_COLOR: always
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare
+      - rust-install-toolchain:
+          toolchain_version: stable
+          target: riscv32imac-unknown-none-elf
+      - run:
+          name: Check no_std compatibility
+          working_directory: alloy-op-hardforks
+          no_output_timeout: 30m
+          command: |
+            cargo check --target riscv32imac-unknown-none-elf --no-default-features
+
+  # alloy-op-hardforks Rust CI - Feature powerset checks (from ci.yml)
+  alloy-op-hardforks-cargo-hack:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    environment:
+      CARGO_TERM_COLOR: always
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &alloy-op-hardforks-hack-cache
+          directory: alloy-op-hardforks
+          prefix: alloy-op-hardforks-hack
+          features: "all"
+      - install-cargo-binstall
+      - run:
+          name: Install cargo-hack
+          command: |
+            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
+      - run:
+          name: Run cargo hack feature powerset
+          working_directory: alloy-op-hardforks
+          no_output_timeout: 30m
+          command: |
+            cargo hack check --feature-powerset --depth 2
+      - rust-save-build-cache: *alloy-op-hardforks-hack-cache
+
+  # alloy-op-hardforks Rust CI - Clippy (from ci.yml)
+  alloy-op-hardforks-clippy:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    environment:
+      CARGO_TERM_COLOR: always
+      RUSTFLAGS: -Dwarnings
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &alloy-op-hardforks-clippy-cache
+          directory: alloy-op-hardforks
+          prefix: alloy-op-hardforks-clippy
+          features: "all"
+      - rust-install-toolchain:
+          toolchain_version: stable
+          components: clippy
+      - run:
+          name: Run clippy
+          working_directory: alloy-op-hardforks
+          no_output_timeout: 30m
+          command: |
+            cargo clippy --workspace --all-targets --all-features
+      - rust-save-build-cache: *alloy-op-hardforks-clippy-cache
+
+  # alloy-op-hardforks Rust CI - Documentation (from ci.yml)
+  alloy-op-hardforks-docs:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    environment:
+      CARGO_TERM_COLOR: always
+      RUSTDOCFLAGS: --cfg docsrs -D warnings -Zunstable-options --show-type-layout --generate-link-to-definition
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &alloy-op-hardforks-docs-cache
+          directory: alloy-op-hardforks
+          prefix: alloy-op-hardforks-docs
+      - rust-install-toolchain:
+          toolchain_version: nightly
+      - run:
+          name: Build documentation
+          working_directory: alloy-op-hardforks
+          no_output_timeout: 30m
+          command: |
+            cargo doc --workspace --all-features --no-deps --document-private-items
+      - rust-save-build-cache: *alloy-op-hardforks-docs-cache
+
+  # alloy-op-hardforks Rust CI - Format check (from ci.yml)
+  alloy-op-hardforks-fmt:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    environment:
+      CARGO_TERM_COLOR: always
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare
+      - rust-install-toolchain:
+          toolchain_version: nightly
+          components: rustfmt
+      - run:
+          name: Check formatting
+          working_directory: alloy-op-hardforks
+          command: |
+            cargo fmt --all --check
+
+  # alloy-op-hardforks Rust CI - Cargo deny (from ci.yml)
+  alloy-op-hardforks-cargo-deny:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    environment:
+      CARGO_TERM_COLOR: always
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &alloy-op-hardforks-deny-cache
+          directory: alloy-op-hardforks
+          prefix: alloy-op-hardforks-deny
+      - install-cargo-binstall
+      - run:
+          name: Install cargo-deny
+          command: |
+            command -v cargo-deny >/dev/null || cargo binstall --no-confirm cargo-deny
+      - run:
+          name: Run cargo deny
+          working_directory: alloy-op-hardforks
+          command: |
+            cargo deny check
+      - rust-save-build-cache: *alloy-op-hardforks-deny-cache
+
+  ### END alloy-op-hardforks JOBS ###
+
+workflows:
+  # ============================================================================
+  # alloy-op-hardforks Workflows (migrated from alloy-op-hardforks/.github/workflows/ci.yml)
+  # ============================================================================
+
+  # alloy-op-hardforks main CI workflow (runs on webhooks and API triggers)
+  # Only runs when changes are detected in the alloy-op-hardforks folder
+  alloy-op-hardforks-ci:
+    when:
+      or:
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        - equal: ["api", << pipeline.trigger_source >>]
+    jobs:
+      # Test matrix: Rust versions x feature flags
+      - alloy-op-hardforks-cargo-tests:
+          context: &alloy-op-hardforks-context
+            - circleci-repo-readonly-authenticated-github-token
+          name: alloy-op-hardforks-test-<<matrix.rust_version>>-<<matrix.feature_flags>>
+          matrix:
+            alias: test-matrix
+            parameters:
+              rust_version: ["stable", "beta", "nightly", "1.85"]
+              feature_flags: ["--no-default-features", "", "--all-features"]
+      # Check no_std compatibility
+      - alloy-op-hardforks-check-no-std:
+          context: *alloy-op-hardforks-context
+      # Feature powerset checks with cargo-hack
+      - alloy-op-hardforks-cargo-hack:
+          context: *alloy-op-hardforks-context
+      # Clippy lints
+      - alloy-op-hardforks-clippy:
+          context: *alloy-op-hardforks-context
+      # Documentation build
+      - alloy-op-hardforks-docs:
+          context: *alloy-op-hardforks-context
+      # Format check
+      - alloy-op-hardforks-fmt:
+          context: *alloy-op-hardforks-context
+      # Cargo deny (license/security checks)
+      - alloy-op-hardforks-cargo-deny:
+          context: *alloy-op-hardforks-context

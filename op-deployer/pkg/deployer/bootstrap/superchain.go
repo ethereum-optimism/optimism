@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
@@ -33,6 +34,7 @@ type SuperchainConfig struct {
 	Logger           log.Logger
 	ArtifactsLocator *artifacts.Locator
 	CacheDir         string
+	UseForge         bool
 
 	privateKeyECDSA *ecdsa.PrivateKey
 
@@ -103,12 +105,14 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 	recommendedVersionStr := cliCtx.String(RecommendedProtocolVersionFlagName)
 	outfile := cliCtx.String(OutfileFlagName)
 	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
+	useForge := cliCtx.Bool(deployer.UseForgeFlagName)
 	cfg := SuperchainConfig{
 		L1RPCUrl:                  l1RPCUrl,
 		PrivateKey:                privateKey,
 		Logger:                    l,
 		ArtifactsLocator:          artifactsLocator,
 		CacheDir:                  cacheDir,
+		UseForge:                  useForge,
 		SuperchainProxyAdminOwner: superchainProxyAdminOwner,
 		ProtocolVersionsOwner:     protocolVersionsOwner,
 		Guardian:                  guardian,
@@ -193,68 +197,87 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 		return dso, fmt.Errorf("failed to download artifacts: %w", err)
 	}
 
-	l1Client, err := ethclient.Dial(cfg.L1RPCUrl)
-	if err != nil {
-		return dso, fmt.Errorf("failed to connect to L1 RPC: %w", err)
+	input := opcm.DeploySuperchainInput{
+		SuperchainProxyAdminOwner:  cfg.SuperchainProxyAdminOwner,
+		ProtocolVersionsOwner:      cfg.ProtocolVersionsOwner,
+		Guardian:                   cfg.Guardian,
+		Paused:                     cfg.Paused,
+		RequiredProtocolVersion:    cfg.RequiredProtocolVersion,
+		RecommendedProtocolVersion: cfg.RecommendedProtocolVersion,
 	}
 
-	chainID, err := l1Client.ChainID(ctx)
-	if err != nil {
-		return dso, fmt.Errorf("failed to get chain ID: %w", err)
-	}
+	if cfg.UseForge {
+		lgr.Info("using Forge for DeploySuperchain")
+		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", artifactsFS))
+		if err != nil {
+			return dso, fmt.Errorf("failed to create forge client: %w", err)
+		}
 
-	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(cfg.privateKeyECDSA, chainID))
-	chainDeployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
+		forgeCaller := opcm.NewDeploySuperchainForgeCaller(forgeClient)
+		forgeOpts := []string{
+			"--rpc-url", cfg.L1RPCUrl,
+			"--broadcast",
+			"--private-key", cfg.PrivateKey,
+		}
+		dso, _, err = forgeCaller(ctx, input, forgeOpts...)
+		if err != nil {
+			return dso, fmt.Errorf("failed to deploy superchain with Forge: %w", err)
+		}
+	} else {
+		l1Client, err := ethclient.Dial(cfg.L1RPCUrl)
+		if err != nil {
+			return dso, fmt.Errorf("failed to connect to L1 RPC: %w", err)
+		}
 
-	bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-		Logger:  lgr,
-		ChainID: chainID,
-		Client:  l1Client,
-		Signer:  signer,
-		From:    chainDeployer,
-	})
-	if err != nil {
-		return dso, fmt.Errorf("failed to create broadcaster: %w", err)
-	}
+		chainID, err := l1Client.ChainID(ctx)
+		if err != nil {
+			return dso, fmt.Errorf("failed to get chain ID: %w", err)
+		}
 
-	l1RPC, err := rpc.Dial(cfg.L1RPCUrl)
-	if err != nil {
-		return dso, fmt.Errorf("failed to connect to L1 RPC: %w", err)
-	}
+		signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(cfg.privateKeyECDSA, chainID))
+		chainDeployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
 
-	l1Host, err := env.DefaultForkedScriptHost(
-		ctx,
-		bcaster,
-		lgr,
-		chainDeployer,
-		artifactsFS,
-		l1RPC,
-	)
-	if err != nil {
-		return dso, fmt.Errorf("failed to create script host: %w", err)
-	}
+		bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
+			Logger:  lgr,
+			ChainID: chainID,
+			Client:  l1Client,
+			Signer:  signer,
+			From:    chainDeployer,
+		})
+		if err != nil {
+			return dso, fmt.Errorf("failed to create broadcaster: %w", err)
+		}
 
-	opcmScripts, err := opcm.NewScripts(l1Host)
-	if err != nil {
-		return dso, fmt.Errorf("failed to load OPCM scripts: %w", err)
-	}
+		l1RPC, err := rpc.Dial(cfg.L1RPCUrl)
+		if err != nil {
+			return dso, fmt.Errorf("failed to connect to L1 RPC: %w", err)
+		}
 
-	dso, err = opcmScripts.DeploySuperchain.Run(
-		opcm.DeploySuperchainInput{
-			SuperchainProxyAdminOwner:  cfg.SuperchainProxyAdminOwner,
-			ProtocolVersionsOwner:      cfg.ProtocolVersionsOwner,
-			Guardian:                   cfg.Guardian,
-			Paused:                     cfg.Paused,
-			RequiredProtocolVersion:    cfg.RequiredProtocolVersion,
-			RecommendedProtocolVersion: cfg.RecommendedProtocolVersion,
-		},
-	)
-	if err != nil {
-		return dso, fmt.Errorf("error deploying superchain: %w", err)
-	}
+		l1Host, err := env.DefaultForkedScriptHost(
+			ctx,
+			bcaster,
+			lgr,
+			chainDeployer,
+			artifactsFS,
+			l1RPC,
+		)
+		if err != nil {
+			return dso, fmt.Errorf("failed to create script host: %w", err)
+		}
 
-	if _, err := bcaster.Broadcast(ctx); err != nil {
-		return dso, fmt.Errorf("failed to broadcast: %w", err)
+		opcmScripts, err := opcm.NewScripts(l1Host)
+		if err != nil {
+			return dso, fmt.Errorf("failed to load OPCM scripts: %w", err)
+		}
+
+		dso, err = opcmScripts.DeploySuperchain.Run(input)
+		if err != nil {
+			return dso, fmt.Errorf("error deploying superchain: %w", err)
+		}
+
+		if _, err := bcaster.Broadcast(ctx); err != nil {
+			return dso, fmt.Errorf("failed to broadcast: %w", err)
+		}
 	}
 
 	lgr.Info("deployed superchain configuration")

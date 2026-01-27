@@ -1,0 +1,54 @@
+[advisories]
+version = 2
+yanked = "warn"
+ignore = [
+    # https://rustsec.org/advisories/RUSTSEC-2024-0437, trezor-client dependency, no fix available yet
+    "RUSTSEC-2024-0437",
+    # https://rustsec.org/advisories/RUSTSEC-2024-0436
+    "RUSTSEC-2024-0436",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+
+[licenses]
+version = 2
+confidence-threshold = 0.8
+
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+    "CC0-1.0",
+]
+
+exceptions = [
+    # gmp feature (optional, LGPL-licensed)
+    { allow = ["LGPL-3.0-or-later"], crate = "rug" },
+    { allow = ["LGPL-3.0-or-later"], crate = "gmp-mpfr-sys" },
+]
+
+[[licenses.clarify]]
+name = "ring"
+expression = "LicenseRef-ring"
+license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
+
+[[licenses.clarify]]
+name = "webpki"
+expression = "LicenseRef-webpki"
+license-files = [{ path = "LICENSE", hash = 0x001c7e6c }]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-git = [
+    "https://github.com/bluealloy/revm",
+    #"https://github.com/alloy-rs/hardforks",
+]

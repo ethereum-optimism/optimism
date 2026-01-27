@@ -30,10 +30,10 @@ type ChainContainer interface {
 	Resume(ctx context.Context) error
 
 	SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
+	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1 eth.BlockID, l2 eth.BlockID, err error)
 	// L1AtSafeHead returns the earliest L1 block at which the given L2 block became safe.
 	L1AtSafeHead(ctx context.Context, l2 eth.BlockID) (eth.BlockID, error)
-	CurrentL1(ctx context.Context) (eth.BlockRef, error)
 	VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
@@ -232,6 +232,21 @@ func (c *simpleChainContainer) SafeBlockAtTimestamp(ctx context.Context, ts uint
 	return c.engine.SafeBlockAtTimestamp(ctx, ts)
 }
 
+// SyncStatus returns the in-process op-node sync status for this chain.
+func (c *simpleChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	if c.vn == nil {
+		if c.log != nil {
+			c.log.Warn("SyncStatus: virtual node not initialized")
+		}
+		return &eth.SyncStatus{}, nil
+	}
+	st, err := c.vn.SyncStatus(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return st, nil
+}
+
 // OutputRootAtL2BlockNumber computes the L2 output root for the specified L2 block number.
 func (c *simpleChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
 	if c.engine == nil {
@@ -258,17 +273,6 @@ func (c *simpleChainContainer) L1AtSafeHead(ctx context.Context, l2 eth.BlockID)
 		return eth.BlockID{}, fmt.Errorf("virtual node not initialized")
 	}
 	return c.vn.L1AtSafeHead(ctx, l2)
-}
-
-// CurrentL1 returns the most recent processed L1 block reference based on the derivation pipeline sync status.
-func (c *simpleChainContainer) CurrentL1(ctx context.Context) (eth.BlockRef, error) {
-	if c.vn == nil {
-		if c.log != nil {
-			c.log.Warn("CurrentL1: virtual node not initialized")
-		}
-		return eth.BlockRef{}, nil
-	}
-	return c.vn.CurrentL1(ctx)
 }
 
 // VerifiedAt returns the verified L2 and L1 blocks for the given L2 timestamp.
