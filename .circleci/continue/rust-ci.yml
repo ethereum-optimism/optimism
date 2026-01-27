@@ -1,0 +1,655 @@
+version: 2.1
+
+# Shared Rust CI Commands and Jobs
+# This file contains common commands and parameterized jobs used by multiple Rust subproject configs.
+# Each subproject config references these jobs from its workflows section.
+# No workflows are defined here - workflows remain in each project's config.
+
+orbs:
+  utils: ethereum-optimism/circleci-utils@1.0.23
+
+parameters:
+  default_docker_image:
+    type: string
+    default: cimg/base:2024.01
+
+commands:
+  install-cargo-binstall:
+    description: "Install cargo-binstall for fast binary installations"
+    steps:
+      - run:
+          name: Install cargo-binstall
+          command: |
+            if command -v cargo-binstall >/dev/null 2>&1; then
+              echo "cargo-binstall already installed"
+              exit 0
+            fi
+            curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+
+  rust-install-toolchain:
+    description: "Install Rust toolchain via rustup"
+    parameters:
+      channel:
+        description: The Rust channel release to use (stable, nightly, etc.)
+        type: string
+        default: "stable"
+      components:
+        description: Components to install (space or comma separated)
+        type: string
+        default: ""
+      toolchain_version:
+        description: The specific toolchain version for stable channel
+        type: string
+        default: "1.92.0"
+      target:
+        description: A custom target architecture to add to the toolchain
+        type: string
+        default: ""
+    steps:
+      - run:
+          name: Install Rust toolchain (<< parameters.channel >>)
+          command: |
+            rustup default << parameters.toolchain_version >>
+
+            if [ -n "<< parameters.components >>" ]; then
+              rustup component add << parameters.components >>
+            fi
+            if [ -n "<< parameters.target >>" ]; then
+              rustup target add << parameters.target >>
+            fi
+
+  rust-setup-env:
+    description: "Fix rust mise environment variables"
+    steps:
+      - run:
+          name: Fix mise environment variables
+          command: |
+            echo "export CARGO_HOME=${MISE_CARGO_HOME}" >> "$BASH_ENV"
+            echo "export RUSTUP_HOME=${MISE_RUSTUP_HOME}" >> "$BASH_ENV"
+            echo "source ${MISE_CARGO_HOME}/env" >> "$BASH_ENV"
+      - run:
+          name: Configure Rust binary paths (sysgo)
+          command: |
+            ROOT_DIR="$(pwd)"
+            BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
+            echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/kona/target/release/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/kona/target/release/kona-supervisor" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
+
+  rust-prepare:
+    parameters:
+      needs_clang:
+        description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)."
+        type: boolean
+        default: true
+    description: "Prepare the Rust environment for the build."
+    steps:
+      - rust-setup-env
+      - when:
+          condition: << parameters.needs_clang >>
+          steps:
+            - run:
+                name: Install clang
+                command: |
+                  export NEEDRESTART_MODE=a
+                  sudo -E apt-get update --yes
+                  sudo -E apt-get install -y --no-install-recommends clang llvm-dev libclang-dev
+
+  rust-restore-build-cache:
+    description: "Restore the target directory cache for a Rust workspace"
+    parameters: &cache-params
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      version:
+        description: "Version of the cache"
+        type: string
+        default: "15"
+      profile:
+        description: "Profile to restore the cache for"
+        type: string
+        default: "debug"
+      features:
+        description: "Comma-separated list of features to restore the cache for"
+        type: string
+        default: ""
+      prefix:
+        description: "Prefix to add to the cache key"
+        type: string
+        default: "rust-build"
+    steps:
+      - restore_cache:
+          name: Restore << parameters.directory >> target cache
+          keys:
+            - << parameters.prefix >>-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}-<< parameters.profile >>-<< parameters.features >>
+            - << parameters.prefix >>-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}-<< parameters.profile >>
+            - << parameters.prefix >>-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
+      - restore_cache:
+          name: Restore << parameters.directory >> registry cache (mise)
+          keys:
+            - << parameters.prefix >>-registry-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
+
+  rust-save-build-cache:
+    description: "Save the target directory cache for a Rust workspace"
+    parameters: *cache-params
+    steps:
+      - save_cache:
+          key: << parameters.prefix >>-registry-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
+          name: Save << parameters.directory >> registry cache (mise)
+          paths:
+            - /data/mise-data/.cargo/registry
+            - /data/mise-data/.cargo/git
+            - /data/mise-data/.cargo/bin
+            - /data/mise-data/.rustup
+      - save_cache:
+          key: << parameters.prefix >>-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}-<< parameters.profile >>-<< parameters.features >>
+          name: Save << parameters.directory >> target cache
+          paths:
+            - << parameters.directory >>/target/<< parameters.profile >>
+
+  rust-prepare-and-restore-cache:
+    description: "Prepare the Rust environment and restore the cache"
+    parameters:
+      <<: *cache-params
+      needs_clang:
+        description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)"
+        type: boolean
+        default: true
+      features:
+        description: "Comma-separated list of features to restore the cache for"
+        type: string
+        default: "default"
+    steps:
+      - rust-prepare:
+          needs_clang: << parameters.needs_clang >>
+      - rust-restore-build-cache:
+          version: << parameters.version >>
+          directory: << parameters.directory >>
+          profile: << parameters.profile >>
+          features: << parameters.features >>
+          prefix: << parameters.prefix >>
+
+  rust-build:
+    description: "Build a Rust workspace with target directory caching"
+    parameters:
+      <<: *cache-params
+      needs_clang:
+        description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)"
+        type: boolean
+        default: true
+      features:
+        description: "Comma-separated list of features to build the binary with"
+        type: string
+        default: "default"
+      package:
+        description: "Package name to build. If not specified, the workspace will be built."
+        type: string
+        default: ""
+      binary:
+        description: "Binary name to build. If not specified, all targets will be built."
+        type: string
+        default: ""
+      toolchain:
+        description: "Rust toolchain version to install before building (empty = use default)"
+        type: string
+        default: ""
+      save_cache:
+        description: "Whether to save the cache at the end of the build"
+        type: boolean
+        default: false
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          needs_clang: << parameters.needs_clang >>
+          version: << parameters.version >>
+          directory: << parameters.directory >>
+          profile: << parameters.profile >>
+          features: << parameters.features >>
+      - when:
+          condition: << parameters.toolchain >>
+          steps:
+            - rust-install-toolchain:
+                toolchain_version: << parameters.toolchain >>
+      - run:
+          name: Build << parameters.directory >>
+          command: |
+            PWD=$(pwd)
+            export CARGO_TARGET_DIR="$PWD/<< parameters.directory >>/target"
+            echo "CARGO_TARGET_DIR: $CARGO_TARGET_DIR"
+            export PROFILE="--profile << parameters.profile >>"
+
+            if [ "<< parameters.profile >>" = "debug" ]; then
+              export PROFILE="--profile dev"
+            fi
+
+            export PACKAGE="--workspace"
+            if [ -n "<< parameters.package >>" ]; then
+              export PACKAGE="--package << parameters.package >>"
+            fi
+
+            export BINARY="--all-targets"
+            if [ -n "<< parameters.binary >>" ]; then
+              export BINARY="--bin << parameters.binary >>"
+            fi
+
+            export FEATURES="--features << parameters.features >>"
+            if [ "<< parameters.features >>" = "all" ]; then
+              export FEATURES="--all-features"
+            fi
+
+            cd << parameters.directory >> && cargo build $PROFILE $TARGET $PACKAGE $FEATURES
+          no_output_timeout: 30m
+      - when:
+          condition: << parameters.save_cache >>
+          steps:
+            - rust-save-build-cache:
+                directory: << parameters.directory >>
+                version: << parameters.version >>
+                profile: << parameters.profile >>
+                features: << parameters.features >>
+
+jobs:
+  # Shared format check job
+  rust-ci-fmt:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      command:
+        description: "Format check command to run"
+        type: string
+        default: "cargo +nightly fmt --all --check"
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &fmt-cache-args
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-fmt
+      - rust-install-toolchain:
+          channel: nightly
+          toolchain_version: nightly
+          components: rustfmt
+      - run:
+          name: Check formatting
+          working_directory: <<parameters.directory>>
+          command: <<parameters.command>>
+      - rust-save-build-cache: *fmt-cache-args
+
+  # Shared clippy lint job
+  rust-ci-clippy:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      command:
+        description: "Clippy command to run"
+        type: string
+        default: "cargo clippy --workspace --all-targets --all-features"
+      toolchain:
+        description: "Rust toolchain to use (stable or nightly)"
+        type: string
+        default: "stable"
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &clippy-cache-args
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-clippy
+          features: "all"
+      - rust-install-toolchain:
+          channel: <<parameters.toolchain>>
+          toolchain_version: <<parameters.toolchain>>
+          components: clippy
+      - run:
+          name: Run clippy
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 30m
+          environment:
+            RUSTFLAGS: -Dwarnings
+          command: <<parameters.command>>
+      - rust-save-build-cache: *clippy-cache-args
+
+  # Shared cargo deny job
+  rust-ci-deny:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      command:
+        description: "Cargo deny command to run"
+        type: string
+        default: "cargo deny check"
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &deny-cache-args
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-deny
+      - install-cargo-binstall
+      - run:
+          name: Install cargo-deny
+          command: |
+            command -v cargo-deny >/dev/null || cargo binstall --no-confirm cargo-deny
+      - run:
+          name: Run cargo deny
+          working_directory: <<parameters.directory>>
+          command: <<parameters.command>>
+      - rust-save-build-cache: *deny-cache-args
+
+  # Shared zepter feature propagation job
+  rust-ci-zepter:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      command:
+        description: "Zepter command to run"
+        type: string
+        default: "zepter run check"
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &zepter-cache-args
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-zepter
+      - install-cargo-binstall
+      - run:
+          name: Install zepter
+          command: |
+            command -v zepter >/dev/null || cargo binstall --no-confirm zepter
+            zepter --version
+      - run:
+          name: Check feature propagation
+          working_directory: <<parameters.directory>>
+          command: <<parameters.command>>
+      - rust-save-build-cache: *zepter-cache-args
+
+  # Shared typos check job
+  rust-ci-typos:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &typos-cache-args
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-typos
+      - install-cargo-binstall
+      - run:
+          name: Install typos-cli
+          command: |
+            command -v typos >/dev/null || cargo binstall --no-confirm typos-cli
+      - run:
+          name: Check for typos
+          working_directory: <<parameters.directory>>
+          command: typos
+      - rust-save-build-cache: *typos-cache-args
+
+  # Shared no_std compatibility check job
+  rust-ci-check-no-std:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      target:
+        description: "Target architecture for no_std check"
+        type: string
+        default: "riscv32imac-unknown-none-elf"
+      toolchain:
+        description: "Rust toolchain version to use"
+        type: string
+        default: "stable"
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &no-std-cache-args
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-no-std
+      - rust-install-toolchain:
+          toolchain_version: <<parameters.toolchain>>
+          target: <<parameters.target>>
+      - run:
+          name: Check no_std compatibility
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 30m
+          command: just check-no-std
+      - rust-save-build-cache: *no-std-cache-args
+
+  # Shared documentation build job
+  rust-ci-docs:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      command:
+        description: "Doc build command to run"
+        type: string
+        default: "cargo +nightly doc --workspace --all-features --no-deps --document-private-items"
+      rustdocflags:
+        description: "RUSTDOCFLAGS environment variable"
+        type: string
+        default: "--cfg docsrs -D warnings --show-type-layout --generate-link-to-definition -Zunstable-options"
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &docs-cache-args
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-docs
+          features: "all"
+      - rust-install-toolchain:
+          channel: nightly
+          toolchain_version: nightly
+      - run:
+          name: Build documentation
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 30m
+          environment:
+            RUSTDOCFLAGS: <<parameters.rustdocflags>>
+          command: <<parameters.command>>
+      - rust-save-build-cache: *docs-cache-args
+
+  # Shared doc test job
+  rust-ci-doctest:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      command:
+        description: "Doc test command to run"
+        type: string
+        default: "cargo test --workspace --doc"
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &doctest-cache-args
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-doctest
+      - run:
+          name: Run doc tests
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 30m
+          command: <<parameters.command>>
+      - rust-save-build-cache: *doctest-cache-args
+
+  # Shared cargo tests job
+  rust-ci-cargo-tests:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      command:
+        description: "Just recipe to run (e.g. test, test-integration)"
+        type: string
+        default: "test"
+      flags:
+        description: "Flags passed to just command (e.g. --all-features, --no-default-features)"
+        type: string
+        default: ""
+      rust_version:
+        description: "Rust toolchain version to use"
+        type: string
+        default: "stable"
+      cache_profile:
+        description: "Build profile for caching"
+        type: string
+        default: "release"
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &tests-cache-args
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-tests
+          profile: <<parameters.cache_profile>>
+      - rust-install-toolchain:
+          toolchain_version: <<parameters.rust_version>>
+      - install-cargo-binstall
+      - run:
+          name: Install nextest
+          command: |
+            command -v cargo-nextest >/dev/null || cargo binstall --no-confirm cargo-nextest
+      - run:
+          name: Run cargo tests
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 40m
+          command: just <<parameters.command>> <<parameters.flags>>
+      - rust-save-build-cache: *tests-cache-args
+
+  # Shared unused dependencies check job
+  rust-ci-udeps:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &udeps-cache-args
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-udeps
+          profile: "release"
+      - rust-install-toolchain:
+          channel: nightly
+          toolchain_version: nightly
+      - install-cargo-binstall
+      - run:
+          name: Install cargo-udeps
+          command: |
+            command -v cargo-udeps >/dev/null || cargo binstall --no-confirm cargo-udeps
+      - run:
+          name: Check unused dependencies
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 40m
+          command: just check-udeps
+      - rust-save-build-cache: *udeps-cache-args
+
+  # Shared cargo hack build job (cross-compile targets like WASM)
+  rust-ci-cargo-hack-build:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      target:
+        description: "Target architecture to build for (e.g. wasm32-unknown-unknown)"
+        type: string
+      flags:
+        description: "Flags appended to cargo hack build --target <target>"
+        type: string
+        default: "--workspace"
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &hack-build-cache-args
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-hack-build
+      - rust-install-toolchain:
+          target: <<parameters.target>>
+      - install-cargo-binstall
+      - run:
+          name: Install cargo-hack
+          command: |
+            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
+      - run:
+          name: Build for <<parameters.target>>
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 40m
+          command: cargo hack build --target <<parameters.target>> <<parameters.flags>>
+      - rust-save-build-cache: *hack-build-cache-args
+
+  # Shared cargo hack job
+  rust-ci-cargo-hack:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      flags:
+        description: "Flags appended to cargo hack check (e.g. --feature-powerset --depth 2)"
+        type: string
+        default: "--feature-powerset --no-dev-deps --workspace"
+      parallelism:
+        description: "Number of parallel nodes (adds --partition automatically when > 1)"
+        type: integer
+        default: 1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    parallelism: <<parameters.parallelism>>
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &hack-cache-args
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-hack
+          features: "all"
+      - install-cargo-binstall
+      - run:
+          name: Install cargo-hack
+          command: |
+            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
+      - run:
+          name: Run cargo hack
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 60m
+          command: |
+            PARTITION_FLAG=""
+            if [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
+              PARTITION_FLAG="--partition $((CIRCLE_NODE_INDEX + 1))/$CIRCLE_NODE_TOTAL"
+            fi
+            cargo hack check <<parameters.flags>> $PARTITION_FLAG
+      - rust-save-build-cache: *hack-cache-args

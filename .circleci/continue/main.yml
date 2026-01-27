@@ -583,6 +583,10 @@ commands:
         description: "Binary name to build. If not specified, all targets will be built."
         type: string
         default: ""
+      toolchain:
+        description: "Rust toolchain version to install before building (empty = use default)"
+        type: string
+        default: ""
       save_cache:
         description: "Whether to save the cache at the end of the build"
         type: boolean
@@ -596,6 +600,11 @@ commands:
           directory: << parameters.directory >>
           profile: << parameters.profile >>
           features: << parameters.features >>
+      - when:
+          condition: << parameters.toolchain >>
+          steps:
+            - rust-install-toolchain:
+                toolchain_version: << parameters.toolchain >>
       - run:
           name: Build << parameters.directory >>
           command: |
@@ -670,6 +679,10 @@ jobs:
         description: "Binary name to build. If not specified, all targets will be built."
         type: string
         default: ""
+      toolchain:
+        description: "Rust toolchain version to install before building (empty = use default)"
+        type: string
+        default: ""
       save_cache:
         description: "Whether to save the cache at the end of the build"
         type: boolean
@@ -683,6 +696,7 @@ jobs:
           features: << parameters.features >>
           package: << parameters.package >>
           binary: << parameters.binary >>
+          toolchain: << parameters.toolchain >>
           save_cache: << parameters.save_cache >>
 
   # Build a single Rust binary from a submodule.
