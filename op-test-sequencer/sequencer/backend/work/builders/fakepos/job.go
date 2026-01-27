@@ -148,7 +148,7 @@ func (j *Job) Open(ctx context.Context) error {
 
 		j.b.envelopes[envelope.ExecutionPayload.ParentHash] = envelope
 	} else {
-		j.logger.Warn("already had a block with that parent", "parent", j.head.Hash(), "number", bigs.Uint64Strict(j.head.Number), "fee_recipient", envelope.ExecutionPayload.FeeRecipient)
+		j.logger.Warn("already had a block with that parent", "parent", j.head.Hash(), "number", j.head.Number, "fee_recipient", envelope.ExecutionPayload.FeeRecipient)
 
 		j.logger.Warn("updating block hash", "pre", envelope.ExecutionPayload.BlockHash, "fee_recipient", envelope.ExecutionPayload.FeeRecipient, "txs", len(envelope.ExecutionPayload.Transactions))
 

@@ -42,8 +42,7 @@ func (b *SizedBlock) EstimatedDABytes() uint64 {
 			if tx.IsDepositTx() {
 				continue
 			}
-			// It is safe to assume that the estimated DA size is always a uint64,
-			// so calling Uint64() is safe
+			// It is safe to assume that the estimated DA size is always a uint64
 			daSize += bigs.Uint64Strict(tx.RollupCostData().EstimatedDASize())
 		}
 		b.estimatedDABytes = daSize
