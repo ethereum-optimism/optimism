@@ -51,6 +51,8 @@ type L2CLMatcher = Matcher[L2CLNodeID, L2CLNode]
 
 type SupervisorMatcher = Matcher[SupervisorID, Supervisor]
 
+type SupernodeMatcher = Matcher[SupernodeID, Supernode]
+
 type TestSequencerMatcher = Matcher[TestSequencerID, TestSequencer]
 
 type ConductorMatcher = Matcher[ConductorID, Conductor]
