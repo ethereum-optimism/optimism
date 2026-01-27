@@ -485,7 +485,7 @@ impl OpProofsStore for InMemoryProofsStorage {
     type StorageCursor<'tx> = InMemoryStorageCursor;
     type AccountHashedCursor<'tx> = InMemoryAccountCursor;
 
-    async fn store_account_branches(
+    fn store_account_branches(
         &self,
         updates: Vec<(Nibbles, Option<BranchNodeCompact>)>,
     ) -> OpProofsStorageResult<()> {
@@ -498,7 +498,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         Ok(())
     }
 
-    async fn store_storage_branches(
+    fn store_storage_branches(
         &self,
         hashed_address: B256,
         items: Vec<(Nibbles, Option<BranchNodeCompact>)>,
@@ -512,7 +512,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         Ok(())
     }
 
-    async fn store_hashed_accounts(
+    fn store_hashed_accounts(
         &self,
         accounts: Vec<(B256, Option<Account>)>,
     ) -> OpProofsStorageResult<()> {
@@ -525,7 +525,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         Ok(())
     }
 
-    async fn store_hashed_storages(
+    fn store_hashed_storages(
         &self,
         hashed_address: B256,
         storages: Vec<(B256, U256)>,
@@ -539,12 +539,12 @@ impl OpProofsStore for InMemoryProofsStorage {
         Ok(())
     }
 
-    async fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
+    fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
         let inner = self.inner.read();
         Ok(inner.earliest_block)
     }
 
-    async fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
+    fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
         let inner = self.inner.read();
         // Find the latest block number from trie_updates
         let latest_block = inner.trie_updates.keys().max().copied();
@@ -588,7 +588,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         Ok(InMemoryAccountCursor::new(&inner, max_block_number))
     }
 
-    async fn store_trie_updates(
+    fn store_trie_updates(
         &self,
         block_ref: BlockWithParent,
         block_state_diff: BlockStateDiff,
@@ -598,7 +598,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         Ok(inner.store_trie_updates(block_ref.block.number, block_state_diff))
     }
 
-    async fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
+    fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
         let inner = self.inner.read();
 
         let trie_updates = inner.trie_updates.get(&block_number).cloned().unwrap_or_default();
@@ -607,7 +607,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         Ok(BlockStateDiff { sorted_trie_updates: trie_updates, sorted_post_state: post_state })
     }
 
-    async fn prune_earliest_state(
+    fn prune_earliest_state(
         &self,
         new_earliest_block_ref: BlockWithParent,
     ) -> OpProofsStorageResult<WriteCounts> {
@@ -694,10 +694,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         Ok(write_counts)
     }
 
-    async fn unwind_history(
-        &self,
-        unwind_upto_block: BlockWithParent,
-    ) -> OpProofsStorageResult<()> {
+    fn unwind_history(&self, unwind_upto_block: BlockWithParent) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write();
         let unwind_upto_block_number = unwind_upto_block.block.number - 1;
 
@@ -712,7 +709,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         Ok(())
     }
 
-    async fn replace_updates(
+    fn replace_updates(
         &self,
         latest_common_block: BlockNumHash,
         blocks_to_add: Vec<(BlockWithParent, BlockStateDiff)>,
@@ -735,7 +732,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         Ok(())
     }
 
-    async fn set_earliest_block_number(
+    fn set_earliest_block_number(
         &self,
         block_number: u64,
         hash: B256,
@@ -754,21 +751,21 @@ mod tests {
     use alloy_primitives::U256;
     use reth_primitives_traits::Account;
 
-    #[tokio::test]
-    async fn test_in_memory_storage_basic_operations() -> Result<(), OpProofsStorageError> {
+    #[test]
+    fn test_in_memory_storage_basic_operations() -> Result<(), OpProofsStorageError> {
         let storage = InMemoryProofsStorage::new();
 
         // Test setting earliest block
         let block_hash = B256::random();
-        storage.set_earliest_block_number(1, block_hash).await?;
-        let earliest = storage.get_earliest_block_number().await?;
+        storage.set_earliest_block_number(1, block_hash)?;
+        let earliest = storage.get_earliest_block_number()?;
         assert_eq!(earliest, Some((1, block_hash)));
 
         // Test storing and retrieving accounts
         let account = Account { nonce: 1, balance: U256::from(100), bytecode_hash: None };
         let hashed_address = B256::random();
 
-        storage.store_hashed_accounts(vec![(hashed_address, Some(account))]).await?;
+        storage.store_hashed_accounts(vec![(hashed_address, Some(account))])?;
 
         let _cursor = storage.account_hashed_cursor(10)?;
         // Note: cursor testing would require more complex setup with proper seek/next operations
@@ -776,8 +773,8 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_trie_updates_storage() -> Result<(), OpProofsStorageError> {
+    #[test]
+    fn test_trie_updates_storage() -> Result<(), OpProofsStorageError> {
         let storage = InMemoryProofsStorage::new();
 
         let sorted_trie_updates = TrieUpdatesSorted::default();
@@ -789,9 +786,9 @@ mod tests {
 
         const BLOCK: BlockWithParent =
             BlockWithParent::new(B256::ZERO, NumHash::new(5, B256::ZERO));
-        storage.store_trie_updates(BLOCK, block_state_diff).await?;
+        storage.store_trie_updates(BLOCK, block_state_diff)?;
 
-        let retrieved_diff = storage.fetch_trie_updates(BLOCK.block.number).await?;
+        let retrieved_diff = storage.fetch_trie_updates(BLOCK.block.number)?;
         assert_eq!(retrieved_diff.sorted_trie_updates, sorted_trie_updates);
         assert_eq!(retrieved_diff.sorted_post_state, sorted_post_state);
 

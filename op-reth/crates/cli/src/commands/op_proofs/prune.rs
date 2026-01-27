@@ -62,8 +62,8 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> PruneCommand<C> {
         )
         .into();
 
-        let earliest_block = storage.get_earliest_block_number().await?;
-        let latest_block = storage.get_latest_block_number().await?;
+        let earliest_block = storage.get_earliest_block_number()?;
+        let latest_block = storage.get_latest_block_number()?;
         info!(
             target: "reth::cli",
             ?earliest_block,
@@ -77,7 +77,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> PruneCommand<C> {
             self.proofs_history_window,
             self.proofs_history_prune_batch_size,
         );
-        pruner.run().await;
+        pruner.run();
         Ok(())
     }
 }

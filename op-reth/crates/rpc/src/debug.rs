@@ -320,13 +320,11 @@ where
             .inner
             .storage
             .get_earliest_block_number()
-            .await
             .map_err(|err| internal_rpc_err(err.to_string()))?;
         let latest = self
             .inner
             .storage
             .get_latest_block_number()
-            .await
             .map_err(|err| internal_rpc_err(err.to_string()))?;
 
         Ok(ProofsSyncStatus {

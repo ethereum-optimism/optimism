@@ -51,14 +51,14 @@ where
     P: OpProofsStore,
     H: BlockHashReader,
 {
-    async fn run_inner(&self) -> OpProofStoragePrunerResult {
-        let latest_block_opt = self.provider.get_latest_block_number().await?;
+    fn run_inner(&self) -> OpProofStoragePrunerResult {
+        let latest_block_opt = self.provider.get_latest_block_number()?;
         if latest_block_opt.is_none() {
             trace!(target: "trie::pruner", "No latest blocks in the proof storage");
             return Ok(PrunerOutput::default())
         }
 
-        let earliest_block_opt = self.provider.get_earliest_block_number().await?;
+        let earliest_block_opt = self.provider.get_earliest_block_number()?;
         if earliest_block_opt.is_none() {
             trace!(target: "trie::pruner", "No earliest blocks in the proof storage");
             return Ok(PrunerOutput::default())
@@ -96,7 +96,7 @@ where
             let batch_end_block =
                 cmp::min(current_earliest_block + self.prune_batch_size, target_earliest_block);
 
-            let batch_output = self.prune_batch(current_earliest_block, batch_end_block).await?;
+            let batch_output = self.prune_batch(current_earliest_block, batch_end_block)?;
 
             prune_output.extend_ref(batch_output);
 
@@ -108,11 +108,7 @@ where
     }
 
     /// Prunes a single batch of blocks.
-    async fn prune_batch(
-        &self,
-        start_block: u64,
-        end_block: u64,
-    ) -> Result<PrunerOutput, PrunerError> {
+    fn prune_batch(&self, start_block: u64, end_block: u64) -> Result<PrunerOutput, PrunerError> {
         let batch_start_time = Instant::now();
 
         // Fetch block hashes for the new earliest block of this batch
@@ -151,7 +147,7 @@ where
         };
 
         // Commit this batch
-        let write_counts = self.provider.prune_earliest_state(block_with_parent).await?;
+        let write_counts = self.provider.prune_earliest_state(block_with_parent)?;
 
         let duration = batch_start_time.elapsed();
         let batch_output = PrunerOutput { duration, start_block, end_block, write_counts };
@@ -169,8 +165,8 @@ where
     }
 
     /// Run the pruner
-    pub async fn run(&self) {
-        let res = self.run_inner().await;
+    pub fn run(&self) {
+        let res = self.run_inner();
         if let Err(e) = res {
             error!(target: "trie::pruner", err=%e, "Pruner failed");
             return;
@@ -234,7 +230,7 @@ mod tests {
         let store: OpProofsStorage<Arc<MdbxProofsStorage>> =
             OpProofsStorage::from(Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")));
 
-        store.set_earliest_block_number(0, B256::ZERO).await.expect("set earliest");
+        store.set_earliest_block_number(0, B256::ZERO).expect("set earliest");
 
         // --- entities ---
         // accounts
@@ -289,7 +285,7 @@ mod tests {
             hs.storage.insert(s2, U256::from(200));
             d_post_state.storages.insert(stor_addr, hs);
 
-            d_trie_updates.account_nodes.insert(p1, node_p1.clone());
+            d_trie_updates.account_nodes.insert(p1, node_p1);
             let e = d_trie_updates.storage_tries.entry(stor_addr).or_default();
             e.storage_nodes.insert(st1, BranchNodeCompact::default());
 
@@ -297,7 +293,7 @@ mod tests {
                 sorted_post_state: d_post_state.into_sorted(),
                 sorted_trie_updates: d_trie_updates.into_sorted(),
             };
-            store.store_trie_updates(b1, d).await.expect("b1");
+            store.store_trie_updates(b1, d).expect("b1");
             parent = b256(1);
         }
 
@@ -330,7 +326,7 @@ mod tests {
                 sorted_post_state: d_post_state.into_sorted(),
                 sorted_trie_updates: d_trie_updates.into_sorted(),
             };
-            store.store_trie_updates(b2, d).await.expect("b2");
+            store.store_trie_updates(b2, d).expect("b2");
             parent = b256(2);
         }
 
@@ -356,7 +352,7 @@ mod tests {
                 sorted_post_state: d_post_state.into_sorted(),
                 sorted_trie_updates: d_trie_updates.into_sorted(),
             };
-            store.store_trie_updates(b3, d).await.expect("b3");
+            store.store_trie_updates(b3, d).expect("b3");
             parent = b256(3);
         }
 
@@ -383,7 +379,7 @@ mod tests {
                 sorted_post_state: d_post_state.into_sorted(),
                 sorted_trie_updates: d_trie_updates.into_sorted(),
             };
-            store.store_trie_updates(b4, d).await.expect("b4");
+            store.store_trie_updates(b4, d).expect("b4");
             parent = b256(4);
         }
 
@@ -406,13 +402,13 @@ mod tests {
                 sorted_post_state: d_post_state.into_sorted(),
                 sorted_trie_updates: TrieUpdatesSorted::default(),
             };
-            store.store_trie_updates(b5, d).await.expect("b5");
+            store.store_trie_updates(b5, d).expect("b5");
         }
 
         // sanity: earliest=0, latest=5
         {
-            let e = store.get_earliest_block_number().await.expect("earliest").expect("some");
-            let l = store.get_latest_block_number().await.expect("latest").expect("some");
+            let e = store.get_earliest_block_number().expect("earliest").expect("some");
+            let l = store.get_latest_block_number().expect("latest").expect("some");
             assert_eq!(e.0, 0);
             assert_eq!(l.0, 5);
         }
@@ -431,14 +427,14 @@ mod tests {
             .returning(move |_| Ok(Some(b256(3))));
 
         let pruner = OpProofStoragePruner::new(store.clone(), block_hash_reader, 1, 1000);
-        let out = pruner.run_inner().await.expect("pruner ok");
+        let out = pruner.run_inner().expect("pruner ok");
         assert_eq!(out.start_block, 0);
         assert_eq!(out.end_block, 4, "pruned up to 4 (inclusive); new earliest is 4");
 
         // proof window moved: earliest=4, latest=5
         {
-            let e = store.get_earliest_block_number().await.expect("earliest").expect("some");
-            let l = store.get_latest_block_number().await.expect("latest").expect("some");
+            let e = store.get_earliest_block_number().expect("earliest").expect("some");
+            let l = store.get_latest_block_number().expect("latest").expect("some");
             assert_eq!(e.0, 4);
             assert_eq!(e.1, b256(4));
             assert_eq!(l.0, 5);
@@ -483,12 +479,12 @@ mod tests {
             (s3, U256::from(300)), // block 2
         ];
         let updated_trie_accounts = vec![
-            (p2, node_p2.clone()), // block 2
-            (p3, node_p3.clone()), // block 4
+            (p2, node_p2), // block 2
+            (p3, node_p3), // block 4
         ];
         let updated_trie_storage = vec![
-            (st2, node_st2.clone()), // block 2
-            (st3, node_st3.clone()), // block 4
+            (st2, node_st2), // block 2
+            (st3, node_st3), // block 4
         ];
 
         for (key, val) in updated_hashed_accounts {
@@ -522,15 +518,15 @@ mod tests {
         let store: OpProofsStorage<Arc<MdbxProofsStorage>> =
             OpProofsStorage::from(Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")));
 
-        let earliest = store.get_earliest_block_number().await.unwrap();
-        let latest = store.get_latest_block_number().await.unwrap();
+        let earliest = store.get_earliest_block_number().unwrap();
+        let latest = store.get_latest_block_number().unwrap();
         println!("{:?} {:?}", earliest, latest);
         assert!(earliest.is_none());
         assert!(latest.is_none());
 
         let block_hash_reader = MockBlockHashReader::new();
         let pruner = OpProofStoragePruner::new(store, block_hash_reader, 10, 1000);
-        let out = pruner.run_inner().await.expect("ok");
+        let out = pruner.run_inner().expect("ok");
         assert_eq!(out, PrunerOutput::default(), "should early-return default output");
     }
 
@@ -546,17 +542,16 @@ mod tests {
         // Write a single block to set *latest* only.
         store
             .store_trie_updates(block(3, B256::ZERO), BlockStateDiff::default())
-            .await
             .expect("store b1");
 
-        let earliest = store.get_earliest_block_number().await.unwrap();
-        let latest = store.get_latest_block_number().await.unwrap();
+        let earliest = store.get_earliest_block_number().unwrap();
+        let latest = store.get_latest_block_number().unwrap();
         assert!(earliest.is_none(), "earliest must remain None");
         assert_eq!(latest.unwrap().0, 3);
 
         let block_hash_reader = MockBlockHashReader::new();
         let pruner = OpProofStoragePruner::new(store, block_hash_reader, 1, 1000);
-        let out = pruner.run_inner().await.expect("ok");
+        let out = pruner.run_inner().expect("ok");
         assert_eq!(out, PrunerOutput::default(), "should early-return default output");
     }
 
@@ -572,22 +567,22 @@ mod tests {
         // Set earliest=4 explicitly
         let earliest_num = 4u64;
         let h4 = b256(4);
-        store.set_earliest_block_number(earliest_num, h4).await.expect("set earliest");
+        store.set_earliest_block_number(earliest_num, h4).expect("set earliest");
 
         // Set latest=5 by storing block 5
         let b5 = block(5, h4);
-        store.store_trie_updates(b5, BlockStateDiff::default()).await.expect("store b5");
+        store.store_trie_updates(b5, BlockStateDiff::default()).expect("store b5");
 
         // Sanity: earliest=4, latest=5 => interval=1
-        let e = store.get_earliest_block_number().await.unwrap().unwrap();
-        let l = store.get_latest_block_number().await.unwrap().unwrap();
+        let e = store.get_earliest_block_number().unwrap().unwrap();
+        let l = store.get_latest_block_number().unwrap().unwrap();
         assert_eq!(e.0, 4);
         assert_eq!(l.0, 5);
 
         // Require min_block_interval=2 (or greater) so interval < min
         let block_hash_reader = MockBlockHashReader::new();
         let pruner = OpProofStoragePruner::new(store, block_hash_reader, 2, 1000);
-        let out = pruner.run_inner().await.expect("ok");
+        let out = pruner.run_inner().expect("ok");
         assert_eq!(out, PrunerOutput::default(), "no pruning should occur");
     }
 }

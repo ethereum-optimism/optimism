@@ -36,12 +36,12 @@ pub struct UnwindCommand<C: ChainSpecParser> {
 
 impl<C: ChainSpecParser> UnwindCommand<C> {
     /// Validates that the target block number is within a valid range for unwinding.
-    async fn validate_unwind_range<Store: OpProofsStore>(
+    fn validate_unwind_range<Store: OpProofsStore>(
         &self,
         storage: &OpProofsStorage<Store>,
     ) -> eyre::Result<bool> {
         let (Some((earliest, _)), Some((latest, _))) =
-            (storage.get_earliest_block_number().await?, storage.get_latest_block_number().await?)
+            (storage.get_earliest_block_number()?, storage.get_latest_block_number()?)
         else {
             warn!(target: "reth::cli", "No blocks found in proofs storage. Nothing to unwind.");
             return Ok(false);
@@ -80,7 +80,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> UnwindCommand<C> {
         .into();
 
         // Validate that the target block is within a valid range for unwinding
-        if !self.validate_unwind_range(&storage).await? {
+        if !self.validate_unwind_range(&storage)? {
             return Ok(());
         }
 
@@ -92,7 +92,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> UnwindCommand<C> {
             })?;
 
         info!(target: "reth::cli", block_number = block.number, block_hash = %block.hash(), "Unwinding to target block");
-        storage.unwind_history(block.block_with_parent()).await?;
+        storage.unwind_history(block.block_with_parent())?;
 
         Ok(())
     }

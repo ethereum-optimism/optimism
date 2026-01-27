@@ -157,7 +157,7 @@ where
 {
     /// Main execution loop for the ExEx
     pub async fn run(mut self) -> eyre::Result<()> {
-        self.ensure_initialized().await?;
+        self.ensure_initialized()?;
         let sync_target_tx = self.spawn_sync_task();
 
         let prune_task = OpProofStoragePrunerTask::new(
@@ -177,16 +177,16 @@ where
         );
 
         while let Some(notification) = self.ctx.notifications.try_next().await? {
-            self.handle_notification(notification, &collector, &sync_target_tx).await?;
+            self.handle_notification(notification, &collector, &sync_target_tx)?;
         }
 
         Ok(())
     }
 
     /// Ensure proofs storage is initialized
-    async fn ensure_initialized(&self) -> eyre::Result<()> {
+    fn ensure_initialized(&self) -> eyre::Result<()> {
         // Check if proofs storage is initialized
-        let earliest_block_number = match self.storage.get_earliest_block_number().await? {
+        let earliest_block_number = match self.storage.get_earliest_block_number()? {
             Some((n, _)) => n,
             None => {
                 return Err(eyre::eyre!(
@@ -195,7 +195,7 @@ where
             }
         };
 
-        let latest_block_number = match self.storage.get_latest_block_number().await? {
+        let latest_block_number = match self.storage.get_latest_block_number()? {
             Some((n, _)) => n,
             None => {
                 return Err(eyre::eyre!(
@@ -267,7 +267,7 @@ where
 
         loop {
             let target = *sync_target_rx.borrow_and_update();
-            let latest = match storage.get_latest_block_number().await {
+            let latest = match storage.get_latest_block_number() {
                 Ok(Some((n, _))) => n,
                 Ok(None) => {
                     error!(target: "optimism::exex", "No blocks stored in proofs storage during sync loop");
@@ -287,7 +287,6 @@ where
             // Process one batch
             if let Err(e) =
                 Self::process_batch(latest, target, &provider, collector, SYNC_BLOCKS_BATCH_SIZE)
-                    .await
             {
                 error!(target: "optimism::exex", error = ?e, "Batch processing failed");
             }
@@ -299,7 +298,7 @@ where
     }
 
     /// Process a batch of blocks from start to target (up to `batch_size`)
-    async fn process_batch(
+    fn process_batch(
         start: u64,
         target: u64,
         provider: &Node::Provider,
@@ -319,19 +318,19 @@ where
                 .recovered_block(block_num.into(), TransactionVariant::NoHash)?
                 .ok_or_else(|| eyre::eyre!("Missing block {}", block_num))?;
 
-            collector.execute_and_store_block_updates(&block).await?;
+            collector.execute_and_store_block_updates(&block)?;
         }
 
         Ok(())
     }
 
-    async fn handle_notification(
+    fn handle_notification(
         &self,
         notification: ExExNotification<Primitives>,
         collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
         sync_target_tx: &watch::Sender<u64>,
     ) -> eyre::Result<()> {
-        let latest_stored = match self.storage.get_latest_block_number().await? {
+        let latest_stored = match self.storage.get_latest_block_number()? {
             Some((n, _)) => n,
             None => {
                 return Err(eyre::eyre!("No blocks stored in proofs storage"));
@@ -340,15 +339,13 @@ where
 
         match &notification {
             ExExNotification::ChainCommitted { new } => {
-                self.handle_chain_committed(new.clone(), latest_stored, collector, sync_target_tx)
-                    .await?
+                self.handle_chain_committed(new.clone(), latest_stored, collector, sync_target_tx)?
             }
             ExExNotification::ChainReorged { old, new } => {
-                self.handle_chain_reorged(old.clone(), new.clone(), latest_stored, collector)
-                    .await?
+                self.handle_chain_reorged(old.clone(), new.clone(), latest_stored, collector)?
             }
             ExExNotification::ChainReverted { old } => {
-                self.handle_chain_reverted(old.clone(), latest_stored, collector).await?
+                self.handle_chain_reverted(old.clone(), latest_stored, collector)?
             }
         }
 
@@ -359,7 +356,7 @@ where
         Ok(())
     }
 
-    async fn handle_chain_committed(
+    fn handle_chain_committed(
         &self,
         new: Arc<Chain<Primitives>>,
         latest_stored: u64,
@@ -401,7 +398,7 @@ where
             // Process each block from latest_stored + 1 to tip
             let start = latest_stored.saturating_add(1);
             for block_number in start..=new.tip().number() {
-                self.process_block(block_number, &new, collector).await?;
+                self.process_block(block_number, &new, collector)?;
             }
         } else {
             debug!(
@@ -422,7 +419,7 @@ where
     }
 
     /// Process a single block - either from chain or provider
-    async fn process_block(
+    fn process_block(
         &self,
         block_number: u64,
         chain: &Chain<Primitives>,
@@ -449,13 +446,11 @@ where
                         "Using pre-computed state updates from notification"
                     );
 
-                    collector
-                        .store_block_updates(
-                            block.block_with_parent(),
-                            (**trie_updates).clone(),
-                            (**hashed_state).clone(),
-                        )
-                        .await?;
+                    collector.store_block_updates(
+                        block.block_with_parent(),
+                        (**trie_updates).clone(),
+                        (**hashed_state).clone(),
+                    )?;
 
                     return Ok(());
                 }
@@ -488,11 +483,11 @@ where
             .recovered_block(block_number.into(), TransactionVariant::NoHash)?
             .ok_or_else(|| eyre::eyre!("Missing block {} in provider", block_number))?;
 
-        collector.execute_and_store_block_updates(&block).await?;
+        collector.execute_and_store_block_updates(&block)?;
         Ok(())
     }
 
-    async fn handle_chain_reorged(
+    fn handle_chain_reorged(
         &self,
         old: Arc<Chain<Primitives>>,
         new: Arc<Chain<Primitives>>,
@@ -548,12 +543,12 @@ where
             ));
         }
 
-        collector.unwind_and_store_block_updates(block_updates).await?;
+        collector.unwind_and_store_block_updates(block_updates)?;
 
         Ok(())
     }
 
-    async fn handle_chain_reverted(
+    fn handle_chain_reverted(
         &self,
         old: Arc<Chain<Primitives>>,
         latest_stored: u64,
@@ -576,7 +571,7 @@ where
             return Ok(());
         }
 
-        collector.unwind_history(old.first().block_with_parent()).await?;
+        collector.unwind_history(old.first().block_with_parent())?;
         Ok(())
     }
 }
@@ -655,18 +650,16 @@ mod tests {
     }
 
     // Init_storage to the genesis block
-    async fn init_storage<S: OpProofsStore>(storage: OpProofsStorage<S>) {
+    fn init_storage<S: OpProofsStore>(storage: OpProofsStorage<S>) {
         let genesis_block = NumHash::new(0, b256(0x00));
         storage
             .set_earliest_block_number(genesis_block.number, genesis_block.hash)
-            .await
             .expect("set earliest");
         storage
             .store_trie_updates(
                 BlockWithParent::new(genesis_block.hash, genesis_block),
                 BlockStateDiff::default(),
             )
-            .await
             .expect("store trie update");
     }
 
@@ -689,7 +682,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone()).await;
+        init_storage(proofs.clone());
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -707,12 +700,9 @@ mod tests {
 
         let (sync_target_tx, _) = tokio::sync::watch::channel(0u64);
 
-        exex.handle_notification(notif, &collector, &sync_target_tx)
-            .await
-            .expect("handle chain commit");
+        exex.handle_notification(notif, &collector, &sync_target_tx).expect("handle chain commit");
 
-        let latest =
-            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
         assert_eq!(latest, 1);
     }
 
@@ -723,7 +713,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone()).await;
+        init_storage(proofs.clone());
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -742,21 +732,17 @@ mod tests {
             let new_chain = Arc::new(mk_chain_with_updates(i, i, None));
             let notif = ExExNotification::ChainCommitted { new: new_chain };
             exex.handle_notification(notif, &collector, &sync_target_tx)
-                .await
                 .expect("handle chain commit");
         }
 
-        let latest =
-            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
         assert_eq!(latest, 5);
 
         // Try to handle already processed notification
         let new_chain = Arc::new(mk_chain_with_updates(5, 5, Some(hash_for_num(10))));
         let notif = ExExNotification::ChainCommitted { new: new_chain };
-        exex.handle_notification(notif, &collector, &sync_target_tx)
-            .await
-            .expect("handle chain commit");
-        let latest = proofs.get_latest_block_number().await.expect("get latest block").expect("ok");
+        exex.handle_notification(notif, &collector, &sync_target_tx).expect("handle chain commit");
+        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok");
         assert_eq!(latest.0, 5);
         assert_eq!(latest.1, hash_for_num(5)); // block was not updated
     }
@@ -768,7 +754,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone()).await;
+        init_storage(proofs.clone());
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -787,12 +773,10 @@ mod tests {
             let new_chain = Arc::new(mk_chain_with_updates(i, i, None));
             let notif = ExExNotification::ChainCommitted { new: new_chain };
             exex.handle_notification(notif, &collector, &sync_target_tx)
-                .await
                 .expect("handle chain commit");
         }
 
-        let latest =
-            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
         assert_eq!(latest, 10);
 
         // Now the tip is 10, and we want to reorg from block 6..12
@@ -803,10 +787,8 @@ mod tests {
         let notif = ExExNotification::ChainReorged { new: new_chain, old: old_chain };
 
         exex.handle_notification(notif, &collector, &sync_target_tx)
-            .await
             .expect("handle chain re-orged");
-        let latest =
-            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
         assert_eq!(latest, 12);
     }
 
@@ -817,7 +799,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone()).await;
+        init_storage(proofs.clone());
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -837,12 +819,10 @@ mod tests {
             let notif = ExExNotification::ChainCommitted { new: new_chain };
 
             exex.handle_notification(notif, &collector, &sync_target_tx)
-                .await
                 .expect("handle chain commit");
         }
 
-        let latest =
-            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
         assert_eq!(latest, 10);
 
         // Now the tip is 10, and we want to reorg from block 12..15
@@ -853,10 +833,8 @@ mod tests {
         let notif = ExExNotification::ChainReorged { new: new_chain, old: old_chain };
 
         exex.handle_notification(notif, &collector, &sync_target_tx)
-            .await
             .expect("handle chain re-orged");
-        let latest =
-            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
         assert_eq!(latest, 10);
     }
 
@@ -867,7 +845,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone()).await;
+        init_storage(proofs.clone());
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -887,12 +865,10 @@ mod tests {
             let notif = ExExNotification::ChainCommitted { new: new_chain };
 
             exex.handle_notification(notif, &collector, &sync_target_tx)
-                .await
                 .expect("handle chain commit");
         }
 
-        let latest =
-            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
         assert_eq!(latest, 10);
 
         // Now the tip is 10, and we want to revert from block 9..10
@@ -902,10 +878,8 @@ mod tests {
         let notif = ExExNotification::ChainReverted { old: old_chain };
 
         exex.handle_notification(notif, &collector, &sync_target_tx)
-            .await
             .expect("handle chain reverted");
-        let latest =
-            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
         assert_eq!(latest, 8);
     }
 
@@ -916,7 +890,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone()).await;
+        init_storage(proofs.clone());
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -936,12 +910,10 @@ mod tests {
             let notif = ExExNotification::ChainCommitted { new: new_chain };
 
             exex.handle_notification(notif, &collector, &sync_target_tx)
-                .await
                 .expect("handle chain commit");
         }
 
-        let latest =
-            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
         assert_eq!(latest, 5);
 
         // Now the tip is 10, and we want to revert from block 9..10
@@ -951,10 +923,8 @@ mod tests {
         let notif = ExExNotification::ChainReverted { old: old_chain };
 
         exex.handle_notification(notif, &collector, &sync_target_tx)
-            .await
             .expect("handle chain reverted");
-        let latest =
-            proofs.get_latest_block_number().await.expect("get latest block").expect("ok").0;
+        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
         assert_eq!(latest, 5);
     }
 
@@ -969,7 +939,7 @@ mod tests {
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
 
         let exex = build_test_exex(ctx, proofs.clone());
-        let _ = exex.ensure_initialized().await.expect_err("should return error");
+        let _ = exex.ensure_initialized().expect_err("should return error");
     }
 
     #[tokio::test]
@@ -979,7 +949,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone()).await;
+        init_storage(proofs.clone());
 
         for i in 1..1100 {
             proofs
@@ -990,7 +960,6 @@ mod tests {
                     ),
                     BlockStateDiff::default(),
                 )
-                .await
                 .expect("store trie update");
         }
 
@@ -998,7 +967,7 @@ mod tests {
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
 
         let exex = build_test_exex(ctx, proofs.clone());
-        let _ = exex.ensure_initialized().await.expect_err("should return error");
+        let _ = exex.ensure_initialized().expect_err("should return error");
     }
 
     #[tokio::test]
@@ -1008,18 +977,18 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone()).await;
+        init_storage(proofs.clone());
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
 
         let exex = build_test_exex(ctx, proofs.clone());
-        exex.ensure_initialized().await.expect("should not return error");
+        exex.ensure_initialized().expect("should not return error");
     }
 
     #[tokio::test]
     async fn handle_notification_errors_on_empty_storage() {
-        // MDBX proofs storage - empty
+        // MDBX proofs storage
         let dir = tempdir_path();
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
@@ -1040,7 +1009,7 @@ mod tests {
         let notif = ExExNotification::ChainCommitted { new: new_chain };
 
         let (sync_target_tx, _) = tokio::sync::watch::channel(0u64);
-        let err = exex.handle_notification(notif, &collector, &sync_target_tx).await.unwrap_err();
+        let err = exex.handle_notification(notif, &collector, &sync_target_tx).unwrap_err();
         assert_eq!(err.to_string(), "No blocks stored in proofs storage");
     }
 
@@ -1051,7 +1020,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone()).await;
+        init_storage(proofs.clone());
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -1071,7 +1040,6 @@ mod tests {
 
         // Process notification
         exex.handle_notification(notif, &collector, &sync_target_tx)
-            .await
             .expect("handle chain commit should return ok immediately");
 
         // Verify async signal was sent
@@ -1086,7 +1054,7 @@ mod tests {
         // Because we didn't spawn the actual worker thread in this test, storage should still be at
         // 0. This proves the 'handle_notification' returned instantly without doing the
         // heavy lifting.
-        let latest = proofs.get_latest_block_number().await.expect("get").expect("ok").0;
+        let latest = proofs.get_latest_block_number().expect("get").expect("ok").0;
         assert_eq!(latest, 0, "Main thread should not have processed the blocks synchronously");
     }
 }

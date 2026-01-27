@@ -54,7 +54,7 @@ where
                     break;
                 }
                 _ = interval.tick() => {
-                    self.pruner.run().await
+                    self.pruner.run()
                 }
             }
         }

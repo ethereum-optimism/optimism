@@ -380,13 +380,13 @@ where
         Self: 'tx;
 
     #[inline]
-    async fn store_account_branches(
+    fn store_account_branches(
         &self,
         account_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
     ) -> OpProofsStorageResult<()> {
         let count = account_nodes.len();
         let start = Instant::now();
-        let result = self.storage.store_account_branches(account_nodes).await;
+        let result = self.storage.store_account_branches(account_nodes);
         let duration = start.elapsed();
 
         // Record per-item duration
@@ -402,14 +402,14 @@ where
     }
 
     #[inline]
-    async fn store_storage_branches(
+    fn store_storage_branches(
         &self,
         hashed_address: B256,
         storage_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
     ) -> OpProofsStorageResult<()> {
         let count = storage_nodes.len();
         let start = Instant::now();
-        let result = self.storage.store_storage_branches(hashed_address, storage_nodes).await;
+        let result = self.storage.store_storage_branches(hashed_address, storage_nodes);
         let duration = start.elapsed();
 
         // Record per-item duration
@@ -425,13 +425,13 @@ where
     }
 
     #[inline]
-    async fn store_hashed_accounts(
+    fn store_hashed_accounts(
         &self,
         accounts: Vec<(B256, Option<Account>)>,
     ) -> OpProofsStorageResult<()> {
         let count = accounts.len();
         let start = Instant::now();
-        let result = self.storage.store_hashed_accounts(accounts).await;
+        let result = self.storage.store_hashed_accounts(accounts);
         let duration = start.elapsed();
 
         // Record per-item duration
@@ -447,14 +447,14 @@ where
     }
 
     #[inline]
-    async fn store_hashed_storages(
+    fn store_hashed_storages(
         &self,
         hashed_address: B256,
         storages: Vec<(B256, U256)>,
     ) -> OpProofsStorageResult<()> {
         let count = storages.len();
         let start = Instant::now();
-        let result = self.storage.store_hashed_storages(hashed_address, storages).await;
+        let result = self.storage.store_hashed_storages(hashed_address, storages);
         let duration = start.elapsed();
 
         // Record per-item duration
@@ -470,13 +470,13 @@ where
     }
 
     #[inline]
-    async fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        self.storage.get_earliest_block_number().await
+    fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
+        self.storage.get_earliest_block_number()
     }
 
     #[inline]
-    async fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        self.storage.get_latest_block_number().await
+    fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
+        self.storage.get_latest_block_number()
     }
 
     #[inline]
@@ -519,52 +519,52 @@ where
 
     // metrics are handled by the live trie collector
     #[inline]
-    async fn store_trie_updates(
+    fn store_trie_updates(
         &self,
         block_ref: BlockWithParent,
         block_state_diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts> {
-        let result = self.storage.store_trie_updates(block_ref, block_state_diff).await?;
+        let result = self.storage.store_trie_updates(block_ref, block_state_diff)?;
         self.metrics.block_metrics.latest_number.set(block_ref.block.number as f64);
         Ok(result)
     }
 
     // no metrics for these
     #[inline]
-    async fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
-        self.storage.fetch_trie_updates(block_number).await
+    fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
+        self.storage.fetch_trie_updates(block_number)
     }
     #[inline]
-    async fn prune_earliest_state(
+    fn prune_earliest_state(
         &self,
         new_earliest_block_ref: BlockWithParent,
     ) -> OpProofsStorageResult<WriteCounts> {
         self.metrics.block_metrics.earliest_number.set(new_earliest_block_ref.block.number as f64);
-        self.storage.prune_earliest_state(new_earliest_block_ref).await
+        self.storage.prune_earliest_state(new_earliest_block_ref)
     }
 
     #[inline]
-    async fn unwind_history(&self, to: BlockWithParent) -> OpProofsStorageResult<()> {
-        self.storage.unwind_history(to).await
+    fn unwind_history(&self, to: BlockWithParent) -> OpProofsStorageResult<()> {
+        self.storage.unwind_history(to)
     }
 
     #[inline]
-    async fn replace_updates(
+    fn replace_updates(
         &self,
         latest_common_block: BlockNumHash,
         blocks_to_add: Vec<(BlockWithParent, BlockStateDiff)>,
     ) -> OpProofsStorageResult<()> {
-        self.storage.replace_updates(latest_common_block, blocks_to_add).await
+        self.storage.replace_updates(latest_common_block, blocks_to_add)
     }
 
     #[inline]
-    async fn set_earliest_block_number(
+    fn set_earliest_block_number(
         &self,
         block_number: u64,
         hash: B256,
     ) -> OpProofsStorageResult<()> {
         self.metrics.block_metrics.earliest_number.set(block_number as f64);
-        self.storage.set_earliest_block_number(block_number, hash).await
+        self.storage.set_earliest_block_number(block_number, hash)
     }
 }
 
@@ -573,18 +573,18 @@ where
     S: OpProofsInitialStateStore,
 {
     #[inline]
-    async fn initial_state_anchor(&self) -> OpProofsStorageResult<InitialStateAnchor> {
-        self.storage.initial_state_anchor().await
+    fn initial_state_anchor(&self) -> OpProofsStorageResult<InitialStateAnchor> {
+        self.storage.initial_state_anchor()
     }
 
     #[inline]
-    async fn set_initial_state_anchor(&self, anchor: BlockNumHash) -> OpProofsStorageResult<()> {
-        self.storage.set_initial_state_anchor(anchor).await
+    fn set_initial_state_anchor(&self, anchor: BlockNumHash) -> OpProofsStorageResult<()> {
+        self.storage.set_initial_state_anchor(anchor)
     }
 
     #[inline]
-    async fn commit_initial_state(&self) -> OpProofsStorageResult<BlockNumHash> {
-        let block = self.storage.commit_initial_state().await?;
+    fn commit_initial_state(&self) -> OpProofsStorageResult<BlockNumHash> {
+        let block = self.storage.commit_initial_state()?;
         self.metrics.block_metrics.earliest_number.set(block.number as f64);
         Ok(block)
     }

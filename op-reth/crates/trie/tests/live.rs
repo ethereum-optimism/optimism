@@ -202,7 +202,7 @@ where
 }
 
 /// Runs a test scenario with the given configuration
-async fn run_test_scenario<N>(
+fn run_test_scenario<N>(
     scenario: TestScenario,
     provider_factory: ProviderFactory<N>,
     chain_spec: Arc<ChainSpec>,
@@ -242,7 +242,7 @@ where
         let provider = provider_factory.db_ref();
         let tx = provider.tx()?;
         let initialization_job = InitializationJob::new(storage.clone(), tx);
-        initialization_job.run(last_block_number, last_block_hash).await?;
+        initialization_job.run(last_block_number, last_block_hash)?;
     }
 
     // Execute blocks after initialization using live collector
@@ -268,7 +268,7 @@ where
             LiveTrieCollector::new(evm_config.clone(), blockchain_db, &storage);
 
         // Use the live collector to execute and store trie updates
-        live_trie_collector.execute_and_store_block_updates(&block).await?;
+        live_trie_collector.execute_and_store_block_updates(&block)?;
 
         // Commit the block to the database so subsequent blocks can build on it
         commit_block_to_database(&block, &execution_output, &provider_factory)?;
@@ -283,8 +283,8 @@ where
 /// (1) Creates a chain with some state
 /// (2) Stores the genesis state into storage via initialization
 /// (3) Executes a block and calculates the state root using the stored state
-#[tokio::test]
-async fn test_execute_and_store_block_updates() {
+#[test]
+fn test_execute_and_store_block_updates() {
     let dir = TempDir::new().unwrap();
     let storage = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")).into();
 
@@ -312,11 +312,11 @@ async fn test_execute_and_store_block_updates() {
         vec![BlockSpec::new(vec![TxSpec::transfer(recipient, U256::from(1))])],
     );
 
-    run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage).await.unwrap();
+    run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage).unwrap();
 }
 
-#[tokio::test]
-async fn test_execute_and_store_block_updates_missing_parent_block() {
+#[test]
+fn test_execute_and_store_block_updates_missing_parent_block() {
     let dir = TempDir::new().unwrap();
     let storage: OpProofsStorage<Arc<MdbxProofsStorage>> =
         Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")).into();
@@ -340,7 +340,6 @@ async fn test_execute_and_store_block_updates_missing_parent_block() {
         key_pair,
         storage.clone(),
     )
-    .await
     .unwrap();
 
     // Create a block whose parent block number is missing.
@@ -357,18 +356,18 @@ async fn test_execute_and_store_block_updates_missing_parent_block() {
         &mut nonce_counter,
     );
 
-    let blockchain_db = BlockchainProvider::new(provider_factory.clone()).unwrap();
+    let blockchain_db = BlockchainProvider::new(provider_factory).unwrap();
     let collector =
         LiveTrieCollector::new(EthEvmConfig::ethereum(chain_spec.clone()), blockchain_db, &storage);
 
     // EXPECT: MissingParentBlock
-    let err = collector.execute_and_store_block_updates(&incorrect_block).await.unwrap_err();
+    let err = collector.execute_and_store_block_updates(&incorrect_block).unwrap_err();
 
     assert!(matches!(err, OpProofsStorageError::MissingParentBlock { .. }));
 }
 
-#[tokio::test]
-async fn test_execute_and_store_block_updates_state_root_mismatch() {
+#[test]
+fn test_execute_and_store_block_updates_state_root_mismatch() {
     let dir = TempDir::new().unwrap();
     let storage: OpProofsStorage<Arc<MdbxProofsStorage>> =
         Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")).into();
@@ -395,7 +394,6 @@ async fn test_execute_and_store_block_updates_state_root_mismatch() {
         key_pair,
         storage.clone(),
     )
-    .await
     .unwrap();
 
     // Generate a second block normally
@@ -424,14 +422,14 @@ async fn test_execute_and_store_block_updates_state_root_mismatch() {
     block.header_mut().state_root = B256::repeat_byte(0xAA);
 
     // EXPECT: StateRootMismatch
-    let err = collector.execute_and_store_block_updates(&block).await.unwrap_err();
+    let err = collector.execute_and_store_block_updates(&block).unwrap_err();
 
     assert!(matches!(err, OpProofsStorageError::StateRootMismatch { .. }));
 }
 
 /// Test with multiple blocks before and after initialization
-#[tokio::test]
-async fn test_multiple_blocks_before_and_after_initialization() {
+#[test]
+fn test_multiple_blocks_before_and_after_initialization() {
     let dir = TempDir::new().unwrap();
     let storage = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")).into();
 
@@ -463,12 +461,12 @@ async fn test_multiple_blocks_before_and_after_initialization() {
         ],
     );
 
-    run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage).await.unwrap();
+    run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage).unwrap();
 }
 
 /// Test with blocks containing multiple transactions
-#[tokio::test]
-async fn test_blocks_with_multiple_transactions() {
+#[test]
+fn test_blocks_with_multiple_transactions() {
     let dir = TempDir::new().unwrap();
     let storage = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")).into();
 
@@ -494,5 +492,5 @@ async fn test_blocks_with_multiple_transactions() {
         ])],
     );
 
-    run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage).await.unwrap();
+    run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage).unwrap();
 }

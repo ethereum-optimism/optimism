@@ -36,7 +36,7 @@ where
     Store: 'tx + OpProofsStore + Clone + 'static,
 {
     /// Execute a block and store the updates in the storage.
-    pub async fn execute_and_store_block_updates(
+    pub fn execute_and_store_block_updates(
         &self,
         block: &RecoveredBlock<BlockTy<Evm::Primitives>>,
     ) -> Result<(), OpProofsStorageError> {
@@ -44,10 +44,9 @@ where
 
         let start = Instant::now();
         // ensure that we have the state of the parent block
-        let (Some((earliest, _)), Some((latest, _))) = (
-            self.storage.get_earliest_block_number().await?,
-            self.storage.get_latest_block_number().await?,
-        ) else {
+        let (Some((earliest, _)), Some((latest, _))) =
+            (self.storage.get_earliest_block_number()?, self.storage.get_latest_block_number()?)
+        else {
             return Err(OpProofsStorageError::NoBlocksFound);
         };
 
@@ -97,16 +96,13 @@ where
             });
         }
 
-        let update_result = self
-            .storage
-            .store_trie_updates(
-                block_ref,
-                BlockStateDiff {
-                    sorted_trie_updates: trie_updates.into_sorted(),
-                    sorted_post_state: hashed_state.into_sorted(),
-                },
-            )
-            .await?;
+        let update_result = self.storage.store_trie_updates(
+            block_ref,
+            BlockStateDiff {
+                sorted_trie_updates: trie_updates.into_sorted(),
+                sorted_post_state: hashed_state.into_sorted(),
+            },
+        )?;
 
         operation_durations.total_duration_seconds = start.elapsed();
         operation_durations.write_duration_seconds = operation_durations.total_duration_seconds -
@@ -131,7 +127,7 @@ where
     }
 
     /// Store trie updates for a given block.
-    pub async fn store_block_updates(
+    pub fn store_block_updates(
         &self,
         block: BlockWithParent,
         sorted_trie_updates: TrieUpdatesSorted,
@@ -142,8 +138,7 @@ where
 
         let storage_result = self
             .storage
-            .store_trie_updates(block, BlockStateDiff { sorted_trie_updates, sorted_post_state })
-            .await?;
+            .store_trie_updates(block, BlockStateDiff { sorted_trie_updates, sorted_post_state })?;
 
         let write_duration = start.elapsed();
         operation_durations.total_duration_seconds = write_duration;
@@ -176,7 +171,7 @@ where
     ///
     /// * `new_blocks` - A vector of references to `RecoveredBlock` instances representing the new
     ///   blocks to be added to the trie storage.
-    pub async fn unwind_and_store_block_updates(
+    pub fn unwind_and_store_block_updates(
         &self,
         block_updates: Vec<(BlockWithParent, Arc<TrieUpdatesSorted>, Arc<HashedPostStateSorted>)>,
     ) -> Result<(), OpProofsStorageError> {
@@ -202,7 +197,7 @@ where
             ));
         }
 
-        self.storage.replace_updates(latest_common_block, block_trie_updates).await?;
+        self.storage.replace_updates(latest_common_block, block_trie_updates)?;
         let write_duration = start.elapsed();
         operation_durations.total_duration_seconds = write_duration;
         operation_durations.write_duration_seconds = write_duration;
@@ -224,7 +219,7 @@ where
 
     /// Remove account, storage and trie updates from historical storage for all blocks from
     /// the specified block (inclusive).
-    pub async fn unwind_history(&self, to: BlockWithParent) -> Result<(), OpProofsStorageError> {
-        self.storage.unwind_history(to).await
+    pub fn unwind_history(&self, to: BlockWithParent) -> Result<(), OpProofsStorageError> {
+        self.storage.unwind_history(to)
     }
 }

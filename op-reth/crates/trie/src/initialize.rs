@@ -220,8 +220,7 @@ impl<'a, Tx: DbTx + Sync, S: OpProofsStore + OpProofsInitialStateStore + Send>
         self.storage
             .store_hashed_accounts(
                 entries.into_iter().map(|(address, account)| (address, Some(account))).collect(),
-            )
-            .await?;
+            )?;
 
         Ok(())
     }
@@ -234,8 +233,7 @@ impl<'a, Tx: DbTx + Sync, S: OpProofsStore + OpProofsInitialStateStore + Send>
         self.storage
             .store_account_branches(
                 entries.into_iter().map(|(path, branch)| (path.0, Some(branch))).collect(),
-            )
-            .await?;
+            )?;
 
         Ok(())
     }
@@ -253,7 +251,7 @@ impl<'a, Tx: DbTx + Sync, S: OpProofsStore + OpProofsInitialStateStore + Send>
 
         // Store each address's storage entries
         for (address, storages) in by_address {
-            self.storage.store_hashed_storages(address, storages).await?;
+            self.storage.store_hashed_storages(address, storages)?;
         }
 
         Ok(())
@@ -276,7 +274,7 @@ impl<'a, Tx: DbTx + Sync, S: OpProofsStore + OpProofsInitialStateStore + Send>
 
         // Store each address's storage trie branches
         for (address, branches) in by_address {
-            self.storage.store_storage_branches(address, branches).await?;
+            self.storage.store_storage_branches(address, branches)?;
         }
 
         Ok(())
@@ -422,14 +420,13 @@ impl<'a, Tx: DbTx + Sync, S: OpProofsStore + OpProofsInitialStateStore + Send>
 
     /// Run the initialization job.
     pub async fn run(&self, best_number: u64, best_hash: B256) -> Result<(), OpProofsStorageError> {
-        let anchor = self.storage.initial_state_anchor().await?;
+        let anchor = self.storage.initial_state_anchor()?;
 
         match anchor.status {
             InitialStateStatus::Completed => return Ok(()),
             InitialStateStatus::NotStarted => {
                 self.storage
-                    .set_initial_state_anchor(BlockNumHash::new(best_number, best_hash))
-                    .await?;
+                    .set_initial_state_anchor(BlockNumHash::new(best_number, best_hash))?;
             }
             InitialStateStatus::InProgress => {
                 self.validate_anchor_block(&anchor, best_number, best_hash)?;
@@ -437,7 +434,7 @@ impl<'a, Tx: DbTx + Sync, S: OpProofsStore + OpProofsInitialStateStore + Send>
         }
 
         self.initialize_trie(anchor).await?;
-        self.storage.commit_initial_state().await?;
+        self.storage.commit_initial_state()?;
 
         Ok(())
     }

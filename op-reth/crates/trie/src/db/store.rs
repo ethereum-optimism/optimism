@@ -112,7 +112,7 @@ impl MdbxProofsStorage {
         Ok(Some(ProofWindowValue { earliest, latest }))
     }
 
-    async fn set_earliest_block_number_hash(
+    fn set_earliest_block_number_hash(
         &self,
         block_number: u64,
         hash: B256,
@@ -636,7 +636,7 @@ impl OpProofsStore for MdbxProofsStorage {
     where
         Self: 'tx;
 
-    async fn store_account_branches(
+    fn store_account_branches(
         &self,
         account_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
     ) -> OpProofsStorageResult<()> {
@@ -653,7 +653,7 @@ impl OpProofsStore for MdbxProofsStorage {
         })?
     }
 
-    async fn store_storage_branches(
+    fn store_storage_branches(
         &self,
         hashed_address: B256,
         storage_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
@@ -676,7 +676,7 @@ impl OpProofsStore for MdbxProofsStorage {
         })?
     }
 
-    async fn store_hashed_accounts(
+    fn store_hashed_accounts(
         &self,
         accounts: Vec<(B256, Option<Account>)>,
     ) -> OpProofsStorageResult<()> {
@@ -694,7 +694,7 @@ impl OpProofsStore for MdbxProofsStorage {
         })?
     }
 
-    async fn store_hashed_storages(
+    fn store_hashed_storages(
         &self,
         hashed_address: B256,
         storages: Vec<(B256, U256)>,
@@ -720,11 +720,11 @@ impl OpProofsStore for MdbxProofsStorage {
         })?
     }
 
-    async fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
+    fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
         self.env.view(|tx| self.inner_get_block_number_hash(tx, ProofWindowKey::EarliestBlock))?
     }
 
-    async fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
+    fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
         self.env.view(|tx| self.inner_get_latest_block_number_hash(tx))?
     }
 
@@ -770,7 +770,7 @@ impl OpProofsStore for MdbxProofsStorage {
         Ok(MdbxAccountCursor::new(cursor, max_block_number))
     }
 
-    async fn store_trie_updates(
+    fn store_trie_updates(
         &self,
         block_ref: BlockWithParent,
         block_state_diff: BlockStateDiff,
@@ -779,7 +779,7 @@ impl OpProofsStore for MdbxProofsStorage {
             .update(|tx| self.store_trie_updates_append_only(tx, block_ref, block_state_diff))?
     }
 
-    async fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
+    fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
         self.env.view(|tx| {
             let mut change_set_cursor = tx.cursor_read::<BlockChangeSet>()?;
             let (_, change_set) = change_set_cursor
@@ -893,7 +893,7 @@ impl OpProofsStore for MdbxProofsStorage {
     /// - `new_earliest_block_ref`: The new earliest block reference (with parent hash).
     /// - `diff`: The state diff to apply to the initial state (block 0). This diff represents all
     ///   the changes from the old earliest block to the new earliest block (inclusive).
-    async fn prune_earliest_state(
+    fn prune_earliest_state(
         &self,
         new_earliest_block_ref: BlockWithParent,
     ) -> OpProofsStorageResult<WriteCounts> {
@@ -953,7 +953,7 @@ impl OpProofsStore for MdbxProofsStorage {
     /// Unwind the historical state to `unwind_upto_block` (inclusive), deleting all history
     /// starting from provided block. Also updates the `ProofWindow::LatestBlock` to parent of
     /// `unwind_upto_block`.
-    async fn unwind_history(&self, to: BlockWithParent) -> OpProofsStorageResult<()> {
+    fn unwind_history(&self, to: BlockWithParent) -> OpProofsStorageResult<()> {
         let history_to_delete =
             self.env.view(|tx| self.collect_history_ranged(tx, to.block.number..))??;
 
@@ -990,7 +990,7 @@ impl OpProofsStore for MdbxProofsStorage {
         })?
     }
 
-    async fn replace_updates(
+    fn replace_updates(
         &self,
         latest_common_block: BlockNumHash,
         mut blocks_to_add: Vec<(BlockWithParent, BlockStateDiff)>,
@@ -1022,24 +1022,24 @@ impl OpProofsStore for MdbxProofsStorage {
         })?
     }
 
-    async fn set_earliest_block_number(
+    fn set_earliest_block_number(
         &self,
         block_number: u64,
         hash: B256,
     ) -> OpProofsStorageResult<()> {
-        self.set_earliest_block_number_hash(block_number, hash).await
+        self.set_earliest_block_number_hash(block_number, hash)
     }
 }
 
 impl OpProofsInitialStateStore for MdbxProofsStorage {
-    async fn initial_state_anchor(&self) -> OpProofsStorageResult<InitialStateAnchor> {
+    fn initial_state_anchor(&self) -> OpProofsStorageResult<InitialStateAnchor> {
         // 1) NotStarted: no anchor row
         let Some(block) = self.get_initial_state_anchor()? else {
             return Ok(InitialStateAnchor::default());
         };
 
         // 2) Completed: anchor exists + earliest is set
-        let completed = self.get_earliest_block_number().await?.is_some();
+        let completed = self.get_earliest_block_number()?.is_some();
 
         // 3) InProgress / Completed: populate details
         Ok(InitialStateAnchor {
@@ -1056,7 +1056,7 @@ impl OpProofsInitialStateStore for MdbxProofsStorage {
         })
     }
 
-    async fn set_initial_state_anchor(&self, anchor: BlockNumHash) -> OpProofsStorageResult<()> {
+    fn set_initial_state_anchor(&self, anchor: BlockNumHash) -> OpProofsStorageResult<()> {
         self.env.update(|tx| {
             let mut cur = tx.cursor_write::<ProofWindow>()?;
             cur.insert(ProofWindowKey::InitialStateAnchor, &anchor.into())?;
@@ -1064,9 +1064,9 @@ impl OpProofsInitialStateStore for MdbxProofsStorage {
         })?
     }
 
-    async fn commit_initial_state(&self) -> OpProofsStorageResult<BlockNumHash> {
+    fn commit_initial_state(&self) -> OpProofsStorageResult<BlockNumHash> {
         let anchor = self.get_initial_state_anchor()?.ok_or(NoBlocksFound)?;
-        self.set_earliest_block_number(anchor.number, anchor.hash).await?;
+        self.set_earliest_block_number(anchor.number, anchor.hash)?;
         Ok(anchor)
     }
 }
@@ -1181,14 +1181,14 @@ mod tests {
 
     const B0: u64 = 0;
 
-    #[tokio::test]
-    async fn store_hashed_accounts_writes_versioned_values() {
+    #[test]
+    fn store_hashed_accounts_writes_versioned_values() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
         let addr = B256::from([0xAA; 32]);
         let account = Account::default();
-        store.store_hashed_accounts(vec![(addr, Some(account))]).await.expect("write accounts");
+        store.store_hashed_accounts(vec![(addr, Some(account))]).expect("write accounts");
 
         let tx = store.env.tx().expect("ro tx");
         let mut cur = tx.new_cursor::<HashedAccountHistory>().expect("cursor");
@@ -1199,8 +1199,8 @@ mod tests {
         assert_eq!(vv.value.0, Some(account));
     }
 
-    #[tokio::test]
-    async fn store_hashed_accounts_multiple_items_unsorted() {
+    #[test]
+    fn store_hashed_accounts_multiple_items_unsorted() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1213,7 +1213,6 @@ mod tests {
 
         store
             .store_hashed_accounts(vec![(a2, None), (a1, Some(acc1)), (a3, Some(acc3))])
-            .await
             .expect("write");
 
         let tx = store.env.tx().expect("ro tx");
@@ -1232,8 +1231,8 @@ mod tests {
         assert_eq!(v3.value.0, Some(acc3));
     }
 
-    #[tokio::test]
-    async fn store_hashed_accounts_multiple_calls() {
+    #[test]
+    fn store_hashed_accounts_multiple_calls() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1251,7 +1250,6 @@ mod tests {
         {
             store
                 .store_hashed_accounts(vec![(a2, None), (a1, Some(acc1)), (a4, Some(acc4))])
-                .await
                 .expect("write");
 
             let tx = store.env.tx().expect("ro tx");
@@ -1272,10 +1270,7 @@ mod tests {
 
         {
             // Second call
-            store
-                .store_hashed_accounts(vec![(a5, Some(acc5)), (a3, Some(acc3))])
-                .await
-                .expect("write");
+            store.store_hashed_accounts(vec![(a5, Some(acc5)), (a3, Some(acc3))]).expect("write");
 
             let tx = store.env.tx().expect("ro tx");
             let mut cur = tx.new_cursor::<HashedAccountHistory>().expect("cursor");
@@ -1290,8 +1285,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn store_hashed_storages_writes_versioned_values() {
+    #[test]
+    fn store_hashed_storages_writes_versioned_values() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1299,7 +1294,7 @@ mod tests {
         let slot = B256::from([0x22; 32]);
         let val = U256::from(0x1234u64);
 
-        store.store_hashed_storages(addr, vec![(slot, val)]).await.expect("write storage");
+        store.store_hashed_storages(addr, vec![(slot, val)]).expect("write storage");
 
         let tx = store.env.tx().expect("ro tx");
         let mut cur = tx.new_cursor::<HashedStorageHistory>().expect("cursor");
@@ -1312,8 +1307,8 @@ mod tests {
         assert_eq!(inner.0, val);
     }
 
-    #[tokio::test]
-    async fn store_hashed_storages_multiple_slots_unsorted() {
+    #[test]
+    fn store_hashed_storages_multiple_slots_unsorted() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1325,7 +1320,7 @@ mod tests {
         let s3 = B256::from([0x03; 32]);
         let v3 = U256::from(3u64);
 
-        store.store_hashed_storages(addr, vec![(s2, v2), (s1, v1), (s3, v3)]).await.expect("write");
+        store.store_hashed_storages(addr, vec![(s2, v2), (s1, v1), (s3, v3)]).expect("write");
 
         let tx = store.env.tx().expect("ro tx");
         let mut cur = tx.new_cursor::<HashedStorageHistory>().expect("cursor");
@@ -1339,8 +1334,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn store_hashed_storages_multiple_calls() {
+    #[test]
+    fn store_hashed_storages_multiple_calls() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1357,10 +1352,7 @@ mod tests {
         let v5 = U256::from(5u64);
 
         {
-            store
-                .store_hashed_storages(addr, vec![(s2, v2), (s1, v1), (s5, v5)])
-                .await
-                .expect("write");
+            store.store_hashed_storages(addr, vec![(s2, v2), (s1, v1), (s5, v5)]).expect("write");
 
             let tx = store.env.tx().expect("ro tx");
             let mut cur = tx.new_cursor::<HashedStorageHistory>().expect("cursor");
@@ -1376,7 +1368,7 @@ mod tests {
 
         {
             // Second call
-            store.store_hashed_storages(addr, vec![(s4, v4), (s3, v3)]).await.expect("write");
+            store.store_hashed_storages(addr, vec![(s4, v4), (s3, v3)]).expect("write");
 
             let tx = store.env.tx().expect("ro tx");
             let mut cur = tx.new_cursor::<HashedStorageHistory>().expect("cursor");
@@ -1391,8 +1383,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_store_account_branches_writes_versioned_values() {
+    #[test]
+    fn test_store_account_branches_writes_versioned_values() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1400,7 +1392,7 @@ mod tests {
         let branch_node = BranchNodeCompact::new(0b1, 0, 0, vec![], Some(B256::random()));
         let updates = vec![(nibble, Some(branch_node.clone()))];
 
-        store.store_account_branches(updates).await.expect("write");
+        store.store_account_branches(updates).expect("write");
 
         let tx = store.env.tx().expect("ro tx");
         let mut cur = tx.cursor_dup_read::<AccountTrieHistory>().expect("cursor");
@@ -1414,8 +1406,8 @@ mod tests {
         assert_eq!(vv.value.0, Some(branch_node));
     }
 
-    #[tokio::test]
-    async fn test_store_account_branches_multiple_items_unsorted() {
+    #[test]
+    fn test_store_account_branches_multiple_items_unsorted() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1425,8 +1417,8 @@ mod tests {
         let n3 = Nibbles::from_nibbles_unchecked([0x03]);
         let b3 = BranchNodeCompact::new(0b1, 0, 0, vec![], Some(B256::random()));
 
-        let updates = vec![(n2, None), (n1, Some(b1.clone())), (n3, Some(b3.clone()))];
-        store.store_account_branches(updates.clone()).await.expect("write");
+        let updates = vec![(n2, None), (n1, Some(b1)), (n3, Some(b3))];
+        store.store_account_branches(updates.clone()).expect("write");
 
         let tx = store.env.tx().expect("ro tx");
         let mut cur = tx.cursor_dup_read::<AccountTrieHistory>().expect("cursor");
@@ -1441,8 +1433,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn store_account_branches_multiple_calls() {
+    #[test]
+    fn store_account_branches_multiple_calls() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1457,8 +1449,8 @@ mod tests {
         let b5 = BranchNodeCompact::new(0b1, 0, 0, vec![], Some(B256::random()));
 
         {
-            let updates1 = vec![(n2, None), (n1, Some(b1.clone())), (n4, Some(b4.clone()))];
-            store.store_account_branches(updates1.clone()).await.expect("write");
+            let updates1 = vec![(n2, None), (n1, Some(b1)), (n4, Some(b4))];
+            store.store_account_branches(updates1.clone()).expect("write");
 
             let tx = store.env.tx().expect("ro tx");
             let mut cur = tx.cursor_dup_read::<AccountTrieHistory>().expect("cursor");
@@ -1475,8 +1467,8 @@ mod tests {
 
         {
             // Second call
-            let updates2 = vec![(n5, Some(b5.clone())), (n3, Some(b3.clone()))];
-            store.store_account_branches(updates2.clone()).await.expect("write");
+            let updates2 = vec![(n5, Some(b5)), (n3, Some(b3))];
+            store.store_account_branches(updates2.clone()).expect("write");
 
             let tx = store.env.tx().expect("ro tx");
             let mut cur = tx.cursor_dup_read::<AccountTrieHistory>().expect("cursor");
@@ -1492,8 +1484,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_store_storage_branches_writes_versioned_values() {
+    #[test]
+    fn test_store_storage_branches_writes_versioned_values() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1502,7 +1494,7 @@ mod tests {
         let branch_node = BranchNodeCompact::new(0b1, 0, 0, vec![], Some(B256::random()));
         let items = vec![(nibble, Some(branch_node.clone()))];
 
-        store.store_storage_branches(hashed_address, items).await.expect("write");
+        store.store_storage_branches(hashed_address, items).expect("write");
 
         let tx = store.env.tx().expect("ro tx");
         let mut cur = tx.cursor_dup_read::<StorageTrieHistory>().expect("cursor");
@@ -1514,8 +1506,8 @@ mod tests {
         assert_eq!(vv.value.0, Some(branch_node));
     }
 
-    #[tokio::test]
-    async fn store_storage_branches_multiple_items_unsorted() {
+    #[test]
+    fn store_storage_branches_multiple_items_unsorted() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1526,8 +1518,8 @@ mod tests {
         let n3 = Nibbles::from_nibbles_unchecked([0x03]);
         let b3 = BranchNodeCompact::new(0b1, 0, 0, vec![], Some(B256::random()));
 
-        let items = vec![(n2, None), (n1, Some(b1.clone())), (n3, Some(b3.clone()))];
-        store.store_storage_branches(hashed_address, items.clone()).await.expect("write");
+        let items = vec![(n2, None), (n1, Some(b1)), (n3, Some(b3))];
+        store.store_storage_branches(hashed_address, items.clone()).expect("write");
 
         let tx = store.env.tx().expect("ro tx");
         let mut cur = tx.cursor_dup_read::<StorageTrieHistory>().expect("cursor");
@@ -1540,8 +1532,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn store_storage_branches_multiple_calls() {
+    #[test]
+    fn store_storage_branches_multiple_calls() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1557,8 +1549,8 @@ mod tests {
         let b5 = BranchNodeCompact::new(0b1, 0, 0, vec![], Some(B256::random()));
 
         {
-            let items1 = vec![(n2, None), (n1, Some(b1.clone())), (n5, Some(b5.clone()))];
-            store.store_storage_branches(hashed_address, items1.clone()).await.expect("write");
+            let items1 = vec![(n2, None), (n1, Some(b1)), (n5, Some(b5))];
+            store.store_storage_branches(hashed_address, items1.clone()).expect("write");
 
             let tx = store.env.tx().expect("ro tx");
             let mut cur = tx.cursor_dup_read::<StorageTrieHistory>().expect("cursor");
@@ -1573,8 +1565,8 @@ mod tests {
 
         {
             // Second call
-            let items2 = vec![(n4, Some(b4.clone())), (n3, Some(b3.clone()))];
-            store.store_storage_branches(hashed_address, items2.clone()).await.expect("write");
+            let items2 = vec![(n4, Some(b4)), (n3, Some(b3))];
+            store.store_storage_branches(hashed_address, items2.clone()).expect("write");
 
             let tx = store.env.tx().expect("ro tx");
             let mut cur = tx.cursor_dup_read::<StorageTrieHistory>().expect("cursor");
@@ -1588,8 +1580,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_store_trie_updates_comprehensive() {
+    #[test]
+    fn test_store_trie_updates_comprehensive() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1629,17 +1621,17 @@ mod tests {
         let mut block_state_diff_post_state = HashedPostState::default();
 
         // Add account trie nodes
-        block_state_diff_trie_updates.account_nodes.insert(account_path1, account_node1.clone());
-        block_state_diff_trie_updates.account_nodes.insert(account_path2, account_node2.clone());
+        block_state_diff_trie_updates.account_nodes.insert(account_path1, account_node1);
+        block_state_diff_trie_updates.account_nodes.insert(account_path2, account_node2);
         block_state_diff_trie_updates.removed_nodes.insert(removed_account_path);
 
         // Add storage trie nodes for two addresses
         let mut storage_nodes1 = StorageTrieUpdates::default();
-        storage_nodes1.storage_nodes.insert(storage_path1, storage_node1.clone());
+        storage_nodes1.storage_nodes.insert(storage_path1, storage_node1);
         block_state_diff_trie_updates.storage_tries.insert(addr1, storage_nodes1);
 
         let mut storage_nodes2 = StorageTrieUpdates::default();
-        storage_nodes2.storage_nodes.insert(storage_path2, storage_node2.clone());
+        storage_nodes2.storage_nodes.insert(storage_path2, storage_node2);
         block_state_diff_trie_updates.storage_tries.insert(addr2, storage_nodes2);
 
         // Add hashed accounts (one Some, one None)
@@ -1660,7 +1652,7 @@ mod tests {
             sorted_trie_updates: block_state_diff_trie_updates.into_sorted(),
             sorted_post_state: block_state_diff_post_state.into_sorted(),
         };
-        store.store_trie_updates(BLOCK, block_state_diff).await.expect("store");
+        store.store_trie_updates(BLOCK, block_state_diff).expect("store");
 
         // Verify account trie nodes
         {
@@ -1773,8 +1765,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn store_trie_updates_out_of_order_rejects() {
+    #[test]
+    fn store_trie_updates_out_of_order_rejects() {
         let dir = tempfile::TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1782,7 +1774,6 @@ mod tests {
         let existing_block = BlockWithParent::new(B256::random(), NumHash::new(1, B256::random()));
         store
             .set_earliest_block_number(existing_block.block.number, existing_block.block.hash)
-            .await
             .expect("set");
 
         // incoming block whose parent != existing latest
@@ -1791,15 +1782,15 @@ mod tests {
             BlockWithParent::new(bad_parent, NumHash::new(2, B256::ZERO));
         let diff = BlockStateDiff::default();
 
-        let res = store.store_trie_updates(bad_block, diff).await;
+        let res = store.store_trie_updates(bad_block, diff);
         assert!(matches!(res, Err(OpProofsStorageError::OutOfOrder { .. })));
         // verify nothing written: proof window still unchanged
-        let latest = store.get_latest_block_number().await.expect("get latest");
+        let latest = store.get_latest_block_number().expect("get latest");
         assert_eq!(latest.unwrap().1, existing_block.block.hash);
     }
 
-    #[tokio::test]
-    async fn store_trie_updates_multiple_blocks_append_versions() {
+    #[test]
+    fn store_trie_updates_multiple_blocks_append_versions() {
         let dir = tempfile::TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1813,7 +1804,7 @@ mod tests {
             sorted_trie_updates: TrieUpdatesSorted::default(),
             sorted_post_state: diff_a_post_state.into_sorted(),
         };
-        store.store_trie_updates(block_a, diff_a).await.expect("store A");
+        store.store_trie_updates(block_a, diff_a).expect("store A");
 
         // block B (parent = hash of A)
         let block_b = BlockWithParent::new(block_a.block.hash, NumHash::new(2, B256::random()));
@@ -1824,7 +1815,7 @@ mod tests {
             sorted_trie_updates: TrieUpdatesSorted::default(),
             sorted_post_state: diff_b_post_state.into_sorted(),
         };
-        store.store_trie_updates(block_b, diff_b).await.expect("store B");
+        store.store_trie_updates(block_b, diff_b).expect("store B");
 
         // verify we can retrieve entries for both block numbers
         let tx = store.env.tx().expect("tx");
@@ -1837,8 +1828,8 @@ mod tests {
         assert_eq!(v_b.block_number, block_b.block.number);
     }
 
-    #[tokio::test]
-    async fn test_store_trie_updates_empty_collections() {
+    #[test]
+    fn test_store_trie_updates_empty_collections() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1849,7 +1840,7 @@ mod tests {
         let block_state_diff = BlockStateDiff::default();
 
         // This should work without errors
-        store.store_trie_updates(BLOCK, block_state_diff).await.expect("store");
+        store.store_trie_updates(BLOCK, block_state_diff).expect("store");
 
         // Verify nothing was written (should be empty)
         let tx = store.env.tx().expect("tx");
@@ -1873,33 +1864,33 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn fetch_trie_updates_missing_changeset_returns_error() {
+    #[test]
+    fn fetch_trie_updates_missing_changeset_returns_error() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
-        let res = store.fetch_trie_updates(99).await;
+        let res = store.fetch_trie_updates(99);
         assert!(matches!(res, Err(OpProofsStorageError::NoChangeSetForBlock(99))));
     }
 
-    #[tokio::test]
-    async fn fetch_trie_updates_empty_changeset() {
+    #[test]
+    fn fetch_trie_updates_empty_changeset() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
         let block = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::random()));
         let diff = BlockStateDiff::default();
 
-        store.store_trie_updates(block, diff).await.expect("store");
-        let got = store.fetch_trie_updates(1).await.expect("fetch");
+        store.store_trie_updates(block, diff).expect("store");
+        let got = store.fetch_trie_updates(1).expect("fetch");
         assert!(got.sorted_trie_updates.account_nodes_ref().is_empty());
         assert!(got.sorted_trie_updates.storage_tries_ref().is_empty());
         assert!(got.sorted_post_state.accounts.is_empty());
         assert!(got.sorted_post_state.storages.is_empty());
     }
 
-    #[tokio::test]
-    async fn fetch_trie_updates_missing_account_history_entry_returns_error() {
+    #[test]
+    fn fetch_trie_updates_missing_account_history_entry_returns_error() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1919,12 +1910,12 @@ mod tests {
             tx.commit().unwrap();
         }
 
-        let res = store.fetch_trie_updates(1).await;
+        let res = store.fetch_trie_updates(1);
         assert!(matches!(res, Err(OpProofsStorageError::MissingAccountTrieHistory(..))));
     }
 
-    #[tokio::test]
-    async fn fetch_trie_updates_account_history_seek_returns_later_block_treated_as_missing() {
+    #[test]
+    fn fetch_trie_updates_account_history_seek_returns_later_block_treated_as_missing() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1955,12 +1946,12 @@ mod tests {
 
         // fetch block 1 -> seek will find block 2 but block_number != 1 so expect
         // MissingAccountTrieHistory
-        let res = store.fetch_trie_updates(1).await;
+        let res = store.fetch_trie_updates(1);
         assert!(matches!(res, Err(OpProofsStorageError::MissingAccountTrieHistory(..))));
     }
 
-    #[tokio::test]
-    async fn fetch_trie_updates_missing_storage_history_entry_returns_error() {
+    #[test]
+    fn fetch_trie_updates_missing_storage_history_entry_returns_error() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -1983,12 +1974,12 @@ mod tests {
             tx.commit().unwrap();
         }
 
-        let res = store.fetch_trie_updates(1).await;
+        let res = store.fetch_trie_updates(1);
         assert!(matches!(res, Err(OpProofsStorageError::MissingStorageTrieHistory(..))));
     }
 
-    #[tokio::test]
-    async fn fetch_trie_updates_storage_history_seek_returns_later_block_treated_as_missing() {
+    #[test]
+    fn fetch_trie_updates_storage_history_seek_returns_later_block_treated_as_missing() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -2023,12 +2014,12 @@ mod tests {
 
         // fetch block 1 -> seek will find block 2 but block_number != 1 so expect
         // MissingStorageTrieHistory
-        let res = store.fetch_trie_updates(1).await;
+        let res = store.fetch_trie_updates(1);
         assert!(matches!(res, Err(OpProofsStorageError::MissingStorageTrieHistory(..))));
     }
 
-    #[tokio::test]
-    async fn fetch_trie_updates_missing_hashed_account_entry_returns_error() {
+    #[test]
+    fn fetch_trie_updates_missing_hashed_account_entry_returns_error() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -2048,12 +2039,12 @@ mod tests {
             tx.commit().unwrap();
         }
 
-        let res = store.fetch_trie_updates(1).await;
+        let res = store.fetch_trie_updates(1);
         assert!(matches!(res, Err(OpProofsStorageError::MissingHashedAccountHistory(..))));
     }
 
-    #[tokio::test]
-    async fn fetch_trie_updates_hashed_account_seek_returns_later_block_treated_as_missing() {
+    #[test]
+    fn fetch_trie_updates_hashed_account_seek_returns_later_block_treated_as_missing() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -2082,12 +2073,12 @@ mod tests {
 
         // fetch block 1 -> seek will find block 2 but block_number != 1 so expect
         // MissingHashedAccountHistory
-        let res = store.fetch_trie_updates(1).await;
+        let res = store.fetch_trie_updates(1);
         assert!(matches!(res, Err(OpProofsStorageError::MissingHashedAccountHistory(..))));
     }
 
-    #[tokio::test]
-    async fn fetch_trie_updates_missing_hashed_storage_entry_returns_error() {
+    #[test]
+    fn fetch_trie_updates_missing_hashed_storage_entry_returns_error() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -2110,12 +2101,12 @@ mod tests {
             tx.commit().unwrap();
         }
 
-        let res = store.fetch_trie_updates(1).await;
+        let res = store.fetch_trie_updates(1);
         assert!(matches!(res, Err(OpProofsStorageError::MissingHashedStorageHistory { .. })));
     }
 
-    #[tokio::test]
-    async fn fetch_trie_updates_hashed_storage_seek_returns_later_block_treated_as_missing() {
+    #[test]
+    fn fetch_trie_updates_hashed_storage_seek_returns_later_block_treated_as_missing() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -2147,12 +2138,12 @@ mod tests {
 
         // fetch block 1 -> seek will find block 2 but block_number != 1 so expect
         // MissingHashedStorageHistory
-        let res = store.fetch_trie_updates(1).await;
+        let res = store.fetch_trie_updates(1);
         assert!(matches!(res, Err(OpProofsStorageError::MissingHashedStorageHistory { .. })));
     }
 
-    #[tokio::test]
-    async fn fetch_trie_updates_basic() {
+    #[test]
+    fn fetch_trie_updates_basic() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -2183,11 +2174,11 @@ mod tests {
 
         // Construct BlockStateDiff
         let mut block_state_diff_trie_updates = TrieUpdates::default();
-        block_state_diff_trie_updates.account_nodes.insert(account_path1, account_node1.clone());
-        block_state_diff_trie_updates.account_nodes.insert(account_path2, account_node2.clone());
+        block_state_diff_trie_updates.account_nodes.insert(account_path1, account_node1);
+        block_state_diff_trie_updates.account_nodes.insert(account_path2, account_node2);
         // storage trie for addr1
         let mut storage_nodes1 = StorageTrieUpdates::default();
-        storage_nodes1.storage_nodes.insert(storage_path1, storage_node1.clone());
+        storage_nodes1.storage_nodes.insert(storage_path1, storage_node1);
         block_state_diff_trie_updates.storage_tries.insert(addr1, storage_nodes1);
 
         // hashed accounts: addr1 -> Some, addr2 -> None
@@ -2209,8 +2200,8 @@ mod tests {
             sorted_trie_updates: block_state_diff_trie_updates.into_sorted(),
             sorted_post_state: block_state_diff_post_state.into_sorted(),
         };
-        store.store_trie_updates(block, block_state_diff.clone()).await.expect("store");
-        let got = store.fetch_trie_updates(1).await.expect("fetch");
+        store.store_trie_updates(block, block_state_diff.clone()).expect("store");
+        let got = store.fetch_trie_updates(1).expect("fetch");
 
         // verify trie updates
         assert_eq!(
@@ -2227,12 +2218,12 @@ mod tests {
         assert_eq!(got.sorted_post_state.storages, block_state_diff.sorted_post_state.storages);
     }
 
-    #[tokio::test]
-    async fn test_prune_earliest_state_single_entry() {
+    #[test]
+    fn test_prune_earliest_state_single_entry() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
         let block = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::random()));
-        store.set_earliest_block_number(0, B256::ZERO).await.unwrap();
+        store.set_earliest_block_number(0, B256::ZERO).unwrap();
 
         // Insert a single entry to be pruned
         let addr = B256::random();
@@ -2242,11 +2233,11 @@ mod tests {
             sorted_post_state: state_diff_post_state.into_sorted(),
             ..Default::default()
         };
-        store.store_trie_updates(block, state_diff).await.unwrap();
+        store.store_trie_updates(block, state_diff).unwrap();
 
         // Prune the entry - pass empty diff since we're just removing data
         let next_block = BlockWithParent::new(block.block.hash, NumHash::new(2, B256::random()));
-        store.prune_earliest_state(next_block).await.unwrap();
+        store.prune_earliest_state(next_block).unwrap();
 
         // Verify the entry was pruned
         let tx = store.env.tx().unwrap();
@@ -2263,16 +2254,16 @@ mod tests {
         assert!(pruning_cur.seek_exact(block.block.number).unwrap().is_none());
 
         // Verify earliest block was updated
-        let earliest = store.get_earliest_block_number().await.unwrap();
+        let earliest = store.get_earliest_block_number().unwrap();
         assert_eq!(earliest, Some((2, next_block.block.hash)));
     }
 
-    #[tokio::test]
-    async fn test_prune_earliest_state_multiple_entries_same_block() {
+    #[test]
+    fn test_prune_earliest_state_multiple_entries_same_block() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
         let block = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::random()));
-        store.set_earliest_block_number(0, B256::ZERO).await.unwrap();
+        store.set_earliest_block_number(0, B256::ZERO).unwrap();
 
         // Insert multiple entries for the same block
         let addr1 = B256::random();
@@ -2284,11 +2275,11 @@ mod tests {
             sorted_post_state: state_diff_post_state.into_sorted(),
             ..Default::default()
         };
-        store.store_trie_updates(block, state_diff).await.unwrap();
+        store.store_trie_updates(block, state_diff).unwrap();
 
         // Prune the entries
         let next_block = BlockWithParent::new(block.block.hash, NumHash::new(2, B256::random()));
-        store.prune_earliest_state(next_block).await.unwrap();
+        store.prune_earliest_state(next_block).unwrap();
 
         // Verify the entries were pruned
         let tx = store.env.tx().unwrap();
@@ -2306,14 +2297,14 @@ mod tests {
         assert!(pruning_cur.seek_exact(block.block.number).unwrap().is_none());
     }
 
-    #[tokio::test]
-    async fn test_prune_earliest_state_multiple_blocks() {
+    #[test]
+    fn test_prune_earliest_state_multiple_blocks() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
         let block_1 = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::random()));
         let block_2 = BlockWithParent::new(block_1.block.hash, NumHash::new(2, B256::random()));
         let block_3 = BlockWithParent::new(block_2.block.hash, NumHash::new(3, B256::random()));
-        store.set_earliest_block_number(0, B256::ZERO).await.unwrap();
+        store.set_earliest_block_number(0, B256::ZERO).unwrap();
 
         // Insert entries for multiple blocks
         let addr1 = B256::random();
@@ -2324,7 +2315,7 @@ mod tests {
             sorted_post_state: state_diff1_post_state.into_sorted(),
             ..Default::default()
         };
-        store.store_trie_updates(block_1, state_diff1).await.unwrap();
+        store.store_trie_updates(block_1, state_diff1).unwrap();
 
         let mut state_diff2_post_state = HashedPostState::default();
         state_diff2_post_state.accounts.insert(addr2, Some(Account::default()));
@@ -2332,10 +2323,10 @@ mod tests {
             sorted_post_state: state_diff2_post_state.into_sorted(),
             ..Default::default()
         };
-        store.store_trie_updates(block_2, state_diff2).await.unwrap();
+        store.store_trie_updates(block_2, state_diff2).unwrap();
 
         // Prune up to block 3 (should remove blocks 1 and 2)
-        store.prune_earliest_state(block_3).await.unwrap();
+        store.prune_earliest_state(block_3).unwrap();
 
         // Verify the entries were pruned
         let tx = store.env.tx().unwrap();
@@ -2354,39 +2345,39 @@ mod tests {
         assert!(pruning_cur.seek_exact(2).unwrap().is_none());
     }
 
-    #[tokio::test]
-    async fn test_prune_earliest_state_no_op() {
+    #[test]
+    fn test_prune_earliest_state_no_op() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
-        store.set_earliest_block_number(1, B256::random()).await.unwrap();
+        store.set_earliest_block_number(1, B256::random()).unwrap();
 
         // Attempt to prune with a new earliest block that is not newer
         let block_1 = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::random()));
         let block_0 = BlockWithParent::new(B256::ZERO, NumHash::new(0, B256::random()));
-        store.prune_earliest_state(block_1).await.unwrap();
-        store.prune_earliest_state(block_0).await.unwrap();
+        store.prune_earliest_state(block_1).unwrap();
+        store.prune_earliest_state(block_0).unwrap();
 
         // Nothing should have been pruned, this call should not panic or error
     }
 
-    #[tokio::test]
-    async fn test_prune_earliest_state_no_entries_to_prune() {
+    #[test]
+    fn test_prune_earliest_state_no_entries_to_prune() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
-        store.set_earliest_block_number(1, B256::random()).await.unwrap();
+        store.set_earliest_block_number(1, B256::random()).unwrap();
 
         // Prune a range where no entries exist
         let block_10 = BlockWithParent::new(B256::ZERO, NumHash::new(10, B256::random()));
-        store.prune_earliest_state(block_10).await.unwrap();
+        store.prune_earliest_state(block_10).unwrap();
 
         // Nothing should have been pruned, this call should not panic or error
     }
 
-    #[tokio::test]
-    async fn test_prune_earliest_state_with_diff_insertion() {
+    #[test]
+    fn test_prune_earliest_state_with_diff_insertion() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
-        store.set_earliest_block_number(0, B256::ZERO).await.unwrap();
+        store.set_earliest_block_number(0, B256::ZERO).unwrap();
 
         // Insert entries for blocks 1 and 2
         let addr1 = B256::random();
@@ -2401,7 +2392,7 @@ mod tests {
             sorted_post_state: state_diff1_post_state.into_sorted(),
             ..Default::default()
         };
-        store.store_trie_updates(block_1, state_diff1).await.unwrap();
+        store.store_trie_updates(block_1, state_diff1).unwrap();
 
         let block_2 = BlockWithParent::new(block_1.block.hash, NumHash::new(2, B256::random()));
         let mut state_diff2_post_state = HashedPostState::default();
@@ -2410,11 +2401,11 @@ mod tests {
             sorted_post_state: state_diff2_post_state.into_sorted(),
             ..Default::default()
         };
-        store.store_trie_updates(block_2, state_diff2).await.unwrap();
+        store.store_trie_updates(block_2, state_diff2).unwrap();
 
         // Now prune to block 3
         let block_3 = BlockWithParent::new(block_2.block.hash, NumHash::new(3, B256::random()));
-        store.prune_earliest_state(block_3).await.unwrap();
+        store.prune_earliest_state(block_3).unwrap();
 
         let tx = store.env.tx().unwrap();
         let mut cur = tx.new_cursor::<HashedAccountHistory>().unwrap();
@@ -2435,15 +2426,15 @@ mod tests {
         assert!(pruning_cur.seek_exact(2).unwrap().is_none());
 
         // Verify earliest block was updated
-        let earliest = store.get_earliest_block_number().await.unwrap();
+        let earliest = store.get_earliest_block_number().unwrap();
         assert_eq!(earliest, Some((3, block_3.block.hash)));
     }
 
-    #[tokio::test]
-    async fn test_prune_earliest_state_with_removed_nodes() {
+    #[test]
+    fn test_prune_earliest_state_with_removed_nodes() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
-        store.set_earliest_block_number(0, B256::ZERO).await.unwrap();
+        store.set_earliest_block_number(0, B256::ZERO).unwrap();
 
         // Create some trie nodes in blocks 1, 2, 3
         let path1 = Nibbles::from_nibbles_unchecked([0x01, 0x02]);
@@ -2453,12 +2444,12 @@ mod tests {
 
         let block_1 = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::random()));
         let mut diff1_trie_updates = TrieUpdates::default();
-        diff1_trie_updates.account_nodes.insert(path1, node1.clone());
+        diff1_trie_updates.account_nodes.insert(path1, node1);
         let diff1 = BlockStateDiff {
             sorted_trie_updates: diff1_trie_updates.into_sorted(),
             ..Default::default()
         };
-        store.store_trie_updates(block_1, diff1).await.unwrap();
+        store.store_trie_updates(block_1, diff1).unwrap();
 
         let block_2 = BlockWithParent::new(block_1.block.hash, NumHash::new(2, B256::random()));
         let mut diff2_trie_updates = TrieUpdates::default();
@@ -2467,7 +2458,7 @@ mod tests {
             sorted_trie_updates: diff2_trie_updates.into_sorted(),
             ..Default::default()
         };
-        store.store_trie_updates(block_2, diff2).await.unwrap();
+        store.store_trie_updates(block_2, diff2).unwrap();
 
         // In block 3, path1 is deleted (stored as None in the database)
         // This happens when we store trie updates with path1 mapped to None
@@ -2507,7 +2498,7 @@ mod tests {
         // - path1 should be in removed_nodes (it was deleted in block 3)
         // - path2 should be included with its value (it still exists from block 2)
         let block_5 = BlockWithParent::new(B256::random(), NumHash::new(5, B256::random()));
-        store.prune_earliest_state(block_5).await.unwrap();
+        store.prune_earliest_state(block_5).unwrap();
 
         // Verify that all entries for path1 before block 5 were removed
         let tx = store.env.tx().unwrap();
@@ -2534,11 +2525,11 @@ mod tests {
         assert_eq!(v2.value.0, Some(node2));
     }
 
-    #[tokio::test]
-    async fn test_prune_earliest_state_overlapping_keys() {
+    #[test]
+    fn test_prune_earliest_state_overlapping_keys() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
-        store.set_earliest_block_number(0, B256::ZERO).await.unwrap();
+        store.set_earliest_block_number(0, B256::ZERO).unwrap();
 
         // Use overlapping key (addr1 updated in blocks 1 and 2)
         let addr1 = B256::random();
@@ -2552,7 +2543,7 @@ mod tests {
             sorted_post_state: diff1_post_state.into_sorted(),
             ..Default::default()
         };
-        store.store_trie_updates(block_1, diff1).await.unwrap();
+        store.store_trie_updates(block_1, diff1).unwrap();
 
         let block_2 = BlockWithParent::new(block_1.block.hash, NumHash::new(2, B256::random()));
         let mut diff2_post_state = HashedPostState::default();
@@ -2561,11 +2552,11 @@ mod tests {
             sorted_post_state: diff2_post_state.into_sorted(),
             ..Default::default()
         };
-        store.store_trie_updates(block_2, diff2).await.unwrap();
+        store.store_trie_updates(block_2, diff2).unwrap();
 
         // Prune to block 3
         let block_3 = BlockWithParent::new(block_2.block.hash, NumHash::new(3, B256::random()));
-        store.prune_earliest_state(block_3).await.unwrap();
+        store.prune_earliest_state(block_3).unwrap();
 
         let tx = store.env.tx().unwrap();
         let mut cur = tx.new_cursor::<HashedAccountHistory>().unwrap();
@@ -2577,11 +2568,11 @@ mod tests {
         assert_eq!(vv1.value.0, Some(acc2));
     }
 
-    #[tokio::test]
-    async fn test_prune_earliest_state_comprehensive() {
+    #[test]
+    fn test_prune_earliest_state_comprehensive() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
-        store.set_earliest_block_number(0, B256::ZERO).await.unwrap();
+        store.set_earliest_block_number(0, B256::ZERO).unwrap();
 
         // Setup complex scenario with accounts, storage, and trie nodes
         let addr1 = B256::random();
@@ -2612,7 +2603,7 @@ mod tests {
             sorted_post_state: diff1_post_state.into_sorted(),
             sorted_trie_updates: diff1_trie_updates.into_sorted(),
         };
-        store.store_trie_updates(block_1, diff_1).await.unwrap();
+        store.store_trie_updates(block_1, diff_1).unwrap();
 
         // Block 2: Update account (overwriting addr1)
         let acc2 = Account { nonce: 2, balance: U256::from(200), ..Default::default() };
@@ -2624,11 +2615,11 @@ mod tests {
             sorted_post_state: diff2_post_state.into_sorted(),
             ..Default::default()
         };
-        store.store_trie_updates(block_2, diff2).await.unwrap();
+        store.store_trie_updates(block_2, diff2).unwrap();
 
         // Prune to block 3
         let block_3 = BlockWithParent::new(block_2.block.hash, NumHash::new(3, B256::random()));
-        store.prune_earliest_state(block_3).await.unwrap();
+        store.prune_earliest_state(block_3).unwrap();
 
         let tx = store.env.tx().unwrap();
 
@@ -2673,11 +2664,11 @@ mod tests {
         assert!(change_cur.seek_exact(2).unwrap().is_none());
     }
 
-    #[tokio::test]
-    async fn test_prune_earliest_state_churn_create_delete_recreate() {
+    #[test]
+    fn test_prune_earliest_state_churn_create_delete_recreate() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
-        store.set_earliest_block_number(0, B256::ZERO).await.unwrap();
+        store.set_earliest_block_number(0, B256::ZERO).unwrap();
 
         let addr = B256::random();
 
@@ -2691,7 +2682,6 @@ mod tests {
                 b1,
                 BlockStateDiff { sorted_post_state: diff1.into_sorted(), ..Default::default() },
             )
-            .await
             .unwrap();
 
         // Block 2: Delete
@@ -2703,7 +2693,6 @@ mod tests {
                 b2,
                 BlockStateDiff { sorted_post_state: diff2.into_sorted(), ..Default::default() },
             )
-            .await
             .unwrap();
 
         // Block 3: Recreate
@@ -2716,11 +2705,10 @@ mod tests {
                 b3,
                 BlockStateDiff { sorted_post_state: diff3.into_sorted(), ..Default::default() },
             )
-            .await
             .unwrap();
 
         // Prune to Block 3
-        store.prune_earliest_state(b3).await.unwrap();
+        store.prune_earliest_state(b3).unwrap();
 
         let tx = store.env.tx().unwrap();
         let mut cur = tx.new_cursor::<HashedAccountHistory>().unwrap();
@@ -2750,11 +2738,11 @@ mod tests {
         assert_eq!(val.value.0, Some(acc3));
     }
 
-    #[tokio::test]
-    async fn test_prune_earliest_state_returns_correct_counts() {
+    #[test]
+    fn test_prune_earliest_state_returns_correct_counts() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
-        store.set_earliest_block_number(0, B256::ZERO).await.unwrap();
+        store.set_earliest_block_number(0, B256::ZERO).unwrap();
 
         let addr = B256::random();
 
@@ -2768,7 +2756,6 @@ mod tests {
                 b1,
                 BlockStateDiff { sorted_post_state: diff1.into_sorted(), ..Default::default() },
             )
-            .await
             .unwrap();
 
         // Block 2: Update
@@ -2781,47 +2768,46 @@ mod tests {
                 b2,
                 BlockStateDiff { sorted_post_state: diff2.into_sorted(), ..Default::default() },
             )
-            .await
             .unwrap();
 
         // Prune to Block 2.
         // Survivor is at Block 2.
         // Block 1 should be deleted.
         // Count should be 1.
-        let counts = store.prune_earliest_state(b2).await.unwrap();
+        let counts = store.prune_earliest_state(b2).unwrap();
 
         assert_eq!(counts.hashed_accounts_written_total, 1);
         assert_eq!(counts.account_trie_updates_written_total, 0);
     }
 
-    #[tokio::test]
-    async fn test_prune_earliest_state_empty_window_updates_pointer() {
+    #[test]
+    fn test_prune_earliest_state_empty_window_updates_pointer() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
-        store.set_earliest_block_number(0, B256::ZERO).await.unwrap();
+        store.set_earliest_block_number(0, B256::ZERO).unwrap();
 
         let target = BlockWithParent::new(B256::random(), NumHash::new(5, B256::random()));
 
         // Prune empty
-        store.prune_earliest_state(target).await.unwrap();
+        store.prune_earliest_state(target).unwrap();
 
-        let earliest = store.get_earliest_block_number().await.unwrap();
+        let earliest = store.get_earliest_block_number().unwrap();
         assert_eq!(earliest, Some((5, target.block.hash)));
     }
 
-    #[tokio::test]
-    async fn test_prune_earliest_state_uninitialized_guard() {
+    #[test]
+    fn test_prune_earliest_state_uninitialized_guard() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
         // Earliest not set
         let target = BlockWithParent::new(B256::random(), NumHash::new(5, B256::random()));
 
-        let counts = store.prune_earliest_state(target).await.unwrap();
+        let counts = store.prune_earliest_state(target).unwrap();
         assert_eq!(counts, WriteCounts::default());
 
         // Check earliest is still None
-        assert_eq!(store.get_earliest_block_number().await.unwrap(), None);
+        assert_eq!(store.get_earliest_block_number().unwrap(), None);
     }
 
     #[test]
@@ -2877,8 +2863,8 @@ mod tests {
         assert!(walker.next().is_none());
     }
 
-    #[tokio::test]
-    async fn store_trie_updates_deleted_account_trie() {
+    #[test]
+    fn store_trie_updates_deleted_account_trie() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -2893,7 +2879,7 @@ mod tests {
             sorted_trie_updates: diff_trie_updates.into_sorted(),
             sorted_post_state: HashedPostStateSorted::default(),
         };
-        store.store_trie_updates(BLOCK, diff).await.expect("store");
+        store.store_trie_updates(BLOCK, diff).expect("store");
 
         // Verify deletion was written at BLOCK
         let tx = store.env.tx().expect("tx");
@@ -2906,8 +2892,8 @@ mod tests {
         assert!(vv.value.0.is_none(), "expected account trie deletion");
     }
 
-    #[tokio::test]
-    async fn store_trie_updates_deleted_storage_trie() {
+    #[test]
+    fn store_trie_updates_deleted_storage_trie() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -2927,7 +2913,7 @@ mod tests {
             sorted_trie_updates: diff_trie_updates.into_sorted(),
             sorted_post_state: HashedPostStateSorted::default(),
         };
-        store.store_trie_updates(BLOCK, diff).await.expect("store");
+        store.store_trie_updates(BLOCK, diff).expect("store");
 
         // Verify deletion was written at BLOCK
         let tx = store.env.tx().expect("tx");
@@ -2938,8 +2924,8 @@ mod tests {
         assert!(vv.value.0.is_none(), "expected storage trie deletion");
     }
 
-    #[tokio::test]
-    async fn store_trie_updates_wiped_storage_trie_nodes() {
+    #[test]
+    fn store_trie_updates_wiped_storage_trie_nodes() {
         use reth_trie::updates::StorageTrieUpdates;
 
         let dir = TempDir::new().unwrap();
@@ -2955,11 +2941,7 @@ mod tests {
         let n2 = BranchNodeCompact::default();
 
         store
-            .store_storage_branches(
-                addr_wiped,
-                vec![(p1, Some(n1.clone())), (p2, Some(n2.clone()))],
-            )
-            .await
+            .store_storage_branches(addr_wiped, vec![(p1, Some(n1)), (p2, Some(n2))])
             .expect("seed wiped addr trie nodes");
 
         // Build a BlockStateDiff that wipes addr_wiped's storage trie, and
@@ -2977,7 +2959,7 @@ mod tests {
         let live_path = Nibbles::from_nibbles_unchecked([0xEE, 0xFF]);
         let live_node = BranchNodeCompact::default();
         let mut live_updates = StorageTrieUpdates::default();
-        live_updates.storage_nodes.insert(live_path, live_node.clone());
+        live_updates.storage_nodes.insert(live_path, live_node);
         diff_trie_updates.storage_tries.insert(addr_live, live_updates);
 
         // Execute the store
@@ -2985,7 +2967,7 @@ mod tests {
             sorted_trie_updates: diff_trie_updates.into_sorted(),
             sorted_post_state: HashedPostStateSorted::default(),
         };
-        store.store_trie_updates(BLOCK, diff).await.expect("store");
+        store.store_trie_updates(BLOCK, diff).expect("store");
 
         // Verify: for addr_wiped, each previously existing path now has a deletion tombstone at
         // BLOCK.
@@ -3019,8 +3001,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn store_trie_updates_wiped_storage() {
+    #[test]
+    fn store_trie_updates_wiped_storage() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -3035,7 +3017,7 @@ mod tests {
         let v2 = U256::from(222u64);
 
         // Seed prior storage (block_number = 0 in store_hashed_storages)
-        store.store_hashed_storages(addr, vec![(s1, v1), (s2, v2)]).await.expect("seed");
+        store.store_hashed_storages(addr, vec![(s1, v1), (s2, v2)]).expect("seed");
 
         // Build BlockStateDiff that marks this address as wiped at BLOCK
         let mut diff_post_state = HashedPostState::default();
@@ -3049,7 +3031,7 @@ mod tests {
             sorted_trie_updates: TrieUpdatesSorted::default(),
             sorted_post_state: diff_post_state.into_sorted(),
         };
-        store.store_trie_updates(BLOCK, diff).await.expect("store");
+        store.store_trie_updates(BLOCK, diff).expect("store");
 
         // Verify: for each pre-existing slot, there should be a tombstone (MaybeDeleted(None)) at
         // BLOCK.
@@ -3070,8 +3052,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn store_trie_updates_wiped_and_non_wiped_mixed_order() {
+    #[test]
+    fn store_trie_updates_wiped_and_non_wiped_mixed_order() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -3092,9 +3074,8 @@ mod tests {
         // Seed prior storage at block 0 for BOTH addresses
         store
             .store_hashed_storages(addr_wiped, vec![(ws1, wv1), (ws2, wv2)])
-            .await
             .expect("seed wiped addr");
-        store.store_hashed_storages(addr_live, vec![(ls1, lv1_old)]).await.expect("seed live addr");
+        store.store_hashed_storages(addr_live, vec![(ls1, lv1_old)]).expect("seed live addr");
 
         // Build diff: wiped first (by address sort), then non-wiped with a write
         const BLOCK: BlockWithParent =
@@ -3115,7 +3096,7 @@ mod tests {
             sorted_trie_updates: TrieUpdatesSorted::default(),
             sorted_post_state: diff_post_state.into_sorted(),
         };
-        store.store_trie_updates(BLOCK, diff).await.expect("store");
+        store.store_trie_updates(BLOCK, diff).expect("store");
 
         // Verify: wiped address got tombstones at BLOCK for each pre-existing slot
         {
@@ -3148,35 +3129,35 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_proof_window() {
+    #[test]
+    fn test_proof_window() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
         // Test initial state (no values set)
-        let initial_value = store.get_earliest_block_number().await.expect("get earliest");
+        let initial_value = store.get_earliest_block_number().expect("get earliest");
         assert_eq!(initial_value, None);
 
         // Test setting the value
         let block_number = 42u64;
         let hash = B256::random();
-        store.set_earliest_block_number(block_number, hash).await.expect("set earliest");
+        store.set_earliest_block_number(block_number, hash).expect("set earliest");
 
         // Verify value was stored correctly
-        let retrieved = store.get_earliest_block_number().await.expect("get earliest");
+        let retrieved = store.get_earliest_block_number().expect("get earliest");
         assert_eq!(retrieved, Some((block_number, hash)));
 
         // Test updating with new values
         let new_block_number = 100u64;
         let new_hash = B256::random();
-        store.set_earliest_block_number(new_block_number, new_hash).await.expect("update earliest");
+        store.set_earliest_block_number(new_block_number, new_hash).expect("update earliest");
 
         // Verify update worked
-        let updated = store.get_earliest_block_number().await.expect("get updated earliest");
+        let updated = store.get_earliest_block_number().expect("get updated earliest");
         assert_eq!(updated, Some((new_block_number, new_hash)));
 
         // Verify that latest_block falls back to earliest when not set
-        let latest = store.get_latest_block_number().await.expect("get latest");
+        let latest = store.get_latest_block_number().expect("get latest");
         assert_eq!(
             latest,
             Some((new_block_number, new_hash)),
@@ -3184,8 +3165,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn replace_updates_prunes_and_adds_new_chain() {
+    #[test]
+    fn replace_updates_prunes_and_adds_new_chain() {
         let dir = tempfile::TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -3205,9 +3186,9 @@ mod tests {
         let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
         let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
 
-        store.store_trie_updates(b1, make_diff(10)).await.expect("store b1");
-        store.store_trie_updates(b2, make_diff(20)).await.expect("store b2");
-        store.store_trie_updates(b3, make_diff(30)).await.expect("store b3");
+        store.store_trie_updates(b1, make_diff(10)).expect("store b1");
+        store.store_trie_updates(b2, make_diff(20)).expect("store b2");
+        store.store_trie_updates(b3, make_diff(30)).expect("store b3");
 
         // Sanity: entries for 1,2,3 exist with expected nonces.
         {
@@ -3230,7 +3211,6 @@ mod tests {
 
         store
             .replace_updates(BlockNumHash::new(2, b2.block.hash), blocks_to_add)
-            .await
             .expect("replace_updates succeeds");
 
         // --- Verify post-conditions ---
@@ -3275,8 +3255,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_unwind_history_basic() {
+    #[test]
+    fn test_unwind_history_basic() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -3297,14 +3277,14 @@ mod tests {
         let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
         let b4 = BlockWithParent::new(b3.block.hash, NumHash::new(4, B256::random()));
 
-        store.set_earliest_block_number_hash(b0.number, b0.hash).await.expect("set earliest");
-        store.store_trie_updates(b1, make_diff(10)).await.expect("store b1");
-        store.store_trie_updates(b2, make_diff(20)).await.expect("store b2");
-        store.store_trie_updates(b3, make_diff(30)).await.expect("store b3");
-        store.store_trie_updates(b4, make_diff(40)).await.expect("store b4");
+        store.set_earliest_block_number_hash(b0.number, b0.hash).expect("set earliest");
+        store.store_trie_updates(b1, make_diff(10)).expect("store b1");
+        store.store_trie_updates(b2, make_diff(20)).expect("store b2");
+        store.store_trie_updates(b3, make_diff(30)).expect("store b3");
+        store.store_trie_updates(b4, make_diff(40)).expect("store b4");
 
         // Unwind to block 2
-        store.unwind_history(b2).await.expect("unwind");
+        store.unwind_history(b2).expect("unwind");
 
         // Verify: blocks 1 and 2 remain, blocks 3 and 4 are removed
         let tx = store.env.tx().expect("tx");
@@ -3325,8 +3305,8 @@ mod tests {
         assert_eq!(*latest.1.hash(), b2.parent);
     }
 
-    #[tokio::test]
-    async fn test_unwind_history_to_earliest() {
+    #[test]
+    fn test_unwind_history_to_earliest() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -3345,22 +3325,19 @@ mod tests {
         let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
         let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
 
-        store
-            .set_earliest_block_number_hash(b1.block.number, b1.block.hash)
-            .await
-            .expect("set earliest");
-        store.store_trie_updates(b2, make_diff(20)).await.expect("store b2");
-        store.store_trie_updates(b3, make_diff(30)).await.expect("store b3");
+        store.set_earliest_block_number_hash(b1.block.number, b1.block.hash).expect("set earliest");
+        store.store_trie_updates(b2, make_diff(20)).expect("store b2");
+        store.store_trie_updates(b3, make_diff(30)).expect("store b3");
 
         // Unwind to block b1
-        let res = store.unwind_history(b1).await;
+        let res = store.unwind_history(b1);
         // should fail as we cannot unwind past earliest block
         assert!(res.is_err(), "unwind to earliest block should error");
         assert!(matches!(res.unwrap_err(), OpProofsStorageError::UnwindBeyondEarliest { .. }));
     }
 
-    #[tokio::test]
-    async fn test_unwind_history_with_storage() {
+    #[test]
+    fn test_unwind_history_with_storage() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -3385,16 +3362,13 @@ mod tests {
         let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
         let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
 
-        store
-            .set_earliest_block_number_hash(b0.block.number, b0.block.hash)
-            .await
-            .expect("set earliest");
-        store.store_trie_updates(b1, make_diff(10, 100)).await.expect("store b1");
-        store.store_trie_updates(b2, make_diff(20, 200)).await.expect("store b2");
-        store.store_trie_updates(b3, make_diff(30, 300)).await.expect("store b3");
+        store.set_earliest_block_number_hash(b0.block.number, b0.block.hash).expect("set earliest");
+        store.store_trie_updates(b1, make_diff(10, 100)).expect("store b1");
+        store.store_trie_updates(b2, make_diff(20, 200)).expect("store b2");
+        store.store_trie_updates(b3, make_diff(30, 300)).expect("store b3");
 
         // Unwind to block 1
-        store.unwind_history(b2).await.expect("unwind");
+        store.unwind_history(b2).expect("unwind");
 
         // Verify account history
         let tx = store.env.tx().expect("tx");
@@ -3426,8 +3400,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_unwind_history_with_trie_nodes() {
+    #[test]
+    fn test_unwind_history_with_trie_nodes() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -3451,13 +3425,13 @@ mod tests {
         let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
         let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
 
-        store.set_earliest_block_number_hash(b0.number, b0.hash).await.expect("set earliest");
-        store.store_trie_updates(b1, make_diff(path1, node1.clone())).await.expect("store b1");
-        store.store_trie_updates(b2, make_diff(path2, node2.clone())).await.expect("store b2");
-        store.store_trie_updates(b3, make_diff(path1, node2.clone())).await.expect("store b3");
+        store.set_earliest_block_number_hash(b0.number, b0.hash).expect("set earliest");
+        store.store_trie_updates(b1, make_diff(path1, node1)).expect("store b1");
+        store.store_trie_updates(b2, make_diff(path2, node2.clone())).expect("store b2");
+        store.store_trie_updates(b3, make_diff(path1, node2)).expect("store b3");
 
         // Unwind to block 1
-        store.unwind_history(b2).await.expect("unwind");
+        store.unwind_history(b2).expect("unwind");
 
         // Verify trie node history
         let tx = store.env.tx().expect("tx");
@@ -3477,8 +3451,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_unwind_history_comprehensive() {
+    #[test]
+    fn test_unwind_history_comprehensive() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -3499,32 +3473,32 @@ mod tests {
 
         // Block 0: Set earliest block
         let b0 = NumHash::new(0, B256::random());
-        store.set_earliest_block_number_hash(b0.number, b0.hash).await.expect("set earliest");
+        store.set_earliest_block_number_hash(b0.number, b0.hash).expect("set earliest");
 
         // Block 1: Insert multiple types of data
         let b1 = BlockWithParent::new(b0.hash, NumHash::new(1, B256::random()));
         let mut diff1_trie_updates = TrieUpdates::default();
         let mut diff1_post_state = HashedPostState::default();
         diff1_post_state.accounts.insert(addr1, Some(acc1));
-        diff1_trie_updates.account_nodes.insert(path1, node1.clone());
+        diff1_trie_updates.account_nodes.insert(path1, node1);
         let mut storage1 = HashedStorage::default();
         storage1.storage.insert(slot1, U256::from(1111));
         diff1_post_state.storages.insert(addr1, storage1);
         let mut storage_updates1 = StorageTrieUpdates::default();
-        storage_updates1.storage_nodes.insert(storage_path1, storage_node1.clone());
+        storage_updates1.storage_nodes.insert(storage_path1, storage_node1);
         diff1_trie_updates.storage_tries.insert(addr1, storage_updates1);
         let diff1 = BlockStateDiff {
             sorted_trie_updates: diff1_trie_updates.into_sorted(),
             sorted_post_state: diff1_post_state.into_sorted(),
         };
-        store.store_trie_updates(b1, diff1).await.expect("store b1");
+        store.store_trie_updates(b1, diff1).expect("store b1");
 
         // Block 2: More updates
         let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
         let mut diff2_trie_updates = TrieUpdates::default();
         let mut diff2_post_state = HashedPostState::default();
         diff2_post_state.accounts.insert(addr2, Some(acc2));
-        diff2_trie_updates.account_nodes.insert(path2, node2.clone());
+        diff2_trie_updates.account_nodes.insert(path2, node2);
         let mut storage2 = HashedStorage::default();
         storage2.storage.insert(slot2, U256::from(2222));
         diff2_post_state.storages.insert(addr2, storage2);
@@ -3532,7 +3506,7 @@ mod tests {
             sorted_trie_updates: diff2_trie_updates.into_sorted(),
             sorted_post_state: diff2_post_state.into_sorted(),
         };
-        store.store_trie_updates(b2, diff2).await.expect("store b2");
+        store.store_trie_updates(b2, diff2).expect("store b2");
 
         // Block 3: Additional updates
         let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
@@ -3542,10 +3516,10 @@ mod tests {
             sorted_trie_updates: TrieUpdatesSorted::default(),
             sorted_post_state: diff3_post_state.into_sorted(),
         };
-        store.store_trie_updates(b3, diff3).await.expect("store b3");
+        store.store_trie_updates(b3, diff3).expect("store b3");
 
         // Unwind to block 1
-        store.unwind_history(b2).await.expect("unwind");
+        store.unwind_history(b2).expect("unwind");
 
         let tx = store.env.tx().expect("tx");
 
@@ -3594,21 +3568,21 @@ mod tests {
         assert!(change_cur.seek_exact(3).unwrap().is_none(), "Block 3 changeset should be removed");
     }
 
-    #[tokio::test]
-    async fn test_unwind_history_empty_chain() {
+    #[test]
+    fn test_unwind_history_empty_chain() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
         // Try to unwind when there's nothing stored yet
         let unwind_to = BlockWithParent::new(B256::ZERO, NumHash::new(0, B256::ZERO));
-        let result = store.unwind_history(unwind_to).await;
+        let result = store.unwind_history(unwind_to);
 
         // Should succeed (no-op)
         assert!(result.is_ok(), "Unwinding empty chain should succeed");
     }
 
-    #[tokio::test]
-    async fn test_unwind_history_idempotent() {
+    #[test]
+    fn test_unwind_history_idempotent() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -3628,16 +3602,16 @@ mod tests {
         let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
         let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
 
-        store.set_earliest_block_number_hash(b0.number, b0.hash).await.expect("set earliest");
-        store.store_trie_updates(b1, make_diff(10)).await.expect("store b1");
-        store.store_trie_updates(b2, make_diff(20)).await.expect("store b2");
-        store.store_trie_updates(b3, make_diff(30)).await.expect("store b3");
+        store.set_earliest_block_number_hash(b0.number, b0.hash).expect("set earliest");
+        store.store_trie_updates(b1, make_diff(10)).expect("store b1");
+        store.store_trie_updates(b2, make_diff(20)).expect("store b2");
+        store.store_trie_updates(b3, make_diff(30)).expect("store b3");
 
         // Unwind to block 1
-        store.unwind_history(b2).await.expect("first unwind");
+        store.unwind_history(b2).expect("first unwind");
 
         // Unwind again to the same block (should be idempotent)
-        store.unwind_history(b2).await.expect("second unwind");
+        store.unwind_history(b2).expect("second unwind");
 
         // Verify state is still correct
         let tx = store.env.tx().expect("tx");
@@ -3648,8 +3622,8 @@ mod tests {
         assert!(cur.seek_by_key_subkey(addr, 3).unwrap().is_none(), "Block 3 should be removed");
     }
 
-    #[tokio::test]
-    async fn test_unwind_history_beyond_latest() {
+    #[test]
+    fn test_unwind_history_beyond_latest() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
@@ -3671,13 +3645,13 @@ mod tests {
         let b4 = BlockWithParent::new(b3.block.hash, NumHash::new(4, B256::random()));
         let b5 = BlockWithParent::new(b4.block.hash, NumHash::new(5, B256::random()));
 
-        store.set_earliest_block_number_hash(b0.number, b0.hash).await.expect("set earliest");
-        store.store_trie_updates(b1, make_diff(10)).await.expect("store b1");
-        store.store_trie_updates(b2, make_diff(20)).await.expect("store b2");
-        store.store_trie_updates(b3, make_diff(30)).await.expect("store b3");
+        store.set_earliest_block_number_hash(b0.number, b0.hash).expect("set earliest");
+        store.store_trie_updates(b1, make_diff(10)).expect("store b1");
+        store.store_trie_updates(b2, make_diff(20)).expect("store b2");
+        store.store_trie_updates(b3, make_diff(30)).expect("store b3");
 
         // Unwind to block 1
-        store.unwind_history(b5).await.expect("first unwind");
+        store.unwind_history(b5).expect("first unwind");
 
         // Verify state is still correct
         let tx = store.env.tx().expect("tx");

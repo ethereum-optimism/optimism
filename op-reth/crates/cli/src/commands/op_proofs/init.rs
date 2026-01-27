@@ -54,7 +54,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
         .into();
 
         // Check if already initialized
-        if let Some((block_number, block_hash)) = storage.get_earliest_block_number().await? {
+        if let Some((block_number, block_hash)) = storage.get_earliest_block_number()? {
             info!(
                 target: "reth::cli",
                 block_number = block_number,
@@ -80,7 +80,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
                 provider_factory.database_provider_ro()?.disable_long_read_transaction_safety();
             let db_tx = db_provider.into_tx();
 
-            InitializationJob::new(storage.clone(), db_tx).run(best_number, best_hash).await?;
+            InitializationJob::new(storage, db_tx).run(best_number, best_hash)?;
         }
 
         info!(

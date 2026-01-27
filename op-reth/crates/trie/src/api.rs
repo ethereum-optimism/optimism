@@ -92,40 +92,36 @@ pub trait OpProofsStore: Send + Sync + Debug {
     fn store_account_branches(
         &self,
         account_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
-    ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
+    ) -> OpProofsStorageResult<()>;
 
     /// Store a batch of storage trie branches. Used for saving existing state.
     fn store_storage_branches(
         &self,
         hashed_address: B256,
         storage_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
-    ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
+    ) -> OpProofsStorageResult<()>;
 
     /// Store a batch of account trie leaf nodes. Used for saving existing state.
     fn store_hashed_accounts(
         &self,
         accounts: Vec<(B256, Option<Account>)>,
-    ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
+    ) -> OpProofsStorageResult<()>;
 
     /// Store a batch of storage trie leaf nodes. Used for saving existing state.
     fn store_hashed_storages(
         &self,
         hashed_address: B256,
         storages: Vec<(B256, U256)>,
-    ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
+    ) -> OpProofsStorageResult<()>;
 
     /// Get the earliest block number and hash that has been stored
     ///
     /// This is used to determine the block number of trie nodes with block number 0.
     /// All earliest block numbers are stored in 0 to reduce updates required to prune trie nodes.
-    fn get_earliest_block_number(
-        &self,
-    ) -> impl Future<Output = OpProofsStorageResult<Option<(u64, B256)>>> + Send;
+    fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>>;
 
     /// Get the latest block number and hash that has been stored
-    fn get_latest_block_number(
-        &self,
-    ) -> impl Future<Output = OpProofsStorageResult<Option<(u64, B256)>>> + Send;
+    fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>>;
 
     /// Get a trie cursor for the storage backend
     fn storage_trie_cursor<'tx>(
@@ -161,41 +157,32 @@ pub trait OpProofsStore: Send + Sync + Debug {
         &self,
         block_ref: BlockWithParent,
         block_state_diff: BlockStateDiff,
-    ) -> impl Future<Output = OpProofsStorageResult<WriteCounts>> + Send;
+    ) -> OpProofsStorageResult<WriteCounts>;
 
     /// Fetch all updates for a given block number.
-    fn fetch_trie_updates(
-        &self,
-        block_number: u64,
-    ) -> impl Future<Output = OpProofsStorageResult<BlockStateDiff>> + Send;
+    fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff>;
 
     /// Applies [`BlockStateDiff`] to the earliest state (updating/deleting nodes) and updates the
     /// earliest block number.
     fn prune_earliest_state(
         &self,
         new_earliest_block_ref: BlockWithParent,
-    ) -> impl Future<Output = OpProofsStorageResult<WriteCounts>> + Send;
+    ) -> OpProofsStorageResult<WriteCounts>;
 
     /// Remove account, storage and trie updates from historical storage for all blocks till
     /// the specified block (inclusive).
-    fn unwind_history(
-        &self,
-        to: BlockWithParent,
-    ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
+    fn unwind_history(&self, to: BlockWithParent) -> OpProofsStorageResult<()>;
 
     /// Deletes all updates > `latest_common_block` and replaces them with the new updates.
     fn replace_updates(
         &self,
         latest_common_block: BlockNumHash,
         blocks_to_add: Vec<(BlockWithParent, BlockStateDiff)>,
-    ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
+    ) -> OpProofsStorageResult<()>;
 
     /// Set the earliest block number and hash that has been stored
-    fn set_earliest_block_number(
-        &self,
-        block_number: u64,
-        hash: B256,
-    ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
+    fn set_earliest_block_number(&self, block_number: u64, hash: B256)
+        -> OpProofsStorageResult<()>;
 }
 
 /// Status of the initial state anchor.
@@ -232,20 +219,13 @@ pub struct InitialStateAnchor {
 #[auto_impl(Arc)]
 pub trait OpProofsInitialStateStore: Send + Sync + Debug {
     /// Read the current anchor.
-    fn initial_state_anchor(
-        &self,
-    ) -> impl Future<Output = OpProofsStorageResult<InitialStateAnchor>> + Send;
+    fn initial_state_anchor(&self) -> OpProofsStorageResult<InitialStateAnchor>;
 
     /// Create the anchor if it doesn't exist.
     /// Returns `Err` if an anchor already exists (prevents accidental overwrite).
-    fn set_initial_state_anchor(
-        &self,
-        anchor: BlockNumHash,
-    ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
+    fn set_initial_state_anchor(&self, anchor: BlockNumHash) -> OpProofsStorageResult<()>;
 
     /// Commit the initial state - mark the anchor as completed and also set the earliest block
     /// number to anchor.
-    fn commit_initial_state(
-        &self,
-    ) -> impl Future<Output = OpProofsStorageResult<BlockNumHash>> + Send;
+    fn commit_initial_state(&self) -> OpProofsStorageResult<BlockNumHash>;
 }
