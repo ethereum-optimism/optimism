@@ -394,7 +394,6 @@ retryLoop:
 		}
 	}
 
-	c.log.Info("chain_container/RewindEngine: executed engine rewind")
 	// resume the chain container to trigger a new vn to be started
 	err = c.Resume(ctx)
 	if err != nil {
