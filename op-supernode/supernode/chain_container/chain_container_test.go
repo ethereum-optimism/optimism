@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
@@ -134,6 +135,7 @@ type mockEngineController struct {
 	rewindToTimestampCalled int
 	rewindTimestamp         uint64
 	rewindErr               error
+	rewindFunc              func(ctx context.Context, timestamp uint64) error // optional custom behavior
 }
 
 func newMockEngineController() *mockEngineController {
@@ -150,6 +152,9 @@ func (m *mockEngineController) RewindToTimestamp(ctx context.Context, timestamp 
 	defer m.mu.Unlock()
 	m.rewindToTimestampCalled++
 	m.rewindTimestamp = timestamp
+	if m.rewindFunc != nil {
+		return m.rewindFunc(ctx, timestamp)
+	}
 	return m.rewindErr
 }
 
@@ -160,8 +165,8 @@ func (m *mockEngineController) Close() error {
 // Interface conformance assertion
 var _ engine_controller.EngineController = (*mockEngineController)(nil)
 
-func createTestLogger() gethlog.Logger {
-	return gethlog.New()
+func createTestLogger(t testing.TB) gethlog.Logger {
+	return testlog.Logger(t, gethlog.LevelDebug)
 }
 
 // TestChainContainer_Constructor tests initialization and configuration
@@ -170,7 +175,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 
 	chainID := eth.ChainIDFromUInt64(420)
 	vncfg := createTestVNConfig()
-	log := createTestLogger()
+	log := createTestLogger(t)
 	cfg := createTestCLIConfig()
 	initOverload := &rollupNode.InitializationOverrides{}
 
@@ -273,11 +278,11 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 
 	chainID := eth.ChainIDFromUInt64(420)
 	vncfg := createTestVNConfig()
-	log := createTestLogger()
 	cfg := createTestCLIConfig()
 	initOverload := &rollupNode.InitializationOverrides{}
 
 	t.Run("Start respects stop flag", func(t *testing.T) {
+		log := createTestLogger(t)
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -303,6 +308,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 	})
 
 	t.Run("Stop sets stop flag", func(t *testing.T) {
+		log := createTestLogger(t)
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -316,6 +322,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 	})
 
 	t.Run("signals stopped channel on exit", func(t *testing.T) {
+		log := createTestLogger(t)
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -344,6 +351,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 	})
 
 	t.Run("context cancellation stops restart loop", func(t *testing.T) {
+		log := createTestLogger(t)
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -383,6 +391,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 	})
 
 	t.Run("Stop flag stops restart loop", func(t *testing.T) {
+		log := createTestLogger(t)
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -425,11 +434,11 @@ func TestChainContainer_PauseResume(t *testing.T) {
 
 	chainID := eth.ChainIDFromUInt64(420)
 	vncfg := createTestVNConfig()
-	log := createTestLogger()
 	cfg := createTestCLIConfig()
 	initOverload := &rollupNode.InitializationOverrides{}
 
 	t.Run("Pause sets pause flag", func(t *testing.T) {
+		log := createTestLogger(t)
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -442,6 +451,7 @@ func TestChainContainer_PauseResume(t *testing.T) {
 	})
 
 	t.Run("Resume clears pause flag", func(t *testing.T) {
+		log := createTestLogger(t)
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -456,6 +466,7 @@ func TestChainContainer_PauseResume(t *testing.T) {
 	})
 
 	t.Run("paused container doesn't start VN, resumed does", func(t *testing.T) {
+		log := createTestLogger(t)
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -528,7 +539,7 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		mockEngine := newMockEngineController()
 
 		chainID := eth.ChainIDFromUInt64(420)
-		log := createTestLogger()
+		log := createTestLogger(t)
 
 		// Create container with mocks directly injected (no Start loop needed)
 		c := &simpleChainContainer{
@@ -559,14 +570,14 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		require.False(t, c.pause.Load(), "Container should be resumed after rewind")
 	})
 
-	t.Run("returns error when engine rewind fails", func(t *testing.T) {
-		// Setup
+	t.Run("retries transient errors and eventually fails", func(t *testing.T) {
+		// Setup - transient error should be retried
 		mockVN := newMockVirtualNode()
 		mockEngine := newMockEngineController()
-		mockEngine.rewindErr = context.DeadlineExceeded
+		mockEngine.rewindErr = engine_controller.ErrRewindFCUSyntheticFailed
 
 		chainID := eth.ChainIDFromUInt64(420)
-		log := createTestLogger()
+		log := createTestLogger(t)
 
 		c := &simpleChainContainer{
 			chainID: chainID,
@@ -575,19 +586,103 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 			vn:      mockVN,
 		}
 
-		// Call RewindEngine - should fail
-		ctx := context.Background()
+		// Call RewindEngine - should retry and eventually fail
+		ctx, _ := context.WithTimeout(context.Background(), 2*time.Second) // this will prevent infinite retries
 		err := c.RewindEngine(ctx, 12345)
 		require.Error(t, err)
-		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.ErrorIs(t, err, engine_controller.ErrRewindFCUSyntheticFailed)
 
-		// Verify the VN was still stopped before the rewind attempt
-		mockVN.mu.Lock()
-		require.Equal(t, 1, mockVN.stopCalled, "Virtual node should be stopped")
-		mockVN.mu.Unlock()
+		// Verify RewindToTimestamp was called multiple times (retry attempts)
+		mockEngine.mu.Lock()
+		require.Greater(t, mockEngine.rewindToTimestampCalled, 1, "RewindToTimestamp should be retried at least once")
+		mockEngine.mu.Unlock()
 
 		// Container should still be paused since rewind failed
 		require.True(t, c.pause.Load(), "Container should remain paused after failed rewind")
+	})
+
+	t.Run("does not retry critical errors - ErrNoEngineClient", func(t *testing.T) {
+		// Setup - critical error should not be retried
+		mockVN := newMockVirtualNode()
+		mockEngine := newMockEngineController()
+		mockEngine.rewindErr = engine_controller.ErrNoEngineClient
+
+		chainID := eth.ChainIDFromUInt64(420)
+		log := createTestLogger(t)
+
+		c := &simpleChainContainer{
+			chainID: chainID,
+			log:     log,
+			engine:  mockEngine,
+			vn:      mockVN,
+		}
+
+		// Call RewindEngine - should fail immediately without retry
+		ctx := context.Background()
+		err := c.RewindEngine(ctx, 12345)
+		require.Error(t, err)
+		require.ErrorIs(t, err, engine_controller.ErrNoEngineClient)
+
+		// Verify RewindToTimestamp was called only once (no retry for critical errors)
+		// mockEngine.mu.Lock()
+		require.Equal(t, 1, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should not be retried for critical errors")
+		// mockEngine.mu.Unlock()
+	})
+
+	t.Run("does not retry critical errors - ErrNoRollupConfig", func(t *testing.T) {
+		// Setup - critical error should not be retried
+		mockVN := newMockVirtualNode()
+		mockEngine := newMockEngineController()
+		mockEngine.rewindErr = engine_controller.ErrNoRollupConfig
+
+		chainID := eth.ChainIDFromUInt64(420)
+		log := createTestLogger(t)
+
+		c := &simpleChainContainer{
+			chainID: chainID,
+			log:     log,
+			engine:  mockEngine,
+			vn:      mockVN,
+		}
+
+		// Call RewindEngine - should fail immediately without retry
+		ctx := context.Background()
+		err := c.RewindEngine(ctx, 12345)
+		require.Error(t, err)
+		require.ErrorIs(t, err, engine_controller.ErrNoRollupConfig)
+
+		// Verify RewindToTimestamp was called only once (no retry for critical errors)
+		mockEngine.mu.Lock()
+		require.Equal(t, 1, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should not be retried for critical errors")
+		mockEngine.mu.Unlock()
+	})
+
+	t.Run("does not retry critical errors - ErrRewindComputeTargetsFailed", func(t *testing.T) {
+		// Setup - critical error should not be retried
+		mockVN := newMockVirtualNode()
+		mockEngine := newMockEngineController()
+		mockEngine.rewindErr = engine_controller.ErrRewindComputeTargetsFailed
+
+		chainID := eth.ChainIDFromUInt64(420)
+		log := createTestLogger(t)
+
+		c := &simpleChainContainer{
+			chainID: chainID,
+			log:     log,
+			engine:  mockEngine,
+			vn:      mockVN,
+		}
+
+		// Call RewindEngine - should fail immediately without retry
+		ctx := context.Background()
+		err := c.RewindEngine(ctx, 12345)
+		require.Error(t, err)
+		require.ErrorIs(t, err, engine_controller.ErrRewindComputeTargetsFailed)
+
+		// Verify RewindToTimestamp was called only once (no retry for critical errors)
+		mockEngine.mu.Lock()
+		require.Equal(t, 1, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should not be retried for critical errors")
+		mockEngine.mu.Unlock()
 	})
 
 	t.Run("returns error when VN stop fails", func(t *testing.T) {
@@ -597,7 +692,7 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		mockEngine := newMockEngineController()
 
 		chainID := eth.ChainIDFromUInt64(420)
-		log := createTestLogger()
+		log := createTestLogger(t)
 
 		c := &simpleChainContainer{
 			chainID: chainID,
@@ -617,6 +712,43 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		require.Equal(t, 0, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should not be called when VN stop fails")
 		mockEngine.mu.Unlock()
 	})
+
+	t.Run("succeeds after transient error on retry", func(t *testing.T) {
+		// Setup - fail first 2 attempts, succeed on 3rd
+		mockVN := newMockVirtualNode()
+		mockEngine := newMockEngineController()
+		failCount := 0
+		mockEngine.rewindFunc = func(ctx context.Context, timestamp uint64) error {
+			failCount++
+			if failCount < 3 {
+				return engine_controller.ErrRewindFCUTargetFailed
+			}
+			return nil
+		}
+
+		chainID := eth.ChainIDFromUInt64(420)
+		log := createTestLogger(t)
+
+		c := &simpleChainContainer{
+			chainID: chainID,
+			log:     log,
+			engine:  mockEngine,
+			vn:      mockVN,
+		}
+
+		// Call RewindEngine - should succeed after retries
+		ctx := context.Background()
+		err := c.RewindEngine(ctx, 12345)
+		require.NoError(t, err)
+
+		// Verify RewindToTimestamp was called 3 times (2 failures + 1 success)
+		mockEngine.mu.Lock()
+		require.Equal(t, 3, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should be called 3 times")
+		mockEngine.mu.Unlock()
+
+		// Container should be resumed after successful rewind
+		require.False(t, c.pause.Load(), "Container should be resumed after successful rewind")
+	})
 }
 
 // TestChainContainer_VirtualNodeIntegration tests interaction with VirtualNode
@@ -625,11 +757,11 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 
 	chainID := eth.ChainIDFromUInt64(420)
 	vncfg := createTestVNConfig()
-	log := createTestLogger()
 	cfg := createTestCLIConfig()
 	initOverload := &rollupNode.InitializationOverrides{}
 
 	t.Run("Start creates and starts virtual node", func(t *testing.T) {
+		log := createTestLogger(t)
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -659,6 +791,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 	})
 
 	t.Run("auto-restart virtual node on exit", func(t *testing.T) {
+		log := createTestLogger(t)
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -694,6 +827,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 	})
 
 	t.Run("Stop calls virtual node Stop", func(t *testing.T) {
+		log := createTestLogger(t)
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -738,6 +872,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 			calledChainID = id
 		}
 
+		log := createTestLogger(t)
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, setHandler, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)

@@ -379,11 +379,11 @@ retryLoop:
 	for {
 		err = c.engine.RewindToTimestamp(ctx, timestamp)
 		switch {
-		case errors.Is(err, context.DeadlineExceeded):
+		case errors.Is(err, context.DeadlineExceeded), ctx.Err() != nil:
 			c.log.Error("chain_container/RewindEngine: timeout exceeded")
 			return err
 		case isCriticalRewindError(err):
-			c.log.Crit("chain_container/RewindEngine: critical error", "err", err)
+			c.log.Error("chain_container/RewindEngine: critical error", "err", err)
 			return err
 		case err == nil:
 			c.log.Info("chain_container/RewindEngine: executed engine rewind")
