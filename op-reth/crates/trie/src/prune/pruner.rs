@@ -143,7 +143,7 @@ where
             })?
             .ok_or(PrunerError::BlockNotFound(parent_block_num))?;
 
-        let fetch_duration = batch_start_time.elapsed();
+        batch_start_time.elapsed();
 
         let block_with_parent = BlockWithParent {
             parent: parent_block_hash,
@@ -154,14 +154,7 @@ where
         let write_counts = self.provider.prune_earliest_state(block_with_parent).await?;
 
         let duration = batch_start_time.elapsed();
-        let batch_output = PrunerOutput {
-            duration,
-            fetch_duration,
-            prune_duration: duration.saturating_sub(fetch_duration),
-            start_block,
-            end_block,
-            write_counts,
-        };
+        let batch_output = PrunerOutput { duration, start_block, end_block, write_counts };
 
         // Record metrics for this batch
         #[cfg(feature = "metrics")]

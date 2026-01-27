@@ -1950,36 +1950,12 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "rate(reth_optimism_trie_pruner_prune_duration_seconds_sum[$__rate_interval])/rate(reth_optimism_trie_pruner_prune_duration_seconds_count[$__rate_interval])",
-          "legendFormat": "Prune Duration",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "rate(reth_optimism_trie_pruner_state_diff_fetch_duration_seconds_sum[$__rate_interval])/rate(reth_optimism_trie_pruner_state_diff_fetch_duration_seconds_count[$__rate_interval])\n",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "State Diff Fetch Duration",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
           "expr": "rate(reth_optimism_trie_pruner_total_duration_seconds_sum[$__rate_interval])/rate(reth_optimism_trie_pruner_total_duration_seconds_count[$__rate_interval])\n",
           "hide": false,
           "instant": false,
           "legendFormat": "Total Duration",
           "range": true,
-          "refId": "C"
+          "refId": "A"
         }
       ],
       "title": "Prune Duration Over Time",
