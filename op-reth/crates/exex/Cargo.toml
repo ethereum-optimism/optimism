@@ -32,9 +32,9 @@ alloy-eips.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
 tracing.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["test-util", "rt-multi-thread", "macros"] }
 futures.workspace = true
 reth-db = { workspace = true, features = ["op", "test-utils"] }
 reth-node-builder.workspace = true
