@@ -38,6 +38,73 @@ const REAL_TIME_BLOCKS_THRESHOLD: u64 = 1024;
 /// How long to sleep when sync task is caught up. Default is 5 seconds.
 const SYNC_IDLE_SLEEP_SECS: u64 = 5;
 
+/// Default proofs history window: 1 month of blocks at 2s block time
+const DEFAULT_PROOFS_HISTORY_WINDOW: u64 = 1_296_000;
+
+/// Default interval between proof-storage prune runs. Default is 15 seconds.
+const DEFAULT_PRUNE_INTERVAL: Duration = Duration::from_secs(15);
+
+/// Default verification interval: disabled
+const DEFAULT_VERIFICATION_INTERVAL: u64 = 0; // disabled
+
+/// Builder for [`OpProofsExEx`].
+#[derive(Debug)]
+pub struct OpProofsExExBuilder<Node, Storage>
+where
+    Node: FullNodeComponents,
+{
+    ctx: ExExContext<Node>,
+    storage: OpProofsStorage<Storage>,
+    proofs_history_window: u64,
+    proofs_history_prune_interval: Duration,
+    verification_interval: u64,
+}
+
+impl<Node, Storage> OpProofsExExBuilder<Node, Storage>
+where
+    Node: FullNodeComponents,
+{
+    /// Create a new builder with required parameters and defaults.
+    pub const fn new(ctx: ExExContext<Node>, storage: OpProofsStorage<Storage>) -> Self {
+        Self {
+            ctx,
+            storage,
+            proofs_history_window: DEFAULT_PROOFS_HISTORY_WINDOW,
+            proofs_history_prune_interval: DEFAULT_PRUNE_INTERVAL,
+            verification_interval: DEFAULT_VERIFICATION_INTERVAL,
+        }
+    }
+
+    /// Sets the window to span blocks for proofs history.
+    pub const fn with_proofs_history_window(mut self, window: u64) -> Self {
+        self.proofs_history_window = window;
+        self
+    }
+
+    /// Sets the interval between proof-storage prune runs.
+    pub const fn with_proofs_history_prune_interval(mut self, interval: Duration) -> Self {
+        self.proofs_history_prune_interval = interval;
+        self
+    }
+
+    /// Sets the verification interval.
+    pub const fn with_verification_interval(mut self, interval: u64) -> Self {
+        self.verification_interval = interval;
+        self
+    }
+
+    /// Builds the [`OpProofsExEx`].
+    pub fn build(self) -> OpProofsExEx<Node, Storage> {
+        OpProofsExEx {
+            ctx: self.ctx,
+            storage: self.storage,
+            proofs_history_window: self.proofs_history_window,
+            proofs_history_prune_interval: self.proofs_history_prune_interval,
+            verification_interval: self.verification_interval,
+        }
+    }
+}
+
 /// OP Proofs ExEx - processes blocks and tracks state changes within fault proof window.
 ///
 /// Saves and serves trie nodes to make proofs faster. This handles the process of
@@ -93,15 +160,13 @@ const SYNC_IDLE_SLEEP_SECS: u64 = 5;
 ///     .with_types_and_provider::<OpNode, BlockchainProvider<NodeTypesWithDBAdapter<OpNode, _>>>()
 ///     .with_components(op_node.components())
 ///     .install_exex("proofs-history", move |exex_context| async move {
-///         Ok(OpProofsExEx::new(
-///             exex_context,
-///             storage_exec,
-///             proofs_history_window,
-///             proofs_history_prune_interval,
-///             verification_interval, // 0 = no verification, 100 = every 100 blocks
-///         )
-///         .run()
-///         .boxed())
+///         Ok(OpProofsExEx::builder(exex_context, storage_exec)
+///             .with_proofs_history_window(proofs_history_window)
+///             .with_proofs_history_prune_interval(proofs_history_prune_interval)
+///             .with_verification_interval(verification_interval)
+///             .build()
+///             .run()
+///             .boxed())
 ///     })
 ///     .on_node_started(|_full_node| Ok(()))
 ///     .check_launch();
@@ -132,20 +197,16 @@ where
     Node: FullNodeComponents,
 {
     /// Create a new `OpProofsExEx` instance.
-    pub const fn new(
+    pub fn new(ctx: ExExContext<Node>, storage: OpProofsStorage<Storage>) -> Self {
+        OpProofsExExBuilder::new(ctx, storage).build()
+    }
+
+    /// Create a new builder for `OpProofsExEx`.
+    pub const fn builder(
         ctx: ExExContext<Node>,
         storage: OpProofsStorage<Storage>,
-        proofs_history_window: u64,
-        proofs_history_prune_interval: Duration,
-        verification_interval: u64,
-    ) -> Self {
-        Self {
-            ctx,
-            storage,
-            proofs_history_window,
-            proofs_history_prune_interval,
-            verification_interval,
-        }
+    ) -> OpProofsExExBuilder<Node, Storage> {
+        OpProofsExExBuilder::new(ctx, storage)
     }
 }
 
@@ -672,7 +733,11 @@ mod tests {
         NodeT: FullNodeComponents,
         Store: OpProofsStore + Clone + 'static,
     {
-        OpProofsExEx::new(ctx, storage, 20, Duration::from_secs(3600), 1000)
+        OpProofsExEx::builder(ctx, storage)
+            .with_proofs_history_window(20)
+            .with_proofs_history_prune_interval(Duration::from_secs(3600))
+            .with_verification_interval(1000)
+            .build()
     }
 
     #[tokio::test]
