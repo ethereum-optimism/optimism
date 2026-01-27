@@ -20,7 +20,7 @@ type EngineController interface {
 	// SafeBlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp,
 	// clamped to the current SAFE head.
 	// Must return ethereum.NotFound if there is no safe block at the specified timestamp.
-	SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)	
+	SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
 	// OutputV0AtBlockNumber returns the output preimage for the given L2 block number.
 	OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error)
 	// RewindToTimestamp rewinds the L2 execution layer to block at or before the given timestamp.
@@ -113,13 +113,6 @@ func (e *simpleEngineController) SafeBlockAtTimestamp(ctx context.Context, ts ui
 	return e.l2.L2BlockRefByNumber(ctx, num)
 }
 
-func (e *simpleEngineController) FinalizedBlock(ctx context.Context) (eth.L2BlockRef, error) {
-	if e.l2 == nil {
-		return eth.L2BlockRef{}, ErrNoEngineClient
-	}
-	return e.l2.L2BlockRefByLabel(ctx, eth.Finalized)
-}
-
 func (e *simpleEngineController) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
 	if e.l2 == nil {
 		return nil, ErrNoEngineClient
@@ -152,12 +145,6 @@ func (e *simpleEngineController) OutputV0AtBlockNumber(ctx context.Context, num 
 	}
 	return e.l2.OutputV0AtBlockNumber(ctx, num)
 }
-func (e *simpleEngineController) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState) (*eth.ForkchoiceUpdatedResult, error) {
-	if e.l2 == nil {
-		return nil, ErrNoEngineClient
-	}
-	return e.l2.ForkchoiceUpdate(ctx, state, nil) // use nil PayloadAttributes to avoid triggering block building
-}
 
 // RewindToTimestamp rewinds the L2 execution layer to the block at or before the given timestamp.
 //
@@ -173,36 +160,41 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 		return ErrNoEngineClient
 	}
 
+	// Step 0: infer the target block:
 	targetBlock, err := e.blockAtTimestamp(ctx, timestamp)
 	if err != nil {
 		return fmt.Errorf("failed to get target block at timestamp %d: %w", timestamp, err)
 	}
 
+	// Step 1: Insert a synthetic block (modified fee recipient) which
+	// is an uncle for all blocks descending from the target block:
 	syntheticBlockHash, err := e.insertSyntheticPayload(ctx, targetBlock.Number)
 	if err != nil {
 		return err
 	}
 
+	// Step 3: compute rewind targets for safe and finalized heads, ensuring they do not go forwards:
 	targetSafeBlock, targetFinalizedBlock, err := e.computeRewindTargets(ctx, targetBlock)
 	if err != nil {
 		return err
 	}
 
-	// Step 1: FCU to the synthetic block to trigger a reorg
-	// we use the parent hash of the target block as the safe and finalized block
-	// since these are guaranteed to be in the canonical chain of the synthetic block
+	// Step 4: FCU to the synthetic block to trigger a reorg.
+	// We use the parent hash of the target block as the safe and finalized block
+	// since these are guaranteed to be in the canonical chain of the synthetic block.
 	parentHash := targetBlock.ParentHash
 	if err := e.forkchoiceUpdate(ctx, syntheticBlockHash, parentHash, parentHash); err != nil {
 		return fmt.Errorf("failed to FCU to synthetic block: %w", err)
 	}
 	e.log.Info("executed FCU to synthetic block", "syntheticHead", syntheticBlockHash, "safe", parentHash, "finalized", parentHash)
 
-	// Step 2: FCU to the actual target block
+	// Step 5: FCU to the actual target block
 	if err := e.forkchoiceUpdate(ctx, targetBlock.Hash, targetSafeBlock.Hash, targetFinalizedBlock.Hash); err != nil {
 		return fmt.Errorf("failed to FCU to target block: %w", err)
 	}
 	e.log.Info("executed FCU to target block", "head", targetBlock.Hash, "safe", targetSafeBlock.Hash, "finalized", targetFinalizedBlock.Hash)
 
+	// Step 6: Verify the rewind state
 	return e.verifyRewindState(ctx, targetBlock, targetSafeBlock, targetFinalizedBlock)
 }
 
