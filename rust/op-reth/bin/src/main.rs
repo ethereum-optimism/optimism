@@ -68,15 +68,13 @@ async fn launch_node(
                 Ok(())
             })
             .install_exex("proofs-history", async move |exex_context| {
-                Ok(OpProofsExEx::new(
-                    exex_context,
-                    storage_exec,
-                    proofs_history_window,
-                    proofs_history_prune_interval,
-                    proofs_history_verification_interval,
-                )
-                .run()
-                .boxed())
+                Ok(OpProofsExEx::builder(exex_context, storage_exec)
+                    .with_proofs_history_window(proofs_history_window)
+                    .with_proofs_history_prune_interval(proofs_history_prune_interval)
+                    .with_verification_interval(proofs_history_verification_interval)
+                    .build()
+                    .run()
+                    .boxed())
             })
             .extend_rpc_modules(move |ctx| {
                 let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
