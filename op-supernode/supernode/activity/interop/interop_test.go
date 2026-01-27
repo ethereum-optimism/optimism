@@ -42,12 +42,6 @@ func (m *mockChainContainer) Stop(ctx context.Context) error   { return nil }
 func (m *mockChainContainer) Pause(ctx context.Context) error  { return nil }
 func (m *mockChainContainer) Resume(ctx context.Context) error { return nil }
 
-func (m *mockChainContainer) CurrentL1(ctx context.Context) (eth.BlockRef, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.currentL1, m.currentL1Err
-}
-
 func (m *mockChainContainer) RegisterVerifier(v activity.VerificationActivity) {
 }
 func (m *mockChainContainer) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
@@ -72,7 +66,12 @@ func (m *mockChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts
 	return nil, nil
 }
 func (m *mockChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
-	return &eth.SyncStatus{}, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.currentL1Err != nil {
+		return nil, m.currentL1Err
+	}
+	return &eth.SyncStatus{CurrentL1: m.currentL1}, nil
 }
 
 var _ cc.ChainContainer = (*mockChainContainer)(nil)
