@@ -1778,8 +1778,7 @@ mod tests {
 
         // incoming block whose parent != existing latest
         let bad_parent = B256::from([0xFF; 32]);
-        let bad_block: BlockWithParent =
-            BlockWithParent::new(bad_parent, NumHash::new(2, B256::ZERO));
+        let bad_block = BlockWithParent::new(bad_parent, NumHash::new(2, B256::ZERO));
         let diff = BlockStateDiff::default();
 
         let res = store.store_trie_updates(bad_block, diff);

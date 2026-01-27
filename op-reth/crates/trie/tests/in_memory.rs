@@ -991,8 +991,7 @@ fn test_storage_zero_value_deletion<S: OpProofsStore>(
     hashed_storage.storage.insert(storage_key, U256::ZERO);
     block_state_diff_post_state.storages.insert(hashed_address, hashed_storage);
 
-    let block_ref: BlockWithParent =
-        BlockWithParent::new(B256::ZERO, NumHash::new(100, B256::repeat_byte(0x96)));
+    let block_ref = BlockWithParent::new(B256::ZERO, NumHash::new(100, B256::repeat_byte(0x96)));
     let block_state_diff = BlockStateDiff {
         sorted_trie_updates: TrieUpdatesSorted::default(),
         sorted_post_state: block_state_diff_post_state.into_sorted(),
@@ -1149,8 +1148,7 @@ fn test_store_trie_updates_with_wiped_storage<S: OpProofsStore>(
     use reth_trie::HashedStorage;
 
     let hashed_address = B256::repeat_byte(0x01);
-    let block_ref: BlockWithParent =
-        BlockWithParent::new(B256::ZERO, NumHash::new(100, B256::repeat_byte(0x96)));
+    let block_ref = BlockWithParent::new(B256::ZERO, NumHash::new(100, B256::repeat_byte(0x96)));
 
     // First, store some storage values at block 50
     let storage_slots = vec![
