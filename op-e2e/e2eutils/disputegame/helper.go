@@ -211,7 +211,7 @@ func (h *FactoryHelper) startOutputCannonGameOfType(ctx context.Context, l2Node 
 
 	extraData := h.createBisectionGameExtraData(l2Node, l2BlockNumber, cfg)
 
-	// If a custom output root was provided via options, use it; otherwise derive from extraData
+	// If a custom output root was provided via options, use it; otherwise retrieve the correct output root
 	var rootClaim common.Hash
 	if cfg.outputRoot != (common.Hash{}) {
 		rootClaim = cfg.outputRoot
