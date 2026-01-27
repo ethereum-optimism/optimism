@@ -18,7 +18,11 @@ func ReadArray(ctx context.Context, caller *MultiCaller, block rpcblock.Block, c
 	if err != nil {
 		return nil, fmt.Errorf("failed to load array length: %w", err)
 	}
-	count := bigs.Uint64Strict(result.GetBigInt(0))
+	countBig := result.GetBigInt(0)
+	if !countBig.IsUint64() {
+		return nil, fmt.Errorf("array length is not a uint64: %v", countBig)
+	}
+	count := bigs.Uint64Strict(countBig)
 	calls := make([]Call, count)
 	for i := uint64(0); i < count; i++ {
 		calls[i] = getCall(new(big.Int).SetUint64(i))
