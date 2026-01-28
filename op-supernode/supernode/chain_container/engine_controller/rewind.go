@@ -124,6 +124,9 @@ func (e *simpleEngineController) verifyRewindState(ctx context.Context, targetUn
 	if unsafe.Number != targetUnsafe.Number {
 		return fmt.Errorf("unexpected unsafe block number: got %d, want %d", unsafe.Number, targetUnsafe.Number)
 	}
+	if unsafe.Hash != targetUnsafe.Hash {
+		return fmt.Errorf("unexpected unsafe block hash: got %s, want %s", unsafe.Hash, targetUnsafe.Hash)
+	}
 
 	safe, err := e.l2.L2BlockRefByLabel(ctx, eth.Safe)
 	if err != nil {
@@ -132,6 +135,9 @@ func (e *simpleEngineController) verifyRewindState(ctx context.Context, targetUn
 	if safe.Number != targetSafe.Number {
 		return fmt.Errorf("unexpected safe block number: got %d, want %d", safe.Number, targetSafe.Number)
 	}
+	if safe.Hash != targetSafe.Hash {
+		return fmt.Errorf("unexpected safe block hash: got %s, want %s", safe.Hash, targetSafe.Hash)
+	}
 
 	finalized, err := e.l2.L2BlockRefByLabel(ctx, eth.Finalized)
 	if err != nil {
@@ -139,6 +145,9 @@ func (e *simpleEngineController) verifyRewindState(ctx context.Context, targetUn
 	}
 	if finalized.Number != targetFinalized.Number {
 		return fmt.Errorf("unexpected finalized block number: got %d, want %d", finalized.Number, targetFinalized.Number)
+	}
+	if finalized.Hash != targetFinalized.Hash {
+		return fmt.Errorf("unexpected finalized block hash: got %s, want %s", finalized.Hash, targetFinalized.Hash)
 	}
 
 	return nil
