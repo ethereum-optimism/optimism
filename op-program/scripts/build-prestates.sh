@@ -104,48 +104,52 @@ EOF
   rm -rf kona/prestate-artifacts-*
   make reproducible-prestate >> "${log_file}" 2>&1
 
-  if [ -f "${BIN_DIR}/prestate-proof.json" ]; then
-    local hash
-    hash=$(jq -r .pre "${BIN_DIR}/prestate-proof.json")
-    if [ -f "${BIN_DIR}/prestate.bin.gz" ]; then
-      cp "${BIN_DIR}/prestate.bin.gz" "${STATES_DIR}/${hash}.bin.gz"
-    else
-      cp "${BIN_DIR}/prestate.json" "${STATES_DIR}/${hash}.json"
+  if [[ "${version}" =~ ^op-program/v ]]; then
+    if [ -f "${BIN_DIR}/prestate-proof.json" ]; then
+      local hash
+      hash=$(jq -r .pre "${BIN_DIR}/prestate-proof.json")
+      if [ -f "${BIN_DIR}/prestate.bin.gz" ]; then
+        cp "${BIN_DIR}/prestate.bin.gz" "${STATES_DIR}/${hash}.bin.gz"
+      else
+        cp "${BIN_DIR}/prestate.json" "${STATES_DIR}/${hash}.json"
+      fi
+      VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${hash}\", \"type\": \"cannon32\"}]")
+      echo "Built cannon32 ${version}: ${hash}"
     fi
-    VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${hash}\", \"type\": \"cannon32\"}]")
-    echo "Built cannon32 ${version}: ${hash}"
+
+    if [ -f "${BIN_DIR}/prestate-proof-mt64.json" ]; then
+      local hash
+      hash=$(jq -r .pre "${BIN_DIR}/prestate-proof-mt64.json")
+      cp "${BIN_DIR}/prestate-mt64.bin.gz" "${STATES_DIR}/${hash}.mt64.bin.gz"
+      VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${hash}\", \"type\": \"cannon64\"}]")
+      echo "Built cannon64 ${version}: ${hash}"
+    fi
+
+    if [ -f "${BIN_DIR}/prestate-proof-interop.json" ]; then
+      local hash
+      hash=$(jq -r .pre "${BIN_DIR}/prestate-proof-interop.json")
+      cp "${BIN_DIR}/prestate-interop.bin.gz" "${STATES_DIR}/${hash}.interop.bin.gz"
+      VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${hash}\", \"type\": \"interop\"}]")
+      echo "Built cannon-interop ${version}: ${hash}"
+    fi
   fi
 
-  if [ -f "${BIN_DIR}/prestate-proof-mt64.json" ]; then
-    local hash
-    hash=$(jq -r .pre "${BIN_DIR}/prestate-proof-mt64.json")
-    cp "${BIN_DIR}/prestate-mt64.bin.gz" "${STATES_DIR}/${hash}.mt64.bin.gz"
-    VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${hash}\", \"type\": \"cannon64\"}]")
-    echo "Built cannon64 ${version}: ${hash}"
-  fi
+  if [[ "${version}" =~ ^kona-client/v ]]; then
+    if [ -f "kona/prestate-artifacts-cannon/prestate-proof.json" ]; then
+      local hash
+      hash=$(jq -r .pre kona/prestate-artifacts-cannon/prestate-proof.json)
+      cp kona/prestate-artifacts-cannon/prestate.bin.gz "${STATES_DIR}/${hash}.bin.gz"
+      VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${hash}\", \"type\": \"cannon64-kona\"}]")
+      echo "Built cannon64-kona ${version}: ${hash}"
+    fi
 
-  if [ -f "${BIN_DIR}/prestate-proof-interop.json" ]; then
-    local hash
-    hash=$(jq -r .pre "${BIN_DIR}/prestate-proof-interop.json")
-    cp "${BIN_DIR}/prestate-interop.bin.gz" "${STATES_DIR}/${hash}.interop.bin.gz"
-    VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${hash}\", \"type\": \"interop\"}]")
-    echo "Built cannon-interop ${version}: ${hash}"
-  fi
-
-  if [ -f "kona/prestate-artifacts-cannon/prestate-proof.json" ]; then
-    local hash
-    hash=$(jq -r .pre kona/prestate-artifacts-cannon/prestate-proof.json)
-    cp kona/prestate-artifacts-cannon/prestate.bin.gz "${STATES_DIR}/${hash}.bin.gz"
-    VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${hash}\", \"type\": \"cannon64-kona\"}]")
-    echo "Built cannon64-kona ${version}: ${hash}"
-  fi
-
-  if [ -f "kona/prestate-artifacts-cannon-interop/prestate-proof.json" ]; then
-    local hash
-    hash=$(jq -r .pre kona/prestate-artifacts-cannon-interop/prestate-proof.json)
-    cp kona/prestate-artifacts-cannon-interop/prestate.bin.gz "${STATES_DIR}/${hash}.bin.gz"
-    VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${hash}\", \"type\": \"cannon64-kona-interop\"}]")
-    echo "Built cannon64-kona-interop ${version}: ${hash}"
+    if [ -f "kona/prestate-artifacts-cannon-interop/prestate-proof.json" ]; then
+      local hash
+      hash=$(jq -r .pre kona/prestate-artifacts-cannon-interop/prestate-proof.json)
+      cp kona/prestate-artifacts-cannon-interop/prestate.bin.gz "${STATES_DIR}/${hash}.bin.gz"
+      VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${hash}\", \"type\": \"cannon64-kona-interop\"}]")
+      echo "Built cannon64-kona-interop ${version}: ${hash}"
+    fi
   fi
 }
 
