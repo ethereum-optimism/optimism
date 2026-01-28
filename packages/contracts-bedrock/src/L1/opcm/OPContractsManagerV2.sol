@@ -147,9 +147,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.0.5
+    /// @custom:semver 7.0.6
     function version() public pure returns (string memory) {
-        return "7.0.5";
+        return "7.0.6";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -181,7 +181,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // If we expand the scope of this function to add other Superchain-wide contracts, we'll
         // probably want to start following a similar pattern to the chain upgrade flow.
 
-        // Upgrade the SuperchainConfig if it has changed.
+        // Upgrade the SuperchainConfig.
         _upgrade(
             IProxyAdmin(_inp.superchainConfig.proxyAdmin()),
             address(_inp.superchainConfig),
