@@ -337,7 +337,7 @@ target "op-interop-mon" {
 // Rust-based images
 
 target "op-rbuilder" {
-  dockerfile = "op-rbuilder/Dockerfile"
+  dockerfile = "Dockerfile"
   context = "op-rbuilder"
   target = "rbuilder-runtime"
   args = {
