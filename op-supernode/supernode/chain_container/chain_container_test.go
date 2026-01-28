@@ -639,6 +639,7 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 			{"ErrNoEngineClient", engine_controller.ErrNoEngineClient},
 			{"ErrNoRollupConfig", engine_controller.ErrNoRollupConfig},
 			{"ErrRewindComputeTargetsFailed", engine_controller.ErrRewindComputeTargetsFailed},
+			{"ErrRewindTimestampToBlockConversion", engine_controller.ErrRewindTimestampToBlockConversion},
 		}
 
 		for _, tc := range criticalErrors {

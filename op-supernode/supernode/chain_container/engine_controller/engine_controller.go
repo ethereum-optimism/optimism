@@ -3,6 +3,7 @@ package engine_controller
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -73,14 +74,15 @@ var (
 	ErrNoRollupConfig = errors.New("rollup config not available")
 
 	// Rewind errors
-	ErrRewindTargetBlockNotFound      = errors.New("failed to get target block at timestamp")
-	ErrRewindComputeTargetsFailed     = errors.New("failed to compute rewind targets")
-	ErrRewindInsertSyntheticFailed    = errors.New("failed to insert synthetic payload")
-	ErrRewindSyntheticPayloadRejected = errors.New("synthetic payload rejected by engine")
-	ErrRewindFCUSyntheticFailed       = errors.New("failed to FCU to synthetic block")
-	ErrRewindFCUTargetFailed          = errors.New("failed to FCU to target block")
-	ErrRewindVerificationFailed       = errors.New("rewind state verification failed")
-	ErrRewindFCURejected              = errors.New("forkchoice update rejected by engine")
+	ErrRewindTargetBlockNotFound        = errors.New("failed to get target block at timestamp")
+	ErrRewindComputeTargetsFailed       = errors.New("failed to compute rewind targets")
+	ErrRewindInsertSyntheticFailed      = errors.New("failed to insert synthetic payload")
+	ErrRewindSyntheticPayloadRejected   = errors.New("synthetic payload rejected by engine")
+	ErrRewindFCUSyntheticFailed         = errors.New("failed to FCU to synthetic block")
+	ErrRewindFCUTargetFailed            = errors.New("failed to FCU to target block")
+	ErrRewindVerificationFailed         = errors.New("rewind state verification failed")
+	ErrRewindFCURejected                = errors.New("forkchoice update rejected by engine")
+	ErrRewindTimestampToBlockConversion = errors.New("failed to convert timestamp to block number")
 )
 
 func (e *simpleEngineController) blockNumberAtTimestamp(ts uint64) (uint64, error) {
@@ -94,7 +96,7 @@ func (e *simpleEngineController) blockNumberAtTimestamp(ts uint64) (uint64, erro
 func (e *simpleEngineController) blockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	num, err := e.blockNumberAtTimestamp(ts)
 	if err != nil {
-		return eth.L2BlockRef{}, err
+		return eth.L2BlockRef{}, fmt.Errorf("failed to convert timestamp to block number: %w :%w ", err, ErrRewindTimestampToBlockConversion)
 	}
 	return e.l2.L2BlockRefByNumber(ctx, num)
 }

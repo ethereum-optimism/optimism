@@ -250,4 +250,144 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 		err := ec.RewindToTimestamp(context.Background(), targetTimestamp)
 		require.ErrorIs(t, err, ErrRewindFCURejected)
 	})
+
+	t.Run("returns error when unsafe block hash mismatches after rewind", func(t *testing.T) {
+		t.Parallel()
+
+		targetTimestamp := uint64(1010)
+		targetBlockNum := uint64(5)
+		parentHash := common.Hash{0x04}
+
+		targetRef := eth.L2BlockRef{
+			Number:     targetBlockNum,
+			Hash:       common.Hash{byte(targetBlockNum)},
+			ParentHash: parentHash,
+			Time:       targetTimestamp,
+		}
+
+		l2 := &mockL2{
+			refsByNumber: map[uint64]eth.L2BlockRef{
+				targetBlockNum: targetRef,
+			},
+			refsByLabel: map[eth.BlockLabel]eth.L2BlockRef{
+				eth.Safe:      {Number: 10, Hash: common.Hash{0x0a}},
+				eth.Finalized: {Number: 8, Hash: common.Hash{0x08}},
+			},
+			// After FCU, unsafe has correct number but wrong hash
+			refsByLabelAfterFCU: map[eth.BlockLabel]eth.L2BlockRef{
+				eth.Unsafe:    {Number: targetBlockNum, Hash: common.Hash{0xff}}, // wrong hash
+				eth.Safe:      targetRef,
+				eth.Finalized: targetRef,
+			},
+			payloadsByNumber: map[uint64]*eth.ExecutionPayloadEnvelope{
+				targetBlockNum: createPayload(targetBlockNum, parentHash, targetTimestamp),
+			},
+		}
+
+		ec := &simpleEngineController{l2: l2, rollup: createRollupConfig(), log: gethlog.New()}
+
+		err := ec.RewindToTimestamp(context.Background(), targetTimestamp)
+		require.ErrorIs(t, err, ErrRewindVerificationFailed)
+		require.ErrorContains(t, err, "unexpected unsafe block hash")
+	})
+
+	t.Run("returns error when safe block hash mismatches after rewind", func(t *testing.T) {
+		t.Parallel()
+
+		targetTimestamp := uint64(1010)
+		targetBlockNum := uint64(5)
+		parentHash := common.Hash{0x04}
+
+		targetRef := eth.L2BlockRef{
+			Number:     targetBlockNum,
+			Hash:       common.Hash{byte(targetBlockNum)},
+			ParentHash: parentHash,
+			Time:       targetTimestamp,
+		}
+
+		l2 := &mockL2{
+			refsByNumber: map[uint64]eth.L2BlockRef{
+				targetBlockNum: targetRef,
+			},
+			refsByLabel: map[eth.BlockLabel]eth.L2BlockRef{
+				eth.Safe:      {Number: 10, Hash: common.Hash{0x0a}},
+				eth.Finalized: {Number: 8, Hash: common.Hash{0x08}},
+			},
+			// After FCU, safe has correct number but wrong hash
+			refsByLabelAfterFCU: map[eth.BlockLabel]eth.L2BlockRef{
+				eth.Unsafe:    targetRef,
+				eth.Safe:      {Number: targetBlockNum, Hash: common.Hash{0xff}}, // wrong hash
+				eth.Finalized: targetRef,
+			},
+			payloadsByNumber: map[uint64]*eth.ExecutionPayloadEnvelope{
+				targetBlockNum: createPayload(targetBlockNum, parentHash, targetTimestamp),
+			},
+		}
+
+		ec := &simpleEngineController{l2: l2, rollup: createRollupConfig(), log: gethlog.New()}
+
+		err := ec.RewindToTimestamp(context.Background(), targetTimestamp)
+		require.ErrorIs(t, err, ErrRewindVerificationFailed)
+		require.ErrorContains(t, err, "unexpected safe block hash")
+	})
+
+	t.Run("returns error when finalized block hash mismatches after rewind", func(t *testing.T) {
+		t.Parallel()
+
+		targetTimestamp := uint64(1010)
+		targetBlockNum := uint64(5)
+		parentHash := common.Hash{0x04}
+
+		targetRef := eth.L2BlockRef{
+			Number:     targetBlockNum,
+			Hash:       common.Hash{byte(targetBlockNum)},
+			ParentHash: parentHash,
+			Time:       targetTimestamp,
+		}
+
+		l2 := &mockL2{
+			refsByNumber: map[uint64]eth.L2BlockRef{
+				targetBlockNum: targetRef,
+			},
+			refsByLabel: map[eth.BlockLabel]eth.L2BlockRef{
+				eth.Safe:      {Number: 10, Hash: common.Hash{0x0a}},
+				eth.Finalized: {Number: 8, Hash: common.Hash{0x08}},
+			},
+			// After FCU, finalized has correct number but wrong hash
+			refsByLabelAfterFCU: map[eth.BlockLabel]eth.L2BlockRef{
+				eth.Unsafe:    targetRef,
+				eth.Safe:      targetRef,
+				eth.Finalized: {Number: targetBlockNum, Hash: common.Hash{0xff}}, // wrong hash
+			},
+			payloadsByNumber: map[uint64]*eth.ExecutionPayloadEnvelope{
+				targetBlockNum: createPayload(targetBlockNum, parentHash, targetTimestamp),
+			},
+		}
+
+		ec := &simpleEngineController{l2: l2, rollup: createRollupConfig(), log: gethlog.New()}
+
+		err := ec.RewindToTimestamp(context.Background(), targetTimestamp)
+		require.ErrorIs(t, err, ErrRewindVerificationFailed)
+		require.ErrorContains(t, err, "unexpected finalized block hash")
+	})
+
+	t.Run("returns error when timestamp to block conversion fails", func(t *testing.T) {
+		t.Parallel()
+
+		// Use a rollup config where the timestamp would result in a negative block number
+		// or any other error from blockNumberAtTimestamp
+		rcfg := &rollup.Config{
+			Genesis:   rollup.Genesis{L2: eth.BlockID{Number: 0}, L2Time: 2000}, // genesis at time 2000
+			BlockTime: 2,
+			L2ChainID: big.NewInt(420),
+		}
+
+		l2 := &mockL2{}
+
+		ec := &simpleEngineController{l2: l2, rollup: rcfg, log: gethlog.New()}
+
+		// Request timestamp before genesis (1000 < 2000), which should fail
+		err := ec.RewindToTimestamp(context.Background(), 1000)
+		require.ErrorIs(t, err, ErrRewindTimestampToBlockConversion)
+	})
 }
