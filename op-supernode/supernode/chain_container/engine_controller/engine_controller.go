@@ -72,17 +72,6 @@ func NewEngineControllerFromConfig(ctx context.Context, log gethlog.Logger, vncf
 var (
 	ErrNoEngineClient = errors.New("engine client not initialized")
 	ErrNoRollupConfig = errors.New("rollup config not available")
-
-	// Rewind errors
-	ErrRewindTargetBlockNotFound        = errors.New("failed to get target block at timestamp")
-	ErrRewindComputeTargetsFailed       = errors.New("failed to compute rewind targets")
-	ErrRewindInsertSyntheticFailed      = errors.New("failed to insert synthetic payload")
-	ErrRewindSyntheticPayloadRejected   = errors.New("synthetic payload rejected by engine")
-	ErrRewindFCUSyntheticFailed         = errors.New("failed to FCU to synthetic block")
-	ErrRewindFCUTargetFailed            = errors.New("failed to FCU to target block")
-	ErrRewindVerificationFailed         = errors.New("rewind state verification failed")
-	ErrRewindFCURejected                = errors.New("forkchoice update rejected by engine")
-	ErrRewindTimestampToBlockConversion = errors.New("failed to convert timestamp to block number")
 )
 
 func (e *simpleEngineController) blockNumberAtTimestamp(ts uint64) (uint64, error) {

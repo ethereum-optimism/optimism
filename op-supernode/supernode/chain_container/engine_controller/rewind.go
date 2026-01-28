@@ -2,10 +2,24 @@ package engine_controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+)
+
+var (
+	ErrRewindTargetBlockNotFound        = errors.New("failed to get target block at timestamp")
+	ErrRewindComputeTargetsFailed       = errors.New("failed to compute rewind targets")
+	ErrRewindInsertSyntheticFailed      = errors.New("failed to insert synthetic payload")
+	ErrRewindSyntheticPayloadRejected   = errors.New("synthetic payload rejected by engine")
+	ErrRewindFCUSyntheticFailed         = errors.New("failed to FCU to synthetic block")
+	ErrRewindFCUTargetFailed            = errors.New("failed to FCU to target block")
+	ErrRewindVerificationFailed         = errors.New("rewind state verification failed")
+	ErrRewindFCURejected                = errors.New("forkchoice update rejected by engine")
+	ErrRewindTimestampToBlockConversion = errors.New("failed to convert timestamp to block number")
+	ErrRewindPayloadNotFound            = errors.New("failed to get payload for block")
 )
 
 // RewindToTimestamp rewinds the L2 execution layer to the block at or before the given timestamp.
@@ -95,8 +109,8 @@ func (e *simpleEngineController) computeRewindTargets(ctx context.Context, targe
 // Returns the hash of the synthetic block.
 func (e *simpleEngineController) insertSyntheticPayload(ctx context.Context, blockNumber uint64) (common.Hash, error) {
 	envelope, err := e.l2.PayloadByNumber(ctx, blockNumber)
-	if err != nil {
-		return common.Hash{}, fmt.Errorf("failed to get payload for block %d: %w", blockNumber, err)
+	if err != nil || envelope == nil || envelope.ExecutionPayload == nil {
+		return common.Hash{}, fmt.Errorf("failed to get payload for block %d: %w, err: %w", blockNumber, ErrRewindPayloadNotFound, err)
 	}
 
 	// Modify the payload to create a synthetic block with a different hash
