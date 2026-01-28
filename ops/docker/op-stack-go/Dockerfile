@@ -200,7 +200,8 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_INTEROP_MON_VERSION" \
   op-interop-mon/op-interop-mon
 
-FROM --platform=$BUILDPLATFORM rust:latest AS kona-host-builder
+# The Rust version must match kona/rust-toolchain.toml. We don't use "latest" to ensure reproducibility
+FROM --platform=$BUILDPLATFORM rust:1.88 AS kona-host-builder
 ARG TARGETARCH
 # Install build dependencies and cross-compilation toolchains
 RUN apt-get update && apt-get install -y --no-install-recommends \
