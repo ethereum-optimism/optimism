@@ -5,6 +5,10 @@
   <br />
   <h3><a href="https://optimism.io">Optimism</a> is Ethereum, scaled.</h3>
   <br />
+  <a href="https://discord.gg/optimism"><img src="https://img.shields.io/discord/667044843901681675.svg?label=Discord&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2" alt="Discord"></a>
+  <a href="https://twitter.com/Optimism"><img src="https://img.shields.io/twitter/follow/Optimism?style=social" alt="Twitter"></a>
+  <a href="https://github.com/ethereum-optimism/optimism/blob/master/LICENSE"><img src="https://img.shields.io/github/license/ethereum-optimism/optimism" alt="License"></a>
+  <br />
 </div>
 
 **Table of Contents**
