@@ -108,8 +108,10 @@ func TestInteropMigration(t *testing.T) {
 			// Deploy implementations with the specified dev feature
 			if tt.devFeature == (common.Hash{}) {
 				cfg.DevFeatureBitmap = deployer.EnableDevFeature(common.Hash{}, deployer.OptimismPortalInteropDevFlag)
+				cfg.ProtocolVersionsProxy = superchainOut.ProtocolVersionsProxy
 			} else {
 				cfg.DevFeatureBitmap = deployer.EnableDevFeature(tt.devFeature, deployer.OptimismPortalInteropDevFlag)
+				cfg.ProtocolVersionsProxy = common.Address{}
 			}
 
 			impls, err := bootstrap.Implementations(ctx, cfg)

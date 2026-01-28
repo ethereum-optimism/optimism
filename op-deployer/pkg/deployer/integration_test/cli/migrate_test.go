@@ -348,7 +348,7 @@ func TestCLIMigrateV2(t *testing.T) {
 		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
 		DevFeatureBitmap:                devFeatureBitmap,
 		SuperchainConfigProxy:           superchainOut.SuperchainConfigProxy,
-		ProtocolVersionsProxy:           superchainOut.ProtocolVersionsProxy,
+		ProtocolVersionsProxy:           common.Address{},
 		SuperchainProxyAdmin:            superchainOut.SuperchainProxyAdmin,
 		L1ProxyAdminOwner:               superchainProxyAdminOwner,
 		Challenger:                      common.Address{'C'},
