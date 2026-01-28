@@ -401,6 +401,7 @@ func TestEndToEndApply(t *testing.T) {
 		require.NotEmpty(t, st.ImplementationsDeployment.OpcmV2Impl, "OPCMV2 implementation should be deployed")
 		require.NotEmpty(t, st.ImplementationsDeployment.OpcmContainerImpl, "OPCM container implementation should be deployed")
 		require.NotEmpty(t, st.ImplementationsDeployment.OpcmStandardValidatorImpl, "OPCM standard validator implementation should be deployed")
+		require.NotEmpty(t, st.ImplementationsDeployment.OpcmInteropMigratorImpl, "OPCM interop migrator implementation should be deployed")
 
 		// Verify that implementations are deployed on L1
 		cg := ethClientCodeGetter(ctx, l1Client)
@@ -417,7 +418,6 @@ func TestEndToEndApply(t *testing.T) {
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmGameTypeAdderImpl, "OPCM game type adder implementation should be zero")
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmDeployerImpl, "OPCM deployer implementation should be zero")
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmUpgraderImpl, "OPCM upgrader implementation should be zero")
-		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmInteropMigratorImpl, "OPCM interop migrator implementation should be zero")
 	})
 }
 
