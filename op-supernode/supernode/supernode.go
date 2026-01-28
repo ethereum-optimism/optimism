@@ -90,10 +90,10 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 		superroot.New(log.New("activity", "superroot"), s.chains),
 	}
 
+	log.Info("initializing interop activity? %v", cfg.RawCtx.IsSet(interop.InteropActivationTimestampFlag.Name))
 	// Initialize interop activity if the activation timestamp is set
-	if cfg.RawCtx.IsSet(interop.InteropActivationTimestampFlag.Name) {
-		interopActivationTimestamp := cfg.RawCtx.Uint64(interop.InteropActivationTimestampFlag.Name)
-		interopActivity := interop.New(log.New("activity", "interop"), interopActivationTimestamp, s.chains, cfg.DataDir)
+	if cfg.InteropActivationTimestamp > 0 {
+		interopActivity := interop.New(log.New("activity", "interop"), cfg.InteropActivationTimestamp, s.chains, cfg.DataDir)
 		s.activities = append(s.activities, interopActivity)
 		for _, chain := range s.chains {
 			chain.RegisterVerifier(interopActivity)
@@ -267,7 +267,11 @@ func (s *Supernode) initL1Client(ctx context.Context, cfg *config.CLIConfig) err
 	s.log.Info("initializing shared L1 client", "l1_addr", cfg.L1NodeAddr)
 
 	// Create L1 RPC client with basic configuration
-	l1RPC, err := client.NewRPC(ctx, s.log, cfg.L1NodeAddr, client.WithDialAttempts(10))
+	// Enable HTTP polling for L1 heads to support HTTP-only L1 connections (e.g., in tests)
+	l1RPC, err := client.NewRPC(ctx, s.log, cfg.L1NodeAddr,
+		client.WithDialAttempts(10),
+		client.WithHttpPollInterval(time.Second*2), // Poll every 2 seconds for HTTP connections
+	)
 	if err != nil {
 		return fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr, err)
 	}

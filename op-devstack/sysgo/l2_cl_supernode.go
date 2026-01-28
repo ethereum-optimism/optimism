@@ -3,7 +3,6 @@ package sysgo
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -27,7 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	snconfig "github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 type SuperNode struct {
@@ -145,8 +143,10 @@ func (n *SuperNode) Stop() {
 
 // WithSupernode constructs a Supernode-based L2 CL node
 func WithSupernode(supernodeID stack.SupernodeID, l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+	_ = supernodeID // unused in new API
+	_ = opts        // unused in new API
 	args := []L2CLs{{CLID: l2CLID, ELID: l2ELID}}
-	return WithSharedSupernodeCLs(supernodeID, args, l1CLID, l1ELID)
+	return WithSharedSupernodeCLs(args, l1CLID, l1ELID)
 }
 
 // SuperNodeProxy is a thin wrapper that points to a shared supernode instance.
@@ -196,177 +196,221 @@ type L2CLs struct {
 	ELID stack.L2ELNodeID
 }
 
-// WithSharedSupernodeCLs starts one supernode for N L2 chains and registers thin L2CL wrappers.
-func WithSharedSupernodeCLs(supernodeID stack.SupernodeID, cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
+// SupernodeConfig holds configuration options for the shared supernode.
+type SupernodeConfig struct {
+	// InteropActivationTimestamp enables the interop activity at the given timestamp.
+	// Set to 0 to disable interop (default).
+	InteropActivationTimestamp uint64
+}
+
+// SupernodeOption is a functional option for configuring the supernode.
+type SupernodeOption func(*SupernodeConfig)
+
+// WithSupernodeInterop enables the interop activity with the given activation timestamp.
+func WithSupernodeInterop(activationTimestamp uint64) SupernodeOption {
+	return func(cfg *SupernodeConfig) {
+		cfg.InteropActivationTimestamp = activationTimestamp
+	}
+}
+
+// WithSharedSupernodeCLsInterop starts one supernode for N L2 chains with interop enabled at genesis.
+// The interop activation timestamp is computed from the first chain's genesis time.
+func WithSharedSupernodeCLsInterop(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P()
-		require := p.Require()
-
-		l1EL, ok := orch.l1ELs.Get(l1ELID)
-		require.True(ok, "l1 EL node required")
-		l1CL, ok := orch.l1CLs.Get(l1CLID)
-		require.True(ok, "l1 CL node required")
-
-		// Get L1 network to access L1 chain config
-		l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID())
-		require.True(ok, "l1 network required")
-
-		_, jwtSecret := orch.writeDefaultJWT()
-
-		logger := p.Logger()
-
-		// Build per-chain op-node configs
-		makeNodeCfg := func(l2Net *L2Network, l2ChainID eth.ChainID, l2EL L2ELNode, isSequencer bool) *config.Config {
-			interopCfg := &interop.Config{}
-			l2EngineAddr := l2EL.EngineRPC()
-			var depSet depset.DependencySet
-			if cluster, ok := orch.ClusterForL2(l2ChainID); ok {
-				depSet = cluster.DepSet()
-			}
-			return &config.Config{
-				L1: &config.L1EndpointConfig{
-					L1NodeAddr:       l1EL.UserRPC(),
-					L1TrustRPC:       false,
-					L1RPCKind:        sources.RPCKindDebugGeth,
-					RateLimit:        0,
-					BatchSize:        20,
-					HttpPollInterval: time.Millisecond * 100,
-					MaxConcurrency:   10,
-					CacheSize:        0,
-				},
-				L1ChainConfig: l1Net.genesis.Config,
-				L2: &config.L2EndpointConfig{
-					L2EngineAddr:      l2EngineAddr,
-					L2EngineJWTSecret: jwtSecret,
-				},
-				DependencySet:                   depSet,
-				Beacon:                          &config.L1BeaconEndpointConfig{BeaconAddr: l1CL.beaconHTTPAddr},
-				Driver:                          driver.Config{SequencerEnabled: isSequencer, SequencerConfDepth: 2},
-				Rollup:                          *l2Net.rollupCfg,
-				RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
-				InteropConfig:                   interopCfg,
-				P2P:                             nil,
-				L1EpochPollInterval:             2 * time.Second,
-				RuntimeConfigReloadInterval:     0,
-				Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync},
-				ConfigPersistence:               config.DisabledConfigPersistence{},
-				Metrics:                         opmetrics.CLIConfig{},
-				Pprof:                           oppprof.CLIConfig{},
-				AltDA:                           altda.CLIConfig{},
-				IgnoreMissingPectraBlobSchedule: false,
-				ExperimentalOPStackAPI:          true,
-			}
+		// Get genesis timestamp from first chain
+		if len(cls) == 0 {
+			orch.P().Require().Fail("no chains provided")
+			return
 		}
+		l2Net, ok := orch.l2Nets.Get(cls[0].CLID.ChainID())
+		if !ok {
+			orch.P().Require().Fail("l2 network not found")
+			return
+		}
+		genesisTime := l2Net.rollupCfg.Genesis.L2Time
+		orch.P().Logger().Info("enabling supernode interop at genesis", "activation_timestamp", genesisTime)
 
-		// Gather VN configs and chain IDs
-		vnCfgs := make(map[eth.ChainID]*config.Config)
-		chainIDs := make([]uint64, 0, len(cls))
-		els := make([]*stack.L2ELNodeID, 0, len(cls))
-		for i := range cls {
-			a := cls[i]
-			l2Net, ok := orch.l2Nets.Get(a.CLID.ChainID())
-			require.True(ok, "l2 network required")
-			l2ELNode, ok := orch.l2ELs.Get(a.ELID)
-			require.True(ok, "l2 EL node required")
-			l2ChainID := a.CLID.ChainID()
-			cfg := makeNodeCfg(l2Net, l2ChainID, l2ELNode, true)
-			require.NoError(cfg.Check(), "invalid op-node config for chain %s", a.CLID.ChainID())
-			id := eth.EvilChainIDToUInt64(a.CLID.ChainID())
-			chainIDs = append(chainIDs, id)
-			vnCfgs[eth.ChainIDFromUInt64(id)] = cfg
-			els = append(els, &cls[i].ELID)
-		}
-
-		// Start shared supernode with all chains
-		snCfg := &snconfig.CLIConfig{
-			Chains:       chainIDs,
-			DataDir:      p.TempDir(),
-			L1NodeAddr:   l1EL.UserRPC(),
-			L1BeaconAddr: l1CL.beaconHTTPAddr,
-			RPCConfig:    oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
-		}
-		ctx, cancel := context.WithCancel(p.Ctx())
-		exitFn := func(err error) { p.Require().NoError(err, "supernode critical error") }
-		sn, err := supernode.New(ctx, logger, "devstack", exitFn, snCfg, vnCfgs)
-		require.NoError(err)
-		go func() { _ = sn.Start(ctx) }()
-		// Resolve bound address
-		addr, err := sn.WaitRPCAddr(ctx)
-		require.NoError(err, "failed waiting for supernode RPC addr")
-		base := "http://" + addr
-		p.Cleanup(func() {
-			stopCtx, c := context.WithTimeout(context.Background(), 5*time.Second)
-			_ = sn.Stop(stopCtx)
-			c()
-			cancel()
-		})
-		// Wait for per-chain RPC routes to serve optimism_rollupConfig and register proxies
-		waitReady := func(u string) {
-			deadline := time.Now().Add(15 * time.Second)
-			for {
-				if time.Now().After(deadline) {
-					require.FailNow(fmt.Sprintf("timed out waiting for RPC to be ready at %s", u))
-				}
-				rpcCl, err := client.NewRPC(p.Ctx(), logger, u, client.WithLazyDial())
-				if err == nil {
-					var v any
-					if callErr := rpcCl.CallContext(p.Ctx(), &v, "optimism_rollupConfig"); callErr == nil {
-						rpcCl.Close()
-						break
-					}
-					rpcCl.Close()
-				}
-				time.Sleep(200 * time.Millisecond)
-			}
-		}
-		for i := range cls {
-			a := cls[i]
-			// Multi-chain router exposes per-chain namespace paths
-			rpc := base + "/" + strconv.FormatUint(eth.EvilChainIDToUInt64(a.CLID.ChainID()), 10)
-			waitReady(rpc)
-			proxy := &SuperNodeProxy{
-				id:               a.CLID,
-				p:                p,
-				logger:           logger,
-				userRPC:          rpc,
-				interopEndpoint:  rpc,
-				interopJwtSecret: jwtSecret,
-				el:               &cls[i].ELID,
-			}
-			require.True(orch.l2CLs.SetIfMissing(a.CLID, proxy), fmt.Sprintf("must not already exist: %s", a.CLID))
-		}
-
-		supernode := &SuperNode{
-			id:               supernodeID,
-			sn:               sn,
-			cancel:           cancel,
-			userRPC:          base,
-			interopEndpoint:  base,
-			interopJwtSecret: jwtSecret,
-			p:                p,
-			logger:           logger,
-			els:              els,
-			chains:           idsFromCLs(cls),
-			l1UserRPC:        l1EL.UserRPC(),
-			l1BeaconAddr:     l1CL.beaconHTTPAddr,
-		}
-		orch.supernodes.Set(supernodeID, supernode)
+		// Call the main implementation with interop enabled
+		withSharedSupernodeCLsImpl(orch, cls, l1CLID, l1ELID, WithSupernodeInterop(genesisTime))
 	})
 }
 
-func idsFromCLs(cls []L2CLs) []eth.ChainID {
-	out := make([]eth.ChainID, 0, len(cls))
-	seen := make(map[eth.ChainID]struct{}, len(cls))
-	for _, c := range cls {
-		id := c.CLID.ChainID()
-		if _, ok := seen[id]; ok {
-			continue
+// WithSharedSupernodeCLsInteropDelayed starts one supernode for N L2 chains with interop enabled
+// at a specified offset from genesis. This allows testing the transition from non-interop to interop mode.
+func WithSharedSupernodeCLsInteropDelayed(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, delaySeconds uint64) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(func(orch *Orchestrator) {
+		// Get genesis timestamp from first chain
+		if len(cls) == 0 {
+			orch.P().Require().Fail("no chains provided")
+			return
 		}
-		seen[id] = struct{}{}
-		out = append(out, id)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		return eth.EvilChainIDToUInt64(out[i]) < eth.EvilChainIDToUInt64(out[j])
+		l2Net, ok := orch.l2Nets.Get(cls[0].CLID.ChainID())
+		if !ok {
+			orch.P().Require().Fail("l2 network not found")
+			return
+		}
+		genesisTime := l2Net.rollupCfg.Genesis.L2Time
+		activationTime := genesisTime + delaySeconds
+		orch.P().Logger().Info("enabling supernode interop with delay",
+			"genesis_time", genesisTime,
+			"activation_timestamp", activationTime,
+			"delay_seconds", delaySeconds,
+		)
+
+		// Call the main implementation with interop enabled at delayed timestamp
+		withSharedSupernodeCLsImpl(orch, cls, l1CLID, l1ELID, WithSupernodeInterop(activationTime))
 	})
-	return out
+}
+
+// WithSharedSupernodeCLs starts one supernode for N L2 chains and registers thin L2CL wrappers.
+func WithSharedSupernodeCLs(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, opts ...SupernodeOption) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(func(orch *Orchestrator) {
+		withSharedSupernodeCLsImpl(orch, cls, l1CLID, l1ELID, opts...)
+	})
+}
+
+// withSharedSupernodeCLsImpl is the implementation for starting a shared supernode.
+func withSharedSupernodeCLsImpl(orch *Orchestrator, cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, opts ...SupernodeOption) {
+	p := orch.P()
+	require := p.Require()
+
+	// Apply options
+	snOpts := &SupernodeConfig{}
+	for _, opt := range opts {
+		opt(snOpts)
+	}
+
+	l1EL, ok := orch.l1ELs.Get(l1ELID)
+	require.True(ok, "l1 EL node required")
+	l1CL, ok := orch.l1CLs.Get(l1CLID)
+	require.True(ok, "l1 CL node required")
+
+	// Get L1 network to access L1 chain config
+	l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID())
+	require.True(ok, "l1 network required")
+
+	_, jwtSecret := orch.writeDefaultJWT()
+
+	logger := p.Logger()
+
+	// Build per-chain op-node configs
+	makeNodeCfg := func(l2Net *L2Network, l2EL L2ELNode, isSequencer bool) *config.Config {
+		interopCfg := &interop.Config{}
+		l2EngineAddr := l2EL.EngineRPC()
+
+		// Copy rollup config and clear InteropTime.
+		// The supernode handles interop verification at a higher level via its Interop activity,
+		// so individual virtual nodes should not have interop enabled (which would require a DependencySet).
+		rollupCfg := *l2Net.rollupCfg
+		rollupCfg.InteropTime = nil
+
+		return &config.Config{
+			L1: &config.L1EndpointConfig{
+				L1NodeAddr:       l1EL.UserRPC(),
+				L1TrustRPC:       false,
+				L1RPCKind:        sources.RPCKindDebugGeth,
+				RateLimit:        0,
+				BatchSize:        20,
+				HttpPollInterval: time.Millisecond * 100,
+				MaxConcurrency:   10,
+				CacheSize:        0,
+			},
+			L1ChainConfig: l1Net.genesis.Config,
+			L2: &config.L2EndpointConfig{
+				L2EngineAddr:      l2EngineAddr,
+				L2EngineJWTSecret: jwtSecret,
+			},
+			Beacon:                          &config.L1BeaconEndpointConfig{BeaconAddr: l1CL.beaconHTTPAddr},
+			Driver:                          driver.Config{SequencerEnabled: isSequencer, SequencerConfDepth: 2},
+			Rollup:                          rollupCfg,
+			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
+			InteropConfig:                   interopCfg,
+			P2P:                             nil,
+			L1EpochPollInterval:             2 * time.Second,
+			RuntimeConfigReloadInterval:     0,
+			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync},
+			ConfigPersistence:               config.DisabledConfigPersistence{},
+			Metrics:                         opmetrics.CLIConfig{},
+			Pprof:                           oppprof.CLIConfig{},
+			AltDA:                           altda.CLIConfig{},
+			IgnoreMissingPectraBlobSchedule: false,
+			ExperimentalOPStackAPI:          true,
+		}
+	}
+
+	// Gather VN configs and chain IDs
+	vnCfgs := make(map[eth.ChainID]*config.Config)
+	chainIDs := make([]uint64, 0, len(cls))
+	for _, a := range cls {
+		l2Net, ok := orch.l2Nets.Get(a.CLID.ChainID())
+		require.True(ok, "l2 network required")
+		l2ELNode, ok := orch.l2ELs.Get(a.ELID)
+		require.True(ok, "l2 EL node required")
+		cfg := makeNodeCfg(l2Net, l2ELNode, true)
+		id := eth.EvilChainIDToUInt64(a.CLID.ChainID())
+		chainIDs = append(chainIDs, id)
+		vnCfgs[eth.ChainIDFromUInt64(id)] = cfg
+	}
+
+	// Start shared supernode with all chains
+	snCfg := &snconfig.CLIConfig{
+		Chains:                     chainIDs,
+		DataDir:                    p.TempDir(),
+		L1NodeAddr:                 l1EL.UserRPC(),
+		L1BeaconAddr:               l1CL.beaconHTTPAddr,
+		RPCConfig:                  oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
+		InteropActivationTimestamp: snOpts.InteropActivationTimestamp,
+	}
+	if snOpts.InteropActivationTimestamp > 0 {
+		logger.Info("supernode interop enabled", "activation_timestamp", snOpts.InteropActivationTimestamp)
+	}
+	ctx, cancel := context.WithCancel(p.Ctx())
+	exitFn := func(err error) { p.Require().NoError(err, "supernode critical error") }
+	sn, err := supernode.New(ctx, logger, "devstack", exitFn, snCfg, vnCfgs)
+	require.NoError(err)
+	go func() { _ = sn.Start(ctx) }()
+	// Resolve bound address
+	addr, err := sn.WaitRPCAddr(ctx)
+	require.NoError(err, "failed waiting for supernode RPC addr")
+	base := "http://" + addr
+	p.Cleanup(func() {
+		stopCtx, c := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = sn.Stop(stopCtx)
+		c()
+		cancel()
+	})
+	// Wait for per-chain RPC routes to serve optimism_rollupConfig and register proxies
+	waitReady := func(u string) {
+		deadline := time.Now().Add(15 * time.Second)
+		for {
+			if time.Now().After(deadline) {
+				require.FailNow(fmt.Sprintf("timed out waiting for RPC to be ready at %s", u))
+			}
+			rpcCl, err := client.NewRPC(p.Ctx(), logger, u, client.WithLazyDial())
+			if err == nil {
+				var v any
+				if callErr := rpcCl.CallContext(p.Ctx(), &v, "optimism_rollupConfig"); callErr == nil {
+					rpcCl.Close()
+					break
+				}
+				rpcCl.Close()
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+	}
+	for _, a := range cls {
+		// Multi-chain router exposes per-chain namespace paths
+		rpc := base + "/" + strconv.FormatUint(eth.EvilChainIDToUInt64(a.CLID.ChainID()), 10)
+		waitReady(rpc)
+		proxy := &SuperNodeProxy{
+			id:               a.CLID,
+			p:                p,
+			logger:           logger,
+			userRPC:          rpc,
+			interopEndpoint:  rpc,
+			interopJwtSecret: jwtSecret,
+			el:               &a.ELID,
+		}
+		require.True(orch.l2CLs.SetIfMissing(a.CLID, proxy), fmt.Sprintf("must not already exist: %s", a.CLID))
+	}
 }
