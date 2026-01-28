@@ -87,33 +87,6 @@ pub trait OpProofsStore: Send + Sync + Debug {
     where
         Self: 'tx;
 
-    /// Store a batch of account trie branches. Used for saving existing state. For live state
-    /// capture, use [store_trie_updates](OpProofsStore::store_trie_updates).
-    fn store_account_branches(
-        &self,
-        account_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
-    ) -> OpProofsStorageResult<()>;
-
-    /// Store a batch of storage trie branches. Used for saving existing state.
-    fn store_storage_branches(
-        &self,
-        hashed_address: B256,
-        storage_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
-    ) -> OpProofsStorageResult<()>;
-
-    /// Store a batch of account trie leaf nodes. Used for saving existing state.
-    fn store_hashed_accounts(
-        &self,
-        accounts: Vec<(B256, Option<Account>)>,
-    ) -> OpProofsStorageResult<()>;
-
-    /// Store a batch of storage trie leaf nodes. Used for saving existing state.
-    fn store_hashed_storages(
-        &self,
-        hashed_address: B256,
-        storages: Vec<(B256, U256)>,
-    ) -> OpProofsStorageResult<()>;
-
     /// Get the earliest block number and hash that has been stored
     ///
     /// This is used to determine the block number of trie nodes with block number 0.
@@ -224,6 +197,33 @@ pub trait OpProofsInitialStateStore: Send + Sync + Debug {
     /// Create the anchor if it doesn't exist.
     /// Returns `Err` if an anchor already exists (prevents accidental overwrite).
     fn set_initial_state_anchor(&self, anchor: BlockNumHash) -> OpProofsStorageResult<()>;
+
+    /// Store a batch of account trie branches. Used for saving existing state. For live state
+    /// capture, use [store_trie_updates](OpProofsStore::store_trie_updates).
+    fn store_account_branches(
+        &self,
+        account_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+    ) -> OpProofsStorageResult<()>;
+
+    /// Store a batch of storage trie branches. Used for saving existing state.
+    fn store_storage_branches(
+        &self,
+        hashed_address: B256,
+        storage_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+    ) -> OpProofsStorageResult<()>;
+
+    /// Store a batch of account trie leaf nodes. Used for saving existing state.
+    fn store_hashed_accounts(
+        &self,
+        accounts: Vec<(B256, Option<Account>)>,
+    ) -> OpProofsStorageResult<()>;
+
+    /// Store a batch of storage trie leaf nodes. Used for saving existing state.
+    fn store_hashed_storages(
+        &self,
+        hashed_address: B256,
+        storages: Vec<(B256, U256)>,
+    ) -> OpProofsStorageResult<()>;
 
     /// Commit the initial state - mark the anchor as completed and also set the earliest block
     /// number to anchor.

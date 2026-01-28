@@ -636,90 +636,6 @@ impl OpProofsStore for MdbxProofsStorage {
     where
         Self: 'tx;
 
-    fn store_account_branches(
-        &self,
-        account_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
-    ) -> OpProofsStorageResult<()> {
-        let mut account_nodes = account_nodes;
-        if account_nodes.is_empty() {
-            return Ok(());
-        }
-
-        account_nodes.sort_by_key(|(key, _)| *key);
-
-        self.env.update(|tx| {
-            self.persist_history_batch(tx, 0, account_nodes.into_iter(), true)?;
-            Ok(())
-        })?
-    }
-
-    fn store_storage_branches(
-        &self,
-        hashed_address: B256,
-        storage_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
-    ) -> OpProofsStorageResult<()> {
-        let mut storage_nodes = storage_nodes;
-        if storage_nodes.is_empty() {
-            return Ok(());
-        }
-
-        storage_nodes.sort_by_key(|(key, _)| *key);
-
-        self.env.update(|tx| {
-            self.persist_history_batch(
-                tx,
-                0,
-                storage_nodes.into_iter().map(|(path, node)| (hashed_address, path, node)),
-                true,
-            )?;
-            Ok(())
-        })?
-    }
-
-    fn store_hashed_accounts(
-        &self,
-        accounts: Vec<(B256, Option<Account>)>,
-    ) -> OpProofsStorageResult<()> {
-        let mut accounts = accounts;
-        if accounts.is_empty() {
-            return Ok(());
-        }
-
-        // sort the accounts by key to ensure insertion is efficient
-        accounts.sort_by_key(|(key, _)| *key);
-
-        self.env.update(|tx| {
-            self.persist_history_batch(tx, 0, accounts.into_iter(), true)?;
-            Ok(())
-        })?
-    }
-
-    fn store_hashed_storages(
-        &self,
-        hashed_address: B256,
-        storages: Vec<(B256, U256)>,
-    ) -> OpProofsStorageResult<()> {
-        let mut storages = storages;
-        if storages.is_empty() {
-            return Ok(());
-        }
-
-        // sort the storages by key to ensure insertion is efficient
-        storages.sort_by_key(|(key, _)| *key);
-
-        self.env.update(|tx| {
-            self.persist_history_batch(
-                tx,
-                0,
-                storages
-                    .into_iter()
-                    .map(|(key, val)| (hashed_address, key, Some(StorageValue(val)))),
-                true,
-            )?;
-            Ok(())
-        })?
-    }
-
     fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
         self.env.view(|tx| self.inner_get_block_number_hash(tx, ProofWindowKey::EarliestBlock))?
     }
@@ -1060,6 +976,90 @@ impl OpProofsInitialStateStore for MdbxProofsStorage {
         self.env.update(|tx| {
             let mut cur = tx.cursor_write::<ProofWindow>()?;
             cur.insert(ProofWindowKey::InitialStateAnchor, &anchor.into())?;
+            Ok(())
+        })?
+    }
+
+    fn store_account_branches(
+        &self,
+        account_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+    ) -> OpProofsStorageResult<()> {
+        let mut account_nodes = account_nodes;
+        if account_nodes.is_empty() {
+            return Ok(());
+        }
+
+        account_nodes.sort_by_key(|(key, _)| *key);
+
+        self.env.update(|tx| {
+            self.persist_history_batch(tx, 0, account_nodes.into_iter(), true)?;
+            Ok(())
+        })?
+    }
+
+    fn store_storage_branches(
+        &self,
+        hashed_address: B256,
+        storage_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+    ) -> OpProofsStorageResult<()> {
+        let mut storage_nodes = storage_nodes;
+        if storage_nodes.is_empty() {
+            return Ok(());
+        }
+
+        storage_nodes.sort_by_key(|(key, _)| *key);
+
+        self.env.update(|tx| {
+            self.persist_history_batch(
+                tx,
+                0,
+                storage_nodes.into_iter().map(|(path, node)| (hashed_address, path, node)),
+                true,
+            )?;
+            Ok(())
+        })?
+    }
+
+    fn store_hashed_accounts(
+        &self,
+        accounts: Vec<(B256, Option<Account>)>,
+    ) -> OpProofsStorageResult<()> {
+        let mut accounts = accounts;
+        if accounts.is_empty() {
+            return Ok(());
+        }
+
+        // sort the accounts by key to ensure insertion is efficient
+        accounts.sort_by_key(|(key, _)| *key);
+
+        self.env.update(|tx| {
+            self.persist_history_batch(tx, 0, accounts.into_iter(), true)?;
+            Ok(())
+        })?
+    }
+
+    fn store_hashed_storages(
+        &self,
+        hashed_address: B256,
+        storages: Vec<(B256, U256)>,
+    ) -> OpProofsStorageResult<()> {
+        let mut storages = storages;
+        if storages.is_empty() {
+            return Ok(());
+        }
+
+        // sort the storages by key to ensure insertion is efficient
+        storages.sort_by_key(|(key, _)| *key);
+
+        self.env.update(|tx| {
+            self.persist_history_batch(
+                tx,
+                0,
+                storages
+                    .into_iter()
+                    .map(|(key, val)| (hashed_address, key, Some(StorageValue(val)))),
+                true,
+            )?;
             Ok(())
         })?
     }

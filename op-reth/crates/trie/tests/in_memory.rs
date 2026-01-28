@@ -3,8 +3,8 @@
 use alloy_eips::{eip1898::BlockWithParent, BlockNumHash, NumHash};
 use alloy_primitives::{B256, U256};
 use reth_optimism_trie::{
-    db::MdbxProofsStorage, BlockStateDiff, InMemoryProofsStorage, OpProofsStorageError,
-    OpProofsStore,
+    db::MdbxProofsStorage, BlockStateDiff, InMemoryProofsStorage, OpProofsInitialStateStore,
+    OpProofsStorageError, OpProofsStore,
 };
 use reth_primitives_traits::Account;
 use reth_trie::{
@@ -80,7 +80,7 @@ fn create_mdbx_proofs_storage() -> MdbxProofsStorage {
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_earliest_block_operations<S: OpProofsStore>(
+fn test_earliest_block_operations<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     // Initially should be None
@@ -102,7 +102,9 @@ fn test_earliest_block_operations<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_trie_updates_operations<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_trie_updates_operations<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let block_ref = BlockWithParent::new(B256::ZERO, NumHash::new(50, B256::repeat_byte(0x96)));
     let sorted_trie_updates = TrieUpdatesSorted::default();
     let sorted_post_state = HashedPostStateSorted::default();
@@ -130,7 +132,9 @@ fn test_trie_updates_operations<S: OpProofsStore>(storage: S) -> Result<(), OpPr
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_cursor_empty_trie<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_cursor_empty_trie<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let mut cursor = storage.account_trie_cursor(100)?;
 
     // All operations should return None on empty trie
@@ -146,7 +150,9 @@ fn test_cursor_empty_trie<S: OpProofsStore>(storage: S) -> Result<(), OpProofsSt
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_cursor_single_entry<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_cursor_single_entry<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let path = nibbles_from(vec![1, 2, 3]);
     let branch = create_test_branch();
 
@@ -172,7 +178,9 @@ fn test_cursor_single_entry<S: OpProofsStore>(storage: S) -> Result<(), OpProofs
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_cursor_multiple_entries<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_cursor_multiple_entries<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let paths = vec![
         nibbles_from(vec![1]),
         nibbles_from(vec![1, 2]),
@@ -211,7 +219,9 @@ fn test_cursor_multiple_entries<S: OpProofsStore>(storage: S) -> Result<(), OpPr
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_seek_exact_existing_path<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_seek_exact_existing_path<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let path = nibbles_from(vec![1, 2, 3]);
     let branch = create_test_branch();
 
@@ -228,7 +238,7 @@ fn test_seek_exact_existing_path<S: OpProofsStore>(storage: S) -> Result<(), OpP
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_seek_exact_non_existing_path<S: OpProofsStore>(
+fn test_seek_exact_non_existing_path<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     let path = nibbles_from(vec![1, 2, 3]);
@@ -247,7 +257,9 @@ fn test_seek_exact_non_existing_path<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_seek_exact_empty_path<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_seek_exact_empty_path<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let path = nibbles_from(vec![]);
     let branch = create_test_branch();
 
@@ -264,7 +276,9 @@ fn test_seek_exact_empty_path<S: OpProofsStore>(storage: S) -> Result<(), OpProo
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_seek_to_existing_path<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_seek_to_existing_path<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let path = nibbles_from(vec![1, 2, 3]);
     let branch = create_test_branch();
 
@@ -281,7 +295,7 @@ fn test_seek_to_existing_path<S: OpProofsStore>(storage: S) -> Result<(), OpProo
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_seek_between_existing_nodes<S: OpProofsStore>(
+fn test_seek_between_existing_nodes<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     let path1 = nibbles_from(vec![1]);
@@ -304,7 +318,9 @@ fn test_seek_between_existing_nodes<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_seek_after_all_nodes<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_seek_after_all_nodes<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let path = nibbles_from(vec![1]);
     let branch = create_test_branch();
 
@@ -322,7 +338,9 @@ fn test_seek_after_all_nodes<S: OpProofsStore>(storage: S) -> Result<(), OpProof
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_seek_before_all_nodes<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_seek_before_all_nodes<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let path = nibbles_from(vec![5]);
     let branch = create_test_branch();
 
@@ -345,7 +363,9 @@ fn test_seek_before_all_nodes<S: OpProofsStore>(storage: S) -> Result<(), OpProo
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_next_without_prior_seek<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_next_without_prior_seek<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let path = nibbles_from(vec![1, 2]);
     let branch = create_test_branch();
 
@@ -363,7 +383,9 @@ fn test_next_without_prior_seek<S: OpProofsStore>(storage: S) -> Result<(), OpPr
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_next_after_seek<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_next_after_seek<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let path1 = nibbles_from(vec![1]);
     let path2 = nibbles_from(vec![2]);
     let branch = create_test_branch();
@@ -385,7 +407,9 @@ fn test_next_after_seek<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStor
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_next_at_end_of_trie<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_next_at_end_of_trie<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let path = nibbles_from(vec![1]);
     let branch = create_test_branch();
 
@@ -404,7 +428,7 @@ fn test_next_at_end_of_trie<S: OpProofsStore>(storage: S) -> Result<(), OpProofs
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_multiple_consecutive_next<S: OpProofsStore>(
+fn test_multiple_consecutive_next<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     let paths = vec![nibbles_from(vec![1]), nibbles_from(vec![2]), nibbles_from(vec![3])];
@@ -432,7 +456,9 @@ fn test_multiple_consecutive_next<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_current_after_operations<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_current_after_operations<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let path1 = nibbles_from(vec![1]);
     let path2 = nibbles_from(vec![2]);
     let branch = create_test_branch();
@@ -460,7 +486,7 @@ fn test_current_after_operations<S: OpProofsStore>(storage: S) -> Result<(), OpP
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_current_no_prior_operations<S: OpProofsStore>(
+fn test_current_no_prior_operations<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     let mut cursor = storage.account_trie_cursor(100)?;
@@ -479,7 +505,7 @@ fn test_current_no_prior_operations<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_same_path_different_blocks<S: OpProofsStore>(
+fn test_same_path_different_blocks<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     let path = nibbles_from(vec![1, 2]);
@@ -507,7 +533,9 @@ fn test_same_path_different_blocks<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_deleted_branch_nodes<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_deleted_branch_nodes<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let path = nibbles_from(vec![1, 2]);
     let branch = create_test_branch();
     let block_ref = BlockWithParent::new(B256::ZERO, NumHash::new(100, B256::repeat_byte(0x96)));
@@ -542,7 +570,9 @@ fn test_deleted_branch_nodes<S: OpProofsStore>(storage: S) -> Result<(), OpProof
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_account_specific_cursor<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_account_specific_cursor<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let path = nibbles_from(vec![1, 2]);
     let addr1 = B256::repeat_byte(0x01);
     let addr2 = B256::repeat_byte(0x02);
@@ -577,7 +607,9 @@ fn test_account_specific_cursor<S: OpProofsStore>(storage: S) -> Result<(), OpPr
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_state_trie_cursor<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_state_trie_cursor<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let path = nibbles_from(vec![1, 2]);
     let addr = B256::repeat_byte(0x01);
     let branch = create_test_branch();
@@ -607,7 +639,9 @@ fn test_state_trie_cursor<S: OpProofsStore>(storage: S) -> Result<(), OpProofsSt
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_mixed_account_state_data<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_mixed_account_state_data<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let path1 = nibbles_from(vec![1]);
     let path2 = nibbles_from(vec![2]);
     let addr = B256::repeat_byte(0x01);
@@ -646,7 +680,9 @@ fn test_mixed_account_state_data<S: OpProofsStore>(storage: S) -> Result<(), OpP
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_lexicographic_ordering<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_lexicographic_ordering<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let paths = vec![
         nibbles_from(vec![3, 1]),
         nibbles_from(vec![1, 2]),
@@ -683,7 +719,9 @@ fn test_lexicographic_ordering<S: OpProofsStore>(storage: S) -> Result<(), OpPro
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_path_prefix_scenarios<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_path_prefix_scenarios<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let paths = vec![
         nibbles_from(vec![1]),       // Prefix of next
         nibbles_from(vec![1, 2]),    // Extends first
@@ -715,7 +753,7 @@ fn test_path_prefix_scenarios<S: OpProofsStore>(storage: S) -> Result<(), OpProo
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_complex_nibble_combinations<S: OpProofsStore>(
+fn test_complex_nibble_combinations<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     // Test various nibble patterns including edge values
@@ -757,7 +795,7 @@ fn test_complex_nibble_combinations<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_store_and_retrieve_single_account<S: OpProofsStore>(
+fn test_store_and_retrieve_single_account<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     let account_key = B256::repeat_byte(0x01);
@@ -782,7 +820,7 @@ fn test_store_and_retrieve_single_account<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_account_cursor_navigation<S: OpProofsStore>(
+fn test_account_cursor_navigation<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     let accounts = [
@@ -820,7 +858,9 @@ fn test_account_cursor_navigation<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_account_block_versioning<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_account_block_versioning<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let account_key = B256::repeat_byte(0x01);
     let account_v1 = create_test_account_with_values(1, 100, 0xBB);
     let account_v2 = create_test_account_with_values(2, 200, 0xDD);
@@ -849,7 +889,7 @@ fn test_account_block_versioning<S: OpProofsStore>(storage: S) -> Result<(), OpP
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 
-fn test_store_and_retrieve_storage<S: OpProofsStore>(
+fn test_store_and_retrieve_storage<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     let hashed_address = B256::repeat_byte(0x01);
@@ -879,7 +919,7 @@ fn test_store_and_retrieve_storage<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_storage_cursor_navigation<S: OpProofsStore>(
+fn test_storage_cursor_navigation<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     let hashed_address = B256::repeat_byte(0x01);
@@ -911,7 +951,7 @@ fn test_storage_cursor_navigation<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_storage_account_isolation<S: OpProofsStore>(
+fn test_storage_account_isolation<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     let address1 = B256::repeat_byte(0x01);
@@ -946,7 +986,9 @@ fn test_storage_account_isolation<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_storage_block_versioning<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_storage_block_versioning<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     let hashed_address = B256::repeat_byte(0x01);
     let storage_key = B256::repeat_byte(0x10);
 
@@ -971,7 +1013,7 @@ fn test_storage_block_versioning<S: OpProofsStore>(storage: S) -> Result<(), OpP
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_storage_zero_value_deletion<S: OpProofsStore>(
+fn test_storage_zero_value_deletion<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     let hashed_address = B256::repeat_byte(0x01);
@@ -1010,7 +1052,7 @@ fn test_storage_zero_value_deletion<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_storage_cursor_skips_zero_values<S: OpProofsStore>(
+fn test_storage_cursor_skips_zero_values<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     let hashed_address = B256::repeat_byte(0x01);
@@ -1059,7 +1101,9 @@ fn test_storage_cursor_skips_zero_values<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_empty_cursors<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_empty_cursors<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     // Test empty account cursor
     let mut account_cursor = storage.account_hashed_cursor(100)?;
     assert!(account_cursor.seek(B256::repeat_byte(0x01))?.is_none());
@@ -1077,7 +1121,7 @@ fn test_empty_cursors<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorag
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_cursor_boundary_conditions<S: OpProofsStore>(
+fn test_cursor_boundary_conditions<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     let account_key = B256::repeat_byte(0x80); // Middle value
@@ -1106,7 +1150,9 @@ fn test_cursor_boundary_conditions<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_large_batch_operations<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+fn test_large_batch_operations<S: OpProofsStore + OpProofsInitialStateStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
     // Create large batch of accounts
     let mut accounts = Vec::new();
     for i in 0..100 {
@@ -1142,7 +1188,7 @@ fn test_large_batch_operations<S: OpProofsStore>(storage: S) -> Result<(), OpPro
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_store_trie_updates_with_wiped_storage<S: OpProofsStore>(
+fn test_store_trie_updates_with_wiped_storage<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     use reth_trie::HashedStorage;
@@ -1232,7 +1278,7 @@ fn test_store_trie_updates_with_wiped_storage<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_store_trie_updates_comprehensive<S: OpProofsStore>(
+fn test_store_trie_updates_comprehensive<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     use reth_trie::{updates::StorageTrieUpdates, HashedStorage};
@@ -1406,7 +1452,7 @@ fn test_store_trie_updates_comprehensive<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
+fn test_replace_updates_applies_all_updates<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     use reth_trie::{updates::StorageTrieUpdates, HashedStorage};
@@ -1673,7 +1719,7 @@ fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_pure_deletions_stored_correctly<S: OpProofsStore>(
+fn test_pure_deletions_stored_correctly<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     use reth_trie::updates::StorageTrieUpdates;
@@ -1807,7 +1853,7 @@ fn test_pure_deletions_stored_correctly<S: OpProofsStore>(
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[serial]
-fn test_updates_take_precedence_over_removals<S: OpProofsStore>(
+fn test_updates_take_precedence_over_removals<S: OpProofsStore + OpProofsInitialStateStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     use reth_trie::updates::StorageTrieUpdates;

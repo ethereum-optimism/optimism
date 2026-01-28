@@ -13,7 +13,7 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
 pub mod api;
-pub use api::{BlockStateDiff, OpProofsStore};
+pub use api::{BlockStateDiff, OpProofsInitialStateStore, OpProofsStore};
 
 pub mod initialize;
 pub use initialize::InitializationJob;

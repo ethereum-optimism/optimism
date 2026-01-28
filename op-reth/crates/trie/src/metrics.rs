@@ -380,96 +380,6 @@ where
         Self: 'tx;
 
     #[inline]
-    fn store_account_branches(
-        &self,
-        account_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
-    ) -> OpProofsStorageResult<()> {
-        let count = account_nodes.len();
-        let start = Instant::now();
-        let result = self.storage.store_account_branches(account_nodes);
-        let duration = start.elapsed();
-
-        // Record per-item duration
-        if count > 0 {
-            self.metrics.record_duration_per_item(
-                StorageOperation::StoreAccountBranch,
-                duration,
-                count,
-            );
-        }
-
-        result
-    }
-
-    #[inline]
-    fn store_storage_branches(
-        &self,
-        hashed_address: B256,
-        storage_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
-    ) -> OpProofsStorageResult<()> {
-        let count = storage_nodes.len();
-        let start = Instant::now();
-        let result = self.storage.store_storage_branches(hashed_address, storage_nodes);
-        let duration = start.elapsed();
-
-        // Record per-item duration
-        if count > 0 {
-            self.metrics.record_duration_per_item(
-                StorageOperation::StoreStorageBranch,
-                duration,
-                count,
-            );
-        }
-
-        result
-    }
-
-    #[inline]
-    fn store_hashed_accounts(
-        &self,
-        accounts: Vec<(B256, Option<Account>)>,
-    ) -> OpProofsStorageResult<()> {
-        let count = accounts.len();
-        let start = Instant::now();
-        let result = self.storage.store_hashed_accounts(accounts);
-        let duration = start.elapsed();
-
-        // Record per-item duration
-        if count > 0 {
-            self.metrics.record_duration_per_item(
-                StorageOperation::StoreHashedAccount,
-                duration,
-                count,
-            );
-        }
-
-        result
-    }
-
-    #[inline]
-    fn store_hashed_storages(
-        &self,
-        hashed_address: B256,
-        storages: Vec<(B256, U256)>,
-    ) -> OpProofsStorageResult<()> {
-        let count = storages.len();
-        let start = Instant::now();
-        let result = self.storage.store_hashed_storages(hashed_address, storages);
-        let duration = start.elapsed();
-
-        // Record per-item duration
-        if count > 0 {
-            self.metrics.record_duration_per_item(
-                StorageOperation::StoreHashedStorage,
-                duration,
-                count,
-            );
-        }
-
-        result
-    }
-
-    #[inline]
     fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
         self.storage.get_earliest_block_number()
     }
@@ -580,6 +490,96 @@ where
     #[inline]
     fn set_initial_state_anchor(&self, anchor: BlockNumHash) -> OpProofsStorageResult<()> {
         self.storage.set_initial_state_anchor(anchor)
+    }
+
+    #[inline]
+    fn store_account_branches(
+        &self,
+        account_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+    ) -> OpProofsStorageResult<()> {
+        let count = account_nodes.len();
+        let start = Instant::now();
+        let result = self.storage.store_account_branches(account_nodes);
+        let duration = start.elapsed();
+
+        // Record per-item duration
+        if count > 0 {
+            self.metrics.record_duration_per_item(
+                StorageOperation::StoreAccountBranch,
+                duration,
+                count,
+            );
+        }
+
+        result
+    }
+
+    #[inline]
+    fn store_storage_branches(
+        &self,
+        hashed_address: B256,
+        storage_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+    ) -> OpProofsStorageResult<()> {
+        let count = storage_nodes.len();
+        let start = Instant::now();
+        let result = self.storage.store_storage_branches(hashed_address, storage_nodes);
+        let duration = start.elapsed();
+
+        // Record per-item duration
+        if count > 0 {
+            self.metrics.record_duration_per_item(
+                StorageOperation::StoreStorageBranch,
+                duration,
+                count,
+            );
+        }
+
+        result
+    }
+
+    #[inline]
+    fn store_hashed_accounts(
+        &self,
+        accounts: Vec<(B256, Option<Account>)>,
+    ) -> OpProofsStorageResult<()> {
+        let count = accounts.len();
+        let start = Instant::now();
+        let result = self.storage.store_hashed_accounts(accounts);
+        let duration = start.elapsed();
+
+        // Record per-item duration
+        if count > 0 {
+            self.metrics.record_duration_per_item(
+                StorageOperation::StoreHashedAccount,
+                duration,
+                count,
+            );
+        }
+
+        result
+    }
+
+    #[inline]
+    fn store_hashed_storages(
+        &self,
+        hashed_address: B256,
+        storages: Vec<(B256, U256)>,
+    ) -> OpProofsStorageResult<()> {
+        let count = storages.len();
+        let start = Instant::now();
+        let result = self.storage.store_hashed_storages(hashed_address, storages);
+        let duration = start.elapsed();
+
+        // Record per-item duration
+        if count > 0 {
+            self.metrics.record_duration_per_item(
+                StorageOperation::StoreHashedStorage,
+                duration,
+                count,
+            );
+        }
+
+        result
     }
 
     #[inline]
