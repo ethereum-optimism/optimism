@@ -12,7 +12,7 @@
 #
 
 SHELL := /usr/bin/env bash
-.PHONY: all build test clean submodule-update help patch-apply patch-restore
+.PHONY: all build test clean submodule-update help patch-apply patch-restore docker-build
 
 # Directories
 REPO_ROOT := $(shell pwd)
@@ -24,6 +24,9 @@ BUILD_DIR := $(REPO_ROOT)/.boba-build
 UPSTREAM_TARGETS := op-node op-batcher op-proposer op-challenger op-program \
                     op-dispute-mon op-conductor op-supervisor op-wheel \
                     op-deployer op-faucet cannon
+
+# Docker container components to build
+DOCKER_TARGETS := op-node op-batcher op-proposer op-challenger op-dispute-mon op-supervisor op-conductor
 
 # Default target
 all: build
@@ -39,6 +42,7 @@ help:
 	@echo ""
 	@echo "Targets:"
 	@echo "  build              - Build all Go binaries (with Boba patches)"
+	@echo "  docker-build       - Build all Docker containers"
 	@echo "  test               - Run tests"
 	@echo "  clean              - Clean build artifacts and restore patches"
 	@echo "  submodule-update   - Update upstream submodule to latest"
@@ -48,9 +52,13 @@ help:
 	@echo "Individual component targets:"
 	@echo "  $(UPSTREAM_TARGETS)"
 	@echo ""
+	@echo "Docker targets:"
+	@echo "  $(DOCKER_TARGETS)"
+	@echo ""
 	@echo "Environment variables:"
 	@echo "  BOBA_KEEP_PATCHES=1  - Don't restore patches after build"
-	@echo "  BOBA_DRY_RUN=1       - Prepare but don't build"
+	@echo "  TAG=v1.16.5          - Image tag for docker-build (default: git commit)"
+	@echo "  TARGETS=\"op-node\"    - Specific targets for docker-build"
 	@echo ""
 
 # Apply patches to submodule
@@ -73,6 +81,10 @@ patch-apply: $(SUBMODULE)/go.mod
 				sed -i "$$line" "$(SUBMODULE)/go.mod"; \
 			fi; \
 		done < "$(OVERLAYS)/go.mod.patch"; \
+	fi
+	@# Apply go.sum patch (uses sed script format)
+	@if [ -f "$(OVERLAYS)/go.sum.patch" ]; then \
+		sed -i -f "$(OVERLAYS)/go.sum.patch" "$(SUBMODULE)/go.sum"; \
 	fi
 	@# Apply contract overlays
 	@if [ -d "$(OVERLAYS)/contracts-bedrock/src/boba" ]; then \
@@ -111,8 +123,8 @@ patch-apply: $(SUBMODULE)/go.mod
 	@if [ -d "$(OVERLAYS)/kurtosis-devnet" ]; then \
 		cp -r "$(OVERLAYS)/kurtosis-devnet/"* "$(SUBMODULE)/kurtosis-devnet/"; \
 	fi
-	@# Apply git patch files (exclude go.mod.patch which uses sed format)
-	@for patchfile in $$(find "$(OVERLAYS)" -name "*.patch" -type f ! -name "go.mod.patch" 2>/dev/null); do \
+	@# Apply git patch files (exclude go.mod.patch and go.sum.patch which use sed format)
+	@for patchfile in $$(find "$(OVERLAYS)" -name "*.patch" -type f ! -name "go.mod.patch" ! -name "go.sum.patch" 2>/dev/null); do \
 		echo "Applying patch: $$patchfile"; \
 		(cd "$(SUBMODULE)" && patch -p1 < "$$patchfile") || true; \
 	done
@@ -184,3 +196,42 @@ endif
 	cd $(SUBMODULE) && git fetch origin && git checkout $(REF)
 	git add $(SUBMODULE)
 	@echo "Submodule pinned to $(REF). Review changes and commit when ready."
+
+# Build all Docker containers using podman
+# Usage: make docker-build
+#        make docker-build TARGETS="op-node op-batcher"
+#        make docker-build TAG=v1.16.5
+docker-build: patch-apply
+	@echo "Building Docker containers with podman..."
+	$(eval GIT_COMMIT := $(shell git rev-parse HEAD))
+	$(eval GIT_DATE := $(shell git show -s --format='%ct'))
+	$(eval GIT_VERSION := $(shell git describe --tags --always 2>/dev/null || echo "dev"))
+	$(eval TAG := $(or $(TAG),$(GIT_COMMIT)))
+	$(eval TARGETS := $(or $(TARGETS),$(DOCKER_TARGETS)))
+	$(eval KONA_VERSION := $(shell jq -r .version $(SUBMODULE)/kona/version.json))
+	@echo "Building targets: $(TARGETS)"
+	@echo "Tag: $(TAG)"
+	@echo "Git commit: $(GIT_COMMIT)"
+	@echo "Git version: $(GIT_VERSION)"
+	@for target in $(TARGETS); do \
+		echo ""; \
+		echo "=== Building $$target ==="; \
+		version_var=$$(echo $$target | tr '[:lower:]-' '[:upper:]_')_VERSION; \
+		podman build \
+			-f $(SUBMODULE)/ops/docker/op-stack-go/Dockerfile \
+			--target $$target-target \
+			--build-arg GIT_COMMIT=$(GIT_COMMIT) \
+			--build-arg GIT_DATE=$(GIT_DATE) \
+			--build-arg $$version_var=$(GIT_VERSION) \
+			--build-arg KONA_VERSION=$(KONA_VERSION) \
+			-t $$target:$(TAG) \
+			$(SUBMODULE) || exit 1; \
+	done
+	@if [ "$(BOBA_KEEP_PATCHES)" != "1" ]; then \
+		$(MAKE) patch-restore; \
+	fi
+	@echo ""
+	@echo "Docker build complete. Images:"
+	@for target in $(TARGETS); do \
+		echo "  $$target:$(TAG)"; \
+	done
