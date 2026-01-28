@@ -74,7 +74,7 @@ contract ReadImplementationAddresses is Script {
             output_.opcmGameTypeAdder = address(0);
             output_.opcmDeployer = address(0);
             output_.opcmUpgrader = address(0);
-            output_.opcmInteropMigrator = address(0);
+            output_.opcmInteropMigrator = address(opcmV2.opcmMigrator());
 
             // StandardValidator is accessible via the standardValidator() method
             output_.opcmStandardValidator = address(opcmV2.opcmStandardValidator());
