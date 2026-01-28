@@ -622,7 +622,7 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		defer cancel()
 		err := c.RewindEngine(ctx, 12345)
 		require.Error(t, err)
-		require.ErrorIs(t, err, engine_controller.ErrRewindFCUSyntheticFailed)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
 
 		// Verify RewindToTimestamp was called multiple times (retry attempts)
 		require.Greater(t, mockEngine.rewindToTimestampCalled, 1, "RewindToTimestamp should be retried at least once")
