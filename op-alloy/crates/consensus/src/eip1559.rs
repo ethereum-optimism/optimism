@@ -59,7 +59,13 @@ pub fn decode_holocene_extra_data(extra_data: &[u8]) -> Result<(u32, u32), EIP15
         return Err(EIP1559ParamError::InvalidVersion(extra_data[0]));
     }
     // skip the first version byte
-    Ok(decode_eip_1559_params(B64::from_slice(&extra_data[1..9])))
+    let (elasticity, denominator) = decode_eip_1559_params(B64::from_slice(&extra_data[1..9]));
+    if elasticity != 0 && denominator == 0 {
+        return Err(EIP1559ParamError::ZeroDenominator);
+    } else if denominator != 0 && elasticity == 0 {
+        return Err(EIP1559ParamError::ZeroElasticity);
+    }
+    Ok((elasticity, denominator))
 }
 
 /// Encodes the `eip1559` parameters for the payload.
@@ -87,15 +93,15 @@ pub fn decode_jovian_extra_data(extra_data: &[u8]) -> Result<(u32, u32, u64), EI
         return Err(EIP1559ParamError::InvalidVersion(extra_data[0]));
     }
     // skip the first version byte
-    let denominator: [u8; 4] = extra_data[1..5].try_into().expect("sufficient length");
-    let elasticity: [u8; 4] = extra_data[5..9].try_into().expect("sufficient length");
+    let (elasticity, denominator) = decode_eip_1559_params(B64::from_slice(&extra_data[1..9]));
+    if elasticity != 0 && denominator == 0 {
+        return Err(EIP1559ParamError::ZeroDenominator);
+    } else if denominator != 0 && elasticity == 0 {
+        return Err(EIP1559ParamError::ZeroElasticity);
+    }
     let min_base_fee: [u8; 8] = extra_data[9..17].try_into().expect("sufficient length");
 
-    Ok((
-        u32::from_be_bytes(elasticity),
-        u32::from_be_bytes(denominator),
-        u64::from_be_bytes(min_base_fee),
-    ))
+    Ok((elasticity, denominator, u64::from_be_bytes(min_base_fee)))
 }
 
 /// Encodes the EIP-1559 parameters for the payload,
@@ -138,6 +144,12 @@ pub enum EIP1559ParamError {
     /// Minimum base fee cannot be None after Jovian.
     #[error("Minimum base fee cannot be None after Jovian")]
     MinBaseFeeNotSet,
+    /// Elasticity is zero while denominator is non-zero.
+    #[error("Elasticity is zero while denominator is non-zero")]
+    ZeroElasticity,
+    /// Denominator is zero while elasticity is non-zero.
+    #[error("Denominator is zero while elasticity is non-zero")]
+    ZeroDenominator,
 }
 
 #[cfg(test)]
@@ -214,5 +226,37 @@ mod tests {
         let extra_data = [0u8; 8];
         let res = decode_jovian_extra_data(&extra_data);
         assert_eq!(res.unwrap_err(), EIP1559ParamError::InvalidExtraDataLength);
+    }
+
+    #[test]
+    fn test_decode_holocene_zero_denominator() {
+        // version 0, denominator 0, elasticity 8
+        let extra_data = [0, 0, 0, 0, 0, 0, 0, 0, 8];
+        let res = decode_holocene_extra_data(&extra_data);
+        assert_eq!(res.unwrap_err(), EIP1559ParamError::ZeroDenominator);
+    }
+
+    #[test]
+    fn test_decode_holocene_zero_elasticity() {
+        // version 0, denominator 8, elasticity 0
+        let extra_data = [0, 0, 0, 0, 8, 0, 0, 0, 0];
+        let res = decode_holocene_extra_data(&extra_data);
+        assert_eq!(res.unwrap_err(), EIP1559ParamError::ZeroElasticity);
+    }
+
+    #[test]
+    fn test_decode_jovian_zero_denominator() {
+        // version 1, denominator 0, elasticity 8, min_base_fee 0
+        let extra_data = [1, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0];
+        let res = decode_jovian_extra_data(&extra_data);
+        assert_eq!(res.unwrap_err(), EIP1559ParamError::ZeroDenominator);
+    }
+
+    #[test]
+    fn test_decode_jovian_zero_elasticity() {
+        // version 1, denominator 8, elasticity 0, min_base_fee 0
+        let extra_data = [1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let res = decode_jovian_extra_data(&extra_data);
+        assert_eq!(res.unwrap_err(), EIP1559ParamError::ZeroElasticity);
     }
 }
