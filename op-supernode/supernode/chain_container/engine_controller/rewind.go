@@ -113,12 +113,17 @@ func (e *simpleEngineController) insertSyntheticPayload(ctx context.Context, blo
 		return common.Hash{}, fmt.Errorf("failed to get payload for block %d: %w, err: %w", blockNumber, ErrRewindPayloadNotFound, err)
 	}
 
-	// Modify the payload to create a synthetic block with a different hash
-	envelope.ExecutionPayload.FeeRecipient = common.MaxAddress
-	syntheticHash, _ := envelope.CheckBlockHash()
-	envelope.ExecutionPayload.BlockHash = syntheticHash
+	// Deep clone the envelope and payload
+	newEnvelope := *envelope
+	newPayload := *(envelope.ExecutionPayload)
+	newEnvelope.ExecutionPayload = &newPayload
 
-	status, err := e.l2.NewPayload(ctx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
+	// Modify the cloned payload to create a synthetic block with a different hash
+	newPayload.FeeRecipient = common.MaxAddress
+	syntheticHash, _ := newEnvelope.CheckBlockHash() // ignore "ok" since we know it won't match
+	newPayload.BlockHash = syntheticHash
+
+	status, err := e.l2.NewPayload(ctx, &newPayload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("%w: %w", ErrRewindInsertSyntheticFailed, err)
 	}
