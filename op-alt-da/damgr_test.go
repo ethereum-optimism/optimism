@@ -227,7 +227,9 @@ func (m *mockL1Fetcher) ExpectL1BlockRefByNumber(num uint64, ref eth.L1BlockRef,
 	m.Mock.On("L1BlockRefByNumber", num).Once().Return(ref, err)
 }
 
-// TestUpdateFinalizedHead tests the updateFinalizedHead behavior with and without commitments
+// TestUpdateFinalizedHead tests the updateFinalizedHead behavior with and without commitments.
+// When there are no commitments, updateFinalizedHead preserves the existing finalizedHead,
+// which is managed by updateFinalizedFromL1 called from AdvanceL1Origin.
 func TestUpdateFinalizedHead(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelInfo)
 	cfg := Config{
@@ -235,24 +237,29 @@ func TestUpdateFinalizedHead(t *testing.T) {
 		ChallengeWindow: 6,
 	}
 
-	t.Run("no commitments with empty lastPrunedCommitment uses l1Finalized", func(t *testing.T) {
+	t.Run("no commitments preserves existing finalizedHead unchanged", func(t *testing.T) {
 		state := NewState(logger, &NoopMetrics{}, cfg)
 		storage := NewMockDAClient(logger)
 		da := NewAltDAWithState(logger, cfg, storage, &NoopMetrics{}, state)
 
 		// Verify state has no commitments
 		require.True(t, state.NoCommitments())
-		require.Equal(t, eth.L1BlockRef{}, state.lastPrunedCommitment)
+
+		// Set an initial finalizedHead (simulating what updateFinalizedFromL1 would do)
+		initialFinalizedHead := l1Ref(50)
+		da.finalizedHead = initialFinalizedHead
 
 		// Call Finalize with l1Finalized
 		l1Finalized := l1Ref(100)
 		da.Finalize(l1Finalized)
 
-		// finalizedHead should be l1Finalized since there are no commitments
-		require.Equal(t, l1Finalized, da.finalizedHead)
+		// finalizedHead should be preserved (not overwritten) since there are no commitments
+		require.Equal(t, initialFinalizedHead, da.finalizedHead)
+		// l1FinalizedHead should be updated
+		require.Equal(t, l1Finalized, da.l1FinalizedHead)
 	})
 
-	t.Run("no commitments with lastPrunedCommitment lower than l1Finalized uses l1Finalized", func(t *testing.T) {
+	t.Run("no commitments after all pruned preserves existing finalizedHead", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		state := NewState(logger, &NoopMetrics{}, cfg)
 		storage := NewMockDAClient(logger)
@@ -265,44 +272,23 @@ func TestUpdateFinalizedHead(t *testing.T) {
 		require.NoError(t, state.ExpireCommitments(bID(bn1+cfg.ChallengeWindow)))
 		state.Prune(bID(bn1 + cfg.ChallengeWindow))
 
-		// Verify lastPrunedCommitment is set
+		// Verify lastPrunedCommitment is set and no more commitments
 		require.Equal(t, l1Ref(bn1), state.lastPrunedCommitment)
 		require.True(t, state.NoCommitments())
 
-		// Call Finalize with l1Finalized higher than lastPrunedCommitment
+		// Simulate updateFinalizedFromL1 having set the finalizedHead
+		initialFinalizedHead := l1Ref(80)
+		da.finalizedHead = initialFinalizedHead
+
+		// Call Finalize with l1Finalized
 		l1Finalized := l1Ref(100)
 		da.Finalize(l1Finalized)
 
-		// finalizedHead should be l1Finalized since it's higher
-		require.Equal(t, l1Finalized, da.finalizedHead)
+		// finalizedHead should be preserved since there are no commitments
+		require.Equal(t, initialFinalizedHead, da.finalizedHead)
 	})
 
-	t.Run("no commitments with lastPrunedCommitment higher than l1Finalized uses lastPrunedCommitment", func(t *testing.T) {
-		rng := rand.New(rand.NewSource(1234))
-		state := NewState(logger, &NoopMetrics{}, cfg)
-		storage := NewMockDAClient(logger)
-		da := NewAltDAWithState(logger, cfg, storage, &NoopMetrics{}, state)
-
-		// Track and expire a commitment to set lastPrunedCommitment at a high block
-		c1 := RandomCommitment(rng)
-		bn1 := uint64(200)
-		state.TrackCommitment(c1, l1Ref(bn1))
-		require.NoError(t, state.ExpireCommitments(bID(bn1+cfg.ChallengeWindow)))
-		state.Prune(bID(bn1 + cfg.ChallengeWindow))
-
-		// Verify lastPrunedCommitment is set
-		require.Equal(t, l1Ref(bn1), state.lastPrunedCommitment)
-		require.True(t, state.NoCommitments())
-
-		// Call Finalize with l1Finalized lower than lastPrunedCommitment
-		l1Finalized := l1Ref(100)
-		da.Finalize(l1Finalized)
-
-		// finalizedHead should be lastPrunedCommitment since it's higher
-		require.Equal(t, l1Ref(bn1), da.finalizedHead)
-	})
-
-	t.Run("with pending commitments uses lastPrunedCommitment", func(t *testing.T) {
+	t.Run("with pending commitments prunes and uses lastPrunedCommitment", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		state := NewState(logger, &NoopMetrics{}, cfg)
 		storage := NewMockDAClient(logger)
@@ -332,10 +318,43 @@ func TestUpdateFinalizedHead(t *testing.T) {
 		require.Equal(t, l1Ref(bn1), da.finalizedHead)
 	})
 
+	t.Run("with commitments prunes up to l1Finalized and updates finalizedHead", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		state := NewState(logger, &NoopMetrics{}, cfg)
+		storage := NewMockDAClient(logger)
+		da := NewAltDAWithState(logger, cfg, storage, &NoopMetrics{}, state)
+
+		// Track and expire multiple commitments
+		c1 := RandomCommitment(rng)
+		bn1 := uint64(10)
+		state.TrackCommitment(c1, l1Ref(bn1))
+
+		c2 := RandomCommitment(rng)
+		bn2 := uint64(20)
+		state.TrackCommitment(c2, l1Ref(bn2))
+
+		// Expire both commitments
+		require.NoError(t, state.ExpireCommitments(bID(bn2+cfg.ChallengeWindow)))
+
+		// Verify we have expired commitments ready to prune
+		require.False(t, state.NoCommitments())
+
+		// Call Finalize - this should prune up to l1Finalized
+		l1Finalized := l1Ref(bn2 + cfg.ChallengeWindow)
+		da.Finalize(l1Finalized)
+
+		// Both commitments should be pruned, finalizedHead should be the last pruned one
+		require.Equal(t, l1Ref(bn2), da.finalizedHead)
+	})
+
 	t.Run("finalized head signal handler is called with correct value", func(t *testing.T) {
 		state := NewState(logger, &NoopMetrics{}, cfg)
 		storage := NewMockDAClient(logger)
 		da := NewAltDAWithState(logger, cfg, storage, &NoopMetrics{}, state)
+
+		// Set initial finalizedHead (simulating updateFinalizedFromL1)
+		initialFinalizedHead := l1Ref(50)
+		da.finalizedHead = initialFinalizedHead
 
 		var receivedHead eth.L1BlockRef
 		da.OnFinalizedHeadSignal(func(ref eth.L1BlockRef) {
@@ -345,8 +364,8 @@ func TestUpdateFinalizedHead(t *testing.T) {
 		l1Finalized := l1Ref(100)
 		da.Finalize(l1Finalized)
 
-		// Handler should receive the finalized head
-		require.Equal(t, l1Finalized, receivedHead)
+		// Handler should receive the preserved finalizedHead (since no commitments)
+		require.Equal(t, initialFinalizedHead, receivedHead)
 	})
 }
 

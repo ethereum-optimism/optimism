@@ -116,22 +116,17 @@ func (d *DA) OnFinalizedHeadSignal(f HeadSignalFn) {
 // It is called by the Finalize function, as it has an L1 finalized head to use.
 func (d *DA) updateFinalizedHead(l1Finalized eth.L1BlockRef) {
 	d.l1FinalizedHead = l1Finalized
+
+	// If there are no commitments or challenges being tracked, finalizedHead is managed
+	// by updateFinalizedFromL1 (called from AdvanceL1Origin) which calculates it based
+	// on l1FinalizedHead - challengeWindow. Preserve that value.
+	if d.state.NoCommitments() {
+		return
+	}
+
 	// Prune the state to the finalized head
 	d.state.Prune(l1Finalized.ID())
-
-	// If there are no commitments being tracked (e.g., batcher is using L1 DA instead of alt-DA,
-	// or all alt-DA commitments have been finalized), we can advance finalization based on L1 finality.
-	// When there are no pending alt-DA commitments, L1 finality is sufficient for data availability.
-	// We use the maximum of lastPrunedCommitment and l1Finalized to ensure monotonic progress.
-	if d.state.NoCommitments() {
-		if d.state.lastPrunedCommitment == (eth.L1BlockRef{}) || d.state.lastPrunedCommitment.Number < l1Finalized.Number {
-			d.finalizedHead = l1Finalized
-		} else {
-			d.finalizedHead = d.state.lastPrunedCommitment
-		}
-	} else {
-		d.finalizedHead = d.state.lastPrunedCommitment
-	}
+	d.finalizedHead = d.state.lastPrunedCommitment
 }
 
 // updateFinalizedFromL1 updates the finalized head based on the challenge window.
