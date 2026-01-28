@@ -730,11 +730,11 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
-    /// @notice Tests that multiple upgrade operations (5 chains) can be executed within a single transaction.
-    ///         This enforces the OPCMV2 invariant that approximately 5 upgrade operations should be
+    /// @notice Tests that multiple upgrade operations (15 chains) can be executed within a single transaction.
+    ///         This enforces the OPCMV2 invariant that approximately 15 upgrade operations should be
     ///         executable in one transaction.
     function test_batchUpgrade_multipleChains_succeeds() public {
-        uint256 numberOfChains = 1;
+        uint256 numberOfChains = 15;
 
         // 1. Deploy BatchUpgrader helper contract.
         BatchUpgrader batchUpgrader = new BatchUpgrader(opcmV2);
@@ -790,7 +790,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         });
 
         // 3. Deploy 5 separate chains using opcmV2.deploy().
-        IOPContractsManagerV2.ChainContracts[] memory chains = new IOPContractsManagerV2.ChainContracts[](numberOfChains);
+        IOPContractsManagerV2.ChainContracts[] memory chains =
+            new IOPContractsManagerV2.ChainContracts[](numberOfChains);
         for (uint256 i = 0; i < numberOfChains; i++) {
             IOPContractsManagerV2.FullConfig memory config = baseConfig;
             config.saltMixer = string.concat("chain-", vm.toString(i));
@@ -799,7 +800,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         }
 
         // 4. Prepare upgrade inputs for each chain.
-        IOPContractsManagerV2.UpgradeInput[] memory upgradeInputs = new IOPContractsManagerV2.UpgradeInput[](numberOfChains);
+        IOPContractsManagerV2.UpgradeInput[] memory upgradeInputs =
+            new IOPContractsManagerV2.UpgradeInput[](numberOfChains);
         for (uint256 i = 0; i < numberOfChains; i++) {
             upgradeInputs[i] = IOPContractsManagerV2.UpgradeInput({
                 systemConfig: chains[i].systemConfig,
