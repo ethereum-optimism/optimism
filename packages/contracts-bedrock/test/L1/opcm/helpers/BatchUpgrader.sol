@@ -16,8 +16,8 @@ contract BatchUpgrader {
         opcm = _opcm;
     }
 
-    /// @notice Executes 5 upgrade operations sequentially in a single transaction.
-    /// @param _inputs Array of exactly 5 upgrade inputs, one per chain to upgrade.
+    /// @notice Executes multiple upgrade operations sequentially in a single transaction.
+    /// @param _inputs Array of upgrade inputs, one per chain to upgrade.
     function batchUpgrade(IOPContractsManagerV2.UpgradeInput[] memory _inputs) external {
         for (uint256 i = 0; i < _inputs.length; i++) {
             (bool success, bytes memory returnData) =
