@@ -13,6 +13,8 @@ on:
       - 'docker-bake.hcl'
       - '.github/workflows/branches.yaml'
       - 'ops/scripts/compute-git-versions.sh'
+      - 'op-rbuilder/**'
+      - 'kona/**'
   merge_group:
   schedule:
     # Daily builds at 2 AM UTC (matches CircleCI schedule)
@@ -63,6 +65,8 @@ jobs:
           - cannon
           - op-dripper
           - op-interop-mon
+          - op-rbuilder
+          - kona-node
     uses: ethereum-optimism/factory/.github/workflows/docker.yaml@f8f3cb4800e538003134fb5f50cc734c2c98d762
     with:
       mode: bake
@@ -105,6 +109,8 @@ jobs:
           - cannon
           - op-dripper
           - op-interop-mon
+          - op-rbuilder
+          - kona-node
     uses: ethereum-optimism/factory/.github/workflows/docker.yaml@f8f3cb4800e538003134fb5f50cc734c2c98d762
     with:
       mode: bake
@@ -144,6 +150,32 @@ jobs:
           - cannon
           - op-dripper
           - op-interop-mon
+          - op-rbuilder
+          - kona-node
+        runner:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+        exclude:
+          # Rust images use ENTRYPOINT, so the version check command differs
+          - image_name: op-rbuilder
+          - image_name: kona-node
+    runs-on: ${{ matrix.runner }}
+    env:
+      IMAGE: ${{ needs.build-fork.result == 'success' && format('ttl.sh/{0}/{1}:24h', github.sha, matrix.image_name) || format('us-docker.pkg.dev/oplabs-tools-artifacts/images/{0}:{1}', matrix.image_name, github.sha) }}
+    steps:
+      - name: Run image
+        run: docker run $IMAGE ${{ matrix.image_name }} --version
+
+  # Separate cross-platform check for Rust images (they use ENTRYPOINT instead of CMD)
+  check-cross-platform-rust:
+    needs: [build, build-fork]
+    if: always() && (needs.build.result == 'success' || needs.build-fork.result == 'success')
+    strategy:
+      fail-fast: false
+      matrix:
+        image_name:
+          - op-rbuilder
+          - kona-node
         runner:
           - ubuntu-24.04
           - ubuntu-24.04-arm
@@ -152,4 +184,4 @@ jobs:
       IMAGE: ${{ needs.build-fork.result == 'success' && format('ttl.sh/{0}/{1}:24h', github.sha, matrix.image_name) || format('us-docker.pkg.dev/oplabs-tools-artifacts/images/{0}:{1}', matrix.image_name, github.sha) }}
     steps:
       - name: Run image
-        run: docker run $IMAGE ${{ matrix.image_name }} --version
+        run: docker run $IMAGE --version
