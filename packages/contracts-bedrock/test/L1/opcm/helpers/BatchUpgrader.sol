@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 /// @title BatchUpgrader
 /// @notice Helper contract for testing that multiple upgrade operations can be executed
@@ -22,7 +23,7 @@ contract BatchUpgrader {
         for (uint256 i = 0; i < _inputs.length; i++) {
             (bool success, bytes memory returnData) =
                 address(opcm).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_inputs[i])));
-            require(success, string(returnData));
+            require(success, string.concat("BatchUpgrader: upgrade failed for chain ", LibString.toString(i), ": ", string(returnData)));
         }
     }
 }
