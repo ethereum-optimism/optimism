@@ -5016,6 +5016,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-integration-tests"
+version = "0.1.0"
+dependencies = [
+ "kona-derive",
+ "tokio",
+]
+
+[[package]]
 name = "kona-interop"
 version = "0.4.5"
 dependencies = [
