@@ -23,7 +23,12 @@ contract BatchUpgrader {
         for (uint256 i = 0; i < _inputs.length; i++) {
             (bool success, bytes memory returnData) =
                 address(opcm).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_inputs[i])));
-            require(success, string.concat("BatchUpgrader: upgrade failed for chain ", LibString.toString(i), ": ", string(returnData)));
+            require(
+                success,
+                string.concat(
+                    "BatchUpgrader: upgrade failed for chain ", LibString.toString(i), ": ", string(returnData)
+                )
+            );
         }
     }
 }
