@@ -17,7 +17,7 @@ import (
 // - Cross-chain verification happens at each timestamp
 func TestSupernodeInteropTimestampProgression(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	// Get the block time from chain A's rollup config
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
@@ -69,7 +69,7 @@ func TestSupernodeInteropTimestampProgression(gt *testing.T) {
 // are correctly configured with different chain IDs but share the same supernode.
 func TestSupernodeInteropChainsOnDifferentChainIDs(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	chainIDA := sys.L2A.ChainID()
 	chainIDB := sys.L2B.ChainID()
@@ -94,7 +94,7 @@ func TestSupernodeInteropChainsOnDifferentChainIDs(gt *testing.T) {
 // on both chains, which is a prerequisite for interop verification.
 func TestSupernodeInteropSafeHeadProgression(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
 
@@ -131,7 +131,7 @@ func TestSupernodeInteropSafeHeadProgression(gt *testing.T) {
 // correct data after the interop activity has processed timestamps.
 func TestSupernodeInteropVerifiedAt(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
 	genesisTime := sys.L2A.Escape().RollupConfig().Genesis.L2Time
@@ -173,7 +173,7 @@ func TestSupernodeInteropVerifiedAt(gt *testing.T) {
 // timestamps are processed correctly by the interop activity.
 func TestSupernodeInteropMultipleTimestamps(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
 	genesisTime := sys.L2A.Escape().RollupConfig().Genesis.L2Time

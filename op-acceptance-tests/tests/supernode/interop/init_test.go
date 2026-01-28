@@ -12,6 +12,6 @@ import (
 func TestMain(m *testing.M) {
 	// Set the L2CL kind to supernode for all tests in this package
 	_ = os.Setenv("DEVSTACK_L2CL_KIND", "supernode")
-	presets.DoMain(m, presets.WithTwoL2SupernodeInterop())
+	presets.DoMain(m, presets.WithTwoL2SupernodeInterop(0))
 }
 

@@ -25,7 +25,7 @@ import (
 // - The supernode's interop activity processes both timestamps correctly
 func TestSupernodeInteropValidInitExecMessage(gt *testing.T) {
 	t := devtest.SerialT(gt) // Serial because we need precise ordering
-	sys := presets.NewTwoL2SupernodeInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	// Create funded EOAs for sending transactions
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
@@ -107,7 +107,7 @@ func TestSupernodeInteropValidInitExecMessage(gt *testing.T) {
 // and verifying the supernode processes them all correctly.
 func TestSupernodeInteropMultipleMessages(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	// Create funded EOAs
 	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
@@ -171,7 +171,7 @@ func TestSupernodeInteropMultipleMessages(gt *testing.T) {
 // (A->B and B->A) to verify the supernode handles bidirectional interop correctly.
 func TestSupernodeInteropBidirectionalMessages(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	// Create funded EOAs on both chains
 	alice := sys.FunderA.NewFundedEOA(eth.OneEther)

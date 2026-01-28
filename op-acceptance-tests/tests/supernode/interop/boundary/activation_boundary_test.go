@@ -24,7 +24,7 @@ import (
 // VerifiedAt should still work because timestamps before activation are auto-verified.
 func TestSupernodeInteropActivationBoundary(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewTwoL2SupernodeInteropDelayed(t, InteropActivationDelay)
+	sys := presets.NewTwoL2SupernodeInterop(t, InteropActivationDelay)
 
 	genesisTime := sys.GenesisTime
 	activationTime := sys.InteropActivationTime

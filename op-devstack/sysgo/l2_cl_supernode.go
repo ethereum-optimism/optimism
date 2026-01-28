@@ -213,31 +213,10 @@ func WithSupernodeInterop(activationTimestamp uint64) SupernodeOption {
 	}
 }
 
-// WithSharedSupernodeCLsInterop starts one supernode for N L2 chains with interop enabled at genesis.
-// The interop activation timestamp is computed from the first chain's genesis time.
-func WithSharedSupernodeCLsInterop(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
-	return stack.AfterDeploy(func(orch *Orchestrator) {
-		// Get genesis timestamp from first chain
-		if len(cls) == 0 {
-			orch.P().Require().Fail("no chains provided")
-			return
-		}
-		l2Net, ok := orch.l2Nets.Get(cls[0].CLID.ChainID())
-		if !ok {
-			orch.P().Require().Fail("l2 network not found")
-			return
-		}
-		genesisTime := l2Net.rollupCfg.Genesis.L2Time
-		orch.P().Logger().Info("enabling supernode interop at genesis", "activation_timestamp", genesisTime)
-
-		// Call the main implementation with interop enabled
-		withSharedSupernodeCLsImpl(orch, cls, l1CLID, l1ELID, WithSupernodeInterop(genesisTime))
-	})
-}
-
-// WithSharedSupernodeCLsInteropDelayed starts one supernode for N L2 chains with interop enabled
-// at a specified offset from genesis. This allows testing the transition from non-interop to interop mode.
-func WithSharedSupernodeCLsInteropDelayed(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, delaySeconds uint64) stack.Option[*Orchestrator] {
+// WithSharedSupernodeCLsInterop starts one supernode for N L2 chains with interop enabled
+// at a specified offset from genesis. Use delaySeconds=0 for interop at genesis.
+// This allows testing the transition from non-interop to interop mode.
+func WithSharedSupernodeCLsInterop(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, delaySeconds uint64) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		// Get genesis timestamp from first chain
 		if len(cls) == 0 {
@@ -251,13 +230,17 @@ func WithSharedSupernodeCLsInteropDelayed(cls []L2CLs, l1CLID stack.L1CLNodeID, 
 		}
 		genesisTime := l2Net.rollupCfg.Genesis.L2Time
 		activationTime := genesisTime + delaySeconds
-		orch.P().Logger().Info("enabling supernode interop with delay",
-			"genesis_time", genesisTime,
-			"activation_timestamp", activationTime,
-			"delay_seconds", delaySeconds,
-		)
+		if delaySeconds == 0 {
+			orch.P().Logger().Info("enabling supernode interop at genesis", "activation_timestamp", activationTime)
+		} else {
+			orch.P().Logger().Info("enabling supernode interop with delay",
+				"genesis_time", genesisTime,
+				"activation_timestamp", activationTime,
+				"delay_seconds", delaySeconds,
+			)
+		}
 
-		// Call the main implementation with interop enabled at delayed timestamp
+		// Call the main implementation with interop enabled at activation timestamp
 		withSharedSupernodeCLsImpl(orch, cls, l1CLID, l1ELID, WithSupernodeInterop(activationTime))
 	})
 }

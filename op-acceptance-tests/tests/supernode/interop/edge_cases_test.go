@@ -18,7 +18,7 @@ import (
 // the target timestamp before verifying.
 func TestSupernodeInteropChainLag(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
 
@@ -87,7 +87,7 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 // Also verifies that VerifiedAt (via superroot_atTimestamp) works correctly.
 func TestSupernodeInteropActivationAtGenesis(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	genesisTime := sys.L2A.Escape().RollupConfig().Genesis.L2Time
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
@@ -165,7 +165,7 @@ func TestSupernodeInteropActivationAtGenesis(gt *testing.T) {
 // continues to make progress over an extended period without stalling.
 func TestSupernodeInteropContinuousProgression(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
 
@@ -232,7 +232,7 @@ func TestSupernodeInteropContinuousProgression(gt *testing.T) {
 // be verified. This is tested by checking that safe heads advance together.
 func TestSupernodeInteropBothChainsRequired(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
 
