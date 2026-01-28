@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -37,7 +38,7 @@ func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMap
 		if fmt.Sprintf("%d", l2Cfg.L2ChainID) != id {
 			return nil, nil, fmt.Errorf("chain L2 %s declared different L2 chain ID %d in config", id, l2Cfg.L2ChainID)
 		}
-		if !cfg.L1.ChainID.IsUint64() || cfg.L1.ChainID.Uint64() != l2Cfg.L1ChainID {
+		if !cfg.L1.ChainID.IsUint64() || bigs.Uint64Strict(cfg.L1.ChainID) != l2Cfg.L1ChainID {
 			return nil, nil, fmt.Errorf("chain L2 %s declared different L1 chain ID %d in config than global %d", id, l2Cfg.L1ChainID, cfg.L1.ChainID)
 		}
 	}
@@ -365,7 +366,7 @@ func CompleteL1(l1Host *script.Host, cfg *L1Config) (*L1Output, error) {
 	l1Genesis, err := genesis.NewL1Genesis(&genesis.DeployConfig{
 		L2InitializationConfig: genesis.L2InitializationConfig{
 			L2CoreDeployConfig: genesis.L2CoreDeployConfig{
-				L1ChainID: cfg.ChainID.Uint64(),
+				L1ChainID: bigs.Uint64Strict(cfg.ChainID),
 			},
 			UpgradeScheduleDeployConfig: genesis.UpgradeScheduleDeployConfig{
 				L1CancunTimeOffset: new(hexutil.Uint64),

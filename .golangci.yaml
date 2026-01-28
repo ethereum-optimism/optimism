@@ -67,8 +67,6 @@ linters:
         text: errors.As
       - path: (.+)\.go$
         text: errors.Is
-      - path: (.+)\.go$
-        text: use bigs.Uint64Strict # Ignore violations until code has been updated
     paths:
       - third_party$
       - builtin$

@@ -43,7 +43,7 @@ type DisputeGameFactory struct {
 	addr          common.Address
 	l2CL          *dsl.L2CLNode
 	l2EL          *dsl.L2ELNode
-	supervisor    *dsl.Supervisor
+	superRoots    SuperRootsSource
 	gameHelper    *GameHelper
 	challengerCfg *challengerConfig.Config
 
@@ -57,7 +57,7 @@ func NewDisputeGameFactory(
 	dgfAddr common.Address,
 	l2CL *dsl.L2CLNode,
 	l2EL *dsl.L2ELNode,
-	supervisor *dsl.Supervisor,
+	superRoots SuperRootsSource,
 	challengerCfg *challengerConfig.Config,
 ) *DisputeGameFactory {
 	dgf := bindings.NewDisputeGameFactory(bindings.WithClient(ethClient), bindings.WithTo(dgfAddr), bindings.WithTest(t))
@@ -71,7 +71,7 @@ func NewDisputeGameFactory(
 		addr:          dgfAddr,
 		l2CL:          l2CL,
 		l2EL:          l2EL,
-		supervisor:    supervisor,
+		superRoots:    superRoots,
 		ethClient:     ethClient,
 		challengerCfg: challengerCfg,
 
@@ -185,7 +185,7 @@ func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 }
 
 func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
-	f.require.NotNil(f.supervisor, "supervisor is required to start super games")
+	f.require.NotNil(f.superRoots, "super roots source is required to start super games")
 
 	return f.startSuperCannonGameOfType(eoa, gameTypes.SuperCannonGameType, opts...)
 }
@@ -198,7 +198,7 @@ func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType g
 	}
 	timestamp := cfg.l2SequenceNumber
 	if !cfg.l2SequenceNumberSet {
-		timestamp = f.supervisor.FetchSyncStatus().SafeTimestamp
+		timestamp = f.superRoots.SafeTimestamp()
 	}
 	extraData := f.createSuperGameExtraData(timestamp, cfg)
 	rootClaim := cfg.rootClaim
@@ -211,15 +211,11 @@ func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType g
 }
 
 func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *GameCfg) []byte {
-	f.require.NotNil(f.supervisor, "supervisor is required create super games")
+	f.require.NotNil(f.superRoots, "super roots is required create super games")
 	if !cfg.allowFuture {
-		f.supervisor.AwaitMinCrossSafeTimestamp(timestamp)
+		f.superRoots.AwaitMinVerifiedTimestamp(timestamp)
 	}
-	super, err := f.supervisor.FetchSuperRootAtTimestamp(timestamp).ToSuper()
-	f.require.NoError(err, "Failed to fetch super root for timestamp %v", timestamp)
-
-	superV1, ok := super.(*eth.SuperV1)
-	f.require.Truef(ok, "Unsupported super type %T", super)
+	superV1 := f.superRoots.SuperV1AtTimestamp(timestamp)
 	if len(cfg.superOutputRoots) != 0 {
 		f.require.Len(cfg.superOutputRoots, len(superV1.Chains), "Super output roots length mismatch")
 		for i := range superV1.Chains {

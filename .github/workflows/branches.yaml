@@ -13,6 +13,10 @@ on:
       - 'docker-bake.hcl'
       - '.github/workflows/branches.yaml'
       - 'ops/scripts/compute-git-versions.sh'
+  merge_group:
+  schedule:
+    # Daily builds at 2 AM UTC (matches CircleCI schedule)
+    - cron: '0 2 * * *'
 
 jobs:
   prep:
@@ -32,20 +36,20 @@ jobs:
         uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
       - uses: ./.github/actions/docker-build-prep
         id: prep
 
-  local:
+  build:
     needs: prep
-    # only build if push to develop, or PR from a local branch (not a fork)
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    # only build if push to develop, scheduled run, merge queue, or PR from a local branch (not a fork)
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'merge_group' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     strategy:
       fail-fast: false
       matrix:
         image_name:
           - op-node
           - op-batcher
-          - op-deployer
           - op-faucet
           - op-program
           - op-proposer
@@ -59,15 +63,14 @@ jobs:
           - cannon
           - op-dripper
           - op-interop-mon
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@d04222c229c50320f513afe678b3264869ea11a9
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@f8f3cb4800e538003134fb5f50cc734c2c98d762
     with:
       mode: bake
       image_name: ${{ matrix.image_name }}
       bake_file: docker-bake.hcl
       target: ${{ matrix.image_name }}
-      tag: ${{ github.event_name == 'push' && 'develop' || format('pr-{0}', github.event.pull_request.number) }}
       gcp_project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
-      registry: us-docker.pkg.dev/oplabs-tools-artifacts/oss
+      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
       env: |
         GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[matrix.image_name] }}
         KONA_VERSION=${{ needs.prep.outputs.kona_version }}
@@ -79,7 +82,7 @@ jobs:
       id-token: write
       attestations: write
 
-  fork:
+  build-fork:
     needs: prep
     # only build if PR from a fork
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
@@ -89,7 +92,6 @@ jobs:
         image_name:
           - op-node
           - op-batcher
-          - op-deployer
           - op-faucet
           - op-program
           - op-proposer
@@ -103,7 +105,7 @@ jobs:
           - cannon
           - op-dripper
           - op-interop-mon
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@d04222c229c50320f513afe678b3264869ea11a9
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@f8f3cb4800e538003134fb5f50cc734c2c98d762
     with:
       mode: bake
       image_name: ${{ matrix.image_name }}
@@ -120,3 +122,34 @@ jobs:
     permissions:
       contents: read
 
+  check-cross-platform:
+    needs: [build, build-fork]
+    if: always() && (needs.build.result == 'success' || needs.build-fork.result == 'success')
+    strategy:
+      fail-fast: false
+      matrix:
+        image_name:
+          - op-node
+          - op-batcher
+          - op-faucet
+          - op-program
+          - op-proposer
+          - op-challenger
+          - op-dispute-mon
+          - op-conductor
+          - da-server
+          - op-supervisor
+          - op-supernode
+          - op-test-sequencer
+          - cannon
+          - op-dripper
+          - op-interop-mon
+        runner:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      IMAGE: ${{ needs.build-fork.result == 'success' && format('ttl.sh/{0}/{1}:24h', github.sha, matrix.image_name) || format('us-docker.pkg.dev/oplabs-tools-artifacts/images/{0}:{1}', matrix.image_name, github.sha) }}
+    steps:
+      - name: Run image
+        run: docker run $IMAGE ${{ matrix.image_name }} --version

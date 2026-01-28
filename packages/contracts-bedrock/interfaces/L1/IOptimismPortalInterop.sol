@@ -32,13 +32,7 @@ interface IOptimismPortalInterop is IProxyAdminOwnedBase {
     error OptimismPortal_NoReentrancy();
     error OptimismPortal_ProofNotOldEnough();
     error OptimismPortal_Unproven();
-    error OptimismPortal_InvalidOutputRootIndex();
-    error OptimismPortal_InvalidSuperRootProof();
-    error OptimismPortal_InvalidOutputRootChainId();
-    error OptimismPortal_WrongProofMethod();
     error OptimismPortal_MigratingToSameRegistry();
-    error Encoding_EmptySuperRoot();
-    error Encoding_InvalidSuperRootVersion();
     error OutOfGas();
     error UnexpectedList();
     error UnexpectedString();
@@ -96,15 +90,6 @@ interface IOptimismPortalInterop is IProxyAdminOwnedBase {
     function proveWithdrawalTransaction(
         Types.WithdrawalTransaction memory _tx,
         uint256 _disputeGameIndex,
-        Types.OutputRootProof memory _outputRootProof,
-        bytes[] memory _withdrawalProof
-    )
-        external;
-    function proveWithdrawalTransaction(
-        Types.WithdrawalTransaction memory _tx,
-        IDisputeGame _disputeGameProxy,
-        uint256 _outputRootIndex,
-        Types.SuperRootProof memory _superRootProof,
         Types.OutputRootProof memory _outputRootProof,
         bytes[] memory _withdrawalProof
     )

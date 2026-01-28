@@ -54,6 +54,12 @@ contract DeployDisputeGame is Script {
         assertValidOutput(_input, output_);
     }
 
+    function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        Input memory input = abi.decode(_input, (Input));
+        Output memory output = run(input);
+        return abi.encode(output);
+    }
+
     function deployDisputeGameImplV2(Input memory _input, Output memory _output) internal {
         // Shove the arguments into a struct to avoid stack-too-deep errors.
         IFaultDisputeGame.GameConstructorParams memory args = IFaultDisputeGame.GameConstructorParams({

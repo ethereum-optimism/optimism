@@ -25,6 +25,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -436,7 +437,7 @@ var (
 			bigFlag("nonce", "New nonce of the account"),
 		},
 		Action: CheatAction(false, func(ctx *cli.Context, ch *cheat.Cheater) error {
-			return ch.RunAndClose(cheat.SetNonce(addrFlagValue("address", ctx), bigFlagValue("balance", ctx).Uint64()))
+			return ch.RunAndClose(cheat.SetNonce(addrFlagValue("address", ctx), bigs.Uint64Strict(bigFlagValue("balance", ctx))))
 		}),
 	}
 	CheatPrintHeadBlock = &cli.Command{

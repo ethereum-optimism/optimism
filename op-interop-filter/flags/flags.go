@@ -2,9 +2,11 @@ package flags
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -21,12 +23,22 @@ func prefixEnvVars(name string) []string {
 var (
 	L2RPCsFlag = &cli.StringSliceFlag{
 		Name:    "l2-rpcs",
-		Usage:   "L2 RPC endpoints to connect to (chain ID is queried from each endpoint)",
+		Usage:   "L2 RPC endpoints to connect to (chain ID is queried from each endpoint and matched to rollup configs)",
 		EnvVars: prefixEnvVars("L2_RPCS"),
+	}
+	NetworksFlag = &cli.StringSliceFlag{
+		Name:    "networks",
+		Usage:   fmt.Sprintf("Predefined networks to load rollup configs from. Available: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
+		EnvVars: prefixEnvVars("NETWORKS"),
+	}
+	RollupConfigsFlag = &cli.StringSliceFlag{
+		Name:    "rollup-configs",
+		Usage:   "Paths to custom rollup config JSON files (for dev/test chains not in superchain registry)",
+		EnvVars: prefixEnvVars("ROLLUP_CONFIGS"),
 	}
 	DataDirFlag = &cli.StringFlag{
 		Name:    "data-dir",
-		Usage:   "Directory for LogsDB storage. If empty, uses in-memory storage",
+		Usage:   "Directory for LogsDB storage. If empty, uses a temporary directory",
 		EnvVars: prefixEnvVars("DATA_DIR"),
 		Value:   "",
 	}
@@ -36,14 +48,33 @@ var (
 		EnvVars: prefixEnvVars("BACKFILL_DURATION"),
 		Value:   "24h",
 	}
+	MessageExpiryWindowFlag = &cli.StringFlag{
+		Name:    "message-expiry-window",
+		Usage:   "Message expiry window duration (e.g., 168h for 7 days). Messages older than this are considered expired.",
+		EnvVars: prefixEnvVars("MESSAGE_EXPIRY_WINDOW"),
+		Value:   "168h", // 7 days default, matching op-supervisor
+	}
 	JWTSecretFlag = &cli.StringFlag{
-		Name: "rpc.jwt-secret",
-		Usage: "Path to JWT secret key for RPC authentication. " +
+		Name: "admin.jwt-secret",
+		Usage: "Path to JWT secret key for admin RPC authentication. " +
 			"Keys are 32 bytes, hex encoded in a file. " +
-			"A new key will be generated if the file is empty.",
-		EnvVars:   prefixEnvVars("RPC_JWT_SECRET"),
+			"A new key will be generated if the file is missing. " +
+			"Required when rpc.enable-admin is set.",
+		EnvVars:   prefixEnvVars("ADMIN_JWT_SECRET"),
 		Value:     "",
 		TakesFile: true,
+	}
+	PollIntervalFlag = &cli.StringFlag{
+		Name:    "poll-interval",
+		Usage:   "Interval for polling new blocks from L2 RPCs (e.g., 2s, 500ms)",
+		EnvVars: prefixEnvVars("POLL_INTERVAL"),
+		Value:   "2s",
+	}
+	ValidationIntervalFlag = &cli.StringFlag{
+		Name:    "validation-interval",
+		Usage:   "Interval for cross-chain validation loop (e.g., 500ms, 1s)",
+		EnvVars: prefixEnvVars("VALIDATION_INTERVAL"),
+		Value:   "500ms",
 	}
 )
 
@@ -52,9 +83,14 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	NetworksFlag,
+	RollupConfigsFlag,
 	DataDirFlag,
 	BackfillDurationFlag,
+	MessageExpiryWindowFlag,
 	JWTSecretFlag,
+	PollIntervalFlag,
+	ValidationIntervalFlag,
 }
 
 func init() {
@@ -75,5 +111,11 @@ func CheckRequired(ctx *cli.Context) error {
 			return fmt.Errorf("flag %s is required", name)
 		}
 	}
+
+	// At least one of --networks or --rollup-configs must be provided
+	if !ctx.IsSet(NetworksFlag.Name) && !ctx.IsSet(RollupConfigsFlag.Name) {
+		return fmt.Errorf("at least one of --%s or --%s is required", NetworksFlag.Name, RollupConfigsFlag.Name)
+	}
+
 	return nil
 }

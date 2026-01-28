@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -243,9 +244,9 @@ func (c *GnosisClient) ExecuteTransaction(ctx context.Context, safeTx *SafeTrans
 		return nil, fmt.Errorf("failed to get threshold: %w", err)
 	}
 	numSignatures := len(signatures) / 65
-	if numSignatures < int(threshold.Uint64()) {
+	if numSignatures < int(bigs.Uint64Strict(threshold)) {
 		return nil, fmt.Errorf("not enough signatures to execute transaction: have %d, need %d",
-			numSignatures, threshold.Uint64())
+			numSignatures, bigs.Uint64Strict(threshold))
 	}
 	c.lgr.Info("signatures meets threshold", "numSignatures", numSignatures, "threshold", threshold)
 

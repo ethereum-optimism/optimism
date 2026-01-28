@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/validate"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -144,7 +145,7 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 			ctx,
 			l,
 			l1RPCUrl,
-			chainID.Uint64(),
+			bigs.Uint64Strict(chainID),
 			stateFile,
 			intent.L1ContractsLocator,
 			cliCtx.String(VerifierTypeFlagName),
@@ -209,8 +210,8 @@ func runValidationAfterApply(ctx context.Context, cliCtx *cli.Context, l log.Log
 				continue
 			}
 			// Check if L1 chain ID is supported (mainnet=1, sepolia=11155111)
-			if l1ChainID.Uint64() != 1 && l1ChainID.Uint64() != 11155111 {
-				l.Info("Skipping validation", "reason", "no validator address available and L1 chain ID not supported", "chain-id", chainID.Hex(), "l1-chain-id", l1ChainID.Uint64())
+			if bigs.Uint64Strict(l1ChainID) != 1 && bigs.Uint64Strict(l1ChainID) != 11155111 {
+				l.Info("Skipping validation", "reason", "no validator address available and L1 chain ID not supported", "chain-id", chainID.Hex(), "l1-chain-id", bigs.Uint64Strict(l1ChainID))
 				continue
 			}
 		}

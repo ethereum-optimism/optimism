@@ -189,7 +189,7 @@ func checkBlock(ctx context.Context, env *actionEnv) error {
 			return fmt.Errorf("tx mined receipt was nil")
 		}
 
-		env.log.Info("tx mined", "txHash", receipt.TxHash.Hex(), "blockNumber", receipt.BlockNumber.Uint64(), "blobGasUsed", receipt.BlobGasUsed)
+		env.log.Info("tx mined", "txHash", receipt.TxHash.Hex(), "blockNumber", receipt.BlockNumber, "blobGasUsed", receipt.BlobGasUsed)
 
 		if receipt.BlobGasUsed == 0 {
 			return fmt.Errorf("receipt.BlobGasUsed was zero (required with Jovian)")

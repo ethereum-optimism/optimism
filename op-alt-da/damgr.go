@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-alt-da/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -432,7 +433,10 @@ func (d *DA) decodeChallengeStatus(log *types.Log) (ChallengeStatus, CommitmentD
 		return 0, nil, 0, err
 	}
 	d.log.Debug("decoded challenge status event", "log", log, "event", event, "comm", fmt.Sprintf("%x", comm.Encode()))
-	return ChallengeStatus(event.Status), comm, event.ChallengedBlockNumber.Uint64(), nil
+	if !event.ChallengedBlockNumber.IsUint64() {
+		return 0, nil, 0, fmt.Errorf("challenged block number is not a uint64")
+	}
+	return ChallengeStatus(event.Status), comm, bigs.Uint64Strict(event.ChallengedBlockNumber), nil
 }
 
 var (

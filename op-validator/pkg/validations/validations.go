@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -93,7 +94,7 @@ func (v *BaseValidator) Validate(ctx context.Context, input BaseValidatorInput) 
 			return nil, fmt.Errorf("failed to get chain ID: %w", err)
 		}
 
-		addr, err := ValidatorAddress(l1ChainID.Uint64(), v.release)
+		addr, err := ValidatorAddress(bigs.Uint64Strict(l1ChainID), v.release)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get validator address: %w", err)
 		}
@@ -144,7 +145,7 @@ func (v *OPCMStandardValidator) Validate(ctx context.Context, input BaseValidato
 			return nil, fmt.Errorf("failed to get chain ID: %w", err)
 		}
 
-		addr, err := ValidatorAddress(l1ChainID.Uint64(), v.release)
+		addr, err := ValidatorAddress(bigs.Uint64Strict(l1ChainID), v.release)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get validator address: %w", err)
 		}

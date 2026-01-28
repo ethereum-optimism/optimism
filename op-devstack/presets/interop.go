@@ -114,7 +114,7 @@ func (s *SimpleInterop) L2Networks() []*dsl.L2Network {
 }
 
 func (s *SimpleInterop) DisputeGameFactory() *proofs.DisputeGameFactory {
-	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), nil, nil, s.Supervisor, nil)
+	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), nil, nil, proofs.NewSuperRootsFromSupervisor(s.Supervisor), nil)
 }
 
 func (s *SingleChainInterop) StandardBridge(l2Chain *dsl.L2Network) *dsl.StandardBridge {

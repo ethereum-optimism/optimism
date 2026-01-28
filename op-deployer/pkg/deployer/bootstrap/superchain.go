@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -174,7 +175,7 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 		ctx,
 		l,
 		l1RPCUrl,
-		chainID.Uint64(),
+		bigs.Uint64Strict(chainID),
 		verifyFile,
 		cfg.ArtifactsLocator,
 		cliCtx.String(deployer.VerifierTypeFlagName),

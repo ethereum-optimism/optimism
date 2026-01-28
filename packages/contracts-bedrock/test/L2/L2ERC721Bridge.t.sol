@@ -278,7 +278,11 @@ contract L2ERC721Bridge_Uncategorized_Test is L2ERC721Bridge_TestInit {
     function test_bridgeERC721_localTokenZeroAddress_reverts() external {
         // Bridge the token.
         vm.prank(alice, alice);
-        vm.expectRevert(bytes(""));
+        // Note: In Foundry <1.4.3, calls to a non contract address produced empty revert data.
+        // In Foundry >=1.4.3, the error is wrapped with "call to non-contract address 0x..."
+        // but error data capture depends on verbosity level. Use vm.expectRevert() for consistency.
+        // nosemgrep: sol-safety-expectrevert-no-args
+        vm.expectRevert();
         l2ERC721Bridge.bridgeERC721(address(0), address(remoteToken), tokenId, 1234, hex"5678");
 
         // Token is not locked in the bridge.
@@ -343,7 +347,11 @@ contract L2ERC721Bridge_Uncategorized_Test is L2ERC721Bridge_TestInit {
     function test_bridgeERC721To_localTokenZeroAddress_reverts() external {
         // Bridge the token.
         vm.prank(alice);
-        vm.expectRevert(bytes(""));
+        // Note: In Foundry <1.4.3, calls to a non contract address produced empty revert data.
+        // In Foundry >=1.4.3, the error is wrapped with "call to non-contract address 0x..."
+        // but error data capture depends on verbosity level. Use vm.expectRevert() for consistency.
+        // nosemgrep: sol-safety-expectrevert-no-args
+        vm.expectRevert();
         l2ERC721Bridge.bridgeERC721To(address(0), address(l1ERC721Bridge), bob, tokenId, 1234, hex"5678");
 
         // Token is not locked in the bridge.

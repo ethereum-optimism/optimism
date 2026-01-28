@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -82,7 +83,7 @@ func NewIntent(
 ) (*state.Intent, *state.State) {
 	intent := &state.Intent{
 		ConfigType: state.IntentTypeCustom,
-		L1ChainID:  l1ChainID.Uint64(),
+		L1ChainID:  bigs.Uint64Strict(l1ChainID),
 		SuperchainRoles: &addresses.SuperchainRoles{
 			SuperchainProxyAdminOwner: AddrFor(t, dk, devkeys.L1ProxyAdminOwnerRole.Key(l1ChainID)),
 			ProtocolVersionsOwner:     AddrFor(t, dk, devkeys.SuperchainDeployerKey.Key(l1ChainID)),

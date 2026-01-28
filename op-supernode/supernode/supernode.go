@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/heartbeat"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/superroot"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
@@ -82,11 +83,24 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 		}
 		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsFanIn.SetMetricsRegistry)
 	}
-	// Initialize activities
+
+	// Initialize fixed activities
 	s.activities = []activity.Activity{
 		heartbeat.New(log.New("activity", "heartbeat"), 10*time.Second),
 		superroot.New(log.New("activity", "superroot"), s.chains),
 	}
+
+	// Initialize interop activity if the activation timestamp is set
+	if cfg.RawCtx.IsSet(interop.InteropActivationTimestampFlag.Name) {
+		interopActivationTimestamp := cfg.RawCtx.Uint64(interop.InteropActivationTimestampFlag.Name)
+		interopActivity := interop.New(log.New("activity", "interop"), interopActivationTimestamp, s.chains, cfg.DataDir)
+		s.activities = append(s.activities, interopActivity)
+		for _, chain := range s.chains {
+			chain.RegisterVerifier(interopActivity)
+		}
+	}
+
+	// Set up http server
 	addr := net.JoinHostPort(cfg.RPCConfig.ListenAddr, strconv.Itoa(cfg.RPCConfig.ListenPort))
 	s.httpServer = httputil.NewHTTPServer(addr, s.rpcRouter)
 

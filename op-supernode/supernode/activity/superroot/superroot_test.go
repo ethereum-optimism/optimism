@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
 	gethlog "github.com/ethereum/go-ethereum/log"
@@ -31,7 +32,10 @@ func (m *mockCC) Stop(ctx context.Context) error   { return nil }
 func (m *mockCC) Pause(ctx context.Context) error  { return nil }
 func (m *mockCC) Resume(ctx context.Context) error { return nil }
 
-func (m *mockCC) SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
+func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {
+}
+
+func (m *mockCC) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
 	return eth.L2BlockRef{}, nil
 }
 func (m *mockCC) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
@@ -73,6 +77,14 @@ func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*e
 	}
 	// Return minimal output response; tests only assert presence/count
 	return &eth.OutputResponse{}, nil
+}
+
+func (m *mockCC) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error) {
+	return eth.BlockID{}, nil
+}
+
+func (m *mockCC) ID() eth.ChainID {
+	return eth.ChainIDFromUInt64(10)
 }
 
 var _ cc.ChainContainer = (*mockCC)(nil)

@@ -232,13 +232,16 @@ func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID
 	}
 	v.log.Debug("L1AtSafeHead: latest bounds", "latest_l1", latestL1.Number, "latest_l2_num", latestL2.Number, "latest_l2_hash", latestL2.Hash)
 	if latestL2.Number < target.Number {
-		v.log.Debug("L1AtSafeHead: target beyond latest", "latest_l2", latestL2.Number)
+		v.log.Debug("L1AtSafeHead: target beyond latest", "latest_l2", latestL2.Number, "target", target.Number)
 		return eth.BlockID{}, ErrL1AtSafeHeadNotFound
 	}
+	v.log.Debug("L1AtSafeHead: target within latest", "latest_l2", latestL2.Number, "target", target.Number)
 	// Walk back until the cursor would drop below the target
 	cursor := latestL1
 	genesisL1 := v.cfg.Rollup.Genesis.L1.Number
+	steps := 0
 	for {
+		steps++
 		if cursor.Number <= 0 || cursor.Number <= genesisL1 {
 			// if we made it all the way back to genesis, it is likely the SafeDB is not stable enough for use
 			// safer to simply return an error for now.
@@ -246,13 +249,11 @@ func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID
 			return eth.BlockID{}, ErrL1AtSafeHeadNotFound
 		}
 		prev := cursor.Number - 1
-		v.log.Debug("L1AtSafeHead: checking previous l1 block", "l1_num", prev)
 		l1Prev, l2Prev, err := db.SafeHeadAtL1(ctx, prev)
 		if err != nil {
-			v.log.Debug("L1AtSafeHead: walkback lookup failed, stopping", "probe_l1", prev, "err", err)
-			break
+			v.log.Error("L1AtSafeHead: walkback lookup failed, stopping", "probe_l1", prev, "err", err)
+			return eth.BlockID{}, err
 		}
-		v.log.Debug("L1AtSafeHead: walkback result", "l1_prev", l1Prev.Number, "l2_prev_num", l2Prev.Number, "l2_prev_hash", l2Prev.Hash)
 		if l2Prev.Number >= target.Number {
 			// Still meets or exceeds target; continue walking back
 			cursor = l1Prev
@@ -261,7 +262,7 @@ func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID
 		// Dropped below target; current cursor is the first that meets/exceeds
 		break
 	}
-	v.log.Debug("L1AtSafeHead: result", "l1", cursor)
+	v.log.Debug("L1AtSafeHead: result", "l1", cursor, "steps", steps)
 	return cursor, nil
 }
 

@@ -15,7 +15,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
+	"github.com/ethereum/go-ethereum"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -112,6 +114,46 @@ func (m *mockVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, erro
 }
 
 // SafeDB is not required by VirtualNode in these tests
+
+// mockEngineController is a mock implementation of engine_controller.EngineController
+type mockEngineController struct {
+	blockAtTimestampResult eth.L2BlockRef
+	blockAtTimestampErr    error
+}
+
+func (m *mockEngineController) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	return m.blockAtTimestampResult, m.blockAtTimestampErr
+}
+
+func (m *mockEngineController) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
+	return nil, nil
+}
+
+func (m *mockEngineController) Close() error {
+	return nil
+}
+
+var _ engine_controller.EngineController = (*mockEngineController)(nil)
+
+// mockVerificationActivity is a mock implementation of activity.VerificationActivity
+type mockVerificationActivity struct {
+	name                      string
+	currentL1Result           eth.BlockID
+	verifiedAtTimestampResult bool
+	verifiedAtTimestampErr    error
+}
+
+func (m *mockVerificationActivity) Name() string {
+	return m.name
+}
+
+func (m *mockVerificationActivity) CurrentL1() eth.BlockID {
+	return m.currentL1Result
+}
+
+func (m *mockVerificationActivity) VerifiedAtTimestamp(ts uint64) (bool, error) {
+	return m.verifiedAtTimestampResult, m.verifiedAtTimestampErr
+}
 
 // Test helpers
 func createTestVNConfig() *opnodecfg.Config {
@@ -636,4 +678,53 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 	})
 }
 
-// Output root helper tests removed with simplified interface
+// TestChainContainer_VerifiedAt tests the VerifiedAt method
+func TestChainContainer_VerifiedAt(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig()
+	log := createTestLogger()
+	cfg := createTestCLIConfig()
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	t.Run("returns error when verification activity reports not verified", func(t *testing.T) {
+		// Create a mock verification activity that returns verified=false
+		mockVerifier := &mockVerificationActivity{
+			name:                      "test-verifier",
+			verifiedAtTimestampResult: false, // not verified
+			verifiedAtTimestampErr:    nil,
+		}
+
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		impl, ok := container.(*simpleChainContainer)
+		require.True(t, ok)
+
+		container.RegisterVerifier(mockVerifier)
+
+		// Set up mock engine controller
+		mockEngine := &mockEngineController{
+			blockAtTimestampResult: eth.L2BlockRef{
+				Hash:   [32]byte{1},
+				Number: 100,
+			},
+			blockAtTimestampErr: nil,
+		}
+		impl.engine = mockEngine
+
+		// Set up mock virtual node for safeDBAtL2
+		mockVN := newMockVirtualNode()
+		mockVN.safeHeadL1 = eth.BlockID{Hash: [32]byte{2}, Number: 50}
+		mockVN.safeHeadErr = nil
+		impl.vn = mockVN
+
+		ctx := context.Background()
+		l2, l1, err := container.VerifiedAt(ctx, 1000)
+
+		// Should return an error when verification fails
+		require.Error(t, err)
+		require.ErrorIs(t, err, ethereum.NotFound)
+		require.Equal(t, eth.BlockID{}, l2)
+		require.Equal(t, eth.BlockID{}, l1)
+	})
+}

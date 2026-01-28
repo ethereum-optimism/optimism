@@ -3162,12 +3162,6 @@ workflows:
             - check-generated-mocks-op-node
             - check-generated-mocks-op-service
             - op-program-compat
-            # Not needed for the devnet but we want to make sure they build successfully
-            - cannon-docker-build
-            - op-dispute-mon-docker-build
-            - op-program-docker-build
-            - op-supervisor-docker-build
-            - op-test-sequencer-docker-build
             - go-tests-short
             - sanitize-op-program
           context:
@@ -3179,22 +3173,7 @@ workflows:
           matrix:
             parameters:
               docker_name:
-                - op-node
-                - op-batcher
-                - op-faucet
-                - op-program
-                - op-proposer
-                - op-challenger
-                - op-dispute-mon
                 - op-deployer
-                - op-conductor
-                - da-server
-                - op-supervisor
-                - op-supernode
-                - op-test-sequencer
-                - cannon
-                - op-dripper
-                - op-interop-mon
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -3308,27 +3287,11 @@ workflows:
               only: /^op-deployer.*/ # ensure contract artifacts are embedded in op-deployer binary
             branches:
               ignore: /.*/
-      # Standard (medium) cross-platform docker images go here
       - docker-build:
           matrix:
             parameters:
               docker_name:
-                - op-node
-                - op-batcher
                 - op-deployer
-                - op-faucet
-                - op-proposer
-                - op-challenger
-                - op-dispute-mon
-                - op-conductor
-                - da-server
-                - op-ufm
-                - op-supervisor
-                - op-supernode
-                - op-test-sequencer
-                - cannon
-                - op-dripper
-                - op-interop-mon
           name: <<matrix.docker_name>>-docker-release
           docker_tags: <<pipeline.git.revision>>
           platforms: "linux/amd64,linux/arm64"
@@ -3344,46 +3307,14 @@ workflows:
           requires:
             - initialize
             - contracts-bedrock-build
-      # Checks for cross-platform images go here
       - check-cross-platform:
           matrix:
             parameters:
               op_component:
-                - op-node
-                - op-batcher
                 - op-deployer
-                - op-faucet
-                - op-proposer
-                - op-challenger
-                - op-dispute-mon
-                - op-conductor
-                - da-server
-                - op-ufm
-                - op-supervisor
-                - op-supernode
-                - op-test-sequencer
-                - op-deployer
-                - cannon
-                - op-dripper
-                - op-interop-mon
           name: <<matrix.op_component>>-cross-platform
           requires:
-            - op-node-docker-release
-            - op-batcher-docker-release
             - op-deployer-docker-release
-            - op-faucet-docker-release
-            - op-proposer-docker-release
-            - op-challenger-docker-release
-            - op-dispute-mon-docker-release
-            - op-conductor-docker-release
-            - da-server-docker-release
-            - op-ufm-docker-release
-            - op-supervisor-docker-release
-            - op-supernode-docker-release
-            - op-test-sequencer-docker-release
-            - cannon-docker-release
-            - op-dripper-docker-release
-            - op-interop-mon-docker-release
           context:
             - circleci-repo-readonly-authenticated-github-token
       - cannon-prestate:
@@ -3531,21 +3462,7 @@ workflows:
           matrix:
             parameters:
               docker_name:
-                - op-node
-                - op-batcher
                 - op-deployer
-                - op-faucet
-                - op-program
-                - op-proposer
-                - op-challenger
-                - op-dispute-mon
-                - op-conductor
-                - op-supervisor
-                - op-supernode
-                - op-test-sequencer
-                - cannon
-                - op-dripper
-                - op-interop-mon
           name: <<matrix.docker_name>>-docker-publish
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           platforms: "linux/amd64,linux/arm64"
@@ -3560,21 +3477,7 @@ workflows:
           matrix:
             parameters:
               op_component:
-                - op-node
-                - op-batcher
                 - op-deployer
-                - op-faucet
-                - op-program
-                - op-proposer
-                - op-challenger
-                - op-dispute-mon
-                - op-conductor
-                - op-supervisor
-                - op-supernode
-                - op-test-sequencer
-                - cannon
-                - op-dripper
-                - op-interop-mon
           name: <<matrix.op_component>>-cross-platform
           requires:
             - <<matrix.op_component>>-docker-publish

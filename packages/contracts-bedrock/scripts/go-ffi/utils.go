@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -177,7 +178,7 @@ func makeDepositTx(
 	// Create deposit transaction source
 	udp := derive.UserDepositSource{
 		L1BlockHash: l1BlockHash,
-		LogIndex:    logIndex.Uint64(),
+		LogIndex:    bigs.Uint64Strict(logIndex),
 	}
 
 	// Create deposit transaction
@@ -185,7 +186,7 @@ func makeDepositTx(
 		SourceHash:          udp.SourceHash(),
 		From:                from,
 		Value:               value,
-		Gas:                 gasLimit.Uint64(),
+		Gas:                 bigs.Uint64Strict(gasLimit),
 		IsSystemTransaction: false, // This will never be a system transaction in the tests.
 		Data:                data,
 	}
