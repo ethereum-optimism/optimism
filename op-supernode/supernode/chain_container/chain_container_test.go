@@ -120,6 +120,12 @@ func (m *mockVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, erro
 type mockEngineController struct {
 	blockAtTimestampResult eth.L2BlockRef
 	blockAtTimestampErr    error
+
+	mu                      sync.Mutex
+	rewindToTimestampCalled int
+	rewindTimestamp         uint64
+	rewindErr               error
+	rewindFunc              func(ctx context.Context, timestamp uint64) error // optional custom behavior
 }
 
 func (m *mockEngineController) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
@@ -175,23 +181,11 @@ func createTestCLIConfig() config.CLIConfig {
 	}
 }
 
-// mockEngineController is a mock implementation of engine_controller.EngineController
-type mockEngineController struct {
-	mu                      sync.Mutex
-	rewindToTimestampCalled int
-	rewindTimestamp         uint64
-	rewindErr               error
-	rewindFunc              func(ctx context.Context, timestamp uint64) error // optional custom behavior
-}
-
 func newMockEngineController() *mockEngineController {
 	return &mockEngineController{}
 }
 func (m *mockEngineController) SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	return eth.L2BlockRef{}, nil
-}
-func (m *mockEngineController) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
-	return nil, nil
 }
 func (m *mockEngineController) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
 	m.mu.Lock()
@@ -202,10 +196,6 @@ func (m *mockEngineController) RewindToTimestamp(ctx context.Context, timestamp 
 		return m.rewindFunc(ctx, timestamp)
 	}
 	return m.rewindErr
-}
-
-func (m *mockEngineController) Close() error {
-	return nil
 }
 
 // Interface conformance assertion
@@ -908,7 +898,7 @@ func TestChainContainer_VerifiedAt(t *testing.T) {
 
 	chainID := eth.ChainIDFromUInt64(420)
 	vncfg := createTestVNConfig()
-	log := createTestLogger()
+	log := createTestLogger(t)
 	cfg := createTestCLIConfig()
 	initOverload := &rollupNode.InitializationOverrides{}
 
