@@ -29,42 +29,6 @@ commands:
           name: Install zstd
           command: sudo apt-get update && sudo apt-get install -y zstd=1.4.8*
 
-  go-restore-cache:
-    parameters:
-      module:
-        type: string
-        default: .
-      namespace:
-        type: string
-      version:
-        type: string
-        default: <<pipeline.parameters.go-cache-version>>
-    steps:
-      - restore_cache:
-          name: Restore go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
-          keys:
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-
-
-  go-save-cache:
-    parameters:
-      module:
-        type: string
-        default: .
-      namespace:
-        type: string
-      version:
-        type: string
-        default: <<pipeline.parameters.go-cache-version>>
-    steps:
-      - save_cache:
-          name: Save go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
-          paths:
-            - ~/.cache/go-build
-            - ~/go/pkg/mod
-          key: go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
-
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
     parameters:
@@ -106,110 +70,6 @@ commands:
 # KONA JOBS
 # ============================================================================
 jobs:
-  # Kona Node E2E Sysgo Tests (from node_e2e_sysgo_tests.yaml)
-  kona-node-e2e-sysgo-tests:
-    parameters:
-      devnet_config:
-        description: The devnet configuration to test
-        type: string
-      reorg_tests:
-        description: Whether to run reorg tests
-        type: boolean
-        default: false
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - attach_workspace:
-          at: .
-      - go-restore-cache:
-          namespace: kona-ci
-      - rust-build: &kona-rust-build-release
-          directory: kona
-          profile: release
-          binary: "kona-node"
-      - run:
-          name: Run common tests for node with sysgo orchestrator
-          no_output_timeout: 60m
-          command: |
-            WD=$(pwd)
-            echo "Running tests..."
-            export OP_RETH_EXEC_PATH="$WD/.circleci-cache/rust-binaries/op-reth"
-            export RUST_BINARY_PATH_KONA_NODE="$WD/kona/target/release/kona-node"
-            cd kona && just test-e2e-sysgo-run node node/common "<<parameters.devnet_config>>"
-      - when:
-          condition:
-            equal: [true, <<parameters.reorg_tests>>]
-          steps:
-            - run:
-                name: Run reorg tests for node with sysgo orchestrator
-                no_output_timeout: 60m
-                command: |
-                  WD=$(pwd)
-                  echo "Running tests..."
-                  export OP_RETH_EXEC_PATH="$WD/.circleci-cache/rust-binaries/op-reth"
-                  export RUST_BINARY_PATH_KONA_NODE="$WD/kona/target/release/kona-node"
-                  cd kona && just test-e2e-sysgo-run node node/reorgs "<<parameters.devnet_config>>"
-      - go-save-cache:
-          namespace: kona-ci
-
-  # Kona Node Restart Tests (from node_e2e_sysgo_tests.yaml)
-  kona-node-restart-sysgo-tests:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - attach_workspace:
-          at: .
-      - go-restore-cache:
-          namespace: kona-ci
-      - rust-build: *kona-rust-build-release
-      - run:
-          name: Run restart tests for node with sysgo orchestrator
-          no_output_timeout: 60m
-          command: |
-            echo "Running tests..."
-            WD=$(pwd)
-            export RUST_BINARY_PATH_KONA_NODE="$WD/kona/target/release/kona-node"
-            cd kona && just test-e2e-sysgo node node/restart
-      - go-save-cache:
-          namespace: kona-ci
-
-  # Kona Proof Action Tests (from proof.yaml)
-  kona-proof-action-tests:
-    parameters:
-      kind:
-        description: The kind of action test (single or interop)
-        type: string
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
-    parallelism: 4
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - attach_workspace:
-          at: .
-      - go-restore-cache:
-          namespace: kona-ci
-      - rust-build:
-          <<: *kona-rust-build-release
-          binary: "kona-host"
-      - run:
-          name: Build kona and run action tests
-          working_directory: kona
-          no_output_timeout: 90m
-          command: |
-            echo "Running action tests"
-            export KONA_HOST_PATH=$(pwd)/target/release/kona-host
-            just action-tests-<<parameters.kind>>-run
-      - go-save-cache:
-          namespace: kona-ci
-
   # Kona Host Client Offline Runs (from proof.yaml)
   kona-host-client-offline:
     parameters:
@@ -450,7 +310,8 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
       - rust-build:
-          <<: *kona-rust-build-release
+          directory: kona
+          profile: release
           binary: "kona-supervisor"
       - run:
           name: Run supervisor tests for <<parameters.test_pkg>>
@@ -524,103 +385,85 @@ workflows:
             - equal: [true, <<pipeline.parameters.kona_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
-      # Dependencies from main config (contracts-bedrock-build, cannon-prestate-quick)
-      # These jobs exist in main.yml and are available after merge
-      - contracts-bedrock-build:
-          build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate-quick: &kona-job-base
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - cannon-kona-prestate:
-          <<: *kona-job-base
-      - rust-build-binary: &cannon-kona-host
-          name: cannon-kona-host
-          directory: kona
-          profile: release
-          binary: "kona-host"
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       # Rust CI jobs (from rust_ci.yaml)
       - rust-build-binary: &kona-build-release
           name: kona-build-release
           directory: kona
           profile: release
-          context:
+          context: &kona-ci-context
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary:
-          <<: *kona-job-base
+          context: *kona-ci-context
           name: kona-build-debug
           directory: kona
           profile: "debug"
           features: "default"
           save_cache: true
       - rust-build-binary:
-          <<: *kona-job-base
+          context: *kona-ci-context
           name: kona-build-all-features
           directory: kona
           profile: "debug"
           features: "all"
           save_cache: true
       - kona-build-fpvm:
-          <<: *kona-job-base
+          context: *kona-ci-context
           name: kona-build-fpvm-<<matrix.target>>
           matrix:
             parameters:
               target: ["cannon-client", "asterisc-client"]
       - rust-ci-cargo-tests:
-          <<: *kona-job-base
+          context: *kona-ci-context
           name: kona-cargo-tests
           directory: kona
       - kona-cargo-lint:
-          <<: *kona-job-base
+          context: *kona-ci-context
           name: kona-lint-<<matrix.target>>
           matrix:
             parameters:
               target: ["cannon", "asterisc"]
       - rust-ci-fmt:
-          <<: *kona-job-base
+          context: *kona-ci-context
           name: kona-fmt
           directory: kona
       - rust-ci-clippy:
-          <<: *kona-job-base
+          context: *kona-ci-context
           name: kona-clippy
           directory: kona
       - kona-cargo-build-benches:
-          <<: *kona-job-base
+          context: *kona-ci-context
       - rust-ci-udeps:
-          <<: *kona-job-base
+          context: *kona-ci-context
           name: kona-cargo-udeps
           directory: kona
       - rust-ci-docs:
-          <<: *kona-job-base
+          context: *kona-ci-context
           name: kona-cargo-doc-lint
           directory: kona
           command: "just lint-docs"
           rustdocflags: "-D warnings"
       - rust-ci-doctest:
-          <<: *kona-job-base
+          context: *kona-ci-context
           name: kona-cargo-doc-test
           directory: kona
           command: "just test-docs"
       - rust-ci-typos:
-          <<: *kona-job-base
+          context: *kona-ci-context
           name: kona-typos
           directory: kona
       - rust-ci-deny:
-          <<: *kona-job-base
+          context: *kona-ci-context
           name: kona-cargo-deny
           directory: kona
       - rust-ci-zepter:
-          <<: *kona-job-base
+          context: *kona-ci-context
           name: kona-zepter
           directory: kona
           command: |
             zepter format features
             zepter
       - rust-ci-check-no-std:
-          <<: *kona-job-base
+          context: *kona-ci-context
           name: kona-check-no-std
           directory: kona
           toolchain: "1.88.0"
@@ -630,7 +473,7 @@ workflows:
           requires:
             - kona-cargo-tests
       - rust-ci-cargo-hack:
-          <<: *kona-job-base
+          context: *kona-ci-context
           name: kona-cargo-hack
           directory: kona
           flags: "--feature-powerset --no-dev-deps --workspace"
@@ -641,49 +484,6 @@ workflows:
             - kona-cargo-udeps
             - kona-build-all-features
 
-      - rust-build-submodule:
-          <<: *kona-job-base
-          name: op-reth-build
-          directory: reth
-          binaries: op-reth
-          build_command: cd crates/optimism/bin && cargo build --release --bin op-reth
-          needs_clang: true
-
-      # Node E2E tests (from node_e2e_sysgo_tests.yaml)
-      - kona-node-e2e-sysgo-tests:
-          name: kona-node-e2e-<<matrix.devnet_config>>
-          matrix:
-            parameters:
-              devnet_config: ["simple-kona", "simple-kona-geth", "simple-kona-sequencer", "large-kona-sequencer"]
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
-            - cannon-kona-prestate
-            - cannon-kona-host
-            - kona-build-release
-            - op-reth-build
-      - kona-node-restart-sysgo-tests:
-          name: kona-node-e2e-restart
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
-            - cannon-kona-prestate
-            - cannon-kona-host
-            - kona-build-release
-
-      # Proof tests (from proof.yaml) - single kind only, interop excluded per original config
-      - kona-proof-action-tests:
-          name: kona-proof-action-single
-          kind: single
-          requires:
-            - kona-build-release
-            - contracts-bedrock-build
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - kona-host-client-offline:
           name: kona-host-client-native
           target: native

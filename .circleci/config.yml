@@ -77,6 +77,9 @@ parameters:
   op_reth_dispatch:
     type: boolean
     default: false
+  rust_e2e_dispatch:
+    type: boolean
+    default: false
   github-event-type:
     type: string
     default: "__not_set__"
@@ -140,11 +143,8 @@ workflows:
             .* flake-shake-workers << pipeline.parameters.flake-shake-workers >> .circleci/continue/main.yml
             .* go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/main.yml
 
-            kona/.* kona_dispatch << pipeline.parameters.kona_dispatch >> .circleci/continue/kona.yml
-            kona/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/kona.yml
-            kona/.* base_image << pipeline.parameters.base_image >> .circleci/continue/kona.yml
-            kona/.* go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/kona.yml
-            kona/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
+            kona/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-e2e.yml
+            kona/.* go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-e2e.yml
 
             op-alloy/.* op_alloy_dispatch << pipeline.parameters.op_alloy_dispatch >> .circleci/continue/op-alloy.yml
             op-alloy/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/op-alloy.yml
@@ -159,11 +159,10 @@ workflows:
             alloy-op-evm/.* base_image << pipeline.parameters.base_image >> .circleci/continue/alloy-op-evm.yml
             alloy-op-evm/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
 
-            op-reth/.* op_reth_dispatch << pipeline.parameters.op_reth_dispatch >> .circleci/continue/op-reth.yml
-            op-reth/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/op-reth.yml
-            op-reth/.* base_image << pipeline.parameters.base_image >> .circleci/continue/op-reth.yml
-            op-reth/.* go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/op-reth.yml
-            op-reth/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
+            op-reth/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-e2e.yml
+            op-reth/.* go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-e2e.yml
+
+            .* rust_e2e_dispatch << pipeline.parameters.rust_e2e_dispatch >> .circleci/continue/rust-e2e.yml
 
   setup-tag:
     when:
