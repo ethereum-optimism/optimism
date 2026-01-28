@@ -18,7 +18,6 @@ members = [
   "kona/crates/node/*",
   "kona/crates/supervisor/*",
   "kona/crates/protocol/*",
-  "kona/crates/batcher/*",
   "kona/crates/providers/*",
   "kona/crates/utilities/*",
   "kona/examples/*",

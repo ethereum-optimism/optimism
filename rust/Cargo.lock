@@ -5561,36 +5561,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kona-comp"
-version = "0.4.5"
-dependencies = [
- "alloc-no-stdlib",
- "alloy-consensus",
- "alloy-eips",
- "alloy-primitives",
- "alloy-rlp",
- "alloy-rpc-types-engine",
- "alloy-serde",
- "alloy-sol-types",
- "arbitrary",
- "async-trait",
- "brotli",
- "kona-genesis",
- "kona-protocol",
- "miniz_oxide 0.9.0",
- "op-alloy-consensus",
- "proptest",
- "rand 0.9.2",
- "serde",
- "serde_json",
- "spin 0.10.0",
- "thiserror 2.0.18",
- "tracing",
- "tracing-subscriber 0.3.22",
- "unsigned-varint 0.8.0",
-]
-
-[[package]]
 name = "kona-derive"
 version = "0.4.5"
 dependencies = [
