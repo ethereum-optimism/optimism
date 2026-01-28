@@ -33,7 +33,7 @@ workflows:
 # Will be displayed when any workflow fails:
 help:
   text: |
-    Kona uses the Zepter CLI to detect abnormalities in Cargo features, e.g. missing propagation.
+    Optimism uses the Zepter CLI to detect abnormalities in Cargo features, e.g. missing propagation.
 
     It looks like one more checks failed; please check the console output.
 

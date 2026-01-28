@@ -13,11 +13,11 @@ workflows:
         "propagate-feature",
         # These are the features to check:
         "--features=std,serde",
-        # Do not try to add a new section into `[features]` of `A` only because `B` expose that feature. There are edge-cases where this is still needed, but we can add them manually.
+        # Do not try to add a new section into `[features]` of `A` only because `B` exposes that feature. There are edge-cases where this is still needed, but we can add them manually.
         "--left-side-feature-missing=ignore",
-        # Ignore the case that `A` it outside of the workspace. Otherwise it will report errors in external dependencies that we have no influence on.
+        # Ignore the case that `A` is outside of the workspace. Otherwise it will report errors in external dependencies that we have no influence on.
         "--left-side-outside-workspace=ignore",
-        # limit to the workspace
+        # Limit to the workspace.
         "--workspace",
         "--show-path",
         "--quiet",
@@ -29,7 +29,7 @@ workflows:
 # Will be displayed when any workflow fails:
 help:
   text: |
-    Alloy uses the Zepter CLI to detect abnormalities in Cargo features, e.g. missing propagation.
+    Optimism uses the Zepter CLI to detect abnormalities in Cargo features, e.g. missing propagation.
 
     It looks like one more checks failed; please check the console output.
 
