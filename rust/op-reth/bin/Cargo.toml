@@ -19,19 +19,12 @@ reth-optimism-evm.workspace = true
 reth-optimism-payload-builder.workspace = true
 reth-optimism-primitives.workspace = true
 reth-optimism-forks.workspace = true
-reth-optimism-exex = { workspace = true, features = ["metrics"] }
-reth-optimism-trie = { workspace = true, features = ["metrics"] }
 reth-node-builder.workspace = true
-reth-db-api.workspace = true
-reth-chainspec.workspace = true
 reth-db.workspace = true
-reth-tasks.workspace = true
 
 clap = { workspace = true, features = ["derive", "env"] }
 tracing.workspace = true
 eyre.workspace = true
-futures-util.workspace = true
-tokio.workspace = true
 
 [lints]
 workspace = true
