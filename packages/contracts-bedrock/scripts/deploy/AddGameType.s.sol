@@ -6,6 +6,7 @@ import { Script } from "forge-std/Script.sol";
 
 // Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DummyCaller } from "scripts/libraries/DummyCaller.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -56,10 +57,12 @@ contract AddGameType is Script {
     }
 
     function run(Input memory _agi) public returns (Output memory) {
-        // Etch DummyCaller contract
+        // Etch DummyCaller contract. This contract is used to mimic the contract that is used
+        // as the source of the delegatecall to the OPCM. In practice this will be the governance
+        // 2/2 or similar.
         address prank = _agi.prank;
 
-        bytes memory code = vm.getDeployedCode("AddGameType.s.sol:DummyCaller");
+        bytes memory code = type(DummyCaller).runtimeCode;
         vm.etch(prank, code);
         vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(_agi.opcmImpl)))));
         vm.label(prank, "DummyCaller");
@@ -81,14 +84,12 @@ contract AddGameType is Script {
             permissioned: _agi.permissioned
         });
 
-        // Call into the DummyCaller to perform the delegatecall
+        // Call into the DummyCaller to perform the delegatecall.
+        // The DummyCaller uses a fallback that reverts on failure, so no need to check success.
         vm.broadcast(msg.sender);
-
-        (bool success, bytes memory result) = DummyCaller(prank).addGameType(gameConfigs);
-        require(success, "AddGameType: addGameType failed");
+        IOPContractsManager.AddGameOutput[] memory outputs = IOPContractsManager(prank).addGameType(gameConfigs);
 
         // Decode the result and set it in the output
-        IOPContractsManager.AddGameOutput[] memory outputs = abi.decode(result, (IOPContractsManager.AddGameOutput[]));
         require(outputs.length == 1, "AddGameType: unexpected number of outputs");
         return Output({ delayedWETHProxy: outputs[0].delayedWETH, faultDisputeGameProxy: outputs[0].faultDisputeGame });
     }
@@ -96,22 +97,5 @@ contract AddGameType is Script {
     function checkOutput(Output memory _ago) internal view {
         DeployUtils.assertValidContractAddress(address(_ago.delayedWETHProxy));
         DeployUtils.assertValidContractAddress(address(_ago.faultDisputeGameProxy));
-    }
-}
-
-/// @title DummyCaller
-/// @notice This contract is used to mimic the contract that is used as the source of the delegatecall to the OPCM.
-/// @dev This contract is used for OPCM versions 4.1.0 and above.
-
-contract DummyCaller {
-    address internal _opcmAddr;
-
-    function addGameType(IOPContractsManager.AddGameInput[] memory _gameConfigs)
-        external
-        returns (bool, bytes memory)
-    {
-        bytes memory data = abi.encodeCall(DummyCaller.addGameType, _gameConfigs);
-        (bool success, bytes memory result) = _opcmAddr.delegatecall(data);
-        return (success, result);
     }
 }

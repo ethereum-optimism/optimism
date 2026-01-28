@@ -1,0 +1,21 @@
+[book]
+authors = ["refcell"]
+language = "en"
+multilingual = false
+src = "src"
+title = "The op-alloy Book"
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[preprocessor.template]
+
+[preprocessor.alerts]
+
+[output.html]
+default-theme = "ferra"
+preferred-dark-theme = "ferra"
+git-repository-url = "https://github.com/alloy-rs/op-alloy"
+edit-url-template = "https://github.com/alloy-rs/op-alloy/edit/main/book/{path}"
+additional-css = ["custom.css"]
+additional-js = ["mermaid.min.js", "mermaid-init.js"]

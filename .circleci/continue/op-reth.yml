@@ -1,0 +1,454 @@
+version: 2.1
+
+# OP-Reth CI Continuation Configuration
+# This file contains ONLY op-reth-specific jobs and workflows.
+# It is merged with main.yml when op-reth/** changes are detected.
+# Shared orbs, commands, and jobs come from main.yml during merge.
+
+parameters:
+  # Required parameters (also in main.yml, merged during continuation)
+  default_docker_image:
+    type: string
+    default: cimg/base:2024.01
+  base_image:
+    type: string
+    default: default
+  op_reth_dispatch:
+    type: boolean
+    default: false
+  go-cache-version:
+    type: string
+    default: "v0.0"
+
+# ============================================================================
+# OP-RETH JOBS
+# ============================================================================
+# Note: Commands like rust-prepare, rust-restore-build-cache, rust-save-build-cache,
+# rust-prepare-and-restore-cache, rust-install-toolchain, install-cargo-binstall,
+# and notify-failures-on-develop are imported from main.yml
+jobs:
+  # OP-Reth Clippy lint
+  op-reth-clippy:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: op-reth
+          profile: debug
+          features: "all"
+      - rust-install-toolchain:
+          components: clippy
+      - run:
+          name: Run clippy on op-reth workspace
+          working_directory: op-reth
+          no_output_timeout: 40m
+          command: |
+            cargo clippy --workspace --lib --examples --tests --benches --all-features --locked
+          environment:
+            RUSTFLAGS: -D warnings
+      - rust-save-build-cache:
+          directory: op-reth
+          profile: debug
+          features: "all"
+
+  # OP-Reth format check
+  op-reth-fmt:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare
+      - rust-install-toolchain:
+          components: rustfmt
+          channel: nightly
+      - run:
+          name: Check formatting
+          working_directory: op-reth
+          command: cargo +nightly fmt --all --check
+
+  # OP-Reth typos check
+  op-reth-typos:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare
+      - install-cargo-binstall
+      - run:
+          name: Install typos-cli
+          command: |
+            command -v typos >/dev/null || cargo binstall --no-confirm typos-cli
+      - run:
+          name: Check for typos
+          working_directory: op-reth
+          command: typos
+
+  # OP-Reth unused dependencies check
+  op-reth-udeps:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &op-reth-udeps-cache
+          directory: op-reth
+          prefix: op-reth-udeps
+          profile: "release"
+      - rust-install-toolchain:
+          channel: nightly
+      - install-cargo-binstall
+      - run:
+          name: Install cargo-udeps
+          command: |
+            command -v cargo-udeps >/dev/null || cargo binstall --no-confirm cargo-udeps
+      - run:
+          name: Check unused dependencies
+          working_directory: op-reth
+          no_output_timeout: 40m
+          command: |
+            cargo +nightly udeps --workspace --lib --examples --tests --benches --all-features --locked
+      - rust-save-build-cache: *op-reth-udeps-cache
+
+  # OP-Reth cargo deny
+  op-reth-deny:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare
+      - install-cargo-binstall
+      - run:
+          name: Install cargo-deny
+          command: |
+            command -v cargo-deny >/dev/null || cargo binstall --no-confirm cargo-deny
+      - run:
+          name: Run cargo deny
+          working_directory: op-reth
+          command: cargo deny --all-features check all
+
+  # OP-Reth doc tests
+  op-reth-doc-test:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &op-reth-doc-cache
+          directory: op-reth
+          prefix: op-reth-doc
+      - run:
+          name: Run doc tests
+          working_directory: op-reth
+          no_output_timeout: 40m
+          command: cargo test --doc --workspace --all-features
+      - rust-save-build-cache: *op-reth-doc-cache
+
+  # OP-Reth unit tests (optimism)
+  op-reth-unit-tests:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    parameters:
+      storage:
+        description: "Storage type (stable or edge)"
+        type: string
+        default: "stable"
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &op-reth-tests-cache
+          directory: op-reth
+          prefix: op-reth-tests-<<parameters.storage>>
+          profile: debug
+      - install-cargo-binstall
+      - run:
+          name: Install nextest
+          command: |
+            command -v cargo-nextest >/dev/null || cargo binstall --no-confirm cargo-nextest
+      - run:
+          name: Run op-reth unit tests (<<parameters.storage>>)
+          working_directory: op-reth
+          no_output_timeout: 40m
+          environment:
+            RUST_BACKTRACE: 1
+          command: |
+            EDGE_FEATURES=""
+            if [ "<<parameters.storage>>" = "edge" ]; then
+              EDGE_FEATURES="edge"
+            fi
+            cargo nextest run \
+              --features "asm-keccak $EDGE_FEATURES" --locked \
+              --workspace \
+              --no-tests=warn \
+              -E "!kind(test) and not binary(e2e_testsuite)"
+      - rust-save-build-cache: *op-reth-tests-cache
+
+  # OP-Reth integration tests
+  op-reth-integration-tests:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &op-reth-integration-cache
+          directory: op-reth
+          prefix: op-reth-integration
+          profile: debug
+      - install-cargo-binstall
+      - run:
+          name: Install nextest
+          command: |
+            command -v cargo-nextest >/dev/null || cargo binstall --no-confirm cargo-nextest
+      - run:
+          name: Run op-reth integration tests
+          working_directory: op-reth
+          no_output_timeout: 60m
+          environment:
+            RUST_BACKTRACE: 1
+          command: |
+            cargo nextest run \
+              --locked -p reth-optimism-node
+      - rust-save-build-cache: *op-reth-integration-cache
+
+  # OP-Reth compact codec backwards compatibility
+  op-reth-compact-codec:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &op-reth-compact-cache
+          directory: op-reth
+          prefix: op-reth-compact
+          profile: debug
+      - run:
+          name: Generate compact vectors from base
+          working_directory: op-reth
+          command: |
+            # Use develop as the base branch
+            BASE_BRANCH="develop"
+
+            # Save current state
+            git stash || true
+            git fetch origin $BASE_BRANCH
+            git checkout origin/$BASE_BRANCH
+
+            # Generate vectors on base
+            cargo run --bin op-reth --features "dev" --manifest-path bin/Cargo.toml -- test-vectors compact --write
+
+            # Return to PR branch
+            git checkout -
+            git stash pop || true
+      - run:
+          name: Read compact vectors on PR branch
+          working_directory: op-reth
+          command: |
+            cargo run --bin op-reth --features "dev" --manifest-path bin/Cargo.toml -- test-vectors compact --read
+      - rust-save-build-cache: *op-reth-compact-cache
+
+  # OP-Reth MSRV check
+  op-reth-msrv:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &op-reth-msrv-cache
+          directory: op-reth
+          prefix: op-reth-msrv
+          profile: debug
+      - rust-install-toolchain:
+          toolchain_version: "1.88.0"  # MSRV
+      - run:
+          name: Build op-reth with MSRV
+          working_directory: op-reth
+          no_output_timeout: 40m
+          command: cargo build --bin op-reth --workspace
+          environment:
+            RUSTFLAGS: -D warnings
+      - rust-save-build-cache: *op-reth-msrv-cache
+
+  # OP-Reth Windows cross-compile check
+  op-reth-windows-check:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &op-reth-windows-cache
+          directory: op-reth
+          prefix: op-reth-windows
+          profile: debug
+      - rust-install-toolchain:
+          target: x86_64-pc-windows-gnu
+      - run:
+          name: Install mingw-w64
+          command: sudo apt-get update && sudo apt-get install -y mingw-w64
+      - run:
+          name: Check OP-Reth Windows build
+          working_directory: op-reth
+          no_output_timeout: 40m
+          command: cargo check -p op-reth --target x86_64-pc-windows-gnu
+      - rust-save-build-cache: *op-reth-windows-cache
+
+  # OP-Reth crate checks (cargo hack)
+  op-reth-crate-checks:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    parallelism: 3
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &op-reth-hack-cache
+          directory: op-reth
+          prefix: op-reth-hack
+          profile: debug
+      - install-cargo-binstall
+      - run:
+          name: Install cargo-hack
+          command: |
+            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
+      - run:
+          name: Run cargo hack check (partition ${CIRCLE_NODE_INDEX}/${CIRCLE_NODE_TOTAL})
+          working_directory: op-reth
+          no_output_timeout: 60m
+          command: |
+            PARTITION=$((CIRCLE_NODE_INDEX + 1))
+            cargo hack check --workspace --partition $PARTITION/$CIRCLE_NODE_TOTAL
+      - rust-save-build-cache: *op-reth-hack-cache
+
+  # OP-Reth feature propagation check (zepter)
+  op-reth-feature-propagation:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare
+      - install-cargo-binstall
+      - run:
+          name: Install zepter
+          command: |
+            command -v zepter >/dev/null || cargo binstall --no-confirm zepter
+      - run:
+          name: Eagerly pull dependencies
+          working_directory: op-reth
+          command: cargo metadata --format-version=1 --locked > /dev/null
+      - run:
+          name: Check feature propagation
+          working_directory: op-reth
+          command: zepter run check
+
+  # OP-Reth build binary (release)
+  op-reth-build-release:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &op-reth-release-cache
+          directory: op-reth
+          prefix: op-reth-release
+          profile: release
+      - run:
+          name: Build op-reth release
+          working_directory: op-reth
+          no_output_timeout: 40m
+          command: |
+            cargo build --release --bin op-reth
+      - rust-save-build-cache: *op-reth-release-cache
+      - persist_to_workspace:
+          root: .
+          paths:
+            - op-reth/target/release/op-reth
+
+# ============================================================================
+# OP-RETH WORKFLOWS
+# ============================================================================
+workflows:
+  # OP-Reth main CI workflow (runs on push/PR when op-reth/** changes)
+  op-reth-ci:
+    when:
+      or:
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        - and:
+            - equal: [true, <<pipeline.parameters.op_reth_dispatch>>]
+            - equal: ["api", << pipeline.trigger_source >>]
+    jobs:
+      # Lint jobs
+      - op-reth-clippy:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - op-reth-fmt:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - op-reth-typos:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - op-reth-deny:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - op-reth-feature-propagation:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Crate checks (parallelized)
+      - op-reth-crate-checks:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Build checks
+      - op-reth-msrv:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - op-reth-windows-check:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - op-reth-build-release:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Test jobs
+      - op-reth-unit-tests:
+          name: op-reth-unit-tests-<<matrix.storage>>
+          matrix:
+            parameters:
+              storage: ["stable", "edge"]
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - op-reth-integration-tests:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - op-reth-doc-test:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Codec compatibility
+      - op-reth-compact-codec:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Udeps (slower, depends on other jobs)
+      - op-reth-udeps:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - op-reth-clippy

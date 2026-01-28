@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -35,7 +36,7 @@ func ForkWithBlockNumberU256(num *big.Int) ForkOption {
 		if !num.IsUint64() {
 			return fmt.Errorf("block number %s is too large", num.String())
 		}
-		v := num.Uint64()
+		v := bigs.Uint64Strict(num)
 		cfg.BlockNumber = &v
 		return nil
 	}

@@ -576,6 +576,21 @@ case "$DEPLOY_TYPE" in
             fi
         fi
         
+        USE_FORGE=false
+        if [ -n "${DEPLOYER_USE_FORGE:-}" ]; then
+            USE_FORGE=true
+            echo ""
+            echo -e "${GREEN}✓ Using Forge from environment${NC}"
+        else
+            echo ""
+            echo -e "${YELLOW}Deployment Engine${NC}"
+            echo "  1) Use default Go scripts (recommended)"
+            echo "  2) Use Forge scripts"
+            echo ""
+            read -r -p "Select deployment engine [1-2, default 1]: " ENGINE_CHOICE
+            [ "$ENGINE_CHOICE" == "2" ] && USE_FORGE=true
+        fi
+        
         AUTO_VALIDATE_ENABLED=false
         if [ -n "${DEPLOYER_AUTO_VALIDATE:-}" ]; then
             AUTO_VALIDATE_ENABLED=true
@@ -599,6 +614,11 @@ case "$DEPLOY_TYPE" in
         echo "  Workdir: $WORKDIR"
         echo "  L1 Chain ID: $L1_CHAIN_ID"
         echo "  L2 Chain ID: $L2_CHAIN_ID"
+        if [ "$USE_FORGE" == "true" ]; then
+            echo -e "  Engine: ${GREEN}Forge scripts${NC}"
+        else
+            echo -e "  Engine: ${GREEN}Go scripts (default)${NC}"
+        fi
         if [ "$AUTO_VALIDATE_ENABLED" == "true" ]; then
             echo -e "  Validation: ${GREEN}Enabled (auto-detect version and chain ID)${NC}"
         else
@@ -631,6 +651,7 @@ case "$DEPLOY_TYPE" in
             "--deployment-target" "live"
         )
         
+        [ "$USE_FORGE" == "true" ] && APPLY_CMD+=("--use-forge")
         [ "$AUTO_VALIDATE_ENABLED" == "true" ] && APPLY_CMD+=("--validate" "auto")
         
         if "${APPLY_CMD[@]}"; then
@@ -827,6 +848,10 @@ if [ "$DEPLOY_TYPE" == "1" ] || [ "$DEPLOY_TYPE" == "2" ]; then
         CMD+=("--verify" "--verifier" "$VERIFIER_TYPE")
         [[ "$VERIFIER_TYPE" == *"etherscan"* ]] && [ -n "$ETHERSCAN_API_KEY" ] && CMD+=("--verifier-api-key" "$ETHERSCAN_API_KEY")
     fi
+    
+
+    
+    [ "$USE_FORGE" == "true" ] && CMD+=("--use-forge")
     
     if "${CMD[@]}"; then
         echo ""

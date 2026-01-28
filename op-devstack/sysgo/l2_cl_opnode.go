@@ -309,9 +309,10 @@ func withOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				SequencerEnabled:   cfg.IsSequencer,
 				SequencerConfDepth: 2,
 			},
-			Rollup:        *l2Net.rollupCfg,
-			DependencySet: depSet,
-			P2PSigner:     p2pSignerSetup, // nil when not sequencer
+			Rollup:            *l2Net.rollupCfg,
+			DependencySet:     depSet,
+			SupervisorEnabled: cfg.IndexingMode,
+			P2PSigner:         p2pSignerSetup, // nil when not sequencer
 			RPC: oprpc.CLIConfig{
 				ListenAddr: "127.0.0.1",
 				// When L2CL starts, store its RPC port here

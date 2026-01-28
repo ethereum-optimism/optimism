@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -49,7 +50,7 @@ func pull(ctx *cli.Context) error {
 		log.Error("Failed to Get Chain ID", "Err", err)
 		return err
 	}
-	chainID := cid.Uint64()
+	chainID := bigs.Uint64Strict(cid)
 
 	// record start time
 	startT := time.Now()

@@ -5,13 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"sync/atomic"
+	"time"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -30,7 +34,7 @@ type Service struct {
 
 	pprofService *oppprof.Service
 	metricsSrv   *httputil.HTTPServer
-	rpcServer    *oprpc.Server
+	rpcServer    *oprpc.Server // Main RPC server (public supervisor API, optional JWT-protected admin sub-route)
 
 	backend *Backend
 
@@ -59,6 +63,13 @@ func Main(version string) cliapp.LifecycleAction {
 		opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
 
 		l.Info("Initializing op-interop-filter", "version", version)
+
+		if !cfg.MessageExpiryWindowExplicit {
+			l.Debug("Using default message expiry window", "window", DefaultMessageExpiryWindow)
+		} else {
+			l.Debug("Message expiry window configured", "window", time.Duration(cfg.MessageExpiryWindow)*time.Second)
+		}
+
 		return NewService(cliCtx.Context, cfg, l)
 	}
 }
@@ -119,7 +130,7 @@ func (s *Service) initPProf(cfg *Config) error {
 
 func (s *Service) initMetricsServer(cfg *Config) error {
 	if !cfg.MetricsConfig.Enabled {
-		s.log.Info("Metrics disabled")
+		s.log.Debug("Metrics disabled")
 		return nil
 	}
 	m, ok := s.metrics.(opmetrics.RegistryMetricer)
@@ -130,17 +141,83 @@ func (s *Service) initMetricsServer(cfg *Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to start metrics server: %w", err)
 	}
-	s.log.Info("Started metrics server", "addr", metricsSrv.Addr())
+	s.log.Debug("Started metrics server", "addr", metricsSrv.Addr())
 	s.metricsSrv = metricsSrv
 	return nil
 }
 
 func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
-	backend, err := NewBackend(ctx, s.log, s.metrics, cfg)
-	if err != nil {
-		return err
+	// Calculate start timestamp once for all components.
+	// Chain ingesters will start ingesting from (startTimestamp - backfillDuration)
+	// and report Ready() once they reach startTimestamp.
+	// Cross-validator initializes to startTimestamp and waits for chains to catch up.
+	startTimestamp := uint64(clock.SystemClock.Now().Unix())
+
+	chains := make(map[eth.ChainID]ChainIngester)
+
+	// Create chain ingesters for each L2 RPC
+	for _, rpcURL := range cfg.L2RPCs {
+		// Query chain ID from the RPC
+		ethClient, err := ethclient.Dial(rpcURL)
+		if err != nil {
+			return fmt.Errorf("failed to connect to %s: %w", rpcURL, err)
+		}
+		chainIDBig, err := ethClient.ChainID(ctx)
+		ethClient.Close()
+		if err != nil {
+			return fmt.Errorf("failed to query chain ID from %s: %w", rpcURL, err)
+		}
+		chainID := eth.ChainIDFromBig(chainIDBig)
+
+		// Look up rollup config for this chain ID
+		rollupCfg, ok := cfg.RollupConfigs[chainID]
+		if !ok {
+			return fmt.Errorf("no rollup config found for chain %s from RPC %s (use --networks or --rollup-configs)", chainID, rpcURL)
+		}
+
+		if _, exists := chains[chainID]; exists {
+			return fmt.Errorf("duplicate chain ID %s: multiple RPCs return the same chain ID", chainID)
+		}
+
+		s.log.Info("Creating chain ingester", "chain", chainID, "rpc", rpcURL)
+
+		ingester, err := NewLogsDBChainIngester(
+			ctx,
+			s.log,
+			s.metrics,
+			chainID,
+			rpcURL,
+			cfg.DataDir,
+			startTimestamp,
+			cfg.BackfillDuration,
+			cfg.PollInterval,
+			rollupCfg,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create chain ingester for chain %s: %w", chainID, err)
+		}
+
+		chains[chainID] = ingester
 	}
-	s.backend = backend
+
+	crossValidator := NewLockstepCrossValidator(
+		ctx,
+		s.log,
+		s.metrics,
+		cfg.MessageExpiryWindow,
+		startTimestamp,
+		cfg.ValidationInterval,
+		chains,
+	)
+
+	s.backend = NewBackend(ctx, BackendParams{
+		Logger:         s.log,
+		Metrics:        s.metrics,
+		Chains:         chains,
+		CrossValidator: crossValidator,
+	})
+
+	s.log.Info("Created backend", "chains", len(chains))
 	return nil
 }
 
@@ -183,9 +260,11 @@ func (s *Service) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to start backend: %w", err)
 	}
 
-	// Start RPC server
+	// Start main RPC server (supervisor API)
 	if err := s.rpcServer.Start(); err != nil {
-		return fmt.Errorf("failed to start RPC server: %w", err)
+		// Rollback: stop backend if RPC server fails to start
+		stopErr := s.backend.Stop(ctx)
+		return errors.Join(fmt.Errorf("failed to start RPC server: %w", err), stopErr)
 	}
 	s.log.Info("RPC server started", "endpoint", s.rpcServer.Endpoint())
 

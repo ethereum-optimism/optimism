@@ -108,7 +108,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.registerGameTypes(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to register game types: %w", err)
 	}
-	if err := s.initBondClaims(); err != nil {
+	if err := s.initBondClaims(cfg); err != nil {
 		return fmt.Errorf("failed to init bond claiming: %w", err)
 	}
 	if err := s.initScheduler(cfg); err != nil {
@@ -211,8 +211,8 @@ func (s *Service) initFactoryContract(ctx context.Context, cfg *config.Config) e
 	return nil
 }
 
-func (s *Service) initBondClaims() error {
-	claimer := claims.NewBondClaimer(s.logger, s.metrics, s.registry.CreateBondContract, s.txSender, s.claimants...)
+func (s *Service) initBondClaims(cfg *config.Config) error {
+	claimer := claims.NewBondClaimer(s.logger, s.metrics, s.registry.CreateBondContract, s.txSender, cfg.SelectiveClaimResolution, s.claimants...)
 	s.claimer = claims.NewBondClaimScheduler(s.logger, s.metrics, claimer)
 	return nil
 }

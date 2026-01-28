@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -62,6 +63,9 @@ type BaseValidatorInput struct {
 	AbsolutePrestate    common.Hash
 	L2ChainID           *big.Int
 	Proposer            common.Address
+	// ValidatorAddress is the custom validator contract address to use.
+	// If zero, the standard validator address for the release/chainID will be used.
+	ValidatorAddress common.Address
 }
 
 // newBaseValidator is used for 1.8.0-4.1.0 validation contracts
@@ -79,14 +83,22 @@ func newOPCMStandardValidator(client *rpc.Client, release string) *OPCMStandardV
 
 // Validate (BaseValidator) is used for 1.8.0-4.1.0 validation contracts
 func (v *BaseValidator) Validate(ctx context.Context, input BaseValidatorInput) ([]string, error) {
-	l1ChainID, err := ethclient.NewClient(v.client).ChainID(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get chain ID: %w", err)
-	}
+	var validatorAddr common.Address
+	if input.ValidatorAddress != (common.Address{}) {
+		// Use custom validator address if provided
+		validatorAddr = input.ValidatorAddress
+	} else {
+		// Fall back to standard validator address lookup
+		l1ChainID, err := ethclient.NewClient(v.client).ChainID(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get chain ID: %w", err)
+		}
 
-	validatorAddr, err := ValidatorAddress(l1ChainID.Uint64(), v.release)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get validator address: %w", err)
+		addr, err := ValidatorAddress(bigs.Uint64Strict(l1ChainID), v.release)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get validator address: %w", err)
+		}
+		validatorAddr = addr
 	}
 
 	var rawOutput []byte
@@ -122,14 +134,22 @@ func (v *OPCMStandardValidator) Validate(ctx context.Context, input BaseValidato
 		return nil, fmt.Errorf("proposer address is required for OPCM validation")
 	}
 
-	l1ChainID, err := ethclient.NewClient(v.client).ChainID(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get chain ID: %w", err)
-	}
+	var validatorAddr common.Address
+	if input.ValidatorAddress != (common.Address{}) {
+		// Use custom validator address if provided
+		validatorAddr = input.ValidatorAddress
+	} else {
+		// Fall back to standard validator address lookup
+		l1ChainID, err := ethclient.NewClient(v.client).ChainID(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get chain ID: %w", err)
+		}
 
-	validatorAddr, err := ValidatorAddress(l1ChainID.Uint64(), v.release)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get validator address: %w", err)
+		addr, err := ValidatorAddress(bigs.Uint64Strict(l1ChainID), v.release)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get validator address: %w", err)
+		}
+		validatorAddr = addr
 	}
 
 	var rawOutput []byte
@@ -181,6 +201,10 @@ func NewV410Validator(client *rpc.Client) *BaseValidator {
 
 func NewV500Validator(client *rpc.Client) *OPCMStandardValidator {
 	return newOPCMStandardValidator(client, standard.ContractsV500Tag)
+}
+
+func NewV600Validator(client *rpc.Client) *OPCMStandardValidator {
+	return newOPCMStandardValidator(client, standard.ContractsV600Tag)
 }
 
 func parseErrors(output string) []string {

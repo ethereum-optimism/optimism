@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -68,7 +69,7 @@ func runGarbageChannelTest(gt *testing.T, testCfg *helpers.TestCfg[actionsHelper
 
 	// Ensure that the safe head has not advanced - the channel is incomplete.
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
-	require.Equal(t, uint64(0), l2SafeHead.Number.Uint64())
+	require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Buffer the second half of L2 blocks in the batcher.
 	for i := 0; i < NumL2Blocks/2; i++ {
@@ -84,7 +85,7 @@ func runGarbageChannelTest(gt *testing.T, testCfg *helpers.TestCfg[actionsHelper
 
 	// Ensure that the safe head has not advanced - the channel is incomplete.
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
-	require.Equal(t, uint64(0), l2SafeHead.Number.Uint64())
+	require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Submit the correct second frame.
 	env.Batcher.ActL2BatchSubmitRaw(t, expectedSecondFrame)
@@ -93,10 +94,10 @@ func runGarbageChannelTest(gt *testing.T, testCfg *helpers.TestCfg[actionsHelper
 
 	// Ensure that the safe head has advanced - the channel is complete.
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
-	require.Equal(t, uint64(NumL2Blocks), l2SafeHead.Number.Uint64())
+	require.Equal(t, uint64(NumL2Blocks), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Run FPP from genesis up to safe head
-	env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, bigs.Uint64Strict(l2SafeHead.Number), testCfg.CheckResult, testCfg.InputParams...)
 }
 
 func Test_ProgramAction_GarbageChannel(gt *testing.T) {

@@ -1,0 +1,17 @@
+too-large-for-stack = 128
+doc-valid-idents = [
+    "P2P",
+    "ExEx",
+    "ExExes",
+    "IPv4",
+    "IPv6",
+    "KiB",
+    "MiB",
+    "GiB",
+    "TiB",
+    "PiB",
+    "EiB",
+    "WAL",
+    "MessagePack",
+]
+allow-dbg-in-tests = true

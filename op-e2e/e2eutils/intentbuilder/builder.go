@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -200,7 +201,7 @@ func (b *intentBuilder) L1() L1Configurator {
 }
 
 func (b *intentBuilder) WithL1(l1ChainID eth.ChainID) (Builder, L1Configurator) {
-	b.intent.L1ChainID = l1ChainID.ToBig().Uint64()
+	b.intent.L1ChainID = bigs.Uint64Strict(l1ChainID.ToBig())
 	return b, &l1Configurator{builder: b}
 }
 
@@ -288,7 +289,7 @@ type l1Configurator struct {
 }
 
 func (c *l1Configurator) WithChainID(chainID eth.ChainID) L1Configurator {
-	c.builder.intent.L1ChainID = chainID.ToBig().Uint64()
+	c.builder.intent.L1ChainID = bigs.Uint64Strict(chainID.ToBig())
 	return c
 }
 

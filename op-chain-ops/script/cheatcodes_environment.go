@@ -6,6 +6,7 @@ import (
 
 	"github.com/holiman/uint256"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -14,7 +15,7 @@ import (
 
 // Warp implements https://book.getfoundry.sh/cheatcodes/warp
 func (c *CheatCodesPrecompile) Warp(timestamp *big.Int) {
-	c.h.env.Context().Time = timestamp.Uint64()
+	c.h.env.Context().Time = bigs.Uint64Strict(timestamp)
 }
 
 // Roll implements https://book.getfoundry.sh/cheatcodes/roll

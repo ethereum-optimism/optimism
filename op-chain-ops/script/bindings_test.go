@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -55,7 +56,7 @@ func TestBindings(t *testing.T) {
 	result := bindings.Adder(42, 0x1337)
 	require.NoError(t, err)
 	require.True(t, result.IsUint64())
-	require.Equal(t, uint64(42+0x1337), result.Uint64())
+	require.Equal(t, uint64(42+0x1337), bigs.Uint64Strict(result))
 }
 
 type TestContract struct{}

@@ -71,7 +71,7 @@ func NewOpnode(l log.Logger, c *config.Config, clk clock.Clock, errFn func(error
 			l.Warn("closed op-node!")
 		}()
 	}
-	node, err := rollupNode.New(context.Background(), c, l, "", metrics.NewMetrics(""), clk)
+	node, err := rollupNode.New(context.Background(), c, l, "", metrics.NewMetrics("", nil), clk)
 	if err != nil {
 		return nil, err
 	}

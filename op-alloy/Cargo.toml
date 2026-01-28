@@ -1,0 +1,123 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+version = "0.23.1"
+edition = "2024"
+rust-version = "1.88"
+authors = ["Alloy Contributors"]
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/alloy-rs/op-alloy"
+repository = "https://github.com/alloy-rs/op-alloy"
+exclude = ["benches/", "tests/"]
+
+[workspace.lints.rustdoc]
+all = "warn"
+
+[workspace.lints.rust]
+missing-debug-implementations = "warn"
+missing-docs = "warn"
+unreachable-pub = "warn"
+unused-must-use = "deny"
+rust-2018-idioms = "deny"
+unnameable-types = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+missing-const-for-fn = "warn"
+use-self = "warn"
+option-if-let-else = "warn"
+redundant-clone = "warn"
+result_large_err = "allow"
+
+[workspace.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[workspace.dependencies]
+# Workspace
+op-alloy-consensus = { version = "0.23.1", path = "crates/consensus", default-features = false }
+op-alloy-network = { version = "0.23.1", path = "crates/network", default-features = false }
+op-alloy-provider = { version = "0.23.1", path = "crates/provider", default-features = false }
+op-alloy-rpc-types = { version = "0.23.1", path = "crates/rpc-types", default-features = false }
+op-alloy-rpc-types-engine = { version = "0.23.1", path = "crates/rpc-types-engine", default-features = false }
+op-alloy-rpc-jsonrpsee = { version = "0.23.1", path = "crates/rpc-jsonrpsee", default-features = false }
+
+# Alloy
+alloy-eips = { version = "1.1.2", default-features = false }
+alloy-serde = { version = "1.1.2", default-features = false }
+alloy-signer = { version = "1.1.2", default-features = false }
+alloy-network = { version = "1.1.2", default-features = false }
+alloy-provider = { version = "1.1.2", default-features = false }
+alloy-transport = { version = "1.1.2", default-features = false }
+alloy-consensus = { version = "1.1.2", default-features = false }
+alloy-rpc-types-eth = { version = "1.1.2", default-features = false }
+alloy-rpc-types-engine = { version = "1.1.2", default-features = false }
+alloy-network-primitives = { version = "1.1.2", default-features = false }
+alloy-json-rpc = { version = "1.1.2", default-features = false }
+
+# Alloy RLP
+alloy-rlp = { version = "0.3", default-features = false }
+
+# Alloy Core
+alloy-sol-types = { version = "1.2.0", default-features = false }
+alloy-primitives = { version = "1.2.0", default-features = false }
+
+# Serde
+serde = { version = "1.0", default-features = false, features = [
+    "derive",
+    "alloc",
+] }
+serde_with = "3.12"
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+
+# Encoding
+snap = "1.1.1"
+bincode = "2.0.1"
+ethereum_ssz = "0.9"
+ethereum_ssz_derive = "0.9"
+
+# rpc
+jsonrpsee = { version = "0.26", features = [
+    "jsonrpsee-core",
+    "client-core",
+    "server-core",
+    "macros",
+] }
+jsonrpsee-core = "0.26"
+jsonrpsee-types = "0.26"
+
+# misc
+async-trait = "0.1.87"
+derive_more = { version = "2.0", default-features = false }
+thiserror = { version = "2.0", default-features = false }
+similar-asserts = "1.7"
+
+# hashing
+sha2 = { version = "0.10", default-features = false }
+
+# tracing
+tracing-subscriber = "0.3.19"
+tracing = { version = "0.1.41", default-features = false }
+
+## misc-testing
+arbitrary = { version = "1.4", features = ["derive"] }
+arbtest = "0.3"
+rand = "0.9"
+proptest = "1.6"
+proptest-derive = "0.5"
+tokio = "1"
+rstest = "0.24.0"
+
+[patch.crates-io]
+# alloy-eips = { git = "https://github.com/alloy-rs/alloy", rev = "2390e6cd5" }
+# alloy-serde = { git = "https://github.com/alloy-rs/alloy", rev = "2390e6cd5" }
+# alloy-signer = { git = "https://github.com/alloy-rs/alloy", rev = "2390e6cd5" }
+# alloy-network = { git = "https://github.com/alloy-rs/alloy", rev = "2390e6cd5" }
+# alloy-provider = { git = "https://github.com/alloy-rs/alloy", rev = "2390e6cd5" }
+# alloy-transport = { git = "https://github.com/alloy-rs/alloy", rev = "2390e6cd5" }
+# alloy-consensus = { git = "https://github.com/alloy-rs/alloy", rev = "2390e6cd5" }
+# alloy-rpc-types-eth = { git = "https://github.com/alloy-rs/alloy", rev = "2390e6cd5" }
+# alloy-rpc-types-engine = { git = "https://github.com/alloy-rs/alloy", rev = "2390e6cd5" }
+# alloy-network-primitives = { git = "https://github.com/alloy-rs/alloy", rev = "2390e6cd5" }

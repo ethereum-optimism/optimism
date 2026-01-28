@@ -1,0 +1,72 @@
+[package]
+name = "kona-proof-interop"
+description = "OP Stack Proof SDK with Interop support"
+version = "0.2.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Workspace
+kona-preimage.workspace = true
+kona-interop = { workspace = true, features = ["serde"] }
+kona-proof.workspace = true
+kona-mpt.workspace = true
+kona-executor.workspace = true
+kona-registry.workspace = true
+kona-genesis = { workspace = true, features = ["serde"] }
+kona-protocol.workspace = true
+
+# Alloy
+alloy-rlp.workspace = true
+alloy-eips.workspace = true
+alloy-primitives.workspace = true
+alloy-consensus.workspace = true
+alloy-rpc-types-engine.workspace = true
+alloy-evm = { workspace = true, features = ["op"] }
+
+# OP Alloy
+op-alloy-consensus.workspace = true
+op-alloy-rpc-types-engine.workspace = true
+alloy-op-evm.workspace = true
+
+# revm
+revm.workspace = true
+op-revm.workspace = true
+
+# General
+serde.workspace = true
+tracing.workspace = true
+serde_json.workspace = true
+async-trait.workspace = true
+spin.workspace = true
+thiserror.workspace = true
+
+# Arbitrary
+arbitrary = { version = "1.4", features = ["derive"], optional = true }
+
+[dev-dependencies]
+alloy-primitives = { workspace = true, features = ["rlp", "arbitrary"] }
+kona-interop = { workspace = true, features = ["arbitrary"] }
+arbitrary = { version = "1.4", features = ["derive"] }
+rand.workspace = true
+
+[features]
+arbitrary = [
+	"alloy-consensus/arbitrary",
+	"alloy-eips/arbitrary",
+	"alloy-primitives/arbitrary",
+	"alloy-rpc-types-engine/arbitrary",
+	"dep:arbitrary",
+	"kona-genesis/arbitrary",
+	"kona-interop/arbitrary",
+	"kona-protocol/arbitrary",
+	"op-alloy-consensus/arbitrary",
+	"op-alloy-rpc-types-engine/arbitrary",
+	"revm/arbitrary",
+]

@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
 // Ffi implements https://book.getfoundry.sh/cheatcodes/ffi
@@ -70,7 +71,7 @@ func (c *CheatCodesPrecompile) Sleep(ms *big.Int) error {
 	if !ms.IsUint64() {
 		return vm.ErrExecutionReverted
 	}
-	time.Sleep(time.Duration(ms.Uint64()) * time.Millisecond)
+	time.Sleep(time.Duration(bigs.Uint64Strict(ms)) * time.Millisecond)
 	return nil
 }
 

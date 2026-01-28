@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/triedb"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -273,7 +274,7 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 
 	isCancun := s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time)
 	// Write state changes to db
-	root, err := s.l1BuildingState.Commit(s.l1BuildingHeader.Number.Uint64(), s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number), isCancun)
+	root, err := s.l1BuildingState.Commit(bigs.Uint64Strict(s.l1BuildingHeader.Number), s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number), isCancun)
 	if err != nil {
 		t.Fatalf("l1 state write error: %v", err)
 	}

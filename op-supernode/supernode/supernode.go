@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/heartbeat"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/superroot"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
@@ -41,8 +42,8 @@ type Supernode struct {
 	httpServer   *httputil.HTTPServer
 	rpcRouter    *resources.Router
 	// Metrics router/server for per-chain metrics
-	metrics       *resources.MetricsService
-	metricsRouter *resources.MetricsRouter
+	metrics      *resources.MetricsService
+	metricsFanIn *resources.MetricsFanIn
 	// cached address when available
 	rpcAddr string
 }
@@ -68,7 +69,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	s.rootRPC = oprpc.NewHandler(version, oprpc.WithLogger(log))
 	s.rpcRouter.SetRootHandler(s.rootRPC)
 	// Build metrics router; attach per-chain registries later
-	s.metricsRouter = resources.NewMetricsRouter(log)
+	s.metricsFanIn = resources.NewMetricsFanIn(len(cfg.Chains))
 	for _, id := range cfg.Chains {
 		chainID := eth.ChainIDFromUInt64(id)
 		initOverrides := &rollupNode.InitializationOverrides{
@@ -80,19 +81,32 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			log.Error("missing virtual node config for chain", "chain", id)
 			continue
 		}
-		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsRouter.SetHandler)
+		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsFanIn.SetMetricsRegistry)
 	}
-	// Initialize activities
+
+	// Initialize fixed activities
 	s.activities = []activity.Activity{
 		heartbeat.New(log.New("activity", "heartbeat"), 10*time.Second),
 		superroot.New(log.New("activity", "superroot"), s.chains),
 	}
+
+	// Initialize interop activity if the activation timestamp is set
+	if cfg.RawCtx.IsSet(interop.InteropActivationTimestampFlag.Name) {
+		interopActivationTimestamp := cfg.RawCtx.Uint64(interop.InteropActivationTimestampFlag.Name)
+		interopActivity := interop.New(log.New("activity", "interop"), interopActivationTimestamp, s.chains, cfg.DataDir)
+		s.activities = append(s.activities, interopActivity)
+		for _, chain := range s.chains {
+			chain.RegisterVerifier(interopActivity)
+		}
+	}
+
+	// Set up http server
 	addr := net.JoinHostPort(cfg.RPCConfig.ListenAddr, strconv.Itoa(cfg.RPCConfig.ListenPort))
 	s.httpServer = httputil.NewHTTPServer(addr, s.rpcRouter)
 
 	// Optionally build metrics service
 	if cfg.MetricsConfig.Enabled {
-		s.metrics = resources.NewMetricsService(log, cfg.MetricsConfig.ListenAddr, cfg.MetricsConfig.ListenPort, s.metricsRouter)
+		s.metrics = resources.NewMetricsService(log, cfg.MetricsConfig.ListenAddr, cfg.MetricsConfig.ListenPort, s.metricsFanIn)
 	}
 	return s, nil
 }
@@ -180,11 +194,6 @@ func (s *Supernode) Stop(ctx context.Context) error {
 	if s.rpcRouter != nil {
 		if err := s.rpcRouter.Close(); err != nil {
 			s.log.Error("error closing rpc router", "error", err)
-		}
-	}
-	if s.metricsRouter != nil {
-		if err := s.metricsRouter.Close(); err != nil {
-			s.log.Error("error closing metrics router", "error", err)
 		}
 	}
 

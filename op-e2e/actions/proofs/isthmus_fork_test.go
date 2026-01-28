@@ -356,7 +356,7 @@ func testIsthmusNetworkUpgradeTransactions(gt *testing.T, testCfg *helpers.TestC
 	// get latest block
 	latestBlock, err := ethCl.BlockByNumber(context.Background(), nil)
 	require.NoError(t, err)
-	require.Equal(t, sequencer.L2Unsafe().Number, latestBlock.Number().Uint64())
+	require.Equal(t, sequencer.L2Unsafe().Number, latestBlock.NumberU64())
 
 	transactions := latestBlock.Transactions()
 

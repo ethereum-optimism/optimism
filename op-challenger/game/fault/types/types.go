@@ -172,11 +172,11 @@ type Claim struct {
 }
 
 func (c Claim) ID() ClaimID {
-	return ClaimID(crypto.Keccak256Hash(
-		c.Position.ToGIndex().Bytes(),
-		c.Value.Bytes(),
-		big.NewInt(int64(c.ParentContractIndex)).Bytes(),
-	))
+	data := make([]byte, 256+32+256)
+	c.Position.ToGIndex().FillBytes(data[0:256])
+	copy(data[256:288], c.Value.Bytes())
+	big.NewInt(int64(c.ParentContractIndex)).FillBytes(data[288:544])
+	return ClaimID(crypto.Keccak256Hash(data))
 }
 
 // IsRoot returns true if this claim is the root claim.

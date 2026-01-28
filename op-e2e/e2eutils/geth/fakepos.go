@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	opeth "github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -117,15 +118,15 @@ func (f *FakePoS) Start() error {
 				if err != nil { // fallback to finalized if nothing is safe
 					safe = finalized
 				}
-				if head.Number.Uint64() > f.finalizedDistance { // progress finalized block, if we can
-					finalized, err = f.eth.HeaderByNumber(context.Background(), new(big.Int).SetUint64(head.Number.Uint64()-f.finalizedDistance))
+				if bigs.Uint64Strict(head.Number) > f.finalizedDistance { // progress finalized block, if we can
+					finalized, err = f.eth.HeaderByNumber(context.Background(), new(big.Int).SetUint64(bigs.Uint64Strict(head.Number)-f.finalizedDistance))
 					if err != nil {
 						f.log.Warn("Failed to finalized header", "err", err)
 						continue
 					}
 				}
-				if head.Number.Uint64() > f.safeDistance { // progress safe block, if we can
-					safe, err = f.eth.HeaderByNumber(context.Background(), new(big.Int).SetUint64(head.Number.Uint64()-f.safeDistance))
+				if bigs.Uint64Strict(head.Number) > f.safeDistance { // progress safe block, if we can
+					safe, err = f.eth.HeaderByNumber(context.Background(), new(big.Int).SetUint64(bigs.Uint64Strict(head.Number)-f.safeDistance))
 					if err != nil {
 						f.log.Warn("Failed to safe header", "err", err)
 						continue
@@ -158,7 +159,7 @@ func (f *FakePoS) Start() error {
 					Withdrawals:           withdrawals,
 				}
 				parentBeaconBlockRoot := f.FakeBeaconBlockRoot(head.Time) // parent beacon block root
-				nextHeight := new(big.Int).SetUint64(head.Number.Uint64() + 1)
+				nextHeight := new(big.Int).SetUint64(bigs.Uint64Strict(head.Number) + 1)
 				isCancun := f.config.IsCancun(nextHeight, newBlockTime)
 				isPrague := f.config.IsPrague(nextHeight, newBlockTime)
 				isOsaka := f.config.IsOsaka(nextHeight, newBlockTime)

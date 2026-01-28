@@ -20,6 +20,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -759,7 +760,7 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	miner.ActL1StartBlock(12)(t)
 	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
 	miner.ActL1EndBlock(t)
-	l1Number := miner.L1Chain().CurrentHeader().Number.Uint64()
+	l1Number := bigs.Uint64Strict(miner.L1Chain().CurrentHeader().Number)
 
 	// show latest L1 block with new batch data to verifier, and make it sync.
 	verifier.ActL1HeadSignal(t)

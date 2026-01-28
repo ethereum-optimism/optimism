@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -832,7 +833,7 @@ func TestCrossPatternSameTimestamp(gt *testing.T) {
 	// check tx1 first instead of tx0 not to make tx0 submitted
 	receipt, err := tx1.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(t, err)
-	require.Equal(t, targetBlockNum, receipt.BlockNumber.Uint64())
+	require.Equal(t, targetBlockNum, bigs.Uint64Strict(receipt.BlockNumber))
 	block, err := tx1.PlannedTx.IncludedBlock.Eval(t.Ctx())
 	require.NoError(t, err)
 	require.Equal(t, targetTime, block.Time)
@@ -848,7 +849,7 @@ func TestCrossPatternSameTimestamp(gt *testing.T) {
 	// check tx3 first instead of tx2 not to make tx2 submitted
 	receipt, err = tx3.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(t, err)
-	require.Equal(t, targetBlockNum, receipt.BlockNumber.Uint64())
+	require.Equal(t, targetBlockNum, bigs.Uint64Strict(receipt.BlockNumber))
 	block, err = tx3.PlannedTx.IncludedBlock.Eval(t.Ctx())
 	require.NoError(t, err)
 	require.Equal(t, targetTime, block.Time)

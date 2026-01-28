@@ -16,3 +16,6 @@ vendor/
 
 # Test contracts the scripts folder
 op-chain-ops/script/testdata/scripts/
+
+# Op-alloy book theme (third-party mdbook assets)
+op-alloy/book/

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
 	gethlog "github.com/ethereum/go-ethereum/log"
@@ -13,17 +14,17 @@ import (
 )
 
 type mockCC struct {
-	verL2     eth.BlockID
-	verL1     eth.BlockID
-	optL2     eth.BlockID
-	optL1     eth.BlockID
-	output    eth.Bytes32
-	currentL1 eth.BlockRef
+	verL2  eth.BlockID
+	verL1  eth.BlockID
+	optL2  eth.BlockID
+	optL1  eth.BlockID
+	output eth.Bytes32
+	status *eth.SyncStatus
 
-	currentL1Err  error
 	verifiedErr   error
 	outputErr     error
 	optimisticErr error
+	syncStatusErr error
 }
 
 func (m *mockCC) Start(ctx context.Context) error  { return nil }
@@ -31,20 +32,26 @@ func (m *mockCC) Stop(ctx context.Context) error   { return nil }
 func (m *mockCC) Pause(ctx context.Context) error  { return nil }
 func (m *mockCC) Resume(ctx context.Context) error { return nil }
 
-func (m *mockCC) SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
+func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {
+}
+
+func (m *mockCC) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
 	return eth.L2BlockRef{}, nil
+}
+func (m *mockCC) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	if m.syncStatusErr != nil {
+		return nil, m.syncStatusErr
+	}
+	if m.status == nil {
+		return &eth.SyncStatus{}, nil
+	}
+	return m.status, nil
 }
 func (m *mockCC) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
 	return eth.BlockID{}, eth.BlockID{}, nil
 }
 func (m *mockCC) L1AtSafeHead(ctx context.Context, l2 eth.BlockID) (eth.BlockID, error) {
 	return eth.BlockID{}, nil
-}
-func (m *mockCC) CurrentL1(ctx context.Context) (eth.BlockRef, error) {
-	if m.currentL1Err != nil {
-		return eth.BlockRef{}, m.currentL1Err
-	}
-	return m.currentL1, nil
 }
 func (m *mockCC) VerifiedAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
 	if m.verifiedErr != nil {
@@ -75,26 +82,42 @@ func (m *mockCC) RewindEngine(ctx context.Context, timestamp uint64) error {
 	return nil
 }
 
+func (m *mockCC) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error) {
+	return eth.BlockID{}, nil
+}
+
+func (m *mockCC) ID() eth.ChainID {
+	return eth.ChainIDFromUInt64(10)
+}
+
 var _ cc.ChainContainer = (*mockCC)(nil)
 
 func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{
 		eth.ChainIDFromUInt64(10): &mockCC{
-			verL2:     eth.BlockID{Number: 100},
-			verL1:     eth.BlockID{Number: 1000},
-			optL2:     eth.BlockID{Number: 100},
-			optL1:     eth.BlockID{Number: 1000},
-			output:    eth.Bytes32{},
-			currentL1: eth.BlockRef{Number: 2000},
+			verL2:  eth.BlockID{Number: 100},
+			verL1:  eth.BlockID{Number: 1000},
+			optL2:  eth.BlockID{Number: 100},
+			optL1:  eth.BlockID{Number: 1000},
+			output: eth.Bytes32{},
+			status: &eth.SyncStatus{
+				CurrentL1:   eth.L1BlockRef{Number: 2000},
+				SafeL2:      eth.L2BlockRef{Time: 200},
+				FinalizedL2: eth.L2BlockRef{Time: 150},
+			},
 		},
 		eth.ChainIDFromUInt64(420): &mockCC{
-			verL2:     eth.BlockID{Number: 200},
-			verL1:     eth.BlockID{Number: 1100},
-			optL2:     eth.BlockID{Number: 200},
-			optL1:     eth.BlockID{Number: 1100},
-			output:    eth.Bytes32{},
-			currentL1: eth.BlockRef{Number: 2100},
+			verL2:  eth.BlockID{Number: 200},
+			verL1:  eth.BlockID{Number: 1100},
+			optL2:  eth.BlockID{Number: 200},
+			optL1:  eth.BlockID{Number: 1100},
+			output: eth.Bytes32{},
+			status: &eth.SyncStatus{
+				CurrentL1:   eth.L1BlockRef{Number: 2100},
+				SafeL2:      eth.L2BlockRef{Time: 180},
+				FinalizedL2: eth.L2BlockRef{Time: 140},
+			},
 		},
 	}
 	s := New(gethlog.New(), chains)
@@ -104,6 +127,8 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 	require.Len(t, out.OptimisticAtTimestamp, 2)
 	// min values
 	require.Equal(t, uint64(2000), out.CurrentL1.Number)
+	require.Equal(t, uint64(180), out.CurrentSafeTimestamp)
+	require.Equal(t, uint64(140), out.CurrentFinalizedTimestamp)
 	require.Equal(t, uint64(1000), out.Data.VerifiedRequiredL1.Number)
 	// With zero outputs, the superroot will be deterministic, just ensure it's set
 	_ = out.Data.SuperRoot
@@ -115,20 +140,20 @@ func TestSuperroot_AtTimestamp_ComputesSuperRoot(t *testing.T) {
 	out2 := eth.Bytes32{2}
 	chains := map[eth.ChainID]cc.ChainContainer{
 		eth.ChainIDFromUInt64(10): &mockCC{
-			verL2:     eth.BlockID{Number: 100},
-			verL1:     eth.BlockID{Number: 1000},
-			optL2:     eth.BlockID{Number: 100},
-			optL1:     eth.BlockID{Number: 1000},
-			output:    out1,
-			currentL1: eth.BlockRef{Number: 2000},
+			verL2:  eth.BlockID{Number: 100},
+			verL1:  eth.BlockID{Number: 1000},
+			optL2:  eth.BlockID{Number: 100},
+			optL1:  eth.BlockID{Number: 1000},
+			output: out1,
+			status: &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
 		},
 		eth.ChainIDFromUInt64(420): &mockCC{
-			verL2:     eth.BlockID{Number: 200},
-			verL1:     eth.BlockID{Number: 1100},
-			optL2:     eth.BlockID{Number: 200},
-			optL1:     eth.BlockID{Number: 1100},
-			output:    out2,
-			currentL1: eth.BlockRef{Number: 2100},
+			verL2:  eth.BlockID{Number: 200},
+			verL1:  eth.BlockID{Number: 1100},
+			optL2:  eth.BlockID{Number: 200},
+			optL1:  eth.BlockID{Number: 1100},
+			output: out2,
+			status: &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2100}},
 		},
 	}
 	ts := uint64(123)
@@ -150,7 +175,7 @@ func TestSuperroot_AtTimestamp_ErrorOnCurrentL1(t *testing.T) {
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{
 		eth.ChainIDFromUInt64(10): &mockCC{
-			currentL1Err: assertErr(),
+			syncStatusErr: assertErr(),
 		},
 	}
 	s := New(gethlog.New(), chains)
@@ -179,12 +204,12 @@ func TestSuperroot_AtTimestamp_NotFoundOnVerifiedAt(t *testing.T) {
 			verifiedErr: fmt.Errorf("nope: %w", ethereum.NotFound),
 		},
 		eth.ChainIDFromUInt64(11): &mockCC{
-			verL2:     eth.BlockID{Number: 200},
-			verL1:     eth.BlockID{Number: 1100},
-			optL2:     eth.BlockID{Number: 200},
-			optL1:     eth.BlockID{Number: 1100},
-			output:    eth.Bytes32{0x12},
-			currentL1: eth.BlockRef{Number: 2100},
+			verL2:  eth.BlockID{Number: 200},
+			verL1:  eth.BlockID{Number: 1100},
+			optL2:  eth.BlockID{Number: 200},
+			optL1:  eth.BlockID{Number: 1100},
+			output: eth.Bytes32{0x12},
+			status: &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2100}},
 		},
 	}
 	s := New(gethlog.New(), chains)

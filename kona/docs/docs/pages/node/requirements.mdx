@@ -1,0 +1,20 @@
+import { Callout } from 'vocs/components'
+
+# System Requirements
+
+`kona-node` is an L2 consensus client, so it stores almost nothing on disk!
+
+<Callout type="note">
+Anything stored on disk is configurable, and can be disabled.
+</Callout>
+
+As a rollup node, it always sends L2 blocks over to the execution client
+(`op-reth` or `op-geth`) for execution. That way, chain state is entirely
+handled by the execution client. In this way, the `kona-node` is incredibly
+lightweight and can be run on a wide range of hardware.
+
+That said, a stable and dependable internet connection is critical for the
+peer-to-peer (P2P) part of the node. The `kona-node` relies on P2P communication
+to sync the unsafe chain. If the connection is unstable, the node may
+struggle to keep up, and could be banned by its peers for being too slow.
+

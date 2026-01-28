@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	derivetest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -779,7 +780,7 @@ func newBlock(parent *types.Block, numTransactions int) *types.Block {
 	if parent == nil {
 		rng = rand.New(rand.NewSource(123))
 	} else {
-		rng = rand.New(rand.NewSource(int64(parent.Header().Number.Uint64())))
+		rng = rand.New(rand.NewSource(int64(bigs.Uint64Strict(parent.Header().Number))))
 	}
 	block := derivetest.RandomL2BlockWithChainId(rng, numTransactions, defaultTestRollupConfig.L2ChainID)
 	header := block.Header()

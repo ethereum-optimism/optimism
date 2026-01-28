@@ -114,7 +114,7 @@ func (s *SimpleInterop) L2Networks() []*dsl.L2Network {
 }
 
 func (s *SimpleInterop) DisputeGameFactory() *proofs.DisputeGameFactory {
-	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), nil, nil, s.Supervisor, nil)
+	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), nil, nil, proofs.NewSuperRootsFromSupervisor(s.Supervisor), nil)
 }
 
 func (s *SingleChainInterop) StandardBridge(l2Chain *dsl.L2Network) *dsl.StandardBridge {
@@ -254,5 +254,49 @@ func NewMultiSupervisorInterop(t devtest.T) *MultiSupervisorInterop {
 		L2ELB2:              dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.SecondL2EL)), orch.ControlPlane()),
 		L2CLB2:              dsl.NewL2CLNode(l2B.L2CLNode(match.Assume(t, match.SecondL2CL)), orch.ControlPlane()),
 	}
+	return out
+}
+
+// MinimalInteropNoSupervisor is like Minimal but with interop contracts deployed.
+// No supervisor is running - this tests interop contract deployment with local finality.
+type MinimalInteropNoSupervisor struct {
+	Minimal
+}
+
+// WithMinimalInteropNoSupervisor specifies a minimal system with interop contracts but no supervisor.
+func WithMinimalInteropNoSupervisor() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultMinimalInteropSystem(&sysgo.DefaultMinimalSystemIDs{}))
+}
+
+// NewMinimalInteropNoSupervisor creates a MinimalInteropNoSupervisor preset for acceptance tests.
+func NewMinimalInteropNoSupervisor(t devtest.T) *MinimalInteropNoSupervisor {
+	system := shim.NewSystem(t)
+	orch := Orchestrator()
+	orch.Hydrate(system)
+
+	l1Net := system.L1Network(match.FirstL1Network)
+	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
+	sequencerCL := l2.L2CLNode(match.Assume(t, match.WithSequencerActive(t.Ctx())))
+	sequencerEL := l2.L2ELNode(match.Assume(t, match.EngineFor(sequencerCL)))
+
+	out := &MinimalInteropNoSupervisor{
+		Minimal: Minimal{
+			Log:          t.Logger(),
+			T:            t,
+			ControlPlane: orch.ControlPlane(),
+			system:       system,
+			L1Network:    dsl.NewL1Network(l1Net),
+			L1EL:         dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
+			L2Chain:      dsl.NewL2Network(l2, orch.ControlPlane()),
+			L2Batcher:    dsl.NewL2Batcher(l2.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+			L2EL:         dsl.NewL2ELNode(sequencerEL, orch.ControlPlane()),
+			L2CL:         dsl.NewL2CLNode(sequencerCL, orch.ControlPlane()),
+			Wallet:       dsl.NewRandomHDWallet(t, 30),
+			FaucetL2:     dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet))),
+		},
+	}
+	out.FaucetL1 = dsl.NewFaucet(out.L1Network.Escape().Faucet(match.Assume(t, match.FirstFaucet)))
+	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
+	out.FunderL2 = dsl.NewFunder(out.Wallet, out.FaucetL2, out.L2EL)
 	return out
 }

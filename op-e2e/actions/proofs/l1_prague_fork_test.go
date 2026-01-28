@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -68,10 +69,10 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 
 		requirePragueStatusOnL1 := func(active bool, block *types.Header) {
 			if active {
-				require.True(t, env.Sd.L1Cfg.Config.IsPrague(block.Number, block.Time), "Prague should be active at block", block.Number.Uint64())
+				require.True(t, env.Sd.L1Cfg.Config.IsPrague(block.Number, block.Time), "Prague should be active at block", bigs.Uint64Strict(block.Number))
 				require.NotNil(t, block.RequestsHash, "Prague header requests hash should be non-nil")
 			} else {
-				require.False(t, env.Sd.L1Cfg.Config.IsPrague(block.Number, block.Time), "Prague should not be active yet at block", block.Number.Uint64())
+				require.False(t, env.Sd.L1Cfg.Config.IsPrague(block.Number, block.Time), "Prague should not be active yet at block", bigs.Uint64Strict(block.Number))
 				require.Nil(t, block.RequestsHash, "Prague header requests hash should be nil")
 			}
 		}

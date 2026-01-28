@@ -1,0 +1,212 @@
+# Transform a Batch into Frames
+
+:::info
+This example performs the reverse transformation as the [frames-to-batch][frames-to-batch] example.
+:::
+
+This example walks through transforming a [`Batch`][batch] into [`Frame`][frame]s.
+
+Effectively, this example demonstrates the _encoding_ process from an L2 batch into the
+serialized bytes that are posted to the data availability layer.
+
+:::danger
+Steps and handling of types with respect to chain tip, ordering of frames, re-orgs, and
+more are not covered by this example. This example solely demonstrates the most trivial
+way to transform an individual [`Batch`][batch] into [`Frame`][frame]s.
+:::
+
+
+
+## Walkthrough
+
+The high level transformation is the following.
+
+```ignore
+Batch -> decompressed batch data -> ChannelOut -> frames[] -> bytes[]
+```
+
+Given the [`Batch`][batch], the first step to encode the batch
+using the [`Batch::encode()`][encode-batch] method. The output bytes
+need to then be compressed prior to adding them to the
+[`ChannelOut`][channel-out].
+
+:::info
+The [`ChannelOut`][channel-out] type also provides a method for adding
+the [`Batch`][batch] itself, handling encoding and compression, but
+this method is not available yet.
+:::
+
+Once compressed using the [`compress_brotli`][compress-brotli] method, the
+compressed bytes can be added to a newly constructed [`ChannelOut`][channel-out].
+As long as the [`ChannelOut`][channel-out] has [`ready_bytes()`][ready-bytes],
+[`Frame`][frame]s can be constructed using the
+[`ChannelOut::output_frame()`][output-frame] method, specifying the maximum
+frame size.
+
+Once [`Frame`][frame]s are returned from the [`ChannelOut`][channel-out],
+they can be [`Frame::encode`][encode-frame] into raw, serialized data
+ready to be batch-submitted to the data-availability layer.
+
+
+## Running this example:
+
+- Clone the examples repository: `git clone git@github.com:op-rs/kona.git`
+- Run: `cargo run --example batch_to_frames`
+
+```rust
+//! An example encoding and decoding a [SingleBatch].
+//!
+//! This example demonstrates EIP-2718 encoding a [SingleBatch]
+//! through a [ChannelOut] and into individual [Frame]s.
+//!
+//! Notice, the raw batch is first _encoded_.
+//! Once encoded, it is compressed into raw data that the channel is constructed with.
+//!
+//! The [ChannelOut] then outputs frames individually using the maximum frame size,
+//! in this case hardcoded to 100, to construct the frames.
+//!
+//! Finally, once [Frame]s are built from the [ChannelOut], they are encoded and ready
+//! to be batch-submitted to the data availability layer.
+
+#[cfg(feature = "std")]
+fn main() {
+    use alloy_primitives::BlockHash;
+    use kona_comp::{ChannelOut, CompressionAlgo, VariantCompressor};
+    use kona_genesis::RollupConfig;
+    use kona_protocol::{Batch, ChannelId, SingleBatch};
+
+    // Use the example transaction
+    let transactions = example_transactions();
+
+    // Construct a basic `SingleBatch`
+    let parent_hash = BlockHash::ZERO;
+    let epoch_num = 1;
+    let epoch_hash = BlockHash::ZERO;
+    let timestamp = 1;
+    let single_batch = SingleBatch { parent_hash, epoch_num, epoch_hash, timestamp, transactions };
+    let batch = Batch::Single(single_batch);
+
+    // Create a new channel.
+    let id = ChannelId::default();
+    let config = RollupConfig::default();
+    let compressor: VariantCompressor = CompressionAlgo::Brotli10.into();
+    let mut channel_out = ChannelOut::new(id, &config, compressor);
+
+    // Add the compressed batch to the `ChannelOut`.
+    channel_out.add_batch(batch).unwrap();
+
+    // Output frames
+    while channel_out.ready_bytes() > 0 {
+        let frame = channel_out.output_frame(100).expect("outputs frame");
+        println!("Frame: {}", alloy_primitives::hex::encode(frame.encode()));
+        if channel_out.ready_bytes() <= 100 {
+            channel_out.close();
+        }
+    }
+
+    assert!(channel_out.closed);
+    println!("Successfully encoded Batch to frames");
+}
+
+#[cfg(feature = "std")]
+fn example_transactions() -> Vec<alloy_primitives::Bytes> {
+    use alloy_consensus::{SignableTransaction, TxEip1559, TxEnvelope};
+    use alloy_eips::eip2718::{Decodable2718, Encodable2718};
+    use alloy_primitives::{Address, Signature, U256};
+
+    let mut transactions = Vec::new();
+
+    // First Transaction in the batch.
+    let tx = TxEip1559 {
+        chain_id: 10u64,
+        nonce: 2,
+        max_fee_per_gas: 3,
+        max_priority_fee_per_gas: 4,
+        gas_limit: 5,
+        to: Address::left_padding_from(&[6]).into(),
+        value: U256::from(7_u64),
+        input: vec![8].into(),
+        access_list: Default::default(),
+    };
+    let sig = Signature::test_signature();
+    let tx_signed = tx.into_signed(sig);
+    let envelope: TxEnvelope = tx_signed.into();
+    let encoded = envelope.encoded_2718();
+    transactions.push(encoded.clone().into());
+    let mut slice = encoded.as_slice();
+    let decoded = TxEnvelope::decode_2718(&mut slice).unwrap();
+    assert!(matches!(decoded, TxEnvelope::Eip1559(_)));
+
+    // Second transaction in the batch.
+    let tx = TxEip1559 {
+        chain_id: 10u64,
+        nonce: 2,
+        max_fee_per_gas: 3,
+        max_priority_fee_per_gas: 4,
+        gas_limit: 5,
+        to: Address::left_padding_from(&[7]).into(),
+        value: U256::from(7_u64),
+        input: vec![8].into(),
+        access_list: Default::default(),
+    };
+    let sig = Signature::test_signature();
+    let tx_signed = tx.into_signed(sig);
+    let envelope: TxEnvelope = tx_signed.into();
+    let encoded = envelope.encoded_2718();
+    transactions.push(encoded.clone().into());
+    let mut slice = encoded.as_slice();
+    let decoded = TxEnvelope::decode_2718(&mut slice).unwrap();
+    assert!(matches!(decoded, TxEnvelope::Eip1559(_)));
+
+    transactions
+}
+
+#[cfg(not(feature = "std"))]
+fn main() {
+    /* not implemented for no_std */
+}
+```
+
+[frame]: https://docs.rs/kona-protocol/latest/kona_protocol/struct.Frame.html
+[batch]: https://docs.rs/kona-protocol/latest/kona_protocol/enum.Batch.html
+[channel]: https://docs.rs/kona-protocol/latest/kona_protocol/struct.Channel.html
+[add-frame]: https://docs.rs/kona-protocol/latest/kona_protocol/struct.Channel.html#method.add_frame
+[decode-frame]: https://docs.rs/kona-protocol/latest/kona_protocol/struct.Frame.html#method.decode
+[hex]: https://docs.rs/alloy_primitives/latest/alloy_primitives/macro.hex.html
+[is-ready]: https://docs.rs/kona-protocol/latest/kona_protocol/struct.Channel.html#method.is_ready
+[frame-data]: https://docs.rs/kona-protocol/latest/kona_protocol/struct.Channel.html#method.frame_data
+[bytes]: https://docs.rs/alloy_primitives/latest/alloy_primitives/struct.Bytes.html
+[decode-batch]: https://docs.rs/kona-protocol/latest/kona_protocol/enum.Batch.html#method.decode
+[fjord]: https://specs.optimism.io/protocol/fjord/overview.html
+[channel-id]: https://docs.rs/kona-protocol/latest/kona_protocol/type.ChannelId.html
+
+[encode-batch]: https://docs.rs/kona-protocol/latest/kona_protocol/enum.Batch.html#method.encode
+[compress-brotli]: https://docs.rs/op-alloy-protocol/latest/op_alloy_protocol/struct.BrotliCompressor.html
+[channel-out]: https://docs.rs/kona-comp/latest/kona_comp/struct.ChannelOut.html
+[ready-bytes]: https://docs.rs/kona-comp/latest/kona_comp/struct.ChannelOut.html#method.ready_bytes
+[output-frame]: https://docs.rs/kona-comp/latest/kona_comp/struct.ChannelOut.html#method.output_frame
+[encode-frame]: https://docs.rs/kona-protocol/latest/kona_protocol/struct.Frame.html#method.encode
+
+
+[frames-to-batch]: /sdk/examples/frames-to-batch
+
+[op-stack]: https://github.com/ethereum-optimism/optimism
+[op-program]: https://github.com/ethereum-optimism/optimism/tree/develop/op-program
+[cannon]: https://github.com/ethereum-optimism/optimism/tree/develop/cannon
+[cannon-rs]: https://github.com/op-rs/cannon-rs
+[asterisc]: https://github.com/ethereum-optimism/asterisc
+[fp-specs]: https://specs.optimism.io/experimental/fault-proof/index.html
+[fpp-specs]: https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program
+[preimage-specs]: https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle
+[cannon-specs]: https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine
+[l2-output-root]: https://specs.optimism.io/protocol/proposals.html#l2-output-commitment-construction
+[op-succinct]: https://github.com/succinctlabs/op-succinct
+[revm]: https://github.com/bluealloy/revm
+
+[kona]: https://github.com/op-rs/kona
+[issues]: https://github.com/op-rs/kona/issues
+[new-issue]: https://github.com/op-rs/kona/issues/new
+[contributing]: https://github.com/op-rs/kona/tree/main/CONTRIBUTING.md
+
+[op-labs]: https://github.com/ethereum-optimism
+[bad-boi-labs]: https://github.com/BadBoiLabs

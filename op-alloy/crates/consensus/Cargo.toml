@@ -1,0 +1,70 @@
+[package]
+name = "op-alloy-consensus"
+description = "Optimism alloy consensus types"
+
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Alloy
+alloy-rlp.workspace = true
+alloy-eips.workspace = true
+alloy-consensus.workspace = true
+alloy-primitives = { workspace = true, features = ["rlp"] }
+
+# compat
+alloy-network = { workspace = true, optional = true }
+alloy-rpc-types-eth = { workspace = true, optional = true }
+
+# misc
+thiserror.workspace = true
+derive_more = { workspace = true, features = ["display"] }
+
+# arbitrary
+arbitrary = { workspace = true, features = ["derive"], optional = true }
+
+# serde
+serde_with = { workspace = true, optional = true }
+alloy-serde = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"], optional = true }
+
+[dev-dependencies]
+rand.workspace = true
+bincode = { workspace = true, features = ["serde"] }
+serde_json.workspace = true
+alloy-signer.workspace = true
+tokio = { workspace = true, features = ["macros"] }
+arbitrary = { workspace = true, features = ["derive"] }
+alloy-primitives = { workspace = true, features = ["rand", "arbitrary"] }
+
+[features]
+default = ["std"]
+std = ["alloy-eips/std", "alloy-consensus/std", "derive_more/std"]
+alloy-compat = ["serde", "dep:alloy-network", "dep:alloy-rpc-types-eth"]
+k256 = ["alloy-primitives/k256", "alloy-consensus/k256"]
+kzg = ["alloy-eips/kzg", "alloy-consensus/kzg", "std"]
+arbitrary = [
+    "std",
+    "dep:arbitrary",
+    "alloy-consensus/arbitrary",
+    "alloy-eips/arbitrary",
+    "alloy-primitives/rand",
+    "alloy-primitives/arbitrary",
+]
+serde = [
+    "dep:serde",
+    "dep:alloy-serde",
+    "alloy-primitives/serde",
+    "alloy-consensus/serde",
+    "alloy-eips/serde",
+]
+serde-bincode-compat = ["serde_with", "alloy-consensus/serde-bincode-compat"]

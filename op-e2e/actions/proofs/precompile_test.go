@@ -16,6 +16,7 @@ import (
 	hostcommon "github.com/ethereum-optimism/optimism/op-program/host/common"
 	hostconfig "github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -75,11 +76,11 @@ func runPrecompileHintTest(gt *testing.T, testCase PrecompileTestFixture, testCf
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
 
 	// Ensure there is only 1 block on L1.
-	require.Equal(t, uint64(1), l1Head.Number.Uint64())
+	require.Equal(t, uint64(1), bigs.Uint64Strict(l1Head.Number))
 	// Ensure the block is marked as safe before we attempt to fault prove it.
-	require.Equal(t, uint64(1), l2SafeHead.Number.Uint64())
+	require.Equal(t, uint64(1), bigs.Uint64Strict(l2SafeHead.Number))
 
-	defaultParam := helpers.WithPreInteropDefaults(t, l2SafeHead.Number.Uint64(), env.Sequencer.L2Verifier, env.Engine)
+	defaultParam := helpers.WithPreInteropDefaults(t, bigs.Uint64Strict(l2SafeHead.Number), env.Sequencer.L2Verifier, env.Engine)
 	fixtureInputParams := []helpers.FixtureInputParam{defaultParam, helpers.WithL1Head(l1Head.Hash())}
 	var fixtureInputs helpers.FixtureInputs
 	for _, apply := range fixtureInputParams {
@@ -241,16 +242,16 @@ func runPrecompileTest(gt *testing.T, testCfg *helpers.TestCfg[PrecompileTestFix
 	l1Head := env.Miner.L1Chain().CurrentBlock()
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
 
-	require.Equal(t, uint64(1), l1Head.Number.Uint64())
+	require.Equal(t, uint64(1), bigs.Uint64Strict(l1Head.Number))
 	// Ensure the block is marked as safe before we attempt to fault prove it.
-	require.Equal(t, uint64(2), l2SafeHead.Number.Uint64())
+	require.Equal(t, uint64(2), bigs.Uint64Strict(l2SafeHead.Number))
 
-	defaultParam := helpers.WithPreInteropDefaults(t, l2SafeHead.Number.Uint64(), env.Sequencer.L2Verifier, env.Engine)
+	defaultParam := helpers.WithPreInteropDefaults(t, bigs.Uint64Strict(l2SafeHead.Number), env.Sequencer.L2Verifier, env.Engine)
 	fixtureInputParams := []helpers.FixtureInputParam{defaultParam, helpers.WithL1Head(l1Head.Hash())}
 	var fixtureInputs helpers.FixtureInputs
 	for _, apply := range fixtureInputParams {
 		apply(&fixtureInputs)
 	}
 
-	env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64(), helpers.ExpectNoError(), fixtureInputParams...)
+	env.RunFaultProofProgram(t, bigs.Uint64Strict(l2SafeHead.Number), helpers.ExpectNoError(), fixtureInputParams...)
 }

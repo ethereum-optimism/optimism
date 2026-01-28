@@ -30,6 +30,7 @@ import (
 	nbindings "github.com/ethereum-optimism/optimism/op-node/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
@@ -111,7 +112,7 @@ type actionEnv struct {
 
 func (ae *actionEnv) RecordGasUsed(rec *types.Receipt) {
 	ae.gasUsed += rec.GasUsed
-	ae.l1GasUsed += rec.L1GasUsed.Uint64()
+	ae.l1GasUsed += bigs.Uint64Strict(rec.L1GasUsed)
 	ae.log.Debug("Recorded tx receipt gas", "gas_used", rec.GasUsed, "l1_gas_used", rec.L1GasUsed)
 }
 

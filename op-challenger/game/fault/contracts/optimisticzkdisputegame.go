@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -64,6 +65,8 @@ type OptimisticZKDisputeGameContract interface {
 	GetChallengerMetadata(ctx context.Context, block rpcblock.Block) (ChallengerMetadata, error)
 	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error)
 	ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error)
+	GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (types.BondDistributionMode, error)
+	CloseGameTx(ctx context.Context) (txmgr.TxCandidate, error)
 }
 
 type OptimisticZKDisputeGameContractLatest struct {
@@ -94,6 +97,24 @@ func (g *OptimisticZKDisputeGameContractLatest) GetCredit(ctx context.Context, r
 func (g *OptimisticZKDisputeGameContractLatest) ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error) {
 	defer g.metrics.StartContractRequest("ClaimCredit")()
 	call := g.contract.Call(methodClaimCredit, recipient)
+	_, err := g.multiCaller.SingleCall(ctx, rpcblock.Latest, call)
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("%w: %w", ErrSimulationFailed, err)
+	}
+	return call.ToTxCandidate()
+}
+
+func (g *OptimisticZKDisputeGameContractLatest) GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (types.BondDistributionMode, error) {
+	result, err := g.multiCaller.SingleCall(ctx, block, g.contract.Call(methodBondDistributionMode))
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch bond mode: %w", err)
+	}
+	return types.BondDistributionMode(result.GetUint8(0)), nil
+}
+
+func (g *OptimisticZKDisputeGameContractLatest) CloseGameTx(ctx context.Context) (txmgr.TxCandidate, error) {
+	defer g.metrics.StartContractRequest("CloseGame")()
+	call := g.contract.Call(methodCloseGame)
 	_, err := g.multiCaller.SingleCall(ctx, rpcblock.Latest, call)
 	if err != nil {
 		return txmgr.TxCandidate{}, fmt.Errorf("%w: %w", ErrSimulationFailed, err)
@@ -136,7 +157,7 @@ func (g *OptimisticZKDisputeGameContractLatest) GetMetadata(ctx context.Context,
 		return GenericGameMetadata{}, fmt.Errorf("expected 4 results but got %v", len(results))
 	}
 	l1Head := results[0].GetHash(0)
-	l2SequenceNumber := results[1].GetBigInt(0).Uint64()
+	l2SequenceNumber := getBlockNumber(results[1], 0)
 	rootClaim := results[2].GetHash(0)
 	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
 	if err != nil {
@@ -181,8 +202,8 @@ func (g *OptimisticZKDisputeGameContractLatest) GetGameRange(ctx context.Context
 		retErr = fmt.Errorf("expected 2 results but got %v", len(results))
 		return
 	}
-	prestateBlock = results[0].GetBigInt(0).Uint64()
-	poststateBlock = results[1].GetBigInt(0).Uint64()
+	prestateBlock = getBlockNumber(results[0], 0)
+	poststateBlock = getBlockNumber(results[1], 0)
 	return
 }
 
@@ -206,7 +227,7 @@ func (g *OptimisticZKDisputeGameContractLatest) GetChallengerMetadata(ctx contex
 		return ChallengerMetadata{}, fmt.Errorf("expected 2 results but got %v", len(results))
 	}
 	data := g.decodeClaimData(results[0])
-	l2SeqNum := results[1].GetBigInt(0).Uint64()
+	l2SeqNum := getBlockNumber(results[1], 0)
 	return ChallengerMetadata{
 		ParentIndex:      data.ParentIndex,
 		ProposalStatus:   data.Status,
@@ -238,7 +259,7 @@ func (g *OptimisticZKDisputeGameContractLatest) GetProposal(ctx context.Context)
 	if len(results) != 2 {
 		return common.Hash{}, 0, fmt.Errorf("expected 2 results but got %v", len(results))
 	}
-	return results[0].GetHash(0), results[1].GetBigInt(0).Uint64(), nil
+	return results[0].GetHash(0), getBlockNumber(results[1], 0), nil
 }
 
 func (g *OptimisticZKDisputeGameContractLatest) GetResolvedAt(ctx context.Context, block rpcblock.Block) (time.Time, error) {

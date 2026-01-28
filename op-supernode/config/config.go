@@ -13,15 +13,16 @@ import (
 )
 
 type CLIConfig struct {
-	Chains        []uint64
-	DataDir       string
-	L1NodeAddr    string
-	L1BeaconAddr  string
-	RPCConfig     oprpc.CLIConfig
-	LogConfig     oplog.CLIConfig
-	MetricsConfig opmetrics.CLIConfig
-	PprofConfig   oppprof.CLIConfig
-	RawCtx        *cli.Context
+	Chains                     []uint64
+	DataDir                    string
+	L1NodeAddr                 string
+	L1BeaconAddr               string
+	RPCConfig                  oprpc.CLIConfig
+	LogConfig                  oplog.CLIConfig
+	MetricsConfig              opmetrics.CLIConfig
+	PprofConfig                oppprof.CLIConfig
+	RawCtx                     *cli.Context
+	InteropActivationTimestamp uint64
 }
 
 func (c *CLIConfig) Check() error {

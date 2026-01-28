@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/session"
@@ -208,7 +209,7 @@ func TestSyncTester_GetBlockByHash(t *testing.T) {
 
 			var header HeaderNumberOnly
 			require.NoError(t, json.Unmarshal(raw, &header))
-			require.EqualValues(t, tc.rawNumber, header.Number.ToInt().Uint64())
+			require.EqualValues(t, tc.rawNumber, bigs.Uint64Strict(header.Number.ToInt()))
 		})
 	}
 }
@@ -333,7 +334,7 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 			require.NotNil(t, raw)
 			var header HeaderNumberOnly
 			require.NoError(t, json.Unmarshal(raw, &header))
-			require.EqualValues(t, tc.wantNum, header.Number.ToInt().Uint64())
+			require.EqualValues(t, tc.wantNum, bigs.Uint64Strict(header.Number.ToInt()))
 		})
 	}
 }
@@ -474,7 +475,7 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, recs)
 			require.GreaterOrEqual(t, len(recs), 1)
-			require.EqualValues(t, tc.wantFirstBN, recs[0].BlockNumber.Uint64())
+			require.EqualValues(t, tc.wantFirstBN, bigs.Uint64Strict(recs[0].BlockNumber))
 		})
 	}
 }

@@ -8,6 +8,7 @@ import (
 
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-validator/pkg/validations"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
@@ -40,10 +41,11 @@ func ValidateCmd(cliCtx *cli.Context, release string) error {
 }
 
 func Validate(ctx context.Context, lgr log.Logger, release string, cfg *Config) ([]string, error) {
-	l1Client, err := rpc.Dial(cfg.L1RPCURL)
+	l1Client, err := rpc.DialContext(ctx, cfg.L1RPCURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial L1 RPC: %w", err)
 	}
+	defer l1Client.Close()
 
 	var validator validations.Validator
 
@@ -60,10 +62,16 @@ func Validate(ctx context.Context, lgr log.Logger, release string, cfg *Config) 
 		validator = validations.NewV410Validator(l1Client)
 	case standard.ContractsV500Tag:
 		validator = validations.NewV500Validator(l1Client)
+	case standard.ContractsV600Tag:
+		validator = validations.NewV600Validator(l1Client)
 	default:
 		return nil, fmt.Errorf("invalid release: %s", release)
 	}
 	lgr.Info("Using Validator", "version", release)
+
+	if cfg.ValidatorAddress != (common.Address{}) {
+		lgr.Info("Using custom validator address", "address", cfg.ValidatorAddress.Hex())
+	}
 
 	return validator.Validate(ctx, validations.BaseValidatorInput{
 		ProxyAdminAddress:   cfg.ProxyAdmin,
@@ -71,5 +79,6 @@ func Validate(ctx context.Context, lgr log.Logger, release string, cfg *Config) 
 		AbsolutePrestate:    cfg.AbsolutePrestate,
 		L2ChainID:           cfg.L2ChainID,
 		Proposer:            cfg.Proposer,
+		ValidatorAddress:    cfg.ValidatorAddress,
 	})
 }

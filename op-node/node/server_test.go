@@ -17,6 +17,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/version"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	rpcclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -87,7 +88,7 @@ func TestOutputAtBlock(t *testing.T) {
 	l2Client := &testutils.MockL2Client{}
 	ref := eth.L2BlockRef{
 		Hash:           header.Hash(),
-		Number:         header.Number.Uint64(),
+		Number:         bigs.Uint64Strict(header.Number),
 		ParentHash:     header.ParentHash,
 		Time:           header.Time,
 		L1Origin:       eth.BlockID{},

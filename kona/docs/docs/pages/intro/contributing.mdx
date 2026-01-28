@@ -1,0 +1,63 @@
+# Contributing
+
+Thank you for looking into contributing!
+
+Before making contributions to Kona, please read through this
+guide and discuss the change you wish to make via issue.
+
+## Dependencies
+
+Before working with this repository locally, you'll need to install several dependencies:
+
+- [Docker](https://www.docker.com/) for cross-compilation.
+- [just](https://github.com/casey/just) for our command-runner scripts.
+- The [Rust toolchain](https://rustup.rs/)
+- The [Golang toolchain](https://go.dev/dl/)
+
+
+## Pull Request Process
+
+1. Before anything, [create an issue](https://github.com/op-rs/kona/issues/new) to discuss the change you're
+   wanting to make, if it is significant or changes functionality. Feel free to skip this step for trivial changes.
+1. Once your change is implemented, ensure that all checks are passing before creating a PR. The full CI pipeline can
+   be run locally via the `justfile`s in the repository.
+1. Make sure to update any documentation that has gone stale as a result of the change, in the `README` files, the [book][book],
+   and in rustdoc comments.
+1. Once you have sign-off from a maintainer, you may merge your pull request yourself if you have permissions to do so.
+   If not, the maintainer who approves your pull request will add it to the merge queue.
+
+
+## Getting Help
+
+Need support or have questions? Open a github issue:
+
+-   **GitHub Issues**: [Open an issue](https://github.com/op-rs/kona/issues/new) for bugs or feature requests
+
+
+### Crates
+
+The repository is organized into focused crates under `/crates/`:
+
+```
+crates/
+├── node/              # Consensus Node
+├── proof/             # Fault Proof Program
+├── protocol/          # Protocol Libraries
+├── providers/         # Provider Trait Implementations
+├── supervisor/        # OP Stack Supervisor
+├── utilities/         # Common Utility Crates
+└── ...
+```
+
+
+### Binaries
+
+Executables are located in the `/bin/` directory.
+
+```
+bin/
+├── node/              # Consensus Node
+├── client/            # Fault Proof Client
+├── host/              # Fault Proof Host
+└── supervisor/        # OP Stack Supervisor
+```
