@@ -25,12 +25,14 @@ reth-transaction-pool.workspace = true
 reth-network.workspace = true
 reth-evm.workspace = true
 reth-rpc-server-types.workspace = true
-reth-tasks = { workspace = true, optional = true }
+reth-tasks.workspace = true
 reth-trie-common.workspace = true
 reth-node-core.workspace = true
 reth-rpc-engine-api.workspace = true
 reth-engine-local = { workspace = true, features = ["op"] }
 reth-rpc-api.workspace = true
+reth-db = { workspace = true, features = ["op"] }
+reth-db-api = { workspace = true, features = ["op"] }
 
 # op-reth
 reth-optimism-payload-builder.workspace = true
@@ -42,6 +44,8 @@ reth-optimism-chainspec.workspace = true
 reth-optimism-consensus = { workspace = true, features = ["std"] }
 reth-optimism-forks.workspace = true
 reth-optimism-primitives = { workspace = true, features = ["serde", "serde-bincode-compat", "reth-codec"] }
+reth-optimism-exex = { workspace = true, features = ["metrics"] }
+reth-optimism-trie = { workspace = true, features = ["metrics"] }
 
 # revm with required optimism features
 # Note: this must be kept to ensure all features are properly enabled/forwarded
@@ -65,6 +69,8 @@ serde.workspace = true
 eyre.workspace = true
 url.workspace = true
 humantime.workspace = true
+futures-util.workspace = true
+tracing.workspace = true
 
 # test-utils dependencies
 reth-e2e-test-utils = { workspace = true, optional = true }
@@ -76,7 +82,6 @@ reth-optimism-node = { workspace = true, features = ["test-utils"] }
 reth-db = { workspace = true, features = ["op", "test-utils"] }
 reth-node-builder = { workspace = true, features = ["test-utils"] }
 reth-provider = { workspace = true, features = ["test-utils"] }
-reth-tasks.workspace = true
 reth-payload-util.workspace = true
 reth-revm = { workspace = true, features = ["std"] }
 reth-rpc.workspace = true
@@ -109,7 +114,6 @@ js-tracer = [
     "reth-rpc-eth-types/js-tracer",
 ]
 test-utils = [
-    "reth-tasks",
     "reth-e2e-test-utils",
     "alloy-genesis",
     "serde_json",
@@ -129,6 +133,8 @@ test-utils = [
     "reth-trie-common/test-utils",
     "reth-trie-db/test-utils",
     "reth-stages-types/test-utils",
+    "reth-db-api/test-utils",
+    "reth-optimism-exex/test-utils",
 ]
 reth-codec = ["reth-optimism-primitives/reth-codec"]
 

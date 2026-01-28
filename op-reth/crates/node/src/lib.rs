@@ -30,6 +30,8 @@ pub use version::OP_NAME_CLIENT;
 
 pub use reth_optimism_txpool as txpool;
 
+pub mod proof_history;
+
 /// Helpers for running test node instances.
 #[cfg(feature = "test-utils")]
 pub mod utils;
