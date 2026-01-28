@@ -121,7 +121,6 @@ type mockEngineController struct {
 	blockAtTimestampResult eth.L2BlockRef
 	blockAtTimestampErr    error
 
-	mu                      sync.Mutex
 	rewindToTimestampCalled int
 	rewindTimestamp         uint64
 	rewindErr               error
@@ -188,8 +187,6 @@ func (m *mockEngineController) SafeBlockAtTimestamp(ctx context.Context, ts uint
 	return eth.L2BlockRef{}, nil
 }
 func (m *mockEngineController) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.rewindToTimestampCalled++
 	m.rewindTimestamp = timestamp
 	if m.rewindFunc != nil {
@@ -592,10 +589,8 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify RewindToTimestamp was called with correct timestamp
-		mockEngine.mu.Lock()
 		require.Equal(t, 1, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should be called once")
 		require.Equal(t, rewindTimestamp, mockEngine.rewindTimestamp, "RewindToTimestamp should be called with correct timestamp")
-		mockEngine.mu.Unlock()
 
 		// Verify the virtual node was stopped
 		mockVN.mu.Lock()
@@ -630,9 +625,7 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		require.ErrorIs(t, err, engine_controller.ErrRewindFCUSyntheticFailed)
 
 		// Verify RewindToTimestamp was called multiple times (retry attempts)
-		mockEngine.mu.Lock()
 		require.Greater(t, mockEngine.rewindToTimestampCalled, 1, "RewindToTimestamp should be retried at least once")
-		mockEngine.mu.Unlock()
 
 		// Container should still be paused since rewind failed
 		require.True(t, c.pause.Load(), "Container should remain paused after failed rewind")
@@ -672,9 +665,7 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 				require.ErrorIs(t, err, tc.err)
 
 				// Verify RewindToTimestamp was called only once (no retry for critical errors)
-				mockEngine.mu.Lock()
 				require.Equal(t, 1, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should not be retried for critical errors")
-				mockEngine.mu.Unlock()
 			})
 		}
 	})
@@ -702,9 +693,7 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 
 		// Verify RewindToTimestamp was NOT called since VN stop failed
-		mockEngine.mu.Lock()
 		require.Equal(t, 0, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should not be called when VN stop fails")
-		mockEngine.mu.Unlock()
 	})
 
 	t.Run("succeeds after transient error on retry", func(t *testing.T) {
@@ -736,9 +725,7 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify RewindToTimestamp was called 3 times (2 failures + 1 success)
-		mockEngine.mu.Lock()
 		require.Equal(t, 3, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should be called 3 times")
-		mockEngine.mu.Unlock()
 
 		// Container should be resumed after successful rewind
 		require.False(t, c.pause.Load(), "Container should be resumed after successful rewind")
