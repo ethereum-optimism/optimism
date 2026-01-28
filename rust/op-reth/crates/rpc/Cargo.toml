@@ -1,0 +1,92 @@
+[package]
+name = "reth-optimism-rpc"
+version = "1.10.2"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage = "https://paradigmxyz.github.io/reth"
+repository = "https://github.com/paradigmxyz/reth"
+description = "Ethereum RPC implementation for optimism."
+
+[lints]
+workspace = true
+
+[dependencies]
+# reth
+reth-evm.workspace = true
+reth-primitives-traits = { workspace = true, features = ["op"] }
+reth-storage-api.workspace = true
+reth-rpc-eth-api = { workspace = true, features = ["op"] }
+reth-rpc-eth-types.workspace = true
+reth-rpc-server-types.workspace = true
+reth-tasks = { workspace = true, features = ["rayon"] }
+reth-transaction-pool.workspace = true
+reth-rpc.workspace = true
+reth-rpc-api.workspace = true
+reth-node-api.workspace = true
+reth-node-builder.workspace = true
+reth-chainspec.workspace = true
+reth-chain-state.workspace = true
+reth-rpc-engine-api.workspace = true
+
+# op-reth
+reth-optimism-evm.workspace = true
+reth-optimism-flashblocks.workspace = true
+reth-optimism-payload-builder.workspace = true
+reth-optimism-txpool.workspace = true
+# TODO remove node-builder import
+reth-optimism-primitives = { workspace = true, features = ["reth-codec", "serde-bincode-compat", "serde"] }
+reth-optimism-forks.workspace = true
+
+# ethereum
+alloy-eips.workspace = true
+alloy-json-rpc.workspace = true
+alloy-primitives.workspace = true
+alloy-rpc-client.workspace = true
+alloy-rpc-types-eth.workspace = true
+alloy-rpc-types-debug.workspace = true
+alloy-transport.workspace = true
+alloy-transport-http.workspace = true
+alloy-consensus.workspace = true
+alloy-rpc-types-engine.workspace = true
+op-alloy-network.workspace = true
+op-alloy-rpc-types.workspace = true
+op-alloy-rpc-types-engine.workspace = true
+op-alloy-rpc-jsonrpsee.workspace = true
+op-alloy-consensus.workspace = true
+revm.workspace = true
+op-revm.workspace = true
+
+# async
+tokio.workspace = true
+futures.workspace = true
+tokio-stream.workspace = true
+async-trait.workspace = true
+tower.workspace = true
+
+# rpc
+jsonrpsee-core.workspace = true
+jsonrpsee-types.workspace = true
+jsonrpsee.workspace = true
+serde_json.workspace = true
+
+# misc
+eyre.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+derive_more = { workspace = true, features = ["constructor"] }
+
+# metrics
+reth-metrics.workspace = true
+metrics.workspace = true
+
+[dev-dependencies]
+reth-optimism-chainspec.workspace = true
+alloy-op-hardforks.workspace = true
+
+[features]
+client = [
+    "jsonrpsee/client",
+    "jsonrpsee/async-client",
+    "reth-rpc-eth-api/client",
+]
