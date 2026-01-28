@@ -734,6 +734,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     ///         This enforces the OPCMV2 invariant that approximately 15 upgrade operations should be
     ///         executable in one transaction.
     function test_batchUpgrade_multipleChains_succeeds() public {
+        skipIfCoverage();
+
         uint256 numberOfChains = 15;
 
         // 1. Deploy BatchUpgrader helper contract.
