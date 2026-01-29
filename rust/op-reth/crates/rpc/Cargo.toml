@@ -61,7 +61,6 @@ op-revm.workspace = true
 tokio.workspace = true
 futures.workspace = true
 tokio-stream.workspace = true
-reqwest = { workspace = true, features = ["rustls-tls-native-roots"] }
 async-trait.workspace = true
 tower.workspace = true
 

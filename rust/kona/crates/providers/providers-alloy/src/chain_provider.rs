@@ -7,6 +7,7 @@ use alloy_eips::BlockId;
 use alloy_primitives::B256;
 use alloy_provider::{Provider, RootProvider};
 use alloy_transport::{RpcError, TransportErrorKind};
+use alloy_transport_http::reqwest;
 use async_trait::async_trait;
 use kona_derive::{ChainProvider, PipelineError, PipelineErrorKind};
 use kona_protocol::BlockInfo;

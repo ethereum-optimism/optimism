@@ -1,6 +1,6 @@
 use alloy_primitives::Address;
 use alloy_rpc_client::ClientBuilder;
-use alloy_transport_http::Http;
+use alloy_transport_http::{Http, reqwest};
 use reqwest::header::HeaderMap;
 use std::sync::Arc;
 use thiserror::Error;

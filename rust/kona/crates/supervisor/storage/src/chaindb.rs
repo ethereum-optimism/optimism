@@ -528,9 +528,9 @@ impl MetricsReporter for ChainDb {
             .env
             .view(|tx| {
                 for table in crate::models::Tables::ALL.iter().map(crate::models::Tables::name) {
-                    let table_db = tx.inner.open_db(Some(table))?;
+                    let table_db = tx.inner().open_db(Some(table))?;
 
-                    let stats = tx.inner.db_stat(table_db.dbi())?;
+                    let stats = tx.inner().db_stat(table_db.dbi())?;
 
                     let page_size = stats.page_size() as usize;
                     let leaf_pages = stats.leaf_pages();

@@ -8,7 +8,7 @@ use alloy_primitives::{B256, FixedBytes};
 use alloy_rpc_types_beacon::sidecar::GetBlobsResponse;
 use async_trait::async_trait;
 use c_kzg::Blob;
-use reqwest::Client;
+use alloy_transport_http::reqwest::{self, Client};
 use std::{boxed::Box, collections::HashMap, format, string::String, vec::Vec};
 use thiserror::Error;
 

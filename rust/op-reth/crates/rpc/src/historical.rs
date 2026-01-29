@@ -5,6 +5,7 @@ use alloy_eips::BlockId;
 use alloy_json_rpc::{RpcRecv, RpcSend};
 use alloy_primitives::{BlockNumber, B256};
 use alloy_rpc_client::RpcClient;
+use alloy_transport_http::reqwest;
 use jsonrpsee::BatchResponseBuilder;
 use jsonrpsee_core::{
     middleware::{Batch, BatchEntry, Notification, RpcServiceT},

@@ -5,7 +5,7 @@ use alloy_json_rpc::{RpcRecv, RpcSend};
 use alloy_primitives::{hex, B256};
 use alloy_rpc_client::{BuiltInConnectionString, ClientBuilder, RpcClient as Client};
 use alloy_rpc_types_eth::erc4337::TransactionConditional;
-use alloy_transport_http::Http;
+use alloy_transport_http::{Http, reqwest};
 use std::{str::FromStr, sync::Arc, time::Instant};
 use thiserror::Error;
 use tracing::warn;

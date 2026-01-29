@@ -9,7 +9,7 @@ use alloy_rpc_client::RpcClient;
 use alloy_rpc_types_engine::JwtSecret;
 use alloy_transport::{RpcError, TransportErrorKind};
 use alloy_transport_http::{
-    AuthLayer, Http, HyperClient,
+    AuthLayer, Http, HyperClient, reqwest,
     hyper_util::{client::legacy::Client, rt::TokioExecutor},
 };
 use async_trait::async_trait;
