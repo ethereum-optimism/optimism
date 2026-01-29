@@ -23,6 +23,7 @@ alloy-serde.workspace = true
 
 # reth
 reth-chainspec.workspace = true
+reth-evm.workspace = true
 reth-primitives-traits.workspace = true
 reth-chain-state.workspace = true
 reth-storage-api.workspace = true
