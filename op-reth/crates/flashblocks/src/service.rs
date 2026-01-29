@@ -1,6 +1,7 @@
 use crate::{
     cache::SequenceManager,
     pending_state::PendingStateRegistry,
+    tx_cache::TransactionCache,
     validation::ReconciliationStrategy,
     worker::{BuildResult, FlashBlockBuilder},
     FlashBlock, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx, InProgressFlashBlockRx,
@@ -67,6 +68,8 @@ pub struct FlashBlockService<
     sequences: SequenceManager<N::SignedTx>,
     /// Registry for pending block states to enable speculative building.
     pending_states: PendingStateRegistry<N>,
+    /// Transaction execution cache for incremental flashblock building.
+    tx_cache: TransactionCache<N>,
 
     /// Maximum depth for pending blocks ahead of canonical before clearing.
     max_depth: u64,
@@ -111,6 +114,7 @@ where
             job: None,
             sequences: SequenceManager::new(compute_state_root),
             pending_states: PendingStateRegistry::new(),
+            tx_cache: TransactionCache::new(),
             max_depth: DEFAULT_MAX_DEPTH,
             metrics: FlashBlockServiceMetrics::default(),
         }
@@ -174,7 +178,7 @@ where
         loop {
             tokio::select! {
                 // Event 1: job exists, listen to job results
-                Some(result) = async {
+                Some((result, returned_cache)) = async {
                     match self.job.as_mut() {
                         Some((_, rx)) => rx.await.ok(),
                         None => std::future::pending().await,
@@ -182,6 +186,9 @@ where
                 } => {
                     let (start_time, _) = self.job.take().unwrap();
                     let _ = self.in_progress_tx.send(None);
+
+                    // Restore the transaction cache from the spawned task
+                    self.tx_cache = returned_cache;
 
                     match result {
                         Ok(Some(build_result)) => {
@@ -268,7 +275,8 @@ where
             self.metrics.reorg_count.increment(1);
         }
 
-        // Clear pending states for strategies that invalidate speculative state
+        // Clear pending states and transaction cache for strategies that invalidate speculative
+        // state
         if matches!(
             strategy,
             ReconciliationStrategy::HandleReorg |
@@ -276,6 +284,7 @@ where
                 ReconciliationStrategy::DepthLimitExceeded { .. }
         ) {
             self.pending_states.clear();
+            self.tx_cache.clear();
         }
     }
 
@@ -329,10 +338,14 @@ where
         self.metrics.current_index.set(fb_info.index as f64);
         let _ = self.in_progress_tx.send(Some(fb_info));
 
+        // Take ownership of the transaction cache for the spawned task
+        let mut tx_cache = std::mem::take(&mut self.tx_cache);
+
         let (tx, rx) = oneshot::channel();
         let builder = self.builder.clone();
         self.spawner.spawn_blocking(Box::pin(async move {
-            let _ = tx.send(builder.execute(args));
+            let result = builder.execute(args, Some(&mut tx_cache));
+            let _ = tx.send((result, tx_cache));
         }));
         self.job = Some((Instant::now(), rx));
     }
@@ -349,7 +362,12 @@ pub struct FlashBlockBuildInfo {
     pub block_number: u64,
 }
 
-type BuildJob<N> = (Instant, oneshot::Receiver<eyre::Result<Option<BuildResult<N>>>>);
+/// A running build job with its start time and result receiver.
+///
+/// The result includes both the build result and the transaction cache,
+/// which is returned from the spawned task to maintain ownership.
+type BuildJob<N> =
+    (Instant, oneshot::Receiver<(eyre::Result<Option<BuildResult<N>>>, TransactionCache<N>)>);
 
 #[derive(Metrics)]
 #[metrics(scope = "flashblock_service")]

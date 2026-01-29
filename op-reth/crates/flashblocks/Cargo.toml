@@ -29,8 +29,9 @@ reth-metrics.workspace = true
 
 # alloy
 alloy-eips = { workspace = true, features = ["serde"] }
-alloy-primitives = { workspace = true, features = ["serde"] }
+alloy-primitives = { workspace = true, features = ["serde", "map-foldhash"] }
 alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+alloy-rpc-types.workspace = true
 alloy-consensus.workspace = true
 
 # op-alloy
