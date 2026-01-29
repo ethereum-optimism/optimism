@@ -118,7 +118,11 @@ contract UpgradeOPChain is Script {
                 OPContractsManager.upgrade, abi.decode(_upgradeInput, (OPContractsManager.OpChainConfig[]))
             );
         }
-        (bool success,) = _prank.call(data);
-        require(success, "UpgradeOPChain: upgrade failed");
+        (bool success, bytes memory returnData) = _prank.call(data);
+        if (!success) {
+            assembly {
+                revert(add(returnData, 0x20), mload(returnData))
+            }
+        }
     }
 }
