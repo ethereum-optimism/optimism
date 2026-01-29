@@ -46,6 +46,19 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 		slots []common.Hash
 	}
 	var cases []caseEntry
+
+	// deploy another contract in the reorged blocks
+	{
+		rContract, rDeployBlock := utils.DeploySimpleStorage(t, user)
+		t.Logf("Reorg SimpleStorage deployed at %s block=%d", rContract.Address().Hex(), rDeployBlock.BlockNumber.Uint64())
+
+		cases = append(cases, caseEntry{
+			Block: rDeployBlock.BlockNumber.Uint64(),
+			addr:  rContract.Address(),
+			slots: []common.Hash{common.HexToHash("0x0")},
+		})
+	}
+
 	for i := 0; i < 3; i++ {
 		tx := alice.Transfer(bob.Address(), eth.OneGWei)
 		receipt, err := tx.Included.Eval(ctx)
@@ -70,18 +83,6 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 		cases = append(cases, caseEntry{
 			Block: callRes.BlockNumber.Uint64(),
 			addr:  contract.Address(),
-			slots: []common.Hash{common.HexToHash("0x0")},
-		})
-	}
-
-	// deploy another contract in the reorged blocks
-	{
-		rContract, rDeployBlock := utils.DeploySimpleStorage(t, user)
-		t.Logf("Reorg SimpleStorage deployed at %s block=%d", rContract.Address().Hex(), rDeployBlock.BlockNumber.Uint64())
-
-		cases = append(cases, caseEntry{
-			Block: rDeployBlock.BlockNumber.Uint64(),
-			addr:  rContract.Address(),
 			slots: []common.Hash{common.HexToHash("0x0")},
 		})
 	}

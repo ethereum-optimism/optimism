@@ -32,6 +32,20 @@ func NormalizeProofResponse(res *eth.AccountResult) {
 			res.StorageProof[i].Proof = []hexutil.Bytes{}
 		}
 	}
+
+	// Normalize empty CodeHash
+	// Geth returns 0x0000000000000000000000000000000000000000000000000000000000000000
+	// Reth returns 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+	if res.CodeHash == (common.Hash{}) {
+		res.CodeHash = crypto.Keccak256Hash(nil)
+	}
+
+	// Normalize empty StorageHash
+	// Geth returns 0x0000000000000000000000000000000000000000000000000000000000000000
+	// Reth returns 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421
+	if res.StorageHash == (common.Hash{}) {
+		res.StorageHash = types.EmptyRootHash
+	}
 }
 
 // VerifyProof verifies an account and its storage proofs against a given state root.
@@ -93,6 +107,18 @@ func VerifyProof(res *eth.AccountResult, stateRoot common.Hash) error {
 	accountProofValue, err := trie.VerifyProof(stateRoot, path, db)
 	if err != nil {
 		return fmt.Errorf("failed to verify account value with key %s (path %x) in account trie %s: %w", res.Address, path, stateRoot, err)
+	}
+
+	// If the proof demonstrates non-existence (nil value), we must check if the RPC claimed the account is empty.
+	if len(accountProofValue) == 0 {
+		isEmpty := res.Nonce == 0 &&
+			res.Balance.ToInt().Sign() == 0 &&
+			(res.StorageHash == types.EmptyRootHash || res.StorageHash == common.Hash{}) &&
+			(res.CodeHash == crypto.Keccak256Hash(nil) || res.CodeHash == common.Hash{})
+
+		if isEmpty {
+			return nil
+		}
 	}
 
 	if !bytes.Equal(accountClaimedValue, accountProofValue) {
