@@ -147,9 +147,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.0.5
+    /// @custom:semver 7.0.6
     function version() public pure returns (string memory) {
-        return "7.0.5";
+        return "7.0.6";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -253,6 +253,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @dev WARNING: This is a one-way operation. You cannot easily undo this operation without a
     ///      smart contract upgrade. Do not call this function unless you are 100% confident that
     ///      you know what you're doing and that you are prepared to fully execute this migration.
+    ///      You SHOULD NOT CALL THIS FUNCTION IN PRODUCTION unless you are absolutely sure that
+    ///      you know what you are doing.
+    /// @dev WARNING: Executing this function WILL result in all prior withdrawal proofs being
+    ///      invalidated. Users will have to submit new proofs for their withdrawals in the
+    ///      OptimismPortal contract. THIS IS EXPECTED BEHAVIOR.
     /// @dev NOTE: Unlike other functions in OPCM, this is a one-off function used to serve the
     ///      temporary need to support the interop migration action. It will likely be removed in
     ///      the near future once interop support is baked more directly into OPCM. It does NOT
