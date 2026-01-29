@@ -398,16 +398,11 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 			Sidecar:    sidecar,
 		}
 
-		// graceful upgrade to using blob tip oracle, for now we just compare the fees based on current codebase and the new bgpo module
-		{
-			oracleSavings := blobTipCap.Cmp(gasTipCap) < 0
-
-			// TODO(18618): before activating the blob tip oracle, confirm in prod that we mostly get oracleSavings == true, otherwise
-			// it is not worth it using the oracle
-			m.l.Info("Comparison between blobTipCap and gasTipCap", "blobTipCap", blobTipCap, "gasTipCap", gasTipCap, "oracle_blob_savings", oracleSavings)
-
-			// TODO(18618): when activating the blob tip oracle, we should remove the assignment and use the suggested blob tip cap from the oracle
+		if !m.cfg.BlobTipCapDynamic.Load() {
+			m.l.Debug("Using static blob tip cap", "blobTipCap", gasTipCap, "oracleSuggestion", blobTipCap)
 			blobTipCap = gasTipCap
+		} else {
+			m.l.Info("Using dynamic blob tip cap", "blobTipCap", blobTipCap, "gasTipCap", gasTipCap)
 		}
 
 		if err := finishBlobTx(message, m.chainID, blobTipCap, gasFeeCap, blobFeeCap, candidate.Value); err != nil {
@@ -523,6 +518,15 @@ func (m *SimpleTxManager) GetBumpFeeRetryTime() time.Duration {
 func (m *SimpleTxManager) SetBumpFeeRetryTime(val time.Duration) {
 	m.cfg.ResubmissionTimeout.Store(int64(val))
 	m.l.Info("txmgr config val changed: SetBumpFeeRetryTime", "newVal", val)
+}
+
+func (m *SimpleTxManager) GetBlobTipCapDynamic() bool {
+	return m.cfg.BlobTipCapDynamic.Load()
+}
+
+func (m *SimpleTxManager) SetBlobTipCapDynamic(val bool) {
+	m.cfg.BlobTipCapDynamic.Store(val)
+	m.l.Info("txmgr config val changed: SetBlobTipCapDynamic", "newVal", val)
 }
 
 // MakeSidecar builds & returns the BlobTxSidecar and corresponding blob hashes from the raw blob
