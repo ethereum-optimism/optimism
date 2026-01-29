@@ -15,7 +15,7 @@ func TestExecutePayloadSuccess(gt *testing.T) {
 	ctx := t.Ctx()
 	sys := utils.NewMixedOpProofPreset(t)
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
-	opRethELNode := sys.RethL2ELNode()
+	opRethELNode := sys.RethWithProofL2ELNode()
 
 	plannedTxOption := user.PlanTransfer(user.Address(), eth.OneWei)
 	plannedTx := txplan.NewPlannedTx(plannedTxOption)
@@ -70,7 +70,7 @@ func TestExecutePayloadWithInvalidParentHash(gt *testing.T) {
 	ctx := t.Ctx()
 	sys := utils.NewMixedOpProofPreset(t)
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
-	opRethELNode := sys.RethL2ELNode()
+	opRethELNode := sys.RethWithProofL2ELNode()
 
 	plannedTxOption := user.PlanTransfer(user.Address(), eth.OneWei)
 	plannedTx := txplan.NewPlannedTx(plannedTxOption)

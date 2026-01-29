@@ -24,6 +24,7 @@ type L2ELClient string
 const (
 	L2ELClientGeth L2ELClient = "geth"
 	L2ELClientReth L2ELClient = "reth"
+	L2ELClientRethWithProofs L2ELClient = "reth-with-proof"
 )
 
 type L2ELNodeID struct {
@@ -100,6 +101,18 @@ func (m *MixedOpProofPreset) RethL2ELNode() *dsl.L2ELNode {
 	return nil
 }
 
+// RethWithProofL2ELNode returns first L2 EL nodes that are running op-reth with proof
+func (m *MixedOpProofPreset) RethWithProofL2ELNode() *dsl.L2ELNode {
+	if m.L2ELSequencer.Client == L2ELClientRethWithProofs {
+		return m.L2ELSequencer.L2ELNode
+	}
+
+	if m.L2ELValidator.Client == L2ELClientRethWithProofs {
+		return m.L2ELValidator.L2ELNode
+	}
+	return nil
+}
+
 func WithMixedOpProofPreset() stack.CommonOption {
 	return stack.MakeCommon(DefaultMixedOpProofSystem(&DefaultMixedOpProofSystemIDs{}))
 }
@@ -135,7 +148,12 @@ func NewMixedOpProofPreset(t devtest.T) *MixedOpProofPreset {
 	sequencerCL := l2Net.L2CLNode(match.Assume(t, match.WithSequencerActive(t.Ctx())))
 	sequencerELInner := l2Net.L2ELNode(match.Assume(t, match.EngineFor(sequencerCL)))
 	var sequencerEL *L2ELNode
-	if strings.Contains(sequencerELInner.ID().String(), "op-reth") {
+	if strings.Contains(sequencerELInner.ID().String(), "op-reth-with-proof") {
+		sequencerEL = &L2ELNode{
+			L2ELNode: dsl.NewL2ELNode(sequencerELInner, orch.ControlPlane()),
+			Client:   L2ELClientRethWithProofs,
+		}
+	} else if strings.Contains(sequencerELInner.ID().String(), "op-reth") {
 		sequencerEL = &L2ELNode{
 			L2ELNode: dsl.NewL2ELNode(sequencerELInner, orch.ControlPlane()),
 			Client:   L2ELClientReth,
@@ -161,7 +179,12 @@ func NewMixedOpProofPreset(t devtest.T) *MixedOpProofPreset {
 			match.Not(sequencerEL.ID()),
 		)))
 	var verifierEL *L2ELNode
-	if strings.Contains(verifierELInner.ID().String(), "op-reth") {
+	if strings.Contains(verifierELInner.ID().String(), "op-reth-with-proof") {
+		verifierEL = &L2ELNode{
+			L2ELNode: dsl.NewL2ELNode(verifierELInner, orch.ControlPlane()),
+			Client:   L2ELClientRethWithProofs,
+		}
+	} else if strings.Contains(verifierELInner.ID().String(), "op-reth") {
 		verifierEL = &L2ELNode{
 			L2ELNode: dsl.NewL2ELNode(verifierELInner, orch.ControlPlane()),
 			Client:   L2ELClientReth,
@@ -233,28 +256,40 @@ func NewDefaultMixedOpProofSystemIDs(l1ID, l2ID eth.ChainID) DefaultMixedOpProof
 		TestSequencer: "test-sequencer",
 	}
 
-	// default to op-geth for sequencer and op-reth for validator
-	if os.Getenv("OP_DEVSTACK_PROOF_SEQUENCER_EL") == "op-reth" {
+	// default to op-geth for sequencer and op-reth-with-proof for validator
+	switch os.Getenv("OP_DEVSTACK_PROOF_SEQUENCER_EL") {
+	case "op-reth-with-proof":
+		ids.L2ELSequencer = L2ELNodeID{
+			L2ELNodeID: stack.NewL2ELNodeID("sequencer-op-reth-with-proof", l2ID),
+			Client:     L2ELClientRethWithProofs,
+		}
+	case "op-reth":
 		ids.L2ELSequencer = L2ELNodeID{
 			L2ELNodeID: stack.NewL2ELNodeID("sequencer-op-reth", l2ID),
 			Client:     L2ELClientReth,
 		}
-	} else {
+	default:
 		ids.L2ELSequencer = L2ELNodeID{
 			L2ELNodeID: stack.NewL2ELNodeID("sequencer-op-geth", l2ID),
 			Client:     L2ELClientGeth,
 		}
 	}
 
-	if os.Getenv("OP_DEVSTACK_PROOF_VALIDATOR_EL") == "op-geth" {
+	switch os.Getenv("OP_DEVSTACK_PROOF_VALIDATOR_EL") {
+	case "op-geth":
 		ids.L2ELValidator = L2ELNodeID{
 			L2ELNodeID: stack.NewL2ELNodeID("validator-op-geth", l2ID),
 			Client:     L2ELClientGeth,
 		}
-	} else {
+	case "op-reth":
 		ids.L2ELValidator = L2ELNodeID{
 			L2ELNodeID: stack.NewL2ELNodeID("validator-op-reth", l2ID),
 			Client:     L2ELClientReth,
+		}
+	default:
+		ids.L2ELValidator = L2ELNodeID{
+			L2ELNodeID: stack.NewL2ELNodeID("validator-op-reth-with-proof", l2ID),
+			Client:     L2ELClientRethWithProofs,
 		}
 	}
 
@@ -297,18 +332,28 @@ func defaultMixedOpProofSystemOpts(src, dest *DefaultMixedOpProofSystemIDs) stac
 	opt.Add(sysgo.WithL1Nodes(src.L1EL, src.L1CL))
 
 	// Spawn L2 sequencer nodes
-	if src.L2ELSequencer.Client == L2ELClientReth {
+	switch src.L2ELSequencer.Client {
+	case L2ELClientRethWithProofs:
+		opt.Add(sysgo.WithOpReth(src.L2ELSequencer.L2ELNodeID, sysgo.L2ELWithProofHistory(true)))
+	case L2ELClientReth:
 		opt.Add(sysgo.WithOpReth(src.L2ELSequencer.L2ELNodeID))
-	} else {
+	case L2ELClientGeth:
 		opt.Add(sysgo.WithOpGeth(src.L2ELSequencer.L2ELNodeID))
+	default:
+		panic("unknown L2 EL client for sequencer")
 	}
 	opt.Add(sysgo.WithL2CLNode(src.L2CLSequencer, src.L1CL, src.L1EL, src.L2ELSequencer.L2ELNodeID, sysgo.L2CLSequencer()))
 
 	// Spawn L2 validator nodes
-	if src.L2ELValidator.Client == L2ELClientReth {
+	switch src.L2ELValidator.Client {
+	case L2ELClientRethWithProofs:
+		opt.Add(sysgo.WithOpReth(src.L2ELValidator.L2ELNodeID, sysgo.L2ELWithProofHistory(true)))
+	case L2ELClientReth:
 		opt.Add(sysgo.WithOpReth(src.L2ELValidator.L2ELNodeID))
-	} else {
+	case L2ELClientGeth:
 		opt.Add(sysgo.WithOpGeth(src.L2ELValidator.L2ELNodeID))
+	default:
+		panic("unknown L2 EL client for validator")
 	}
 	opt.Add(sysgo.WithL2CLNode(src.L2CLValidator, src.L1CL, src.L1EL, src.L2ELValidator.L2ELNodeID))
 

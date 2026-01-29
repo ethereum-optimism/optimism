@@ -27,7 +27,7 @@ type ExecutionWitness struct {
 func TestDebugExecutionWitness(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := utils.NewMixedOpProofPreset(t)
-	opRethELNode := sys.RethL2ELNode()
+	opRethELNode := sys.RethWithProofL2ELNode()
 
 	// Create a funded account and recipient
 	account := sys.FunderL2.NewFundedEOA(eth.Ether(10))

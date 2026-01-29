@@ -188,8 +188,11 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 	require.NotEqual(t, originalRef.Hash, reorgedRef_A.Hash, "Expected to get different heads on divergence block number, but got the same hash, so no reorg happened on chain A")
 	require.Equal(t, originalRef.ParentID().Hash, reorgedRef_A.ParentHash, "Expected to get same parent hashes on divergence block number, but got different hashes")
 
+	time.Sleep(10 * time.Second)
+
 	// verify that the accounts involved in the conflicting blocks
-	for _, c := range cases {
+	for i, c := range cases {
+		l.Info("Verifying proof", "case", i, "addr", c.addr.Hex(), "block", c.Block)
 		utils.FetchAndVerifyProofs(t, sys, c.addr, c.slots, c.Block)
 	}
 }

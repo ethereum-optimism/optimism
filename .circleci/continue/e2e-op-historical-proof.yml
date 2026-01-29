@@ -53,9 +53,9 @@ jobs:
         run: |
           source <(cargo llvm-cov show-env --export-prefix)
           make build
-          make test-e2e-sysgo GO_PKG_NAME=proofs/core OP_DEVSTACK_PROOF_SEQUENCER_EL=op-geth OP_DEVSTACK_PROOF_VALIDATOR_EL=op-reth
-          make test-e2e-sysgo GO_PKG_NAME=proofs/reorg OP_DEVSTACK_PROOF_SEQUENCER_EL=op-geth OP_DEVSTACK_PROOF_VALIDATOR_EL=op-reth
-          make test-e2e-sysgo GO_PKG_NAME=proofs/prune OP_DEVSTACK_PROOF_SEQUENCER_EL=op-geth OP_DEVSTACK_PROOF_VALIDATOR_EL=op-reth
+          make test-e2e-sysgo GO_PKG_NAME=proofs/core OP_DEVSTACK_PROOF_SEQUENCER_EL=op-geth OP_DEVSTACK_PROOF_VALIDATOR_EL=op-reth-with-proof
+          make test-e2e-sysgo GO_PKG_NAME=proofs/reorg OP_DEVSTACK_PROOF_SEQUENCER_EL=op-geth OP_DEVSTACK_PROOF_VALIDATOR_EL=op-reth-with-proof
+          make test-e2e-sysgo GO_PKG_NAME=proofs/prune OP_DEVSTACK_PROOF_SEQUENCER_EL=op-geth OP_DEVSTACK_PROOF_VALIDATOR_EL=op-reth-with-proof
           cargo llvm-cov report --lcov --output-path verifier_cov.lcov
 
       - name: Upload coverage to codecov.io
@@ -115,9 +115,9 @@ jobs:
         run: |
           source <(cargo llvm-cov show-env --export-prefix)
           make build
-          make test-e2e-sysgo GO_PKG_NAME=proofs/core OP_DEVSTACK_PROOF_SEQUENCER_EL=op-reth OP_DEVSTACK_PROOF_VALIDATOR_EL=op-geth
-          make test-e2e-sysgo GO_PKG_NAME=proofs/reorg OP_DEVSTACK_PROOF_SEQUENCER_EL=op-reth OP_DEVSTACK_PROOF_VALIDATOR_EL=op-geth
-          make test-e2e-sysgo GO_PKG_NAME=proofs/prune OP_DEVSTACK_PROOF_SEQUENCER_EL=op-reth OP_DEVSTACK_PROOF_VALIDATOR_EL=op-geth
+          make test-e2e-sysgo GO_PKG_NAME=proofs/core OP_DEVSTACK_PROOF_SEQUENCER_EL=op-reth-with-proof OP_DEVSTACK_PROOF_VALIDATOR_EL=op-geth
+          make test-e2e-sysgo GO_PKG_NAME=proofs/reorg OP_DEVSTACK_PROOF_SEQUENCER_EL=op-reth-with-proof OP_DEVSTACK_PROOF_VALIDATOR_EL=op-geth
+          make test-e2e-sysgo GO_PKG_NAME=proofs/prune OP_DEVSTACK_PROOF_SEQUENCER_EL=op-reth-with-proof OP_DEVSTACK_PROOF_VALIDATOR_EL=op-geth
           cargo llvm-cov report --lcov --output-path sequencer_cov.lcov
 
       - name: Upload coverage to codecov.io
@@ -131,6 +131,67 @@ jobs:
           name: sequencer-sysgo-tests
           verbose: true
 
+  op-reth-as-sequencer-and-verifier:
+    name: op-reth-as-sequencer-and-verifier
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.0'
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Verify tools
+        run: |
+          echo "forge: $(command -v forge || true)"
+          go version
+
+      - name: Build contract artifacts with forge
+        working-directory: crates/optimism/tests/proofs/contracts
+        run: |
+          forge build
+
+      - uses: jdx/mise-action@v3
+
+      - name: Run e2e tests
+        working-directory: crates/optimism/tests
+        run: |
+          source <(cargo llvm-cov show-env --export-prefix)
+          make build
+          make test-e2e-sysgo GO_PKG_NAME=proofs/core OP_DEVSTACK_PROOF_SEQUENCER_EL=op-reth OP_DEVSTACK_PROOF_VALIDATOR_EL=op-reth-with-proof
+          make test-e2e-sysgo GO_PKG_NAME=proofs/reorg OP_DEVSTACK_PROOF_SEQUENCER_EL=op-reth OP_DEVSTACK_PROOF_VALIDATOR_EL=op-reth-with-proof
+          cargo llvm-cov report --lcov --output-path sequencer_and_verifier_cov.lcov
+
+      - name: Upload coverage to codecov.io
+        uses: codecov/codecov-action@v5
+        with:
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: sequencer_and_verifier_cov.lcov
+          flags: e2e
+          env_vars: OS,RUST
+          name: sequencer-and-verifier-sysgo-tests
+          verbose: true
+
   e2e-op-historical-proof-success:
     name: e2e-op-historical-proof-success
     runs-on: ubuntu-latest
@@ -138,6 +199,7 @@ jobs:
     needs:
       - op-reth-as-verifier
       - op-reth-as-sequencer
+      - op-reth-as-sequencer-and-verifier
     timeout-minutes: 60
     steps:
       - name: E2E tests for Proof History ExEx succeeded

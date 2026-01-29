@@ -47,4 +47,4 @@
 [submodule "op-reth/tests/optimism"]
 	path = crates/optimism/tests/optimism
 	url = https://github.com/ChainSafe/optimism.git
-	branch = jk/op-historical-proofs
+	branch = jk/historical-proofs

@@ -7,7 +7,7 @@ DEVNET ?= opgeth-seq-opreth-val
 GO_PKG_NAME ?= proofs/core
 SOURCE_DIR := $(shell pwd)
 OP_DEVSTACK_PROOF_SEQUENCER_EL ?= op-geth
-OP_DEVSTACK_PROOF_VALIDATOR_EL ?= op-reth
+OP_DEVSTACK_PROOF_VALIDATOR_EL ?= op-reth-with-proof
 
 .PHONY: all build-docker build-contracts unzip-contract-artifacts update-packages run clean help
 

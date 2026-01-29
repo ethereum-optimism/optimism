@@ -33,7 +33,7 @@ func TestPruneProofStorageWithGetProofConsistency(gt *testing.T) {
 	// An expected time within the prune should be detected.
 	var pruneDetectTimeout = 5 * time.Minute
 
-	opRethELNode := sys.RethL2ELNode()
+	opRethELNode := sys.RethWithProofL2ELNode()
 	ethClient := opRethELNode.Escape().EthClient()
 
 	// -----------------------------
