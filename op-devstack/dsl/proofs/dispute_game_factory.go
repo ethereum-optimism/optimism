@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -209,7 +210,7 @@ func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType g
 	}
 	game, addr := f.createNewGame(eoa, gameType, rootClaim, extraData)
 
-	return NewSuperFaultDisputeGame(f.t, f.require, addr, f.getGameHelper, game)
+	return NewSuperFaultDisputeGame(f.t, f.require, addr, f.getGameHelper, f.honestTraceForGame, game)
 }
 
 func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *GameCfg) []byte {
@@ -270,6 +271,14 @@ func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challeng
 			f.challengerCfg.CannonKona,
 			vm.NewKonaExecutor(),
 		)
+	case gameTypes.SuperCannonGameType:
+		return f.honestSuperCannonTrace(
+			game,
+			f.challengerCfg.CannonAbsolutePreStateBaseURL,
+			f.challengerCfg.CannonAbsolutePreState,
+			f.challengerCfg.Cannon,
+			vm.NewOpProgramServerExecutor(f.log),
+		)
 	default:
 		f.require.Truef(false, "Honest trace not supported for game type %v", game.GameType())
 		return nil
@@ -316,6 +325,56 @@ func (f *DisputeGameFactory) honestOutputCannonTrace(
 		game.L2SequenceNumber(),
 	)
 	f.require.NoError(err, "Failed to create trace accessor")
+	f.honestTraces[game.Address] = accessor
+	return accessor
+}
+
+func (f *DisputeGameFactory) honestSuperCannonTrace(
+	game *FaultDisputeGame,
+	prestateBaseUrl *url.URL,
+	prestateFile string,
+	vmConfig vm.Config,
+	serverExecutor vm.OracleServerExecutor,
+) challengerTypes.TraceAccessor {
+	logger := f.t.Logger().New("role", "honestSuperTrace")
+	f.require.NotNil(f.superNode, "SuperNode is required to create honest super trace")
+
+	prestateTimestamp := game.StartingL2SequenceNumber()
+	poststateTimestamp := game.L2SequenceNumber()
+
+	l1HeadHash := game.L1Head()
+	l1Head, err := f.ethClient.BlockRefByHash(f.t.Ctx(), l1HeadHash)
+	f.require.NoError(err, "Failed to fetch L1 Head")
+
+	prestateProvider := super.NewSuperNodePrestateProvider(f.superNode.QueryAPI(), prestateTimestamp)
+
+	vmPrestateSource := prestates.NewPrestateSource(
+		prestateBaseUrl,
+		prestateFile,
+		path.Join(f.challengerCfg.Datadir, "test-prestates"),
+		cannon.NewStateConverter(vmConfig),
+	)
+	vmPrestatePath, err := vmPrestateSource.PrestatePath(f.t.Ctx(), game.absolutePrestate())
+	f.require.NoError(err, "Failed to get prestate path")
+
+	accessor, err := super.NewSuperCannonTraceAccessor(
+		logger,
+		metrics.NoopMetrics,
+		vmConfig,
+		serverExecutor,
+		prestateProvider,
+		nil, // supervisor client
+		f.superNode.QueryAPI(),
+		true,
+		vmPrestatePath,
+		path.Join(f.challengerCfg.Datadir, "test-prestates"),
+		l1Head.ID(),
+		game.SplitDepth(),
+		prestateTimestamp,
+		poststateTimestamp,
+	)
+	f.require.NoError(err, "Failed to create super cannon trace accessor")
+
 	f.honestTraces[game.Address] = accessor
 	return accessor
 }
