@@ -255,6 +255,16 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 			shouldPass:    false,
 		},
 		{
+			name: "invalid game type returns error",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameType(99), // not a valid game type (0, 1, 8)
+			},
+			errorContains: fmt.Sprintf("invalid game type %d for opcm v2", GameType(99)),
+			shouldPass:    false,
+		},
+		{
 			name: "CANNON with correct FaultDisputeGameConfig",
 			gameConfig: DisputeGameConfig{
 				Enabled:  true,
