@@ -368,8 +368,8 @@ func (p *ExecutionPayload) CheckEqual(o *ExecutionPayload) error {
 		return fmt.Errorf("OPContainer MetadataOPGas length mismatch: %d != %d", len(p.OPContainer.MetadataOPGas), len(o.OPContainer.MetadataOPGas))
 	}
 	for i := range p.OPContainer.MetadataOPGas {
-		if p.OPContainer.MetadataOPGas[i].FromAddress != o.OPContainer.MetadataOPGas[i].FromAddress {
-			return fmt.Errorf("OPContainer MetadataOPGas[%d] FromAddress mismatch: %v != %v", i, p.OPContainer.MetadataOPGas[i].FromAddress, o.OPContainer.MetadataOPGas[i].FromAddress)
+		if p.OPContainer.MetadataOPGas[i].Index != o.OPContainer.MetadataOPGas[i].Index {
+			return fmt.Errorf("OPContainer MetadataOPGas[%d] Index mismatch: %v != %v", i, p.OPContainer.MetadataOPGas[i].Index, o.OPContainer.MetadataOPGas[i].Index)
 		}
 		if p.OPContainer.MetadataOPGas[i].OPGasRefund != o.OPContainer.MetadataOPGas[i].OPGasRefund {
 			return fmt.Errorf("OPContainer MetadataOPGas[%d] OPGasRefund mismatch: %v != %v", i, p.OPContainer.MetadataOPGas[i].OPGasRefund, o.OPContainer.MetadataOPGas[i].OPGasRefund)

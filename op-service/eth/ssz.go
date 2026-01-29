@@ -61,8 +61,11 @@ const (
 
 	withdrawalSize = 8 + 8 + 20 + 8
 
-	// OPGasEntry: FromAddress (20) + TxHash (32) + OPGasRefund (8)
-	opGasEntrySize = 20 + 32 + 8
+	// OPGasEntry: Index (8) + OPGasRefund (8)
+	opGasEntrySize = 8 + 8
+
+	// OPContainer: Version (8 bytes) + MetadataOPGas array
+	opContainerVersionSize = 8
 
 	// MAX_TRANSACTIONS_PER_PAYLOAD in consensus spec
 	// https://github.com/ethereum/consensus-specs/blob/ef434e87165e9a4c82a99f54ffd4974ae113f732/specs/bellatrix/beacon-chain.md#execution
@@ -130,10 +133,14 @@ func (payload *ExecutionPayload) withdrawalSize() uint32 {
 }
 
 func (payload *ExecutionPayload) opContainerSize() uint32 {
-	if payload.OPContainer == nil || payload.OPContainer.MetadataOPGas == nil {
+	if payload.OPContainer == nil {
 		return 0
 	}
-	return uint32(len(payload.OPContainer.MetadataOPGas) * opGasEntrySize)
+	size := opContainerVersionSize
+	if payload.OPContainer.MetadataOPGas != nil {
+		size += len(payload.OPContainer.MetadataOPGas) * opGasEntrySize
+	}
+	return uint32(size)
 }
 
 func (payload *ExecutionPayload) transactionSize() uint32 {
@@ -475,41 +482,53 @@ func unmarshalWithdrawals(in []byte) (types.Withdrawals, error) {
 }
 
 func marshalOPContainer(out []byte, container *types.OPContainer) {
-	if container == nil || container.MetadataOPGas == nil {
+	if container == nil {
 		return
 	}
 	offset := uint32(0)
-	for _, entry := range container.MetadataOPGas {
-		copy(out[offset:offset+20], entry.FromAddress[:])
-		offset += 20
-		copy(out[offset:offset+32], entry.TxHash[:])
-		offset += 32
-		binary.LittleEndian.PutUint64(out[offset:offset+8], entry.OPGasRefund)
-		offset += 8
+	// Write Version field
+	binary.LittleEndian.PutUint64(out[offset:offset+8], container.Version)
+	offset += opContainerVersionSize
+	// Write MetadataOPGas entries
+	if container.MetadataOPGas != nil {
+		for _, entry := range container.MetadataOPGas {
+			binary.LittleEndian.PutUint64(out[offset:offset+8], entry.Index)
+			offset += 8
+			binary.LittleEndian.PutUint64(out[offset:offset+8], entry.OPGasRefund)
+			offset += 8
+		}
 	}
 }
 
 func unmarshalOPContainer(in []byte) (*types.OPContainer, error) {
-	if len(in) == 0 {
-		return &types.OPContainer{MetadataOPGas: []types.OPGasEntry{}}, nil
+	if len(in) < opContainerVersionSize {
+		return nil, errors.New("invalid OPContainer data: too short")
 	}
-	if len(in)%opGasEntrySize != 0 {
-		return nil, errors.New("invalid OPContainer data")
+	offset := 0
+	// Read Version field
+	version := binary.LittleEndian.Uint64(in[offset : offset+8])
+	offset += opContainerVersionSize
+	// Calculate remaining data for MetadataOPGas entries
+	remainingData := len(in) - offset
+	if remainingData < 0 {
+		return nil, errors.New("invalid OPContainer data: invalid length")
 	}
-	entryCount := len(in) / opGasEntrySize
+	if remainingData%opGasEntrySize != 0 {
+		return nil, errors.New("invalid OPContainer data: MetadataOPGas data length not multiple of entry size")
+	}
+	entryCount := remainingData / opGasEntrySize
 	if entryCount > maxTransactionsPerPayload {
 		return nil, fmt.Errorf("too many OP gas entries: %d > %d", entryCount, maxTransactionsPerPayload)
 	}
 	result := &types.OPContainer{
+		Version:      version,
 		MetadataOPGas: make([]types.OPGasEntry, 0, entryCount),
 	}
-	offset := 0
+	// Read MetadataOPGas entries
 	for i := 0; i < entryCount; i++ {
 		var entry types.OPGasEntry
-		copy(entry.FromAddress[:], in[offset:offset+20])
-		offset += 20
-		copy(entry.TxHash[:], in[offset:offset+32])
-		offset += 32
+		entry.Index = binary.LittleEndian.Uint64(in[offset : offset+8])
+		offset += 8
 		entry.OPGasRefund = binary.LittleEndian.Uint64(in[offset : offset+8])
 		offset += 8
 		result.MetadataOPGas = append(result.MetadataOPGas, entry)

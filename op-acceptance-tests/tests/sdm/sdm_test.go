@@ -23,8 +23,8 @@ func TestOutOfConsensusGasReduction(gt *testing.T) {
 	alice := sys.FunderL2.NewFundedEOA(eth.OneTenthEther)
 	cathrine := sys.FunderL2.NewFundedEOA(eth.ZeroWei)
 
-	l.Info("Alice", "address", alice.Address())
-	l.Info("Catherine", "address", cathrine.Address())
+	l.Info("anteva: Alice", "address", alice.Address())
+	l.Info("anteva: Catherine", "address", cathrine.Address())
 
 	// EventLogger is used to generate a random tx with ~100k gas, parts of which we want to refund with the sequencer
 	{
@@ -44,7 +44,7 @@ func TestOutOfConsensusGasReduction(gt *testing.T) {
 
 		receiptA, err := txA.PlannedTx.Included.Eval(t.Ctx())
 		require.NoError(t, err)
-		l.Info("EventLogger message included", "block", receiptA.BlockHash, "gas_used", receiptA.GasUsed)
+		l.Info("anteva: EventLogger message included", "block", receiptA.BlockHash, "gas_used", receiptA.GasUsed)
 		require.Equal(t, eventCnt, len(receiptA.Logs))
 	}
 
@@ -52,9 +52,8 @@ func TestOutOfConsensusGasReduction(gt *testing.T) {
 	receipt := alice.Transfer(cathrine.Address(), amount)
 
 	ri := receipt.Included.Value()
-	l.Info("Receipt", "gas used", ri.GasUsed)
-	l.Info("Receipt", "gas used", ri.GasUsed)
-	l.Info("Receipt", "tx index", ri.TransactionIndex)
+	l.Info("anteva: Receipt", "gas_used", ri.GasUsed)
+	l.Info("anteva: Receipt", "tx index", ri.TransactionIndex)
 
 	sys.L2EL.Advanced(eth.Unsafe, 2)
 	sys.L2ELB.Matched(sys.L2EL, types.LocalUnsafe, 5)
