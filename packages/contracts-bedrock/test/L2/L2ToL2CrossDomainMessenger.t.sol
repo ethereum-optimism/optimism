@@ -65,6 +65,7 @@ contract L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness is L2
 /// @notice Reusable test initialization for `L2ToL2CrossDomainMessenger` tests.
 abstract contract L2ToL2CrossDomainMessenger_TestInit is Test {
     address internal foundryVMAddress = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
+    address internal consoleAddress = 0x000000000000000000636F6e736F6c652e6c6f67;
 
     /// @notice L2ToL2CrossDomainMessenger contract instance with modifiable transient storage.
     L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness l2ToL2CrossDomainMessenger;
@@ -536,7 +537,7 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
         // Ensure the target is not CrossL2Inbox or L2ToL2CrossDomainMessenger or the foundry VM
         vm.assume(
             _target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
-                && _target != foundryVMAddress
+                && _target != foundryVMAddress && _target != consoleAddress
         );
 
         assumeNotForgeAddress(_target);
@@ -728,7 +729,7 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
         // foundry VM
         vm.assume(
             _target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
-                && _target != foundryVMAddress
+                && _target != foundryVMAddress && _target != consoleAddress
         );
 
         // Ensure that the target contract does not revert (using the message also as the return
@@ -788,7 +789,7 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
         // foundry VM
         vm.assume(
             _target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
-                && _target != foundryVMAddress
+                && _target != foundryVMAddress && _target != consoleAddress
         );
 
         // Ensure that the target call is payable if value is sent
