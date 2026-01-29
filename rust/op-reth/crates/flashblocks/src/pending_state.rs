@@ -6,9 +6,12 @@
 
 use alloy_primitives::B256;
 use reth_execution_types::BlockExecutionOutput;
-use reth_primitives_traits::NodePrimitives;
+use reth_primitives_traits::{HeaderTy, NodePrimitives, SealedHeader};
 use reth_revm::cached::CachedReads;
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+};
 
 /// Tracks the execution state from building a pending block.
 ///
@@ -18,7 +21,10 @@ use std::sync::Arc;
 /// - This allows continuous flashblock processing without waiting for P2P
 #[derive(Debug, Clone)]
 pub struct PendingBlockState<N: NodePrimitives> {
-    /// Hash of the block that was built (the pending block's hash).
+    /// Locally computed block hash for this built block.
+    ///
+    /// This hash is used to match subsequent flashblock sequences by `parent_hash`
+    /// during speculative chaining.
     pub block_hash: B256,
     /// Block number that was built.
     pub block_number: u64,
@@ -35,6 +41,10 @@ pub struct PendingBlockState<N: NodePrimitives> {
     pub execution_outcome: Arc<BlockExecutionOutput<N::Receipt>>,
     /// Cached reads from execution for reuse.
     pub cached_reads: CachedReads,
+    /// Sealed header for this built block.
+    ///
+    /// Used as the parent header for speculative child builds.
+    pub sealed_header: Option<SealedHeader<HeaderTy<N>>>,
 }
 
 impl<N: NodePrimitives> PendingBlockState<N> {
@@ -54,7 +64,14 @@ impl<N: NodePrimitives> PendingBlockState<N> {
             canonical_anchor_hash,
             execution_outcome,
             cached_reads,
+            sealed_header: None,
         }
+    }
+
+    /// Attaches a sealed header for use as parent context in speculative builds.
+    pub fn with_sealed_header(mut self, sealed_header: SealedHeader<HeaderTy<N>>) -> Self {
+        self.sealed_header = Some(sealed_header);
+        self
     }
 }
 
@@ -63,21 +80,58 @@ impl<N: NodePrimitives> PendingBlockState<N> {
 /// Maintains a small cache of recently built pending blocks, allowing
 /// subsequent flashblock sequences to build on top of them even before
 /// the canonical blocks arrive.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct PendingStateRegistry<N: NodePrimitives> {
-    /// Most recent pending block state (the one we'd build on top of).
-    current: Option<PendingBlockState<N>>,
+    /// Executed pending states keyed by locally computed block hash.
+    by_block_hash: HashMap<B256, PendingBlockState<N>>,
+    /// Insertion order for bounded eviction.
+    insertion_order: VecDeque<B256>,
+    /// Most recently recorded block hash.
+    latest_block_hash: Option<B256>,
+    /// Maximum number of tracked pending states.
+    max_entries: usize,
 }
 
 impl<N: NodePrimitives> PendingStateRegistry<N> {
+    const DEFAULT_MAX_ENTRIES: usize = 64;
+
     /// Creates a new pending state registry.
-    pub const fn new() -> Self {
-        Self { current: None }
+    pub fn new() -> Self {
+        Self::with_max_entries(Self::DEFAULT_MAX_ENTRIES)
+    }
+
+    /// Creates a new pending state registry with an explicit entry bound.
+    pub fn with_max_entries(max_entries: usize) -> Self {
+        let max_entries = max_entries.max(1);
+        Self {
+            by_block_hash: HashMap::with_capacity(max_entries),
+            insertion_order: VecDeque::with_capacity(max_entries),
+            latest_block_hash: None,
+            max_entries,
+        }
     }
 
     /// Records a completed build's state for potential use by subsequent builds.
     pub fn record_build(&mut self, state: PendingBlockState<N>) {
-        self.current = Some(state);
+        let block_hash = state.block_hash;
+
+        if self.by_block_hash.contains_key(&block_hash) {
+            self.insertion_order.retain(|hash| *hash != block_hash);
+        }
+
+        self.by_block_hash.insert(block_hash, state);
+        self.insertion_order.push_back(block_hash);
+        self.latest_block_hash = Some(block_hash);
+
+        while self.by_block_hash.len() > self.max_entries {
+            let Some(evicted_hash) = self.insertion_order.pop_front() else {
+                break;
+            };
+            self.by_block_hash.remove(&evicted_hash);
+            if self.latest_block_hash == Some(evicted_hash) {
+                self.latest_block_hash = self.insertion_order.back().copied();
+            }
+        }
     }
 
     /// Gets the pending state for a given parent hash, if available.
@@ -85,17 +139,25 @@ impl<N: NodePrimitives> PendingStateRegistry<N> {
     /// Returns `Some` if we have pending state whose `block_hash` matches the requested
     /// `parent_hash`.
     pub fn get_state_for_parent(&self, parent_hash: B256) -> Option<&PendingBlockState<N>> {
-        self.current.as_ref().filter(|state| state.block_hash == parent_hash)
+        self.by_block_hash.get(&parent_hash)
     }
 
     /// Clears all pending state.
     pub fn clear(&mut self) {
-        self.current = None;
+        self.by_block_hash.clear();
+        self.insertion_order.clear();
+        self.latest_block_hash = None;
     }
 
     /// Returns the current pending state, if any.
-    pub const fn current(&self) -> Option<&PendingBlockState<N>> {
-        self.current.as_ref()
+    pub fn current(&self) -> Option<&PendingBlockState<N>> {
+        self.latest_block_hash.and_then(|hash| self.by_block_hash.get(&hash))
+    }
+}
+
+impl<N: NodePrimitives> Default for PendingStateRegistry<N> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -119,6 +181,7 @@ mod tests {
             canonical_anchor_hash: parent_hash,
             execution_outcome: Arc::new(BlockExecutionOutput::default()),
             cached_reads: CachedReads::default(),
+            sealed_header: None,
         };
         registry.record_build(state);
 
@@ -140,6 +203,7 @@ mod tests {
             canonical_anchor_hash: parent_hash,
             execution_outcome: Arc::new(BlockExecutionOutput::default()),
             cached_reads: CachedReads::default(),
+            sealed_header: None,
         };
         registry.record_build(state);
 
@@ -159,12 +223,100 @@ mod tests {
             canonical_anchor_hash: parent_hash,
             execution_outcome: Arc::new(BlockExecutionOutput::default()),
             cached_reads: CachedReads::default(),
+            sealed_header: None,
         };
         registry.record_build(state);
         assert!(registry.current().is_some());
 
         registry.clear();
         assert!(registry.current().is_none());
+    }
+
+    #[test]
+    fn test_registry_tracks_multiple_states_by_hash() {
+        let mut registry = TestRegistry::new();
+
+        let anchor = B256::repeat_byte(0);
+        let state_100 = PendingBlockState {
+            block_hash: B256::repeat_byte(1),
+            block_number: 100,
+            parent_hash: anchor,
+            canonical_anchor_hash: anchor,
+            execution_outcome: Arc::new(BlockExecutionOutput::default()),
+            cached_reads: CachedReads::default(),
+            sealed_header: None,
+        };
+        let state_101 = PendingBlockState {
+            block_hash: B256::repeat_byte(2),
+            block_number: 101,
+            parent_hash: state_100.block_hash,
+            canonical_anchor_hash: anchor,
+            execution_outcome: Arc::new(BlockExecutionOutput::default()),
+            cached_reads: CachedReads::default(),
+            sealed_header: None,
+        };
+
+        registry.record_build(state_100.clone());
+        registry.record_build(state_101.clone());
+
+        assert_eq!(registry.current().map(|s| s.block_number), Some(101));
+        assert_eq!(
+            registry.get_state_for_parent(state_100.block_hash).map(|s| s.block_number),
+            Some(100)
+        );
+        assert_eq!(
+            registry.get_state_for_parent(state_101.block_hash).map(|s| s.block_number),
+            Some(101)
+        );
+    }
+
+    #[test]
+    fn test_registry_eviction_respects_max_entries() {
+        let mut registry = PendingStateRegistry::<OpPrimitives>::with_max_entries(2);
+        let anchor = B256::repeat_byte(0);
+
+        let state_100 = PendingBlockState {
+            block_hash: B256::repeat_byte(1),
+            block_number: 100,
+            parent_hash: anchor,
+            canonical_anchor_hash: anchor,
+            execution_outcome: Arc::new(BlockExecutionOutput::default()),
+            cached_reads: CachedReads::default(),
+            sealed_header: None,
+        };
+        let state_101 = PendingBlockState {
+            block_hash: B256::repeat_byte(2),
+            block_number: 101,
+            parent_hash: state_100.block_hash,
+            canonical_anchor_hash: anchor,
+            execution_outcome: Arc::new(BlockExecutionOutput::default()),
+            cached_reads: CachedReads::default(),
+            sealed_header: None,
+        };
+        let state_102 = PendingBlockState {
+            block_hash: B256::repeat_byte(3),
+            block_number: 102,
+            parent_hash: state_101.block_hash,
+            canonical_anchor_hash: anchor,
+            execution_outcome: Arc::new(BlockExecutionOutput::default()),
+            cached_reads: CachedReads::default(),
+            sealed_header: None,
+        };
+
+        registry.record_build(state_100);
+        registry.record_build(state_101.clone());
+        registry.record_build(state_102.clone());
+
+        assert!(registry.get_state_for_parent(B256::repeat_byte(1)).is_none());
+        assert_eq!(
+            registry.get_state_for_parent(state_101.block_hash).map(|s| s.block_number),
+            Some(101)
+        );
+        assert_eq!(
+            registry.get_state_for_parent(state_102.block_hash).map(|s| s.block_number),
+            Some(102)
+        );
+        assert_eq!(registry.current().map(|s| s.block_number), Some(102));
     }
 
     /// Tests that `canonical_anchor_hash` is distinct from `parent_hash` in speculative chains.
@@ -190,6 +342,7 @@ mod tests {
             canonical_anchor_hash: canonical_anchor, // Same as parent for canonical build
             execution_outcome: Arc::new(BlockExecutionOutput::default()),
             cached_reads: CachedReads::default(),
+            sealed_header: None,
         };
 
         // Verify block N's anchor is the canonical block
@@ -205,6 +358,7 @@ mod tests {
             canonical_anchor_hash: state_n.canonical_anchor_hash, // Forwarded from N
             execution_outcome: Arc::new(BlockExecutionOutput::default()),
             cached_reads: CachedReads::default(),
+            sealed_header: None,
         };
 
         // Verify N+1's anchor is still the canonical block, NOT block N
@@ -220,6 +374,7 @@ mod tests {
             canonical_anchor_hash: state_n1.canonical_anchor_hash, // Forwarded from N+1
             execution_outcome: Arc::new(BlockExecutionOutput::default()),
             cached_reads: CachedReads::default(),
+            sealed_header: None,
         };
 
         // Verify N+2's anchor is STILL the original canonical block

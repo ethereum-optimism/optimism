@@ -12,6 +12,23 @@ use tracing::*;
 /// The size of the broadcast channel for completed flashblock sequences.
 const FLASHBLOCK_SEQUENCE_CHANNEL_SIZE: usize = 128;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FollowupRejectionReason {
+    BlockNumber,
+    PayloadId,
+    BlockAndPayload,
+}
+
+impl FollowupRejectionReason {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::BlockNumber => "block_number_mismatch",
+            Self::PayloadId => "payload_id_mismatch",
+            Self::BlockAndPayload => "block_and_payload_mismatch",
+        }
+    }
+}
+
 /// Outcome from executing a flashblock sequence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(unnameable_types)]
@@ -64,6 +81,34 @@ impl FlashBlockPendingSequence {
         self.block_broadcaster.subscribe()
     }
 
+    /// Returns whether this flashblock would be accepted into the current sequence.
+    pub fn can_accept(&self, flashblock: &FlashBlock) -> bool {
+        if flashblock.index == 0 {
+            return true;
+        }
+
+        self.followup_rejection_reason(flashblock).is_none()
+    }
+
+    fn followup_rejection_reason(
+        &self,
+        flashblock: &FlashBlock,
+    ) -> Option<FollowupRejectionReason> {
+        // only insert if we previously received the same block and payload, assume we received
+        // index 0
+        let same_block = self.block_number() == Some(flashblock.block_number());
+        let same_payload = self.payload_id() == Some(flashblock.payload_id);
+        if same_block && same_payload {
+            None
+        } else if !same_block && !same_payload {
+            Some(FollowupRejectionReason::BlockAndPayload)
+        } else if !same_block {
+            Some(FollowupRejectionReason::BlockNumber)
+        } else {
+            Some(FollowupRejectionReason::PayloadId)
+        }
+    }
+
     /// Inserts a new block into the sequence.
     ///
     /// A [`FlashBlock`] with index 0 resets the set.
@@ -74,16 +119,23 @@ impl FlashBlockPendingSequence {
             return;
         }
 
-        // only insert if we previously received the same block and payload, assume we received
-        // index 0
-        let same_block = self.block_number() == Some(flashblock.block_number());
-        let same_payload = self.payload_id() == Some(flashblock.payload_id);
-
-        if same_block && same_payload {
+        if self.can_accept(&flashblock) {
             trace!(target: "flashblocks", number=%flashblock.block_number(), index = %flashblock.index, block_count = self.inner.len()  ,"Received followup flashblock");
             self.inner.insert(flashblock.index, flashblock);
         } else {
-            trace!(target: "flashblocks", number=%flashblock.block_number(), index = %flashblock.index, current=?self.block_number()  ,"Ignoring untracked flashblock following");
+            let rejection_reason = self
+                .followup_rejection_reason(&flashblock)
+                .expect("non-accepted followup must have rejection reason");
+            trace!(
+                target: "flashblocks",
+                number = %flashblock.block_number(),
+                index = %flashblock.index,
+                current_block_number = ?self.block_number(),
+                expected_payload_id = ?self.payload_id(),
+                incoming_payload_id = ?flashblock.payload_id,
+                rejection_reason = rejection_reason.as_str(),
+                "Ignoring untracked flashblock following"
+            );
         }
     }
 
@@ -208,6 +260,11 @@ impl FlashBlockCompleteSequence {
     /// Returns the payload base of the first flashblock.
     pub fn payload_base(&self) -> &OpFlashblockPayloadBase {
         self.inner.first().unwrap().base.as_ref().unwrap()
+    }
+
+    /// Returns the payload id shared by all flashblocks in the sequence.
+    pub fn payload_id(&self) -> PayloadId {
+        self.inner.first().unwrap().payload_id
     }
 
     /// Returns the number of flashblocks in the sequence.

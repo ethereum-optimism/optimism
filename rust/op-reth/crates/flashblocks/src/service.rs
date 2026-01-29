@@ -1,10 +1,11 @@
 use crate::{
     FlashBlock, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx, InProgressFlashBlockRx,
     PendingFlashBlock,
-    cache::SequenceManager,
+    cache::{BuildApplyOutcome, BuildTicket, SequenceManager},
     pending_state::PendingStateRegistry,
-    validation::ReconciliationStrategy,
-    worker::{BuildResult, FlashBlockBuilder},
+    tx_cache::TransactionCache,
+    validation::{CanonicalBlockFingerprint, ReconciliationStrategy},
+    worker::{BuildResult, FlashBlockBuilder, FlashblockCachedReceipt},
 };
 use alloy_primitives::B256;
 use futures_util::{FutureExt, Stream, StreamExt};
@@ -39,6 +40,10 @@ const CANONICAL_BLOCK_CHANNEL_CAPACITY: usize = 128;
 pub struct CanonicalBlockNotification {
     /// The canonical block number.
     pub block_number: u64,
+    /// Canonical block hash.
+    pub block_hash: B256,
+    /// Canonical parent hash.
+    pub parent_hash: B256,
     /// Transaction hashes in the canonical block.
     pub tx_hashes: Vec<B256>,
 }
@@ -71,6 +76,15 @@ pub struct FlashBlockService<
     sequences: SequenceManager<N::SignedTx>,
     /// Registry for pending block states to enable speculative building.
     pending_states: PendingStateRegistry<N>,
+    /// Transaction execution cache for incremental flashblock building.
+    tx_cache: TransactionCache<N>,
+
+    /// Epoch counter for state invalidation.
+    ///
+    /// Incremented whenever speculative state is cleared (reorg, catch-up, depth limit).
+    /// Used to detect and discard stale build results from in-flight jobs that were
+    /// started before the state was invalidated.
+    state_epoch: u64,
 
     /// Maximum depth for pending blocks ahead of canonical before clearing.
     max_depth: u64,
@@ -81,6 +95,7 @@ pub struct FlashBlockService<
 impl<N, S, EvmConfig, Provider> FlashBlockService<N, S, EvmConfig, Provider>
 where
     N: NodePrimitives,
+    N::Receipt: FlashblockCachedReceipt,
     S: Stream<Item = eyre::Result<FlashBlock>> + Unpin + 'static,
     EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>
         + Clone
@@ -115,6 +130,8 @@ where
             job: None,
             sequences: SequenceManager::new(compute_state_root),
             pending_states: PendingStateRegistry::new(),
+            tx_cache: TransactionCache::new(),
+            state_epoch: 0,
             max_depth: DEFAULT_MAX_DEPTH,
             metrics: FlashBlockServiceMetrics::default(),
         }
@@ -181,29 +198,93 @@ where
         loop {
             tokio::select! {
                 // Event 1: job exists, listen to job results
-                Some(result) = async {
+                // Handle both successful results and channel errors (e.g., task panic)
+                job_result = async {
                     match self.job.as_mut() {
-                        Some((_, rx)) => rx.await.ok(),
+                        Some(job) => Some((&mut job.result_rx).await),
                         None => std::future::pending().await,
                     }
                 } => {
-                    let (start_time, _) = self.job.take().unwrap();
+                    let job = self.job.take().unwrap();
                     let _ = self.in_progress_tx.send(None);
+
+                    // Handle channel error (task panicked or was cancelled)
+                    let Some(Ok((result, returned_cache))) = job_result else {
+                        warn!(
+                            target: "flashblocks",
+                            "Build job channel closed unexpectedly (task may have panicked)"
+                        );
+                        // Re-initialize transaction cache since we lost the one sent to the task
+                        self.tx_cache = TransactionCache::new();
+                        self.schedule_followup_build();
+                        continue;
+                    };
+
+                    // Check if the state epoch has changed since this job started.
+                    // If so, the speculative state has been invalidated (e.g., by a reorg)
+                    // and we should discard the build result AND the returned cache to avoid
+                    // reintroducing stale state that was cleared during reconciliation.
+                    if job.epoch != self.state_epoch {
+                        trace!(
+                            target: "flashblocks",
+                            job_epoch = job.epoch,
+                            current_epoch = self.state_epoch,
+                            "Discarding stale build result and cache (state was invalidated)"
+                        );
+                        self.metrics.stale_builds_discarded.increment(1);
+                        // Don't restore the returned cache - keep the cleared cache from reconciliation
+                        self.schedule_followup_build();
+                        continue;
+                    }
+
+                    // Restore the transaction cache from the spawned task (only if epoch matched)
+                    self.tx_cache = returned_cache;
 
                     match result {
                         Ok(Some(build_result)) => {
                             let pending = build_result.pending_flashblock;
-                            let parent_hash = pending.parent_hash();
-                            self.sequences
-                                .on_build_complete(parent_hash, Some((pending.clone(), build_result.cached_reads)));
+                            let apply_outcome = self.sequences
+                                .on_build_complete(job.ticket, Some((pending.clone(), build_result.cached_reads)));
 
-                            // Record pending state for speculative building of subsequent blocks
-                            self.pending_states.record_build(build_result.pending_state);
+                            if apply_outcome.is_applied() {
+                                // Record pending state for speculative building of subsequent blocks
+                                self.pending_states.record_build(build_result.pending_state);
 
-                            let elapsed = start_time.elapsed();
-                            self.metrics.execution_duration.record(elapsed.as_secs_f64());
+                                let elapsed = job.start_time.elapsed();
+                                self.metrics.execution_duration.record(elapsed.as_secs_f64());
 
-                            let _ = tx.send(Some(pending));
+                                let _ = tx.send(Some(pending));
+                            } else {
+                                match apply_outcome {
+                                    BuildApplyOutcome::RejectedPendingSequenceMismatch { .. } => {
+                                        self.metrics
+                                            .build_reject_pending_sequence_mismatch
+                                            .increment(1);
+                                    }
+                                    BuildApplyOutcome::RejectedPendingRevisionStale { .. } => {
+                                        self.metrics
+                                            .build_reject_pending_revision_stale
+                                            .increment(1);
+                                    }
+                                    BuildApplyOutcome::RejectedCachedSequenceMissing { .. } => {
+                                        self.metrics
+                                            .build_reject_cached_sequence_missing
+                                            .increment(1);
+                                    }
+                                    BuildApplyOutcome::SkippedNoBuildResult => {
+                                        self.metrics
+                                            .build_reject_missing_build_result
+                                            .increment(1);
+                                    }
+                                    BuildApplyOutcome::AppliedPending
+                                    | BuildApplyOutcome::AppliedCached { .. } => {}
+                                }
+                                trace!(
+                                    target: "flashblocks",
+                                    ?apply_outcome,
+                                    "Discarding build side effects due to rejected completion apply"
+                                );
+                            }
                         }
                         Ok(None) => {
                             trace!(target: "flashblocks", "Build job returned None");
@@ -212,6 +293,10 @@ where
                             warn!(target: "flashblocks", %err, "Build job failed");
                         }
                     }
+
+                    // Drain runnable work after each completion instead of waiting for another
+                    // external event.
+                    self.schedule_followup_build();
                 }
 
                 // Event 2: New flashblock arrives (batch process all ready flashblocks)
@@ -262,20 +347,35 @@ where
         }
     }
 
+    /// Attempts to start the next build after a completion and records outcome metrics.
+    fn schedule_followup_build(&mut self) {
+        self.metrics.drain_followup_attempts.increment(1);
+        if self.try_start_build_job() {
+            self.metrics.drain_followup_started.increment(1);
+        } else {
+            self.metrics.drain_followup_noop.increment(1);
+        }
+    }
+
     /// Processes a canonical block notification and reconciles pending state.
     fn process_canonical_block(&mut self, notification: CanonicalBlockNotification) {
-        let strategy = self.sequences.process_canonical_block(
-            notification.block_number,
-            &notification.tx_hashes,
-            self.max_depth,
-        );
+        let canonical_fingerprint = CanonicalBlockFingerprint {
+            block_number: notification.block_number,
+            block_hash: notification.block_hash,
+            parent_hash: notification.parent_hash,
+            tx_hashes: notification.tx_hashes,
+        };
+
+        let strategy =
+            self.sequences.process_canonical_block(canonical_fingerprint, self.max_depth);
 
         // Record metrics based on strategy
         if matches!(strategy, ReconciliationStrategy::HandleReorg) {
             self.metrics.reorg_count.increment(1);
         }
 
-        // Clear pending states for strategies that invalidate speculative state
+        // Clear pending states and transaction cache for strategies that invalidate speculative
+        // state. Also increment the state epoch to invalidate any in-flight build jobs.
         if matches!(
             strategy,
             ReconciliationStrategy::HandleReorg |
@@ -283,6 +383,14 @@ where
                 ReconciliationStrategy::DepthLimitExceeded { .. }
         ) {
             self.pending_states.clear();
+            self.tx_cache.clear();
+            self.state_epoch = self.state_epoch.wrapping_add(1);
+            trace!(
+                target: "flashblocks",
+                new_epoch = self.state_epoch,
+                ?strategy,
+                "State invalidated, incremented epoch"
+            );
         }
     }
 
@@ -308,23 +416,31 @@ where
     }
 
     /// Attempts to build a block if no job is currently running and a buildable sequence exists.
-    fn try_start_build_job(&mut self) {
+    fn try_start_build_job(&mut self) -> bool {
         if self.job.is_some() {
-            return; // Already building
+            return false; // Already building
         }
 
         let Some(latest) = self.builder.provider().latest_header().ok().flatten() else {
-            return;
+            return false;
         };
 
-        // Get pending parent state for speculative building (if enabled and available)
-        let pending_parent = self.pending_states.current().cloned();
+        // Prefer parent-hash-specific speculative context for the current pending sequence.
+        // Fall back to the latest speculative state when no exact parent match is found.
+        let pending_parent = self
+            .sequences
+            .pending()
+            .payload_base()
+            .and_then(|base| self.pending_states.get_state_for_parent(base.parent_hash).cloned())
+            .or_else(|| self.pending_states.current().cloned());
 
-        let Some(args) =
+        let Some(candidate) =
             self.sequences.next_buildable_args(latest.hash(), latest.timestamp(), pending_parent)
         else {
-            return; // Nothing buildable
+            return false; // Nothing buildable
         };
+        let ticket = candidate.ticket;
+        let args = candidate.args;
 
         // Spawn build job
         let fb_info = FlashBlockBuildInfo {
@@ -336,12 +452,22 @@ where
         self.metrics.current_index.set(fb_info.index as f64);
         let _ = self.in_progress_tx.send(Some(fb_info));
 
-        let (tx, rx) = oneshot::channel();
+        // Take ownership of the transaction cache for the spawned task
+        let mut tx_cache = std::mem::take(&mut self.tx_cache);
+
+        let (result_tx, result_rx) = oneshot::channel();
         let builder = self.builder.clone();
         self.spawner.spawn_blocking(move || {
-            let _ = tx.send(builder.execute(args));
+            let result = builder.execute(args, Some(&mut tx_cache));
+            let _ = result_tx.send((result, tx_cache));
         });
-        self.job = Some((Instant::now(), rx));
+        self.job = Some(BuildJob {
+            start_time: Instant::now(),
+            epoch: self.state_epoch,
+            ticket,
+            result_rx,
+        });
+        true
     }
 }
 
@@ -356,7 +482,22 @@ pub struct FlashBlockBuildInfo {
     pub block_number: u64,
 }
 
-type BuildJob<N> = (Instant, oneshot::Receiver<eyre::Result<Option<BuildResult<N>>>>);
+/// A running build job with metadata for tracking and invalidation.
+#[derive(Debug)]
+struct BuildJob<N: NodePrimitives> {
+    /// When the job was started.
+    start_time: Instant,
+    /// The state epoch when this job was started.
+    ///
+    /// If the service's `state_epoch` has changed by the time this job completes,
+    /// the result should be discarded as the speculative state has been invalidated.
+    epoch: u64,
+    /// Opaque ticket identifying the exact sequence snapshot targeted by this build job.
+    ticket: BuildTicket,
+    /// Receiver for the build result and returned transaction cache.
+    #[allow(clippy::type_complexity)]
+    result_rx: oneshot::Receiver<(eyre::Result<Option<BuildResult<N>>>, TransactionCache<N>)>,
+}
 
 /// Creates a bounded channel for canonical block notifications.
 ///
@@ -383,4 +524,20 @@ struct FlashBlockServiceMetrics {
     current_index: Gauge,
     /// Number of reorgs detected during canonical block reconciliation.
     reorg_count: Counter,
+    /// Number of build results discarded due to state invalidation (reorg during build).
+    stale_builds_discarded: Counter,
+    /// Number of completions rejected because pending sequence identity no longer matched.
+    build_reject_pending_sequence_mismatch: Counter,
+    /// Number of completions rejected because pending revision no longer matched.
+    build_reject_pending_revision_stale: Counter,
+    /// Number of completions rejected because referenced cached sequence was missing.
+    build_reject_cached_sequence_missing: Counter,
+    /// Number of completions skipped due to missing build result payload.
+    build_reject_missing_build_result: Counter,
+    /// Number of follow-up drain scheduling attempts after build completion.
+    drain_followup_attempts: Counter,
+    /// Number of follow-up attempts that successfully started another build.
+    drain_followup_started: Counter,
+    /// Number of follow-up attempts where no buildable work was available.
+    drain_followup_noop: Counter,
 }
