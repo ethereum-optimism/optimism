@@ -78,30 +78,36 @@ If the PR changes the Foundry dependency versions, i.e the `forge`, `cast`, and 
 
 ### Storage Layout Mutation Warnings
 
-If a PR modifies files in `packages/contracts-bedrock/snapshots/storageLayout/`, you MUST analyze the diff to determine if storage slots are being **mutated** or **deleted** (as opposed to purely added).
+If a PR modifies files in `packages/contracts-bedrock/snapshots/storageLayout/`, you MUST analyze the diff to determine if storage slots are being **mutated** (as opposed to purely added or deleted along with the contract).
 
-**What constitutes a mutation or deletion:**
+**What constitutes a mutation:**
 - A storage slot's `slot` number changes for an existing field (field shifted to different slot)
 - A storage slot's `type` changes for an existing field
 - A storage slot's `offset` changes for an existing field
-- A storage slot entry is removed entirely (field deleted)
-- A storage layout file is deleted (contract removed)
+- A storage slot entry is removed entirely (field deleted from a contract that still exists)
 
 **What is NOT a concern:**
 - Purely adding new storage slots at the end of a contract's layout (new fields appended)
 - Adding a new storage layout file for a new contract
+- A storage layout file being deleted because the contract itself is being deleted
 
-If you detect **any** mutation or deletion of existing storage slots, you MUST leave a prominent comment on the PR with the following message:
+**CRITICAL - Watch for hidden mutations via renames/moves:**
+- If a storage layout file is DELETED and a new one with a similar name is ADDED, this may indicate a contract rename or move
+- Renames/moves can HIDE storage mutations because git shows them as a deletion + addition rather than a modification
+- You MUST compare the deleted file's layout against the new file's layout to detect any mutations
+- Example: `FooV1.json` deleted and `FooV2.json` added - compare their storage layouts carefully
+
+If you detect **any** mutation of existing storage slots (including mutations hidden by a rename/move), you MUST leave a prominent comment on the PR with the following message:
 
 > ⚠️ **Storage Layout Mutation Detected**
 >
-> This PR modifies or deletes existing storage slots in the following file(s):
+> This PR modifies existing storage slots in the following file(s):
 > - `[list the affected storage layout files]`
 >
 > **Changes detected:**
 > - `[describe the specific mutations: slot shifts, type changes, deletions, etc.]`
 >
-> Mutating or deleting storage slots can be **dangerous** for upgradeable contracts, as it may corrupt existing on-chain state.
+> Mutating storage slots can be **dangerous** for upgradeable contracts, as it may corrupt existing on-chain state.
 >
 > **Required action:** Please add an explicit comment in the PR description or in the code explaining why this storage layout change is safe. For example:
 > - "This contract is not upgradeable and is always deployed fresh"
