@@ -107,6 +107,7 @@ type DefaultTwoL2SystemIDs struct {
 	L2BCL stack.L2CLNodeID
 	L2BEL stack.L2ELNodeID
 
+	Supernode   stack.SupernodeID
 	L2ABatcher  stack.L2BatcherID
 	L2AProposer stack.L2ProposerID
 	L2BBatcher  stack.L2BatcherID
@@ -124,6 +125,7 @@ func NewDefaultTwoL2SystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultTwoL2System
 		L2B:         stack.L2NetworkID(l2BID),
 		L2BCL:       stack.NewL2CLNodeID("sequencer", l2BID),
 		L2BEL:       stack.NewL2ELNodeID("sequencer", l2BID),
+		Supernode:   stack.NewSupernodeID("supernode-two-l2-system", l2AID, l2BID),
 		L2ABatcher:  stack.NewL2BatcherID("main", l2AID),
 		L2AProposer: stack.NewL2ProposerID("main", l2AID),
 		L2BBatcher:  stack.NewL2BatcherID("main", l2BID),
@@ -200,7 +202,7 @@ func DefaultSupernodeTwoL2System(dest *DefaultTwoL2SystemIDs) stack.Option[*Orch
 	opt.Add(WithL2ELNode(ids.L2BEL))
 
 	// Shared supernode for both L2 chains
-	opt.Add(WithSharedSupernodeCLs([]L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}, {CLID: ids.L2BCL, ELID: ids.L2BEL}}, ids.L1CL, ids.L1EL))
+	opt.Add(WithSharedSupernodeCLs(ids.Supernode, []L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}, {CLID: ids.L2BCL, ELID: ids.L2BEL}}, ids.L1CL, ids.L1EL))
 
 	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
 	opt.Add(WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, nil))
