@@ -30,6 +30,9 @@ mod worker;
 
 mod cache;
 
+mod pending_state;
+pub use pending_state::{PendingBlockState, PendingStateRegistry};
+
 pub mod validation;
 
 #[cfg(test)]

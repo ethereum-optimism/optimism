@@ -4,6 +4,7 @@
 //! and intelligently selects which sequence to build based on the local chain tip.
 
 use crate::{
+    pending_state::PendingBlockState,
     sequence::{FlashBlockPendingSequence, SequenceExecutionOutcome},
     validation::{CanonicalBlockReconciler, ReconciliationStrategy, ReorgDetector},
     worker::BuildArgs,
@@ -126,30 +127,52 @@ impl<T: SignedTransaction> SequenceManager<T> {
     /// Priority order:
     /// 1. Current pending sequence (if parent matches local tip)
     /// 2. Cached sequence with exact parent match
+    /// 3. Speculative: pending sequence with pending parent state (if provided)
     ///
     /// Returns None if nothing is buildable right now.
-    pub(crate) fn next_buildable_args(
+    pub(crate) fn next_buildable_args<N: NodePrimitives<SignedTx = T>>(
         &mut self,
         local_tip_hash: B256,
         local_tip_timestamp: u64,
-    ) -> Option<BuildArgs<Vec<WithEncoded<Recovered<T>>>>> {
+        pending_parent_state: Option<PendingBlockState<N>>,
+    ) -> Option<BuildArgs<Vec<WithEncoded<Recovered<T>>>, N>> {
         // Try to find a buildable sequence: (base, last_fb, transactions, cached_state,
-        // source_name)
-        let (base, last_flashblock, transactions, cached_state, source_name) =
-            // Priority 1: Try current pending sequence
+        // source_name, pending_parent)
+        let (base, last_flashblock, transactions, cached_state, source_name, pending_parent) =
+            // Priority 1: Try current pending sequence (canonical mode)
             if let Some(base) = self.pending.payload_base().filter(|b| b.parent_hash == local_tip_hash) {
                 let cached_state = self.pending.take_cached_reads().map(|r| (base.parent_hash, r));
                 let last_fb = self.pending.last_flashblock()?;
                 let transactions = self.pending_transactions.clone();
-                (base, last_fb, transactions, cached_state, "pending")
+                (base, last_fb, transactions, cached_state, "pending", None)
             }
-            // Priority 2: Try cached sequence with exact parent match
+            // Priority 2: Try cached sequence with exact parent match (canonical mode)
             else if let Some((cached, txs)) = self.completed_cache.iter().find(|(c, _)| c.payload_base().parent_hash == local_tip_hash) {
                 let base = cached.payload_base().clone();
                 let last_fb = cached.last();
                 let transactions = txs.clone();
                 let cached_state = None;
-                (base, last_fb, transactions, cached_state, "cached")
+                (base, last_fb, transactions, cached_state, "cached", None)
+            }
+            // Priority 3: Try speculative building with pending parent state
+            else if let Some(ref pending_state) = pending_parent_state {
+                // Check if pending sequence's parent matches the pending state's block
+                if let Some(base) = self.pending.payload_base().filter(|b| b.parent_hash == pending_state.block_hash) {
+                    let cached_state = self.pending.take_cached_reads().map(|r| (base.parent_hash, r));
+                    let last_fb = self.pending.last_flashblock()?;
+                    let transactions = self.pending_transactions.clone();
+                    (base, last_fb, transactions, cached_state, "speculative-pending", pending_parent_state)
+                }
+                // Check cached sequences
+                else if let Some((cached, txs)) = self.completed_cache.iter().find(|(c, _)| c.payload_base().parent_hash == pending_state.block_hash) {
+                    let base = cached.payload_base().clone();
+                    let last_fb = cached.last();
+                    let transactions = txs.clone();
+                    let cached_state = None;
+                    (base, last_fb, transactions, cached_state, "speculative-cached", pending_parent_state)
+                } else {
+                    return None;
+                }
             } else {
                 return None;
             };
@@ -197,6 +220,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
             compute_state_root_enabled = self.compute_state_root,
             state_root_is_zero = last_flashblock.diff.state_root.is_zero(),
             will_compute_state_root = compute_state_root,
+            is_speculative = pending_parent.is_some(),
             "Building from flashblock sequence"
         );
 
@@ -207,6 +231,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
             last_flashblock_index: last_flashblock.index,
             last_flashblock_hash: last_flashblock.diff.block_hash,
             compute_state_root,
+            pending_parent,
         })
     }
 
@@ -407,6 +432,7 @@ mod tests {
     use crate::{test_utils::TestFlashBlockFactory, validation::ReconciliationStrategy};
     use alloy_primitives::B256;
     use op_alloy_consensus::OpTxEnvelope;
+    use reth_optimism_primitives::OpPrimitives;
 
     #[test]
     fn test_sequence_manager_new() {
@@ -456,7 +482,8 @@ mod tests {
         let local_tip_hash = B256::random();
         let local_tip_timestamp = 1000;
 
-        let args = manager.next_buildable_args(local_tip_hash, local_tip_timestamp);
+        let args =
+            manager.next_buildable_args::<OpPrimitives>(local_tip_hash, local_tip_timestamp, None);
         assert!(args.is_none());
     }
 
@@ -469,7 +496,7 @@ mod tests {
         let parent_hash = fb0.base.as_ref().unwrap().parent_hash;
         manager.insert_flashblock(fb0).unwrap();
 
-        let args = manager.next_buildable_args(parent_hash, 1000000);
+        let args = manager.next_buildable_args::<OpPrimitives>(parent_hash, 1000000, None);
         assert!(args.is_some());
 
         let build_args = args.unwrap();
@@ -486,7 +513,7 @@ mod tests {
 
         // Use different parent hash
         let wrong_parent = B256::random();
-        let args = manager.next_buildable_args(wrong_parent, 1000000);
+        let args = manager.next_buildable_args::<OpPrimitives>(wrong_parent, 1000000, None);
         assert!(args.is_none());
     }
 
@@ -505,7 +532,7 @@ mod tests {
         manager.insert_flashblock(fb1).unwrap();
 
         // Request with first sequence's parent (should find cached)
-        let args = manager.next_buildable_args(parent_hash, 1000000);
+        let args = manager.next_buildable_args::<OpPrimitives>(parent_hash, 1000000, None);
         assert!(args.is_some());
     }
 
@@ -528,7 +555,7 @@ mod tests {
         manager.insert_flashblock(fb2).unwrap();
 
         // Request first sequence's parent - should find in cache
-        let args = manager.next_buildable_args(parent_hash, 1000000);
+        let args = manager.next_buildable_args::<OpPrimitives>(parent_hash, 1000000, None);
         assert!(args.is_some());
     }
 
@@ -551,7 +578,11 @@ mod tests {
         }
 
         // Request with proper timing - should compute state root for index 9
-        let args = manager.next_buildable_args(parent_hash, base_timestamp - block_time);
+        let args = manager.next_buildable_args::<OpPrimitives>(
+            parent_hash,
+            base_timestamp - block_time,
+            None,
+        );
         assert!(args.is_some());
         assert!(args.unwrap().compute_state_root);
     }
@@ -568,7 +599,11 @@ mod tests {
         let base_timestamp = fb0.base.as_ref().unwrap().timestamp;
         manager.insert_flashblock(fb0).unwrap();
 
-        let args = manager.next_buildable_args(parent_hash, base_timestamp - block_time);
+        let args = manager.next_buildable_args::<OpPrimitives>(
+            parent_hash,
+            base_timestamp - block_time,
+            None,
+        );
         assert!(args.is_some());
         assert!(!args.unwrap().compute_state_root);
     }
@@ -592,7 +627,11 @@ mod tests {
         }
 
         // Request with proper timing - should compute state root for index 9
-        let args = manager.next_buildable_args(parent_hash, base_timestamp - block_time);
+        let args = manager.next_buildable_args::<OpPrimitives>(
+            parent_hash,
+            base_timestamp - block_time,
+            None,
+        );
         assert!(args.is_some());
         assert!(!args.unwrap().compute_state_root);
     }
@@ -613,7 +652,7 @@ mod tests {
 
         // The first sequence should have been evicted, so we can't build it
         let first_parent = factory.flashblock_at(0).build().base.unwrap().parent_hash;
-        let args = manager.next_buildable_args(first_parent, 1000000);
+        let args = manager.next_buildable_args::<OpPrimitives>(first_parent, 1000000, None);
         // Should not find it (evicted from ring buffer)
         assert!(args.is_none());
     }
@@ -726,5 +765,122 @@ mod tests {
 
         assert_eq!(manager.earliest_block_number(), Some(100));
         assert_eq!(manager.latest_block_number(), Some(102));
+    }
+
+    // ==================== Speculative Building Tests ====================
+
+    #[test]
+    fn test_speculative_build_with_pending_parent_state() {
+        use crate::pending_state::PendingBlockState;
+        use reth_execution_types::BlockExecutionOutput;
+        use reth_revm::cached::CachedReads;
+        use std::sync::Arc;
+
+        let mut manager: SequenceManager<OpTxEnvelope> = SequenceManager::new(true);
+        let factory = TestFlashBlockFactory::new();
+
+        // Create a flashblock for block 101
+        let fb0 = factory.flashblock_at(0).block_number(101).build();
+        // The parent_hash of block 101 should be the hash of block 100
+        let block_100_hash = fb0.base.as_ref().unwrap().parent_hash;
+        manager.insert_flashblock(fb0).unwrap();
+
+        // Local tip is block 99 (not matching block 100's hash)
+        let local_tip_hash = B256::random();
+
+        // Without pending parent state, no args should be returned
+        let args = manager.next_buildable_args::<OpPrimitives>(local_tip_hash, 1000000, None);
+        assert!(args.is_none());
+
+        // Create pending parent state for block 100 (its block_hash matches fb0's parent_hash)
+        let pending_state: PendingBlockState<OpPrimitives> = PendingBlockState {
+            block_hash: block_100_hash,
+            block_number: 100,
+            parent_hash: B256::random(),
+            execution_outcome: Arc::new(BlockExecutionOutput::default()),
+            cached_reads: CachedReads::default(),
+        };
+
+        // With pending parent state, should return args for speculative building
+        let args = manager.next_buildable_args(local_tip_hash, 1000000, Some(pending_state));
+        assert!(args.is_some());
+        let build_args = args.unwrap();
+        assert!(build_args.pending_parent.is_some());
+        assert_eq!(build_args.pending_parent.as_ref().unwrap().block_number, 100);
+    }
+
+    #[test]
+    fn test_speculative_build_uses_cached_sequence() {
+        use crate::pending_state::PendingBlockState;
+        use reth_execution_types::BlockExecutionOutput;
+        use reth_revm::cached::CachedReads;
+        use std::sync::Arc;
+
+        let mut manager: SequenceManager<OpTxEnvelope> = SequenceManager::new(true);
+        let factory = TestFlashBlockFactory::new();
+
+        // Create and cache first sequence for block 100
+        let fb0 = factory.flashblock_at(0).build();
+        let block_99_hash = fb0.base.as_ref().unwrap().parent_hash;
+        manager.insert_flashblock(fb0.clone()).unwrap();
+
+        // Create second sequence for block 101 (this caches block 100)
+        let fb1 = factory.flashblock_for_next_block(&fb0).build();
+        manager.insert_flashblock(fb1.clone()).unwrap();
+
+        // Create third sequence for block 102 (this caches block 101)
+        let fb2 = factory.flashblock_for_next_block(&fb1).build();
+        manager.insert_flashblock(fb2).unwrap();
+
+        // Local tip is some random hash (not matching any sequence parent)
+        let local_tip_hash = B256::random();
+
+        // Create pending parent state that matches the cached block 100 sequence's parent
+        let pending_state: PendingBlockState<OpPrimitives> = PendingBlockState {
+            block_hash: block_99_hash,
+            block_number: 99,
+            parent_hash: B256::random(),
+            execution_outcome: Arc::new(BlockExecutionOutput::default()),
+            cached_reads: CachedReads::default(),
+        };
+
+        // Should find cached sequence for block 100 (whose parent is block_99_hash)
+        let args = manager.next_buildable_args(local_tip_hash, 1000000, Some(pending_state));
+        assert!(args.is_some());
+        let build_args = args.unwrap();
+        assert!(build_args.pending_parent.is_some());
+        assert_eq!(build_args.base.block_number, 100);
+    }
+
+    #[test]
+    fn test_canonical_build_takes_priority_over_speculative() {
+        use crate::pending_state::PendingBlockState;
+        use reth_execution_types::BlockExecutionOutput;
+        use reth_revm::cached::CachedReads;
+        use std::sync::Arc;
+
+        let mut manager: SequenceManager<OpTxEnvelope> = SequenceManager::new(true);
+        let factory = TestFlashBlockFactory::new();
+
+        // Create a flashblock for block 100
+        let fb0 = factory.flashblock_at(0).build();
+        let parent_hash = fb0.base.as_ref().unwrap().parent_hash;
+        manager.insert_flashblock(fb0).unwrap();
+
+        // Create pending parent state with a different block hash
+        let pending_state: PendingBlockState<OpPrimitives> = PendingBlockState {
+            block_hash: B256::repeat_byte(0xAA),
+            block_number: 99,
+            parent_hash: B256::random(),
+            execution_outcome: Arc::new(BlockExecutionOutput::default()),
+            cached_reads: CachedReads::default(),
+        };
+
+        // Local tip matches the sequence parent (canonical mode should take priority)
+        let args = manager.next_buildable_args(parent_hash, 1000000, Some(pending_state));
+        assert!(args.is_some());
+        let build_args = args.unwrap();
+        // Should be canonical build (no pending_parent)
+        assert!(build_args.pending_parent.is_none());
     }
 }
