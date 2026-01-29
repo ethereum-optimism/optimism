@@ -30,6 +30,8 @@ mod worker;
 
 mod cache;
 
+pub mod validation;
+
 #[cfg(test)]
 mod test_utils;
 
