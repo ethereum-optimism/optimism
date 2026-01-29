@@ -78,7 +78,12 @@ func newSuperCannonVMRegisterTaskWithConfig(
 		syncValidator:          syncValidator,
 		skipPrestateValidation: gameType == gameTypes.SuperPermissionedGameType,
 		getTopPrestateProvider: func(ctx context.Context, prestateTimestamp uint64) (faultTypes.PrestateProvider, error) {
-			return super.NewSuperRootPrestateProvider(rootProvider, prestateTimestamp), nil
+			if rootProvider == nil && superNodeProvider != nil {
+				return super.NewSuperNodePrestateProvider(superNodeProvider, prestateTimestamp), nil
+			} else if rootProvider != nil && superNodeProvider == nil {
+				return super.NewSuperRootPrestateProvider(rootProvider, prestateTimestamp), nil
+			}
+			return nil, fmt.Errorf("must provide either rootProvider or superNodeProvider, but not both")
 		},
 		getBottomPrestateProvider: cachePrestates(
 			gameType,

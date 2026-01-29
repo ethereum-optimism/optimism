@@ -23,6 +23,7 @@ type SingleChainInterop struct {
 	system stack.ExtensibleSystem
 
 	Supervisor    *dsl.Supervisor
+	SuperRoots    proofs.SuperRootsSource
 	TestSequencer *dsl.TestSequencer
 	ControlPlane  stack.ControlPlane
 
@@ -47,21 +48,34 @@ func NewSingleChainInterop(t devtest.T) *SingleChainInterop {
 	orch := Orchestrator()
 	orch.Hydrate(system)
 
-	// At this point, any supervisor is acceptable but as the DSL gets fleshed out this should be selecting supervisors
-	// that fit with specific networks and nodes. That will likely require expanding the metadata exposed by the system
-	// since currently there's no way to tell which nodes are using which supervisor.
-	t.Gate().GreaterOrEqual(len(system.Supervisors()), 1, "expected at least one supervisor")
+	// At this point, either an op-supervisor (legacy) or op-supernode (replacement) is acceptable.
+	// The proof DSL depends only on super-roots and can be backed by either source.
+	t.Gate().True(len(system.Supervisors()) > 0 || len(system.Supernodes()) > 0, "expected at least one supervisor or supernode")
 
 	t.Gate().Equal(len(system.TestSequencers()), 1, "expected exactly one test sequencer")
 
 	l1Net := system.L1Network(match.FirstL1Network)
 	l2A := system.L2Network(match.Assume(t, match.L2ChainA))
+
+	var supervisor *dsl.Supervisor
+	var superRoots proofs.SuperRootsSource
+	switch {
+	case len(system.Supervisors()) > 0:
+		supervisor = dsl.NewSupervisor(system.Supervisor(match.Assume(t, match.FirstSupervisor)), orch.ControlPlane())
+		superRoots = proofs.NewSuperRootsFromSupervisor(supervisor)
+	case len(system.Supernodes()) > 0:
+		supernode := system.Supernode(match.Assume(t, match.FirstSupernode))
+		superRoots = proofs.NewSuperRootsFromSupernode(t, supernode)
+	default:
+		t.Gate().True(false, "expected at least one supervisor or supernode")
+	}
 	out := &SingleChainInterop{
 		Log:           t.Logger(),
 		T:             t,
 		system:        system,
 		TestSequencer: dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer))),
-		Supervisor:    dsl.NewSupervisor(system.Supervisor(match.Assume(t, match.FirstSupervisor)), orch.ControlPlane()),
+		Supervisor:    supervisor,
+		SuperRoots:    superRoots,
 		ControlPlane:  orch.ControlPlane(),
 		L1Network:     dsl.NewL1Network(l1Net),
 		L1EL:          dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
@@ -114,10 +128,11 @@ func (s *SimpleInterop) L2Networks() []*dsl.L2Network {
 }
 
 func (s *SimpleInterop) DisputeGameFactory() *proofs.DisputeGameFactory {
-	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), nil, nil, proofs.NewSuperRootsFromSupervisor(s.Supervisor), nil)
+	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), nil, nil, s.SuperRoots, nil)
 }
 
 func (s *SingleChainInterop) StandardBridge(l2Chain *dsl.L2Network) *dsl.StandardBridge {
+	s.T.Require().NotNil(s.Supervisor, "supervisor is required for StandardBridge")
 	return dsl.NewStandardBridge(s.T, l2Chain, s.Supervisor, s.L1EL)
 }
 
@@ -129,6 +144,16 @@ func WithSimpleInterop() stack.CommonOption {
 // WithSuperInterop specifies a super root system that meets the SimpleInterop criteria.
 func WithSuperInterop() stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultInteropProofsSystem(&sysgo.DefaultInteropSystemIDs{}))
+}
+
+// WithSuperInteropSupernode specifies a super root system (for proofs) that sources super-roots via op-supernode
+func WithSuperInteropSupernode() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultSupernodeInteropProofsSystem(&sysgo.DefaultSupernodeInteropProofsSystemIDs{}))
+}
+
+// WithIsthmusSuperSupernode specifies a super root system (for proofs) that sources super-roots via op-supernode
+func WithIsthmusSuperSupernode() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultSupernodeIsthmusSuperProofsSystem(&sysgo.DefaultSupernodeInteropProofsSystemIDs{}))
 }
 
 func WithIsthmusSuper() stack.CommonOption {

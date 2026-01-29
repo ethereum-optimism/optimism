@@ -45,7 +45,7 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 	supervisorID *stack.SupervisorID, clusterID *stack.ClusterID, l2CLID *stack.L2CLNodeID, l2ELIDs []stack.L2ELNodeID,
 ) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		WithL2ChallengerPostDeploy(orch, challengerID, l1ELID, l1CLID, supervisorID, clusterID, l2CLID, l2ELIDs)
+		WithL2ChallengerPostDeploy(orch, challengerID, l1ELID, l1CLID, supervisorID, clusterID, l2CLID, l2ELIDs, nil)
 	})
 }
 
@@ -53,12 +53,21 @@ func WithSuperL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELN
 	supervisorID *stack.SupervisorID, clusterID *stack.ClusterID, l2ELIDs []stack.L2ELNodeID,
 ) stack.Option[*Orchestrator] {
 	return stack.Finally(func(orch *Orchestrator) {
-		WithL2ChallengerPostDeploy(orch, challengerID, l1ELID, l1CLID, supervisorID, clusterID, nil, l2ELIDs)
+		WithL2ChallengerPostDeploy(orch, challengerID, l1ELID, l1CLID, supervisorID, clusterID, nil, l2ELIDs, nil)
+	})
+}
+
+func WithSupernodeL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID,
+	supernodeID *stack.SupernodeID, clusterID *stack.ClusterID, l2ELIDs []stack.L2ELNodeID,
+) stack.Option[*Orchestrator] {
+	return stack.Finally(func(orch *Orchestrator) {
+		WithL2ChallengerPostDeploy(orch, challengerID, l1ELID, l1CLID, nil, clusterID, nil, l2ELIDs, supernodeID)
 	})
 }
 
 func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID,
 	supervisorID *stack.SupervisorID, clusterID *stack.ClusterID, l2CLID *stack.L2CLNodeID, l2ELIDs []stack.L2ELNodeID,
+	supernodeID *stack.SupernodeID,
 ) {
 	ctx := orch.P().Ctx()
 	ctx = stack.ContextWithID(ctx, challengerID)
@@ -121,10 +130,25 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 	var cfg *config.Config
 	// If interop is scheduled, or if we cannot do the pre-interop connection, then set up with supervisor
 	if interopScheduled || l2CLID == nil || useSuperRoots {
-		require.NotNil(supervisorID, "need supervisor to connect to in interop")
 		require.NotNil(clusterID, "need cluster in interop")
-		supervisorNode, ok := orch.supervisors.Get(*supervisorID)
-		require.True(ok)
+		require.False(supervisorID != nil && supernodeID != nil, "cannot set both supervisorID and supernodeID")
+
+		superRPC := ""
+		useSuperNode := false
+		switch {
+		case supervisorID != nil:
+			supervisorNode, ok := orch.supervisors.Get(*supervisorID)
+			require.True(ok)
+			superRPC = supervisorNode.UserRPC()
+		case supernodeID != nil:
+			supernode, ok := orch.supernodes.Get(*supernodeID)
+			require.True(ok)
+			superRPC = supernode.UserRPC()
+			useSuperNode = true
+		default:
+			require.FailNow("need supervisor or supernode to connect to in interop/super-roots")
+		}
+
 		l2ELRPCs := make([]string, len(l2ELIDs))
 		for i, l2ELID := range l2ELIDs {
 			l2EL, ok := orch.l2ELs.Get(l2ELID)
@@ -148,8 +172,9 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 				shared.WithCannonKonaGameType(),
 			)
 		}
-		cfg, err = shared.NewInteropChallengerConfig(dir, l1EL.UserRPC(), l1CL.beaconHTTPAddr, supervisorNode.UserRPC(), l2ELRPCs, options...)
+		cfg, err = shared.NewInteropChallengerConfig(dir, l1EL.UserRPC(), l1CL.beaconHTTPAddr, superRPC, l2ELRPCs, options...)
 		require.NoError(err, "Failed to create interop challenger config")
+		cfg.UseSuperNode = useSuperNode
 	} else {
 		require.NotNil(l2CLID, "need L2 CL to connect to pre-interop")
 		// In a post-interop infra setup, with unscheduled interop, we may see multiple EL nodes.

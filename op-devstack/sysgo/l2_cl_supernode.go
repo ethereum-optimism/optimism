@@ -3,6 +3,7 @@ package sysgo
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -26,12 +27,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	snconfig "github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 type SuperNode struct {
 	mu sync.Mutex
 
-	id               stack.L2CLNodeID
+	id               stack.SupernodeID
 	sn               *supernode.Supernode
 	cancel           context.CancelFunc
 	userRPC          string
@@ -39,7 +41,8 @@ type SuperNode struct {
 	interopJwtSecret eth.Bytes32
 	p                devtest.P
 	logger           log.Logger
-	el               *stack.L2ELNodeID // Optional: nil when using SyncTester
+	els              []*stack.L2ELNodeID // Optional: nil when using SyncTester
+	chains           []eth.ChainID
 	l1UserRPC        string
 	l1BeaconAddr     string
 }
@@ -52,20 +55,28 @@ func (n *SuperNode) hydrate(system stack.ExtensibleSystem) {
 	require.NoError(err)
 	system.T().Cleanup(rpcCl.Close)
 
-	sysL2CL := shim.NewL2CLNode(shim.L2CLNodeConfig{
-		CommonConfig:     shim.NewCommonConfig(system.T()),
-		ID:               n.id,
-		Client:           rpcCl,
-		UserRPC:          n.userRPC,
-		InteropEndpoint:  n.interopEndpoint,
-		InteropJwtSecret: n.interopJwtSecret,
-	})
-	sysL2CL.SetLabel(match.LabelVendor, string(match.OpNode))
-	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
-	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
-	if n.el != nil {
-		sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(n.el))
-	}
+	/*
+		sysL2CL := shim.NewL2CLNode(shim.L2CLNodeConfig{
+			CommonConfig:     shim.NewCommonConfig(system.T()),
+			ID:               n.id,
+			Client:           rpcCl,
+			UserRPC:          n.userRPC,
+			InteropEndpoint:  n.interopEndpoint,
+			InteropJwtSecret: n.interopJwtSecret,
+		})
+		sysL2CL.SetLabel(match.LabelVendor, string(match.OpNode))
+		l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
+		l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
+		if n.el != nil {
+			sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(n.el))
+		}
+	*/
+
+	system.AddSupernode(shim.NewSuperNode(shim.SuperNodeConfig{
+		CommonConfig: shim.NewCommonConfig(system.T()),
+		ID:           n.id,
+		Client:       rpcCl,
+	}))
 }
 
 func (n *SuperNode) UserRPC() string {
@@ -84,9 +95,15 @@ func (n *SuperNode) Start() {
 		return
 	}
 
+	n.p.Require().NotEmpty(n.chains, "supernode has no chains configured")
+	chainIDs := make([]uint64, 0, len(n.chains))
+	for _, id := range n.chains {
+		chainIDs = append(chainIDs, eth.EvilChainIDToUInt64(id))
+	}
+
 	// Build CLI config for supernode (single-chain)
 	cfg := &snconfig.CLIConfig{
-		Chains:       []uint64{eth.EvilChainIDToUInt64(n.id.ChainID())},
+		Chains:       chainIDs,
 		DataDir:      n.p.TempDir(),
 		L1NodeAddr:   n.l1UserRPC,
 		L1BeaconAddr: n.l1BeaconAddr,
@@ -142,10 +159,10 @@ func (n *SuperNode) Stop() {
 	n.sn = nil
 }
 
-// WithSuperNode constructs a Supernode-based L2 CL node
-func WithSuperNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+// WithSupernode constructs a Supernode-based L2 CL node
+func WithSupernode(supernodeID stack.SupernodeID, l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	args := []L2CLs{{CLID: l2CLID, ELID: l2ELID}}
-	return WithSharedSupernodeCLs(args, l1CLID, l1ELID)
+	return WithSharedSupernodeCLs(supernodeID, args, l1CLID, l1ELID)
 }
 
 // SuperNodeProxy is a thin wrapper that points to a shared supernode instance.
@@ -196,7 +213,7 @@ type L2CLs struct {
 }
 
 // WithSharedSupernodeCLs starts one supernode for N L2 chains and registers thin L2CL wrappers.
-func WithSharedSupernodeCLs(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
+func WithSharedSupernodeCLs(supernodeID stack.SupernodeID, cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		p := orch.P()
 		require := p.Require()
@@ -215,9 +232,13 @@ func WithSharedSupernodeCLs(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		logger := p.Logger()
 
 		// Build per-chain op-node configs
-		makeNodeCfg := func(l2Net *L2Network, l2EL L2ELNode, isSequencer bool) *config.Config {
+		makeNodeCfg := func(l2Net *L2Network, l2ChainID eth.ChainID, l2EL L2ELNode, isSequencer bool) *config.Config {
 			interopCfg := &interop.Config{}
 			l2EngineAddr := l2EL.EngineRPC()
+			var depSet depset.DependencySet
+			if cluster, ok := orch.ClusterForL2(l2ChainID); ok {
+				depSet = cluster.DepSet()
+			}
 			return &config.Config{
 				L1: &config.L1EndpointConfig{
 					L1NodeAddr:       l1EL.UserRPC(),
@@ -234,6 +255,7 @@ func WithSharedSupernodeCLs(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L
 					L2EngineAddr:      l2EngineAddr,
 					L2EngineJWTSecret: jwtSecret,
 				},
+				DependencySet:                   depSet,
 				Beacon:                          &config.L1BeaconEndpointConfig{BeaconAddr: l1CL.beaconHTTPAddr},
 				Driver:                          driver.Config{SequencerEnabled: isSequencer, SequencerConfDepth: 2},
 				Rollup:                          *l2Net.rollupCfg,
@@ -255,15 +277,20 @@ func WithSharedSupernodeCLs(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		// Gather VN configs and chain IDs
 		vnCfgs := make(map[eth.ChainID]*config.Config)
 		chainIDs := make([]uint64, 0, len(cls))
-		for _, a := range cls {
+		els := make([]*stack.L2ELNodeID, 0, len(cls))
+		for i := range cls {
+			a := cls[i]
 			l2Net, ok := orch.l2Nets.Get(a.CLID.ChainID())
 			require.True(ok, "l2 network required")
 			l2ELNode, ok := orch.l2ELs.Get(a.ELID)
 			require.True(ok, "l2 EL node required")
-			cfg := makeNodeCfg(l2Net, l2ELNode, true)
+			l2ChainID := a.CLID.ChainID()
+			cfg := makeNodeCfg(l2Net, l2ChainID, l2ELNode, true)
+			require.NoError(cfg.Check(), "invalid op-node config for chain %s", a.CLID.ChainID())
 			id := eth.EvilChainIDToUInt64(a.CLID.ChainID())
 			chainIDs = append(chainIDs, id)
 			vnCfgs[eth.ChainIDFromUInt64(id)] = cfg
+			els = append(els, &cls[i].ELID)
 		}
 
 		// Start shared supernode with all chains
@@ -308,7 +335,8 @@ func WithSharedSupernodeCLs(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				time.Sleep(200 * time.Millisecond)
 			}
 		}
-		for _, a := range cls {
+		for i := range cls {
+			a := cls[i]
 			// Multi-chain router exposes per-chain namespace paths
 			rpc := base + "/" + strconv.FormatUint(eth.EvilChainIDToUInt64(a.CLID.ChainID()), 10)
 			waitReady(rpc)
@@ -319,9 +347,42 @@ func WithSharedSupernodeCLs(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				userRPC:          rpc,
 				interopEndpoint:  rpc,
 				interopJwtSecret: jwtSecret,
-				el:               &a.ELID,
+				el:               &cls[i].ELID,
 			}
 			require.True(orch.l2CLs.SetIfMissing(a.CLID, proxy), fmt.Sprintf("must not already exist: %s", a.CLID))
 		}
+
+		supernode := &SuperNode{
+			id:               supernodeID,
+			sn:               sn,
+			cancel:           cancel,
+			userRPC:          base,
+			interopEndpoint:  base,
+			interopJwtSecret: jwtSecret,
+			p:                p,
+			logger:           logger,
+			els:              els,
+			chains:           idsFromCLs(cls),
+			l1UserRPC:        l1EL.UserRPC(),
+			l1BeaconAddr:     l1CL.beaconHTTPAddr,
+		}
+		orch.supernodes.Set(supernodeID, supernode)
 	})
+}
+
+func idsFromCLs(cls []L2CLs) []eth.ChainID {
+	out := make([]eth.ChainID, 0, len(cls))
+	seen := make(map[eth.ChainID]struct{}, len(cls))
+	for _, c := range cls {
+		id := c.CLID.ChainID()
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return eth.EvilChainIDToUInt64(out[i]) < eth.EvilChainIDToUInt64(out[j])
+	})
+	return out
 }

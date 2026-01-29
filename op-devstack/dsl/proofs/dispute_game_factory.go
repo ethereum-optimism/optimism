@@ -211,7 +211,7 @@ func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType g
 }
 
 func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *GameCfg) []byte {
-	f.require.NotNil(f.superRoots, "super roots is required create super games")
+	f.require.NotNil(f.superRoots, "super roots source is required create super games")
 	if !cfg.allowFuture {
 		f.superRoots.AwaitMinVerifiedTimestamp(timestamp)
 	}

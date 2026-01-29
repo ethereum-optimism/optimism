@@ -84,7 +84,5 @@ func (s *supernodeSuperRootsSource) SuperV1AtTimestamp(timestamp uint64) *eth.Su
 		return resp.Data != nil
 	}, 2*time.Minute, 1*time.Second)
 	s.require.NotNil(resp.Data, "Super root data must be present at timestamp %v", timestamp)
-	superV1, ok := resp.Data.Super.(*eth.SuperV1)
-	s.require.Truef(ok, "Unsupported super type %T", resp.Data.Super)
-	return superV1
+	return resp.Data.Super
 }

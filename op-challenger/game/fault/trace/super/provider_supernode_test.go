@@ -535,7 +535,7 @@ type stubSuperNodeRootProvider struct {
 }
 
 func (s *stubSuperNodeRootProvider) Add(root eth.SuperRootAtTimestampResponse) {
-	superV1 := root.Data.Super.(*eth.SuperV1)
+	superV1 := root.Data.Super
 	s.AddAtTimestamp(superV1.Timestamp, root)
 }
 

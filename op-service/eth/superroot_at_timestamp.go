@@ -12,7 +12,7 @@ type SuperRootResponseData struct {
 	VerifiedRequiredL1 BlockID `json:"verified_required_l1"`
 
 	// Super is the unhashed data for the superroot at the given timestamp after all verification is applied.
-	Super Super `json:"super"`
+	Super *SuperV1 `json:"super"`
 
 	// SuperRoot is the superroot at the given timestamp after all verification is applied.
 	SuperRoot Bytes32 `json:"super_root"`
