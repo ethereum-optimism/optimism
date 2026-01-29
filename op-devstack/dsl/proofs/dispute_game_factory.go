@@ -190,13 +190,13 @@ func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 	return f.GameAtIndex(initialCount)
 }
 
-func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
+func (f *DisputeGameFactory) StartSuperCannonKonaGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
 	f.require.NotNil(f.superNode, "super node is required to start super games")
 
-	return f.startSuperCannonGameOfType(eoa, gameTypes.SuperCannonGameType, opts...)
+	return f.startSuperGameOfType(eoa, gameTypes.SuperCannonKonaGameType, opts...)
 }
 
-func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType gameTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
+func (f *DisputeGameFactory) startSuperGameOfType(eoa *dsl.EOA, gameType gameTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
 	cfg := NewGameCfg(opts...)
 	if len(cfg.superOutputRoots) != 0 && cfg.rootClaimSet {
 		f.t.Error("cannot set both super output roots and root claim in super game")
@@ -274,13 +274,13 @@ func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challeng
 			f.challengerCfg.CannonKona,
 			vm.NewKonaExecutor(),
 		)
-	case gameTypes.SuperCannonGameType:
+	case gameTypes.SuperCannonKonaGameType:
 		return f.honestSuperCannonTrace(
 			game,
-			f.challengerCfg.CannonAbsolutePreStateBaseURL,
-			f.challengerCfg.CannonAbsolutePreState,
-			f.challengerCfg.Cannon,
-			vm.NewOpProgramServerExecutor(f.log),
+			f.challengerCfg.CannonKonaAbsolutePreStateBaseURL,
+			f.challengerCfg.CannonKonaAbsolutePreState,
+			f.challengerCfg.CannonKona,
+			vm.NewKonaSuperExecutor(),
 		)
 	default:
 		f.require.Truef(false, "Honest trace not supported for game type %v", game.GameType())

@@ -25,7 +25,7 @@ func TestChallengerPlaysGame(gt *testing.T) {
 	badClaim := common.HexToHash("0xdeadbeef00000000000000000000000000000000000000000000000000000000")
 	attacker := sys.FunderL1.NewFundedEOA(eth.Ether(15))
 	dgf := sys.DisputeGameFactory()
-	game := dgf.StartSuperCannonGame(attacker, proofs.WithSuperRootFrom(eth.Bytes32(badClaim), eth.Bytes32(badClaim)))
+	game := dgf.StartSuperCannonKonaGame(attacker, proofs.WithSuperRootFrom(eth.Bytes32(badClaim), eth.Bytes32(badClaim)))
 
 	claim := game.RootClaim()                   // This is the bad claim from attacker
 	counterClaim := claim.WaitForCounterClaim() // This is the counter-claim from the challenger
@@ -47,7 +47,7 @@ func TestChallengerRespondsToMultipleInvalidClaims(gt *testing.T) {
 	attacker := sys.FunderL1.NewFundedEOA(eth.TenEther)
 	dgf := sys.DisputeGameFactory()
 
-	game := dgf.StartSuperCannonGame(attacker)
+	game := dgf.StartSuperCannonKonaGame(attacker)
 	claims := game.PerformMoves(attacker,
 		proofs.Move(0, common.Hash{0x01}, true),
 		proofs.Move(1, common.Hash{0x03}, true),
@@ -70,7 +70,7 @@ func TestChallengerRespondsToMultipleInvalidClaimsEOA(gt *testing.T) {
 	dgf := sys.DisputeGameFactory()
 	attacker := dgf.CreateHelperEOA(sys.FunderL1.NewFundedEOA(eth.TenEther))
 
-	game := dgf.StartSuperCannonGame(attacker.EOA)
+	game := dgf.StartSuperCannonKonaGame(attacker.EOA)
 	claims := attacker.PerformMoves(game.FaultDisputeGame,
 		proofs.Move(0, common.Hash{0x01}, true),
 		proofs.Move(1, common.Hash{0x03}, true),
