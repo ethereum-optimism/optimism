@@ -42,6 +42,7 @@ type SuperNode struct {
 	p                devtest.P
 	logger           log.Logger
 	els              []*stack.L2ELNodeID // Optional: nil when using SyncTester
+	cls              []stack.L2CLNodeID
 	chains           []eth.ChainID
 	l1UserRPC        string
 	l1BeaconAddr     string
@@ -55,22 +56,22 @@ func (n *SuperNode) hydrate(system stack.ExtensibleSystem) {
 	require.NoError(err)
 	system.T().Cleanup(rpcCl.Close)
 
-	/*
+	for i := range n.cls {
 		sysL2CL := shim.NewL2CLNode(shim.L2CLNodeConfig{
 			CommonConfig:     shim.NewCommonConfig(system.T()),
-			ID:               n.id,
+			ID:               n.cls[i],
 			Client:           rpcCl,
 			UserRPC:          n.userRPC,
 			InteropEndpoint:  n.interopEndpoint,
 			InteropJwtSecret: n.interopJwtSecret,
 		})
 		sysL2CL.SetLabel(match.LabelVendor, string(match.OpNode))
-		l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
+		l2Net := system.L2Network(stack.L2NetworkID(n.cls[i].ChainID()))
 		l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
-		if n.el != nil {
-			sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(n.el))
+		if n.els[i] != nil {
+			sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(n.els[i]))
 		}
-	*/
+	}
 
 	system.AddSupernode(shim.NewSuperNode(shim.SuperNodeConfig{
 		CommonConfig: shim.NewCommonConfig(system.T()),
@@ -278,6 +279,7 @@ func WithSharedSupernodeCLs(supernodeID stack.SupernodeID, cls []L2CLs, l1CLID s
 		vnCfgs := make(map[eth.ChainID]*config.Config)
 		chainIDs := make([]uint64, 0, len(cls))
 		els := make([]*stack.L2ELNodeID, 0, len(cls))
+		clIDs := make([]stack.L2CLNodeID, len(cls))
 		for i := range cls {
 			a := cls[i]
 			l2Net, ok := orch.l2Nets.Get(a.CLID.ChainID())
@@ -291,6 +293,7 @@ func WithSharedSupernodeCLs(supernodeID stack.SupernodeID, cls []L2CLs, l1CLID s
 			chainIDs = append(chainIDs, id)
 			vnCfgs[eth.ChainIDFromUInt64(id)] = cfg
 			els = append(els, &cls[i].ELID)
+			clIDs = append(clIDs, cls[i].CLID)
 		}
 
 		// Start shared supernode with all chains
@@ -362,6 +365,7 @@ func WithSharedSupernodeCLs(supernodeID stack.SupernodeID, cls []L2CLs, l1CLID s
 			p:                p,
 			logger:           logger,
 			els:              els,
+			cls:              clIDs,
 			chains:           idsFromCLs(cls),
 			l1UserRPC:        l1EL.UserRPC(),
 			l1BeaconAddr:     l1CL.beaconHTTPAddr,
