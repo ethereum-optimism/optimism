@@ -4,7 +4,11 @@ This file explains the rules that you should use when reviewing a PR.
 
 ## Applicability
 
-You are ONLY to review changes to Solidity files (*.sol). Do NOT leave comments on any other file types.
+You are ONLY to review changes to:
+- Solidity files (`*.sol`)
+- Storage layout snapshot files (`packages/contracts-bedrock/snapshots/storageLayout/*.json`)
+
+Do NOT leave comments on any other file types.
 
 ## OPCM Version Bump Warnings
 
@@ -71,3 +75,37 @@ If the PR changes the Foundry dependency versions, i.e the `forge`, `cast`, and 
 > Please include a reference to the approved and merged design document that approves these foundry versions for usage in the PR description. Otherwise, the PR will not be approved.
 >
 > For more information on the Foundry version upgrade process, please see the [Foundry version upgrade policy](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/book/src/policies/foundry-upgrades.md).
+
+### Storage Layout Mutation Warnings
+
+If a PR modifies files in `packages/contracts-bedrock/snapshots/storageLayout/`, you MUST analyze the diff to determine if storage slots are being **mutated** or **deleted** (as opposed to purely added).
+
+**What constitutes a mutation or deletion:**
+- A storage slot's `slot` number changes for an existing field (field shifted to different slot)
+- A storage slot's `type` changes for an existing field
+- A storage slot's `offset` changes for an existing field
+- A storage slot entry is removed entirely (field deleted)
+- A storage layout file is deleted (contract removed)
+
+**What is NOT a concern:**
+- Purely adding new storage slots at the end of a contract's layout (new fields appended)
+- Adding a new storage layout file for a new contract
+
+If you detect **any** mutation or deletion of existing storage slots, you MUST leave a prominent comment on the PR with the following message:
+
+> ⚠️ **Storage Layout Mutation Detected**
+>
+> This PR modifies or deletes existing storage slots in the following file(s):
+> - `[list the affected storage layout files]`
+>
+> **Changes detected:**
+> - `[describe the specific mutations: slot shifts, type changes, deletions, etc.]`
+>
+> Mutating or deleting storage slots can be **dangerous** for upgradeable contracts, as it may corrupt existing on-chain state.
+>
+> **Required action:** Please add an explicit comment in the PR description or in the code explaining why this storage layout change is safe. For example:
+> - "This contract is not upgradeable and is always deployed fresh"
+> - "This is a new contract that has never been deployed"
+> - "Storage slots X-Y are intentionally being reorganized because [reason], and this is safe because [justification]"
+>
+> The PR cannot be approved until this acknowledgment is provided.
