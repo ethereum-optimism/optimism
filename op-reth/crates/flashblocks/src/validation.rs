@@ -190,9 +190,14 @@ pub enum ReconciliationStrategy {
     CatchUp,
     /// Reorg detected (tx mismatch). Rebuild pending from canonical.
     HandleReorg,
-    /// Pending too far ahead of canonical.
+    /// Pending state window has been open too long.
+    ///
+    /// The `depth` is calculated as `canonical_block_number - earliest_pending_block`,
+    /// representing how many blocks the canonical chain has advanced since we started
+    /// tracking pending state. This limit prevents unbounded memory growth from tracking
+    /// pending state across too many canonical blocks.
     DepthLimitExceeded {
-        /// Current depth of pending blocks.
+        /// How far canonical has advanced since earliest pending block.
         depth: u64,
         /// Configured maximum depth.
         max_depth: u64,
@@ -266,7 +271,8 @@ impl CanonicalBlockReconciler {
             return ReconciliationStrategy::HandleReorg;
         }
 
-        // Check depth limit
+        // Check depth limit: how far has canonical advanced since earliest pending?
+        // This prevents tracking pending state across too many canonical blocks.
         let depth = canonical_block_number.saturating_sub(earliest);
         if depth > max_depth {
             return ReconciliationStrategy::DepthLimitExceeded { depth, max_depth };
@@ -448,6 +454,56 @@ mod tests {
                 ReorgDetectionResult::ReorgDetected { tracked_count: 1, canonical_count: 2 };
             assert!(reorg.is_reorg());
             assert!(!reorg.is_no_reorg());
+        }
+
+        #[test]
+        fn test_reorg_partial_overlap() {
+            // Same first transaction, different second transaction
+            let tracked = vec![B256::repeat_byte(0x01), B256::repeat_byte(0x02)];
+            let canonical = vec![B256::repeat_byte(0x01), B256::repeat_byte(0x03)];
+
+            assert_eq!(
+                ReorgDetector::detect(&tracked, &canonical),
+                ReorgDetectionResult::ReorgDetected { tracked_count: 2, canonical_count: 2 }
+            );
+        }
+
+        #[test]
+        fn test_reorg_subset_not_equal() {
+            // Canonical is a prefix of tracked - still a reorg (different counts)
+            let tracked = vec![B256::repeat_byte(0x01), B256::repeat_byte(0x02)];
+            let canonical = vec![B256::repeat_byte(0x01)];
+
+            assert_eq!(
+                ReorgDetector::detect(&tracked, &canonical),
+                ReorgDetectionResult::ReorgDetected { tracked_count: 2, canonical_count: 1 }
+            );
+
+            // Tracked is a prefix of canonical - still a reorg
+            let tracked = vec![B256::repeat_byte(0x01)];
+            let canonical = vec![B256::repeat_byte(0x01), B256::repeat_byte(0x02)];
+
+            assert_eq!(
+                ReorgDetector::detect(&tracked, &canonical),
+                ReorgDetectionResult::ReorgDetected { tracked_count: 1, canonical_count: 2 }
+            );
+        }
+
+        #[test]
+        fn test_empty_vs_non_empty() {
+            // Empty tracked vs non-empty canonical
+            let canonical = vec![B256::repeat_byte(0x01)];
+            assert_eq!(
+                ReorgDetector::detect(&[], &canonical),
+                ReorgDetectionResult::ReorgDetected { tracked_count: 0, canonical_count: 1 }
+            );
+
+            // Non-empty tracked vs empty canonical
+            let tracked = vec![B256::repeat_byte(0x01)];
+            assert_eq!(
+                ReorgDetector::detect(&tracked, &[]),
+                ReorgDetectionResult::ReorgDetected { tracked_count: 1, canonical_count: 0 }
+            );
         }
     }
 
