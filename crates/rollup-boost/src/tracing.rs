@@ -132,21 +132,25 @@ pub fn init_tracing(args: &RollupBoostServiceArgs) -> eyre::Result<()> {
             .with_endpoint(&args.otlp_endpoint)
             .build()
             .context("Failed to create OTLP exporter")?;
+
+        // precedence: OTEL_SERVICE_NAME -> CARGO_PKG_NAME -> "rollup-boost"
+        let service_name = std::env::var("OTEL_SERVICE_NAME")
+            .ok()
+            .or_else(|| std::env::var("CARGO_PKG_NAME").ok())
+            .unwrap_or("rollup-boost".to_string());
+
+        let resource = Resource::builder()
+            .with_attribute(KeyValue::new("service.name", service_name))
+            .build();
+
         let mut provider_builder = opentelemetry_sdk::trace::SdkTracerProvider::builder()
             .with_batch_exporter(otlp_exporter)
-            .with_resource(
-                Resource::builder_empty()
-                    .with_attributes([
-                        KeyValue::new("service.name", env!("CARGO_PKG_NAME")),
-                        KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
-                    ])
-                    .build(),
-            );
+            .with_resource(resource);
         if args.metrics {
             provider_builder = provider_builder.with_span_processor(MetricsSpanProcessor);
         }
         let provider = provider_builder.build();
-        let tracer = provider.tracer(env!("CARGO_PKG_NAME"));
+        let tracer = provider.tracer("rollup-boost");
 
         let trace_filter = Targets::new()
             .with_default(LevelFilter::OFF)
