@@ -333,3 +333,29 @@ target "op-interop-mon" {
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-interop-mon:${tag}"]
 }
+
+// Rust-based images
+
+target "op-rbuilder" {
+  dockerfile = "Dockerfile"
+  context = "op-rbuilder"
+  target = "rbuilder-runtime"
+  args = {
+    RBUILDER_BIN = "op-rbuilder"
+    FEATURES = ""
+  }
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-rbuilder:${tag}"]
+}
+
+target "kona-node" {
+  dockerfile = "docker/apps/kona_app_generic.dockerfile"
+  context = "kona"
+  args = {
+    REPO_LOCATION = "local"
+    BIN_TARGET = "kona-node"
+    BUILD_PROFILE = "release"
+  }
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/kona-node:${tag}"]
+}

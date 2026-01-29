@@ -2,11 +2,8 @@ version: 2.1
 
 # Op-Alloy CI Continuation Configuration
 # This file contains ONLY Op-Alloy-specific jobs and workflows.
-# It is merged with main.yml when op-alloy/** changes are detected.
-# Shared orbs, commands, and jobs come from main.yml during merge.
-
-orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.23
+# It is merged with main.yml and rust-ci.yml when op-alloy/** changes are detected.
+# Shared orbs, commands, and jobs come from main.yml and rust-ci.yml during merge.
 
 parameters:
   default_docker_image:
@@ -17,229 +14,9 @@ parameters:
     default: false
 
 # ============================================================================
-# Op-Alloy Jobs (migrated from op-alloy/.github/workflows)
+# Op-Alloy Jobs (project-specific only; shared jobs are in rust-ci.yml)
 # ============================================================================
 jobs:
-  # Op-Alloy Rust CI - Tests (from ci.yml)
-  op-alloy-cargo-tests:
-    parameters:
-      rust_version:
-        description: The Rust version to use
-        type: string
-        default: "stable"
-      flags:
-        description: Feature flags for cargo
-        type: string
-        default: ""
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-alloy-tests-cache
-          directory: op-alloy
-          prefix: op-alloy-tests
-          profile: "release"
-      - rust-install-toolchain:
-          toolchain_version: << parameters.rust_version >>
-      - install-cargo-binstall
-      - run:
-          name: Install nextest
-          command: |
-            command -v cargo-nextest >/dev/null || cargo binstall --no-confirm cargo-nextest
-      - run:
-          name: Build or test (MSRV builds only)
-          working_directory: op-alloy
-          no_output_timeout: 40m
-          command: |
-            cargo nextest run --workspace << parameters.flags >>
-      - rust-save-build-cache: *op-alloy-tests-cache
-
-  # Op-Alloy Rust CI - Doc Tests (from ci.yml)
-  op-alloy-cargo-doctest:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-alloy-doctest-cache
-          directory: op-alloy
-          prefix: op-alloy-doctest
-      - run:
-          name: Run doc tests
-          working_directory: op-alloy
-          no_output_timeout: 40m
-          command: |
-            just test-docs
-      - rust-save-build-cache: *op-alloy-doctest-cache
-
-  # Op-Alloy Rust CI - WASM Unknown Target (from ci.yml)
-  op-alloy-wasm-unknown:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-alloy-wasm-unknown-cache
-          directory: op-alloy
-          prefix: op-alloy-wasm-unknown
-      - rust-install-toolchain:
-          target: wasm32-unknown-unknown
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-hack
-          command: |
-            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
-      - run:
-          name: Build for wasm32-unknown-unknown
-          working_directory: op-alloy
-          no_output_timeout: 40m
-          command: |
-            cargo hack build --workspace --target wasm32-unknown-unknown --exclude op-alloy-network --exclude op-alloy-rpc-jsonrpsee --exclude op-alloy-provider
-      - rust-save-build-cache: *op-alloy-wasm-unknown-cache
-
-  # Op-Alloy Rust CI - WASM WASI Target (from ci.yml)
-  op-alloy-wasm-wasi:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-alloy-wasm-wasi-cache
-          directory: op-alloy
-          prefix: op-alloy-wasm-wasi
-      - rust-install-toolchain:
-          target: wasm32-wasip1
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-hack
-          command: |
-            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
-      - run:
-          name: Build for wasm32-wasip1
-          working_directory: op-alloy
-          no_output_timeout: 40m
-          command: |
-            cargo hack build --workspace --target wasm32-wasip1 --exclude op-alloy-network --exclude op-alloy-rpc-types --exclude op-alloy-provider --exclude op-alloy-rpc-jsonrpsee
-      - rust-save-build-cache: *op-alloy-wasm-wasi-cache
-
-  # Op-Alloy Rust CI - no_std Check (from ci.yml)
-  op-alloy-check-no-std:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-alloy-no-std-cache
-          directory: op-alloy
-          prefix: op-alloy-no-std
-      - rust-install-toolchain:
-          target: riscv32imac-unknown-none-elf
-      - run:
-          name: Add target to stable toolchain
-          command: |
-            rustup target add riscv32imac-unknown-none-elf --toolchain stable
-      - run:
-          name: Check no_std compatibility
-          working_directory: op-alloy
-          no_output_timeout: 30m
-          command: |
-            ./scripts/check_no_std.sh
-      - rust-save-build-cache: *op-alloy-no-std-cache
-
-  # Op-Alloy Rust CI - Feature Checks (from ci.yml)
-  op-alloy-feature-checks:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-alloy-feature-checks-cache
-          directory: op-alloy
-          prefix: op-alloy-feature-checks
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-hack
-          command: |
-            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
-      - run:
-          name: Run feature powerset check (depth 1)
-          working_directory: op-alloy
-          no_output_timeout: 40m
-          command: |
-            cargo hack check --feature-powerset --depth 1
-      - rust-save-build-cache: *op-alloy-feature-checks-cache
-
-  # Op-Alloy Rust CI - Clippy (from ci.yml)
-  op-alloy-clippy:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-alloy-clippy-cache
-          directory: op-alloy
-          prefix: op-alloy-clippy
-      - rust-install-toolchain:
-          components: clippy
-      - run:
-          name: Run clippy
-          working_directory: op-alloy
-          no_output_timeout: 40m
-          command: |
-            just clippy
-      - rust-save-build-cache: *op-alloy-clippy-cache
-
-  # Op-Alloy Rust CI - Docs (from ci.yml)
-  op-alloy-docs:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-alloy-docs-cache
-          directory: op-alloy
-          prefix: op-alloy-docs
-      - rust-install-toolchain:
-          channel: nightly
-          toolchain_version: nightly
-      - run:
-          name: Build documentation
-          working_directory: op-alloy
-          no_output_timeout: 40m
-          environment:
-            RUSTDOCFLAGS: "--cfg docsrs -D warnings --show-type-layout --generate-link-to-definition --enable-index-page -Zunstable-options"
-          command: |
-            cargo doc --workspace --all-features --no-deps --document-private-items
-      - rust-save-build-cache: *op-alloy-docs-cache
-
-  # Op-Alloy Rust CI - Format Check (from ci.yml)
-  op-alloy-fmt:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: medium
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare
-      - rust-install-toolchain:
-          channel: nightly
-          toolchain_version: nightly
-          components: rustfmt
-      - run:
-          name: Check formatting
-          working_directory: op-alloy
-          command: |
-            just fmt-check
-
   # Op-Alloy Rust CI - Examples (from ci.yml)
   op-alloy-examples:
     docker:
@@ -284,109 +61,6 @@ jobs:
             just check
       - rust-save-build-cache: *op-alloy-cfg-check-cache
 
-  # Op-Alloy Rust CI - Typos (from lint.yml)
-  op-alloy-typos:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: medium
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare
-      - install-cargo-binstall
-      - run:
-          name: Install typos-cli
-          command: |
-            command -v typos >/dev/null || cargo binstall --no-confirm typos-cli
-      - run:
-          name: Check for typos
-          working_directory: op-alloy
-          command: |
-            typos
-
-  # Op-Alloy Rust CI - Cargo Deny (from deps.yml)
-  op-alloy-cargo-deny:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: medium
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-deny
-          command: |
-            command -v cargo-deny >/dev/null || cargo binstall --no-confirm cargo-deny
-      - run:
-          name: Run cargo deny
-          working_directory: op-alloy
-          command: |
-            cargo deny check
-
-  # Op-Alloy Rust CI - Zepter (from lint.yml)
-  op-alloy-zepter:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: medium
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare
-      - install-cargo-binstall
-      - run:
-          name: Install zepter
-          command: |
-            command -v zepter >/dev/null || cargo binstall --no-confirm zepter
-            zepter --version
-      - run:
-          name: Check feature propagation
-          working_directory: op-alloy
-          command: |
-            time zepter run check
-
-  # Op-Alloy Rust CI - Cargo Hack (from ci.yml)
-  op-alloy-cargo-hack:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
-    parallelism: 4
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache:
-          directory: op-alloy
-          features: "all"
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-hack
-          command: |
-            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
-      - run:
-          name: Shard and run cargo hack
-          working_directory: op-alloy
-          no_output_timeout: 40m
-          command: |
-            set -euo pipefail
-
-            # 1) Produce the full list of concrete cargo commands (one per line)
-            cargo hack check \
-              --feature-powerset --no-dev-deps \
-              --workspace --locked \
-              --print-command-list > /tmp/hack_cmds.txt
-
-            # 2) Take only this node's slice
-            awk "NR % ${CIRCLE_NODE_TOTAL} == ${CIRCLE_NODE_INDEX}" /tmp/hack_cmds.txt \
-              > /tmp/hack_cmds_shard.txt
-
-            echo "Node ${CIRCLE_NODE_INDEX}/${CIRCLE_NODE_TOTAL} running $(wc -l < /tmp/hack_cmds_shard.txt) cases"
-
-            # 3) Execute
-            while IFS= read -r cmd; do
-              echo ">>> $cmd"
-              bash -lc "$cmd"
-            done < /tmp/hack_cmds_shard.txt
-
 ### END OP-ALLOY JOBS ###
 
 # ============================================================================
@@ -401,90 +75,156 @@ workflows:
             - equal: [true, <<pipeline.parameters.op_alloy_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
-      # Rust CI jobs (from ci.yml)
-      - op-alloy-cargo-tests:
+      # Build (shared job from main.yml)
+      - rust-build-binary:
+          name: op-alloy-build
+          directory: op-alloy
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Rust CI jobs (shared job)
+      - rust-ci-cargo-tests:
           name: op-alloy-test-stable
-          rust_version: "stable"
-          flags: ""
+          directory: op-alloy
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - op-alloy-cargo-tests:
+      - rust-ci-cargo-tests:
           name: op-alloy-test-stable-no-default
-          rust_version: "stable"
+          directory: op-alloy
           flags: "--no-default-features"
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - op-alloy-cargo-tests:
+      - rust-ci-cargo-tests:
           name: op-alloy-test-stable-all-features
-          rust_version: "stable"
+          directory: op-alloy
           flags: "--all-features"
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - op-alloy-cargo-tests:
+      - rust-ci-cargo-tests:
           name: op-alloy-test-nightly
+          directory: op-alloy
           rust_version: "nightly"
-          flags: ""
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - op-alloy-cargo-tests:
+      - rust-ci-cargo-tests:
           name: op-alloy-test-nightly-no-default
+          directory: op-alloy
           rust_version: "nightly"
           flags: "--no-default-features"
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - op-alloy-cargo-tests:
+      - rust-ci-cargo-tests:
           name: op-alloy-test-nightly-all-features
+          directory: op-alloy
           rust_version: "nightly"
           flags: "--all-features"
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - op-alloy-cargo-tests:
+      - rust-ci-cargo-tests:
           name: op-alloy-build-msrv
+          directory: op-alloy
           rust_version: "1.88"
-          flags: ""
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - op-alloy-cargo-tests:
+      - rust-ci-cargo-tests:
           name: op-alloy-build-msrv-no-default
+          directory: op-alloy
           rust_version: "1.88"
           flags: "--no-default-features"
           context:
             - circleci-repo-readonly-authenticated-github-token
 
-      - op-alloy-cargo-doctest: &op-alloy-job-base
+      # Doc tests (shared job)
+      - rust-ci-doctest:
+          name: op-alloy-cargo-doctest
+          directory: op-alloy
+          command: "just test-docs"
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - op-alloy-wasm-unknown:
-          <<: *op-alloy-job-base
-      - op-alloy-wasm-wasi:
-          <<: *op-alloy-job-base
-      - op-alloy-check-no-std:
-          <<: *op-alloy-job-base
-      - op-alloy-feature-checks:
-          <<: *op-alloy-job-base
-      - op-alloy-clippy:
-          <<: *op-alloy-job-base
-      - op-alloy-docs:
-          <<: *op-alloy-job-base
-      - op-alloy-fmt:
-          <<: *op-alloy-job-base
+      - rust-ci-cargo-hack-build:
+          name: op-alloy-wasm-unknown
+          directory: op-alloy
+          target: wasm32-unknown-unknown
+          flags: "--workspace --exclude op-alloy-network --exclude op-alloy-rpc-jsonrpsee --exclude op-alloy-provider"
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-ci-cargo-hack-build:
+          name: op-alloy-wasm-wasi
+          directory: op-alloy
+          target: wasm32-wasip1
+          flags: "--workspace --exclude op-alloy-network --exclude op-alloy-rpc-types --exclude op-alloy-provider --exclude op-alloy-rpc-jsonrpsee"
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-ci-check-no-std:
+          name: op-alloy-check-no-std
+          directory: op-alloy
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-ci-cargo-hack:
+          name: op-alloy-feature-checks
+          directory: op-alloy
+          flags: "--feature-powerset --depth 1"
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Clippy (shared job)
+      - rust-ci-clippy:
+          name: op-alloy-clippy
+          directory: op-alloy
+          command: "just clippy"
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Documentation (shared job)
+      - rust-ci-docs:
+          name: op-alloy-docs
+          directory: op-alloy
+          command: "cargo doc --workspace --all-features --no-deps --document-private-items"
+          rustdocflags: "--cfg docsrs -D warnings --show-type-layout --generate-link-to-definition --enable-index-page -Zunstable-options"
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      # Formatting (shared job)
+      - rust-ci-fmt:
+          name: op-alloy-fmt
+          directory: op-alloy
+          command: "just fmt-check"
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
       - op-alloy-examples:
-          <<: *op-alloy-job-base
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - op-alloy-cfg-check:
-          <<: *op-alloy-job-base
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
-      # Lint jobs (from lint.yml)
-      - op-alloy-typos:
-          <<: *op-alloy-job-base
-      - op-alloy-zepter:
-          <<: *op-alloy-job-base
+      # Lint jobs (shared)
+      - rust-ci-typos:
+          name: op-alloy-typos
+          directory: op-alloy
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-ci-zepter:
+          name: op-alloy-zepter
+          directory: op-alloy
+          command: "time zepter run check"
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
-      # Deps jobs (from deps.yml)
-      - op-alloy-cargo-deny:
-          <<: *op-alloy-job-base
+      # Deps jobs (shared)
+      - rust-ci-deny:
+          name: op-alloy-cargo-deny
+          directory: op-alloy
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       # Feature powerset (from ci.yml) - runs after initial checks
-      - op-alloy-cargo-hack:
+      - rust-ci-cargo-hack:
+          name: op-alloy-cargo-hack
+          directory: op-alloy
+          flags: "--feature-powerset --no-dev-deps --workspace"
+          parallelism: 4
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:

@@ -889,7 +889,8 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_TestInit 
         }
 
         // Ensure that the correct number of games are returned.
-        uint256 start = _numGames == 0 ? 0 : _numGames - 1;
+        uint256 gameCount = disputeGameFactory.gameCount();
+        uint256 start = gameCount == 0 ? 0 : gameCount - 1;
         IDisputeGameFactory.GameSearchResult[] memory games =
             disputeGameFactory.findLatestGames(GameType.wrap(0), start, _n);
         assertEq(games.length, _n);

@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
@@ -43,7 +44,7 @@ type DisputeGameFactory struct {
 	addr          common.Address
 	l2CL          *dsl.L2CLNode
 	l2EL          *dsl.L2ELNode
-	superRoots    SuperRootsSource
+	superNode     stack.Supernode
 	gameHelper    *GameHelper
 	challengerCfg *challengerConfig.Config
 
@@ -57,7 +58,7 @@ func NewDisputeGameFactory(
 	dgfAddr common.Address,
 	l2CL *dsl.L2CLNode,
 	l2EL *dsl.L2ELNode,
-	superRoots SuperRootsSource,
+	superNode stack.Supernode,
 	challengerCfg *challengerConfig.Config,
 ) *DisputeGameFactory {
 	dgf := bindings.NewDisputeGameFactory(bindings.WithClient(ethClient), bindings.WithTo(dgfAddr), bindings.WithTest(t))
@@ -71,7 +72,7 @@ func NewDisputeGameFactory(
 		addr:          dgfAddr,
 		l2CL:          l2CL,
 		l2EL:          l2EL,
-		superRoots:    superRoots,
+		superNode:     superNode,
 		ethClient:     ethClient,
 		challengerCfg: challengerCfg,
 
@@ -185,7 +186,7 @@ func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 }
 
 func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
-	f.require.NotNil(f.superRoots, "super roots source is required to start super games")
+	f.require.NotNil(f.superNode, "super node is required to start super games")
 
 	return f.startSuperCannonGameOfType(eoa, gameTypes.SuperCannonGameType, opts...)
 }
@@ -198,7 +199,8 @@ func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType g
 	}
 	timestamp := cfg.l2SequenceNumber
 	if !cfg.l2SequenceNumberSet {
-		timestamp = f.superRoots.SafeTimestamp()
+		f.t.Error("Can't retrieve safe timestamp from super node yet")
+		f.t.FailNow()
 	}
 	extraData := f.createSuperGameExtraData(timestamp, cfg)
 	rootClaim := cfg.rootClaim
@@ -211,11 +213,15 @@ func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType g
 }
 
 func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *GameCfg) []byte {
-	f.require.NotNil(f.superRoots, "super roots is required create super games")
+	f.require.NotNil(f.superNode, "super node is required create super games")
 	if !cfg.allowFuture {
-		f.superRoots.AwaitMinVerifiedTimestamp(timestamp)
+		f.awaitMinVerifiedTimestamp(timestamp)
 	}
-	superV1 := f.superRoots.SuperV1AtTimestamp(timestamp)
+	resp, err := f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), timestamp)
+	f.require.NoError(err, "Failed to fetch super root at timestamp")
+	f.require.NotNil(resp.Data, "Super root data must be present at timestamp %v", timestamp)
+	superV1, ok := resp.Data.Super.(*eth.SuperV1)
+	f.require.Truef(ok, "unsupported super type %T", resp.Data.Super)
 	if len(cfg.superOutputRoots) != 0 {
 		f.require.Len(cfg.superOutputRoots, len(superV1.Chains), "Super output roots length mismatch")
 		for i := range superV1.Chains {
@@ -224,6 +230,14 @@ func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *Gam
 	}
 	extraData := superV1.Marshal()
 	return extraData
+}
+
+func (f *DisputeGameFactory) awaitMinVerifiedTimestamp(timestamp uint64) {
+	f.t.Require().Eventually(func() bool {
+		resp, err := f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), timestamp)
+		f.require.NoError(err, "Failed to fetch supernode status (superroot_atTimestamp)")
+		return resp.Data != nil
+	}, 2*time.Minute, 1*time.Second)
 }
 
 func (f *DisputeGameFactory) StartCannonGame(eoa *dsl.EOA, opts ...GameOpt) *FaultDisputeGame {
