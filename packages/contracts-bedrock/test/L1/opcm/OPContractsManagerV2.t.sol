@@ -730,6 +730,30 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             "permissioned prestate not updated"
         );
     }
+
+    /// @notice INVARIANT: Upgrades must always work when the system is paused.
+    ///         This test validates that the OPCMv2 upgrade function can execute successfully
+    ///         even when the SuperchainConfig has the system globally paused. This is critical
+    ///         because upgrades may be needed during incident response when the system is paused.
+    function test_upgrade_whenPaused_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
+
+        // First, pause the system globally using the guardian.
+        address guardian = superchainConfig.guardian();
+        vm.prank(guardian);
+        superchainConfig.pause(address(0));
+
+        // Verify the system is actually paused.
+        assertTrue(superchainConfig.paused(address(0)), "System should be globally paused");
+
+        // Run the upgrade - this should succeed even while paused.
+        // The StandardValidator will report SPRCFG-10 because the system is paused,
+        // but the upgrade itself must complete successfully.
+        runCurrentUpgradeV2(chainPAO, hex"", "SPRCFG-10");
+
+        // Verify the system is still paused after the upgrade.
+        assertTrue(superchainConfig.paused(address(0)), "System should still be paused after upgrade");
+    }
 }
 
 /// @title OPContractsManagerV2_IsPermittedUpgradeSequence_Test
