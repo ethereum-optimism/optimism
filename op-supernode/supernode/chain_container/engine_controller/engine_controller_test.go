@@ -108,13 +108,16 @@ func (m *mockL2) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (e
 	return eth.L2BlockRef{Number: 999}, nil
 }
 func (m *mockL2) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	if m.refErr != nil {
+		return eth.L2BlockRef{}, m.refErr
+	}
 	m.lastNum = num
 	if m.refsByNumber != nil {
 		if ref, ok := m.refsByNumber[num]; ok {
 			return ref, nil
 		}
 	}
-	return m.ref, m.refErr
+	return m.ref, nil
 }
 func (m *mockL2) OutputV0AtBlockNumber(ctx context.Context, blockNum uint64) (*eth.OutputV0, error) {
 	m.outputCalls++
