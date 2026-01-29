@@ -35,7 +35,10 @@ contract GovernanceToken_Constructor_Test is GovernanceToken_TestInit {
 /// @notice Tests the `mint` function of the `GovernanceToken` contract.
 contract GovernanceToken_Mint_Test is GovernanceToken_TestInit {
     /// @notice Tests that the owner can successfully call `mint` with various amounts.
+    /// @param _amount The amount to mint, bounded to uint224 max to avoid ERC20Votes overflow.
     function testFuzz_mint_fromOwner_succeeds(uint256 _amount) external {
+        _amount = bound(_amount, 0, type(uint224).max);
+
         vm.prank(owner);
         governanceToken.mint(owner, _amount);
 
