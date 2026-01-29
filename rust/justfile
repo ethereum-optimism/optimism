@@ -1,0 +1,125 @@
+set positional-arguments
+
+# Aliases
+alias t := test
+alias l := lint
+alias f := fmt-fix
+alias b := build
+
+# default recipe to display help information
+default:
+  @just --list
+
+############################### Build ###############################
+
+# Build the workspace
+build *args='':
+  cargo build --workspace {{args}}
+
+# Build the workspace in release mode
+build-release *args='':
+  cargo build --workspace --release {{args}}
+
+# Build the rollup node
+build-node:
+  cargo build --release --bin kona-node
+
+# Build the supervisor
+build-supervisor:
+  cargo build --release --bin kona-supervisor
+
+# Build op-reth
+build-op-reth:
+  cargo build --release --bin op-reth
+
+############################### Test ################################
+
+# Run all tests (unit + doc tests)
+test: test-unit test-docs
+
+# Run unit tests (excluding online tests)
+test-unit *args="-E '!test(test_online)'":
+  cargo nextest run --workspace --all-features {{args}}
+
+# Run online tests only
+test-online:
+  cargo nextest run --workspace --all-features -E 'test(test_online)'
+
+# Run doc tests
+test-docs:
+  cargo test --doc --workspace --locked
+
+############################### Lint ################################
+
+# Run all lints
+lint: fmt-check lint-clippy lint-docs
+
+# Check formatting (requires nightly)
+fmt-check:
+  cargo +nightly fmt --all -- --check
+
+# Fix formatting (requires nightly)
+fmt-fix:
+  cargo +nightly fmt --all
+
+# Run clippy
+lint-clippy:
+  cargo clippy --workspace --all-features --all-targets -- -D warnings
+
+# Lint Rust documentation
+lint-docs:
+  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --document-private-items
+
+############################ no_std #################################
+
+# Check no_std compatibility for proof and protocol crates
+check-no-std:
+  #!/usr/bin/env bash
+  set -euo pipefail
+
+  no_std_packages=(
+    # proof crates
+    kona-executor
+    kona-mpt
+    kona-preimage
+    kona-proof
+    kona-proof-interop
+
+    # protocol crates
+    kona-genesis
+    kona-hardforks
+    kona-registry
+    kona-protocol
+    kona-derive
+    kona-driver
+    kona-interop
+
+    # utilities
+    kona-serde
+
+    # alloy
+    alloy-op-evm
+    alloy-op-hardforks
+  )
+
+  for package in "${no_std_packages[@]}"; do
+    echo "Checking no_std build for: $package"
+    cargo build -p "$package" --target riscv32imac-unknown-none-elf --no-default-features
+    echo "Successfully checked no_std build for: $package"
+  done
+
+########################### Benchmarks ##############################
+
+# Run benchmarks (compile only)
+bench:
+  cargo bench --no-run --workspace --features test-utils --exclude example-gossip --exclude example-discovery
+
+########################## Misc tools ###############################
+
+# Check for unused dependencies (requires nightly + cargo-udeps)
+check-udeps:
+  cargo +nightly udeps --release --workspace --all-features --all-targets
+
+# Run cargo hack for feature powerset checking
+hack:
+  cargo hack check --feature-powerset --no-dev-deps
