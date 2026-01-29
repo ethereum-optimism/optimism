@@ -24,7 +24,10 @@ mod sequence;
 pub use sequence::{FlashBlockCompleteSequence, FlashBlockPendingSequence};
 
 mod service;
-pub use service::{FlashBlockBuildInfo, FlashBlockService};
+pub use service::{
+    create_canonical_block_channel, CanonicalBlockNotification, FlashBlockBuildInfo,
+    FlashBlockService,
+};
 
 mod worker;
 
