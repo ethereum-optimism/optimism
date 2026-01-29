@@ -1,16 +1,13 @@
 package interop
 
 import (
-	"net/url"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 // TestSupernodeInteropChainLag tests the behavior when one chain temporarily
@@ -98,18 +95,8 @@ func TestSupernodeInteropActivationAtGenesis(gt *testing.T) {
 	)
 
 	// Create a SuperNodeClient to call superroot_atTimestamp (which uses VerifiedAt internally)
-	// The UserRPC returns a chain-specific path like http://host:port/901
-	// We need the root path (http://host:port/) which has the superroot API
-	chainRpcAddr := sys.L2ACL.Escape().UserRPC()
-	parsedURL, err := url.Parse(chainRpcAddr)
-	t.Require().NoError(err, "failed to parse RPC URL")
-	baseRpcAddr := parsedURL.Scheme + "://" + parsedURL.Host + "/"
-
 	ctx := t.Ctx()
-	rpc, err := client.NewRPC(ctx, t.Logger(), baseRpcAddr, client.WithLazyDial())
-	t.Require().NoError(err, "failed to create RPC client")
-	snClient := sources.NewSuperNodeClient(rpc)
-	defer snClient.Close()
+	snClient := sys.SuperNodeClient()
 
 	// The first timestamp to be verified should be the genesis time
 	// Wait for safe head to advance past genesis

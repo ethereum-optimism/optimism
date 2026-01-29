@@ -1,6 +1,7 @@
 package presets
 
 import (
+	"net/url"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -12,6 +13,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 // TwoL2 represents a two-L2 setup without interop considerations.
@@ -110,6 +113,24 @@ func (s *TwoL2SupernodeInterop) AdvanceTime(amount time.Duration) {
 	ttSys, ok := s.system.(stack.TimeTravelSystem)
 	s.T.Require().True(ok, "attempting to advance time on incompatible system")
 	ttSys.AdvanceTime(amount)
+}
+
+// SuperNodeClient returns a SuperNodeClient for calling supernode-specific RPC methods
+// like superroot_atTimestamp. The client is automatically closed when the test completes.
+func (s *TwoL2SupernodeInterop) SuperNodeClient() *sources.SuperNodeClient {
+	// The UserRPC returns a chain-specific path like http://host:port/901
+	// We need the root path (http://host:port/) which has the superroot API
+	chainRpcAddr := s.L2ACL.Escape().UserRPC()
+	parsedURL, err := url.Parse(chainRpcAddr)
+	s.T.Require().NoError(err, "failed to parse RPC URL")
+	baseRpcAddr := parsedURL.Scheme + "://" + parsedURL.Host + "/"
+
+	rpc, err := client.NewRPC(s.T.Ctx(), s.T.Logger(), baseRpcAddr, client.WithLazyDial())
+	s.T.Require().NoError(err, "failed to create RPC client")
+
+	snClient := sources.NewSuperNodeClient(rpc)
+	s.T.Cleanup(snClient.Close)
+	return snClient
 }
 
 // NewTwoL2SupernodeInterop creates a TwoL2SupernodeInterop preset for acceptance tests.
