@@ -9,7 +9,7 @@ exclude = [".github/"]
 
 [workspace]
 members = [
-    "bin/",
+    "bin/op-reth",
     "crates/chainspec/",
     "crates/cli/",
     "crates/consensus/",
@@ -24,7 +24,7 @@ members = [
     "crates/storage/",
     "crates/txpool/",
 ]
-default-members = ["bin/"]
+default-members = ["bin/op-reth"]
 resolver = "2"
 
 [workspace.lints]
