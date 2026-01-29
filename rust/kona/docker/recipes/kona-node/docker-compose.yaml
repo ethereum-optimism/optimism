@@ -1,0 +1,101 @@
+name: '${CLUSTER_NAME:-kona-node}'
+
+services:
+  prometheus:
+    restart: unless-stopped
+    image: prom/prometheus:latest
+    volumes:
+      - "prometheus_data:/prometheus"
+      - "./prometheus:/etc/prometheus"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+
+  grafana:
+    restart: unless-stopped
+    image: grafana/grafana:latest
+    depends_on:
+      - prometheus
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      PROMETHEUS_URL: ${PROMETHEUS_URL:-http://prometheus:9090}
+    volumes:
+      - "grafana_data:/var/lib/grafana"
+      - "./grafana/datasources:/etc/grafana/provisioning/datasources"
+      - "./grafana/dashboards:/etc/grafana/provisioning_temp/dashboards"
+    entrypoint: >
+      sh -c "cp -r /etc/grafana/provisioning_temp/dashboards/. /etc/grafana/provisioning/dashboards &&
+        find /etc/grafana/provisioning/dashboards/ -name '*.json' -exec sed -i 's/$${DS_PROMETHEUS}/Prometheus/g' {} \+ &&
+        /run.sh"
+
+  op-reth:
+    restart: unless-stopped
+    image: ${OP_RETH_NODE_IMAGE:-ghcr.io/paradigmxyz/op-reth:latest}
+    depends_on:
+      - prometheus
+    ports:
+      - "${OP_RETH_METRICS_PORT:-9001}:9001" # metrics
+      - "${OP_RETH_DISCOVERY_PORT:-30303}:30303/tcp" # discovery
+      - "${OP_RETH_DISCOVERY_PORT:-30303}:30303/udp" # discovery
+      - "${OP_RETH_RPC_PORT:-8545}:8545" # rpc
+      - "${OP_RETH_ENGINE_PORT:-8551}:8551" # engine
+    volumes:
+      - "reth_data:/db"
+      - "logs:/root/logs"
+      - "./jwttoken:/root/jwt:ro"
+    command: >
+      node
+      --datadir /db
+      --chain optimism-sepolia
+      --rollup.sequencer-http https://sepolia-sequencer.optimism.io/
+      --metrics 0.0.0.0:9001
+      --log.file.directory /root/logs
+      --authrpc.addr 0.0.0.0 --authrpc.port 8551 --authrpc.jwtsecret /root/jwt/jwt.hex
+      --http --http.addr 0.0.0.0 --http.port 8545 --http.api "eth,net,web3,debug"
+
+  kona-node:
+    restart: unless-stopped
+    image: ${KONA_NODE_IMAGE:-ghcr.io/op-rs/kona/kona-node:latest}
+    depends_on:
+      - prometheus
+      - op-reth
+    ports:
+      - "${KONA_NODE_DISCOVERY_PORT:-9223}:9223/tcp" # discovery
+      - "${KONA_NODE_DISCOVERY_PORT:-9223}:9223/udp" # discovery
+      - "${KONA_NODE_METRICS_PORT:-9002}:9002" # metrics
+      - "${KONA_NODE_RPC_PORT:-5060}:5060" # rpc
+    volumes:
+      - "kona_data:/db"
+      - "./jwttoken:/root/jwt:ro"
+    environment:
+      L1_PROVIDER_RPC: ${L1_PROVIDER_RPC:?}
+      L1_BEACON_API: ${L1_BEACON_API:?}
+      RUST_LOG: ${RUST_LOG:-}
+    command: >
+      --chain optimism-sepolia
+      --metrics.enabled
+      --metrics.port 9002
+      node
+      --l1 $L1_PROVIDER_RPC
+      --l1-beacon $L1_BEACON_API
+      --l2 http://op-reth:8551
+      --l2-engine-jwt-secret /root/jwt/jwt.hex
+      --rpc.port 5060
+      --p2p.listen.tcp 9223
+      --p2p.listen.udp 9223
+      --p2p.bootstore /db
+
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  reth_data:
+    driver: local
+  kona_data:
+    driver: local
+  logs:
+    driver: local

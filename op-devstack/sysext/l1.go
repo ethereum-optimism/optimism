@@ -1,0 +1,75 @@
+package sysext
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
+	"github.com/ethereum-optimism/optimism/op-devstack/shim"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
+
+func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
+	require := o.p.Require()
+	t := system.T()
+
+	env := o.env
+
+	commonConfig := shim.NewCommonConfig(t)
+	l1ID := eth.ChainIDFromBig(env.Env.L1.Config.ChainID)
+	l1 := shim.NewL1Network(shim.L1NetworkConfig{
+		NetworkConfig: shim.NetworkConfig{
+			CommonConfig: commonConfig,
+			ChainConfig:  env.Env.L1.Config,
+		},
+		ID: stack.L1NetworkID(l1ID),
+	})
+
+	opts := []client.RPCOption{}
+
+	txTimeout := 30 * time.Second
+	if o.compatType == compat.Persistent {
+		// Increase the timeout by default for persistent devnets, but not for kurtosis
+		txTimeout = 5 * time.Minute
+		opts = append(opts, client.WithCallTimeout(time.Minute*5), client.WithBatchCallTimeout(time.Minute*10))
+	}
+
+	for idx, node := range env.Env.L1.Nodes {
+		elService, ok := node.Services[ELServiceName]
+
+		require.True(ok, "need L1 EL service %d", idx)
+
+		l1.AddL1ELNode(shim.NewL1ELNode(shim.L1ELNodeConfig{
+			ELNodeConfig: shim.ELNodeConfig{
+				CommonConfig:       commonConfig,
+				Client:             o.rpcClient(t, elService, RPCProtocol, "/", opts...),
+				ChainID:            l1ID,
+				TransactionTimeout: txTimeout,
+			},
+			ID: stack.NewL1ELNodeID(elService.Name, l1ID),
+		}))
+
+		clService, ok := node.Services[CLServiceName]
+		require.True(ok, "need L1 CL service %d", idx)
+
+		l1.AddL1CLNode(shim.NewL1CLNode(shim.L1CLNodeConfig{
+			ID:           stack.NewL1CLNodeID(clService.Name, l1ID),
+			CommonConfig: commonConfig,
+			Client:       o.httpClient(t, clService, HTTPProtocol, "/"),
+		}))
+	}
+
+	if faucet, ok := env.Env.L1.Services["faucet"]; ok {
+		for _, instance := range faucet {
+			l1.AddFaucet(shim.NewFaucet(shim.FaucetConfig{
+				CommonConfig: commonConfig,
+				Client:       o.rpcClient(t, instance, RPCProtocol, fmt.Sprintf("/chain/%s", env.Env.L1.Config.ChainID.String()), opts...),
+				ID:           stack.NewFaucetID(instance.Name, l1ID),
+			}))
+		}
+	}
+
+	system.AddL1Network(l1)
+}

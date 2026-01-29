@@ -1,0 +1,160 @@
+package proposer
+
+import (
+	"testing"
+
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/require"
+)
+
+func TestValidConfigIsValid(t *testing.T) {
+	cfg := validConfig()
+	require.NoError(t, cfg.Check())
+}
+
+func TestRollupRpc(t *testing.T) {
+	for _, gameType := range preInteropGameTypes {
+		t.Run("RequiredWithPreInteropGame", func(t *testing.T) {
+			cfg := validConfig()
+			cfg.DGFAddress = common.Address{0xaa}.Hex()
+			cfg.ProposalInterval = 20
+			cfg.RollupRpc = ""
+			cfg.SupervisorRpcs = []string{"http://localhost:8882/supervisor"}
+			cfg.DisputeGameType = gameType
+			require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
+		})
+	}
+
+	t.Run("NotRequiredForOtherGameTypes", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.DGFAddress = common.Address{0xaa}.Hex()
+		cfg.ProposalInterval = 20
+		cfg.RollupRpc = ""
+		cfg.SupervisorRpcs = []string{"http://localhost:8882/supervisor"}
+		cfg.DisputeGameType = 492743
+		require.NoError(t, cfg.Check())
+	})
+}
+
+func TestSupervisorRpc(t *testing.T) {
+	for _, gameType := range postInteropGameTypes {
+		t.Run("RequiredWithPostInteropGame", func(t *testing.T) {
+			cfg := validConfig()
+			cfg.DGFAddress = common.Address{0xaa}.Hex()
+			cfg.ProposalInterval = 20
+			cfg.RollupRpc = "http://localhost:8882/rollup"
+			cfg.SupervisorRpcs = nil
+			cfg.DisputeGameType = gameType
+			require.ErrorIs(t, cfg.Check(), ErrMissingSupervisorRpc)
+		})
+
+		t.Run("NotRequiredForOtherGameTypes", func(t *testing.T) {
+			cfg := validConfig()
+			cfg.DGFAddress = common.Address{0xaa}.Hex()
+			cfg.ProposalInterval = 20
+			cfg.RollupRpc = "http://localhost:8882/rollup"
+			cfg.SupervisorRpcs = nil
+			cfg.DisputeGameType = 492743
+			require.NoError(t, cfg.Check())
+		})
+	}
+}
+
+func TestDisallowRollupAndSupervisorRPC(t *testing.T) {
+	cfg := validConfig()
+	cfg.ProposalInterval = 20
+	cfg.RollupRpc = "http://localhost:8882/rollup"
+	cfg.SupervisorRpcs = []string{"http://localhost:8882/supervisor"}
+	cfg.DisputeGameType = 492743
+	require.ErrorIs(t, cfg.Check(), ErrConflictingSource)
+}
+
+func TestSuperNodeRpc(t *testing.T) {
+	for _, gameType := range postInteropGameTypes {
+		t.Run("AllowedWithPostInteropGame", func(t *testing.T) {
+			cfg := validConfig()
+			cfg.DGFAddress = common.Address{0xaa}.Hex()
+			cfg.ProposalInterval = 20
+			cfg.RollupRpc = ""
+			cfg.SupervisorRpcs = nil
+			cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
+			cfg.DisputeGameType = gameType
+			require.NoError(t, cfg.Check())
+		})
+	}
+
+	t.Run("AllowedForOtherGameTypes", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.DGFAddress = common.Address{0xaa}.Hex()
+		cfg.ProposalInterval = 20
+		cfg.RollupRpc = ""
+		cfg.SupervisorRpcs = nil
+		cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
+		cfg.DisputeGameType = 492743
+		require.NoError(t, cfg.Check())
+	})
+}
+
+func TestDisallowRollupAndSuperNodeRPC(t *testing.T) {
+	cfg := validConfig()
+	cfg.ProposalInterval = 20
+	cfg.RollupRpc = "http://localhost:8882/rollup"
+	cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
+	cfg.DisputeGameType = 492743
+	require.ErrorIs(t, cfg.Check(), ErrConflictingSource)
+}
+
+func TestDisallowSupervisorAndSuperNodeRPC(t *testing.T) {
+	cfg := validConfig()
+	cfg.ProposalInterval = 20
+	cfg.RollupRpc = ""
+	cfg.SupervisorRpcs = []string{"http://localhost:8882/supervisor"}
+	cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
+	cfg.DisputeGameType = 492743
+	require.ErrorIs(t, cfg.Check(), ErrConflictingSource)
+}
+
+func TestDisallowAllThreeRPCSources(t *testing.T) {
+	cfg := validConfig()
+	cfg.ProposalInterval = 20
+	cfg.RollupRpc = "http://localhost:8882/rollup"
+	cfg.SupervisorRpcs = []string{"http://localhost:8882/supervisor"}
+	cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
+	cfg.DisputeGameType = 492743
+	require.ErrorIs(t, cfg.Check(), ErrConflictingSource)
+}
+
+func TestRequireSomeRPCSourceForUnknownGameTypes(t *testing.T) {
+	cfg := validConfig()
+	cfg.RollupRpc = ""
+	cfg.SupervisorRpcs = nil
+	cfg.SuperNodeRpcs = nil
+	cfg.DisputeGameType = 492743
+	require.ErrorIs(t, cfg.Check(), ErrMissingSource)
+}
+
+func validConfig() *CLIConfig {
+	return &CLIConfig{
+		L1EthRpc:                     "http://localhost:8888/l1",
+		RollupRpc:                    "http://localhost:8888/l2",
+		SupervisorRpcs:               nil,
+		SuperNodeRpcs:                nil,
+		PollInterval:                 100,
+		AllowNonFinalized:            false,
+		TxMgrConfig:                  txmgr.NewCLIConfig("http://localhost:8888/l1", txmgr.DefaultBatcherFlagValues),
+		RPCConfig:                    oprpc.DefaultCLIConfig(),
+		LogConfig:                    oplog.DefaultCLIConfig(),
+		MetricsConfig:                opmetrics.DefaultCLIConfig(),
+		PprofConfig:                  oppprof.DefaultCLIConfig(),
+		DGFAddress:                   common.Address{0xaa, 0xbb, 0xcc}.Hex(),
+		ProposalInterval:             50,
+		DisputeGameType:              0,
+		ActiveSequencerCheckDuration: 0,
+		WaitNodeSync:                 false,
+	}
+}

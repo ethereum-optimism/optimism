@@ -1,0 +1,16 @@
+[
+  {
+    "bytes": "32",
+    "label": "implementationName",
+    "offset": 0,
+    "slot": "0",
+    "type": "mapping(address => string)"
+  },
+  {
+    "bytes": "32",
+    "label": "addressManager",
+    "offset": 0,
+    "slot": "1",
+    "type": "mapping(address => contract AddressManager)"
+  }
+]

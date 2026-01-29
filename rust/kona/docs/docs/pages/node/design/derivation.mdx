@@ -1,0 +1,234 @@
+# Derivation in Kona Node
+
+The derivation system in kona-node is responsible for transforming L1 data into L2 payload attributes that can be executed to produce the canonical L2 blocks. This document covers how the [`kona-derive`][kd] crate is integrated and used within the kona-node architecture.
+
+## Overview
+
+The derivation subsystem in kona-node is built around the **DerivationActor**, which manages the derivation pipeline lifecycle and coordinates with other node components. The actor uses the trait-abstracted [`kona-derive`][kd] pipeline to continuously process L1 data and produce L2 payload attributes.
+
+### Key Components
+
+- **DerivationActor**: The main actor responsible for running the derivation pipeline
+- **OnlinePipeline**: A concrete implementation of the derivation pipeline using online providers
+- **PipelineBuilder**: Trait for constructing derivation pipelines with different configurations
+- **DerivationState**: Manages pipeline state and stepping logic
+- **Signal System**: Handles pipeline resets, hardfork activations, and error conditions
+
+## Architecture
+
+### DerivationActor
+
+The `DerivationActor` is a [`NodeActor`][na] that runs as part of the node service. It receives messages from other actors and steps the derivation pipeline forward to produce new payload attributes.
+
+```rust
+pub struct DerivationActor<B>
+where
+    B: PipelineBuilder,
+{
+    /// The state for the derivation actor.
+    state: B,
+    /// Receiver for L1 head update notifications.
+    l1_head_updates: watch::Receiver<Option<BlockInfo>>,
+    /// Receiver for L2 safe head update notifications.
+    engine_l2_safe_head: watch::Receiver<L2BlockInfo>,
+    /// Receiver for engine sync completion signal.
+    el_sync_complete_rx: oneshot::Receiver<()>,
+    /// Receiver for pipeline signals.
+    derivation_signal_rx: mpsc::Receiver<Signal>,
+}
+```
+
+The actor coordinates with several other node components:
+- **Engine Actor**: Receives payload attributes for execution and sends safe head updates
+- **P2P Actors**: Receives L1 head updates from the network
+- **RPC Actors**: May trigger pipeline resets or provide status information
+
+### Pipeline Construction
+
+The derivation pipeline is constructed using the `DerivationBuilder` which implements the `PipelineBuilder` trait:
+
+```rust
+#[derive(Debug)]
+pub struct DerivationBuilder {
+    /// The L1 provider.
+    pub l1_provider: RootProvider,
+    /// The L1 beacon client.
+    pub l1_beacon: OnlineBeaconClient,
+    /// The L2 provider.
+    pub l2_provider: RootProvider<Optimism>,
+    /// The rollup config.
+    pub rollup_config: Arc<RollupConfig>,
+    /// The interop mode.
+    pub interop_mode: InteropMode,
+}
+```
+
+The builder creates an `OnlinePipeline` which can operate in two modes:
+
+1. **Polled Mode**: Uses `PollingTraversal` for L1 block traversal
+2. **Indexed Mode**: Uses `IndexedTraversal` for more efficient L1 block handling
+
+```rust
+let pipeline = match self.interop_mode {
+    InteropMode::Polled => OnlinePipeline::new_polled(
+        self.rollup_config.clone(),
+        OnlineBlobProvider::init(self.l1_beacon.clone()).await,
+        l1_derivation_provider,
+        l2_derivation_provider,
+    ),
+    InteropMode::Indexed => OnlinePipeline::new_indexed(
+        self.rollup_config.clone(),
+        OnlineBlobProvider::init(self.l1_beacon.clone()).await,
+        l1_derivation_provider,
+        l2_derivation_provider,
+    ),
+};
+```
+
+### Provider Configuration
+
+The node uses caching providers to optimize performance:
+
+- **AlloyChainProvider**: Provides L1 blockchain data with configurable cache size
+- **AlloyL2ChainProvider**: Provides L2 blockchain data and system configuration
+- **OnlineBlobProvider**: Retrieves blob data from the beacon chain for post-4844 transactions
+
+The cache size is set to 1024 entries by default:
+
+```rust
+const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
+```
+
+## Pipeline Operation
+
+### Main Processing Loop
+
+The derivation actor runs a continuous loop that handles various events:
+
+1. **Shutdown signals**: Graceful shutdown when cancellation token is triggered
+2. **L1 head updates**: Triggers derivation when new L1 blocks are available  
+3. **Safe head updates**: Triggers derivation when the L2 safe head advances
+4. **Pipeline signals**: Handles resets, hardfork activations, and channel flushes
+
+### Stepping Logic
+
+The core derivation logic is implemented in `produce_next_attributes()`:
+
+```rust
+async fn produce_next_attributes(
+    &mut self,
+    engine_l2_safe_head: &watch::Receiver<L2BlockInfo>,
+    reset_request_tx: &mpsc::Sender<()>,
+) -> Result<OpAttributesWithParent, DerivationError>
+```
+
+This method continuously steps the pipeline until payload attributes are produced:
+
+1. **Step the pipeline** with the current L2 safe head
+2. **Handle step results**:
+   - `PreparedAttributes`: Attributes are ready to be consumed
+   - `AdvancedOrigin`: Pipeline advanced to next L1 block
+   - `OriginAdvanceErr`/`StepFailed`: Handle various error conditions
+3. **Return attributes** when available
+
+### Error Handling
+
+The derivation actor handles three categories of pipeline errors:
+
+#### Temporary Errors
+- `PipelineError::NotEnoughData`: Continue stepping, more data may become available
+- `PipelineError::Eof`: Yield and wait for more L1 data
+
+#### Reset Errors  
+- `ResetError::HoloceneActivation`: Send `ActivationSignal` to handle hardfork
+- `ResetError::ReorgDetected`: Send reset request to engine (if not in interop mode)
+- Other reset errors: Wait for external signal before continuing
+
+#### Critical Errors
+- Unrecoverable errors that terminate the derivation process
+- Increment metrics counter and propagate error up
+
+### Signal Handling
+
+The pipeline supports several signal types for coordination:
+
+- **ResetSignal**: Resets pipeline state with new L1 origin and system config
+- **ActivationSignal**: Handles hardfork activations (e.g., Holocene)
+- **FlushChannel**: Invalidates current channel data for deposit-only blocks
+
+Signals are sent from the engine actor when specific conditions are detected during payload execution.
+
+## Configuration
+
+### Rollup Configuration
+
+The derivation pipeline requires a [`RollupConfig`][rc] that defines:
+- Chain parameters (chain ID, block time, etc.)
+- Hardfork activation heights
+- System configuration addresses
+- Batch and channel parameters
+
+### Runtime Configuration
+
+Runtime configuration includes:
+- Provider cache sizes
+- Polling intervals for L1 data
+- Interop mode selection
+- Metrics collection settings
+
+## Integration Patterns
+
+### With Engine Actor
+
+The derivation actor produces `OpAttributesWithParent` that are sent to the engine actor for execution:
+
+```rust
+// Send payload attributes for execution
+derived_attributes_tx
+    .send(payload_attrs)
+    .await
+    .map_err(|e| DerivationError::Sender(Box::new(e)))?;
+```
+
+The engine actor executes these attributes and updates the L2 safe head, which triggers the next derivation cycle.
+
+### With P2P Layer
+
+The derivation actor receives L1 head updates from the P2P layer, which indicate when new L1 data is available for processing:
+
+```rust
+Some(msg) = self.l1_head_updates.changed() => {
+    if let Err(e) = state.process(
+        InboundDerivationMessage::L1HeadUpdated,
+        // ... other parameters
+    ).await {
+        // Handle derivation error
+    }
+}
+```
+
+### With RPC Layer
+
+The RPC layer can query derivation status and potentially trigger pipeline operations through the standard node RPC interface.
+
+## Metrics and Observability
+
+The derivation actor exposes several metrics for monitoring:
+
+- `DERIVATION_L1_ORIGIN`: Current L1 origin block number
+- `DERIVATION_CRITICAL_ERROR`: Count of critical derivation errors  
+- `L1_REORG_COUNT`: Count of detected L1 reorganizations
+
+These metrics help operators monitor the health and progress of the derivation process.
+
+## Related Documentation
+
+For more details on the underlying derivation pipeline implementation, see:
+- [Derivation Pipeline Introduction](/sdk/protocol/derive/intro)
+- [Custom Providers](/sdk/protocol/derive/providers)  
+- [Stage Swapping](/sdk/protocol/derive/stages)
+- [Pipeline Signaling](/sdk/protocol/derive/signaling)
+
+[kd]: https://crates.io/crates/kona-derive
+[na]: /node/design/intro#node-actors
+[rc]: /sdk/protocol/genesis/rollup-config

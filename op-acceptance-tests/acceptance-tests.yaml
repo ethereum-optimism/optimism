@@ -1,0 +1,151 @@
+# Configuration file for acceptance tests (op-acceptor)
+#
+# All acceptance tests need to be registered here for op-acceptor to run them.
+# As a rule of thumb, we recommend that each fork gate inherits from the
+# base gate as well as any earlier fork gates.
+
+gates:
+  # ============================================================================
+  # FLAKE-SHAKE GATE
+  # ============================================================================
+  # The flake-shake gate is a quarantine area for new or potentially flaky tests.
+  # Tests here are run repeatedly (100+ iterations daily) to detect flakiness
+  # before they can be promoted to production gates.
+  #
+  # HOW TO ADD A NEW TEST:
+  # ----------------------
+  # 1. Add your test entry to the flake-shake gate (see example below)
+  # 2. Include the `target_gate` metadata to indicate where the test should be
+  #    promoted once it passes stability validation
+  # 3. Include the `owner` metadata for notifications and accountability
+  #
+  # Example entry format:
+  #   - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/myfeature
+  #     name: TestMyFeature        # Optional: specific test name (omit to run all tests in package)
+  #     timeout: 10m               # Optional: test timeout (default varies by gate)
+  #     metadata:
+  #       owner: "my-team"         # Required: team/person responsible for this test
+  #       target_gate: "base"      # Required: destination gate after promotion
+  #
+  # PROMOTION CRITERIA:
+  # -------------------
+  # Tests are automatically promoted when they meet ALL of these criteria:
+  #   - 100% pass rate (zero failures allowed)
+  #   - Minimum 300 total runs accumulated
+  #   - Been in flake-shake for at least 2-3 days
+  #   - No failures in the last 24 hours
+  #
+  # WHAT HAPPENS AT PROMOTION:
+  # --------------------------
+  # When a test meets the promotion criteria, an automated PR is created that:
+  #   1. Removes the test entry from the flake-shake gate
+  #   2. The PR reviewer must then manually add the test to the target gate
+  #      (as specified in the `target_gate` metadata)
+  #
+  # This two-step process ensures human review of all gate promotions.
+  #
+  # For more details, see the README.md section on "Flake-Shake: Test Stability Validation"
+  # ============================================================================
+  - id: flake-shake
+    description: "Quarantine gate for new and potentially flaky tests requiring stability validation."
+    tests:
+  - id: isthmus
+    description: "Isthmus network tests."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus
+        timeout: 6h
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/operator_fee
+        timeout: 6h
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/withdrawal_root
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/erc20_bridge
+        timeout: 10m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/pectra
+        timeout: 10m
+
+  - id: base
+    description: "Sanity/smoke acceptance tests for all networks."
+    inherits:
+      - isthmus
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/deposit
+        timeout: 10m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/chain
+        timeout: 10m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/ecotone
+        timeout: 10m
+      # TODO(infra#401): Re-enable the test when the sysext missing toolset is implemented
+      #- package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/withdrawal
+      #  timeout: 10m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/fjord
+
+  - id: conductor
+    description: "Sanity/smoke acceptance tests for networks with conductors."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/conductor
+        timeout: 10m
+
+  - id: pre-interop
+    inherits:
+      - base
+    description: "Pre-interop network tests."
+    tests:
+      - name: TestInteropReadiness
+        package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/preinterop
+        timeout: 20m
+
+  - id: interop
+    inherits:
+      - base
+    description: "Interop network tests."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop
+        timeout: 10m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/message
+        timeout: 30m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/sync
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/smoke
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/contract
+
+  - id: interop-loadtest
+    description: "Interop network loadtests."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest
+        timeout: 10m
+
+  - id: flashblocks
+    inherits:
+      - base
+    description: "Flashblocks network tests."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/flashblocks
+        timeout: 5m
+
+  - id: flashblocks-with-isthmus
+    inherits:
+      - base
+    description: "Flashblocks network tests with Isthmus."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/flashblocks
+        timeout: 5m
+
+  - id: sync-test-op-node
+    description: "Sync tests for op-node with external networks via the op-sync-tester - tests run daily."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_ext_el
+        timeout: 30m
+
+  - id: jovian
+    inherits:
+      - base
+    description: "Jovian network tests."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/jovian/...
+        timeout: 10m
+
+  - id: cgt
+    description: "Custom Gas Token (CGT) network tests."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/custom_gas_token
+        timeout: 10m

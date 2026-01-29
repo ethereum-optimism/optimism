@@ -1,0 +1,56 @@
+---
+description: Installation instructions for Kona.
+---
+
+## Prerequisites
+
+Before installing Kona, ensure you have the following prerequisites:
+
+- **Rust toolchain** (MSRV: 1.82)
+- **`just`** command runner
+- **Docker** (optional, for containerized builds)
+
+### Installing Rust
+
+If you don't have Rust installed, you can install it using [rustup](https://rustup.rs/):
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Rustup is an easy way to update the Rust compiler, and works on all platforms.
+
+:::tip
+
+-   During installation, when prompted, enter `1` for the default installation.
+-   After Rust installation completes, try running `cargo version` . If it cannot
+    be found, run `source $HOME/.cargo/env`. After that, running `cargo version` should return the version, for example `cargo 1.68.2`.
+-   It's generally advisable to append `source $HOME/.cargo/env` to `~/.bashrc`.
+
+:::
+
+The Minimum Supported Rust Version (MSRV) of this project is 1.82.0. If you
+already have a version of Rust installed, you can check your version by running
+`rustc --version`. To update your version of Rust, run rustup update.
+
+
+### Installing Just
+
+`just` is a command runner that Kona uses for build tasks. Install it with:
+
+```bash
+cargo install just
+```
+
+## Installation Methods
+
+There are three ways to obtain Kona:
+
+-   [Docker images](/node/install/docker)
+-   [Pre-built binaries](/node/install/binaries)
+-   [Building from source](/node/install/source)
+
+:::note
+If you have Docker installed, we recommend using the [Docker recipe](/node/run/docker) configuration
+that will have kona-node, op-reth, Prometheus and Grafana running and syncing with just one command.
+:::

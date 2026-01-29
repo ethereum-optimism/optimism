@@ -1,0 +1,389 @@
+package chain_container
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"path/filepath"
+	"sync/atomic"
+	"time"
+
+	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
+	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-supernode/config"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
+	"github.com/ethereum/go-ethereum"
+	gethlog "github.com/ethereum/go-ethereum/log"
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+const virtualNodeVersion = "0.1.0"
+
+type ChainContainer interface {
+	Start(ctx context.Context) error
+	Stop(ctx context.Context) error
+	Pause(ctx context.Context) error
+	Resume(ctx context.Context) error
+
+	ID() eth.ChainID
+	BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error)
+	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
+	VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
+	L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error)
+	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
+	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
+	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error)
+	RegisterVerifier(v activity.VerificationActivity)
+}
+
+type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode
+
+type simpleChainContainer struct {
+	vn                 virtual_node.VirtualNode
+	vncfg              *opnodecfg.Config
+	cfg                config.CLIConfig
+	engine             engine_controller.EngineController
+	pause              atomic.Bool
+	stop               atomic.Bool
+	stopped            chan struct{}
+	log                gethlog.Logger
+	chainID            eth.ChainID
+	initOverload       *rollupNode.InitializationOverrides     // Base shared resources for all virtual nodes
+	rpcHandler         *oprpc.Handler                          // Current per-chain RPC handler instance
+	setHandler         func(chainID string, h http.Handler)    // Set the RPC handler on the router for the chain
+	addMetricsRegistry func(key string, g prometheus.Gatherer) // Set the metrics registry on the global metrics server
+	appVersion         string
+	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
+	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
+	verifiers          []activity.VerificationActivity
+}
+
+// Interface conformance assertions
+var _ ChainContainer = (*simpleChainContainer)(nil)
+
+func NewChainContainer(
+	chainID eth.ChainID,
+	vncfg *opnodecfg.Config,
+	log gethlog.Logger,
+	cfg config.CLIConfig,
+	initOverload *rollupNode.InitializationOverrides,
+	rpcHandler *oprpc.Handler,
+	setHandler func(chainID string, h http.Handler),
+	addMetricsRegistry func(key string, g prometheus.Gatherer),
+) ChainContainer {
+	c := &simpleChainContainer{
+		vncfg:              vncfg,
+		cfg:                cfg,
+		chainID:            chainID,
+		log:                log,
+		stopped:            make(chan struct{}, 1),
+		initOverload:       initOverload,
+		rpcHandler:         rpcHandler,
+		setHandler:         setHandler,
+		addMetricsRegistry: addMetricsRegistry,
+		appVersion:         virtualNodeVersion,
+		virtualNodeFactory: defaultVirtualNodeFactory,
+	}
+	vncfg.SafeDBPath = c.subPath("safe_db")
+	vncfg.RPC = cfg.RPCConfig
+	// Attach in-proc rollup client if an initial handler is provided
+	if c.rpcHandler != nil {
+		if err := c.attachInProcRollupClient(); err != nil {
+			log.Warn("failed to attach in-proc rollup client (initial)", "err", err)
+		}
+	}
+	// Initialize engine controller (separate connection, not an op-node override) with a short setup timeout
+	if vncfg.L2 != nil {
+		setupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		// Provide contextual logger to engine controller
+		engLog := log.New("chain_id", chainID.String(), "component", "engine_controller")
+		if eng, err := engine_controller.NewEngineControllerFromConfig(setupCtx, engLog, vncfg); err != nil {
+			log.Error("failed to setup engine controller", "err", err)
+		} else {
+			c.engine = eng
+		}
+	}
+	return c
+}
+
+func (c *simpleChainContainer) ID() eth.ChainID {
+	return c.chainID
+}
+
+// RegisterVerifier adds a verification activity to this chain container.
+// This allows late binding when activities and chains have circular dependencies.
+func (c *simpleChainContainer) RegisterVerifier(v activity.VerificationActivity) {
+	c.verifiers = append(c.verifiers, v)
+}
+
+// defaultVirtualNodeFactory is the default factory that creates a real VirtualNode
+func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode {
+	return virtual_node.NewVirtualNode(cfg, log, initOverload, appVersion)
+}
+
+func (c *simpleChainContainer) subPath(path string) string {
+	return filepath.Join(c.cfg.DataDir, c.chainID.String(), path)
+}
+
+func (c *simpleChainContainer) Start(ctx context.Context) error {
+	defer func() { c.stopped <- struct{}{} }()
+	for {
+		// Refresh per-start derived fields
+		c.vncfg.SafeDBPath = c.subPath("safe_db")
+		c.vncfg.RPC = c.cfg.RPCConfig
+		// create a fresh handler per (re)start, swap it into the router, and inject into overload
+		h := oprpc.NewHandler("", oprpc.WithLogger(c.log.New("chain_id", c.chainID.String())))
+		if c.setHandler != nil {
+			c.setHandler(c.chainID.String(), h)
+		}
+		c.initOverload.RPCHandler = h
+		c.rpcHandler = h
+		// attach in-proc rollup client for this handler
+		if err := c.attachInProcRollupClient(); err != nil {
+			c.log.Warn("failed to attach in-proc rollup client", "err", err)
+		}
+
+		// Disable per-VN metrics server and provide metrics registry hook
+		c.vncfg.Metrics.Enabled = false
+		if c.initOverload != nil {
+			c.initOverload.MetricsRegistry = func(reg *prometheus.Registry) {
+				if c.addMetricsRegistry != nil {
+					c.addMetricsRegistry(c.chainID.String(), reg)
+				}
+			}
+		}
+		c.vn = c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion)
+		if c.pause.Load() {
+			c.log.Info("chain container paused")
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		if c.stop.Load() {
+			break
+		}
+
+		// start the virtual node
+		err := c.vn.Start(ctx)
+		if err != nil {
+			c.log.Warn("virtual node exited with error", "error", err)
+		}
+
+		// always stop the virtual node after it exits
+		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if stopErr := c.vn.Stop(stopCtx); stopErr != nil {
+			c.log.Error("error stopping virtual node", "error", stopErr)
+		}
+		cancel()
+		if ctx.Err() != nil {
+			c.log.Info("chain container context cancelled, stopping restart loop", "ctx_err", ctx.Err())
+			break
+		}
+
+		// check if the chain container was stopped
+		if c.stop.Load() {
+			c.log.Info("chain container stop requested, stopping restart loop")
+			break
+		}
+
+	}
+	c.log.Info("chain container exiting")
+	return nil
+}
+
+func (c *simpleChainContainer) Stop(ctx context.Context) error {
+	c.stop.Store(true)
+	stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Close in-proc rollup RPC resources
+	if c.rollupClient != nil {
+		c.rollupClient.Close()
+	}
+
+	if c.vn != nil {
+		if err := c.vn.Stop(stopCtx); err != nil {
+			c.log.Error("error stopping virtual node", "error", err)
+		}
+	}
+
+	// Close engine controller RPC resources
+	if c.engine != nil {
+		_ = c.engine.Close()
+	}
+
+	select {
+	case <-c.stopped:
+		return nil
+	case <-stopCtx.Done():
+		return stopCtx.Err()
+	}
+}
+
+func (c *simpleChainContainer) Pause(ctx context.Context) error {
+	c.pause.Store(true)
+	return nil
+}
+
+func (c *simpleChainContainer) Resume(ctx context.Context) error {
+	c.pause.Store(false)
+	return nil
+}
+
+func (c *simpleChainContainer) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
+	if c.vncfg == nil {
+		return 0, fmt.Errorf("rollup config not available")
+	}
+	return c.vncfg.Rollup.TargetBlockNumber(ts)
+}
+
+func (c *simpleChainContainer) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
+	if c.vncfg == nil {
+		return 0, fmt.Errorf("rollup config not available")
+	}
+	return c.vncfg.Rollup.Genesis.L2Time + (blocknum * c.vncfg.Rollup.BlockTime), nil
+}
+
+// BlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client,
+// if the specified label contains a block at that timestamp
+func (c *simpleChainContainer) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	if c.engine == nil {
+		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
+	}
+	return c.engine.BlockAtTimestamp(ctx, ts, label)
+}
+
+// SyncStatus returns the in-process op-node sync status for this chain.
+func (c *simpleChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	if c.vn == nil {
+		if c.log != nil {
+			c.log.Warn("SyncStatus: virtual node not initialized")
+		}
+		return &eth.SyncStatus{}, nil
+	}
+	st, err := c.vn.SyncStatus(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return st, nil
+}
+
+func (c *simpleChainContainer) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error) {
+	return c.safeDBAtL2(ctx, l2Block)
+}
+
+// OutputRootAtL2BlockNumber computes the L2 output root for the specified L2 block number.
+func (c *simpleChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
+	if c.engine == nil {
+		return eth.Bytes32{}, engine_controller.ErrNoEngineClient
+	}
+	out, err := c.engine.OutputV0AtBlockNumber(ctx, l2BlockNum)
+	if err != nil {
+		return eth.Bytes32{}, err
+	}
+	return eth.OutputRoot(out), nil
+}
+
+// safeDBAtL2 delegates to the virtual node to resolve the earliest L1 at which the L2 became safe.
+func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (eth.BlockID, error) {
+	if c.vn == nil {
+		return eth.BlockID{}, fmt.Errorf("virtual node not initialized")
+	}
+	status, err := c.SyncStatus(ctx)
+	if err != nil {
+		return eth.BlockID{}, err
+	}
+	currentL1 := status.CurrentL1
+	c.log.Debug("safeDBAtL2", "l2", l2, "currentL1", currentL1, "err", err)
+	return c.vn.L1AtSafeHead(ctx, l2)
+}
+
+// VerifiedAt returns the verified L2 and L1 blocks for the given L2 timestamp.
+// Must return ethereum.NotFound if there is no safe block at the specified timestamp.
+func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
+	l2Block, err := c.BlockAtTimestamp(ctx, ts, eth.Safe)
+	if err != nil {
+		c.log.Error("error determining l2 block at given timestamp", "error", err)
+		return eth.BlockID{}, eth.BlockID{}, err
+	}
+	l1Block, err := c.safeDBAtL2(ctx, l2Block.ID())
+	if err != nil {
+		c.log.Error("error determining l1 block number at which l2 block became safe", "error", err)
+		return eth.BlockID{}, eth.BlockID{}, err
+	}
+
+	for _, verifier := range c.verifiers {
+		verified, err := verifier.VerifiedAtTimestamp(ts)
+		if err != nil {
+			c.log.Error("error checking if data could be verified at this L1", "error", err)
+			return eth.BlockID{}, eth.BlockID{}, err
+		}
+		if !verified {
+			c.log.Error("verifier does not have data at this timestamp. cannot supply block at this timestamp as verified", "verifier", verifier.Name())
+			return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("verifier %s does not have data at this timestamp: %w", verifier.Name(), ethereum.NotFound)
+		}
+	}
+
+	return l2Block.ID(), l1Block, nil
+}
+
+// OptimisticAt returns the optimistic (pre-verified) L2 and L1 blocks for the given L2 timestamp.
+func (c *simpleChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
+	l2Block, err := c.BlockAtTimestamp(ctx, ts, eth.Safe)
+	if err != nil {
+		c.log.Error("error determining l2 block at given timestamp", "error", err)
+		return eth.BlockID{}, eth.BlockID{}, err
+	}
+	l1Block, err := c.safeDBAtL2(ctx, l2Block.ID())
+	if err != nil {
+		c.log.Error("error determining l1 block number at which l2 block became safe", "error", err)
+		return eth.BlockID{}, eth.BlockID{}, err
+	}
+
+	// if there were Verification Activities, we could check if there was a pre-verified block which was added to the denylist
+	// but there are currently no verification activities, so we just return the l2 and l1 blocks
+	return l2Block.ID(), l1Block, nil
+}
+
+// OptimisticOutputAtTimestamp returns the full Output for the optimistic L2 block at the given timestamp.
+// For now this simply calls the op-node's normal OutputAtBlock for the block number computed from the timestamp.
+func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
+	if c.rollupClient == nil {
+		return nil, fmt.Errorf("rollup client not initialized")
+	}
+	// Determine the optimistic L2 block at timestamp (currently same as safe block at ts)
+	l2Block, err := c.BlockAtTimestamp(ctx, ts, eth.Safe)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve L2 block at timestamp: %w", err)
+	}
+	// Call the standard OutputAtBlock RPC
+	out, err := c.rollupClient.OutputAtBlock(ctx, l2Block.Number)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get output at block %d: %w", l2Block.Number, err)
+	}
+	return out, nil
+}
+
+// attachInProcRollupClient creates a new in-proc rollup RPC client bound to the current rpcHandler.
+// It will close any existing client before replacing it.
+func (c *simpleChainContainer) attachInProcRollupClient() error {
+	if c.rpcHandler == nil {
+		return fmt.Errorf("rpc handler not initialized")
+	}
+	inproc, err := c.rpcHandler.DialInProc()
+	if err != nil {
+		return err
+	}
+	// Close previous rollup client if present
+	if c.rollupClient != nil {
+		c.rollupClient.Close()
+	}
+	c.rollupClient = sources.NewRollupClient(client.NewBaseRPCClient(inproc))
+	return nil
+}

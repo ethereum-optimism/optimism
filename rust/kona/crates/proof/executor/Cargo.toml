@@ -1,0 +1,75 @@
+[package]
+name = "kona-executor"
+description = "A no_std stateless block builder for the OP Stack"
+version = "0.4.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Workspace
+kona-mpt.workspace = true
+kona-genesis = { workspace = true, features = ["revm"] }
+kona-protocol.workspace = true
+
+# Alloy
+alloy-consensus = { workspace = true, features = ["k256"] }
+alloy-primitives = { workspace = true, features = ["rlp"] }
+alloy-eips.workspace = true
+alloy-rlp.workspace = true
+alloy-trie.workspace = true
+
+# Op Alloy
+op-alloy-consensus.workspace = true
+op-alloy-rpc-types-engine = { workspace = true, features = ["serde", "k256"] }
+alloy-op-hardforks.workspace = true
+
+# revm
+op-revm.workspace = true
+revm.workspace = true
+
+# alloy-evm
+alloy-op-evm.workspace = true
+alloy-evm = { workspace = true, features = ["op"] }
+
+# General
+thiserror.workspace = true
+tracing.workspace = true
+
+# `test-utils` feature
+rand = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"], optional = true }
+tokio = { workspace = true, features = ["full"], optional = true }
+rstest = { workspace = true, optional = true }
+kona-registry = { workspace = true, optional = true }
+rocksdb = { workspace = true, features = ["snappy"], optional = true }
+tempfile = { workspace = true, optional = true }
+alloy-rpc-types-engine = { workspace = true, optional = true }
+alloy-provider = { workspace = true, features = ["reqwest"], optional = true }
+alloy-rpc-client = { workspace = true, optional = true }
+alloy-transport = { workspace = true, optional = true }
+alloy-transport-http = { workspace = true, optional = true }
+
+[features]
+test-utils = [
+	"dep:alloy-provider",
+	"dep:alloy-rpc-client",
+	"dep:alloy-rpc-types-engine",
+	"dep:alloy-transport",
+	"dep:alloy-transport-http",
+	"dep:kona-registry",
+	"dep:rand",
+	"dep:rocksdb",
+	"dep:rstest",
+	"dep:serde",
+	"dep:serde_json",
+	"dep:tempfile",
+	"dep:tokio",
+	"kona-protocol/test-utils",
+]

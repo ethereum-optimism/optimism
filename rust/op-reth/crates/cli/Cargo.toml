@@ -1,0 +1,127 @@
+[package]
+name = "reth-optimism-cli"
+version = "1.10.2"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage = "https://paradigmxyz.github.io/reth"
+repository = "https://github.com/paradigmxyz/reth"
+
+[lints]
+workspace = true
+
+[dependencies]
+reth-static-file-types = { workspace = true, features = ["clap"] }
+reth-cli.workspace = true
+reth-cli-commands.workspace = true
+reth-consensus.workspace = true
+reth-rpc-server-types.workspace = true
+reth-primitives-traits.workspace = true
+reth-db = { workspace = true, features = ["mdbx", "op"] }
+reth-db-api.workspace = true
+reth-db-common.workspace = true
+reth-downloaders.workspace = true
+reth-provider.workspace = true
+reth-prune.workspace = true
+reth-stages.workspace = true
+reth-static-file.workspace = true
+reth-execution-types.workspace = true
+reth-node-core.workspace = true
+reth-optimism-node.workspace = true
+reth-fs-util.workspace = true
+
+# so jemalloc metrics can be included
+reth-node-metrics.workspace = true
+
+## optimism
+reth-optimism-primitives.workspace = true
+reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
+reth-optimism-consensus.workspace = true
+
+reth-chainspec.workspace = true
+reth-node-events.workspace = true
+reth-optimism-evm.workspace = true
+reth-cli-runner.workspace = true
+reth-node-builder = { workspace = true, features = ["op"] }
+reth-tracing.workspace = true
+
+# eth
+alloy-eips.workspace = true
+alloy-consensus.workspace = true
+alloy-primitives.workspace = true
+alloy-rlp.workspace = true
+
+# misc
+futures-util.workspace = true
+derive_more.workspace = true
+serde.workspace = true
+clap = { workspace = true, features = ["derive", "env"] }
+
+tokio = { workspace = true, features = ["sync", "macros", "time", "rt-multi-thread"] }
+tokio-util = { workspace = true, features = ["codec"] }
+tracing.workspace = true
+eyre.workspace = true
+
+# reth test-vectors
+proptest = { workspace = true, optional = true }
+op-alloy-consensus.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+reth-stages = { workspace = true, features = ["test-utils"] }
+
+[build-dependencies]
+reth-optimism-chainspec = { workspace = true, features = ["std", "superchain-configs"] }
+
+[features]
+default = []
+
+# Opentelemetry feature to activate tracing and logs export
+otlp = ["reth-tracing/otlp", "reth-node-core/otlp"]
+otlp-logs = ["reth-tracing/otlp-logs", "reth-node-core/otlp-logs"]
+
+asm-keccak = [
+    "alloy-primitives/asm-keccak",
+    "reth-node-core/asm-keccak",
+    "reth-optimism-node/asm-keccak",
+]
+
+keccak-cache-global = [
+    "alloy-primitives/keccak-cache-global",
+    "reth-node-core/keccak-cache-global",
+    "reth-optimism-node/keccak-cache-global",
+]
+
+# Jemalloc feature for vergen to generate correct env vars
+jemalloc = [
+    "reth-node-core/jemalloc",
+    "reth-node-metrics/jemalloc",
+]
+jemalloc-prof = [
+    "jemalloc",
+    "reth-node-metrics/jemalloc-prof",
+]
+jemalloc-symbols = [
+    "jemalloc-prof",
+    "reth-node-metrics/jemalloc-symbols",
+]
+
+tracy = ["reth-tracing/tracy", "reth-node-core/tracy"]
+
+dev = [
+    "dep:proptest",
+    "reth-cli-commands/arbitrary",
+]
+
+serde = [
+    "alloy-consensus/serde",
+    "alloy-eips/serde",
+    "alloy-primitives/serde",
+    "op-alloy-consensus/serde",
+    "reth-execution-types/serde",
+    "reth-optimism-primitives/serde",
+    "reth-primitives-traits/serde",
+    "reth-optimism-chainspec/serde",
+]
+
+edge = ["reth-cli-commands/edge", "reth-node-core/edge"]
