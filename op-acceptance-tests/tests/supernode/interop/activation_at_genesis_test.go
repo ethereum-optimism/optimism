@@ -29,52 +29,30 @@ func TestSupernodeInteropActivationAtGenesis(gt *testing.T) {
 	ctx := t.Ctx()
 	snClient := sys.SuperNodeClient()
 
-	// The first timestamp to be verified should be the genesis time
-	// Wait for safe head to advance past genesis
-	t.Require().Eventually(func() bool {
-		status := sys.L2ACL.SyncStatus()
-		return status.SafeL2.Number > 0 && status.SafeL2.Time > genesisTime
-	}, 60*time.Second, time.Second, "should advance past genesis")
+	// The first timestamp to be verified should be genesis + blockTime
+	// (genesis block doesn't have L1 data recorded in safeDB yet)
+	targetTimestamp := genesisTime + blockTime
+	t.Logger().Info("checking VerifiedAt for first block after genesis", "timestamp", targetTimestamp)
 
-	// Verify both chains have processed the activation boundary
-	statusA := sys.L2ACL.SyncStatus()
-	statusB := sys.L2BCL.SyncStatus()
-
-	t.Logger().Info("genesis activation processed",
-		"chainA_safe_time", statusA.SafeL2.Time,
-		"chainB_safe_time", statusB.SafeL2.Time,
-		"genesis_time", genesisTime,
-	)
-
-	// Both chains should have timestamps >= genesis
-	t.Require().GreaterOrEqual(statusA.SafeL2.Time, genesisTime, "chain A should be at or past genesis")
-	t.Require().GreaterOrEqual(statusB.SafeL2.Time, genesisTime, "chain B should be at or past genesis")
-
-	// Verify VerifiedAt works for the safe head timestamp (interop was active from genesis)
-	// Note: We use the safe head timestamp rather than the exact genesis timestamp because
-	// the genesis block doesn't have L1 data recorded in the safeDB yet.
-	safeTs := statusA.SafeL2.Time
-	t.Logger().Info("checking VerifiedAt for safe head timestamp", "timestamp", safeTs)
-
-	// The interop activity may still be catching up, so we poll until verified
-	var safeResp eth.SuperRootAtTimestampResponse
+	// Wait for interop to verify the first block after genesis
+	var genesisResp eth.SuperRootAtTimestampResponse
 	t.Require().Eventually(func() bool {
 		var err error
-		safeResp, err = snClient.SuperRootAtTimestamp(ctx, safeTs)
+		genesisResp, err = snClient.SuperRootAtTimestamp(ctx, targetTimestamp)
 		if err != nil {
-			t.Logger().Warn("superroot_atTimestamp error, retrying", "timestamp", safeTs, "err", err)
+			t.Logger().Warn("superroot_atTimestamp error, retrying", "timestamp", targetTimestamp, "err", err)
 			return false
 		}
-		if safeResp.Data == nil {
-			t.Logger().Debug("waiting for interop to verify safe head timestamp", "timestamp", safeTs)
+		if genesisResp.Data == nil {
+			t.Logger().Debug("waiting for interop to verify first block", "timestamp", targetTimestamp)
 			return false
 		}
 		return true
-	}, 60*time.Second, time.Second, "VerifiedAt should return data for safe head timestamp (interop-verified)")
+	}, 60*time.Second, time.Second, "VerifiedAt should return data for first block after genesis (interop-verified)")
 
-	t.Logger().Info("safe head timestamp VerifiedAt check passed",
-		"timestamp", safeTs,
-		"verified_required_l1", safeResp.Data.VerifiedRequiredL1,
-		"super_root", safeResp.Data.SuperRoot,
+	t.Logger().Info("genesis activation verified",
+		"timestamp", targetTimestamp,
+		"verified_required_l1", genesisResp.Data.VerifiedRequiredL1,
+		"super_root", genesisResp.Data.SuperRoot,
 	)
 }
