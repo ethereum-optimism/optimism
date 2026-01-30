@@ -48,4 +48,3 @@ func (s *Supernode) SuperRootAtTimestamp(timestamp uint64) eth.SuperRootAtTimest
 	s.require.NoError(err, "failed to get super-root at timestamp %d", timestamp)
 	return resp
 }
-

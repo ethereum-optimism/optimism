@@ -43,6 +43,8 @@ func (d *SuperRootResponseData) UnmarshalJSON(input []byte) error {
 			return err
 		}
 		d.Super = &superV1
+	} else {
+		d.Super = nil
 	}
 	return nil
 }
