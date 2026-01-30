@@ -23,8 +23,8 @@ func TestOutOfConsensusGasReduction(gt *testing.T) {
 	alice := sys.FunderL2.NewFundedEOA(eth.OneTenthEther)
 	cathrine := sys.FunderL2.NewFundedEOA(eth.ZeroWei)
 
-	l.Info("anteva: Alice", "address", alice.Address())
-	l.Info("anteva: Catherine", "address", cathrine.Address())
+	l.Info("Alice", "address", alice.Address())
+	l.Info("Catherine", "address", cathrine.Address())
 
 	// EventLogger is used to generate a random tx with ~100k gas, parts of which we want to refund with the sequencer
 	{
@@ -44,7 +44,7 @@ func TestOutOfConsensusGasReduction(gt *testing.T) {
 
 		receiptA, err := txA.PlannedTx.Included.Eval(t.Ctx())
 		require.NoError(t, err)
-		l.Info("anteva: EventLogger message included", "block", receiptA.BlockHash, "gas_used", receiptA.GasUsed)
+		l.Info("EventLogger message included", "block", receiptA.BlockHash, "gas_used", receiptA.GasUsed)
 		require.Equal(t, eventCnt, len(receiptA.Logs))
 	}
 
@@ -52,36 +52,44 @@ func TestOutOfConsensusGasReduction(gt *testing.T) {
 	receipt := alice.Transfer(cathrine.Address(), amount)
 
 	ri := receipt.Included.Value()
-	l.Info("anteva: Receipt", "gas_used", ri.GasUsed)
-	l.Info("anteva: Receipt", "tx index", ri.TransactionIndex)
+	l.Info("Receipt", "gas_used", ri.GasUsed)
+	l.Info("Receipt", "tx index", ri.TransactionIndex)
 
 	sys.L2EL.Advanced(eth.Unsafe, 21)
 	sys.L2ELB.Matched(sys.L2EL, types.LocalUnsafe, 5)
 
-	l.Info("anteva: Unsafe advanced, waiting for Safe to advance")
+	l.Info("Unsafe advanced, waiting for Safe to advance")
 
-	l.Info("anteva: Chain status after Unsafe sync")
+	l.Info("Chain status after Unsafe sync")
 	status := sys.L2CL.SyncStatus()
 	spew.Dump(status)
 
 	status = sys.L2CLB.SyncStatus()
 	spew.Dump(status)
 
-	l.Info("anteva: Starting Batcher")
+	ref := status.UnsafeL2
+
+	l.Info("Starting Batcher")
 
 	sys.L2Batcher.Start()
 
 	sys.L2EL.Advanced(eth.Safe, 2)
 	sys.L2ELB.Advanced(eth.Safe, 2)
 
-	l.Info("anteva: Safe advanced, waiting for Safe to match between the nodes")
+	l.Info("Safe advanced, waiting for Safe to match between the nodes")
 
 	sys.L2ELB.Matched(sys.L2EL, types.LocalSafe, 5)
 
-	l.Info("anteva: Chain status after Safe sync")
+	l.Info("Chain status after Safe sync")
 	status = sys.L2CL.SyncStatus()
 	spew.Dump(status)
 
 	status = sys.L2CLB.SyncStatus()
 	spew.Dump(status)
+
+	// confirm that the safe safety passed previously known unsafe and didn't reorg
+	sys.L2CLB.ReachedRef(types.LocalSafe, eth.BlockID{
+		Number: ref.Number,
+		Hash:   ref.Hash,
+	}, 5)
 }

@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -137,8 +136,6 @@ func (hdr *RPCHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo
 	}
 	if !trustCache {
 		if computed := hdr.computeBlockHash(); computed != hdr.Hash {
-			fmt.Println("anteva: failed to verify rpcheader")
-			spew.Dump(hdr)
 			return nil, fmt.Errorf("failed to verify block hash: computed %s but RPC said %s", computed, hdr.Hash)
 		}
 	}
@@ -160,8 +157,6 @@ type RPCBlock struct {
 
 func (block *RPCBlock) Verify() error {
 	if computed := block.computeBlockHash(); computed != block.Hash {
-		fmt.Println("anteva: failed to verify rpcblock")
-		spew.Dump(block)
 		return fmt.Errorf("failed to verify block hash: computed %s but RPC said %s", computed, block.Hash)
 	}
 	for i, tx := range block.Transactions {

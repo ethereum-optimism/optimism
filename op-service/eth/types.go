@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -417,8 +416,6 @@ func (envelope *ExecutionPayloadEnvelope) CheckBlockHash() (actual common.Hash, 
 	hasher := trie.NewStackTrie(nil)
 	txHash := types.DeriveSha(rawTransactions(payload.Transactions), hasher)
 
-	fmt.Println("anteva: CheckBlockHash", spew.Sdump(payload.OPContainer))
-
 	header := types.Header{
 		ParentHash:       payload.ParentHash,
 		UncleHash:        types.EmptyUncleHash,
@@ -544,7 +541,6 @@ type PayloadAttributes struct {
 	MinBaseFee *uint64 `json:"minBaseFee,omitempty"`
 	// OPContainer from the batch
 	OPContainer *types.OPContainer `json:"opContainer,omitempty"`
-
 }
 
 // IsDepositsOnly returns whether all transactions of the PayloadAttributes are of Deposit
