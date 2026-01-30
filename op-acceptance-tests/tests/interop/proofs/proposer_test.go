@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 func TestProposer(gt *testing.T) {
@@ -17,6 +18,8 @@ func TestProposer(gt *testing.T) {
 	rootClaim := newGame.RootClaim().Value()
 	l2SequenceNumber := newGame.L2SequenceNumber()
 
-	superRoot := sys.Supervisor.FetchSuperRootAtTimestamp(l2SequenceNumber)
-	t.Require().Equal(superRoot.SuperRoot[:], rootClaim[:])
+	response := sys.SuperRoots.SuperRootAtTimestamp(l2SequenceNumber)
+	t.Require().NotNilf(response.Data, "super root does not exist at time %d", l2SequenceNumber)
+	superRoot := eth.SuperRoot(response.Data.Super)
+	t.Require().Equal(superRoot[:], rootClaim[:])
 }

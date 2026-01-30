@@ -42,7 +42,7 @@ func TestERC20Bridge(gt *testing.T) {
 	l1User.WaitForTokenBalance(l1TokenAddress, mintAmount)
 	t.Logger().Info("User has WETH tokens on L1", "balance", mintAmount)
 
-	bridge := dsl.NewStandardBridge(t, sys.L2Chain, nil, sys.L1EL)
+	bridge := dsl.NewStandardBridge(t, sys.L2Chain, sys.L1EL)
 	l2TokenAddress := bridge.CreateL2Token(l1TokenAddress, "L2 WETH", "L2WETH", l2User)
 	t.Logger().Info("Created L2 token", "address", l2TokenAddress)
 

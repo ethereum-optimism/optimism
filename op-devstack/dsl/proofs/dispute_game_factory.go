@@ -200,8 +200,7 @@ func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType g
 	}
 	timestamp := cfg.l2SequenceNumber
 	if !cfg.l2SequenceNumberSet {
-		f.t.Error("Can't retrieve safe timestamp from super node yet")
-		f.t.FailNow()
+		timestamp = f.safeTimestamp()
 	}
 	extraData := f.createSuperGameExtraData(timestamp, cfg)
 	rootClaim := cfg.rootClaim
@@ -441,6 +440,14 @@ func (f *DisputeGameFactory) CreateHelperEOA(eoa *dsl.EOA) *GameHelperEOA {
 		helper: eoaHelper,
 		EOA:    eoa,
 	}
+}
+
+// safeTimestamp retrieves the current safe timestamp from the supernode.
+func (f *DisputeGameFactory) safeTimestamp() uint64 {
+	now := uint64(time.Now().Unix())
+	resp, err := f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), now)
+	f.require.NoError(err, "Failed to fetch super root at timestamp")
+	return resp.CurrentSafeTimestamp
 }
 
 type GameHelperEOA struct {
