@@ -255,6 +255,7 @@ func BlockToSingularBatch(rollupCfg *rollup.Config, block *types.Block) (*Singul
 		EpochHash:    l1Info.BlockHash,
 		Timestamp:    block.Time(),
 		Transactions: opaqueTxs,
+		OPContainer:  block.Header().OPContainer,
 	}, l1Info, nil
 }
 

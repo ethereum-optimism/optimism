@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 
@@ -39,10 +40,11 @@ type spanBatchPrefix struct {
 }
 
 type spanBatchPayload struct {
-	blockCount    uint64        // Number of L2 block in the span
-	originBits    *big.Int      // Standard span-batch bitlist of blockCount bits. Each bit indicates if the L1 origin is changed at the L2 block.
-	blockTxCounts []uint64      // List of transaction counts for each L2 block
-	txs           *spanBatchTxs // Transactions encoded in SpanBatch specs
+	blockCount    uint64              // Number of L2 block in the span
+	originBits    *big.Int            // Standard span-batch bitlist of blockCount bits. Each bit indicates if the L1 origin is changed at the L2 block.
+	blockTxCounts []uint64            // List of transaction counts for each L2 block
+	txs           *spanBatchTxs       // Transactions encoded in SpanBatch specs
+	opContainers  []*types.OPContainer // OPContainers for each block in the span
 }
 
 // RawSpanBatch is another representation of SpanBatch, that encodes data according to SpanBatch specs.
@@ -188,6 +190,140 @@ func (bp *spanBatchPayload) decodeTxs(r *bytes.Reader) error {
 	return nil
 }
 
+// decodeOPContainers parses OPContainer data for each block
+func (bp *spanBatchPayload) decodeOPContainers(r *bytes.Reader) error {
+	bp.opContainers = make([]*types.OPContainer, 0, bp.blockCount)
+	for i := 0; i < int(bp.blockCount); i++ {
+		// Read a byte to check if OPContainer exists (0 = nil, 1 = present)
+		hasContainer, err := r.ReadByte()
+		if err != nil {
+			return fmt.Errorf("failed to read OPContainer presence flag: %w", err)
+		}
+		if hasContainer == 0 {
+			bp.opContainers = append(bp.opContainers, nil)
+			continue
+		}
+		// Read length of OPContainer data
+		dataLen, err := binary.ReadUvarint(r)
+		if err != nil {
+			return fmt.Errorf("failed to read OPContainer data length: %w", err)
+		}
+		if dataLen > MaxSpanBatchElementCount {
+			return ErrTooBigSpanBatchSize
+		}
+		// Read OPContainer data
+		containerData := make([]byte, dataLen)
+		if _, err := io.ReadFull(r, containerData); err != nil {
+			return fmt.Errorf("failed to read OPContainer data: %w", err)
+		}
+		// Decode OPContainer using binary format (same as SSZ encoding)
+		container, err := bp.unmarshalOPContainer(containerData)
+		if err != nil {
+			return fmt.Errorf("failed to decode OPContainer: %w", err)
+		}
+		bp.opContainers = append(bp.opContainers, container)
+	}
+	return nil
+}
+
+// unmarshalOPContainer decodes OPContainer from binary format
+func (bp *spanBatchPayload) unmarshalOPContainer(in []byte) (*types.OPContainer, error) {
+	const opContainerVersionSize = 8
+	const opGasEntrySize = 8 + 8 // Index (8) + OPGasRefund (8)
+	
+	if len(in) < opContainerVersionSize {
+		return nil, errors.New("invalid OPContainer data: too short")
+	}
+	offset := 0
+	// Read Version field
+	version := binary.LittleEndian.Uint64(in[offset : offset+8])
+	offset += opContainerVersionSize
+	// Calculate remaining data for MetadataOPGas entries
+	remainingData := len(in) - offset
+	if remainingData < 0 {
+		return nil, errors.New("invalid OPContainer data: invalid length")
+	}
+	if remainingData%opGasEntrySize != 0 {
+		return nil, errors.New("invalid OPContainer data: MetadataOPGas data length not multiple of entry size")
+	}
+	entryCount := remainingData / opGasEntrySize
+	result := &types.OPContainer{
+		Version:      version,
+		MetadataOPGas: make([]types.OPGasEntry, 0, entryCount),
+	}
+	// Read MetadataOPGas entries
+	for i := 0; i < entryCount; i++ {
+		var entry types.OPGasEntry
+		entry.Index = binary.LittleEndian.Uint64(in[offset : offset+8])
+		offset += 8
+		entry.OPGasRefund = binary.LittleEndian.Uint64(in[offset : offset+8])
+		offset += 8
+		result.MetadataOPGas = append(result.MetadataOPGas, entry)
+	}
+	return result, nil
+}
+
+// encodeOPContainers encodes OPContainer data for each block
+func (bp *spanBatchPayload) encodeOPContainers(w io.Writer) error {
+	if len(bp.opContainers) != int(bp.blockCount) {
+		return fmt.Errorf("OPContainer count mismatch: have %d, expected %d", len(bp.opContainers), bp.blockCount)
+	}
+	for _, container := range bp.opContainers {
+		if container == nil {
+			if _, err := w.Write([]byte{0}); err != nil {
+				return fmt.Errorf("failed to write nil OPContainer flag: %w", err)
+			}
+			continue
+		}
+		// Write presence flag
+		if _, err := w.Write([]byte{1}); err != nil {
+			return fmt.Errorf("failed to write OPContainer presence flag: %w", err)
+		}
+		// Encode OPContainer using binary format (same as SSZ encoding)
+		containerData := bp.marshalOPContainer(container)
+		// Write length
+		var buf [binary.MaxVarintLen64]byte
+		n := binary.PutUvarint(buf[:], uint64(len(containerData)))
+		if _, err := w.Write(buf[:n]); err != nil {
+			return fmt.Errorf("failed to write OPContainer data length: %w", err)
+		}
+		// Write data
+		if _, err := w.Write(containerData); err != nil {
+			return fmt.Errorf("failed to write OPContainer data: %w", err)
+		}
+	}
+	return nil
+}
+
+// marshalOPContainer encodes OPContainer to binary format
+func (bp *spanBatchPayload) marshalOPContainer(container *types.OPContainer) []byte {
+	const opContainerVersionSize = 8
+	const opGasEntrySize = 8 + 8 // Index (8) + OPGasRefund (8)
+	
+	if container == nil {
+		return nil
+	}
+	size := opContainerVersionSize
+	if container.MetadataOPGas != nil {
+		size += len(container.MetadataOPGas) * opGasEntrySize
+	}
+	out := make([]byte, size)
+	offset := 0
+	// Write Version field
+	binary.LittleEndian.PutUint64(out[offset:offset+8], container.Version)
+	offset += opContainerVersionSize
+	// Write MetadataOPGas entries
+	if container.MetadataOPGas != nil {
+		for _, entry := range container.MetadataOPGas {
+			binary.LittleEndian.PutUint64(out[offset:offset+8], entry.Index)
+			offset += 8
+			binary.LittleEndian.PutUint64(out[offset:offset+8], entry.OPGasRefund)
+			offset += 8
+		}
+	}
+	return out
+}
+
 // decodePayload parses data into bp.spanBatchPayload
 func (bp *spanBatchPayload) decodePayload(r *bytes.Reader) error {
 	if err := bp.decodeBlockCount(r); err != nil {
@@ -200,6 +336,9 @@ func (bp *spanBatchPayload) decodePayload(r *bytes.Reader) error {
 		return err
 	}
 	if err := bp.decodeTxs(r); err != nil {
+		return err
+	}
+	if err := bp.decodeOPContainers(r); err != nil {
 		return err
 	}
 	return nil
@@ -324,6 +463,9 @@ func (bp *spanBatchPayload) encodePayload(w io.Writer) error {
 	if err := bp.encodeTxs(w); err != nil {
 		return err
 	}
+	if err := bp.encodeOPContainers(w); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -374,6 +516,10 @@ func (b *RawSpanBatch) derive(blockTime, genesisTimestamp uint64, chainID *big.I
 			batch.Transactions = append(batch.Transactions, fullTxs[txIdx])
 			txIdx++
 		}
+		// Set OPContainer if available
+		if i < len(b.opContainers) {
+			batch.OPContainer = b.opContainers[i]
+		}
 		spanBatch.Batches = append(spanBatch.Batches, &batch)
 	}
 	return &spanBatch, nil
@@ -396,6 +542,7 @@ type SpanBatchElement struct {
 	EpochNum     rollup.Epoch // aka l1 num
 	Timestamp    uint64
 	Transactions []hexutil.Bytes
+	OPContainer  *types.OPContainer `rlp:"optional"` // OPContainer from block header
 }
 
 // singularBatchToElement converts a SingularBatch to a SpanBatchElement
@@ -404,6 +551,7 @@ func singularBatchToElement(singularBatch *SingularBatch) *SpanBatchElement {
 		EpochNum:     singularBatch.EpochNum,
 		Timestamp:    singularBatch.Timestamp,
 		Transactions: singularBatch.Transactions,
+		OPContainer:  singularBatch.OPContainer,
 	}
 }
 
@@ -574,6 +722,12 @@ func (b *SpanBatch) ToRawSpanBatch() (*RawSpanBatch, error) {
 	span_start := b.Batches[0]
 	span_end := b.Batches[len(b.Batches)-1]
 
+	// Extract OPContainers from batches
+	opContainers := make([]*types.OPContainer, len(b.Batches))
+	for i, batch := range b.Batches {
+		opContainers[i] = batch.OPContainer
+	}
+
 	return &RawSpanBatch{
 		spanBatchPrefix: spanBatchPrefix{
 			relTimestamp:  span_start.Timestamp - b.GenesisTimestamp,
@@ -586,6 +740,7 @@ func (b *SpanBatch) ToRawSpanBatch() (*RawSpanBatch, error) {
 			originBits:    b.originBits,
 			blockTxCounts: b.blockTxCounts,
 			txs:           b.sbtxs,
+			opContainers:  opContainers,
 		},
 	}, nil
 }
@@ -612,6 +767,7 @@ func (b *SpanBatch) GetSingularBatches(l1Origins []eth.L1BlockRef, l2SafeHead et
 			EpochNum:     batch.EpochNum,
 			Timestamp:    batch.Timestamp,
 			Transactions: batch.Transactions,
+			OPContainer:  batch.OPContainer,
 		}
 		originFound := false
 		for i := originIdx; i < len(l1Origins); i++ {

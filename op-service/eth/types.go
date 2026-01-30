@@ -542,6 +542,9 @@ type PayloadAttributes struct {
 	EIP1559Params *Bytes8 `json:"eip1559Params,omitempty"`
 	// MinBaseFee is the minimum base fee, to be specified only post-Jovian
 	MinBaseFee *uint64 `json:"minBaseFee,omitempty"`
+	// OPContainer from the batch
+	OPContainer *types.OPContainer `json:"opContainer,omitempty"`
+
 }
 
 // IsDepositsOnly returns whether all transactions of the PayloadAttributes are of Deposit

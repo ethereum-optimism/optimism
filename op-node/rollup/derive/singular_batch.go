@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -25,6 +26,7 @@ type SingularBatch struct {
 	EpochHash    common.Hash  // l1 block hash
 	Timestamp    uint64       // l2 block timestamp
 	Transactions []hexutil.Bytes
+	OPContainer  *types.OPContainer `rlp:"optional"` // OPContainer from block header
 }
 
 func (b *SingularBatch) AsSingularBatch() (*SingularBatch, bool) { return b, true }

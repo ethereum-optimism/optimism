@@ -55,9 +55,33 @@ func TestOutOfConsensusGasReduction(gt *testing.T) {
 	l.Info("anteva: Receipt", "gas_used", ri.GasUsed)
 	l.Info("anteva: Receipt", "tx index", ri.TransactionIndex)
 
-	sys.L2EL.Advanced(eth.Unsafe, 2)
+	sys.L2EL.Advanced(eth.Unsafe, 21)
 	sys.L2ELB.Matched(sys.L2EL, types.LocalUnsafe, 5)
 
+	l.Info("anteva: Unsafe advanced, waiting for Safe to advance")
+
+	l.Info("anteva: Chain status after Unsafe sync")
 	status := sys.L2CL.SyncStatus()
+	spew.Dump(status)
+
+	status = sys.L2CLB.SyncStatus()
+	spew.Dump(status)
+
+	l.Info("anteva: Starting Batcher")
+
+	sys.L2Batcher.Start()
+
+	sys.L2EL.Advanced(eth.Safe, 2)
+	sys.L2ELB.Advanced(eth.Safe, 2)
+
+	l.Info("anteva: Safe advanced, waiting for Safe to match between the nodes")
+
+	sys.L2ELB.Matched(sys.L2EL, types.LocalSafe, 5)
+
+	l.Info("anteva: Chain status after Safe sync")
+	status = sys.L2CL.SyncStatus()
+	spew.Dump(status)
+
+	status = sys.L2CLB.SyncStatus()
 	spew.Dump(status)
 }
