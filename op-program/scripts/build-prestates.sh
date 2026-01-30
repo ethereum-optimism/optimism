@@ -92,6 +92,7 @@ function build_prestates() {
     # jq should already be preinstalled in the mise cache.
     # Replace mise.toml with a minimal one to avoid conflicts with other preinstalled dependencies.
     GO_VERSION=$(mise config get tools.go)
+    JUST_VERSION=$(mise config get tools.just)
     cat > mise.toml << EOF
 [tools]
 go = "${GO_VERSION}"
