@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
@@ -66,10 +67,10 @@ func TestSupernodeInteropBidirectionalMessages(gt *testing.T) {
 		statusB := sys.L2BCL.SyncStatus()
 
 		// All blocks should be safe
-		return statusA.SafeL2.Number > initReceiptAtoB.BlockNumber.Uint64() &&
-			statusA.SafeL2.Number > execReceiptBtoA.BlockNumber.Uint64() &&
-			statusB.SafeL2.Number > execReceiptAtoB.BlockNumber.Uint64() &&
-			statusB.SafeL2.Number > initReceiptBtoA.BlockNumber.Uint64()
+		return statusA.SafeL2.Number > bigs.Uint64Strict(initReceiptAtoB.BlockNumber) &&
+			statusA.SafeL2.Number > bigs.Uint64Strict(execReceiptBtoA.BlockNumber) &&
+			statusB.SafeL2.Number > bigs.Uint64Strict(execReceiptAtoB.BlockNumber) &&
+			statusB.SafeL2.Number > bigs.Uint64Strict(initReceiptBtoA.BlockNumber)
 	}, timeout, time.Second, "bidirectional messages should become safe")
 
 	t.Logger().Info("bidirectional messages processed successfully")

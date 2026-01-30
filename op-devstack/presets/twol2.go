@@ -1,7 +1,6 @@
 package presets
 
 import (
-	"net/url"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -13,8 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 )
 
 // TwoL2 represents a two-L2 setup without interop considerations.
@@ -80,6 +78,9 @@ func NewTwoL2(t devtest.T) *TwoL2 {
 type TwoL2SupernodeInterop struct {
 	TwoL2
 
+	// Supernode provides access to the shared supernode for interop operations
+	Supernode *dsl.Supernode
+
 	// L2ELA and L2ELB provide access to the EL nodes for transaction submission
 	L2ELA *dsl.L2ELNode
 	L2ELB *dsl.L2ELNode
@@ -119,22 +120,10 @@ func (s *TwoL2SupernodeInterop) AdvanceTime(amount time.Duration) {
 	ttSys.AdvanceTime(amount)
 }
 
-// SuperNodeClient returns a SuperNodeClient for calling supernode-specific RPC methods
-// like superroot_atTimestamp. The client is automatically closed when the test completes.
-func (s *TwoL2SupernodeInterop) SuperNodeClient() *sources.SuperNodeClient {
-	// The UserRPC returns a chain-specific path like http://host:port/901
-	// We need the root path (http://host:port/) which has the superroot API
-	chainRpcAddr := s.L2ACL.Escape().UserRPC()
-	parsedURL, err := url.Parse(chainRpcAddr)
-	s.T.Require().NoError(err, "failed to parse RPC URL")
-	baseRpcAddr := parsedURL.Scheme + "://" + parsedURL.Host + "/"
-
-	rpc, err := client.NewRPC(s.T.Ctx(), s.T.Logger(), baseRpcAddr, client.WithLazyDial())
-	s.T.Require().NoError(err, "failed to create RPC client")
-
-	snClient := sources.NewSuperNodeClient(rpc)
-	s.T.Cleanup(snClient.Close)
-	return snClient
+// SuperNodeClient returns an API for calling supernode-specific RPC methods
+// like superroot_atTimestamp.
+func (s *TwoL2SupernodeInterop) SuperNodeClient() apis.SupernodeQueryAPI {
+	return s.Supernode.QueryAPI()
 }
 
 // NewTwoL2SupernodeInterop creates a TwoL2SupernodeInterop preset for acceptance tests.
@@ -169,6 +158,7 @@ func NewTwoL2SupernodeInterop(t devtest.T, delaySeconds uint64) *TwoL2SupernodeI
 			L2ACL:        dsl.NewL2CLNode(l2aCL, orch.ControlPlane()),
 			L2BCL:        dsl.NewL2CLNode(l2bCL, orch.ControlPlane()),
 		},
+		Supernode:             dsl.NewSupernode(system.Supernode(match.Assume(t, match.FirstSupernode))),
 		L2ELA:                 dsl.NewL2ELNode(l2a.L2ELNode(match.Assume(t, match.FirstL2EL)), orch.ControlPlane()),
 		L2ELB:                 dsl.NewL2ELNode(l2b.L2ELNode(match.Assume(t, match.FirstL2EL)), orch.ControlPlane()),
 		L2BatcherA:            dsl.NewL2Batcher(l2a.L2Batcher(match.Assume(t, match.FirstL2Batcher))),

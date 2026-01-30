@@ -162,12 +162,6 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 		t.Require().Equal(bStoppedSafeNum, newStatusB.SafeL2.Number,
 			"chain B safe head should be frozen with batcher stopped")
 
-		//// Skip verification check until chain A is actually ahead of chain B
-		//if newStatusA.SafeL2.Time <= bStoppedSafeTime {
-		//t.Logger().Info("waiting for chain A to advance past chain B frozen safe time")
-		//continue
-		//}
-
 		// Use chain A's ahead timestamp for verification check
 		aheadTimestamp = newStatusA.SafeL2.Time
 
