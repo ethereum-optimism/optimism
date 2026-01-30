@@ -688,6 +688,17 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "_contract",
+        "type": "address"
+      }
+    ],
+    "name": "OPContractsManagerUtils_ExtraTagInProd",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "string",
         "name": "_name",
         "type": "string"

@@ -314,9 +314,13 @@ contract OPContractsManagerUtils {
             revert OPContractsManagerUtils_DowngradeNotAllowed(address(_target));
         }
 
-        // Block deployments with extra version tags (prerelease or build metadata) in production.
-        // Only clean X.Y.Z versions are allowed on mainnet.
-        if (contractsContainer.isProdEnvironment() && SemverComp.hasExtraTag(ISemver(_implementation).version())) {
+        // Block deployments with extra version tags (prerelease or build metadata) when dev
+        // features are not enabled. Only clean X.Y.Z versions are allowed unless dev features are
+        // explicitly enabled (which is already blocked on mainnet by the container constructor).
+        if (
+            contractsContainer.devFeatureBitmap() == bytes32(0)
+                && SemverComp.hasExtraTag(ISemver(_implementation).version())
+        ) {
             revert OPContractsManagerUtils_ExtraTagInProd(_implementation);
         }
 
