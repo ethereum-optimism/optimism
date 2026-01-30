@@ -47,6 +47,7 @@ update-op-geth ref:
     go mod tidy; \
     echo "Updated op-geth to $ver"
 
+# e.g. GITHUB_TOKEN=foo just generate-batcher-release-notes v1.16.3 v1.16.4-rc.1
 generate-batcher-release-notes from_tag to_tag:
     git cliff \
     	--include-path "op-batcher/**/*" \
@@ -55,6 +56,5 @@ generate-batcher-release-notes from_tag to_tag:
     	--include-path "op-service/**/*" \
     	--config .github/cliff.toml \
     	--tag-pattern op-batcher/{{ from_tag }} \
-    	--github-repo "https://github.com/ethereum-optimism/optimism" \
-        --github-token GITHUB_TOKEN \
+        --tag op-batcher/{{ to_tag }} \
     	-- op-batcher/{{ from_tag }}..op-batcher/{{ to_tag }}
