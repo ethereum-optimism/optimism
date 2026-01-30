@@ -38,5 +38,6 @@ interface IOPContractsManagerContainer {
     function implementations() external view returns (Implementations memory);
     function isDevFeatureEnabled(bytes32 _feature) external view returns (bool);
     function devFeatureBitmap() external view returns (bytes32);
+    function isProdEnvironment() external view returns (bool);
     function __constructor__(Blueprints memory _blueprints, Implementations memory _implementations, bytes32 _devFeatureBitmap) external;
 }

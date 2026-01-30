@@ -97,6 +97,12 @@ contract OPContractsManagerContainer {
         return DevFeatures.isDevFeatureEnabled(devFeatureBitmap, _feature);
     }
 
+    /// @notice Returns true if this is a production environment (mainnet and not testing).
+    /// @return True if production environment, false otherwise.
+    function isProdEnvironment() public view returns (bool) {
+        return block.chainid == 1 && !_isTestingEnvironment();
+    }
+
     /// @notice Returns true if the contract is running in a testing environment. Checks that the
     ///         code for the address 0xbeefcafe is not zero, which is an address that should never
     ///         have any code in production environments but can be made to have code in tests.
