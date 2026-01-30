@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	"sync/atomic"
 	"time"
 
@@ -20,9 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/bgpo"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -83,10 +80,6 @@ type BatcherService struct {
 	stopped         atomic.Bool
 
 	NotSubmittingOnStart bool
-
-	// BlobGasPriceOracle tracks blob base gas prices for dynamic pricing
-	blobTipOracle *bgpo.BlobTipOracle
-	oracleStopCh  chan struct{}
 }
 
 type DriverSetupOption func(setup *DriverSetup)
@@ -261,58 +254,6 @@ func (bs *BatcherService) initRollupConfig(ctx context.Context) error {
 	return nil
 }
 
-func (bs *BatcherService) initBlobTipOracle(ctx context.Context, cfg *CLIConfig) error {
-	// Only initialize the oracle if we're using blobs or auto mode
-	if cfg.DataAvailabilityType != flags.BlobsType && cfg.DataAvailabilityType != flags.AutoType {
-		bs.Log.Debug("Skipping blob tip oracle initialization (not using blobs)")
-		return nil
-	}
-
-	// Get RPC client from L1 client
-	// The ethclient.Client has a Client() method that returns the underlying *rpc.Client
-	rpcClient := bs.L1Client.Client()
-	if rpcClient == nil {
-		return fmt.Errorf("failed to get RPC client from L1 client")
-	}
-
-	// Get L1 chain config from rollup config
-	l1ChainID := eth.ChainIDFromBig(bs.RollupConfig.L1ChainID)
-	l1ChainConfig := eth.L1ChainConfigByChainID(l1ChainID)
-	if l1ChainConfig == nil {
-		bs.Log.Info("Blob tip oracle not initialized when L1 chain ID is not known (Ethereum mainnet, Sepolia, Holesky, Hoodi)")
-		return nil
-	}
-
-	// Wrap the RPC client to match the client.RPC interface
-	baseRPCClient := client.NewBaseRPCClient(rpcClient)
-
-	// Create the oracle with default config
-	oracleConfig := bgpo.DefaultBlobTipOracleConfig()
-	oracleConfig.NetworkTimeout = bs.NetworkTimeout
-	oracleConfig.MaxBlocks = cfg.TxMgrConfig.BlobTipCapRange
-	oracleConfig.Percentile = cfg.TxMgrConfig.BlobTipCapPercentile
-	minTipCap, err := eth.GweiToWei(cfg.TxMgrConfig.MinTipCapGwei)
-	if err != nil {
-		return fmt.Errorf("invalid min tip cap: %w", err)
-	}
-	oracleConfig.DefaultPriorityFee = minTipCap
-	bs.blobTipOracle = bgpo.NewBlobTipOracle(ctx, baseRPCClient, l1ChainConfig, bs.Log, oracleConfig)
-	bs.oracleStopCh = make(chan struct{})
-
-	bs.Log.Info("Initialized blob tip oracle")
-
-	// Start the blob tip oracle if it's initialized
-	go func() {
-		if err := bs.blobTipOracle.Start(); err != nil {
-			bs.Log.Error("Blob tip oracle stopped with error", "err", err)
-		}
-		close(bs.oracleStopCh)
-	}()
-	bs.blobTipOracle.WaitCachePopulated()
-	bs.Log.Info("Started blob tip oracle")
-	return nil
-}
-
 func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 	channelTimeout := bs.RollupConfig.ChannelTimeoutBedrock
 	// Use lower channel timeout if granite is scheduled.
@@ -399,48 +340,26 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 	return nil
 }
 
-func (bs *BatcherService) initTxManager(ctx context.Context, cfg *CLIConfig) error {
-	// Initialize the blob tip oracle first
-	if err := bs.initBlobTipOracle(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init blob tip oracle: %w", err)
-	}
-
+func (bs *BatcherService) initTxManager(_ context.Context, cfg *CLIConfig) error {
 	// Create the base config from CLI config
 	txmgrConfig, err := txmgr.NewConfig(cfg.TxMgrConfig, bs.Log)
 	if err != nil {
 		return err
 	}
 
-	// Create a custom gas price estimator that uses the blob tip oracle if available
-	if bs.blobTipOracle != nil {
-		blobTipCapRange := txmgrConfig.BlobTipCapRange
-		blobTipCapPercentile := txmgrConfig.BlobTipCapPercentile
-
-		txmgrConfig.GasPriceEstimatorFn = func(ctx context.Context, backend txmgr.ETHBackend) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
-			tip, err := backend.SuggestGasTipCap(ctx)
-			if err != nil {
-				return nil, nil, nil, nil, err
+	// Configure BTOConfig if using blobs or auto mode
+	if cfg.DataAvailabilityType == flags.BlobsType || cfg.DataAvailabilityType == flags.AutoType {
+		l1ChainID := eth.ChainIDFromBig(bs.RollupConfig.L1ChainID)
+		l1ChainConfig := eth.L1ChainConfigByChainID(l1ChainID)
+		if l1ChainConfig == nil {
+			bs.Log.Warn("Blob tip oracle not initialized: L1 chain config not found for chain ID", "chainID", l1ChainID)
+		} else {
+			txmgrConfig.BTOConfig = &txmgr.BTOConfig{
+				Backend:              bs.L1Client, // ethclient implements BTOBackend
+				ChainConfig:          l1ChainConfig,
+				BlobTipCapRange:      cfg.TxMgrConfig.BlobTipCapRange,
+				BlobTipCapPercentile: cfg.TxMgrConfig.BlobTipCapPercentile,
 			}
-
-			head, err := backend.HeaderByNumber(ctx, nil)
-			if err != nil {
-				return nil, nil, nil, nil, err
-			}
-			if head.BaseFee == nil {
-				return nil, nil, nil, nil, errors.New("txmgr does not support pre-london blocks that do not have a base fee")
-			}
-
-			blobBaseFee, err := backend.BlobBaseFee(ctx)
-			if err != nil {
-				return nil, nil, nil, nil, err
-			}
-
-			suggestedBlobFeeCap, err := bs.blobTipOracle.SuggestBlobTipCap(ctx, blobTipCapRange, blobTipCapPercentile)
-			if err != nil {
-				return nil, nil, nil, nil, fmt.Errorf("blob tip oracle failed to suggest blob tip fee: %w", err)
-			}
-
-			return tip, head.BaseFee, suggestedBlobFeeCap, blobBaseFee, nil
 		}
 	}
 
@@ -574,22 +493,9 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 
 	// close the TxManager first, so that new work is denied, in-flight work is cancelled as early as possible
 	// (transactions which are expected to be confirmed are still waited for)
+	// TxManager.Close() also stops the blob tip oracle if it's running.
 	if bs.TxManager != nil {
 		bs.TxManager.Close()
-	}
-
-	// Stop the blob tip oracle if it's running
-	if bs.blobTipOracle != nil {
-		bs.blobTipOracle.Close()
-		// Wait for the oracle goroutine to finish
-		if bs.oracleStopCh != nil {
-			select {
-			case <-bs.oracleStopCh:
-				// Oracle stopped
-			case <-ctx.Done():
-				// Context cancelled, force stop
-			}
-		}
 	}
 
 	var result error

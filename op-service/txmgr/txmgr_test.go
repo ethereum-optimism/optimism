@@ -44,6 +44,27 @@ func testSendState() *SendState {
 	return NewSendState(100, time.Hour)
 }
 
+// mockBlobTipOracle is a mock implementation of BlobTipOracle for testing.
+type mockBlobTipOracle struct {
+	suggestedTip *big.Int
+	err          error
+}
+
+func (m *mockBlobTipOracle) Start() error {
+	return nil
+}
+
+func (m *mockBlobTipOracle) SuggestBlobTipCap(ctx context.Context, maxBlocks int, percentile int) (*big.Int, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.suggestedTip, nil
+}
+
+func (m *mockBlobTipOracle) Close() {}
+
+var _ blobTipOracle = (*mockBlobTipOracle)(nil)
+
 // testHarness houses the necessary resources to test the SimpleTxManager.
 type testHarness struct {
 	cfg       *Config
@@ -1122,11 +1143,14 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 	require.Equal(t, receipt.TxHash, txHash)
 }
 
-func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int64, estimator GasPriceEstimatorFn) (*types.Transaction, *types.Transaction, error) {
+func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int64, txBlobFeeCap *int64, modMgr func(*SimpleTxManager)) (*types.Transaction, *types.Transaction, error) {
 	borkedBackend := failingBackend{
 		gasTip:              big.NewInt(newTip),
 		baseFee:             big.NewInt(newBaseFee),
 		returnSuccessHeader: true,
+	}
+	if txBlobFeeCap != nil {
+		borkedBackend.blobBaseFee = big.NewInt(1)
 	}
 
 	cfg := Config{
@@ -1148,13 +1172,26 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 		backend:             &borkedBackend,
 		l:                   testlog.Logger(t, log.LevelCrit),
 		metr:                &metrics.NoopTxMetrics{},
-		gasPriceEstimatorFn: estimator,
+		gasPriceEstimatorFn: DefaultGasPriceEstimatorFn,
 	}
 
-	tx := types.NewTx(&types.DynamicFeeTx{
-		GasTipCap: big.NewInt(txTipCap),
-		GasFeeCap: big.NewInt(txFeeCap),
-	})
+	if modMgr != nil {
+		modMgr(mgr)
+	}
+
+	var tx *types.Transaction
+	if txBlobFeeCap != nil {
+		tx = types.NewTx(&types.BlobTx{
+			GasTipCap:  uint256.NewInt(uint64(txTipCap)),
+			GasFeeCap:  uint256.NewInt(uint64(txFeeCap)),
+			BlobFeeCap: uint256.NewInt(uint64(*txBlobFeeCap)),
+		})
+	} else {
+		tx = types.NewTx(&types.DynamicFeeTx{
+			GasTipCap: big.NewInt(txTipCap),
+			GasFeeCap: big.NewInt(txFeeCap),
+		})
+	}
 	newTx, err := mgr.increaseGasPrice(context.Background(), tx)
 	return tx, newTx, err
 }
@@ -1169,7 +1206,7 @@ func TestIncreaseGasPrice(t *testing.T) {
 		{
 			name: "bump at least 1",
 			run: func(t *testing.T) {
-				tx, newTx, err := doGasPriceIncrease(t, 1, 3, 1, 1, DefaultGasPriceEstimatorFn)
+				tx, newTx, err := doGasPriceIncrease(t, 1, 3, 1, 1, nil, nil)
 				require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
 				require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
 				require.NoError(t, err)
@@ -1178,7 +1215,7 @@ func TestIncreaseGasPrice(t *testing.T) {
 		{
 			name: "enforces min bump",
 			run: func(t *testing.T) {
-				tx, newTx, err := doGasPriceIncrease(t, 100, 1000, 101, 460, DefaultGasPriceEstimatorFn)
+				tx, newTx, err := doGasPriceIncrease(t, 100, 1000, 101, 460, nil, nil)
 				require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
 				require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
 				require.NoError(t, err)
@@ -1187,7 +1224,7 @@ func TestIncreaseGasPrice(t *testing.T) {
 		{
 			name: "enforces min bump on only tip increase",
 			run: func(t *testing.T) {
-				tx, newTx, err := doGasPriceIncrease(t, 100, 1000, 101, 440, DefaultGasPriceEstimatorFn)
+				tx, newTx, err := doGasPriceIncrease(t, 100, 1000, 101, 440, nil, nil)
 				require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
 				require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
 				require.NoError(t, err)
@@ -1196,7 +1233,7 @@ func TestIncreaseGasPrice(t *testing.T) {
 		{
 			name: "enforces min bump on only base fee increase",
 			run: func(t *testing.T) {
-				tx, newTx, err := doGasPriceIncrease(t, 100, 1000, 99, 460, DefaultGasPriceEstimatorFn)
+				tx, newTx, err := doGasPriceIncrease(t, 100, 1000, 99, 460, nil, nil)
 				require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
 				require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
 				require.NoError(t, err)
@@ -1205,25 +1242,25 @@ func TestIncreaseGasPrice(t *testing.T) {
 		{
 			name: "uses L1 values when larger",
 			run: func(t *testing.T) {
-				_, newTx, err := doGasPriceIncrease(t, 10, 100, 50, 200, DefaultGasPriceEstimatorFn)
-				require.True(t, newTx.GasFeeCap().Cmp(big.NewInt(450)) == 0, "new tx fee cap must be equal L1")
-				require.True(t, newTx.GasTipCap().Cmp(big.NewInt(50)) == 0, "new tx tip must be equal L1")
+				_, newTx, err := doGasPriceIncrease(t, 10, 100, 50, 200, nil, nil)
+				require.Zero(t, newTx.GasFeeCap().Cmp(big.NewInt(450)), "new tx fee cap must be equal L1")
+				require.Zero(t, newTx.GasTipCap().Cmp(big.NewInt(50)), "new tx tip must be equal L1")
 				require.NoError(t, err)
 			},
 		},
 		{
 			name: "uses L1 tip when larger and threshold FC",
 			run: func(t *testing.T) {
-				_, newTx, err := doGasPriceIncrease(t, 100, 2200, 120, 1050, DefaultGasPriceEstimatorFn)
-				require.True(t, newTx.GasTipCap().Cmp(big.NewInt(120)) == 0, "new tx tip must be equal L1")
-				require.True(t, newTx.GasFeeCap().Cmp(big.NewInt(2420)) == 0, "new tx fee cap must be equal to the threshold value")
+				_, newTx, err := doGasPriceIncrease(t, 100, 2200, 120, 1050, nil, nil)
+				require.Zero(t, newTx.GasTipCap().Cmp(big.NewInt(120)), "new tx tip must be equal L1")
+				require.Zero(t, newTx.GasFeeCap().Cmp(big.NewInt(2420)), "new tx fee cap must be equal to the threshold value")
 				require.NoError(t, err)
 			},
 		},
 		{
 			name: "bumped fee above multiplier limit",
 			run: func(t *testing.T) {
-				_, _, err := doGasPriceIncrease(t, 1, 9999, 1, 1, DefaultGasPriceEstimatorFn)
+				_, _, err := doGasPriceIncrease(t, 1, 9999, 1, 1, nil, nil)
 				require.ErrorContains(t, err, "fee cap")
 				require.NotContains(t, err.Error(), "tip cap")
 			},
@@ -1231,7 +1268,7 @@ func TestIncreaseGasPrice(t *testing.T) {
 		{
 			name: "bumped tip above multiplier limit",
 			run: func(t *testing.T) {
-				_, _, err := doGasPriceIncrease(t, 9999, 0, 0, 9999, DefaultGasPriceEstimatorFn)
+				_, _, err := doGasPriceIncrease(t, 9999, 0, 0, 9999, nil, nil)
 				require.ErrorContains(t, err, "tip cap")
 				require.NotContains(t, err.Error(), "fee cap")
 			},
@@ -1239,7 +1276,7 @@ func TestIncreaseGasPrice(t *testing.T) {
 		{
 			name: "bumped fee and tip above multiplier limit",
 			run: func(t *testing.T) {
-				_, _, err := doGasPriceIncrease(t, 9999, 9999, 1, 1, DefaultGasPriceEstimatorFn)
+				_, _, err := doGasPriceIncrease(t, 9999, 9999, 1, 1, nil, nil)
 				require.ErrorContains(t, err, "tip cap")
 				require.ErrorContains(t, err, "fee cap")
 			},
@@ -1247,28 +1284,42 @@ func TestIncreaseGasPrice(t *testing.T) {
 		{
 			name: "uses L1 FC when larger and threshold tip",
 			run: func(t *testing.T) {
-				_, newTx, err := doGasPriceIncrease(t, 100, 2200, 100, 2000, DefaultGasPriceEstimatorFn)
-				require.True(t, newTx.GasTipCap().Cmp(big.NewInt(110)) == 0, "new tx tip must be equal the threshold value")
+				_, newTx, err := doGasPriceIncrease(t, 100, 2200, 100, 2000, nil, nil)
+				require.Zero(t, newTx.GasTipCap().Cmp(big.NewInt(110)), "new tx tip must be equal the threshold value")
 				t.Log("Vals:", newTx.GasFeeCap())
-				require.True(t, newTx.GasFeeCap().Cmp(big.NewInt(4110)) == 0, "new tx fee cap must be equal L1")
+				require.Zero(t, newTx.GasFeeCap().Cmp(big.NewInt(4110)), "new tx fee cap must be equal L1")
 				require.NoError(t, err)
 			},
 		},
 		{
 			name: "supports extension through custom estimator",
 			run: func(t *testing.T) {
-				estimator := func(ctx context.Context, backend ETHBackend) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
-					return big.NewInt(100), big.NewInt(3000), big.NewInt(100), big.NewInt(100), nil
+				customEstimator := func(ctx context.Context, backend ETHBackend) (*big.Int, *big.Int, *big.Int, error) {
+					return big.NewInt(100), big.NewInt(3000), big.NewInt(100), nil
 				}
-				_, newTx, err := doGasPriceIncrease(t, 70, 2000, 80, 2100, estimator)
+				_, newTx, err := doGasPriceIncrease(t, 70, 2000, 80, 2100, nil, func(mgr *SimpleTxManager) {
+					mgr.gasPriceEstimatorFn = customEstimator
+				})
 				require.NoError(t, err)
-				require.True(t, newTx.GasFeeCap().Cmp(big.NewInt(6100)) == 0)
-				require.True(t, newTx.GasTipCap().Cmp(big.NewInt(100)) == 0)
+				require.Zero(t, newTx.GasFeeCap().Cmp(big.NewInt(6100)))
+				require.Zero(t, newTx.GasTipCap().Cmp(big.NewInt(100)))
+			},
+		},
+		{
+			name: "blob tx uses dynamic blob tip cap from oracle",
+			run: func(t *testing.T) {
+				oracleBlobTipCap := big.NewInt(42)
+				blobFeeCap := int64(50)
+				_, newTx, err := doGasPriceIncrease(t, 10, 100, 1, 1, &blobFeeCap, func(mgr *SimpleTxManager) {
+					mgr.cfg.BlobTipCapDynamic.Store(true)
+					mgr.blobTipOracle = &mockBlobTipOracle{suggestedTip: oracleBlobTipCap}
+				})
+				require.NoError(t, err)
+				require.Equal(t, oracleBlobTipCap, newTx.GasTipCap(), "blob tx should use tip cap from oracle")
 			},
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, test.run)
 	}
 }
@@ -1845,12 +1896,11 @@ func TestIncreaseGasPriceSigningErrorWithSend(t *testing.T) {
 func TestTxMgr_BlobTipCapDynamic(t *testing.T) {
 	t.Parallel()
 
-	// Create a custom gas price estimator that returns different values for gasTipCap and blobTipCap
+	// Create a custom gas price estimator
 	gasTipCapVal := big.NewInt(100)
-	blobTipCapVal := big.NewInt(50) // Oracle suggests lower tip cap for blobs
 
-	customEstimator := func(ctx context.Context, backend ETHBackend) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
-		return gasTipCapVal, big.NewInt(7), blobTipCapVal, big.NewInt(50), nil
+	customEstimator := func(ctx context.Context, backend ETHBackend) (*big.Int, *big.Int, *big.Int, error) {
+		return gasTipCapVal, big.NewInt(7), big.NewInt(50), nil
 	}
 
 	t.Run("BlobTipCapDynamic=false uses gasTipCap", func(t *testing.T) {
@@ -1859,6 +1909,12 @@ func TestTxMgr_BlobTipCapDynamic(t *testing.T) {
 		cfg.BlobTipCapDynamic.Store(false)
 
 		h := newTestHarnessWithConfig(t, cfg)
+
+		// Use a different value for oracle tip to verify it's NOT used
+		oracleBlobTipCap := big.NewInt(999)
+		// Inject the mock oracle - it should NOT be used when BlobTipCapDynamic=false
+		h.mgr.blobTipOracle = &mockBlobTipOracle{suggestedTip: oracleBlobTipCap}
+
 		candidate := h.createBlobTxCandidate()
 
 		tx, err := h.mgr.craftTx(context.Background(), candidate)
@@ -1866,8 +1922,9 @@ func TestTxMgr_BlobTipCapDynamic(t *testing.T) {
 		require.NotNil(t, tx)
 		require.Equal(t, byte(types.BlobTxType), tx.Type())
 
-		// When BlobTipCapDynamic is false, blob tx should use gasTipCap
+		// When BlobTipCapDynamic is false, blob tx should use gasTipCap (not oracle)
 		require.Equal(t, gasTipCapVal, tx.GasTipCap(), "blob tx should use gasTipCap when BlobTipCapDynamic=false")
+		require.NotEqual(t, oracleBlobTipCap, tx.GasTipCap(), "blob tx should NOT use oracle tip when BlobTipCapDynamic=false")
 	})
 
 	t.Run("BlobTipCapDynamic=true uses oracle blobTipCap", func(t *testing.T) {
@@ -1876,6 +1933,11 @@ func TestTxMgr_BlobTipCapDynamic(t *testing.T) {
 		cfg.BlobTipCapDynamic.Store(true)
 
 		h := newTestHarnessWithConfig(t, cfg)
+
+		oracleBlobTipCap := big.NewInt(42)
+		// Inject the mock oracle directly into the manager
+		h.mgr.blobTipOracle = &mockBlobTipOracle{suggestedTip: oracleBlobTipCap}
+
 		candidate := h.createBlobTxCandidate()
 
 		tx, err := h.mgr.craftTx(context.Background(), candidate)
@@ -1884,6 +1946,6 @@ func TestTxMgr_BlobTipCapDynamic(t *testing.T) {
 		require.Equal(t, byte(types.BlobTxType), tx.Type())
 
 		// When BlobTipCapDynamic is true, blob tx should use blobTipCap from oracle
-		require.Equal(t, blobTipCapVal, tx.GasTipCap(), "blob tx should use blobTipCap when BlobTipCapDynamic=true")
+		require.Equal(t, oracleBlobTipCap, tx.GasTipCap(), "blob tx should use blobTipCap from oracle when BlobTipCapDynamic=true")
 	})
 }

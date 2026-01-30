@@ -8,49 +8,73 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-type mockRPC struct {
+type mockBTOBackend struct {
 	mock.Mock
 }
 
-func (m *mockRPC) CallContext(ctx context.Context, result any, method string, args ...any) error {
-	callArgs := make([]any, 0, len(args))
-	callArgs = append(callArgs, args...)
-	args_ := m.Called(ctx, result, method, callArgs)
-	return args_.Error(0)
+func (m *mockBTOBackend) BlockNumber(ctx context.Context) (uint64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(uint64), args.Error(1)
 }
 
-func (m *mockRPC) BatchCallContext(ctx context.Context, b []rpc.BatchElem) error {
-	args_ := m.Called(ctx, b)
-	return args_.Error(0)
-}
-
-func (m *mockRPC) Subscribe(ctx context.Context, namespace string, channel any, args ...any) (ethereum.Subscription, error) {
-	args_ := m.Called(ctx, namespace, channel, args)
-	sub := args_.Get(0)
-	if sub == nil {
-		return nil, args_.Error(1)
+func (m *mockBTOBackend) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
+	args := m.Called(ctx, number)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
 	}
-	return sub.(ethereum.Subscription), args_.Error(1)
+	return args.Get(0).(*types.Header), args.Error(1)
 }
 
-func (m *mockRPC) Close() {
-	m.Called()
+func (m *mockBTOBackend) BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error) {
+	args := m.Called(ctx, number)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*types.Block), args.Error(1)
 }
 
-var _ client.RPC = (*mockRPC)(nil)
+func (m *mockBTOBackend) SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error) {
+	args := m.Called(ctx, ch)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(ethereum.Subscription), args.Error(1)
+}
+
+var _ BTOBackend = (*mockBTOBackend)(nil)
+
+// mockSubscription implements ethereum.Subscription for testing.
+type mockSubscription struct {
+	errCh    chan error
+	unsubbed bool
+}
+
+func newMockSubscription() *mockSubscription {
+	return &mockSubscription{
+		errCh: make(chan error, 1),
+	}
+}
+
+func (s *mockSubscription) Unsubscribe() {
+	if !s.unsubbed {
+		s.unsubbed = true
+	}
+}
+
+func (s *mockSubscription) Err() <-chan error {
+	return s.errCh
+}
 
 func createHeader(blockNum uint64, excessBlobGas *uint64) *types.Header {
 	header := &types.Header{
@@ -83,14 +107,22 @@ func createBlobTx(gasTip *big.Int, gasFeeCap *big.Int, blobFeeCap *big.Int) *typ
 	return tx
 }
 
+func createBlock(blockNum uint64, baseFee *big.Int, txs []*types.Transaction) *types.Block {
+	header := &types.Header{
+		Number:  big.NewInt(int64(blockNum)),
+		BaseFee: baseFee,
+		Time:    uint64(time.Now().Unix()),
+	}
+	return types.NewBlock(header, &types.Body{Transactions: txs}, nil, trie.NewStackTrie(nil), types.DefaultBlockConfig)
+}
+
 func TestNewBlobGasPriceOracle(t *testing.T) {
-	ctx := context.Background()
-	mrpc := new(mockRPC)
+	mbackend := new(mockBTOBackend)
 	chainConfig := params.MainnetChainConfig
 	logger := testlog.Logger(t, log.LevelInfo)
 
 	t.Run("with nil config", func(t *testing.T) {
-		oracle := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, nil)
+		oracle := NewBlobTipOracle(mbackend, chainConfig, logger, nil)
 		require.NotNil(t, oracle)
 		require.Equal(t, 20, oracle.config.MaxBlocks)
 		require.Equal(t, 60, oracle.config.Percentile)
@@ -103,7 +135,7 @@ func TestNewBlobGasPriceOracle(t *testing.T) {
 			MaxBlocks:       10,
 			Percentile:      70,
 		}
-		oracle := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, config)
+		oracle := NewBlobTipOracle(mbackend, chainConfig, logger, config)
 		require.NotNil(t, oracle)
 		require.Equal(t, 10, oracle.config.MaxBlocks)
 		require.Equal(t, 70, oracle.config.Percentile)
@@ -116,7 +148,7 @@ func TestNewBlobGasPriceOracle(t *testing.T) {
 			MaxBlocks:       -1,
 			Percentile:      150, // Invalid
 		}
-		oracle := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, config)
+		oracle := NewBlobTipOracle(mbackend, chainConfig, logger, config)
 		require.NotNil(t, oracle)
 		// Should use defaults
 		require.Equal(t, 20, oracle.config.MaxBlocks)
@@ -125,12 +157,11 @@ func TestNewBlobGasPriceOracle(t *testing.T) {
 }
 
 func TestProcessHeader(t *testing.T) {
-	ctx := context.Background()
-	mrpc := new(mockRPC)
+	mbackend := new(mockBTOBackend)
 	chainConfig := params.MainnetChainConfig
 	logger := testlog.Logger(t, log.LevelError)
 
-	oracle := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, &BlobTipOracleConfig{
+	oracle := NewBlobTipOracle(mbackend, chainConfig, logger, &BlobTipOracleConfig{
 		PricesCacheSize: 10,
 		BlockCacheSize:  10,
 		MaxBlocks:       5,
@@ -142,16 +173,8 @@ func TestProcessHeader(t *testing.T) {
 		header := createHeader(100, &excessBlobGas)
 
 		// Mock block fetch for blob fee caps
-		mrpc.On("CallContext", mock.Anything, mock.Anything, "eth_getBlockByNumber", mock.MatchedBy(func(args []any) bool {
-			return len(args) == 2 && args[1] == true
-		})).
-			Run(func(args mock.Arguments) {
-				block := args[1].(*rpcBlock)
-				block.Number = hexutil.Uint64(100)
-				block.Hash = common.Hash{}.Bytes()
-				block.Transactions = []*types.Transaction{}
-			}).
-			Return(nil).Once()
+		emptyBlock := createBlock(100, header.BaseFee, []*types.Transaction{})
+		mbackend.On("BlockByNumber", mock.Anything, big.NewInt(100)).Return(emptyBlock, nil).Once()
 
 		err := oracle.processHeader(header)
 		require.NoError(t, err)
@@ -166,16 +189,8 @@ func TestProcessHeader(t *testing.T) {
 		header := createHeader(101, nil)
 
 		// Mock block fetch
-		mrpc.On("CallContext", mock.Anything, mock.Anything, "eth_getBlockByNumber", mock.MatchedBy(func(args []any) bool {
-			return len(args) == 2 && args[1] == true
-		})).
-			Run(func(args mock.Arguments) {
-				block := args[1].(*rpcBlock)
-				block.Number = hexutil.Uint64(101)
-				block.Hash = common.Hash{}.Bytes()
-				block.Transactions = []*types.Transaction{}
-			}).
-			Return(nil).Once()
+		emptyBlock := createBlock(101, header.BaseFee, []*types.Transaction{})
+		mbackend.On("BlockByNumber", mock.Anything, big.NewInt(101)).Return(emptyBlock, nil).Once()
 
 		err := oracle.processHeader(header)
 		require.NoError(t, err)
@@ -185,16 +200,15 @@ func TestProcessHeader(t *testing.T) {
 		require.Equal(t, uint64(101), latestBlock)
 	})
 
-	mrpc.AssertExpectations(t)
+	mbackend.AssertExpectations(t)
 }
 
 func TestGetLatestBlobBaseFee(t *testing.T) {
-	ctx := context.Background()
-	mrpc := new(mockRPC)
+	mbackend := new(mockBTOBackend)
 	chainConfig := params.MainnetChainConfig
 	logger := testlog.Logger(t, log.LevelError)
 
-	oracle := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, &BlobTipOracleConfig{
+	oracle := NewBlobTipOracle(mbackend, chainConfig, logger, &BlobTipOracleConfig{
 		PricesCacheSize: 10,
 		BlockCacheSize:  10,
 	})
@@ -210,22 +224,11 @@ func TestGetLatestBlobBaseFee(t *testing.T) {
 		header1 := createHeader(300, &excessBlobGas)
 		header2 := createHeader(301, &excessBlobGas)
 
-		mrpc.On("CallContext", mock.Anything, mock.Anything, "eth_getBlockByNumber", mock.MatchedBy(func(args []any) bool {
-			return len(args) == 2 && args[1] == true
-		})).
-			Return(nil).Twice().
-			Run(func(args mock.Arguments) {
-				block := args[1].(*rpcBlock)
-				callArgs := args[3].([]any)
-				blockNumHex := callArgs[0].(string)
-				if blockNumHex == "0x12c" { // 300
-					block.Number = hexutil.Uint64(300)
-				} else {
-					block.Number = hexutil.Uint64(301)
-				}
-				block.Hash = common.Hash{}.Bytes()
-				block.Transactions = []*types.Transaction{}
-			})
+		emptyBlock1 := createBlock(300, header1.BaseFee, []*types.Transaction{})
+		emptyBlock2 := createBlock(301, header2.BaseFee, []*types.Transaction{})
+
+		mbackend.On("BlockByNumber", mock.Anything, big.NewInt(300)).Return(emptyBlock1, nil).Once()
+		mbackend.On("BlockByNumber", mock.Anything, big.NewInt(301)).Return(emptyBlock2, nil).Once()
 
 		err := oracle.processHeader(header1)
 		require.NoError(t, err)
@@ -238,16 +241,16 @@ func TestGetLatestBlobBaseFee(t *testing.T) {
 		require.NotNil(t, fee)
 	})
 
-	mrpc.AssertExpectations(t)
+	mbackend.AssertExpectations(t)
 }
 
 func TestSuggestBlobTipCap(t *testing.T) {
 	ctx := context.Background()
-	mrpc := new(mockRPC)
+	mbackend := new(mockBTOBackend)
 	chainConfig := params.MainnetChainConfig
 	logger := testlog.Logger(t, log.LevelError)
 
-	oracle := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, &BlobTipOracleConfig{
+	oracle := NewBlobTipOracle(mbackend, chainConfig, logger, &BlobTipOracleConfig{
 		PricesCacheSize: 10,
 		BlockCacheSize:  10,
 		MaxBlocks:       5,
@@ -273,16 +276,8 @@ func TestSuggestBlobTipCap(t *testing.T) {
 			tip := big.NewInt(int64((i-400)*1000000 + 1000000)) // 1M, 2M, 3M, 4M, 5M
 			blobTx := createBlobTx(tip, gasFeeCap, blobFeeCap)
 
-			mrpc.On("CallContext", mock.Anything, mock.Anything, "eth_getBlockByNumber", mock.MatchedBy(func(args []any) bool {
-				return len(args) == 2 && args[1] == true
-			})).
-				Run(func(args mock.Arguments) {
-					block := args[1].(*rpcBlock)
-					block.Number = hexutil.Uint64(i)
-					block.Hash = common.Hash{}.Bytes()
-					block.Transactions = []*types.Transaction{blobTx}
-				}).
-				Return(nil).Once()
+			block := createBlock(i, header.BaseFee, []*types.Transaction{blobTx})
+			mbackend.On("BlockByNumber", mock.Anything, big.NewInt(int64(i))).Return(block, nil).Once()
 
 			err := oracle.processHeader(header)
 			require.NoError(t, err)
@@ -304,7 +299,7 @@ func TestSuggestBlobTipCap(t *testing.T) {
 	})
 
 	t.Run("no blob transactions, fallback to base fee", func(t *testing.T) {
-		oracle2 := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, &BlobTipOracleConfig{
+		oracle2 := NewBlobTipOracle(mbackend, chainConfig, logger, &BlobTipOracleConfig{
 			PricesCacheSize:    10,
 			BlockCacheSize:     10,
 			MaxBlocks:          5,
@@ -315,16 +310,8 @@ func TestSuggestBlobTipCap(t *testing.T) {
 		excessBlobGas := uint64(1000000)
 		header := createHeader(500, &excessBlobGas)
 
-		mrpc.On("CallContext", mock.Anything, mock.Anything, "eth_getBlockByNumber", mock.MatchedBy(func(args []any) bool {
-			return len(args) == 2 && args[1] == true
-		})).
-			Run(func(args mock.Arguments) {
-				block := args[1].(*rpcBlock)
-				block.Number = hexutil.Uint64(500)
-				block.Hash = common.Hash{}.Bytes()
-				block.Transactions = []*types.Transaction{} // No blob transactions
-			}).
-			Return(nil).Once()
+		emptyBlock := createBlock(500, header.BaseFee, []*types.Transaction{})
+		mbackend.On("BlockByNumber", mock.Anything, big.NewInt(500)).Return(emptyBlock, nil).Once()
 
 		err := oracle2.processHeader(header)
 		require.NoError(t, err)
@@ -334,16 +321,15 @@ func TestSuggestBlobTipCap(t *testing.T) {
 		require.Equal(t, big.NewInt(101), suggested)
 	})
 
-	mrpc.AssertExpectations(t)
+	mbackend.AssertExpectations(t)
 }
 
 func TestPrePopulateCache(t *testing.T) {
-	ctx := context.Background()
-	mrpc := new(mockRPC)
+	mbackend := new(mockBTOBackend)
 	chainConfig := params.MainnetChainConfig
 	logger := testlog.Logger(t, log.LevelError)
 
-	oracle := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, &BlobTipOracleConfig{
+	oracle := NewBlobTipOracle(mbackend, chainConfig, logger, &BlobTipOracleConfig{
 		PricesCacheSize: 10,
 		BlockCacheSize:  10,
 		MaxBlocks:       3,
@@ -353,42 +339,17 @@ func TestPrePopulateCache(t *testing.T) {
 	t.Run("pre-populate with recent blocks", func(t *testing.T) {
 		latestBlock := uint64(1000)
 
-		// Mock eth_blockNumber (called with no args - empty slice)
-		mrpc.On("CallContext", mock.Anything, mock.Anything, "eth_blockNumber", mock.MatchedBy(func(args []any) bool {
-			return len(args) == 0
-		})).
-			Run(func(args mock.Arguments) {
-				result := args[1].(*hexutil.Uint64)
-				*result = hexutil.Uint64(latestBlock)
-			}).
-			Return(nil).Once()
+		// Mock eth_blockNumber
+		mbackend.On("BlockNumber", mock.Anything).Return(latestBlock, nil).Once()
 
-		// Mock header fetches for blocks 998, 999, 1000
+		// Mock header and block fetches for blocks 998, 999, 1000
 		excessBlobGas := uint64(1000000)
 		for i := uint64(998); i <= 1000; i++ {
 			header := createHeader(i, &excessBlobGas)
+			block := createBlock(i, header.BaseFee, []*types.Transaction{})
 
-			// Mock header fetch (with false for full transactions)
-			mrpc.On("CallContext", mock.Anything, mock.Anything, "eth_getBlockByNumber", mock.MatchedBy(func(args []any) bool {
-				return len(args) == 2 && args[0] == hexutil.EncodeUint64(i) && args[1] == false
-			})).
-				Run(func(args mock.Arguments) {
-					result := args[1].(**types.Header)
-					*result = header
-				}).
-				Return(nil).Once()
-
-			// Mock block fetch for blob fee caps (with true for full transactions)
-			mrpc.On("CallContext", mock.Anything, mock.Anything, "eth_getBlockByNumber", mock.MatchedBy(func(args []any) bool {
-				return len(args) == 2 && args[0] == hexutil.EncodeUint64(i) && args[1] == true
-			})).
-				Run(func(args mock.Arguments) {
-					block := args[1].(*rpcBlock)
-					block.Number = hexutil.Uint64(i)
-					block.Hash = common.Hash{}.Bytes()
-					block.Transactions = []*types.Transaction{}
-				}).
-				Return(nil).Once()
+			mbackend.On("HeaderByNumber", mock.Anything, big.NewInt(int64(i))).Return(header, nil).Once()
+			mbackend.On("BlockByNumber", mock.Anything, big.NewInt(int64(i))).Return(block, nil).Once()
 		}
 
 		err := oracle.prePopulateCache()
@@ -398,16 +359,15 @@ func TestPrePopulateCache(t *testing.T) {
 		require.Equal(t, uint64(1000), latestBlockNum)
 	})
 
-	mrpc.AssertExpectations(t)
+	mbackend.AssertExpectations(t)
 }
 
 func TestExtractBlobFeeCaps(t *testing.T) {
-	ctx := context.Background()
-	mrpc := new(mockRPC)
+	mbackend := new(mockBTOBackend)
 	chainConfig := params.MainnetChainConfig
 	logger := testlog.Logger(t, log.LevelError)
 
-	oracle := NewBlobTipOracle(ctx, mrpc, chainConfig, logger, &BlobTipOracleConfig{
+	oracle := NewBlobTipOracle(mbackend, chainConfig, logger, &BlobTipOracleConfig{
 		PricesCacheSize: 10,
 		BlockCacheSize:  10,
 	})
@@ -416,16 +376,12 @@ func TestExtractBlobFeeCaps(t *testing.T) {
 		baseFee := big.NewInt(2)      // 2 wei
 		blobFeeCap := big.NewInt(300) // 300 wei
 		gasFeeCap := big.NewInt(300)  // 300 wei
-		block := rpcBlock{
-			Number: hexutil.Uint64(600),
-			Hash:   common.Hash{}.Bytes(),
-			Transactions: []*types.Transaction{
-				createBlobTx(big.NewInt(7), gasFeeCap, blobFeeCap),
-				createBlobTx(big.NewInt(8), gasFeeCap, blobFeeCap),
-				createBlobTx(big.NewInt(9), gasFeeCap, blobFeeCap),
-				createBlobTx(big.NewInt(400), gasFeeCap, blobFeeCap),
-			},
-		}
+		block := createBlock(600, baseFee, []*types.Transaction{
+			createBlobTx(big.NewInt(7), gasFeeCap, blobFeeCap),
+			createBlobTx(big.NewInt(8), gasFeeCap, blobFeeCap),
+			createBlobTx(big.NewInt(9), gasFeeCap, blobFeeCap),
+			createBlobTx(big.NewInt(400), gasFeeCap, blobFeeCap),
+		})
 
 		tips := oracle.extractTipsForBlobTxs(block, baseFee)
 		require.Len(t, tips, 4)
@@ -437,20 +393,16 @@ func TestExtractBlobFeeCaps(t *testing.T) {
 
 	t.Run("extract ignores non-blob transactions", func(t *testing.T) {
 		baseFee := big.NewInt(1000000)
-		block := rpcBlock{
-			Number: hexutil.Uint64(601),
-			Hash:   common.Hash{}.Bytes(),
-			Transactions: []*types.Transaction{
-				types.NewTx(&types.LegacyTx{
-					Nonce:    0,
-					GasPrice: big.NewInt(1000000),
-					Gas:      21000,
-					To:       &common.Address{},
-					Value:    big.NewInt(0),
-					Data:     []byte{},
-				}),
-			},
-		}
+		block := createBlock(601, baseFee, []*types.Transaction{
+			types.NewTx(&types.LegacyTx{
+				Nonce:    0,
+				GasPrice: big.NewInt(1000000),
+				Gas:      21000,
+				To:       &common.Address{},
+				Value:    big.NewInt(0),
+				Data:     []byte{},
+			}),
+		})
 
 		feeCaps := oracle.extractTipsForBlobTxs(block, baseFee)
 		require.Len(t, feeCaps, 0)
@@ -460,26 +412,110 @@ func TestExtractBlobFeeCaps(t *testing.T) {
 		baseFee := big.NewInt(1000000)
 		blobFeeCap := big.NewInt(3000000000)
 		gasFeeCap := big.NewInt(3000000000)
-		block := rpcBlock{
-			Number: hexutil.Uint64(602),
-			Hash:   common.Hash{}.Bytes(),
-			Transactions: []*types.Transaction{
-				types.NewTx(&types.LegacyTx{
-					Nonce:    0,
-					GasPrice: big.NewInt(1000000),
-					Gas:      21000,
-					To:       &common.Address{},
-					Value:    big.NewInt(0),
-					Data:     []byte{},
-				}),
-				createBlobTx(big.NewInt(5000000), gasFeeCap, blobFeeCap),
-				createBlobTx(big.NewInt(6000000), gasFeeCap, blobFeeCap),
-			},
-		}
+		block := createBlock(602, baseFee, []*types.Transaction{
+			types.NewTx(&types.LegacyTx{
+				Nonce:    0,
+				GasPrice: big.NewInt(1000000),
+				Gas:      21000,
+				To:       &common.Address{},
+				Value:    big.NewInt(0),
+				Data:     []byte{},
+			}),
+			createBlobTx(big.NewInt(5000000), gasFeeCap, blobFeeCap),
+			createBlobTx(big.NewInt(6000000), gasFeeCap, blobFeeCap),
+		})
 
 		tips := oracle.extractTipsForBlobTxs(block, baseFee)
 		require.Len(t, tips, 2)
 		require.Equal(t, big.NewInt(5000000), tips[0])
 		require.Equal(t, big.NewInt(6000000), tips[1])
+	})
+}
+
+func TestOracleLifecycle(t *testing.T) {
+	mbackend := new(mockBTOBackend)
+	chainConfig := params.MainnetChainConfig
+	logger := testlog.Logger(t, log.LevelDebug)
+
+	oracle := NewBlobTipOracle(mbackend, chainConfig, logger, &BlobTipOracleConfig{
+		PricesCacheSize: 10,
+		BlockCacheSize:  10,
+		MaxBlocks:       2,
+		Percentile:      60,
+		NetworkTimeout:  time.Second,
+	})
+
+	t.Run("start and close", func(t *testing.T) {
+		latestBlock := uint64(100)
+
+		// Mock pre-population calls
+		mbackend.On("BlockNumber", mock.Anything).Return(latestBlock, nil).Once()
+
+		excessBlobGas := uint64(1000000)
+		for i := uint64(99); i <= 100; i++ {
+			header := createHeader(i, &excessBlobGas)
+			block := createBlock(i, header.BaseFee, []*types.Transaction{})
+			mbackend.On("HeaderByNumber", mock.Anything, big.NewInt(int64(i))).Return(header, nil).Once()
+			mbackend.On("BlockByNumber", mock.Anything, big.NewInt(int64(i))).Return(block, nil).Once()
+		}
+
+		// Mock subscription
+		sub := newMockSubscription()
+		var headerCh chan<- *types.Header
+		mbackend.On("SubscribeNewHead", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			headerCh = args.Get(1).(chan<- *types.Header)
+		}).Return(sub, nil).Once()
+
+		// Start the oracle
+		err := oracle.Start()
+		require.NoError(t, err)
+		select {
+		case <-oracle.loopDone:
+			require.Fail(t, "oracle loop should not be done")
+		default:
+			// Expect loop to block done channel
+		}
+
+		// Verify cache was pre-populated
+		latestBlockNum, fee := oracle.GetLatestBlobBaseFee()
+		require.Equal(t, uint64(100), latestBlockNum)
+		require.NotNil(t, fee)
+
+		// Send a new header through the subscription to verify processing works
+		newHeader := createHeader(101, &excessBlobGas)
+		newBlock := createBlock(101, newHeader.BaseFee, []*types.Transaction{})
+		mbackend.On("BlockByNumber", mock.Anything, big.NewInt(101)).Return(newBlock, nil).Once()
+
+		headerCh <- newHeader
+
+		// Give the goroutine time to process
+		require.Eventually(t, func() bool {
+			latestBlockNum, _ = oracle.GetLatestBlobBaseFee()
+			return latestBlockNum == 101
+		}, time.Second, 10*time.Millisecond)
+
+		// Close the oracle
+		oracle.Close()
+
+		// Verify subscription was unsubscribed
+		require.True(t, sub.unsubbed, "subscription should be unsubscribed after Close")
+		select {
+		case <-oracle.loopDone:
+			// Expect loop to have exited
+		default:
+			require.Fail(t, "oracle loop should have exited after Close")
+		}
+
+		mbackend.AssertExpectations(t)
+	})
+
+	t.Run("close before start is safe", func(t *testing.T) {
+		oracle2 := NewBlobTipOracle(mbackend, chainConfig, logger, &BlobTipOracleConfig{
+			PricesCacheSize: 10,
+			BlockCacheSize:  10,
+		})
+
+		// Should not panic
+		oracle2.Close()
 	})
 }

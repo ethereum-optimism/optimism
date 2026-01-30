@@ -10,6 +10,7 @@ import (
 	"time"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/bgpo"
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -133,6 +134,19 @@ var (
 	// geth enforces a 1 gwei minimum for blob tx fee
 	defaultMinBlobTxFee = big.NewInt(params.GWei)
 )
+
+// BTOConfig configures the BlobTipOracle for dynamic blob tip cap estimation.
+// If provided to txmgr.Config, the txmgr will create and manage a BlobTipOracle.
+type BTOConfig struct {
+	// Backend is the ethclient that implements bgpo.BTOBackend
+	Backend bgpo.BTOBackend
+	// ChainConfig is the L1 chain config for blob fee calculation
+	ChainConfig *params.ChainConfig
+	// BlobTipCapRange is the number of blocks to analyze (default: 20)
+	BlobTipCapRange int
+	// BlobTipCapPercentile is the percentile for tip suggestion (default: 60)
+	BlobTipCapPercentile int
+}
 
 func CLIFlags(envPrefix string) []cli.Flag {
 	return CLIFlagsWithDefaults(envPrefix, DefaultBatcherFlagValues)
@@ -473,9 +487,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 		return nil, fmt.Errorf("invalid min tip cap: %w", err)
 	}
 
-	var (
-		maxBaseFee, maxTipCap *big.Int
-	)
+	var maxBaseFee, maxTipCap *big.Int
 	if cfg.MaxBaseFeeGwei > 0 {
 		maxBaseFee, err = eth.GweiToWei(cfg.MaxBaseFeeGwei)
 		if err != nil {
@@ -508,8 +520,6 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 		SafeAbortNonceTooLowCount:  cfg.SafeAbortNonceTooLowCount,
 		AlreadyPublishedCustomErrs: cfg.AlreadyPublishedCustomErrs,
 		CellProofTime:              cellProofTime,
-		BlobTipCapPercentile:       cfg.BlobTipCapPercentile,
-		BlobTipCapRange:            cfg.BlobTipCapRange,
 	}
 
 	res.RebroadcastInterval.Store(int64(cfg.RebroadcastInterval))
@@ -630,11 +640,9 @@ type Config struct {
 	// instead of using static tip cap for blob transactions.
 	BlobTipCapDynamic atomic.Bool
 
-	// BlobTipCapPercentile is the percentile of recent blob tx tips to use for suggestion (1-100).
-	BlobTipCapPercentile int
-
-	// BlobTipCapRange is the number of recent blocks to analyze for blob tip cap distribution.
-	BlobTipCapRange int
+	// BTOConfig is the configuration for the BlobTipOracle.
+	// If nil, the BlobTipOracle will not be used.
+	BTOConfig *BTOConfig
 }
 
 func (m *Config) Check() error {
