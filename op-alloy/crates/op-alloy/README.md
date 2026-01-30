@@ -1,9 +1,8 @@
 ## `op-alloy`
 
-<a href="https://github.com/alloy-rs/op-alloy/actions/workflows/ci.yml"><img src="https://github.com/alloy-rs/op-alloy/actions/workflows/ci.yml/badge.svg?label=ci" alt="CI"></a>
 <a href="https://crates.io/crates/op-alloy"><img src="https://img.shields.io/crates/v/op-alloy.svg" alt="op-alloy crate"></a>
-<a href="https://github.com/alloy-rs/op-alloy/blob/main/LICENSE-APACHE"><img src="https://img.shields.io/badge/License-APACHE-d1d1f6.svg?label=license&labelColor=2a2f35" alt="License"></a>
-<a href="https://github.com/alloy-rs/op-alloy/blob/main/LICENSE-MIT"><img src="https://img.shields.io/badge/License-MIT-d1d1f6.svg?label=license&labelColor=2a2f35" alt="License"></a>
+<a href="../../LICENSE-APACHE"><img src="https://img.shields.io/badge/License-APACHE-d1d1f6.svg?label=license&labelColor=2a2f35" alt="License"></a>
+<a href="../../LICENSE-MIT"><img src="https://img.shields.io/badge/License-MIT-d1d1f6.svg?label=license&labelColor=2a2f35" alt="License"></a>
 <a href="https://alloy-rs.github.io/op-alloy"><img src="https://img.shields.io/badge/Book-854a15?logo=mdBook&labelColor=2a2f35" alt="Book"></a>
 
 
@@ -78,10 +77,10 @@ shall be dual licensed as above, without any additional terms or conditions.
 
 <!-- Hyperlinks -->
 
-[check-no-std]: https://github.com/alloy-rs/op-alloy/blob/main/scripts/check_no_std.sh
+[check-no-std]: ../../scripts/check_no_std.sh
 
 [maili]: https://github.com/op-rs/maili
-[kona]: https://github.com/op-rs/kona
+[kona]: ../../../kona
 [alloy]: https://github.com/alloy-rs/alloy
 [contributing]: https://alloy-rs.github.io/op-alloy
 

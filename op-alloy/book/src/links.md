@@ -1,6 +1,6 @@
 <!-- op-alloy -->
 
-[check-no-std]: https://github.com/alloy-rs/op-alloy/blob/main/scripts/check_no_std.sh
+[check-no-std]: https://github.com/ethereum-optimism/optimism/blob/develop/op-alloy/scripts/check_no_std.sh
 [contributing]: https://alloy-rs.github.io/op-alloy
 [op-alloy-crate]: https://crates.io/crates/op-alloy
 [op-alloy-ff]: https://docs.rs/crate/op-alloy/latest/features
@@ -50,17 +50,17 @@
 <!-- Alloy -->
 
 [alloy]: https://github.com/alloy-rs/alloy
-[op-alloy]: https://github.com/alloy-rs/op-alloy
+[op-alloy]: https://github.com/ethereum-optimism/optimism/tree/develop/op-alloy
 [b64]: https://docs.rs/alloy-primitives/latest/alloy_primitives/aliases/type.B64.html
 [tx-envelope]: https://docs.rs/op-alloy-consensus/latest/op_alloy_consensus/transaction/enum.OpTxType.html
 
 <!-- Kona links -->
 
-[kona]: https://github.com/op-rs/kona
-[book]: https://op-rs.github.io/kona/
-[issues]: https://github.com/op-rs/kona/issues
-[new-issue]: https://github.com/op-rs/kona/issues/new
-[contributing]: https://github.com/op-rs/kona/tree/main/CONTRIBUTING.md
+[kona]: https://github.com/ethereum-optimism/optimism/tree/develop/kona
+[book]: https://rollup.yoga
+[issues]: https://github.com/ethereum-optimism/optimism/issues
+[new-issue]: https://github.com/ethereum-optimism/optimism/issues/new
+[contributing]: https://github.com/ethereum-optimism/optimism/tree/develop/kona/CONTRIBUTING.md
 
 <!-- People -->
 

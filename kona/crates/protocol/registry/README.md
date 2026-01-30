@@ -1,8 +1,7 @@
 ## `kona-registry`
 
-<a href="https://github.com/op-rs/kona/actions/workflows/rust_ci.yaml"><img src="https://github.com/op-rs/kona/actions/workflows/rust_ci.yaml/badge.svg?label=ci" alt="CI"></a>
 <a href="https://crates.io/crates/kona-registry"><img src="https://img.shields.io/crates/v/kona-registry.svg?label=kona-registry&labelColor=2a2f35" alt="kona-registry"></a>
-<a href="https://github.com/op-rs/kona/blob/main/LICENSE.md"><img src="https://img.shields.io/badge/License-MIT-d1d1f6.svg?label=license&labelColor=2a2f35" alt="MIT License"></a>
+<a href="../../../../LICENSE.md"><img src="https://img.shields.io/badge/License-MIT-d1d1f6.svg?label=license&labelColor=2a2f35" alt="MIT License"></a>
 <a href="https://rollup.yoga"><img src="https://img.shields.io/badge/Docs-854a15?style=flat&labelColor=1C2C2E&color=BEC5C9&logo=mdBook&logoColor=BEC5C9" alt="Docs" /></a>
 
 [`kona-registry`][sc] is a `no_std` crate that exports rust type definitions for chains
@@ -114,7 +113,7 @@ println!("OP Mainnet Chain Config: {:?}", op_chain_config);
 
 [serde]: https://crates.io/crates/serde
 [alloy]: https://github.com/alloy-rs/alloy
-[op-alloy]: https://github.com/alloy-rs/op-alloy
+[op-alloy]: ../../../../op-alloy
 [op-superchain]: https://docs.optimism.io/stack/explainer
 [osr]: https://github.com/ethereum-optimism/superchain-registry
 

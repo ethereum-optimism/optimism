@@ -2,4 +2,4 @@
 
 ## Reporting a Vulnerability
 
-Contact georgios at paradigm.xyz.
+Contact security at oplabs.co.

@@ -13,7 +13,7 @@ development branch and see how it behaves on a network.
 
 Assuming you are on Ubuntu and your user is member of the group `docker`, first time run
 
-    git clone 'https://github.com/op-rs/kona.git'
+    git clone 'https://github.com/ethereum-optimism/optimism.git'
     cd kona/docker/recipes/kona-node-dev/
     just init
 

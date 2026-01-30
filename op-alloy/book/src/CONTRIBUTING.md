@@ -62,5 +62,5 @@ protocol upgrades.
 [specs-pr]: https://github.com/ethereum-optimism/specs/pulls
 [specs]: https://specs.optimism.io/
 [op-stack]: https://docs.optimism.io/stack/getting-started
-[book]: https://github.com/alloy-rs/op-alloy/tree/main/book
-[new-issue]: https://github.com/alloy-rs/op-alloy/issues/new
+[book]: https://github.com/ethereum-optimism/optimism/tree/develop/op-alloy/book
+[new-issue]: https://github.com/ethereum-optimism/optimism/issues/new

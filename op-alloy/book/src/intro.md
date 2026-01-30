@@ -1,6 +1,6 @@
 # op-alloy
 
-<a href="https://github.com/alloy-rs/op-alloy"><img src="https://img.shields.io/github/stars/alloy-rs/op-alloy"></a>
+<a href="https://github.com/ethereum-optimism/optimism"><img src="https://img.shields.io/github/stars/ethereum-optimism/optimism"></a>
 
 Welcome to the hands-on guide for getting started with `op-alloy`!
 
