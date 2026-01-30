@@ -3,6 +3,7 @@ package sysgo
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	snconfig "github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 type SuperNode struct {
@@ -143,10 +145,8 @@ func (n *SuperNode) Stop() {
 
 // WithSupernode constructs a Supernode-based L2 CL node
 func WithSupernode(supernodeID stack.SupernodeID, l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
-	_ = supernodeID // unused in new API
-	_ = opts        // unused in new API
 	args := []L2CLs{{CLID: l2CLID, ELID: l2ELID}}
-	return WithSharedSupernodeCLs(args, l1CLID, l1ELID)
+	return WithSharedSupernodeCLs(supernodeID, args, l1CLID, l1ELID)
 }
 
 // SuperNodeProxy is a thin wrapper that points to a shared supernode instance.
@@ -213,10 +213,31 @@ func WithSupernodeInterop(activationTimestamp uint64) SupernodeOption {
 	}
 }
 
-// WithSharedSupernodeCLsInterop starts one supernode for N L2 chains with interop enabled
-// at a specified offset from genesis. Use delaySeconds=0 for interop at genesis.
-// This allows testing the transition from non-interop to interop mode.
-func WithSharedSupernodeCLsInterop(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, delaySeconds uint64) stack.Option[*Orchestrator] {
+// WithSharedSupernodeCLsInterop starts one supernode for N L2 chains with interop enabled at genesis.
+// The interop activation timestamp is computed from the first chain's genesis time.
+func WithSharedSupernodeCLsInterop(supernodeID stack.SupernodeID, cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(func(orch *Orchestrator) {
+		// Get genesis timestamp from first chain
+		if len(cls) == 0 {
+			orch.P().Require().Fail("no chains provided")
+			return
+		}
+		l2Net, ok := orch.l2Nets.Get(cls[0].CLID.ChainID())
+		if !ok {
+			orch.P().Require().Fail("l2 network not found")
+			return
+		}
+		genesisTime := l2Net.rollupCfg.Genesis.L2Time
+		orch.P().Logger().Info("enabling supernode interop at genesis", "activation_timestamp", genesisTime)
+
+		// Call the main implementation with interop enabled
+		withSharedSupernodeCLsImpl(orch, supernodeID, cls, l1CLID, l1ELID, WithSupernodeInterop(genesisTime))
+	})
+}
+
+// WithSharedSupernodeCLsInteropDelayed starts one supernode for N L2 chains with interop enabled
+// at a specified offset from genesis. This allows testing the transition from non-interop to interop mode.
+func WithSharedSupernodeCLsInteropDelayed(supernodeID stack.SupernodeID, cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, delaySeconds uint64) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		// Get genesis timestamp from first chain
 		if len(cls) == 0 {
@@ -230,30 +251,26 @@ func WithSharedSupernodeCLsInterop(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID 
 		}
 		genesisTime := l2Net.rollupCfg.Genesis.L2Time
 		activationTime := genesisTime + delaySeconds
-		if delaySeconds == 0 {
-			orch.P().Logger().Info("enabling supernode interop at genesis", "activation_timestamp", activationTime)
-		} else {
-			orch.P().Logger().Info("enabling supernode interop with delay",
-				"genesis_time", genesisTime,
-				"activation_timestamp", activationTime,
-				"delay_seconds", delaySeconds,
-			)
-		}
+		orch.P().Logger().Info("enabling supernode interop with delay",
+			"genesis_time", genesisTime,
+			"activation_timestamp", activationTime,
+			"delay_seconds", delaySeconds,
+		)
 
-		// Call the main implementation with interop enabled at activation timestamp
-		withSharedSupernodeCLsImpl(orch, cls, l1CLID, l1ELID, WithSupernodeInterop(activationTime))
+		// Call the main implementation with interop enabled at delayed timestamp
+		withSharedSupernodeCLsImpl(orch, supernodeID, cls, l1CLID, l1ELID, WithSupernodeInterop(activationTime))
 	})
 }
 
 // WithSharedSupernodeCLs starts one supernode for N L2 chains and registers thin L2CL wrappers.
-func WithSharedSupernodeCLs(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, opts ...SupernodeOption) stack.Option[*Orchestrator] {
+func WithSharedSupernodeCLs(supernodeID stack.SupernodeID, cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, opts ...SupernodeOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		withSharedSupernodeCLsImpl(orch, cls, l1CLID, l1ELID, opts...)
+		withSharedSupernodeCLsImpl(orch, supernodeID, cls, l1CLID, l1ELID, opts...)
 	})
 }
 
 // withSharedSupernodeCLsImpl is the implementation for starting a shared supernode.
-func withSharedSupernodeCLsImpl(orch *Orchestrator, cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, opts ...SupernodeOption) {
+func withSharedSupernodeCLsImpl(orch *Orchestrator, supernodeID stack.SupernodeID, cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, opts ...SupernodeOption) {
 	p := orch.P()
 	require := p.Require()
 
@@ -277,16 +294,13 @@ func withSharedSupernodeCLsImpl(orch *Orchestrator, cls []L2CLs, l1CLID stack.L1
 	logger := p.Logger()
 
 	// Build per-chain op-node configs
-	makeNodeCfg := func(l2Net *L2Network, l2EL L2ELNode, isSequencer bool) *config.Config {
+	makeNodeCfg := func(l2Net *L2Network, l2ChainID eth.ChainID, l2EL L2ELNode, isSequencer bool) *config.Config {
 		interopCfg := &interop.Config{}
 		l2EngineAddr := l2EL.EngineRPC()
-
-		// Copy rollup config and clear InteropTime.
-		// The supernode handles interop verification at a higher level via its Interop activity,
-		// so individual virtual nodes should not have interop enabled (which would require a DependencySet).
-		rollupCfg := *l2Net.rollupCfg
-		rollupCfg.InteropTime = nil
-
+		var depSet depset.DependencySet
+		if cluster, ok := orch.ClusterForL2(l2ChainID); ok {
+			depSet = cluster.DepSet()
+		}
 		return &config.Config{
 			L1: &config.L1EndpointConfig{
 				L1NodeAddr:       l1EL.UserRPC(),
@@ -303,9 +317,10 @@ func withSharedSupernodeCLsImpl(orch *Orchestrator, cls []L2CLs, l1CLID stack.L1
 				L2EngineAddr:      l2EngineAddr,
 				L2EngineJWTSecret: jwtSecret,
 			},
+			DependencySet:                   depSet,
 			Beacon:                          &config.L1BeaconEndpointConfig{BeaconAddr: l1CL.beaconHTTPAddr},
 			Driver:                          driver.Config{SequencerEnabled: isSequencer, SequencerConfDepth: 2},
-			Rollup:                          rollupCfg,
+			Rollup:                          *l2Net.rollupCfg,
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 			InteropConfig:                   interopCfg,
 			P2P:                             nil,
@@ -324,15 +339,20 @@ func withSharedSupernodeCLsImpl(orch *Orchestrator, cls []L2CLs, l1CLID stack.L1
 	// Gather VN configs and chain IDs
 	vnCfgs := make(map[eth.ChainID]*config.Config)
 	chainIDs := make([]uint64, 0, len(cls))
-	for _, a := range cls {
+	els := make([]*stack.L2ELNodeID, 0, len(cls))
+	for i := range cls {
+		a := cls[i]
 		l2Net, ok := orch.l2Nets.Get(a.CLID.ChainID())
 		require.True(ok, "l2 network required")
 		l2ELNode, ok := orch.l2ELs.Get(a.ELID)
 		require.True(ok, "l2 EL node required")
-		cfg := makeNodeCfg(l2Net, l2ELNode, true)
+		l2ChainID := a.CLID.ChainID()
+		cfg := makeNodeCfg(l2Net, l2ChainID, l2ELNode, true)
+		require.NoError(cfg.Check(), "invalid op-node config for chain %s", a.CLID.ChainID())
 		id := eth.EvilChainIDToUInt64(a.CLID.ChainID())
 		chainIDs = append(chainIDs, id)
 		vnCfgs[eth.ChainIDFromUInt64(id)] = cfg
+		els = append(els, &cls[i].ELID)
 	}
 
 	// Start shared supernode with all chains
@@ -381,7 +401,8 @@ func withSharedSupernodeCLsImpl(orch *Orchestrator, cls []L2CLs, l1CLID stack.L1
 			time.Sleep(200 * time.Millisecond)
 		}
 	}
-	for _, a := range cls {
+	for i := range cls {
+		a := cls[i]
 		// Multi-chain router exposes per-chain namespace paths
 		rpc := base + "/" + strconv.FormatUint(eth.EvilChainIDToUInt64(a.CLID.ChainID()), 10)
 		waitReady(rpc)
@@ -392,8 +413,41 @@ func withSharedSupernodeCLsImpl(orch *Orchestrator, cls []L2CLs, l1CLID stack.L1
 			userRPC:          rpc,
 			interopEndpoint:  rpc,
 			interopJwtSecret: jwtSecret,
-			el:               &a.ELID,
+			el:               &cls[i].ELID,
 		}
 		require.True(orch.l2CLs.SetIfMissing(a.CLID, proxy), fmt.Sprintf("must not already exist: %s", a.CLID))
 	}
+
+	supernode := &SuperNode{
+		id:               supernodeID,
+		sn:               sn,
+		cancel:           cancel,
+		userRPC:          base,
+		interopEndpoint:  base,
+		interopJwtSecret: jwtSecret,
+		p:                p,
+		logger:           logger,
+		els:              els,
+		chains:           idsFromCLs(cls),
+		l1UserRPC:        l1EL.UserRPC(),
+		l1BeaconAddr:     l1CL.beaconHTTPAddr,
+	}
+	orch.supernodes.Set(supernodeID, supernode)
+}
+
+func idsFromCLs(cls []L2CLs) []eth.ChainID {
+	out := make([]eth.ChainID, 0, len(cls))
+	seen := make(map[eth.ChainID]struct{}, len(cls))
+	for _, c := range cls {
+		id := c.CLID.ChainID()
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return eth.EvilChainIDToUInt64(out[i]) < eth.EvilChainIDToUInt64(out[j])
+	})
+	return out
 }

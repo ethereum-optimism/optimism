@@ -251,12 +251,12 @@ func DefaultSupernodeInteropTwoL2System(dest *DefaultTwoL2SystemIDs, delaySecond
 	opt.Add(WithL2ELNode(ids.L2BEL))
 
 	// Shared supernode for both L2 chains with interop enabled
-	opt.Add(WithSharedSupernodeCLsInterop(
-		[]L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}, {CLID: ids.L2BCL, ELID: ids.L2BEL}},
-		ids.L1CL,
-		ids.L1EL,
-		delaySeconds,
-	))
+	cls := []L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}, {CLID: ids.L2BCL, ELID: ids.L2BEL}}
+	if delaySeconds == 0 {
+		opt.Add(WithSharedSupernodeCLsInterop(ids.Supernode, cls, ids.L1CL, ids.L1EL))
+	} else {
+		opt.Add(WithSharedSupernodeCLsInteropDelayed(ids.Supernode, cls, ids.L1CL, ids.L1EL, delaySeconds))
+	}
 
 	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
 	opt.Add(WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, nil))

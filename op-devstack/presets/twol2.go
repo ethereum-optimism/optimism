@@ -84,6 +84,10 @@ type TwoL2SupernodeInterop struct {
 	L2ELA *dsl.L2ELNode
 	L2ELB *dsl.L2ELNode
 
+	// L2BatcherA and L2BatcherB provide access to the batchers for pausing/resuming
+	L2BatcherA *dsl.L2Batcher
+	L2BatcherB *dsl.L2Batcher
+
 	// Faucets for funding test accounts
 	FaucetA *dsl.Faucet
 	FaucetB *dsl.Faucet
@@ -167,6 +171,8 @@ func NewTwoL2SupernodeInterop(t devtest.T, delaySeconds uint64) *TwoL2SupernodeI
 		},
 		L2ELA:                 dsl.NewL2ELNode(l2a.L2ELNode(match.Assume(t, match.FirstL2EL)), orch.ControlPlane()),
 		L2ELB:                 dsl.NewL2ELNode(l2b.L2ELNode(match.Assume(t, match.FirstL2EL)), orch.ControlPlane()),
+		L2BatcherA:            dsl.NewL2Batcher(l2a.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+		L2BatcherB:            dsl.NewL2Batcher(l2b.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
 		FaucetA:               dsl.NewFaucet(l2a.Faucet(match.Assume(t, match.FirstFaucet))),
 		FaucetB:               dsl.NewFaucet(l2b.Faucet(match.Assume(t, match.FirstFaucet))),
 		Wallet:                dsl.NewRandomHDWallet(t, 30),
