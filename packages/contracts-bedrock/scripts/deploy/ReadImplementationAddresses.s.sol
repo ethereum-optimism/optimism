@@ -71,7 +71,7 @@ contract ReadImplementationAddresses is Script {
             // Get implementations from OPCM V2
             IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_input.opcm);
 
-            // This addresses are deprecated in OPCM V2
+            // These addresses are deprecated in OPCM V2
             output_.opcmGameTypeAdder = address(0);
             output_.opcmDeployer = address(0);
             output_.opcmUpgrader = address(0);
