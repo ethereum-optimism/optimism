@@ -16,13 +16,15 @@ type L2ELNode interface {
 }
 
 type L2ELConfig struct {
-	SupervisorID  *stack.SupervisorID
-	P2PAddr       string
-	P2PPort       int
-	P2PNodeKeyHex string
-	StaticPeers   []string
-	TrustedPeers  []string
-	ProofHistory  bool
+	SupervisorID              *stack.SupervisorID
+	P2PAddr                   string
+	P2PPort                   int
+	P2PNodeKeyHex             string
+	StaticPeers               []string
+	TrustedPeers              []string
+	ProofHistory              bool
+	ProofHistoryWindow        int
+	ProofHistoryPruneInterval string
 }
 
 func L2ELWithSupervisor(supervisorID stack.SupervisorID) L2ELOption {
@@ -34,6 +36,14 @@ func L2ELWithSupervisor(supervisorID stack.SupervisorID) L2ELOption {
 func L2ELWithProofHistory(enable bool) L2ELOption {
 	return L2ELOptionFn(func(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig) {
 		cfg.ProofHistory = enable
+	})
+}
+
+// L2ELWithProofHistoryConfig sets the proof history window and prune interval for the L2 EL.
+func L2ELWithProofHistoryConfig(window int, pruneInterval string) L2ELOption {
+	return L2ELOptionFn(func(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig) {
+		cfg.ProofHistoryWindow = window
+		cfg.ProofHistoryPruneInterval = pruneInterval
 	})
 }
 
@@ -50,13 +60,15 @@ func L2ELWithP2PConfig(addr string, port int, nodeKeyHex string, staticPeers, tr
 
 func DefaultL2ELConfig() *L2ELConfig {
 	return &L2ELConfig{
-		SupervisorID:  nil,
-		P2PAddr:       "127.0.0.1",
-		P2PPort:       0,
-		P2PNodeKeyHex: "",
-		StaticPeers:   nil,
-		TrustedPeers:  nil,
-		ProofHistory:  false,
+		SupervisorID:              nil,
+		P2PAddr:                   "127.0.0.1",
+		P2PPort:                   0,
+		P2PNodeKeyHex:             "",
+		StaticPeers:               nil,
+		TrustedPeers:              nil,
+		ProofHistory:              false,
+		ProofHistoryWindow:        200,
+		ProofHistoryPruneInterval: "1m",
 	}
 }
 

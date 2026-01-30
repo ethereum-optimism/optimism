@@ -300,9 +300,8 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 			args = append(
 				args,
 				"--proofs-history",
-				// todo: make these configurable via env-vars (ethereum-optimism/optimism#18908)
-				"--proofs-history.window=200",
-				"--proofs-history.prune-interval=1m",
+				fmt.Sprintf("--proofs-history.window=%d", cfg.ProofHistoryWindow),
+				fmt.Sprintf("--proofs-history.prune-interval=%s", cfg.ProofHistoryPruneInterval),
 				"--proofs-history.storage-path="+proofHistoryDir,
 			)
 		}
