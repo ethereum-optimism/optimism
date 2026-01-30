@@ -645,12 +645,18 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
         );
     }
 
-    /// @notice Tests that upgrade with extra tags succeeds in testing environment.
-    function test_upgrade_extraTagInTestEnv_succeeds() public {
-        // Testing environment is already set up in setUp().
+    /// @notice Tests that upgrade with extra tags succeeds when dev features are enabled.
+    function test_upgrade_extraTagWithDevFeatures_succeeds() public {
+        // Mock devFeatureBitmap to return non-zero (dev features enabled).
+        vm.mockCall(
+            address(container),
+            abi.encodeCall(IOPContractsManagerContainer.devFeatureBitmap, ()),
+            abi.encode(bytes32(uint256(1)))
+        );
+
         OPContractsManagerUtils_ImplV2Beta_Harness implBeta = new OPContractsManagerUtils_ImplV2Beta_Harness();
 
-        // Should succeed because we're in testing environment.
+        // Should succeed because dev features are enabled.
         utils.upgrade(
             proxyAdmin,
             address(proxy),
@@ -661,29 +667,6 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
         );
 
         assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implBeta));
-    }
-
-    /// @notice Tests that upgrade with extra tags succeeds on non-mainnet chains.
-    function test_upgrade_extraTagOnTestnet_succeeds() public {
-        // Remove testing environment marker.
-        vm.etch(Constants.TESTING_ENVIRONMENT_ADDRESS, hex"");
-
-        // Simulate Sepolia (not mainnet).
-        vm.chainId(11155111);
-
-        OPContractsManagerUtils_ImplV2Interop_Harness implInterop = new OPContractsManagerUtils_ImplV2Interop_Harness();
-
-        // Should succeed because we're not on mainnet.
-        utils.upgrade(
-            proxyAdmin,
-            address(proxy),
-            address(implInterop),
-            abi.encodeCall(OPContractsManagerUtils_ImplV2Interop_Harness.initialize, ()),
-            TEST_SLOT,
-            TEST_OFFSET
-        );
-
-        assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implInterop));
     }
 }
 
