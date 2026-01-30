@@ -219,10 +219,9 @@ impl OpNode {
     /// use reth_optimism_chainspec::OpChainSpecBuilder;
     /// use reth_optimism_node::OpNode;
     /// use reth_provider::providers::{RocksDBProvider, StaticFileProvider};
-    /// use std::sync::Arc;
     ///
     /// let factory = OpNode::provider_factory_builder()
-    ///     .db(Arc::new(open_db_read_only("db", Default::default()).unwrap()))
+    ///     .db(open_db_read_only("db", Default::default()).unwrap())
     ///     .chainspec(OpChainSpecBuilder::base_mainnet().build().into())
     ///     .static_file(StaticFileProvider::read_only("db/static_files", false).unwrap())
     ///     .rocksdb_provider(RocksDBProvider::builder("db/rocksdb").build().unwrap())
