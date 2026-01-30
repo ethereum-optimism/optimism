@@ -66,7 +66,7 @@ jobs:
           - op-interop-mon
           - op-rbuilder
           - kona-node
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@f8f3cb4800e538003134fb5f50cc734c2c98d762
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@78b6ef16e6c904406484106efe8c15189f36a23c
     with:
       mode: bake
       image_name: ${{ matrix.image_name }}
@@ -109,7 +109,7 @@ jobs:
           - op-interop-mon
           - op-rbuilder
           - kona-node
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@f8f3cb4800e538003134fb5f50cc734c2c98d762
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@78b6ef16e6c904406484106efe8c15189f36a23c
     with:
       mode: bake
       image_name: ${{ matrix.image_name }}
