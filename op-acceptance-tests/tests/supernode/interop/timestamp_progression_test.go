@@ -16,12 +16,8 @@ func TestSupernodeInteropVerifiedAt(gt *testing.T) {
 
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
 	genesisTime := sys.L2A.Escape().RollupConfig().Genesis.L2Time
-
-	// Wait for safe head to advance past genesis
-	t.Require().Eventually(func() bool {
-		status := sys.L2ACL.SyncStatus()
-		return status.SafeL2.Number > 0
-	}, 60*time.Second, time.Second, "safe head should advance past genesis")
+	ctx := t.Ctx()
+	snClient := sys.SuperNodeClient()
 
 	// Query for a timestamp that should be verified
 	// Use genesis time + one block time to ensure we're past the first block
@@ -33,20 +29,20 @@ func TestSupernodeInteropVerifiedAt(gt *testing.T) {
 	)
 
 	// Wait for the interop activity to verify the target timestamp
-	// The safe head time being past the target timestamp indicates interop has processed it
 	t.Require().Eventually(func() bool {
-		// Check if the safe head is past our target timestamp
-		// This indicates the interop activity has processed and verified that timestamp
-		status := sys.L2ACL.SyncStatus()
-		return status.SafeL2.Time >= targetTimestamp
+		resp, err := snClient.SuperRootAtTimestamp(ctx, targetTimestamp)
+		if err != nil {
+			return false
+		}
+		return resp.Data != nil
 	}, 60*time.Second, time.Second, "interop should verify target timestamp")
 
 	// Log the final state
-	finalStatus := sys.L2ACL.SyncStatus()
+	resp, err := snClient.SuperRootAtTimestamp(ctx, targetTimestamp)
+	t.Require().NoError(err)
 	t.Logger().Info("verified at test complete",
-		"safe_l2_number", finalStatus.SafeL2.Number,
-		"safe_l2_time", finalStatus.SafeL2.Time,
 		"target_timestamp", targetTimestamp,
+		"super_root", resp.Data.SuperRoot,
 	)
 }
 
