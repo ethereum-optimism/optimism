@@ -38,7 +38,7 @@ op-alloy-rpc-types-engine = { workspace = true, features = ["k256"] }
 
 # io
 tokio.workspace = true
-tokio-tungstenite = { workspace = true, features = ["rustls-tls-native-roots"] }
+tokio-tungstenite.workspace = true
 serde_json.workspace = true
 url.workspace = true
 futures-util.workspace = true
