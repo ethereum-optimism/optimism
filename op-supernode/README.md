@@ -32,7 +32,7 @@ but redundant access is eliminated.
 
 Because `op-node` is the only implementation of Virtual Nodes presently, it gets special treatment when the application starts up.
 In specific, all those flags which are found in `op-node` are upstreamed with namespacing into the `op-supernode` flags.
-This allows for *roughly* 1:1 setup and behavior between Node and Supernode, with cavets listed below.
+This allows for *roughly* 1:1 setup and behavior between Node and Supernode, with caveats listed below.
 - To set a value for one chain, use `--vn.<chainID>.<flag>`
 - To set a value for *all* chains, use `--vn.all.<flag>`
 - Some behaviors are expected to be configured at the `op-supernode` level and are not respected per usual when the application starts:
