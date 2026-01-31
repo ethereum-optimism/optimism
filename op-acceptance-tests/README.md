@@ -212,7 +212,7 @@ gates:
     tests:
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/yourtest
         timeout: 10m
-        metatada:
+        metadata:
           owner: stefano
 ```
 
