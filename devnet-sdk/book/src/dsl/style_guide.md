@@ -46,7 +46,7 @@ block := node.GetBalance(user)
 node.VerifyBalance(user, 10 * constants.Eth)
 
 // Better? Select the entry point to be as declarative as possible
-user.VerifyBalacne(10 * constants.Eth) // implementation could verify balance on all nodes automatically
+user.VerifyBalance(10 * constants.Eth) // implementation could verify balance on all nodes automatically
 ```
 
 
