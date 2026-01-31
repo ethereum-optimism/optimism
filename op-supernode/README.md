@@ -12,7 +12,7 @@ Chain containers manage the runtime of the CL as a local process called a "Virtu
 only by `op-node` itself.
 Chain Containers provide a stable interface to get data from the chain or affect the chain without needing to operate on the internals of
 that chain.
-Chain Containers also allow for multiple chains to be derived inside of the same `op-supernode`. Because theya re isolated,
+Chain Containers also allow for multiple chains to be derived inside of the same `op-supernode`. Because they are isolated,
 running many chains worth of derivation is trivial.
 
 
