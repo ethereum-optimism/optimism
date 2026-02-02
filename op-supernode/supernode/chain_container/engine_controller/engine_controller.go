@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
 )
 
@@ -25,6 +26,8 @@ type EngineController interface {
 	OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error)
 	// RewindToTimestamp rewinds the L2 execution layer to block at or before the given timestamp.
 	RewindToTimestamp(ctx context.Context, timestamp uint64) error
+	// FetchReceipts fetches the receipts for a given block by hash.
+	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
 	// Close releases any underlying RPC resources.
 	Close() error
 }
@@ -37,6 +40,7 @@ type l2Provider interface {
 	PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error)
 	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
 	NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error)
+	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
 	Close()
 }
 
@@ -149,6 +153,13 @@ func (e *simpleEngineController) OutputV0AtBlockNumber(ctx context.Context, num 
 		e.log.Debug("engine_controller: falling back to proof-based OutputV0", "blockNumber", num)
 	}
 	return e.l2.OutputV0AtBlockNumber(ctx, num)
+}
+
+func (e *simpleEngineController) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
+	if e.l2 == nil {
+		return nil, nil, ErrNoEngineClient
+	}
+	return e.l2.FetchReceipts(ctx, blockHash)
 }
 
 func (e *simpleEngineController) Close() error {
