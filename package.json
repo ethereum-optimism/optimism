@@ -1,0 +1,61 @@
+{
+  "name": "optimism",
+  "version": "1.0.0",
+  "description": "Optimism is Ethereum, scaled.",
+  "main": "index.js",
+  "scripts": {
+    "clean": "pnpm clean:workspaces && pnpm clean:node_modules",
+    "clean:workspaces": "pnpm --filter \"./packages/**\" clean",
+    "clean:node_modules": "rm -rf node_modules/",
+    "build": "pnpm build:packages",
+    "build:packages": "pnpm --filter \"./packages/**\" build",
+    "build:fresh": "pnpm clean && pnpm install && pnpm build",
+    "start": "pnpm --filter \"./packages/**\" start",
+    "test": "pnpm --filter \"./packages/**\" test",
+    "test:coverage": "pnpm --filter \"./packages/**\" test:coverage",
+    "lint": "pnpm lint:packages",
+    "lint:packages": "pnpm --filter \"./packages/**\" lint",
+    "lint:fix": "pnpm --filter \"./packages/**\" lint:fix",
+    "changeset": "changeset",
+    "changeset:version": "changeset version && pnpm install --lockfile-only",
+    "changeset:publish": "pnpm build && changeset publish"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "devDependencies": {
+    "@babel/eslint-parser": "^7.23.3",
+    "@changesets/changelog-github": "^0.4.8",
+    "@changesets/cli": "^2.26.2",
+    "@types/chai": "^4.3.6",
+    "@types/mocha": "^10.0.2",
+    "@types/node": "^20.10.4",
+    "@typescript-eslint/eslint-plugin": "^6.13.2",
+    "@typescript-eslint/parser": "^6.13.2",
+    "chai": "^4.3.10",
+    "depcheck": "^1.4.7",
+    "doctoc": "^2.2.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-config-standard": "^16.0.3",
+    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-jsdoc": "^35.1.2",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prefer-arrow": "^1.2.3",
+    "eslint-plugin-prettier": "^4.0.0",
+    "eslint-plugin-promise": "^5.1.0",
+    "eslint-plugin-react": "^7.24.0",
+    "eslint-plugin-unicorn": "^49.0.0",
+    "husky": "^8.0.3",
+    "mocha": "^10.2.0",
+    "prettier": "^2.8.8",
+    "solhint": "^3.4.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.1"
+}
