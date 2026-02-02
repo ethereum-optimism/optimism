@@ -46,8 +46,8 @@ contract ReadSuperchainDeployment is Script {
 
         if (isOPCMV2) {
             require(
-                address(_input.superchainConfigProxy) != address(0),
-                "ReadSuperchainDeployment: superchainConfigProxy required for OPCM v2"
+                address(_input.superchainConfigProxy).code.length > 0,
+                "ReadSuperchainDeployment: superchainConfigProxy has no code for OPCM v2"
             );
 
             // For OPCM v2, ProtocolVersions is being removed. Therefore, the ProtocolVersions-related fields

@@ -33,6 +33,7 @@ type presetSystem struct {
 	networks locks.RWMap[eth.ChainID, stack.Network]
 
 	supervisors locks.RWMap[stack.SupervisorID, stack.Supervisor]
+	supernodes  locks.RWMap[stack.SupernodeID, stack.Supernode]
 	sequencers  locks.RWMap[stack.TestSequencerID, stack.TestSequencer]
 	syncTesters locks.RWMap[stack.SyncTesterID, stack.SyncTester]
 }
@@ -111,6 +112,16 @@ func (p *presetSystem) AddSupervisor(v stack.Supervisor) {
 	p.require().True(p.supervisors.SetIfMissing(v.ID(), v), "supervisor %s must not already exist", v.ID())
 }
 
+func (p *presetSystem) Supernode(m stack.SupernodeMatcher) stack.Supernode {
+	v, ok := findMatch(m, p.supernodes.Get, p.Supernodes)
+	p.require().True(ok, "must find supernode %s", m)
+	return v
+}
+
+func (p *presetSystem) AddSupernode(v stack.Supernode) {
+	p.require().True(p.supernodes.SetIfMissing(v.ID(), v), "supernode %s must not already exist", v.ID())
+}
+
 func (p *presetSystem) TestSequencer(m stack.TestSequencerMatcher) stack.TestSequencer {
 	v, ok := findMatch(m, p.sequencers.Get, p.TestSequencers)
 	p.require().True(ok, "must find sequencer %s", m)
@@ -163,6 +174,10 @@ func (p *presetSystem) SupervisorIDs() []stack.SupervisorID {
 
 func (p *presetSystem) Supervisors() []stack.Supervisor {
 	return stack.SortSupervisors(p.supervisors.Values())
+}
+
+func (p *presetSystem) Supernodes() []stack.Supernode {
+	return stack.SortSupernodes(p.supernodes.Values())
 }
 
 func (p *presetSystem) TestSequencers() []stack.TestSequencer {

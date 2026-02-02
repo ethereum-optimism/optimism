@@ -10,21 +10,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestCLAdvanceMultiple verifies two L2 chains advance when using a shared CL
+// TestTwoChainProgress confirms that two L2 chains advance when using a shared CL
 // it confirms:
-// - the two L2 chains are on different chains
+// - the two L2 chains are different
 // - the two CLs are using the same supernode
-// - the two CLs are advancing
-func TestCLAdvanceMultiple(gt *testing.T) {
+// - the two CLs are advancing unsafe and safe heads
+func TestTwoChainProgress(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewTwoL2(t)
 
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
 	waitTime := time.Duration(blockTime+1) * time.Second
-
-	// Check L2A advances
-	numA := sys.L2ACL.SyncStatus().UnsafeL2.Number
-	numB := sys.L2BCL.SyncStatus().UnsafeL2.Number
 
 	// Check that the two CLs are on different chains
 	require.NotEqual(t, sys.L2ACL.ChainID(), sys.L2BCL.ChainID())
@@ -36,11 +32,47 @@ func TestCLAdvanceMultiple(gt *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uA.Scheme, uB.Scheme)
 	require.Equal(t, uA.Host, uB.Host)
+	require.Equal(t, uA.Port(), uB.Port())
 
-	require.Eventually(t, func() bool {
-		newA := sys.L2ACL.SyncStatus().UnsafeL2.Number
-		newB := sys.L2BCL.SyncStatus().UnsafeL2.Number
-		return newA > numA && newB > numB
-	}, 30*time.Second, waitTime)
+	// Record initial sync status
+	statusA := sys.L2ACL.SyncStatus()
+	statusB := sys.L2BCL.SyncStatus()
+
+	t.Logger().Info("initial sync status",
+		"chainA_unsafe", statusA.UnsafeL2.Number,
+		"chainA_safe", statusA.SafeL2.Number,
+		"chainB_unsafe", statusB.UnsafeL2.Number,
+		"chainB_safe", statusB.SafeL2.Number,
+	)
+
+	// unsafe heads should advance
+	t.Require().Eventually(func() bool {
+		newStatusA := sys.L2ACL.SyncStatus()
+		newStatusB := sys.L2BCL.SyncStatus()
+		return newStatusA.UnsafeL2.Number > statusA.UnsafeL2.Number &&
+			newStatusB.UnsafeL2.Number > statusB.UnsafeL2.Number
+	}, 30*time.Second, waitTime, "chains should advance unsafe heads")
+
+	// safe heads should advance
+	t.Require().Eventually(func() bool {
+		newStatusA := sys.L2ACL.SyncStatus()
+		newStatusB := sys.L2BCL.SyncStatus()
+		t.Logger().Info("waiting for safe head progression",
+			"chainA_safe", newStatusA.SafeL2.Number,
+			"chainB_safe", newStatusB.SafeL2.Number,
+		)
+		return newStatusA.SafeL2.Number > statusA.SafeL2.Number &&
+			newStatusB.SafeL2.Number > statusB.SafeL2.Number
+	}, 60*time.Second, waitTime, "chains should advance safe heads")
+
+	// Log final status
+	finalStatusA := sys.L2ACL.SyncStatus()
+	finalStatusB := sys.L2BCL.SyncStatus()
+	t.Logger().Info("final sync status",
+		"chainA_unsafe", finalStatusA.UnsafeL2.Number,
+		"chainA_safe", finalStatusA.SafeL2.Number,
+		"chainB_unsafe", finalStatusB.UnsafeL2.Number,
+		"chainB_safe", finalStatusB.SafeL2.Number,
+	)
 
 }

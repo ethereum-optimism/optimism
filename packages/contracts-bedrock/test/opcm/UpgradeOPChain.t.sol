@@ -407,6 +407,25 @@ contract UpgradeOPChain_Test is Test {
         );
         upgradeOPChain.run(uoci);
     }
+
+    /// @notice This test verifies that the UpgradeOPChain script correctly reverts when the OPCM upgrade
+    /// call fails
+    function test_upgrade_whenOPCMReverts_reverts() public {
+        address systemConfigProxy = makeAddr("systemConfig");
+        config = OPContractsManager.OpChainConfig({
+            systemConfigProxy: ISystemConfig(systemConfigProxy),
+            cannonPrestate: Claim.wrap(bytes32(uint256(1))),
+            cannonKonaPrestate: Claim.wrap(bytes32(uint256(2)))
+        });
+        OPContractsManager.OpChainConfig[] memory configs = new OPContractsManager.OpChainConfig[](1);
+        configs[0] = config;
+        uoci.set(uoci.upgradeInput.selector, configs);
+
+        vm.mockCallRevert(prank, OPContractsManager.upgrade.selector, abi.encode("UpgradeOPChain: upgrade failed"));
+
+        vm.expectRevert("UpgradeOPChain: upgrade failed");
+        upgradeOPChain.run(uoci);
+    }
 }
 
 contract UpgradeOPChain_TestV2 is Test {
@@ -469,6 +488,32 @@ contract UpgradeOPChain_TestV2 is Test {
         emit UpgradeCalled(
             address(upgradeInput.systemConfig), upgradeInput.disputeGameConfigs, upgradeInput.extraInstructions
         );
+        upgradeOPChain.run(uoci);
+    }
+
+    /// @notice This test verifies that the UpgradeOPChain script correctly reverts when the OPCM v2 upgrade
+    /// call fails.
+    function test_upgrade_whenOPCMV2Reverts_reverts() public {
+        address systemConfig = makeAddr("systemConfig");
+        IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerUtils.DisputeGameConfig[](1);
+        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 1 ether,
+            gameType: GameType.wrap(0),
+            gameArgs: abi.encode("test")
+        });
+
+        OPContractsManagerV2.UpgradeInput memory upgradeInput = OPContractsManagerV2.UpgradeInput({
+            systemConfig: ISystemConfig(systemConfig),
+            disputeGameConfigs: disputeGameConfigs,
+            extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
+        });
+        uoci.set(uoci.upgradeInput.selector, upgradeInput);
+
+        vm.mockCallRevert(prank, OPContractsManagerV2.upgrade.selector, abi.encode("UpgradeOPChain: upgrade failed"));
+
+        vm.expectRevert("UpgradeOPChain: upgrade failed");
         upgradeOPChain.run(uoci);
     }
 }

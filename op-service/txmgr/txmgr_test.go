@@ -1838,3 +1838,52 @@ func TestIncreaseGasPriceSigningErrorWithSend(t *testing.T) {
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 }
+
+// TestTxMgr_BlobTipCapDynamic tests that blob transactions respect the BlobTipCapDynamic config:
+// - When false (default): blob txs use gasTipCap (same as regular txs)
+// - When true: blob txs use the oracle-suggested blobTipCap
+func TestTxMgr_BlobTipCapDynamic(t *testing.T) {
+	t.Parallel()
+
+	// Create a custom gas price estimator that returns different values for gasTipCap and blobTipCap
+	gasTipCapVal := big.NewInt(100)
+	blobTipCapVal := big.NewInt(50) // Oracle suggests lower tip cap for blobs
+
+	customEstimator := func(ctx context.Context, backend ETHBackend) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
+		return gasTipCapVal, big.NewInt(7), blobTipCapVal, big.NewInt(50), nil
+	}
+
+	t.Run("BlobTipCapDynamic=false uses gasTipCap", func(t *testing.T) {
+		cfg := configWithNumConfs(1)
+		cfg.GasPriceEstimatorFn = customEstimator
+		cfg.BlobTipCapDynamic.Store(false)
+
+		h := newTestHarnessWithConfig(t, cfg)
+		candidate := h.createBlobTxCandidate()
+
+		tx, err := h.mgr.craftTx(context.Background(), candidate)
+		require.NoError(t, err)
+		require.NotNil(t, tx)
+		require.Equal(t, byte(types.BlobTxType), tx.Type())
+
+		// When BlobTipCapDynamic is false, blob tx should use gasTipCap
+		require.Equal(t, gasTipCapVal, tx.GasTipCap(), "blob tx should use gasTipCap when BlobTipCapDynamic=false")
+	})
+
+	t.Run("BlobTipCapDynamic=true uses oracle blobTipCap", func(t *testing.T) {
+		cfg := configWithNumConfs(1)
+		cfg.GasPriceEstimatorFn = customEstimator
+		cfg.BlobTipCapDynamic.Store(true)
+
+		h := newTestHarnessWithConfig(t, cfg)
+		candidate := h.createBlobTxCandidate()
+
+		tx, err := h.mgr.craftTx(context.Background(), candidate)
+		require.NoError(t, err)
+		require.NotNil(t, tx)
+		require.Equal(t, byte(types.BlobTxType), tx.Type())
+
+		// When BlobTipCapDynamic is true, blob tx should use blobTipCap from oracle
+		require.Equal(t, blobTipCapVal, tx.GasTipCap(), "blob tx should use blobTipCap when BlobTipCapDynamic=true")
+	})
+}

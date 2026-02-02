@@ -77,6 +77,7 @@ func (g *SuperCannonGameHelper) CreateHonestActor(ctx context.Context, options .
 		prestateProvider,
 		supervisorClient,
 		nil,
+		false,
 		cfg.CannonAbsolutePreState,
 		dir,
 		l1Head,

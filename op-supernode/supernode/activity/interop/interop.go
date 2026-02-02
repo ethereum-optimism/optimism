@@ -198,12 +198,12 @@ func (i *Interop) progressInterop() (Result, error) {
 	// The next timestamp to process is the previous timestamp + 1.
 	// if the database is not initialized, we use the activation timestamp instead.
 	lastTimestamp, initialized := i.verifiedDB.LastTimestamp()
-	i.log.Info("last timestamp", "lastTimestamp", lastTimestamp, "initialized", initialized)
-	i.log.Info("activation timestamp", "activationTimestamp", i.activationTimestamp)
 	var ts uint64
 	if !initialized {
+		i.log.Info("initializing interop activity with activation timestamp", "activationTimestamp", i.activationTimestamp)
 		ts = i.activationTimestamp
 	} else {
+		i.log.Info("attempting to progress interop to next timestamp", "lastTimestamp", lastTimestamp, "timestamp", lastTimestamp+1)
 		ts = lastTimestamp + 1
 	}
 
@@ -330,6 +330,14 @@ func (i *Interop) CurrentL1() eth.BlockID {
 }
 
 // VerifiedAtTimestamp returns whether the data is verified at the given timestamp.
+// For timestamps before the activation timestamp, this returns true since interop
+// wasn't active yet and verification proceeds automatically.
+// For timestamps at or after the activation timestamp, this checks the verifiedDB.
 func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
+	// Timestamps before the activation timestamp are considered verified
+	// because interop wasn't active yet
+	if ts < i.activationTimestamp {
+		return true, nil
+	}
 	return i.verifiedDB.Has(ts)
 }

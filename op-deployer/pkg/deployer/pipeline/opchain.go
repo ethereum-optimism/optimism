@@ -68,7 +68,6 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		L1StandardBridgeProxy:             dco.L1StandardBridgeProxy,
 		OptimismPortalProxy:               dco.OptimismPortalProxy,
 		DisputeGameFactoryProxy:           dco.DisputeGameFactoryProxy,
-		DelayedWETHPermissionedGameProxy:  dco.DelayedWETHPermissionedGameProxy,
 		Opcm:                              dci.Opcm,
 	}
 

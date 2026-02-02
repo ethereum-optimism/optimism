@@ -374,7 +374,7 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 		require.Error(t, err)
 		require.Nil(t, dep)
 		require.Nil(t, roles)
-		require.Contains(t, err.Error(), "superchainConfigProxy required for OPCM v2")
+		require.Contains(t, err.Error(), "superchainConfigProxy has no code for OPCM v2")
 	})
 
 	t.Run("invalid SuperchainConfigProxy", func(t *testing.T) {

@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/opcmregistry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -26,7 +25,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -256,37 +254,32 @@ func buildV2OPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy c
 
 	// Build dispute game configs with dummy prestates
 	// CANNON and PERMISSIONED_CANNON are the standard game types
-	cannonArgs, err := abi.Arguments{{Type: deployer.Bytes32Type}}.Pack(opcmregistry.DummyCannonPrestate)
-	require.NoError(t, err)
-
-	permissionedArgs, err := abi.Arguments{
-		{Type: deployer.Bytes32Type},
-		{Type: deployer.AddressType},
-		{Type: deployer.AddressType},
-	}.Pack(opcmregistry.DummyCannonPrestate, common.Address{}, common.Address{})
-	require.NoError(t, err)
-
-	cannonKonaArgs, err := abi.Arguments{{Type: deployer.Bytes32Type}}.Pack(opcmregistry.DummyCannonKonaPrestate)
-	require.NoError(t, err)
-
 	disputeGameConfigs := []embedded.DisputeGameConfig{
 		{
 			Enabled:  true,
 			InitBond: big.NewInt(0),
 			GameType: embedded.GameTypeCannon,
-			GameArgs: cannonArgs,
+			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+				AbsolutePrestate: opcmregistry.DummyCannonPrestate,
+			},
 		},
 		{
 			Enabled:  true,
 			InitBond: big.NewInt(0),
 			GameType: embedded.GameTypePermissionedCannon,
-			GameArgs: permissionedArgs,
+			PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
+				AbsolutePrestate: opcmregistry.DummyCannonPrestate,
+				Proposer:         common.Address{},
+				Challenger:       common.Address{},
+			},
 		},
 		{
 			Enabled:  true,
 			InitBond: big.NewInt(0),
 			GameType: embedded.GameTypeCannonKona,
-			GameArgs: cannonKonaArgs,
+			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+				AbsolutePrestate: opcmregistry.DummyCannonKonaPrestate,
+			},
 		},
 	}
 

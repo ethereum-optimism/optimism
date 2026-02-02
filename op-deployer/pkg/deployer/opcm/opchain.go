@@ -92,7 +92,6 @@ type ReadImplementationAddressesInput struct {
 	L1StandardBridgeProxy             common.Address
 	OptimismPortalProxy               common.Address
 	DisputeGameFactoryProxy           common.Address
-	DelayedWETHPermissionedGameProxy  common.Address
 	Opcm                              common.Address
 }
 

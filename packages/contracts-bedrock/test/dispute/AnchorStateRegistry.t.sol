@@ -516,22 +516,6 @@ contract AnchorStateRegistry_IsGameRegistered_Test is AnchorStateRegistry_TestIn
         // Game should not be registered.
         assertFalse(anchorStateRegistry.isGameRegistered(gameProxy));
     }
-
-    /// @notice Tests that isGameRegistered will return false if the game is not using the same
-    ///         AnchorStateRegistry as the one checking the registration.
-    /// @param _anchorStateRegistry The AnchorStateRegistry to use for the test.
-    function test_isGameRegistered_isNotSameAnchorStateRegistry_succeeds(address _anchorStateRegistry) public {
-        // Make sure the AnchorStateRegistry is different.
-        vm.assume(_anchorStateRegistry != address(anchorStateRegistry));
-
-        // Mock the gameProxy's AnchorStateRegistry to be a different address.
-        vm.mockCall(
-            address(gameProxy), abi.encodeCall(gameProxy.anchorStateRegistry, ()), abi.encode(_anchorStateRegistry)
-        );
-
-        // Game should not be registered.
-        assertFalse(anchorStateRegistry.isGameRegistered(gameProxy));
-    }
 }
 
 /// @title AnchorStateRegistry_IsGameRespected_Test
@@ -970,7 +954,7 @@ contract AnchorStateRegistry_SetAnchorState_Test is AnchorStateRegistry_TestInit
         assertEq(root.raw(), gameProxy.rootClaim().raw());
 
         // Confirm that the anchor game is now set.
-        IFaultDisputeGame anchorGame = anchorStateRegistry.anchorGame();
+        IDisputeGame anchorGame = anchorStateRegistry.anchorGame();
         assertEq(address(anchorGame), address(gameProxy));
     }
 
