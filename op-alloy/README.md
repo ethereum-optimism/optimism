@@ -6,7 +6,12 @@
 <a href="https://github.com/alloy-rs/op-alloy/blob/main/SNAPPY-LICENSE"><img src="https://img.shields.io/badge/License-SNAPPY-d1d1f6.svg?label=license&labelColor=2a2f35" alt="License"></a>
 <a href="https://alloy-rs.github.io/op-alloy"><img src="https://img.shields.io/badge/Book-854a15?logo=mdBook&labelColor=2a2f35" alt="Book"></a>
 
-Built on [Alloy][alloy], op-alloy aggregates the OP stack's unique primitives from [Maili][maili], 
+> [!IMPORTANT]
+> **This repository is moving to [ethereum-optimism/optimism](https://github.com/ethereum-optimism/optimism).**
+>
+> The `alloy-rs/op-alloy` repository will be archived (deprecated). All future development will continue in the new location. Your GitHub contributions will be preserved.
+
+Built on [Alloy][alloy], op-alloy aggregates the OP stack's unique primitives from [Maili][maili],
 to the subset of L1 types used by Optimistic rollups.
 
 

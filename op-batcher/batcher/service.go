@@ -289,6 +289,8 @@ func (bs *BatcherService) initBlobTipOracle(ctx context.Context, cfg *CLIConfig)
 	// Create the oracle with default config
 	oracleConfig := bgpo.DefaultBlobTipOracleConfig()
 	oracleConfig.NetworkTimeout = bs.NetworkTimeout
+	oracleConfig.MaxBlocks = cfg.TxMgrConfig.BlobTipCapRange
+	oracleConfig.Percentile = cfg.TxMgrConfig.BlobTipCapPercentile
 	minTipCap, err := eth.GweiToWei(cfg.TxMgrConfig.MinTipCapGwei)
 	if err != nil {
 		return fmt.Errorf("invalid min tip cap: %w", err)

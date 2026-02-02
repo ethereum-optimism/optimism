@@ -10,7 +10,7 @@ feature-depth = 1
 ignore = [
     # paste crate is no longer maintained.
     "RUSTSEC-2024-0436",
-    # bincode is unmaintained, but it's only a dev dependency.
+    # bincode is unmaintained, but only used as a dev-dependency for testing.
     "RUSTSEC-2025-0141",
 ]
 
