@@ -101,6 +101,27 @@ type EnrichedGameData struct {
 
 	// RollupEndpointDifferentOutputRoots tracks whether rollup endpoints returned different output roots for this game.
 	RollupEndpointDifferentOutputRoots bool
+
+	// SuperNodeEndpointErrors stores endpoint IDs that returned errors other than "not found" for this game.
+	SuperNodeEndpointErrors map[string]bool
+
+	// SuperNodeEndpointErrorCount tracks the total number of errors for this game across all super node endpoints.
+	SuperNodeEndpointErrorCount int
+
+	// SuperNodeEndpointNotFoundCount tracks the number of super node endpoints that returned "not found" for this game.
+	SuperNodeEndpointNotFoundCount int
+
+	// SuperNodeEndpointTotalCount tracks the total number of super node endpoints attempted for this game.
+	SuperNodeEndpointTotalCount int
+
+	// SuperNodeEndpointSafeCount tracks the number of super node endpoints that reported the super root as safe.
+	SuperNodeEndpointSafeCount int
+
+	// SuperNodeEndpointUnsafeCount tracks the number of super node endpoints that reported the super root as unsafe.
+	SuperNodeEndpointUnsafeCount int
+
+	// SuperNodeEndpointDifferentSuperRoots tracks whether super node endpoints returned different super roots for this game.
+	SuperNodeEndpointDifferentSuperRoots bool
 }
 
 // UsesOutputRoots returns true if the game type is one of the known types that use output roots as proposals.
