@@ -161,20 +161,13 @@ contract DeployOPChain is Script {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](3);
 
-        // Determine which games should be enabled based on the starting respected game type
-        bool cannonEnabled = _input.disputeGameType.raw() == GameTypes.CANNON.raw();
-        bool permissionedCannonEnabled = true; // PERMISSIONED_CANNON must always be enabled
-        bool cannonKonaEnabled = _input.disputeGameType.raw() == GameTypes.CANNON_KONA.raw();
-
         // Config 0: CANNON
-        IOPContractsManagerUtils.FaultDisputeGameConfig memory cannonConfig =
-            IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _input.disputeAbsolutePrestate });
-
+        // Must be disabled for the initial deployment since no prestate exists for permissionless games.
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: cannonEnabled,
-            initBond: cannonEnabled ? DEFAULT_INIT_BOND : 0,
+            enabled: false,
+            initBond: 0,
             gameType: GameTypes.CANNON,
-            gameArgs: abi.encode(cannonConfig)
+            gameArgs: bytes("")
         });
 
         // Config 1: PERMISSIONED_CANNON (must be enabled)
@@ -186,21 +179,19 @@ contract DeployOPChain is Script {
         });
 
         disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: permissionedCannonEnabled,
+            enabled: true,
             initBond: DEFAULT_INIT_BOND,
             gameType: GameTypes.PERMISSIONED_CANNON,
             gameArgs: abi.encode(pdgConfig)
         });
 
         // Config 2: CANNON_KONA
-        IOPContractsManagerUtils.FaultDisputeGameConfig memory cannonKonaConfig =
-            IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _input.disputeAbsolutePrestate });
-
+        // Must be disabled for the initial deployment since no prestate exists for permissionless games.
         disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: cannonKonaEnabled,
-            initBond: cannonKonaEnabled ? DEFAULT_INIT_BOND : 0,
+            enabled: false,
+            initBond: 0,
             gameType: GameTypes.CANNON_KONA,
-            gameArgs: abi.encode(cannonKonaConfig)
+            gameArgs: bytes("")
         });
 
         config_ = IOPContractsManagerV2.FullConfig({
@@ -211,7 +202,7 @@ contract DeployOPChain is Script {
             unsafeBlockSigner: _input.unsafeBlockSigner,
             batcher: _input.batcher,
             startingAnchorRoot: ScriptConstants.DEFAULT_OUTPUT_ROOT(),
-            startingRespectedGameType: _input.disputeGameType,
+            startingRespectedGameType: GameTypes.PERMISSIONED_CANNON,
             basefeeScalar: _input.basefeeScalar,
             blobBasefeeScalar: _input.blobBaseFeeScalar,
             gasLimit: _input.gasLimit,
