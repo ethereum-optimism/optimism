@@ -1,3 +1,2 @@
 [toolchain]
-# /ops/docker/op-stack-go/Dockerfile must match this version.
 channel = "1.88"

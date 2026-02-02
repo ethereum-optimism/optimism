@@ -1,11 +1,9 @@
 package stack
 
 import (
-	"fmt"
 	"log/slog"
 
 	"github.com/ethereum-optimism/optimism/op-service/apis"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // SupernodeID identifies a Supernode by name, is type-safe, and can be value-copied and used as map key.
@@ -14,14 +12,6 @@ type SupernodeID genericID
 var _ GenericID = (*SupernodeID)(nil)
 
 const SupernodeKind Kind = "Supernode"
-
-func NewSupernodeID(key string, chains ...eth.ChainID) SupernodeID {
-	var s string
-	for _, chain := range chains {
-		s += chain.String()
-	}
-	return SupernodeID(fmt.Sprintf("%s-%s", key, s))
-}
 
 func (id SupernodeID) String() string {
 	return genericID(id).string(SupernodeKind)

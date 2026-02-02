@@ -562,13 +562,25 @@ func upgradeChainV1(t *testing.T, host *script.Host, proxyAdminOwner common.Addr
 // Upgrades a chain via OPCM V2 to ensure the OptimismPortal is upgraded to OptimismPortalInterop.
 func upgradeChainV2(t *testing.T, host *script.Host, proxyAdminOwner common.Address, systemConfigProxy common.Address, opcm common.Address) {
 	// ABI-encode game args for FaultDisputeGameConfig{absolutePrestate}
+	bytes32Type, err := abi.NewType("bytes32", "", nil)
+	require.NoError(t, err)
+	addressType, err := abi.NewType("address", "", nil)
+	require.NoError(t, err)
 
 	// FaultDisputeGameConfig just needs absolutePrestate (bytes32)
 	testPrestate := common.Hash{'P', 'R', 'E', 'S', 'T', 'A', 'T', 'E'}
+	cannonArgs, err := abi.Arguments{{Type: bytes32Type}}.Pack(testPrestate)
+	require.NoError(t, err)
 
 	// PermissionedDisputeGameConfig needs absolutePrestate, proposer, challenger
 	testProposer := common.Address{'P'}
 	testChallenger := common.Address{'C'}
+	permissionedArgs, err := abi.Arguments{
+		{Type: bytes32Type},
+		{Type: addressType},
+		{Type: addressType},
+	}.Pack(testPrestate, testProposer, testChallenger)
+	require.NoError(t, err)
 
 	upgradeConfig := embedded.UpgradeOPChainInput{
 		Prank: proxyAdminOwner,
@@ -580,25 +592,19 @@ func upgradeChainV2(t *testing.T, host *script.Host, proxyAdminOwner common.Addr
 					Enabled:  true,
 					InitBond: big.NewInt(1000000000000000000),
 					GameType: embedded.GameTypeCannon,
-					FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
-						AbsolutePrestate: testPrestate,
-					},
+					GameArgs: cannonArgs,
 				},
 				{
 					Enabled:  true,
 					InitBond: big.NewInt(1000000000000000000),
 					GameType: embedded.GameTypePermissionedCannon,
-					PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
-						AbsolutePrestate: testPrestate,
-						Proposer:         testProposer,
-						Challenger:       testChallenger,
-					},
+					GameArgs: permissionedArgs,
 				},
 				{
 					Enabled:  false,
 					InitBond: big.NewInt(0),
 					GameType: embedded.GameTypeCannonKona,
-					// Disabled games don't need args
+					GameArgs: []byte{}, // Disabled games don't need args
 				},
 			},
 			ExtraInstructions: []embedded.ExtraInstruction{

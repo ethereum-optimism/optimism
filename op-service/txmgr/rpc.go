@@ -60,11 +60,3 @@ func (a *SimpleTxmgrAPI) GetBumpFeeRetryTime(_ context.Context) time.Duration {
 func (a *SimpleTxmgrAPI) SetBumpFeeRetryTime(_ context.Context, val time.Duration) {
 	a.mgr.SetBumpFeeRetryTime(val)
 }
-
-func (a *SimpleTxmgrAPI) GetBlobTipCapDynamic(_ context.Context) bool {
-	return a.mgr.GetBlobTipCapDynamic()
-}
-
-func (a *SimpleTxmgrAPI) SetBlobTipCapDynamic(_ context.Context, val bool) {
-	a.mgr.SetBlobTipCapDynamic(val)
-}

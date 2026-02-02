@@ -77,11 +77,7 @@ contract UpgradeSuperchainConfig is Script {
         } else {
             data = abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, _input.superchainConfig);
         }
-        (bool success, bytes memory returnData) = _prank.call(data);
-        if (!success) {
-            assembly {
-                revert(add(returnData, 0x20), mload(returnData))
-            }
-        }
+        (bool success,) = _prank.call(data);
+        require(success, "UpgradeSuperchainConfig: upgrade failed");
     }
 }

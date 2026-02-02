@@ -1,17 +1,17 @@
 ################################################################
-#                  Build Cannon @ `CANNON_TAG`                 #
+#                Build Asterisc @ `ASTERISC_TAG`               #
 ################################################################
 
-FROM ubuntu:22.04 AS cannon-build
+FROM ubuntu:22.04 AS asterisc-build
 SHELL ["/bin/bash", "-c"]
 
 ARG TARGETARCH
-ARG CANNON_TAG
+ARG ASTERISC_TAG
 
 # Install deps
 RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates make
 
-ENV GO_VERSION=1.23.8
+ENV GO_VERSION=1.22.7
 
 # Fetch go manually, rather than using a Go base image, so we can copy the installation into the final stage
 RUN curl -sL https://go.dev/dl/go$GO_VERSION.linux-$TARGETARCH.tar.gz -o go$GO_VERSION.linux-$TARGETARCH.tar.gz && \
@@ -19,25 +19,22 @@ RUN curl -sL https://go.dev/dl/go$GO_VERSION.linux-$TARGETARCH.tar.gz -o go$GO_V
 ENV GOPATH=/go
 ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
 
-# Clone and build Cannon @ `CANNON_TAG`
-RUN git clone https://github.com/ethereum-optimism/optimism && \
-  cd optimism/cannon && \
-  git checkout $CANNON_TAG && \
+# Clone and build Asterisc @ `ASTERISC_TAG`
+RUN git clone https://github.com/ethereum-optimism/asterisc && \
+  cd asterisc && \
+  git checkout $ASTERISC_TAG && \
   make && \
-  cp bin/cannon /cannon-bin
+  cp rvgo/bin/asterisc /asterisc-bin
 
 ################################################################
 #               Build kona-client @ `CLIENT_TAG`               #
 ################################################################
 
-FROM ghcr.io/op-rs/kona/cannon-builder:0.3.0 AS client-build
+FROM ghcr.io/op-rs/kona/asterisc-builder:0.3.0 AS client-build
 SHELL ["/bin/bash", "-c"]
 
 ARG CLIENT_BIN
 ARG CLIENT_TAG
-ARG KONA_CUSTOM_CONFIGS
-
-COPY --from=custom_configs / /usr/local/kona-custom-configs
 
 # Install deps
 RUN apt-get update && apt-get install -y --no-install-recommends git
@@ -45,14 +42,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends git
 # Clone kona at the specified tag
 RUN git clone https://github.com/op-rs/kona
 
-ENV KONA_CUSTOM_CONFIGS=$KONA_CUSTOM_CONFIGS
-ENV KONA_CUSTOM_CONFIGS_DIR=/usr/local/kona-custom-configs
-
 # Build kona-client on the selected tag
 RUN cd kona && \
   git checkout $CLIENT_TAG && \
   cargo build -Zbuild-std=core,alloc -p kona-client --bin $CLIENT_BIN --locked --profile release-client-lto && \
-  mv ./target/mips64-unknown-none/release-client-lto/$CLIENT_BIN /kona-client-elf
+  mv ./target/riscv64imac-unknown-none-elf/release-client-lto/$CLIENT_BIN /kona-client-elf
 
 ################################################################
 #      Create `prestate.bin.gz` + `prestate-proof.json`        #
@@ -74,25 +68,24 @@ RUN groupadd --gid ${GID} app \
 WORKDIR /work
 RUN chown ${UID}:${GID} /work
 
-# Copy cannon binary
-COPY --from=cannon-build /cannon-bin /work/cannon
+# Copy asterisc binary
+COPY --from=asterisc-build /asterisc-bin /work/asterisc
 
 # Copy kona-client binary
 COPY --from=client-build /kona-client-elf /work/kona-client-elf
 
 # Make the binaries executable
-RUN chmod 0555 /work/cannon /work/kona-client-elf
+RUN chmod 0555 /work/asterisc /work/kona-client-elf
 
 USER ${UID}:${GID}
 
 # Create `prestate.bin.gz`
-RUN /work/cannon load-elf \
+RUN /work/asterisc load-elf \
   --path=/work/kona-client-elf \
-  --out=/work/prestate.bin.gz \
-  --type multithreaded64-5
+  --out=/work/prestate.bin.gz
 
 # Create `prestate-proof.json`
-RUN /work/cannon run \
+RUN /work/asterisc run \
   --proof-at "=0" \
   --stop-at "=1" \
   --input /work/prestate.bin.gz \
@@ -107,7 +100,7 @@ RUN /work/cannon run \
 
 FROM scratch AS export-stage
 
-COPY --from=prestate-build /work/cannon .
+COPY --from=prestate-build /work/asterisc .
 COPY --from=prestate-build /work/kona-client-elf .
 COPY --from=prestate-build /work/prestate.bin.gz .
 COPY --from=prestate-build /work/prestate-proof.json .

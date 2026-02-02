@@ -22,18 +22,11 @@ type L2ELConfig struct {
 	P2PNodeKeyHex string
 	StaticPeers   []string
 	TrustedPeers  []string
-	ProofHistory  bool
 }
 
 func L2ELWithSupervisor(supervisorID stack.SupervisorID) L2ELOption {
 	return L2ELOptionFn(func(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig) {
 		cfg.SupervisorID = &supervisorID
-	})
-}
-
-func L2ELWithProofHistory(enable bool) L2ELOption {
-	return L2ELOptionFn(func(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig) {
-		cfg.ProofHistory = enable
 	})
 }
 
@@ -56,7 +49,6 @@ func DefaultL2ELConfig() *L2ELConfig {
 		P2PNodeKeyHex: "",
 		StaticPeers:   nil,
 		TrustedPeers:  nil,
-		ProofHistory:  false,
 	}
 }
 

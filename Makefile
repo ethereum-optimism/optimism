@@ -42,6 +42,7 @@ golang-docker: ## Builds Docker images for Go components using buildx
 	GIT_COMMIT=$$(git rev-parse HEAD) \
 	GIT_DATE=$$(git show -s --format='%ct') \
 	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
+	KONA_VERSION=$$(jq -r .version kona/version.json) \
 	docker buildx bake \
 			--progress plain \
 			--load \
@@ -147,11 +148,8 @@ cannon:  ## Builds cannon binary
 	make -C ./cannon cannon
 .PHONY: cannon
 
-reproducible-prestate:   ## Builds reproducible prestates for op-program and kona
-	make -C ./op-program build-reproducible-prestate
-	cd kona && just build-reproducible-prestate
-	make -C ./op-program output-prestate-hash
-	cd kona && just output-prestate-hash
+reproducible-prestate:   ## Builds reproducible-prestate binary
+	make -C ./op-program reproducible-prestate
 .PHONY: reproducible-prestate
 
 cannon-prestates: cannon op-program

@@ -47,9 +47,6 @@ const (
 	ReceiptQueryIntervalFlagName       = "txmgr.receipt-query-interval"
 	AlreadyPublishedCustomErrsFlagName = "txmgr.already-published-custom-errs"
 	CellProofTimeFlagName              = "txmgr.cell-proof-time"
-	BlobTipCapDynamicFlagName          = "txmgr.blob-tip-cap-dynamic"
-	BlobTipCapPercentileFlagName       = "txmgr.blob-tip-cap-percentile"
-	BlobTipCapRangeFlagName            = "txmgr.blob-tip-cap-range"
 )
 
 var (
@@ -83,9 +80,6 @@ type DefaultFlagValues struct {
 	TxNotInMempoolTimeout     time.Duration
 	ReceiptQueryInterval      time.Duration
 	CellProofTime             uint64
-	BlobTipCapDynamic         bool
-	BlobTipCapPercentile      int
-	BlobTipCapRange           int
 }
 
 var (
@@ -106,9 +100,6 @@ var (
 		TxNotInMempoolTimeout:     2 * time.Minute,
 		ReceiptQueryInterval:      12 * time.Second,
 		CellProofTime:             defaultCellProofTime,
-		BlobTipCapDynamic:         false,
-		BlobTipCapPercentile:      60,
-		BlobTipCapRange:           20,
 	}
 	DefaultChallengerFlagValues = DefaultFlagValues{
 		NumConfirmations:          uint64(3),
@@ -125,9 +116,6 @@ var (
 		TxNotInMempoolTimeout:     1 * time.Minute,
 		ReceiptQueryInterval:      12 * time.Second,
 		CellProofTime:             defaultCellProofTime,
-		BlobTipCapDynamic:         false,
-		BlobTipCapPercentile:      60,
-		BlobTipCapRange:           20,
 	}
 
 	// geth enforces a 1 gwei minimum for blob tx fee
@@ -263,24 +251,6 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 			EnvVars: prefixEnvVars("TXMGR_CELL_PROOF_TIME"),
 			Value:   defaults.CellProofTime,
 		},
-		&cli.BoolFlag{
-			Name:    BlobTipCapDynamicFlagName,
-			Usage:   "Use dynamic blob tip cap from the blob tip oracle instead of static tip cap for blob transactions. Regular transactions still use min-tip-cap/max-tip-cap.",
-			EnvVars: prefixEnvVars("TXMGR_BLOB_TIP_CAP_DYNAMIC"),
-			Value:   defaults.BlobTipCapDynamic,
-		},
-		&cli.IntFlag{
-			Name:    BlobTipCapPercentileFlagName,
-			Usage:   "Percentile of recent blob tx tips to use for suggestion (1-100). Only used when blob-tip-cap-dynamic is enabled.",
-			EnvVars: prefixEnvVars("TXMGR_BLOB_TIP_CAP_PERCENTILE"),
-			Value:   defaults.BlobTipCapPercentile,
-		},
-		&cli.IntFlag{
-			Name:    BlobTipCapRangeFlagName,
-			Usage:   "Number of recent blocks to analyze for blob tip cap distribution. Only used when blob-tip-cap-dynamic is enabled.",
-			EnvVars: prefixEnvVars("TXMGR_BLOB_TIP_CAP_RANGE"),
-			Value:   defaults.BlobTipCapRange,
-		},
 	}, opsigner.CLIFlags(envPrefix, "")...)
 }
 
@@ -310,9 +280,6 @@ type CLIConfig struct {
 	TxNotInMempoolTimeout      time.Duration
 	AlreadyPublishedCustomErrs []string
 	CellProofTime              uint64
-	BlobTipCapDynamic          bool
-	BlobTipCapPercentile       int
-	BlobTipCapRange            int
 }
 
 func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
@@ -334,9 +301,6 @@ func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
 		ReceiptQueryInterval:      defaults.ReceiptQueryInterval,
 		SignerCLIConfig:           opsigner.NewCLIConfig(),
 		CellProofTime:             defaults.CellProofTime,
-		BlobTipCapDynamic:         defaults.BlobTipCapDynamic,
-		BlobTipCapPercentile:      defaults.BlobTipCapPercentile,
-		BlobTipCapRange:           defaults.BlobTipCapRange,
 	}
 }
 
@@ -420,9 +384,6 @@ func ReadCLIConfig(ctx cliiface.Context) CLIConfig {
 		TxNotInMempoolTimeout:      ctx.Duration(TxNotInMempoolTimeoutFlagName),
 		AlreadyPublishedCustomErrs: ctx.StringSlice(AlreadyPublishedCustomErrsFlagName),
 		CellProofTime:              ctx.Uint64(CellProofTimeFlagName),
-		BlobTipCapDynamic:          ctx.Bool(BlobTipCapDynamicFlagName),
-		BlobTipCapPercentile:       ctx.Int(BlobTipCapPercentileFlagName),
-		BlobTipCapRange:            ctx.Int(BlobTipCapRangeFlagName),
 	}
 }
 
@@ -508,8 +469,6 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 		SafeAbortNonceTooLowCount:  cfg.SafeAbortNonceTooLowCount,
 		AlreadyPublishedCustomErrs: cfg.AlreadyPublishedCustomErrs,
 		CellProofTime:              cellProofTime,
-		BlobTipCapPercentile:       cfg.BlobTipCapPercentile,
-		BlobTipCapRange:            cfg.BlobTipCapRange,
 	}
 
 	res.RebroadcastInterval.Store(int64(cfg.RebroadcastInterval))
@@ -521,7 +480,6 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 	res.MinTipCap.Store(minTipCap)
 	res.MaxTipCap.Store(maxTipCap)
 	res.MinBlobTxFee.Store(defaultMinBlobTxFee)
-	res.BlobTipCapDynamic.Store(cfg.BlobTipCapDynamic)
 
 	return &res, nil
 }
@@ -625,16 +583,6 @@ type Config struct {
 
 	// CellProofTime is the time at which cell proofs are enabled in blob transaction (for Fusaka (EIP-7742) compatibility).
 	CellProofTime uint64
-
-	// BlobTipCapDynamic enables dynamic blob tip cap from the blob tip oracle
-	// instead of using static tip cap for blob transactions.
-	BlobTipCapDynamic atomic.Bool
-
-	// BlobTipCapPercentile is the percentile of recent blob tx tips to use for suggestion (1-100).
-	BlobTipCapPercentile int
-
-	// BlobTipCapRange is the number of recent blocks to analyze for blob tip cap distribution.
-	BlobTipCapRange int
 }
 
 func (m *Config) Check() error {

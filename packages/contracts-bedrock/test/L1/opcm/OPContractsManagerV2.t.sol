@@ -6,7 +6,6 @@ import { VmSafe } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
 import { PastUpgrades } from "test/setup/PastUpgrades.sol";
-import { BatchUpgrader } from "test/L1/opcm/helpers/BatchUpgrader.sol";
 
 // Libraries
 import { Config } from "scripts/libraries/Config.sol";
@@ -729,30 +728,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             Claim.unwrap(newPrestate),
             "permissioned prestate not updated"
         );
-    }
-
-    /// @notice INVARIANT: Upgrades must always work when the system is paused.
-    ///         This test validates that the OPCMv2 upgrade function can execute successfully
-    ///         even when the SuperchainConfig has the system globally paused. This is critical
-    ///         because upgrades may be needed during incident response when the system is paused.
-    function test_upgrade_whenPaused_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
-        // First, pause the system globally using the guardian.
-        address guardian = superchainConfig.guardian();
-        vm.prank(guardian);
-        superchainConfig.pause(address(0));
-
-        // Verify the system is actually paused.
-        assertTrue(superchainConfig.paused(address(0)), "System should be globally paused");
-
-        // Run the upgrade - this should succeed even while paused.
-        // The StandardValidator will report SPRCFG-10 because the system is paused,
-        // but the upgrade itself must complete successfully.
-        runCurrentUpgradeV2(chainPAO, hex"", "SPRCFG-10");
-
-        // Verify the system is still paused after the upgrade.
-        assertTrue(superchainConfig.paused(address(0)), "System should still be paused after upgrade");
     }
 }
 
@@ -1501,123 +1476,5 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         _doMigration(
             input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidStartingRespectedGameType.selector
         );
-    }
-}
-
-/// @title OPContractsManagerV2_FeatBatchUpgrade_Test
-/// @notice Tests batch upgrade functionality with freshly deployed chains (non-forked).
-contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_TestInit {
-    /// @notice Tests that multiple upgrade operations (15 chains) can be executed within a single transaction.
-    ///         This enforces the OPCMV2 invariant that approximately 15 upgrade operations should be
-    ///         executable in one transaction.
-    function test_batchUpgrade_multipleChains_succeeds() public {
-        skipIfCoverage();
-
-        uint256 numberOfChains = 15;
-
-        // 1. Deploy BatchUpgrader helper contract.
-        BatchUpgrader batchUpgrader = new BatchUpgrader(opcmV2);
-
-        // 2. Set up base configuration for deploying chains.
-        IOPContractsManagerV2.FullConfig memory baseConfig;
-        baseConfig.superchainConfig = superchainConfig;
-        baseConfig.proxyAdminOwner = address(batchUpgrader);
-        baseConfig.systemConfigOwner = makeAddr("systemConfigOwner");
-        baseConfig.batcher = makeAddr("batcher");
-        baseConfig.unsafeBlockSigner = makeAddr("unsafeBlockSigner");
-        baseConfig.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(hex"1234")), l2SequenceNumber: 123 });
-        baseConfig.startingRespectedGameType = GameTypes.PERMISSIONED_CANNON;
-        baseConfig.basefeeScalar = 1368;
-        baseConfig.blobBasefeeScalar = 801949;
-        baseConfig.gasLimit = 60_000_000;
-        baseConfig.resourceConfig = IResourceMetering.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            minimumBaseFee: 1 gwei,
-            systemTxMaxGas: 1_000_000,
-            maximumBaseFee: type(uint128).max
-        });
-
-        // Set up dispute game configs.
-        address initialChallenger = makeAddr("challenger");
-        address initialProposer = makeAddr("proposer");
-        baseConfig.disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](3);
-        baseConfig.disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
-            gameType: GameTypes.CANNON,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
-        });
-        baseConfig.disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
-            gameType: GameTypes.PERMISSIONED_CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                    absolutePrestate: cannonPrestate,
-                    proposer: initialProposer,
-                    challenger: initialChallenger
-                })
-            )
-        });
-        baseConfig.disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
-            gameType: GameTypes.CANNON_KONA,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
-        });
-
-        // 3. Deploy 15 separate chains using opcmV2.deploy().
-        IOPContractsManagerV2.ChainContracts[] memory chains =
-            new IOPContractsManagerV2.ChainContracts[](numberOfChains);
-        for (uint256 i = 0; i < numberOfChains; i++) {
-            IOPContractsManagerV2.FullConfig memory config = baseConfig;
-            config.saltMixer = string.concat("chain-", vm.toString(i));
-            config.l2ChainId = 1000 + i;
-            chains[i] = opcmV2.deploy(config);
-        }
-
-        // 4. Prepare upgrade inputs for each chain.
-        IOPContractsManagerV2.UpgradeInput[] memory upgradeInputs =
-            new IOPContractsManagerV2.UpgradeInput[](numberOfChains);
-        for (uint256 i = 0; i < numberOfChains; i++) {
-            upgradeInputs[i] = IOPContractsManagerV2.UpgradeInput({
-                systemConfig: chains[i].systemConfig,
-                disputeGameConfigs: baseConfig.disputeGameConfigs,
-                extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
-            });
-        }
-
-        // 5. Execute batch upgrade - all 15 upgrades in a single transaction.
-        batchUpgrader.batchUpgrade(upgradeInputs);
-        VmSafe.Gas memory gas = vm.lastCallGas();
-
-        // 6. Verify that the upgrade gas usage is less than the EIP-7825 gas limit.
-        // See https://eip.tools/eip/eip-7825.md for more details.
-        // The upgradeGasBuffer amount below is an approximation of the overhead that is required
-        // to execute a call to Safe.executeTransaction() prior to the call to IOPContractsManagerV2.upgrade().
-        // The approximate value of 65,000 gas, was taken from a previous upgrade transaction on OP Mainnet:
-        // https://dashboard.tenderly.co/oplabs/op-mainnet/tx/0x9b9aa2d8e857e1a28e55b124e931eac706b3ae04c1b33ba949f0366359860993/gas-usage?trace=0.1.7
-        uint256 fusakaLimit = 2 ** 24;
-        uint256 upgradeGasBuffer = 65_000;
-        assertLt(gas.gasTotalUsed, fusakaLimit - upgradeGasBuffer, "Upgrade exceeds gas target");
-
-        // 7. Verify all chains upgraded successfully.
-        for (uint256 i = 0; i < numberOfChains; i++) {
-            ISystemConfig systemConfig = chains[i].systemConfig;
-
-            // Verify OPCM release version was updated.
-            string memory version = systemConfig.lastUsedOPCMVersion();
-            assertEq(version, opcmV2.version(), string.concat("Chain ", vm.toString(i), " version mismatch"));
-
-            // Verify SystemConfig implementation was upgraded.
-            address impl = EIP1967Helper.getImplementation(address(systemConfig));
-            assertEq(
-                impl,
-                opcmV2.implementations().systemConfigImpl,
-                string.concat("Chain ", vm.toString(i), " SystemConfig impl not upgraded")
-            );
-        }
     }
 }
