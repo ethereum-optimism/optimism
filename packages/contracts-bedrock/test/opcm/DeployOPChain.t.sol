@@ -242,7 +242,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         _checkDeploymentAssertions(doo);
     }
 
-    function test_run_cannonGameType_succeeds() public {
+    function test_run_cannonGameTypeIgnored_succeeds() public {
         // Skip test if OPCM v2 is not enabled because OPCM v1 registers PERMISSIONED_CANNON only regardles of the game
         // type.
         skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
@@ -250,13 +250,13 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         deployOPChainInput.disputeGameType = GameTypes.CANNON;
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
 
-        // CANNON should be enabled with init bond
+        // CANNON should be disabled
+        assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), 0, "CANNON init bond should be 0");
         assertEq(
-            doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON),
-            deployOPChain.DEFAULT_INIT_BOND(),
-            "CANNON init bond"
+            address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON)),
+            address(0),
+            "CANNON impl should be the zero address"
         );
-        assertNotEq(address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON)), address(0), "CANNON impl");
 
         // PERMISSIONED_CANNON must always be enabled
         assertEq(
@@ -272,9 +272,14 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
 
         // CANNON_KONA should not be enabled
         assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON_KONA), 0, "CANNON_KONA init bond");
+        assertEq(
+            address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON_KONA)),
+            address(0),
+            "CANNON_KONA impl should be the zero address"
+        );
     }
 
-    function test_run_cannonKonaGameType_succeeds() public {
+    function test_run_cannonKonaGameTypeIgnored_succeeds() public {
         // Skip test if OPCM v2 is not enabled because OPCM v1 registers PERMISSIONED_CANNON only regardles of the game
         // type.
         skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
@@ -283,13 +288,11 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
 
         // CANNON_KONA should be enabled with init bond
+        assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON_KONA), 0, "CANNON_KONA init bond should be 0");
         assertEq(
-            doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON_KONA),
-            deployOPChain.DEFAULT_INIT_BOND(),
-            "CANNON_KONA init bond"
-        );
-        assertNotEq(
-            address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON_KONA)), address(0), "CANNON_KONA impl"
+            address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON_KONA)),
+            address(0),
+            "CANNON_KONA impl should be the zero address"
         );
 
         // PERMISSIONED_CANNON must always be enabled in OPCM v2
@@ -305,7 +308,12 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         );
 
         // CANNON should not be enabled
-        assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), 0, "CANNON init bond");
+        assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), 0, "CANNON init bond should be 0");
+        assertEq(
+            address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON)),
+            address(0),
+            "CANNON impl should be the zero address"
+        );
     }
 
     /// @notice Tests that faultDisputeGame is set to address(0) and permissionedDisputeGame is set to the correct
@@ -383,24 +391,22 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             assertNotEq(address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON)), address(0));
 
             // CANNON is only enabled if it's the starting game type
-            bool cannonEnabled = deployOPChainInput.disputeGameType.raw() == GameTypes.CANNON.raw();
+            assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), 0, "CANNON init bond should be 0");
             assertEq(
-                doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON),
-                cannonEnabled ? deployOPChain.DEFAULT_INIT_BOND() : 0
+                address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON)),
+                address(0),
+                "CANNON impl should be the zero address"
             );
-            if (cannonEnabled) {
-                assertNotEq(address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON)), address(0));
-            }
 
             // CANNON_KONA is only enabled if it's the starting game type
-            bool cannonKonaEnabled = deployOPChainInput.disputeGameType.raw() == GameTypes.CANNON_KONA.raw();
             assertEq(
-                doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON_KONA),
-                cannonKonaEnabled ? deployOPChain.DEFAULT_INIT_BOND() : 0
+                doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON_KONA), 0, "CANNON_KONA init bond should be 0"
             );
-            if (cannonKonaEnabled) {
-                assertNotEq(address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON_KONA)), address(0));
-            }
+            assertEq(
+                address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON_KONA)),
+                address(0),
+                "CANNON_KONA impl should be the zero address"
+            );
         }
     }
 }

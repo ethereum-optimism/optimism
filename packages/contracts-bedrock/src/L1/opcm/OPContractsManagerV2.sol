@@ -643,7 +643,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
     /// @notice Validates the deployment/upgrade config.
     /// @param _cfg The full config.
-    function _assertValidFullConfig(FullConfig memory _cfg) internal pure {
+    function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal pure {
         // Start validating the dispute game configs. Put allowed game types here.
         GameType[] memory validGameTypes = new GameType[](3);
         validGameTypes[0] = GameTypes.CANNON;
@@ -665,6 +665,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
             // If the game is disabled, we must have a 0 init bond.
             if (!_cfg.disputeGameConfigs[i].enabled && _cfg.disputeGameConfigs[i].initBond != 0) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+
+            // During initial deployment, only PERMISSIONED_CANNON can be enabled, because no prestate exists for
+            // permissionless games.
+            if (
+                _isInitialDeployment && (validGameTypes[i].raw() != GameTypes.PERMISSIONED_CANNON.raw())
+                    && _cfg.disputeGameConfigs[i].enabled
+            ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
         }
@@ -691,7 +700,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         returns (ChainContracts memory)
     {
         // Validate the config.
-        _assertValidFullConfig(_cfg);
+        _assertValidFullConfig(_cfg, _isInitialDeployment);
 
         // Load the implementations.
         IOPContractsManagerContainer.Implementations memory impls = implementations();
