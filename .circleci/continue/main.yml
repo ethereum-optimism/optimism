@@ -169,6 +169,39 @@ commands:
             pip3 install -r requirements.txt
             python3 main.py "<<parameters.patterns>>"
 
+  check-pr-label-skip:
+    description: "Checks if a PR has a specific label and skips the job if found"
+    parameters:
+      label:
+        type: string
+        description: "Label name to check for (e.g., 'skip-heavy-fuzz')"
+    steps:
+      - github-cli/install
+      - run:
+          name: Check for skip label
+          command: |
+            # Only check for label if this is a PR
+            if [ -z "$CIRCLE_PULL_REQUEST" ]; then
+              echo "Not a PR, continuing with job"
+              exit 0
+            fi
+
+            # Extract PR number from CIRCLE_PULL_REQUEST URL
+            PR_NUMBER=$(echo $CIRCLE_PULL_REQUEST | sed 's#.*/##')
+
+            echo "Checking PR #$PR_NUMBER for label: <<parameters.label>>"
+
+            # Check if the label exists on this PR
+            LABELS=$(gh pr view $PR_NUMBER --repo $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME --json labels --jq '.labels[].name')
+
+            if echo "$LABELS" | grep -q "^<<parameters.label>>$"; then
+              echo "Label '<<parameters.label>>' found on PR. Skipping job."
+              echo "To run this job, remove the label and re-run the pipeline."
+              circleci-agent step halt
+            else
+              echo "Label not found. Continuing with job."
+            fi
+
   install-solc-compilers:
     description: "Install the solc compilers"
     parameters:
@@ -1331,31 +1364,8 @@ jobs:
       - when:
           condition: <<parameters.skip_on_label>>
           steps:
-            - github-cli/install
-            - run:
-                name: Check for skip label
-                command: |
-                  # Only check for label if this is a PR
-                  if [ -z "$CIRCLE_PULL_REQUEST" ]; then
-                    echo "Not a PR, continuing with tests"
-                    exit 0
-                  fi
-
-                  # Extract PR number from CIRCLE_PULL_REQUEST URL
-                  PR_NUMBER=$(echo $CIRCLE_PULL_REQUEST | sed 's#.*/##')
-
-                  echo "Checking PR #$PR_NUMBER for label: <<parameters.skip_on_label>>"
-
-                  # Check if the label exists on this PR
-                  LABELS=$(gh pr view $PR_NUMBER --repo $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME --json labels --jq '.labels[].name')
-
-                  if echo "$LABELS" | grep -q "^<<parameters.skip_on_label>>$"; then
-                    echo "Label '<<parameters.skip_on_label>>' found on PR. Skipping heavy fuzz tests."
-                    echo "To run heavy fuzz tests, remove the label and re-run the pipeline."
-                    circleci-agent step halt
-                  else
-                    echo "Label not found. Continuing with tests."
-                  fi
+            - check-pr-label-skip:
+                label: <<parameters.skip_on_label>>
       - run:
           name: Check if test list is empty
           command: |
