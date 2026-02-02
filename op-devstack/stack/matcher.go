@@ -64,3 +64,5 @@ type SyncTesterMatcher = Matcher[SyncTesterID, SyncTester]
 type RollupBoostNodeMatcher = Matcher[RollupBoostNodeID, RollupBoostNode]
 
 type OPRBuilderNodeMatcher = Matcher[OPRBuilderNodeID, OPRBuilderNode]
+
+type InteropFilterMatcher = Matcher[InteropFilterID, InteropFilter]

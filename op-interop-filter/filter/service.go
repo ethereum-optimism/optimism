@@ -247,3 +247,12 @@ func (s *Service) Stop(ctx context.Context) error {
 func (s *Service) Stopped() bool {
 	return s.stopped.Load()
 }
+
+// HTTPEndpoint returns the HTTP endpoint of the RPC server, or empty string if not started.
+func (s *Service) HTTPEndpoint() string {
+	if s.rpcServer == nil {
+		return ""
+	}
+	// Include http:// prefix as expected by ProxyAddr
+	return "http://" + s.rpcServer.Endpoint()
+}
