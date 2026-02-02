@@ -191,6 +191,16 @@ type Metricer interface {
 
 	RecordDifferentOutputRootGames(count int)
 
+	RecordSuperNodeEndpointErrors(count int)
+
+	RecordSuperNodeEndpointErrorCount(count int)
+
+	RecordMixedSuperAvailabilityGames(count int)
+
+	RecordMixedSuperSafetyGames(count int)
+
+	RecordDifferentSuperRootGames(count int)
+
 	RecordBondCollateral(addr common.Address, required, available *big.Int)
 
 	RecordL2Challenges(agreement bool, count int)
@@ -241,14 +251,19 @@ type Metrics struct {
 	failedGames                prometheus.Gauge
 	l2Challenges               prometheus.GaugeVec
 
-	requiredCollateral         prometheus.GaugeVec
-	availableCollateral        prometheus.GaugeVec
-	nodeEndpointErrors         prometheus.Gauge
-	nodeEndpointErrorCount     prometheus.Gauge
-	nodeEndpointOutOfSyncCount prometheus.Gauge
-	mixedAvailabilityGames     prometheus.Gauge
-	mixedSafetyGames           prometheus.Gauge
-	differentOutputRootGames   prometheus.Gauge
+	requiredCollateral          prometheus.GaugeVec
+	availableCollateral         prometheus.GaugeVec
+	nodeEndpointErrors          prometheus.Gauge
+	nodeEndpointErrorCount      prometheus.Gauge
+	nodeEndpointOutOfSyncCount  prometheus.Gauge
+	mixedAvailabilityGames      prometheus.Gauge
+	mixedSafetyGames            prometheus.Gauge
+	differentOutputRootGames    prometheus.Gauge
+	superNodeEndpointErrors     prometheus.Gauge
+	superNodeEndpointErrorCount prometheus.Gauge
+	mixedSuperAvailabilityGames prometheus.Gauge
+	mixedSuperSafetyGames       prometheus.Gauge
+	differentSuperRootGames     prometheus.Gauge
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -446,6 +461,31 @@ func NewMetrics() *Metrics {
 			Name:      "different_output_root_games",
 			Help:      "Number of games where rollup nodes returned different output roots for the same L2 block in the last update cycle",
 		}),
+		superNodeEndpointErrors: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "supernode_endpoint_errors",
+			Help:      "Number of super node RPC endpoints that returned at least one error other than \"not found\" in the last update cycle",
+		}),
+		superNodeEndpointErrorCount: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "supernode_endpoint_error_count",
+			Help:      "Total number of individual endpoint error occurrences (other than \"not found\") across all super node endpoints in the last update cycle",
+		}),
+		mixedSuperAvailabilityGames: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "mixed_super_availability_games",
+			Help:      "Number of games where some super nodes reported \"not found\" while others successfully retrieved the block in the last update cycle",
+		}),
+		mixedSuperSafetyGames: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "mixed_super_safety_games",
+			Help:      "Number of games where some super nodes reported the super root as safe while others reported it as unsafe in the last update cycle",
+		}),
+		differentSuperRootGames: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "different_super_root_games",
+			Help:      "Number of games where super nodes returned different super roots for the same timestamp in the last update cycle",
+		}),
 	}
 }
 
@@ -628,6 +668,26 @@ func (m *Metrics) RecordL2Challenges(agreement bool, count int) {
 		agree = "agree"
 	}
 	m.l2Challenges.WithLabelValues(agree).Set(float64(count))
+}
+
+func (m *Metrics) RecordSuperNodeEndpointErrors(count int) {
+	m.superNodeEndpointErrors.Set(float64(count))
+}
+
+func (m *Metrics) RecordSuperNodeEndpointErrorCount(count int) {
+	m.superNodeEndpointErrorCount.Set(float64(count))
+}
+
+func (m *Metrics) RecordMixedSuperAvailabilityGames(count int) {
+	m.mixedSuperAvailabilityGames.Set(float64(count))
+}
+
+func (m *Metrics) RecordMixedSuperSafetyGames(count int) {
+	m.mixedSuperSafetyGames.Set(float64(count))
+}
+
+func (m *Metrics) RecordDifferentSuperRootGames(count int) {
+	m.differentSuperRootGames.Set(float64(count))
 }
 
 const (
