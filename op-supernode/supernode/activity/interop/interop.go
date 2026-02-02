@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
@@ -43,7 +42,7 @@ type Interop struct {
 	dataDir             string
 
 	verifiedDB *VerifiedDB
-	logsDBs    map[eth.ChainID]*logs.DB
+	logsDBs    map[eth.ChainID]LogsDB
 
 	mu      sync.RWMutex
 	ctx     context.Context
@@ -73,7 +72,7 @@ func New(
 	}
 
 	// Initialize logsDBs for each chain
-	logsDBs := make(map[eth.ChainID]*logs.DB)
+	logsDBs := make(map[eth.ChainID]LogsDB)
 	for chainID := range chains {
 		logsDB, err := openLogsDB(log, chainID, dataDir)
 		if err != nil {
@@ -286,6 +285,14 @@ func (i *Interop) handleResult(result Result) error {
 		return err
 	}
 	i.log.Info("committed verified result", "timestamp", result.Timestamp)
+	return nil
+}
+
+// invalidateBlock handles an invalid block by notifying the chain to reorg.
+func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID) error {
+	// TODO(#18944): Implement block invalidation
+	// This should trigger the chain container to reorg away from the invalid block
+	i.log.Warn("invalidateBlock called but not implemented", "chainID", chainID, "blockID", blockID)
 	return nil
 }
 

@@ -3,6 +3,7 @@ package interop
 import (
 	"context"
 	"errors"
+	"math/big"
 	"sync"
 	"testing"
 	"time"
@@ -14,8 +15,39 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
+
+// mockBlockInfo implements eth.BlockInfo for testing
+type mockBlockInfo struct {
+	hash       common.Hash
+	parentHash common.Hash
+	number     uint64
+	timestamp  uint64
+}
+
+func (m *mockBlockInfo) Hash() common.Hash                                    { return m.hash }
+func (m *mockBlockInfo) ParentHash() common.Hash                              { return m.parentHash }
+func (m *mockBlockInfo) Coinbase() common.Address                             { return common.Address{} }
+func (m *mockBlockInfo) Root() common.Hash                                    { return common.Hash{} }
+func (m *mockBlockInfo) NumberU64() uint64                                    { return m.number }
+func (m *mockBlockInfo) Time() uint64                                         { return m.timestamp }
+func (m *mockBlockInfo) MixDigest() common.Hash                               { return common.Hash{} }
+func (m *mockBlockInfo) BaseFee() *big.Int                                    { return big.NewInt(1) }
+func (m *mockBlockInfo) BlobBaseFee(chainConfig *params.ChainConfig) *big.Int { return big.NewInt(1) }
+func (m *mockBlockInfo) ExcessBlobGas() *uint64                               { return nil }
+func (m *mockBlockInfo) ReceiptHash() common.Hash                             { return common.Hash{} }
+func (m *mockBlockInfo) GasUsed() uint64                                      { return 0 }
+func (m *mockBlockInfo) GasLimit() uint64                                     { return 30000000 }
+func (m *mockBlockInfo) BlobGasUsed() *uint64                                 { return nil }
+func (m *mockBlockInfo) ParentBeaconRoot() *common.Hash                       { return nil }
+func (m *mockBlockInfo) WithdrawalsRoot() *common.Hash                        { return nil }
+func (m *mockBlockInfo) HeaderRLP() ([]byte, error)                           { return nil, nil }
+func (m *mockBlockInfo) Header() *types.Header                                { return nil }
+func (m *mockBlockInfo) ID() eth.BlockID                                      { return eth.BlockID{Hash: m.hash, Number: m.number} }
+
+var _ eth.BlockInfo = (*mockBlockInfo)(nil)
 
 // mockChainContainer implements cc.ChainContainer for testing
 type mockChainContainer struct {
@@ -26,6 +58,9 @@ type mockChainContainer struct {
 
 	blockAtTimestamp    eth.L2BlockRef
 	blockAtTimestampErr error
+
+	// lastRequestedTimestamp stores the timestamp from the last BlockAtTimestamp call
+	lastRequestedTimestamp uint64
 
 	mu sync.Mutex
 }
@@ -48,7 +83,18 @@ func (m *mockChainContainer) RegisterVerifier(v activity.VerificationActivity) {
 func (m *mockChainContainer) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.blockAtTimestamp, m.blockAtTimestampErr
+	if m.blockAtTimestampErr != nil {
+		return eth.L2BlockRef{}, m.blockAtTimestampErr
+	}
+	// Store the requested timestamp for FetchReceipts to use
+	m.lastRequestedTimestamp = ts
+	// Return block with the requested timestamp
+	// Use timestamp as block number for simplicity (ensures sequential block numbers)
+	ref := m.blockAtTimestamp
+	ref.Time = ts
+	ref.Number = ts // Block number = timestamp for sequential blocks
+	ref.Hash = common.BigToHash(big.NewInt(int64(ts)))
+	return ref, nil
 }
 
 func (m *mockChainContainer) VerifiedAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
@@ -67,7 +113,22 @@ func (m *mockChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts
 	return nil, nil
 }
 func (m *mockChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
-	return nil, nil, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	ts := m.lastRequestedTimestamp
+	// Return a mock block info using the timestamp from the last BlockAtTimestamp call
+	// Block number = timestamp, parent is previous timestamp
+	var parentHash common.Hash
+	if ts > 0 {
+		parentHash = common.BigToHash(big.NewInt(int64(ts - 1)))
+	}
+	blockInfo := &mockBlockInfo{
+		hash:       blockID.Hash,
+		parentHash: parentHash,
+		number:     blockID.Number,
+		timestamp:  ts,
+	}
+	return blockInfo, types.Receipts{}, nil
 }
 func (m *mockChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	m.mu.Lock()
@@ -104,6 +165,14 @@ func TestNew_ValidInputs(t *testing.T) {
 	require.NotNil(t, interop.verifiedDB)
 	require.Equal(t, eth.BlockID{}, interop.currentL1) // starts empty
 	require.Len(t, interop.chains, 1)
+
+	// Verify logsDBs is populated for each chain
+	require.Len(t, interop.logsDBs, 1)
+	require.Contains(t, interop.logsDBs, eth.ChainIDFromUInt64(10))
+	require.NotNil(t, interop.logsDBs[eth.ChainIDFromUInt64(10)])
+
+	// Verify verifyFn is initialized (test by calling it)
+	require.NotNil(t, interop.verifyFn)
 }
 
 func TestNew_InvalidDataDir(t *testing.T) {
@@ -129,22 +198,46 @@ func TestNew_EmptyChains(t *testing.T) {
 
 	require.NotNil(t, interop)
 	require.Empty(t, interop.chains)
+	require.Empty(t, interop.logsDBs)
+}
+
+func TestInterop_Name(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+
+	chains := map[eth.ChainID]cc.ChainContainer{}
+	interop := New(testLogger(), 1000, chains, dataDir)
+	require.NotNil(t, interop)
+
+	require.Equal(t, "interop", interop.Name())
 }
 
 func TestNew_MultipleChains(t *testing.T) {
 	t.Parallel()
 	dataDir := t.TempDir()
 
+	chainIDs := []eth.ChainID{
+		eth.ChainIDFromUInt64(10),
+		eth.ChainIDFromUInt64(8453),
+		eth.ChainIDFromUInt64(420),
+	}
 	chains := map[eth.ChainID]cc.ChainContainer{
-		eth.ChainIDFromUInt64(10):   newMockChainContainer(10),
-		eth.ChainIDFromUInt64(8453): newMockChainContainer(8453),
-		eth.ChainIDFromUInt64(420):  newMockChainContainer(420),
+		chainIDs[0]: newMockChainContainer(10),
+		chainIDs[1]: newMockChainContainer(8453),
+		chainIDs[2]: newMockChainContainer(420),
 	}
 
 	interop := New(testLogger(), 500, chains, dataDir)
 
 	require.NotNil(t, interop)
 	require.Len(t, interop.chains, 3)
+
+	// Verify logsDBs is populated for ALL chains
+	require.Len(t, interop.logsDBs, 3)
+	for _, chainID := range chainIDs {
+		require.Contains(t, interop.logsDBs, chainID)
+		require.NotNil(t, interop.logsDBs[chainID])
+	}
 }
 
 // =============================================================================
@@ -405,8 +498,13 @@ func TestCheckChainsReady_AllReady(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, blocks, 2)
-	require.Equal(t, uint64(100), blocks[mock1.id].Number)
-	require.Equal(t, uint64(200), blocks[mock2.id].Number)
+	// Mock now returns block number = timestamp for sequential processing
+	require.Equal(t, uint64(1000), blocks[mock1.id].Number)
+	require.Equal(t, uint64(1000), blocks[mock2.id].Number)
+
+	// Verify block hashes are set (mock generates hash from timestamp)
+	require.NotEqual(t, common.Hash{}, blocks[mock1.id].Hash)
+	require.NotEqual(t, common.Hash{}, blocks[mock2.id].Hash)
 }
 
 func TestCheckChainsReady_OneNotReady(t *testing.T) {
@@ -494,12 +592,31 @@ func TestProgressInterop_NotInitialized_UsesActivationTimestamp(t *testing.T) {
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
+	// Track what verifyFn receives
+	var capturedTimestamp uint64
+	var capturedBlocks map[eth.ChainID]eth.BlockID
+	interop.verifyFn = func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error) {
+		capturedTimestamp = ts
+		capturedBlocks = blocksAtTimestamp
+		return Result{
+			Timestamp: ts,
+			L1Head:    eth.BlockID{Number: 999, Hash: common.HexToHash("0xverified")},
+			L2Heads:   blocksAtTimestamp,
+		}, nil
+	}
+
 	result, err := interop.progressInterop()
 
 	require.NoError(t, err)
 	require.False(t, result.IsEmpty())
 	require.Equal(t, uint64(5000), result.Timestamp)
 	require.True(t, result.IsValid())
+
+	// Verify verifyFn was called with activation timestamp and correct blocks
+	require.Equal(t, uint64(5000), capturedTimestamp)
+	require.Contains(t, capturedBlocks, mock.id)
+	// Verify result comes from verifyFn
+	require.Equal(t, common.HexToHash("0xverified"), result.L1Head.Hash)
 }
 
 func TestProgressInterop_Initialized_UsesNextTimestamp(t *testing.T) {
@@ -563,6 +680,31 @@ func TestProgressInterop_ChainError(t *testing.T) {
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "internal error")
+	require.True(t, result.IsEmpty())
+}
+
+func TestProgressInterop_VerifyFnError(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+
+	mock := newMockChainContainer(10)
+	mock.currentL1 = eth.BlockRef{Number: 1000, Hash: common.HexToHash("0xL1")}
+	mock.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
+
+	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
+	interop := New(testLogger(), 100, chains, dataDir)
+	require.NotNil(t, interop)
+	interop.ctx = context.Background()
+
+	// Make verifyFn return an error
+	interop.verifyFn = func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error) {
+		return Result{}, errors.New("verification failed")
+	}
+
+	result, err := interop.progressInterop()
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "verification failed")
 	require.True(t, result.IsEmpty())
 }
 
@@ -634,11 +776,27 @@ func TestVerifiedAtTimestamp_NotExists(t *testing.T) {
 	dataDir := t.TempDir()
 
 	chains := map[eth.ChainID]cc.ChainContainer{}
+	// Activation timestamp is 1000
 	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 
+	// Future timestamp after activation - not verified
 	verified, err := interop.VerifiedAtTimestamp(9999)
+	require.NoError(t, err)
+	require.False(t, verified)
 
+	// Timestamps before activation should always be considered verified
+	// because interop wasn't active yet
+	verified, err = interop.VerifiedAtTimestamp(999) // One before activation
+	require.NoError(t, err)
+	require.True(t, verified)
+
+	verified, err = interop.VerifiedAtTimestamp(0) // Genesis
+	require.NoError(t, err)
+	require.True(t, verified)
+
+	// At activation timestamp, should NOT be verified until explicitly committed
+	verified, err = interop.VerifiedAtTimestamp(1000)
 	require.NoError(t, err)
 	require.False(t, verified)
 }
@@ -661,19 +819,61 @@ func TestVerifyInteropMessages_CopiesBlocks(t *testing.T) {
 	interop := New(testLogger(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 
+	// Pass blocks for registered chains plus an unregistered chain
+	unregisteredChain := eth.ChainIDFromUInt64(9999)
 	blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
-		mock1.id: {Number: 100, Hash: common.HexToHash("0x1")},
-		mock2.id: {Number: 200, Hash: common.HexToHash("0x2")},
+		mock1.id:          {Number: 100, Hash: common.HexToHash("0x1")},
+		mock2.id:          {Number: 200, Hash: common.HexToHash("0x2")},
+		unregisteredChain: {Number: 300, Hash: common.HexToHash("0x3")},
 	}
 
 	result, err := interop.verifyInteropMessages(1000, blocksAtTimestamp)
 
 	require.NoError(t, err)
 	require.Equal(t, uint64(1000), result.Timestamp)
+	// Result should only include registered chains (not the unregistered one)
 	require.Len(t, result.L2Heads, 2)
 	require.Equal(t, blocksAtTimestamp[mock1.id], result.L2Heads[mock1.id])
 	require.Equal(t, blocksAtTimestamp[mock2.id], result.L2Heads[mock2.id])
+	require.NotContains(t, result.L2Heads, unregisteredChain)
 	require.True(t, result.IsValid()) // No invalid heads in stub implementation
+}
+
+// =============================================================================
+// Result Type Tests (IsEmpty - other Result tests are in types_test.go)
+// =============================================================================
+
+func TestResult_IsEmpty(t *testing.T) {
+	t.Parallel()
+
+	// Zero value is empty
+	r := &Result{}
+	require.True(t, r.IsEmpty())
+
+	// Only timestamp is still empty
+	r = &Result{Timestamp: 1000}
+	require.True(t, r.IsEmpty())
+
+	// With L1Head is not empty
+	r = &Result{
+		Timestamp: 1000,
+		L1Head:    eth.BlockID{Number: 100, Hash: common.HexToHash("0x1")},
+	}
+	require.False(t, r.IsEmpty())
+
+	// With L2Heads is not empty
+	r = &Result{
+		Timestamp: 1000,
+		L2Heads:   map[eth.ChainID]eth.BlockID{eth.ChainIDFromUInt64(10): {Number: 50}},
+	}
+	require.False(t, r.IsEmpty())
+
+	// With InvalidHeads is not empty
+	r = &Result{
+		Timestamp:    1000,
+		InvalidHeads: map[eth.ChainID]eth.BlockID{eth.ChainIDFromUInt64(10): {Number: 50}},
+	}
+	require.False(t, r.IsEmpty())
 }
 
 // =============================================================================
@@ -727,6 +927,13 @@ func TestHandleResult_ValidResult_CommitsToDb(t *testing.T) {
 	has, err := interop.verifiedDB.Has(1000)
 	require.NoError(t, err)
 	require.True(t, has)
+
+	// Verify data can be retrieved with correct values
+	retrieved, err := interop.verifiedDB.Get(1000)
+	require.NoError(t, err)
+	require.Equal(t, validResult.Timestamp, retrieved.Timestamp)
+	require.Equal(t, validResult.L1Head, retrieved.L1Head)
+	require.Equal(t, validResult.L2Heads[mock.id], retrieved.L2Heads[mock.id])
 }
 
 func TestHandleResult_InvalidResult_DoesNotCommitToDb(t *testing.T) {
@@ -960,6 +1167,10 @@ func TestInterop_FullCycle(t *testing.T) {
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
+	// Verify logsDB is empty initially
+	_, hasBlocks := interop.logsDBs[mock.id].LatestSealedBlock()
+	require.False(t, hasBlocks, "logsDB should be empty initially")
+
 	// Simulate multiple interop cycles
 	for i := 0; i < 3; i++ {
 		// Collect L1 (returns minimum across chains)
@@ -977,10 +1188,24 @@ func TestInterop_FullCycle(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Verify timestamps were committed sequentially
+	// Verify timestamps were committed sequentially and L2 heads are correct
 	for ts := uint64(100); ts <= 102; ts++ {
 		has, err := interop.verifiedDB.Has(ts)
 		require.NoError(t, err)
 		require.True(t, has, "timestamp %d should be verified", ts)
+
+		// Verify L2 heads in committed results
+		retrieved, err := interop.verifiedDB.Get(ts)
+		require.NoError(t, err)
+		require.Equal(t, ts, retrieved.Timestamp)
+		require.Contains(t, retrieved.L2Heads, mock.id)
+		// Mock sets block number = timestamp, so verify that
+		require.Equal(t, ts, retrieved.L2Heads[mock.id].Number)
 	}
+
+	// Verify logsDB now has blocks
+	latestBlock, hasBlocks := interop.logsDBs[mock.id].LatestSealedBlock()
+	require.True(t, hasBlocks, "logsDB should have blocks after full cycle")
+	// Latest block number should correspond to timestamp 102 (block number = timestamp in mock)
+	require.Equal(t, uint64(102), latestBlock.Number)
 }
