@@ -1319,11 +1319,43 @@ jobs:
         description: Comma-separated list of features to enable (e.g., "OPTIMISM_PORTAL_INTEROP", "CUSTOM_GAS_TOKEN")
         type: string
         default: ""
+      skip_on_label:
+        description: Label name to check for skipping this job (e.g., "skip-heavy-fuzz")
+        type: string
+        default: ""
     steps:
       - utils/checkout-with-mise:
           checkout-method: full
           enable-mise-cache: true
       - install-zstd
+      - when:
+          condition: <<parameters.skip_on_label>>
+          steps:
+            - github-cli/install
+            - run:
+                name: Check for skip label
+                command: |
+                  # Only check for label if this is a PR
+                  if [ -z "$CIRCLE_PULL_REQUEST" ]; then
+                    echo "Not a PR, continuing with tests"
+                    exit 0
+                  fi
+
+                  # Extract PR number from CIRCLE_PULL_REQUEST URL
+                  PR_NUMBER=$(echo $CIRCLE_PULL_REQUEST | sed 's#.*/##')
+
+                  echo "Checking PR #$PR_NUMBER for label: <<parameters.skip_on_label>>"
+
+                  # Check if the label exists on this PR
+                  LABELS=$(gh pr view $PR_NUMBER --repo $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME --json labels --jq '.labels[].name')
+
+                  if echo "$LABELS" | grep -q "^<<parameters.skip_on_label>>$"; then
+                    echo "Label '<<parameters.skip_on_label>>' found on PR. Skipping heavy fuzz tests."
+                    echo "To run heavy fuzz tests, remove the label and re-run the pipeline."
+                    circleci-agent step halt
+                  else
+                    echo "Label not found. Continuing with tests."
+                  fi
       - run:
           name: Check if test list is empty
           command: |
@@ -3003,6 +3035,7 @@ workflows:
           test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
           test_profile: ciheavy
+          skip_on_label: skip-heavy-fuzz
           features: <<matrix.features>>
           matrix:
             parameters:
