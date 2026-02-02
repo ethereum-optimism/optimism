@@ -149,15 +149,6 @@ func WithL1NodesInProcess(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stac
 	})
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
-}
-
 // WithExtL1Nodes initializes L1 EL and CL nodes that connect to external RPC endpoints
 func WithExtL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID, elRPCEndpoint string, clRPCEndpoint string) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
