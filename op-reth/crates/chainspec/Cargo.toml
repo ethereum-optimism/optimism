@@ -45,6 +45,8 @@ derive_more.workspace = true
 paste = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
 op-alloy-consensus.workspace = true
+reqwest = { workspace = true, features = ["rustls-tls-native-roots", "blocking"], optional = true }
+toml = { workspace = true, optional = true }
 
 [dev-dependencies]
 reth-chainspec = { workspace = true, features = ["test-utils"] }
@@ -52,7 +54,13 @@ alloy-op-hardforks.workspace = true
 
 [features]
 default = ["std"]
-superchain-configs = ["miniz_oxide", "paste", "tar-no-std", "thiserror", "thiserror", "dep:serde"]
+superchain-configs = ["miniz_oxide", "paste", "tar-no-std", "thiserror", "dep:serde"]
+pull-superchain-configs = [
+    "std",
+    "superchain-configs",
+    "dep:reqwest",
+    "dep:toml",
+]
 std = [
     "alloy-chains/std",
     "alloy-genesis/std",

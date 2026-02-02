@@ -7,6 +7,11 @@ use alloc::{
 use alloy_genesis::Genesis;
 use miniz_oxide::inflate::decompress_to_vec_zlib_with_limit;
 use tar_no_std::{CorruptDataError, TarArchiveRef};
+#[cfg(feature = "pull-superchain-configs")]
+use {
+    reqwest::blocking::Client,
+    std::time::Duration,
+};
 
 /// A genesis file can be up to 100MiB. This is a reasonable limit for the genesis file size.
 const MAX_GENESIS_SIZE: usize = 100 * 1024 * 1024; // 100MiB
@@ -58,17 +63,42 @@ pub(crate) fn read_superchain_genesis(
     Ok(genesis)
 }
 
-/// Reads the [`ChainMetadata`] from the superchain config tar file for a superchain.
+/// Reads the [`ChainMetadata`] for a superchain from the superchain registry github, falling back to the local config tar file.
 /// For example, `read_superchain_config("unichain", "mainnet")`.
 fn read_superchain_metadata(
     name: &str,
     environment: &str,
     archive: &TarArchiveRef<'_>,
 ) -> Result<ChainMetadata, SuperchainConfigError> {
+    #[cfg(feature = "pull-superchain-configs")]
+    if let Some(remote_config) = fetch_superchain_registry_metadata(name, environment) {
+        return Ok(remote_config);
+    }
+
     let config_file = read_file(archive, &format!("configs/{environment}/{name}.json"))?;
     let config_content = String::from_utf8(config_file)?;
     let chain_config: ChainMetadata = serde_json::from_str(&config_content)?;
     Ok(chain_config)
+}
+
+#[cfg(feature = "pull-superchain-configs")]
+fn fetch_superchain_registry_metadata(
+    name: &str,
+    environment: &str,
+) -> Option<ChainMetadata> {
+    const URL: &str =
+        "https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/main/superchain/configs";
+    const TIMEOUT: Duration = Duration::from_secs(5);
+
+    let client = Client::builder().timeout(TIMEOUT).build().ok()?;
+    let url = format!("{URL}/{environment}/{name}.toml");
+    let response = client.get(&url).send().ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    let body = response.text().ok()?;
+    let config: ChainMetadata = toml::from_str(&body).ok()?;
+    Some(config)
 }
 
 /// Reads a file from the tar archive. The file path is relative to the root of the tar archive.
