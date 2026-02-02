@@ -1,6 +1,8 @@
 package opcm
 
 import (
+	"fmt"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
@@ -39,4 +41,19 @@ func NewDeploySuperchainForgeCaller(client *forge.Client) forge.ScriptCaller[Dep
 		&forge.BytesScriptEncoder[DeploySuperchainInput]{TypeName: "DeploySuperchainInput"},
 		&forge.BytesScriptDecoder[DeploySuperchainOutput]{TypeName: "DeploySuperchainOutput"},
 	)
+}
+
+// DeploySuperchainViaForge deploys superchain contracts using Forge
+func DeploySuperchainViaForge(env *ForgeEnv, input DeploySuperchainInput) (DeploySuperchainOutput, error) {
+	var output DeploySuperchainOutput
+	if err := env.validate(true); err != nil {
+		return output, err
+	}
+	forgeCaller := NewDeploySuperchainForgeCaller(env.Client)
+	var err error
+	output, _, err = forgeCaller(env.Context, input, env.buildForgeOpts()...)
+	if err != nil {
+		return output, fmt.Errorf("failed to deploy superchain with Forge: %w", err)
+	}
+	return output, nil
 }

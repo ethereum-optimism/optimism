@@ -214,15 +214,15 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 			return dso, fmt.Errorf("failed to create forge client: %w", err)
 		}
 
-		forgeCaller := opcm.NewDeploySuperchainForgeCaller(forgeClient)
-		forgeOpts := []string{
-			"--rpc-url", cfg.L1RPCUrl,
-			"--broadcast",
-			"--private-key", cfg.PrivateKey,
+		forgeEnv := &opcm.ForgeEnv{
+			Client:     forgeClient,
+			Context:    ctx,
+			L1RPCUrl:   cfg.L1RPCUrl,
+			PrivateKey: cfg.PrivateKey,
 		}
-		dso, _, err = forgeCaller(ctx, input, forgeOpts...)
+		dso, err = opcm.DeploySuperchainViaForge(forgeEnv, input)
 		if err != nil {
-			return dso, fmt.Errorf("failed to deploy superchain with Forge: %w", err)
+			return dso, err
 		}
 	} else {
 		l1Client, err := ethclient.Dial(cfg.L1RPCUrl)

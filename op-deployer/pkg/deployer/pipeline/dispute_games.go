@@ -1,7 +1,6 @@
 package pipeline
 
 import (
-	"context"
 	"fmt"
 	"math/big"
 
@@ -62,41 +61,53 @@ func deployDisputeGame(
 	var vmAddr common.Address
 	switch game.VMType {
 	case state.VMTypeAlphabet:
-		deployAlphabetVM, err := opcm.NewDeployAlphabetVMScript(env.L1ScriptHost)
-		if err != nil {
-			return fmt.Errorf("failed to load DeployAlphabetVM script: %w", err)
-		}
-
-		out, err := deployAlphabetVM.Run(opcm.DeployAlphabetVMInput{
+		input := opcm.DeployAlphabetVMInput{
 			AbsolutePrestate: game.DisputeAbsolutePrestate,
 			PreimageOracle:   st.ImplementationsDeployment.PreimageOracleImpl,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to deploy Alphabet VM: %w", err)
+		}
+
+		var out opcm.DeployAlphabetVMOutput
+		var err error
+
+		if env.UseForge {
+			lgr.Info("using Forge for DeployAlphabetVM")
+			forgeEnv := &opcm.ForgeEnv{
+				Client:     env.ForgeClient,
+				Context:    env.Context,
+				L1RPCUrl:   env.L1RPCUrl,
+				PrivateKey: env.PrivateKey,
+			}
+			out, err = opcm.DeployAlphabetVMViaForge(forgeEnv, input)
+			if err != nil {
+				return err
+			}
+		} else {
+			deployAlphabetVM, err := opcm.NewDeployAlphabetVMScript(env.L1ScriptHost)
+			if err != nil {
+				return fmt.Errorf("failed to load DeployAlphabetVM script: %w", err)
+			}
+			out, err = deployAlphabetVM.Run(input)
+			if err != nil {
+				return fmt.Errorf("failed to deploy Alphabet VM: %w", err)
+			}
 		}
 		vmAddr = out.AlphabetVM
 	case state.VMTypeCannon, state.VMTypeCannonNext:
 		if env.UseForge {
-			if env.ForgeClient == nil {
-				return fmt.Errorf("Forge client is nil but UseForge is enabled")
-			}
-			if env.Context == nil {
-				env.Context = context.Background()
-			}
 			lgr.Info("using Forge for DeployMIPS")
 			forgeInput := opcm.DeployMIPSInput{
 				MipsVersion:    new(big.Int).SetUint64(game.VMType.MipsVersion()),
 				PreimageOracle: st.ImplementationsDeployment.PreimageOracleImpl,
 			}
-			forgeCaller := opcm.NewDeployMIPSForgeCaller(env.ForgeClient)
-			forgeOpts := []string{
-				"--rpc-url", env.L1RPCUrl,
-				"--broadcast",
-				"--private-key", env.PrivateKey,
+			forgeEnv := &opcm.ForgeEnv{
+				Client:     env.ForgeClient,
+				Context:    env.Context,
+				L1RPCUrl:   env.L1RPCUrl,
+				PrivateKey: env.PrivateKey,
 			}
-			forgeOut, _, err := forgeCaller(env.Context, forgeInput, forgeOpts...)
+			forgeOut, err := opcm.DeployMIPSViaForge(forgeEnv, forgeInput)
 			if err != nil {
-				return fmt.Errorf("failed to deploy MIPS VM with Forge: %w", err)
+				return err
 			}
 			vmAddr = forgeOut.MipsSingleton
 		} else {
@@ -133,26 +144,43 @@ func deployDisputeGame(
 
 	lgr.Info("deploying dispute game")
 
-	out, err := env.Scripts.DeployDisputeGame.Run(
-		opcm.DeployDisputeGameInput{
-			Release:                  "dev",
-			VmAddress:                vmAddr,
-			GameKind:                 "FaultDisputeGame",
-			GameType:                 game.DisputeGameType,
-			AbsolutePrestate:         game.DisputeAbsolutePrestate,
-			MaxGameDepth:             new(big.Int).SetUint64(game.DisputeMaxGameDepth),
-			SplitDepth:               new(big.Int).SetUint64(game.DisputeSplitDepth),
-			ClockExtension:           game.DisputeClockExtension,
-			MaxClockDuration:         game.DisputeMaxClockDuration,
-			DelayedWethProxy:         thisState.OpChainContracts.DelayedWethPermissionedGameProxy,
-			AnchorStateRegistryProxy: thisState.OpChainContracts.AnchorStateRegistryProxy,
-			L2ChainId:                new(big.Int).SetBytes(thisIntent.ID[:]),
-			Proposer:                 thisIntent.Roles.Proposer,
-			Challenger:               thisIntent.Roles.Challenger,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to deploy dispute game: %w", err)
+	input := opcm.DeployDisputeGameInput{
+		Release:                  "dev",
+		VmAddress:                vmAddr,
+		GameKind:                 "FaultDisputeGame",
+		GameType:                 game.DisputeGameType,
+		AbsolutePrestate:         game.DisputeAbsolutePrestate,
+		MaxGameDepth:             new(big.Int).SetUint64(game.DisputeMaxGameDepth),
+		SplitDepth:               new(big.Int).SetUint64(game.DisputeSplitDepth),
+		ClockExtension:           game.DisputeClockExtension,
+		MaxClockDuration:         game.DisputeMaxClockDuration,
+		DelayedWethProxy:         thisState.OpChainContracts.DelayedWethPermissionedGameProxy,
+		AnchorStateRegistryProxy: thisState.OpChainContracts.AnchorStateRegistryProxy,
+		L2ChainId:                new(big.Int).SetBytes(thisIntent.ID[:]),
+		Proposer:                 thisIntent.Roles.Proposer,
+		Challenger:               thisIntent.Roles.Challenger,
+	}
+
+	var out opcm.DeployDisputeGameOutput
+	var err error
+
+	if env.UseForge {
+		lgr.Info("using Forge for DeployDisputeGame")
+		forgeEnv := &opcm.ForgeEnv{
+			Client:     env.ForgeClient,
+			Context:    env.Context,
+			L1RPCUrl:   env.L1RPCUrl,
+			PrivateKey: env.PrivateKey,
+		}
+		out, err = opcm.DeployDisputeGameViaForge(forgeEnv, input)
+		if err != nil {
+			return err
+		}
+	} else {
+		out, err = env.Scripts.DeployDisputeGame.Run(input)
+		if err != nil {
+			return fmt.Errorf("failed to deploy dispute game: %w", err)
+		}
 	}
 	lgr.Info("dispute game deployed", "impl", out.DisputeGameImpl)
 
