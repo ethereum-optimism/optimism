@@ -131,11 +131,8 @@ func WithL1NodesInProcess(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stac
 		})
 
 		l1ELNode := &L1Geth{
-			id: l1ELID,
-			// Use WS for user RPC so op-node components (and op-supernode virtual nodes)
-			// can subscribe to L1 head updates. Using HTTP here causes HeadL1 to remain zero,
-			// which can stall components like the batcher that wait for initialized sync status.
-			userRPC:  firstNonEmpty(l1Geth.Node.WSEndpoint(), l1Geth.Node.HTTPEndpoint()),
+			id:       l1ELID,
+			userRPC:  l1Geth.Node.HTTPEndpoint(),
 			authRPC:  l1Geth.Node.HTTPAuthEndpoint(),
 			l1Geth:   l1Geth,
 			blobPath: blobPath,
