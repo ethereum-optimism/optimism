@@ -31,6 +31,16 @@ type mockLogsDB struct {
 	sealBlockErr  error
 	addLogCalls   int
 	sealBlockCall *sealBlockCall
+
+	// OpenBlock mock fields
+	openBlockRef     eth.BlockRef
+	openBlockLogCnt  uint32
+	openBlockExecMsg map[uint32]*suptypes.ExecutingMessage
+	openBlockErr     error
+
+	// Contains mock fields
+	containsSeal suptypes.BlockSeal
+	containsErr  error
 }
 
 type sealBlockCall struct {
@@ -48,6 +58,20 @@ func (m *mockLogsDB) FindSealedBlock(number uint64) (suptypes.BlockSeal, error) 
 		return suptypes.BlockSeal{}, m.findSealErr
 	}
 	return m.seal, nil
+}
+
+func (m *mockLogsDB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*suptypes.ExecutingMessage, error) {
+	if m.openBlockErr != nil {
+		return eth.BlockRef{}, 0, nil, m.openBlockErr
+	}
+	return m.openBlockRef, m.openBlockLogCnt, m.openBlockExecMsg, nil
+}
+
+func (m *mockLogsDB) Contains(query suptypes.ContainsQuery) (suptypes.BlockSeal, error) {
+	if m.containsErr != nil {
+		return suptypes.BlockSeal{}, m.containsErr
+	}
+	return m.containsSeal, nil
 }
 
 func (m *mockLogsDB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *suptypes.ExecutingMessage) error {
@@ -344,7 +368,7 @@ func TestVerifyPreviousTimestampSealed_NonActivation_EmptyDB_Error(t *testing.T)
 	require.Nil(t, hash)
 }
 
-func TestVerifyPreviousTimestampSealed_NonActivation_WrongTimestamp_Error(t *testing.T) {
+func TestVerifyPreviousTimestampSealed_NonActivation_TimestampNotBefore_Error(t *testing.T) {
 	t.Parallel()
 
 	interop := &Interop{
@@ -358,15 +382,43 @@ func TestVerifyPreviousTimestampSealed_NonActivation_WrongTimestamp_Error(t *tes
 		seal: suptypes.BlockSeal{
 			Hash:      common.Hash{0x01},
 			Number:    100,
-			Timestamp: 999, // Wrong! Expected 1000 for ts=1001
+			Timestamp: 1001, // Error: not before ts=1001
 		},
 	}
 
-	// For non-activation timestamp with wrong previous timestamp, should return error
+	// For non-activation timestamp where seal.Timestamp >= ts, should return error
 	hash, err := interop.verifyPreviousTimestampSealed(chainID, db, 1001)
 	require.Error(t, err)
 	require.ErrorIs(t, err, ErrPreviousTimestampNotSealed)
 	require.Nil(t, hash)
+}
+
+func TestVerifyPreviousTimestampSealed_NonActivation_OlderTimestamp_Success(t *testing.T) {
+	t.Parallel()
+
+	// Test that a block with timestamp < ts (but not exactly ts-1) is valid.
+	// This handles the case where blocks span multiple seconds (block time > 1).
+	interop := &Interop{
+		log:                 gethlog.New(),
+		activationTimestamp: 1000,
+	}
+	chainID := eth.ChainIDFromUInt64(10)
+	expectedHash := common.Hash{0x01}
+	db := &mockLogsDB{
+		hasBlocks:   true,
+		latestBlock: eth.BlockID{Hash: expectedHash, Number: 100},
+		seal: suptypes.BlockSeal{
+			Hash:      expectedHash,
+			Number:    100,
+			Timestamp: 998, // Older than ts-1, but still valid
+		},
+	}
+
+	// For ts=1001, a block at timestamp 998 is valid (998 < 1001)
+	hash, err := interop.verifyPreviousTimestampSealed(chainID, db, 1001)
+	require.NoError(t, err)
+	require.NotNil(t, hash)
+	require.Equal(t, expectedHash, *hash)
 }
 
 func TestVerifyPreviousTimestampSealed_NonActivation_CorrectTimestamp_ReturnsHash(t *testing.T) {
@@ -653,3 +705,392 @@ func (m *statefulMockChainContainer) SyncStatus(ctx context.Context) (*eth.SyncS
 }
 
 var _ cc.ChainContainer = (*statefulMockChainContainer)(nil)
+
+// =============================================================================
+// verifyInteropMessages Tests
+// =============================================================================
+
+func TestVerifyInteropMessages_NoExecMessages_AllValid(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(10)
+	blockHash := common.HexToHash("0x123")
+	expectedBlock := eth.BlockID{Number: 100, Hash: blockHash}
+
+	// Mock logsDB returns block with no executing messages
+	mockDB := &mockLogsDB{
+		openBlockRef: eth.BlockRef{
+			Hash:   blockHash,
+			Number: 100,
+			Time:   1000,
+		},
+		openBlockExecMsg: nil, // No executing messages
+	}
+
+	interop := &Interop{
+		log:     gethlog.New(),
+		logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
+	}
+
+	blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
+		chainID: expectedBlock,
+	}
+
+	result, err := interop.verifyInteropMessages(1000, blocksAtTimestamp)
+
+	require.NoError(t, err)
+	require.True(t, result.IsValid())
+	require.Empty(t, result.InvalidHeads)
+	require.Equal(t, expectedBlock, result.L2Heads[chainID])
+}
+
+func TestVerifyInteropMessages_BlockHashMismatch_Invalid(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(10)
+	expectedBlock := eth.BlockID{Number: 100, Hash: common.HexToHash("0xExpected")}
+	actualBlockHash := common.HexToHash("0xActual") // Different from expected
+
+	// Mock logsDB returns block with different hash than expected
+	mockDB := &mockLogsDB{
+		openBlockRef: eth.BlockRef{
+			Hash:   actualBlockHash, // Different from expectedBlock.Hash
+			Number: 100,
+			Time:   1000,
+		},
+	}
+
+	interop := &Interop{
+		log:     gethlog.New(),
+		logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
+	}
+
+	blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
+		chainID: expectedBlock,
+	}
+
+	result, err := interop.verifyInteropMessages(1000, blocksAtTimestamp)
+
+	require.NoError(t, err)
+	require.False(t, result.IsValid())
+	require.Contains(t, result.InvalidHeads, chainID)
+	require.Equal(t, expectedBlock, result.InvalidHeads[chainID])
+}
+
+func TestVerifyInteropMessages_ValidExecMessage_Success(t *testing.T) {
+	t.Parallel()
+
+	sourceChainID := eth.ChainIDFromUInt64(10)
+	destChainID := eth.ChainIDFromUInt64(8453)
+
+	sourceBlockHash := common.HexToHash("0xSource")
+	destBlockHash := common.HexToHash("0xDest")
+
+	sourceBlock := eth.BlockID{Number: 50, Hash: sourceBlockHash}
+	destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
+
+	// Executing message references initiating message on source chain
+	execMsg := &suptypes.ExecutingMessage{
+		ChainID:   sourceChainID,
+		BlockNum:  50,
+		LogIdx:    0,
+		Timestamp: 500, // Source timestamp < dest timestamp (1000)
+		Checksum:  suptypes.MessageChecksum{0x01},
+	}
+
+	// Source chain logsDB - has the initiating message
+	sourceDB := &mockLogsDB{
+		openBlockRef: eth.BlockRef{
+			Hash:   sourceBlockHash,
+			Number: 50,
+			Time:   500,
+		},
+		containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: 500}, // Found!
+	}
+
+	// Dest chain logsDB - has the executing message
+	destDB := &mockLogsDB{
+		openBlockRef: eth.BlockRef{
+			Hash:   destBlockHash,
+			Number: 100,
+			Time:   1000,
+		},
+		openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+			0: execMsg,
+		},
+	}
+
+	interop := &Interop{
+		log: gethlog.New(),
+		logsDBs: map[eth.ChainID]LogsDB{
+			sourceChainID: sourceDB,
+			destChainID:   destDB,
+		},
+	}
+
+	blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
+		sourceChainID: sourceBlock,
+		destChainID:   destBlock,
+	}
+
+	result, err := interop.verifyInteropMessages(1000, blocksAtTimestamp)
+
+	require.NoError(t, err)
+	require.True(t, result.IsValid())
+	require.Empty(t, result.InvalidHeads)
+}
+
+func TestVerifyInteropMessages_InitiatingMessageNotFound_Invalid(t *testing.T) {
+	t.Parallel()
+
+	sourceChainID := eth.ChainIDFromUInt64(10)
+	destChainID := eth.ChainIDFromUInt64(8453)
+
+	destBlockHash := common.HexToHash("0xDest")
+	destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
+
+	// Executing message references non-existent initiating message
+	execMsg := &suptypes.ExecutingMessage{
+		ChainID:   sourceChainID,
+		BlockNum:  50,
+		LogIdx:    0,
+		Timestamp: 500,
+		Checksum:  suptypes.MessageChecksum{0x01},
+	}
+
+	// Source chain logsDB - does NOT have the initiating message
+	sourceDB := &mockLogsDB{
+		containsErr: suptypes.ErrConflict, // Message not found
+	}
+
+	// Dest chain logsDB - has the executing message
+	destDB := &mockLogsDB{
+		openBlockRef: eth.BlockRef{
+			Hash:   destBlockHash,
+			Number: 100,
+			Time:   1000,
+		},
+		openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+			0: execMsg,
+		},
+	}
+
+	interop := &Interop{
+		log: gethlog.New(),
+		logsDBs: map[eth.ChainID]LogsDB{
+			sourceChainID: sourceDB,
+			destChainID:   destDB,
+		},
+	}
+
+	blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
+		destChainID: destBlock,
+	}
+
+	result, err := interop.verifyInteropMessages(1000, blocksAtTimestamp)
+
+	require.NoError(t, err)
+	require.False(t, result.IsValid())
+	require.Contains(t, result.InvalidHeads, destChainID)
+}
+
+func TestVerifyInteropMessages_TimestampViolation_Invalid(t *testing.T) {
+	t.Parallel()
+
+	sourceChainID := eth.ChainIDFromUInt64(10)
+	destChainID := eth.ChainIDFromUInt64(8453)
+
+	destBlockHash := common.HexToHash("0xDest")
+	destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
+
+	// Executing message references initiating message with timestamp >= executing timestamp
+	execMsg := &suptypes.ExecutingMessage{
+		ChainID:   sourceChainID,
+		BlockNum:  50,
+		LogIdx:    0,
+		Timestamp: 1000, // Same as dest block timestamp - INVALID!
+		Checksum:  suptypes.MessageChecksum{0x01},
+	}
+
+	// Source chain logsDB - has the initiating message
+	sourceDB := &mockLogsDB{
+		containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: 1000}, // Found
+	}
+
+	// Dest chain logsDB - has the executing message
+	destDB := &mockLogsDB{
+		openBlockRef: eth.BlockRef{
+			Hash:   destBlockHash,
+			Number: 100,
+			Time:   1000, // Same timestamp as initiating message - INVALID
+		},
+		openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+			0: execMsg,
+		},
+	}
+
+	interop := &Interop{
+		log: gethlog.New(),
+		logsDBs: map[eth.ChainID]LogsDB{
+			sourceChainID: sourceDB,
+			destChainID:   destDB,
+		},
+	}
+
+	blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
+		destChainID: destBlock,
+	}
+
+	result, err := interop.verifyInteropMessages(1000, blocksAtTimestamp)
+
+	require.NoError(t, err)
+	require.False(t, result.IsValid())
+	require.Contains(t, result.InvalidHeads, destChainID)
+}
+
+func TestVerifyInteropMessages_SourceChainNotFound_Invalid(t *testing.T) {
+	t.Parallel()
+
+	unknownSourceChain := eth.ChainIDFromUInt64(9999) // Not in logsDBs
+	destChainID := eth.ChainIDFromUInt64(8453)
+
+	destBlockHash := common.HexToHash("0xDest")
+	destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
+
+	// Executing message references unknown source chain
+	execMsg := &suptypes.ExecutingMessage{
+		ChainID:   unknownSourceChain, // This chain is not registered
+		BlockNum:  50,
+		LogIdx:    0,
+		Timestamp: 500,
+		Checksum:  suptypes.MessageChecksum{0x01},
+	}
+
+	// Dest chain logsDB - has the executing message
+	destDB := &mockLogsDB{
+		openBlockRef: eth.BlockRef{
+			Hash:   destBlockHash,
+			Number: 100,
+			Time:   1000,
+		},
+		openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+			0: execMsg,
+		},
+	}
+
+	interop := &Interop{
+		log: gethlog.New(),
+		logsDBs: map[eth.ChainID]LogsDB{
+			destChainID: destDB,
+			// Note: unknownSourceChain is NOT in logsDBs
+		},
+	}
+
+	blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
+		destChainID: destBlock,
+	}
+
+	result, err := interop.verifyInteropMessages(1000, blocksAtTimestamp)
+
+	require.NoError(t, err)
+	require.False(t, result.IsValid())
+	require.Contains(t, result.InvalidHeads, destChainID)
+}
+
+func TestVerifyInteropMessages_MultipleChains_OneInvalid(t *testing.T) {
+	t.Parallel()
+
+	sourceChainID := eth.ChainIDFromUInt64(10)
+	validChainID := eth.ChainIDFromUInt64(8453)
+	invalidChainID := eth.ChainIDFromUInt64(420)
+
+	validBlockHash := common.HexToHash("0xValid")
+	invalidBlockHash := common.HexToHash("0xInvalid")
+
+	validBlock := eth.BlockID{Number: 100, Hash: validBlockHash}
+	invalidBlock := eth.BlockID{Number: 200, Hash: invalidBlockHash}
+
+	// Invalid chain has an executing message with bad timestamp
+	badExecMsg := &suptypes.ExecutingMessage{
+		ChainID:   sourceChainID,
+		BlockNum:  50,
+		LogIdx:    0,
+		Timestamp: 1000, // Same as block timestamp - INVALID
+		Checksum:  suptypes.MessageChecksum{0x01},
+	}
+
+	sourceDB := &mockLogsDB{
+		containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: 1000},
+	}
+
+	validDB := &mockLogsDB{
+		openBlockRef: eth.BlockRef{
+			Hash:   validBlockHash,
+			Number: 100,
+			Time:   1000,
+		},
+		openBlockExecMsg: nil, // No executing messages - valid
+	}
+
+	invalidDB := &mockLogsDB{
+		openBlockRef: eth.BlockRef{
+			Hash:   invalidBlockHash,
+			Number: 200,
+			Time:   1000,
+		},
+		openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+			0: badExecMsg,
+		},
+	}
+
+	interop := &Interop{
+		log: gethlog.New(),
+		logsDBs: map[eth.ChainID]LogsDB{
+			sourceChainID:  sourceDB,
+			validChainID:   validDB,
+			invalidChainID: invalidDB,
+		},
+	}
+
+	blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
+		validChainID:   validBlock,
+		invalidChainID: invalidBlock,
+	}
+
+	result, err := interop.verifyInteropMessages(1000, blocksAtTimestamp)
+
+	require.NoError(t, err)
+	require.False(t, result.IsValid())
+	// Both chains should be in L2Heads
+	require.Contains(t, result.L2Heads, validChainID)
+	require.Contains(t, result.L2Heads, invalidChainID)
+	// Only the invalid chain should be in InvalidHeads
+	require.NotContains(t, result.InvalidHeads, validChainID)
+	require.Contains(t, result.InvalidHeads, invalidChainID)
+}
+
+func TestVerifyInteropMessages_OpenBlockError(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(10)
+	block := eth.BlockID{Number: 100, Hash: common.HexToHash("0x123")}
+
+	mockDB := &mockLogsDB{
+		openBlockErr: errors.New("database error"),
+	}
+
+	interop := &Interop{
+		log:     gethlog.New(),
+		logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
+	}
+
+	blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
+		chainID: block,
+	}
+
+	result, err := interop.verifyInteropMessages(1000, blocksAtTimestamp)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "database error")
+	require.True(t, result.IsEmpty())
+}

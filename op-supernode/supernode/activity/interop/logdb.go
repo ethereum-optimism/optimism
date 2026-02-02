@@ -23,6 +23,11 @@ type LogsDB interface {
 	LatestSealedBlock() (eth.BlockID, bool)
 	// FindSealedBlock returns the block seal for the given block number.
 	FindSealedBlock(number uint64) (types.BlockSeal, error)
+	// OpenBlock returns the block reference, log count, and executing messages for a block.
+	OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
+	// Contains checks if an initiating message exists in the database.
+	// Returns the block seal if found, or an error (ErrConflict if not found, ErrFuture if not yet indexed).
+	Contains(query types.ContainsQuery) (types.BlockSeal, error)
 	// AddLog adds a log entry to the database.
 	AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error
 	// SealBlock seals a block in the database.
@@ -96,6 +101,20 @@ func (i *Interop) loadLogs(ts uint64) error {
 			return fmt.Errorf("chain %s: failed to get block at timestamp %d: %w", chainID, ts, err)
 		}
 
+		// Check if this block is already sealed in the logsDB
+		// This happens when no new block exists at this timestamp - we get the same block
+		// that was already sealed at a previous timestamp
+		latestSealed, hasSealed := db.LatestSealedBlock()
+		if hasSealed && latestSealed.Hash == block.Hash {
+			// Block is already sealed, nothing new to process for this chain
+			i.log.Debug("block already sealed, skipping",
+				"chain", chainID,
+				"block", block.Number,
+				"timestamp", ts,
+			)
+			continue
+		}
+
 		// Fetch receipts for the block
 		blockInfo, receipts, err := chain.FetchReceipts(i.ctx, block.ID())
 		if err != nil {
@@ -123,9 +142,10 @@ func (i *Interop) loadLogs(ts uint64) error {
 	return nil
 }
 
-// verifyPreviousTimestampSealed checks that the previous timestamp is sealed in the logsDB.
+// verifyPreviousTimestampSealed checks that the logsDB is ready to process timestamp ts.
 // For the activation timestamp, the logsDB must be empty and returns nil for the previous hash.
-// For subsequent timestamps, the latest sealed block must have timestamp == ts-1.
+// For subsequent timestamps, the latest sealed block must have timestamp < ts.
+// (Note: not ts-1 exactly, because blocks may span multiple timestamps when block time > 1)
 // Returns the hash of the previous sealed block, or nil if the DB is empty (activation timestamp case).
 func (i *Interop) verifyPreviousTimestampSealed(chainID eth.ChainID, db LogsDB, ts uint64) (*common.Hash, error) {
 	latestBlock, hasBlocks := db.LatestSealedBlock()
@@ -141,8 +161,8 @@ func (i *Interop) verifyPreviousTimestampSealed(chainID eth.ChainID, db LogsDB, 
 
 	// if there are no blocks but we are not verifying the activation timestamp, return an error
 	if !hasBlocks {
-		return nil, fmt.Errorf("chain %s: logsDB is empty but expected previous timestamp %d to be sealed: %w",
-			chainID, ts-1, ErrPreviousTimestampNotSealed)
+		return nil, fmt.Errorf("chain %s: logsDB is empty but expected blocks before timestamp %d: %w",
+			chainID, ts, ErrPreviousTimestampNotSealed)
 	}
 
 	// get the actual seal from the database
@@ -151,10 +171,12 @@ func (i *Interop) verifyPreviousTimestampSealed(chainID eth.ChainID, db LogsDB, 
 		return nil, fmt.Errorf("chain %s: failed to find sealed block %d: %w", chainID, latestBlock.Number, err)
 	}
 
-	// check that the timestamp is the previous timestamp as expected
-	if seal.Timestamp != ts-1 {
-		return nil, fmt.Errorf("chain %s: expected latest sealed block to have timestamp %d, but has %d: %w",
-			chainID, ts-1, seal.Timestamp, ErrPreviousTimestampNotSealed)
+	// The latest sealed block must be from before the current timestamp.
+	// It doesn't have to be exactly ts-1 because blocks may span multiple timestamps
+	// (e.g., with block time = 2: block at ts=100, no block at ts=101, block at ts=102)
+	if seal.Timestamp >= ts {
+		return nil, fmt.Errorf("chain %s: latest sealed block timestamp %d is not before current timestamp %d: %w",
+			chainID, seal.Timestamp, ts, ErrPreviousTimestampNotSealed)
 	}
 
 	return &latestBlock.Hash, nil

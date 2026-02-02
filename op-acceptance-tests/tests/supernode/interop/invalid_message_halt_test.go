@@ -67,6 +67,7 @@ func TestSupernodeInteropInvalidMessageHalt(gt *testing.T) {
 		if err != nil {
 			return false
 		}
+		t.Logger().Info("super root at timestamp", "timestamp", targetTimestamp, "data", resp.Data)
 		return resp.Data != nil
 	}, 60*time.Second, time.Second, "initial timestamps should be verified")
 
