@@ -56,8 +56,9 @@ function build_legacy_kona_prestate() {
     cd kona
   fi
   # kona doesn't define a just dependency in its mise config.
-  # but the monorepo does and it should be preinstalled by now. So let's setup the just shim.
-  MISE_DEFAULT_CONFIG_FILENAME="${WORKTREE_DIR}"/mise.toml mise use just > "${log_file}" 2>&1
+  # but the monorepo does and it should be preinstalled by now. So let's set up the just shim.
+  JUST_VERSION=$(cd "${WORKTREE_DIR}" && mise config get tools.just)
+  mise use "just@${JUST_VERSION}" >> "${log_file}" 2>&1
 
   cd docker/fpvm-prestates
   rm -rf ../../prestate-artifacts-cannon
