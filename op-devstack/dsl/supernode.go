@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // Supernode wraps a stack.Supernode interface for DSL operations
@@ -47,4 +48,12 @@ func (s *Supernode) SuperRootAtTimestamp(timestamp uint64) eth.SuperRootAtTimest
 	resp, err := s.inner.QueryAPI().SuperRootAtTimestamp(ctx, timestamp)
 	s.require.NoError(err, "failed to get super-root at timestamp %d", timestamp)
 	return resp
+}
+
+// AssertSuperRootAtTimestamp asserts that the super-root at the given timestamp matches the expected root claim
+func (s *Supernode) AssertSuperRootAtTimestamp(l2SequenceNumber uint64, rootClaim common.Hash) {
+	resp := s.SuperRootAtTimestamp(l2SequenceNumber)
+	s.require.NotNilf(resp.Data, "super root does not exist at time %d", l2SequenceNumber)
+	superRoot := eth.SuperRoot(resp.Data.Super)
+	s.require.Equal(superRoot[:], rootClaim[:])
 }
