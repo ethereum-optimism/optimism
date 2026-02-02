@@ -2,6 +2,7 @@ package verify
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -115,6 +116,8 @@ func VerifyCLI(cliCtx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get artifacts: %w", err)
 	}
+	artifactsPath := fmt.Sprintf("%v", artifactsFS)
+	bundleDir := filepath.Dir(artifactsPath)
 	l.Info("Downloaded artifacts")
 
 	bundle, err := GetBundleFromFile(inputFile)
@@ -141,6 +144,7 @@ func VerifyCLI(cliCtx *cli.Context) error {
 			ApiKey:       verifierAPIKey,
 			ChainID:      l1ChainId,
 			ArtifactsFS:  artifactsFS,
+			BundleDir:    bundleDir,
 			Logger:       l,
 		})
 		if err != nil {

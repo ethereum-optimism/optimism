@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 )
 
 var (
@@ -24,10 +26,11 @@ type VersionInfo struct {
 }
 
 type Client struct {
-	Binary Binary
-	Stdout io.Writer
-	Stderr io.Writer
-	Wd     string
+	Binary      Binary
+	Stdout      io.Writer
+	Stderr      io.Writer
+	Wd          string
+	buildOutDir string // Base directory containing unique build output subdirectories
 }
 
 func NewStandardClient(workdir string) (*Client, error) {
@@ -41,42 +44,57 @@ func NewStandardClient(workdir string) (*Client, error) {
 
 	forgeClient := NewClient(forgeBinary)
 
-	// Determine the working directory for forge
-	// The artifacts FS points to a subdirectory (e.g., "forge-artifacts" or "out"),
-	// but forge needs to run from the parent directory where foundry.toml is located.
-	// This matches the structure from ExtractEmbedded/ExtractFromFile where:
-	// - untarPath/forge-artifacts/ contains the artifacts
-	// - untarPath/foundry.toml is the config file
-	// This can be removed once we remove the OPCM code and use the artifacts FS directly.
-	var forgeWd string
+	// Validate that workdir is a valid directory
+	if workdir == "" {
+		return nil, fmt.Errorf("workdir cannot be empty")
+	}
 	info, err := os.Stat(workdir)
 	if err != nil {
-		forgeWd = workdir
-	} else if info.IsDir() {
-		foundryToml := filepath.Join(workdir, "foundry.toml")
-		if _, err := os.Stat(foundryToml); err == nil {
-			forgeWd = workdir
-		} else {
-			// foundry.toml not found, check parent directory
-			// This handles the case where workdir points to forge-artifacts/ or out/
-			parent := filepath.Dir(workdir)
-			parentFoundryToml := filepath.Join(parent, "foundry.toml")
-			if _, err := os.Stat(parentFoundryToml); err == nil {
-				forgeWd = parent
-			} else {
-				forgeWd = workdir
-			}
-		}
-	} else {
-		forgeWd = filepath.Dir(workdir)
+		return nil, fmt.Errorf("workdir does not exist or is not accessible: %w", err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("workdir is not a directory: %s", workdir)
 	}
 
-	if err := os.MkdirAll(forgeWd, 0o755); err != nil {
-		return nil, fmt.Errorf("failed to ensure forge working directory exists: %w", err)
+	// Convert workdir to absolute path
+	absWorkdir, err := filepath.Abs(workdir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absolute path for workdir: %w", err)
 	}
 
-	forgeClient.Wd = forgeWd
+	// Create a unique working directory for this forge instance to avoid conflicts
+	// when multiple op-deployer instances run in parallel. We copy the entire
+	// bundle structure (including cache, artifacts/build-info, etc.) to this unique
+	// directory so that forge can use the cache properly (cache paths are relative
+	// to the working directory).
+	uniqueWorkdir, err := os.MkdirTemp("", "forge-workdir-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create unique workdir: %w", err)
+	}
+
+	// Copy the entire bundle structure to the unique working directory using copy-on-write
+	// This preserves timestamps and allows forge to use the cache properly since all paths
+	// (cache, artifacts/build-info, etc.) are relative to the working directory.
+	// Use cp -al: creates hard links for files (copy-on-write behavior)
+	// -a: archive mode (preserves permissions, timestamps, etc.)
+	// -l: create hard links instead of copying files
+	// The trailing "/." ensures we copy directory contents, not the directory itself
+	hardLinkCmd := exec.Command("cp", "-al", absWorkdir+"/.", uniqueWorkdir+"/")
+	if err := hardLinkCmd.Run(); err != nil {
+		return nil, fmt.Errorf("failed to copy bundle to unique workdir using hard links: %w", err)
+	}
+
+	// Use the unique workdir as Forge's working directory
+	forgeClient.Wd = uniqueWorkdir
+
+	// Setting buildOutDir makes all the cache hits to fail since the build output directory is not in the unique workdir.
+	forgeClient.buildOutDir = ""
+
+	artifacts.RegisterForCleanup(uniqueWorkdir)
+
 	fmt.Printf("Forge client working directory: %s\n", forgeClient.Wd)
+	fmt.Printf("Forge client build output directory: %s (default: forge-artifacts/)\n", filepath.Join(uniqueWorkdir, "forge-artifacts"))
+	fmt.Printf("Forge client cache directory: %s\n", filepath.Join(uniqueWorkdir, "cache"))
 
 	return forgeClient, nil
 }
@@ -106,7 +124,14 @@ func (c *Client) Version(ctx context.Context) (VersionInfo, error) {
 }
 
 func (c *Client) Build(ctx context.Context, opts ...string) error {
-	return c.execCmd(ctx, io.Discard, io.Discard, append([]string{"build"}, opts...)...)
+	cliOpts := []string{"build"}
+	// Use unique build output directory within the unique workdir
+	// Cache is already in the workdir (cache/), so forge can use it properly
+	if c.buildOutDir != "" {
+		cliOpts = append(cliOpts, "--out", c.buildOutDir)
+	}
+	cliOpts = append(cliOpts, opts...)
+	return c.execCmd(ctx, io.Discard, io.Discard, cliOpts...)
 }
 
 func (c *Client) Clean(ctx context.Context, opts ...string) error {
@@ -117,6 +142,11 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	buf := new(bytes.Buffer)
 	cliOpts := []string{"script"}
 	cliOpts = append(cliOpts, opts...)
+	// Use unique build output directory within the unique workdir
+	// Cache is already in the workdir (cache/), so forge can use it properly
+	if c.buildOutDir != "" {
+		cliOpts = append(cliOpts, "--out", c.buildOutDir)
+	}
 	cliOpts = append(cliOpts, "--sig", sig, script, "0x"+hex.EncodeToString(args))
 	if err := c.execCmd(ctx, buf, io.Discard, cliOpts...); err != nil {
 		return "", fmt.Errorf("failed to execute forge script: %w", err)

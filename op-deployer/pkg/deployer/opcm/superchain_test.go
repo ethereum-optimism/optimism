@@ -2,7 +2,6 @@ package opcm
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -43,10 +42,11 @@ func TestNewDeploySuperchainScript(t *testing.T) {
 func TestNewDeploySuperchainScriptForge(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
+	bundleDir, embeddedArtifactsFS, err := artifacts.ExtractEmbeddedForForge(tmpDir)
 	require.NoError(t, err)
+	_ = embeddedArtifactsFS // Keep reference to prevent cleanup
 
-	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
+	forgeClient, err := forge.NewStandardClient(bundleDir)
 	require.NoError(t, err)
 
 	deploySuperchain := NewDeploySuperchainForgeCaller(forgeClient)
@@ -60,6 +60,7 @@ func TestNewDeploySuperchainScriptForge(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.False(t, recompiled)
 	require.NotNil(t, output)
+	// The script should not be recompiled - forge should use the pre-warmed cache
+	require.False(t, recompiled, "forge script should use pre-warmed cache and not recompile")
 }

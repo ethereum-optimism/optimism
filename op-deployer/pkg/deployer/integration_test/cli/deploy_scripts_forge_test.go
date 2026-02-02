@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -38,10 +37,11 @@ func TestDeployScriptsForge(t *testing.T) {
 		runner := NewCLITestRunnerWithNetwork(t)
 
 		tmpDir := t.TempDir()
-		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
+		bundleDir, embeddedArtifactsFS, err := artifacts.ExtractEmbeddedForForge(tmpDir)
 		require.NoError(t, err)
+		_ = embeddedArtifactsFS // prevent cleanup
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
+		forgeClient, err := forge.NewStandardClient(bundleDir)
 		require.NoError(t, err)
 
 		// Deploy AltDA using Forge wrapper function
@@ -104,10 +104,11 @@ func TestDeployScriptsForge(t *testing.T) {
 		require.NoError(t, err)
 
 		tmpDir := t.TempDir()
-		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
+		bundleDir, embeddedArtifactsFS, err := artifacts.ExtractEmbeddedForForge(tmpDir)
 		require.NoError(t, err)
+		_ = embeddedArtifactsFS // prevent cleanup
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
+		forgeClient, err := forge.NewStandardClient(bundleDir)
 		require.NoError(t, err)
 
 		// Deploy AlphabetVM using Forge wrapper function
@@ -165,10 +166,11 @@ func TestDeployScriptsForge(t *testing.T) {
 		require.NoError(t, err)
 
 		tmpDir := t.TempDir()
-		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
+		bundleDir, embeddedArtifactsFS, err := artifacts.ExtractEmbeddedForForge(tmpDir)
 		require.NoError(t, err)
+		_ = embeddedArtifactsFS // prevent cleanup
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
+		forgeClient, err := forge.NewStandardClient(bundleDir)
 		require.NoError(t, err)
 
 		// Deploy MIPS using Forge wrapper function
@@ -225,10 +227,11 @@ func TestDeployScriptsForge(t *testing.T) {
 		require.NoError(t, err)
 
 		tmpDir := t.TempDir()
-		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
+		bundleDir, embeddedArtifactsFS, err := artifacts.ExtractEmbeddedForForge(tmpDir)
 		require.NoError(t, err)
+		_ = embeddedArtifactsFS // prevent cleanup
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
+		forgeClient, err := forge.NewStandardClient(bundleDir)
 		require.NoError(t, err)
 
 		// Deploy DisputeGame using Forge wrapper function
@@ -279,10 +282,11 @@ func TestDeployScriptsForge(t *testing.T) {
 		require.NoError(t, err)
 
 		tmpDir := t.TempDir()
-		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
+		bundleDir, embeddedArtifactsFS, err := artifacts.ExtractEmbeddedForForge(tmpDir)
 		require.NoError(t, err)
+		_ = embeddedArtifactsFS // prevent cleanup
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
+		forgeClient, err := forge.NewStandardClient(bundleDir)
 		require.NoError(t, err)
 
 		// Read superchain deployment using Forge wrapper function

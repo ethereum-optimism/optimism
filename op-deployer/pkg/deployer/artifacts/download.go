@@ -79,7 +79,7 @@ func downloadHTTP(ctx context.Context, u *url.URL, progressor ioutil.Progressor,
 	if err != nil {
 		return nil, fmt.Errorf("failed to download artifacts: %w", err)
 	}
-	tmpDir, err := os.MkdirTemp(targetDir, "op-deployer-artifacts-*")
+	tmpDir, err := os.MkdirTemp(targetDir, "bundle-*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp dir: %w", err)
 	}

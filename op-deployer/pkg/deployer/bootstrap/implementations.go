@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"path/filepath"
 	"strings"
 
 	mipsVersion "github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
@@ -206,6 +207,8 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 	if err != nil {
 		return dio, fmt.Errorf("failed to download artifacts: %w", err)
 	}
+	artifactsPath := fmt.Sprintf("%v", artifactsFS)
+	bundleDir := filepath.Dir(artifactsPath)
 
 	input := opcm.DeployImplementationsInput{
 		WithdrawalDelaySeconds:          new(big.Int).SetUint64(cfg.WithdrawalDelaySeconds),
@@ -228,7 +231,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 
 	if cfg.UseForge {
 		lgr.Info("using Forge for DeployImplementations")
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", artifactsFS))
+		forgeClient, err := forge.NewStandardClient(bundleDir)
 		if err != nil {
 			return dio, fmt.Errorf("failed to create forge client: %w", err)
 		}

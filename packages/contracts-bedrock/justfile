@@ -18,7 +18,7 @@ dep-status:
 # Core forge build command.
 
 forge-build *ARGS:
-  forge build {{ARGS}}
+  forge build --cache-path cache {{ARGS}}
 
   @# Forge build compiles only the src/ graph; the scripts/ graph is compiled by `forge script`.
   @# On the first invocation, `forge script` may compile a small set of dependencies.
@@ -32,11 +32,13 @@ forge-build *ARGS:
   @# - Providing a signature/args is not required for compilation; compilation happens before
   @#   argument validation and before execution. We still use `--skip-simulation` to guarantee
   @#   nothing runs in any case.
-  @forge script "scripts/deploy/Deploy.s.sol" \
-    --skip "/**/test/**" \
-    --sig "idonotexist()" \
-    --skip-simulation \
-    2>/dev/null || true
+  @# - We use `--cache-path cache` to store the cache in the project directory so it can be
+  @#   included in embedded artifacts, allowing tests and production to benefit from pre-warming.
+  @# - We pre-warm all deploy scripts to ensure all commonly used scripts have their dependencies
+  @#   cached, avoiding recompilation in tests and production.
+  @for script in scripts/deploy/*.s.sol; do \
+    forge script "$script" --skip "/**/test/**" --sig "idonotexist()" --skip-simulation --cache-path cache 2>/dev/null || true; \
+  done
 
 # Developer build command (faster).
 forge-build-dev *ARGS:

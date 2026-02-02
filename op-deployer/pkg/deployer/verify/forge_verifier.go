@@ -3,7 +3,6 @@ package verify
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -33,6 +32,7 @@ type ForgeVerifierOpts struct {
 	ApiKey       string
 	ChainID      uint64
 	ArtifactsFS  foundry.StatDirFs
+	BundleDir    string // Directory containing the full contracts-bedrock structure (parent of forge-artifacts)
 	Logger       log.Logger
 }
 
@@ -41,15 +41,15 @@ func NewForgeVerifier(opts ForgeVerifierOpts) (*ForgeVerifier, error) {
 		return nil, fmt.Errorf("unsupported verifier type: %s (must be 'etherscan', 'blockscout', or 'custom')", opts.VerifierType)
 	}
 
-	forgeTomlPath := filepath.Join(fmt.Sprintf("%v", opts.ArtifactsFS), "foundry.toml")
-	if _, err := os.Stat(forgeTomlPath); err != nil {
-		opts.Logger.Warn("foundry.toml not found, checking parent directory", "path", forgeTomlPath)
-		forgeTomlPath = filepath.Join(fmt.Sprintf("%v", opts.ArtifactsFS), "..", "foundry.toml")
-		if _, err := os.Stat(forgeTomlPath); err != nil {
-			return nil, fmt.Errorf("foundry.toml not found in any of the possible directories: %w", err)
-		}
+	// Use bundle directory for forge client - this is the parent directory containing foundry.toml
+	bundleDir := opts.BundleDir
+	if bundleDir == "" {
+		// Derive bundle directory from ArtifactsFS path
+		artifactsPath := fmt.Sprintf("%v", opts.ArtifactsFS)
+		bundleDir = filepath.Dir(artifactsPath)
 	}
-	forgeClient, err := forge.NewStandardClient(forgeTomlPath)
+
+	forgeClient, err := forge.NewStandardClient(bundleDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create forge client: %w", err)
 	}

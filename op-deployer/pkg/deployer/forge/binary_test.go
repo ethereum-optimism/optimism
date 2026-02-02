@@ -63,6 +63,9 @@ func TestStandardBinary_Downloads(t *testing.T) {
 	cacheDir := t.TempDir()
 
 	t.Run("download OK", func(t *testing.T) {
+		// Clear out the PATH env var so it forces a download.
+		t.Setenv("PATH", "")
+
 		var progressed atomic.Bool
 
 		bin, err := NewStandardBinary(
@@ -84,9 +87,12 @@ func TestStandardBinary_Downloads(t *testing.T) {
 	})
 
 	t.Run("invalid checksum", func(t *testing.T) {
+		// Clear out the PATH env var so it forces a download attempt.
+		t.Setenv("PATH", "")
+
 		bin, err := NewStandardBinary(
 			WithURL(ts.URL+"/foundry.tgz"),
-			WithCachePather(func() (string, error) { return "not-a-path", nil }),
+			WithCachePather(func() (string, error) { return cacheDir, nil }),
 			WithChecksummer(staticChecksummer("beep beep")),
 		)
 		require.NoError(t, err)

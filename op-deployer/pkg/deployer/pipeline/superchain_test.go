@@ -2,7 +2,6 @@ package pipeline
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"math/big"
 	"testing"
@@ -27,10 +26,11 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 
-	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
+	bundleDir, embeddedArtifactsFS, err := artifacts.ExtractEmbeddedForForge(tmpDir)
 	require.NoError(t, err)
+	_ = embeddedArtifactsFS // Keep reference to prevent cleanup
 
-	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
+	forgeClient, err := forge.NewStandardClient(bundleDir)
 	require.NoError(t, err)
 
 	_, afacts := testutil.LocalArtifacts(t)
@@ -100,10 +100,11 @@ func TestDeploySuperchain_WithForgeEverywhere(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 
-	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
+	bundleDir, embeddedArtifactsFS, err := artifacts.ExtractEmbeddedForForge(tmpDir)
 	require.NoError(t, err)
+	_ = embeddedArtifactsFS // Keep reference to prevent cleanup
 
-	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
+	forgeClient, err := forge.NewStandardClient(bundleDir)
 	require.NoError(t, err)
 
 	_, afacts := testutil.LocalArtifacts(t)
@@ -169,10 +170,11 @@ func TestDeploySuperchain_WithForge_ManualCall(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 
-	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
+	bundleDir, embeddedArtifactsFS, err := artifacts.ExtractEmbeddedForForge(tmpDir)
 	require.NoError(t, err)
+	_ = embeddedArtifactsFS // Keep reference to prevent cleanup
 
-	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
+	forgeClient, err := forge.NewStandardClient(bundleDir)
 	require.NoError(t, err)
 
 	deploySuperchain := opcm.NewDeploySuperchainForgeCaller(forgeClient)
@@ -188,8 +190,9 @@ func TestDeploySuperchain_WithForge_ManualCall(t *testing.T) {
 
 	output, recompiled, err := deploySuperchain(ctx, input)
 	require.NoError(t, err)
-	require.False(t, recompiled, "script should not be recompiled")
 	require.NotNil(t, output)
+	// The script should not be recompiled - forge should use the pre-warmed cache
+	require.False(t, recompiled, "forge script should use pre-warmed cache and not recompile")
 
 	require.NotEqual(t, common.Address{}, output.SuperchainProxyAdmin)
 	require.NotEqual(t, common.Address{}, output.SuperchainConfigProxy)

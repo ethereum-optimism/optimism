@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math/big"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -309,6 +310,8 @@ func ApplyPipeline(
 	if err != nil {
 		return fmt.Errorf("failed to download L1 artifacts: %w", err)
 	}
+	artifactsPath := fmt.Sprintf("%v", l1ArtifactsFS)
+	l1BundleDir := filepath.Dir(artifactsPath)
 
 	var l2ArtifactsFS foundry.StatDirFs
 	if intent.L1ContractsLocator.Equal(intent.L2ContractsLocator) {
@@ -438,10 +441,7 @@ func ApplyPipeline(
 	// Initialize Forge client if UseForge flag is enabled
 	var forgeClient *forge.Client
 	if opts.UseForge {
-		// Forge needs to run from the artifacts directory where foundry.toml is located
-		// The workdir is for storing state, not for running forge commands
-		artifactsPath := fmt.Sprintf("%v", bundle.L1)
-		forgeClient, err = forge.NewStandardClient(artifactsPath)
+		forgeClient, err = forge.NewStandardClient(l1BundleDir)
 		if err != nil {
 			return fmt.Errorf("failed to create Forge client: %w", err)
 		}

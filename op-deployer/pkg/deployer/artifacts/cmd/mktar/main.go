@@ -187,11 +187,9 @@ func shouldExclude(rel string, d os.DirEntry) bool {
 		return true
 	}
 
-	if !d.IsDir() {
-		if strings.HasSuffix(d.Name(), ".t.sol") {
-			return true
-		}
-	}
+	// Include .t.sol files - the forge cache references them in build-info;
+	// excluding them causes cache invalidation and forces recompilation on every run.
+	// Use --exclude "test/**/*.t.sol" if you need to exclude them for size.
 
 	return false
 }

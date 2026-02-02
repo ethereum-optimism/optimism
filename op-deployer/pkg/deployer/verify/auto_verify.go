@@ -3,6 +3,7 @@ package verify
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -36,6 +37,8 @@ func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID u
 	if err != nil {
 		return fmt.Errorf("failed to download artifacts: %w", err)
 	}
+	artifactsPath := fmt.Sprintf("%v", artifactsFS)
+	bundleDir := filepath.Dir(artifactsPath)
 
 	bundle, err := GetBundleFromFile(stateFile)
 	if err != nil {
@@ -59,6 +62,7 @@ func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID u
 			ApiKey:       apiKey,
 			ChainID:      chainID,
 			ArtifactsFS:  artifactsFS,
+			BundleDir:    bundleDir,
 			Logger:       logger,
 		})
 		if err != nil {

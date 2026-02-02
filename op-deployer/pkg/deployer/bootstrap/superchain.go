@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
@@ -197,6 +198,8 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 	if err != nil {
 		return dso, fmt.Errorf("failed to download artifacts: %w", err)
 	}
+	artifactsPath := fmt.Sprintf("%v", artifactsFS)
+	bundleDir := filepath.Dir(artifactsPath)
 
 	input := opcm.DeploySuperchainInput{
 		SuperchainProxyAdminOwner:  cfg.SuperchainProxyAdminOwner,
@@ -209,7 +212,7 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 
 	if cfg.UseForge {
 		lgr.Info("using Forge for DeploySuperchain")
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", artifactsFS))
+		forgeClient, err := forge.NewStandardClient(bundleDir)
 		if err != nil {
 			return dso, fmt.Errorf("failed to create forge client: %w", err)
 		}
