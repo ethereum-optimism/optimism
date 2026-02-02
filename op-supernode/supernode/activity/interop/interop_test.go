@@ -12,6 +12,7 @@ import (
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -64,6 +65,9 @@ func (m *mockChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2Bl
 }
 func (m *mockChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
 	return nil, nil
+}
+func (m *mockChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
+	return nil, nil, nil
 }
 func (m *mockChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	m.mu.Lock()

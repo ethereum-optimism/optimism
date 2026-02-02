@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -78,6 +79,9 @@ func (m *mockL2) OutputV0AtBlockNumber(ctx context.Context, blockNum uint64) (*e
 func (m *mockL2) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
 	m.payloadCalls++
 	return m.payload, m.payloadErr
+}
+func (m *mockL2) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
+	return nil, nil, nil
 }
 func (m *mockL2) Close() {
 }
