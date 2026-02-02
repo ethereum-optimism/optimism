@@ -31,7 +31,6 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/lmittmann/w3"
 	w3eth "github.com/lmittmann/w3/module/eth"
-	"github.com/stretchr/testify/require"
 )
 
 // V2 structs for OPCM >= 7.0.0 (using IOPContractsManagerMigrator interface)
@@ -285,30 +284,11 @@ func getInteropCannonAbsolutePrestate(t devtest.CommonT) common.Hash {
 }
 
 func getInteropCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
-	return loadKonaVersions(t).InteropPrestateHash
+	return getAbsolutePrestate(t, "kona/prestate-artifacts-cannon-interop/prestate-proof.json")
 }
 
 func getCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
-	return loadKonaVersions(t).PrestateHash
-}
-
-func loadKonaVersions(t devtest.CommonT) konaVersions {
-	konaVersionPath := "kona/version.json"
-	root, err := findMonorepoRoot(konaVersionPath)
-	t.Require().NoError(err)
-	p := path.Join(root, konaVersionPath)
-	data, err := os.ReadFile(p)
-	t.Require().NoError(err, "Failed to read kona versions")
-	var versions konaVersions
-	err = json.Unmarshal(data, &versions)
-	require.NoError(t, err, "Failed to parse kona versions")
-	return versions
-}
-
-type konaVersions struct {
-	Version             string      `json:"version"`
-	PrestateHash        common.Hash `json:"prestateHash"`
-	InteropPrestateHash common.Hash `json:"interopPrestateHash"`
+	return getAbsolutePrestate(t, "kona/prestate-artifacts-cannon/prestate-proof.json")
 }
 
 func getAbsolutePrestate(t devtest.CommonT, prestatePath string) common.Hash {

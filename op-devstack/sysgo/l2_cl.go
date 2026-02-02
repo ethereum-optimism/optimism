@@ -111,7 +111,8 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 	case "kona":
 		return WithKonaNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)
 	case "supernode":
-		return WithSuperNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)
+		var supe stack.SupernodeID // unused; this option is only used for CL tests that don't care about a supernode running
+		return WithSupernode(supe, l2CLID, l1CLID, l1ELID, l2ELID, opts...)
 	default:
 		return WithOpNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)
 	}

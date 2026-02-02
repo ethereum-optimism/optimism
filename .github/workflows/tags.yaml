@@ -14,7 +14,6 @@ jobs:
       image_name: ${{ steps.parse-tag.outputs.image_name }}
       version: ${{ steps.parse-tag.outputs.version }}
       versions: ${{ steps.prep.outputs.versions }}
-      kona_version: ${{ steps.prep.outputs.kona_version }}
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2
@@ -43,7 +42,6 @@ jobs:
       registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
       env: |
         GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[needs.prep.outputs.image_name] }}
-        KONA_VERSION=${{ needs.prep.outputs.kona_version }}
       set: |
         *.args.GIT_COMMIT=${{ github.sha }}
         *.args.GIT_DATE=${{ github.event.head_commit.timestamp }}

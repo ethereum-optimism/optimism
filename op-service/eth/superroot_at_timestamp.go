@@ -1,5 +1,7 @@
 package eth
 
+import "encoding/json"
+
 // OutputWithRequiredL1 is the full Output and its source L1 block
 type OutputWithRequiredL1 struct {
 	Output     *OutputResponse `json:"output"`
@@ -16,6 +18,35 @@ type SuperRootResponseData struct {
 
 	// SuperRoot is the superroot at the given timestamp after all verification is applied.
 	SuperRoot Bytes32 `json:"super_root"`
+}
+
+// superRootResponseDataMarshalling is the JSON marshalling helper for SuperRootResponseData
+type superRootResponseDataMarshalling struct {
+	VerifiedRequiredL1 BlockID         `json:"verified_required_l1"`
+	Super              json.RawMessage `json:"super"`
+	SuperRoot          Bytes32         `json:"super_root"`
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for SuperRootResponseData
+func (d *SuperRootResponseData) UnmarshalJSON(input []byte) error {
+	var dec superRootResponseDataMarshalling
+	if err := json.Unmarshal(input, &dec); err != nil {
+		return err
+	}
+	d.VerifiedRequiredL1 = dec.VerifiedRequiredL1
+	d.SuperRoot = dec.SuperRoot
+
+	// Unmarshal the Super field - currently only SuperV1 is supported
+	if len(dec.Super) > 0 {
+		var superV1 SuperV1
+		if err := json.Unmarshal(dec.Super, &superV1); err != nil {
+			return err
+		}
+		d.Super = &superV1
+	} else {
+		d.Super = nil
+	}
+	return nil
 }
 
 // AtTimestampResponse is the response superroot_atTimestamp

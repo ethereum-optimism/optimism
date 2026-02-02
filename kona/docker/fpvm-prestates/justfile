@@ -1,79 +1,20 @@
 set positional-arguments
-alias all := build-client-prestate-artifacts
 alias cannon := build-client-prestate-cannon-artifacts
-alias asterisc := build-client-prestate-asterisc-artifacts
 
 # default recipe to display help information
 default:
   @just --list
 
-# Build the `kona-client` prestate artifacts for the specified tags (asterisc + cannon).
-build-client-prestate-artifacts kona_client_variant kona_tag asterisc_tag cannon_tag:
-  #!/bin/bash
-
-  # Available variants of the client program, parsed from the binary targets of the `kona-client` crate.
-  manifest_path="$(realpath ../../bin/client/Cargo.toml)"
-  available_variants=($(cargo metadata --format-version=1 --manifest-path="$manifest_path" --no-deps |
-    jq -r --arg path "$manifest_path" '.packages[] | select(.manifest_path == $path) | .targets[] | select(.kind[] == "bin") | .name' |
-    xargs))
-
-  # Validates that `$1` is contained in `$2`
-  validate_option() {
-      local input="$1"
-      local valid_options=("${@:2}")
-
-      for option in "${valid_options[@]}"; do
-          if [[ "$input" == "$option" ]]; then
-              return 0
-          fi
-      done
-
-      return 1
-  }
-
-  # Check if `kona_client_variant` is contained within the available variants.
-  if ! validate_option "{{kona_client_variant}}" "${available_variants[@]}"; then
-      echo "Invalid client program variant. Please choose from: ${available_variants[*]}"
-      exit 1
-  fi
-
-  just build-client-prestate-asterisc-artifacts {{kona_client_variant}} {{kona_tag}} {{asterisc_tag}}
-  just build-client-prestate-cannon-artifacts {{kona_client_variant}} {{kona_tag}} {{cannon_tag}}
-
-# Build the `kona-client` prestate artifacts for the latest release (asterisc).
-build-client-prestate-asterisc-artifacts kona_client_variant kona_tag asterisc_tag out='./prestate-artifacts-asterisc':
-  #!/bin/bash
-  OUTPUT_DIR={{out}}
-
-  # Docker bake env
-  export GIT_REF_NAME="{{kona_tag}}"
-  export CLIENT_BIN="{{kona_client_variant}}"
-  export ASTERISC_TAG="{{asterisc_tag}}"
-  export DEFAULT_TAG="kona-asterisc-prestate:local"
-
-  # Navigate to workspace root
-  cd ../..
-
-  # Create the output directory
-  mkdir -p $OUTPUT_DIR
-
-  echo "Building kona-client (variant: {{kona_client_variant}}) prestate artifacts for the asterisc target. 🐚 Kona Tag: {{kona_tag}} | 🎇 Asterisc Tag: {{asterisc_tag}}"
-  docker buildx bake \
-    --set "*.output=$OUTPUT_DIR" \
-    -f docker/docker-bake.hcl \
-    kona-asterisc-prestate
-
-# Build the `kona-client` prestate artifacts for the latest release (cannon).
+# Build the `kona-client` prestate artifacts from local source (cannon).
 build-client-prestate-cannon-artifacts \
     kona_client_variant \
-    kona_tag cannon_tag \
+    cannon_tag \
     out='./prestate-artifacts-cannon' \
     custom_config_dir='':
   #!/bin/bash
   OUTPUT_DIR={{out}}
 
   # Docker bake env
-  export GIT_REF_NAME="{{kona_tag}}"
   export CLIENT_BIN="{{kona_client_variant}}"
   export CANNON_TAG="{{cannon_tag}}"
   export DEFAULT_TAG="kona-cannon-prestate:local"
@@ -99,7 +40,7 @@ build-client-prestate-cannon-artifacts \
   # Create the output directory
   mkdir -p $OUTPUT_DIR
 
-  echo "Building kona-client (variant: {{kona_client_variant}}) prestate artifacts for the cannon target. 🐚 Kona Tag: {{kona_tag}} | 🔫 Cannon Tag: {{cannon_tag}}"
+  echo "Building kona-client (variant: {{kona_client_variant}}) prestate artifacts for the cannon target. 🔫 Cannon Tag: {{cannon_tag}}"
   docker buildx bake \
     --set "*.output=$OUTPUT_DIR" \
     -f docker/docker-bake.hcl \

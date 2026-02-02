@@ -31,7 +31,7 @@ import (
 const (
 	httpTimeout     = 30 * time.Second
 	maxResponseSize = 10 * 1024 * 1024 // 10MB
-	maxRetries      = 4                // 1 initial + 3 retries
+	maxRetries      = 12               // 1 initial + 11 retries, ~2 min total with backoff
 	memoryCacheSize = 10               // Number of URLs to cache in memory
 	fileCacheTTL    = 30 * time.Minute // How long file cache entries remain valid
 	cacheSubdir     = "opcmregistry"

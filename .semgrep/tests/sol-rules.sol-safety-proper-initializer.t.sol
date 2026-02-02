@@ -15,11 +15,13 @@
 contract SemgrepTest__sol_safety_proper_initializer {
     // ok: sol-safety-proper-initializer
     function initialize() external {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
         // ...
     }
 
     // ok: sol-safety-proper-initializer
     function initialize() public {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
         // ...
     }
 }
@@ -29,36 +31,43 @@ contract SemgrepTest__sol_safety_proper_initializer {
 contract SemgrepTest__sol_safety_proper_initializer {
     // ok: sol-safety-proper-initializer
     function initialize() external initializer {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
         // ...
     }
 
     // ok: sol-safety-proper-initializer
     function initialize() public initializer {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
         // ...
     }
 
     // ok: sol-safety-proper-initializer
     function initialize() external reinitializer(1) {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
         // ...
     }
 
     // ok: sol-safety-proper-initializer
     function initialize() external reinitializer(1) {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
         // ...
     }
 
     // ok: sol-safety-proper-initializer
     function initialize() public reinitializer(2) {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
         // ...
     }
 
     // ruleid: sol-safety-proper-initializer
     function initialize() internal {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
         // ...
     }
 
     // ruleid: sol-safety-proper-initializer
     function initialize() public {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
         // ...
     }
 }

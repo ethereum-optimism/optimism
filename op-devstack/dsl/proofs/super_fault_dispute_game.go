@@ -14,12 +14,15 @@ type SuperFaultDisputeGame struct {
 	*FaultDisputeGame
 }
 
-func NewSuperFaultDisputeGame(t devtest.T, require *require.Assertions, addr common.Address, helperProvider gameHelperProvider, game *bindings.FaultDisputeGame) *SuperFaultDisputeGame {
-	honestTraceProvider := func(_ *FaultDisputeGame) types.TraceAccessor {
-		require.Fail("Honest trace not supported for super games")
-		return nil
-	}
-	fdg := NewFaultDisputeGame(t, require, addr, helperProvider, honestTraceProvider, game)
+func NewSuperFaultDisputeGame(
+	t devtest.T,
+	require *require.Assertions,
+	addr common.Address,
+	helperProvider gameHelperProvider,
+	honestTrace func(game *FaultDisputeGame) types.TraceAccessor,
+	game *bindings.FaultDisputeGame,
+) *SuperFaultDisputeGame {
+	fdg := NewFaultDisputeGame(t, require, addr, helperProvider, honestTrace, game)
 	return &SuperFaultDisputeGame{
 		FaultDisputeGame: fdg,
 	}
