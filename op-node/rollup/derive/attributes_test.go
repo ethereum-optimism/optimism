@@ -481,6 +481,82 @@ func TestPreparePayloadAttributes(t *testing.T) {
 			require.Equal(t, l1InfoTx, []byte(attrs.Transactions[0]))
 		})
 	})
+
+	// Test that the generic upgrade gas mechanism correctly adds AdditionalUpgradeGas
+	// to the block gas limit when upgrade transactions are present, and leaves it
+	// unchanged when no upgrade transactions are present.
+	t.Run("upgrade gas headroom", func(t *testing.T) {
+		baseGasLimit := uint64(30_000_000)
+
+		// Helper function to prepare PayloadAttributes with or without an upgrade.
+		// When hasUpgrade=true, configures Ecotone activation to trigger upgrade transactions.
+		prepareAttrs := func(t *testing.T, cfg *rollup.Config, hasUpgrade bool) *eth.PayloadAttributes {
+			rng := rand.New(rand.NewSource(1234))
+			l1Fetcher := &testutils.MockL1Source{}
+			defer l1Fetcher.AssertExpectations(t)
+			l2Parent := testutils.RandomL2BlockRef(rng)
+
+			if hasUpgrade {
+				// Set parent time so next block hits the upgrade activation time.
+				// This will cause EcotoneNetworkUpgradeTransactions() to be called,
+				// populating upgradeTxs with the Ecotone upgrade transactions.
+				ecotoneTime := uint64(1000)
+				cfg.EcotoneTime = &ecotoneTime
+				l2Parent.Time = ecotoneTime - cfg.BlockTime
+			}
+
+			// Use a known base gas limit to verify it gets modified correctly
+			sysCfg := eth.SystemConfig{
+				BatcherAddr: common.Address{42},
+				Overhead:    [32]byte{},
+				Scalar:      [32]byte{},
+				GasLimit:    baseGasLimit,
+			}
+
+			l1CfgFetcher := &testutils.MockL2Client{}
+			l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, sysCfg, nil)
+			defer l1CfgFetcher.AssertExpectations(t)
+
+			var epoch eth.BlockID
+			if hasUpgrade {
+				// Epoch boundary: advancing to next L1 block triggers FetchReceipts path.
+				// This is required to properly process upgrade transactions which happen
+				// at the first block of a new epoch.
+				l1Info := testutils.RandomBlockInfo(rng)
+				l1Info.InfoParentHash = l2Parent.L1Origin.Hash
+				l1Info.InfoNum = l2Parent.L1Origin.Number + 1
+				l1Info.InfoTime = l2Parent.Time
+				epoch = l1Info.ID()
+				l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, nil, nil)
+			} else {
+				// Same epoch, no upgrade: regular block derivation without upgrade transactions
+				epoch = l2Parent.L1Origin
+				l1Fetcher.ExpectInfoByHash(epoch.Hash, testutils.RandomBlockInfo(rng), nil)
+			}
+
+			attrBuilder := NewFetchingAttributesBuilder(cfg, params.MergedTestChainConfig, nil, l1Fetcher, l1CfgFetcher)
+			attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
+			require.NoError(t, err)
+			return attrs
+		}
+
+		t.Run("with upgrade transactions", func(t *testing.T) {
+			// When upgrade transactions are present (hasUpgrade=true),
+			// the gas limit should be base + AdditionalUpgradeGas (50M)
+			attrs := prepareAttrs(t, mkCfg(), true)
+			expectedGasLimit := baseGasLimit + AdditionalUpgradeGas
+			require.Equal(t, eth.Uint64Quantity(expectedGasLimit), *attrs.GasLimit,
+				"gas limit should include AdditionalUpgradeGas when upgrade transactions are present")
+		})
+
+		t.Run("without upgrade transactions", func(t *testing.T) {
+			// When no upgrade transactions are present (hasUpgrade=false),
+			// the gas limit should remain unchanged at the base value
+			attrs := prepareAttrs(t, mkCfg(), false)
+			require.Equal(t, eth.Uint64Quantity(baseGasLimit), *attrs.GasLimit,
+				"gas limit should remain unchanged when no upgrade transactions are present")
+		})
+	})
 }
 
 func encodeDeposits(deposits []*types.DepositTx) (out []eth.Data, err error) {

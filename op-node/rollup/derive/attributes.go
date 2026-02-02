@@ -14,6 +14,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+const (
+	// AdditionalUpgradeGas is the gas headroom allocated for network upgrade transactions.
+	// This allows upgrade transactions to exceed the normal systemTxMaxGas limit.
+	// This mechanism applies generically to all future upgrades (Karst and beyond) when
+	// upgrade transactions are present in the block.
+	AdditionalUpgradeGas = 50_000_000
+)
+
 type DependencySet interface {
 	// Chains returns the number of chains in the dependency set
 	Chains() []eth.ChainID
@@ -192,13 +200,19 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		}
 	}
 
+	// Calculate gas limit with upgrade headroom if upgrade transactions are present
+	gasLimit := sysConfig.GasLimit
+	if len(upgradeTxs) > 0 {
+		gasLimit += AdditionalUpgradeGas
+	}
+
 	r := &eth.PayloadAttributes{
 		Timestamp:             hexutil.Uint64(nextL2Time),
 		PrevRandao:            eth.Bytes32(l1Info.MixDigest()),
 		SuggestedFeeRecipient: predeploys.SequencerFeeVaultAddr,
 		Transactions:          txs,
 		NoTxPool:              true,
-		GasLimit:              (*eth.Uint64Quantity)(&sysConfig.GasLimit),
+		GasLimit:              (*eth.Uint64Quantity)(&gasLimit),
 		Withdrawals:           withdrawals,
 		ParentBeaconBlockRoot: parentBeaconRoot,
 	}
