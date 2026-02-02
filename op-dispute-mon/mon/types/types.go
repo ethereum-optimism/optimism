@@ -146,6 +146,23 @@ func (g EnrichedGameData) HasMixedSafety() bool {
 	return g.RollupEndpointSafeCount > 0 && g.RollupEndpointUnsafeCount > 0
 }
 
+// HasMixedSuperAvailability returns true if some super node endpoints returned "not found" while others succeeded
+// for this game. This indicates inconsistent block availability across the super node network.
+func (g EnrichedGameData) HasMixedSuperAvailability() bool {
+	if g.SuperNodeEndpointTotalCount == 0 {
+		return false
+	}
+
+	successfulEndpoints := g.SuperNodeEndpointTotalCount - g.SuperNodeEndpointErrorCount - g.SuperNodeEndpointNotFoundCount
+	return g.SuperNodeEndpointNotFoundCount > 0 && successfulEndpoints > 0
+}
+
+// HasMixedSuperSafety returns true if some super node endpoints reported the super root as safe and others as unsafe
+// for this game. This indicates inconsistent safety assessment across the super node network.
+func (g EnrichedGameData) HasMixedSuperSafety() bool {
+	return g.SuperNodeEndpointSafeCount > 0 && g.SuperNodeEndpointUnsafeCount > 0
+}
+
 // BidirectionalTree is a tree of claims represented as a flat list of claims.
 // This keeps the tree structure identical to how claims are stored in the contract.
 type BidirectionalTree struct {

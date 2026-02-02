@@ -178,6 +178,122 @@ func TestEnrichedGameData_HasMixedSafety(t *testing.T) {
 	}
 }
 
+func TestEnrichedGameData_HasMixedSuperAvailability(t *testing.T) {
+	tests := []struct {
+		name                           string
+		superNodeEndpointTotalCount    int
+		superNodeEndpointErrorCount    int
+		superNodeEndpointNotFoundCount int
+		expected                       bool
+	}{
+		{
+			name:                           "no endpoints attempted",
+			superNodeEndpointTotalCount:    0,
+			superNodeEndpointErrorCount:    0,
+			superNodeEndpointNotFoundCount: 0,
+			expected:                       false,
+		},
+		{
+			name:                           "all endpoints successful",
+			superNodeEndpointTotalCount:    3,
+			superNodeEndpointErrorCount:    0,
+			superNodeEndpointNotFoundCount: 0,
+			expected:                       false,
+		},
+		{
+			name:                           "all endpoints returned not found",
+			superNodeEndpointTotalCount:    3,
+			superNodeEndpointErrorCount:    0,
+			superNodeEndpointNotFoundCount: 3,
+			expected:                       false,
+		},
+		{
+			name:                           "mixed availability - some not found, some successful",
+			superNodeEndpointTotalCount:    3,
+			superNodeEndpointErrorCount:    0,
+			superNodeEndpointNotFoundCount: 1,
+			expected:                       true,
+		},
+		{
+			name:                           "mixed availability with errors - some not found, some successful, some errors",
+			superNodeEndpointTotalCount:    5,
+			superNodeEndpointErrorCount:    1,
+			superNodeEndpointNotFoundCount: 2,
+			expected:                       true,
+		},
+		{
+			name:                           "no successful endpoints - only errors and not found",
+			superNodeEndpointTotalCount:    3,
+			superNodeEndpointErrorCount:    2,
+			superNodeEndpointNotFoundCount: 1,
+			expected:                       false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			data := EnrichedGameData{
+				SuperNodeEndpointTotalCount:    test.superNodeEndpointTotalCount,
+				SuperNodeEndpointErrorCount:    test.superNodeEndpointErrorCount,
+				SuperNodeEndpointNotFoundCount: test.superNodeEndpointNotFoundCount,
+			}
+			result := data.HasMixedSuperAvailability()
+			require.Equal(t, test.expected, result)
+		})
+	}
+}
+
+func TestEnrichedGameData_HasMixedSuperSafety(t *testing.T) {
+	tests := []struct {
+		name                         string
+		superNodeEndpointSafeCount   int
+		superNodeEndpointUnsafeCount int
+		expected                     bool
+	}{
+		{
+			name:                         "no safety assessments",
+			superNodeEndpointSafeCount:   0,
+			superNodeEndpointUnsafeCount: 0,
+			expected:                     false,
+		},
+		{
+			name:                         "all endpoints report safe",
+			superNodeEndpointSafeCount:   3,
+			superNodeEndpointUnsafeCount: 0,
+			expected:                     false,
+		},
+		{
+			name:                         "all endpoints report unsafe",
+			superNodeEndpointSafeCount:   0,
+			superNodeEndpointUnsafeCount: 3,
+			expected:                     false,
+		},
+		{
+			name:                         "mixed safety - some safe, some unsafe",
+			superNodeEndpointSafeCount:   2,
+			superNodeEndpointUnsafeCount: 1,
+			expected:                     true,
+		},
+		{
+			name:                         "mixed safety - equal split",
+			superNodeEndpointSafeCount:   2,
+			superNodeEndpointUnsafeCount: 2,
+			expected:                     true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			data := EnrichedGameData{
+				SuperNodeEndpointSafeCount:   test.superNodeEndpointSafeCount,
+				SuperNodeEndpointUnsafeCount: test.superNodeEndpointUnsafeCount,
+			}
+			result := data.HasMixedSuperSafety()
+			require.Equal(t, test.expected, result)
+		})
+	}
+}
+
 func TestAllSupportedGameTypesAreOutputOrSuperRootType(t *testing.T) {
 	for _, gameType := range types.SupportedGameTypes {
 		t.Run(gameType.String(), func(t *testing.T) {
