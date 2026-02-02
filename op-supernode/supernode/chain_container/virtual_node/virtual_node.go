@@ -224,6 +224,12 @@ func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID
 	if db == nil {
 		return eth.BlockID{}, ErrVirtualNodeNotRunning
 	}
+
+	// Special case: genesis L2 block is trivially safe at genesis L1
+	if target.Number == v.cfg.Rollup.Genesis.L2.Number {
+		return v.cfg.Rollup.Genesis.L1, nil
+	}
+
 	// Get the latest entry to start the walkback
 	latestL1, latestL2, err := db.SafeHeadAtL1(ctx, math.MaxUint64-1)
 	if err != nil {
