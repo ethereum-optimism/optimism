@@ -251,13 +251,11 @@ contract VerifyOPCM is Script {
         validatorGetterChecks["faultDisputeGameImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["permissionedDisputeGameImpl"] = "CONTAINER_IMPL";
 
-        // Critical addresses - verify against env vars
+        // Verify against env vars
         validatorGetterChecks["superchainConfig"] = "ENV:EXPECTED_SUPERCHAIN_CONFIG";
         validatorGetterChecks["l1PAOMultisig"] = "ENV:EXPECTED_L1_PAO_MULTISIG";
         validatorGetterChecks["challenger"] = "ENV:EXPECTED_CHALLENGER";
-
-        // Numeric constraints - MIN_ENV means read minimum from env var at verification time
-        validatorGetterChecks["withdrawalDelaySeconds"] = "MIN_ENV:EXPECTED_MIN_WITHDRAWAL_DELAY_SECONDS:604800";
+        validatorGetterChecks["withdrawalDelaySeconds"] = "ENV:EXPECTED_MIN_WITHDRAWAL_DELAY_SECONDS";
 
         // Must be empty on mainnet
         validatorGetterChecks["devFeatureBitmap"] = "ZERO_ON_MAINNET";
