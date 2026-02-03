@@ -152,6 +152,8 @@ type OpNode struct {
 	halted atomic.Bool
 
 	tracer tracer.Tracer // used for testing PublishBlock and SignAndPublishL2Payload
+
+	superAuthority SuperAuthority // optional supernode authority for coordination
 }
 
 // New creates a new OpNode instance.
@@ -195,11 +197,17 @@ func NewWithOverride(ctx context.Context, cfg *config.Config, log log.Logger, ap
 	return n, nil
 }
 
+// SuperAuthority is an interface for supernode-level authority operations.
+// It is passed to op-node instances during initialization to provide
+// supernode-specific functionality and coordination.
+type SuperAuthority interface{}
+
 type InitializationOverrides struct {
 	L1Source        L1Source
 	Beacon          L1Beacon
 	RPCHandler      *oprpc.Handler
 	MetricsRegistry func(*prometheus.Registry)
+	SuperAuthority  SuperAuthority
 }
 
 // init progressively creates and sets up all the components of the OpNode
@@ -244,6 +252,9 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 	} else {
 		n.l1Source = overrides.L1Source
 	}
+
+	// Attach SuperAuthority if provided
+	n.superAuthority = overrides.SuperAuthority
 
 	// initL2 may use side effects to register interop subsystem to the node.EventSystem
 	n.l2Source, n.interopSys, n.l2Driver, n.safeDB, err = initL2(ctx, cfg, n)
