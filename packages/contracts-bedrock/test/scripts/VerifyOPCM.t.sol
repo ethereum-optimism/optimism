@@ -14,6 +14,9 @@ import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
 // Interfaces
 import { IOPContractsManager, IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 
 contract VerifyOPCM_Harness is VerifyOPCM {
     function loadArtifactInfo(string memory _artifactPath) public view returns (ArtifactInfo memory) {
@@ -62,6 +65,26 @@ contract VerifyOPCM_Harness is VerifyOPCM {
     function removeExpectedGetter(string memory _getter) public {
         expectedGetters[_getter] = "";
     }
+
+    function verifyPreimageOracle(IMIPS64 _mips) public view returns (bool) {
+        return _verifyPreimageOracle(_mips);
+    }
+
+    function verifyPortalDelays(IOptimismPortal2 _portal) public view returns (bool) {
+        return _verifyPortalDelays(_portal);
+    }
+
+    function verifyAnchorStateRegistryDelays(IAnchorStateRegistry _asr) public view returns (bool) {
+        return _verifyAnchorStateRegistryDelays(_asr);
+    }
+
+    function verifyStandardValidatorArgs(IOPContractsManager _opcm, address _validator) public returns (bool) {
+        return _verifyStandardValidatorArgs(_opcm, _validator);
+    }
+
+    function setValidatorGetterCheck(string memory _getter, string memory _check) public {
+        validatorGetterChecks[_getter] = _check;
+    }
 }
 
 /// @title VerifyOPCM_TestInit
@@ -79,6 +102,34 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
     function setupEnvVars() public {
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
         vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
+
+        // Set security-critical value env vars from the StandardValidator
+        address validator = address(opcm.opcmStandardValidator());
+        if (validator != address(0)) {
+            // Read values from the validator and set them as expected
+            // nosemgrep: sol-style-use-abi-encodecall
+            (bool ok, bytes memory data) = validator.staticcall(abi.encodeWithSignature("l1PAOMultisig()"));
+            if (ok) vm.setEnv("EXPECTED_L1_PAO_MULTISIG", vm.toString(abi.decode(data, (address))));
+
+            // nosemgrep: sol-style-use-abi-encodecall
+            (ok, data) = validator.staticcall(abi.encodeWithSignature("challenger()"));
+            if (ok) vm.setEnv("EXPECTED_CHALLENGER", vm.toString(abi.decode(data, (address))));
+        }
+
+        // Set delay values from deployed contracts
+        vm.setEnv("EXPECTED_PROOF_MATURITY_DELAY_SECONDS", vm.toString(optimismPortal2.proofMaturityDelaySeconds()));
+        vm.setEnv(
+            "EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS",
+            vm.toString(anchorStateRegistry.disputeGameFinalityDelaySeconds())
+        );
+
+        // Set minimum withdrawal delay to the actual value in test environment
+        // (production requires 7 days but tests may use shorter values)
+        if (validator != address(0)) {
+            // nosemgrep: sol-style-use-abi-encodecall
+            (bool wdOk, bytes memory wdData) = validator.staticcall(abi.encodeWithSignature("withdrawalDelaySeconds()"));
+            if (wdOk) vm.setEnv("EXPECTED_MIN_WITHDRAWAL_DELAY_SECONDS", vm.toString(abi.decode(wdData, (uint256))));
+        }
     }
 }
 
@@ -158,6 +209,9 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function test_run_implementationDifferentInsideImmutable_succeeds() public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
+
+        // Skip security value checks since this test deliberately corrupts immutable values
+        vm.setEnv("SKIP_SECURITY_VALUE_CHECKS", "true");
 
         // Grab the list of implementations.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "implementations", false);
@@ -632,5 +686,80 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         expectedUnaccounted[0] = "blueprints";
         vm.expectRevert(abi.encodeWithSelector(VerifyOPCM.VerifyOPCM_UnaccountedGetters.selector, expectedUnaccounted));
         harness.validateAllGettersAccounted();
+    }
+}
+
+/// @title VerifyOPCM_verifyPortalDelays_Test
+/// @notice Tests for the portal delay verification function.
+contract VerifyOPCM_verifyPortalDelays_Test is VerifyOPCM_TestInit {
+    function setUp() public override {
+        super.setUp();
+        vm.setEnv("EXPECTED_PROOF_MATURITY_DELAY_SECONDS", vm.toString(optimismPortal2.proofMaturityDelaySeconds()));
+    }
+
+    /// @notice Tests that portal delay verification succeeds with correct values.
+    function test_verifyPortalDelays_matchingDelay_succeeds() public view {
+        bool result = harness.verifyPortalDelays(optimismPortal2);
+        assertTrue(result, "Portal delay verification should succeed");
+    }
+
+    /// @notice Tests that portal delay verification fails with wrong expected value.
+    function test_verifyPortalDelays_mismatchedDelay_fails() public {
+        vm.setEnv("EXPECTED_PROOF_MATURITY_DELAY_SECONDS", "12345");
+        bool result = harness.verifyPortalDelays(optimismPortal2);
+        assertFalse(result, "Portal delay verification should fail with wrong expected value");
+    }
+}
+
+/// @title VerifyOPCM_verifyAnchorStateRegistryDelays_Test
+/// @notice Tests for the anchor state registry delay verification function.
+contract VerifyOPCM_verifyAnchorStateRegistryDelays_Test is VerifyOPCM_TestInit {
+    function setUp() public override {
+        super.setUp();
+        vm.setEnv(
+            "EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS",
+            vm.toString(anchorStateRegistry.disputeGameFinalityDelaySeconds())
+        );
+    }
+
+    /// @notice Tests that ASR delay verification succeeds with correct values.
+    function test_verifyAnchorStateRegistryDelays_matchingDelay_succeeds() public view {
+        bool result = harness.verifyAnchorStateRegistryDelays(anchorStateRegistry);
+        assertTrue(result, "ASR delay verification should succeed");
+    }
+
+    /// @notice Tests that ASR delay verification fails with wrong expected value.
+    function test_verifyAnchorStateRegistryDelays_mismatchedDelay_fails() public {
+        vm.setEnv("EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS", "99999");
+        bool result = harness.verifyAnchorStateRegistryDelays(anchorStateRegistry);
+        assertFalse(result, "ASR delay verification should fail with wrong expected value");
+    }
+}
+
+/// @title VerifyOPCM_verifyPreimageOracle_Test
+/// @notice Tests for the PreimageOracle bytecode verification function.
+contract VerifyOPCM_verifyPreimageOracle_Test is VerifyOPCM_TestInit {
+    /// @notice Tests that PreimageOracle verification succeeds when bytecode matches.
+    function test_verifyPreimageOracle_matchingBytecode_succeeds() public {
+        skipIfCoverage();
+        IMIPS64 mipsImpl = IMIPS64(opcm.implementations().mipsImpl);
+        bool result = harness.verifyPreimageOracle(mipsImpl);
+        assertTrue(result, "PreimageOracle verification should succeed");
+    }
+
+    /// @notice Tests that PreimageOracle verification fails when bytecode doesn't match.
+    function test_verifyPreimageOracle_corruptedBytecode_fails() public {
+        skipIfCoverage();
+        IMIPS64 mipsImpl = IMIPS64(opcm.implementations().mipsImpl);
+        address oracleAddr = address(mipsImpl.oracle());
+
+        bytes memory corruptedCode = oracleAddr.code;
+        if (corruptedCode.length > 100) {
+            corruptedCode[100] = bytes1(uint8(corruptedCode[100]) ^ 0xFF);
+        }
+        vm.etch(oracleAddr, corruptedCode);
+
+        bool result = harness.verifyPreimageOracle(mipsImpl);
+        assertFalse(result, "PreimageOracle verification should fail with corrupted bytecode");
     }
 }
