@@ -13,9 +13,6 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @custom:audit none This contracts is not yet audited.
 /// @title SuperchainConfig
 /// @notice The SuperchainConfig contract is used to manage configuration of global superchain values.
-/// @dev WARNING: When upgrading this contract, any active pause states will be lost as the pause state
-///      is stored in storage variables that are not preserved during upgrades. Therefore, this contract
-///      should not be upgraded while the system is paused.
 contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, ReinitializableBase, ISemver {
     /// @notice Thrown when a caller is not the guardian but tries to call a guardian-only function
     error SuperchainConfig_OnlyGuardian();
@@ -56,8 +53,8 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     event ConfigUpdate(UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.4.0
-    string public constant version = "2.4.0";
+    /// @custom:semver 2.4.1
+    string public constant version = "2.4.1";
 
     /// @notice Constructs the SuperchainConfig contract.
     constructor() ReinitializableBase(2) {

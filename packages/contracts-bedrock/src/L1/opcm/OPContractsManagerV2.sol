@@ -181,7 +181,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // If we expand the scope of this function to add other Superchain-wide contracts, we'll
         // probably want to start following a similar pattern to the chain upgrade flow.
 
-        // Upgrade the SuperchainConfig if it has changed.
+        // Upgrade the SuperchainConfig.
         _upgrade(
             IProxyAdmin(_inp.superchainConfig.proxyAdmin()),
             address(_inp.superchainConfig),
