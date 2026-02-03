@@ -226,7 +226,7 @@ func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID
 	}
 
 	// Special case: genesis L2 block is trivially safe at genesis L1
-	if target.Number == v.cfg.Rollup.Genesis.L2.Number {
+	if target == v.cfg.Rollup.Genesis.L2 {
 		return v.cfg.Rollup.Genesis.L1, nil
 	}
 

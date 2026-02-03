@@ -477,7 +477,7 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		require.Equal(t, genesisL1, result)
 	})
 
-	t.Run("genesis L2 target returns genesis L1 even with matching number but different hash", func(t *testing.T) {
+	t.Run("genesis L2 number with different hash is not treated as genesis", func(t *testing.T) {
 		cfg := createConfigWithGenesis()
 		log := createTestLogger()
 		vn := NewVirtualNode(cfg, log, nil, "test")
@@ -489,11 +489,11 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		vn.state = VNStateRunning
 
 		// Query with same number as genesis but different hash
-		// The current implementation only checks number, so this should still return genesis L1
+		// Should NOT match genesis since both number AND hash must match
 		target := eth.BlockID{Number: genesisL2.Number, Hash: [32]byte{0xff}}
-		result, err := vn.L1AtSafeHead(context.Background(), target)
-		require.NoError(t, err)
-		require.Equal(t, genesisL1, result)
+		_, err := vn.L1AtSafeHead(context.Background(), target)
+		// Returns error because mockDB is empty and walkback fails
+		require.Error(t, err)
 	})
 
 	t.Run("non-genesis target uses walkback to find earliest L1", func(t *testing.T) {
