@@ -217,23 +217,28 @@ func (cl *L1BeaconClient) fetchBlobs(ctx context.Context, slot uint64, hashes []
 	return eth.APIBeaconBlobsResponse{}, errors.Join(errs...)
 }
 
-// GetBlobs fetches blobs that were confirmed in the specified L1 block with the given indexed
-// hashes. The order of the returned blobs will match the order of `hashes`.  Confirms each
+// GetBlobsByHash fetches blobs that were confirmed at the given timestamp with the given versioned hashes.
+// The order of the returned blobs will match the order of `hashes`. Confirms each
 // blob's validity by recomputing the commitment and confirming the commitment
 // hashes to the expected value. Returns error if any blob is found invalid.
-func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
+func (cl *L1BeaconClient) GetBlobsByHash(ctx context.Context, time uint64, hashes []common.Hash) ([]*eth.Blob, error) {
 	if len(hashes) == 0 {
 		return []*eth.Blob{}, nil
 	}
-	slot, err := cl.timeToSlot(ctx, ref.Time)
+	slot, err := cl.timeToSlot(ctx, time)
 	if err != nil {
 		return nil, err
 	}
-	vHashes := make([]common.Hash, len(hashes))
-	for i, hash := range hashes {
-		vHashes[i] = hash.Hash
+	return cl.beaconBlobs(ctx, slot, hashes)
+}
+
+// GetBlobs is deprecated. Use GetBlobsByHash instead.
+func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
+	hashesOnly := make([]common.Hash, len(hashes))
+	for i, h := range hashes {
+		hashesOnly[i] = h.Hash
 	}
-	return cl.beaconBlobs(ctx, slot, vHashes)
+	return cl.GetBlobsByHash(ctx, ref.Time, hashesOnly)
 }
 
 func (cl *L1BeaconClient) beaconBlobs(ctx context.Context, slot uint64, hashes []common.Hash) ([]*eth.Blob, error) {
