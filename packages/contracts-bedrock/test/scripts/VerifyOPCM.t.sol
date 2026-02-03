@@ -96,6 +96,17 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
         super.setUp();
         harness = new VerifyOPCM_Harness();
         harness.setUp();
+
+        // If OPCM V2 is enabled, set up the test environment for OPCM V2.
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
+        if (vm.envOr("DEV_FEATURE__OPCM_V2", false)) {
+            opcm = IOPContractsManager(address(opcmV2));
+        } else {
+            setupEnvVars();
+        }
+
+        // Set the OPCM address so that runSingle also runs for V2 OPCM if the dev feature is enabled.
+        vm.setEnv("OPCM_ADDRESS", vm.toString(address(opcm)));
     }
 
     /// @notice Sets up the environment variables for the VerifyOPCM test.
@@ -138,17 +149,6 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
 contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function setUp() public override {
         super.setUp();
-
-        // If OPCM V2 is enabled, set up the test environment for OPCM V2.
-        // nosemgrep: sol-style-vm-env-only-in-config-sol
-        if (vm.envOr("DEV_FEATURE__OPCM_V2", false)) {
-            opcm = IOPContractsManager(address(opcmV2));
-        } else {
-            setupEnvVars();
-        }
-
-        // Set the OPCM address so that runSingle also runs for V2 OPCM if the dev feature is enabled.
-        vm.setEnv("OPCM_ADDRESS", vm.toString(address(opcm)));
     }
 
     /// @notice Tests that the script succeeds when no changes are introduced.
