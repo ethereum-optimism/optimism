@@ -186,6 +186,9 @@ commands:
               exit 0
             fi
 
+            # Set GH_TOKEN for gh CLI authentication
+            export GH_TOKEN="${GITHUB_TOKEN}"
+
             # Extract PR number from CIRCLE_PULL_REQUEST URL
             PR_NUMBER=$(echo $CIRCLE_PULL_REQUEST | sed 's#.*/##')
 
