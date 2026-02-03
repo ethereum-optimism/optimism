@@ -1,0 +1,59 @@
+[package]
+name = "reth-optimism-txpool"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "OP-Reth Transaction Pool"
+
+[lints]
+workspace = true
+
+[dependencies]
+# ethereum
+alloy-consensus.workspace = true
+alloy-eips.workspace = true
+alloy-primitives.workspace = true
+alloy-rpc-types-eth.workspace = true
+alloy-rpc-client = { workspace = true, features = ["reqwest", "default"] }
+alloy-json-rpc.workspace = true
+alloy-serde.workspace = true
+
+# reth
+reth-chainspec.workspace = true
+reth-evm.workspace = true
+reth-primitives-traits.workspace = true
+reth-chain-state.workspace = true
+reth-storage-api.workspace = true
+reth-transaction-pool.workspace = true
+
+# revm
+op-revm.workspace = true
+
+# optimism
+op-alloy-consensus.workspace = true
+op-alloy-flz.workspace = true
+op-alloy-rpc-types.workspace = true
+reth-optimism-evm.workspace = true
+reth-optimism-forks.workspace = true
+reth-optimism-primitives.workspace = true
+
+# metrics
+reth-metrics.workspace = true
+metrics.workspace = true
+
+# misc
+c-kzg.workspace = true
+derive_more.workspace = true
+futures-util.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["time"] }
+
+[dev-dependencies]
+reth-optimism-chainspec.workspace = true
+reth-provider = { workspace = true, features = ["test-utils"] }

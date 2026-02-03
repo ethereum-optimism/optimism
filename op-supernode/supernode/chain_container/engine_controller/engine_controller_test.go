@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// unified mock covers both payload/output paths and SafeBlockAtTimestamp path
+// unified mock covers both payload/output paths and BlockAtTimestamp path
 
 func TestOutputV0AtBlockNumber_UsesPayloadWhenAvailable(t *testing.T) {
 	t.Parallel()
@@ -89,22 +89,22 @@ func TestEngineController_TargetBlockNumber(t *testing.T) {
 	ec := &simpleEngineController{l2: m, rollup: rcfg, log: gethlog.New()}
 
 	// ts = genesis + 2*3 => block #3, with safe head above target
-	numRef, err := ec.SafeBlockAtTimestamp(context.Background(), 1_000+2*3)
+	numRef, err := ec.BlockAtTimestamp(context.Background(), 1_000+2*3, eth.Safe)
 	require.NoError(t, err)
 	require.Equal(t, uint64(3), m.lastNum)
 	require.Equal(t, m.ref, numRef)
 	// ts = genesis + 2*1000 => block #1000, with safe head now below target
-	_, err = ec.SafeBlockAtTimestamp(context.Background(), 1_000+2*1000)
+	_, err = ec.BlockAtTimestamp(context.Background(), 1_000+2*1000, eth.Safe)
 	require.ErrorIs(t, err, ethereum.NotFound)
 }
 
 func TestEngineController_SentinelErrors(t *testing.T) {
 	t.Parallel()
 	ec := &simpleEngineController{l2: nil, rollup: nil}
-	_, err := ec.SafeBlockAtTimestamp(context.Background(), 0)
+	_, err := ec.BlockAtTimestamp(context.Background(), 0, eth.Safe)
 	require.ErrorIs(t, err, ErrNoEngineClient)
 
 	ec = &simpleEngineController{l2: &mockL2{}, rollup: nil}
-	_, err = ec.SafeBlockAtTimestamp(context.Background(), 0)
+	_, err = ec.BlockAtTimestamp(context.Background(), 0, eth.Safe)
 	require.ErrorIs(t, err, ErrNoRollupConfig)
 }

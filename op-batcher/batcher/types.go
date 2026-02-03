@@ -1,6 +1,7 @@
 package batcher
 
 import (
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -41,9 +42,8 @@ func (b *SizedBlock) EstimatedDABytes() uint64 {
 			if tx.IsDepositTx() {
 				continue
 			}
-			// It is safe to assume that the estimated DA size is always a uint64,
-			// so calling Uint64() is safe
-			daSize += tx.RollupCostData().EstimatedDASize().Uint64()
+			// It is safe to assume that the estimated DA size is always a uint64
+			daSize += bigs.Uint64Strict(tx.RollupCostData().EstimatedDASize())
 		}
 		b.estimatedDABytes = daSize
 	}

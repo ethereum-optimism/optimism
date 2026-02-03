@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 )
@@ -169,7 +170,7 @@ func (o *BlobTipOracle) Start() error {
 		select {
 		case header := <-headers:
 			if err := o.processHeader(header); err != nil {
-				o.log.Error("Error processing header", "err", err, "block", header.Number.Uint64())
+				o.log.Error("Error processing header", "err", err, "block", bigs.Uint64Strict(header.Number))
 			}
 		case err := <-sub.Err():
 			if err != nil {
@@ -233,13 +234,13 @@ func (o *BlobTipOracle) prePopulateCache() error {
 // It also triggers an asynchronous fetch of the full block to extract blob fee caps.
 func (o *BlobTipOracle) processHeader(header *types.Header) error {
 	defer func(start time.Time) {
-		o.log.Debug("Processed header", "block", header.Number.Uint64(), "time", time.Since(start))
+		o.log.Debug("Processed header", "block", bigs.Uint64Strict(header.Number), "time", time.Since(start))
 	}(time.Now())
 
 	o.Lock()
 	defer o.Unlock()
 
-	blockNum := header.Number.Uint64()
+	blockNum := bigs.Uint64Strict(header.Number)
 
 	// Calculate blob base fee from the header
 	if _, ok := o.baseFees.Get(blockNum); ok {
@@ -374,7 +375,7 @@ func (o *BlobTipOracle) SuggestBlobTipCap(ctx context.Context, maxBlocks int, pe
 	}
 
 	// No blob transactions found, use the default priority fee - that should almost never happen, so we warn about it
-	o.log.Warn("No recent blob transactions found, using blob base fee + buffer", "block", latestBlockNum, "default_priority_fee", o.config.DefaultPriorityFee.String())
+	o.log.Warn("No recent blob transactions found, using default prio fee", "block", latestBlockNum, "defaultPriorityFee", o.config.DefaultPriorityFee)
 	return new(big.Int).Set(o.config.DefaultPriorityFee), nil
 }
 

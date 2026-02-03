@@ -1,0 +1,36 @@
+[package]
+name = "reth-optimism-forks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "Optimism hardforks used in op-reth"
+
+[lints]
+workspace = true
+
+[dependencies]
+# reth
+reth-ethereum-forks.workspace = true
+
+# ethereum
+alloy-op-hardforks.workspace = true
+alloy-primitives.workspace = true
+
+# misc
+once_cell.workspace = true
+
+[features]
+default = ["std"]
+std = [
+    "alloy-primitives/std",
+    "once_cell/std",
+    "reth-ethereum-forks/std",
+]
+serde = [
+    "alloy-primitives/serde",
+    "reth-ethereum-forks/serde",
+    "alloy-op-hardforks/serde",
+]

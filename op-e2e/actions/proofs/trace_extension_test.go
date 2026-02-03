@@ -6,6 +6,7 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -24,14 +25,14 @@ func runSafeHeadTraceExtensionTest(gt *testing.T, testCfg *helpers.TestCfg[any])
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
 
 	// Ensure there is only 1 block on L1.
-	require.Equal(t, uint64(1), l1Head.Number.Uint64())
+	require.Equal(t, uint64(1), bigs.Uint64Strict(l1Head.Number))
 	// Ensure the block is marked as safe before we attempt to fault prove it.
-	require.Equal(t, uint64(1), l2SafeHead.Number.Uint64())
+	require.Equal(t, uint64(1), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Set claimed L2 block number to be past the actual safe head (still using the safe head output as the claim)
-	params := []helpers.FixtureInputParam{helpers.WithL2BlockNumber(l2SafeHead.Number.Uint64() + 1)}
+	params := []helpers.FixtureInputParam{helpers.WithL2BlockNumber(bigs.Uint64Strict(l2SafeHead.Number) + 1)}
 	params = append(params, testCfg.InputParams...)
-	env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, params...)
+	env.RunFaultProofProgram(t, bigs.Uint64Strict(l2SafeHead.Number), testCfg.CheckResult, params...)
 }
 
 // Test_ProgramAction_SafeHeadTraceExtension checks that op-program correctly handles the trace extension case where

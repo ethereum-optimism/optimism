@@ -15,7 +15,7 @@ import { UpgradeOPChain, UpgradeOPChainInput } from "scripts/deploy/UpgradeOPCha
 // Libraries
 import { Claim } from "src/dispute/lib/Types.sol";
 import { GameType } from "src/dispute/lib/LibUDT.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -326,8 +326,8 @@ contract MockOPCMV1 {
         address indexed sysCfgProxy, bytes32 indexed absolutePrestate, bytes32 indexed cannonKonaPrestate
     );
 
-    function isDevFeatureEnabled(bytes32 /* _feature */ ) public pure returns (bool) {
-        return false;
+    function version() public pure returns (string memory) {
+        return "6.0.0";
     }
 
     function upgrade(OPContractsManager.OpChainConfig[] memory _opChainConfigs) public {
@@ -346,8 +346,8 @@ contract MockOPCMV2 {
         IOPContractsManagerUtils.ExtraInstruction[] indexed extraInstructions
     );
 
-    function isDevFeatureEnabled(bytes32 _feature) public pure returns (bool) {
-        return _feature == DevFeatures.OPCM_V2;
+    function version() public pure returns (string memory) {
+        return Constants.OPCM_V2_MIN_VERSION;
     }
 
     function upgrade(OPContractsManagerV2.UpgradeInput memory _upgradeInput) public {
@@ -405,6 +405,25 @@ contract UpgradeOPChain_Test is Test {
             Claim.unwrap(config.cannonPrestate),
             Claim.unwrap(config.cannonKonaPrestate)
         );
+        upgradeOPChain.run(uoci);
+    }
+
+    /// @notice This test verifies that the UpgradeOPChain script correctly reverts when the OPCM upgrade
+    /// call fails
+    function test_upgrade_whenOPCMReverts_reverts() public {
+        address systemConfigProxy = makeAddr("systemConfig");
+        config = OPContractsManager.OpChainConfig({
+            systemConfigProxy: ISystemConfig(systemConfigProxy),
+            cannonPrestate: Claim.wrap(bytes32(uint256(1))),
+            cannonKonaPrestate: Claim.wrap(bytes32(uint256(2)))
+        });
+        OPContractsManager.OpChainConfig[] memory configs = new OPContractsManager.OpChainConfig[](1);
+        configs[0] = config;
+        uoci.set(uoci.upgradeInput.selector, configs);
+
+        vm.mockCallRevert(prank, OPContractsManager.upgrade.selector, abi.encode("UpgradeOPChain: upgrade failed"));
+
+        vm.expectRevert("UpgradeOPChain: upgrade failed");
         upgradeOPChain.run(uoci);
     }
 }
@@ -469,6 +488,32 @@ contract UpgradeOPChain_TestV2 is Test {
         emit UpgradeCalled(
             address(upgradeInput.systemConfig), upgradeInput.disputeGameConfigs, upgradeInput.extraInstructions
         );
+        upgradeOPChain.run(uoci);
+    }
+
+    /// @notice This test verifies that the UpgradeOPChain script correctly reverts when the OPCM v2 upgrade
+    /// call fails.
+    function test_upgrade_whenOPCMV2Reverts_reverts() public {
+        address systemConfig = makeAddr("systemConfig");
+        IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerUtils.DisputeGameConfig[](1);
+        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 1 ether,
+            gameType: GameType.wrap(0),
+            gameArgs: abi.encode("test")
+        });
+
+        OPContractsManagerV2.UpgradeInput memory upgradeInput = OPContractsManagerV2.UpgradeInput({
+            systemConfig: ISystemConfig(systemConfig),
+            disputeGameConfigs: disputeGameConfigs,
+            extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
+        });
+        uoci.set(uoci.upgradeInput.selector, upgradeInput);
+
+        vm.mockCallRevert(prank, OPContractsManagerV2.upgrade.selector, abi.encode("UpgradeOPChain: upgrade failed"));
+
+        vm.expectRevert("UpgradeOPChain: upgrade failed");
         upgradeOPChain.run(uoci);
     }
 }

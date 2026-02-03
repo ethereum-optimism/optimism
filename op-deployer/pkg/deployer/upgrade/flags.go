@@ -8,6 +8,7 @@ import (
 	v400 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v4_0_0"
 	v410 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v4_1_0"
 	v500 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v5_0_0"
+	v600 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v6_0_0"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/urfave/cli/v2"
 )
@@ -83,6 +84,17 @@ var Commands = cli.Commands{
 			OutfileFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
 		Action: UpgradeCLI(v500.DefaultUpgrader),
+	},
+	&cli.Command{
+		Name:  "v6.0.0-rc.2",
+		Usage: "upgrades a chain to version v6.0.0 (U18)",
+		Flags: append([]cli.Flag{
+			deployer.L1RPCURLFlag,
+			ConfigFlag,
+			OverrideArtifactsURLFlag,
+			OutfileFlag,
+		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
+		Action: UpgradeCLI(v600.DefaultUpgrader),
 	},
 	&cli.Command{
 		Name:  "embedded",

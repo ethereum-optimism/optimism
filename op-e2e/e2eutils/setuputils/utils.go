@@ -31,5 +31,7 @@ func NewTxMgrConfig(l1Addr endpoint.RPC, privKey *ecdsa.PrivateKey) txmgr.CLICon
 		NetworkTimeout:            2 * time.Second,
 		TxNotInMempoolTimeout:     2 * time.Minute,
 		CellProofTime:             math.MaxUint64,
+		BlobTipCapPercentile:      60,
+		BlobTipCapRange:           20,
 	}
 }

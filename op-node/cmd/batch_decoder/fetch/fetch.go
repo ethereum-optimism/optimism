@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
@@ -124,7 +125,7 @@ func fetchBatchesPerBlock(ctx context.Context, client *ethclient.Client, beacon 
 				}
 				blobs, err := beacon.GetBlobs(ctx, eth.L1BlockRef{
 					Hash:       block.Hash(),
-					Number:     block.Number().Uint64(),
+					Number:     block.NumberU64(),
 					ParentHash: block.ParentHash(),
 					Time:       block.Time(),
 				}, hashes)
@@ -171,7 +172,7 @@ func fetchBatchesPerBlock(ctx context.Context, client *ethclient.Client, beacon 
 				BlockNumber: block.NumberU64(),
 				BlockHash:   block.Hash(),
 				BlockTime:   block.Time(),
-				ChainId:     config.ChainID.Uint64(),
+				ChainId:     bigs.Uint64Strict(config.ChainID),
 				InboxAddr:   config.BatchInbox,
 				Frames:      frames,
 				FrameErrs:   frameErrors,

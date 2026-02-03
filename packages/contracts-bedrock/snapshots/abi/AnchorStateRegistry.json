@@ -15,7 +15,7 @@
     "name": "anchorGame",
     "outputs": [
       {
-        "internalType": "contract IFaultDisputeGame",
+        "internalType": "contract IDisputeGame",
         "name": "",
         "type": "address"
       }
@@ -495,7 +495,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "contract IFaultDisputeGame",
+        "internalType": "contract IDisputeGame",
         "name": "game",
         "type": "address"
       }

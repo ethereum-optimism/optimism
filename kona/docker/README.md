@@ -45,6 +45,32 @@ Create and activate a new builder and retry the bake command.
 docker buildx create --name kona-builder --use
 ```
 
+## Nightly Builds
+
+Nightly Docker images are automatically built and published every day at 2 AM UTC for:
+- `kona-node`
+- `kona-host`
+- `kona-supervisor`
+
+### Using Nightly Images
+
+```sh
+# Pull the latest nightly build (multi-platform: linux/amd64, linux/arm64)
+docker pull ghcr.io/op-rs/kona/kona-node:nightly
+docker pull ghcr.io/op-rs/kona/kona-host:nightly
+docker pull ghcr.io/op-rs/kona/kona-supervisor:nightly
+
+# Pull a specific date's nightly build
+docker pull ghcr.io/op-rs/kona/kona-node:nightly-2024-12-10
+```
+
+### Manual Trigger
+
+To manually trigger a nightly build:
+```sh
+gh workflow run "Build and Publish Nightly Docker Images"
+```
+
 ## Cutting a Release (for maintainers / forks)
 
 To cut a release of the docker image for any of the targets, cut a new annotated tag for the target like so:

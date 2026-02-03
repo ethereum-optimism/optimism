@@ -46,13 +46,16 @@ op-program-client-riscv:
 check-custom-chains: op-program-host
 	./bin/op-program configs check-custom-chains
 
-reproducible-prestate: check-custom-chains
+build-reproducible-prestate: check-custom-chains
 	@docker build --build-arg GO_VERSION=1.24.2-alpine3.21 --build-arg EXPORT_TARGET=next  --output ./bin/ --progress plain -f Dockerfile.repro ../
 	@docker build --build-arg GO_VERSION=1.24.2-alpine3.21 --build-arg EXPORT_TARGET=current --output ./bin/ --progress plain -f Dockerfile.repro ../
-	@echo "-------------------- Production Prestates --------------------"
+.PHONY: build-reproducible-prestate
+
+output-prestate-hash:
+	@echo "-------------------- op-program Production Prestates --------------------"
 	@echo "\nCannon64 Absolute prestate hash: "
 	@cat ./bin/prestate-proof-mt64.json | jq -r .pre
-	@echo "\n-------------------- Experimental Prestates --------------------"
+	@echo "\n-------------------- op-program Experimental Prestates --------------------"
 	@echo "\nCannon64Next Absolute prestate hash: "
 	@cat ./bin/prestate-proof-mt64Next.json | jq -r .pre
 	@echo "\nCannonInterop Absolute prestate hash: "
@@ -60,6 +63,9 @@ reproducible-prestate: check-custom-chains
 	@echo "\nCannonInteropNext Absolute prestate hash: "
 	@cat ./bin/prestate-proof-interopNext.json | jq -r .pre
 	@echo
+.PHONY: output-prestate-hash
+
+reproducible-prestate: build-reproducible-prestate output-prestate-hash
 .PHONY: reproducible-prestate
 
 verify-reproducibility:

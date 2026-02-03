@@ -40,10 +40,10 @@ extern crate tracing;
 
 mod task_queue;
 pub use task_queue::{
-    BuildTask, BuildTaskError, ConsolidateTask, ConsolidateTaskError, Engine, EngineBuildError,
-    EngineResetError, EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors,
-    EngineTaskExt, FinalizeTask, FinalizeTaskError, InsertTask, InsertTaskError, SealTask,
-    SealTaskError, SynchronizeTask, SynchronizeTaskError,
+    BuildTask, BuildTaskError, ConsolidateInput, ConsolidateTask, ConsolidateTaskError, Engine,
+    EngineBuildError, EngineResetError, EngineTask, EngineTaskError, EngineTaskErrorSeverity,
+    EngineTaskErrors, EngineTaskExt, FinalizeTask, FinalizeTaskError, InsertTask, InsertTaskError,
+    SealTask, SealTaskError, SynchronizeTask, SynchronizeTaskError,
 };
 
 mod attributes;
@@ -58,7 +58,7 @@ pub use client::{
 mod rollup_boost;
 pub use rollup_boost::{
     FlashblocksClientArgs, FlashblocksWebsocketConfig, RollupBoostServer, RollupBoostServerArgs,
-    RollupBoostServerError, RollupBoostServerLike,
+    RollupBoostServerError,
 };
 
 mod versions;

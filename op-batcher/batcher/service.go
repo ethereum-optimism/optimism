@@ -289,6 +289,8 @@ func (bs *BatcherService) initBlobTipOracle(ctx context.Context, cfg *CLIConfig)
 	// Create the oracle with default config
 	oracleConfig := bgpo.DefaultBlobTipOracleConfig()
 	oracleConfig.NetworkTimeout = bs.NetworkTimeout
+	oracleConfig.MaxBlocks = cfg.TxMgrConfig.BlobTipCapRange
+	oracleConfig.Percentile = cfg.TxMgrConfig.BlobTipCapPercentile
 	minTipCap, err := eth.GweiToWei(cfg.TxMgrConfig.MinTipCapGwei)
 	if err != nil {
 		return fmt.Errorf("invalid min tip cap: %w", err)
@@ -411,8 +413,10 @@ func (bs *BatcherService) initTxManager(ctx context.Context, cfg *CLIConfig) err
 
 	// Create a custom gas price estimator that uses the blob tip oracle if available
 	if bs.blobTipOracle != nil {
+		blobTipCapRange := txmgrConfig.BlobTipCapRange
+		blobTipCapPercentile := txmgrConfig.BlobTipCapPercentile
+
 		txmgrConfig.GasPriceEstimatorFn = func(ctx context.Context, backend txmgr.ETHBackend) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
-			// Get tip and base fee from backend (standard way for execution gas)
 			tip, err := backend.SuggestGasTipCap(ctx)
 			if err != nil {
 				return nil, nil, nil, nil, err
@@ -431,9 +435,7 @@ func (bs *BatcherService) initTxManager(ctx context.Context, cfg *CLIConfig) err
 				return nil, nil, nil, nil, err
 			}
 
-			// Use the oracle's SuggestBlobTipCap for blob tip fee suggestion
-			// This analyzes recent blob transactions to suggest an appropriate blob tip fee
-			suggestedBlobFeeCap, err := bs.blobTipOracle.SuggestBlobTipCap(ctx, 0, 0)
+			suggestedBlobFeeCap, err := bs.blobTipOracle.SuggestBlobTipCap(ctx, blobTipCapRange, blobTipCapPercentile)
 			if err != nil {
 				return nil, nil, nil, nil, fmt.Errorf("blob tip oracle failed to suggest blob tip fee: %w", err)
 			}

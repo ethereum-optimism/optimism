@@ -8,19 +8,21 @@ import { Test } from "test/setup/Test.sol";
 import { UpgradeSuperchainConfig } from "scripts/deploy/UpgradeSuperchainConfig.s.sol";
 
 // Interfaces
+import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
+// Libraries
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @title MockOPCMV1
 /// @notice This contract is used to mock the OPCM contract and emit an event which we check for in the test.
 contract MockOPCMV1 {
     event UpgradeCalled(address indexed superchainConfig);
 
-    function isDevFeatureEnabled(bytes32 /* _feature */ ) public pure returns (bool) {
-        return false;
+    function version() public pure returns (string memory) {
+        return "6.0.0";
     }
 
     function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig) public {
@@ -33,8 +35,8 @@ contract MockOPCMV1 {
 contract MockOPCMV2 {
     event UpgradeCalled(IOPContractsManagerV2.SuperchainUpgradeInput indexed superchainUpgradeInput);
 
-    function isDevFeatureEnabled(bytes32 _feature) public pure returns (bool) {
-        return _feature == DevFeatures.OPCM_V2;
+    function version() public pure returns (string memory) {
+        return Constants.OPCM_V2_MIN_VERSION;
     }
 
     function upgradeSuperchain(IOPContractsManagerV2.SuperchainUpgradeInput memory _superchainUpgradeInput) public {
@@ -93,6 +95,19 @@ contract UpgradeSuperchainConfigV1_Run_Test is Test {
         upgradeSuperchainConfig.run(input);
         input.superchainConfig = ISuperchainConfig(address(superchainConfig));
     }
+
+    /// @notice Tests that the UpgradeSuperchainConfig script reverts when the OPCM upgradeSuperchainConfig
+    /// call fails
+    function test_upgrade_whenOPCMReverts_reverts() public {
+        vm.mockCallRevert(
+            prank,
+            IOPContractsManager.upgradeSuperchainConfig.selector,
+            abi.encode("UpgradeSuperchainConfig: upgrade failed")
+        );
+
+        vm.expectRevert("UpgradeSuperchainConfig: upgrade failed");
+        upgradeSuperchainConfig.run(input);
+    }
 }
 
 /// @title UpgradeSuperchainConfigV2_Run_Test
@@ -141,5 +156,20 @@ contract UpgradeSuperchainConfigV2_Run_Test is Test {
             superchainConfig: superchainConfig,
             extraInstructions: extraInstructions
         });
+    }
+
+    /// @notice Tests that the UpgradeSuperchainConfig script reverts when the OPCM v2 upgradeSuperchain
+    /// call fails
+    function test_upgrade_whenOPCMV2Reverts_reverts() public {
+        UpgradeSuperchainConfig.Input memory input = _getInput(new IOPContractsManagerUtils.ExtraInstruction[](0));
+
+        vm.mockCallRevert(
+            prank,
+            IOPContractsManagerV2.upgradeSuperchain.selector,
+            abi.encode("UpgradeSuperchainConfig: upgrade failed")
+        );
+
+        vm.expectRevert("UpgradeSuperchainConfig: upgrade failed");
+        upgradeSuperchainConfig.run(input);
     }
 }

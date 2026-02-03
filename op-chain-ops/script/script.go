@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
 // jumpHistory is the amount of successful jumps to track for debugging.
@@ -371,9 +372,17 @@ func (h *Host) Call(from common.Address, to common.Address, input []byte, gas ui
 
 	defer func() {
 		if r := recover(); r != nil {
-			// Cast to a string to check the error message. If it's not a string it's
-			// an unexpected panic and we should re-raise it.
-			rStr, ok := r.(string)
+			// Try to get the panic message as a string. It could be a plain string
+			// or an error type (e.g., from errors.New or fmt.Errorf).
+			var rStr string
+			var ok bool
+			if rStr, ok = r.(string); !ok {
+				// Not a string, try error interface
+				if rErr, errOk := r.(error); errOk {
+					rStr = rErr.Error()
+					ok = true
+				}
+			}
 			if !ok || !strings.Contains(strings.ToLower(rStr), "revision id 1") {
 				fmt.Println("panic", rStr)
 				panic(r)
@@ -784,7 +793,7 @@ func (h *Host) StateDump() (*foundry.ForgeAllocs, error) {
 	baseState := h.baseState
 	// We have to commit the existing state to the trie,
 	// for all the state-changes to be captured by the trie iterator.
-	root, err := baseState.Commit(h.env.Context().BlockNumber.Uint64(), true, false)
+	root, err := baseState.Commit(bigs.Uint64Strict(h.env.Context().BlockNumber), true, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to commit state: %w", err)
 	}

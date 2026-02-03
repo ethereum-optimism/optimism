@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -73,12 +74,12 @@ func TestPrecompile(t *testing.T) {
 
 		t.Log("Determine L2 claim")
 		l2ClaimBlockNumber := receipt.BlockNumber
-		l2Output, err := rollupClient.OutputAtBlock(ctx, l2ClaimBlockNumber.Uint64())
+		l2Output, err := rollupClient.OutputAtBlock(ctx, bigs.Uint64Strict(l2ClaimBlockNumber))
 		require.NoError(t, err, "could not get expected output")
 		l2Claim := l2Output.OutputRoot
 
 		t.Log("Determine L1 head that includes all batches required for L2 claim block")
-		require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, l2ClaimBlockNumber.Uint64()))
+		require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, bigs.Uint64Strict(l2ClaimBlockNumber)))
 		l1HeadBlock, err := l1Client.BlockByNumber(ctx, nil)
 		require.NoError(t, err, "get l1 head block")
 		l1Head := l1HeadBlock.Hash()
@@ -116,7 +117,7 @@ func TestDisputePrecompile(t *testing.T) {
 		})
 
 		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-		game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", receipt.BlockNumber.Uint64(), common.Hash{0x01, 0xaa})
+		game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", bigs.Uint64Strict(receipt.BlockNumber), common.Hash{0x01, 0xaa})
 		require.NotNil(t, game)
 		outputRootClaim := game.DisputeLastBlock(ctx)
 		game.LogGameData(ctx)
@@ -187,12 +188,12 @@ func TestGranitePrecompiles(t *testing.T) {
 		t.Logf("Transaction hash %v", tx.Hash())
 		t.Log("Determine L2 claim")
 		l2ClaimBlockNumber := receipt.BlockNumber
-		l2Output, err := rollupClient.OutputAtBlock(ctx, l2ClaimBlockNumber.Uint64())
+		l2Output, err := rollupClient.OutputAtBlock(ctx, bigs.Uint64Strict(l2ClaimBlockNumber))
 		require.NoError(t, err, "could not get expected output")
 		l2Claim := l2Output.OutputRoot
 
 		t.Log("Determine L1 head that includes all batches required for L2 claim block")
-		require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, l2ClaimBlockNumber.Uint64()))
+		require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, bigs.Uint64Strict(l2ClaimBlockNumber)))
 		l1HeadBlock, err := l1Client.BlockByNumber(ctx, nil)
 		require.NoError(t, err, "get l1 head block")
 		l1Head := l1HeadBlock.Hash()

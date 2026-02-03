@@ -1,8 +1,18 @@
 //! Contains ecotone-specific L1 block info types.
 
-use crate::{DecodeError, info::CommonL1BlockFields};
+use crate::{
+    DecodeError,
+    info::{
+        L1BlockInfoEcotoneBaseFields,
+        bedrock_base::{
+            L1BlockInfoBedrockBaseFields, ambassador_impl_L1BlockInfoBedrockBaseFields,
+        },
+        ecotone_base::{L1BlockInfoEcotoneBase, ambassador_impl_L1BlockInfoEcotoneBaseFields},
+    },
+};
 use alloc::vec::Vec;
 use alloy_primitives::{Address, B256, Bytes, U256};
+use ambassador::Delegate;
 
 /// Represents the fields within an Ecotone L1 block info transaction.
 ///
@@ -21,27 +31,14 @@ use alloy_primitives::{Address, B256, Bytes, U256};
 /// | 32      | BlockHash                |
 /// | 32      | BatcherHash              |
 /// +---------+--------------------------+
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Default, Copy)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Default, Copy, Delegate)]
+#[allow(clippy::duplicated_attributes)]
+#[delegate(L1BlockInfoBedrockBaseFields, target = "base")]
+#[delegate(L1BlockInfoEcotoneBaseFields, target = "base")]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct L1BlockInfoEcotone {
-    /// The current L1 origin block number
-    pub number: u64,
-    /// The current L1 origin block's timestamp
-    pub time: u64,
-    /// The current L1 origin block's basefee
-    pub base_fee: u64,
-    /// The current L1 origin block's hash
-    pub block_hash: B256,
-    /// The current sequence number
-    pub sequence_number: u64,
-    /// The address of the batch submitter
-    pub batcher_address: Address,
-    /// The current blob base fee on L1
-    pub blob_base_fee: u128,
-    /// The fee scalar for L1 blobspace data
-    pub blob_base_fee_scalar: u32,
-    /// The fee scalar for L1 data
-    pub base_fee_scalar: u32,
+    #[cfg_attr(feature = "serde", serde(flatten))]
+    base: L1BlockInfoEcotoneBase,
     /// Indicates that the scalars are empty.
     /// This is an edge case where the first block in ecotone has no scalars,
     /// so the bedrock tx l1 cost function needs to be used.
@@ -52,6 +49,38 @@ pub struct L1BlockInfoEcotone {
     /// This field is deprecated in the Ecotone Hardfork.
     pub l1_fee_overhead: U256,
 }
+
+/// Accessors to fields deprecated in later Isthmus.
+pub trait L1BlockInfoEcotoneOnlyFields {
+    /// Indicates that the scalars are empty.
+    /// This is an edge case where the first block in ecotone has no scalars,
+    /// so the bedrock tx l1 cost function needs to be used.
+    fn empty_scalars(&self) -> bool;
+
+    /// The l1 fee overhead used along with the `empty_scalars` field for the
+    /// bedrock tx l1 cost function.
+    ///
+    /// This field is deprecated in the Ecotone Hardfork.
+    fn l1_fee_overhead(&self) -> U256;
+}
+
+impl L1BlockInfoEcotoneOnlyFields for L1BlockInfoEcotone {
+    fn empty_scalars(&self) -> bool {
+        self.empty_scalars
+    }
+
+    fn l1_fee_overhead(&self) -> U256 {
+        self.l1_fee_overhead
+    }
+}
+
+/// Accessors for all Ecotone fields.
+pub trait L1BlockInfoEcotoneFields:
+    L1BlockInfoBedrockBaseFields + L1BlockInfoEcotoneOnlyFields
+{
+}
+
+impl L1BlockInfoEcotoneFields for L1BlockInfoEcotone {}
 
 impl L1BlockInfoEcotone {
     /// The type byte identifier for the L1 scalar format in Ecotone.
@@ -66,24 +95,16 @@ impl L1BlockInfoEcotone {
     /// Encodes the [`L1BlockInfoEcotone`] object into Ethereum transaction calldata.
     pub fn encode_calldata(&self) -> Bytes {
         let mut buf = Vec::with_capacity(Self::L1_INFO_TX_LEN);
-        buf.extend_from_slice(Self::L1_INFO_TX_SELECTOR.as_ref());
-
-        let common = CommonL1BlockFields {
-            base_fee_scalar: self.base_fee_scalar,
-            blob_base_fee_scalar: self.blob_base_fee_scalar,
-            sequence_number: self.sequence_number,
-            time: self.time,
-            number: self.number,
-            base_fee: self.base_fee,
-            blob_base_fee: self.blob_base_fee,
-            block_hash: self.block_hash,
-            batcher_address: self.batcher_address,
-        };
-        common.encode_into(&mut buf);
-
+        self.encode_ecotone_header(&mut buf);
+        self.base.encode_calldata_body(&mut buf);
         // Notice: do not include the `empty_scalars` field in the calldata.
         // Notice: do not include the `l1_fee_overhead` field in the calldata.
         buf.into()
+    }
+
+    /// Encodes the header part of the [`L1BlockInfoEcotone`] object.
+    pub fn encode_ecotone_header(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(Self::L1_INFO_TX_SELECTOR.as_ref())
     }
 
     /// Decodes the [`L1BlockInfoEcotone`] object from ethereum transaction calldata.
@@ -91,29 +112,110 @@ impl L1BlockInfoEcotone {
         if r.len() != Self::L1_INFO_TX_LEN {
             return Err(DecodeError::InvalidEcotoneLength(Self::L1_INFO_TX_LEN, r.len()));
         }
-
         // SAFETY: For all below slice operations, the full
         //         length is validated above to be `164`.
+        let base = L1BlockInfoEcotoneBase::decode_calldata_body(r);
 
-        let common = CommonL1BlockFields::decode_from(r);
-
-        Ok(Self {
-            number: common.number,
-            time: common.time,
-            base_fee: common.base_fee,
-            block_hash: common.block_hash,
-            sequence_number: common.sequence_number,
-            batcher_address: common.batcher_address,
-            blob_base_fee: common.blob_base_fee,
-            blob_base_fee_scalar: common.blob_base_fee_scalar,
-            base_fee_scalar: common.base_fee_scalar,
+        Ok(Self::new(
+            base.number(),
+            base.time(),
+            base.base_fee(),
+            base.block_hash(),
+            base.sequence_number(),
+            base.batcher_address(),
+            base.blob_base_fee,
+            base.blob_base_fee_scalar,
+            base.base_fee_scalar,
             // Notice: the `empty_scalars` field is not included in the calldata.
             // This is used by the evm to indicate that the bedrock tx l1 cost function
             // needs to be used.
-            empty_scalars: false,
+            false,
             // Notice: the `l1_fee_overhead` field is not included in the calldata.
-            l1_fee_overhead: U256::ZERO,
-        })
+            U256::ZERO,
+        ))
+    }
+
+    /// Construct from all values.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) const fn new(
+        number: u64,
+        time: u64,
+        base_fee: u64,
+        block_hash: B256,
+        sequence_number: u64,
+        batcher_address: Address,
+        blob_base_fee: u128,
+        blob_base_fee_scalar: u32,
+        base_fee_scalar: u32,
+        empty_scalars: bool,
+        l1_fee_overhead: U256,
+    ) -> Self {
+        Self {
+            base: L1BlockInfoEcotoneBase::new(
+                number,
+                time,
+                base_fee,
+                block_hash,
+                sequence_number,
+                batcher_address,
+                blob_base_fee,
+                blob_base_fee_scalar,
+                base_fee_scalar,
+            ),
+            empty_scalars,
+            l1_fee_overhead,
+        }
+    }
+    /// Construct from default values and `base_fee`.
+    pub fn new_from_base_fee(base_fee: u64) -> Self {
+        Self { base: L1BlockInfoEcotoneBase::new_from_base_fee(base_fee), ..Default::default() }
+    }
+    /// Construct from default values and `block_hash`.
+    pub fn new_from_block_hash(block_hash: B256) -> Self {
+        let base = L1BlockInfoEcotoneBase::new_from_block_hash(block_hash);
+        Self { base, ..Default::default() }
+    }
+    /// Construct from default values and `sequence_number`.
+    pub fn new_from_sequence_number(sequence_number: u64) -> Self {
+        Self {
+            base: L1BlockInfoEcotoneBase::new_from_sequence_number(sequence_number),
+            ..Default::default()
+        }
+    }
+    /// Construct from default values and `batcher_address`.
+    pub fn new_from_batcher_address(batcher_address: Address) -> Self {
+        Self {
+            base: L1BlockInfoEcotoneBase::new_from_batcher_address(batcher_address),
+            ..Default::default()
+        }
+    }
+    /// Construct from default values and `blob_base_fee`.
+    pub fn new_from_blob_base_fee(blob_base_fee: u128) -> Self {
+        let base = L1BlockInfoEcotoneBase::new_from_blob_base_fee(blob_base_fee);
+        Self { base, ..Default::default() }
+    }
+    /// Construct from default values and `blob_base_fee_scalar`.
+    pub fn new_from_blob_base_fee_scalar(base_fee_scalar: u32) -> Self {
+        let base = L1BlockInfoEcotoneBase::new_from_blob_base_fee_scalar(base_fee_scalar);
+        Self { base, ..Default::default() }
+    }
+    /// Construct from default values and `base_fee_scalar`.
+    pub fn new_from_base_fee_scalar(base_fee: u32) -> Self {
+        let base = L1BlockInfoEcotoneBase::new_from_base_fee_scalar(base_fee);
+        Self { base, ..Default::default() }
+    }
+    /// Construct from default values and `l1_fee_overhead`.
+    pub fn new_from_l1_fee_overhead(l1_fee_overhead: U256) -> Self {
+        Self { l1_fee_overhead, ..Default::default() }
+    }
+    /// Construct from default values and `empty_scalars`.
+    pub fn new_from_empty_scalars(empty_scalars: bool) -> Self {
+        Self { empty_scalars, ..Default::default() }
+    }
+    /// Construct from default values, `number` and `block_hash`.
+    pub fn new_from_number_and_block_hash(number: u64, block_hash: B256) -> Self {
+        let base = L1BlockInfoEcotoneBase::new_from_number_and_block_hash(number, block_hash);
+        Self { base, ..Default::default() }
     }
 }
 
@@ -133,19 +235,19 @@ mod tests {
 
     #[test]
     fn test_l1_block_info_ecotone_roundtrip_calldata_encoding() {
-        let info = L1BlockInfoEcotone {
-            number: 1,
-            time: 2,
-            base_fee: 3,
-            block_hash: B256::from([4u8; 32]),
-            sequence_number: 5,
-            batcher_address: Address::from([6u8; 20]),
-            blob_base_fee: 7,
-            blob_base_fee_scalar: 8,
-            base_fee_scalar: 9,
-            empty_scalars: false,
-            l1_fee_overhead: U256::ZERO,
-        };
+        let info = L1BlockInfoEcotone::new(
+            1,
+            2,
+            3,
+            B256::from([4u8; 32]),
+            5,
+            Address::from([6u8; 20]),
+            7,
+            8,
+            9,
+            false,
+            U256::ZERO,
+        );
 
         let calldata = info.encode_calldata();
         let decoded_info = L1BlockInfoEcotone::decode_calldata(&calldata).unwrap();

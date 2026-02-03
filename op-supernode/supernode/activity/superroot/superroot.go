@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	gethlog "github.com/ethereum/go-ethereum/log"
 )
 
@@ -35,28 +36,57 @@ func (s *Superroot) RPCService() interface{} { return &superrootAPI{s: s} }
 type superrootAPI struct{ s *Superroot }
 
 // AtTimestamp computes the super-root at the given timestamp, plus additional information about the current L1s, verified L2s, and optimistic L2s
-func (api *superrootAPI) AtTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
-	return api.s.atTimestamp(ctx, timestamp)
+func (api *superrootAPI) AtTimestamp(ctx context.Context, timestamp hexutil.Uint64) (eth.SuperRootAtTimestampResponse, error) {
+	return api.s.atTimestamp(ctx, uint64(timestamp))
 }
 
 func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
-	optimistic := map[eth.ChainID]eth.OutputWithRequiredL1{}
-	minCurrentL1 := eth.BlockID{}
-	minVerifiedRequiredL1 := eth.BlockID{}
-	chainOutputs := make([]eth.ChainIDAndOutput, 0, len(s.chains))
-
+	var (
+		optimistic            = make(map[eth.ChainID]eth.OutputWithRequiredL1, len(s.chains))
+		minCurrentL1          eth.BlockID
+		minVerifiedRequiredL1 eth.BlockID
+		minSafeTimestamp      uint64
+		minFinalizedTimestamp uint64
+		safeInitialized       bool
+		finalizedInitialized  bool
+		chainOutputs          = make([]eth.ChainIDAndOutput, 0, len(s.chains))
+	)
 	// Get current l1s
 	// this informs callers that the chains local views have considered at least up to this L1 block
 	// TODO(#18651): Currently there are no verifiers to consider, but once there are, this needs to be updated to consider if
 	// they have also processed the L1 data.
 	for chainID, chain := range s.chains {
-		currentL1, err := chain.CurrentL1(ctx)
+		status, err := chain.SyncStatus(ctx)
 		if err != nil {
-			s.log.Warn("failed to get current L1", "chain_id", chainID.String(), "err", err)
+			s.log.Warn("failed to get sync status", "chain_id", chainID.String(), "err", err)
 			return eth.SuperRootAtTimestampResponse{}, err
 		}
-		if currentL1.ID().Number < minCurrentL1.Number || minCurrentL1 == (eth.BlockID{}) {
-			minCurrentL1 = currentL1.ID()
+		if status == nil { // defensive
+			status = &eth.SyncStatus{}
+		}
+
+		currentL1 := status.CurrentL1.ID()
+		if currentL1.Number < minCurrentL1.Number || minCurrentL1 == (eth.BlockID{}) {
+			minCurrentL1 = currentL1
+		}
+		// Conservative aggregation across chains: take the minimum timestamps.
+		// If any chain has a zero timestamp (not initialized), the aggregate is zero.
+		if !safeInitialized {
+			minSafeTimestamp = status.SafeL2.Time
+			safeInitialized = true
+		} else if minSafeTimestamp == 0 || status.SafeL2.Time == 0 {
+			minSafeTimestamp = 0
+		} else if status.SafeL2.Time < minSafeTimestamp {
+			minSafeTimestamp = status.SafeL2.Time
+		}
+
+		if !finalizedInitialized {
+			minFinalizedTimestamp = status.FinalizedL2.Time
+			finalizedInitialized = true
+		} else if minFinalizedTimestamp == 0 || status.FinalizedL2.Time == 0 {
+			minFinalizedTimestamp = 0
+		} else if status.FinalizedL2.Time < minFinalizedTimestamp {
+			minFinalizedTimestamp = status.FinalizedL2.Time
 		}
 	}
 
@@ -106,9 +136,11 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		return a.Cmp(b)
 	})
 	response := eth.SuperRootAtTimestampResponse{
-		CurrentL1:             minCurrentL1,
-		OptimisticAtTimestamp: optimistic,
-		ChainIDs:              chainIDs,
+		CurrentL1:                 minCurrentL1,
+		CurrentSafeTimestamp:      minSafeTimestamp,
+		CurrentFinalizedTimestamp: minFinalizedTimestamp,
+		OptimisticAtTimestamp:     optimistic,
+		ChainIDs:                  chainIDs,
 	}
 	if !notFound {
 		// Build super root from collected outputs

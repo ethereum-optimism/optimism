@@ -1,24 +1,29 @@
 //! Contains the [`RollupNode`] implementation.
 use crate::{
-    ConductorClient, DelayedL1OriginSelectorProvider, DerivationActor, DerivationBuilder,
-    DerivationContext, EngineActor, EngineConfig, EngineContext, InteropMode, L1OriginSelector,
-    L1WatcherActor, NetworkActor, NetworkBuilder, NetworkConfig, NetworkContext, NodeActor,
-    NodeMode, QueuedBlockBuildingClient, QueuedSequencerAdminAPIClient, RpcActor, RpcContext,
-    SequencerActor, SequencerConfig,
-    actors::{
-        BlockStream, DerivationInboundChannels, EngineInboundData, NetworkInboundData,
-        QueuedUnsafePayloadGossipClient,
-    },
+    ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
+    DerivationDelegateClient, DerivationError, EngineActor, EngineActorRequest, EngineConfig,
+    EngineProcessor, EngineRpcProcessor, InteropMode, L1OriginSelector, L1WatcherActor,
+    NetworkActor, NetworkBuilder, NetworkConfig, NodeActor, NodeMode, QueuedDerivationEngineClient,
+    QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
+    QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
+    RollupBoostAdminApiClient, RollupBoostHealthRpcClient, RpcActor, RpcContext, SequencerActor,
+    SequencerConfig,
+    actors::{BlockStream, NetworkInboundData, QueuedUnsafePayloadGossipClient},
 };
 use alloy_eips::BlockNumberOrTag;
 use alloy_provider::RootProvider;
 use kona_derive::StatefulAttributesBuilder;
+use kona_engine::{Engine, EngineState, OpEngineClient};
 use kona_genesis::{L1ChainConfig, RollupConfig};
-use kona_providers_alloy::{AlloyChainProvider, AlloyL2ChainProvider, OnlineBeaconClient};
+use kona_protocol::L2BlockInfo;
+use kona_providers_alloy::{
+    AlloyChainProvider, AlloyL2ChainProvider, OnlineBeaconClient, OnlineBlobProvider,
+    OnlinePipeline,
+};
 use kona_rpc::RpcBuilder;
 use op_alloy_network::Optimism;
 use std::{ops::Not as _, sync::Arc, time::Duration};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
@@ -60,26 +65,45 @@ pub struct RollupNode {
     pub(crate) p2p_config: NetworkConfig,
     /// The [`SequencerConfig`] for the node.
     pub(crate) sequencer_config: SequencerConfig,
+    /// Optional derivation delegate provider.
+    pub(crate) derivation_delegate_provider: Option<DerivationDelegateClient>,
+}
+
+/// A RollupNode-level derivation actor wrapper.
+///
+/// This type selects the concrete derivation actor implementation
+/// based on RollupNode configuration.
+///
+/// It is not intended to be generic or reusable outside the
+/// RollupNode wiring logic.
+enum ConfiguredDerivationActor {
+    Delegate(Box<DelegateDerivationActor<QueuedDerivationEngineClient>>),
+    Normal(Box<DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>>),
+}
+
+#[async_trait::async_trait]
+impl NodeActor for ConfiguredDerivationActor
+where
+    DelegateDerivationActor<QueuedDerivationEngineClient>:
+        NodeActor<StartData = (), Error = DerivationError>,
+    DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>:
+        NodeActor<StartData = (), Error = DerivationError>,
+{
+    type StartData = ();
+    type Error = DerivationError;
+
+    async fn start(self, ctx: ()) -> Result<(), Self::Error> {
+        match self {
+            Self::Delegate(a) => a.start(ctx).await,
+            Self::Normal(a) => a.start(ctx).await,
+        }
+    }
 }
 
 impl RollupNode {
     /// The mode of operation for the node.
     const fn mode(&self) -> NodeMode {
         self.engine_config.mode
-    }
-
-    /// Returns a derivation builder for the node.
-    fn derivation_builder(&self) -> DerivationBuilder {
-        DerivationBuilder {
-            l1_provider: self.l1_config.engine_provider.clone(),
-            l1_trust_rpc: self.l1_config.trust_rpc,
-            l1_beacon: self.l1_config.beacon_client.clone(),
-            l2_provider: self.l2_provider.clone(),
-            l2_trust_rpc: self.l2_trust_rpc,
-            rollup_config: self.config.clone(),
-            l1_config: self.l1_config.chain_config.clone(),
-            interop_mode: self.interop_mode,
-        }
     }
 
     /// Creates a network builder for the node.
@@ -121,6 +145,93 @@ impl RollupNode {
         )
     }
 
+    async fn create_pipeline(&self) -> OnlinePipeline {
+        // Create the caching L1/L2 EL providers for derivation.
+        let l1_derivation_provider = AlloyChainProvider::new_with_trust(
+            self.l1_config.engine_provider.clone(),
+            DERIVATION_PROVIDER_CACHE_SIZE,
+            self.l1_config.trust_rpc,
+        );
+        let l2_derivation_provider = AlloyL2ChainProvider::new_with_trust(
+            self.l2_provider.clone(),
+            self.config.clone(),
+            DERIVATION_PROVIDER_CACHE_SIZE,
+            self.l2_trust_rpc,
+        );
+
+        match self.interop_mode {
+            InteropMode::Polled => OnlinePipeline::new_polled(
+                self.config.clone(),
+                self.l1_config.chain_config.clone(),
+                OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
+                l1_derivation_provider,
+                l2_derivation_provider,
+            ),
+            InteropMode::Indexed => OnlinePipeline::new_indexed(
+                self.config.clone(),
+                self.l1_config.chain_config.clone(),
+                OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
+                l1_derivation_provider,
+                l2_derivation_provider,
+            ),
+        }
+    }
+
+    /// Helper function to assemble the [`EngineActor`] since there are many structs created that
+    /// are not relevant to other actors or logic.
+    /// Note: ignoring complex type warning. This type only pertains to this function, so it is
+    /// better to have the full type here than have to piece it together from multiple type defs.
+    #[allow(clippy::type_complexity)]
+    fn create_engine_actor(
+        &self,
+        cancellation_token: CancellationToken,
+        engine_request_rx: mpsc::Receiver<EngineActorRequest>,
+        derivation_client: QueuedEngineDerivationClient,
+        unsafe_head_tx: watch::Sender<L2BlockInfo>,
+    ) -> Result<
+        EngineActor<
+            EngineProcessor<
+                OpEngineClient<RootProvider, RootProvider<Optimism>>,
+                QueuedEngineDerivationClient,
+            >,
+            EngineRpcProcessor<OpEngineClient<RootProvider, RootProvider<Optimism>>>,
+        >,
+        String,
+    > {
+        let engine_state = EngineState::default();
+        let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
+        let (engine_queue_length_tx, engine_queue_length_rx) = watch::channel(0);
+        let engine = Engine::new(engine_state, engine_state_tx, engine_queue_length_tx);
+
+        let engine_client = Arc::new(self.engine_config().build_engine_client().map_err(|e| {
+            error!(target: "service", error = ?e, "engine client build failed");
+            format!("Engine client build failed: {e:?}")
+        })?);
+
+        let engine_processor = EngineProcessor::new(
+            engine_client.clone(),
+            self.config.clone(),
+            derivation_client,
+            engine,
+            if self.mode().is_sequencer() { Some(unsafe_head_tx) } else { None },
+        );
+
+        let engine_rpc_processor = EngineRpcProcessor::new(
+            engine_client.clone(),
+            engine_client.rollup_boost.clone(),
+            self.config.clone(),
+            engine_state_rx,
+            engine_queue_length_rx,
+        );
+
+        Ok(EngineActor::new(
+            cancellation_token,
+            engine_request_rx,
+            engine_processor,
+            engine_rpc_processor,
+        ))
+    }
+
     /// Starts the rollup node service.
     ///
     /// The rollup node, in validator mode, listens to two sources of information to sync the L2
@@ -144,33 +255,47 @@ impl RollupNode {
         // Create a global cancellation token for graceful shutdown of tasks.
         let cancellation = CancellationToken::new();
 
-        // Create the derivation actor.
-        let (
-            DerivationInboundChannels {
-                derivation_signal_tx,
-                l1_head_updates_tx,
-                engine_l2_safe_head_tx,
-                el_sync_complete_tx,
-            },
-            derivation,
-        ) = DerivationActor::new(self.derivation_builder());
+        let (derivation_actor_request_tx, derivation_actor_request_rx) = mpsc::channel(1024);
 
-        // Create the engine actor.
-        let (
-            EngineInboundData {
-                attributes_tx,
-                build_request_tx,
-                finalized_l1_block_tx,
-                inbound_queries_tx: engine_rpc,
-                reset_request_tx,
-                rollup_boost_admin_query_tx: rollup_boost_admin_rpc,
-                rollup_boost_health_query_tx: rollup_boost_health_rpc,
-                seal_request_tx,
-                unsafe_block_tx,
-                unsafe_head_rx,
-            },
-            engine,
-        ) = EngineActor::new(self.engine_config());
+        let (engine_actor_request_tx, engine_actor_request_rx) = mpsc::channel(1024);
+        let (unsafe_head_tx, unsafe_head_rx) = watch::channel(L2BlockInfo::default());
+
+        let engine_actor = self.create_engine_actor(
+            cancellation.clone(),
+            engine_actor_request_rx,
+            QueuedEngineDerivationClient::new(derivation_actor_request_tx.clone()),
+            unsafe_head_tx,
+        )?;
+
+        // Select the concrete derivation actor implementation based on
+        // RollupNode configuration.
+        let derivation: ConfiguredDerivationActor = if let Some(provider) =
+            self.derivation_delegate_provider.clone()
+        {
+            // L1 Provider for sanity checking Derivation Delegation
+            let l1_provider = AlloyChainProvider::new(
+                self.l1_config.engine_provider.clone(),
+                DERIVATION_PROVIDER_CACHE_SIZE,
+            );
+            ConfiguredDerivationActor::Delegate(Box::new(DelegateDerivationActor::<_>::new(
+                QueuedDerivationEngineClient {
+                    engine_actor_request_tx: engine_actor_request_tx.clone(),
+                },
+                cancellation.clone(),
+                derivation_actor_request_rx,
+                provider,
+                l1_provider,
+            )))
+        } else {
+            ConfiguredDerivationActor::Normal(Box::new(DerivationActor::<_, OnlinePipeline>::new(
+                QueuedDerivationEngineClient {
+                    engine_actor_request_tx: engine_actor_request_tx.clone(),
+                },
+                cancellation.clone(),
+                derivation_actor_request_rx,
+                self.create_pipeline().await,
+            )))
+        };
 
         // Create the p2p actor.
         let (
@@ -181,14 +306,16 @@ impl RollupNode {
                 admin_rpc: net_admin_rpc,
             },
             network,
-        ) = NetworkActor::new(self.network_builder());
+        ) = NetworkActor::new(
+            QueuedNetworkEngineClient { engine_actor_request_tx: engine_actor_request_tx.clone() },
+            cancellation.clone(),
+            self.network_builder(),
+        );
 
-        // Create the RPC server actor.
-        let rpc = self.rpc_builder().map(RpcActor::new);
-
+        let (l1_head_updates_tx, l1_head_updates_rx) = watch::channel(None);
         let delayed_l1_provider = DelayedL1OriginSelectorProvider::new(
             self.l1_config.engine_provider.clone(),
-            l1_head_updates_tx.subscribe(),
+            l1_head_updates_rx,
             self.sequencer_config.l1_conf_delay,
         );
 
@@ -221,7 +348,7 @@ impl RollupNode {
             self.l1_config.engine_provider.clone(),
             l1_query_rx,
             l1_head_updates_tx.clone(),
-            finalized_l1_block_tx.clone(),
+            QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
             signer,
             cancellation.clone(),
             head_stream,
@@ -229,21 +356,10 @@ impl RollupNode {
         );
 
         // Create the sequencer if needed
-        let (sequencer_actor, sequencer_admin_api_tx) = if self.mode().is_sequencer() {
-            let block_building_client = QueuedBlockBuildingClient {
-                build_request_tx: build_request_tx.ok_or(
-                    "build_request_tx is None in sequencer mode. This should never happen."
-                        .to_string(),
-                )?,
-                reset_request_tx: reset_request_tx.clone(),
-                seal_request_tx: seal_request_tx.ok_or(
-                    "seal_request_tx is None in sequencer mode. This should never happen."
-                        .to_string(),
-                )?,
-                unsafe_head_rx: unsafe_head_rx.ok_or(
-                    "unsafe_head_rx is None in sequencer mode. This should never happen."
-                        .to_string(),
-                )?,
+        let (sequencer_actor, sequencer_admin_client) = if self.mode().is_sequencer() {
+            let sequencer_engine_client = QueuedSequencerEngineClient {
+                engine_actor_request_tx: engine_actor_request_tx.clone(),
+                unsafe_head_rx,
             };
 
             // Create the admin API channel
@@ -255,9 +371,9 @@ impl RollupNode {
                 Some(SequencerActor {
                     admin_api_rx: sequencer_admin_api_rx,
                     attributes_builder: self.create_attributes_builder(),
-                    block_building_client,
                     cancellation_token: cancellation.clone(),
                     conductor,
+                    engine_client: sequencer_engine_client,
                     is_active: self.sequencer_config.sequencer_stopped.not(),
                     in_recovery_mode: self.sequencer_config.sequencer_recovery_mode,
                     origin_selector: delayed_origin_selector,
@@ -270,6 +386,21 @@ impl RollupNode {
             (None, None)
         };
 
+        // Create the RPC server actor.
+        let rpc = self.rpc_builder().map(|b| {
+            RpcActor::new(
+                b,
+                QueuedEngineRpcClient::new(engine_actor_request_tx.clone()),
+                RollupBoostAdminApiClient {
+                    engine_actor_request_tx: engine_actor_request_tx.clone(),
+                },
+                RollupBoostHealthRpcClient {
+                    engine_actor_request_tx: engine_actor_request_tx.clone(),
+                },
+                sequencer_admin_client,
+            )
+        });
+
         crate::service::spawn_and_wait!(
             cancellation,
             actors = [
@@ -279,36 +410,14 @@ impl RollupNode {
                         cancellation: cancellation.clone(),
                         p2p_network: network_rpc,
                         network_admin: net_admin_rpc,
-                        sequencer_admin: sequencer_admin_api_tx,
                         l1_watcher_queries: l1_query_tx,
-                        engine_query: engine_rpc,
-                        rollup_boost_admin: rollup_boost_admin_rpc,
-                        rollup_boost_health: rollup_boost_health_rpc,
                     }
                 )),
                 sequencer_actor.map(|s| (s, ())),
-                Some((
-                    network,
-                    NetworkContext { blocks: unsafe_block_tx, cancellation: cancellation.clone() }
-                )),
+                Some((network, ())),
                 Some((l1_watcher, ())),
-                Some((
-                    derivation,
-                    DerivationContext {
-                        reset_request_tx: reset_request_tx.clone(),
-                        derived_attributes_tx: attributes_tx,
-                        cancellation: cancellation.clone(),
-                    }
-                )),
-                Some((
-                    engine,
-                    EngineContext {
-                        engine_l2_safe_head_tx,
-                        sync_complete_tx: el_sync_complete_tx,
-                        derivation_signal_tx,
-                        cancellation: cancellation.clone(),
-                    }
-                )),
+                Some((derivation, ())),
+                Some((engine_actor, ())),
             ]
         );
         Ok(())

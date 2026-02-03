@@ -6,6 +6,9 @@
 ///
 /// Actors are passed in as optional arguments, in case a given actor is not needed.
 ///
+/// This macro also handles OS shutdown signals (SIGTERM, SIGINT) and triggers graceful shutdown
+/// when received.
+///
 /// [JoinSet]: tokio::task::JoinSet
 /// [NodeActor]: crate::NodeActor
 macro_rules! spawn_and_wait {
@@ -33,22 +36,36 @@ macro_rules! spawn_and_wait {
             }
         )*
 
-        while let Some(result) = task_handles.join_next().await {
-            match result {
-                Ok(Ok(())) => { /* Actor completed successfully */ }
-                Ok(Err(e)) => {
-                    tracing::error!(target: "rollup_node", "Critical error in sub-routine: {e}");
-                    // Cancel all tasks and gracefully shutdown.
+        // Create the shutdown signal future
+        let shutdown = $crate::service::shutdown_signal();
+        tokio::pin!(shutdown);
+
+        loop {
+            tokio::select! {
+                _ = &mut shutdown => {
+                    tracing::info!(target: "rollup_node", "Received shutdown signal, initiating graceful shutdown...");
                     $cancellation.cancel();
-                    return Err(e);
+                    break;
                 }
-                Err(e) => {
-                    let error_msg = format!("Task join error: {e}");
-                    // Log the error and cancel all tasks.
-                    tracing::error!(target: "rollup_node", "Task join error: {e}");
-                    // Cancel all tasks and gracefully shutdown.
-                    $cancellation.cancel();
-                    return Err(error_msg);
+                result = task_handles.join_next() => {
+                    match result {
+                        Some(Ok(Ok(()))) => { /* Actor completed successfully */ }
+                        Some(Ok(Err(e))) => {
+                            tracing::error!(target: "rollup_node", "Critical error in sub-routine: {e}");
+                            // Cancel all tasks and gracefully shutdown.
+                            $cancellation.cancel();
+                            return Err(e);
+                        }
+                        Some(Err(e)) => {
+                            let error_msg = format!("Task join error: {e}");
+                            // Log the error and cancel all tasks.
+                            tracing::error!(target: "rollup_node", "Task join error: {e}");
+                            // Cancel all tasks and gracefully shutdown.
+                            $cancellation.cancel();
+                            return Err(error_msg);
+                        }
+                        None => break, // All tasks completed
+                    }
                 }
             }
         }
@@ -57,3 +74,30 @@ macro_rules! spawn_and_wait {
 
 // Export the `spawn_and_wait` macro for use in other modules.
 pub(crate) use spawn_and_wait;
+
+/// Listens for OS shutdown signals (SIGTERM, SIGINT)
+pub(crate) async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c().await.expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            tracing::info!(target: "rollup_node", "Received SIGINT (Ctrl+C)");
+        },
+        _ = terminate => {
+            tracing::info!(target: "rollup_node", "Received SIGTERM");
+        },
+    }
+}

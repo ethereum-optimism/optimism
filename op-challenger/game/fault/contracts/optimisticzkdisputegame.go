@@ -157,7 +157,7 @@ func (g *OptimisticZKDisputeGameContractLatest) GetMetadata(ctx context.Context,
 		return GenericGameMetadata{}, fmt.Errorf("expected 4 results but got %v", len(results))
 	}
 	l1Head := results[0].GetHash(0)
-	l2SequenceNumber := results[1].GetBigInt(0).Uint64()
+	l2SequenceNumber := getBlockNumber(results[1], 0)
 	rootClaim := results[2].GetHash(0)
 	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
 	if err != nil {
@@ -202,8 +202,8 @@ func (g *OptimisticZKDisputeGameContractLatest) GetGameRange(ctx context.Context
 		retErr = fmt.Errorf("expected 2 results but got %v", len(results))
 		return
 	}
-	prestateBlock = results[0].GetBigInt(0).Uint64()
-	poststateBlock = results[1].GetBigInt(0).Uint64()
+	prestateBlock = getBlockNumber(results[0], 0)
+	poststateBlock = getBlockNumber(results[1], 0)
 	return
 }
 
@@ -227,7 +227,7 @@ func (g *OptimisticZKDisputeGameContractLatest) GetChallengerMetadata(ctx contex
 		return ChallengerMetadata{}, fmt.Errorf("expected 2 results but got %v", len(results))
 	}
 	data := g.decodeClaimData(results[0])
-	l2SeqNum := results[1].GetBigInt(0).Uint64()
+	l2SeqNum := getBlockNumber(results[1], 0)
 	return ChallengerMetadata{
 		ParentIndex:      data.ParentIndex,
 		ProposalStatus:   data.Status,
@@ -259,7 +259,7 @@ func (g *OptimisticZKDisputeGameContractLatest) GetProposal(ctx context.Context)
 	if len(results) != 2 {
 		return common.Hash{}, 0, fmt.Errorf("expected 2 results but got %v", len(results))
 	}
-	return results[0].GetHash(0), results[1].GetBigInt(0).Uint64(), nil
+	return results[0].GetHash(0), getBlockNumber(results[1], 0), nil
 }
 
 func (g *OptimisticZKDisputeGameContractLatest) GetResolvedAt(ctx context.Context, block rpcblock.Block) (time.Time, error) {

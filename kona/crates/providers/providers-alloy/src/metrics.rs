@@ -29,11 +29,11 @@ impl Metrics {
     /// Identifier for the gauge that tracks L2 chain provider errors.
     pub const L2_CHAIN_PROVIDER_ERRORS: &str = "kona_providers_l2_chain_errors";
 
-    /// Identifier for the gauge that tracks blob sidecar fetches.
-    pub const BLOB_SIDECAR_FETCHES: &str = "kona_providers_blob_sidecar_fetches";
+    /// Identifier for the gauge that tracks blob fetches.
+    pub const BLOB_FETCHES: &str = "kona_providers_blob_fetches";
 
-    /// Identifier for the gauge that tracks blob sidecar fetch errors.
-    pub const BLOB_SIDECAR_FETCH_ERRORS: &str = "kona_providers_blob_sidecar_errors";
+    /// Identifier for the gauge that tracks blob fetch errors.
+    pub const BLOB_FETCH_ERRORS: &str = "kona_providers_blob_fetch_errors";
 
     /// Identifier for the histogram that tracks provider request duration.
     pub const PROVIDER_REQUEST_DURATION: &str = "kona_providers_request_duration";
@@ -90,11 +90,8 @@ impl Metrics {
             Self::L2_CHAIN_PROVIDER_ERRORS,
             "Number of errors in L2 chain provider requests"
         );
-        metrics::describe_gauge!(Self::BLOB_SIDECAR_FETCHES, "Number of blob sidecar fetches");
-        metrics::describe_gauge!(
-            Self::BLOB_SIDECAR_FETCH_ERRORS,
-            "Number of blob sidecar fetch errors"
-        );
+        metrics::describe_gauge!(Self::BLOB_FETCHES, "Number of blob sidecar fetches");
+        metrics::describe_gauge!(Self::BLOB_FETCH_ERRORS, "Number of blob sidecar fetch errors");
         metrics::describe_histogram!(
             Self::PROVIDER_REQUEST_DURATION,
             "Duration of provider requests in seconds"
@@ -195,8 +192,8 @@ impl Metrics {
         );
 
         // Blob sidecar metrics
-        kona_macros::set!(gauge, Self::BLOB_SIDECAR_FETCHES, 0);
-        kona_macros::set!(gauge, Self::BLOB_SIDECAR_FETCH_ERRORS, 0);
+        kona_macros::set!(gauge, Self::BLOB_FETCHES, 0);
+        kona_macros::set!(gauge, Self::BLOB_FETCH_ERRORS, 0);
 
         // Cache metrics
         kona_macros::set!(gauge, Self::CACHE_ENTRIES, "cache", "header_by_hash", 0);

@@ -73,7 +73,7 @@ pub(crate) fn encode_holocene_eip_1559_params(
 ) -> ExecutorResult<Bytes> {
     Ok(encode_holocene_extra_data(
         attributes.eip_1559_params.ok_or(ExecutorError::MissingEIP1559Params)?,
-        config.chain_op_config.as_base_fee_params(),
+        config.chain_op_config.post_canyon_params(),
     )?)
 }
 
@@ -92,7 +92,7 @@ pub(crate) fn encode_jovian_eip_1559_params(
 ) -> ExecutorResult<Bytes> {
     Ok(encode_jovian_extra_data(
         attributes.eip_1559_params.ok_or(ExecutorError::MissingEIP1559Params)?,
-        config.chain_op_config.as_base_fee_params(),
+        config.chain_op_config.post_canyon_params(),
         attributes.min_base_fee.ok_or(ExecutorError::InvalidExtraData(
             Eip1559ValidationError::Decode(EIP1559ParamError::MinBaseFeeNotSet),
         ))?,
@@ -106,7 +106,7 @@ mod test {
         decode_jovian_eip_1559_params_block_header, encode_holocene_eip_1559_params,
     };
     use alloy_consensus::Header;
-    use alloy_primitives::{B64, b64, hex};
+    use alloy_primitives::{B64, b64, bytes};
     use alloy_rpc_types_engine::PayloadAttributes;
     use kona_genesis::{BaseFeeConfig, RollupConfig};
     use op_alloy_rpc_types_engine::OpPayloadAttributes;
@@ -130,8 +130,8 @@ mod test {
 
     #[test]
     fn test_decode_holocene_eip_1559_params() {
-        let params = hex!("00BEEFBABE0BADC0DE");
-        let mock_header = Header { extra_data: params.to_vec().into(), ..Default::default() };
+        let params = bytes!("00BEEFBABE0BADC0DE");
+        let mock_header = Header { extra_data: params, ..Default::default() };
         let params = decode_holocene_eip_1559_params_block_header(&mock_header).unwrap();
 
         assert_eq!(params.elasticity_multiplier, 0x0BAD_C0DE);
@@ -140,8 +140,8 @@ mod test {
 
     #[test]
     fn test_decode_jovian_eip_1559_params() {
-        let params = hex!("01BEEFBABE0BADC0DE00000000DEADBEEF");
-        let mock_header = Header { extra_data: params.to_vec().into(), ..Default::default() };
+        let params = bytes!("01BEEFBABE0BADC0DE00000000DEADBEEF");
+        let mock_header = Header { extra_data: params, ..Default::default() };
         let (params, base_fee) = decode_jovian_eip_1559_params_block_header(&mock_header).unwrap();
 
         assert_eq!(params.elasticity_multiplier, 0x0BAD_C0DE);
@@ -151,22 +151,22 @@ mod test {
 
     #[test]
     fn test_decode_holocene_eip_1559_params_invalid_version() {
-        let params = hex!("01BEEFBABE0BADC0DE");
-        let mock_header = Header { extra_data: params.to_vec().into(), ..Default::default() };
+        let params = bytes!("01BEEFBABE0BADC0DE");
+        let mock_header = Header { extra_data: params, ..Default::default() };
         assert!(decode_holocene_eip_1559_params_block_header(&mock_header).is_err());
     }
 
     #[test]
     fn test_decode_holocene_eip_1559_params_invalid_denominator() {
-        let params = hex!("00000000000BADC0DE");
-        let mock_header = Header { extra_data: params.to_vec().into(), ..Default::default() };
+        let params = bytes!("00000000000BADC0DE");
+        let mock_header = Header { extra_data: params, ..Default::default() };
         assert!(decode_holocene_eip_1559_params_block_header(&mock_header).is_err());
     }
 
     #[test]
     fn test_decode_holocene_eip_1559_params_invalid_length() {
-        let params = hex!("00");
-        let mock_header = Header { extra_data: params.to_vec().into(), ..Default::default() };
+        let params = bytes!("00");
+        let mock_header = Header { extra_data: params, ..Default::default() };
         assert!(decode_holocene_eip_1559_params_block_header(&mock_header).is_err());
     }
 
@@ -174,9 +174,9 @@ mod test {
     fn test_encode_holocene_eip_1559_params_missing() {
         let cfg = RollupConfig {
             chain_op_config: BaseFeeConfig {
-                eip1559_denominator: 32,
+                eip1559_denominator: 50,
                 eip1559_elasticity: 64,
-                eip1559_denominator_canyon: 32,
+                eip1559_denominator_canyon: 250,
             },
             ..Default::default()
         };
@@ -189,9 +189,9 @@ mod test {
     fn test_encode_holocene_eip_1559_params_default() {
         let cfg = RollupConfig {
             chain_op_config: BaseFeeConfig {
-                eip1559_denominator: 32,
+                eip1559_denominator: 50,
                 eip1559_elasticity: 64,
-                eip1559_denominator_canyon: 32,
+                eip1559_denominator_canyon: 250,
             },
             ..Default::default()
         };
@@ -199,7 +199,7 @@ mod test {
 
         assert_eq!(
             encode_holocene_eip_1559_params(&cfg, &attrs).unwrap(),
-            hex!("000000002000000040").to_vec()
+            bytes!("00000000fa00000040")
         );
     }
 
@@ -207,9 +207,9 @@ mod test {
     fn test_encode_holocene_eip_1559_params() {
         let cfg = RollupConfig {
             chain_op_config: BaseFeeConfig {
-                eip1559_denominator: 32,
+                eip1559_denominator: 50,
                 eip1559_elasticity: 64,
-                eip1559_denominator_canyon: 32,
+                eip1559_denominator_canyon: 250,
             },
             ..Default::default()
         };
@@ -217,7 +217,7 @@ mod test {
 
         assert_eq!(
             encode_holocene_eip_1559_params(&cfg, &attrs).unwrap(),
-            hex!("000000004000000060").to_vec()
+            bytes!("000000004000000060")
         );
     }
 }

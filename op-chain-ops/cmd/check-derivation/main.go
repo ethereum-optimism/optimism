@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/holiman/uint256"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -335,7 +336,7 @@ func confirmTransaction(ctx context.Context, ethClient *ethclient.Client, l2Bloc
 		}
 		block := eth.BlockID{
 			Hash:   receipt.BlockHash,
-			Number: receipt.BlockNumber.Uint64(),
+			Number: bigs.Uint64Strict(receipt.BlockNumber),
 		}
 		log.Info("Transaction receipt found", "block", block, "status", receipt.Status)
 		return block, nil
@@ -365,7 +366,7 @@ func checkConsolidation(cliCtx *cli.Context) error {
 	}
 	l2ChainID := new(big.Int).SetUint64(cliCtx.Uint64("l2-chain-id"))
 	l2BlockTime := uint64(2)
-	rollupCfg, err := rollup.LoadOPStackRollupConfig(l2ChainID.Uint64())
+	rollupCfg, err := rollup.LoadOPStackRollupConfig(bigs.Uint64Strict(l2ChainID))
 	if err == nil {
 		l2BlockTime = rollupCfg.BlockTime
 	} else {

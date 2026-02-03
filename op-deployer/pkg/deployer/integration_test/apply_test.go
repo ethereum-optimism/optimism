@@ -51,7 +51,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -860,6 +859,12 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 			t.Log("Skipping superchain config upgrade; onchain version is already up to date")
 		}
 
+		// Run past upgrades before running the current upgrade.
+		// This is necessary when forking at a block before those upgrades were executed.
+		t.Run("run past upgrades", func(t *testing.T) {
+			shared.RunPastUpgrades(t, host, 11155111, superchainProxyAdminOwner, deployer.DefaultSystemConfigProxySepolia)
+		})
+
 		// Then run the OPCM upgrade
 		t.Run("upgrade opcm", func(t *testing.T) {
 			if deployer.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, deployer.OPCMV2DevFlag) {
@@ -929,24 +934,12 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 			// Then test upgrade on the V2-deployed chain
 			t.Run("upgrade chain v2", func(t *testing.T) {
-				// ABI-encode game args for FaultDisputeGameConfig{absolutePrestate}
-				bytes32Type := deployer.Bytes32Type
-				addressType := deployer.AddressType
-
 				// FaultDisputeGameConfig just needs absolutePrestate (bytes32)
 				testPrestate := common.Hash{'P', 'R', 'E', 'S', 'T', 'A', 'T', 'E'}
-				cannonArgs, err := abi.Arguments{{Type: bytes32Type}}.Pack(testPrestate)
-				require.NoError(t, err)
 
 				// PermissionedDisputeGameConfig needs absolutePrestate, proposer, challenger
 				testProposer := common.Address{'P'}
 				testChallenger := common.Address{'C'}
-				permissionedArgs, err := abi.Arguments{
-					{Type: bytes32Type},
-					{Type: addressType},
-					{Type: addressType},
-				}.Pack(testPrestate, testProposer, testChallenger)
-				require.NoError(t, err)
 
 				upgradeConfig := embedded.UpgradeOPChainInput{
 					Prank: superchainProxyAdminOwner,
@@ -958,30 +951,30 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 								Enabled:  true,
 								InitBond: big.NewInt(1000000000000000000),
 								GameType: embedded.GameTypeCannon,
-								GameArgs: cannonArgs,
+								FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+									AbsolutePrestate: testPrestate,
+								},
 							},
 							{
 								Enabled:  true,
 								InitBond: big.NewInt(1000000000000000000),
 								GameType: embedded.GameTypePermissionedCannon,
-								GameArgs: permissionedArgs,
+								PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
+									AbsolutePrestate: testPrestate,
+									Proposer:         testProposer,
+									Challenger:       testChallenger,
+								},
 							},
 							{
 								Enabled:  false,
 								InitBond: big.NewInt(0),
 								GameType: embedded.GameTypeCannonKona,
-								GameArgs: []byte{}, // Disabled games don't need args
 							},
 						},
 						ExtraInstructions: []embedded.ExtraInstruction{
 							{
 								Key:  "PermittedProxyDeployment",
 								Data: []byte("DelayedWETH"),
-							},
-							// TODO(#18502): Remove the extra instruction for custom gas token after U18 ships.
-							{
-								Key:  "overrides.cfg.useCustomGasToken",
-								Data: make([]byte, 32),
 							},
 						},
 					},
@@ -1004,9 +997,8 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 				//   [0] Cannon: enabled=true, initBond=1e18, gameType=0, gameArgs="PRESTATE"
 				//   [1] PermissionedCannon: enabled=true, initBond=1e18, gameType=1, gameArgs="PRESTATE"+proposer+challenger
 				//   [2] CannonKona: enabled=false, initBond=0, gameType=0, gameArgs=empty
-				// - ExtraInstructions[]: 2 instructions
+				// - ExtraInstructions[]: 1 instruction
 				//   [0] key="PermittedProxyDeployment", data="DelayedWETH"
-				//   [1] key="overrides.cfg.useCustomGasToken", data=32 zero bytes
 				expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to tuple
 					"000000000000000000000000034edd2a225f7f429a63e0f1d2084b9e0a93b538" + // systemConfig address
 					"0000000000000000000000000000000000000000000000000000000000000060" + // offset to disputeGameConfigs
@@ -1038,9 +1030,8 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
 					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
 					// ExtraInstructions array
-					"0000000000000000000000000000000000000000000000000000000000000002" + // extraInstructions.length (2)
-					"0000000000000000000000000000000000000000000000000000000000000040" + // offset to extraInstructions[0]
-					"0000000000000000000000000000000000000000000000000000000000000100" + // offset to extraInstructions[1]
+					"0000000000000000000000000000000000000000000000000000000000000001" + // extraInstructions.length (1)
+					"0000000000000000000000000000000000000000000000000000000000000020" + // offset to extraInstructions[0]
 					// ExtraInstructions[0] - PermittedProxyDeployment
 					"0000000000000000000000000000000000000000000000000000000000000040" + // offset to key
 					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to data
@@ -1049,14 +1040,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 					"0" + // padding
 					"000000000000000000000000000000000000000000000000000000000000000b" + // data.length (11 bytes)
 					"44656c617965645745544800000000000000000000000000000000000000000" + // "DelayedWETH"
-					"0" + // padding
-					// ExtraInstructions[1] - useCustomGasToken override
-					"0000000000000000000000000000000000000000000000000000000000000040" + // offset to key
-					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to data
-					"000000000000000000000000000000000000000000000000000000000000001f" + // key.length (31 bytes)
-					"6f76657272696465732e6366672e757365437573746f6d476173546f6b656e00" + // "overrides.cfg.useCustomGasToken"
-					"0000000000000000000000000000000000000000000000000000000000000020" + // data.length (32 bytes)
-					"0000000000000000000000000000000000000000000000000000000000000000" // data (32 zero bytes)
+					"0" // padding
 
 				require.Equal(t, expected, hex.EncodeToString(encodedData), "Encoded calldata should match expected structure")
 

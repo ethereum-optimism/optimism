@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
@@ -288,7 +289,7 @@ func deployProgram(t devtest.T, user *dsl.EOA, bytecode []byte) common.Address {
 	t.Logf("Deployment receipt: Status=%d, GasUsed=%d, CumulativeGasUsed=%d",
 		receipt.Status, receipt.GasUsed, receipt.CumulativeGasUsed)
 	t.Logf("Deployment transaction: BlockNumber=%d, TransactionIndex=%d",
-		receipt.BlockNumber.Uint64(), receipt.TransactionIndex)
+		bigs.Uint64Strict(receipt.BlockNumber), receipt.TransactionIndex)
 
 	require.Equal(uint64(1), receipt.Status, "Contract deployment failed")
 	require.NotNil(receipt.ContractAddress, "Contract address not set in receipt")

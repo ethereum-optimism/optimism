@@ -155,12 +155,12 @@ where
             _ if config.is_canyon_active(payload_timestamp) => {
                 // If the payload attribute timestamp is past canyon activation,
                 // use the canyon base fee params from the rollup config.
-                Ok((config.chain_op_config.as_canyon_base_fee_params(), 0))
+                Ok((config.chain_op_config.post_canyon_params(), 0))
             }
             _ => {
                 // If the next payload attribute timestamp is prior to canyon activation,
                 // use the default base fee params from the rollup config.
-                Ok((config.chain_op_config.as_base_fee_params(), 0))
+                Ok((config.chain_op_config.pre_canyon_params(), 0))
             }
         }
     }

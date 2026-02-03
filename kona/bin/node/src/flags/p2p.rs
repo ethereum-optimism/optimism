@@ -20,13 +20,39 @@ use kona_peers::{BootNode, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use kona_providers_alloy::AlloyChainProvider;
 use libp2p::identity::Keypair;
 use std::{
-    net::{IpAddr, SocketAddr},
+    net::{IpAddr, SocketAddr, ToSocketAddrs},
     num::ParseIntError,
     path::PathBuf,
     str::FromStr,
 };
 use tokio::time::Duration;
 use url::Url;
+
+/// Resolves a hostname or IP address string to an [`IpAddr`].
+///
+/// Accepts either:
+/// - A valid IP address string (e.g., "127.0.0.1", "::1")
+/// - A DNS hostname (e.g., "node1.example.com")
+///
+/// For DNS hostnames, this performs synchronous DNS resolution and returns the first
+/// resolved IP address.
+fn resolve_host(host: &str) -> Result<IpAddr, String> {
+    // First, try to parse as a direct IP address
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        return Ok(ip);
+    }
+
+    // If that fails, try DNS resolution
+    // We append a port to make it a valid socket address for resolution
+    let socket_addr = format!("{host}:0");
+    match socket_addr.to_socket_addrs() {
+        Ok(mut addrs) => addrs
+            .next()
+            .map(|addr| addr.ip())
+            .ok_or_else(|| format!("DNS resolution for '{host}' returned no addresses")),
+        Err(e) => Err(format!("Failed to resolve '{host}': {e}")),
+    }
+}
 
 /// P2P CLI Flags
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
@@ -43,13 +69,15 @@ pub struct P2PArgs {
     #[arg(long = "p2p.priv.raw", env = "KONA_NODE_P2P_PRIV_RAW")]
     pub private_key: Option<B256>,
 
-    /// IP to advertise to external peers from Discv5.
+    /// IP address or DNS hostname to advertise to external peers from Discv5.
     /// Optional argument. Use the `p2p.listen.ip` if not set.
+    /// Accepts either an IP address (e.g., "1.2.3.4") or a DNS hostname (e.g.,
+    /// "node1.example.com"). DNS hostnames are resolved to IP addresses at startup.
     ///
     /// Technical note: if this argument is set, the dynamic ENR updates from the discovery layer
     /// will be disabled. This is to allow the advertised IP to be static (to use in a network
     /// behind a NAT for instance).
-    #[arg(long = "p2p.advertise.ip", env = "KONA_NODE_P2P_ADVERTISE_IP")]
+    #[arg(long = "p2p.advertise.ip", env = "KONA_NODE_P2P_ADVERTISE_IP", value_parser = resolve_host)]
     pub advertise_ip: Option<IpAddr>,
     /// TCP port to advertise to external peers from the discovery layer. Same as `p2p.listen.tcp`
     /// if set to zero.
@@ -60,8 +88,10 @@ pub struct P2PArgs {
     #[arg(long = "p2p.advertise.udp", env = "KONA_NODE_P2P_ADVERTISE_UDP_PORT")]
     pub advertise_udp_port: Option<u16>,
 
-    /// IP to bind LibP2P/Discv5 to.
-    #[arg(long = "p2p.listen.ip", default_value = "0.0.0.0", env = "KONA_NODE_P2P_LISTEN_IP")]
+    /// IP address or DNS hostname to bind LibP2P/Discv5 to.
+    /// Accepts either an IP address (e.g., "0.0.0.0") or a DNS hostname (e.g.,
+    /// "node1.example.com"). DNS hostnames are resolved to IP addresses at startup.
+    #[arg(long = "p2p.listen.ip", default_value = "0.0.0.0", env = "KONA_NODE_P2P_LISTEN_IP", value_parser = resolve_host)]
     pub listen_ip: IpAddr,
     /// TCP port to bind LibP2P to. Any available system port if set to 0.
     #[arg(long = "p2p.listen.tcp", default_value = "9222", env = "KONA_NODE_P2P_LISTEN_TCP_PORT")]
@@ -356,7 +386,17 @@ impl P2PArgs {
             Some(port) => port,
         };
 
-        let keypair = self.keypair().unwrap_or_else(|_| Keypair::generate_secp256k1());
+        let keypair = self.keypair().unwrap_or_else(|e| {
+            let generated = Keypair::generate_secp256k1();
+            tracing::warn!(
+                target: "p2p::config",
+                error = %e,
+                peer_id = %generated.public().to_peer_id(),
+                "Failed to load P2P keypair from configuration, generated ephemeral keypair. \
+                 Set --p2p.priv.path or --p2p.priv.raw for a persistent peer ID."
+            );
+            generated
+        });
         let secp256k1_key = keypair.clone().try_into_secp256k1()
             .map_err(|e| anyhow::anyhow!("Impossible to convert keypair to secp256k1. This is a bug since we only support secp256k1 keys: {e}"))?
             .secret().to_bytes();
@@ -437,8 +477,14 @@ impl P2PArgs {
     pub fn keypair(&self) -> Result<Keypair> {
         // Attempt the parse the private key if specified.
         if let Some(mut private_key) = self.private_key {
-            return kona_cli::SecretKeyLoader::parse(&mut private_key.0)
-                .map_err(|e| anyhow::anyhow!(e));
+            let keypair = kona_cli::SecretKeyLoader::parse(&mut private_key.0)
+                .map_err(|e| anyhow::anyhow!(e))?;
+            tracing::info!(
+                target: "p2p::config",
+                peer_id = %keypair.public().to_peer_id(),
+                "Successfully loaded P2P keypair from raw private key"
+            );
+            return Ok(keypair);
         }
 
         let Some(ref key_path) = self.priv_path else {
@@ -626,5 +672,54 @@ mod tests {
                 "enr:-J64QBbwPjPLZ6IOOToOLsSjtFUjjzN66qmBZdUexpO32Klrc458Q24kbty2PdRaLacHM5z-cZQr8mjeQu3pik6jPSOGAYYFIqBfgmlkgnY0gmlwhDaRWFWHb3BzdGFja4SzlAUAiXNlY3AyNTZrMaECmeSnJh7zjKrDSPoNMGXoopeDF4hhpj5I0OsQUUt4u8uDdGNwgiQGg3VkcIIkBg",
             ]
         );
+    }
+
+    #[test]
+    fn test_p2p_args_listen_ip_dns_resolution() {
+        // Test that DNS hostnames are resolved to IP addresses
+        // Using localhost which should resolve reliably
+        let args = MockCommand::parse_from(["test", "--p2p.listen.ip", "localhost"]);
+        // localhost typically resolves to 127.0.0.1 or ::1
+        assert!(
+            args.p2p.listen_ip == "127.0.0.1".parse::<IpAddr>().unwrap() ||
+                args.p2p.listen_ip == "::1".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn test_p2p_args_advertise_ip_dns_resolution() {
+        // Test that DNS hostnames are resolved to IP addresses for advertise_ip
+        let args = MockCommand::parse_from(["test", "--p2p.advertise.ip", "localhost"]);
+        // localhost typically resolves to 127.0.0.1 or ::1
+        let ip = args.p2p.advertise_ip.unwrap();
+        assert!(
+            ip == "127.0.0.1".parse::<IpAddr>().unwrap() || ip == "::1".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn test_resolve_host_with_ip() {
+        // Test that IP addresses are passed through directly
+        let ip = resolve_host("192.168.1.1").unwrap();
+        assert_eq!(ip, "192.168.1.1".parse::<IpAddr>().unwrap());
+
+        let ipv6 = resolve_host("::1").unwrap();
+        assert_eq!(ipv6, "::1".parse::<IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn test_resolve_host_with_dns() {
+        // Test DNS resolution with localhost
+        let ip = resolve_host("localhost").unwrap();
+        assert!(
+            ip == "127.0.0.1".parse::<IpAddr>().unwrap() || ip == "::1".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn test_resolve_host_invalid() {
+        // Test that invalid hostnames return an error
+        let result = resolve_host("this-hostname-definitely-does-not-exist.invalid");
+        assert!(result.is_err());
     }
 }

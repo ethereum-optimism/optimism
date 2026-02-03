@@ -3,16 +3,19 @@
 use crate::flags::{GlobalArgs, P2PArgs, RpcArgs};
 use clap::Parser;
 use futures::future::OptionFuture;
-use jsonrpsee::{RpcModule, server::Server};
+use jsonrpsee::{RpcModule, core::async_trait, server::Server};
 use kona_cli::LogConfig;
 use kona_gossip::P2pRpcRequest;
 use kona_node_service::{
-    NetworkActor, NetworkBuilder, NetworkContext, NetworkInboundData, NodeActor,
+    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NetworkInboundData,
+    NodeActor,
 };
 use kona_registry::scr_rollup_config_by_alloy_ident;
 use kona_rpc::{OpP2PApiServer, P2pRpc, RpcBuilder};
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use url::Url;
 
 /// The `net` Subcommand
@@ -68,11 +71,14 @@ impl NetCommand {
         self.p2p.check_ports()?;
         let p2p_config = self.p2p.config(rollup_config, args, self.l1_eth_rpc).await?;
 
-        let (NetworkInboundData { p2p_rpc: rpc, .. }, network) =
-            NetworkActor::new(NetworkBuilder::from(p2p_config));
+        let (block_tx, mut block_rx) = mpsc::channel(1024);
+        let (NetworkInboundData { p2p_rpc: rpc, .. }, network) = NetworkActor::new(
+            ForwardingNetworkEngineClient { block_tx },
+            CancellationToken::new(),
+            NetworkBuilder::from(p2p_config),
+        );
 
-        let (blocks, mut blocks_rx) = tokio::sync::mpsc::channel(1024);
-        network.start(NetworkContext { blocks, cancellation: CancellationToken::new() }).await?;
+        network.start(()).await?;
 
         info!(target: "net", "Network started, receiving blocks.");
 
@@ -95,7 +101,7 @@ impl NetCommand {
 
         loop {
             tokio::select! {
-                Some(payload) = blocks_rx.recv() => {
+                Some(payload) = block_rx.recv() => {
                     info!(target: "net", "Received unsafe payload: {:?}", payload.execution_payload.block_hash());
                 }
                 _ = interval.tick(), if !rpc.is_closed() => {
@@ -128,5 +134,23 @@ impl NetCommand {
                 }
             }
         }
+    }
+}
+
+#[derive(Debug)]
+struct ForwardingNetworkEngineClient {
+    block_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
+}
+
+#[async_trait]
+impl NetworkEngineClient for ForwardingNetworkEngineClient {
+    async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
+        let _ = self
+            .block_tx
+            .send(block)
+            .await
+            .inspect_err(|e| error!(target: "net", "Failed to send block: {:?}", e));
+
+        Ok(())
     }
 }

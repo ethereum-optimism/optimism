@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -170,7 +171,7 @@ func (c *PreimageOracleContractLatest) MinLargePreimageSize(ctx context.Context)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch min lpp size bytes: %w", err)
 	}
-	return result.GetBigInt(0).Uint64(), nil
+	return bigs.Uint64Strict(result.GetBigInt(0)), nil
 }
 
 // ChallengePeriod returns the challenge period for large preimages.
@@ -182,7 +183,7 @@ func (c *PreimageOracleContractLatest) ChallengePeriod(ctx context.Context) (uin
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch challenge period: %w", err)
 	}
-	period := result.GetBigInt(0).Uint64()
+	period := bigs.Uint64Strict(result.GetBigInt(0))
 	c.challengePeriod.Store(period)
 	return period, nil
 }
@@ -386,7 +387,7 @@ func (c *PreimageOracleContractLatest) GetMinBondLPP(ctx context.Context) (*big.
 		return nil, fmt.Errorf("failed to fetch min bond size for LPPs: %w", err)
 	}
 	period := result.GetBigInt(0)
-	c.minBondSizeLPP.Store(period.Uint64())
+	c.minBondSizeLPP.Store(bigs.Uint64Strict(period))
 	return period, nil
 }
 

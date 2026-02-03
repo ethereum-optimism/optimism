@@ -60,13 +60,15 @@ impl NetworkHandler {
             .collect::<Vec<_>>();
 
         // We remove the addresses from the gossip layer.
-        let addrs_to_ban = peers_to_remove.into_iter().filter_map(|peer_to_remove| {
-                        // In that case, we ban the peer. This means...
-                        // 1. We remove the peer from the network gossip.
-                        // 2. We ban the peer from the discv5 service.
-                        if self.gossip.swarm.disconnect_peer_id(peer_to_remove).is_err() {
-                            warn!(peer = ?peer_to_remove, "Trying to disconnect a non-existing peer from the gossip driver.");
-                        }
+        let addrs_to_ban = peers_to_remove
+            .into_iter()
+            .filter_map(|peer_to_remove| {
+                // In that case, we ban the peer. This means...
+                // 1. We remove the peer from the network gossip.
+                // 2. We ban the peer from the discv5 service.
+                if self.gossip.swarm.disconnect_peer_id(peer_to_remove).is_err() {
+                    warn!(peer = ?peer_to_remove, "Trying to disconnect a non-existing peer from the gossip driver.");
+                }
 
                         // Record the duration of the peer connection.
                         if let Some(start_time) = self.gossip.peer_connection_start.remove(&peer_to_remove) {
@@ -78,16 +80,18 @@ impl NetworkHandler {
                             );
                         }
 
-                        if let Some(info) = self.gossip.peerstore.remove(&peer_to_remove){
-                            use kona_gossip::ConnectionGate;
-                            self.gossip.connection_gate.remove_dial(&peer_to_remove);
-                            let score = self.gossip.swarm.behaviour().gossipsub.peer_score(&peer_to_remove).unwrap_or_default();
-                            kona_macros::inc!(gauge, kona_gossip::Metrics::BANNED_PEERS, "peer_id" => peer_to_remove.to_string(), "score" => score.to_string());
-                            return Some(info.listen_addrs);
-                        }
+                if let Some(info) = self.gossip.peerstore.remove(&peer_to_remove) {
+                    use kona_gossip::ConnectionGate;
+                    self.gossip.connection_gate.remove_dial(&peer_to_remove);
+                    let score = self.gossip.swarm.behaviour().gossipsub.peer_score(&peer_to_remove).unwrap_or_default();
+                    kona_macros::inc!(gauge, kona_gossip::Metrics::BANNED_PEERS, "peer_id" => peer_to_remove.to_string(), "score" => score.to_string());
+                    return Some(info.listen_addrs);
+                }
 
-                        None
-                    }).collect::<Vec<_>>().into_iter().flatten().collect::<HashSet<_>>();
+                None
+            })
+            .flatten()
+            .collect::<HashSet<_>>();
 
         // We send a request to the discovery handler to ban the set of addresses.
         if let Err(send_err) = self

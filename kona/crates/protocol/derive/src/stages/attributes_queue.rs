@@ -237,16 +237,17 @@ mod tests {
         cfg: Option<RollupConfig>,
         origin: Option<BlockInfo>,
         batches: Vec<PipelineResult<SingleBatch>>,
+        attributes: Vec<Result<OpPayloadAttributes, PipelineErrorKind>>,
     ) -> AttributesQueue<TestAttributesProvider, TestAttributesBuilder> {
         let cfg = cfg.unwrap_or_default();
         let mock_batch_queue = new_test_attributes_provider(origin, batches);
-        let mock_attributes_builder = TestAttributesBuilder::default();
+        let mock_attributes_builder = TestAttributesBuilder { attributes };
         AttributesQueue::new(Arc::new(cfg), mock_batch_queue, mock_attributes_builder)
     }
 
     #[tokio::test]
     async fn test_attributes_queue_flush() {
-        let mut attributes_queue = new_attributes_queue(None, None, vec![]);
+        let mut attributes_queue = new_attributes_queue(None, None, vec![], vec![]);
         attributes_queue.batch = Some(SingleBatch::default());
         assert!(!attributes_queue.prev.flushed);
         attributes_queue.signal(Signal::FlushChannel).await.unwrap();
@@ -269,7 +270,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_load_batch_eof() {
-        let mut attributes_queue = new_attributes_queue(None, None, vec![]);
+        let mut attributes_queue = new_attributes_queue(None, None, vec![], vec![]);
         let parent = L2BlockInfo::default();
         let result = attributes_queue.load_batch(parent).await.unwrap_err();
         assert_eq!(result, PipelineError::Eof.temp());
@@ -277,7 +278,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_load_batch_last_in_span() {
-        let mut attributes_queue = new_attributes_queue(None, None, vec![Ok(Default::default())]);
+        let mut attributes_queue =
+            new_attributes_queue(None, None, vec![Ok(Default::default())], vec![]);
         let parent = L2BlockInfo::default();
         let result = attributes_queue.load_batch(parent).await.unwrap();
         assert_eq!(result, Default::default());
@@ -286,7 +288,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_next_attributes_bad_parent_hash() {
-        let mut attributes_queue = new_attributes_queue(None, None, vec![]);
+        let mut attributes_queue = new_attributes_queue(None, None, vec![], vec![]);
         let bad_hash = b256!("6666666666666666666666666666666666666666666666666666666666666666");
         let parent = L2BlockInfo {
             block_info: BlockInfo { hash: bad_hash, ..Default::default() },
@@ -302,7 +304,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_next_attributes_bad_timestamp() {
-        let mut attributes_queue = new_attributes_queue(None, None, vec![]);
+        let mut attributes_queue = new_attributes_queue(None, None, vec![], vec![]);
         let parent = L2BlockInfo::default();
         let batch = SingleBatch { timestamp: 1, ..Default::default() };
         let result = attributes_queue.create_next_attributes(batch, parent).await.unwrap_err();
@@ -311,7 +313,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_next_attributes_bad_parent_timestamp() {
-        let mut attributes_queue = new_attributes_queue(None, None, vec![]);
+        let mut attributes_queue = new_attributes_queue(None, None, vec![], vec![]);
         let parent = L2BlockInfo {
             block_info: BlockInfo { timestamp: 2, ..Default::default() },
             ..Default::default()
@@ -324,7 +326,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_next_attributes_bad_config_timestamp() {
         let cfg = RollupConfig { block_time: 1, ..Default::default() };
-        let mut attributes_queue = new_attributes_queue(Some(cfg), None, vec![]);
+        let mut attributes_queue = new_attributes_queue(Some(cfg), None, vec![], vec![]);
         let parent = L2BlockInfo {
             block_info: BlockInfo { timestamp: 1, ..Default::default() },
             ..Default::default()
@@ -336,7 +338,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_next_attributes_preparation_fails() {
-        let mut attributes_queue = new_attributes_queue(None, None, vec![]);
+        let mut attributes_queue = new_attributes_queue(
+            None,
+            None,
+            vec![],
+            vec![Err(PipelineErrorKind::Critical(BuilderError::AttributesUnavailable.into()))],
+        );
         let parent = L2BlockInfo::default();
         let batch = SingleBatch::default();
         let result = attributes_queue.create_next_attributes(batch, parent).await.unwrap_err();
@@ -369,7 +376,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_next_attributes_load_batch_eof() {
-        let mut attributes_queue = new_attributes_queue(None, None, vec![]);
+        let mut attributes_queue = new_attributes_queue(None, None, vec![], vec![]);
         let parent = L2BlockInfo::default();
         let result = attributes_queue.next_attributes(parent).await.unwrap_err();
         assert_eq!(result, PipelineError::Eof.temp());

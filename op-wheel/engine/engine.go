@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -258,7 +259,7 @@ func Auto(
 							log.Error("failed to find block for new safe block progress", "err", err)
 							continue
 						}
-						status.Safe = eth.L1BlockRef{Hash: safe.Hash(), Number: safe.Number.Uint64(), Time: safe.Time, ParentHash: safe.ParentHash}
+						status.Safe = eth.L1BlockRef{Hash: safe.Hash(), Number: bigs.Uint64Strict(safe.Number), Time: safe.Time, ParentHash: safe.ParentHash}
 					}
 					if status.Finalized.Number+32 <= status.Safe.Number {
 						finalized, err := getHeader(ctx, client.RPC, methodEthGetBlockByNumber, hexutil.Uint64(status.Safe.Number-32).String())
@@ -267,7 +268,7 @@ func Auto(
 							log.Error("failed to find block for new finalized block progress", "err", err)
 							continue
 						}
-						status.Finalized = eth.L1BlockRef{Hash: finalized.Hash(), Number: finalized.Number.Uint64(), Time: finalized.Time, ParentHash: finalized.ParentHash}
+						status.Finalized = eth.L1BlockRef{Hash: finalized.Hash(), Number: bigs.Uint64Strict(finalized.Number), Time: finalized.Time, ParentHash: finalized.ParentHash}
 					}
 				}
 
@@ -316,8 +317,8 @@ func Status(ctx context.Context, client client.RPC) (*StatusData, error) {
 	}
 	return &StatusData{
 		Head:      eth.L1BlockRef{Hash: head.Hash(), Number: head.NumberU64(), Time: head.Time(), ParentHash: head.ParentHash()},
-		Safe:      eth.L1BlockRef{Hash: safe.Hash(), Number: safe.Number.Uint64(), Time: safe.Time, ParentHash: safe.ParentHash},
-		Finalized: eth.L1BlockRef{Hash: finalized.Hash(), Number: finalized.Number.Uint64(), Time: finalized.Time, ParentHash: finalized.ParentHash},
+		Safe:      eth.L1BlockRef{Hash: safe.Hash(), Number: bigs.Uint64Strict(safe.Number), Time: safe.Time, ParentHash: safe.ParentHash},
+		Finalized: eth.L1BlockRef{Hash: finalized.Hash(), Number: bigs.Uint64Strict(finalized.Number), Time: finalized.Time, ParentHash: finalized.ParentHash},
 		Txs:       uint64(len(head.Transactions())),
 		Gas:       head.GasUsed(),
 		StateRoot: head.Root(),
@@ -386,8 +387,8 @@ func SetForkchoice(ctx context.Context, client *sources.EngineAPIClient, finaliz
 	if err != nil {
 		return fmt.Errorf("failed to get latest block: %w", err)
 	}
-	if unsafeNum > head.Number.Uint64() {
-		return fmt.Errorf("cannot set unsafe (%d) > latest (%d)", unsafeNum, head.Number.Uint64())
+	if unsafeNum > bigs.Uint64Strict(head.Number) {
+		return fmt.Errorf("cannot set unsafe (%d) > latest (%d)", unsafeNum, bigs.Uint64Strict(head.Number))
 	}
 	finalizedHeader, err := getHeader(ctx, client.RPC, methodEthGetBlockByNumber, hexutil.Uint64(finalizedNum).String())
 	if err != nil {
@@ -424,10 +425,10 @@ func Rewind(ctx context.Context, lgr log.Logger, client *sources.EngineAPIClient
 
 	// when rewinding, don't increase unsafe/finalized tags
 	toSafe, toFinalized := toUnsafe, toUnsafe
-	if safe != nil && safe.Number.Uint64() < to {
+	if safe != nil && bigs.Uint64Strict(safe.Number) < to {
 		toSafe = eth.HeaderBlockID(safe)
 	}
-	if finalized != nil && finalized.Number.Uint64() < to {
+	if finalized != nil && bigs.Uint64Strict(finalized.Number) < to {
 		toFinalized = eth.HeaderBlockID(finalized)
 	}
 

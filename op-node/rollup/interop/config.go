@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
+const defaultIndexingEventQueueSize = 100
+
 type Config struct {
 	// RPCAddr address to bind RPC server to, to serve external supervisor nodes.
 	// Optional. This will soon be required: running op-node without supervisor is being deprecated.
@@ -32,7 +34,11 @@ func (cfg *Config) Check() error {
 
 // Setup creates an interop sub-system. This drives the node syncing.
 // If setup returns a nil system (without error) the node should fall back to legacy mode.
-func (cfg *Config) Setup(ctx context.Context, logger log.Logger, rollupCfg *rollup.Config, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer) (SubSystem, error) {
+func (cfg *Config) Setup(ctx context.Context, logger log.Logger, rollupCfg *rollup.Config, supervisorEnabled bool, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer) (SubSystem, error) {
+	if !supervisorEnabled {
+		logger.Info("Supervisor disabled, using legacy sync mode")
+		return nil, nil // a `nil` system will result in legacy mode.
+	}
 	if cfg.RPCAddr == "" {
 		logger.Warn("No interop RPC configured, falling back to legacy sync mode.")
 		return nil, nil // a `nil` system will result in legacy mode.
@@ -43,5 +49,5 @@ func (cfg *Config) Setup(ctx context.Context, logger log.Logger, rollupCfg *roll
 	if err != nil {
 		return nil, err
 	}
-	return indexing.NewIndexingMode(logger, rollupCfg, cfg.RPCAddr, cfg.RPCPort, jwtSecret, l1, l2, m), nil
+	return indexing.NewIndexingMode(logger, rollupCfg, cfg.RPCAddr, cfg.RPCPort, jwtSecret, l1, l2, m, defaultIndexingEventQueueSize), nil
 }

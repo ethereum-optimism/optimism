@@ -115,7 +115,7 @@ impl Decodable for OpStackEnr {
         let (chain_id, rest) = decode::u64(&bytes)
             .map_err(|_| alloy_rlp::Error::Custom("could not decode chain id"))?;
         let (version, _) =
-            decode::u64(rest).map_err(|_| alloy_rlp::Error::Custom("could not decode chain id"))?;
+            decode::u64(rest).map_err(|_| alloy_rlp::Error::Custom("could not decode version"))?;
         Ok(Self { chain_id, version })
     }
 }

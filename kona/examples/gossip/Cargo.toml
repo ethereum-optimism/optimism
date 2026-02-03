@@ -18,3 +18,5 @@ tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tokio-util.workspace = true
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 discv5.workspace = true
+op-alloy-rpc-types-engine = { workspace = true, features = ["std"] }
+async-trait.workspace = true

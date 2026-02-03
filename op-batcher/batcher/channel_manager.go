@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum/go-ethereum/common"
@@ -129,7 +130,7 @@ func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 // Panics if the block is not in state.
 func (s *channelManager) rewindToBlock(block eth.BlockID) {
 	initialCursor := s.blockCursor
-	idx := block.Number - s.blocks[0].Number().Uint64()
+	idx := block.Number - bigs.Uint64Strict(s.blocks[0].Number())
 	if s.blocks[idx].Hash() == block.Hash && idx < uint64(s.blockCursor) {
 		s.blockCursor = int(idx)
 	} else {

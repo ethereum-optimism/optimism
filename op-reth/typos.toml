@@ -1,0 +1,40 @@
+[files]
+extend-exclude = [
+    ".git",
+    "target",
+    "crates/storage/libmdbx-rs/mdbx-sys/libmdbx",
+    "Cargo.toml",
+    "Cargo.lock",
+    "testing/ef-tests",
+]
+
+[default]
+extend-ignore-re = [
+    # Hex strings of various lengths
+    "(?i)0x[0-9a-f]{8}", # 8 hex chars
+    "(?i)0x[0-9a-f]{40}", # 40 hex chars
+    "(?i)0x[0-9a-f]{64}", # 64 hex chars
+    "(?i)[0-9a-f]{8}", # 8 hex chars without 0x
+    "(?i)[0-9a-f]{40}", # 40 hex chars without 0x
+    "(?i)[0-9a-f]{64}", # 64 hex chars without 0x
+    # Ordinals in identifiers
+    "[0-9]+nd",
+    "[0-9]+th",
+    "[0-9]+st",
+    "[0-9]+rd",
+]
+
+[default.extend-words]
+# These are valid identifiers/terms that should be allowed
+crate = "crate"
+ser = "ser"
+ratatui = "ratatui"
+seeked = "seeked" # Past tense of seek, used in trie iterator
+Seeked = "Seeked" # Type name in trie iterator
+Whe = "Whe" # Part of base64 encoded signature
+hel = "hel" # Part of hostname bootnode-hetzner-hel
+ONL = "ONL" # Part of base64 encoded ENR
+Iy = "Iy" # Part of base64 encoded ENR
+flate = "flate" # zlib-flate is a valid tool name
+Pn = "Pn" # Part of UPnP (Universal Plug and Play)
+BA = "BA" # Part of BAL - Block Access List (EIP-7928)

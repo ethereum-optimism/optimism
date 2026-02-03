@@ -15,7 +15,7 @@ import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { GameStatus, GameType } from "src/dispute/lib/Types.sol";
+import { GameStatus, GameType, Claim } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -213,25 +213,13 @@ contract OptimismPortalInterop is Initializable, ResourceMetering, Reinitializab
     /// @notice Thrown when a withdrawal has not been proven.
     error OptimismPortal_Unproven();
 
-    /// @notice Thrown when the wrong proof method is used.
-    error OptimismPortal_WrongProofMethod();
-
-    /// @notice Thrown when a super root proof is invalid.
-    error OptimismPortal_InvalidSuperRootProof();
-
-    /// @notice Thrown when an output root index is invalid.
-    error OptimismPortal_InvalidOutputRootIndex();
-
-    /// @notice Thrown when an output root chain id is invalid.
-    error OptimismPortal_InvalidOutputRootChainId();
-
     /// @notice Thrown when trying to migrate to the same AnchorStateRegistry.
     error OptimismPortal_MigratingToSameRegistry();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.2.0+interop
+    /// @custom:semver 5.3.0+interop
     function version() public pure virtual returns (string memory) {
-        return "5.2.0+interop";
+        return "5.3.0+interop";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -425,40 +413,9 @@ contract OptimismPortalInterop is Initializable, ResourceMetering, Reinitializab
         emit PortalMigrated(oldLockbox, _newLockbox, oldAnchorStateRegistry, _newAnchorStateRegistry);
     }
 
-    /// @notice Proves a withdrawal transaction using a Super Root proof. Only callable when the
-    ///         OptimismPortal is using Super Roots (superRootsActive flag is true).
-    /// @param _tx               Withdrawal transaction to finalize.
-    /// @param _disputeGameProxy Address of the dispute game to prove the withdrawal against.
-    /// @param _outputRootIndex  Index of the target Output Root within the Super Root.
-    /// @param _superRootProof   Inclusion proof of the Output Root within the Super Root.
-    /// @param _outputRootProof  Inclusion proof of the L2ToL1MessagePasser storage root.
-    /// @param _withdrawalProof  Inclusion proof of the withdrawal within the L2ToL1MessagePasser.
-    function proveWithdrawalTransaction(
-        Types.WithdrawalTransaction memory _tx,
-        IDisputeGame _disputeGameProxy,
-        uint256 _outputRootIndex,
-        Types.SuperRootProof calldata _superRootProof,
-        Types.OutputRootProof calldata _outputRootProof,
-        bytes[] calldata _withdrawalProof
-    )
-        external
-    {
-        // Cannot prove withdrawal transactions while the system is paused.
-        _assertNotPaused();
-
-        // Make sure that the OptimismPortal is using Super Roots.
-        if (!superRootsActive) {
-            revert OptimismPortal_WrongProofMethod();
-        }
-
-        // Prove the transaction.
-        _proveWithdrawalTransaction(
-            _tx, _disputeGameProxy, _outputRootIndex, _superRootProof, _outputRootProof, _withdrawalProof
-        );
-    }
-
-    /// @notice Proves a withdrawal transaction using an Output Root proof. Only callable when the
-    ///         OptimismPortal is using Output Roots (superRootsActive flag is false).
+    /// @notice Proves a withdrawal transaction. When super roots are active, uses the game's
+    ///         rootClaimByChainId to get the output root for this chain. When super roots are
+    ///         inactive, validates directly against the game's root claim.
     /// @param _tx               Withdrawal transaction to finalize.
     /// @param _disputeGameIndex Index of the dispute game to prove the withdrawal against.
     /// @param _outputRootProof  Inclusion proof of the L2ToL1MessagePasser storage root.
@@ -471,40 +428,22 @@ contract OptimismPortalInterop is Initializable, ResourceMetering, Reinitializab
     )
         external
     {
-        // Cannot prove withdrawal transactions while the system is paused.
         _assertNotPaused();
 
-        // Make sure that the OptimismPortal is using Output Roots.
-        if (superRootsActive) {
-            revert OptimismPortal_WrongProofMethod();
-        }
-
-        // Fetch the dispute game proxy from the `DisputeGameFactory` contract.
+        // Fetch the dispute game proxy from the DisputeGameFactory contract.
         (,, IDisputeGame disputeGameProxy) = disputeGameFactory().gameAtIndex(_disputeGameIndex);
 
-        // Create a dummy super root proof to pass into the internal function. Note that this is
-        // not a valid Super Root proof but it isn't used anywhere in the internal function when
-        // using Output Roots.
-        Types.SuperRootProof memory superRootProof;
-
-        // Prove the transaction.
-        _proveWithdrawalTransaction(_tx, disputeGameProxy, 0, superRootProof, _outputRootProof, _withdrawalProof);
+        _proveWithdrawalTransaction(_tx, disputeGameProxy, _outputRootProof, _withdrawalProof);
     }
 
-    /// @notice Internal function for proving a withdrawal transaction, used by both the Super Root
-    ///         and Output Root proof functions. Will eventually be replaced with a single function
-    ///         when the Output Root proof method is deprecated.
+    /// @notice Internal function for proving a withdrawal transaction.
     /// @param _tx               Withdrawal transaction to prove.
     /// @param _disputeGameProxy Address of the dispute game to prove the withdrawal against.
-    /// @param _outputRootIndex  Index of the target Output Root within the Super Root.
-    /// @param _superRootProof   Inclusion proof of the Output Root within the Super Root.
     /// @param _outputRootProof  Inclusion proof of the L2ToL1MessagePasser storage root.
     /// @param _withdrawalProof  Inclusion proof of the withdrawal within the L2ToL1MessagePasser.
     function _proveWithdrawalTransaction(
         Types.WithdrawalTransaction memory _tx,
         IDisputeGame _disputeGameProxy,
-        uint256 _outputRootIndex,
-        Types.SuperRootProof memory _superRootProof,
         Types.OutputRootProof memory _outputRootProof,
         bytes[] memory _withdrawalProof
     )
@@ -538,26 +477,15 @@ contract OptimismPortalInterop is Initializable, ResourceMetering, Reinitializab
             revert OptimismPortal_InvalidProofTimestamp();
         }
 
-        // Validate the provided Output Root and/or Super Root proof depending on proof method.
+        // Validate the output root proof depending on proof method.
         if (superRootsActive) {
-            // Verify that the super root can be generated with the elements in the proof.
-            if (_disputeGameProxy.rootClaim().raw() != Hashing.hashSuperRootProof(_superRootProof)) {
-                revert OptimismPortal_InvalidSuperRootProof();
-            }
-
-            // Check that the index exists in the super root proof.
-            if (_outputRootIndex >= _superRootProof.outputRoots.length) {
-                revert OptimismPortal_InvalidOutputRootIndex();
-            }
-
-            // Check that the output root has the correct chain id.
-            Types.OutputRootWithChainId memory outputRoot = _superRootProof.outputRoots[_outputRootIndex];
-            if (outputRoot.chainId != systemConfig.l2ChainId()) {
-                revert OptimismPortal_InvalidOutputRootChainId();
-            }
+            // Get output root for this chain from the game's extraData (super root proof).
+            // Reverts with UnknownChainId if chainId not found in the super root.
+            uint256 chainId = systemConfig.l2ChainId();
+            Claim outputRootClaim = _disputeGameProxy.rootClaimByChainId(chainId);
 
             // Verify that the output root can be generated with the elements in the proof.
-            if (outputRoot.root != Hashing.hashOutputRootProof(_outputRootProof)) {
+            if (outputRootClaim.raw() != Hashing.hashOutputRootProof(_outputRootProof)) {
                 revert OptimismPortal_InvalidOutputRootProof();
             }
         } else {

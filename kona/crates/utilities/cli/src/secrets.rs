@@ -26,8 +26,24 @@ impl SecretKeyLoader {
         match exists {
             Ok(true) => {
                 let contents = std::fs::read_to_string(secret_key_path)?;
-                let mut decoded = B256::from_str(&contents)?;
-                Ok(Self::parse(&mut decoded.0)?)
+                let contents_trimmed = contents.trim();
+                let mut decoded = B256::from_str(contents_trimmed).inspect_err(|e| {
+                    tracing::error!(
+                        target: "p2p::secrets",
+                        path = %secret_key_path.display(),
+                        error = %e,
+                        contents_len = contents.len(),
+                        "Failed to decode secret key from file"
+                    );
+                })?;
+                Ok(Self::parse(&mut decoded.0)?).inspect(|keypair| {
+                    tracing::info!(
+                        target: "p2p::secrets",
+                        path = %secret_key_path.display(),
+                        peer_id = %keypair.public().to_peer_id(),
+                        "Successfully loaded P2P keypair from file"
+                    );
+                })
             }
             Ok(false) => {
                 if let Some(dir) = secret_key_path.parent() {
@@ -36,14 +52,29 @@ impl SecretKeyLoader {
 
                 let secret = SecretKey::generate();
                 let hex = alloy_primitives::hex::encode(secret.to_bytes());
-                std::fs::write(secret_key_path, hex)?;
+                std::fs::write(secret_key_path, &hex)?;
                 let kp = libp2p::identity::secp256k1::Keypair::from(secret);
-                Ok(Keypair::from(kp))
+                Ok(Keypair::from(kp)).inspect(|keypair| {
+                    tracing::info!(
+                        target: "p2p::secrets",
+                        path = %secret_key_path.display(),
+                        peer_id = %keypair.public().to_peer_id(),
+                        "Generated new P2P keypair and saved to file"
+                    );
+                })
             }
-            Err(error) => Err(KeypairError::FailedToAccessKeyFile {
-                error,
-                secret_file: secret_key_path.to_path_buf(),
-            }),
+            Err(error) => {
+                tracing::error!(
+                    target: "p2p::secrets",
+                    path = %secret_key_path.display(),
+                    error = %error,
+                    "Failed to access secret key file"
+                );
+                Err(KeypairError::FailedToAccessKeyFile {
+                    error,
+                    secret_file: secret_key_path.to_path_buf(),
+                })
+            }
         }
     }
 
@@ -143,5 +174,71 @@ mod tests {
         assert!(SecretKeyLoader::load(&key_path).is_ok());
         let contents = std::fs::read_to_string(&key_path).unwrap();
         assert_eq!(contents, hex);
+    }
+
+    #[test]
+    fn test_load_file_with_trailing_newline() {
+        // Create a temporary directory.
+        let dir = std::env::temp_dir();
+        let mut key_path = dir.clone();
+        assert!(std::env::set_current_dir(dir).is_ok());
+
+        // Write a private key with trailing newline (common with text editors).
+        let key = b256!("1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be");
+        let hex = alloy_primitives::hex::encode(key.0);
+        let hex_with_newline = format!("{hex}\n");
+        key_path.push("test_newline.txt");
+        std::fs::write(&key_path, &hex_with_newline).unwrap();
+
+        // Should successfully load despite trailing newline.
+        let keypair = SecretKeyLoader::load(&key_path);
+        assert!(keypair.is_ok(), "Failed to load key with trailing newline");
+    }
+
+    #[test]
+    fn test_load_file_with_trailing_crlf() {
+        // Create a temporary directory.
+        let dir = std::env::temp_dir();
+        let mut key_path = dir.clone();
+        assert!(std::env::set_current_dir(dir).is_ok());
+
+        // Write a private key with trailing CRLF (common with Windows/ConfigMaps).
+        let key = b256!("1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be");
+        let hex = alloy_primitives::hex::encode(key.0);
+        let hex_with_crlf = format!("{hex}\r\n");
+        key_path.push("test_crlf.txt");
+        std::fs::write(&key_path, &hex_with_crlf).unwrap();
+
+        // Should successfully load despite trailing CRLF.
+        let keypair = SecretKeyLoader::load(&key_path);
+        assert!(keypair.is_ok(), "Failed to load key with trailing CRLF");
+    }
+
+    #[test]
+    fn test_load_file_with_whitespace_produces_same_peer_id() {
+        // Create a temporary directory.
+        let dir = std::env::temp_dir();
+        assert!(std::env::set_current_dir(dir.clone()).is_ok());
+
+        let key = b256!("1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be");
+        let hex = alloy_primitives::hex::encode(key.0);
+
+        // Write clean key.
+        let clean_path = dir.join("test_clean.txt");
+        std::fs::write(&clean_path, &hex).unwrap();
+
+        // Write key with various whitespace.
+        let whitespace_path = dir.join("test_whitespace.txt");
+        std::fs::write(&whitespace_path, format!("  {hex}\r\n  ")).unwrap();
+
+        // Both should produce the same peer ID.
+        let clean_keypair = SecretKeyLoader::load(&clean_path).unwrap();
+        let whitespace_keypair = SecretKeyLoader::load(&whitespace_path).unwrap();
+
+        assert_eq!(
+            clean_keypair.public().to_peer_id(),
+            whitespace_keypair.public().to_peer_id(),
+            "Peer IDs should match regardless of whitespace"
+        );
     }
 }

@@ -6,26 +6,28 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
 // FuzzEncodeDecodeWithdrawal will fuzz encoding and decoding of a Withdrawal
 func FuzzEncodeDecodeWithdrawal(f *testing.F) {
 	f.Fuzz(func(t *testing.T, _nonce, _sender, _target, _value, _gasLimit, data []byte) {
-		nonce := new(big.Int).SetBytes(_nonce)
+		nonce := new(uint256.Int).SetBytes(_nonce)
 		sender := common.BytesToAddress(_sender)
 		target := common.BytesToAddress(_target)
-		value := new(big.Int).SetBytes(_value)
-		gasLimit := new(big.Int).SetBytes(_gasLimit)
+		value := new(uint256.Int).SetBytes(_value)
+		gasLimit := new(uint256.Int).SetBytes(_gasLimit)
 
 		withdrawal := crossdomain.NewWithdrawal(
-			nonce,
+			nonce.ToBig(),
 			&sender,
 			&target,
-			value,
-			gasLimit,
+			value.ToBig(),
+			gasLimit.ToBig(),
 			data,
 		)
 
@@ -36,11 +38,11 @@ func FuzzEncodeDecodeWithdrawal(f *testing.F) {
 		err = w.Decode(encoded)
 		require.Nil(t, err)
 
-		require.Equal(t, withdrawal.Nonce.Uint64(), w.Nonce.Uint64())
+		require.Truef(t, bigs.Equal(withdrawal.Nonce, w.Nonce), "nonce: %s != %s", withdrawal.Nonce, w.Nonce)
 		require.Equal(t, withdrawal.Sender, w.Sender)
 		require.Equal(t, withdrawal.Target, w.Target)
-		require.Equal(t, withdrawal.Value.Uint64(), w.Value.Uint64())
-		require.Equal(t, withdrawal.GasLimit.Uint64(), w.GasLimit.Uint64())
+		require.Truef(t, bigs.Equal(withdrawal.Value, w.Value), "value: %s != %s", withdrawal.Value, w.Value)
+		require.Truef(t, bigs.Equal(withdrawal.GasLimit, w.GasLimit), "gasLimit: %s != %s", withdrawal.GasLimit, w.GasLimit)
 		require.Equal(t, withdrawal.Data, w.Data)
 	})
 }

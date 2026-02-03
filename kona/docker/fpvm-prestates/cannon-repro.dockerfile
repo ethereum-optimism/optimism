@@ -27,30 +27,25 @@ RUN git clone https://github.com/ethereum-optimism/optimism && \
   cp bin/cannon /cannon-bin
 
 ################################################################
-#               Build kona-client @ `CLIENT_TAG`               #
+#            Build kona-client from local source               #
 ################################################################
 
 FROM ghcr.io/op-rs/kona/cannon-builder:0.3.0 AS client-build
 SHELL ["/bin/bash", "-c"]
 
 ARG CLIENT_BIN
-ARG CLIENT_TAG
 ARG KONA_CUSTOM_CONFIGS
 
 COPY --from=custom_configs / /usr/local/kona-custom-configs
 
-# Install deps
-RUN apt-get update && apt-get install -y --no-install-recommends git
-
-# Clone kona at the specified tag
-RUN git clone https://github.com/op-rs/kona
+# Copy kona source from build context
+COPY . /kona
 
 ENV KONA_CUSTOM_CONFIGS=$KONA_CUSTOM_CONFIGS
 ENV KONA_CUSTOM_CONFIGS_DIR=/usr/local/kona-custom-configs
 
-# Build kona-client on the selected tag
+# Build kona-client
 RUN cd kona && \
-  git checkout $CLIENT_TAG && \
   cargo build -Zbuild-std=core,alloc -p kona-client --bin $CLIENT_BIN --locked --profile release-client-lto && \
   mv ./target/mips64-unknown-none/release-client-lto/$CLIENT_BIN /kona-client-elf
 

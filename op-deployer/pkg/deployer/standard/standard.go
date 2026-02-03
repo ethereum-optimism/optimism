@@ -43,7 +43,8 @@ const (
 	ContractsV400Tag        = "op-contracts/v4.0.0-rc.7"
 	ContractsV410Tag        = "op-contracts/v4.1.0"
 	ContractsV500Tag        = "op-contracts/v5.0.0"
-	CurrentTag              = ContractsV500Tag
+	ContractsV600Tag        = "op-contracts/v6.0.0-rc.2"
+	CurrentTag              = ContractsV600Tag
 )
 
 var L1FeesDepositor = common.HexToAddress("0xed9B99a703BaD32AC96FDdc313c0652e379251Fd")

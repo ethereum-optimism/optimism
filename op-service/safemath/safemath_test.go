@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
@@ -40,6 +41,7 @@ func testAdd[V constraints.Unsigned](t *testing.T) {
 				got, overflowed := SafeAdd(a, b)
 				require.Equal(t, expectedOverflow, overflowed)
 				// masked expected outcome to int size, since it may have overflowed
+				//nolint:bigint // Overflow is explicitly expected and handled here.
 				require.Equal(t, expectedSum.Uint64()&uint64(m), uint64(got))
 			}
 			{
@@ -47,7 +49,7 @@ func testAdd[V constraints.Unsigned](t *testing.T) {
 				if expectedOverflow {
 					require.Equal(t, uint64(m), uint64(got))
 				} else {
-					require.Equal(t, expectedSum.Uint64(), uint64(got))
+					require.Equal(t, bigs.Uint64Strict(expectedSum), uint64(got))
 				}
 			}
 		}

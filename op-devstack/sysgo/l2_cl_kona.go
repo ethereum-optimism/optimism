@@ -263,11 +263,11 @@ func withKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			p2pKey, err := orch.keys.Secret(devkeys.SequencerP2PRole.Key(l2CLID.ChainID().ToBig()))
 			require.NoError(err, "need p2p key for sequencer")
 			p2pKeyHex := "0x" + hex.EncodeToString(crypto.FromECDSA(p2pKey))
-			// TODO: Kona should support loading keys from a file
-			//tempSeqKeyPath := filepath.Join(tempKonaDir, "p2p-sequencer.txt")
-			//p.Require().NoError(err, os.WriteFile(tempSeqKeyPath, []byte(p2pKeyHex), 0o644))
+			// Write sequencer key to file (supported since kona PR #2871)
+			tempSeqKeyPath := filepath.Join(tempKonaDir, "p2p-sequencer.txt")
+			p.Require().NoError(os.WriteFile(tempSeqKeyPath, []byte(p2pKeyHex), 0o644))
 			envVars = append(envVars,
-				"KONA_NODE_P2P_SEQUENCER_KEY="+p2pKeyHex,
+				"KONA_NODE_P2P_SEQUENCER_KEY_PATH="+tempSeqKeyPath,
 				"KONA_NODE_SEQUENCER_L1_CONFS=2",
 				"KONA_NODE_MODE=Sequencer",
 			)

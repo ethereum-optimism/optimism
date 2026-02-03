@@ -2,8 +2,8 @@
 //! using [rocksdb].
 
 use super::{KeyValueStore, MemoryKeyValueStore};
+use crate::{HostError, Result};
 use alloy_primitives::B256;
-use anyhow::{Result, anyhow};
 use rocksdb::{DB, Options};
 use std::path::PathBuf;
 
@@ -38,7 +38,7 @@ impl KeyValueStore for DiskKeyValueStore {
     }
 
     fn set(&mut self, key: alloy_primitives::B256, value: Vec<u8>) -> Result<()> {
-        self.db.put(*key, value).map_err(|e| anyhow!("Failed to set key-value pair: {e}"))
+        self.db.put(*key, value).map_err(|e| HostError::KeyValueSetFailed(e.to_string()))
     }
 }
 
@@ -49,7 +49,7 @@ impl Drop for DiskKeyValueStore {
 }
 
 impl TryFrom<DiskKeyValueStore> for MemoryKeyValueStore {
-    type Error = anyhow::Error;
+    type Error = HostError;
 
     fn try_from(disk_store: DiskKeyValueStore) -> Result<Self> {
         let mut memory_store = Self::new();
@@ -58,7 +58,7 @@ impl TryFrom<DiskKeyValueStore> for MemoryKeyValueStore {
         while let Some(Ok((key, value))) = db_iter.next() {
             memory_store.set(
                 B256::try_from(key.as_ref())
-                    .map_err(|e| anyhow!("Failed to convert slice to B256: {e}"))?,
+                    .map_err(|e| HostError::B256ConversionFailed(e.to_string()))?,
                 value.to_vec(),
             )?;
         }

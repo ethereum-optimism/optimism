@@ -5,12 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -199,9 +201,17 @@ func (f *FaultDisputeGameContractLatest) GetGameRange(ctx context.Context) (pres
 		retErr = fmt.Errorf("expected 2 results but got %v", len(results))
 		return
 	}
-	prestateBlock = results[0].GetBigInt(0).Uint64()
-	poststateBlock = results[1].GetBigInt(0).Uint64()
+	prestateBlock = getBlockNumber(results[0], 0)
+	poststateBlock = getBlockNumber(results[1], 0)
 	return
+}
+
+func getBlockNumber(result *batching.CallResult, idx int) uint64 {
+	val := result.GetBigInt(idx)
+	if val.IsUint64() {
+		return bigs.Uint64Strict(val)
+	}
+	return math.MaxUint64
 }
 
 type GameMetadata struct {
@@ -233,7 +243,7 @@ func (f *FaultDisputeGameContractLatest) GetExtendedMetadata(ctx context.Context
 		return GameMetadata{}, fmt.Errorf("expected 7 results but got %v", len(results))
 	}
 	l1Head := results[0].GetHash(0)
-	l2BlockNumber := results[1].GetBigInt(0).Uint64()
+	l2BlockNumber := getBlockNumber(results[1], 0)
 	rootClaim := results[2].GetHash(0)
 	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
 	if err != nil {
@@ -269,7 +279,7 @@ func (f *FaultDisputeGameContractLatest) GetMetadata(ctx context.Context, block 
 		return GenericGameMetadata{}, fmt.Errorf("expected 4 results but got %v", len(results))
 	}
 	l1Head := results[0].GetHash(0)
-	l2BlockNumber := results[1].GetBigInt(0).Uint64()
+	l2BlockNumber := getBlockNumber(results[1], 0)
 	rootClaim := results[2].GetHash(0)
 	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
 	if err != nil {
@@ -308,7 +318,7 @@ func (f *FaultDisputeGameContractLatest) GetSplitDepth(ctx context.Context) (typ
 	if err != nil {
 		return 0, fmt.Errorf("failed to retrieve split depth: %w", err)
 	}
-	return types.Depth(splitDepth.GetBigInt(0).Uint64()), nil
+	return types.Depth(bigs.Uint64Strict(splitDepth.GetBigInt(0))), nil
 }
 
 func (f *FaultDisputeGameContractLatest) GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error) {
@@ -458,7 +468,7 @@ func (f *FaultDisputeGameContractLatest) GetMaxGameDepth(ctx context.Context) (t
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch max game depth: %w", err)
 	}
-	return types.Depth(result.GetBigInt(0).Uint64()), nil
+	return types.Depth(bigs.Uint64Strict(result.GetBigInt(0))), nil
 }
 
 func (f *FaultDisputeGameContractLatest) GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
@@ -494,7 +504,7 @@ func (f *FaultDisputeGameContractLatest) GetClaimCount(ctx context.Context) (uin
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch claim count: %w", err)
 	}
-	return result.GetBigInt(0).Uint64(), nil
+	return bigs.Uint64Strict(result.GetBigInt(0)), nil
 }
 
 func (f *FaultDisputeGameContractLatest) GetClaim(ctx context.Context, idx uint64) (types.Claim, error) {

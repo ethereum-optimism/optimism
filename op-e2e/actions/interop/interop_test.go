@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/emit"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -92,7 +93,7 @@ func TestFullInterop(gt *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, head, supervisorStatus.Chains[chain.ChainID].LocalUnsafe.ID())
 		// Local-safe does not count as "safe" in RPC
-		n := chain.SequencerEngine.L2Chain().CurrentSafeBlock().Number.Uint64()
+		n := bigs.Uint64Strict(chain.SequencerEngine.L2Chain().CurrentSafeBlock().Number)
 		require.Equal(t, uint64(0), n)
 
 		// Make the supervisor aware of the new L1 block

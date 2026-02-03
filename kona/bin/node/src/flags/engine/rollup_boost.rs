@@ -99,6 +99,10 @@ impl RollupBoostFlags {
                             .flashblocks
                             .flashblocks_ws_config
                             .flashblock_builder_ws_max_reconnect_ms,
+                        flashblock_builder_ws_connect_timeout_ms: self
+                            .flashblocks
+                            .flashblocks_ws_config
+                            .flashblock_builder_ws_connect_timeout_ms,
                         flashblock_builder_ws_ping_interval_ms: self
                             .flashblocks
                             .flashblocks_ws_config

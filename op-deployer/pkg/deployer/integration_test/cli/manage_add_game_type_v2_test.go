@@ -15,12 +15,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -127,23 +128,17 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 	// Deploy the OPCM V2 contract.
 	opcmV2 := deployDependencies(t, runner)
 
-	bytes32Type := deployer.Bytes32Type
-	addressType := deployer.AddressType
+	// Run past upgrades before testing the V2 command.
+	// This is necessary when forking a network at a block before certain upgrades were executed.
+	_, afactsFS := testutil.LocalArtifacts(t)
+	shared.RunPastUpgradesWithRPC(t, runner.l1RPC, afactsFS, lgr, 11155111, l1ProxyAdminOwner, systemConfigProxy)
 
 	// FaultDisputeGameConfig just needs absolutePrestate (bytes32)
 	testPrestate := common.Hash{'P', 'R', 'E', 'S', 'T', 'A', 'T', 'E'}
-	cannonArgs, err := abi.Arguments{{Type: bytes32Type}}.Pack(testPrestate)
-	require.NoError(t, err)
 
 	// PermissionedDisputeGameConfig needs absolutePrestate, proposer, challenger
 	testProposer := common.Address{'P'}
 	testChallenger := common.Address{'C'}
-	permissionedArgs, err := abi.Arguments{
-		{Type: bytes32Type},
-		{Type: addressType},
-		{Type: addressType},
-	}.Pack(testPrestate, testProposer, testChallenger)
-	require.NoError(t, err)
 
 	testConfig := embedded.UpgradeOPChainInput{
 		Prank: l1ProxyAdminOwner,
@@ -155,30 +150,30 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 					Enabled:  true,
 					InitBond: big.NewInt(1000000000000000000),
 					GameType: embedded.GameTypeCannon,
-					GameArgs: cannonArgs,
+					FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+						AbsolutePrestate: testPrestate,
+					},
 				},
 				{
 					Enabled:  true,
 					InitBond: big.NewInt(1000000000000000000),
 					GameType: embedded.GameTypePermissionedCannon,
-					GameArgs: permissionedArgs,
+					PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
+						AbsolutePrestate: testPrestate,
+						Proposer:         testProposer,
+						Challenger:       testChallenger,
+					},
 				},
 				{
 					Enabled:  false,
 					InitBond: big.NewInt(0),
 					GameType: embedded.GameTypeCannonKona,
-					GameArgs: []byte{}, // Disabled games don't need args
 				},
 			},
 			ExtraInstructions: []embedded.ExtraInstruction{
 				{
 					Key:  "PermittedProxyDeployment",
 					Data: []byte("DelayedWETH"),
-				},
-				{
-					// TODO(#18502): Remove this extra instruction after U18 ships.
-					Key:  "overrides.cfg.useCustomGasToken",
-					Data: make([]byte, 32),
 				},
 			},
 		},

@@ -1,0 +1,147 @@
+table {
+    width: 100%;
+}
+
+table thead th {
+    padding: .75rem;
+    text-align: left;
+    font-weight: 500;
+    line-height: 1.5;
+    width: auto;
+}
+
+table td {
+    padding: .75rem;
+    border: none;
+}
+
+table thead tr {
+    border: none;
+    border-bottom: 2px var(--table-border-color) solid;
+}
+
+table tbody tr {
+    border-bottom: 1px var(--table-border-line) solid;
+}
+
+table tbody tr:nth-child(2n) {
+    background: unset;
+}
+
+.content h1,
+.content h2,
+.content h3,
+.content h4 {
+    font-weight: 600;
+    margin-top: 1.275em;
+    margin-bottom: .875em;
+}
+
+.ferra {
+    --bg: #2b292d;
+    --fg: #fecdb2;
+    --heading-fg: #fff;
+
+    --sidebar-bg: #383539;
+    --sidebar-fg: #fecdb2;
+    --sidebar-non-existent: #feceb454;
+    --sidebar-active: #ffa07a;
+    --scrollbar: var(--sidebar-fg);
+
+    --icons: #f6b6c9ba;
+    --icons-hover: #b7b9cc;
+
+    --links: #ffa07a;
+
+    --inline-code-color: #f6b6c9ba;
+
+    --theme-popup-bg: #383539;
+    --theme-popup-border: #5f5a60;
+    --theme-hover: rgba(0, 0, 0, .2);
+
+    --quote-bg: #222124;
+    --quote-border: #2b292d;
+
+    --table-border-color: #383539;
+    --table-header-bg: hsla(226, 23%, 31%, 0);
+    --table-alternate-bg: hsl(226, 23%, 14%);
+    --table-border-line: #383539;
+
+    --searchbar-border-color: #222124;
+    --searchbar-bg: #222124;
+    --searchbar-fg: #fecdb2;
+    --searchbar-shadow-color: #aaa;
+    --searchresults-header-fg: #fce2d4;
+    --searchresults-border-color: #feceb454;
+    --search-mark-bg: #f6b6c9ba;
+}
+
+.ferra .content .header {
+    color: #fce2d4;
+}
+
+/* highlight.js theme, :where() is used to avoid increasing specificity */
+
+:where(.ferra) .hljs {
+    background: #222124;
+    color: #feceb4e1;
+}
+
+:where(.ferra) .hljs-comment,
+:where(.ferra) .hljs-quote {
+    color: #6F5D63;
+}
+
+:where(.ferra) .hljs-link,
+:where(.ferra) .hljs-meta,
+:where(.ferra) .hljs-name,
+:where(.ferra) .hljs-regexp,
+:where(.ferra) .hljs-selector-class,
+:where(.ferra) .hljs-selector-id,
+:where(.ferra) .hljs-tag,
+:where(.ferra) .hljs-template-variable,
+:where(.ferra) .hljs-variable {
+    color: #fecdb2;
+}
+
+:where(.ferra) .mdbook-callouts-info {
+    background-color: #f0f0f0;
+    border-left: 4px solid #3498db;
+    padding: 1em;
+    margin: 1em 0;
+}
+
+:where(.ferra) .hljs-built_in,
+:where(.ferra) .hljs-deletion,
+:where(.ferra) .hljs-literal,
+:where(.ferra) .hljs-number,
+:where(.ferra) .hljs-params,
+:where(.ferra) .hljs-type {
+    color: #f6b6c9;
+}
+
+:where(.ferra) .hljs-attribute,
+:where(.ferra) .hljs-section,
+:where(.ferra) .hljs-title {
+    color: #ffa07a;
+}
+
+:where(.ferra) .hljs-addition,
+:where(.ferra) .hljs-bullet,
+:where(.ferra) .hljs-string,
+:where(.ferra) .hljs-symbol {
+    color: #b1b695;
+}
+
+:where(.ferra) .hljs-keyword,
+:where(.ferra) .hljs-selector-tag {
+    color: #d1d1e0;
+}
+
+:where(.ferra) .hljs-emphasis {
+    font-style: italic;
+}
+
+:where(.ferra) .hljs-strong {
+    font-weight: 700;
+}

@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"fmt"
 	"math/big"
 
@@ -75,14 +76,40 @@ func deployDisputeGame(
 		}
 		vmAddr = out.AlphabetVM
 	case state.VMTypeCannon, state.VMTypeCannonNext:
-		out, err := opcm.DeployMIPS(env.L1ScriptHost, opcm.DeployMIPSInput{
-			MipsVersion:    game.VMType.MipsVersion(),
-			PreimageOracle: st.ImplementationsDeployment.PreimageOracleImpl,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to deploy MIPS VM: %w", err)
+		if env.UseForge {
+			if env.ForgeClient == nil {
+				return fmt.Errorf("Forge client is nil but UseForge is enabled")
+			}
+			if env.Context == nil {
+				env.Context = context.Background()
+			}
+			lgr.Info("using Forge for DeployMIPS")
+			forgeInput := opcm.DeployMIPSInput{
+				MipsVersion:    new(big.Int).SetUint64(game.VMType.MipsVersion()),
+				PreimageOracle: st.ImplementationsDeployment.PreimageOracleImpl,
+			}
+			forgeCaller := opcm.NewDeployMIPSForgeCaller(env.ForgeClient)
+			forgeOpts := []string{
+				"--rpc-url", env.L1RPCUrl,
+				"--broadcast",
+				"--private-key", env.PrivateKey,
+			}
+			forgeOut, _, err := forgeCaller(env.Context, forgeInput, forgeOpts...)
+			if err != nil {
+				return fmt.Errorf("failed to deploy MIPS VM with Forge: %w", err)
+			}
+			vmAddr = forgeOut.MipsSingleton
+		} else {
+			input := opcm.DeployMIPSInput{
+				MipsVersion:    new(big.Int).SetUint64(game.VMType.MipsVersion()),
+				PreimageOracle: st.ImplementationsDeployment.PreimageOracleImpl,
+			}
+			out, err := opcm.DeployMIPS(env.L1ScriptHost, input)
+			if err != nil {
+				return fmt.Errorf("failed to deploy MIPS VM: %w", err)
+			}
+			vmAddr = out.MipsSingleton
 		}
-		vmAddr = out.MipsSingleton
 	default:
 		return fmt.Errorf("unsupported VM type: %v", game.VMType)
 	}

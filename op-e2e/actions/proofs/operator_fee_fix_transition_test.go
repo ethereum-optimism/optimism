@@ -10,6 +10,7 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -79,9 +80,9 @@ func Test_ProgramAction_OperatorFeeFixTransition(gt *testing.T) {
 			gpoOperatorFee, err := gpo.GetOperatorFee(nil, new(big.Int).SetUint64(gasUsed))
 			require.NoError(t, err)
 			if isJovian {
-				require.Equal(t, expectedOperatorFeeJovian, gpoOperatorFee.Uint64())
+				require.Equal(t, expectedOperatorFeeJovian, bigs.Uint64Strict(gpoOperatorFee))
 			} else {
-				require.Equal(t, expectedOperatorFeeIsthmus, gpoOperatorFee.Uint64())
+				require.Equal(t, expectedOperatorFeeIsthmus, bigs.Uint64Strict(gpoOperatorFee))
 			}
 		}
 
@@ -111,7 +112,7 @@ func Test_ProgramAction_OperatorFeeFixTransition(gt *testing.T) {
 		}
 
 		checkFeeVaultChanges := func(initialBalance *big.Int, finalBalance *big.Int, expectedOperatorFee uint64) {
-			delta := new(big.Int).Sub(finalBalance, initialBalance).Uint64()
+			delta := bigs.Uint64Strict(new(big.Int).Sub(finalBalance, initialBalance))
 			require.Equal(t, expectedOperatorFee, delta)
 		}
 

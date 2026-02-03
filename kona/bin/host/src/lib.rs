@@ -1,6 +1,9 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
+mod error;
+pub use error::{HostError, Result};
+
 mod server;
 pub use server::{PreimageServer, PreimageServerError};
 

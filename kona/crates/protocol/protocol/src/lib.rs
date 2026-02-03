@@ -11,8 +11,8 @@ extern crate alloc;
 
 mod batch;
 pub use batch::{
-    Batch, BatchDecodingError, BatchEncodingError, BatchReader, BatchTransaction, BatchType,
-    BatchValidationProvider, BatchValidity, BatchWithInclusionBlock, DecompressionError,
+    Batch, BatchDecodingError, BatchDropReason, BatchEncodingError, BatchReader, BatchTransaction,
+    BatchType, BatchValidationProvider, BatchValidity, BatchWithInclusionBlock, DecompressionError,
     MAX_SPAN_BATCH_ELEMENTS, RawSpanBatch, SINGLE_BATCH_TYPE, SPAN_BATCH_TYPE, SingleBatch,
     SpanBatch, SpanBatchBits, SpanBatchEip1559TransactionData, SpanBatchEip2930TransactionData,
     SpanBatchEip7702TransactionData, SpanBatchElement, SpanBatchError,
@@ -57,8 +57,11 @@ pub use deposits::{
 
 mod info;
 pub use info::{
-    BlockInfoError, DecodeError, L1BlockInfoBedrock, L1BlockInfoEcotone, L1BlockInfoIsthmus,
-    L1BlockInfoJovian, L1BlockInfoTx,
+    BlockInfoError, DecodeError, L1BlockInfoBedrock, L1BlockInfoBedrockBaseFields,
+    L1BlockInfoBedrockFields, L1BlockInfoBedrockOnlyFields, L1BlockInfoEcotone,
+    L1BlockInfoEcotoneBaseFields, L1BlockInfoEcotoneFields, L1BlockInfoEcotoneOnlyFields,
+    L1BlockInfoIsthmus, L1BlockInfoIsthmusBaseFields, L1BlockInfoIsthmusFields, L1BlockInfoJovian,
+    L1BlockInfoJovianBaseFields, L1BlockInfoJovianFields, L1BlockInfoTx,
 };
 
 mod predeploys;

@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -34,6 +35,8 @@ func main() {
 	oplog.SetupDefaults()
 
 	// First parse the chains only args
+	// NOTE there is not yet any support for specifying
+	// this as an env var.
 	chains, err := flags.ParseChains(os.Args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -74,6 +77,11 @@ func main() {
 		vnCfgs, err := createVirtualNodeConfigs(cliCtx, cfg, l)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create virtual node configs: %w", err)
+		}
+
+		// Populate config with interop activation timestamp from CLI context if set
+		if cliCtx != nil && cliCtx.IsSet(interop.InteropActivationTimestampFlag.Name) {
+			cfg.InteropActivationTimestamp = cliCtx.Uint64(interop.InteropActivationTimestampFlag.Name)
 		}
 
 		// Create the supernode, supplying the logger, version, and close function

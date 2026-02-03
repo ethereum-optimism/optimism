@@ -3,40 +3,29 @@
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionSink, core::SubscriptionResult, tracing::warn,
 };
-use kona_engine::{EngineQueries, EngineQuerySender, EngineState};
+use kona_engine::EngineState;
 use kona_protocol::L2BlockInfo;
 
+use crate::{EngineRpcClient, jsonrpsee::WsServer};
 use jsonrpsee::core::to_json_raw_value;
-
-use crate::jsonrpsee::WsServer;
 
 /// An RPC server that handles subscriptions to the node's state.
 #[derive(Debug)]
-pub struct WsRPC {
+pub struct WsRPC<EngineRpcClient_> {
     /// The engine query sender.
-    engine_query_sender: EngineQuerySender,
+    engine_client: EngineRpcClient_,
 }
 
-impl WsRPC {
+impl<EngineRpcClient_: EngineRpcClient> WsRPC<EngineRpcClient_> {
     /// Constructs a new [`WsRPC`] instance.
-    pub const fn new(engine_query_sender: EngineQuerySender) -> Self {
-        Self { engine_query_sender }
+    pub const fn new(engine_client: EngineRpcClient_) -> Self {
+        Self { engine_client }
     }
 
     async fn engine_state_watcher(
         &self,
     ) -> Result<tokio::sync::watch::Receiver<EngineState>, jsonrpsee::core::SubscriptionError> {
-        let (query_tx, query_rx) = tokio::sync::oneshot::channel();
-
-        if let Err(e) = self.engine_query_sender.send(EngineQueries::StateReceiver(query_tx)).await
-        {
-            warn!(target: "rpc::ws", ?e, "Failed to send engine state receiver query. The engine query handler is likely closed.");
-            return Err(jsonrpsee::core::SubscriptionError::from(
-                "Internal error. Failed to send engine state receiver query. The engine query handler is likely closed.",
-            ));
-        }
-
-        query_rx.await.map_err(|_| jsonrpsee::core::SubscriptionError::from("Internal error. Failed to receive engine state receiver query. The engine query handler is likely closed."))
+        self.engine_client.dev_subscribe_to_engine_state().await.map_err(|_| jsonrpsee::core::SubscriptionError::from("Internal error. Failed to subscribe to engine state updates. The engine query handler is likely closed."))
     }
 
     async fn send_state_update(
@@ -58,7 +47,7 @@ impl WsRPC {
 }
 
 #[async_trait::async_trait]
-impl WsServer for WsRPC {
+impl<EngineRpcClient_: EngineRpcClient + 'static> WsServer for WsRPC<EngineRpcClient_> {
     async fn ws_safe_head_updates(&self, sink: PendingSubscriptionSink) -> SubscriptionResult {
         let sink = sink.accept().await?;
 

@@ -75,8 +75,8 @@ func CalculateOutputRoot(ctx context.Context, rpcUrl string, blockNum uint64) (c
 	}
 	// Isthmus assumes WithdrawalsHash is present in the header.
 	if header.WithdrawalsHash == nil {
-		return common.Hash{}, fmt.Errorf("target block %d (%s) is missing withdrawals hash, required for Isthmus output root calculation",
-			header.Number.Uint64(), header.Hash())
+		return common.Hash{}, fmt.Errorf("target block %v (%s) is missing withdrawals hash, required for Isthmus output root calculation",
+			header.Number, header.Hash())
 	}
 
 	// Construct OutputV0 using StateRoot, WithdrawalsHash (as MessagePasserStorageRoot), and BlockHash

@@ -84,6 +84,11 @@ impl OpAttributesWithParent {
             is_last_in_span: self.is_last_in_span,
         }
     }
+
+    /// Returns the number of transactions in the attributes.
+    pub fn count_transactions(&self) -> u64 {
+        self.attributes().decoded_transactions().count().try_into().unwrap()
+    }
 }
 
 #[cfg(test)]

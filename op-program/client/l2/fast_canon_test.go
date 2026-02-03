@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/test"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -33,7 +34,7 @@ func TestFastCanonBlockHeaderOracle_GetHeaderByNumber(t *testing.T) {
 	miner.Mine(t, nil)
 	miner.Mine(t, nil)
 	head := backend.CurrentHeader()
-	require.Equal(t, uint64(3), head.Number.Uint64())
+	require.Equal(t, uint64(3), bigs.Uint64Strict(head.Number))
 
 	// Create invalid fallback to assert that it's never used.
 	fatalBlockByHash := func(hash common.Hash) *types.Block {
@@ -96,7 +97,7 @@ func TestFastCanonBlockHeaderOracle_LargeWindow(t *testing.T) {
 		miner.Mine(t, nil)
 	}
 	head := backend.CurrentHeader()
-	headNum := head.Number.Uint64()
+	headNum := bigs.Uint64Strict(head.Number)
 	require.Equal(t, uint64(numBlocks), headNum)
 	// Note: we have three non-overlapping historical block windows
 	// head: [8193, 16383]
@@ -153,7 +154,7 @@ func TestFastCannonBlockHeaderOracle_WithFallback(t *testing.T) {
 		miner.Mine(t, nil)
 	}
 	head := backend.CurrentHeader()
-	headNum := head.Number.Uint64()
+	headNum := bigs.Uint64Strict(head.Number)
 	require.Equal(t, uint64(numBlocks), headNum)
 
 	fallbackBlockByHash := newTrackingBlockByHash(backend.GetBlockByHash)
@@ -188,7 +189,7 @@ func TestFastCanonBlockHeaderOracle_PreIsthmus(t *testing.T) {
 		miner.Mine(t, nil)
 	}
 	head := backend.CurrentHeader()
-	headNum := head.Number.Uint64()
+	headNum := bigs.Uint64Strict(head.Number)
 	require.Equal(t, uint64(numBlocks), headNum)
 	preIsthmusHead := backend.GetBlockByNumber(uint64(isthmusBlockActivation) - 1).Header()
 
@@ -196,7 +197,7 @@ func TestFastCanonBlockHeaderOracle_PreIsthmus(t *testing.T) {
 	fallback := NewCanonicalBlockHeaderOracle(preIsthmusHead, fallbackBlockByHash.BlockByHash)
 	canon := NewFastCanonicalBlockHeaderOracle(preIsthmusHead, backend.GetBlockByHash, backend.Config(), stateOracle, rawdb.NewMemoryDatabase(), fallback)
 
-	for i := uint64(0); i <= preIsthmusHead.Number.Uint64(); i++ {
+	for i := uint64(0); i <= bigs.Uint64Strict(preIsthmusHead.Number); i++ {
 		head := canon.GetHeaderByNumber(i)
 		require.Equal(t, backend.GetBlockByNumber(i).Hash(), head.Hash())
 	}
@@ -221,9 +222,9 @@ func TestFastCanonBlockHeaderOracle_SetCanonical(t *testing.T) {
 		require.Equal(t, head.Hash(), canon.CurrentHeader().Hash())
 		require.Equal(t, head.Hash(), fallback.CurrentHeader().Hash())
 
-		parent := backend.GetBlockByNumber(head.Number.Uint64() - 1)
+		parent := backend.GetBlockByNumber(bigs.Uint64Strict(head.Number) - 1)
 		canon.SetCanonical(parent.Header())
-		require.Nil(t, canon.GetHeaderByNumber(head.Number.Uint64()))
+		require.Nil(t, canon.GetHeaderByNumber(bigs.Uint64Strict(head.Number)))
 		require.Equal(t, parent.Hash(), canon.CurrentHeader().Hash())
 		require.Equal(t, parent.Hash(), fallback.CurrentHeader().Hash())
 	})
@@ -238,7 +239,7 @@ func TestFastCanonBlockHeaderOracle_SetCanonical(t *testing.T) {
 			miner.Mine(t, nil)
 		}
 		head := backend.CurrentHeader()
-		headNum := head.Number.Uint64()
+		headNum := bigs.Uint64Strict(head.Number)
 
 		fallback := NewCanonicalBlockHeaderOracle(head, backend.GetBlockByHash)
 		tracker := newTrackingBlockByHash(backend.GetBlockByHash)
@@ -255,7 +256,7 @@ func TestFastCanonBlockHeaderOracle_SetCanonical(t *testing.T) {
 		}
 		forkHead := backend.CurrentHeader()
 		require.NotEqual(t, head.Hash(), forkHead.Hash())
-		require.Equal(t, numBlocks, forkHead.Number.Uint64())
+		require.Equal(t, numBlocks, bigs.Uint64Strict(forkHead.Number))
 
 		newCanonHeadNumber := uint64(9000)
 		canon.SetCanonical(backend.GetBlockByNumber(newCanonHeadNumber).Header())

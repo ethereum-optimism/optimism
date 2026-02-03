@@ -48,13 +48,8 @@ func NewLargePreimageUploader(logger log.Logger, cl types.ClockReader, txSender 
 	return &LargePreimageUploader{logger, cl, txSender, contract}
 }
 
-func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint64, data *types.PreimageOracleData) error {
+func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, _ uint64, data *types.PreimageOracleData) error {
 	p.log.Debug("Upload large preimage", "key", hexutil.Bytes(data.OracleKey))
-	stateMatrix, calls, err := p.splitCalls(data)
-	if err != nil {
-		return fmt.Errorf("failed to split preimage into chunks for data with oracle offset %d: %w", data.OracleOffset, err)
-	}
-
 	uuid := NewUUID(p.txSender.From(), data)
 
 	// Fetch the current metadata for this preimage data, if it exists.
@@ -72,19 +67,16 @@ func (p *LargePreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 		}
 	}
 
-	// Filter out any chunks that have already been uploaded to the Preimage Oracle.
-	if len(metadata) > 0 {
-		numSkip := metadata[0].BytesProcessed / MaxChunkSize
-		calls = calls[numSkip:]
-		// If the timestamp is non-zero, the preimage has been finalized.
-		if metadata[0].Timestamp != 0 {
-			calls = calls[len(calls):]
-		}
+	stateMatrix, calls, err := p.splitCalls(data, metadata[0].BlocksProcessed)
+	if err != nil {
+		return fmt.Errorf("failed to split preimage into chunks for data with oracle offset %d: %w", data.OracleOffset, err)
 	}
 
-	err = p.addLargePreimageData(uuid, calls)
-	if err != nil {
-		return fmt.Errorf("failed to add leaves to large preimage with uuid: %s: %w", uuid, err)
+	if len(calls) > 0 {
+		err = p.addLargePreimageData(uuid, calls, int64(metadata[0].BlocksProcessed))
+		if err != nil {
+			return fmt.Errorf("failed to add leaves to large preimage with uuid: %s: %w", uuid, err)
+		}
 	}
 
 	return p.Squeeze(ctx, uuid, stateMatrix)
@@ -103,19 +95,47 @@ func NewUUID(sender common.Address, data *types.PreimageOracleData) *big.Int {
 
 // splitChunks splits the preimage data into chunks of size [MaxChunkSize] (except the last chunk).
 // It also returns the state matrix and the data for the squeeze call if possible.
-func (p *LargePreimageUploader) splitCalls(data *types.PreimageOracleData) (*matrix.StateMatrix, []keccakTypes.InputData, error) {
+func (p *LargePreimageUploader) splitCalls(data *types.PreimageOracleData, alreadyUploadedBlocks uint32) (*matrix.StateMatrix, []keccakTypes.InputData, error) {
 	// Split the preimage data into chunks of size [MaxChunkSize] (except the last chunk).
 	stateMatrix := matrix.NewStateMatrix()
 	var calls []keccakTypes.InputData
 	in := bytes.NewReader(data.GetPreimageWithoutSize())
+	// OracleOffset is calculated including the 8 byte length prefix which is not part of the uploaded data
+	ingestedBytes := 8
+	if alreadyUploadedBlocks > 0 {
+		// Process but don't capture calls for the already uploaded blocks
+		maxLen := int(alreadyUploadedBlocks) * keccakTypes.BlockSize
+		_, err := stateMatrix.AbsorbUpTo(in, maxLen)
+		if errors.Is(err, io.EOF) {
+			return stateMatrix, nil, nil
+		}
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to absorb already uploaded data: %w", err)
+		}
+		ingestedBytes += maxLen
+	}
 	for {
-		call, err := stateMatrix.AbsorbUpTo(in, MaxChunkSize)
+		maxChunkSize := MaxChunkSize
+		offset := int(data.OracleOffset)
+		// The contract requires the full data to store to be submitted in a single transaction
+		// Check if the start of the preimage to store is part of the next chunk
+		if offset >= ingestedBytes && offset < ingestedBytes+maxChunkSize {
+			// Check if the 32 bytes being store will extend past the end of the chunk
+			// and that this won't be the last chunk
+			if offset+32 >= ingestedBytes+maxChunkSize && ingestedBytes+maxChunkSize < len(data.GetPreimageWithSize()) {
+				// If so, drop the last block from the chunk
+				// It will be sent as part of the next chunk along with the tail end of the data to store
+				maxChunkSize -= keccakTypes.BlockSize
+			}
+		}
+		call, err := stateMatrix.AbsorbUpTo(in, maxChunkSize)
 		if errors.Is(err, io.EOF) {
 			calls = append(calls, call)
 			break
 		} else if err != nil {
 			return nil, nil, fmt.Errorf("failed to absorb data: %w", err)
 		}
+		ingestedBytes += maxChunkSize
 		calls = append(calls, call)
 	}
 	return stateMatrix, calls, nil
@@ -138,7 +158,7 @@ func (p *LargePreimageUploader) Squeeze(ctx context.Context, uuid *big.Int, stat
 	if len(metadata) == 0 || metadata[0].ClaimedSize == 0 {
 		return fmt.Errorf("no metadata found for pre-image oracle with uuid: %s", uuid)
 	}
-	if uint64(currentTimestamp) < metadata[0].Timestamp+challengePeriod {
+	if uint64(currentTimestamp) <= metadata[0].Timestamp+challengePeriod {
 		return ErrChallengePeriodNotOver
 	}
 	if err := p.contract.CallSqueeze(ctx, p.txSender.From(), uuid, prestateMatrix, prestate, prestateProof, poststate, poststateProof); err != nil {
@@ -173,9 +193,9 @@ func (p *LargePreimageUploader) initLargePreimage(uuid *big.Int, partOffset uint
 // addLargePreimageData adds data to the large preimage proposal.
 // This method **must** be called after calling [initLargePreimage].
 // SAFETY: submits transactions in a [Queue] for latency while preserving submission order.
-func (p *LargePreimageUploader) addLargePreimageData(uuid *big.Int, chunks []keccakTypes.InputData) error {
+func (p *LargePreimageUploader) addLargePreimageData(uuid *big.Int, chunks []keccakTypes.InputData, blocksAlreadyProcessed int64) error {
 	txs := make([]txmgr.TxCandidate, len(chunks))
-	blocksProcessed := int64(0)
+	blocksProcessed := blocksAlreadyProcessed
 	for i, chunk := range chunks {
 		tx, err := p.contract.AddLeaves(uuid, big.NewInt(blocksProcessed), chunk.Input, chunk.Commitments, chunk.Finalize)
 		if err != nil {

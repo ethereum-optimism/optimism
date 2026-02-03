@@ -34,6 +34,12 @@ contract DeployAltDA is Script {
         assertValidOutput(_input, output_);
     }
 
+    function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        Input memory input = abi.decode(_input, (Input));
+        Output memory output = run(input);
+        return abi.encode(output);
+    }
+
     function deployDataAvailabilityChallengeProxy(Input memory _input, Output memory _output) internal virtual {
         bytes32 salt = _input.salt;
         vm.broadcast(msg.sender);

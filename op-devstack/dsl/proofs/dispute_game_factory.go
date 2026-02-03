@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -27,7 +28,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
@@ -42,7 +45,7 @@ type DisputeGameFactory struct {
 	addr          common.Address
 	l2CL          *dsl.L2CLNode
 	l2EL          *dsl.L2ELNode
-	supervisor    *dsl.Supervisor
+	superNode     stack.Supernode
 	gameHelper    *GameHelper
 	challengerCfg *challengerConfig.Config
 
@@ -56,7 +59,7 @@ func NewDisputeGameFactory(
 	dgfAddr common.Address,
 	l2CL *dsl.L2CLNode,
 	l2EL *dsl.L2ELNode,
-	supervisor *dsl.Supervisor,
+	superNode stack.Supernode,
 	challengerCfg *challengerConfig.Config,
 ) *DisputeGameFactory {
 	dgf := bindings.NewDisputeGameFactory(bindings.WithClient(ethClient), bindings.WithTo(dgfAddr), bindings.WithTest(t))
@@ -70,7 +73,7 @@ func NewDisputeGameFactory(
 		addr:          dgfAddr,
 		l2CL:          l2CL,
 		l2EL:          l2EL,
-		supervisor:    supervisor,
+		superNode:     superNode,
 		ethClient:     ethClient,
 		challengerCfg: challengerCfg,
 
@@ -184,7 +187,7 @@ func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 }
 
 func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
-	f.require.NotNil(f.supervisor, "supervisor is required to start super games")
+	f.require.NotNil(f.superNode, "super node is required to start super games")
 
 	return f.startSuperCannonGameOfType(eoa, gameTypes.SuperCannonGameType, opts...)
 }
@@ -197,7 +200,8 @@ func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType g
 	}
 	timestamp := cfg.l2SequenceNumber
 	if !cfg.l2SequenceNumberSet {
-		timestamp = f.supervisor.FetchSyncStatus().SafeTimestamp
+		f.t.Error("Can't retrieve safe timestamp from super node yet")
+		f.t.FailNow()
 	}
 	extraData := f.createSuperGameExtraData(timestamp, cfg)
 	rootClaim := cfg.rootClaim
@@ -206,19 +210,19 @@ func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType g
 	}
 	game, addr := f.createNewGame(eoa, gameType, rootClaim, extraData)
 
-	return NewSuperFaultDisputeGame(f.t, f.require, addr, f.getGameHelper, game)
+	return NewSuperFaultDisputeGame(f.t, f.require, addr, f.getGameHelper, f.honestTraceForGame, game)
 }
 
 func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *GameCfg) []byte {
-	f.require.NotNil(f.supervisor, "supervisor is required create super games")
+	f.require.NotNil(f.superNode, "super node is required create super games")
 	if !cfg.allowFuture {
-		f.supervisor.AwaitMinCrossSafeTimestamp(timestamp)
+		f.awaitMinVerifiedTimestamp(timestamp)
 	}
-	super, err := f.supervisor.FetchSuperRootAtTimestamp(timestamp).ToSuper()
-	f.require.NoError(err, "Failed to fetch super root for timestamp %v", timestamp)
-
-	superV1, ok := super.(*eth.SuperV1)
-	f.require.Truef(ok, "Unsupported super type %T", super)
+	resp, err := f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), timestamp)
+	f.require.NoError(err, "Failed to fetch super root at timestamp")
+	f.require.NotNil(resp.Data, "Super root data must be present at timestamp %v", timestamp)
+	superV1, ok := resp.Data.Super.(*eth.SuperV1)
+	f.require.Truef(ok, "unsupported super type %T", resp.Data.Super)
 	if len(cfg.superOutputRoots) != 0 {
 		f.require.Len(cfg.superOutputRoots, len(superV1.Chains), "Super output roots length mismatch")
 		for i := range superV1.Chains {
@@ -227,6 +231,14 @@ func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *Gam
 	}
 	extraData := superV1.Marshal()
 	return extraData
+}
+
+func (f *DisputeGameFactory) awaitMinVerifiedTimestamp(timestamp uint64) {
+	f.t.Require().Eventually(func() bool {
+		resp, err := f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), timestamp)
+		f.require.NoError(err, "Failed to fetch supernode status (superroot_atTimestamp)")
+		return resp.Data != nil
+	}, 2*time.Minute, 1*time.Second)
 }
 
 func (f *DisputeGameFactory) StartCannonGame(eoa *dsl.EOA, opts ...GameOpt) *FaultDisputeGame {
@@ -258,6 +270,14 @@ func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challeng
 			f.challengerCfg.CannonKonaAbsolutePreState,
 			f.challengerCfg.CannonKona,
 			vm.NewKonaExecutor(),
+		)
+	case gameTypes.SuperCannonGameType:
+		return f.honestSuperCannonTrace(
+			game,
+			f.challengerCfg.CannonAbsolutePreStateBaseURL,
+			f.challengerCfg.CannonAbsolutePreState,
+			f.challengerCfg.Cannon,
+			vm.NewOpProgramServerExecutor(f.log),
 		)
 	default:
 		f.require.Truef(false, "Honest trace not supported for game type %v", game.GameType())
@@ -305,6 +325,56 @@ func (f *DisputeGameFactory) honestOutputCannonTrace(
 		game.L2SequenceNumber(),
 	)
 	f.require.NoError(err, "Failed to create trace accessor")
+	f.honestTraces[game.Address] = accessor
+	return accessor
+}
+
+func (f *DisputeGameFactory) honestSuperCannonTrace(
+	game *FaultDisputeGame,
+	prestateBaseUrl *url.URL,
+	prestateFile string,
+	vmConfig vm.Config,
+	serverExecutor vm.OracleServerExecutor,
+) challengerTypes.TraceAccessor {
+	logger := f.t.Logger().New("role", "honestSuperTrace")
+	f.require.NotNil(f.superNode, "SuperNode is required to create honest super trace")
+
+	prestateTimestamp := game.StartingL2SequenceNumber()
+	poststateTimestamp := game.L2SequenceNumber()
+
+	l1HeadHash := game.L1Head()
+	l1Head, err := f.ethClient.BlockRefByHash(f.t.Ctx(), l1HeadHash)
+	f.require.NoError(err, "Failed to fetch L1 Head")
+
+	prestateProvider := super.NewSuperNodePrestateProvider(f.superNode.QueryAPI(), prestateTimestamp)
+
+	vmPrestateSource := prestates.NewPrestateSource(
+		prestateBaseUrl,
+		prestateFile,
+		path.Join(f.challengerCfg.Datadir, "test-prestates"),
+		cannon.NewStateConverter(vmConfig),
+	)
+	vmPrestatePath, err := vmPrestateSource.PrestatePath(f.t.Ctx(), game.absolutePrestate())
+	f.require.NoError(err, "Failed to get prestate path")
+
+	accessor, err := super.NewSuperCannonTraceAccessor(
+		logger,
+		metrics.NoopMetrics,
+		vmConfig,
+		serverExecutor,
+		prestateProvider,
+		nil, // supervisor client
+		f.superNode.QueryAPI(),
+		true,
+		vmPrestatePath,
+		path.Join(f.challengerCfg.Datadir, "test-prestates"),
+		l1Head.ID(),
+		game.SplitDepth(),
+		prestateTimestamp,
+		poststateTimestamp,
+	)
+	f.require.NoError(err, "Failed to create super cannon trace accessor")
+
 	f.honestTraces[game.Address] = accessor
 	return accessor
 }
@@ -393,7 +463,7 @@ type ethClientHeaderProvider struct {
 }
 
 func (p *ethClientHeaderProvider) HeaderByNumber(ctx context.Context, blockNum *big.Int) (*types.Header, error) {
-	info, err := p.client.InfoByNumber(ctx, blockNum.Uint64())
+	info, err := p.client.InfoByNumber(ctx, bigs.Uint64Strict(blockNum))
 	if err != nil {
 		return nil, err
 	}
