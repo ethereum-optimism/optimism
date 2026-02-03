@@ -36,12 +36,3 @@ func (b *BlobFetcher) GetBlobsByHash(ctx context.Context, time uint64, hashes []
 	}
 	return blobs, nil
 }
-
-// GetBlobs is deprecated. Use GetBlobsByHash instead.
-func (b *BlobFetcher) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
-	hashesOnly := make([]common.Hash, len(hashes))
-	for i, h := range hashes {
-		hashesOnly[i] = h.Hash
-	}
-	return b.GetBlobsByHash(ctx, ref.Time, hashesOnly)
-}

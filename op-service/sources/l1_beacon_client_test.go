@@ -61,7 +61,6 @@ func TestBeaconClientNoErrorPrimary(t *testing.T) {
 	index1, blob1 := makeTestBlob(indices[1])
 	index2, blob2 := makeTestBlob(indices[2])
 	hashes := []common.Hash{index0.Hash, index1.Hash, index2.Hash}
-	indexedHashes := []eth.IndexedBlobHash{index0, index1, index2}
 	blobs := []*eth.Blob{blob0, blob1, blob2}
 
 	ctx := context.Background()
@@ -73,7 +72,7 @@ func TestBeaconClientNoErrorPrimary(t *testing.T) {
 	// Timestamp 12 = Slot 1
 	p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(eth.APIBeaconBlobsResponse{Data: blobs}, nil)
 
-	resp, err := c.GetBlobs(ctx, eth.L1BlockRef{Time: 12}, indexedHashes)
+	resp, err := c.GetBlobsByHash(ctx, 12, hashes)
 	require.NoError(t, err)
 	require.Equal(t, blobs, resp)
 
@@ -85,7 +84,6 @@ func TestBeaconClientFallback(t *testing.T) {
 	index1, blob1 := makeTestBlob(indices[1])
 	index2, blob2 := makeTestBlob(indices[2])
 	hashes := []common.Hash{index0.Hash, index1.Hash, index2.Hash}
-	indexedHashes := []eth.IndexedBlobHash{index0, index1, index2}
 	blobs := []*eth.Blob{blob0, blob1, blob2}
 
 	ctx := context.Background()
@@ -98,7 +96,7 @@ func TestBeaconClientFallback(t *testing.T) {
 	p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(eth.APIBeaconBlobsResponse{}, errors.New("404 not found"))
 	f.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(eth.APIBeaconBlobsResponse{Data: blobs}, nil)
 
-	resp, err := c.GetBlobs(ctx, eth.L1BlockRef{Time: 12}, indexedHashes)
+	resp, err := c.GetBlobsByHash(ctx, 12, hashes)
 	require.NoError(t, err)
 	require.Equal(t, blobs, resp)
 
@@ -108,14 +106,13 @@ func TestBeaconClientFallback(t *testing.T) {
 	index1, blob1 = makeTestBlob(indices[1])
 	index2, blob2 = makeTestBlob(indices[2])
 	hashes = []common.Hash{index0.Hash, index1.Hash, index2.Hash}
-	indexedHashes = []eth.IndexedBlobHash{index0, index1, index2}
 	blobs = []*eth.Blob{blob0, blob1, blob2}
 
 	// Timestamp 14 = Slot 2
 	f.EXPECT().BeaconBlobs(ctx, uint64(2), hashes).Return(eth.APIBeaconBlobsResponse{}, errors.New("404 not found"))
 	p.EXPECT().BeaconBlobs(ctx, uint64(2), hashes).Return(eth.APIBeaconBlobsResponse{Data: blobs}, nil)
 
-	resp, err = c.GetBlobs(ctx, eth.L1BlockRef{Time: 14}, indexedHashes)
+	resp, err = c.GetBlobsByHash(ctx, 14, hashes)
 	require.NoError(t, err)
 	require.Equal(t, blobs, resp)
 }
@@ -182,7 +179,6 @@ func TestGetBlobs(t *testing.T) {
 	hash1, blob1 := makeTestBlob(1)
 	hash2, blob2 := makeTestBlob(2)
 
-	indexedHashes := []eth.IndexedBlobHash{hash0, hash2, hash1} // Mix up the order.
 	hashes := []common.Hash{hash0.Hash, hash2.Hash, hash1.Hash} // Mix up the order.
 	beaconBlobs := []*eth.Blob{blob0, blob2, blob1}
 
@@ -199,7 +195,7 @@ func TestGetBlobs(t *testing.T) {
 	beaconBlobsResponse = eth.APIBeaconBlobsResponse{Data: beaconBlobs}
 	p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(beaconBlobsResponse, err)
 
-	resp, err := client.GetBlobs(ctx, ref, indexedHashes)
+	resp, err := client.GetBlobsByHash(ctx, ref.Time, hashes)
 	require.NoError(t, err)
 	require.Equal(t, beaconBlobs, resp)
 }
@@ -220,7 +216,6 @@ func TestRequestDuplicateBlobHashes(t *testing.T) {
 		Hash:  hash0.Hash,
 	}
 
-	indexedHashes := []eth.IndexedBlobHash{hash0, hash2, hash1, sameHash} // Mix up the order.
 	hashes := []common.Hash{hash0.Hash, hash2.Hash, hash1.Hash, sameHash.Hash}
 	beaconBlobs := []*eth.Blob{blob0, blob2, blob1, blob0}
 
@@ -228,7 +223,7 @@ func TestRequestDuplicateBlobHashes(t *testing.T) {
 	beaconBlobsResponse := eth.APIBeaconBlobsResponse{Data: beaconBlobs}
 	p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(beaconBlobsResponse, nil)
 
-	resp, err := client.GetBlobs(ctx, ref, indexedHashes)
+	resp, err := client.GetBlobsByHash(ctx, ref.Time, hashes)
 	require.NoError(t, err)
 	for i, blob := range resp {
 		require.NotNil(t, blob, fmt.Sprintf("blob at index %d should not be nil", i))

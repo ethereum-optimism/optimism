@@ -232,15 +232,6 @@ func (cl *L1BeaconClient) GetBlobsByHash(ctx context.Context, time uint64, hashe
 	return cl.beaconBlobs(ctx, slot, hashes)
 }
 
-// GetBlobs is deprecated. Use GetBlobsByHash instead.
-func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
-	hashesOnly := make([]common.Hash, len(hashes))
-	for i, h := range hashes {
-		hashesOnly[i] = h.Hash
-	}
-	return cl.GetBlobsByHash(ctx, ref.Time, hashesOnly)
-}
-
 func (cl *L1BeaconClient) beaconBlobs(ctx context.Context, slot uint64, hashes []common.Hash) ([]*eth.Blob, error) {
 	resp, err := cl.fetchBlobs(ctx, slot, hashes)
 	if err != nil {
