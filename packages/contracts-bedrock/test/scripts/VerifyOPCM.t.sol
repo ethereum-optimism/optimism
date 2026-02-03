@@ -13,6 +13,7 @@ import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
 
 // Interfaces
 import { IOPContractsManager, IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.sol";
+import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -101,9 +102,10 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
         // nosemgrep: sol-style-vm-env-only-in-config-sol
         if (vm.envOr("DEV_FEATURE__OPCM_V2", false)) {
             opcm = IOPContractsManager(address(opcmV2));
-        } else {
-            setupEnvVars();
         }
+
+        // Always set up the environment variables for the test.
+        setupEnvVars();
 
         // Set the OPCM address so that runSingle also runs for V2 OPCM if the dev feature is enabled.
         vm.setEnv("OPCM_ADDRESS", vm.toString(address(opcm)));
@@ -111,36 +113,28 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
 
     /// @notice Sets up the environment variables for the VerifyOPCM test.
     function setupEnvVars() public {
-        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
-        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
-
-        // Set security-critical value env vars from the StandardValidator
-        address validator = address(opcm.opcmStandardValidator());
-        if (validator != address(0)) {
-            // Read values from the validator and set them as expected
-            // nosemgrep: sol-style-use-abi-encodecall
-            (bool ok, bytes memory data) = validator.staticcall(abi.encodeWithSignature("l1PAOMultisig()"));
-            if (ok) vm.setEnv("EXPECTED_L1_PAO_MULTISIG", vm.toString(abi.decode(data, (address))));
-
-            // nosemgrep: sol-style-use-abi-encodecall
-            (ok, data) = validator.staticcall(abi.encodeWithSignature("challenger()"));
-            if (ok) vm.setEnv("EXPECTED_CHALLENGER", vm.toString(abi.decode(data, (address))));
+        // If OPCM V2 is not enabled, set the environment variables for the old OPCM.
+        if (!isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
+            vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
         }
 
-        // Set delay values from deployed contracts
+        // Grab a reference to the validator.
+        IOPContractsManagerStandardValidator validator =
+            IOPContractsManagerStandardValidator(opcm.opcmStandardValidator());
+
+        // Fetch all of the expected values from existing contracts, this just makes the tests pass
+        // by default. We will override these with bad values during tests to demonstrate that the
+        // script correctly rejects them.
+        vm.setEnv("EXPECTED_L1_PAO_MULTISIG", vm.toString(validator.l1PAOMultisig()));
+        vm.setEnv("EXPECTED_CHALLENGER", vm.toString(validator.challenger()));
+        vm.setEnv("EXPECTED_MIN_WITHDRAWAL_DELAY_SECONDS", vm.toString(validator.withdrawalDelaySeconds()));
+        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(optimismPortal2.superchainConfig())));
         vm.setEnv("EXPECTED_PROOF_MATURITY_DELAY_SECONDS", vm.toString(optimismPortal2.proofMaturityDelaySeconds()));
         vm.setEnv(
             "EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS",
             vm.toString(anchorStateRegistry.disputeGameFinalityDelaySeconds())
         );
-
-        // Set minimum withdrawal delay to the actual value in test environment
-        // (production requires 7 days but tests may use shorter values)
-        if (validator != address(0)) {
-            // nosemgrep: sol-style-use-abi-encodecall
-            (bool wdOk, bytes memory wdData) = validator.staticcall(abi.encodeWithSignature("withdrawalDelaySeconds()"));
-            if (wdOk) vm.setEnv("EXPECTED_MIN_WITHDRAWAL_DELAY_SECONDS", vm.toString(abi.decode(wdData, (uint256))));
-        }
     }
 }
 
