@@ -17,16 +17,15 @@ Follow the workflow below.
 
 ### Prerequisites
 
-- `CIRCLECI_TOKEN` environment variable (for accessing CircleCI API)
 - `gh` CLI authenticated with GitHub
+- Note: CircleCI API is publicly accessible for this repository, no token required
 
 ### Workflow
 
 #### Step 1: Find the latest scheduled TODO checker job
 
 ```bash
-LATEST_PIPELINE=$(curl -s "https://circleci.com/api/v2/project/gh/ethereum-optimism/optimism/pipeline?branch=develop" \
-  -H "Circle-Token: ${CIRCLECI_TOKEN:-}" | \
+LATEST_PIPELINE=$(curl -s "https://circleci.com/api/v2/project/gh/ethereum-optimism/optimism/pipeline?branch=develop" | \
   jq -r '.items[] | select(.trigger.type == "scheduled_pipeline") | {id, number, created_at} | @json' | head -1)
 
 PIPELINE_ID=$(echo "$LATEST_PIPELINE" | jq -r '.id')
@@ -35,13 +34,29 @@ PIPELINE_NUMBER=$(echo "$LATEST_PIPELINE" | jq -r '.number')
 
 #### Step 2: Get the workflow and job details
 
-```bash
-WORKFLOW_ID=$(curl -s "https://circleci.com/api/v2/pipeline/$PIPELINE_ID/workflow" \
-  -H "Circle-Token: ${CIRCLECI_TOKEN:-}" | \
-  jq -r '.items[] | select(.name | contains("todo")) | .id')
+Note: The latest scheduled pipeline may only contain a "setup" workflow. Search through recent scheduled pipelines to find one with the "scheduled-todo-issues" workflow.
 
-JOB_NUMBER=$(curl -s "https://circleci.com/api/v2/workflow/$WORKFLOW_ID/job" \
-  -H "Circle-Token: ${CIRCLECI_TOKEN:-}" | \
+```bash
+# Find a pipeline with the TODO workflow
+PIPELINE_WITH_TODO=$(curl -s "https://circleci.com/api/v2/project/gh/ethereum-optimism/optimism/pipeline?branch=develop" | \
+  jq -r '.items[] | select(.trigger.type == "scheduled_pipeline") | .id' | while read pid; do
+    workflows=$(curl -s "https://circleci.com/api/v2/pipeline/$pid/workflow" | jq -r '.items[] | .name')
+    if echo "$workflows" | grep -q "scheduled-todo-issues"; then
+      echo "$pid"
+      break
+    fi
+  done)
+
+PIPELINE_ID="$PIPELINE_WITH_TODO"
+PIPELINE_NUMBER=$(curl -s "https://circleci.com/api/v2/project/gh/ethereum-optimism/optimism/pipeline?branch=develop" | \
+  jq -r ".items[] | select(.id == \"$PIPELINE_ID\") | .number")
+
+WORKFLOW_DATA=$(curl -s "https://circleci.com/api/v2/pipeline/$PIPELINE_ID/workflow" | \
+  jq '.items[] | select(.name == "scheduled-todo-issues")')
+WORKFLOW_ID=$(echo "$WORKFLOW_DATA" | jq -r '.id')
+WORKFLOW_STATUS=$(echo "$WORKFLOW_DATA" | jq -r '.status')
+
+JOB_NUMBER=$(curl -s "https://circleci.com/api/v2/workflow/$WORKFLOW_ID/job" | \
   jq -r '.items[] | .job_number')
 ```
 
@@ -50,8 +65,7 @@ Check if the workflow status is "failed". If it's "success" or "running", inform
 #### Step 3: Fetch the job output to find closed issues
 
 ```bash
-OUTPUT_URL=$(curl -s "https://circleci.com/api/v1.1/project/gh/ethereum-optimism/optimism/$JOB_NUMBER" \
-  -H "Circle-Token: ${CIRCLECI_TOKEN:-}" | \
+OUTPUT_URL=$(curl -s "https://circleci.com/api/v1.1/project/gh/ethereum-optimism/optimism/$JOB_NUMBER" | \
   jq -r '.steps[] | select(.name | contains("TODO")) | .actions[0].output_url')
 
 curl -s "$OUTPUT_URL" | jq -r '.[].message'
@@ -71,11 +85,49 @@ Extract from the "Closed issue details" table:
 
 #### Step 5: Find who closed the issue
 
+Issues can be closed via PR or directly by a user. Check the timeline to find the most recent person who closed it:
+
 ```bash
 ISSUE_NUM="<issue_number>"
-CLOSING_PR=$(gh issue view $ISSUE_NUM --json closedByPullRequestsReferences --jq '.closedByPullRequestsReferences[0].number')
-PR_AUTHOR=$(gh pr view $CLOSING_PR --json author --jq '.author.login')
+
+# Use GraphQL to get the timeline and find the most recent close event
+CLOSER=$(gh api graphql -f query="
+query {
+  repository(owner: \"ethereum-optimism\", name: \"optimism\") {
+    issue(number: $ISSUE_NUM) {
+      timelineItems(last: 20, itemTypes: [CLOSED_EVENT, REOPENED_EVENT]) {
+        nodes {
+          ... on ClosedEvent {
+            __typename
+            createdAt
+            actor {
+              login
+            }
+            closer {
+              __typename
+            }
+          }
+          ... on ReopenedEvent {
+            __typename
+            createdAt
+            actor {
+              login
+            }
+          }
+        }
+      }
+    }
+  }
+}" --jq '.data.repository.issue.timelineItems.nodes | reverse | .[] | select(.__typename == "ClosedEvent") | .actor.login' | head -1)
+
+echo "Issue closed by: @$CLOSER"
 ```
+
+This finds the most recent ClosedEvent in the timeline, which correctly handles cases where an issue was:
+- Closed via PR, then reopened, then closed directly by a user
+- Closed multiple times by different people
+
+Always tag the person from the most recent close event.
 
 #### Step 6: Read the actual TODO line from the file
 
@@ -86,7 +138,7 @@ Read the file at the location specified in the error to get the exact TODO comme
 Format the reopening comment following this template:
 
 ```bash
-gh issue reopen $ISSUE_NUM --comment "@${PR_AUTHOR} Reopening because this issue was closed but there's still a TODO/skip referencing it in the codebase.
+gh issue reopen $ISSUE_NUM --comment "@${CLOSER} Reopening because this issue was closed but there's still a TODO/skip referencing it in the codebase.
 
 [Brief context about what was completed vs what remains]
 
@@ -101,7 +153,7 @@ Discovered by the TODO check in CI: https://app.circleci.com/pipelines/github/et
 
 ### Requirements
 
-- **Always tag the person who closed the issue** using their GitHub handle (found via the closing PR)
+- **Always tag the person who closed the issue** using their GitHub handle (found via the most recent close event in the timeline)
 - **Include the exact file location** where the TODO exists
 - **Include the CircleCI job URL** for traceability
 - **Read and include the actual TODO line** from the code
@@ -131,8 +183,6 @@ The TODO checker validates these formats:
 - `TODO(<org>/<repo>#<number>)` - full reference
 
 ### Error Handling
-
-**No CIRCLECI_TOKEN**: Ask the user to set the environment variable or provide the CircleCI job URL directly.
 
 **Multiple closed issues**: Process each one sequentially, asking for confirmation before reopening each.
 
