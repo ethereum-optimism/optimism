@@ -46,14 +46,23 @@ update-op-geth ref:
 	go mod tidy; \
 	echo "Updated op-geth to $ver"
 
-# e.g. GITHUB_TOKEN=foo just generate-batcher-release-notes v1.16.3 v1.16.4-rc.1
-generate-batcher-release-notes from_tag to_tag:
+# e.g. GITHUB_TOKEN=foo just generate-release-notes op-batcher v1.16.3 v1.16.4-rc.1
+generate-release-notes component from_tag to_tag:
+    @component="{{ component }}"; \
+    case "$component" in \
+        op-batcher|op-node) \
+            ;; \
+        *) \
+            echo "error: component must be one of: op-batcher, op-node"; \
+            exit 1; \
+            ;; \
+    esac; \
     git cliff \
-        --include-path "op-batcher/**/*" \
-        --include-path "go.*" \
-        --include-path "op-core/**/*" \
-        --include-path "op-service/**/*" \
+        --include-path {{ component }}/**/* \
+        --include-path go.* \
+        --include-path op-core/**/* \
+        --include-path op-service/**/* \
         --config .github/cliff.toml \
-        --tag-pattern op-batcher/{{ from_tag }} \
-        --tag op-batcher/{{ to_tag }} \
-        -- op-batcher/{{ from_tag }}..op-batcher/{{ to_tag }}
+        --tag-pattern {{ component }}/{{ from_tag }} \
+        --tag {{ component }}/{{ to_tag }} \
+        -- {{ component }}/{{ from_tag }}..{{ component }}/{{ to_tag }}
