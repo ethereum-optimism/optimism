@@ -186,7 +186,6 @@ func TestFetchL1Blob(t *testing.T) {
 	commitment, err := blob.ComputeKZGCommitment()
 	require.NoError(t, err)
 	versionedHash := eth.KZGToVersionedHash(commitment)
-	blobHash := eth.IndexedBlobHash{Hash: versionedHash, Index: 0xFACADE}
 	l1Ref := eth.L1BlockRef{Time: 0}
 
 	t.Run("AlreadyKnown", func(t *testing.T) {
@@ -196,7 +195,7 @@ func TestFetchL1Blob(t *testing.T) {
 		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
 		defer blobFetcher.AssertExpectations(t)
 
-		blobs := oracle.GetBlob(l1Ref, blobHash)
+		blobs := oracle.GetBlob(l1Ref, versionedHash)
 		require.EqualValues(t, blobs[:], blob[:])
 	})
 
@@ -204,16 +203,16 @@ func TestFetchL1Blob(t *testing.T) {
 		prefetcher, _, blobFetcher, _, _ := createPrefetcher(t)
 
 		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
-		blobFetcher.ExpectOnGetBlobs(
+		blobFetcher.ExpectOnGetBlobsByHash(
 			context.Background(),
-			l1Ref,
-			[]eth.IndexedBlobHash{blobHash},
+			l1Ref.Time,
+			[]common.Hash{versionedHash},
 			[]*eth.Blob{&blob},
 			nil,
 		)
 		defer blobFetcher.AssertExpectations(t)
 
-		blobs := oracle.GetBlob(l1Ref, blobHash)
+		blobs := oracle.GetBlob(l1Ref, versionedHash)
 		require.EqualValues(t, blobs[:], blob[:])
 
 		// Check that the preimages of field element keys are also stored

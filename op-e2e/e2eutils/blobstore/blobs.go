@@ -31,22 +31,6 @@ func (store *Store) StoreBlob(blockTime uint64, indexedHash eth.IndexedBlobHash,
 	m[indexedHash] = blob
 }
 
-func (store *Store) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
-	out := make([]*eth.Blob, 0, len(hashes))
-	m, ok := store.blobs[ref.Time]
-	if !ok {
-		return nil, fmt.Errorf("no blobs known with given time: %w", ethereum.NotFound)
-	}
-	for _, h := range hashes {
-		b, ok := m[h]
-		if !ok {
-			return nil, fmt.Errorf("blob %d %s is not in store: %w", h.Index, h.Hash, ethereum.NotFound)
-		}
-		out = append(out, b)
-	}
-	return out, nil
-}
-
 // GetBlobsByHash returns a slice of blobs in the slot at the given timestamp,
 // corresponding to the supplied versioned hashes.
 // If the provided hashes is empty, all blobs in the store at the supplied timestamp are returned.
