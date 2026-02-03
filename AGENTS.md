@@ -17,7 +17,7 @@ When this happens, offer to submit the improvement to the relevant file in `docs
 
 This repository contains multiple components spanning different technologies:
 
-### Go Services (`op-*` directories)
+### Go Services
 
 The rollup node software and associated services, including:
 
@@ -26,22 +26,30 @@ The rollup node software and associated services, including:
 - **op-proposer**: L2 output submitter
 - **op-challenger**: Dispute game challenge agent
 - **op-conductor**: High-availability sequencer service
-- **op-supervisor**: Cross-chain message safety monitor
+- **op-supervisor**: Cross-chain message safety monitor (DEPRECATED)
 
 ### Smart Contracts (`packages/contracts-bedrock`)
 
 Solidity smart contracts for the OP Stack, including the core protocol contracts deployed on L1 and L2.
 
+### Rust Components
+
+The OP Stack includes significant Rust implementations:
+
+- **kona**: Rust implementation of the OP Stack rollup state transition, including fault proof program, rollup node, and supervisor
+- **op-reth**: OP Stack execution client built on reth
+- **op-alloy**: Rust crates providing OP Stack types and providers for the alloy ecosystem
+- **alloy-op-hardforks** / **alloy-op-evm**: OP Stack hardfork and EVM support for alloy
+
 ### Fault Proof System
 
-- **cannon**: Onchain MIPS instruction emulator
-- **op-program**: Fault proof program
-- **kona**: Alternative fault proof implementation
+- **cannon**: Onchain MIPS instruction emulator (in Go)
+- **op-program**: Fault proof program (in Go)
 
 ### Development and Testing Infrastructure
 
 - **devnet-sdk**: Toolkit for devnet interactions
-- **kurtosis-devnet**: Kurtosis-based devnet environment
+- **kurtosis-devnet**: Kurtosis-based devnet environment (DEPRECATED)
 - **op-e2e**: End-to-end testing framework
 - **op-acceptance-tests**: Acceptance test suite
 
