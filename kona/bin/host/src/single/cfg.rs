@@ -35,9 +35,17 @@ fn parse_rpc_client(s: &str) -> anyhow::Result<RpcClient> {
         Ok(RpcClient::builder().http(url))
     } else {
         // WebSocket and IPC require async setup; block here since clap value_parser must be sync
-        Ok(tokio::runtime::Handle::current()
-            .block_on(async { RpcClient::builder().connect(s).await })
-            .with_context(|| format!("failed to connect to RPC: {:?}", s))?)
+        let handle = tokio::runtime::Handle::try_current()
+            .context("no tokio runtime available for async RPC connection")?;
+        handle.block_on(async {
+            tokio::time::timeout(
+                std::time::Duration::from_secs(10),
+                RpcClient::builder().connect(s),
+            )
+            .await
+            .with_context(|| format!("connection to RPC timed out after 10s: {}", s))?
+            .with_context(|| format!("failed to connect to RPC: {}", s))
+        })
     }
 }
 
