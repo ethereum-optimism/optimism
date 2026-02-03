@@ -70,11 +70,14 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	s.rpcRouter.SetRootHandler(s.rootRPC)
 	// Build metrics router; attach per-chain registries later
 	s.metricsFanIn = resources.NewMetricsFanIn(len(cfg.Chains))
+	// Create shared SupernodeAuthority for all chain containers
+	superAuthority := resources.NewSupernodeAuthority()
 	for _, id := range cfg.Chains {
 		chainID := eth.ChainIDFromUInt64(id)
 		initOverrides := &rollupNode.InitializationOverrides{
-			L1Source: resources.NewNonCloseableL1Client(s.l1Client),
-			Beacon:   resources.NewNonCloseableL1BeaconClient(s.beaconClient),
+			L1Source:       resources.NewNonCloseableL1Client(s.l1Client),
+			Beacon:         resources.NewNonCloseableL1BeaconClient(s.beaconClient),
+			SuperAuthority: superAuthority,
 		}
 		// no rpc handler is passed to the chain container, it will create a new one per (re)start using rpcRouter.SetHandler
 		if vnCfgs[chainID] == nil {
