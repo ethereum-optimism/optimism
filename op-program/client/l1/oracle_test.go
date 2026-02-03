@@ -127,15 +127,16 @@ func TestGetBlob(t *testing.T) {
 			}
 
 			// Setup expected hint
-			blobReqMeta := make([]byte, 8)
-			binary.BigEndian.PutUint64(blobReqMeta[0:8], blockRef.Time)
+			blobReqMeta := make([]byte, 16)
+			binary.BigEndian.PutUint64(blobReqMeta[0:8], indexedBlobHash.Index)
+			binary.BigEndian.PutUint64(blobReqMeta[8:16], blockRef.Time)
 			expectedBlobHint := BlobHint(append(indexedBlobHash.Hash[:], blobReqMeta...)).Hint()
 
 			po, hints := createTestPreimageOracle(t, preimages)
 
 			// Get Blob and verify expectations
 			hints.On("hint", expectedBlobHint).Once().Return()
-			actualBlob := po.GetBlob(blockRef, indexedBlobHash.Hash)
+			actualBlob := po.GetBlob(blockRef, indexedBlobHash)
 			hints.AssertExpectations(t)
 			require.Equal(t, blob[:], actualBlob[:])
 		})

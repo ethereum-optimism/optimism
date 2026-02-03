@@ -54,7 +54,7 @@ type L1Source interface {
 }
 
 type L1BlobSource interface {
-	GetBlobsByHash(ctx context.Context, time uint64, hashes []common.Hash) ([]*eth.Blob, error)
+	GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error)
 }
 
 type Prefetcher struct {
@@ -316,17 +316,23 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		}
 		return p.storeReceipts(receipts)
 	case l1.HintL1Blob:
-		if len(hintBytes) != 40 {
+		if len(hintBytes) != 48 {
 			return fmt.Errorf("invalid blob hint: %x", hint)
 		}
 
 		blobVersionHash := common.Hash(hintBytes[:32])
-		refTimestamp := binary.BigEndian.Uint64(hintBytes[32:40])
+		blobHashIndex := binary.BigEndian.Uint64(hintBytes[32:40])
+		refTimestamp := binary.BigEndian.Uint64(hintBytes[40:48])
 
-		// Fetch the blob for the versioned hash passed in the hint.
-		blobs, err := p.l1BlobFetcher.GetBlobsByHash(ctx, refTimestamp, []common.Hash{blobVersionHash})
+		// Fetch the blob for the indexed blob hash passed in the hint.
+		indexedBlobHash := eth.IndexedBlobHash{
+			Hash:  blobVersionHash,
+			Index: blobHashIndex,
+		}
+		// We pass an `eth.L1BlockRef`, but `GetBlobs` only uses the timestamp, which we received in the hint.
+		blobs, err := p.l1BlobFetcher.GetBlobs(ctx, eth.L1BlockRef{Time: refTimestamp}, []eth.IndexedBlobHash{indexedBlobHash})
 		if err != nil || len(blobs) != 1 {
-			return fmt.Errorf("failed to fetch blob for %s: %w", blobVersionHash, err)
+			return fmt.Errorf("failed to fetch blobs for %s %d: %w", blobVersionHash, blobHashIndex, err)
 		}
 		blob := blobs[0]
 		kzgCommitment, err := blob.ComputeKZGCommitment()

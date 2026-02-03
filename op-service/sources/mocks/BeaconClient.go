@@ -5,10 +5,7 @@ package mocks
 import (
 	context "context"
 
-	common "github.com/ethereum/go-ethereum/common"
-
 	eth "github.com/ethereum-optimism/optimism/op-service/eth"
-
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -25,8 +22,67 @@ func (_m *BeaconClient) EXPECT() *BeaconClient_Expecter {
 	return &BeaconClient_Expecter{mock: &_m.Mock}
 }
 
+// BeaconBlobSideCars provides a mock function with given fields: ctx, fetchAllSidecars, slot, hashes
+func (_m *BeaconClient) BeaconBlobSideCars(ctx context.Context, fetchAllSidecars bool, slot uint64, hashes []eth.IndexedBlobHash) (eth.APIGetBlobSidecarsResponse, error) {
+	ret := _m.Called(ctx, fetchAllSidecars, slot, hashes)
+
+	if len(ret) == 0 {
+		panic("no return value specified for BeaconBlobSideCars")
+	}
+
+	var r0 eth.APIGetBlobSidecarsResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, bool, uint64, []eth.IndexedBlobHash) (eth.APIGetBlobSidecarsResponse, error)); ok {
+		return rf(ctx, fetchAllSidecars, slot, hashes)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, bool, uint64, []eth.IndexedBlobHash) eth.APIGetBlobSidecarsResponse); ok {
+		r0 = rf(ctx, fetchAllSidecars, slot, hashes)
+	} else {
+		r0 = ret.Get(0).(eth.APIGetBlobSidecarsResponse)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, bool, uint64, []eth.IndexedBlobHash) error); ok {
+		r1 = rf(ctx, fetchAllSidecars, slot, hashes)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// BeaconClient_BeaconBlobSideCars_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'BeaconBlobSideCars'
+type BeaconClient_BeaconBlobSideCars_Call struct {
+	*mock.Call
+}
+
+// BeaconBlobSideCars is a helper method to define mock.On call
+//   - ctx context.Context
+//   - fetchAllSidecars bool
+//   - slot uint64
+//   - hashes []eth.IndexedBlobHash
+func (_e *BeaconClient_Expecter) BeaconBlobSideCars(ctx interface{}, fetchAllSidecars interface{}, slot interface{}, hashes interface{}) *BeaconClient_BeaconBlobSideCars_Call {
+	return &BeaconClient_BeaconBlobSideCars_Call{Call: _e.mock.On("BeaconBlobSideCars", ctx, fetchAllSidecars, slot, hashes)}
+}
+
+func (_c *BeaconClient_BeaconBlobSideCars_Call) Run(run func(ctx context.Context, fetchAllSidecars bool, slot uint64, hashes []eth.IndexedBlobHash)) *BeaconClient_BeaconBlobSideCars_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(bool), args[2].(uint64), args[3].([]eth.IndexedBlobHash))
+	})
+	return _c
+}
+
+func (_c *BeaconClient_BeaconBlobSideCars_Call) Return(_a0 eth.APIGetBlobSidecarsResponse, _a1 error) *BeaconClient_BeaconBlobSideCars_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *BeaconClient_BeaconBlobSideCars_Call) RunAndReturn(run func(context.Context, bool, uint64, []eth.IndexedBlobHash) (eth.APIGetBlobSidecarsResponse, error)) *BeaconClient_BeaconBlobSideCars_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // BeaconBlobs provides a mock function with given fields: ctx, slot, hashes
-func (_m *BeaconClient) BeaconBlobs(ctx context.Context, slot uint64, hashes []common.Hash) (eth.APIBeaconBlobsResponse, error) {
+func (_m *BeaconClient) BeaconBlobs(ctx context.Context, slot uint64, hashes []eth.IndexedBlobHash) (eth.APIBeaconBlobsResponse, error) {
 	ret := _m.Called(ctx, slot, hashes)
 
 	if len(ret) == 0 {
@@ -35,16 +91,16 @@ func (_m *BeaconClient) BeaconBlobs(ctx context.Context, slot uint64, hashes []c
 
 	var r0 eth.APIBeaconBlobsResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uint64, []common.Hash) (eth.APIBeaconBlobsResponse, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uint64, []eth.IndexedBlobHash) (eth.APIBeaconBlobsResponse, error)); ok {
 		return rf(ctx, slot, hashes)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uint64, []common.Hash) eth.APIBeaconBlobsResponse); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uint64, []eth.IndexedBlobHash) eth.APIBeaconBlobsResponse); ok {
 		r0 = rf(ctx, slot, hashes)
 	} else {
 		r0 = ret.Get(0).(eth.APIBeaconBlobsResponse)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uint64, []common.Hash) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, uint64, []eth.IndexedBlobHash) error); ok {
 		r1 = rf(ctx, slot, hashes)
 	} else {
 		r1 = ret.Error(1)
@@ -61,14 +117,14 @@ type BeaconClient_BeaconBlobs_Call struct {
 // BeaconBlobs is a helper method to define mock.On call
 //   - ctx context.Context
 //   - slot uint64
-//   - hashes []common.Hash
+//   - hashes []eth.IndexedBlobHash
 func (_e *BeaconClient_Expecter) BeaconBlobs(ctx interface{}, slot interface{}, hashes interface{}) *BeaconClient_BeaconBlobs_Call {
 	return &BeaconClient_BeaconBlobs_Call{Call: _e.mock.On("BeaconBlobs", ctx, slot, hashes)}
 }
 
-func (_c *BeaconClient_BeaconBlobs_Call) Run(run func(ctx context.Context, slot uint64, hashes []common.Hash)) *BeaconClient_BeaconBlobs_Call {
+func (_c *BeaconClient_BeaconBlobs_Call) Run(run func(ctx context.Context, slot uint64, hashes []eth.IndexedBlobHash)) *BeaconClient_BeaconBlobs_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(uint64), args[2].([]common.Hash))
+		run(args[0].(context.Context), args[1].(uint64), args[2].([]eth.IndexedBlobHash))
 	})
 	return _c
 }
@@ -78,7 +134,7 @@ func (_c *BeaconClient_BeaconBlobs_Call) Return(_a0 eth.APIBeaconBlobsResponse, 
 	return _c
 }
 
-func (_c *BeaconClient_BeaconBlobs_Call) RunAndReturn(run func(context.Context, uint64, []common.Hash) (eth.APIBeaconBlobsResponse, error)) *BeaconClient_BeaconBlobs_Call {
+func (_c *BeaconClient_BeaconBlobs_Call) RunAndReturn(run func(context.Context, uint64, []eth.IndexedBlobHash) (eth.APIBeaconBlobsResponse, error)) *BeaconClient_BeaconBlobs_Call {
 	_c.Call.Return(run)
 	return _c
 }

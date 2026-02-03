@@ -80,18 +80,18 @@ func TestCachingOracle_GetBlobs(t *testing.T) {
 	oracle := NewCachingOracle(stub)
 
 	l1BlockRef := eth.L1BlockRef{Time: 0}
-	blobHash := common.Hash{0xFA, 0xCA, 0xDE}
+	indexedBlobHash := eth.IndexedBlobHash{Hash: [32]byte{0xFA, 0xCA, 0xDE}, Index: 0}
 	blob := eth.Blob{0xFF}
 
 	// Initial call retrieves from the stub
-	stub.Blobs[l1BlockRef] = make(map[common.Hash]*eth.Blob)
-	stub.Blobs[l1BlockRef][blobHash] = &blob
-	actualBlob := oracle.GetBlob(l1BlockRef, blobHash)
+	stub.Blobs[l1BlockRef] = make(map[eth.IndexedBlobHash]*eth.Blob)
+	stub.Blobs[l1BlockRef][indexedBlobHash] = &blob
+	actualBlob := oracle.GetBlob(l1BlockRef, indexedBlobHash)
 	require.Equal(t, &blob, actualBlob)
 
 	// Later calls should retrieve from cache
-	delete(stub.Blobs[l1BlockRef], blobHash)
-	actualBlob = oracle.GetBlob(l1BlockRef, blobHash)
+	delete(stub.Blobs[l1BlockRef], indexedBlobHash)
+	actualBlob = oracle.GetBlob(l1BlockRef, indexedBlobHash)
 	require.Equal(t, &blob, actualBlob)
 }
 

@@ -9,10 +9,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -52,7 +52,7 @@ func Test404NotFound(t *testing.T) {
 	beaconCfg := sources.L1BeaconClientConfig{FetchAllSidecars: false}
 	cl := sources.NewL1BeaconClient(sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(beaconApi.BeaconAddr(), l)), beaconCfg)
 
-	hashes := []common.Hash{{}}
-	_, err := cl.GetBlobsByHash(context.Background(), uint64(0), hashes)
+	hashes := []eth.IndexedBlobHash{{Index: 1}}
+	_, err := cl.GetBlobs(context.Background(), eth.L1BlockRef{Number: 10, Time: 120}, hashes)
 	require.ErrorIs(t, err, ethereum.NotFound)
 }

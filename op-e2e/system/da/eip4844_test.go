@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -221,19 +222,28 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 		require.Equal(t, maxBlobsPerBlock, numBlobs, fmt.Sprintf("multi-blob: expected to find L1 blob tx with %d blobs", maxBlobsPerBlock))
 		// blob tx should have filled up all but last blob
 		bcl := sys.L1BeaconHTTPClient()
-		blobs, err := bcl.BeaconBlobs(context.Background(), sys.L1Slot(blobBlock.Time()), blobTx.BlobHashes())
+		hashes := toIndexedBlobHashes(blobTx.BlobHashes()...)
+		sidecars, err := bcl.BeaconBlobSideCars(context.Background(), false, sys.L1Slot(blobBlock.Time()), hashes)
 		require.NoError(t, err)
-		require.Len(t, blobs.Data, maxBlobsPerBlock)
+		require.Len(t, sidecars.Data, maxBlobsPerBlock)
 		for i := 0; i < maxBlobsPerBlock-1; i++ {
-			data, err := blobs.Data[i].ToData()
+			data, err := sidecars.Data[i].Blob.ToData()
 			require.NoError(t, err)
-			assert.Len(t, data, maxL1TxSize, "blob %d should be full", i)
+			require.Len(t, data, maxL1TxSize)
 		}
 		// last blob should only be partially filled
-		data, err := blobs.Data[maxBlobsPerBlock-1].ToData()
+		data, err := sidecars.Data[maxBlobsPerBlock-1].Blob.ToData()
 		require.NoError(t, err)
 		require.Less(t, len(data), maxL1TxSize)
 	}
+}
+
+func toIndexedBlobHashes(hs ...common.Hash) []eth.IndexedBlobHash {
+	hashes := make([]eth.IndexedBlobHash, 0, len(hs))
+	for i, hash := range hs {
+		hashes = append(hashes, eth.IndexedBlobHash{Index: uint64(i), Hash: hash})
+	}
+	return hashes
 }
 
 // TestBatcherAutoDA tests that the batcher with Auto data availability type

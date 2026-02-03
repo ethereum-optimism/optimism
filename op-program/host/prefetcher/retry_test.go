@@ -119,45 +119,46 @@ func TestRetryingL1BlobSource(t *testing.T) {
 	commitment, err := blob.ComputeKZGCommitment()
 	require.NoError(t, err)
 	versionedHash := eth.KZGToVersionedHash(commitment)
-	l1Time := uint64(0)
+	blobHash := eth.IndexedBlobHash{Hash: versionedHash, Index: 0xFACADE}
+	l1BlockRef := eth.L1BlockRef{Time: 0}
 
-	t.Run("GetBlobsByHash Success", func(t *testing.T) {
+	t.Run("GetBlobs Success", func(t *testing.T) {
 		source, mock := createL1BlobSource(t)
 		defer mock.AssertExpectations(t)
-		mock.ExpectOnGetBlobsByHash(
+		mock.ExpectOnGetBlobs(
 			ctx,
-			l1Time,
-			[]common.Hash{versionedHash},
+			l1BlockRef,
+			[]eth.IndexedBlobHash{blobHash},
 			[]*eth.Blob{(*eth.Blob)(&blob)},
 			nil,
 		)
 
-		result, err := source.GetBlobsByHash(ctx, l1Time, []common.Hash{versionedHash})
+		result, err := source.GetBlobs(ctx, l1BlockRef, []eth.IndexedBlobHash{blobHash})
 		require.NoError(t, err)
 		require.Equal(t, len(result), 1)
 		require.Equal(t, blob[:], result[0][:])
 	})
 
-	t.Run("GetBlobsByHash Error", func(t *testing.T) {
+	t.Run("GetBlobs Error", func(t *testing.T) {
 		source, mock := createL1BlobSource(t)
 		defer mock.AssertExpectations(t)
 		expectedErr := errors.New("boom")
-		mock.ExpectOnGetBlobsByHash(
+		mock.ExpectOnGetBlobs(
 			ctx,
-			l1Time,
-			[]common.Hash{versionedHash},
+			l1BlockRef,
+			[]eth.IndexedBlobHash{blobHash},
 			nil,
 			expectedErr,
 		)
-		mock.ExpectOnGetBlobsByHash(
+		mock.ExpectOnGetBlobs(
 			ctx,
-			l1Time,
-			[]common.Hash{versionedHash},
+			l1BlockRef,
+			[]eth.IndexedBlobHash{blobHash},
 			[]*eth.Blob{(*eth.Blob)(&blob)},
 			nil,
 		)
 
-		result, err := source.GetBlobsByHash(ctx, l1Time, []common.Hash{versionedHash})
+		result, err := source.GetBlobs(ctx, l1BlockRef, []eth.IndexedBlobHash{blobHash})
 		require.NoError(t, err)
 		require.Equal(t, len(result), 1)
 		require.Equal(t, blob[:], result[0][:])

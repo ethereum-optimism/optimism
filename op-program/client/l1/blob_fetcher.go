@@ -6,7 +6,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -26,12 +25,11 @@ func NewBlobFetcher(logger log.Logger, oracle Oracle) *BlobFetcher {
 	}
 }
 
-// GetBlobsByHash fetches blobs that were confirmed at the given timestamp with the given versioned hashes.
-func (b *BlobFetcher) GetBlobsByHash(ctx context.Context, time uint64, hashes []common.Hash) ([]*eth.Blob, error) {
+// GetBlobs fetches blobs that were confirmed in the given L1 block with the given indexed blob hashes.
+func (b *BlobFetcher) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
 	blobs := make([]*eth.Blob, len(hashes))
-	ref := eth.L1BlockRef{Time: time}
 	for i := 0; i < len(hashes); i++ {
-		b.logger.Info("Fetching blob", "time", time, "blob_versioned_hash", hashes[i])
+		b.logger.Info("Fetching blob", "l1_ref", ref.Hash, "blob_versioned_hash", hashes[i].Hash, "index", hashes[i].Index)
 		blobs[i] = b.oracle.GetBlob(ref, hashes[i])
 	}
 	return blobs, nil

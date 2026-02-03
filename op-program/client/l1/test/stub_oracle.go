@@ -22,8 +22,8 @@ type StubOracle struct {
 	// Rcpts maps Block hash to receipts
 	Rcpts map[common.Hash]types.Receipts
 
-	// Blobs maps l1 block ref to blob hash to blob
-	Blobs map[eth.L1BlockRef]map[common.Hash]*eth.Blob
+	// Blobs maps indexed blob hash to l1 block ref to blob
+	Blobs map[eth.L1BlockRef]map[eth.IndexedBlobHash]*eth.Blob
 
 	// PcmpResults maps hashed input to the results of precompile calls
 	PcmpResults map[common.Hash][]byte
@@ -35,7 +35,7 @@ func NewStubOracle(t *testing.T) *StubOracle {
 		Blocks:      make(map[common.Hash]eth.BlockInfo),
 		Txs:         make(map[common.Hash]types.Transactions),
 		Rcpts:       make(map[common.Hash]types.Receipts),
-		Blobs:       make(map[eth.L1BlockRef]map[common.Hash]*eth.Blob),
+		Blobs:       make(map[eth.L1BlockRef]map[eth.IndexedBlobHash]*eth.Blob),
 		PcmpResults: make(map[common.Hash][]byte),
 	}
 }
@@ -64,14 +64,14 @@ func (o StubOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, t
 	return o.HeaderByBlockHash(blockHash), rcpts
 }
 
-func (o StubOracle) GetBlob(ref eth.L1BlockRef, blobHash common.Hash) *eth.Blob {
+func (o StubOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob {
 	blobMap, ok := o.Blobs[ref]
 	if !ok {
 		o.t.Fatalf("unknown blob ref %s", ref)
 	}
 	blob, ok := blobMap[blobHash]
 	if !ok {
-		o.t.Fatalf("unknown blob hash %s", blobHash)
+		o.t.Fatalf("unknown blob hash %s %d", blobHash.Hash, blobHash.Index)
 	}
 	return blob
 }

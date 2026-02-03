@@ -29,7 +29,7 @@ type Oracle interface {
 	ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts)
 
 	// GetBlob retrieves the blob with the given hash.
-	GetBlob(ref eth.L1BlockRef, blobHash common.Hash) *eth.Blob
+	GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob
 
 	// Precompile retrieves the result and success indicator of a precompile call for the given input.
 	Precompile(precompileAddress common.Address, input []byte, requiredGas uint64) ([]byte, bool)
@@ -99,13 +99,14 @@ func (p *PreimageOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockIn
 	return info, receipts
 }
 
-func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash common.Hash) *eth.Blob {
+func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob {
 	// Send a hint for the blob commitment & blob field elements.
-	blobReqMeta := make([]byte, 8)
-	binary.BigEndian.PutUint64(blobReqMeta[0:8], ref.Time)
-	p.hint.Hint(BlobHint(append(blobHash[:], blobReqMeta...)))
+	blobReqMeta := make([]byte, 16)
+	binary.BigEndian.PutUint64(blobReqMeta[0:8], blobHash.Index)
+	binary.BigEndian.PutUint64(blobReqMeta[8:16], ref.Time)
+	p.hint.Hint(BlobHint(append(blobHash.Hash[:], blobReqMeta...)))
 
-	commitment := p.oracle.Get(preimage.Sha256Key(blobHash))
+	commitment := p.oracle.Get(preimage.Sha256Key(blobHash.Hash))
 
 	// Reconstruct the full blob from the 4096 field elements.
 	blob := eth.Blob{}
