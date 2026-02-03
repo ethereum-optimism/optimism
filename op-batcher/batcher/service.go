@@ -347,22 +347,6 @@ func (bs *BatcherService) initTxManager(_ context.Context, cfg *CLIConfig) error
 		return err
 	}
 
-	// Configure BTOConfig if using blobs or auto mode
-	if cfg.DataAvailabilityType == flags.BlobsType || cfg.DataAvailabilityType == flags.AutoType {
-		l1ChainID := eth.ChainIDFromBig(bs.RollupConfig.L1ChainID)
-		l1ChainConfig := eth.L1ChainConfigByChainID(l1ChainID)
-		if l1ChainConfig == nil {
-			bs.Log.Warn("Blob tip oracle not initialized: L1 chain config not found for chain ID", "chainID", l1ChainID)
-		} else {
-			txmgrConfig.BTOConfig = &txmgr.BTOConfig{
-				Backend:              bs.L1Client, // ethclient implements BTOBackend
-				ChainConfig:          l1ChainConfig,
-				BlobTipCapRange:      cfg.TxMgrConfig.BlobTipCapRange,
-				BlobTipCapPercentile: cfg.TxMgrConfig.BlobTipCapPercentile,
-			}
-		}
-	}
-
 	txManager, err := txmgr.NewSimpleTxManagerFromConfig("batcher", bs.Log, bs.Metrics, txmgrConfig)
 	if err != nil {
 		return err

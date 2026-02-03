@@ -127,8 +127,8 @@ var (
 		ReceiptQueryInterval:      12 * time.Second,
 		CellProofTime:             defaultCellProofTime,
 		BlobTipCapDynamic:         false,
-		BlobTipCapPercentile:      60,
-		BlobTipCapRange:           20,
+		BlobTipCapPercentile:      0,
+		BlobTipCapRange:           0,
 	}
 
 	// geth enforces a 1 gwei minimum for blob tx fee
@@ -150,6 +150,40 @@ type BTOConfig struct {
 
 func CLIFlags(envPrefix string) []cli.Flag {
 	return CLIFlagsWithDefaults(envPrefix, DefaultBatcherFlagValues)
+}
+
+// CLIFlagsWithBTO returns CLIFlags with the BlobTipOracle flags included.
+// Only the batcher should use this, as it's the only service that uses blob transactions.
+func CLIFlagsWithBTO(envPrefix string) []cli.Flag {
+	return CLIFlagsWithDefaultsAndBTO(envPrefix, DefaultBatcherFlagValues)
+}
+
+// CLIFlagsWithDefaultsAndBTO returns CLIFlagsWithDefaults with the BlobTipOracle flags included.
+// Only the batcher should use this, as it's the only service that uses blob transactions.
+func CLIFlagsWithDefaultsAndBTO(envPrefix string, defaults DefaultFlagValues) []cli.Flag {
+	prefixEnvVars := func(name string) []string {
+		return opservice.PrefixEnvVar(envPrefix, name)
+	}
+	return append(CLIFlagsWithDefaults(envPrefix, defaults),
+		&cli.BoolFlag{
+			Name:    BlobTipCapDynamicFlagName,
+			Usage:   "Use dynamic blob tip cap from the blob tip oracle instead of static tip cap for blob transactions. Regular transactions still use min-tip-cap/max-tip-cap.",
+			EnvVars: prefixEnvVars("TXMGR_BLOB_TIP_CAP_DYNAMIC"),
+			Value:   defaults.BlobTipCapDynamic,
+		},
+		&cli.IntFlag{
+			Name:    BlobTipCapPercentileFlagName,
+			Usage:   "Percentile of recent blob tx tips to use for suggestion (1-100). Only used when blob-tip-cap-dynamic is enabled.",
+			EnvVars: prefixEnvVars("TXMGR_BLOB_TIP_CAP_PERCENTILE"),
+			Value:   defaults.BlobTipCapPercentile,
+		},
+		&cli.IntFlag{
+			Name:    BlobTipCapRangeFlagName,
+			Usage:   "Number of recent blocks to analyze for blob tip cap distribution. Only used when blob-tip-cap-dynamic is enabled.",
+			EnvVars: prefixEnvVars("TXMGR_BLOB_TIP_CAP_RANGE"),
+			Value:   defaults.BlobTipCapRange,
+		},
+	)
 }
 
 func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Flag {
@@ -277,24 +311,6 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 			EnvVars: prefixEnvVars("TXMGR_CELL_PROOF_TIME"),
 			Value:   defaults.CellProofTime,
 		},
-		&cli.BoolFlag{
-			Name:    BlobTipCapDynamicFlagName,
-			Usage:   "Use dynamic blob tip cap from the blob tip oracle instead of static tip cap for blob transactions. Regular transactions still use min-tip-cap/max-tip-cap.",
-			EnvVars: prefixEnvVars("TXMGR_BLOB_TIP_CAP_DYNAMIC"),
-			Value:   defaults.BlobTipCapDynamic,
-		},
-		&cli.IntFlag{
-			Name:    BlobTipCapPercentileFlagName,
-			Usage:   "Percentile of recent blob tx tips to use for suggestion (1-100). Only used when blob-tip-cap-dynamic is enabled.",
-			EnvVars: prefixEnvVars("TXMGR_BLOB_TIP_CAP_PERCENTILE"),
-			Value:   defaults.BlobTipCapPercentile,
-		},
-		&cli.IntFlag{
-			Name:    BlobTipCapRangeFlagName,
-			Usage:   "Number of recent blocks to analyze for blob tip cap distribution. Only used when blob-tip-cap-dynamic is enabled.",
-			EnvVars: prefixEnvVars("TXMGR_BLOB_TIP_CAP_RANGE"),
-			Value:   defaults.BlobTipCapRange,
-		},
 	}, opsigner.CLIFlags(envPrefix, "")...)
 }
 
@@ -383,6 +399,14 @@ func (m CLIConfig) Check() error {
 	if m.SafeAbortNonceTooLowCount == 0 {
 		return errors.New("SafeAbortNonceTooLowCount must not be 0")
 	}
+	if m.BlobTipCapDynamic {
+		if m.BlobTipCapPercentile < 1 || m.BlobTipCapPercentile > 100 {
+			return fmt.Errorf("BlobTipCapPercentile must be between 1 and 100, got %d", m.BlobTipCapPercentile)
+		}
+		if m.BlobTipCapRange < 1 {
+			return fmt.Errorf("BlobTipCapRange must be at least 1, got %d", m.BlobTipCapRange)
+		}
+	}
 	if err := m.SignerCLIConfig.Check(); err != nil {
 		return err
 	}
@@ -456,7 +480,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 	defer cancel()
 	chainID, err := l1.ChainID(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("could not dial fetch L1 chain ID: %w", err)
+		return nil, fmt.Errorf("could not fetch L1 chain ID: %w", err)
 	}
 
 	// Allow backwards compatible ways of specifying the HD path
@@ -522,6 +546,22 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 		CellProofTime:              cellProofTime,
 	}
 
+	if cfg.BlobTipCapDynamic {
+		l1ChainID := eth.ChainIDFromBig(chainID)
+		l1ChainConfig := eth.L1ChainConfigByChainID(l1ChainID)
+		if l1ChainConfig == nil {
+			return nil, fmt.Errorf("failed to initialize blob tip oracle: L1 chain config not found for chain ID %s", chainID)
+		} else {
+			res.BlobTipCapDynamic.Store(cfg.BlobTipCapDynamic)
+			res.BTOConfig = &BTOConfig{
+				Backend:              l1,
+				ChainConfig:          l1ChainConfig,
+				BlobTipCapRange:      cfg.BlobTipCapRange,
+				BlobTipCapPercentile: cfg.BlobTipCapPercentile,
+			}
+		}
+	}
+
 	res.RebroadcastInterval.Store(int64(cfg.RebroadcastInterval))
 	res.ResubmissionTimeout.Store(int64(cfg.ResubmissionTimeout))
 	res.FeeLimitThreshold.Store(feeLimitThreshold)
@@ -531,7 +571,6 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 	res.MinTipCap.Store(minTipCap)
 	res.MaxTipCap.Store(maxTipCap)
 	res.MinBlobTxFee.Store(defaultMinBlobTxFee)
-	res.BlobTipCapDynamic.Store(cfg.BlobTipCapDynamic)
 
 	return &res, nil
 }
