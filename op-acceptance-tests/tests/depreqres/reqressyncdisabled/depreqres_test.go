@@ -47,7 +47,7 @@ func TestUnsafeChainNotStalling_DisabledReqRespSync(gt *testing.T) {
 
 	// We wait for 10 block times, and want to check the chain has stalled.
 	// Allow 1 block of progress to account for a race between peers disconnecting and the "before" sync status being queried.
-	require.Less(ssB_before.UnsafeL2.Number+1, ssB_after.UnsafeL2.Number, "unsafe chain for L2CLB should have stalled")
+	require.LessOrEqual(ssB_before.UnsafeL2.Number+1, ssB_after.UnsafeL2.Number, "unsafe chain for L2CLB should have stalled")
 
 	l.Info("Re-connect L2CL to L2CLB")
 	sys.L2CLB.ConnectPeer(sys.L2CL)
