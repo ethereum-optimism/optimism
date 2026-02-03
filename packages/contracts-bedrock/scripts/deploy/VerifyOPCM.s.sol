@@ -1413,19 +1413,6 @@ contract VerifyOPCM is Script {
             } else if (LibString.startsWith(check, "ENV:")) {
                 string memory envVar = LibString.slice(check, 4, bytes(check).length);
                 success = _verifyEnvAddress(_validator, getter, envVar) && success;
-            } else if (LibString.startsWith(check, "MIN_ENV:")) {
-                // Format: MIN_ENV:<env_var>:<default>
-                // Parses the env var name and default, reads min from env at verification time
-                string memory rest = LibString.slice(check, 8, bytes(check).length);
-                uint256 colonPos = _findChar(rest, ":");
-                string memory envVar = LibString.slice(rest, 0, colonPos);
-                uint256 defaultVal = vm.parseUint(LibString.slice(rest, colonPos + 1, bytes(rest).length));
-                // nosemgrep: sol-style-vm-env-only-in-config-sol
-                uint256 minVal = vm.envOr(envVar, defaultVal);
-                success = _verifyMinValue(_validator, getter, minVal) && success;
-            } else if (LibString.startsWith(check, "MIN:")) {
-                uint256 minVal = vm.parseUint(LibString.slice(check, 4, bytes(check).length));
-                success = _verifyMinValue(_validator, getter, minVal) && success;
             } else if (LibString.eq(check, "ZERO_ON_MAINNET")) {
                 success = _verifyZeroOnMainnet(_validator, getter) && success;
             }
