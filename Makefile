@@ -156,8 +156,6 @@ reproducible-prestate:   ## Builds reproducible prestates for op-program and kon
 
 cannon-prestates: cannon op-program
 	go run ./op-program/builder/main.go build-all-prestates
-	cd kona && just build-reproducible-prestate
-
 .PHONY: cannon-prestates
 
 mod-tidy: ## Cleans up unused dependencies in Go modules

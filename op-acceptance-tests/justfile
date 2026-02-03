@@ -57,11 +57,7 @@ acceptance-test devnet="" gate="base":
         cd {{REPO_ROOT}}
 
         echo "Checking cannon dependencies..."
-        if [ ! -e {{REPO_ROOT}}/cannon/bin/cannon ] \
-          || [ ! -e {{REPO_ROOT}}/op-program/bin/prestate-mt64.bin.gz ] \
-          || [ ! -e {{REPO_ROOT}}/op-program/bin/prestate-interop.bin.gz ] \
-          || [ ! -e {{REPO_ROOT}}/kona/prestate-artifacts-cannon/prestate-proof.json ] \
-          || [ ! -e {{REPO_ROOT}}/kona/prestate-artifacts-cannon-interop/prestate-proof.json ]; then
+        if [ ! -e {{REPO_ROOT}}/cannon/bin/cannon ] || [ ! -e {{REPO_ROOT}}/op-program/bin/prestate-mt64.bin.gz ]; then
             echo "Building cannon dependencies..."
             cd {{REPO_ROOT}}
             make cannon-prestates
