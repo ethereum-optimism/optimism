@@ -187,7 +187,7 @@ commands:
             fi
 
             # Set GH_TOKEN for gh CLI authentication
-            export GH_TOKEN="${GITHUB_TOKEN}"
+            export GH_TOKEN="${GITHUB_TOKEN_GOVERNANCE}"
 
             # Extract PR number from CIRCLE_PULL_REQUEST URL
             PR_NUMBER=$(echo $CIRCLE_PULL_REQUEST | sed 's#.*/##')
@@ -3061,6 +3061,7 @@ workflows:
                 - OPCM_V2,OPTIMISM_PORTAL_INTEROP
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - circleci-repo-optimism
             - slack
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests <<matrix.features>>
