@@ -34,7 +34,8 @@ func TestUnsafeChainNotStalling_DisabledReqRespSync(gt *testing.T) {
 	l.Info("L2CL status before delay", "unsafeL2", ssA_before.UnsafeL2.ID(), "safeL2", ssA_before.SafeL2.ID())
 	l.Info("L2CLB status before delay", "unsafeL2", ssB_before.UnsafeL2.ID(), "safeL2", ssB_before.SafeL2.ID())
 
-	time.Sleep(20 * time.Second)
+	blockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime)
+	time.Sleep(10 * blockTime)
 
 	ssA_after := sys.L2CL.SyncStatus()
 	ssB_after := sys.L2CLB.SyncStatus()
@@ -43,7 +44,10 @@ func TestUnsafeChainNotStalling_DisabledReqRespSync(gt *testing.T) {
 	l.Info("L2CLB status after delay", "unsafeL2", ssB_after.UnsafeL2.ID(), "safeL2", ssB_after.SafeL2.ID())
 
 	require.Greater(ssA_after.UnsafeL2.Number, ssA_before.UnsafeL2.Number, "unsafe chain for L2CL should have advanced")
-	require.Equal(ssB_after.UnsafeL2.Number, ssB_before.UnsafeL2.Number, "unsafe chain for L2CLB should have stalled")
+
+	// We wait for 10 block times, and want to check the chain has stalled.
+	// Allow 1 block of progress to account for a race between peers disconnecting and the "before" sync status being queried.
+	require.Less(ssB_before.UnsafeL2.Number+1, ssB_after.UnsafeL2.Number, "unsafe chain for L2CLB should have stalled")
 
 	l.Info("Re-connect L2CL to L2CLB")
 	sys.L2CLB.ConnectPeer(sys.L2CL)
