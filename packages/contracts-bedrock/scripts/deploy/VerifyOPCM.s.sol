@@ -1414,7 +1414,7 @@ contract VerifyOPCM is Script {
                 success = _verifyEnvAddress(_validator, getter, envVar) && success;
             } else if (LibString.startsWith(check, "ENV:UINT256:")) {
                 string memory envVar = LibString.slice(check, bytes("ENV:UINT256:").length, bytes(check).length);
-                success = _verifyEnvAddress(_validator, getter, envVar) && success;
+                success = _verifyEnvUint256(_validator, getter, envVar) && success;
             } else if (LibString.eq(check, "ZERO_ON_MAINNET")) {
                 success = _verifyZeroOnMainnet(_validator, getter) && success;
             }
