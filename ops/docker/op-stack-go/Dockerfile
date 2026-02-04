@@ -181,7 +181,7 @@ ARG OP_DEPLOYER_VERSION=v0.0.0
 COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/forge
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build just \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DEPLOYER_VERSION" \
-  op-deployer/build-go
+  op-deployer/build
 
 FROM --platform=$BUILDPLATFORM builder AS op-dripper-builder
 ARG OP_DRIPPER_VERSION=v0.0.0
