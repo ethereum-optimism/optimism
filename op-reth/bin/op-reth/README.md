@@ -1,7 +1,7 @@
 # op-reth historical proofs
-[![codecov](https://codecov.io/gh/op-rs/op-reth/branch/main/graph/badge.svg)](https://app.codecov.io/gh/op-rs/op-reth/tree/unstable/crates%2Foptimism?components%5B0%5D=op%20historical%20proof)
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/develop/graph/badge.svg)](https://app.codecov.io/gh/ethereum-optimism/optimism/tree/develop/op-reth%2Fcrates?components%5B0%5D=op%20historical%20proof)
 
-![Description](assets/op-rs-logo.png)
+![Description](../../assets/op-rs-logo.png)
 > **⚠️ Under Construction**
 >
 > This is a work in progress. Stay tuned!
