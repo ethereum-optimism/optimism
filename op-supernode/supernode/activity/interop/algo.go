@@ -14,9 +14,9 @@ import (
 const ExpiryTime = 604800
 
 var (
-	// ErrInitiatingMessageNotFound is returned when an executing message references
-	// an initiating message that doesn't exist in the source chain's database.
-	ErrInitiatingMessageNotFound = errors.New("initiating message not found")
+	// ErrUnknownChain is returned when an executing message references
+	// a chain that is not registered with the interop activity.
+	ErrUnknownChain = errors.New("unknown chain")
 
 	// ErrTimestampViolation is returned when an executing message references
 	// an initiating message with a timestamp >= the executing message's timestamp.
@@ -102,31 +102,7 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 	// Get the source chain's logsDB
 	sourceDB, ok := i.logsDBs[execMsg.ChainID]
 	if !ok {
-		return fmt.Errorf("source chain %s not found: %w", execMsg.ChainID, ErrInitiatingMessageNotFound)
-	}
-
-	// Build the query for the initiating message
-	query := types.ContainsQuery{
-		BlockNum:  execMsg.BlockNum,
-		LogIdx:    execMsg.LogIdx,
-		Timestamp: execMsg.Timestamp,
-		Checksum:  execMsg.Checksum,
-	}
-
-	// Check if the initiating message exists in the source chain's logsDB
-	_, err := sourceDB.Contains(query)
-	if err != nil {
-		if errors.Is(err, types.ErrConflict) {
-			return fmt.Errorf("chain %s block %d log %d: %w",
-				execMsg.ChainID, execMsg.BlockNum, execMsg.LogIdx, ErrInitiatingMessageNotFound)
-		}
-		if errors.Is(err, types.ErrFuture) {
-			// The source chain hasn't indexed this block yet - this shouldn't happen
-			// since we process timestamps in order, but handle it gracefully
-			return fmt.Errorf("chain %s block %d log %d: initiating message not yet indexed: %w",
-				execMsg.ChainID, execMsg.BlockNum, execMsg.LogIdx, ErrInitiatingMessageNotFound)
-		}
-		return fmt.Errorf("chain %s: failed to check initiating message: %w", execMsg.ChainID, err)
+		return fmt.Errorf("source chain %s not found: %w", execMsg.ChainID, ErrUnknownChain)
 	}
 
 	// Verify timestamp ordering: initiating message timestamp must be < executing block timestamp
@@ -141,5 +117,15 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 			execMsg.Timestamp, ExpiryTime, executingTimestamp, ErrMessageExpired)
 	}
 
-	return nil
+	// Build the query for the initiating message
+	query := types.ContainsQuery{
+		BlockNum:  execMsg.BlockNum,
+		LogIdx:    execMsg.LogIdx,
+		Timestamp: execMsg.Timestamp,
+		Checksum:  execMsg.Checksum,
+	}
+
+	// Check if the initiating message exists in the source chain's logsDB
+	_, err := sourceDB.Contains(query)
+	return err
 }
