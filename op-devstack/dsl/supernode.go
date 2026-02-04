@@ -2,8 +2,10 @@ package dsl
 
 import (
 	"context"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -56,4 +58,18 @@ func (s *Supernode) AssertSuperRootAtTimestamp(l2SequenceNumber uint64, rootClai
 	s.require.NotNilf(resp.Data, "super root does not exist at time %d", l2SequenceNumber)
 	superRoot := eth.SuperRoot(resp.Data.Super)
 	s.require.Equal(superRoot[:], rootClaim[:])
+}
+
+// AwaitValidatedTimestamp waits for the super-root at the given timestamp to be fully validated
+func (s *Supernode) AwaitValidatedTimestamp(timestamp uint64) {
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
+	defer cancel()
+	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
+		resp, err := s.inner.QueryAPI().SuperRootAtTimestamp(ctx, timestamp)
+		if err != nil {
+			return false, nil // Ignore transient errors.
+		}
+		return resp.Data != nil, nil
+	})
+	s.require.NoError(err, "super-root at timestamp %d was not validated in time", timestamp)
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -448,6 +449,89 @@ func (f *DisputeGameFactory) safeTimestamp() uint64 {
 	resp, err := f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), now)
 	f.require.NoError(err, "Failed to fetch super root at timestamp")
 	return resp.CurrentSafeTimestamp
+}
+
+func (f *DisputeGameFactory) RunFPP(startTimestamp uint64, endTimestamp uint64) {
+	/*
+		We're going to pretend like there's a dispute game created and check that the fault proof program successfully
+		validates all the claims the honest trace provider returns for the top half of the game.
+		This only needs to support SuperCannonKonaGameType.
+	*/
+	f.require.NotNil(f.superNode, "super node is required to run FPP")
+	f.require.NotNil(f.challengerCfg, "challenger config is required to run FPP")
+
+	// Get the game implementation to read splitDepth
+	gameImpl := f.GameImpl(gameTypes.SuperCannonKonaGameType)
+	splitDepth := gameImpl.SplitDepth()
+
+	// Get the prestate timestamp from the supernode
+
+	// 0. Get the L1 head from the supernode's response at the poststate timestamp
+	// This ensures the supernode has synced to this L1 block
+	superRootResp, err := f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), endTimestamp)
+	f.require.NoError(err, "Failed to fetch super root at timestamp")
+	l1Head := superRootResp.CurrentL1
+
+	// Create a prestate provider for the super root
+	prestateProvider := super.NewSuperNodePrestateProvider(f.superNode.QueryAPI(), startTimestamp)
+
+	// Create the super trace provider to iterate through claims at splitDepth
+	traceProvider := super.NewSuperNodeTraceProvider(
+		f.log.New("role", "fpp-trace"),
+		prestateProvider,
+		f.superNode.QueryAPI(),
+		eth.BlockID{Hash: l1Head.Hash, Number: l1Head.Number},
+		splitDepth,
+		startTimestamp,
+		endTimestamp,
+	)
+
+	// 1. Iterate through valid claims at splitDepth (the leaves of the top game)
+	// At splitDepth, positions have indices from 0 to 2^splitDepth-1
+	// For index i, we create LocalGameInputs
+
+	for i := uint64(0); i < (endTimestamp-startTimestamp)*super.StepsPerTimestamp+3; i++ {
+		// Create position at splitDepth with index i (leaf of the top game)
+		pos := challengerTypes.NewPosition(splitDepth, new(big.Int).SetUint64(i))
+
+		// 2. Create LocalGameInputs using the previous claim (or anchor state) as agreed and current as disputed
+		// Get the claim at this position (this is the disputed claim)
+		claim, err := traceProvider.Get(f.t.Ctx(), pos)
+		f.require.NoError(err, "Failed to get claim at position %v", pos)
+
+		// Determine the agreed prestate:
+		// - If i == 0, use the absolute prestate
+		// - Otherwise, use the claim at position i-1 (the previous position at this depth)
+		var agreedPrestate []byte
+		if i == 0 {
+			absolutePrestate, err := prestateProvider.AbsolutePreState(f.t.Ctx())
+			f.require.NoError(err, "Failed to get absolute prestate")
+			agreedPrestate = absolutePrestate.Marshal()
+		} else {
+			// Get the preimage bytes at the previous position (i-1)
+			prevPos := challengerTypes.NewPosition(splitDepth, new(big.Int).SetUint64(i-1))
+			agreedPrestate, err = traceProvider.GetPreimageBytes(f.t.Ctx(), prevPos)
+			f.require.NoError(err, "Failed to get preimage at previous position %v", prevPos)
+		}
+
+		// Create LocalGameInputs
+		inputs := utils.LocalGameInputs{
+			L1Head:           l1Head.Hash,
+			AgreedPreState:   agreedPrestate,
+			L2Claim:          claim,
+			L2SequenceNumber: new(big.Int).SetUint64(endTimestamp),
+		}
+
+		f.log.Info("Created LocalGameInputs for FPP",
+			"position", pos.ToGIndex(),
+			"splitDepth", splitDepth,
+			"i", i,
+			"l1Head", l1Head.Hash,
+			"l2Claim", claim,
+			"agreedPrestateLen", len(agreedPrestate),
+			"inputs", inputs,
+		)
+	}
 }
 
 type GameHelperEOA struct {
