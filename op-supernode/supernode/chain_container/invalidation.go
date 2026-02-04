@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -27,6 +28,9 @@ type DenyList struct {
 
 // OpenDenyList opens or creates a DenyList at the given data directory.
 func OpenDenyList(dataDir string) (*DenyList, error) {
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create denylist directory %s: %w", dataDir, err)
+	}
 	dbPath := filepath.Join(dataDir, denyListDBName+".db")
 	db, err := bolt.Open(dbPath, 0600, nil)
 	if err != nil {

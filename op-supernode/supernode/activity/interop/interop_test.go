@@ -892,6 +892,12 @@ func (m *mockChainContainer) RewindEngine(ctx context.Context, timestamp uint64)
 	return nil
 }
 func (m *mockChainContainer) BlockTime() uint64 { return 1 }
+func (m *mockChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+	return false, nil
+}
+func (m *mockChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
+	return false, nil
+}
 
 var _ cc.ChainContainer = (*mockChainContainer)(nil)
 
