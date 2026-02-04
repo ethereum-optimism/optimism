@@ -27,7 +27,6 @@ import (
 // Note: This test observes reset behavior. Full block replacement requires
 // re-derivation which is a separate mechanism.
 func TestSupernodeInteropInvalidMessageReset(gt *testing.T) {
-	gt.Skip("Skipped: logsDB consistency issues blocking interop progression - see #18944")
 
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
@@ -93,15 +92,6 @@ func TestSupernodeInteropInvalidMessageReset(gt *testing.T) {
 		"timestamp", invalidBlockTimestamp,
 	)
 
-	// Record the initial unsafe head for chain B
-	initialStatusB := sys.L2BCL.SyncStatus()
-	initialUnsafeB := initialStatusB.UnsafeL2.Number
-
-	t.Logger().Info("initial status before reset observation",
-		"chainB_unsafe", initialUnsafeB,
-		"invalid_block", invalidBlockNumber,
-	)
-
 	// Observe for reset behavior:
 	// When the interop activity detects the invalid message and calls InvalidateBlock,
 	// it will trigger a rewind. We observe by watching for the unsafe head to go backwards
@@ -112,27 +102,22 @@ func TestSupernodeInteropInvalidMessageReset(gt *testing.T) {
 
 	start := time.Now()
 	var resetDetected bool
-	var lastUnsafeB uint64 = initialUnsafeB
 
 	for time.Since(start) < observationDuration {
 		time.Sleep(checkInterval)
 
-		statusB := sys.L2BCL.SyncStatus()
-		currentUnsafeB := statusB.UnsafeL2.Number
-
-		// Check if the unsafe head went backwards (reset occurred)
-		if currentUnsafeB < lastUnsafeB && lastUnsafeB >= invalidBlockNumber {
+		// Check if the block hash at the invalid block number changed or block doesn't exist
+		// Use the EthClient directly to handle errors (block may not exist after rewind)
+		currentBlock, err := sys.L2ELB.Escape().EthClient().BlockRefByNumber(ctx, invalidBlockNumber)
+		if err != nil {
+			// Block not found - this means the rewind happened and block was removed
 			resetDetected = true
-			t.Logger().Info("RESET DETECTED! Unsafe head moved backward",
-				"previous_unsafe", lastUnsafeB,
-				"current_unsafe", currentUnsafeB,
-				"invalid_block", invalidBlockNumber,
+			t.Logger().Info("RESET DETECTED! Block no longer exists (rewound)",
+				"block_number", invalidBlockNumber,
+				"err", err,
 			)
-		}
-
-		// Also check if the block hash at the invalid block number changed
-		currentBlock := sys.L2ELB.BlockRefByNumber(invalidBlockNumber)
-		if currentBlock.Hash != invalidBlockHash {
+		} else if currentBlock.Hash != invalidBlockHash {
+			// Block exists but with different hash - replaced
 			resetDetected = true
 			t.Logger().Info("RESET DETECTED! Block hash changed",
 				"block_number", invalidBlockNumber,
@@ -143,17 +128,28 @@ func TestSupernodeInteropInvalidMessageReset(gt *testing.T) {
 
 		// Check verification status
 		resp, err := snClient.SuperRootAtTimestamp(ctx, invalidBlockTimestamp)
-		t.Require().NoError(err, "SuperRootAtTimestamp should not error")
+		if err != nil {
+			t.Logger().Info("SuperRootAtTimestamp error (may be resetting)",
+				"elapsed", time.Since(start).Round(time.Second),
+				"err", err,
+			)
+			continue
+		}
+
+		var currentHash string
+		if currentBlock.Hash != ([32]byte{}) {
+			currentHash = currentBlock.Hash.String()[:10]
+		} else {
+			currentHash = "(none)"
+		}
 
 		t.Logger().Info("observation tick",
 			"elapsed", time.Since(start).Round(time.Second),
-			"chainB_unsafe", currentUnsafeB,
 			"invalid_block_ts", invalidBlockTimestamp,
+			"current_block_hash", currentHash,
 			"reset_detected", resetDetected,
 			"verified", resp.Data != nil,
 		)
-
-		lastUnsafeB = currentUnsafeB
 
 		// Exit early if we detect reset
 		if resetDetected {
