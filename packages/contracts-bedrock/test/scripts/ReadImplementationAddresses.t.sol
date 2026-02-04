@@ -56,7 +56,6 @@ contract ReadImplementationAddressesTest is Test {
 
     /// @notice Internal helper function to setup proxies.
     /// @dev This function assigns mock addresses to the input struct for the following proxies:
-    /// - delayedWETHPermissionedGameProxy
     /// - optimismPortalProxy
     /// - systemConfigProxy
     /// - l1ERC721BridgeProxy
@@ -66,7 +65,6 @@ contract ReadImplementationAddressesTest is Test {
     /// and to the AddressManager.
     /// @return input_ The input struct.
     function _setUpProxies() internal returns (ReadImplementationAddresses.Input memory input_) {
-        input_.delayedWETHPermissionedGameProxy = makeAddr("delayedWETHPermissionedGameProxy");
         input_.optimismPortalProxy = makeAddr("optimismPortalProxy");
         input_.systemConfigProxy = makeAddr("systemConfigProxy");
         input_.l1ERC721BridgeProxy = makeAddr("l1ERC721BridgeProxy");
@@ -273,7 +271,6 @@ contract ReadImplementationAddressesTest is Test {
     /// @dev Mocks the getters for all EIP-1967 proxies in the input struct
     /// @param _input The input struct containing the proxy addresses
     function _mockGetEIP1967Impls(ReadImplementationAddresses.Input memory _input) internal {
-        _mockGetEIP1967Impl(_input.delayedWETHPermissionedGameProxy, TEST_DELAYED_WETH_IMPL);
         _mockGetEIP1967Impl(_input.optimismPortalProxy, TEST_OPTIMISM_PORTAL_IMPL);
         _mockGetEIP1967Impl(_input.systemConfigProxy, TEST_SYSTEM_CONFIG_IMPL);
         _mockGetEIP1967Impl(_input.l1ERC721BridgeProxy, TEST_L1_ERC721_BRIDGE_IMPL);
