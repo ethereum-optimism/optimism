@@ -488,46 +488,43 @@ func (f *DisputeGameFactory) RunFPP(startTimestamp uint64, endTimestamp uint64) 
 	for i := uint64(0); i < (endTimestamp-startTimestamp)*super.StepsPerTimestamp+3; i++ {
 		pos := challengerTypes.NewPosition(splitDepth, new(big.Int).SetUint64(i))
 
-		// 2. Create LocalGameInputs using the previous claim (or anchor state) as agreed and current as disputed
-		// Get the claim at this position (this is the disputed claim)
+		// Create LocalGameInputs using the previous claim (or anchor state) as agreed and current as disputed
 		claimedPreimage, err := traceProvider.GetPreimageBytes(f.t.Ctx(), pos)
 		f.require.NoError(err, "Failed to get claim at position %v", pos)
-
-		claim := crypto.Keccak256Hash(claimedPreimage)
-
-		// Create LocalGameInputs
 		inputs := utils.LocalGameInputs{
 			L1Head:           l1Head.Hash,
 			AgreedPreState:   agreedPrestate,
-			L2Claim:          claim,
+			L2Claim:          crypto.Keccak256Hash(claimedPreimage),
 			L2SequenceNumber: new(big.Int).SetUint64(endTimestamp),
 		}
 
 		f.log.Info("Created LocalGameInputs for FPP",
-			"position", pos.ToGIndex(),
-			"splitDepth", splitDepth,
-			"i", i,
-			"l1Head", l1Head.Hash,
-			"l2Claim", claim,
+			"index", pos.IndexAtDepth(),
+			"l1Head", inputs.L1Head,
+			"l2Claim", inputs.L2Claim,
 		)
 
-		// Execute the game using the LocalGameInputs and native kona super executor
-		executor := vm.NewNativeKonaSuperExecutor()
-		oracleCommand, err := executor.OracleCommand(f.challengerCfg.CannonKona, tmpDir, inputs)
-		f.require.NoError(err, "Failed to create oracle command")
-		f.log.Info("Executing FPP", "command", oracleCommand)
-		exePath, err := filepath.Abs(oracleCommand[0])
-		f.require.NoError(err, "Failed to get absolute path to executable")
-		cmd := exec.Command(exePath, oracleCommand[1:]...)
-		cmd.Dir = tmpDir
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err = cmd.Run()
-		f.require.NoError(err, "Failed to execute game")
+		runFPPForStep(f, tmpDir, inputs)
 
 		// This claim becomes the agreed prestate for the next iteration
 		agreedPrestate = claimedPreimage
 	}
+}
+
+// runFPPForStep executes the native kona interop client using the LocalGameInputs and requires the claim to be successfully validated.
+func runFPPForStep(f *DisputeGameFactory, tmpDir string, inputs utils.LocalGameInputs) {
+	executor := vm.NewNativeKonaSuperExecutor()
+	oracleCommand, err := executor.OracleCommand(f.challengerCfg.CannonKona, tmpDir, inputs)
+	f.require.NoError(err, "Failed to create command")
+	f.log.Info("Executing FPP", "command", oracleCommand)
+	exePath, err := filepath.Abs(oracleCommand[0])
+	f.require.NoError(err, "Failed to get absolute path to executable")
+	cmd := exec.Command(exePath, oracleCommand[1:]...)
+	cmd.Dir = tmpDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	f.require.NoError(err, "Failed to execute game")
 }
 
 type GameHelperEOA struct {
