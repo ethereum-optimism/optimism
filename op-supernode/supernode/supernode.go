@@ -87,6 +87,8 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsFanIn.SetMetricsRegistry)
 	}
 
+	superAuthority.chains = chains
+
 	// Initialize fixed activities
 	s.activities = []activity.Activity{
 		heartbeat.New(log.New("activity", "heartbeat"), 10*time.Second),

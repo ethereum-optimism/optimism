@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	gosync "sync"
 	"time"
 
@@ -93,6 +94,10 @@ type CrossUpdateHandler interface {
 	OnCrossSafeUpdate(ctx context.Context, crossSafe eth.L2BlockRef, localSafe eth.L2BlockRef)
 }
 
+type SuperAuthority interface {
+	SafeL2Head(chainID *big.Int) eth.L2BlockRef
+}
+
 type EngineController struct {
 	engine            ExecEngine // Underlying execution engine RPC
 	log               log.Logger
@@ -158,6 +163,8 @@ type EngineController struct {
 	crossUpdateHandler CrossUpdateHandler
 
 	unsafePayloads *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
+
+	superAuthority SuperAuthority
 }
 
 var _ event.Deriver = (*EngineController)(nil)
@@ -186,21 +193,26 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 		unsafePayloads:    NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 	}
 }
+
+func (e *EngineController) SetSuperAuthority(superAuthority SuperAuthority) {
+	e.superAuthority = superAuthority
+}
+
+func (e *EngineController) SafeL2Head() eth.L2BlockRef {
+	superAuthority := false
+	if superAuthority {
+		return e.superAuthority.SafeL2Head(e.rollupCfg.L2ChainID)
+	} else {
+		return e.localSafeHead
+	}
+}
+
 func (e *EngineController) UnsafeL2Head() eth.L2BlockRef {
 	return e.unsafeHead
 }
 
 func (e *EngineController) PendingSafeL2Head() eth.L2BlockRef {
 	return e.pendingSafeHead
-}
-
-func (e *EngineController) SafeL2Head() eth.L2BlockRef {
-	superAuthority := false
-	if superAuthority {
-		panic("TODO")
-	} else {
-		return e.localSafeHead
-	}
 }
 
 func (e *EngineController) Finalized() eth.L2BlockRef {
