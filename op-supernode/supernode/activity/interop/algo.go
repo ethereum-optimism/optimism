@@ -16,10 +16,6 @@ var (
 	// ErrTimestampViolation is returned when an executing message references
 	// an initiating message with a timestamp >= the executing message's timestamp.
 	ErrTimestampViolation = errors.New("initiating message timestamp must be less than executing message timestamp")
-
-	// ErrBlockMismatch is returned when the block in the logsDB doesn't match
-	// the expected block from blocksAtTimestamp.
-	ErrBlockMismatch = errors.New("block in logsDB does not match expected block")
 )
 
 // verifyInteropMessages validates all executing messages at the given timestamp.

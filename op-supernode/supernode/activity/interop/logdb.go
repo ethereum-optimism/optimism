@@ -62,15 +62,6 @@ func openLogsDB(logger log.Logger, chainID eth.ChainID, dataDir string) (LogsDB,
 	return db, nil
 }
 
-// IncludedMessage wraps an executing message with its inclusion context.
-// The ExecutingMessage contains the initiating message's data (source chain),
-// while InclusionBlockNum/Timestamp indicate when it was executed (this chain).
-type IncludedMessage struct {
-	*types.ExecutingMessage
-	InclusionBlockNum  uint64
-	InclusionTimestamp uint64
-}
-
 var (
 	// ErrPreviousTimestampNotSealed is returned when loadLogs is called but the
 	// previous timestamp has not been sealed in the logsDB.
