@@ -333,11 +333,12 @@ func (ms *InteropMonitorService) Stop(ctx context.Context) error {
 	}
 
 	ms.Log.Info("stopping metric collector")
-	if err := ms.collector.Stop(); err != nil {
-		result = errors.Join(result, fmt.Errorf("failed to stop metric collector: %w", err))
-		ms.Log.Error("failed to stop metric collector", "error", err)
+	if ms.collector != nil {
+		if err := ms.collector.Stop(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to stop metric collector: %w", err))
+			ms.Log.Error("failed to stop metric collector", "error", err)
+		}
 	}
-
 	ms.Log.Info("stopping rpc server")
 	if ms.rpcServer != nil {
 		if err := ms.rpcServer.Stop(); err != nil {
