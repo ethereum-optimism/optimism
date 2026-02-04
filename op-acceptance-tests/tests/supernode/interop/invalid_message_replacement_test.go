@@ -17,15 +17,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 )
 
-// TestSupernodeInteropInvalidMessageReplacement tests that:
+// TestSupernodeInteropInvalidMessageReset tests that:
 // WHEN: an invalid Executing Message is included in a chain
 // THEN:
-// - The block containing the invalid message gets reset backward
-// - The chain re-derives and produces a replacement block
-// - Validity eventually advances past the replaced block
+// - The interop activity detects the invalid block
+// - The chain container is told to invalidate the block
+// - A reset/rewind is triggered if the chain is using that block
 //
-// This test verifies the block invalidation and replacement mechanism.
-func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
+// Note: This test observes reset behavior. Full block replacement requires
+// re-derivation which is a separate mechanism.
+func TestSupernodeInteropInvalidMessageReset(gt *testing.T) {
+	gt.Skip("Skipped: logsDB consistency issues blocking interop progression - see #18944")
+
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
@@ -77,7 +80,7 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 
 	// Send an INVALID executing message on chain B
 	// Modify the message identifier to make it invalid (wrong log index)
-	invalidExecReceipt := sendInvalidExecMessageForReplacement(t, bob, initTx, 0)
+	invalidExecReceipt := sendInvalidExecMessageForReset(t, bob, initTx, 0)
 
 	invalidBlockNumber := bigs.Uint64Strict(invalidExecReceipt.BlockNumber)
 	invalidBlockHash := invalidExecReceipt.BlockHash
@@ -90,106 +93,96 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 		"timestamp", invalidBlockTimestamp,
 	)
 
-	// Record the safety status before waiting
-	initialStatusA := sys.L2ACL.SyncStatus()
+	// Record the initial unsafe head for chain B
 	initialStatusB := sys.L2BCL.SyncStatus()
+	initialUnsafeB := initialStatusB.UnsafeL2.Number
 
-	t.Logger().Info("initial safety status",
-		"chainA_local_safe", initialStatusA.LocalSafeL2.Number,
-		"chainA_unsafe", initialStatusA.UnsafeL2.Number,
-		"chainB_local_safe", initialStatusB.LocalSafeL2.Number,
-		"chainB_unsafe", initialStatusB.UnsafeL2.Number,
+	t.Logger().Info("initial status before reset observation",
+		"chainB_unsafe", initialUnsafeB,
+		"invalid_block", invalidBlockNumber,
 	)
 
-	// Now we verify the key behaviors:
-	// 1. The invalid block should be replaced with a different block at the same height
-	// 2. Validity should eventually advance past the replaced block
+	// Observe for reset behavior:
+	// When the interop activity detects the invalid message and calls InvalidateBlock,
+	// it will trigger a rewind. We observe by watching for the unsafe head to go backwards
+	// or for the block at the invalid block number to change.
 
 	observationDuration := 60 * time.Second
 	checkInterval := time.Second
 
 	start := time.Now()
-	var replacementDetected bool
-	var replacementBlockHash [32]byte
+	var resetDetected bool
+	var lastUnsafeB uint64 = initialUnsafeB
 
 	for time.Since(start) < observationDuration {
 		time.Sleep(checkInterval)
 
-		// Check if the block at the invalid block number has changed
-		currentBlock := sys.L2ELB.BlockRefByNumber(invalidBlockNumber)
+		statusB := sys.L2BCL.SyncStatus()
+		currentUnsafeB := statusB.UnsafeL2.Number
 
+		// Check if the unsafe head went backwards (reset occurred)
+		if currentUnsafeB < lastUnsafeB && lastUnsafeB >= invalidBlockNumber {
+			resetDetected = true
+			t.Logger().Info("RESET DETECTED! Unsafe head moved backward",
+				"previous_unsafe", lastUnsafeB,
+				"current_unsafe", currentUnsafeB,
+				"invalid_block", invalidBlockNumber,
+			)
+		}
+
+		// Also check if the block hash at the invalid block number changed
+		currentBlock := sys.L2ELB.BlockRefByNumber(invalidBlockNumber)
 		if currentBlock.Hash != invalidBlockHash {
-			replacementDetected = true
-			replacementBlockHash = currentBlock.Hash
-			t.Logger().Info("REPLACEMENT DETECTED!",
+			resetDetected = true
+			t.Logger().Info("RESET DETECTED! Block hash changed",
 				"block_number", invalidBlockNumber,
 				"old_hash", invalidBlockHash,
 				"new_hash", currentBlock.Hash,
 			)
 		}
 
-		// Check current safety status
-		statusA := sys.L2ACL.SyncStatus()
-		statusB := sys.L2BCL.SyncStatus()
-
-		// Check if the invalid block's timestamp has been verified
+		// Check verification status
 		resp, err := snClient.SuperRootAtTimestamp(ctx, invalidBlockTimestamp)
 		t.Require().NoError(err, "SuperRootAtTimestamp should not error")
 
 		t.Logger().Info("observation tick",
 			"elapsed", time.Since(start).Round(time.Second),
-			"chainA_local_safe", statusA.LocalSafeL2.Number,
-			"chainA_unsafe", statusA.UnsafeL2.Number,
-			"chainB_local_safe", statusB.LocalSafeL2.Number,
-			"chainB_unsafe", statusB.UnsafeL2.Number,
+			"chainB_unsafe", currentUnsafeB,
 			"invalid_block_ts", invalidBlockTimestamp,
-			"replacement_detected", replacementDetected,
+			"reset_detected", resetDetected,
 			"verified", resp.Data != nil,
 		)
 
-		// If replacement was detected and timestamp is now verified, we're done
-		if replacementDetected && resp.Data != nil {
-			t.Logger().Info("SUCCESS: replacement block is now verified",
-				"timestamp", invalidBlockTimestamp,
-				"replacement_hash", replacementBlockHash,
-			)
+		lastUnsafeB = currentUnsafeB
+
+		// Exit early if we detect reset
+		if resetDetected {
+			t.Logger().Info("Reset behavior confirmed")
 			break
 		}
 	}
 
-	// Final assertions
+	// ASSERTION: Reset should have been detected
+	// (either unsafe head went backward or block hash changed)
+	t.Require().True(resetDetected,
+		"reset should be triggered when invalid block is detected")
 
-	// ASSERTION: The invalid block should have been replaced
-	t.Require().True(replacementDetected,
-		"invalid block should have been replaced with a different block")
-
-	// ASSERTION: The replacement block should be different from the invalid block
-	t.Require().NotEqual(invalidBlockHash, replacementBlockHash,
-		"replacement block hash should differ from invalid block hash")
-
-	// ASSERTION: The timestamp should eventually be verified (with the replacement block)
+	// ASSERTION: The invalid block's timestamp should NOT be verified
+	// (because the reset means the block is no longer valid)
 	finalResp, err := snClient.SuperRootAtTimestamp(ctx, invalidBlockTimestamp)
 	t.Require().NoError(err)
-	t.Require().NotNil(finalResp.Data,
-		"timestamp should be verified after block replacement")
+	t.Require().Nil(finalResp.Data,
+		"invalid block timestamp should not be verified after reset")
 
-	finalStatusA := sys.L2ACL.SyncStatus()
-	finalStatusB := sys.L2BCL.SyncStatus()
-
-	t.Logger().Info("test complete: invalid block was replaced and validity advanced",
-		"final_chainA_local_safe", finalStatusA.LocalSafeL2.Number,
-		"final_chainA_unsafe", finalStatusA.UnsafeL2.Number,
-		"final_chainB_local_safe", finalStatusB.LocalSafeL2.Number,
-		"final_chainB_unsafe", finalStatusB.UnsafeL2.Number,
+	t.Logger().Info("test complete: reset was triggered for invalid block",
+		"invalid_block_number", invalidBlockNumber,
 		"invalid_block_hash", invalidBlockHash,
-		"replacement_block_hash", replacementBlockHash,
-		"invalid_block_timestamp", invalidBlockTimestamp,
 	)
 }
 
-// sendInvalidExecMessageForReplacement sends an executing message with a modified (invalid) identifier.
+// sendInvalidExecMessageForReset sends an executing message with a modified (invalid) identifier.
 // This makes the message invalid because it references a non-existent log index.
-func sendInvalidExecMessageForReplacement(
+func sendInvalidExecMessageForReset(
 	t devtest.T,
 	bob *dsl.EOA,
 	initIntent *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput],

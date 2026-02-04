@@ -294,11 +294,39 @@ func (i *Interop) handleResult(result Result) error {
 	return nil
 }
 
-// invalidateBlock handles an invalid block by notifying the chain to reorg.
+// invalidateBlock handles an invalid block by notifying the chain container to add it
+// to the denylist and potentially rewind if the chain is currently using that block.
 func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID) error {
-	// TODO(#18944): Implement block invalidation
-	// This should trigger the chain container to reorg away from the invalid block
-	i.log.Warn("invalidateBlock called but not implemented", "chainID", chainID, "blockID", blockID)
+	chain, ok := i.chains[chainID]
+	if !ok {
+		return fmt.Errorf("chain %s not found", chainID)
+	}
+
+	rewound, err := chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash)
+	if err != nil {
+		i.log.Error("failed to invalidate block",
+			"chainID", chainID,
+			"blockNumber", blockID.Number,
+			"blockHash", blockID.Hash,
+			"err", err,
+		)
+		return err
+	}
+
+	if rewound {
+		i.log.Warn("chain rewound due to invalid block",
+			"chainID", chainID,
+			"blockNumber", blockID.Number,
+			"blockHash", blockID.Hash,
+		)
+	} else {
+		i.log.Info("block added to denylist (no rewind needed)",
+			"chainID", chainID,
+			"blockNumber", blockID.Number,
+			"blockHash", blockID.Hash,
+		)
+	}
+
 	return nil
 }
 
