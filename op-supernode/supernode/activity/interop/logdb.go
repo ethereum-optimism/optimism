@@ -81,7 +81,7 @@ func (i *Interop) loadLogs(ts uint64) error {
 
 		// Verify the previous timestamp is sealed (or DB is empty for activation timestamp)
 		// Returns the hash of the previous sealed block, or nil if DB is empty
-		prevHash, err := i.verifyPreviousTimestampSealed(chainID, db, ts, chain.BlockTime())
+		latestHash, err := i.verifyCanAddTimestamp(chainID, db, ts, chain.BlockTime())
 		if err != nil {
 			return err
 		}
@@ -92,30 +92,21 @@ func (i *Interop) loadLogs(ts uint64) error {
 			return fmt.Errorf("chain %s: failed to get block at timestamp %d: %w", chainID, ts, err)
 		}
 
-		// Check if this block is already sealed in the logsDB
-		// This happens when no new block exists at this timestamp - we get the same block
-		// that was already sealed at a previous timestamp
-		latestSealed, hasSealed := db.LatestSealedBlock()
-		if hasSealed && latestSealed.Hash == block.Hash {
-			// Block is already sealed, nothing new to process for this chain
-			i.log.Debug("block already sealed, skipping",
-				"chain", chainID,
-				"block", block.Number,
-				"timestamp", ts,
-			)
-			continue
-		}
-
 		// Fetch receipts for the block
 		blockInfo, receipts, err := chain.FetchReceipts(i.ctx, block.ID())
 		if err != nil {
 			return fmt.Errorf("chain %s: failed to fetch receipts for block %d: %w", chainID, block.Number, err)
 		}
 
+		// If the block is already sealed, skip loading
+		if latestHash == &block.Hash {
+			continue
+		}
+
 		// Verify chain continuity: block's parent must match the last sealed block
-		if prevHash != nil && blockInfo.ParentHash() != *prevHash {
-			return fmt.Errorf("chain %s: block %d parent hash %s does not match logsDB hash %s: %w",
-				chainID, block.Number, blockInfo.ParentHash(), *prevHash, ErrParentHashMismatch)
+		if latestHash != nil && blockInfo.ParentHash() != *latestHash {
+			return fmt.Errorf("chain %s: block %d parent hash %s does not match logsDB last sealed block hash %s: %w",
+				chainID, block.Number, blockInfo.ParentHash(), *latestHash, ErrParentHashMismatch)
 		}
 
 		// Process logs and seal the block
@@ -133,39 +124,49 @@ func (i *Interop) loadLogs(ts uint64) error {
 	return nil
 }
 
-// verifyPreviousTimestampSealed checks that the logsDB is ready to process timestamp ts.
-// For the activation timestamp, the logsDB must be empty and returns nil for the previous hash.
-// For subsequent timestamps, the latest sealed block must have timestamp < ts, and the gap
-// must not exceed the block time (to ensure we haven't skipped any timestamps).
-// Returns the hash of the previous sealed block, or nil if the DB is empty (activation timestamp case).
-func (i *Interop) verifyPreviousTimestampSealed(chainID eth.ChainID, db LogsDB, ts uint64, blockTime uint64) (*common.Hash, error) {
+func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint64, blockTime uint64) (*common.Hash, error) {
 	latestBlock, hasBlocks := db.LatestSealedBlock()
 
-	// For the activation timestamp, the logsDB should be empty
-	if ts == i.activationTimestamp {
-		if hasBlocks {
-			return nil, fmt.Errorf("chain %s: logsDB should be empty for activation timestamp %d, but has block %d: %w",
-				chainID, ts, latestBlock.Number, ErrPreviousTimestampNotSealed)
-		}
+	// guard conditions: database must be empty for activation timestamp, and must have blocks for all other timestamps
+	if ts == i.activationTimestamp && !hasBlocks {
 		return nil, nil
 	}
-
-	// if there are no blocks but we are not verifying the activation timestamp, return an error
-	if !hasBlocks {
+	if ts == i.activationTimestamp && hasBlocks {
+		return nil, fmt.Errorf("chain %s: cant seal activation timestamp %d because database already has blocks: %w",
+			chainID, ts, ErrPreviousTimestampNotSealed)
+	}
+	if ts != i.activationTimestamp && !hasBlocks {
 		return nil, fmt.Errorf("chain %s: logsDB is empty but expected blocks before timestamp %d: %w",
 			chainID, ts, ErrPreviousTimestampNotSealed)
 	}
 
-	// get the actual seal from the database
+	// determine the timestamp of the last sealed block
 	seal, err := db.FindSealedBlock(latestBlock.Number)
 	if err != nil {
 		return nil, fmt.Errorf("chain %s: failed to find sealed block %d: %w", chainID, latestBlock.Number, err)
 	}
 
+	// if the last sealed block is already after the timestamp in question, return success
+	if seal.Timestamp > ts {
+		return &latestBlock.Hash, nil
+	}
+
 	gap := ts - seal.Timestamp
-	if gap != blockTime {
-		return nil, fmt.Errorf("chain %s: last sealed block timestamp %d is not %d blocks away from current timestamp %d: %w",
-			chainID, seal.Timestamp, blockTime, ts, ErrPreviousTimestampNotSealed)
+
+	// if there is more than a block time of gap, we cannot append the timestamp to the database
+	if gap > blockTime {
+		return nil, fmt.Errorf("chain %s: the prior block timestamp %d (%d minus block time %d) is not sealed (last sealed block timestamp: %d): %w",
+			chainID, ts-blockTime, ts, blockTime, seal.Timestamp, ErrPreviousTimestampNotSealed)
+	}
+
+	// if the gap is less than a block time, we can append the timestamp to the database, but warn the caller
+	if gap < blockTime {
+		i.log.Warn("verifyPreviousTimestampSealed: requested for timestamp which is not a multiple of block time",
+			"chain", chainID,
+			"timestamp", ts,
+			"block time", blockTime,
+			"gap", gap,
+		)
 	}
 
 	return &latestBlock.Hash, nil

@@ -157,15 +157,24 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 			wantHashNil:  true,
 		},
 		{
-			name:          "seal timestamp >= query timestamp errors",
+			name:          "seal timestamp == query timestamp succeeds (already sealed)",
 			activationTS:  1000,
 			queryTS:       1001,
 			blockTime:     1,
 			dbHasBlocks:   true,
-			sealTimestamp: 1001, // Same as queryTS
-			wantErr:       true,
-			wantErrIs:     ErrPreviousTimestampNotSealed,
-			wantHashNil:   true,
+			sealTimestamp: 1001, // Same as queryTS - already past this timestamp
+			wantErr:       false,
+			wantHashNil:   false,
+		},
+		{
+			name:          "seal timestamp > query timestamp succeeds (already past)",
+			activationTS:  1000,
+			queryTS:       1001,
+			blockTime:     1,
+			dbHasBlocks:   true,
+			sealTimestamp: 1005, // Past queryTS
+			wantErr:       false,
+			wantHashNil:   false,
 		},
 		{
 			name:          "seal timestamp < query timestamp (exact ts-1) succeeds",
@@ -231,7 +240,7 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 				findSealErr: tt.findSealErr,
 			}
 
-			hash, err := interop.verifyPreviousTimestampSealed(chainID, db, tt.queryTS, tt.blockTime)
+			hash, err := interop.verifyCanAddTimestamp(chainID, db, tt.queryTS, tt.blockTime)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -427,7 +436,7 @@ func TestLoadLogs_ParentHashMismatch(t *testing.T) {
 	interop := New(gethlog.New(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
-	defer interop.Stop(context.Background())
+	defer func() { _ = interop.Stop(context.Background()) }()
 
 	// Load logs for activation timestamp
 	err := interop.loadLogs(1000)
@@ -552,5 +561,8 @@ func (m *statefulMockChainContainer) SyncStatus(ctx context.Context) (*eth.SyncS
 	return &eth.SyncStatus{}, nil
 }
 func (m *statefulMockChainContainer) BlockTime() uint64 { return 1 }
+func (m *statefulMockChainContainer) RewindEngine(ctx context.Context, timestamp uint64) error {
+	return nil
+}
 
 var _ cc.ChainContainer = (*statefulMockChainContainer)(nil)

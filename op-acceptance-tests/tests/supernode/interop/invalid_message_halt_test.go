@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 )
@@ -20,7 +21,7 @@ import (
 // WHEN: an invalid Executing Message is included in a chain
 // THEN:
 // - Validity Never Advances to include the Invalid Block
-// - Safety and Unsafety for both chains continue to advance
+// - Local Safety and Unsafety for both chains continue to advance
 //
 // This is a TDD test that starts a cycle to implement the Interop Activity's actual algorithm.
 func TestSupernodeInteropInvalidMessageHalt(gt *testing.T) {
@@ -77,7 +78,7 @@ func TestSupernodeInteropInvalidMessageHalt(gt *testing.T) {
 	// Modify the message identifier to make it invalid (wrong log index)
 	invalidExecReceipt := sendInvalidExecMessage(t, bob, initTx, 0)
 
-	invalidBlockNumber := invalidExecReceipt.BlockNumber.Uint64()
+	invalidBlockNumber := bigs.Uint64Strict(invalidExecReceipt.BlockNumber)
 	invalidBlock := sys.L2ELB.BlockRefByHash(invalidExecReceipt.BlockHash)
 	invalidBlockTimestamp := invalidBlock.Time
 
@@ -92,15 +93,15 @@ func TestSupernodeInteropInvalidMessageHalt(gt *testing.T) {
 	initialStatusB := sys.L2BCL.SyncStatus()
 
 	t.Logger().Info("initial safety status",
-		"chainA_safe", initialStatusA.SafeL2.Number,
+		"chainA_local_safe", initialStatusA.LocalSafeL2.Number,
 		"chainA_unsafe", initialStatusA.UnsafeL2.Number,
-		"chainB_safe", initialStatusB.SafeL2.Number,
+		"chainB_local_safe", initialStatusB.LocalSafeL2.Number,
 		"chainB_unsafe", initialStatusB.UnsafeL2.Number,
 	)
 
 	// Now we verify the key behaviors over time:
 	// 1. Validity should NEVER advance to include the invalid block
-	// 2. Safety and Unsafety should continue to advance for both chains
+	// 2. Local Safety and Unsafety should continue to advance for both chains
 
 	observationDuration := 30 * time.Second
 	checkInterval := time.Second
@@ -139,9 +140,9 @@ func TestSupernodeInteropInvalidMessageHalt(gt *testing.T) {
 
 		t.Logger().Info("observation tick",
 			"elapsed", time.Since(start).Round(time.Second),
-			"chainA_safe", statusA.SafeL2.Number,
+			"chainA_local_safe", statusA.LocalSafeL2.Number,
 			"chainA_unsafe", statusA.UnsafeL2.Number,
-			"chainB_safe", statusB.SafeL2.Number,
+			"chainB_local_safe", statusB.LocalSafeL2.Number,
 			"chainB_unsafe", statusB.UnsafeL2.Number,
 			"last_verified_ts", lastVerifiedTimestamp,
 			"invalid_block_ts", invalidBlockTimestamp,
@@ -153,11 +154,11 @@ func TestSupernodeInteropInvalidMessageHalt(gt *testing.T) {
 	finalStatusA := sys.L2ACL.SyncStatus()
 	finalStatusB := sys.L2BCL.SyncStatus()
 
-	// ASSERTION: Safety should have advanced for both chains
-	t.Require().Greater(finalStatusA.SafeL2.Number, initialStatusA.SafeL2.Number,
-		"chain A safe head should advance")
-	t.Require().Greater(finalStatusB.SafeL2.Number, initialStatusB.SafeL2.Number,
-		"chain B safe head should advance")
+	// ASSERTION: Local Safety should have advanced for both chains
+	t.Require().Greater(finalStatusA.LocalSafeL2.Number, initialStatusA.LocalSafeL2.Number,
+		"chain A local safe head should advance")
+	t.Require().Greater(finalStatusB.LocalSafeL2.Number, initialStatusB.LocalSafeL2.Number,
+		"chain B local safe head should advance")
 
 	// ASSERTION: Unsafety should have advanced for both chains
 	t.Require().Greater(finalStatusA.UnsafeL2.Number, initialStatusA.UnsafeL2.Number,
@@ -172,9 +173,9 @@ func TestSupernodeInteropInvalidMessageHalt(gt *testing.T) {
 		"invalid block timestamp should NEVER be verified")
 
 	t.Logger().Info("test complete: invalid message correctly halted validity advancement",
-		"final_chainA_safe", finalStatusA.SafeL2.Number,
+		"final_chainA_local_safe", finalStatusA.LocalSafeL2.Number,
 		"final_chainA_unsafe", finalStatusA.UnsafeL2.Number,
-		"final_chainB_safe", finalStatusB.SafeL2.Number,
+		"final_chainB_local_safe", finalStatusB.LocalSafeL2.Number,
 		"final_chainB_unsafe", finalStatusB.UnsafeL2.Number,
 		"invalid_block_timestamp", invalidBlockTimestamp,
 		"last_verified_timestamp", lastVerifiedTimestamp,
