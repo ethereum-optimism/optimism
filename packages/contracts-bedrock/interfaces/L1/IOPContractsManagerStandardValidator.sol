@@ -28,7 +28,6 @@ interface IOPContractsManagerStandardValidator {
         bytes32 absolutePrestate;
         uint256 l2ChainID;
         address proposer;
-        bool isInitialDeployment;
     }
 
     struct ValidationInputDev {
@@ -37,7 +36,6 @@ interface IOPContractsManagerStandardValidator {
         bytes32 cannonKonaPrestate;
         uint256 l2ChainID;
         address proposer;
-        bool isInitialDeployment;
     }
 
     struct ValidationOverrides {

@@ -126,7 +126,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         bytes32 absolutePrestate;
         uint256 l2ChainID;
         address proposer;
-        bool isInitialDeployment;
     }
 
     /// @notice Struct containing the input parameters for the validation process when dev features are enabled.
@@ -136,7 +135,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         bytes32 cannonKonaPrestate;
         uint256 l2ChainID;
         address proposer;
-        bool isInitialDeployment;
     }
 
     /// @notice Struct containing override parameters for the validation process.
@@ -885,30 +883,26 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = assertValidPermissionedDisputeGame(
             _errors, _input.sysCfg, _input.cannonPrestate, _input.l2ChainID, _proxyAdmin, _input.proposer, _overrides
         );
-
-        // During initial deployment, only PERMISSIONED_CANNON should be enabled.
-        if (!_input.isInitialDeployment) {
-            _errors = assertValidPermissionlessDisputeGame(
-                _errors,
-                _input.sysCfg,
-                GameTypes.CANNON,
-                _input.cannonPrestate,
-                _input.l2ChainID,
-                _proxyAdmin,
-                _overrides,
-                "PLDG"
-            );
-            _errors = assertValidPermissionlessDisputeGame(
-                _errors,
-                _input.sysCfg,
-                GameTypes.CANNON_KONA,
-                _input.cannonKonaPrestate,
-                _input.l2ChainID,
-                _proxyAdmin,
-                _overrides,
-                "CKDG"
-            );
-        }
+        _errors = assertValidPermissionlessDisputeGame(
+            _errors,
+            _input.sysCfg,
+            GameTypes.CANNON,
+            _input.cannonPrestate,
+            _input.l2ChainID,
+            _proxyAdmin,
+            _overrides,
+            "PLDG"
+        );
+        _errors = assertValidPermissionlessDisputeGame(
+            _errors,
+            _input.sysCfg,
+            GameTypes.CANNON_KONA,
+            _input.cannonKonaPrestate,
+            _input.l2ChainID,
+            _proxyAdmin,
+            _overrides,
+            "CKDG"
+        );
 
         _errors = assertValidETHLockbox(_errors, _input.sysCfg, _proxyAdmin);
 
@@ -941,8 +935,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             cannonPrestate: _input.absolutePrestate,
             cannonKonaPrestate: bytes32(0),
             l2ChainID: _input.l2ChainID,
-            proposer: _input.proposer,
-            isInitialDeployment: _input.isInitialDeployment
+            proposer: _input.proposer
         });
     }
 

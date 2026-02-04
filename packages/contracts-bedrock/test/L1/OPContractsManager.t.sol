@@ -321,8 +321,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
                 cannonPrestate: opChainConfigs[0].cannonPrestate.raw(),
                 cannonKonaPrestate: opChainConfigs[0].cannonKonaPrestate.raw(),
                 l2ChainID: l2ChainId,
-                proposer: initialProposer,
-                isInitialDeployment: false
+                proposer: initialProposer
             }),
             false,
             validationOverrides

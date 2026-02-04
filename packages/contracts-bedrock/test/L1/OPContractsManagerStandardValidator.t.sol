@@ -300,8 +300,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
                 l2ChainID: l2ChainId,
-                proposer: proposer,
-                isInitialDeployment: false
+                proposer: proposer
             }),
             _allowFailure
         );
@@ -324,8 +323,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
                 l2ChainID: l2ChainId,
-                proposer: proposer,
-                isInitialDeployment: false
+                proposer: proposer
             }),
             _allowFailure,
             _overrides
