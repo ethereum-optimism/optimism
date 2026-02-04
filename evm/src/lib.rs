@@ -293,7 +293,11 @@ mod tests {
     use alloy_consensus::{Header, Receipt};
     use alloy_eips::eip7685::Requests;
     use alloy_genesis::Genesis;
-    use alloy_primitives::{bytes, map::HashMap, Address, LogData, B256};
+    use alloy_primitives::{
+        bytes,
+        map::{AddressMap, B256Map, HashMap},
+        Address, LogData, B256,
+    };
     use op_revm::OpSpecId;
     use reth_chainspec::ChainSpec;
     use reth_evm::execute::ProviderError;
@@ -588,12 +592,12 @@ mod tests {
         );
 
         // Create a BundleStateInit object and insert initial data
-        let mut state_init: BundleStateInit = HashMap::default();
+        let mut state_init: BundleStateInit = AddressMap::default();
         state_init
-            .insert(Address::new([2; 20]), (None, Some(Account::default()), HashMap::default()));
+            .insert(Address::new([2; 20]), (None, Some(Account::default()), B256Map::default()));
 
-        // Create a HashMap for account reverts and insert initial data
-        let mut revert_inner: HashMap<Address, AccountRevertInit> = HashMap::default();
+        // Create an AddressMap for account reverts and insert initial data
+        let mut revert_inner: AddressMap<AccountRevertInit> = AddressMap::default();
         revert_inner.insert(Address::new([2; 20]), (None, vec![]));
 
         // Create a RevertsInit object and insert the revert_inner data
