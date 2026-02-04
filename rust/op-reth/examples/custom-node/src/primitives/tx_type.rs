@@ -1,6 +1,6 @@
 use crate::primitives::TxTypeCustom;
 use alloy_primitives::bytes::{Buf, BufMut};
-use reth_codecs::{txtype::COMPACT_EXTENDED_IDENTIFIER_FLAG, Compact};
+use reth_codecs::{Compact, txtype::COMPACT_EXTENDED_IDENTIFIER_FLAG};
 
 pub const PAYMENT_TX_TYPE_ID: u8 = 42;
 

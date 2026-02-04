@@ -1,19 +1,19 @@
 use super::TxPayment;
 use alloy_consensus::{
+    Signed, TransactionEnvelope,
     crypto::RecoveryError,
     transaction::{SignerRecoverable, TxHashRef},
-    Signed, TransactionEnvelope,
 };
 use alloy_eips::Encodable2718;
-use alloy_primitives::{Sealed, Signature, B256};
+use alloy_primitives::{B256, Sealed, Signature};
 use alloy_rlp::BufMut;
 use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
 use reth_codecs::{
-    alloy::transaction::{CompactEnvelope, FromTxCompact, ToTxCompact},
     Compact,
+    alloy::transaction::{CompactEnvelope, FromTxCompact, ToTxCompact},
 };
-use reth_ethereum::primitives::{serde_bincode_compat::RlpBincode, InMemorySize};
-use reth_op::{primitives::SignedTransaction, OpTransaction};
+use reth_ethereum::primitives::{InMemorySize, serde_bincode_compat::RlpBincode};
+use reth_op::{OpTransaction, primitives::SignedTransaction};
 use revm_primitives::Address;
 
 /// Either [`OpTxEnvelope`] or [`TxPayment`].

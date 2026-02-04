@@ -1,13 +1,13 @@
 use crate::{
+    CustomNode,
     engine::{CustomExecutionData, CustomPayloadAttributes, CustomPayloadTypes},
     primitives::CustomNodePrimitives,
-    CustomNode,
 };
 use alloy_rpc_types_engine::{
     ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId, PayloadStatus,
 };
 use async_trait::async_trait;
-use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult, proc_macros::rpc};
 use reth_ethereum::node::api::{
     AddOnsContext, ConsensusEngineHandle, EngineApiMessageVersion, FullNodeComponents,
 };
@@ -55,7 +55,7 @@ pub trait CustomEngineApi {
 
     #[method(name = "getPayload")]
     async fn get_payload(&self, payload_id: PayloadId)
-        -> RpcResult<CustomExecutionPayloadEnvelope>;
+    -> RpcResult<CustomExecutionPayloadEnvelope>;
 }
 
 pub struct CustomEngineApi {

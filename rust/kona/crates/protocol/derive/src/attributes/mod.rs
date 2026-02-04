@@ -1,6 +1,5 @@
-//! Module containing the [`AttributesBuilder`] trait implementations.
-//!
-//! [AttributesBuilder]: crate::traits::AttributesBuilder
+//! Module containing the [`AttributesBuilder`](crate::traits::AttributesBuilder) trait
+//! implementations.
 
 mod stateful;
 pub use stateful::StatefulAttributesBuilder;

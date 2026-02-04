@@ -19,13 +19,14 @@ use chainspec::CustomChainSpec;
 use primitives::CustomNodePrimitives;
 use reth_ethereum::node::api::{FullNodeTypes, NodeTypes};
 use reth_node_builder::{
-    components::{BasicPayloadServiceBuilder, ComponentsBuilder},
     Node, NodeAdapter,
+    components::{BasicPayloadServiceBuilder, ComponentsBuilder},
 };
 use reth_op::{
     node::{
+        OpAddOns, OpNode,
         node::{OpConsensusBuilder, OpNetworkBuilder, OpPayloadBuilder, OpPoolBuilder},
-        txpool, OpAddOns, OpNode,
+        txpool,
     },
     rpc::OpEthApiBuilder,
 };

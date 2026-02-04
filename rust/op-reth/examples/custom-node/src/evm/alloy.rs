@@ -1,16 +1,16 @@
 use crate::evm::{CustomTxEnv, PaymentTxEnv};
-use alloy_evm::{precompiles::PrecompilesMap, Database, Evm, EvmEnv, EvmFactory};
+use alloy_evm::{Database, Evm, EvmEnv, EvmFactory, precompiles::PrecompilesMap};
 use alloy_op_evm::{OpEvm, OpEvmFactory};
 use alloy_primitives::{Address, Bytes};
 use op_revm::{
-    precompiles::OpPrecompiles, L1BlockInfo, OpContext, OpHaltReason, OpSpecId, OpTransaction,
-    OpTransactionError,
+    L1BlockInfo, OpContext, OpHaltReason, OpSpecId, OpTransaction, OpTransactionError,
+    precompiles::OpPrecompiles,
 };
 use reth_ethereum::evm::revm::{
-    context::{result::ResultAndState, BlockEnv, CfgEnv},
+    Context, Inspector, Journal,
+    context::{BlockEnv, CfgEnv, result::ResultAndState},
     handler::PrecompileProvider,
     interpreter::InterpreterResult,
-    Context, Inspector, Journal,
 };
 use revm::{context_interface::result::EVMError, inspector::NoOpInspector};
 use std::error::Error;
