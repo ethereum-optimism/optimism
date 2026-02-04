@@ -99,6 +99,60 @@ func TestVerifyInteropMessages_ValidBlocks(t *testing.T) {
 		require.Empty(t, result.InvalidHeads)
 	})
 
+	t.Run("message at expiry boundary passes verification", func(t *testing.T) {
+		t.Parallel()
+
+		sourceChainID := eth.ChainIDFromUInt64(10)
+		destChainID := eth.ChainIDFromUInt64(8453)
+
+		sourceBlockHash := common.HexToHash("0xSource")
+		destBlockHash := common.HexToHash("0xDest")
+
+		// Message is exactly at the expiry boundary (should pass)
+		execTimestamp := uint64(1000000)
+		initTimestamp := execTimestamp - ExpiryTime // Exactly at boundary
+
+		sourceBlock := eth.BlockID{Number: 50, Hash: sourceBlockHash}
+		destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
+
+		execMsg := &suptypes.ExecutingMessage{
+			ChainID:   sourceChainID,
+			BlockNum:  50,
+			LogIdx:    0,
+			Timestamp: initTimestamp, // Exactly at expiry boundary
+			Checksum:  suptypes.MessageChecksum{0x01},
+		}
+
+		sourceDB := &algoMockLogsDB{
+			openBlockRef: eth.BlockRef{Hash: sourceBlockHash, Number: 50, Time: initTimestamp},
+			containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: initTimestamp},
+		}
+
+		destDB := &algoMockLogsDB{
+			openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: execTimestamp},
+			openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+				0: execMsg,
+			},
+		}
+
+		interop := &Interop{
+			log: gethlog.New(),
+			logsDBs: map[eth.ChainID]LogsDB{
+				sourceChainID: sourceDB,
+				destChainID:   destDB,
+			},
+		}
+
+		result, err := interop.verifyInteropMessages(execTimestamp, map[eth.ChainID]eth.BlockID{
+			sourceChainID: sourceBlock,
+			destChainID:   destBlock,
+		})
+
+		require.NoError(t, err)
+		require.True(t, result.IsValid())
+		require.Empty(t, result.InvalidHeads)
+	})
+
 	t.Run("unregistered chains in blocksAtTimestamp are skipped", func(t *testing.T) {
 		t.Parallel()
 
@@ -285,6 +339,56 @@ func TestVerifyInteropMessages_InvalidBlocks(t *testing.T) {
 		}
 
 		result, err := interop.verifyInteropMessages(1000, map[eth.ChainID]eth.BlockID{
+			destChainID: destBlock,
+		})
+
+		require.NoError(t, err)
+		require.False(t, result.IsValid())
+		require.Contains(t, result.InvalidHeads, destChainID)
+	})
+
+	t.Run("expired message marked invalid", func(t *testing.T) {
+		t.Parallel()
+
+		sourceChainID := eth.ChainIDFromUInt64(10)
+		destChainID := eth.ChainIDFromUInt64(8453)
+
+		destBlockHash := common.HexToHash("0xDest")
+		// Executing block is at timestamp 1000000 (well after expiry)
+		execTimestamp := uint64(1000000)
+		// Initiating message timestamp is more than ExpiryTime (604800) before executing timestamp
+		initTimestamp := execTimestamp - ExpiryTime - 1 // 1 second past expiry
+
+		destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
+
+		execMsg := &suptypes.ExecutingMessage{
+			ChainID:   sourceChainID,
+			BlockNum:  50,
+			LogIdx:    0,
+			Timestamp: initTimestamp, // Expired!
+			Checksum:  suptypes.MessageChecksum{0x01},
+		}
+
+		sourceDB := &algoMockLogsDB{
+			containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: initTimestamp},
+		}
+
+		destDB := &algoMockLogsDB{
+			openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: execTimestamp},
+			openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+				0: execMsg,
+			},
+		}
+
+		interop := &Interop{
+			log: gethlog.New(),
+			logsDBs: map[eth.ChainID]LogsDB{
+				sourceChainID: sourceDB,
+				destChainID:   destDB,
+			},
+		}
+
+		result, err := interop.verifyInteropMessages(execTimestamp, map[eth.ChainID]eth.BlockID{
 			destChainID: destBlock,
 		})
 
