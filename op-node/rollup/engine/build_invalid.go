@@ -49,7 +49,7 @@ func (e *EngineController) onBuildInvalid(ctx context.Context, ev BuildInvalidEv
 	}
 
 	// Revert the pending safe head to the safe head.
-	e.SetPendingSafeL2Head(e.safeHead)
+	e.SetPendingSafeL2Head(e.SafeL2Head())
 	// suppress the error b/c we want to retry with the next batch from the batch queue
 	// If there is no valid batch the node will eventually force a deposit only block. If
 	// the deposit only block fails, this will return the critical error above.
