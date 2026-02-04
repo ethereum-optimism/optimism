@@ -212,7 +212,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   gcc-aarch64-linux-gnu \
   gcc-x86-64-linux-gnu \
   && rm -rf /var/lib/apt/lists/*
-COPY ./kona /kona
+COPY ./rust/kona /kona
 WORKDIR /kona
 # Map TARGETARCH to Rust target triple, install it, and build
 RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/kona/target \

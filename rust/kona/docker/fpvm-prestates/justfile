@@ -1,0 +1,59 @@
+set positional-arguments
+alias cannon := build-client-prestate-cannon-artifacts
+
+# default recipe to display help information
+default:
+  @just --list
+
+# Build the `kona-client` prestate artifacts from local source (cannon).
+build-client-prestate-cannon-artifacts \
+    kona_client_variant \
+    cannon_tag \
+    out='./prestate-artifacts-cannon' \
+    custom_config_dir='':
+  #!/bin/bash
+  OUTPUT_DIR={{out}}
+
+  # Docker bake env
+  export CLIENT_BIN="{{kona_client_variant}}"
+  export CANNON_TAG="{{cannon_tag}}"
+  export DEFAULT_TAG="kona-cannon-prestate:local"
+
+  # Navigate to rust workspace root
+  cd ../../..
+
+  if [[ -n "{{custom_config_dir}}" ]]; then
+    export KONA_CUSTOM_CONFIGS="true"
+    export CUSTOM_CONFIGS_CONTEXT="{{custom_config_dir}}"
+    if [ ! -d "{{custom_config_dir}}" ]; then
+        echo "Invalid custom config directory: {{custom_config_dir}}"
+        exit 1
+    fi
+    echo "Using custom config directory: {{custom_config_dir}}"
+  else
+    # set to an empty directory to satisfy the docker build context requirement
+    TEMP_DIR=$(mktemp -d)
+    trap "rm -rf $TEMP_DIR" EXIT
+    export CUSTOM_CONFIGS_CONTEXT="$TEMP_DIR"
+  fi
+
+  # Create the output directory
+  mkdir -p $OUTPUT_DIR
+
+  echo "Building kona-client (variant: {{kona_client_variant}}) prestate artifacts for the cannon target. 🔫 Cannon Tag: {{cannon_tag}}"
+
+  # Build the --allow flag conditionally (requires Docker Buildx v0.15.0+)
+  ALLOW_FLAG=""
+  BUILDX_VERSION=$(docker buildx version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "0.0.0")
+  MAJOR=$(echo "$BUILDX_VERSION" | cut -d. -f1)
+  MINOR=$(echo "$BUILDX_VERSION" | cut -d. -f2)
+  if [[ "$MAJOR" -gt 0 ]] || [[ "$MAJOR" -eq 0 && "$MINOR" -ge 15 ]]; then
+    ALLOW_FLAG="--allow fs=${CUSTOM_CONFIGS_CONTEXT}"
+  fi
+
+  docker buildx bake \
+    --set "*.output=$OUTPUT_DIR" \
+    $ALLOW_FLAG \
+    -f kona/docker/docker-bake.hcl \
+    --allow fs=${CUSTOM_CONFIGS_CONTEXT} \
+    kona-cannon-prestate

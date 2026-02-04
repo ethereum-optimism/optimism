@@ -422,8 +422,8 @@ commands:
           command: |
             ROOT_DIR="$(pwd)"
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
-            echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/kona/target/release/kona-node" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/kona/target/release/kona-supervisor" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/rust/target/release/kona-supervisor" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
 
@@ -2138,15 +2138,15 @@ jobs:
           at: .
       # Build kona-node for the acceptance tests. This automatically gets kona from the cache.
       - rust-build:
-          directory: kona
+          directory: rust
           profile: "release"
       - run:
           name: Configure Rust binary paths (sysgo)
           command: |
             ROOT_DIR="$(pwd)"
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
-            echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/kona/target/release/kona-node" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/kona/target/release/kona-supervisor" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/rust/target/release/kona-supervisor" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
       # Restore cached Go modules
@@ -2507,20 +2507,20 @@ jobs:
           enable-mise-cache: true
       - restore_cache:
           name: Restore kona cache
-          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/.config/cannon_tag" }}
+          key: kona-prestate-{{ checksum "./rust/justfile" }}-{{ checksum "./rust/kona/.config/cannon_tag" }}
       - run:
           name: Build kona prestates
-          command: just build-prestates
-          working_directory: kona
+          command: just build-kona-prestates
+          working_directory: rust
       - save_cache:
-          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/.config/cannon_tag" }}
+          key: kona-prestate-{{ checksum "./rust/justfile" }}-{{ checksum "./rust/kona/.config/cannon_tag" }}
           name: Save Kona to cache
           paths:
-            - "kona/prestate-artifacts-*/"
+            - "rust/kona/prestate-artifacts-*/"
       - persist_to_workspace:
           root: .
           paths:
-            - "kona/prestate-artifacts-*/*"
+            - "rust/kona/prestate-artifacts-*/*"
 
 
   # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
@@ -3514,7 +3514,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary:
           name: kona-build-release
-          directory: kona
+          directory: rust
           needs_clang: true
           profile: "release"
           context:
@@ -3650,7 +3650,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary: &cannon-kona-host
           name: cannon-kona-host
-          directory: kona
+          directory: rust
           profile: "release"
           binary: "kona-host"
           save_cache: true
@@ -3658,7 +3658,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary: &kona-build-release
           name: kona-build-release
-          directory: kona
+          directory: rust
           profile: "release"
           features: "default"
           save_cache: true

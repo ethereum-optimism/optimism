@@ -1,0 +1,44 @@
+[package]
+name = "op-alloy-network"
+description = "Optimism blockchain RPC behavior abstraction"
+
+version = "0.23.1"
+edition.workspace = true
+rust-version.workspace = true
+authors = ["Alloy Contributors"]
+license.workspace = true
+homepage = "https://github.com/alloy-rs/op-alloy"
+repository = "https://github.com/alloy-rs/op-alloy"
+exclude = ["benches/", "tests/"]
+
+[lints]
+workspace = true
+
+[dependencies]
+# Workspace
+op-alloy-consensus = { workspace = true, features = ["alloy-compat"] }
+op-alloy-rpc-types.workspace = true
+
+# Alloy
+alloy-consensus.workspace = true
+alloy-network.workspace = true
+alloy-primitives.workspace = true
+alloy-provider.workspace = true
+alloy-rpc-types-eth.workspace = true
+alloy-signer.workspace = true
+
+[features]
+std = [
+	"op-alloy-consensus/std",
+	"op-alloy-rpc-types/std",
+	"alloy-consensus/std",
+	"alloy-primitives/std",
+	"alloy-rpc-types-eth/std"
+]
+serde = [
+	"op-alloy-consensus/serde",
+	"op-alloy-rpc-types/serde",
+	"alloy-consensus/serde",
+	"alloy-primitives/serde",
+	"alloy-rpc-types-eth/serde"
+]
