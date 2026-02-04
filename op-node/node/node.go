@@ -201,7 +201,7 @@ func NewWithOverride(ctx context.Context, cfg *config.Config, log log.Logger, ap
 // It is passed to op-node instances during initialization to provide
 // supernode-specific functionality and coordination.
 type SuperAuthority interface {
-	SafeL2Head(chainID *big.Int) eth.L2BlockRef
+	SafeL2Head() eth.L2BlockRef
 }
 
 type InitializationOverrides struct {

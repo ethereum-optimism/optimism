@@ -23,9 +23,7 @@ type SupernodeAuthority struct {
 
 // NewSupernodeAuthority creates a new SupernodeAuthority instance.
 func NewSupernodeAuthority() *SupernodeAuthority {
-	return &SupernodeAuthority{
-		chainContainers: chainContainers,
-	}
+	return &SupernodeAuthority{}
 }
 
 func (s *SupernodeAuthority) SafeL2Head(chainId *big.Int) eth.L2BlockRef {

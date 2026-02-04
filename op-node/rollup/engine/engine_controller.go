@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	gosync "sync"
 	"time"
 
@@ -95,7 +94,7 @@ type CrossUpdateHandler interface {
 }
 
 type SuperAuthority interface {
-	SafeL2Head(chainID *big.Int) eth.L2BlockRef
+	SafeL2Head() eth.L2BlockRef
 }
 
 type EngineController struct {
@@ -201,7 +200,7 @@ func (e *EngineController) SetSuperAuthority(superAuthority SuperAuthority) {
 func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 	superAuthority := false
 	if superAuthority {
-		return e.superAuthority.SafeL2Head(e.rollupCfg.L2ChainID)
+		return e.superAuthority.SafeL2Head()
 	} else {
 		return e.localSafeHead
 	}
