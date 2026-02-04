@@ -42,7 +42,7 @@ LEGACY_KONA_DIR="${TMP_DIR}/kona-legacy"
 function build_legacy_kona_prestate() {
   local version=$1
   local log_file=$2
-  local short_version="${version#*/}"
+  local short_version="${version#*/v}"
   echo "Building legacy kona version: ${version} Logs: ${log_file}"
 
   mkdir -p "${LEGACY_KONA_DIR}"
@@ -58,6 +58,7 @@ function build_legacy_kona_prestate() {
   # kona doesn't define a just dependency in its mise config.
   # but the monorepo does and it should be preinstalled by now. So let's set up the just shim.
   JUST_VERSION=$(cd "${WORKTREE_DIR}" && mise config get tools.just)
+  mise trust
   mise use "just@${JUST_VERSION}" >> "${log_file}" 2>&1
 
   cd docker/fpvm-prestates
@@ -99,6 +100,7 @@ function build_prestates() {
 go = "${GO_VERSION}"
 just = "${JUST_VERSION}"
 EOF
+    mise trust
     mise install -v -y >> "${log_file}" 2>&1
   fi
 
