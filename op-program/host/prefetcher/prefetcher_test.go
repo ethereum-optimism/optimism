@@ -776,7 +776,6 @@ func TestBadHints(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, value, pre)
 	})
-
 }
 
 func TestBlobHints(t *testing.T) {
