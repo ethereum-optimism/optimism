@@ -8588,6 +8588,7 @@ dependencies = [
  "clap",
  "eyre",
  "futures",
+ "futures-util",
  "humantime",
  "op-alloy-consensus",
  "op-alloy-network",
