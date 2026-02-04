@@ -40,6 +40,7 @@ codecov-uploader = "0.8.0"
 goreleaser-pro = "2.11.2"
 kurtosis = "1.8.1"
 op-acceptor = "op-acceptor/v3.8.2"
+git-cliff = "2.12.0"
 
 # Fake dependencies
 # Put things here if you need to track versions of tools or projects that can't

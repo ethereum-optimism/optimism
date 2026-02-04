@@ -41,8 +41,18 @@ build-client-prestate-cannon-artifacts \
   mkdir -p $OUTPUT_DIR
 
   echo "Building kona-client (variant: {{kona_client_variant}}) prestate artifacts for the cannon target. 🔫 Cannon Tag: {{cannon_tag}}"
+
+  # Build the --allow flag conditionally (requires Docker Buildx v0.15.0+)
+  ALLOW_FLAG=""
+  BUILDX_VERSION=$(docker buildx version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "0.0.0")
+  MAJOR=$(echo "$BUILDX_VERSION" | cut -d. -f1)
+  MINOR=$(echo "$BUILDX_VERSION" | cut -d. -f2)
+  if [[ "$MAJOR" -gt 0 ]] || [[ "$MAJOR" -eq 0 && "$MINOR" -ge 15 ]]; then
+    ALLOW_FLAG="--allow fs=${CUSTOM_CONFIGS_CONTEXT}"
+  fi
+
   docker buildx bake \
     --set "*.output=$OUTPUT_DIR" \
     -f docker/docker-bake.hcl \
-    --allow fs=${CUSTOM_CONFIGS_CONTEXT} \
+    $ALLOW_FLAG \
     kona-cannon-prestate

@@ -4,14 +4,17 @@ use crate::{OpEthApi, OpEthApiError, SequencerClient};
 use alloy_primitives::{Bytes, B256};
 use alloy_rpc_types_eth::TransactionInfo;
 use futures::StreamExt;
-use op_alloy_consensus::{transaction::OpTransactionInfo, OpTransaction};
+use op_alloy_consensus::{
+    transaction::{OpDepositInfo, OpTransactionInfo},
+    OpTransaction,
+};
 use reth_chain_state::CanonStateSubscriptions;
 use reth_optimism_primitives::DepositReceipt;
 use reth_primitives_traits::{Recovered, SignedTransaction, SignerRecoverable, WithEncoded};
 use reth_rpc_eth_api::{
     helpers::{spec::SignersForRpc, EthTransactions, LoadReceipt, LoadTransaction, SpawnBlocking},
-    try_into_op_tx_info, EthApiTypes as _, FromEthApiError, FromEvmError, RpcConvert, RpcNodeCore,
-    RpcReceipt, TxInfoMapper,
+    EthApiTypes as _, FromEthApiError, FromEvmError, RpcConvert, RpcNodeCore, RpcReceipt,
+    TxInfoMapper,
 };
 use reth_rpc_eth_types::{block::convert_transaction_receipt, EthApiError, TransactionSource};
 use reth_storage_api::{errors::ProviderError, ProviderTx, ReceiptProvider, TransactionsProvider};
@@ -282,6 +285,18 @@ where
     type Err = ProviderError;
 
     fn try_map(&self, tx: &T, tx_info: TransactionInfo) -> Result<Self::Out, ProviderError> {
-        try_into_op_tx_info(&self.provider, tx, tx_info)
+        let deposit_meta = if tx.is_deposit() {
+            self.provider.receipt_by_hash(*tx.tx_hash())?.and_then(|receipt| {
+                receipt.as_deposit_receipt().map(|receipt| OpDepositInfo {
+                    deposit_receipt_version: receipt.deposit_receipt_version,
+                    deposit_nonce: receipt.deposit_nonce,
+                })
+            })
+        } else {
+            None
+        }
+        .unwrap_or_default();
+
+        Ok(OpTransactionInfo::new(tx_info, deposit_meta))
     }
 }

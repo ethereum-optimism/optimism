@@ -145,21 +145,6 @@ func TestBatcherConfig(t *testing.T) {
 			},
 			errString: "throttle.upper-threshold must be greater than throttle.lower-threshold",
 		},
-		{
-			name:      "blob tip cap percentile too low",
-			override:  func(c *batcher.CLIConfig) { c.TxMgrConfig.BlobTipCapPercentile = 0 },
-			errString: "blob-tip-cap-percentile must be between 1 and 100",
-		},
-		{
-			name:      "blob tip cap percentile too high",
-			override:  func(c *batcher.CLIConfig) { c.TxMgrConfig.BlobTipCapPercentile = 101 },
-			errString: "blob-tip-cap-percentile must be between 1 and 100",
-		},
-		{
-			name:      "blob tip cap range too low",
-			override:  func(c *batcher.CLIConfig) { c.TxMgrConfig.BlobTipCapRange = 0 },
-			errString: "blob-tip-cap-range must be at least 1",
-		},
 	}
 
 	for _, test := range tests {

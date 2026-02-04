@@ -79,6 +79,9 @@ func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*e
 	// Return minimal output response; tests only assert presence/count
 	return &eth.OutputResponse{}, nil
 }
+func (m *mockCC) RewindEngine(ctx context.Context, timestamp uint64) error {
+	return nil
+}
 
 func (m *mockCC) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error) {
 	return eth.BlockID{}, nil

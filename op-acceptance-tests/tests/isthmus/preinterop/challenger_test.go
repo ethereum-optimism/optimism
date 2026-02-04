@@ -14,7 +14,6 @@ import (
 )
 
 func TestChallengerPlaysGame(gt *testing.T) {
-	gt.Skip("TODO(#16166): Re-enable once the supervisor endpoint supports super roots before interop")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	dsl.CheckAll(t,
@@ -26,7 +25,7 @@ func TestChallengerPlaysGame(gt *testing.T) {
 	attacker := sys.FunderL1.NewFundedEOA(eth.Ether(15))
 	dgf := sys.DisputeGameFactory()
 
-	game := dgf.StartSuperCannonGame(attacker, proofs.WithRootClaim(badClaim))
+	game := dgf.StartSuperCannonGame(attacker, proofs.WithSuperRootFrom(eth.Bytes32(badClaim), eth.Bytes32(badClaim)))
 
 	claim := game.RootClaim()                   // This is the bad claim from attacker
 	counterClaim := claim.WaitForCounterClaim() // This is the counter-claim from the challenger

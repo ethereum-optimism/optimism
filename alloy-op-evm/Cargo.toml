@@ -2,7 +2,7 @@
 name = "alloy-op-evm"
 description = "OP EVM implementation"
 
-version = "0.26.3"
+version = "0.27.0"
 edition = "2021"
 rust-version = "1.88"
 authors = ["Alloy Contributors", "OpLabsPBC"]
@@ -29,10 +29,10 @@ option-if-let-else = "allow"
 redundant-clone = "warn"
 
 [dependencies]
-alloy-evm = { version = "0.26.3", default-features = false, features = ["op"] }
+alloy-evm = { version = "0.27.0", default-features = false, features = ["op"] }
 
-alloy-eips = { version = "1.0.34", default-features = false }
-alloy-consensus = { version = "1.0.27", default-features = false }
+alloy-eips = { version = "1.5.2", default-features = false }
+alloy-consensus = { version = "1.5.2", default-features = false }
 alloy-primitives = { version = "1.0.0", default-features = false }
 
 alloy-op-hardforks = { version = "0.4.7" }

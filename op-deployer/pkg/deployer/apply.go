@@ -267,6 +267,7 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		PreStateBuilder:    cfg.PreStateBuilder,
 		UseForge:           cfg.UseForge,
 		PrivateKey:         cfg.PrivateKey,
+		Workdir:            cfg.Workdir,
 	}); err != nil {
 		return err
 	}
@@ -291,6 +292,7 @@ type ApplyPipelineOpts struct {
 	PreStateBuilder    pipeline.PreStateBuilder
 	UseForge           bool
 	PrivateKey         string
+	Workdir            string
 }
 
 func ApplyPipeline(
@@ -436,6 +438,8 @@ func ApplyPipeline(
 	// Initialize Forge client if UseForge flag is enabled
 	var forgeClient *forge.Client
 	if opts.UseForge {
+		// Forge needs to run from the artifacts directory where foundry.toml is located
+		// The workdir is for storing state, not for running forge commands
 		artifactsPath := fmt.Sprintf("%v", bundle.L1)
 		forgeClient, err = forge.NewStandardClient(artifactsPath)
 		if err != nil {

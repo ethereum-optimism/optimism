@@ -150,6 +150,7 @@ type EthClient interface {
 	EthCode
 	EthMultiCaller
 	RPCCaller
+	Close()
 }
 
 type EthExtendedClient interface {

@@ -73,6 +73,9 @@ func (m *mockChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, e
 	}
 	return &eth.SyncStatus{CurrentL1: m.currentL1}, nil
 }
+func (m *mockChainContainer) RewindEngine(ctx context.Context, timestamp uint64) error {
+	return nil
+}
 
 var _ cc.ChainContainer = (*mockChainContainer)(nil)
 

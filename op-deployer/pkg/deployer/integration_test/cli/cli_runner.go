@@ -98,6 +98,16 @@ func (r *CLITestRunner) GetWorkDir() string {
 	return r.workDir
 }
 
+// GetL1RPC returns the L1 RPC URL for this test runner
+func (r *CLITestRunner) GetL1RPC() string {
+	return r.l1RPC
+}
+
+// GetPrivateKey returns the private key hex for this test runner
+func (r *CLITestRunner) GetPrivateKey() string {
+	return r.privateKeyHex
+}
+
 // captureOutputWriter captures output written to it for testing
 type captureOutputWriter struct {
 	buf *bytes.Buffer

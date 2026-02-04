@@ -62,6 +62,7 @@ where
     type ExecutionPayloadEnvelopeV3 = OpExecutionPayloadEnvelopeV3;
     type ExecutionPayloadEnvelopeV4 = OpExecutionPayloadEnvelopeV4;
     type ExecutionPayloadEnvelopeV5 = OpExecutionPayloadEnvelopeV4;
+    type ExecutionPayloadEnvelopeV6 = OpExecutionPayloadEnvelopeV4;
 }
 
 /// Validator for Optimism engine API.

@@ -294,7 +294,7 @@ func TestBatcherAutoDA(t *testing.T) {
 
 	// Helpers
 	mustGetFees := func() (*big.Int, *big.Int, *big.Int, float64) {
-		tip, baseFee, _, blobBaseFee, err := txmgr.DefaultGasPriceEstimatorFn(ctx, l1Client)
+		tip, baseFee, blobBaseFee, err := txmgr.DefaultGasPriceEstimatorFn(ctx, l1Client)
 		require.NoError(t, err)
 		feeRatio := float64(blobBaseFee.Int64()) / float64(baseFee.Int64()+tip.Int64())
 		t.Logf("L1 fees are: baseFee(%d), tip(%d), blobBaseFee(%d). feeRatio: %f", baseFee, tip, blobBaseFee, feeRatio)

@@ -52,9 +52,9 @@
 //!             ComponentsBuilder::default()
 //!                 .node_types::<RethFullAdapter<_, OpNode>>()
 //!                 .noop_pool::<OpPooledTransaction>()
-//!                 .noop_network::<OpNetworkPrimitives>()
-//!                 .noop_consensus()
 //!                 .executor(OpExecutorBuilder::default())
+//!                 .noop_consensus()
+//!                 .noop_network::<OpNetworkPrimitives>()
 //!                 .noop_payload(),
 //!             Box::new(()) as Box<dyn OnComponentInitializedHook<_>>,
 //!         )

@@ -2,6 +2,7 @@ package chain_container
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -39,6 +40,8 @@ type ChainContainer interface {
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error)
+	// RewindEngine rewinds the engine to the highest block with timestamp less than or equal to the given timestamp.
+	RewindEngine(ctx context.Context, timestamp uint64) error
 	RegisterVerifier(v activity.VerificationActivity)
 }
 
@@ -385,5 +388,69 @@ func (c *simpleChainContainer) attachInProcRollupClient() error {
 		c.rollupClient.Close()
 	}
 	c.rollupClient = sources.NewRollupClient(client.NewBaseRPCClient(inproc))
+	return nil
+}
+
+// isCriticalRewindError returns true if the error is a critical configuration error
+// that should not be retried.
+func isCriticalRewindError(err error) bool {
+	return errors.Is(err, engine_controller.ErrNoEngineClient) ||
+		errors.Is(err, engine_controller.ErrNoRollupConfig) ||
+		errors.Is(err, engine_controller.ErrRewindComputeTargetsFailed) ||
+		errors.Is(err, engine_controller.ErrRewindTimestampToBlockConversion)
+}
+
+func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint64) error {
+	if c.vn == nil {
+		return fmt.Errorf("virtual node not initialized")
+	}
+	if c.engine == nil {
+		return fmt.Errorf("engine not initialized")
+	}
+
+	// Pause the container to stop it restarting the vn when we kill it
+	err := c.Pause(ctx)
+	if err != nil {
+		return err
+	}
+	c.log.Info("chain_container/RewindEngine: paused container")
+
+	// stop the vn
+	err = c.vn.Stop(ctx)
+	if err != nil {
+		return err
+	}
+	c.log.Info("chain_container/RewindEngine: stopped vn")
+
+retryLoop:
+	for {
+		err = c.engine.RewindToTimestamp(ctx, timestamp)
+		switch {
+		case errors.Is(err, context.DeadlineExceeded):
+			c.log.Error("chain_container/RewindEngine: timeout exceeded")
+			return err
+		case isCriticalRewindError(err):
+			c.log.Error("chain_container/RewindEngine: critical error", "err", err)
+			return err
+		case err == nil:
+			c.log.Info("chain_container/RewindEngine: executed engine rewind")
+			break retryLoop
+		default:
+			c.log.Error("chain_container/RewindEngine: temporary error", "err", err)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Second):
+			}
+		}
+	}
+
+	// resume the chain container to trigger a new vn to be started
+	err = c.Resume(ctx)
+	if err != nil {
+		return err
+	}
+	c.log.Info("chain_container/RewindEngine: resumed container")
+
 	return nil
 }

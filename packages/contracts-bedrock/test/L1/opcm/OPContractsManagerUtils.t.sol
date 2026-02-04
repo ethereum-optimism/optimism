@@ -49,6 +49,24 @@ contract OPContractsManagerUtils_ImplV2_Harness is ISemver {
     function initialize() external { }
 }
 
+/// @title ImplV2Beta_Harness
+/// @notice Implementation with beta prerelease tag for testing extra tag rejection.
+contract OPContractsManagerUtils_ImplV2Beta_Harness is ISemver {
+    /// @custom:semver 2.0.0-beta.1
+    string public constant version = "2.0.0-beta.1";
+
+    function initialize() external { }
+}
+
+/// @title ImplV2Interop_Harness
+/// @notice Implementation with interop build metadata for testing extra tag rejection.
+contract OPContractsManagerUtils_ImplV2Interop_Harness is ISemver {
+    /// @custom:semver 2.0.0+interop
+    string public constant version = "2.0.0+interop";
+
+    function initialize() external { }
+}
+
 /// @title OPContractsManagerUtils_TestInit
 /// @notice Shared setup for OPContractsManagerUtils tests.
 contract OPContractsManagerUtils_TestInit is Test {
@@ -575,6 +593,80 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
 
         // Verify the implementation was set.
         assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implV1));
+    }
+
+    /// @notice Tests that upgrade reverts with prerelease tag in production environment.
+    function test_upgrade_prereleaseInProd_reverts() public {
+        // Remove testing environment marker to simulate production.
+        vm.etch(Constants.TESTING_ENVIRONMENT_ADDRESS, hex"");
+
+        // Simulate mainnet.
+        vm.chainId(1);
+
+        OPContractsManagerUtils_ImplV2Beta_Harness implBeta = new OPContractsManagerUtils_ImplV2Beta_Harness();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IOPContractsManagerUtils.OPContractsManagerUtils_ExtraTagInProd.selector, address(implBeta)
+            )
+        );
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implBeta),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2Beta_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
+        );
+    }
+
+    /// @notice Tests that upgrade reverts with build metadata tag in production environment.
+    function test_upgrade_buildMetadataInProd_reverts() public {
+        // Remove testing environment marker to simulate production.
+        vm.etch(Constants.TESTING_ENVIRONMENT_ADDRESS, hex"");
+
+        // Simulate mainnet.
+        vm.chainId(1);
+
+        OPContractsManagerUtils_ImplV2Interop_Harness implInterop = new OPContractsManagerUtils_ImplV2Interop_Harness();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IOPContractsManagerUtils.OPContractsManagerUtils_ExtraTagInProd.selector, address(implInterop)
+            )
+        );
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implInterop),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2Interop_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
+        );
+    }
+
+    /// @notice Tests that upgrade with extra tags succeeds when dev features are enabled.
+    function test_upgrade_extraTagWithDevFeatures_succeeds() public {
+        // Mock devFeatureBitmap to return non-zero (dev features enabled).
+        vm.mockCall(
+            address(container),
+            abi.encodeCall(IOPContractsManagerContainer.devFeatureBitmap, ()),
+            abi.encode(bytes32(uint256(1)))
+        );
+
+        OPContractsManagerUtils_ImplV2Beta_Harness implBeta = new OPContractsManagerUtils_ImplV2Beta_Harness();
+
+        // Should succeed because dev features are enabled.
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implBeta),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2Beta_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
+        );
+
+        assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implBeta));
     }
 }
 

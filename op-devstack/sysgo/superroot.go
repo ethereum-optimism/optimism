@@ -48,7 +48,19 @@ type MigrateInputV2 struct {
 	StartingRespectedGameType uint32
 }
 
-func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack.L2CLNodeID, supervisorID stack.SupervisorID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
+func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stack.L2CLNodeID, supervisorID stack.SupervisorID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
+	return withSuperRoots(l1ChainID, l1ELID, clIDs, primaryL2, func(t devtest.CommonT, o *Orchestrator, timestamp uint64) eth.Bytes32 {
+		return getSuperRoot(t, o, timestamp, supervisorID)
+	})
+}
+
+func WithSuperRootsFromSupernode(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stack.L2CLNodeID, supernodeID stack.SupernodeID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
+	return withSuperRoots(l1ChainID, l1ELID, clIDs, primaryL2, func(t devtest.CommonT, o *Orchestrator, timestamp uint64) eth.Bytes32 {
+		return getSuperRootFromSupernode(t, o, timestamp, supernodeID)
+	})
+}
+
+func withSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stack.L2CLNodeID, primaryL2 eth.ChainID, getSuperRootAtTimestamp func(t devtest.CommonT, o *Orchestrator, timestamp uint64) eth.Bytes32) stack.Option[*Orchestrator] {
 	return stack.FnOption[*Orchestrator]{
 		FinallyFn: func(o *Orchestrator) {
 			t := o.P()
@@ -63,16 +75,34 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 			client := ethclient.NewClient(rpcClient)
 			w3Client := w3.NewClient(rpcClient)
 
-			l2CL, ok := o.l2CLs.Get(l2CLID)
-			require.True(ok, "must have L2 CL node")
-			rollupClientProvider, err := dial.NewStaticL2RollupProvider(t.Ctx(), t.Logger(), l2CL.UserRPC())
-			require.NoError(err)
-			rollupClient, err := rollupClientProvider.RollupClient(t.Ctx())
-			require.NoError(err)
-			require.NoError(wait.ForSafeBlock(t.Ctx(), rollupClient, 1))
-			header, err := client.HeaderByNumber(t.Ctx(), big.NewInt(int64(rpc.SafeBlockNumber)))
-			require.NoError(err)
-			superRoot := getSuperRoot(t, o, header.Time, supervisorID)
+			var superrootTime uint64
+			// Supernode does not support super roots at geensis.
+			// So let's wait for safe heads to advance before querying atTimestamp.
+			for _, clID := range clIDs {
+				cl, ok := o.l2CLs.Get(clID)
+				require.True(ok, "must have L2 CL node")
+				// TODO(#18947): Ideally, we should be able to wait on the supernode's SyncStatus directly
+				// rather than check the sync statuses of all CLs
+				rollupClient, err := dial.DialRollupClientWithTimeout(t.Ctx(), t.Logger(), cl.UserRPC())
+				t.Require().NoError(err)
+				defer rollupClient.Close()
+				ctx, cancel := context.WithTimeout(t.Ctx(), time.Minute*2)
+				err = wait.For(ctx, time.Second*1, func() (bool, error) {
+					status, err := rollupClient.SyncStatus(ctx)
+					if err != nil {
+						return false, err
+					}
+					if status == nil {
+						return false, nil
+					}
+					superrootTime = status.SafeL2.Time
+					return status.SafeL2.Number > 0, nil
+				})
+				cancel()
+				t.Require().NoError(err, "waiting for supernode chain safe head to advance failed")
+			}
+
+			superRoot := getSuperRootAtTimestamp(t, o, superrootTime)
 
 			l1pao, err := o.keys.Address(devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole))
 			require.NoError(err, "must have L1 proxy admin owner private key")
@@ -131,7 +161,7 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 					},
 					StartingAnchorRoot: bindings.Proposal{
 						Root:             common.Hash(superRoot),
-						L2SequenceNumber: big.NewInt(int64(header.Time)),
+						L2SequenceNumber: big.NewInt(int64(superrootTime)),
 					},
 					StartingRespectedGameType: superCannonGameType,
 				}
@@ -144,7 +174,7 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 					UsePermissionlessGame: true,
 					StartingAnchorRoot: bindings.Proposal{
 						Root:             common.Hash(superRoot),
-						L2SequenceNumber: big.NewInt(int64(header.Time)),
+						L2SequenceNumber: big.NewInt(int64(superrootTime)),
 					},
 					GameParameters: bindings.OPContractsManagerInteropMigratorGameParameters{
 						Proposer:         proposer,
@@ -277,6 +307,31 @@ func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervis
 	super, err := client.SuperRootAtTimestamp(t.Ctx(), hexutil.Uint64(timestamp))
 	t.Require().NoError(err, "super root at timestamp failed")
 	return super.SuperRoot
+}
+
+func getSuperRootFromSupernode(t devtest.CommonT, o *Orchestrator, timestamp uint64, supernodeID stack.SupernodeID) eth.Bytes32 {
+	supernode, ok := o.supernodes.Get(supernodeID)
+	t.Require().True(ok, "must have supernode")
+
+	client, err := dial.DialSuperNodeClientWithTimeout(t.Ctx(), t.Logger(), supernode.UserRPC())
+	t.Require().NoError(err)
+
+	ctx, cancel := context.WithTimeout(t.Ctx(), time.Minute*2)
+	err = wait.For(ctx, time.Second*1, func() (bool, error) {
+		resp, err := client.SuperRootAtTimestamp(ctx, timestamp)
+		if err != nil {
+			t.Logf("DEBUG: Failed to get super root at timestamp %d: err: %v", timestamp, err)
+			return false, err
+		}
+		return resp.Data != nil, nil
+	})
+	cancel()
+	t.Require().NoError(err, "waiting for supernode superroot to be ready failed")
+
+	resp, err := client.SuperRootAtTimestamp(t.Ctx(), timestamp)
+	t.Require().NoError(err, "super root at timestamp failed")
+	t.Require().NotNil(resp.Data, "super root data must be present")
+	return resp.Data.SuperRoot
 }
 
 func getInteropCannonAbsolutePrestate(t devtest.CommonT) common.Hash {

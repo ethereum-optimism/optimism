@@ -28,7 +28,7 @@ func (m *SingleChainWithFlashblocks) L2Networks() []*dsl.L2Network {
 }
 
 func (m *SingleChainWithFlashblocks) StandardBridge() *dsl.StandardBridge {
-	return dsl.NewStandardBridge(m.T, m.L2Chain, nil, m.L1EL)
+	return dsl.NewStandardBridge(m.T, m.L2Chain, m.L1EL)
 }
 
 func (m *SingleChainWithFlashblocks) DisputeGameFactory() *proofs.DisputeGameFactory {

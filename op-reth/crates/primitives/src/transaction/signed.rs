@@ -155,6 +155,10 @@ impl IsTyped2718 for OpTransactionSigned {
 }
 
 impl SignedTransaction for OpTransactionSigned {
+    fn is_system_tx(&self) -> bool {
+        self.is_deposit()
+    }
+
     fn recalculate_hash(&self) -> B256 {
         keccak256(self.encoded_2718())
     }

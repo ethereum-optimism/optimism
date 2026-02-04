@@ -45,3 +45,15 @@ update-op-geth ref:
 	go mod edit -replace=github.com/ethereum/go-ethereum=github.com/ethereum-optimism/op-geth@"$ver"; \
 	go mod tidy; \
 	echo "Updated op-geth to $ver"
+
+# e.g. GITHUB_TOKEN=foo just generate-batcher-release-notes v1.16.3 v1.16.4-rc.1
+generate-batcher-release-notes from_tag to_tag:
+    git cliff \
+        --include-path "op-batcher/**/*" \
+        --include-path "go.*" \
+        --include-path "op-core/**/*" \
+        --include-path "op-service/**/*" \
+        --config .github/cliff.toml \
+        --tag-pattern op-batcher/{{ from_tag }} \
+        --tag op-batcher/{{ to_tag }} \
+        -- op-batcher/{{ from_tag }}..op-batcher/{{ to_tag }}

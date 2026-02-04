@@ -10,34 +10,33 @@ variable "REPOSITORY" {
   default = "op-rs/kona"
 }
 
+// The tag to use for the built image.
 variable "DEFAULT_TAG" {
   default = "kona:local"
-  description = "The tag to use for the built image."
 }
 
+// The platforms to build the image for, separated by commas.
 variable "PLATFORMS" {
   default = "linux/amd64,linux/arm64"
-  description = "The platforms to build the image for, separated by commas."
 }
 
+// The git reference name. This is typically the branch name, commit hash, or tag.
 variable "GIT_REF_NAME" {
   default = "main"
-  description = "The git reference name. This is typically the branch name, commit hash, or tag."
 }
 
+// The UID of the host user for volume permissions.
 variable "HOST_UID" {
   default = "1000"
-  description = "The UID of the host user for volume permissions."
 }
 
+// The GID of the host user for volume permissions.
 variable "HOST_GID" {
   default = "1000"
-  description = "The GID of the host user for volume permissions."
 }
 
 // Special target: https://github.com/docker/metadata-action#bake-definition
 target "docker-metadata-action" {
-  description = "Special target used with `docker/metadata-action`"
   tags = ["${DEFAULT_TAG}"]
 }
 
@@ -45,23 +44,23 @@ target "docker-metadata-action" {
 //                         App Images                         //
 ////////////////////////////////////////////////////////////////
 
+// The location of the repository to build in the kona-app-generic target. Valid options: local (uses local repo, ignores `GIT_REF_NAME`), remote (clones `kona`, checks out `GIT_REF_NAME`)
 variable "REPO_LOCATION" {
   default = "remote"
-  description = "The location of the repository to build in the kona-app-generic target. Valid options: local (uses local repo, ignores `GIT_REF_NAME`), remote (clones `kona`, checks out `GIT_REF_NAME`)"
 }
 
+// The binary target to build in the kona-app-generic target.
 variable "BIN_TARGET" {
   default = "kona-host"
-  description = "The binary target to build in the kona-app-generic target."
 }
 
+// The cargo build profile to use when building the binary in the kona-app-generic target.
 variable "BUILD_PROFILE" {
   default = "release-perf"
-  description = "The cargo build profile to use when building the binary in the kona-app-generic target."
 }
 
+// Generic kona app image
 target "generic" {
-  description = "Generic kona app image"
   inherits = ["docker-metadata-action"]
   context = "."
   dockerfile = "docker/apps/kona_app_generic.dockerfile"
@@ -79,43 +78,42 @@ target "generic" {
 //                        Proof Images                        //
 ////////////////////////////////////////////////////////////////
 
+// The tag of `cannon` to use in the `kona-cannon-prestate` target.
+//
+// You can override this if you'd like to use a different tag to generate the prestate.
+// https://github.com/ethereum-optimism/optimism/releases
 variable "CANNON_TAG" {
-  // The tag of `cannon` to use in the `kona-cannon-prestate` target.
-  //
-  // You can override this if you'd like to use a different tag to generate the prestate.
-  // https://github.com/ethereum-optimism/optimism/releases
   default = "cannon/v1.5.0-alpha.1"
-  description = "The tag of cannon to use in the kona-cannon-prestate target."
 }
 
+// The `kona-client` binary to use in the `kona-cannon-prestate` target.
+//
+// You can override this if you'd like to use a different `kona-client` binary to generate
+// the prestate.
+//
+// Valid options:
+// - `kona` (single-chain)
+// - `kona-int` (interop)
 variable "CLIENT_BIN" {
-  // The `kona-client` binary to use in the `kona-cannon-prestate` target.
-  //
-  // You can override this if you'd like to use a different `kona-client` binary to generate
-  // the prestate.
-  //
-  // Valid options:
-  // - `kona` (single-chain)
-  // - `kona-int` (interop)
   default = "kona"
-  description = "The kona-client binary to use in the proof prestate target. Valid options: kona, kona-int"
+
 }
 
+// Enables custom chain configurations to be built into kona artifacts
 variable "KONA_CUSTOM_CONFIGS" {
-  // Used to build a kona prestate using custom chain configurations
   default = "false"
-  description = "Enables custom chain configurations to be built into kona artifacts"
+
 }
 
+// The build context for custom chain configurations to add to the prestate build
 variable "CUSTOM_CONFIGS_CONTEXT" {
-  // The build context for custom chain configurations to add to the prestate build
   default = ""
-  description = "The build context for custom chain configurations to add to the prestate build"
+
 }
 
 
+// Rust build environment for bare-metal MIPS64r1 (Cannon FPVM ISA)
 target "cannon-builder" {
-  description = "Rust build environment for bare-metal MIPS64r1 (Cannon FPVM ISA)"
   inherits = ["docker-metadata-action"]
   context = "docker/cannon"
   dockerfile = "cannon.dockerfile"
@@ -126,8 +124,8 @@ target "cannon-builder" {
   platforms = split(",", PLATFORMS)
 }
 
+// Prestate builder for kona-client with Cannon FPVM
 target "kona-cannon-prestate" {
-  description = "Prestate builder for kona-client with Cannon FPVM"
   inherits = ["docker-metadata-action"]
   context = "."
   dockerfile = "docker/fpvm-prestates/cannon-repro.dockerfile"

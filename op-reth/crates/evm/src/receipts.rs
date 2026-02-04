@@ -17,9 +17,9 @@ impl OpReceiptBuilder for OpRethReceiptBuilder {
 
     fn build_receipt<'a, E: Evm>(
         &self,
-        ctx: ReceiptBuilderCtx<'a, OpTransactionSigned, E>,
-    ) -> Result<Self::Receipt, ReceiptBuilderCtx<'a, OpTransactionSigned, E>> {
-        match ctx.tx.tx_type() {
+        ctx: ReceiptBuilderCtx<'a, OpTxType, E>,
+    ) -> Result<Self::Receipt, ReceiptBuilderCtx<'a, OpTxType, E>> {
+        match ctx.tx_type {
             OpTxType::Deposit => Err(ctx),
             ty => {
                 let receipt = Receipt {

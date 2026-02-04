@@ -233,15 +233,15 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			return dio, fmt.Errorf("failed to create forge client: %w", err)
 		}
 
-		forgeCaller := opcm.NewDeployImplementationsForgeCaller(forgeClient)
-		forgeOpts := []string{
-			"--rpc-url", cfg.L1RPCUrl,
-			"--broadcast",
-			"--private-key", cfg.PrivateKey,
+		forgeEnv := &opcm.ForgeEnv{
+			Client:     forgeClient,
+			Context:    ctx,
+			L1RPCUrl:   cfg.L1RPCUrl,
+			PrivateKey: cfg.PrivateKey,
 		}
-		dio, _, err = forgeCaller(ctx, input, forgeOpts...)
+		dio, err = opcm.DeployImplementationsViaForge(forgeEnv, input)
 		if err != nil {
-			return dio, fmt.Errorf("failed to deploy implementations with Forge: %w", err)
+			return dio, err
 		}
 	} else {
 		l1Client, err := ethclient.Dial(cfg.L1RPCUrl)

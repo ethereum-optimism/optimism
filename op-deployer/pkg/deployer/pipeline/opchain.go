@@ -1,7 +1,6 @@
 package pipeline
 
 import (
-	"context"
 	"fmt"
 	"math/big"
 
@@ -36,22 +35,16 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	}
 
 	if env.UseForge {
-		if env.ForgeClient == nil {
-			return fmt.Errorf("Forge client is nil but UseForge is enabled")
-		}
-		if env.Context == nil {
-			env.Context = context.Background()
-		}
 		lgr.Info("using Forge for DeployOPChain")
-		forgeCaller := opcm.NewDeployOPChainForgeCaller(env.ForgeClient)
-		forgeOpts := []string{
-			"--rpc-url", env.L1RPCUrl,
-			"--broadcast",
-			"--private-key", env.PrivateKey,
+		forgeEnv := &opcm.ForgeEnv{
+			Client:     env.ForgeClient,
+			Context:    env.Context,
+			L1RPCUrl:   env.L1RPCUrl,
+			PrivateKey: env.PrivateKey,
 		}
-		dco, _, err = forgeCaller(env.Context, dci, forgeOpts...)
+		dco, err = opcm.DeployOPChainViaForge(forgeEnv, dci)
 		if err != nil {
-			return fmt.Errorf("failed to deploy OP Chain with Forge: %w", err)
+			return err
 		}
 	} else {
 		dco, err = env.Scripts.DeployOPChain.Run(dci)
@@ -74,13 +67,14 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	var impls opcm.ReadImplementationAddressesOutput
 	if env.UseForge {
 		lgr.Info("using Forge for ReadImplementationAddresses")
-		forgeCaller := opcm.NewReadImplementationAddressesForgeCaller(env.ForgeClient)
-		forgeOpts := []string{
-			"--rpc-url", env.L1RPCUrl,
+		forgeEnv := &opcm.ForgeEnv{
+			Client:   env.ForgeClient,
+			Context:  env.Context,
+			L1RPCUrl: env.L1RPCUrl,
 		}
-		impls, _, err = forgeCaller(env.Context, readInput, forgeOpts...)
+		impls, err = opcm.ReadImplementationAddressesViaForge(forgeEnv, readInput)
 		if err != nil {
-			return fmt.Errorf("failed to run ReadImplementationAddresses with Forge: %w", err)
+			return err
 		}
 	} else {
 		readImplementations, err := opcm.NewReadImplementationAddressesScript(env.L1ScriptHost)

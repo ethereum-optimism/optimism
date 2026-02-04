@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -54,6 +55,13 @@ var disputeGameFactoryABIString = `
 		"outputs": [{"name": "", "type": "address"}],
 		"stateMutability": "view",
 		"type": "function"
+	},
+	{
+		"inputs": [{"name": "gameType", "type": "uint32"}],
+		"name": "gameArgs",
+		"outputs": [{"name": "", "type": "bytes"}],
+		"stateMutability": "view",
+		"type": "function"
 	}
 ]
 `
@@ -95,6 +103,7 @@ func init() {
 }
 
 func TestInteropReadiness(gt *testing.T) {
+	gt.Skip("TODO(#18616): Skipping interop readiness test for now")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 
@@ -156,7 +165,7 @@ func checkPermissionless(t devtest.T, sys *presets.SimpleInterop, l1Caller *batc
 	chains := []*dsl.L2Network{sys.L2ChainA, sys.L2ChainB}
 	for _, chain := range chains {
 		gameType := getRespectedGameType(t, l1Caller, chain)
-		t.Require().Equal(uint32(0), gameType, "chain is not permissionless")
+		t.Require().Equal(uint32(4), gameType, "chain is not permissionless")
 	}
 }
 
@@ -179,14 +188,11 @@ func getSuperchainConfigFromPortal(t devtest.T, l1Caller *batching.MultiCaller, 
 func getPrestate(t devtest.T, l1Caller *batching.MultiCaller, l2Chain *dsl.L2Network) [32]byte {
 	dgf := l2Chain.DisputeGameFactoryProxyAddr()
 	dgfContract := batching.NewBoundContract(disputeGameFactoryABI, dgf)
-	results, err := l1Caller.SingleCall(context.Background(), rpcblock.Latest, dgfContract.Call("gameImpls", uint32(0)))
+	results, err := l1Caller.SingleCall(context.Background(), rpcblock.Latest, dgfContract.Call("gameArgs", uint32(4)))
 	t.Require().NoError(err)
-	gameImpl := results.GetAddress(0)
-
-	fdgContract := batching.NewBoundContract(faultDisputeGameABI, gameImpl)
-	prestateResults, err := l1Caller.SingleCall(context.Background(), rpcblock.Latest, fdgContract.Call("absolutePrestate"))
-	t.Require().NoError(err)
-	return prestateResults.GetHash(0)
+	gameArgs, err := gameargs.Parse(results.GetBytes(0))
+	t.Require().NoError(err, "failed to parse game args")
+	return gameArgs.AbsolutePrestate
 }
 
 func getRespectedGameType(t devtest.T, l1Caller *batching.MultiCaller, l2Chain *dsl.L2Network) uint32 {

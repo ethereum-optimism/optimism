@@ -59,7 +59,7 @@ type StandardBridge struct {
 	l1StandardBridge bindings.L1StandardBridge
 }
 
-func NewStandardBridge(t devtest.T, l2Network *L2Network, supervisor *Supervisor, l1EL *L1ELNode) *StandardBridge {
+func NewStandardBridge(t devtest.T, l2Network *L2Network, l1EL *L1ELNode) *StandardBridge {
 	l1Client := l1EL.EthClient()
 	l1PortalAddr := l2Network.DepositContractAddr()
 	l1Portal := bindings.NewBindings[bindings.OptimismPortal2](
