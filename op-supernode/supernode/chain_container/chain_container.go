@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -49,6 +50,12 @@ type ChainContainer interface {
 	FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, types.Receipts, error)
 	// BlockTime returns the block time in seconds for this chain.
 	BlockTime() uint64
+	// InvalidateBlock adds a block to the deny list and triggers a rewind if the chain
+	// currently uses that block at the specified height.
+	// Returns true if a rewind was triggered, false otherwise.
+	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error)
+	// IsDenied checks if a block hash is on the deny list at the given height.
+	IsDenied(height uint64, payloadHash common.Hash) (bool, error)
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode
@@ -58,6 +65,7 @@ type simpleChainContainer struct {
 	vncfg              *opnodecfg.Config
 	cfg                config.CLIConfig
 	engine             engine_controller.EngineController
+	denyList           *DenyList
 	pause              atomic.Bool
 	stop               atomic.Bool
 	stopped            chan struct{}
@@ -106,6 +114,13 @@ func NewChainContainer(
 		if err := c.attachInProcRollupClient(); err != nil {
 			log.Warn("failed to attach in-proc rollup client (initial)", "err", err)
 		}
+	}
+	// Initialize the deny list for block invalidation
+	denyListPath := c.subPath("denylist")
+	if denyList, err := OpenDenyList(denyListPath); err != nil {
+		log.Error("failed to open deny list", "err", err)
+	} else {
+		c.denyList = denyList
 	}
 	// Initialize engine controller (separate connection, not an op-node override) with a short setup timeout
 	if vncfg.L2 != nil {
@@ -225,6 +240,13 @@ func (c *simpleChainContainer) Stop(ctx context.Context) error {
 	// Close engine controller RPC resources
 	if c.engine != nil {
 		_ = c.engine.Close()
+	}
+
+	// Close deny list database
+	if c.denyList != nil {
+		if err := c.denyList.Close(); err != nil {
+			c.log.Error("error closing deny list", "error", err)
+		}
 	}
 
 	select {
