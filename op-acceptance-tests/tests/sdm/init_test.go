@@ -13,9 +13,7 @@ import (
 func TestMain(m *testing.M) {
 	presets.DoMain(m, presets.WithSingleChainMultiNode(),
 		presets.WithExecutionLayerSyncOnVerifiers(),
-		presets.WithCompatibleTypes(compat.SysGo),
-		presets.WithNoDiscovery(),
-		presets.WithTimeTravel(),
+		presets.WithCompatibleTypes(compat.SysGo, compat.Persistent),
 		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {
 			cfg.Stopped = true
 		})),

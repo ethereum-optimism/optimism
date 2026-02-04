@@ -2,7 +2,9 @@ package dsl
 
 import (
 	"crypto/ecdsa"
+	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -28,6 +30,16 @@ func NewKey(t devtest.T, priv *ecdsa.PrivateKey) *Key {
 		priv: priv,
 		addr: addr,
 	}
+}
+
+// NewKeyFromHex creates a Key from a private key in hex form (with or without 0x prefix).
+func NewKeyFromHex(t devtest.T, hexPrivateKey string) *Key {
+	hexPrivateKey = strings.TrimPrefix(hexPrivateKey, "0x")
+	keyBytes, err := hex.DecodeString(hexPrivateKey)
+	t.Require().NoError(err, "private key must be valid hex")
+	priv, err := crypto.ToECDSA(keyBytes)
+	t.Require().NoError(err, "private key must be valid ECDSA key")
+	return NewKey(t, priv)
 }
 
 func (a *Key) Priv() *ecdsa.PrivateKey {
