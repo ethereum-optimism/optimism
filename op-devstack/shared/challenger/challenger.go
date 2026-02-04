@@ -43,6 +43,7 @@ func WithDepset(ds *depset.StaticConfigDependencySet) Option {
 			return fmt.Errorf("failed to write dependency set config: %w", err)
 		}
 		c.Cannon.DepsetConfigPath = path
+		c.CannonKona.DepsetConfigPath = path
 		return nil
 	}
 }
@@ -79,7 +80,7 @@ func applyCannonKonaConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Gene
 	if err := applyVmConfig(root, &c.CannonKona, c.Datadir, rollupCfgs, l1Genesis, l2Geneses); err != nil {
 		return err
 	}
-	c.CannonKona.Server = root + "kona/target/release/kona-host"
+	c.CannonKona.Server = root + "kona/target/debug/kona-host"
 	absRoot, err := filepath.Abs(root)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path to prestate dir: %w", err)
@@ -177,6 +178,13 @@ func WithPermissionedGameType() Option {
 func WithSuperCannonGameType() Option {
 	return func(c *config.Config) error {
 		c.GameTypes = append(c.GameTypes, gameTypes.SuperCannonGameType)
+		return nil
+	}
+}
+
+func WithSuperCannonKonaGameType() Option {
+	return func(c *config.Config) error {
+		c.GameTypes = append(c.GameTypes, gameTypes.SuperCannonKonaGameType)
 		return nil
 	}
 }

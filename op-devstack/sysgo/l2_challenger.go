@@ -169,7 +169,7 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 		if orch.l2ChallengerOpts.useCannonKonaConfig {
 			options = append(options,
 				shared.WithCannonKonaConfig(rollupCfgs, l1Genesis, l2Geneses),
-				shared.WithCannonKonaGameType(),
+				shared.WithSuperCannonKonaGameType(),
 			)
 		}
 		cfg, err = shared.NewInteropChallengerConfig(dir, l1EL.UserRPC(), l1CL.beaconHTTPAddr, superRPC, l2ELRPCs, options...)

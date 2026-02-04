@@ -5,7 +5,10 @@ import (
 	"encoding/binary"
 	"math/big"
 	"net/url"
+	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
 	"time"
 
 	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
@@ -451,31 +454,19 @@ func (f *DisputeGameFactory) safeTimestamp() uint64 {
 	return resp.CurrentSafeTimestamp
 }
 
+// RunFPP runs the fault proof program between the two supplied timestamps. Currently only supports kona-interop.
 func (f *DisputeGameFactory) RunFPP(startTimestamp uint64, endTimestamp uint64) {
-	/*
-		We're going to pretend like there's a dispute game created and check that the fault proof program successfully
-		validates all the claims the honest trace provider returns for the top half of the game.
-		This only needs to support SuperCannonKonaGameType.
-	*/
 	f.require.NotNil(f.superNode, "super node is required to run FPP")
 	f.require.NotNil(f.challengerCfg, "challenger config is required to run FPP")
 
-	// Get the game implementation to read splitDepth
-	gameImpl := f.GameImpl(gameTypes.SuperCannonKonaGameType)
-	splitDepth := gameImpl.SplitDepth()
+	splitDepth := f.GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
 
-	// Get the prestate timestamp from the supernode
-
-	// 0. Get the L1 head from the supernode's response at the poststate timestamp
-	// This ensures the supernode has synced to this L1 block
+	// Use the current L1 head that the super node has processed. Otherwise the trace provider will fail because the node is not sufficiently up to date.
 	superRootResp, err := f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), endTimestamp)
 	f.require.NoError(err, "Failed to fetch super root at timestamp")
 	l1Head := superRootResp.CurrentL1
 
-	// Create a prestate provider for the super root
 	prestateProvider := super.NewSuperNodePrestateProvider(f.superNode.QueryAPI(), startTimestamp)
-
-	// Create the super trace provider to iterate through claims at splitDepth
 	traceProvider := super.NewSuperNodeTraceProvider(
 		f.log.New("role", "fpp-trace"),
 		prestateProvider,
@@ -486,33 +477,23 @@ func (f *DisputeGameFactory) RunFPP(startTimestamp uint64, endTimestamp uint64) 
 		endTimestamp,
 	)
 
-	// 1. Iterate through valid claims at splitDepth (the leaves of the top game)
-	// At splitDepth, positions have indices from 0 to 2^splitDepth-1
-	// For index i, we create LocalGameInputs
+	tmpDir := f.t.TempDir()
 
+	// Starting prestate is the aboslutePrestate
+	absolutePrestate, err := prestateProvider.AbsolutePreState(f.t.Ctx())
+	f.require.NoError(err, "Failed to get absolute prestate")
+	agreedPrestate := absolutePrestate.Marshal()
+
+	// Iterate through valid claims at splitDepth (the leaves of the top game) to get a few steps past the endTimestamp
 	for i := uint64(0); i < (endTimestamp-startTimestamp)*super.StepsPerTimestamp+3; i++ {
-		// Create position at splitDepth with index i (leaf of the top game)
 		pos := challengerTypes.NewPosition(splitDepth, new(big.Int).SetUint64(i))
 
 		// 2. Create LocalGameInputs using the previous claim (or anchor state) as agreed and current as disputed
 		// Get the claim at this position (this is the disputed claim)
-		claim, err := traceProvider.Get(f.t.Ctx(), pos)
+		claimedPreimage, err := traceProvider.GetPreimageBytes(f.t.Ctx(), pos)
 		f.require.NoError(err, "Failed to get claim at position %v", pos)
 
-		// Determine the agreed prestate:
-		// - If i == 0, use the absolute prestate
-		// - Otherwise, use the claim at position i-1 (the previous position at this depth)
-		var agreedPrestate []byte
-		if i == 0 {
-			absolutePrestate, err := prestateProvider.AbsolutePreState(f.t.Ctx())
-			f.require.NoError(err, "Failed to get absolute prestate")
-			agreedPrestate = absolutePrestate.Marshal()
-		} else {
-			// Get the preimage bytes at the previous position (i-1)
-			prevPos := challengerTypes.NewPosition(splitDepth, new(big.Int).SetUint64(i-1))
-			agreedPrestate, err = traceProvider.GetPreimageBytes(f.t.Ctx(), prevPos)
-			f.require.NoError(err, "Failed to get preimage at previous position %v", prevPos)
-		}
+		claim := crypto.Keccak256Hash(claimedPreimage)
 
 		// Create LocalGameInputs
 		inputs := utils.LocalGameInputs{
@@ -528,9 +509,24 @@ func (f *DisputeGameFactory) RunFPP(startTimestamp uint64, endTimestamp uint64) 
 			"i", i,
 			"l1Head", l1Head.Hash,
 			"l2Claim", claim,
-			"agreedPrestateLen", len(agreedPrestate),
-			"inputs", inputs,
 		)
+
+		// Execute the game using the LocalGameInputs and native kona super executor
+		executor := vm.NewNativeKonaSuperExecutor()
+		oracleCommand, err := executor.OracleCommand(f.challengerCfg.CannonKona, tmpDir, inputs)
+		f.require.NoError(err, "Failed to create oracle command")
+		f.log.Info("Executing FPP", "command", oracleCommand)
+		exePath, err := filepath.Abs(oracleCommand[0])
+		f.require.NoError(err, "Failed to get absolute path to executable")
+		cmd := exec.Command(exePath, oracleCommand[1:]...)
+		cmd.Dir = tmpDir
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err = cmd.Run()
+		f.require.NoError(err, "Failed to execute game")
+
+		// This claim becomes the agreed prestate for the next iteration
+		agreedPrestate = claimedPreimage
 	}
 }
 
