@@ -97,7 +97,7 @@ type L1Source interface {
 
 // L1Beacon provides access to L1 beacon chain data, specifically for blob data retrieval.
 type L1Beacon interface {
-	GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error)
+	GetBlobsByHash(ctx context.Context, time uint64, hashes []common.Hash) ([]*eth.Blob, error)
 }
 
 type OpNode struct {
