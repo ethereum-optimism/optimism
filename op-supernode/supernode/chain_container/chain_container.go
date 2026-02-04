@@ -46,7 +46,7 @@ type ChainContainer interface {
 	FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, types.Receipts, error)
 }
 
-type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode
+type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollupNode.SuperAuthority) virtual_node.VirtualNode
 
 type simpleChainContainer struct {
 	vn                 virtual_node.VirtualNode
@@ -128,7 +128,8 @@ func (c *simpleChainContainer) RegisterVerifier(v activity.VerificationActivity)
 }
 
 // defaultVirtualNodeFactory is the default factory that creates a real VirtualNode
-func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode {
+func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollupNode.SuperAuthority) virtual_node.VirtualNode {
+	initOverload.SuperAuthority = superAuthority
 	return virtual_node.NewVirtualNode(cfg, log, initOverload, appVersion)
 }
 
@@ -163,7 +164,8 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 				}
 			}
 		}
-		c.vn = c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion)
+		// Pass in the chain container as a SuperAuthority
+		c.vn = c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion, c)
 		if c.pause.Load() {
 			c.log.Info("chain container paused")
 			time.Sleep(1 * time.Second)
@@ -335,6 +337,10 @@ func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l
 	}
 
 	return l2Block.ID(), l1Block, nil
+}
+
+func (c *simpleChainContainer) SafeL2Head() eth.L2BlockRef {
+	panic("TODO")
 }
 
 // OptimisticAt returns the optimistic (pre-verified) L2 and L1 blocks for the given L2 timestamp.
