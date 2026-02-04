@@ -128,7 +128,7 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
         // script correctly rejects them.
         vm.setEnv("EXPECTED_L1_PAO_MULTISIG", vm.toString(validator.l1PAOMultisig()));
         vm.setEnv("EXPECTED_CHALLENGER", vm.toString(validator.challenger()));
-        vm.setEnv("EXPECTED_MIN_WITHDRAWAL_DELAY_SECONDS", vm.toString(validator.withdrawalDelaySeconds()));
+        vm.setEnv("EXPECTED_WITHDRAWAL_DELAY_SECONDS", vm.toString(validator.withdrawalDelaySeconds()));
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(optimismPortal2.superchainConfig())));
         vm.setEnv("EXPECTED_PROOF_MATURITY_DELAY_SECONDS", vm.toString(optimismPortal2.proofMaturityDelaySeconds()));
         vm.setEnv(

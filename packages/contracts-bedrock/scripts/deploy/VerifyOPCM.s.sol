@@ -152,7 +152,8 @@ contract VerifyOPCM is Script {
     /// @notice Maps StandardValidator getter names to their verification method.
     /// Value can be:
     /// - "CONTAINER_IMPL" - verify against Container's implementations struct
-    /// - "ENV:<VAR_NAME>" - verify against environment variable
+    /// - "ENV:ADDRESS:<VAR_NAME>" - verify against environment variable (address)
+    /// - "ENV:UINT256:<VAR_NAME>" - verify against environment variable (uint256)
     /// - "MIN:<value>" - verify >= minimum value
     /// - "ZERO_ON_MAINNET" - verify is zero/empty on mainnet
     /// - "SKIP" - explicitly skip (e.g., version)
@@ -252,10 +253,10 @@ contract VerifyOPCM is Script {
         validatorGetterChecks["permissionedDisputeGameImpl"] = "CONTAINER_IMPL";
 
         // Verify against env vars
-        validatorGetterChecks["superchainConfig"] = "ENV:EXPECTED_SUPERCHAIN_CONFIG";
-        validatorGetterChecks["l1PAOMultisig"] = "ENV:EXPECTED_L1_PAO_MULTISIG";
-        validatorGetterChecks["challenger"] = "ENV:EXPECTED_CHALLENGER";
-        validatorGetterChecks["withdrawalDelaySeconds"] = "ENV:EXPECTED_MIN_WITHDRAWAL_DELAY_SECONDS";
+        validatorGetterChecks["superchainConfig"] = "ENV:ADDRESS:EXPECTED_SUPERCHAIN_CONFIG";
+        validatorGetterChecks["l1PAOMultisig"] = "ENV:ADDRESS:EXPECTED_L1_PAO_MULTISIG";
+        validatorGetterChecks["challenger"] = "ENV:ADDRESS:EXPECTED_CHALLENGER";
+        validatorGetterChecks["withdrawalDelaySeconds"] = "ENV:UINT256:EXPECTED_WITHDRAWAL_DELAY_SECONDS";
 
         // Must be empty on mainnet
         validatorGetterChecks["devFeatureBitmap"] = "ZERO_ON_MAINNET";
@@ -1408,8 +1409,11 @@ contract VerifyOPCM is Script {
             // Handle each check type
             if (LibString.eq(check, "CONTAINER_IMPL")) {
                 success = _verifyContainerImpl(_validator, getter, containerFields, containerData) && success;
-            } else if (LibString.startsWith(check, "ENV:")) {
-                string memory envVar = LibString.slice(check, 4, bytes(check).length);
+            } else if (LibString.startsWith(check, "ENV:ADDRESS:")) {
+                string memory envVar = LibString.slice(check, bytes("ENV:ADDRESS:").length, bytes(check).length);
+                success = _verifyEnvAddress(_validator, getter, envVar) && success;
+            } else if (LibString.startsWith(check, "ENV:UINT256:")) {
+                string memory envVar = LibString.slice(check, bytes("ENV:UINT256:").length, bytes(check).length);
                 success = _verifyEnvAddress(_validator, getter, envVar) && success;
             } else if (LibString.eq(check, "ZERO_ON_MAINNET")) {
                 success = _verifyZeroOnMainnet(_validator, getter) && success;
@@ -1483,6 +1487,33 @@ contract VerifyOPCM is Script {
         address actual = _getAddressFromValidator(_validator, string.concat(_getter, "()"));
         // nosemgrep: sol-style-vm-env-only-in-config-sol
         address expected = vm.envAddress(_envVar);
+
+        if (actual != expected) {
+            console.log(string.concat("    [FAIL] ", _getter));
+            console.log(string.concat("      Expected (", _envVar, "): ", vm.toString(expected)));
+            console.log(string.concat("      Actual: ", vm.toString(actual)));
+            return false;
+        }
+        return true;
+    }
+
+    /// @notice Verifies a StandardValidator getter matches an environment variable uint256.
+    /// @param _validator The StandardValidator address.
+    /// @param _getter The getter name.
+    /// @param _envVar The environment variable name.
+    /// @return True if the values match.
+    function _verifyEnvUint256(
+        address _validator,
+        string memory _getter,
+        string memory _envVar
+    )
+        internal
+        view
+        returns (bool)
+    {
+        uint256 actual = _getUintFromValidator(_validator, string.concat(_getter, "()"));
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
+        uint256 expected = vm.envUint(_envVar);
 
         if (actual != expected) {
             console.log(string.concat("    [FAIL] ", _getter));
