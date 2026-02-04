@@ -12,15 +12,6 @@ type MockBlobsFetcher struct {
 	mock.Mock
 }
 
-func (cl *MockBlobsFetcher) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
-	out := cl.Mock.MethodCalled("GetBlobs", ref, hashes)
-	return out.Get(0).([]*eth.Blob), out.Error(1)
-}
-
-func (cl *MockBlobsFetcher) ExpectOnGetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash, blobs []*eth.Blob, err error) {
-	cl.Mock.On("GetBlobs", ref, hashes).Once().Return(blobs, err)
-}
-
 func (cl *MockBlobsFetcher) GetBlobsByHash(ctx context.Context, time uint64, hashes []common.Hash) ([]*eth.Blob, error) {
 	out := cl.Mock.MethodCalled("GetBlobsByHash", time, hashes)
 	return out.Get(0).([]*eth.Blob), out.Error(1)
