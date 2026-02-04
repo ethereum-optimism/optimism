@@ -204,8 +204,14 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
 
-        // Skip security value checks since this test deliberately corrupts immutable values
-        vm.setEnv("SKIP_SECURITY_VALUE_CHECKS", "true");
+        // Skip security value checks since this test deliberately corrupts immutable values.
+        // Use vm.mockCall instead of vm.setEnv to avoid global env mutation that causes test flakes.
+        // nosemgrep: sol-style-use-abi-encodecall
+        vm.mockCall(
+            address(vm),
+            abi.encodeWithSignature("envOr(string,bool)", "SKIP_SECURITY_VALUE_CHECKS", false),
+            abi.encode(true)
+        );
 
         // Grab the list of implementations.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "implementations", false);
@@ -699,7 +705,13 @@ contract VerifyOPCM_verifyPortalDelays_Test is VerifyOPCM_TestInit {
 
     /// @notice Tests that portal delay verification fails with wrong expected value.
     function test_verifyPortalDelays_mismatchedDelay_fails() public {
-        vm.setEnv("EXPECTED_PROOF_MATURITY_DELAY_SECONDS", "12345");
+        // Use vm.mockCall instead of vm.setEnv to avoid global env mutation that causes test flakes.
+        // nosemgrep: sol-style-use-abi-encodecall
+        vm.mockCall(
+            address(vm),
+            abi.encodeWithSignature("envOr(string,uint256)", "EXPECTED_PROOF_MATURITY_DELAY_SECONDS", uint256(604800)),
+            abi.encode(uint256(12345))
+        );
         bool result = harness.verifyPortalDelays(optimismPortal2);
         assertFalse(result, "Portal delay verification should fail with wrong expected value");
     }
@@ -724,7 +736,13 @@ contract VerifyOPCM_verifyAnchorStateRegistryDelays_Test is VerifyOPCM_TestInit 
 
     /// @notice Tests that ASR delay verification fails with wrong expected value.
     function test_verifyAnchorStateRegistryDelays_mismatchedDelay_fails() public {
-        vm.setEnv("EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS", "99999");
+        // Use vm.mockCall instead of vm.setEnv to avoid global env mutation that causes test flakes.
+        // nosemgrep: sol-style-use-abi-encodecall
+        vm.mockCall(
+            address(vm),
+            abi.encodeWithSignature("envOr(string,uint256)", "EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS", uint256(302400)),
+            abi.encode(uint256(99999))
+        );
         bool result = harness.verifyAnchorStateRegistryDelays(anchorStateRegistry);
         assertFalse(result, "ASR delay verification should fail with wrong expected value");
     }
