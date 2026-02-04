@@ -200,7 +200,9 @@ func NewWithOverride(ctx context.Context, cfg *config.Config, log log.Logger, ap
 // SuperAuthority is an interface for supernode-level authority operations.
 // It is passed to op-node instances during initialization to provide
 // supernode-specific functionality and coordination.
-type SuperAuthority interface{}
+type SuperAuthority interface {
+	SafeL2Head(chainID *big.Int) eth.L2BlockRef
+}
 
 type InitializationOverrides struct {
 	L1Source        L1Source
@@ -261,6 +263,8 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 	if err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
 	}
+
+	n.l2Driver.SyncDeriver.Engine.SetSuperAuthority(overrides.SuperAuthority)
 
 	n.l1HeadsSub, n.l1SafeSub, n.l1FinalizedSub, err = initL1Handlers(cfg, n)
 	if err != nil {
