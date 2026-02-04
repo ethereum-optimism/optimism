@@ -82,7 +82,7 @@ function build_legacy_kona_prestate() {
 function build_prestates() {
   local version=$1
   local log_file=$2
-  local short_version="${version#*/}"
+  local short_version="${version#*/v}"
   echo "Building version: ${version} Logs: ${log_file}"
 
   git checkout --force "${version}" > "${log_file}" 2>&1
