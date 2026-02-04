@@ -437,7 +437,7 @@ var (
 			bigFlag("nonce", "New nonce of the account"),
 		},
 		Action: CheatAction(false, func(ctx *cli.Context, ch *cheat.Cheater) error {
-			return ch.RunAndClose(cheat.SetNonce(addrFlagValue("address", ctx), bigs.Uint64Strict(bigFlagValue("balance", ctx))))
+			return ch.RunAndClose(cheat.SetNonce(addrFlagValue("address", ctx), bigs.Uint64Strict(bigFlagValue("nonce", ctx))))
 		}),
 	}
 	CheatPrintHeadBlock = &cli.Command{
