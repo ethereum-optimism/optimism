@@ -1,0 +1,34 @@
+[package]
+name = "reth-optimism-storage"
+version = "1.10.2"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage = "https://paradigmxyz.github.io/reth"
+repository = "https://github.com/paradigmxyz/reth"
+
+[lints]
+workspace = true
+
+[dependencies]
+# reth
+reth-optimism-primitives = { workspace = true, features = ["serde", "reth-codec"] }
+reth-storage-api = { workspace = true, features = ["db-api"] }
+
+# ethereum
+alloy-consensus.workspace = true
+
+[dev-dependencies]
+reth-codecs = { workspace = true, features = ["test-utils"] }
+reth-prune-types.workspace = true
+reth-stages-types.workspace = true
+
+[features]
+default = ["std"]
+std = [
+    "reth-storage-api/std",
+    "reth-prune-types/std",
+    "reth-stages-types/std",
+    "alloy-consensus/std",
+    "reth-optimism-primitives/std",
+]

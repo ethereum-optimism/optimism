@@ -1,0 +1,114 @@
+[graph]
+targets = []
+all-features = false
+no-default-features = false
+
+[output]
+feature-depth = 1
+
+# This section is considered when running `cargo deny check advisories`
+[advisories]
+yanked = "warn"
+ignore = [
+  # paste crate is no longer maintained.
+  "RUSTSEC-2024-0436",
+  # https://rustsec.org/advisories/RUSTSEC-2024-0384 used by sse example
+  "RUSTSEC-2024-0384",
+  "RUSTSEC-2025-0012",
+  # bincode is unmaintained but still functional; transitive dep from reth-nippy-jar and test-fuzz.
+  "RUSTSEC-2025-0141",
+]
+
+# This section is considered when running `cargo deny check bans`.
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+allow = []
+deny = [{ name = "openssl", wrappers = ["kona-gossip", "native-tls"] }]
+skip = []
+skip-tree = []
+
+[licenses]
+version = 2
+confidence-threshold = 0.8
+
+allow = [
+  "MIT",
+  "MIT-0",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "0BSD",
+  "CC0-1.0",
+  "ISC",
+  "Unlicense",
+  "Unicode-3.0",
+  "Zlib",
+  "LicenseRef-rustls-webpki",
+  "CDLA-Permissive-2.0",
+  "MPL-2.0",
+]
+
+exceptions = [
+  # CC0 is a permissive license but somewhat unclear status for source code
+  # https://tldrlegal.com/license/creative-commons-cc0-1.0-universal
+  { allow = ["CC0-1.0"], name = "secp256k1" },
+  { allow = ["CC0-1.0"], name = "aurora-engine-modexp" },
+  { allow = ["CC0-1.0"], name = "secp256k1-sys" },
+  { allow = ["CC0-1.0"], name = "tiny-keccak" },
+  { allow = ["CC0-1.0"], name = "notify" },
+  # aws-lc-sys includes OpenSSL in its composite license expression
+  { allow = ["OpenSSL"], name = "aws-lc-sys" },
+  # gmp feature (optional, LGPL-licensed)
+  { allow = ["LGPL-3.0-or-later"], crate = "rug" },
+  { allow = ["LGPL-3.0-or-later"], crate = "gmp-mpfr-sys" },
+  # Grandfathered MPL-2.0 exceptions from op-reth
+  { allow = ["MPL-2.0"], name = "option-ext" },
+  { allow = ["MPL-2.0"], name = "webpki-root-certs" },
+]
+
+[[licenses.clarify]]
+name = "ring"
+expression = "LicenseRef-ring"
+license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
+
+[[licenses.clarify]]
+name = "rustls-webpki"
+expression = "LicenseRef-rustls-webpki"
+license-files = [{ path = "LICENSE", hash = 0x001c7e6c }]
+
+[[licenses.clarify]]
+name = "webpki"
+expression = "LicenseRef-webpki"
+license-files = [{ path = "LICENSE", hash = 0x001c7e6c }]
+
+[licenses.private]
+ignore = false
+registries = []
+
+[sources]
+allow-git = [
+  "https://github.com/paradigmxyz/reth",
+  "https://github.com/alloy-rs/alloy",
+  "https://github.com/alloy-rs/hardforks",
+  "https://github.com/alloy-rs/evm",
+  "https://github.com/bluealloy/revm",
+  "https://github.com/paritytech/jsonrpsee",
+  "https://github.com/paradigmxyz/jsonrpsee",
+  "https://github.com/paradigmxyz/revm-inspectors",
+  "https://github.com/foundry-rs/block-explorers",
+  "https://github.com/flashbots/rollup-boost",
+]
+unknown-registry = "warn"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+[sources.allow-org]
+github = []
+gitlab = []
+bitbucket = []
