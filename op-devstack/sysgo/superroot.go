@@ -523,6 +523,26 @@ func resetOwnershipAfterMigration(
 		l1PAO,
 	)
 
+	// The migration temporarily transfers ownership of each portal ProxyAdmin to the DelegateCallProxy
+	// to satisfy the delegatecall requirement of the OPCM. Reset these back to the L1 proxy admin owner
+	// after the shared admin contracts are restored.
+	for _, cfg := range opChainConfigs {
+		portal := getOptimismPortal(t, w3Client, cfg.SystemConfigProxy)
+		portalProxyAdmin := getProxyAdmin(t, w3Client, portal)
+		// In some setups the migration may already restore ownership. Only reset when still owned by the proxy.
+		if getOwner(t, w3Client, portalProxyAdmin) == delegateCallProxy {
+			transferOwnershipForDelegateCallProxy(
+				t,
+				l1ChainID,
+				ownerPrivateKey,
+				client,
+				delegateCallProxy,
+				portalProxyAdmin,
+				l1PAO,
+			)
+		}
+	}
+
 	// The Proxy Admin owner is changed. Assert that the admin of other proxies are consistent
 	var sharedAnchorStateRegistryProxy common.Address
 	err = w3Client.Call(w3eth.CallFunc(portal0, anchorStateRegistryFn).Returns(&sharedAnchorStateRegistryProxy))

@@ -103,7 +103,6 @@ func init() {
 }
 
 func TestInteropReadiness(gt *testing.T) {
-	gt.Skip("TODO(#18616): Skipping interop readiness test for now")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 
