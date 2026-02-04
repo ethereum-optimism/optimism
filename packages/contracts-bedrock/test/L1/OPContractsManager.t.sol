@@ -1447,9 +1447,14 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     function test_verifyOpcmCorrectness_succeeds() public {
         skipIfCoverage(); // Coverage changes bytecode and breaks the verification script.
 
-        // Set up environment variables with the actual OPCM addresses for tests that need themqq
+        // Set up environment variables with the actual OPCM addresses for tests that need them.
+        // These values come from the StandardValidator that was deployed with the OPCM.
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
         vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
+        IOPContractsManagerStandardValidator validator = opcm.opcmStandardValidator();
+        vm.setEnv("EXPECTED_L1_PAO_MULTISIG", vm.toString(validator.l1PAOMultisig()));
+        vm.setEnv("EXPECTED_CHALLENGER", vm.toString(validator.challenger()));
+        vm.setEnv("EXPECTED_WITHDRAWAL_DELAY_SECONDS", vm.toString(validator.withdrawalDelaySeconds()));
 
         // Run the upgrade test and checks
         runCurrentUpgrade(upgrader);

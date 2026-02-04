@@ -154,7 +154,6 @@ contract VerifyOPCM is Script {
     /// - "CONTAINER_IMPL" - verify against Container's implementations struct
     /// - "ENV:ADDRESS:<VAR_NAME>" - verify against environment variable (address)
     /// - "ENV:UINT256:<VAR_NAME>" - verify against environment variable (uint256)
-    /// - "MIN:<value>" - verify >= minimum value
     /// - "ZERO_ON_MAINNET" - verify is zero/empty on mainnet
     /// - "SKIP" - explicitly skip (e.g., version)
     mapping(string => string) internal validatorGetterChecks;
@@ -1518,23 +1517,6 @@ contract VerifyOPCM is Script {
         if (actual != expected) {
             console.log(string.concat("    [FAIL] ", _getter));
             console.log(string.concat("      Expected (", _envVar, "): ", vm.toString(expected)));
-            console.log(string.concat("      Actual: ", vm.toString(actual)));
-            return false;
-        }
-        return true;
-    }
-
-    /// @notice Verifies a StandardValidator getter meets a minimum value.
-    /// @param _validator The StandardValidator address.
-    /// @param _getter The getter name.
-    /// @param _min The minimum allowed value.
-    /// @return True if the value meets the minimum.
-    function _verifyMinValue(address _validator, string memory _getter, uint256 _min) internal view returns (bool) {
-        uint256 actual = _getUintFromValidator(_validator, string.concat(_getter, "()"));
-
-        if (actual < _min) {
-            console.log(string.concat("    [FAIL] ", _getter, " below minimum"));
-            console.log(string.concat("      Minimum: ", vm.toString(_min)));
             console.log(string.concat("      Actual: ", vm.toString(actual)));
             return false;
         }
