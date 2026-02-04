@@ -116,20 +116,22 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		activationTS   uint64
-		queryTS        uint64
-		dbHasBlocks    bool
-		sealTimestamp  uint64
-		findSealErr    error
-		wantErr        bool
-		wantErrIs      error
-		wantHashNil    bool
+		name          string
+		activationTS  uint64
+		queryTS       uint64
+		blockTime     uint64
+		dbHasBlocks   bool
+		sealTimestamp uint64
+		findSealErr   error
+		wantErr       bool
+		wantErrIs     error
+		wantHashNil   bool
 	}{
 		{
 			name:         "activation timestamp with empty DB returns nil hash",
 			activationTS: 1000,
 			queryTS:      1000,
+			blockTime:    1,
 			dbHasBlocks:  false,
 			wantErr:      false,
 			wantHashNil:  true,
@@ -138,6 +140,7 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 			name:         "activation timestamp with non-empty DB errors",
 			activationTS: 1000,
 			queryTS:      1000,
+			blockTime:    1,
 			dbHasBlocks:  true,
 			wantErr:      true,
 			wantErrIs:    ErrPreviousTimestampNotSealed,
@@ -147,6 +150,7 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 			name:         "non-activation timestamp with empty DB errors",
 			activationTS: 1000,
 			queryTS:      1001,
+			blockTime:    1,
 			dbHasBlocks:  false,
 			wantErr:      true,
 			wantErrIs:    ErrPreviousTimestampNotSealed,
@@ -156,6 +160,7 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 			name:          "seal timestamp >= query timestamp errors",
 			activationTS:  1000,
 			queryTS:       1001,
+			blockTime:     1,
 			dbHasBlocks:   true,
 			sealTimestamp: 1001, // Same as queryTS
 			wantErr:       true,
@@ -166,24 +171,38 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 			name:          "seal timestamp < query timestamp (exact ts-1) succeeds",
 			activationTS:  1000,
 			queryTS:       1001,
+			blockTime:     1,
 			dbHasBlocks:   true,
-			sealTimestamp: 1000,
+			sealTimestamp: 1000, // gap = 1, blockTime = 1
 			wantErr:       false,
 			wantHashNil:   false,
 		},
 		{
-			name:          "seal timestamp < query timestamp (older than ts-1) succeeds",
+			name:          "seal timestamp within block time succeeds",
 			activationTS:  1000,
-			queryTS:       1001,
+			queryTS:       1002,
+			blockTime:     2, // blockTime = 2
 			dbHasBlocks:   true,
-			sealTimestamp: 998, // 3 seconds before queryTS
+			sealTimestamp: 1000, // gap = 2, blockTime = 2 - OK
 			wantErr:       false,
 			wantHashNil:   false,
+		},
+		{
+			name:          "gap exceeds block time errors",
+			activationTS:  1000,
+			queryTS:       1003,
+			blockTime:     2, // blockTime = 2
+			dbHasBlocks:   true,
+			sealTimestamp: 1000, // gap = 3, blockTime = 2 - ERROR
+			wantErr:       true,
+			wantErrIs:     ErrPreviousTimestampNotSealed,
+			wantHashNil:   true,
 		},
 		{
 			name:         "FindSealedBlock error propagated",
 			activationTS: 1000,
 			queryTS:      1001,
+			blockTime:    1,
 			dbHasBlocks:  true,
 			findSealErr:  errors.New("database error"),
 			wantErr:      true,
@@ -212,7 +231,7 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 				findSealErr: tt.findSealErr,
 			}
 
-			hash, err := interop.verifyPreviousTimestampSealed(chainID, db, tt.queryTS)
+			hash, err := interop.verifyPreviousTimestampSealed(chainID, db, tt.queryTS, tt.blockTime)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -532,5 +551,6 @@ func (m *statefulMockChainContainer) FetchReceipts(ctx context.Context, blockID 
 func (m *statefulMockChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return &eth.SyncStatus{}, nil
 }
+func (m *statefulMockChainContainer) BlockTime() uint64 { return 1 }
 
 var _ cc.ChainContainer = (*statefulMockChainContainer)(nil)

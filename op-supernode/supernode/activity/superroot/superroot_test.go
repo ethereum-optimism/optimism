@@ -96,6 +96,8 @@ func (m *mockCC) ID() eth.ChainID {
 	return eth.ChainIDFromUInt64(10)
 }
 
+func (m *mockCC) BlockTime() uint64 { return 1 }
+
 var _ cc.ChainContainer = (*mockCC)(nil)
 
 func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {

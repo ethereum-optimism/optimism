@@ -47,6 +47,8 @@ type ChainContainer interface {
 	// FetchReceipts fetches the receipts for a given block by hash.
 	// Returns block info and receipts, or an error if the block or receipts cannot be fetched.
 	FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, types.Receipts, error)
+	// BlockTime returns the block time in seconds for this chain.
+	BlockTime() uint64
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode
@@ -383,6 +385,14 @@ func (c *simpleChainContainer) FetchReceipts(ctx context.Context, blockID eth.Bl
 		return nil, nil, engine_controller.ErrNoEngineClient
 	}
 	return c.engine.FetchReceipts(ctx, blockID.Hash)
+}
+
+// BlockTime returns the block time in seconds for this chain from the rollup config.
+func (c *simpleChainContainer) BlockTime() uint64 {
+	if c.vncfg == nil {
+		return 0
+	}
+	return c.vncfg.Rollup.BlockTime
 }
 
 // attachInProcRollupClient creates a new in-proc rollup RPC client bound to the current rpcHandler.

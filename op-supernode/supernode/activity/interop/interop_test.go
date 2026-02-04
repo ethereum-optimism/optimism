@@ -887,6 +887,7 @@ func (m *mockChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, e
 func (m *mockChainContainer) RewindEngine(ctx context.Context, timestamp uint64) error {
 	return nil
 }
+func (m *mockChainContainer) BlockTime() uint64 { return 1 }
 
 var _ cc.ChainContainer = (*mockChainContainer)(nil)
 
