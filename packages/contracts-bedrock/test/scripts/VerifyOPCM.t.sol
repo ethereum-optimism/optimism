@@ -20,6 +20,16 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 
 contract VerifyOPCM_Harness is VerifyOPCM {
+    bool private _skipSecurityChecks;
+
+    function setSkipSecurityValueChecks(bool _skip) public {
+        _skipSecurityChecks = _skip;
+    }
+
+    function skipSecurityValueChecks() public view override returns (bool) {
+        return _skipSecurityChecks;
+    }
+
     function loadArtifactInfo(string memory _artifactPath) public view returns (ArtifactInfo memory) {
         return _loadArtifactInfo(_artifactPath);
     }
@@ -205,13 +215,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         skipIfCoverage();
 
         // Skip security value checks since this test deliberately corrupts immutable values.
-        // Use vm.mockCall instead of vm.setEnv to avoid global env mutation that causes test flakes.
-        // nosemgrep: sol-style-use-abi-encodecall
-        vm.mockCall(
-            address(vm),
-            abi.encodeWithSignature("envOr(string,bool)", "SKIP_SECURITY_VALUE_CHECKS", false),
-            abi.encode(true)
-        );
+        harness.setSkipSecurityValueChecks(true);
 
         // Grab the list of implementations.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "implementations", false);
@@ -281,6 +285,9 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function test_run_implementationDifferentOutsideImmutable_reverts() public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
+
+        // Skip security value checks since corrupted bytecode may break contract queries.
+        harness.setSkipSecurityValueChecks(true);
 
         // Grab the list of implementations.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "implementations", false);
@@ -629,9 +636,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Verify that immutable variables fail validation
         bool result = harness.verifyOpcmImmutableVariables(opcm);
         assertFalse(result, "OPCM with invalid immutable variables should fail verification");
-
-        // Clear mock calls and restore original environment variables to avoid test isolation issues
-        vm.clearMockedCalls();
     }
 
     /// @notice Tests that the script fails when OPCM immutable variables are invalid.
@@ -642,26 +646,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         // If OPCM V2 is enabled because we do not use environment variables for OPCM V2.
         skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
-        // Set expected addresses via environment variables
-        address expectedSuperchainConfig = address(0x1111);
-        address expectedProtocolVersions = address(0x2222);
-
-        // Use vm.mockCall instead of vm.setEnv to avoid global env mutation. We need to ignore
-        // semgrep here because envAddress has multiple potential signatures so we can't use
-        // abi.encodeCall.
-        // nosemgrep: sol-style-use-abi-encodecall
-        vm.mockCall(
-            address(vm),
-            abi.encodeWithSignature("envAddress(string)", "EXPECTED_SUPERCHAIN_CONFIG"),
-            abi.encode(expectedSuperchainConfig)
-        );
-        // nosemgrep: sol-style-use-abi-encodecall
-        vm.mockCall(
-            address(vm),
-            abi.encodeWithSignature("envAddress(string)", "EXPECTED_PROTOCOL_VERSIONS"),
-            abi.encode(expectedProtocolVersions)
-        );
 
         // Test that mocking each individual getter causes verification to fail
         _assertOnOpcmGetter(IOPContractsManager.superchainConfig.selector);
@@ -705,11 +689,10 @@ contract VerifyOPCM_verifyPortalDelays_Test is VerifyOPCM_TestInit {
 
     /// @notice Tests that portal delay verification fails with wrong expected value.
     function test_verifyPortalDelays_mismatchedDelay_fails() public {
-        // Use vm.mockCall instead of vm.setEnv to avoid global env mutation that causes test flakes.
-        // nosemgrep: sol-style-use-abi-encodecall
+        // Mock the portal to return a different delay than expected.
         vm.mockCall(
-            address(vm),
-            abi.encodeWithSignature("envOr(string,uint256)", "EXPECTED_PROOF_MATURITY_DELAY_SECONDS", uint256(604800)),
+            address(optimismPortal2),
+            abi.encodeCall(IOptimismPortal2.proofMaturityDelaySeconds, ()),
             abi.encode(uint256(12345))
         );
         bool result = harness.verifyPortalDelays(optimismPortal2);
@@ -736,13 +719,10 @@ contract VerifyOPCM_verifyAnchorStateRegistryDelays_Test is VerifyOPCM_TestInit 
 
     /// @notice Tests that ASR delay verification fails with wrong expected value.
     function test_verifyAnchorStateRegistryDelays_mismatchedDelay_fails() public {
-        // Use vm.mockCall instead of vm.setEnv to avoid global env mutation that causes test flakes.
-        // nosemgrep: sol-style-use-abi-encodecall
+        // Mock the ASR to return a different delay than expected.
         vm.mockCall(
-            address(vm),
-            abi.encodeWithSignature(
-                "envOr(string,uint256)", "EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS", uint256(302400)
-            ),
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.disputeGameFinalityDelaySeconds, ()),
             abi.encode(uint256(99999))
         );
         bool result = harness.verifyAnchorStateRegistryDelays(anchorStateRegistry);

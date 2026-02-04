@@ -161,6 +161,13 @@ contract VerifyOPCM is Script {
     /// @notice Setup flag.
     bool internal ready;
 
+    /// @notice Returns whether to skip security-critical value checks.
+    ///         Public to allow tests to mock via vm.mockCall.
+    function skipSecurityValueChecks() public view virtual returns (bool) {
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
+        return vm.envOr("SKIP_SECURITY_VALUE_CHECKS", false);
+    }
+
     /// @notice Populates override mappings.
     function setUp() public {
         // Overrides for situations where field names do not cleanly map to contract names.
@@ -1267,8 +1274,7 @@ contract VerifyOPCM is Script {
         _artifact;
 
         // Allow skipping security-critical value checks (for tests that modify immutables)
-        // nosemgrep: sol-style-vm-env-only-in-config-sol
-        if (vm.envOr("SKIP_SECURITY_VALUE_CHECKS", false)) {
+        if (skipSecurityValueChecks()) {
             return true;
         }
 
