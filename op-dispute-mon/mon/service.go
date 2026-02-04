@@ -275,6 +275,11 @@ func (s *Service) Stop(ctx context.Context) error {
 	s.logger.Info("Stopping dispute mon service")
 
 	var result error
+
+	if s.monitor != nil {
+        s.logger.Info("Stopping monitor")
+        s.monitor.StopMonitoring()
+	}
 	if s.pprofService != nil {
 		if err := s.pprofService.Stop(ctx); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close pprof server: %w", err))
