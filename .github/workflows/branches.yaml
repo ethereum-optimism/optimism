@@ -15,7 +15,6 @@ on:
       - 'ops/scripts/compute-git-versions.sh'
       - 'op-rbuilder/**'
       - 'kona/**'
-  merge_group:
   schedule:
     # Daily builds at 2 AM UTC (matches CircleCI schedule)
     - cron: '0 2 * * *'
@@ -43,8 +42,8 @@ jobs:
 
   build:
     needs: prep
-    # only build if push to develop, scheduled run, merge queue, or PR from a local branch (not a fork)
-    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'merge_group' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    # only build if push to develop, scheduled run, or PR from a local branch (not a fork)
+    if: github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     strategy:
       fail-fast: false
       matrix:
