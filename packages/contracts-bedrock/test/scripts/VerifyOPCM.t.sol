@@ -740,7 +740,9 @@ contract VerifyOPCM_verifyAnchorStateRegistryDelays_Test is VerifyOPCM_TestInit 
         // nosemgrep: sol-style-use-abi-encodecall
         vm.mockCall(
             address(vm),
-            abi.encodeWithSignature("envOr(string,uint256)", "EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS", uint256(302400)),
+            abi.encodeWithSignature(
+                "envOr(string,uint256)", "EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS", uint256(302400)
+            ),
             abi.encode(uint256(99999))
         );
         bool result = harness.verifyAnchorStateRegistryDelays(anchorStateRegistry);
