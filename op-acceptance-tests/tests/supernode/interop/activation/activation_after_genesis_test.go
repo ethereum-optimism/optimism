@@ -47,7 +47,7 @@ func TestSupernodeInteropActivationAfterGenesis(gt *testing.T) {
 		// Check pre-activation timestamp
 		preActivationResp, err = snClient.SuperRootAtTimestamp(ctx, preActivationTs)
 		if err != nil {
-			t.Logger().Debug("superroot_atTimestamp error for pre-activation", "timestamp", preActivationTs, "err", err)
+			t.Logger().Warn("superroot_atTimestamp error for pre-activation", "timestamp", preActivationTs, "err", err)
 			return false
 		}
 		preVerified := preActivationResp.Data != nil
@@ -55,12 +55,12 @@ func TestSupernodeInteropActivationAfterGenesis(gt *testing.T) {
 		// Check post-activation timestamp
 		postActivationResp, err = snClient.SuperRootAtTimestamp(ctx, postActivationTs)
 		if err != nil {
-			t.Logger().Debug("superroot_atTimestamp error for post-activation", "timestamp", postActivationTs, "err", err)
+			t.Logger().Warn("superroot_atTimestamp error for post-activation", "timestamp", postActivationTs, "err", err)
 			return false
 		}
 		postVerified := postActivationResp.Data != nil
 
-		t.Logger().Debug("waiting for both timestamps to be verified",
+		t.Logger().Info("waiting for both timestamps to be verified",
 			"pre_activation_ts", preActivationTs,
 			"pre_verified", preVerified,
 			"post_activation_ts", postActivationTs,

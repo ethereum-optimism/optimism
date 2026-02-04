@@ -137,14 +137,14 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 			wantHashNil:  true,
 		},
 		{
-			name:         "activation timestamp with non-empty DB errors",
-			activationTS: 1000,
-			queryTS:      1000,
-			blockTime:    1,
-			dbHasBlocks:  true,
-			wantErr:      true,
-			wantErrIs:    ErrPreviousTimestampNotSealed,
-			wantHashNil:  true,
+			name:          "activation timestamp with non-empty DB succeeds (restart case)",
+			activationTS:  1000,
+			queryTS:       1000,
+			blockTime:     1,
+			dbHasBlocks:   true,
+			sealTimestamp: 1000, // DB has block at activation timestamp
+			wantErr:       false,
+			wantHashNil:   false,
 		},
 		{
 			name:         "non-activation timestamp with empty DB errors",
@@ -240,7 +240,7 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 				findSealErr: tt.findSealErr,
 			}
 
-			hash, err := interop.verifyCanAddTimestamp(chainID, db, tt.queryTS, tt.blockTime)
+			block, _, err := interop.verifyCanAddTimestamp(chainID, db, tt.queryTS, tt.blockTime)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -252,10 +252,10 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 			}
 
 			if tt.wantHashNil {
-				require.Nil(t, hash)
+				require.Equal(t, common.Hash{}, block.Hash, "expected zero hash")
 			} else {
-				require.NotNil(t, hash)
-				require.Equal(t, expectedHash, *hash)
+				require.NotEqual(t, common.Hash{}, block.Hash, "expected non-zero hash")
+				require.Equal(t, expectedHash, block.Hash)
 			}
 		})
 	}
