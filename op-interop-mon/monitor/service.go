@@ -50,7 +50,7 @@ type InteropMonitorService struct {
 func InteropMonitorServiceFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger) (*InteropMonitorService, error) {
 	var ms InteropMonitorService
 	if err := ms.initFromCLIConfig(ctx, version, cfg, log); err != nil {
-		return nil, errors.Join(err, ms.Start(ctx))
+		return nil, errors.Join(err, ms.Stop(ctx))
 	}
 	return &ms, nil
 }
@@ -66,7 +66,7 @@ func InteropMonitorServiceFromClients(
 ) (*InteropMonitorService, error) {
 	var ms InteropMonitorService
 	if err := ms.initFromClients(ctx, version, cfg, clients, failsafeClients, log); err != nil {
-		return nil, errors.Join(err, ms.Start(ctx))
+		return nil, errors.Join(err, ms.Stop(ctx))
 	}
 	return &ms, nil
 }
