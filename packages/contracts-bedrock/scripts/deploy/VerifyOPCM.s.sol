@@ -1528,7 +1528,11 @@ contract VerifyOPCM is Script {
     /// @param _getter The getter name.
     /// @return True if zero on mainnet (or not mainnet).
     function _verifyZeroOnMainnet(address _validator, string memory _getter) internal view returns (bool) {
-        if (block.chainid != 1) return true; // Only check on mainnet
+        // Skip check if not mainnet or if in a testing environment
+        // Testing environment is detected by code at the TESTING_ENVIRONMENT_ADDRESS
+        if (block.chainid != 1 || Constants.TESTING_ENVIRONMENT_ADDRESS.code.length > 0) {
+            return true;
+        }
 
         bytes32 actual = _getBytes32FromValidator(_validator, string.concat(_getter, "()"));
 
