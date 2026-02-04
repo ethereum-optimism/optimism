@@ -150,8 +150,7 @@ contract OPContractsManagerV2_TestInit is CommonTest {
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
                 l2ChainID: _deployConfig.l2ChainId,
-                proposer: deployProposer,
-                isInitialDeployment: true
+                proposer: deployProposer
             }),
             false,
             validationOverrides
@@ -401,8 +400,7 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
                 l2ChainID: l2ChainId,
-                proposer: initialProposer,
-                isInitialDeployment: false
+                proposer: initialProposer
             }),
             false,
             validationOverrides
