@@ -8,7 +8,7 @@ use reth_ethereum::{
     evm::primitives::execute::{BlockAssembler, BlockAssemblerInput},
     primitives::Receipt,
 };
-use reth_op::{node::OpBlockAssembler, DepositReceipt};
+use reth_op::{DepositReceipt, node::OpBlockAssembler};
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
@@ -25,10 +25,10 @@ impl CustomBlockAssembler {
 impl<F> BlockAssembler<F> for CustomBlockAssembler
 where
     F: for<'a> BlockExecutorFactory<
-        ExecutionCtx<'a> = CustomBlockExecutionCtx,
-        Transaction = CustomTransaction,
-        Receipt: Receipt + DepositReceipt,
-    >,
+            ExecutionCtx<'a> = CustomBlockExecutionCtx,
+            Transaction = CustomTransaction,
+            Receipt: Receipt + DepositReceipt,
+        >,
 {
     type Block = Block;
 

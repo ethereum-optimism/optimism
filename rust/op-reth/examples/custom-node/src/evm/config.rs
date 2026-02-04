@@ -1,11 +1,11 @@
 use crate::{
     chainspec::CustomChainSpec,
     engine::{CustomExecutionData, CustomPayloadBuilderAttributes},
-    evm::{alloy::CustomEvmFactory, executor::CustomBlockExecutionCtx, CustomBlockAssembler},
+    evm::{CustomBlockAssembler, alloy::CustomEvmFactory, executor::CustomBlockExecutionCtx},
     primitives::{Block, CustomHeader, CustomNodePrimitives, CustomTransaction},
 };
 use alloy_consensus::BlockHeader;
-use alloy_eips::{eip2718::WithEncoded, Decodable2718};
+use alloy_eips::{Decodable2718, eip2718::WithEncoded};
 use alloy_evm::EvmEnv;
 use alloy_op_evm::OpBlockExecutionCtx;
 use alloy_rpc_types_engine::PayloadError;

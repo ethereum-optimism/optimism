@@ -1,8 +1,8 @@
 use crate::primitives::{CustomTransaction, TxPayment};
-use alloy_eips::{eip2930::AccessList, Typed2718};
+use alloy_eips::{Typed2718, eip2930::AccessList};
 use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, IntoTxEnv};
 use alloy_op_evm::block::OpTxEnv;
-use alloy_primitives::{Address, Bytes, TxKind, B256, U256};
+use alloy_primitives::{Address, B256, Bytes, TxKind, U256};
 use op_alloy_consensus::OpTxEnvelope;
 use op_revm::OpTransaction;
 use reth_ethereum::evm::{primitives::TransactionEnv, revm::context::TxEnv};

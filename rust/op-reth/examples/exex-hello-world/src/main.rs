@@ -12,9 +12,9 @@ use reth_ethereum::{
     chainspec::EthereumHardforks,
     exex::{ExExContext, ExExEvent, ExExNotification},
     node::{
+        EthereumNode,
         api::{FullNodeComponents, NodeTypes},
         builder::rpc::RpcHandle,
-        EthereumNode,
     },
     rpc::api::eth::helpers::FullEthApi,
 };

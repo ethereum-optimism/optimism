@@ -1,14 +1,14 @@
 use crate::primitives::{CustomTransaction, TxPayment};
 use alloy_consensus::{
+    Signed, TransactionEnvelope,
     crypto::RecoveryError,
     error::ValueError,
     transaction::{SignerRecoverable, TxHashRef},
-    Signed, TransactionEnvelope,
 };
-use alloy_primitives::{Address, Sealed, B256};
+use alloy_primitives::{Address, B256, Sealed};
 use op_alloy_consensus::{OpPooledTransaction, OpTransaction, TxDeposit};
 use reth_ethereum::primitives::{
-    serde_bincode_compat::RlpBincode, InMemorySize, SignedTransaction,
+    InMemorySize, SignedTransaction, serde_bincode_compat::RlpBincode,
 };
 
 #[derive(Clone, Debug, TransactionEnvelope)]

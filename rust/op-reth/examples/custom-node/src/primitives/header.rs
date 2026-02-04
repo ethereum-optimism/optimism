@@ -1,8 +1,8 @@
 use alloy_consensus::Header;
-use alloy_primitives::{Address, BlockNumber, Bloom, Bytes, Sealable, B256, B64, U256};
+use alloy_primitives::{Address, B64, B256, BlockNumber, Bloom, Bytes, Sealable, U256};
 use alloy_rlp::{Encodable, RlpDecodable, RlpEncodable};
 use reth_codecs::Compact;
-use reth_ethereum::primitives::{serde_bincode_compat::RlpBincode, BlockHeader, InMemorySize};
+use reth_ethereum::primitives::{BlockHeader, InMemorySize, serde_bincode_compat::RlpBincode};
 use revm_primitives::keccak256;
 use serde::{Deserialize, Serialize};
 
