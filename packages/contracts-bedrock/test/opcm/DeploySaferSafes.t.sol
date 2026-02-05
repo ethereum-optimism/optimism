@@ -67,9 +67,12 @@ contract DeploySaferSafes_Test is Test {
     /// @notice Tests that assertValidOutput reverts when the contract has no code.
     function test_assertValidOutput_noCode_reverts() public {
         DeploySaferSafes.Output memory output;
-        output.saferSafesSingleton = ISaferSafes(makeAddr("noCode"));
+        address noCodeAddr = makeAddr("noCode");
+        output.saferSafesSingleton = ISaferSafes(noCodeAddr);
 
-        vm.expectRevert(bytes("DeployUtils: no code at"));
+        vm.expectRevert(
+            bytes(string.concat("DeployUtils: no code at ", vm.toString(noCodeAddr)))
+        );
         deploySaferSafes.assertValidOutput(output);
     }
 
