@@ -168,7 +168,7 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 		}
 		if orch.l2ChallengerOpts.useCannonKonaConfig {
 			options = append(options,
-				shared.WithCannonKonaConfig(rollupCfgs, l1Genesis, l2Geneses),
+				shared.WithCannonKonaInteropConfig(rollupCfgs, l1Genesis, l2Geneses),
 				shared.WithSuperCannonKonaGameType(),
 			)
 		}

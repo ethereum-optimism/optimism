@@ -72,7 +72,7 @@ func applyCannonConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis 
 	return nil
 }
 
-func applyCannonKonaConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) error {
+func applyCannonKonaConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis, interop bool) error {
 	root, err := findMonorepoRoot()
 	if err != nil {
 		return err
@@ -85,9 +85,10 @@ func applyCannonKonaConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Gene
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path to prestate dir: %w", err)
 	}
-	c.CannonKonaAbsolutePreStateBaseURL, err = url.Parse("file:" + absRoot + "/kona/prestate-artifacts-cannon")
-	if err != nil {
-		return fmt.Errorf("failed to create kona prestates url: %w", err)
+	if interop {
+		c.CannonKonaAbsolutePreStateBaseURL, err = url.Parse("file:" + absRoot + "/kona/prestate-artifacts-cannon-interop")
+	} else {
+		c.CannonKonaAbsolutePreStateBaseURL, err = url.Parse("file:" + absRoot + "/kona/prestate-artifacts-cannon")
 	}
 	return nil
 }
@@ -150,7 +151,13 @@ func WithCannonConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Ge
 
 func WithCannonKonaConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) Option {
 	return func(c *config.Config) error {
-		return applyCannonKonaConfig(c, rollupCfgs, l1Genesis, l2Geneses)
+		return applyCannonKonaConfig(c, rollupCfgs, l1Genesis, l2Geneses, false)
+	}
+}
+
+func WithCannonKonaInteropConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) Option {
+	return func(c *config.Config) error {
+		return applyCannonKonaConfig(c, rollupCfgs, l1Genesis, l2Geneses, true)
 	}
 }
 
