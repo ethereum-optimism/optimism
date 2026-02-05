@@ -17,10 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-type l2ChallengerOpts struct {
-	useCannonKonaConfig bool
-}
-
 type L2Challenger struct {
 	id       stack.L2ChallengerID
 	service  cliapp.Lifecycle
@@ -122,10 +118,6 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 	}
 	l1Genesis := l1Net.genesis
 
-	if orch.l2ChallengerOpts.useCannonKonaConfig {
-		p.Log("Enabling cannon-kona, you may need to build kona-host and prestates with: cd kona && just")
-	}
-
 	dir := p.TempDir()
 	var cfg *config.Config
 	// If interop is scheduled, or if we cannot do the pre-interop connection, then set up with supervisor
@@ -165,12 +157,8 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 			shared.WithCannonConfig(rollupCfgs, l1Genesis, l2Geneses, prestateVariant),
 			shared.WithSuperCannonGameType(),
 			shared.WithSuperPermissionedGameType(),
-		}
-		if orch.l2ChallengerOpts.useCannonKonaConfig {
-			options = append(options,
-				shared.WithCannonKonaInteropConfig(rollupCfgs, l1Genesis, l2Geneses),
-				shared.WithSuperCannonKonaGameType(),
-			)
+			shared.WithCannonKonaInteropConfig(rollupCfgs, l1Genesis, l2Geneses),
+			shared.WithSuperCannonKonaGameType(),
 		}
 		cfg, err = shared.NewInteropChallengerConfig(dir, l1EL.UserRPC(), l1CL.beaconHTTPAddr, superRPC, l2ELRPCs, options...)
 		require.NoError(err, "Failed to create interop challenger config")
@@ -198,12 +186,8 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 			shared.WithCannonGameType(),
 			shared.WithPermissionedGameType(),
 			shared.WithFastGames(),
-		}
-		if orch.l2ChallengerOpts.useCannonKonaConfig {
-			options = append(options,
-				shared.WithCannonKonaConfig(rollupCfgs, l1Genesis, l2Geneses),
-				shared.WithCannonKonaGameType(),
-			)
+			shared.WithCannonKonaConfig(rollupCfgs, l1Genesis, l2Geneses),
+			shared.WithCannonKonaGameType(),
 		}
 		cfg, err = shared.NewPreInteropChallengerConfig(dir, l1EL.UserRPC(), l1CL.beaconHTTPAddr, l2CL.UserRPC(), l2EL.UserRPC(), options...)
 		require.NoError(err, "Failed to create pre-interop challenger config")

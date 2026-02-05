@@ -25,13 +25,6 @@ func WithAddedGameType(gameType gameTypes.GameType) stack.CommonOption {
 		stack.MakeCommon(sysgo.WithGameTypeAdded(gameType)), // Add if sysgo is in use
 		RequireGameTypePresent(gameType),                    // Verify present for other chains
 	)
-
-	if gameType == gameTypes.CannonKonaGameType {
-		opts = stack.Combine(
-			opts,
-			stack.MakeCommon(sysgo.WithChallengerCannonKonaEnabled()),
-		)
-	}
 	return opts
 }
 
