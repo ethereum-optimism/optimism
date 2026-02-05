@@ -10,12 +10,12 @@ import (
 // It is passed to op-node instances during initialization to provide
 // supernode-specific functionality and coordination.
 type SuperAuthority interface {
-	SafeL2Head() eth.L2BlockRef
+	FullyVerifiedL2Head() eth.L2BlockRef
 }
 
 // SafeL2Head returns the safe L2 head block reference.
-// It returns an empty L2BlockRef if no safe head can be determined.
-func (c *simpleChainContainer) SafeL2Head() eth.L2BlockRef {
+// It returns an empty L2BlockRef if no fully verified head can be determined.
+func (c *simpleChainContainer) FullyVerifiedL2Head() eth.L2BlockRef {
 	timestamp := uint64(math.MaxUint64)
 	oldestVerifiedBlock := eth.BlockID{}
 	for _, v := range c.verifiers {
