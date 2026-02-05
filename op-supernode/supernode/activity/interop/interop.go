@@ -357,6 +357,21 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 	return i.verifiedDB.Has(ts)
 }
 
-func (i *Interop) LatestVerifiedTimestamp() (uint64, bool) {
-	return i.verifiedDB.LastTimestamp()
+// LatestVerifiedL3Block returns the latest L2 block which has been verified,
+// along with the timestamp at which it was verified.
+func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
+	emptyBlock := eth.BlockID{}
+	ts, ok := i.verifiedDB.LastTimestamp()
+	if !ok {
+		return emptyBlock, 0
+	}
+	res, err := i.verifiedDB.Get(ts)
+	if err != nil {
+		return emptyBlock, 0
+	}
+	head, ok := res.L2Heads[chainID]
+	if !ok {
+		return emptyBlock, 0
+	}
+	return head, ts
 }
