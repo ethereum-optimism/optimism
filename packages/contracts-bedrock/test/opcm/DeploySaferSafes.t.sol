@@ -70,9 +70,7 @@ contract DeploySaferSafes_Test is Test {
         address noCodeAddr = makeAddr("noCode");
         output.saferSafesSingleton = ISaferSafes(noCodeAddr);
 
-        vm.expectRevert(
-            bytes(string.concat("DeployUtils: no code at ", vm.toString(noCodeAddr)))
-        );
+        vm.expectRevert(bytes(string.concat("DeployUtils: no code at ", vm.toString(noCodeAddr))));
         deploySaferSafes.assertValidOutput(output);
     }
 
