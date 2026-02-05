@@ -339,10 +339,6 @@ func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l
 	return l2Block.ID(), l1Block, nil
 }
 
-func (c *simpleChainContainer) SafeL2Head() eth.L2BlockRef {
-	panic("TODO")
-}
-
 // OptimisticAt returns the optimistic (pre-verified) L2 and L1 blocks for the given L2 timestamp.
 func (c *simpleChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
 	l2Block, err := c.BlockAtTimestamp(ctx, ts, eth.Safe)
