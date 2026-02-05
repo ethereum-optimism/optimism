@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { ERC721, IERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import { IERC721Metadata } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -169,6 +170,7 @@ contract OptimismMintableERC721_SupportsInterface_Test is OptimismMintableERC721
         vm.assume(_interfaceId != type(IOptimismMintableERC721).interfaceId);
         vm.assume(_interfaceId != type(IERC721Enumerable).interfaceId);
         vm.assume(_interfaceId != type(IERC721).interfaceId);
+        vm.assume(_interfaceId != type(IERC721Metadata).interfaceId);
         vm.assume(_interfaceId != type(IERC165).interfaceId);
         assertFalse(L2NFT.supportsInterface(_interfaceId));
     }
