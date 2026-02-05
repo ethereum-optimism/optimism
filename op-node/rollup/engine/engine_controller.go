@@ -94,7 +94,7 @@ type CrossUpdateHandler interface {
 }
 
 type SuperAuthority interface {
-	SafeL2Head() eth.L2BlockRef
+	FullyVerifiedL2Head() eth.L2BlockRef
 }
 
 type EngineController struct {
@@ -198,9 +198,14 @@ func (e *EngineController) SetSuperAuthority(superAuthority SuperAuthority) {
 }
 
 func (e *EngineController) SafeL2Head() eth.L2BlockRef {
+	// TODO wire up properly
 	superAuthority := false
 	if superAuthority {
-		return e.superAuthority.SafeL2Head()
+		fvsh := e.superAuthority.FullyVerifiedL2Head()
+		if fvsh.Number > e.localSafeHead.Number {
+			panic("super authority fully verified l2 head is ahead of local safe head")
+		}
+		return fvsh
 	} else {
 		return e.localSafeHead
 	}
