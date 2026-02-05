@@ -591,7 +591,7 @@ func (m *loadLogsTestChainContainer) Pause(ctx context.Context) error  { return 
 func (m *loadLogsTestChainContainer) Resume(ctx context.Context) error { return nil }
 func (m *loadLogsTestChainContainer) RegisterVerifier(v activity.VerificationActivity) {
 }
-func (m *loadLogsTestChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
+func (m *loadLogsTestChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	if m.blockAtTimestampErr != nil {
 		return eth.L2BlockRef{}, m.blockAtTimestampErr
 	}
@@ -1123,7 +1123,7 @@ func (m *statefulMockChainContainer) Pause(ctx context.Context) error  { return 
 func (m *statefulMockChainContainer) Resume(ctx context.Context) error { return nil }
 func (m *statefulMockChainContainer) RegisterVerifier(v activity.VerificationActivity) {
 }
-func (m *statefulMockChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
+func (m *statefulMockChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	return m.blockAtTimestampFn(ts)
 }
 func (m *statefulMockChainContainer) VerifiedAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
