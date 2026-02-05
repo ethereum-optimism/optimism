@@ -2,9 +2,7 @@
 # node_modules, packages (contains git submodules and node modules etc.), devnet dirs etc. all add up a lot.
 *
 
-# Include .git and .gitmodules to allow git submodule initialization inside Docker
 # This is needed for op-deployer to build contracts with their dependencies (Provenance support)
-!/.git
 !/.gitmodules
 
 !/cannon
