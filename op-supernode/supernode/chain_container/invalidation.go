@@ -204,7 +204,17 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 		"rewindToTimestamp", priorTimestamp,
 	)
 
+	// Notify activities about the reset
+	if c.onReset != nil {
+		c.onReset(c.chainID, priorTimestamp)
+	}
+
 	return true, nil
+}
+
+// SetResetCallback sets a callback that is invoked when the chain resets.
+func (c *simpleChainContainer) SetResetCallback(cb ResetCallback) {
+	c.onReset = cb
 }
 
 // blockNumberToTimestamp converts a block number to its timestamp using rollup config.

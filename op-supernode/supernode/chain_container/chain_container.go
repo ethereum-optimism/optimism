@@ -56,9 +56,16 @@ type ChainContainer interface {
 	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error)
 	// IsDenied checks if a block hash is on the deny list at the given height.
 	IsDenied(height uint64, payloadHash common.Hash) (bool, error)
+	// SetResetCallback sets a callback that is invoked when the chain resets.
+	// The supernode uses this to notify activities about chain resets.
+	SetResetCallback(cb ResetCallback)
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode
+
+// ResetCallback is called when the chain container resets to a given timestamp.
+// The supernode uses this to notify activities about the reset.
+type ResetCallback func(chainID eth.ChainID, timestamp uint64)
 
 type simpleChainContainer struct {
 	vn                 virtual_node.VirtualNode
@@ -79,10 +86,12 @@ type simpleChainContainer struct {
 	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
 	verifiers          []activity.VerificationActivity
+	onReset            ResetCallback // Called when chain resets to notify activities
 }
 
 // Interface conformance assertions
 var _ ChainContainer = (*simpleChainContainer)(nil)
+var _ rollupNode.SuperAuthority = (*simpleChainContainer)(nil)
 
 func NewChainContainer(
 	chainID eth.ChainID,
@@ -182,6 +191,8 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 					c.addMetricsRegistry(c.chainID.String(), reg)
 				}
 			}
+			// Pass the chain container as SuperAuthority for payload denylist checks
+			c.initOverload.SuperAuthority = c
 		}
 		c.vn = c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion)
 		if c.pause.Load() {
