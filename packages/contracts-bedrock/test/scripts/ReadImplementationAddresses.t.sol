@@ -26,6 +26,11 @@ contract ReadImplementationAddressesTest is CommonTest {
         script = new ReadImplementationAddresses();
     }
 
+    /// @notice Returns the OPCM instance, handling V1 vs V2 feature flag.
+    function _opcm() internal view returns (IOPContractsManager) {
+        return isDevFeatureEnabled(DevFeatures.OPCM_V2) ? IOPContractsManager(address(opcmV2)) : opcm;
+    }
+
     /// @notice Builds the input struct from the deployed contracts.
     function _buildInput() internal view returns (ReadImplementationAddresses.Input memory input_) {
         input_.addressManager = address(addressManager);
@@ -35,7 +40,7 @@ contract ReadImplementationAddressesTest is CommonTest {
         input_.l1StandardBridgeProxy = address(l1StandardBridge);
         input_.optimismPortalProxy = address(optimismPortal2);
         input_.disputeGameFactoryProxy = address(disputeGameFactory);
-        input_.opcm = address(opcm);
+        input_.opcm = address(_opcm());
     }
 
     /// @notice Tests that ReadImplementationAddresses.run succeeds and returns correct addresses.
@@ -44,7 +49,8 @@ contract ReadImplementationAddressesTest is CommonTest {
         ReadImplementationAddresses.Output memory output = script.run(input);
 
         // Get expected implementations from OPCM
-        IOPContractsManager.Implementations memory impls = opcm.implementations();
+        IOPContractsManager opcm_ = _opcm();
+        IOPContractsManager.Implementations memory impls = opcm_.implementations();
 
         // Assert implementations from OPCM match output
         assertEq(output.delayedWETH, impls.delayedWETHImpl, "DelayedWETH should match");
@@ -56,12 +62,12 @@ contract ReadImplementationAddressesTest is CommonTest {
         );
 
         // Assert PreimageOracle is read from MIPS
-        IMIPS64 mips = IMIPS64(impls.mipsImpl);
-        assertEq(output.preimageOracleSingleton, address(mips.oracle()), "PreimageOracle should match");
+        IMIPS64 mips_ = IMIPS64(impls.mipsImpl);
+        assertEq(output.preimageOracleSingleton, address(mips_.oracle()), "PreimageOracle should match");
 
         // Assert OPCM standard validator
         assertEq(
-            output.opcmStandardValidator, address(opcm.opcmStandardValidator()), "OPCM StandardValidator should match"
+            output.opcmStandardValidator, address(opcm_.opcmStandardValidator()), "OPCM StandardValidator should match"
         );
 
         // Assert V1 vs V2 specific fields
@@ -72,16 +78,16 @@ contract ReadImplementationAddressesTest is CommonTest {
             assertEq(output.opcmGameTypeAdder, address(0), "OPCM GameTypeAdder should be zero in V2");
             assertEq(
                 output.opcmInteropMigrator,
-                address(IOPContractsManagerV2(address(opcm)).opcmMigrator()),
+                address(IOPContractsManagerV2(address(opcm_)).opcmMigrator()),
                 "OPCM InteropMigrator should match"
             );
         } else {
             // V1: all component addresses come from opcm getters
-            assertEq(output.opcmDeployer, address(opcm.opcmDeployer()), "OPCM Deployer should match");
-            assertEq(output.opcmUpgrader, address(opcm.opcmUpgrader()), "OPCM Upgrader should match");
-            assertEq(output.opcmGameTypeAdder, address(opcm.opcmGameTypeAdder()), "OPCM GameTypeAdder should match");
+            assertEq(output.opcmDeployer, address(opcm_.opcmDeployer()), "OPCM Deployer should match");
+            assertEq(output.opcmUpgrader, address(opcm_.opcmUpgrader()), "OPCM Upgrader should match");
+            assertEq(output.opcmGameTypeAdder, address(opcm_.opcmGameTypeAdder()), "OPCM GameTypeAdder should match");
             assertEq(
-                output.opcmInteropMigrator, address(opcm.opcmInteropMigrator()), "OPCM InteropMigrator should match"
+                output.opcmInteropMigrator, address(opcm_.opcmInteropMigrator()), "OPCM InteropMigrator should match"
             );
         }
     }
@@ -95,13 +101,14 @@ contract ReadImplementationAddressesTest is CommonTest {
         ReadImplementationAddresses.Output memory output = abi.decode(outputBytes, (ReadImplementationAddresses.Output));
 
         // Get expected implementations from OPCM
-        IOPContractsManager.Implementations memory impls = opcm.implementations();
+        IOPContractsManager opcm_ = _opcm();
+        IOPContractsManager.Implementations memory impls = opcm_.implementations();
 
         // Assert key values match
         assertEq(output.delayedWETH, impls.delayedWETHImpl, "DelayedWETH should match");
         assertEq(output.mipsSingleton, impls.mipsImpl, "MIPS singleton should match");
         assertEq(
-            output.opcmStandardValidator, address(opcm.opcmStandardValidator()), "OPCM StandardValidator should match"
+            output.opcmStandardValidator, address(opcm_.opcmStandardValidator()), "OPCM StandardValidator should match"
         );
     }
 
