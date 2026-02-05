@@ -28,6 +28,35 @@ func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProce
 	rpcCtx, cancel := context.WithTimeout(e.ctx, payloadProcessTimeout)
 	defer cancel()
 
+	// Check SuperAuthority denylist before inserting the payload
+	if e.superAuthority != nil && ev.Envelope != nil && ev.Envelope.ExecutionPayload != nil {
+		payload := ev.Envelope.ExecutionPayload
+		denied, err := e.superAuthority.IsDenied(uint64(payload.BlockNumber), payload.BlockHash)
+		if err != nil {
+			e.log.Warn("Failed to check SuperAuthority denylist, proceeding with payload",
+				"blockNumber", payload.BlockNumber,
+				"blockHash", payload.BlockHash,
+				"err", err,
+			)
+		} else if denied {
+			e.log.Warn("Payload denied by SuperAuthority",
+				"blockNumber", payload.BlockNumber,
+				"blockHash", payload.BlockHash,
+			)
+			// If derived and Holocene is active, request a deposits-only replacement
+			if ev.DerivedFrom != (eth.L1BlockRef{}) && e.rollupCfg.IsHolocene(ev.DerivedFrom.Time) {
+				e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom)
+				return
+			}
+			// Otherwise emit invalid event
+			e.emitter.Emit(ctx, PayloadInvalidEvent{
+				Envelope: ev.Envelope,
+				Err:      fmt.Errorf("payload %s denied by SuperAuthority", payload.BlockHash),
+			})
+			return
+		}
+	}
+
 	insertStart := time.Now()
 	status, err := e.engine.NewPayload(rpcCtx,
 		ev.Envelope.ExecutionPayload, ev.Envelope.ParentBeaconBlockRoot)
