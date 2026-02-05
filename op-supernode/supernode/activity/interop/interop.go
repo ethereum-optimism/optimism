@@ -310,7 +310,7 @@ func (i *Interop) checkChainsReady(ts uint64) (map[eth.ChainID]eth.BlockID, erro
 	// Query all chains in parallel
 	for _, chain := range i.chains {
 		go func(c cc.ChainContainer) {
-			block, err := c.BlockAtTimestamp(i.ctx, ts, eth.Safe)
+			block, err := c.LocalSafeBlockAtTimestamp(i.ctx, ts, eth.Safe)
 			if err != nil {
 				results <- result{chainID: c.ID(), err: fmt.Errorf("chain %s not ready for timestamp %d: %w", c.ID(), ts, err)}
 				return
