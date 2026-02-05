@@ -37,7 +37,7 @@ func (m *mockCC) Resume(ctx context.Context) error { return nil }
 func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {
 }
 
-func (m *mockCC) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
+func (m *mockCC) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
 	return eth.L2BlockRef{}, nil
 }
 func (m *mockCC) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
