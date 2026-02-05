@@ -1,3 +1,5 @@
+package chain_container
+
 import (
 	"math/big"
 
