@@ -171,8 +171,8 @@ func (m *mockVerificationActivity) Late(num uint64) (bool, error) {
 	return m.verifiedAtTimestampResult, m.verifiedAtTimestampErr
 }
 
-func (m *mockVerificationActivity) LatestVerifiedTimestamp() (uint64, bool) {
-	return 0, true
+func (m *mockVerificationActivity) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
+	return eth.BlockID{}, 0
 }
 
 // Test helpers

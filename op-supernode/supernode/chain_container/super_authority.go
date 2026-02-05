@@ -1,7 +1,7 @@
 package chain_container
 
 import (
-	"context"
+	"math"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -13,30 +13,26 @@ type SuperAuthority interface {
 	SafeL2Head() eth.L2BlockRef
 }
 
-func (c *simpleChainContainer) latestFullyVerifiedTimestamp() uint64 {
-	timestamp := uint64(0)
-	for _, v := range c.verifiers {
-		ts, ok := v.LatestVerifiedTimestamp()
-		if ok {
-			return c.vncfg.Rollup.Genesis.L2Time
-		}
-		// We need the oldest timestamp across all verifiers
-		if ts < timestamp {
-			timestamp = ts
-		}
-	}
-	return timestamp
-}
-
+// SafeL2Head returns the safe L2 head block reference.
+// It returns an empty L2BlockRef if no safe head can be determined.
 func (c *simpleChainContainer) SafeL2Head() eth.L2BlockRef {
-	timestamp := c.latestFullyVerifiedTimestamp()
-	ctx := context.Background()
-	block, err := c.BlockAtTimestamp(ctx, timestamp, eth.Safe)
-	if err != nil {
-		// Handle error appropriately
-		return eth.L2BlockRef{}
+	timestamp := uint64(math.MaxUint64)
+	oldestVerifiedBlock := eth.BlockID{}
+	for _, v := range c.verifiers {
+		bId, ts := v.LatestVerifiedL2Block(c.chainID)
+		if (bId == eth.BlockID{} || ts == 0) {
+			return eth.L2BlockRef{}
+		}
+		if ts < timestamp {
+			oldestVerifiedBlock = bId
+		}
 	}
-	return block
+	// TODO we need to store the full block ref in the verifier's DB
+	// the following struct is missing data:
+	return eth.L2BlockRef{
+		Hash:   oldestVerifiedBlock.Hash,
+		Number: oldestVerifiedBlock.Number,
+	}
 }
 
 // Interface satisfaction static check
