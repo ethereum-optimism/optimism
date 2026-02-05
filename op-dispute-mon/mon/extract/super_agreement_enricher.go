@@ -73,6 +73,12 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 			}
 
 			superRoot := common.Hash(response.Data.SuperRoot)
+			// If the super root that we computed matches the game's root claim, the game could
+			// still technically be invalid if the L1 data required to verify the super root was
+			// not fully available on the L1 at the time the game was proposed. In this case, "safe"
+			// means that all the L1 data needed to verify cross-chain dependencies was available.
+			// The game itself is still "safe" from a security/liveness perspective, but the game
+			// would be challenged by an honest proposer.
 			results[i] = superRootResult{
 				superRoot: superRoot,
 				isSafe:    response.Data.VerifiedRequiredL1.Number <= game.L1HeadNum,
