@@ -84,6 +84,7 @@ func (e *simpleEngineController) BlockAtTimestamp(ctx context.Context, ts uint64
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
+	// TODO: we should be asking the CL for the sync status and extracting the local safe here.
 	head, err := e.l2.L2BlockRefByLabel(ctx, label)
 	if err != nil {
 		return eth.L2BlockRef{}, err

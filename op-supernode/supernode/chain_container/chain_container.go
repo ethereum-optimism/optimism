@@ -262,6 +262,9 @@ func (c *simpleChainContainer) BlockAtTimestamp(ctx context.Context, ts uint64, 
 	if c.engine == nil {
 		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
 	}
+	// TODO: we only ever seem to call this with label == eth.Safe
+	// TODO: we actually want to get the local safe block at timestamp.
+	// We need to get the local safe block from the CL
 	return c.engine.BlockAtTimestamp(ctx, ts, label)
 }
 
