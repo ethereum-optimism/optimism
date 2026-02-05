@@ -12,6 +12,9 @@ ARG TARGET_BASE_IMAGE=alpine:3.20
 # The ubuntu target base image is used for the op-challenger build with kona.
 ARG UBUNTU_TARGET_BASE_IMAGE=ubuntu:22.04
 
+# The repository URL to clone for submodule initialization.
+ARG REPO_URL=https://github.com/ethereum-optimism/optimism.git
+
 # builder_foundry does not need to be built on $BUILDPLATFORM, as foundry produces static binaries.
 FROM alpine:3.21 AS builder_foundry
 
@@ -183,7 +186,7 @@ COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/forge
 # submodule commit SHAs, then clone each submodule at its pinned version.
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   git init && \
-  git remote add origin https://github.com/ethereum-optimism/optimism.git && \
+  git remote add origin $REPO_URL && \
   git fetch --depth 1 --filter=blob:none origin "$GIT_COMMIT" && \
   git checkout FETCH_HEAD -- packages/contracts-bedrock/lib && \
   git submodule update --init --recursive --depth 1 -j 8 packages/contracts-bedrock/lib && \
