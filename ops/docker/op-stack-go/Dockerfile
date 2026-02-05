@@ -179,8 +179,14 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 FROM --platform=$BUILDPLATFORM builder AS op-deployer-builder
 ARG OP_DEPLOYER_VERSION=v0.0.0
 COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/forge
+# Initialize submodules for contracts build. We fetch the tree (without blobs) to get
+# submodule commit SHAs, then clone each submodule at its pinned version.
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   git init && \
+  git remote add origin https://github.com/ethereum-optimism/optimism.git && \
+  git fetch --depth 1 --filter=blob:none origin "$GIT_COMMIT" && \
+  git checkout FETCH_HEAD -- packages/contracts-bedrock/lib && \
+  git submodule update --init --recursive --depth 1 -j 8 packages/contracts-bedrock/lib && \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DEPLOYER_VERSION" \
   just op-deployer/build
 

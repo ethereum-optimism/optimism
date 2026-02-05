@@ -2,9 +2,7 @@
 # node_modules, packages (contains git submodules and node modules etc.), devnet dirs etc. all add up a lot.
 *
 
-# This is needed for op-deployer to build contracts with their dependencies (Provenance support)
 !/.gitmodules
-
 !/cannon
 !/devnet-sdk
 !/op-core
@@ -44,6 +42,7 @@ kona/.git
 **/bin
 **/testdata
 **/tests
+packages/contracts-bedrock/lib/
 
 # Re-include kona/bin which is excluded by **/bin above
 !/kona/bin
