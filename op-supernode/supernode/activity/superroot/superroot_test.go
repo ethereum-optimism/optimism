@@ -104,6 +104,7 @@ func (m *mockCC) InvalidateBlock(ctx context.Context, height uint64, payloadHash
 func (m *mockCC) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
 	return false, nil
 }
+func (m *mockCC) SetResetCallback(cb cc.ResetCallback) {}
 
 var _ cc.ChainContainer = (*mockCC)(nil)
 

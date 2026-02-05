@@ -81,7 +81,8 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			log.Error("missing virtual node config for chain", "chain", id)
 			continue
 		}
-		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsFanIn.SetMetricsRegistry)
+		container := cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsFanIn.SetMetricsRegistry)
+		s.chains[chainID] = container
 	}
 
 	// Initialize fixed activities
@@ -98,6 +99,12 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 		for _, chain := range s.chains {
 			chain.RegisterVerifier(interopActivity)
 		}
+	}
+
+	// Set up reset callbacks on all chain containers
+	// When a chain resets, notify all activities
+	for _, chain := range s.chains {
+		chain.SetResetCallback(s.onChainReset)
 	}
 
 	// Set up http server
@@ -219,6 +226,18 @@ func (s *Supernode) Stop(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// onChainReset is called when a chain container resets to a given timestamp.
+// It notifies all activities about the reset so they can clean up cached state.
+func (s *Supernode) onChainReset(chainID eth.ChainID, timestamp uint64) {
+	s.log.Info("chain reset detected, notifying activities",
+		"chainID", chainID,
+		"timestamp", timestamp,
+	)
+	for _, a := range s.activities {
+		a.ResetOn(chainID, timestamp)
+	}
 }
 
 func (s *Supernode) Stopped() bool { return s.stopped }
