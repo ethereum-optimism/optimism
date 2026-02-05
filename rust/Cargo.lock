@@ -7973,6 +7973,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "op-integration-tests"
+version = "0.1.0"
+dependencies = [
+ "tokio",
+]
+
+[[package]]
 name = "op-reth"
 version = "1.10.2"
 dependencies = [
