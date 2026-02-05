@@ -127,10 +127,12 @@ type mockEngineController struct {
 	rewindTimestamp         uint64
 	rewindErr               error
 	rewindFunc              func(ctx context.Context, timestamp uint64) error // optional custom behavior
+	l2BlockRefByNumberResult eth.L2BlockRef
+	l2BlockRefByNumberErr    error
 }
 
-func (m *mockEngineController) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
-	return m.blockAtTimestampResult, m.blockAtTimestampErr
+func (m *mockEngineController) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	return m.l2BlockRefByNumberResult, m.l2BlockRefByNumberErr
 }
 
 func (m *mockEngineController) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
@@ -920,11 +922,11 @@ func TestChainContainer_VerifiedAt(t *testing.T) {
 
 		// Set up mock engine controller
 		mockEngine := &mockEngineController{
-			blockAtTimestampResult: eth.L2BlockRef{
+			l2BlockRefByNumberResult: eth.L2BlockRef{
 				Hash:   [32]byte{1},
 				Number: 100,
 			},
-			blockAtTimestampErr: nil,
+			l2BlockRefByNumberErr: nil,
 		}
 		impl.engine = mockEngine
 

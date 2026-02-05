@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
@@ -18,10 +17,8 @@ import (
 
 // EngineController abstracts access to the L2 execution layer
 type EngineController interface {
-	// BlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp,
-	// clamped to the head of the specified label (Safe, Finalized, Unsafe).
-	// Must return ethereum.NotFound if there is no block at the specified timestamp for the given label.
-	BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error)
+	// L2BlockRefByNumber returns the L2 block reference for the given block number.
+	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	// OutputV0AtBlockNumber returns the output preimage for the given L2 block number.
 	OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error)
 	// RewindToTimestamp rewinds the L2 execution layer to block at or before the given timestamp.
@@ -78,48 +75,7 @@ var (
 	ErrNoRollupConfig = errors.New("rollup config not available")
 )
 
-func (e *simpleEngineController) blockNumberAtTimestamp(ts uint64) (uint64, error) {
-	if e.rollup == nil {
-		return 0, ErrNoRollupConfig
-	}
-	// Compute the target block directly from rollup config
-	return e.rollup.TargetBlockNumber(ts)
-}
-
-func (e *simpleEngineController) blockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
-	num, err := e.blockNumberAtTimestamp(ts)
-	if err != nil {
-		return eth.L2BlockRef{}, fmt.Errorf("failed to convert timestamp to block number: %w :%w ", err, ErrRewindTimestampToBlockConversion)
-	}
-	return e.l2.L2BlockRefByNumber(ctx, num)
-}
-
-// BlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp,
-// clamped to the head of the specified label. Must return ethereum.NotFound if no block is available at the timestamp.
-func (e *simpleEngineController) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
-	if e.l2 == nil {
-		return eth.L2BlockRef{}, ErrNoEngineClient
-	}
-	if e.rollup == nil {
-		return eth.L2BlockRef{}, ErrNoRollupConfig
-	}
-	// Compute the target block directly from rollup config
-	num, err := e.rollup.TargetBlockNumber(ts)
-	e.log.Debug("engine_controller: computed target block number from timestamp", "timestamp", ts, "targetBlockNumber", num)
-	if err != nil {
-		return eth.L2BlockRef{}, err
-	}
-	// TODO: we should be asking the CL for the sync status and extracting the local safe here.
-	head, err := e.l2.L2BlockRefByLabel(ctx, label)
-	if err != nil {
-		return eth.L2BlockRef{}, err
-	}
-	if num > head.Number {
-		e.log.Warn("engine_controller: target block number exceeds head", "label", label, "targetBlockNumber", num, "head", head.Number)
-		return eth.L2BlockRef{}, ethereum.NotFound
-	}
-	e.log.Debug("engine_controller: computed block number from timestamp",
-		"label", label, "timestamp", ts, "targetBlockNumber", num, "head", head.Number)
+func (e *simpleEngineController) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
 	return e.l2.L2BlockRefByNumber(ctx, num)
 }
 

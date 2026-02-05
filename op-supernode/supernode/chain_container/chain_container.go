@@ -264,13 +264,28 @@ func (c *simpleChainContainer) BlockNumberToTimestamp(ctx context.Context, block
 // BlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client,
 // if the specified label contains a block at that timestamp
 func (c *simpleChainContainer) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	// TODO: we only ever seem to call this with label == eth.Safe
 	if c.engine == nil {
 		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
 	}
-	// TODO: we only ever seem to call this with label == eth.Safe
-	// TODO: we actually want to get the local safe block at timestamp.
-	// We need to get the local safe block from the CL
-	return c.engine.BlockAtTimestamp(ctx, ts, label)
+
+	// Compute the target block directly from rollup config
+	num, err := c.vncfg.Rollup.TargetBlockNumber(ts)
+	c.log.Debug("computed target block number from timestamp", "timestamp", ts, "targetBlockNumber", num)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+	ss, err := c.SyncStatus(ctx)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+	head := ss.LocalSafeL2
+	if num > head.Number {
+		c.log.Warn("target block number exceeds head", "label", label, "targetBlockNumber", num, "head", head.Number)
+		return eth.L2BlockRef{}, ethereum.NotFound
+	}
+
+	return c.engine.L2BlockRefByNumber(ctx, num)
 }
 
 // SyncStatus returns the in-process op-node sync status for this chain.
