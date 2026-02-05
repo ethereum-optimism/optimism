@@ -1,4 +1,4 @@
-package interop
+package halt
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
@@ -14,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 )
 
@@ -222,4 +224,28 @@ func sendInvalidExecMessage(
 	t.Logger().Info("invalid exec message included", "chain", bob.ChainID(), "block", receipt.BlockNumber)
 
 	return receipt
+}
+
+// randomInitTrigger creates a random init trigger for testing.
+func randomInitTrigger(rng *rand.Rand, eventLoggerAddress common.Address, topicCount, dataLen int) *txintent.InitTrigger {
+	if topicCount > 4 {
+		topicCount = 4 // Max 4 topics in EVM logs
+	}
+	if topicCount < 1 {
+		topicCount = 1
+	}
+	if dataLen < 1 {
+		dataLen = 1
+	}
+
+	topics := make([][32]byte, topicCount)
+	for i := range topics {
+		copy(topics[i][:], testutils.RandomData(rng, 32))
+	}
+
+	return &txintent.InitTrigger{
+		Emitter:    eventLoggerAddress,
+		Topics:     topics,
+		OpaqueData: testutils.RandomData(rng, dataLen),
+	}
 }
