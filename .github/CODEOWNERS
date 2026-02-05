@@ -55,4 +55,4 @@
 /packages/contracts-bedrock/**/*.md      @ethereum-optimism/contract-reviewers
 
 # Security docs
-/docs @ethereum-optimism/evm-safety
+/docs/security-reviews @ethereum-optimism/evm-safety
