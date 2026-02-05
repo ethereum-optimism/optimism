@@ -87,8 +87,14 @@ func applyCannonKonaConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Gene
 	}
 	if interop {
 		c.CannonKonaAbsolutePreStateBaseURL, err = url.Parse("file:" + absRoot + "/kona/prestate-artifacts-cannon-interop")
+		if err != nil {
+			return err
+		}
 	} else {
 		c.CannonKonaAbsolutePreStateBaseURL, err = url.Parse("file:" + absRoot + "/kona/prestate-artifacts-cannon")
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
