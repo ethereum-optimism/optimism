@@ -390,3 +390,97 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 	}
 	return i.verifiedDB.Has(ts)
 }
+
+// ResetOn is called when a chain container resets to a given timestamp.
+// It clears the logsDB for that chain and removes any verified results at or after the timestamp.
+func (i *Interop) ResetOn(chainID eth.ChainID, timestamp uint64) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	i.log.Warn("ResetOn called",
+		"chainID", chainID,
+		"timestamp", timestamp,
+	)
+
+	// Reset the logsDB for this chain
+	if db, ok := i.logsDBs[chainID]; ok {
+		// Find the block just before the reset timestamp
+		chain, chainOk := i.chains[chainID]
+		if !chainOk {
+			i.log.Error("chain not found for reset", "chainID", chainID)
+			return
+		}
+
+		// Get the block time to calculate the previous block's timestamp
+		blockTime := chain.BlockTime()
+		if timestamp > blockTime {
+			prevTimestamp := timestamp - blockTime
+			// Try to get the block at the previous timestamp to use as rewind target
+			prevBlock, err := chain.BlockAtTimestamp(i.ctx, prevTimestamp, eth.Safe)
+			if err == nil {
+				i.log.Info("rewinding logsDB to previous block",
+					"chainID", chainID,
+					"newHead", prevBlock.ID(),
+				)
+				if err := db.Rewind(&noopInvalidator{}, prevBlock.ID()); err != nil {
+					i.log.Error("failed to rewind logsDB",
+						"chainID", chainID,
+						"err", err,
+					)
+				}
+			} else {
+				// If we can't get the previous block, clear the entire logsDB
+				i.log.Warn("could not get previous block, clearing logsDB",
+					"chainID", chainID,
+					"prevTimestamp", prevTimestamp,
+					"err", err,
+				)
+				if err := db.Clear(&noopInvalidator{}); err != nil {
+					i.log.Error("failed to clear logsDB",
+						"chainID", chainID,
+						"err", err,
+					)
+				}
+			}
+		} else {
+			// If timestamp is at or before blockTime, clear the entire logsDB
+			i.log.Info("clearing logsDB (reset timestamp at or before first block)",
+				"chainID", chainID,
+			)
+			if err := db.Clear(&noopInvalidator{}); err != nil {
+				i.log.Error("failed to clear logsDB",
+					"chainID", chainID,
+					"err", err,
+				)
+			}
+		}
+	} else {
+		i.log.Warn("no logsDB found for chain", "chainID", chainID)
+	}
+
+	// Remove any verified results at or after the timestamp
+	if i.verifiedDB != nil {
+		deleted, err := i.verifiedDB.RewindTo(timestamp)
+		if err != nil {
+			i.log.Error("failed to rewind verifiedDB",
+				"timestamp", timestamp,
+				"err", err,
+			)
+		}
+		if deleted {
+			// This is unexpected - we shouldn't have verified results at timestamps
+			// that are being reset. Log an error for visibility.
+			i.log.Error("UNEXPECTED: verified results were deleted on reset",
+				"chainID", chainID,
+				"timestamp", timestamp,
+			)
+		} else {
+			i.log.Info("verifiedDB rewound (no results deleted)",
+				"timestamp", timestamp,
+			)
+		}
+	}
+
+	// Reset the currentL1 to force re-evaluation
+	i.currentL1 = eth.BlockID{}
+}

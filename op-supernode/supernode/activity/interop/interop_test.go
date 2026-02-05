@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -898,6 +899,7 @@ func (m *mockChainContainer) InvalidateBlock(ctx context.Context, height uint64,
 func (m *mockChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
 	return false, nil
 }
+func (m *mockChainContainer) SetResetCallback(cb cc.ResetCallback) {}
 
 var _ cc.ChainContainer = (*mockChainContainer)(nil)
 
@@ -940,6 +942,8 @@ func (m *mockLogsDBForInterop) AddLog(logHash common.Hash, parentBlock eth.Block
 func (m *mockLogsDBForInterop) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
 	return nil
 }
-func (m *mockLogsDBForInterop) Close() error { return nil }
+func (m *mockLogsDBForInterop) Rewind(inv reads.Invalidator, newHead eth.BlockID) error { return nil }
+func (m *mockLogsDBForInterop) Clear(inv reads.Invalidator) error                       { return nil }
+func (m *mockLogsDBForInterop) Close() error                                            { return nil }
 
 var _ LogsDB = (*mockLogsDBForInterop)(nil)
