@@ -198,9 +198,7 @@ func (e *EngineController) SetSuperAuthority(superAuthority SuperAuthority) {
 }
 
 func (e *EngineController) SafeL2Head() eth.L2BlockRef {
-	// TODO wire up properly
-	superAuthority := false
-	if superAuthority {
+	if e.superAuthority != nil {
 		fvsh := e.superAuthority.FullyVerifiedL2Head()
 		if fvsh.Number > e.localSafeHead.Number {
 			panic("super authority fully verified l2 head is ahead of local safe head")
