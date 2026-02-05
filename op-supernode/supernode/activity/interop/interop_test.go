@@ -81,7 +81,7 @@ func (m *mockChainContainer) Resume(ctx context.Context) error { return nil }
 
 func (m *mockChainContainer) RegisterVerifier(v activity.VerificationActivity) {
 }
-func (m *mockChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
+func (m *mockChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.blockAtTimestampErr != nil {
