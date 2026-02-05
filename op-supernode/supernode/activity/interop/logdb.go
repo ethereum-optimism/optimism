@@ -21,6 +21,8 @@ import (
 type LogsDB interface {
 	// LatestSealedBlock returns the latest sealed block ID, or false if no blocks are sealed.
 	LatestSealedBlock() (eth.BlockID, bool)
+	// FirstSealedBlock returns the first block seal in the DB.
+	FirstSealedBlock() (types.BlockSeal, error)
 	// FindSealedBlock returns the block seal for the given block number.
 	FindSealedBlock(number uint64) (types.BlockSeal, error)
 	// OpenBlock returns the block reference, log count, and executing messages for a block.
@@ -74,17 +76,8 @@ var (
 
 // loadLogs loads and persists logs for the given timestamp for all chains.
 // The previous timestamp MUST already be sealed in the database; if not, an error is returned.
-// For the activation timestamp, we skip loading since the logsDB may not support non-sequential
-// block sealing (e.g., when interop activates after genesis).
+// For the activation timestamp (first timestamp), the logsDB must be empty.
 func (i *Interop) loadLogs(ts uint64) error {
-	// At activation timestamp, skip loading logs.
-	// The logsDB requires sequential block processing from genesis, which isn't possible
-	// when interop activates after genesis. Verification is also skipped at activation.
-	if ts == i.activationTimestamp {
-		i.log.Info("at activation timestamp, skipping logsDB loading", "timestamp", ts)
-		return nil
-	}
-
 	for chainID, chain := range i.chains {
 		db := i.logsDBs[chainID]
 
@@ -122,7 +115,9 @@ func (i *Interop) loadLogs(ts uint64) error {
 		}
 
 		// Process logs and seal the block
-		if err := i.processBlockLogs(db, blockInfo, receipts); err != nil {
+		// If DB is empty (!hasBlocks), this is the first block - treat it as genesis for the logsDB
+		isFirstBlock := !hasBlocks
+		if err := i.processBlockLogs(db, blockInfo, receipts, isFirstBlock); err != nil {
 			return fmt.Errorf("chain %s: failed to process block logs for block %d: %w", chainID, block.Number, err)
 		}
 
@@ -140,12 +135,10 @@ func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint6
 	latestBlock, hasBlocks := db.LatestSealedBlock()
 
 	// If no blocks in DB:
-	// - At activation timestamp: OK (we'll skip loading at activation anyway)
-	// - At activation+blockTime (first real timestamp after activation): OK, this is effectively the first timestamp
-	// - Otherwise: ERROR, we're missing data
+	// - At activation timestamp: OK, proceed to load the first block
+	// - Not at activation timestamp: ERROR, we're missing data
 	if !hasBlocks {
-		// Allow empty DB at activation (we skip loading) or at activation+blockTime (first real timestamp)
-		if ts == i.activationTimestamp || ts == i.activationTimestamp+blockTime {
+		if ts == i.activationTimestamp {
 			return eth.BlockID{}, hasBlocks, nil
 		}
 		return eth.BlockID{}, hasBlocks, fmt.Errorf("chain %s: logsDB is empty but expected blocks before timestamp %d: %w",
@@ -188,14 +181,21 @@ func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint6
 }
 
 // processBlockLogs processes the receipts for a block and stores the logs in the database.
-func (i *Interop) processBlockLogs(db LogsDB, blockInfo eth.BlockInfo, receipts gethTypes.Receipts) error {
+// If isFirstBlock is true, this is the first block being added to the logsDB (at activation timestamp),
+// and we treat it as genesis by using an empty parent block. This allows the logsDB to start at any
+// block number, not just genesis.
+func (i *Interop) processBlockLogs(db LogsDB, blockInfo eth.BlockInfo, receipts gethTypes.Receipts, isFirstBlock bool) error {
 	blockNum := blockInfo.NumberU64()
 	blockID := eth.BlockID{Hash: blockInfo.Hash(), Number: blockNum}
 	parentHash := blockInfo.ParentHash()
 
+	// For the first block in the logsDB (activation block), use empty parent to treat it as genesis.
+	// This allows OpenBlock to work correctly even when we start at a non-genesis block.
 	parentBlock := eth.BlockID{Hash: parentHash, Number: blockNum - 1}
-	if blockNum == 0 {
+	sealParentHash := parentHash
+	if blockNum == 0 || isFirstBlock {
 		parentBlock = eth.BlockID{}
+		sealParentHash = common.Hash{}
 	}
 
 	var logIndex uint32
@@ -213,8 +213,8 @@ func (i *Interop) processBlockLogs(db LogsDB, blockInfo eth.BlockInfo, receipts 
 		}
 	}
 
-	// Seal the block
-	if err := db.SealBlock(parentHash, blockID, blockInfo.Time()); err != nil {
+	// Seal the block - use empty parent hash for first block
+	if err := db.SealBlock(sealParentHash, blockID, blockInfo.Time()); err != nil {
 		return fmt.Errorf("failed to seal block: %w", err)
 	}
 

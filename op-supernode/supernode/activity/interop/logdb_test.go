@@ -147,18 +147,9 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 			wantHashNil:   false,
 		},
 		{
-			name:         "activation+blockTime with empty DB succeeds (first real timestamp)",
+			name:         "non-activation timestamp with empty DB errors",
 			activationTS: 1000,
-			queryTS:      1001, // activation + blockTime
-			blockTime:    1,
-			dbHasBlocks:  false,
-			wantErr:      false,
-			wantHashNil:  true,
-		},
-		{
-			name:         "non-activation timestamp (beyond first) with empty DB errors",
-			activationTS: 1000,
-			queryTS:      1002, // beyond activation + blockTime
+			queryTS:      1001,
 			blockTime:    1,
 			dbHasBlocks:  false,
 			wantErr:      true,
@@ -289,7 +280,7 @@ func TestProcessBlockLogs(t *testing.T) {
 			timestamp:  1000,
 		}
 
-		err := interop.processBlockLogs(db, blockInfo, types.Receipts{})
+		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, false)
 
 		require.NoError(t, err)
 		require.NotNil(t, db.sealBlockCall)
@@ -325,7 +316,7 @@ func TestProcessBlockLogs(t *testing.T) {
 			},
 		}
 
-		err := interop.processBlockLogs(db, blockInfo, receipts)
+		err := interop.processBlockLogs(db, blockInfo, receipts, false)
 
 		require.NoError(t, err)
 		require.Equal(t, 3, db.addLogCalls)
@@ -344,11 +335,33 @@ func TestProcessBlockLogs(t *testing.T) {
 			timestamp:  1000,
 		}
 
-		err := interop.processBlockLogs(db, blockInfo, types.Receipts{})
+		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, true)
 
 		require.NoError(t, err)
 		require.NotNil(t, db.sealBlockCall)
 		require.Equal(t, uint64(0), db.sealBlockCall.block.Number)
+	})
+
+	t.Run("first block at non-zero number uses empty parent", func(t *testing.T) {
+		t.Parallel()
+
+		interop := &Interop{log: gethlog.New()}
+		db := &mockLogsDB{}
+		blockInfo := &testBlockInfo{
+			hash:       common.Hash{0x02},
+			parentHash: common.Hash{0x01}, // Real parent hash
+			number:     10,                // Non-zero block number
+			timestamp:  1000,
+		}
+
+		// isFirstBlock=true should use empty parent for both AddLog and SealBlock
+		// This allows the logsDB to treat this block as its genesis
+		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, true)
+
+		require.NoError(t, err)
+		require.NotNil(t, db.sealBlockCall)
+		// Both AddLog and SealBlock should use empty parent for first block
+		require.Equal(t, common.Hash{}, db.sealBlockCall.parentHash)
 	})
 
 	t.Run("AddLog error propagated", func(t *testing.T) {
@@ -368,7 +381,7 @@ func TestProcessBlockLogs(t *testing.T) {
 			},
 		}
 
-		err := interop.processBlockLogs(db, blockInfo, receipts)
+		err := interop.processBlockLogs(db, blockInfo, receipts, false)
 
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "add log failed")
@@ -386,7 +399,7 @@ func TestProcessBlockLogs(t *testing.T) {
 			timestamp:  1000,
 		}
 
-		err := interop.processBlockLogs(db, blockInfo, types.Receipts{})
+		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, false)
 
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "seal failed")
@@ -405,8 +418,6 @@ func TestLoadLogs_ParentHashMismatch(t *testing.T) {
 	firstBlockHash := common.Hash{0x01}
 	wrongParentHash := common.Hash{0xFF}
 
-	// Note: activation is at 999, so loading at 1000 (activation+1) is the first real load
-	// Then loading at 1001 should check parent hash
 	callCount := 0
 	mockChain := &statefulMockChainContainer{
 		id: chainID,
@@ -436,7 +447,7 @@ func TestLoadLogs_ParentHashMismatch(t *testing.T) {
 			}
 			return &testBlockInfo{
 				hash:       common.Hash{0x02},
-				parentHash: wrongParentHash, // Wrong parent! Should be firstBlockHash
+				parentHash: wrongParentHash, // Wrong parent!
 				number:     101,
 				timestamp:  1001,
 			}, types.Receipts{}, nil
@@ -444,13 +455,12 @@ func TestLoadLogs_ParentHashMismatch(t *testing.T) {
 	}
 
 	chains := map[eth.ChainID]cc.ChainContainer{chainID: mockChain}
-	// Activation at 999, so 1000 is activation+blockTime (first real timestamp)
-	interop := New(gethlog.New(), 999, chains, dataDir)
+	interop := New(gethlog.New(), 1000, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 	defer func() { _ = interop.Stop(context.Background()) }()
 
-	// Load logs for first real timestamp (activation+blockTime)
+	// Load logs for activation timestamp
 	err := interop.loadLogs(1000)
 	require.NoError(t, err)
 
@@ -474,6 +484,9 @@ type mockLogsDB struct {
 	addLogCalls   int
 	sealBlockCall *sealBlockCall
 
+	firstSealedBlock    suptypes.BlockSeal
+	firstSealedBlockErr error
+
 	openBlockRef     eth.BlockRef
 	openBlockLogCnt  uint32
 	openBlockExecMsg map[uint32]*suptypes.ExecutingMessage
@@ -491,6 +504,13 @@ type sealBlockCall struct {
 
 func (m *mockLogsDB) LatestSealedBlock() (eth.BlockID, bool) {
 	return m.latestBlock, m.hasBlocks
+}
+
+func (m *mockLogsDB) FirstSealedBlock() (suptypes.BlockSeal, error) {
+	if m.firstSealedBlockErr != nil {
+		return suptypes.BlockSeal{}, m.firstSealedBlockErr
+	}
+	return m.firstSealedBlock, nil
 }
 
 func (m *mockLogsDB) FindSealedBlock(number uint64) (suptypes.BlockSeal, error) {

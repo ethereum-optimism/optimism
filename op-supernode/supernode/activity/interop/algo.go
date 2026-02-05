@@ -43,18 +43,6 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 		InvalidHeads: make(map[eth.ChainID]eth.BlockID),
 	}
 
-	// At activation timestamp, skip full verification.
-	// The logsDB may not have data if interop activates after genesis (non-sequential blocks).
-	// Cross-chain messages at activation would reference pre-activation data we can't verify,
-	// so we trust the blocks at activation time.
-	if ts == i.activationTimestamp {
-		i.log.Info("at activation timestamp, skipping logsDB verification", "timestamp", ts)
-		for chainID, block := range blocksAtTimestamp {
-			result.L2Heads[chainID] = block
-		}
-		return result, nil
-	}
-
 	for chainID, expectedBlock := range blocksAtTimestamp {
 		db, ok := i.logsDBs[chainID]
 		if !ok {
@@ -66,6 +54,28 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 		// Get the block from the logsDB
 		blockRef, _, execMsgs, err := db.OpenBlock(expectedBlock.Number)
 		if err != nil {
+			// OpenBlock fails for the first block in the DB because it tries to find the parent.
+			// Handle this by checking if this is the first sealed block and using FirstSealedBlock instead.
+			if errors.Is(err, types.ErrSkipped) {
+				firstBlock, firstErr := db.FirstSealedBlock()
+				if firstErr != nil {
+					return Result{}, fmt.Errorf("chain %s: failed to open block %d and failed to get first block: %w", chainID, expectedBlock.Number, err)
+				}
+				if firstBlock.Number == expectedBlock.Number {
+					// This is the first block in the logsDB. Use FirstSealedBlock info.
+					// The first block has no executing messages (since we can't verify them without prior data).
+					if firstBlock.Hash != expectedBlock.Hash {
+						i.log.Warn("first block hash mismatch",
+							"chain", chainID,
+							"expected", expectedBlock.Hash,
+							"got", firstBlock.Hash,
+						)
+						result.InvalidHeads[chainID] = expectedBlock
+					}
+					result.L2Heads[chainID] = expectedBlock
+					continue
+				}
+			}
 			return Result{}, fmt.Errorf("chain %s: failed to open block %d: %w", chainID, expectedBlock.Number, err)
 		}
 

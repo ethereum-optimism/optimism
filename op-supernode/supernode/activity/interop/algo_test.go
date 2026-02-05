@@ -502,11 +502,20 @@ type algoMockLogsDB struct {
 	openBlockExecMsg map[uint32]*suptypes.ExecutingMessage
 	openBlockErr     error
 
+	firstSealedBlock    suptypes.BlockSeal
+	firstSealedBlockErr error
+
 	containsSeal suptypes.BlockSeal
 	containsErr  error
 }
 
 func (m *algoMockLogsDB) LatestSealedBlock() (eth.BlockID, bool) { return eth.BlockID{}, false }
+func (m *algoMockLogsDB) FirstSealedBlock() (suptypes.BlockSeal, error) {
+	if m.firstSealedBlockErr != nil {
+		return suptypes.BlockSeal{}, m.firstSealedBlockErr
+	}
+	return m.firstSealedBlock, nil
+}
 func (m *algoMockLogsDB) FindSealedBlock(number uint64) (suptypes.BlockSeal, error) {
 	return suptypes.BlockSeal{}, nil
 }

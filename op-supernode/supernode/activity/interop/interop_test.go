@@ -906,6 +906,9 @@ type mockLogsDBForInterop struct {
 }
 
 func (m *mockLogsDBForInterop) LatestSealedBlock() (eth.BlockID, bool) { return eth.BlockID{}, false }
+func (m *mockLogsDBForInterop) FirstSealedBlock() (suptypes.BlockSeal, error) {
+	return suptypes.BlockSeal{}, nil
+}
 func (m *mockLogsDBForInterop) FindSealedBlock(number uint64) (suptypes.BlockSeal, error) {
 	return suptypes.BlockSeal{}, nil
 }
