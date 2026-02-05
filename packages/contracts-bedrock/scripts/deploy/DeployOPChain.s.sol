@@ -157,6 +157,12 @@ contract DeployOPChain is Script {
         pure
         returns (IOPContractsManagerV2.FullConfig memory config_)
     {
+        // Only PERMISSIONED_CANNON is allowed for initial deployment since no prestate exists for permissionless games.
+        require(
+            _input.disputeGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw(),
+            "DeployOPChain: only PERMISSIONED_CANNON game type is supported for initial deployment"
+        );
+
         // Build dispute game configs - OPCMV2 requires exactly 3 configs: CANNON, PERMISSIONED_CANNON, CANNON_KONA
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](3);
