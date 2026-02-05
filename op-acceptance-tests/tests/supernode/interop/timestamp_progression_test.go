@@ -68,34 +68,19 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 		return statusA.SafeL2.Number > 2 && statusB.SafeL2.Number > 2
 	}, 60*time.Second, time.Second, "both chains should advance initially")
 
-	// Wait for interop verification to be active and find a verified baseline timestamp.
-	// We poll until we find a timestamp that IS verified, which confirms interop is running
-	// and gives us a reliable baseline for the lag test.
-	var baselineTimestamp uint64
+	// Record the current state - this is the "baseline" verified timestamp
+	statusA := sys.L2ACL.SyncStatus()
+	statusB := sys.L2BCL.SyncStatus()
+	baselineTimestamp := statusA.SafeL2.Time
+
+	// Wait for baseline timestamp to be verified before proceeding
 	t.Require().Eventually(func() bool {
-		statusA := sys.L2ACL.SyncStatus()
-		statusB := sys.L2BCL.SyncStatus()
-
-		// Use the minimum safe time between chains as candidate
-		candidateTimestamp := statusA.SafeL2.Time
-		if statusB.SafeL2.Time < candidateTimestamp {
-			candidateTimestamp = statusB.SafeL2.Time
-		}
-
-		resp, err := snClient.SuperRootAtTimestamp(ctx, candidateTimestamp)
+		resp, err := snClient.SuperRootAtTimestamp(ctx, baselineTimestamp)
 		if err != nil {
 			return false
 		}
-		if resp.Data != nil {
-			baselineTimestamp = candidateTimestamp
-			return true
-		}
-		return false
-	}, 120*time.Second, time.Second, "interop should verify at least one timestamp")
-
-	// Record the current state
-	statusA := sys.L2ACL.SyncStatus()
-	statusB := sys.L2BCL.SyncStatus()
+		return resp.Data != nil
+	}, 60*time.Second, time.Second, "baseline timestamp should be verified before stopping batcher")
 
 	t.Logger().Info("initial state before lag test",
 		"chainA_safe", statusA.SafeL2.Number,
