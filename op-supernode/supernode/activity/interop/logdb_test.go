@@ -147,9 +147,18 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 			wantHashNil:   false,
 		},
 		{
-			name:         "non-activation timestamp with empty DB errors",
+			name:         "activation+blockTime with empty DB succeeds (first real timestamp)",
 			activationTS: 1000,
-			queryTS:      1001,
+			queryTS:      1001, // activation + blockTime
+			blockTime:    1,
+			dbHasBlocks:  false,
+			wantErr:      false,
+			wantHashNil:  true,
+		},
+		{
+			name:         "non-activation timestamp (beyond first) with empty DB errors",
+			activationTS: 1000,
+			queryTS:      1002, // beyond activation + blockTime
 			blockTime:    1,
 			dbHasBlocks:  false,
 			wantErr:      true,
@@ -396,6 +405,8 @@ func TestLoadLogs_ParentHashMismatch(t *testing.T) {
 	firstBlockHash := common.Hash{0x01}
 	wrongParentHash := common.Hash{0xFF}
 
+	// Note: activation is at 999, so loading at 1000 (activation+1) is the first real load
+	// Then loading at 1001 should check parent hash
 	callCount := 0
 	mockChain := &statefulMockChainContainer{
 		id: chainID,
@@ -425,7 +436,7 @@ func TestLoadLogs_ParentHashMismatch(t *testing.T) {
 			}
 			return &testBlockInfo{
 				hash:       common.Hash{0x02},
-				parentHash: wrongParentHash, // Wrong parent!
+				parentHash: wrongParentHash, // Wrong parent! Should be firstBlockHash
 				number:     101,
 				timestamp:  1001,
 			}, types.Receipts{}, nil
@@ -433,12 +444,13 @@ func TestLoadLogs_ParentHashMismatch(t *testing.T) {
 	}
 
 	chains := map[eth.ChainID]cc.ChainContainer{chainID: mockChain}
-	interop := New(gethlog.New(), 1000, chains, dataDir)
+	// Activation at 999, so 1000 is activation+blockTime (first real timestamp)
+	interop := New(gethlog.New(), 999, chains, dataDir)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 	defer func() { _ = interop.Stop(context.Background()) }()
 
-	// Load logs for activation timestamp
+	// Load logs for first real timestamp (activation+blockTime)
 	err := interop.loadLogs(1000)
 	require.NoError(t, err)
 

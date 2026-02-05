@@ -74,8 +74,17 @@ var (
 
 // loadLogs loads and persists logs for the given timestamp for all chains.
 // The previous timestamp MUST already be sealed in the database; if not, an error is returned.
-// For the activation timestamp (first timestamp), the logsDB must be empty.
+// For the activation timestamp, we skip loading since the logsDB may not support non-sequential
+// block sealing (e.g., when interop activates after genesis).
 func (i *Interop) loadLogs(ts uint64) error {
+	// At activation timestamp, skip loading logs.
+	// The logsDB requires sequential block processing from genesis, which isn't possible
+	// when interop activates after genesis. Verification is also skipped at activation.
+	if ts == i.activationTimestamp {
+		i.log.Info("at activation timestamp, skipping logsDB loading", "timestamp", ts)
+		return nil
+	}
+
 	for chainID, chain := range i.chains {
 		db := i.logsDBs[chainID]
 
@@ -131,10 +140,12 @@ func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint6
 	latestBlock, hasBlocks := db.LatestSealedBlock()
 
 	// If no blocks in DB:
-	// - At activation timestamp: OK, proceed to load the first block
-	// - Not at activation timestamp: ERROR, we're missing data
+	// - At activation timestamp: OK (we'll skip loading at activation anyway)
+	// - At activation+blockTime (first real timestamp after activation): OK, this is effectively the first timestamp
+	// - Otherwise: ERROR, we're missing data
 	if !hasBlocks {
-		if ts == i.activationTimestamp {
+		// Allow empty DB at activation (we skip loading) or at activation+blockTime (first real timestamp)
+		if ts == i.activationTimestamp || ts == i.activationTimestamp+blockTime {
 			return eth.BlockID{}, hasBlocks, nil
 		}
 		return eth.BlockID{}, hasBlocks, fmt.Errorf("chain %s: logsDB is empty but expected blocks before timestamp %d: %w",

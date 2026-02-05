@@ -43,6 +43,18 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 		InvalidHeads: make(map[eth.ChainID]eth.BlockID),
 	}
 
+	// At activation timestamp, skip full verification.
+	// The logsDB may not have data if interop activates after genesis (non-sequential blocks).
+	// Cross-chain messages at activation would reference pre-activation data we can't verify,
+	// so we trust the blocks at activation time.
+	if ts == i.activationTimestamp {
+		i.log.Info("at activation timestamp, skipping logsDB verification", "timestamp", ts)
+		for chainID, block := range blocksAtTimestamp {
+			result.L2Heads[chainID] = block
+		}
+		return result, nil
+	}
+
 	for chainID, expectedBlock := range blocksAtTimestamp {
 		db, ok := i.logsDBs[chainID]
 		if !ok {
