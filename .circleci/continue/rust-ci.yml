@@ -996,6 +996,33 @@ jobs:
           path: rust/kona/docs/docs/dist
           destination: kona-docs
 
+    # OP-Reth docs build
+  op-reth-docs-build:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Install Node.js and Bun
+          command: |
+            curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+            curl -fsSL https://bun.sh/install | bash
+            echo 'export BUN_INSTALL="$HOME/.bun"' >> $BASH_ENV
+            echo 'export PATH="$BUN_INSTALL/bin:$PATH"' >> $BASH_ENV
+      - run:
+          name: Build op-reth documentation
+          working_directory: rust/op-reth
+          no_output_timeout: 30m
+          command: |
+            just docs-build
+      - store_artifacts:
+          path: op-reth/docs/vocs/docs/dist
+          destination: op-reth-docs
+
+
   # Kona Link Checker
   kona-link-checker:
     docker:
@@ -1129,6 +1156,15 @@ workflows:
           name: rust-docs
           directory: rust
           context: *rust-ci-context
+
+      # Docs build
+      - op-reth-docs-build:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      - kona-docs-build:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - rust-ci-udeps:
           name: rust-udeps
