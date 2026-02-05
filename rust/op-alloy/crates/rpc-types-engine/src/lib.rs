@@ -11,6 +11,9 @@ extern crate alloc;
 
 pub use alloy_rpc_types_engine::ForkchoiceUpdateVersion;
 
+#[cfg(feature = "serde")]
+mod alloy_traits;
+
 mod attributes;
 pub use attributes::OpPayloadAttributes;
 

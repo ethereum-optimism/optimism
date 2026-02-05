@@ -11,6 +11,14 @@
 #![allow(unused)]
 extern crate alloc;
 
+#[cfg(feature = "reth-codec")]
+pub mod compact;
+#[cfg(feature = "reth-codec")]
+pub use compact::{
+    receipt::OpRcpt,
+    transaction::{OpDeposit, OpTx, OpTxTy, OpTypedTx},
+};
+
 pub mod bedrock;
 
 // Re-export predeploys from op-alloy-consensus

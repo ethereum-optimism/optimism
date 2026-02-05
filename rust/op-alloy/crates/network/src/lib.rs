@@ -8,6 +8,8 @@
 
 pub use alloy_network::*;
 
+mod alloy_traits;
+
 use alloy_consensus::{ReceiptWithBloom, TxEnvelope, TxType, TypedTransaction};
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_rpc_types_eth::AccessList;

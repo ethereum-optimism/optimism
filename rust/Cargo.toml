@@ -633,3 +633,15 @@ op-alloy-rpc-types = { path = "op-alloy/crates/rpc-types" }
 op-alloy = { path = "op-alloy/crates/op-alloy" }
 # Duplicated by: alloy-evm (crates.io)
 alloy-op-hardforks = { path = "alloy-op-hardforks/" }
+# Local alloy crates with new traits (InMemorySize, SignedTransaction, etc.)
+alloy-consensus = { path = "/Users/theo/alloy-trait-migration/crates/consensus" }
+alloy-rpc-types-engine = { path = "/Users/theo/alloy-trait-migration/crates/rpc-types-engine" }
+alloy-network = { path = "/Users/theo/alloy-trait-migration/crates/network" }
+alloy-eips = { path = "/Users/theo/alloy-trait-migration/crates/eips" }
+alloy-serde = { path = "/Users/theo/alloy-trait-migration/crates/serde" }
+alloy-json-rpc = { path = "/Users/theo/alloy-trait-migration/crates/json-rpc" }
+alloy-network-primitives = { path = "/Users/theo/alloy-trait-migration/crates/network-primitives" }
+alloy-rpc-types-eth = { path = "/Users/theo/alloy-trait-migration/crates/rpc-types-eth" }
+alloy-signer = { path = "/Users/theo/alloy-trait-migration/crates/signer" }
+alloy-consensus-any = { path = "/Users/theo/alloy-trait-migration/crates/consensus-any" }
+alloy-rpc-types-any = { path = "/Users/theo/alloy-trait-migration/crates/rpc-types-any" }

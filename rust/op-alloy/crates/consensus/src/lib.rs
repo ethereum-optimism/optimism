@@ -12,6 +12,8 @@ extern crate alloc;
 #[cfg(feature = "alloy-compat")]
 mod alloy_compat;
 
+mod alloy_traits;
+
 mod receipts;
 pub use receipts::{
     OpDepositReceipt, OpDepositReceiptWithBloom, OpReceipt, OpReceiptEnvelope, OpTxReceipt,
