@@ -665,3 +665,16 @@ op-alloy-rpc-types = { path = "op-alloy/crates/rpc-types" }
 op-alloy = { path = "op-alloy/crates/op-alloy" }
 # Duplicated by: alloy-evm (crates.io)
 alloy-op-hardforks = { path = "alloy-op-hardforks/" }
+# alloy crates with new traits (InMemorySize, SignedTransaction, etc.)
+# PR: https://github.com/alloy-rs/alloy/pull/3649
+alloy-consensus = { git = "https://github.com/theochap/alloy", branch = "theo/add-reth-traits" }
+alloy-rpc-types-engine = { git = "https://github.com/theochap/alloy", branch = "theo/add-reth-traits" }
+alloy-network = { git = "https://github.com/theochap/alloy", branch = "theo/add-reth-traits" }
+alloy-eips = { git = "https://github.com/theochap/alloy", branch = "theo/add-reth-traits" }
+alloy-serde = { git = "https://github.com/theochap/alloy", branch = "theo/add-reth-traits" }
+alloy-json-rpc = { git = "https://github.com/theochap/alloy", branch = "theo/add-reth-traits" }
+alloy-network-primitives = { git = "https://github.com/theochap/alloy", branch = "theo/add-reth-traits" }
+alloy-rpc-types-eth = { git = "https://github.com/theochap/alloy", branch = "theo/add-reth-traits" }
+alloy-signer = { git = "https://github.com/theochap/alloy", branch = "theo/add-reth-traits" }
+alloy-consensus-any = { git = "https://github.com/theochap/alloy", branch = "theo/add-reth-traits" }
+alloy-rpc-types-any = { git = "https://github.com/theochap/alloy", branch = "theo/add-reth-traits" }

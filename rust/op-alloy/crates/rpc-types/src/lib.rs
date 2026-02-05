@@ -9,6 +9,9 @@
 
 extern crate alloc;
 
+#[cfg(feature = "alloy-compat")]
+mod alloy_traits;
+
 mod genesis;
 pub use genesis::{OpBaseFeeInfo, OpChainInfo, OpGenesisInfo};
 

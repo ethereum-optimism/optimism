@@ -14,6 +14,8 @@ workspace = true
 [dependencies]
 # reth
 reth-primitives-traits = { workspace = true, features = ["op"] }
+reth-codecs = { workspace = true, optional = true, features = ["op"] }
+reth-zstd-compressors = { workspace = true, optional = true }
 
 # ethereum
 alloy-primitives.workspace = true
@@ -25,8 +27,13 @@ alloy-rlp.workspace = true
 op-alloy-consensus.workspace = true
 
 # codec
+bytes = { workspace = true, optional = true }
+modular-bitfield = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_with = { workspace = true, optional = true }
+
+# misc
+arbitrary = { workspace = true, optional = true }
 
 [dev-dependencies]
 reth-codecs = { workspace = true, features = ["test-utils", "op"] }
@@ -63,6 +70,10 @@ std = [
 alloy-compat = ["op-alloy-consensus/alloy-compat"]
 reth-codec = [
     "std",
+    "dep:reth-codecs",
+    "dep:reth-zstd-compressors",
+    "dep:bytes",
+    "dep:modular-bitfield",
     "reth-primitives-traits/reth-codec",
 ]
 serde = [
@@ -87,6 +98,7 @@ serde-bincode-compat = [
 ]
 arbitrary = [
     "std",
+    "dep:arbitrary",
     "reth-primitives-traits/arbitrary",
     "op-alloy-consensus/arbitrary",
     "alloy-consensus/arbitrary",
