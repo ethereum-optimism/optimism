@@ -12,9 +12,6 @@ ARG TARGET_BASE_IMAGE=alpine:3.20
 # The ubuntu target base image is used for the op-challenger build with kona.
 ARG UBUNTU_TARGET_BASE_IMAGE=ubuntu:22.04
 
-# The repository URL to clone for submodule initialization.
-ARG REPO_URL=https://github.com/ethereum-optimism/optimism.git
-
 # builder_foundry does not need to be built on $BUILDPLATFORM, as foundry produces static binaries.
 FROM alpine:3.21 AS builder_foundry
 
@@ -181,6 +178,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 FROM --platform=$BUILDPLATFORM builder AS op-deployer-builder
 ARG OP_DEPLOYER_VERSION=v0.0.0
+ARG REPO_URL=https://github.com/ethereum-optimism/optimism.git
 COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/forge
 # Initialize submodules for contracts build. We fetch the tree (without blobs) to get
 # submodule commit SHAs, then clone each submodule at its pinned version.
