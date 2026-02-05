@@ -356,3 +356,7 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 	}
 	return i.verifiedDB.Has(ts)
 }
+
+func (i *Interop) LatestVerifiedTimestamp() (uint64, bool) {
+	return i.verifiedDB.LastTimestamp()
+}

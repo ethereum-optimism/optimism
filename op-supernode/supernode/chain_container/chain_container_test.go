@@ -161,6 +161,14 @@ func (m *mockVerificationActivity) VerifiedAtTimestamp(ts uint64) (bool, error) 
 	return m.verifiedAtTimestampResult, m.verifiedAtTimestampErr
 }
 
+func (m *mockVerificationActivity) Late(num uint64) (bool, error) {
+	return m.verifiedAtTimestampResult, m.verifiedAtTimestampErr
+}
+
+func (m *mockVerificationActivity) LatestVerifiedTimestamp() (uint64, bool) {
+	return 0, true
+}
+
 // Test helpers
 func createTestVNConfig() *opnodecfg.Config {
 	return &opnodecfg.Config{

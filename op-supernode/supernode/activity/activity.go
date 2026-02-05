@@ -32,4 +32,5 @@ type VerificationActivity interface {
 	Name() string
 	CurrentL1() eth.BlockID
 	VerifiedAtTimestamp(ts uint64) (bool, error)
+	LatestVerifiedTimestamp() (uint64, bool)
 }
