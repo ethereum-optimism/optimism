@@ -111,7 +111,7 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 			output: eth.Bytes32{},
 			status: &eth.SyncStatus{
 				CurrentL1:   eth.L1BlockRef{Number: 2000},
-				SafeL2:      eth.L2BlockRef{Time: 200},
+				LocalSafeL2: eth.L2BlockRef{Time: 200},
 				FinalizedL2: eth.L2BlockRef{Time: 150},
 			},
 		},
@@ -123,7 +123,7 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 			output: eth.Bytes32{},
 			status: &eth.SyncStatus{
 				CurrentL1:   eth.L1BlockRef{Number: 2100},
-				SafeL2:      eth.L2BlockRef{Time: 180},
+				LocalSafeL2: eth.L2BlockRef{Time: 180},
 				FinalizedL2: eth.L2BlockRef{Time: 140},
 			},
 		},
