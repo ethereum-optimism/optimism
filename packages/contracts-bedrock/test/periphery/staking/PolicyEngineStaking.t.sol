@@ -518,6 +518,80 @@ contract PolicyEngineStaking_View_Test is PolicyEngineStaking_TestInit {
     }
 }
 
+/// @title PolicyEngineStaking_Upgrade_Test
+/// @notice Tests that storage slots persist correctly across proxy upgrades.
+contract PolicyEngineStaking_Upgrade_Test is PolicyEngineStaking_TestInit {
+    function _peSlot(address _account) internal view returns (bytes32) {
+        return keccak256(abi.encode(_account, staking.PE_DATA_SLOT()));
+    }
+
+    function _sdSlot(address _account, uint256 _offset) internal view returns (bytes32) {
+        bytes32 base = keccak256(abi.encode(_account, staking.STAKING_DATA_SLOT()));
+        return bytes32(uint256(base) + _offset);
+    }
+
+    function _allowlistSlot(address _beneficiary, address _staker) internal view returns (bytes32) {
+        bytes32 outer = keccak256(abi.encode(_beneficiary, staking.BENEFICIARY_ALLOWLIST_SLOT()));
+        return keccak256(abi.encode(_staker, outer));
+    }
+
+    /// @notice Tests that after upgrade, staking data persists in the same storage slots.
+    function test_upgrade_storageSlotsPersist_succeeds() external {
+        _stake(alice, 100 ether, address(0));
+        vm.prank(bob);
+        staking.setAllowedStaker(alice, true);
+        vm.prank(alice);
+        staking.link(bob);
+
+        bytes32[8] memory slotsBefore;
+        slotsBefore[0] = vm.load(address(staking), _peSlot(alice));
+        slotsBefore[1] = vm.load(address(staking), _peSlot(bob));
+        slotsBefore[2] = vm.load(address(staking), _sdSlot(alice, 0));
+        slotsBefore[3] = vm.load(address(staking), _sdSlot(alice, 1));
+        slotsBefore[4] = vm.load(address(staking), _sdSlot(alice, 2));
+        slotsBefore[5] = vm.load(address(staking), _sdSlot(bob, 0));
+        slotsBefore[6] = vm.load(address(staking), _sdSlot(bob, 1));
+        slotsBefore[7] = vm.load(address(staking), _allowlistSlot(bob, alice));
+
+        PolicyEngineStaking newImplementation = new PolicyEngineStaking();
+        vm.prank(proxyAdminOwner);
+        proxyAdmin.upgrade(payable(address(staking)), address(newImplementation));
+
+        {
+            (uint256 a, uint256 b, address c) = staking.getStakedData(alice);
+            assertEq(100 ether, a);
+            assertEq(0, b);
+            assertEq(bob, c);
+        }
+        {
+            (uint256 a, uint256 b,) = staking.getStakedData(bob);
+            assertEq(0, a);
+            assertEq(100 ether, b);
+        }
+        {
+            (uint128 aEff,) = staking.getPEData(alice);
+            (uint128 bEff,) = staking.getPEData(bob);
+            assertEq(0, aEff);
+            assertEq(100 ether, bEff);
+        }
+        assertTrue(staking.isAllowedToLink(bob, alice));
+
+        assertEq(slotsBefore[0], vm.load(address(staking), _peSlot(alice)));
+        assertEq(slotsBefore[1], vm.load(address(staking), _peSlot(bob)));
+        assertEq(slotsBefore[2], vm.load(address(staking), _sdSlot(alice, 0)));
+        assertEq(slotsBefore[3], vm.load(address(staking), _sdSlot(alice, 1)));
+        assertEq(slotsBefore[4], vm.load(address(staking), _sdSlot(alice, 2)));
+        assertEq(slotsBefore[5], vm.load(address(staking), _sdSlot(bob, 0)));
+        assertEq(slotsBefore[6], vm.load(address(staking), _sdSlot(bob, 1)));
+        assertEq(slotsBefore[7], vm.load(address(staking), _allowlistSlot(bob, alice)));
+
+        uint256 balanceBefore = ERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
+        vm.prank(alice);
+        staking.unstake();
+        assertEq(ERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice), balanceBefore + 100 ether);
+    }
+}
+
 /// @title PolicyEngineStaking_Integration_Test
 /// @notice Integration tests for the full stake/link/unlink/unstake flow.
 contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
