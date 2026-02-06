@@ -261,6 +261,39 @@ func (c *simpleChainContainer) BlockNumberToTimestamp(ctx context.Context, block
 	return c.vncfg.Rollup.Genesis.L2Time + (blocknum * c.vncfg.Rollup.BlockTime), nil
 }
 
+func (c *simpleChainContainer) VerifiedSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
+	if c.engine == nil {
+		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
+	}
+	if c.vncfg == nil {
+		return eth.L2BlockRef{}, fmt.Errorf("rollup config not available")
+	}
+
+	// Compute the target block directly from rollup config
+	num, err := c.vncfg.Rollup.TargetBlockNumber(ts)
+	c.log.Debug("computed target block number from timestamp", "timestamp", ts, "targetBlockNumber", num)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+
+	// Get the sync status to check safe head
+	// (this could also be done by querying the EL)
+	ss, err := c.SyncStatus(ctx)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+
+	// Check if the requested block number is beyond the safe head
+	head := ss.SafeL2
+	if num > head.Number {
+		c.log.Warn("target block number exceeds safe head", "targetBlockNumber", num, "head", head.Number)
+		return eth.L2BlockRef{}, ethereum.NotFound
+	}
+
+	// Fetch and return the L2 block ref
+	return c.engine.L2BlockRefByNumber(ctx, num)
+}
+
 // LocalSafeBlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client,
 // if the block at that timestamp is local safe.
 func (c *simpleChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
@@ -336,7 +369,7 @@ func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (
 // VerifiedAt returns the verified L2 and L1 blocks for the given L2 timestamp.
 // Must return ethereum.NotFound if there is no safe block at the specified timestamp.
 func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
-	l2Block, err := c.LocalSafeBlockAtTimestamp(ctx, ts)
+	l2Block, err := c.VerifiedSafeBlockAtTimestamp(ctx, ts)
 	if err != nil {
 		c.log.Error("error determining l2 block at given timestamp", "error", err)
 		return eth.BlockID{}, eth.BlockID{}, err
