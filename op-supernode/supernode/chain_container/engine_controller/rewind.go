@@ -101,6 +101,10 @@ func (e *simpleEngineController) computeRewindTargets(ctx context.Context, targe
 		return eth.L2BlockRef{}, eth.L2BlockRef{}, fmt.Errorf("failed to get current finalized block: %w", err)
 	}
 
+	if targetBlock.Number < currentFinalized.Number {
+		panic("target block number is less than current finalized block number")
+	}
+
 	return earliest(currentSafe, targetBlock), earliest(currentFinalized, targetBlock), nil
 }
 
