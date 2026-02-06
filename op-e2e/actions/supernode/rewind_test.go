@@ -195,7 +195,6 @@ func RewindSafeHeadBackward(gt *testing.T) {
 }
 
 // RewindFinalizedHeadBackward tests rewinding to a target behind the current finalized head.
-// This should trigger a panic.
 func RewindFinalizedHeadBackward(gt *testing.T) {
 	env := setupRewindTest(gt)
 
@@ -266,7 +265,6 @@ func RewindFinalizedHeadBackward(gt *testing.T) {
 	require.Greater(gt, rewindTarget, uint64(0), "rewind target should be past genesis")
 	require.Less(gt, rewindTarget, finalizedBefore.Number, "rewind target should be behind finalized")
 
-	require.Panics(gt, func() {
-		env.rewindToBlock(rewindTarget)
-	})
+	err := env.ec.RewindToTimestamp(context.Background(), env.timestampForBlock(rewindTarget))
+	require.ErrorIs(gt, err, engine_controller.ErrRewindOverFinalizedHead)
 }

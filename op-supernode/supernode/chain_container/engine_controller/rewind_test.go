@@ -40,7 +40,8 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 
 		incorrectUnsafe, incorrectSafe, incorrectFinalized bool
 
-		targetBeforeGenesis bool
+		targetBeforeGenesis   bool
+		targetBeforeFinalized bool
 	}
 
 	testCases := []testCase{
@@ -107,6 +108,11 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 			targetBeforeGenesis: true,
 			expectedError:       ErrRewindTimestampToBlockConversion,
 		},
+		{
+			name:                  "target before finalized",
+			targetBeforeFinalized: true,
+			expectedError:         ErrRewindOverFinalizedHead,
+		},
 	}
 
 	// Setup: chain is at block 10, we want to rewind to block 5
@@ -150,15 +156,15 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 			},
 		}
 	}
-	rollupConfig := rollup.Config{
-		Genesis:   rollup.Genesis{L2: eth.BlockID{Number: 0}, L2Time: genesisTime},
-		BlockTime: 2,
-		L2ChainID: big.NewInt(420),
-	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// First, get a "good mock" which would pass the test with no error:
+			rollupConfig := rollup.Config{
+				Genesis:   rollup.Genesis{L2: eth.BlockID{Number: 0}, L2Time: genesisTime},
+				BlockTime: 2,
+				L2ChainID: big.NewInt(420),
+			}
 			l2 := createMockL2()
 
 			// Next, apply the sabotage(s):
@@ -188,6 +194,9 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 			}
 			if tc.targetBeforeGenesis {
 				rollupConfig.Genesis = rollup.Genesis{L2Time: 2000}
+			}
+			if tc.targetBeforeFinalized {
+				l2.refsByLabel[eth.Finalized] = eth.L2BlockRef{Number: targetBlockNum + 1, Hash: common.Hash{0xff}}
 			}
 
 			// Make a "good" engine controller, using a potentially sabotaged mock L2

@@ -397,7 +397,8 @@ func isCriticalRewindError(err error) bool {
 	return errors.Is(err, engine_controller.ErrNoEngineClient) ||
 		errors.Is(err, engine_controller.ErrNoRollupConfig) ||
 		errors.Is(err, engine_controller.ErrRewindComputeTargetsFailed) ||
-		errors.Is(err, engine_controller.ErrRewindTimestampToBlockConversion)
+		errors.Is(err, engine_controller.ErrRewindTimestampToBlockConversion) ||
+		errors.Is(err, engine_controller.ErrRewindOverFinalizedHead)
 }
 
 func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint64) error {

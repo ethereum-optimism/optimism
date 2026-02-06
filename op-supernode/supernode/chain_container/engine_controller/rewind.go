@@ -20,6 +20,7 @@ var (
 	ErrRewindFCURejected                = errors.New("forkchoice update rejected by engine")
 	ErrRewindTimestampToBlockConversion = errors.New("failed to convert timestamp to block number")
 	ErrRewindPayloadNotFound            = errors.New("failed to get payload for block")
+	ErrRewindOverFinalizedHead          = errors.New("cannot rewind over finalized head")
 )
 
 // RewindToTimestamp rewinds the L2 execution layer to the block at or before the given timestamp.
@@ -102,7 +103,7 @@ func (e *simpleEngineController) computeRewindTargets(ctx context.Context, targe
 	}
 
 	if targetBlock.Number < currentFinalized.Number {
-		panic("target block number is less than current finalized block number")
+		return eth.L2BlockRef{}, eth.L2BlockRef{}, ErrRewindOverFinalizedHead
 	}
 
 	return earliest(currentSafe, targetBlock), earliest(currentFinalized, targetBlock), nil
