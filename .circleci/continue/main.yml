@@ -3141,7 +3141,7 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
-            - cannon-kona-host
+            - kona-build-release
           context:
             - circleci-repo-readonly-authenticated-github-token
           filters:
@@ -3195,12 +3195,11 @@ workflows:
       - cannon-prestate-quick:
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary: &cannon-kona-host # Required for sysgo unit tests
-          name: cannon-kona-host
+      - rust-build-binary:
+          name: kona-build-release
           directory: kona
+          needs_clang: true
           profile: "release"
-          binary: "kona-host"
-          save_cache: true
           context:
             - circleci-repo-readonly-authenticated-github-token
       - sanitize-op-program:
@@ -3657,14 +3656,6 @@ workflows:
       - cannon-kona-prestate: # needed for sysgo tests (if any package is in-memory)
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary: &cannon-kona-host
-          name: cannon-kona-host
-          directory: kona
-          profile: "release"
-          binary: "kona-host"
-          save_cache: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary: &kona-build-release
           name: kona-build-release
           directory: kona
@@ -3693,7 +3684,6 @@ workflows:
             - contracts-bedrock-build
             - cannon-prestate-quick
             - cannon-kona-prestate
-            - cannon-kona-host
             - rust-binaries-for-sysgo
       # Generate flaky test report
       - generate-flaky-report:
