@@ -609,8 +609,9 @@ func TestProgressAndRecord(t *testing.T) {
 
 		require.Equal(t, eth.BlockID{}, interop.currentL1)
 
-		err := interop.progressAndRecord()
+		madeProgress, err := interop.progressAndRecord()
 		require.NoError(t, err)
+		require.False(t, madeProgress, "empty result should not advance verified timestamp")
 
 		require.Equal(t, uint64(100), interop.currentL1.Number)
 		require.Equal(t, common.HexToHash("0x1"), interop.currentL1.Hash)
@@ -634,8 +635,9 @@ func TestProgressAndRecord(t *testing.T) {
 			return Result{Timestamp: ts, L1Head: expectedL1Head, L2Heads: blocks}, nil
 		}
 
-		err := interop.progressAndRecord()
+		madeProgress, err := interop.progressAndRecord()
 		require.NoError(t, err)
+		require.True(t, madeProgress, "valid result should advance verified timestamp")
 
 		require.Equal(t, expectedL1Head.Number, interop.currentL1.Number)
 		require.Equal(t, expectedL1Head.Hash, interop.currentL1.Hash)
@@ -666,8 +668,9 @@ func TestProgressAndRecord(t *testing.T) {
 			}, nil
 		}
 
-		err := interop.progressAndRecord()
+		madeProgress, err := interop.progressAndRecord()
 		require.NoError(t, err)
+		require.False(t, madeProgress, "invalid result should not advance verified timestamp")
 
 		require.Equal(t, initialL1.Number, interop.currentL1.Number)
 		require.Equal(t, initialL1.Hash, interop.currentL1.Hash)
@@ -685,8 +688,9 @@ func TestProgressAndRecord(t *testing.T) {
 		require.NotNil(t, interop)
 		interop.ctx = context.Background()
 
-		err := interop.progressAndRecord()
+		madeProgress, err := interop.progressAndRecord()
 		require.Error(t, err)
+		require.False(t, madeProgress, "error should not advance verified timestamp")
 	})
 }
 
