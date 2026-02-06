@@ -75,6 +75,22 @@ var (
 	ErrNoRollupConfig = errors.New("rollup config not available")
 )
 
+func (e *simpleEngineController) blockNumberAtTimestamp(ts uint64) (uint64, error) {
+	if e.rollup == nil {
+		return 0, ErrNoRollupConfig
+	}
+	// Compute the target block directly from rollup config
+	return e.rollup.TargetBlockNumber(ts)
+}
+
+func (e *simpleEngineController) blockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
+	num, err := e.blockNumberAtTimestamp(ts)
+	if err != nil {
+		return eth.L2BlockRef{}, fmt.Errorf("failed to convert timestamp to block number: %w :%w ", err, ErrRewindTimestampToBlockConversion)
+	}
+	return e.l2.L2BlockRefByNumber(ctx, num)
+}
+
 func (e *simpleEngineController) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
 	return e.l2.L2BlockRefByNumber(ctx, num)
 }
