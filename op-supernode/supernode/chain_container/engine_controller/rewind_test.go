@@ -137,13 +137,13 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 			// Initial state before rewind
 			refsByLabel: map[eth.BlockLabel]eth.L2BlockRef{
 				eth.Safe:      {Number: 10, Hash: common.Hash{0x0a}},
-				eth.Finalized: {Number: 8, Hash: common.Hash{0x08}},
+				eth.Finalized: {Number: 2, Hash: common.Hash{0x08}},
 			},
 			// State after FCU completes - verification reads these values
 			refsByLabelAfterFCU: map[eth.BlockLabel]eth.L2BlockRef{
 				eth.Unsafe:    targetRef,
-				eth.Safe:      targetRef, // clamped to target (min of 10 and 5)
-				eth.Finalized: targetRef, // clamped to target (min of 8 and 5)
+				eth.Safe:      targetRef,                            // clamped to target (min of 10 and 5)
+				eth.Finalized: {Number: 2, Hash: common.Hash{0x08}}, // clamped to finalized head (min of 2 and 5)
 			},
 			payloadsByNumber: map[uint64]*eth.ExecutionPayloadEnvelope{
 				targetBlockNum: &payloadEnvelope,
