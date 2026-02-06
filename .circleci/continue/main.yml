@@ -3138,6 +3138,8 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
+            - cannon-kona-prestate
+            - cannon-kona-host
             - rust-binaries-for-sysgo
           context:
             - circleci-repo-readonly-authenticated-github-token
