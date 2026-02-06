@@ -3195,9 +3195,6 @@ workflows:
       - cannon-prestate-quick:
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - cannon-kona-prestate: # needed for sysgo tests (if any package is in-memory)
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - sanitize-op-program:
           requires:
             - cannon-prestate-quick
