@@ -395,6 +395,33 @@ func TestInvalidateBlock(t *testing.T) {
 		},
 	}
 
+	// Separate test for genesis block (height=0) which should error
+	t.Run("genesis block invalidation returns error", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
+		require.NoError(t, err)
+		defer dl.Close()
+
+		c := &simpleChainContainer{
+			denyList: dl,
+			log:      testLogger(),
+		}
+
+		ctx := context.Background()
+		rewound, err := c.InvalidateBlock(ctx, 0, common.HexToHash("0xgenesis"))
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "cannot invalidate genesis block")
+		require.False(t, rewound)
+
+		// Genesis hash should NOT be added to denylist
+		found, err := dl.Contains(0, common.HexToHash("0xgenesis"))
+		require.NoError(t, err)
+		require.False(t, found, "genesis block should not be added to denylist")
+	})
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

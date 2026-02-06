@@ -151,9 +151,15 @@ func (d *DenyList) Close() error {
 // InvalidateBlock adds a block to the deny list and triggers a rewind if the chain
 // currently uses that block at the specified height.
 // Returns true if a rewind was triggered, false otherwise.
+// Note: Genesis block (height=0) cannot be invalidated as there is no prior block to rewind to.
 func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
 	if c.denyList == nil {
 		return false, fmt.Errorf("deny list not initialized")
+	}
+
+	// Cannot invalidate genesis block - there is no prior block to rewind to
+	if height == 0 {
+		return false, fmt.Errorf("cannot invalidate genesis block (height=0)")
 	}
 
 	// Add to deny list first
@@ -213,6 +219,8 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 }
 
 // SetResetCallback sets a callback that is invoked when the chain resets.
+// This must only be called during initialization, before the chain container starts processing.
+// Calling this while InvalidateBlock may be running is unsafe.
 func (c *simpleChainContainer) SetResetCallback(cb ResetCallback) {
 	c.onReset = cb
 }
