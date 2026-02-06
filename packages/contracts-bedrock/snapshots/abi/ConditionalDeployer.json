@@ -1,18 +1,5 @@
 [
   {
-    "inputs": [],
-    "name": "DETERMINISTIC_DEPLOYMENT_PROXY",
-    "outputs": [
-      {
-        "internalType": "address payable",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -39,6 +26,19 @@
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "deterministicDeploymentProxy",
+    "outputs": [
+      {
+        "internalType": "address payable",
+        "name": "deterministicDeploymentProxy_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "pure",
     "type": "function"
   },
   {

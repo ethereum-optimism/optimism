@@ -45,6 +45,10 @@ abstract contract FeatureFlags {
             console.log("Setup: DEV_FEATURE__OPCM_V2 is enabled");
             devFeatureBitmap |= DevFeatures.OPCM_V2;
         }
+        if (Config.devFeatureL2CM()) {
+            console.log("Setup: DEV_FEATURE__L2CM is enabled");
+            devFeatureBitmap |= DevFeatures.L2CM;
+        }
     }
 
     /// @notice Returns the string name of a feature.

@@ -2,10 +2,10 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { Test } from "forge-std/Test.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
-import { Config } from "scripts/libraries/Config.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Contracts
 import { ConditionalDeployer } from "src/L2/ConditionalDeployer.sol";
@@ -22,17 +22,14 @@ contract ConditionalDeployer_Harness {
 
 /// @title ConditionalDeployer_TestInit
 /// @notice Reusable test initialization for `ConditionalDeployer` tests.
-contract ConditionalDeployer_TestInit is Test {
+contract ConditionalDeployer_TestInit is CommonTest {
     // Test contracts
-    ConditionalDeployer public conditionalDeployer;
     bytes public simpleContractCreationCode;
 
-    function setUp() public {
-        // Create fork
-        vm.createSelectFork(Config.forkRpcUrl());
-
+    function setUp() public override {
+        super.setUp();
+        skipIfDevFeatureDisabled(DevFeatures.L2CM);
         // Deploy contracts
-        conditionalDeployer = new ConditionalDeployer();
         simpleContractCreationCode = type(ConditionalDeployer_Harness).creationCode;
     }
 }
@@ -55,7 +52,7 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
                 uint256(
                     keccak256(
                         abi.encodePacked(
-                            bytes1(0xff), conditionalDeployer.DETERMINISTIC_DEPLOYMENT_PROXY(), _salt, codeHash
+                            bytes1(0xff), conditionalDeployer.deterministicDeploymentProxy(), _salt, codeHash
                         )
                     )
                 )
@@ -84,7 +81,7 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
                 uint256(
                     keccak256(
                         abi.encodePacked(
-                            bytes1(0xff), conditionalDeployer.DETERMINISTIC_DEPLOYMENT_PROXY(), _salt, codeHash
+                            bytes1(0xff), conditionalDeployer.deterministicDeploymentProxy(), _salt, codeHash
                         )
                     )
                 )
@@ -116,7 +113,7 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
         bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(0));
 
         vm.mockCallRevert(
-            conditionalDeployer.DETERMINISTIC_DEPLOYMENT_PROXY(), _value, abi.encodePacked(_salt, _initCode), bytes("")
+            conditionalDeployer.deterministicDeploymentProxy(), _value, abi.encodePacked(_salt, _initCode), bytes("")
         );
 
         vm.prank(_caller);

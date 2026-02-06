@@ -10,9 +10,6 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @notice ConditionalDeployer is used to deploy implementations for predeploys during network upgrades.
 ///         It uses the DeterministicDeploymentProxy (Nick's method) to deploy the implementations.
 contract ConditionalDeployer is ISemver {
-    /// @notice Address of the DeterministicDeploymentProxy (Nick's method).
-    address payable public constant DETERMINISTIC_DEPLOYMENT_PROXY = payable(0x4e59b44847b379578588920cA78FbF26c0B4956C);
-
     /// @notice Emitted when an implementation is deployed.
     /// @param implementation The address of the deployed implementation.
     /// @param salt The salt used for deployment.
@@ -24,6 +21,10 @@ contract ConditionalDeployer is ISemver {
 
     /// @notice Error thrown when deployment fails.
     error ConditionalDeployer_DeploymentFailed(bytes data);
+
+    /// @notice Address of the DeterministicDeploymentProxy (Nick's method).
+    address payable internal constant DETERMINISTIC_DEPLOYMENT_PROXY =
+        payable(0x4e59b44847b379578588920cA78FbF26c0B4956C);
 
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
@@ -57,5 +58,11 @@ contract ConditionalDeployer is ISemver {
 
         emit ImplementationDeployed(implementation_, _salt);
         return implementation_;
+    }
+
+    /// @notice Returns the address of the DeterministicDeploymentProxy (Nick's method).
+    /// @return deterministicDeploymentProxy_ The address of the DeterministicDeploymentProxy (Nick's method).
+    function deterministicDeploymentProxy() external pure returns (address payable deterministicDeploymentProxy_) {
+        deterministicDeploymentProxy_ = DETERMINISTIC_DEPLOYMENT_PROXY;
     }
 }
