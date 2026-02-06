@@ -281,10 +281,7 @@ library DeployUtils {
 
     /// @notice Builds an L1ChugSplashProxy with a dummy implementation.
     /// @param _proxyImplName Name of the implementation contract.
-    function buildL1ChugSplashProxyWithImpl(string memory _proxyImplName)
-        internal
-        returns (IL1ChugSplashProxy proxy_)
-    {
+    function buildL1ChugSplashProxyWithImpl(string memory _proxyImplName) internal returns (IL1ChugSplashProxy proxy_) {
         proxy_ = IL1ChugSplashProxy(
             create1({
                 _name: "L1ChugSplashProxy",

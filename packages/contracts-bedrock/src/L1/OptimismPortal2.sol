@@ -405,11 +405,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // be relayed on L1.
         if (
             SecureMerkleTrie.verifyInclusionProof({
-                _key: abi.encode(storageKey),
-                _value: hex"01",
-                _proof: _withdrawalProof,
-                _root: _outputRootProof.messagePasserStorageRoot
-            }) == false
+                    _key: abi.encode(storageKey),
+                    _value: hex"01",
+                    _proof: _withdrawalProof,
+                    _root: _outputRootProof.messagePasserStorageRoot
+                }) == false
         ) {
             revert OptimismPortal_InvalidMerkleProof();
         }

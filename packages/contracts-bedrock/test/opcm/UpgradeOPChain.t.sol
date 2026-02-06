@@ -184,10 +184,7 @@ contract UpgradeOPChainInput_Test is Test {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](1);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: enabled,
-            initBond: initBond,
-            gameType: GameType.wrap(gameType),
-            gameArgs: abi.encode("test")
+            enabled: enabled, initBond: initBond, gameType: GameType.wrap(gameType), gameArgs: abi.encode("test")
         });
 
         OPContractsManagerV2.UpgradeInput memory upgradeInput = OPContractsManagerV2.UpgradeInput({
@@ -231,10 +228,7 @@ contract UpgradeOPChainInput_TestV2 is Test {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](1);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: enabled,
-            initBond: initBond,
-            gameType: GameType.wrap(gameType),
-            gameArgs: gameArgs
+            enabled: enabled, initBond: initBond, gameType: GameType.wrap(gameType), gameArgs: gameArgs
         });
 
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
@@ -470,10 +464,7 @@ contract UpgradeOPChain_TestV2 is Test {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](1);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: enabled,
-            initBond: initBond,
-            gameType: GameType.wrap(gameType),
-            gameArgs: gameArgs
+            enabled: enabled, initBond: initBond, gameType: GameType.wrap(gameType), gameArgs: gameArgs
         });
 
         OPContractsManagerV2.UpgradeInput memory upgradeInput = OPContractsManagerV2.UpgradeInput({
@@ -498,10 +489,7 @@ contract UpgradeOPChain_TestV2 is Test {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](1);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: 1 ether,
-            gameType: GameType.wrap(0),
-            gameArgs: abi.encode("test")
+            enabled: true, initBond: 1 ether, gameType: GameType.wrap(0), gameArgs: abi.encode("test")
         });
 
         OPContractsManagerV2.UpgradeInput memory upgradeInput = OPContractsManagerV2.UpgradeInput({

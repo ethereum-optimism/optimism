@@ -396,10 +396,7 @@ contract OPContractsManagerUtils_LoadOrDeployProxy_Test is OPContractsManagerUti
         proxyAdmin.setAddressManager(addressManager);
 
         deployArgs = OPContractsManagerUtils.ProxyDeployArgs({
-            proxyAdmin: proxyAdmin,
-            addressManager: addressManager,
-            l2ChainId: 42,
-            saltMixer: "testMixer"
+            proxyAdmin: proxyAdmin, addressManager: addressManager, l2ChainId: 42, saltMixer: "testMixer"
         });
     }
 

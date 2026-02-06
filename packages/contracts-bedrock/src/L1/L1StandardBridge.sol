@@ -114,8 +114,7 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
         // Now perform initialization logic.
         systemConfig = _systemConfig;
         __StandardBridge_init({
-            _messenger: _messenger,
-            _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))
+            _messenger: _messenger, _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))
         });
     }
 

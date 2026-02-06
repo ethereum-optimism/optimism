@@ -50,8 +50,7 @@ abstract contract Proxy_TestInit is Test {
         // Deploy a proxy and simple storage contract as the implementation
         proxy = IProxy(
             DeployUtils.create1({
-                _name: "Proxy",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (alice)))
+                _name: "Proxy", _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (alice)))
             })
         );
         simpleStorage = new Proxy_SimpleStorage_Harness();
@@ -258,7 +257,7 @@ contract Proxy_Implementation_Test is Proxy_TestInit {
         assertEq(success, false);
 
         bytes memory err = abi.encodeWithSignature("Error(string)", "Proxy: implementation not initialized"); // nosemgrep:
-            // sol-style-use-abi-encodecall
+        // sol-style-use-abi-encodecall
 
         assertEq(returndata, err);
     }

@@ -524,8 +524,8 @@ contract FaultDisputeGame is Clone, ISemver {
         // Construct the next clock with the new duration and the current block timestamp.
         Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
 
-        // INVARIANT: There cannot be multiple identical claims with identical moves on the same challengeIndex. Multiple
-        //            claims at the same position may dispute the same challengeIndex. However, they must have different
+        // INVARIANT: There cannot be multiple identical claims with identical moves on the same challengeIndex.
+        // Multiple claims at the same position may dispute the same challengeIndex. However, they must have different
         //            values.
         Hash claimHash = _claim.hashClaimPos(nextPosition, _challengeIndex);
         if (claims[claimHash]) revert ClaimAlreadyExists();
@@ -652,12 +652,7 @@ contract FaultDisputeGame is Clone, ISemver {
     ///         and showing that the committed L2 block number is incorrect relative to the claimed L2 block number.
     /// @param _outputRootProof The output root proof.
     /// @param _headerRLP The RLP-encoded L2 block header.
-    function challengeRootL2Block(
-        Types.OutputRootProof calldata _outputRootProof,
-        bytes calldata _headerRLP
-    )
-        external
-    {
+    function challengeRootL2Block(Types.OutputRootProof calldata _outputRootProof, bytes calldata _headerRLP) external {
         // INVARIANT: Moves cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 

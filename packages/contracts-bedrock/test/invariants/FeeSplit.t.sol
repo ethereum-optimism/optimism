@@ -80,9 +80,9 @@ contract FeeSplitter_Disburser is StdUtils {
             delete failureState;
 
             // Check if the l1withdrawer should have been triggered and empty its balance
-            uint256 _amountToL1Withdrawer = feeSplitter.sharesCalculator().getRecipientsAndAmounts(
-                _sequencerFees, _baseFees, _operatorFees, _l1Fees
-            )[0].amount;
+            uint256 _amountToL1Withdrawer =
+                feeSplitter.sharesCalculator()
+                .getRecipientsAndAmounts(_sequencerFees, _baseFees, _operatorFees, _l1Fees)[0].amount;
 
             if (
                 _l1withdrawerBalanceBeforeDisbursement + _amountToL1Withdrawer
@@ -277,22 +277,22 @@ contract FeeSplitter_Invariant is CommonTest {
                 + _failureState.l1FeeVaultBalance + _failureState.operatorFeeVaultBalance;
 
             // either one of the vaults is below the minimum withdrawal amount
-            bool _vaultBelowMinimum = (
-                _failureState.sequencerFeeVaultBalance < _failureState.sequencerFeeVaultMinWithdrawalAmount
-                    || _failureState.baseFeeVaultBalance < _failureState.baseFeeVaultMinWithdrawalAmount
-                    || _failureState.l1FeeVaultBalance < _failureState.l1FeeVaultMinWithdrawalAmount
-                    || _failureState.operatorFeeVaultBalance < _failureState.operatorFeeVaultMinWithdrawalAmount
-            )
-                && keccak256(_failureState.reason)
-                    == keccak256(
-                        abi.encodeWithSignature(
-                            "Error(string)", "FeeVault: withdrawal amount must be greater than minimum withdrawal amount"
-                        )
-                    );
+            bool _vaultBelowMinimum =
+                (_failureState.sequencerFeeVaultBalance < _failureState.sequencerFeeVaultMinWithdrawalAmount
+                        || _failureState.baseFeeVaultBalance < _failureState.baseFeeVaultMinWithdrawalAmount
+                        || _failureState.l1FeeVaultBalance < _failureState.l1FeeVaultMinWithdrawalAmount
+                        || _failureState.operatorFeeVaultBalance < _failureState.operatorFeeVaultMinWithdrawalAmount)
+                    && keccak256(_failureState.reason)
+                        == keccak256(
+                            abi.encodeWithSignature(
+                                "Error(string)",
+                                "FeeVault: withdrawal amount must be greater than minimum withdrawal amount"
+                            )
+                        );
 
             // not enough time since last disbursement
             bool _tooEarly = _failureState.attemptTimestamp
-                < disburser.feeSplitter().lastDisbursementTime() + disburser.feeSplitter().feeDisbursementInterval()
+                    < disburser.feeSplitter().lastDisbursementTime() + disburser.feeSplitter().feeDisbursementInterval()
                 && bytes4(_failureState.reason) == IFeeSplitter.FeeSplitter_DisbursementIntervalNotReached.selector;
 
             // no revenue at all
@@ -301,7 +301,8 @@ contract FeeSplitter_Invariant is CommonTest {
 
             // rounding down error in the shares calculator
             bool _noSharesCalculator = (_grossRevenue * 250) < 10000
-                && bytes4(_failureState.reason) == ISuperchainRevSharesCalculator.SharesCalculator_ZeroGrossShare.selector;
+                && bytes4(_failureState.reason)
+                    == ISuperchainRevSharesCalculator.SharesCalculator_ZeroGrossShare.selector;
 
             assertTrue(_vaultBelowMinimum || _tooEarly || _noRevenue || _noSharesCalculator);
         }

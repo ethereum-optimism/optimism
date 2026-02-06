@@ -154,9 +154,8 @@ contract ProxyAdmin is Ownable {
         if (ptype == ProxyType.ERC1967) {
             IProxy(_proxy).upgradeTo(_implementation);
         } else if (ptype == ProxyType.CHUGSPLASH) {
-            IL1ChugSplashProxy(_proxy).setStorage(
-                Constants.PROXY_IMPLEMENTATION_ADDRESS, bytes32(uint256(uint160(_implementation)))
-            );
+            IL1ChugSplashProxy(_proxy)
+                .setStorage(Constants.PROXY_IMPLEMENTATION_ADDRESS, bytes32(uint256(uint160(_implementation))));
         } else if (ptype == ProxyType.RESOLVED) {
             string memory name = implementationName[_proxy];
             addressManager.setAddress(name, _implementation);

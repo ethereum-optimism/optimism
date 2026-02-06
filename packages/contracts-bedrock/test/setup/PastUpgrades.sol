@@ -217,12 +217,10 @@ library PastUpgrades {
         (bool scSuccess,) = _opcm.delegatecall(
             abi.encodeCall(
                 IOPContractsManagerV2.upgradeSuperchain,
-                (
-                    IOPContractsManagerV2.SuperchainUpgradeInput({
+                (IOPContractsManagerV2.SuperchainUpgradeInput({
                         superchainConfig: _superchainConfig,
                         extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
-                    })
-                )
+                    }))
             )
         );
         // Acceptable to fail if already up to date
@@ -262,7 +260,9 @@ library PastUpgrades {
             initBond: _disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
             gameType: GameTypes.CANNON_KONA,
             gameArgs: abi.encode(
-                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(DUMMY_CANNON_KONA_PRESTATE) })
+                IOPContractsManagerUtils.FaultDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(DUMMY_CANNON_KONA_PRESTATE)
+                })
             )
         });
 
@@ -274,13 +274,11 @@ library PastUpgrades {
         (bool upgradeSuccess,) = _opcm.delegatecall(
             abi.encodeCall(
                 IOPContractsManagerV2.upgrade,
-                (
-                    IOPContractsManagerV2.UpgradeInput({
+                (IOPContractsManagerV2.UpgradeInput({
                         systemConfig: _systemConfig,
                         disputeGameConfigs: disputeGameConfigs,
                         extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
-                    })
-                )
+                    }))
             )
         );
         require(upgradeSuccess, "PastUpgrades: OPCMv2 upgrade failed");

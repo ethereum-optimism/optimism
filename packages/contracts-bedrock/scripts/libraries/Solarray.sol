@@ -39,17 +39,7 @@ library Solarray {
         return arr;
     }
 
-    function addresses(
-        address a,
-        address b,
-        address c,
-        address d,
-        address e
-    )
-        internal
-        pure
-        returns (address[] memory)
-    {
+    function addresses(address a, address b, address c, address d, address e) internal pure returns (address[] memory) {
         address[] memory arr = new address[](5);
         arr[0] = a;
         arr[1] = b;

@@ -91,8 +91,9 @@ contract SuperPermissionedDisputeGame is SuperFaultDisputeGame {
     /// @notice Returns the proposer address. The proposer role is allowed to create proposals and participate in the
     /// dispute game.
     function proposer() public pure returns (address proposer_) {
-        proposer_ =
-            _getArgAddress(super._preExtraDataByteCount() + super._extraDataByteCount() + super.gameImplArgsByteCount());
+        proposer_ = _getArgAddress(
+            super._preExtraDataByteCount() + super._extraDataByteCount() + super.gameImplArgsByteCount()
+        );
     }
 
     /// @notice Returns the challenger address. The challenger role is allowed to participate in the dispute game.

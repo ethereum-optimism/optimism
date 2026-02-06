@@ -86,15 +86,7 @@ library LibGameId {
     /// @param _timestamp The timestamp of the game's creation.
     /// @param _gameProxy The game proxy address.
     /// @return gameId_ The packed GameId.
-    function pack(
-        GameType _gameType,
-        Timestamp _timestamp,
-        address _gameProxy
-    )
-        internal
-        pure
-        returns (GameId gameId_)
-    {
+    function pack(GameType _gameType, Timestamp _timestamp, address _gameProxy) internal pure returns (GameId gameId_) {
         assembly {
             gameId_ := or(or(shl(224, _gameType), shl(160, _timestamp)), _gameProxy)
         }

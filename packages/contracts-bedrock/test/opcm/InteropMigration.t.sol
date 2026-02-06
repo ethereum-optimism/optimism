@@ -58,21 +58,21 @@ contract InteropMigrationInput_Test is Test {
             cannonKonaPrestate: Claim.wrap(bytes32(uint256(11)))
         });
 
-        IOPContractsManagerInteropMigrator.MigrateInput memory migrateInput = IOPContractsManagerInteropMigrator
-            .MigrateInput({
-            usePermissionlessGame: true,
-            startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(uint256(1))), l2SequenceNumber: 100 }),
-            gameParameters: IOPContractsManagerInteropMigrator.GameParameters({
-                proposer: makeAddr("proposer"),
-                challenger: makeAddr("challenger"),
-                maxGameDepth: 73,
-                splitDepth: 30,
-                initBond: 1 ether,
-                clockExtension: Duration.wrap(10800),
-                maxClockDuration: Duration.wrap(302400)
-            }),
-            opChainConfigs: configs
-        });
+        IOPContractsManagerInteropMigrator.MigrateInput memory migrateInput =
+            IOPContractsManagerInteropMigrator.MigrateInput({
+                usePermissionlessGame: true,
+                startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(uint256(1))), l2SequenceNumber: 100 }),
+                gameParameters: IOPContractsManagerInteropMigrator.GameParameters({
+                    proposer: makeAddr("proposer"),
+                    challenger: makeAddr("challenger"),
+                    maxGameDepth: 73,
+                    splitDepth: 30,
+                    initBond: 1 ether,
+                    clockExtension: Duration.wrap(10800),
+                    maxClockDuration: Duration.wrap(302400)
+                }),
+                opChainConfigs: configs
+            });
 
         input.set(input.migrateInput.selector, migrateInput);
 
@@ -159,11 +159,21 @@ contract MockOPCMRevert {
         return opcmV2Enabled ? "7.0.0" : "6.0.0";
     }
 
-    function migrate(IOPContractsManagerInteropMigrator.MigrateInput memory /*_input*/ ) public pure {
+    function migrate(
+        IOPContractsManagerInteropMigrator.MigrateInput memory /*_input*/
+    )
+        public
+        pure
+    {
         revert("MockOPCMRevert: revert migrate");
     }
 
-    function migrate(IOPContractsManagerMigrator.MigrateInput memory /*_input*/ ) public pure {
+    function migrate(
+        IOPContractsManagerMigrator.MigrateInput memory /*_input*/
+    )
+        public
+        pure
+    {
         revert("MockOPCMRevert: revert migrate");
     }
 }
@@ -197,21 +207,21 @@ contract InteropMigrationV1_Test is Test {
         IOPContractsManager.OpChainConfig[] memory configs = new IOPContractsManager.OpChainConfig[](1);
         configs[0] = config;
 
-        IOPContractsManagerInteropMigrator.MigrateInput memory migrateInput = IOPContractsManagerInteropMigrator
-            .MigrateInput({
-            usePermissionlessGame: true,
-            startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(uint256(1))), l2SequenceNumber: 100 }),
-            gameParameters: IOPContractsManagerInteropMigrator.GameParameters({
-                proposer: makeAddr("proposer"),
-                challenger: makeAddr("challenger"),
-                maxGameDepth: 73,
-                splitDepth: 30,
-                initBond: 1 ether,
-                clockExtension: Duration.wrap(10800),
-                maxClockDuration: Duration.wrap(302400)
-            }),
-            opChainConfigs: configs
-        });
+        IOPContractsManagerInteropMigrator.MigrateInput memory migrateInput =
+            IOPContractsManagerInteropMigrator.MigrateInput({
+                usePermissionlessGame: true,
+                startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(uint256(1))), l2SequenceNumber: 100 }),
+                gameParameters: IOPContractsManagerInteropMigrator.GameParameters({
+                    proposer: makeAddr("proposer"),
+                    challenger: makeAddr("challenger"),
+                    maxGameDepth: 73,
+                    splitDepth: 30,
+                    initBond: 1 ether,
+                    clockExtension: Duration.wrap(10800),
+                    maxClockDuration: Duration.wrap(302400)
+                }),
+                opChainConfigs: configs
+            });
 
         input.set(input.migrateInput.selector, migrateInput);
 

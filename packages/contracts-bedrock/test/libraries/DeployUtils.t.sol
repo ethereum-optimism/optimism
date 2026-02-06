@@ -76,11 +76,12 @@ contract DeployUtils_AssertUniqueAddresses_Test is DeployUtils_TestInit {
 
         // Unfortunately it's not possible to use vm.expectRevert() here because the revert
         // message is not a calldata argument so we need to externalize the call
-        DeployUtils_AssertUniqueAddresses_Test(this).helper_assertUniqueAddresses_withDuplicateAddress_reverts(
-            string.concat(
-                "DeployUtils: check failed, duplicates at ", vm.toString(_duplicateIndex), ",", vm.toString(_length)
-            ),
-            addresses
-        );
+        DeployUtils_AssertUniqueAddresses_Test(this)
+            .helper_assertUniqueAddresses_withDuplicateAddress_reverts(
+                string.concat(
+                    "DeployUtils: check failed, duplicates at ", vm.toString(_duplicateIndex), ",", vm.toString(_length)
+                ),
+                addresses
+            );
     }
 }

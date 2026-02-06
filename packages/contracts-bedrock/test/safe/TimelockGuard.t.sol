@@ -41,18 +41,19 @@ library TransactionBuilder {
 
     /// @notice Computes and stores the Safe transaction hash for the struct.
     function setHash(Transaction memory _tx) internal view {
-        _tx.hash = _tx.safeInstance.safe.getTransactionHash({
-            to: _tx.params.to,
-            value: _tx.params.value,
-            data: _tx.params.data,
-            operation: _tx.params.operation,
-            safeTxGas: _tx.params.safeTxGas,
-            baseGas: _tx.params.baseGas,
-            gasPrice: _tx.params.gasPrice,
-            gasToken: _tx.params.gasToken,
-            refundReceiver: _tx.params.refundReceiver,
-            _nonce: _tx.nonce
-        });
+        _tx.hash = _tx.safeInstance.safe
+            .getTransactionHash({
+                to: _tx.params.to,
+                value: _tx.params.value,
+                data: _tx.params.data,
+                operation: _tx.params.operation,
+                safeTxGas: _tx.params.safeTxGas,
+                baseGas: _tx.params.baseGas,
+                gasPrice: _tx.params.gasPrice,
+                gasToken: _tx.params.gasToken,
+                refundReceiver: _tx.params.refundReceiver,
+                _nonce: _tx.nonce
+            });
     }
 
     /// @notice Collects signatures from the first `_num` owners for the transaction.
@@ -93,18 +94,19 @@ library TransactionBuilder {
     /// @notice Executes the transaction via the underlying Safe contract.
     function executeTransaction(Transaction memory _tx, address _owner) internal {
         Vm(VM_ADDR).prank(_owner);
-        _tx.safeInstance.safe.execTransaction(
-            _tx.params.to,
-            _tx.params.value,
-            _tx.params.data,
-            _tx.params.operation,
-            _tx.params.safeTxGas,
-            _tx.params.baseGas,
-            _tx.params.gasPrice,
-            _tx.params.gasToken,
-            _tx.params.refundReceiver,
-            _tx.signatures
-        );
+        _tx.safeInstance.safe
+            .execTransaction(
+                _tx.params.to,
+                _tx.params.value,
+                _tx.params.data,
+                _tx.params.operation,
+                _tx.params.safeTxGas,
+                _tx.params.baseGas,
+                _tx.params.gasPrice,
+                _tx.params.gasToken,
+                _tx.params.refundReceiver,
+                _tx.signatures
+            );
     }
 
     /// @notice Returns a fresh transaction struct copy with identical fields.
@@ -201,9 +203,8 @@ abstract contract TimelockGuard_TestInit is Test, SafeTestTools {
     /// @param _safe The Safe for which to override the threshold.
     /// @param _value The threshold value to set.
     function _setCancellationThreshold(Safe _safe, uint256 _value) internal {
-        uint256 slot = stdstore.target(address(timelockGuard)).sig("cancellationThreshold(address)").with_key(
-            address(_safe)
-        ).find();
+        uint256 slot = stdstore.target(address(timelockGuard)).sig("cancellationThreshold(address)")
+            .with_key(address(_safe)).find();
         vm.store(address(timelockGuard), bytes32(slot), bytes32(uint256(_value)));
     }
 
@@ -949,9 +950,8 @@ contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
         vm.warp(block.timestamp + TIMELOCK_DELAY);
 
         // increment the cancellation threshold so that we can test that it is reset
-        uint256 slot = stdstore.target(address(timelockGuard)).sig("cancellationThreshold(address)").with_key(
-            address(safeInstance.safe)
-        ).find();
+        uint256 slot = stdstore.target(address(timelockGuard)).sig("cancellationThreshold(address)")
+            .with_key(address(safeInstance.safe)).find();
         vm.store(
             address(timelockGuard),
             bytes32(slot),

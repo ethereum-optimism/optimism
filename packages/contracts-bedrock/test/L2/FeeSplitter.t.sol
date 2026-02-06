@@ -563,12 +563,7 @@ contract FeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Fuzz test that a vault with balance below minimum causes entire disbursement to revert
-    function testFuzz_disburseFees_vaultBelowMinimum_reverts(
-        uint256 _minWithdrawalAmount,
-        uint256 _vaultIndex
-    )
-        public
-    {
+    function testFuzz_disburseFees_vaultBelowMinimum_reverts(uint256 _minWithdrawalAmount, uint256 _vaultIndex) public {
         // If uint256, the test will revert due to ETH transfer overflow
         _minWithdrawalAmount = bound(_minWithdrawalAmount, 1, type(uint128).max);
         _vaultIndex = bound(_vaultIndex, 0, 3); // 0-3 for the 4 vaults

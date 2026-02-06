@@ -144,10 +144,7 @@ library ChainAssertions {
 
         // Check that the contract is initialized
         DeployUtils.assertInitialized({
-            _contractAddress: address(_messenger),
-            _isProxy: _isProxy,
-            _slot: 0,
-            _offset: 20
+            _contractAddress: address(_messenger), _isProxy: _isProxy, _slot: 0, _offset: 20
         });
 
         if (_isProxy) {
@@ -370,10 +367,7 @@ library ChainAssertions {
 
         // Check that the contract is initialized
         DeployUtils.assertInitialized({
-            _contractAddress: address(superchainConfig),
-            _isProxy: _isProxy,
-            _slot: 0,
-            _offset: 0
+            _contractAddress: address(superchainConfig), _isProxy: _isProxy, _slot: 0, _offset: 0
         });
 
         if (_isProxy) {
@@ -447,10 +441,7 @@ library ChainAssertions {
         }
 
         DeployUtils.assertInitialized({
-            _contractAddress: address(_anchorStateRegistryProxy),
-            _isProxy: _isProxy,
-            _slot: 0,
-            _offset: 0
+            _contractAddress: address(_anchorStateRegistryProxy), _isProxy: _isProxy, _slot: 0, _offset: 0
         });
 
         // The below check cannot be done in the standard validator because the assertion only applies at deploy time.

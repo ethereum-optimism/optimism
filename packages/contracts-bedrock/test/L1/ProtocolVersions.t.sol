@@ -58,17 +58,18 @@ contract ProtocolVersions_Initialize_Test is ProtocolVersions_TestInit {
         emit ConfigUpdate(0, IProtocolVersions.UpdateType.RECOMMENDED_PROTOCOL_VERSION, abi.encode(recommended));
 
         vm.prank(EIP1967Helper.getAdmin(address(protocolVersions)));
-        IProxy(payable(address(protocolVersions))).upgradeToAndCall(
-            address(protocolVersionsImpl),
-            abi.encodeCall(
-                IProtocolVersions.initialize,
-                (
-                    alice, // _owner
-                    required, // _required
-                    recommended // recommended
+        IProxy(payable(address(protocolVersions)))
+            .upgradeToAndCall(
+                address(protocolVersionsImpl),
+                abi.encodeCall(
+                    IProtocolVersions.initialize,
+                    (
+                        alice, // _owner
+                        required, // _required
+                        recommended // recommended
+                    )
                 )
-            )
-        );
+            );
     }
 }
 

@@ -33,11 +33,10 @@ contract CheckSecrets is IDripCheck {
         Params memory params = abi.decode(_params, (Params));
 
         // Check that the secrets have/have not been revealed.
-        execute_ = (
-            revealedSecrets[params.secretHashMustExist] > 0
+        execute_ =
+        (revealedSecrets[params.secretHashMustExist] > 0
                 && block.timestamp >= revealedSecrets[params.secretHashMustExist] + params.delay
-                && revealedSecrets[params.secretHashMustNotExist] == 0
-        );
+                && revealedSecrets[params.secretHashMustNotExist] == 0);
     }
 
     /// @notice Reveal a secret.

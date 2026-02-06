@@ -275,9 +275,7 @@ contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMesseng
 
         // Call `senderMessage` with the L2ToL2CrossDomainMessenger as the target to provoke revert
         l2ToL2CrossDomainMessenger.sendMessage({
-            _destination: _destination,
-            _target: Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            _message: _message
+            _destination: _destination, _target: Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _message: _message
         });
     }
 }
