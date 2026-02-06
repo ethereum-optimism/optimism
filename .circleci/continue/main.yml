@@ -3290,6 +3290,16 @@ workflows:
               only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
+      - contracts-bedrock-build:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
+          filters:
+            tags:
+              only: /^op-deployer.*/ # ensure contract artifacts are embedded in op-deployer binary
+            branches:
+              ignore: /.*/
       - docker-build:
           matrix:
             parameters:
@@ -3309,6 +3319,7 @@ workflows:
             - oplabs-gcr-release
           requires:
             - initialize
+            - contracts-bedrock-build
       - check-cross-platform:
           matrix:
             parameters:

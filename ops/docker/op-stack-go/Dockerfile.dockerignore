@@ -2,7 +2,6 @@
 # node_modules, packages (contains git submodules and node modules etc.), devnet dirs etc. all add up a lot.
 *
 
-!/.gitmodules
 !/cannon
 !/devnet-sdk
 !/op-core
@@ -11,7 +10,7 @@
 !/op-deployer
 !/op-dripper
 !/op-challenger
-!/packages/contracts-bedrock
+!/packages/contracts-bedrock/snapshots
 !/op-dispute-mon
 !/op-conductor
 !/op-node
@@ -42,7 +41,6 @@ kona/.git
 **/bin
 **/testdata
 **/tests
-packages/contracts-bedrock/lib/
 
 # Re-include kona/bin which is excluded by **/bin above
 !/kona/bin
