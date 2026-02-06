@@ -120,13 +120,10 @@ func (m *mockVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, erro
 
 // mockEngineController is a mock implementation of engine_controller.EngineController
 type mockEngineController struct {
-	blockAtTimestampResult eth.L2BlockRef
-	blockAtTimestampErr    error
-
-	rewindToTimestampCalled int
-	rewindTimestamp         uint64
-	rewindErr               error
-	rewindFunc              func(ctx context.Context, timestamp uint64) error // optional custom behavior
+	rewindToTimestampCalled  int
+	rewindTimestamp          uint64
+	rewindErr                error
+	rewindFunc               func(ctx context.Context, timestamp uint64) error // optional custom behavior
 	l2BlockRefByNumberResult eth.L2BlockRef
 	l2BlockRefByNumberErr    error
 }
