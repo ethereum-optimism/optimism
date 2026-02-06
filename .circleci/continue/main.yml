@@ -3243,8 +3243,21 @@ workflows:
           save_cache: true
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule: *rust-build-op-rbuilder
-      - rust-build-submodule: *rust-build-rollup-boost
+      - rust-build-submodule: &rust-build-op-rbuilder
+          name: rust-build-op-rbuilder
+          directory: op-rbuilder
+          binaries: "op-rbuilder"
+          build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
+          needs_clang: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-submodule: &rust-build-rollup-boost
+          name: rust-build-rollup-boost
+          directory: rollup-boost
+          binaries: "rollup-boost"
+          build_command: cargo build --release -p rollup-boost --bin rollup-boost
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - rust-binaries-for-sysgo:
           requires:
             - kona-build-release
@@ -3564,21 +3577,8 @@ workflows:
           profile: "release"
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule: &rust-build-op-rbuilder
-          name: rust-build-op-rbuilder
-          directory: op-rbuilder
-          binaries: "op-rbuilder"
-          build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
-          needs_clang: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule: &rust-build-rollup-boost
-          name: rust-build-rollup-boost
-          directory: rollup-boost
-          binaries: "rollup-boost"
-          build_command: cargo build --release -p rollup-boost --bin rollup-boost
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-submodule: *rust-build-op-rbuilder
+      - rust-build-submodule: *rust-build-rollup-boost
       - rust-binaries-for-sysgo:
           requires:
             - kona-build-release
