@@ -47,9 +47,6 @@ parameters:
   heavy_fuzz_dispatch:
     type: boolean
     default: false
-  acceptance_tests_dispatch:
-    type: boolean
-    default: false
   sync_test_op_node_dispatch:
     type: boolean
     default: false
@@ -3235,6 +3232,57 @@ workflows:
           ignore-dirs: ./packages/contracts-bedrock/lib
           context:
             - circleci-repo-readonly-authenticated-github-token
+      # ==================== ACCEPTANCE TESTS ====================
+      - cannon-kona-prestate: # needed for sysgo tests (if any package is in-memory)
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-binary: &kona-build-release
+          name: kona-build-release
+          directory: kona
+          profile: "release"
+          features: "default"
+          save_cache: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-submodule: &rust-build-op-rbuilder
+          name: rust-build-op-rbuilder
+          directory: op-rbuilder
+          binaries: "op-rbuilder"
+          build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
+          needs_clang: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-submodule: &rust-build-rollup-boost
+          name: rust-build-rollup-boost
+          directory: rollup-boost
+          binaries: "rollup-boost"
+          build_command: cargo build --release -p rollup-boost --bin rollup-boost
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-binaries-for-sysgo:
+          requires:
+            - kona-build-release
+            - rust-build-op-rbuilder
+            - rust-build-rollup-boost
+      - op-acceptance-tests:
+          name: memory-all
+          gate: "" # Empty gate = gateless mode
+          no_output_timeout: 120m # Allow longer runs for memory-all gate
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+            - cannon-kona-prestate
+            - cannon-kona-host
+            - rust-binaries-for-sysgo
+      - generate-flaky-report:
+          name: generate-flaky-tests-report
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - circleci-api-token
 
   go-release-op-deployer:
     jobs:
@@ -3528,21 +3576,8 @@ workflows:
           profile: "release"
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule: &rust-build-op-rbuilder
-          name: rust-build-op-rbuilder
-          directory: op-rbuilder
-          binaries: "op-rbuilder"
-          build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
-          needs_clang: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule: &rust-build-rollup-boost
-          name: rust-build-rollup-boost
-          directory: rollup-boost
-          binaries: "rollup-boost"
-          build_command: cargo build --release -p rollup-boost --bin rollup-boost
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-submodule: *rust-build-op-rbuilder
+      - rust-build-submodule: *rust-build-rollup-boost
       - rust-binaries-for-sysgo:
           requires:
             - kona-build-release
@@ -3636,71 +3671,6 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-
-  # Acceptance tests
-  acceptance-tests:
-    when:
-      or:
-        - equal: ["webhook", << pipeline.trigger_source >>]
-        # Manual dispatch
-        - and:
-            - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
-    jobs:
-      - contracts-bedrock-build: # needed for sysgo tests
-          build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate-quick: # needed for sysgo tests
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - cannon-kona-prestate: # needed for sysgo tests (if any package is in-memory)
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary: &cannon-kona-host
-          name: cannon-kona-host
-          directory: kona
-          profile: "release"
-          binary: "kona-host"
-          save_cache: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary: &kona-build-release
-          name: kona-build-release
-          directory: kona
-          profile: "release"
-          features: "default"
-          save_cache: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule: *rust-build-op-rbuilder
-      - rust-build-submodule: *rust-build-rollup-boost
-      - rust-binaries-for-sysgo:
-          requires:
-            - kona-build-release
-            - rust-build-op-rbuilder
-            - rust-build-rollup-boost
-      # IN-MEMORY (all)
-      - op-acceptance-tests:
-          name: memory-all
-          gate: "" # Empty gate = gateless mode
-          no_output_timeout: 120m # Allow longer runs for memory-all gate
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - slack
-            - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
-            - cannon-kona-prestate
-            - cannon-kona-host
-            - rust-binaries-for-sysgo
-      # Generate flaky test report
-      - generate-flaky-report:
-          name: generate-flaky-tests-report
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - circleci-api-token
 
   close-issue-workflow:
     when:
