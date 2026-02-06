@@ -414,88 +414,40 @@ impl HintHandler for SingleChainHintHandler {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_parse_blob_hint_legacy_format() {
-        // Legacy format: hash (32 bytes) + index (8 bytes) + timestamp (8 bytes) = 48 bytes
-        let mut hint_data = Vec::new();
+    const TEST_HASH: B256 = B256::new([0x42u8; 32]);
+    const TEST_TIMESTAMP: u64 = 1234567890;
 
-        // Hash (32 bytes)
-        let hash = B256::from([0x42u8; 32]);
-        hint_data.extend_from_slice(hash.as_slice());
+    // Legacy format: hash (32 bytes) + index (8 bytes) + timestamp (8 bytes) = 48 bytes
+    const LEGACY_HINT: [u8; 48] = [
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, // Hash (32 bytes):
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFA, 0xCA, // Index (8 bytes, ignored)
+        0x00, 0x00, 0x00, 0x00, 0x49, 0x96, 0x02, 0xD2, // Timestamp (8 bytes): 1234567890
+    ];
 
-        // Index (8 bytes) - legacy field, should be ignored
-        let index = 0x00000000_0000FACAu64;
-        hint_data.extend_from_slice(&index.to_be_bytes());
-
-        // Timestamp (8 bytes)
-        let timestamp = 1234567890u64;
-        hint_data.extend_from_slice(&timestamp.to_be_bytes());
-
-        assert_eq!(hint_data.len(), 48);
-
-        // Parse using the production code
-        let (parsed_hash, parsed_timestamp) = parse_blob_hint(&hint_data).unwrap();
-
-        assert_eq!(parsed_hash, hash);
-        assert_eq!(parsed_timestamp, timestamp);
-    }
+    // New format: hash (32 bytes) + timestamp (8 bytes) = 40 bytes
+    const NEW_HINT: [u8; 40] = [
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, // Hash (32 bytes)
+        0x00, 0x00, 0x00, 0x00, 0x49, 0x96, 0x02, 0xD2, // Timestamp (8 bytes): 1234567890
+    ];
 
     #[test]
-    fn test_parse_blob_hint_new_format() {
-        // New format: hash (32 bytes) + timestamp (8 bytes) = 40 bytes
-        let mut hint_data = Vec::new();
+    fn test_parse_blob_hint_formats() {
+        let (legacy_hash, legacy_timestamp) = parse_blob_hint(&LEGACY_HINT).unwrap();
+        let (new_hash, new_timestamp) = parse_blob_hint(&NEW_HINT).unwrap();
 
-        // Hash (32 bytes)
-        let hash = B256::from([0x42u8; 32]);
-        hint_data.extend_from_slice(hash.as_slice());
-
-        // Timestamp (8 bytes)
-        let timestamp = 1234567890u64;
-        hint_data.extend_from_slice(&timestamp.to_be_bytes());
-
-        assert_eq!(hint_data.len(), 40);
-
-        // Parse using the production code
-        let (parsed_hash, parsed_timestamp) = parse_blob_hint(&hint_data).unwrap();
-
-        assert_eq!(parsed_hash, hash);
-        assert_eq!(parsed_timestamp, timestamp);
-    }
-
-    #[test]
-    fn test_parse_blob_hint_both_formats_produce_same_result() {
-        // Use the same hash and timestamp for both formats
-        let hash = B256::from([0x42u8; 32]);
-        let timestamp = 1234567890u64;
-        let index = 0x00000000_0000FACAu64; // This should be ignored in legacy format
-
-        // Create legacy format hint (48 bytes)
-        let mut legacy_hint_data = Vec::new();
-        legacy_hint_data.extend_from_slice(hash.as_slice());
-        legacy_hint_data.extend_from_slice(&index.to_be_bytes());
-        legacy_hint_data.extend_from_slice(&timestamp.to_be_bytes());
-
-        // Create new format hint (40 bytes)
-        let mut new_hint_data = Vec::new();
-        new_hint_data.extend_from_slice(hash.as_slice());
-        new_hint_data.extend_from_slice(&timestamp.to_be_bytes());
-
-        // Parse both using the production code
-        let (legacy_hash, legacy_timestamp) = parse_blob_hint(&legacy_hint_data).unwrap();
-        let (new_hash, new_timestamp) = parse_blob_hint(&new_hint_data).unwrap();
-
-        // Both formats should produce the same hash and timestamp
-        assert_eq!(legacy_hash, new_hash);
-        assert_eq!(legacy_timestamp, new_timestamp);
-        assert_eq!(legacy_hash, hash);
-        assert_eq!(legacy_timestamp, timestamp);
+        assert_eq!(legacy_hash, TEST_HASH);
+        assert_eq!(legacy_timestamp, TEST_TIMESTAMP);
+        assert_eq!(new_hash, TEST_HASH);
+        assert_eq!(new_timestamp, TEST_TIMESTAMP);
     }
 
     #[test]
     fn test_parse_blob_hint_invalid_length() {
-        // Test with invalid length (not 40 or 48 bytes)
         let hint_data = vec![0u8; 35];
-
         let result = parse_blob_hint(&hint_data);
 
         assert!(result.is_err());
