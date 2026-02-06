@@ -3141,6 +3141,7 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
+            - cannon-kona-host
           context:
             - circleci-repo-readonly-authenticated-github-token
           filters:
@@ -3192,6 +3193,14 @@ workflows:
           requires:
             - contracts-bedrock-build
       - cannon-prestate-quick:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-binary: &cannon-kona-host # Required for sysgo unit tests
+          name: cannon-kona-host
+          directory: kona
+          profile: "release"
+          binary: "kona-host"
+          save_cache: true
           context:
             - circleci-repo-readonly-authenticated-github-token
       - sanitize-op-program:
