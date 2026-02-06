@@ -585,6 +585,114 @@ func TestHandleResult(t *testing.T) {
 }
 
 // =============================================================================
+// TestInvalidateBlock
+// =============================================================================
+
+// TestInvalidateBlock verifies the invalidateBlock method correctly calls
+// ChainContainer.InvalidateBlock with the right parameters and handles errors.
+func TestInvalidateBlock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("calls chain.InvalidateBlock with correct args", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		mock := newMockChainContainer(10)
+		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
+		interop := New(testLogger(), 1000, chains, dataDir)
+		require.NotNil(t, interop)
+		interop.ctx = context.Background()
+
+		blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
+		err := interop.invalidateBlock(mock.id, blockID)
+		require.NoError(t, err)
+
+		// Verify InvalidateBlock was called with correct arguments
+		require.Len(t, mock.invalidateBlockCalls, 1)
+		require.Equal(t, uint64(500), mock.invalidateBlockCalls[0].height)
+		require.Equal(t, common.HexToHash("0xBAD"), mock.invalidateBlockCalls[0].payloadHash)
+	})
+
+	t.Run("returns error when chain not found", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		mock := newMockChainContainer(10)
+		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
+		interop := New(testLogger(), 1000, chains, dataDir)
+		require.NotNil(t, interop)
+		interop.ctx = context.Background()
+
+		// Try to invalidate on a chain that doesn't exist
+		unknownChain := eth.ChainIDFromUInt64(999)
+		blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
+		err := interop.invalidateBlock(unknownChain, blockID)
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "not found")
+
+		// Verify InvalidateBlock was NOT called
+		require.Len(t, mock.invalidateBlockCalls, 0)
+	})
+
+	t.Run("returns error when chain.InvalidateBlock fails", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		mock := newMockChainContainer(10)
+		mock.invalidateBlockErr = errors.New("engine failure")
+		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
+		interop := New(testLogger(), 1000, chains, dataDir)
+		require.NotNil(t, interop)
+		interop.ctx = context.Background()
+
+		blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
+		err := interop.invalidateBlock(mock.id, blockID)
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "engine failure")
+	})
+
+	t.Run("handleResult calls invalidateBlock for each invalid head", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		mock1 := newMockChainContainer(10)
+		mock2 := newMockChainContainer(8453)
+		chains := map[eth.ChainID]cc.ChainContainer{mock1.id: mock1, mock2.id: mock2}
+		interop := New(testLogger(), 1000, chains, dataDir)
+		require.NotNil(t, interop)
+		interop.ctx = context.Background()
+
+		// Create result with invalid heads on both chains
+		invalidResult := Result{
+			Timestamp: 1000,
+			L1Head:    eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
+			L2Heads: map[eth.ChainID]eth.BlockID{
+				mock1.id: {Number: 500, Hash: common.HexToHash("0xL2-1")},
+				mock2.id: {Number: 600, Hash: common.HexToHash("0xL2-2")},
+			},
+			InvalidHeads: map[eth.ChainID]eth.BlockID{
+				mock1.id: {Number: 500, Hash: common.HexToHash("0xBAD1")},
+				mock2.id: {Number: 600, Hash: common.HexToHash("0xBAD2")},
+			},
+		}
+
+		err := interop.handleResult(invalidResult)
+		require.NoError(t, err)
+
+		// Verify both chains had InvalidateBlock called
+		require.Len(t, mock1.invalidateBlockCalls, 1)
+		require.Equal(t, uint64(500), mock1.invalidateBlockCalls[0].height)
+		require.Equal(t, common.HexToHash("0xBAD1"), mock1.invalidateBlockCalls[0].payloadHash)
+
+		require.Len(t, mock2.invalidateBlockCalls, 1)
+		require.Equal(t, uint64(600), mock2.invalidateBlockCalls[0].height)
+		require.Equal(t, common.HexToHash("0xBAD2"), mock2.invalidateBlockCalls[0].payloadHash)
+	})
+}
+
+// =============================================================================
 // TestProgressAndRecord
 // =============================================================================
 
@@ -824,6 +932,16 @@ type mockChainContainer struct {
 
 	lastRequestedTimestamp uint64
 	mu                     sync.Mutex
+
+	// InvalidateBlock tracking
+	invalidateBlockCalls []invalidateBlockCall
+	invalidateBlockRet   bool
+	invalidateBlockErr   error
+}
+
+type invalidateBlockCall struct {
+	height      uint64
+	payloadHash common.Hash
 }
 
 func newMockChainContainer(id uint64) *mockChainContainer {
@@ -894,7 +1012,10 @@ func (m *mockChainContainer) RewindEngine(ctx context.Context, timestamp uint64)
 }
 func (m *mockChainContainer) BlockTime() uint64 { return 1 }
 func (m *mockChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
-	return false, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.invalidateBlockCalls = append(m.invalidateBlockCalls, invalidateBlockCall{height: height, payloadHash: payloadHash})
+	return m.invalidateBlockRet, m.invalidateBlockErr
 }
 func (m *mockChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
 	return false, nil
@@ -915,6 +1036,10 @@ type mockLogsDBForInterop struct {
 	openBlockErr     error
 	containsSeal     suptypes.BlockSeal
 	containsErr      error
+
+	// Track calls for verification
+	rewindCalls []eth.BlockID
+	clearCalls  int
 }
 
 func (m *mockLogsDBForInterop) LatestSealedBlock() (eth.BlockID, bool) { return eth.BlockID{}, false }
@@ -942,8 +1067,180 @@ func (m *mockLogsDBForInterop) AddLog(logHash common.Hash, parentBlock eth.Block
 func (m *mockLogsDBForInterop) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
 	return nil
 }
-func (m *mockLogsDBForInterop) Rewind(inv reads.Invalidator, newHead eth.BlockID) error { return nil }
-func (m *mockLogsDBForInterop) Clear(inv reads.Invalidator) error                       { return nil }
-func (m *mockLogsDBForInterop) Close() error                                            { return nil }
+func (m *mockLogsDBForInterop) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
+	m.rewindCalls = append(m.rewindCalls, newHead)
+	return nil
+}
+func (m *mockLogsDBForInterop) Clear(inv reads.Invalidator) error {
+	m.clearCalls++
+	return nil
+}
+func (m *mockLogsDBForInterop) Close() error { return nil }
 
 var _ LogsDB = (*mockLogsDBForInterop)(nil)
+
+// =============================================================================
+// TestResetOn
+// =============================================================================
+
+func TestResetOn(t *testing.T) {
+	t.Parallel()
+
+	t.Run("rewinds logsDB when previous block available", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		mock := newMockChainContainer(10)
+		// BlockAtTimestamp will return a valid block
+		mock.blockAtTimestamp = eth.L2BlockRef{
+			Hash:   common.HexToHash("0xPREV"),
+			Number: 99,
+		}
+
+		mockLogsDB := &mockLogsDBForInterop{}
+
+		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
+		interop := New(testLogger(), 1000, chains, dataDir)
+		require.NotNil(t, interop)
+		interop.ctx = context.Background()
+		interop.logsDBs[mock.id] = mockLogsDB
+
+		// Reset at timestamp 100 (blockTime=1, so prev=99)
+		interop.ResetOn(mock.id, 100)
+
+		// Verify logsDB.Rewind was called
+		require.Len(t, mockLogsDB.rewindCalls, 1)
+		require.Equal(t, uint64(99), mockLogsDB.rewindCalls[0].Number)
+		require.Equal(t, 0, mockLogsDB.clearCalls)
+	})
+
+	t.Run("clears logsDB when previous block not available", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		mock := newMockChainContainer(10)
+		// BlockAtTimestamp returns error
+		mock.blockAtTimestampErr = errors.New("block not found")
+
+		mockLogsDB := &mockLogsDBForInterop{}
+
+		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
+		interop := New(testLogger(), 1000, chains, dataDir)
+		require.NotNil(t, interop)
+		interop.ctx = context.Background()
+		interop.logsDBs[mock.id] = mockLogsDB
+
+		// Reset at timestamp 100
+		interop.ResetOn(mock.id, 100)
+
+		// Verify logsDB.Clear was called
+		require.Len(t, mockLogsDB.rewindCalls, 0)
+		require.Equal(t, 1, mockLogsDB.clearCalls)
+	})
+
+	t.Run("clears logsDB when timestamp at or before blockTime", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		mock := newMockChainContainer(10)
+		mockLogsDB := &mockLogsDBForInterop{}
+
+		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
+		interop := New(testLogger(), 1000, chains, dataDir)
+		require.NotNil(t, interop)
+		interop.ctx = context.Background()
+		interop.logsDBs[mock.id] = mockLogsDB
+
+		// Reset at timestamp 1 (blockTime=1, so no previous block)
+		interop.ResetOn(mock.id, 1)
+
+		// Verify logsDB.Clear was called
+		require.Len(t, mockLogsDB.rewindCalls, 0)
+		require.Equal(t, 1, mockLogsDB.clearCalls)
+	})
+
+	t.Run("rewinds verifiedDB", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		mock := newMockChainContainer(10)
+		mock.blockAtTimestamp = eth.L2BlockRef{Number: 99}
+
+		mockLogsDB := &mockLogsDBForInterop{}
+
+		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
+		interop := New(testLogger(), 1000, chains, dataDir)
+		require.NotNil(t, interop)
+		interop.ctx = context.Background()
+		interop.logsDBs[mock.id] = mockLogsDB
+
+		// Add some verified results
+		for ts := uint64(98); ts <= 102; ts++ {
+			err := interop.verifiedDB.Commit(VerifiedResult{
+				Timestamp: ts,
+				L1Head:    eth.BlockID{Number: ts},
+				L2Heads:   map[eth.ChainID]eth.BlockID{mock.id: {Number: ts}},
+			})
+			require.NoError(t, err)
+		}
+
+		// Reset at timestamp 100 (should remove 100, 101, 102)
+		interop.ResetOn(mock.id, 100)
+
+		// Verify results at 98, 99 still exist
+		has, _ := interop.verifiedDB.Has(98)
+		require.True(t, has)
+		has, _ = interop.verifiedDB.Has(99)
+		require.True(t, has)
+
+		// Verify results at 100, 101, 102 are gone
+		has, _ = interop.verifiedDB.Has(100)
+		require.False(t, has)
+		has, _ = interop.verifiedDB.Has(101)
+		require.False(t, has)
+		has, _ = interop.verifiedDB.Has(102)
+		require.False(t, has)
+	})
+
+	t.Run("resets currentL1", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		mock := newMockChainContainer(10)
+		mock.blockAtTimestamp = eth.L2BlockRef{Number: 99}
+
+		mockLogsDB := &mockLogsDBForInterop{}
+
+		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
+		interop := New(testLogger(), 1000, chains, dataDir)
+		require.NotNil(t, interop)
+		interop.ctx = context.Background()
+		interop.logsDBs[mock.id] = mockLogsDB
+
+		// Set currentL1 to some value
+		interop.currentL1 = eth.BlockID{Number: 500, Hash: common.HexToHash("0xL1")}
+
+		// Reset
+		interop.ResetOn(mock.id, 100)
+
+		// Verify currentL1 is reset to zero
+		require.Equal(t, eth.BlockID{}, interop.currentL1)
+	})
+
+	t.Run("handles unknown chain gracefully", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		mock := newMockChainContainer(10)
+		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
+		interop := New(testLogger(), 1000, chains, dataDir)
+		require.NotNil(t, interop)
+		interop.ctx = context.Background()
+
+		// Reset on unknown chain (should not panic)
+		unknownChain := eth.ChainIDFromUInt64(999)
+		interop.ResetOn(unknownChain, 100)
+
+		// Just verify it didn't panic
+	})
+}

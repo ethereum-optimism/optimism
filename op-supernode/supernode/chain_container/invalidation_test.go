@@ -3,6 +3,7 @@ package chain_container
 import (
 	"context"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
@@ -511,4 +512,74 @@ func TestIsDenied(t *testing.T) {
 
 func testLogger() gethlog.Logger {
 	return gethlog.New()
+}
+
+// TestDenyList_ConcurrentAccess verifies the DenyList is safe for concurrent use.
+// 10 goroutines each perform 100 Add and Contains operations simultaneously.
+func TestDenyList_ConcurrentAccess(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dl, err := OpenDenyList(dir)
+	require.NoError(t, err)
+	defer dl.Close()
+
+	const numAccessors = 10
+	const opsPerAccessor = 100
+
+	// Helper to generate deterministic hash from accessor and op index
+	makeHash := func(accessorID, opIdx int) common.Hash {
+		var h common.Hash
+		h[0] = byte(accessorID)
+		h[1] = byte(opIdx)
+		h[2] = byte(opIdx >> 8)
+		return h
+	}
+
+	// Each accessor writes to its own height range and reads from all ranges
+	var wg sync.WaitGroup
+	wg.Add(numAccessors)
+
+	for i := 0; i < numAccessors; i++ {
+		go func(accessorID int) {
+			defer wg.Done()
+
+			baseHeight := uint64(accessorID * opsPerAccessor)
+
+			for j := 0; j < opsPerAccessor; j++ {
+				height := baseHeight + uint64(j)
+				hash := makeHash(accessorID, j)
+
+				// Write
+				err := dl.Add(height, hash)
+				require.NoError(t, err)
+
+				// Read own write
+				found, err := dl.Contains(height, hash)
+				require.NoError(t, err)
+				require.True(t, found, "accessor %d should find its own hash at height %d", accessorID, height)
+
+				// Read from another accessor's range (may or may not exist yet)
+				otherAccessor := (accessorID + 1) % numAccessors
+				otherHeight := uint64(otherAccessor*opsPerAccessor) + uint64(j/2)
+				_, err = dl.Contains(otherHeight, common.Hash{})
+				require.NoError(t, err) // Should not error even if not found
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify final state: each accessor should have written opsPerAccessor hashes
+	for i := 0; i < numAccessors; i++ {
+		baseHeight := uint64(i * opsPerAccessor)
+		for j := 0; j < opsPerAccessor; j++ {
+			height := baseHeight + uint64(j)
+			hash := makeHash(i, j)
+
+			found, err := dl.Contains(height, hash)
+			require.NoError(t, err)
+			require.True(t, found, "hash from accessor %d at height %d should exist after concurrent access", i, height)
+		}
+	}
 }
