@@ -3141,6 +3141,7 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
+            - cannon-kona-prestate
           context:
             - circleci-repo-readonly-authenticated-github-token
           filters:
