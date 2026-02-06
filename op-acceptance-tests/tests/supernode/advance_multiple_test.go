@@ -58,11 +58,11 @@ func TestTwoChainProgress(gt *testing.T) {
 		newStatusA := sys.L2ACL.SyncStatus()
 		newStatusB := sys.L2BCL.SyncStatus()
 		t.Logger().Info("waiting for safe head progression",
-			"chainA_safe", newStatusA.SafeL2.Number,
-			"chainB_safe", newStatusB.SafeL2.Number,
+			"chainA_local_safe", newStatusA.LocalSafeL2.Number,
+			"chainB_local_safe", newStatusB.LocalSafeL2.Number,
 		)
-		return newStatusA.SafeL2.Number > statusA.SafeL2.Number &&
-			newStatusB.SafeL2.Number > statusB.SafeL2.Number
+		return newStatusA.LocalSafeL2.Number > statusA.LocalSafeL2.Number &&
+			newStatusB.LocalSafeL2.Number > statusB.LocalSafeL2.Number
 	}, 60*time.Second, waitTime, "chains should advance safe heads")
 
 	// Log final status
