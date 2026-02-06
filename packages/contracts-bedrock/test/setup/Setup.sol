@@ -70,6 +70,7 @@ import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
 import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IConditionalDeployer } from "interfaces/L2/IConditionalDeployer.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
@@ -160,6 +161,7 @@ abstract contract Setup is FeatureFlags {
     IFeeSplitter feeSplitter = IFeeSplitter(payable(Predeploys.FEE_SPLITTER));
     IL1Withdrawer l1Withdrawer;
     ISuperchainRevSharesCalculator superchainRevSharesCalculator;
+    IConditionalDeployer conditionalDeployer = IConditionalDeployer(Predeploys.CONDITIONAL_DEPLOYER);
 
     /// @notice Indicates whether a test is running against a forked production network.
     function isForkTest() public view returns (bool) {
@@ -363,7 +365,8 @@ abstract contract Setup is FeatureFlags {
                 gasPayingTokenName: deploy.cfg().gasPayingTokenName(),
                 gasPayingTokenSymbol: deploy.cfg().gasPayingTokenSymbol(),
                 nativeAssetLiquidityAmount: deploy.cfg().nativeAssetLiquidityAmount(),
-                liquidityControllerOwner: deploy.cfg().liquidityControllerOwner()
+                liquidityControllerOwner: deploy.cfg().liquidityControllerOwner(),
+                useL2CM: deploy.cfg().useL2CM()
             })
         );
 
@@ -405,6 +408,7 @@ abstract contract Setup is FeatureFlags {
         labelPredeploy(Predeploys.NATIVE_ASSET_LIQUIDITY);
         labelPredeploy(Predeploys.LIQUIDITY_CONTROLLER);
         labelPredeploy(Predeploys.FEE_SPLITTER);
+        labelPredeploy(Predeploys.CONDITIONAL_DEPLOYER);
 
         // L2 Preinstalls
         labelPreinstall(Preinstalls.MultiCall3);

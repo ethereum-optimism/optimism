@@ -59,6 +59,10 @@
     "initCodeHash": "0x838bbd7f381e84e21887f72bd1da605bfc4588b3c39aed96cbce67c09335b3ee",
     "sourceCodeHash": "0xcb329746df0baddd3dc03c6c88da5d6bdc0f0a96d30e6dc78d0891bb1e935032"
   },
+  "src/L2/ConditionalDeployer.sol:ConditionalDeployer": {
+    "initCodeHash": "0x6b88fe95359f7166b90bcf9414b91cef3662be2e02b4a0540e486a5040c9e84c",
+    "sourceCodeHash": "0xaf67802e6fc99cb9a267bef3a736cf97e032ec215fc8fb8ca15c3f17eb978543"
+  },
   "src/L2/CrossL2Inbox.sol:CrossL2Inbox": {
     "initCodeHash": "0x56f868e561c4abe539043f98b16aad9305479e68fd03ece2233249b0c73a24ea",
     "sourceCodeHash": "0x7c6d362a69a480a06a079542a7fd2ce48cb1dd80d6b9043fba60218569371349"

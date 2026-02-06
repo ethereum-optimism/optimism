@@ -71,7 +71,11 @@ abstract contract L2Genesis_TestInit is Test {
             assertEq(Predeploys.PROXY_ADMIN, EIP1967Helper.getAdmin(addr));
 
             // If it's not a supported predeploy, skip next checks.
-            if (!Predeploys.isSupportedPredeploy(addr, uint256(LATEST_FORK), true, input.useCustomGasToken)) {
+            if (
+                !Predeploys.isSupportedPredeploy(
+                    addr, uint256(LATEST_FORK), true, input.useCustomGasToken, input.useL2CM
+                )
+            ) {
                 continue;
             }
 
@@ -260,7 +264,8 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             gasPayingTokenName: "",
             gasPayingTokenSymbol: "",
             nativeAssetLiquidityAmount: type(uint248).max,
-            liquidityControllerOwner: address(0x000000000000000000000000000000000000000d)
+            liquidityControllerOwner: address(0x000000000000000000000000000000000000000d),
+            useL2CM: false
         });
     }
 
@@ -439,5 +444,19 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         input.useRevenueShare = true;
         vm.expectRevert("FeeVault: custom gas token and revenue share cannot be enabled together");
         genesis.run(input);
+    }
+
+    /// @notice Tests that enabling l2cm succeeds.
+    function test_run_l2cm_succeeds() external {
+        input.useL2CM = true;
+        genesis.run(input);
+
+        testProxyAdmin();
+        testPredeploys();
+        testVaultsWithRevenueShare();
+        testGovernance();
+        testFactories();
+        testForks();
+        testFeeSplitter();
     }
 }

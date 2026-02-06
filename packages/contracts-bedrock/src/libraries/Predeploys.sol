@@ -122,6 +122,9 @@ library Predeploys {
     /// @notice Address of the FeeSplitter predeploy.
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
 
+    /// @notice Address of the ConditionalDeployer predeploy.
+    address internal constant CONDITIONAL_DEPLOYER = 0x420000000000000000000000000000000000002C;
+
     /// @notice Returns the name of the predeploy at the given address.
     function getName(address _addr) internal pure returns (string memory out_) {
         require(isPredeployNamespace(_addr), "Predeploys: address must be a predeploy");
@@ -157,6 +160,7 @@ library Predeploys {
         if (_addr == LIQUIDITY_CONTROLLER) return "LiquidityController";
         if (_addr == NATIVE_ASSET_LIQUIDITY) return "NativeAssetLiquidity";
         if (_addr == FEE_SPLITTER) return "FeeSplitter";
+        if (_addr == CONDITIONAL_DEPLOYER) return "ConditionalDeployer";
         revert("Predeploys: unnamed predeploy");
     }
 
@@ -170,7 +174,8 @@ library Predeploys {
         address _addr,
         uint256 _fork,
         bool _enableCrossL2Inbox,
-        bool _isCustomGasToken
+        bool _isCustomGasToken,
+        bool _useL2CM
     )
         internal
         pure
@@ -186,7 +191,7 @@ library Predeploys {
             || (_fork >= uint256(Fork.INTEROP) && _enableCrossL2Inbox && _addr == CROSS_L2_INBOX)
             || (_fork >= uint256(Fork.INTEROP) && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER)
             || (_isCustomGasToken && _addr == LIQUIDITY_CONTROLLER)
-            || (_isCustomGasToken && _addr == NATIVE_ASSET_LIQUIDITY);
+            || (_isCustomGasToken && _addr == NATIVE_ASSET_LIQUIDITY) || (_useL2CM && _addr == CONDITIONAL_DEPLOYER);
     }
 
     function isPredeployNamespace(address _addr) internal pure returns (bool) {

@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
 import { Test } from "forge-std/Test.sol";
-import { ConditionalDeployer } from "src/L2/ConditionalDeployer.sol";
-import { Config } from "scripts/libraries/Config.sol";
-import { Constants } from "src/libraries/Constants.sol";
-import { ICreate2Deployer } from "interfaces/preinstalls/ICreate2Deployer.sol";
-import { Preinstalls } from "src/libraries/Preinstalls.sol";
 
-/// @title SimpleContract
-/// @notice A simple contract to deploy using the ConditionalDeployer.
-contract SimpleContract {
+// Libraries
+import { Config } from "scripts/libraries/Config.sol";
+
+// Contracts
+import { ConditionalDeployer } from "src/L2/ConditionalDeployer.sol";
+
+/// @title ConditionalDeployer_Harness
+/// @notice A simple contract harness used for deployment testing of the ConditionalDeployer.
+contract ConditionalDeployer_Harness {
     uint256 public immutable value;
 
     constructor(uint256 _value) {
@@ -21,13 +23,17 @@ contract SimpleContract {
 /// @title ConditionalDeployer_TestInit
 /// @notice Reusable test initialization for `ConditionalDeployer` tests.
 contract ConditionalDeployer_TestInit is Test {
+    // Test contracts
     ConditionalDeployer public conditionalDeployer;
     bytes public simpleContractCreationCode;
 
     function setUp() public {
-        vm.createSelectFork(Config.forkRpcUrl(), Config.forkBlockNumber());
+        // Create fork
+        vm.createSelectFork(Config.forkRpcUrl());
+
+        // Deploy contracts
         conditionalDeployer = new ConditionalDeployer();
-        simpleContractCreationCode = type(SimpleContract).creationCode;
+        simpleContractCreationCode = type(ConditionalDeployer_Harness).creationCode;
     }
 }
 
@@ -41,66 +47,82 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
     event ImplementationExists(address indexed implementation);
 
     /// @notice Tests that `deploy` succeeds and emits the correct event.
-    function testFuzz_deploy_succeeds(bytes32 _salt, uint256 _value) public {
+    function testFuzz_deploy_succeeds(address _caller, bytes32 _salt, uint256 _value) public {
         bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(_value));
         bytes32 codeHash = keccak256(_initCode);
-        address expectedImplementation =
-            ICreate2Deployer(payable(Preinstalls.Create2Deployer)).computeAddress(_salt, codeHash);
+        address expectedImplementation = address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            bytes1(0xff), conditionalDeployer.DETERMINISTIC_DEPLOYMENT_PROXY(), _salt, codeHash
+                        )
+                    )
+                )
+            )
+        );
 
         vm.expectEmit(address(conditionalDeployer));
         emit ImplementationDeployed(expectedImplementation, _salt);
 
-        vm.prank(Constants.DEPOSITOR_ACCOUNT);
+        vm.prank(_caller);
         address implementation = conditionalDeployer.deploy(0, _salt, _initCode);
 
         assertEq(implementation, expectedImplementation);
-        assertEq(SimpleContract(implementation).value(), _value);
+        assertEq(ConditionalDeployer_Harness(implementation).value(), _value);
         assert(implementation.code.length != 0);
     }
 
-    /// @notice Tests that `deploy` succeeds when called by `address(0)`.
-    function testFuzz_deploy_fromAddressZero_succeeds(bytes32 _salt, uint256 _value) public {
+    /// @notice Tests that `deploy` is idempotent and produces the same address when called multiple times.
+    function testFuzz_deploy_idempotent_succeeds(address _caller, bytes32 _salt, uint256 _value) public {
         bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(_value));
 
-        vm.prank(address(0));
-        address implementation = conditionalDeployer.deploy(0, _salt, _initCode);
+        // First Deployment
+        bytes32 codeHash = keccak256(_initCode);
+        address expectedImplementation = address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            bytes1(0xff), conditionalDeployer.DETERMINISTIC_DEPLOYMENT_PROXY(), _salt, codeHash
+                        )
+                    )
+                )
+            )
+        );
 
-        assertEq(SimpleContract(implementation).value(), _value);
-        assert(implementation.code.length != 0);
-    }
+        vm.expectEmit(address(conditionalDeployer));
+        emit ImplementationDeployed(expectedImplementation, _salt);
 
-    /// @notice Tests that `deploy` produces the same address when called multiple times.
-    function testFuzz_deploy_produces_same_address_succeeds(bytes32 _salt, uint256 _value) public {
-        bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(_value));
-
-        vm.prank(Constants.DEPOSITOR_ACCOUNT);
+        vm.prank(_caller);
         address implementation1 = conditionalDeployer.deploy(0, _salt, _initCode);
 
         // Assert that the implementation was deployed
         assert(implementation1.code.length != 0);
 
-        // Attempt to deploy the same implementation again
+        // Second Deployment
         vm.expectEmit(address(conditionalDeployer));
         emit ImplementationExists(implementation1);
 
-        vm.prank(Constants.DEPOSITOR_ACCOUNT);
+        vm.prank(_caller);
         address implementation2 = conditionalDeployer.deploy(0, _salt, _initCode);
 
         assertEq(implementation1, implementation2);
     }
-}
 
-/// @title ConditionalDeployer_Deploy_TestFail
-/// @notice Tests failure cases for the `deploy` function of the `ConditionalDeployer` contract.
-contract ConditionalDeployer_Deploy_TestFail is ConditionalDeployer_TestInit {
-    /// @notice Tests that `deploy` reverts when called by an address other than the depositor account or address(0).
-    function testFuzz_deploy_when_not_authorized_reverts(address _sender) public {
-        vm.assume(_sender != Constants.DEPOSITOR_ACCOUNT && _sender != address(0));
-
+    /// @notice Tests that `deploy` reverts when the deployment call to the DeterministicDeploymentProxy fails.
+    /// @dev The deployment call to the DeterministicDeploymentProxy is mocked to revert.
+    function testFuzz_deploy_deploymentFailed_reverts(address _caller, bytes32 _salt, uint256 _value) public {
         bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(0));
 
-        vm.prank(_sender);
-        vm.expectRevert(ConditionalDeployer.UnauthorizedCaller.selector);
-        conditionalDeployer.deploy(0, bytes32(0), _initCode);
+        vm.mockCallRevert(
+            conditionalDeployer.DETERMINISTIC_DEPLOYMENT_PROXY(), _value, abi.encodePacked(_salt, _initCode), bytes("")
+        );
+
+        vm.prank(_caller);
+        vm.expectRevert(
+            abi.encodeWithSelector(ConditionalDeployer.ConditionalDeployer_DeploymentFailed.selector, bytes(""))
+        );
+        conditionalDeployer.deploy(_value, _salt, _initCode);
     }
 }

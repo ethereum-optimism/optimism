@@ -81,6 +81,7 @@ contract L2Genesis is Script {
         string gasPayingTokenSymbol;
         uint256 nativeAssetLiquidityAmount;
         address liquidityControllerOwner;
+        bool useL2CM;
     }
 
     using ForkUtils for Fork;
@@ -221,8 +222,11 @@ contract L2Genesis is Script {
             vm.etch(addr, code);
             EIP1967Helper.setAdmin(addr, Predeploys.PROXY_ADMIN);
 
-            if (Predeploys.isSupportedPredeploy(addr, _input.fork, _input.deployCrossL2Inbox, _input.useCustomGasToken))
-            {
+            if (
+                Predeploys.isSupportedPredeploy(
+                    addr, _input.fork, _input.deployCrossL2Inbox, _input.useCustomGasToken, _input.useL2CM
+                )
+            ) {
                 address implementation = Predeploys.predeployToCodeNamespace(addr);
                 EIP1967Helper.setImplementation(addr, implementation);
             }
@@ -267,6 +271,9 @@ contract L2Genesis is Script {
         if (_input.useCustomGasToken) {
             setLiquidityController(_input); // 29
             setNativeAssetLiquidity(_input); // 2A
+        }
+        if (_input.useL2CM) {
+            setConditionalDeployer(); // 2C
         }
     }
 
@@ -576,6 +583,11 @@ contract L2Genesis is Script {
 
         // Pre-fund the liquidity contract with the specified amount
         vm.deal(Predeploys.NATIVE_ASSET_LIQUIDITY, _input.nativeAssetLiquidityAmount);
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    function setConditionalDeployer() internal {
+        _setImplementationCode(Predeploys.CONDITIONAL_DEPLOYER);
     }
 
     /// @notice Sets all the preinstalls.
