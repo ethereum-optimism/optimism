@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -95,6 +96,10 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		s.StepDeriver.RequestStep(ctx, true)
 	case engine.SafeDerivedEvent:
 		s.onSafeDerivedBlock(ctx, x)
+	case engine.LocalSafeUpdateEvent:
+		// In interop mode, local-safe blocks need to be recorded in SafeDB
+		// even if they haven't been promoted to cross-safe yet
+		s.onLocalSafeUpdate(ctx, x)
 	case derive.ProvideL1Traversal:
 		s.StepDeriver.RequestStep(ctx, false)
 	default:
@@ -142,6 +147,18 @@ func (s *SyncDeriver) onSafeDerivedBlock(ctx context.Context, x engine.SafeDeriv
 	}
 }
 
+func (s *SyncDeriver) onLocalSafeUpdate(ctx context.Context, x engine.LocalSafeUpdateEvent) {
+	// In interop mode, SafeDB needs to track local-safe blocks even before they're cross-verified
+	// This allows queries like L1AtSafeHead to work correctly
+	if s.SafeHeadNotifs != nil && s.SafeHeadNotifs.Enabled() {
+		if err := s.SafeHeadNotifs.SafeHeadUpdated(x.Ref, x.Source.ID()); err != nil {
+			s.Emitter.Emit(ctx, rollup.ResetEvent{
+				Err: fmt.Errorf("local safe head notifications failed: %w", err),
+			})
+		}
+	}
+}
+
 func (s *SyncDeriver) OnELSyncStarted() {
 	// The EL sync may progress the safe head in the EL without deriving those blocks from L1
 	// which means the safe head db will miss entries so we need to remove all entries to avoid returning bad data
@@ -162,20 +179,38 @@ func (s *SyncDeriver) onEngineConfirmedReset(ctx context.Context, x engine.Engin
 			s.Log.Error("Failed to warn safe-head notifier of safe-head reset", "safe", x.CrossSafe)
 			return
 		}
-		if s.SafeHeadNotifs.Enabled() && x.CrossSafe.ID() == s.Config.Genesis.L2 {
-			// The rollup genesis block is always safe by definition. So if the pipeline resets this far back we know
-			// we will process all safe head updates and can record genesis as always safe from L1 genesis.
-			// Note that it is not safe to use cfg.Genesis.L1 here as it is the block immediately before the L2 genesis
+		if s.SafeHeadNotifs.Enabled() {
+			// The rollup genesis block is always safe by definition. We always record it when resetting
+			// to ensure SafeDB has a starting point for L1AtSafeHead queries.
+			// Note that it is not safe to use cfg.Genesis.L1 here as it is the block immediately before the L2 genesis,
 			// but the contracts may have been deployed earlier than that, allowing creating a dispute game
-			// with a L1 head prior to cfg.Genesis.L1
+			// with a L1 head prior to cfg.Genesis.L1. We use L1 genesis (block 0) instead.
 			l1Genesis, err := s.L1.L1BlockRefByNumber(s.Ctx, 0)
 			if err != nil {
 				s.Log.Error("Failed to retrieve L1 genesis, cannot notify genesis as safe block", "err", err)
 				return
 			}
-			if err := s.SafeHeadNotifs.SafeHeadUpdated(x.CrossSafe, l1Genesis.ID()); err != nil {
-				s.Log.Error("Failed to notify safe-head listener of safe-head", "err", err)
+
+			genesisL2Ref := eth.L2BlockRef{
+				Hash:           s.Config.Genesis.L2.Hash,
+				Number:         s.Config.Genesis.L2.Number,
+				ParentHash:     common.Hash{}, // Genesis has no parent
+				Time:           s.Config.Genesis.L2Time,
+				L1Origin:       s.Config.Genesis.L1,
+				SequenceNumber: 0,
+			}
+			if err := s.SafeHeadNotifs.SafeHeadUpdated(genesisL2Ref, l1Genesis.ID()); err != nil {
+				s.Log.Error("Failed to notify safe-head listener of genesis block", "err", err)
 				return
+			}
+
+			// If reset didn't go back to genesis, also record the local safe head
+			// This ensures continuity in SafeDB for L1AtSafeHead queries
+			if x.LocalSafe.ID() != s.Config.Genesis.L2 {
+				if err := s.SafeHeadNotifs.SafeHeadUpdated(x.LocalSafe, x.LocalSafe.L1Origin); err != nil {
+					s.Log.Error("Failed to notify safe-head listener of local safe head on reset", "err", err)
+					return
+				}
 			}
 		}
 	}
