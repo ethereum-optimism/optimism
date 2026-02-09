@@ -1,16 +1,30 @@
 [
   {
-    "bytes": "1",
-    "label": "_initialized",
+    "bytes": "32",
+    "label": "peData",
     "offset": 0,
     "slot": "0",
-    "type": "uint8"
+    "type": "mapping(address => struct PolicyEngineStaking.PEData)"
+  },
+  {
+    "bytes": "32",
+    "label": "stakingData",
+    "offset": 0,
+    "slot": "1",
+    "type": "mapping(address => struct PolicyEngineStaking.StakedData)"
+  },
+  {
+    "bytes": "32",
+    "label": "allowlist",
+    "offset": 0,
+    "slot": "2",
+    "type": "mapping(address => mapping(address => struct PolicyEngineStaking.AllowlistEntry))"
   },
   {
     "bytes": "1",
-    "label": "_initializing",
-    "offset": 1,
-    "slot": "0",
+    "label": "paused",
+    "offset": 0,
+    "slot": "3",
     "type": "bool"
   }
 ]

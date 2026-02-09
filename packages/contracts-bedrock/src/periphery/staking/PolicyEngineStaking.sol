@@ -1,14 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Contracts
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
-import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
-
-// Libraries
-import { Storage } from "src/libraries/Storage.sol";
-
 // Interfaces
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -19,51 +11,54 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         Users deposit OP tokens into the contract, and the Policy Engine reads a packed value
 ///         (effective stake amount and last update timestamp) directly from storage slots to
 ///         determine transaction priority during block building.
-/// @custom:proxied
-contract PolicyEngineStaking is Initializable, ReinitializableBase, ProxyAdminOwnedBase, ISemver {
+///         This contract is immutable and non-upgradeable.
+contract PolicyEngineStaking is ISemver {
     using SafeERC20 for IERC20;
 
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant override version = "1.0.0";
 
-    /// @notice Storage slot for PE-facing packed stake data (effective stake + timestamp)
-    bytes32 public constant PE_DATA_SLOT = bytes32(uint256(keccak256("pe-stakingcontract.peData")) - 1);
-
-    /// @notice Storage slot for contract-side staking data mapping base
-    bytes32 public constant STAKING_DATA_SLOT = bytes32(uint256(keccak256("pe-stakingcontract.stakingData")) - 1);
-
-    /// @notice Storage slot for beneficiary-controlled allowlist: beneficiary => (staker => allowed)
-    bytes32 public constant BENEFICIARY_ALLOWLIST_SLOT =
-        bytes32(uint256(keccak256("pe-stakingcontract.beneficiaryAllowlist")) - 1);
-
-    /// @notice Number of bits allocated for effective stake in packed PE data
-    uint256 internal constant PE_STAKE_BITS = 128;
-
-    /// @notice Number of bits allocated for last update timestamp in packed PE data
-    uint256 internal constant PE_TIME_BITS = 64;
-
-    /// @notice Bit shift for the timestamp field in packed PE data
-    uint256 internal constant PE_TIME_SHIFT = 128;
-
-    /// @notice Mask for extracting effective stake from packed PE data
-    uint256 internal constant PE_STAKE_MASK = (1 << PE_STAKE_BITS) - 1;
-
-    /// @notice Mask for extracting timestamp from packed PE data
-    uint256 internal constant PE_TIME_MASK = ((1 << PE_TIME_BITS) - 1) << PE_TIME_SHIFT;
-
-    /// @notice Offset for stakedAmount in StakedData struct
-    uint256 internal constant SD_OFFSET_STAKED_AMOUNT = 0;
-
-    /// @notice Offset for linkedAmountFromTotal (receivedStake) in StakedData struct
-    uint256 internal constant SD_OFFSET_LINKED_AMOUNT = 1;
-
-    /// @notice Offset for linkedAddressTo in StakedData struct
-    uint256 internal constant SD_OFFSET_LINKED_TO = 2;
+    /// @notice Base storage slot for PE data mapping. Policy Engine reads from keccak256(abi.encode(account,
+    /// PE_DATA_SLOT)). Struct is packed: effectiveStake (128 bits) | lastUpdate (64 bits).
+    bytes32 public constant PE_DATA_SLOT = bytes32(uint256(0));
 
     /// @notice The address of the OP token on OP Mainnet
     /// @custom:network-specific
     address internal constant OP_TOKEN_ADDRESS = 0x4200000000000000000000000000000000000042;
+
+    /// @notice Staking data per account.
+    struct StakedData {
+        uint256 stakedAmount;
+        uint256 receivedStake;
+        address linkedTo;
+    }
+
+    /// @notice Policy Engine data per account. Packed in one slot for PE reads.
+    struct PEData {
+        uint128 effectiveStake;
+        uint64 lastUpdate;
+    }
+
+    /// @notice Allowlist entry: beneficiary controls which stakers can link to them.
+    struct AllowlistEntry {
+        bool allowed;
+    }
+
+    /// @notice Slot 0: PE data mapping.
+    mapping(address => PEData) public peData;
+
+    /// @notice Staking data mapping.
+    mapping(address => StakedData) public stakingData;
+
+    /// @notice Allowlist: beneficiary => staker => entry.
+    mapping(address => mapping(address => AllowlistEntry)) public allowlist;
+
+    /// @notice Paused state.
+    bool public paused;
+
+    /// @notice The immutable owner of the contract. Can pause and unpause.
+    address public immutable owner;
 
     /// @notice Emitted when a user stakes OP tokens.
     /// @param account     The address that staked tokens.
@@ -92,6 +87,18 @@ contract PolicyEngineStaking is Initializable, ReinitializableBase, ProxyAdminOw
     /// @param allowed     The new permission state.
     event BeneficiaryAllowlistUpdated(address indexed beneficiary, address indexed staker, bool allowed);
 
+    /// @notice Emitted when the contract is paused.
+    event Paused();
+
+    /// @notice Emitted when the contract is unpaused.
+    event Unpaused();
+
+    /// @notice Thrown when the caller is not the owner.
+    error PolicyEngineStaking_OnlyOwner();
+
+    /// @notice Thrown when the contract is paused.
+    error PolicyEngineStaking_Paused();
+
     /// @notice Thrown when the amount is zero.
     error PolicyEngineStaking_ZeroAmount();
 
@@ -114,23 +121,38 @@ contract PolicyEngineStaking is Initializable, ReinitializableBase, ProxyAdminOw
     error PolicyEngineStaking_MustLinkOrUnstakeFirst();
 
     /// @notice Constructs the PolicyEngineStaking contract.
-    constructor() ReinitializableBase(1) {
-        _disableInitializers();
+    /// @param _owner The address that can pause and unpause the contract.
+    constructor(address _owner) {
+        owner = _owner;
     }
 
-    /// @notice Initializes the contract.
-    function initialize() external reinitializer(initVersion()) {
-        _assertOnlyProxyAdminOrProxyAdminOwner();
+    /// @notice Modifier that reverts when the contract is paused.
+    modifier whenNotPaused() {
+        if (paused) revert PolicyEngineStaking_Paused();
+        _;
+    }
+
+    /// @notice Pauses the contract. Stake and link are disabled while paused.
+    function pause() external {
+        if (msg.sender != owner) revert PolicyEngineStaking_OnlyOwner();
+        paused = true;
+        emit Paused();
+    }
+
+    /// @notice Unpauses the contract.
+    function unpause() external {
+        if (msg.sender != owner) revert PolicyEngineStaking_OnlyOwner();
+        paused = false;
+        emit Unpaused();
     }
 
     /// @notice Stakes OP tokens and attributes ordering power to a beneficiary.
     /// @param _amount      The amount of OP tokens to stake.
     /// @param _beneficiary Address that receives ordering power from this stake.
     ///                     Use address(0) for self-attribution.
-    function stake(uint256 _amount, address _beneficiary) external {
+    function stake(uint256 _amount, address _beneficiary) external whenNotPaused {
         if (_amount == 0) revert PolicyEngineStaking_ZeroAmount();
 
-        // Get current staking data
         (uint256 stakedAmount, uint256 receivedStake, address linkedTo) = _getStakedData(msg.sender);
 
         // Check if self-attribution
@@ -141,19 +163,13 @@ contract PolicyEngineStaking is Initializable, ReinitializableBase, ProxyAdminOw
 
         // If self-attribution, check if already linked to a different beneficiary
         if (isSelfAttribution) {
-            // If self-attribution, check if already linked to a different beneficiary
             if (linkedTo != address(0)) revert PolicyEngineStaking_AlreadyLinked();
-            // Update PE data
             _increasePeData(msg.sender, _amount);
         } else {
             if (linkedTo == address(0) && stakedAmount > 0) revert PolicyEngineStaking_MustLinkOrUnstakeFirst();
-            // If not self-attribution, check if already linked to a different beneficiary
             if (linkedTo != _beneficiary && linkedTo != address(0)) revert PolicyEngineStaking_AlreadyLinked();
-            // If not self-attribution, check if staker is allowed to link to the beneficiary
-            if (!_isAllowedToLink(_beneficiary, msg.sender)) revert PolicyEngineStaking_NotAllowedToLink();
-            // If not self-attribution, add stake to beneficiary
+            if (!allowlist[_beneficiary][msg.sender].allowed) revert PolicyEngineStaking_NotAllowedToLink();
             _addStakeToBeneficiary(_beneficiary, _amount);
-            // Update PE data
             _increasePeData(_beneficiary, _amount);
         }
 
@@ -165,19 +181,14 @@ contract PolicyEngineStaking is Initializable, ReinitializableBase, ProxyAdminOw
 
     /// @notice Unstakes all OP tokens from the contract.
     function unstake() external {
-        // Get current staking data
         (uint256 stakedAmount, uint256 receivedStake, address linkedTo) = _getStakedData(msg.sender);
 
         if (stakedAmount == 0) revert PolicyEngineStaking_NoStake();
 
-        // Check if linked
         if (linkedTo == address(0)) {
-            // If not linked, update PE data for self
             _decreasePeData(msg.sender, stakedAmount);
         } else {
-            // If linked, remove stake from beneficiary's received stake
             _removeStakeFromBeneficiary(linkedTo, stakedAmount);
-            // Update PE data for beneficiary
             _decreasePeData(linkedTo, stakedAmount);
         }
 
@@ -191,11 +202,10 @@ contract PolicyEngineStaking is Initializable, ReinitializableBase, ProxyAdminOw
     }
 
     /// @notice Links the caller's stake to a beneficiary for ordering power.
-    /// @param _beneficiary New beneficiary address. Use msg.sender for self-attribution.
-    function link(address _beneficiary) external {
+    /// @param _beneficiary New beneficiary address. Use address(0) for self-attribution.
+    function link(address _beneficiary) external whenNotPaused {
         if (_beneficiary == address(0)) revert PolicyEngineStaking_ZeroBeneficiary();
 
-        // Get current staking data
         (uint256 stakedAmount, uint256 receivedStake, address linkedTo) = _getStakedData(msg.sender);
 
         // Check if staker has no stake
@@ -204,19 +214,13 @@ contract PolicyEngineStaking is Initializable, ReinitializableBase, ProxyAdminOw
         // Check if already linked
         if (linkedTo != address(0)) revert PolicyEngineStaking_AlreadyLinked();
 
-        // Check allowlist if linking to another beneficiary
-        if (_beneficiary != msg.sender && !_isAllowedToLink(_beneficiary, msg.sender)) {
+        if (_beneficiary != msg.sender && !allowlist[_beneficiary][msg.sender].allowed) {
             revert PolicyEngineStaking_NotAllowedToLink();
         }
 
-        // Update caller's linked address
         _setStakedData(msg.sender, stakedAmount, receivedStake, _beneficiary);
-
-        // Update beneficiary's received stake and PE data
         _addStakeToBeneficiary(_beneficiary, stakedAmount);
         _increasePeData(_beneficiary, stakedAmount);
-
-        // Decrease caller's PE data (stake moves to beneficiary)
         _decreasePeData(msg.sender, stakedAmount);
 
         emit Linked(msg.sender, _beneficiary);
@@ -224,69 +228,33 @@ contract PolicyEngineStaking is Initializable, ReinitializableBase, ProxyAdminOw
 
     /// @notice Removes the current beneficiary attribution and reverts to self-attribution.
     function unlink() external {
-        // Get current staking data
         (uint256 stakedAmount, uint256 receivedStake, address linkedTo) = _getStakedData(msg.sender);
 
         // Check if linked
         if (linkedTo == address(0)) revert PolicyEngineStaking_NotLinked();
 
-        // Clear linked address
         _setStakedData(msg.sender, stakedAmount, receivedStake, address(0));
-
-        // Update previous beneficiary's received stake and PE data
         _removeStakeFromBeneficiary(linkedTo, stakedAmount);
         _decreasePeData(linkedTo, stakedAmount);
-
-        // Increase caller's PE data (stake returns to self)
         _increasePeData(msg.sender, stakedAmount);
 
         emit Unlinked(msg.sender, linkedTo);
     }
 
-    /// @notice Returns contract-side raw staking data for an account.
-    /// @param _account Address to query.
-    /// @return stakedAmount_    Amount staked by _account.
-    /// @return receivedStake_   Total stake attributed to _account by other stakers.
-    /// @return linkedAddressTo_ Current beneficiary that _account attributes its stake to.
-    function getStakedData(address _account)
-        external
-        view
-        returns (uint256 stakedAmount_, uint256 receivedStake_, address linkedAddressTo_)
-    {
-        return _getStakedData(_account);
-    }
-
-    /// @notice Returns the Policy Engine data for an account.
-    /// @param _account The account to query.
-    /// @return effectiveStake_ The effective stake used by the Policy Engine.
-    /// @return lastUpdate_    Last update timestamp.
-    function getPEData(address _account) external view returns (uint128 effectiveStake_, uint64 lastUpdate_) {
-        return _getPeData(_account);
-    }
-
-    /// @notice Returns whether a staker is allowed to attribute stake to a beneficiary.
-    /// @param _beneficiary The address that would receive ordering power.
-    /// @param _staker      The staker attempting to attribute ordering power.
-    /// @return allowed_ Whether the staker is allowed.
-    function isAllowedToLink(address _beneficiary, address _staker) external view returns (bool allowed_) {
-        return _isAllowedToLink(_beneficiary, _staker);
-    }
-
     /// @notice Allows or denies a staker to attribute ordering power to the caller.
-    /// @param _staker  Staker address being allowlisted.
-    /// @param _allowed Whether the staker is allowed.
+    /// @param _staker The staker to allow or deny.
+    /// @param _allowed The allowed state.
     function setAllowedStaker(address _staker, bool _allowed) external {
-        _setAllowlistEntry(msg.sender, _staker, _allowed);
+        allowlist[msg.sender][_staker] = AllowlistEntry({ allowed: _allowed });
         emit BeneficiaryAllowlistUpdated(msg.sender, _staker, _allowed);
     }
 
     /// @notice Batch allows or denies stakers to attribute ordering power to the caller.
-    /// @param _stakers List of staker addresses.
-    /// @param _allowed Whether each staker is allowed.
+    /// @param _stakers The stakers to allow or deny.
+    /// @param _allowed The allowed state.
     function setAllowedStakers(address[] calldata _stakers, bool _allowed) external {
-        uint256 length = _stakers.length;
-        for (uint256 i = 0; i < length;) {
-            _setAllowlistEntry(msg.sender, _stakers[i], _allowed);
+        for (uint256 i = 0; i < _stakers.length;) {
+            allowlist[msg.sender][_stakers[i]] = AllowlistEntry({ allowed: _allowed });
             emit BeneficiaryAllowlistUpdated(msg.sender, _stakers[i], _allowed);
             unchecked {
                 ++i;
@@ -296,94 +264,46 @@ contract PolicyEngineStaking is Initializable, ReinitializableBase, ProxyAdminOw
 
     /// @notice Increases beneficiary's received stake (staking data only, not PE data).
     /// @param _beneficiary The beneficiary address.
-    /// @param _amount      The amount to add.
+    /// @param _amount The amount to increase.
     function _addStakeToBeneficiary(address _beneficiary, uint256 _amount) internal {
-        (uint256 beneficiaryStaked, uint256 beneficiaryReceived, address beneficiaryLinkedTo) =
-            _getStakedData(_beneficiary);
-        beneficiaryReceived += _amount;
-        _setStakedData(_beneficiary, beneficiaryStaked, beneficiaryReceived, beneficiaryLinkedTo);
+        (uint256 staked, uint256 received, address linkedTo) = _getStakedData(_beneficiary);
+        _setStakedData(_beneficiary, staked, received + _amount, linkedTo);
     }
 
     /// @notice Decreases beneficiary's received stake (staking data only, not PE data).
     /// @param _beneficiary The beneficiary address.
-    /// @param _amount      The amount to remove.
+    /// @param _amount The amount to decrease.
     function _removeStakeFromBeneficiary(address _beneficiary, uint256 _amount) internal {
-        (uint256 beneficiaryStaked, uint256 beneficiaryReceived, address beneficiaryLinkedTo) =
-            _getStakedData(_beneficiary);
-        beneficiaryReceived -= _amount;
-        _setStakedData(_beneficiary, beneficiaryStaked, beneficiaryReceived, beneficiaryLinkedTo);
+        (uint256 staked, uint256 received, address linkedTo) = _getStakedData(_beneficiary);
+        _setStakedData(_beneficiary, staked, received - _amount, linkedTo);
     }
 
-    /// @notice Increases PE data (effective stake) for an account.
+    /// @notice Gets staking data for an account.
+    function _getStakedData(address _account)
+        internal
+        view
+        returns (uint256 stakedAmount_, uint256 receivedStake_, address linkedAddressTo_)
+    {
+        StakedData storage d = stakingData[_account];
+        return (d.stakedAmount, d.receivedStake, d.linkedTo);
+    }
+
+    /// @notice Increases PE data (effective stake) and updates last update timestamp for an account.
     /// @param _account The account address.
-    /// @param _amount  The amount to add.
+    /// @param _amount The amount to increase.
     function _increasePeData(address _account, uint256 _amount) internal {
-        (uint128 effectiveStake,) = _getPeData(_account);
-        _setPeData(_account, effectiveStake + uint128(_amount), uint64(block.timestamp));
+        PEData storage pe = peData[_account];
+        pe.effectiveStake += uint128(_amount);
+        pe.lastUpdate = uint64(block.timestamp);
     }
 
-    /// @notice Decreases PE data (effective stake) for an account.
+    /// @notice Decreases PE data (effective stake) and updates last update timestamp for an account.
     /// @param _account The account address.
-    /// @param _amount  The amount to remove.
+    /// @param _amount The amount to decrease.
     function _decreasePeData(address _account, uint256 _amount) internal {
-        (uint128 effectiveStake,) = _getPeData(_account);
-        _setPeData(_account, effectiveStake - uint128(_amount), uint64(block.timestamp));
-    }
-
-    /// @notice Computes the storage slot for PE data of an account.
-    /// @param _account The account address.
-    /// @return slot_ The storage slot.
-    function _peSlot(address _account) internal pure returns (bytes32 slot_) {
-        return keccak256(abi.encode(_account, PE_DATA_SLOT));
-    }
-
-    /// @notice Computes the base storage slot for staking data of an account.
-    /// @param _account The account address.
-    /// @return base_ The base storage slot.
-    function _sdBase(address _account) internal pure returns (bytes32 base_) {
-        return keccak256(abi.encode(_account, STAKING_DATA_SLOT));
-    }
-
-    /// @notice Computes the storage slot for an allowlist entry.
-    /// @param _beneficiary The beneficiary address.
-    /// @param _staker      The staker address.
-    /// @return slot_ The storage slot.
-    function _allowlistSlot(address _beneficiary, address _staker) internal pure returns (bytes32 slot_) {
-        bytes32 outer = keccak256(abi.encode(_beneficiary, BENEFICIARY_ALLOWLIST_SLOT));
-        return keccak256(abi.encode(_staker, outer));
-    }
-
-    /// @notice Packs effective stake and timestamp into a single uint256.
-    /// @param _effectiveStake The effective stake amount.
-    /// @param _lastUpdate     The last update timestamp.
-    /// @return packed_ The packed value.
-    function _packPeData(uint128 _effectiveStake, uint64 _lastUpdate) internal pure returns (uint256 packed_) {
-        packed_ = uint256(_effectiveStake) | (uint256(_lastUpdate) << PE_TIME_SHIFT);
-    }
-
-    /// @notice Unpacks effective stake and timestamp from a packed uint256.
-    /// @param _packed The packed value.
-    /// @return effectiveStake_ The effective stake amount.
-    /// @return lastUpdate_     The last update timestamp.
-    function _unpackPeData(uint256 _packed) internal pure returns (uint128 effectiveStake_, uint64 lastUpdate_) {
-        effectiveStake_ = uint128(_packed & PE_STAKE_MASK);
-        lastUpdate_ = uint64((_packed & PE_TIME_MASK) >> PE_TIME_SHIFT);
-    }
-
-    /// @notice Sets PE data for an account.
-    /// @param _account        The account address.
-    /// @param _effectiveStake The effective stake amount.
-    /// @param _lastUpdate     The last update timestamp.
-    function _setPeData(address _account, uint128 _effectiveStake, uint64 _lastUpdate) internal {
-        Storage.setUint(_peSlot(_account), _packPeData(_effectiveStake, _lastUpdate));
-    }
-
-    /// @notice Gets PE data for an account.
-    /// @param _account The account address.
-    /// @return effectiveStake_ The effective stake amount.
-    /// @return lastUpdate_     The last update timestamp.
-    function _getPeData(address _account) internal view returns (uint128 effectiveStake_, uint64 lastUpdate_) {
-        return _unpackPeData(Storage.getUint(_peSlot(_account)));
+        PEData storage pe = peData[_account];
+        pe.effectiveStake -= uint128(_amount);
+        pe.lastUpdate = uint64(block.timestamp);
     }
 
     /// @notice Sets staking data for an account.
@@ -399,41 +319,7 @@ contract PolicyEngineStaking is Initializable, ReinitializableBase, ProxyAdminOw
     )
         internal
     {
-        bytes32 base = _sdBase(_account);
-        Storage.setUint(bytes32(uint256(base) + SD_OFFSET_STAKED_AMOUNT), _stakedAmount);
-        Storage.setUint(bytes32(uint256(base) + SD_OFFSET_LINKED_AMOUNT), _receivedStake);
-        Storage.setUint(bytes32(uint256(base) + SD_OFFSET_LINKED_TO), uint256(uint160(_linkedAddressTo)));
-    }
-
-    /// @notice Gets staking data for an account.
-    /// @param _account The account address.
-    /// @return stakedAmount_    The staked amount.
-    /// @return receivedStake_   The received stake from others.
-    /// @return linkedAddressTo_ The linked beneficiary address.
-    function _getStakedData(address _account)
-        internal
-        view
-        returns (uint256 stakedAmount_, uint256 receivedStake_, address linkedAddressTo_)
-    {
-        bytes32 base = _sdBase(_account);
-        stakedAmount_ = Storage.getUint(bytes32(uint256(base) + SD_OFFSET_STAKED_AMOUNT));
-        receivedStake_ = Storage.getUint(bytes32(uint256(base) + SD_OFFSET_LINKED_AMOUNT));
-        linkedAddressTo_ = address(uint160(Storage.getUint(bytes32(uint256(base) + SD_OFFSET_LINKED_TO))));
-    }
-
-    /// @notice Checks if a staker is allowed to link to a beneficiary.
-    /// @param _beneficiary The beneficiary address.
-    /// @param _staker      The staker address.
-    /// @return allowed_ Whether the staker is allowed.
-    function _isAllowedToLink(address _beneficiary, address _staker) internal view returns (bool allowed_) {
-        return Storage.getBool(_allowlistSlot(_beneficiary, _staker));
-    }
-
-    /// @notice Sets an allowlist entry.
-    /// @param _beneficiary The beneficiary address.
-    /// @param _staker      The staker address.
-    /// @param _allowed     Whether the staker is allowed.
-    function _setAllowlistEntry(address _beneficiary, address _staker, bool _allowed) internal {
-        Storage.setBool(_allowlistSlot(_beneficiary, _staker), _allowed);
+        stakingData[_account] =
+            StakedData({ stakedAmount: _stakedAmount, receivedStake: _receivedStake, linkedTo: _linkedAddressTo });
     }
 }
