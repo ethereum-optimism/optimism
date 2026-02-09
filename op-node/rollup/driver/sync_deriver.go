@@ -95,10 +95,6 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		s.StepDeriver.RequestStep(ctx, true)
 	case engine.SafeDerivedEvent:
 		s.onSafeDerivedBlock(ctx, x)
-	case engine.LocalSafeUpdateEvent:
-		// In interop mode, local-safe blocks need to be recorded in SafeDB
-		// even if they haven't been promoted to cross-safe yet
-		s.onLocalSafeUpdate(ctx, x)
 	case derive.ProvideL1Traversal:
 		s.StepDeriver.RequestStep(ctx, false)
 	default:
@@ -141,18 +137,6 @@ func (s *SyncDeriver) onSafeDerivedBlock(ctx context.Context, x engine.SafeDeriv
 			// a little (it always rolls back at least 1 block) and then it will retry storing the entry
 			s.Emitter.Emit(ctx, rollup.ResetEvent{
 				Err: fmt.Errorf("safe head notifications failed: %w", err),
-			})
-		}
-	}
-}
-
-func (s *SyncDeriver) onLocalSafeUpdate(ctx context.Context, x engine.LocalSafeUpdateEvent) {
-	// In interop mode, SafeDB needs to track local-safe blocks even before they're cross-verified
-	// This allows queries like L1AtSafeHead to work correctly
-	if s.SafeHeadNotifs != nil && s.SafeHeadNotifs.Enabled() {
-		if err := s.SafeHeadNotifs.SafeHeadUpdated(x.Ref, x.Source.ID()); err != nil {
-			s.Emitter.Emit(ctx, rollup.ResetEvent{
-				Err: fmt.Errorf("local safe head notifications failed: %w", err),
 			})
 		}
 	}
