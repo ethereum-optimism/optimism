@@ -129,6 +129,9 @@ type EngineController struct {
 	// Derived from L1, and known to be a completed span-batch,
 	// but not cross-verified yet.
 	localSafeHead eth.L2BlockRef
+	// Deprecated: Derived from L1 and cross-verified to have cross-safe dependencies.
+	// FOR USE BY SUPERVISOR ONLY:
+	deprecatedSafeHead eth.L2BlockRef
 
 	// Derived from finalized L1 data,
 	// and cross-verified to only have finalized dependencies.
@@ -204,6 +207,8 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 			panic("super authority fully verified l2 head is ahead of local safe head")
 		}
 		return fvsh
+	} else if e.supervisorEnabled {
+		return e.deprecatedSafeHead
 	} else {
 		return e.localSafeHead
 	}
@@ -275,6 +280,7 @@ func (e *EngineController) SetLocalSafeHead(r eth.L2BlockRef) {
 // SetSafeHead sets the cross-safe head.
 func (e *EngineController) SetSafeHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_safe", r)
+	e.deprecatedSafeHead = r // TODO Supervisor-only code path
 	e.needFCUCall = true
 	// Instead of immediately calling FCU, buffer this update
 	e.needSafeHeadUpdate = true
