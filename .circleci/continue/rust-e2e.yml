@@ -2,7 +2,7 @@ version: 2.1
 
 # Rust E2E CI Continuation Configuration
 # This file contains E2E tests that depend on both kona and op-reth.
-# It is merged with main.yml and rust-ci.yml when kona/** or op-reth/** changes are detected.
+# It is merged with main.yml and rust-ci.yml when rust/** changes are detected.
 # Shared orbs, commands, and jobs come from main.yml and rust-ci.yml during merge.
 
 parameters:
