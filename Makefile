@@ -20,10 +20,6 @@ build-contracts:
 	(cd packages/contracts-bedrock && just build)
 .PHONY: build-contracts
 
-lint-contracts: ## Lints Solidity contracts (format + check)
-	(cd packages/contracts-bedrock && just lint)
-.PHONY: lint-contracts
-
 build-customlint:
 	make -C linter build
 .PHONY: build-customlint
