@@ -29,22 +29,22 @@ use tokio::{
 };
 
 fn parse_rpc_client(s: &str) -> anyhow::Result<RpcClient> {
-    let url = Url::parse(s).with_context(|| format!("failed to parse url: {}", s))?;
-    if url.scheme() == "http" || url.scheme() == "https" {
+    let url = Url::parse(s).with_context(|| format!("failed to parse url: {s}"))?;
+    if matches!(url.scheme(), "http" | "https") {
         // HTTP(S) connections can be established synchronously
         Ok(RpcClient::builder().http(url))
     } else {
         // WebSocket and IPC require async setup; block here since clap value_parser must be sync
-        let handle = tokio::runtime::Handle::try_current()
-            .context("no tokio runtime available for async RPC connection")?;
-        handle.block_on(async {
-            tokio::time::timeout(
-                std::time::Duration::from_secs(10),
-                RpcClient::builder().connect(s),
-            )
-            .await
-            .with_context(|| format!("connection to RPC timed out after 10s: {}", s))?
-            .with_context(|| format!("failed to connect to RPC: {}", s))
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                tokio::time::timeout(
+                    std::time::Duration::from_secs(10),
+                    RpcClient::builder().connect(s),
+                )
+                .await
+                .with_context(|| format!("connection to RPC timed out after 10s: {}", s))?
+                .with_context(|| format!("failed to connect to RPC: {}", s))
+            })
         })
     }
 }
@@ -72,7 +72,7 @@ pub struct SingleChainHost {
     #[arg(
         long,
         visible_alias = "l2",
-        alias = "l2_node_address", // legacy flag name
+        alias = "l2-node-address", // legacy flag name
         requires = "l1_rpc",
         requires = "l1_beacon_address",
         value_parser = parse_rpc_client,
@@ -84,7 +84,7 @@ pub struct SingleChainHost {
     #[arg(
         long,
         visible_alias = "l1",
-        alias = "l1_node_address", // legacy flag name
+        alias = "l1-node-address", // legacy flag name
         requires = "l2_rpc",
         requires = "l1_beacon_address",
         value_parser = parse_rpc_client,
