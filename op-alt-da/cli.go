@@ -99,6 +99,10 @@ func (c CLIConfig) Check() error {
 		if _, err := url.Parse(c.DAServerURL); err != nil {
 			return fmt.Errorf("DA server URL is invalid: %w", err)
 		}
+
+		if c.MaxConcurrentRequests < 1 {
+			return fmt.Errorf("max concurrent requests must be at least 1")
+		}
 	}
 	return nil
 }

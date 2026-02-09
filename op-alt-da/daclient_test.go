@@ -21,9 +21,10 @@ func TestDAClientPrecomputed(t *testing.T) {
 	require.NoError(t, server.Start())
 
 	cfg := CLIConfig{
-		Enabled:      true,
-		DAServerURL:  server.HttpEndpoint(),
-		VerifyOnRead: true,
+		Enabled:               true,
+		DAServerURL:           server.HttpEndpoint(),
+		VerifyOnRead:          true,
+		MaxConcurrentRequests: 1,
 	}
 	require.NoError(t, cfg.Check())
 
@@ -78,10 +79,11 @@ func TestDAClientService(t *testing.T) {
 	require.NoError(t, server.Start())
 
 	cfg := CLIConfig{
-		Enabled:      true,
-		DAServerURL:  server.HttpEndpoint(),
-		VerifyOnRead: false,
-		GenericDA:    false,
+		Enabled:               true,
+		DAServerURL:           server.HttpEndpoint(),
+		VerifyOnRead:          false,
+		GenericDA:             false,
+		MaxConcurrentRequests: 1,
 	}
 	require.NoError(t, cfg.Check())
 

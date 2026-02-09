@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher/throttler"
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
@@ -21,9 +23,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr/mocks"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 type mockL2EndpointProvider struct {
@@ -181,6 +187,96 @@ func TestBatchSubmitter_sendTx_FloorDataGas(t *testing.T) {
 
 	expectedFloorDataGas := uint64(21_000 + 12*10)
 	require.GreaterOrEqual(t, candidateOut.GasLimit, expectedFloorDataGas)
+}
+
+func TestBatchSubmitter_AltDACommitsSentInOrder(t *testing.T) {
+	bs, _ := setup(t, nil)
+	bs.Config.UseAltDA = true
+	bs.Config.MaxConcurrentDARequests = 2
+	bs.shutdownCtx = context.Background()
+
+	commitments := map[string]altda.CommitmentData{
+		"first":  altda.NewGenericCommitment([]byte("commit-first")),
+		"second": altda.NewGenericCommitment([]byte("commit-second")),
+	}
+	delay := map[string]time.Duration{
+		"first":  50 * time.Millisecond,
+		"second": 5 * time.Millisecond,
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/put", r.URL.Path)
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		require.Greater(t, len(body), 1)
+
+		// Skip derivation version byte
+		key := string(body[1:])
+		commitment, ok := commitments[key]
+		require.True(t, ok, "unexpected payload %q", key)
+
+		time.Sleep(delay[key])
+
+		w.WriteHeader(http.StatusOK)
+		_, err = w.Write(commitment.Encode())
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	bs.AltDA = altda.NewDAClient(server.URL, false, false)
+
+	var (
+		mu   sync.Mutex
+		sent []txmgr.TxCandidate
+	)
+	txMgr := mocks.NewTxManager(t)
+	txMgr.On("SendAsync", mock.Anything, mock.AnythingOfType("txmgr.TxCandidate"), mock.AnythingOfType("chan txmgr.SendResponse")).
+		Run(func(args mock.Arguments) {
+			candidate := args.Get(1).(txmgr.TxCandidate)
+			mu.Lock()
+			sent = append(sent, candidate)
+			mu.Unlock()
+			respCh := args.Get(2).(chan txmgr.SendResponse)
+			respCh <- txmgr.SendResponse{Receipt: &types.Receipt{}}
+		}).Return()
+
+	txQueue := txmgr.NewQueue[txRef](context.Background(), txMgr, 0)
+	receiptsCh := make(chan txmgr.TxReceipt[txRef], 2)
+	commitmentsCh := make(chan commitmentPayloadChan, bs.Config.MaxConcurrentDARequests)
+	commitmentsDone := make(chan struct{})
+
+	// Drain receipts to avoid blocking SendAsync and to mirror the driver lifecycle.
+	receiptsDone := make(chan struct{})
+	go func() {
+		for range receiptsCh {
+		}
+		close(receiptsDone)
+	}()
+
+	go bs.publishAltDACommitmentsToL1Loop(commitmentsDone, txQueue, receiptsCh, commitmentsCh)
+
+	daGroup := &errgroup.Group{}
+	daGroup.SetLimit(int(bs.Config.MaxConcurrentDARequests))
+
+	tx1 := singleFrameTxData(frameData{data: []byte("first"), id: frameID{frameNumber: 1}})
+	tx2 := singleFrameTxData(frameData{data: []byte("second"), id: frameID{frameNumber: 2}})
+
+	require.NoError(t, bs.sendTransaction(tx1, txQueue, receiptsCh, daGroup, commitmentsCh))
+	require.NoError(t, bs.sendTransaction(tx2, txQueue, receiptsCh, daGroup, commitmentsCh))
+
+	require.NoError(t, daGroup.Wait())
+	close(commitmentsCh)
+	<-commitmentsDone
+	require.NoError(t, txQueue.Wait())
+	close(receiptsCh)
+	<-receiptsDone
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, sent, 2)
+	require.Equal(t, commitments["first"].TxData(), sent[0].TxData)
+	require.Equal(t, commitments["second"].TxData(), sent[1].TxData)
 }
 
 type handlerFailureMode string
