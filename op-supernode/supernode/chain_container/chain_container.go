@@ -37,7 +37,6 @@ type ChainContainer interface {
 	LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
-	L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error)
@@ -264,7 +263,6 @@ func (c *simpleChainContainer) BlockNumberToTimestamp(ctx context.Context, block
 // LocalSafeBlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client,
 // if the block at that timestamp is local safe.
 func (c *simpleChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
-	// TODO: we only ever seem to call this with label == eth.Safe
 	if c.engine == nil {
 		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
 	}
@@ -301,10 +299,6 @@ func (c *simpleChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus,
 		return nil, err
 	}
 	return st, nil
-}
-
-func (c *simpleChainContainer) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error) {
-	return c.safeDBAtL2(ctx, l2Block)
 }
 
 // OutputRootAtL2BlockNumber computes the L2 output root for the specified L2 block number.
