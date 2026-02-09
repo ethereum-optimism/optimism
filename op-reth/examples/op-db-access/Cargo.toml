@@ -1,0 +1,11 @@
+[package]
+name = "example-op-db-access"
+version = "0.0.0"
+publish = false
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+reth-op = { workspace = true, features = ["node"] }
+
+eyre.workspace = true

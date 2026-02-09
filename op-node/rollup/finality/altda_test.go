@@ -108,7 +108,7 @@ func TestAltDAFinalityData(t *testing.T) {
 
 	emitter := &testutils.MockEmitter{}
 	ec := new(fakeEngineController)
-	fi := NewAltDAFinalizer(context.Background(), logger, cfg, nil, l1F, altDABackend, ec)
+	fi := NewAltDAFinalizer(context.Background(), logger, cfg, nil, false, l1F, altDABackend, ec)
 	fi.AttachEmitter(emitter)
 	require.NotNil(t, altDABackend.forwardTo, "altda backend must have access to underlying standard finalizer")
 

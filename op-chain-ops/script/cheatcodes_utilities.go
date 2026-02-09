@@ -11,6 +11,7 @@ import (
 
 	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -248,7 +249,7 @@ func (c *CheatCodesPrecompile) ComputeCreateAddress_74637a7a(deployer common.Add
 	if !nonce.IsUint64() {
 		return common.Address{}, fmt.Errorf("nonce %s too large to fit in regular nonce type", nonce)
 	}
-	return crypto.CreateAddress(deployer, nonce.Uint64()), nil
+	return crypto.CreateAddress(deployer, bigs.Uint64Strict(nonce)), nil
 }
 
 // unsupported

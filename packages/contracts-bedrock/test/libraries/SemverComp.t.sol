@@ -190,3 +190,30 @@ contract SemverComp_Gte_Test is SemverComp_TestInit {
         assertFalse(SemverComp.gte("1.9.9", "2.0.0"));
     }
 }
+
+/// @title SemverComp_HasExtraTag_Test
+/// @notice Tests the `hasExtraTag` function behavior.
+contract SemverComp_HasExtraTag_Test is SemverComp_TestInit {
+    function test_hasExtraTag_succeeds() external pure {
+        // Clean versions have no extra tags
+        assertFalse(SemverComp.hasExtraTag("1.2.3"));
+        assertFalse(SemverComp.hasExtraTag("0.0.0"));
+        assertFalse(SemverComp.hasExtraTag("10.20.30"));
+
+        // Prerelease tags
+        assertTrue(SemverComp.hasExtraTag("1.2.3-beta"));
+        assertTrue(SemverComp.hasExtraTag("1.2.3-beta.1"));
+        assertTrue(SemverComp.hasExtraTag("1.2.3-rc.1"));
+        assertTrue(SemverComp.hasExtraTag("1.2.3-alpha"));
+
+        // Build metadata
+        assertTrue(SemverComp.hasExtraTag("1.2.3+interop"));
+        assertTrue(SemverComp.hasExtraTag("1.2.3+interop.10"));
+        assertTrue(SemverComp.hasExtraTag("1.2.3+build.5"));
+        assertTrue(SemverComp.hasExtraTag("1.2.3+custom-gas-token"));
+
+        // Both prerelease and build metadata
+        assertTrue(SemverComp.hasExtraTag("1.2.3-beta.1+interop"));
+        assertTrue(SemverComp.hasExtraTag("1.2.3-rc.1+build.5"));
+    }
+}

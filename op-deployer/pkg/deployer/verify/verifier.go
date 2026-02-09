@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/log"
@@ -102,7 +103,7 @@ func VerifyCLI(cliCtx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get chain ID: %w", err)
 	}
-	l1ChainId := chainId.Uint64()
+	l1ChainId := bigs.Uint64Strict(chainId)
 
 	locator, err := artifacts.NewLocatorFromURL(l1ContractsLocator)
 	if err != nil {

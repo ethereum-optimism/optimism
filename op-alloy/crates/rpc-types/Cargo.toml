@@ -1,0 +1,69 @@
+[package]
+name = "op-alloy-rpc-types"
+description = "Optimism RPC types"
+
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+authors.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Workspace
+op-alloy-consensus = { workspace = true, features = ["serde"] }
+
+# Alloy
+alloy-serde.workspace = true
+alloy-consensus.workspace = true
+alloy-network-primitives.workspace = true
+alloy-eips = { workspace = true, features = ["serde"] }
+alloy-rpc-types-eth = { workspace = true, features = ["serde"] }
+alloy-primitives = { workspace = true, features = ["map", "rlp", "serde"] }
+
+# Serde
+serde_json.workspace = true
+serde = { workspace = true, features = ["derive"] }
+
+# RPC
+jsonrpsee = { workspace = true, optional = true }
+
+# arbitrary
+arbitrary = { workspace = true, features = ["derive"], optional = true }
+
+# misc
+derive_more = { workspace = true, features = ["as_ref", "deref_mut", "try_from"] }
+thiserror.workspace = true
+
+[dev-dependencies]
+rand.workspace = true
+arbitrary = { workspace = true, features = ["derive"] }
+alloy-consensus = { workspace = true, features = ["arbitrary"] }
+alloy-primitives = { workspace = true, features = ["arbitrary"] }
+alloy-rpc-types-eth = { workspace = true, features = ["arbitrary"] }
+similar-asserts.workspace = true
+
+[features]
+default = ["std"]
+std = [
+  "alloy-network-primitives/std",
+  "alloy-eips/std",
+  "alloy-primitives/std",
+  "alloy-rpc-types-eth/std",
+  "op-alloy-consensus/std",
+]
+arbitrary = [
+  "std",
+  "dep:arbitrary",
+  "alloy-primitives/arbitrary",
+  "alloy-rpc-types-eth/arbitrary",
+  "op-alloy-consensus/arbitrary",
+]
+k256 = ["alloy-rpc-types-eth/k256", "op-alloy-consensus/k256"]
+serde = ["op-alloy-consensus/serde"]
+jsonrpsee = ["dep:jsonrpsee"]

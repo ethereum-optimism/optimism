@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
@@ -494,7 +495,7 @@ func (ea *L2EngineAPI) forkchoiceUpdated(_ context.Context, state *eth.Forkchoic
 		if finalHeader == nil {
 			ea.log.Warn("Final block not available in database", "hash", state.FinalizedBlockHash)
 			return STATUS_INVALID, engine.InvalidForkChoiceState.With(errors.New("final block not available in database"))
-		} else if ea.backend.GetCanonicalHash(finalHeader.Number.Uint64()) != state.FinalizedBlockHash {
+		} else if ea.backend.GetCanonicalHash(bigs.Uint64Strict(finalHeader.Number)) != state.FinalizedBlockHash {
 			ea.log.Warn("Final block not in canonical chain", "number", block.NumberU64(), "hash", state.HeadBlockHash)
 			return STATUS_INVALID, engine.InvalidForkChoiceState.With(errors.New("final block not in canonical chain"))
 		}
@@ -508,7 +509,7 @@ func (ea *L2EngineAPI) forkchoiceUpdated(_ context.Context, state *eth.Forkchoic
 			ea.log.Warn("Safe block not available in database")
 			return STATUS_INVALID, engine.InvalidForkChoiceState.With(errors.New("safe block not available in database"))
 		}
-		if ea.backend.GetCanonicalHash(safeHeader.Number.Uint64()) != state.SafeBlockHash {
+		if ea.backend.GetCanonicalHash(bigs.Uint64Strict(safeHeader.Number)) != state.SafeBlockHash {
 			ea.log.Warn("Safe block not in canonical chain")
 			return STATUS_INVALID, engine.InvalidForkChoiceState.With(errors.New("safe block not in canonical chain"))
 		}

@@ -184,7 +184,7 @@ type mockClaimMetrics struct {
 	RecordBondClaimedCalls int
 }
 
-func (m *mockClaimMetrics) RecordBondClaimed(amount uint64) {
+func (m *mockClaimMetrics) RecordBondClaimed(amount *big.Int) {
 	m.RecordBondClaimedCalls++
 }
 

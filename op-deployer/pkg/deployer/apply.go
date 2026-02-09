@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 
@@ -15,14 +16,19 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/validate"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-validator/pkg/service"
+	"github.com/ethereum-optimism/optimism/op-validator/pkg/validations"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -40,6 +46,7 @@ type ApplyConfig struct {
 	CacheDir         string
 	privateKeyECDSA  *ecdsa.PrivateKey
 	PreStateBuilder  pipeline.PreStateBuilder
+	UseForge         bool
 }
 
 func (a *ApplyConfig) Check() error {
@@ -110,8 +117,13 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 			Logger:           l,
 			CacheDir:         cacheDir,
 			PreStateBuilder:  preStateBuilder,
+			UseForge:         cliCtx.Bool(UseForgeFlagName),
 		}); err != nil {
 			return err
+		}
+
+		if err := runValidationAfterApply(ctx, cliCtx, l, workdir, l1RPCUrl, depTarget); err != nil {
+			return fmt.Errorf("validation failed: %w", err)
 		}
 
 		if !cliCtx.Bool(AutoVerifyFlag.Name) {
@@ -133,7 +145,7 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 			ctx,
 			l,
 			l1RPCUrl,
-			chainID.Uint64(),
+			bigs.Uint64Strict(chainID),
 			stateFile,
 			intent.L1ContractsLocator,
 			cliCtx.String(VerifierTypeFlagName),
@@ -141,6 +153,91 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 			cliCtx.String(VerifierAPIKeyFlagName),
 		)
 	}
+}
+
+func runValidationAfterApply(ctx context.Context, cliCtx *cli.Context, l log.Logger, workdir, l1RPCUrl string, depTarget DeploymentTarget) error {
+	validateFlag := cliCtx.String(ValidateFlag.Name)
+	// Empty string means validation is disabled
+	if validateFlag == "" {
+		return nil
+	}
+
+	// Skip validation for non-live deployments or when L1 RPC URL is empty
+	// Validation requires a live RPC connection to check contract code
+	if depTarget != DeploymentTargetLive || l1RPCUrl == "" {
+		l.Info("Skipping validation", "reason", "validation requires live deployment with L1 RPC URL", "deployment-target", depTarget, "l1-rpc-url-set", l1RPCUrl != "")
+		return nil
+	}
+
+	st, err := pipeline.ReadState(workdir)
+	if err != nil {
+		return fmt.Errorf("failed to read state for validation: %w", err)
+	}
+
+	if st.AppliedIntent == nil {
+		return fmt.Errorf("cannot validate: no applied intent found")
+	}
+
+	// Add timeout to prevent indefinite hangs
+	// Use a reasonable timeout for validation (5 minutes should be sufficient)
+	validationCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	validatorVersion := validate.DetectValidatorVersion(validateFlag, st.AppliedIntent, l)
+
+	l.Info("Running validation after deployment", "version", validatorVersion, "intent-type", st.AppliedIntent.ConfigType, "timeout", "5m")
+
+	for _, chain := range st.AppliedIntent.Chains {
+		chainID := chain.ID
+		l.Info("Validating chain", "chain-id", chainID.Hex(), "version", validatorVersion)
+
+		chainState, err := st.Chain(chainID)
+		if err != nil {
+			return fmt.Errorf("failed to get chain state for %s: %w", chainID.Hex(), err)
+		}
+
+		validatorCfg, err := validate.BuildValidatorConfigFromState(validationCtx, l, st, chainState, chainID, l1RPCUrl)
+		if err != nil {
+			return fmt.Errorf("failed to build validator config for chain %s: %w", chainID.Hex(), err)
+		}
+
+		// Skip validation if no validator address is available and L1 chain ID is not supported
+		// This handles custom/test deployments where OPCM may not have a validator set
+		if validatorCfg.ValidatorAddress == (common.Address{}) {
+			l1ChainID, err := ChainIDFromRPC(validationCtx, l1RPCUrl)
+			if err != nil {
+				l.Warn("Failed to get L1 chain ID, skipping validation", "chain-id", chainID.Hex(), "error", err)
+				continue
+			}
+			// Check if L1 chain ID is supported (mainnet=1, sepolia=11155111)
+			if bigs.Uint64Strict(l1ChainID) != 1 && bigs.Uint64Strict(l1ChainID) != 11155111 {
+				l.Info("Skipping validation", "reason", "no validator address available and L1 chain ID not supported", "chain-id", chainID.Hex(), "l1-chain-id", bigs.Uint64Strict(l1ChainID))
+				continue
+			}
+		}
+
+		errors, err := service.Validate(validationCtx, l, validatorVersion, validatorCfg)
+		if err != nil {
+			l.Error("Validation failed", "chain-id", chainID.Hex(), "error", err)
+			return fmt.Errorf("validation failed for chain %s: %w", chainID.Hex(), err)
+		}
+
+		out := validations.Output{
+			Errors: errors,
+		}
+
+		l.Info("Validation results", "chain-id", chainID.Hex(), "error-count", len(errors))
+		fmt.Println(out.AsMarkdown())
+
+		if len(errors) > 0 {
+			l.Error("Validation errors found", "chain-id", chainID.Hex(), "error-count", len(errors))
+			return fmt.Errorf("validation errors found for chain %s", chainID.Hex())
+		}
+
+		l.Info("Validation passed", "chain-id", chainID.Hex())
+	}
+
+	return nil
 }
 
 func Apply(ctx context.Context, cfg ApplyConfig) error {
@@ -168,6 +265,9 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		StateWriter:        pipeline.WorkdirStateWriter(cfg.Workdir),
 		CacheDir:           cfg.CacheDir,
 		PreStateBuilder:    cfg.PreStateBuilder,
+		UseForge:           cfg.UseForge,
+		PrivateKey:         cfg.PrivateKey,
+		Workdir:            cfg.Workdir,
 	}); err != nil {
 		return err
 	}
@@ -190,6 +290,9 @@ type ApplyPipelineOpts struct {
 	StateWriter        pipeline.StateWriter
 	CacheDir           string
 	PreStateBuilder    pipeline.PreStateBuilder
+	UseForge           bool
+	PrivateKey         string
+	Workdir            string
 }
 
 func ApplyPipeline(
@@ -211,11 +314,10 @@ func ApplyPipeline(
 	if intent.L1ContractsLocator.Equal(intent.L2ContractsLocator) {
 		l2ArtifactsFS = l1ArtifactsFS
 	} else {
-		l2Afs, err := artifacts.Download(ctx, intent.L2ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
+		l2ArtifactsFS, err = artifacts.Download(ctx, intent.L2ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
 		if err != nil {
 			return fmt.Errorf("failed to download L2 artifacts: %w", err)
 		}
-		l2ArtifactsFS = l2Afs
 	}
 
 	bundle := pipeline.ArtifactsBundle{
@@ -333,6 +435,18 @@ func ApplyPipeline(
 		return fmt.Errorf("failed to load OPCM script: %w", err)
 	}
 
+	// Initialize Forge client if UseForge flag is enabled
+	var forgeClient *forge.Client
+	if opts.UseForge {
+		// Forge needs to run from the artifacts directory where foundry.toml is located
+		// The workdir is for storing state, not for running forge commands
+		artifactsPath := fmt.Sprintf("%v", bundle.L1)
+		forgeClient, err = forge.NewStandardClient(artifactsPath)
+		if err != nil {
+			return fmt.Errorf("failed to create Forge client: %w", err)
+		}
+	}
+
 	pEnv := &pipeline.Env{
 		StateWriter:  opts.StateWriter,
 		L1ScriptHost: l1Host,
@@ -341,6 +455,11 @@ func ApplyPipeline(
 		Broadcaster:  bcaster,
 		Deployer:     deployer,
 		Scripts:      opcmScripts,
+		ForgeClient:  forgeClient,
+		UseForge:     opts.UseForge,
+		L1RPCUrl:     opts.L1RPCUrl,
+		PrivateKey:   opts.PrivateKey,
+		Context:      ctx,
 	}
 
 	pline := []pipelineStage{

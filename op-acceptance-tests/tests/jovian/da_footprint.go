@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -153,7 +154,7 @@ func TestDAFootprint(gt *testing.T) {
 				// Retrying up to 100 times is overkill, but lower values may not work on
 				// persistent networks. See the following issue for more details.
 				// https://github.com/ethereum-optimism/optimism/issues/18061
-				env.l2EL.WaitL1OriginReached(eth.Unsafe, rec.BlockNumber.Uint64(), 100)
+				env.l2EL.WaitL1OriginReached(eth.Unsafe, bigs.Uint64Strict(rec.BlockNumber), 100)
 			} else {
 				scalar := env.getDAFootprintGasScalarOfSystemConfig(t)
 				if scalar != 0 {
@@ -220,7 +221,7 @@ func TestDAFootprint(gt *testing.T) {
 				require.NotNil(recScalar, "nil receipt DA footprint gas scalar")
 				require.EqualValues(tc.expected, *recScalar, "DA footprint gas scalar mismatch in receipt")
 
-				txDAFootprint := tx.RollupCostData().EstimatedDASize().Uint64() * uint64(tc.expected)
+				txDAFootprint := bigs.Uint64Strict(tx.RollupCostData().EstimatedDASize()) * uint64(tc.expected)
 				require.Equal(txDAFootprint, receipts[i].BlobGasUsed, "tx DA footprint mismatch with receipt")
 				totalDAFootprint += txDAFootprint
 			}

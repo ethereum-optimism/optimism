@@ -3,7 +3,9 @@ package sources
 import (
 	"context"
 	"fmt"
+	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -43,7 +45,7 @@ func validateReceipts(block eth.BlockID, receiptHash common.Hash, txHashes []com
 		if r.BlockNumber == nil {
 			return fmt.Errorf("receipt %d has unexpected nil block number, expected %d", i, block.Number)
 		}
-		if r.BlockNumber.Uint64() != block.Number {
+		if !bigs.Equal(r.BlockNumber, new(big.Int).SetUint64(block.Number)) {
 			return fmt.Errorf("receipt %d has unexpected block number %d, expected %d", i, r.BlockNumber, block.Number)
 		}
 		if r.BlockHash != block.Hash {

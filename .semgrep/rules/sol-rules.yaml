@@ -421,3 +421,37 @@ rules:
     paths:
       include:
         - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol
+
+  - id: sol-safety-initialize-assert-proxy-admin
+    languages: [solidity]
+    severity: ERROR
+    message: Initialize functions must call _assertOnlyProxyAdminOrProxyAdminOwner() to restrict initialization to authorized callers
+    patterns:
+      - pattern: |
+          function initialize(...) {
+            ...
+          }
+      - pattern-not: |
+          function initialize(...) {
+            ...
+            _assertOnlyProxyAdminOrProxyAdminOwner();
+            ...
+          }
+    paths:
+      include:
+        - packages/contracts-bedrock/src
+      exclude:
+        # TODO(#19001): We should eventually have this on the L2 contracts.
+        - packages/contracts-bedrock/src/L2
+        - packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol
+        # Dispute games use initialize() in a different context - they are clone-deployed
+        # via DisputeGameFactory and use their own AlreadyInitialized check pattern.
+        - packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol
+        - packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol
+        - packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
+        - packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol
+        - packages/contracts-bedrock/src/dispute/zk/OptimisticZkGame.sol
+        # ProtocolVersions is being deprecated.
+        - packages/contracts-bedrock/src/L1/ProtocolVersions.sol
+        # DataAvailabilityChallenge is a beta/non-standard contract.
+        - packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol

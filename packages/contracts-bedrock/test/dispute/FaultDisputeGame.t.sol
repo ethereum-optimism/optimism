@@ -358,6 +358,18 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
         );
     }
 
+    /// @notice Tests that the game cannot be initialized with an output root that commits to a block number greater
+    /// than uint64.max
+    function testFuzz_initialize_cannotProposeLargeBlockNumber_reverts(uint256 _blockNumber) public {
+        _blockNumber = bound(_blockNumber, uint256(type(uint64).max) + 1, type(uint256).max);
+
+        Claim claim = _dummyClaim();
+        vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, claim));
+        gameProxy = IFaultDisputeGame(
+            payable(address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, abi.encode(_blockNumber))))
+        );
+    }
+
     /// @notice Tests that the proxy receives ETH from the dispute game factory.
     function test_initialize_receivesETH_succeeds() public {
         uint256 _value = disputeGameFactory.initBonds(GAME_TYPE);
@@ -1302,17 +1314,17 @@ contract FaultDisputeGame_ChallengeRootL2Block_Test is FaultDisputeGame_TestInit
     function testFuzz_challengeRootL2Block_succeeds(
         bytes32 _storageRoot,
         bytes32 _withdrawalRoot,
-        uint256 _l2BlockNumber
+        uint64 _l2BlockNumber
     )
         public
     {
-        _l2BlockNumber = bound(_l2BlockNumber, validL2BlockNumber, type(uint256).max - 1);
+        _l2BlockNumber = uint64(bound(_l2BlockNumber, validL2BlockNumber, type(uint64).max - 1));
 
         (Types.OutputRootProof memory outputRootProof, bytes32 outputRoot, bytes memory headerRLP) =
-            _generateOutputRootProof(_storageRoot, _withdrawalRoot, abi.encodePacked(_l2BlockNumber));
+            _generateOutputRootProof(_storageRoot, _withdrawalRoot, abi.encodePacked(uint256(_l2BlockNumber)));
 
         // Create the dispute game with the output root at the wrong L2 block number.
-        uint256 wrongL2BlockNumber = bound(vm.randomUint(), _l2BlockNumber + 1, type(uint256).max);
+        uint256 wrongL2BlockNumber = vm.randomUint(_l2BlockNumber + 1, type(uint64).max);
         IDisputeGame game = disputeGameFactory.create{ value: initBond }(
             GAME_TYPE, Claim.wrap(outputRoot), abi.encode(wrongL2BlockNumber)
         );
@@ -1341,22 +1353,23 @@ contract FaultDisputeGame_ChallengeRootL2Block_Test is FaultDisputeGame_TestInit
     function testFuzz_challengeRootL2Block_receivesBond_succeeds(
         bytes32 _storageRoot,
         bytes32 _withdrawalRoot,
-        uint256 _l2BlockNumber
+        uint64 _l2BlockNumber
     )
         public
     {
         vm.deal(address(0xb0b), 1 ether);
-        _l2BlockNumber = bound(_l2BlockNumber, validL2BlockNumber, type(uint256).max - 1);
+        _l2BlockNumber = uint64(bound(_l2BlockNumber, validL2BlockNumber, type(uint64).max - 1));
 
         (Types.OutputRootProof memory outputRootProof, bytes32 outputRoot, bytes memory headerRLP) =
-            _generateOutputRootProof(_storageRoot, _withdrawalRoot, abi.encodePacked(_l2BlockNumber));
+            _generateOutputRootProof(_storageRoot, _withdrawalRoot, abi.encodePacked(uint256(_l2BlockNumber)));
 
         // Create the dispute game with the output root at the wrong L2 block number.
         disputeGameFactory.setInitBond(GAME_TYPE, 0.1 ether);
         uint256 balanceBefore = address(this).balance;
-        _l2BlockNumber = bound(vm.randomUint(), _l2BlockNumber + 1, type(uint256).max);
-        IDisputeGame game =
-            disputeGameFactory.create{ value: 0.1 ether }(GAME_TYPE, Claim.wrap(outputRoot), abi.encode(_l2BlockNumber));
+        _l2BlockNumber = uint64(vm.randomUint(_l2BlockNumber + 1, type(uint64).max));
+        IDisputeGame game = disputeGameFactory.create{ value: 0.1 ether }(
+            GAME_TYPE, Claim.wrap(outputRoot), abi.encode(uint256(_l2BlockNumber))
+        );
         IFaultDisputeGame fdg = IFaultDisputeGame(address(game));
 
         // Attack the root as 0xb0b
@@ -1413,18 +1426,19 @@ contract FaultDisputeGame_ChallengeRootL2Block_Test is FaultDisputeGame_TestInit
     function testFuzz_challengeRootL2Block_rightBlockNumber_reverts(
         bytes32 _storageRoot,
         bytes32 _withdrawalRoot,
-        uint256 _l2BlockNumber
+        uint64 _l2BlockNumber
     )
         public
     {
-        _l2BlockNumber = bound(_l2BlockNumber, validL2BlockNumber, type(uint256).max);
+        _l2BlockNumber = uint64(bound(_l2BlockNumber, validL2BlockNumber, type(uint64).max));
 
         (Types.OutputRootProof memory outputRootProof, bytes32 outputRoot, bytes memory headerRLP) =
-            _generateOutputRootProof(_storageRoot, _withdrawalRoot, abi.encodePacked(_l2BlockNumber));
+            _generateOutputRootProof(_storageRoot, _withdrawalRoot, abi.encodePacked(uint256(_l2BlockNumber)));
 
         // Create the dispute game with the output root at the wrong L2 block number.
-        IDisputeGame game =
-            disputeGameFactory.create{ value: initBond }(GAME_TYPE, Claim.wrap(outputRoot), abi.encode(_l2BlockNumber));
+        IDisputeGame game = disputeGameFactory.create{ value: initBond }(
+            GAME_TYPE, Claim.wrap(outputRoot), abi.encode(uint256(_l2BlockNumber))
+        );
 
         // Challenge the L2 block number.
         IFaultDisputeGame fdg = IFaultDisputeGame(address(game));

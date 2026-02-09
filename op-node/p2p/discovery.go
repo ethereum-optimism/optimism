@@ -29,6 +29,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
 // force to use the new chainhash module, and not the legacy chainhash package btcd module
@@ -77,7 +78,7 @@ func (conf *Config) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort 
 		return nil, nil, fmt.Errorf("no TCP port to put in discovery record")
 	}
 	dat := OpStackENRData{
-		chainID: rollupCfg.L2ChainID.Uint64(),
+		chainID: bigs.Uint64Strict(rollupCfg.L2ChainID),
 		version: 0,
 	}
 	localNode.Set(&dat)
@@ -221,8 +222,8 @@ func FilterEnodes(log log.Logger, cfg *rollup.Config) func(node *enode.Node) boo
 			return false
 		}
 		// check chain ID matches
-		if cfg.L2ChainID.Uint64() != dat.chainID {
-			log.Trace("discovered node record has no matching chain ID", "node", node.ID(), "got", dat.chainID, "expected", cfg.L2ChainID.Uint64())
+		if bigs.Uint64Strict(cfg.L2ChainID) != dat.chainID {
+			log.Trace("discovered node record has no matching chain ID", "node", node.ID(), "got", dat.chainID, "expected", cfg.L2ChainID)
 			return false
 		}
 		// check version matches

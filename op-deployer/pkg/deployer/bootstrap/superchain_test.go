@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -53,7 +54,7 @@ func testSuperchain(t *testing.T, forkRPCURL string) {
 
 	out, err := Superchain(ctx, SuperchainConfig{
 		L1RPCUrl:         l1RPC,
-		PrivateKey:       "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+		PrivateKey:       testutil.AnvilDefaultPrivateKey,
 		ArtifactsLocator: artifacts.EmbeddedLocator,
 		Logger:           lgr,
 

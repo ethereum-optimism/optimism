@@ -147,9 +147,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.0.3
+    /// @custom:semver 7.0.8
     function version() public pure returns (string memory) {
-        return "7.0.3";
+        return "7.0.8";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -181,7 +181,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // If we expand the scope of this function to add other Superchain-wide contracts, we'll
         // probably want to start following a similar pattern to the chain upgrade flow.
 
-        // Upgrade the SuperchainConfig if it has changed.
+        // Upgrade the SuperchainConfig.
         _upgrade(
             IProxyAdmin(_inp.superchainConfig.proxyAdmin()),
             address(_inp.superchainConfig),
@@ -253,6 +253,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @dev WARNING: This is a one-way operation. You cannot easily undo this operation without a
     ///      smart contract upgrade. Do not call this function unless you are 100% confident that
     ///      you know what you're doing and that you are prepared to fully execute this migration.
+    ///      You SHOULD NOT CALL THIS FUNCTION IN PRODUCTION unless you are absolutely sure that
+    ///      you know what you are doing.
+    /// @dev WARNING: Executing this function WILL result in all prior withdrawal proofs being
+    ///      invalidated. Users will have to submit new proofs for their withdrawals in the
+    ///      OptimismPortal contract. THIS IS EXPECTED BEHAVIOR.
     /// @dev NOTE: Unlike other functions in OPCM, this is a one-off function used to serve the
     ///      temporary need to support the interop migration action. It will likely be removed in
     ///      the near future once interop support is baked more directly into OPCM. It does NOT
@@ -307,11 +312,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             // Unified DelayedWETH is being deployed for the first time.
             // TODO:(#18382): Remove this allowance after unified DelayedWETH is deployed.
             if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH")) {
-                return true;
-            }
-            // Custom Gas Token is being enabled for the first time.
-            // TODO:(#18502): Remove this allowance after U18 ships.
-            if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.useCustomGasToken")) {
                 return true;
             }
         }
@@ -614,7 +614,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             startingAnchorRoot: abi.decode(
                 _loadBytes(
                     address(_chainContracts.anchorStateRegistry),
-                    _chainContracts.anchorStateRegistry.getAnchorRoot.selector,
+                    _chainContracts.anchorStateRegistry.getStartingAnchorRoot.selector,
                     "overrides.cfg.startingAnchorRoot",
                     _upgradeInput.extraInstructions
                 ),
@@ -643,7 +643,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
     /// @notice Validates the deployment/upgrade config.
     /// @param _cfg The full config.
-    function _assertValidFullConfig(FullConfig memory _cfg) internal pure {
+    function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal pure {
         // Start validating the dispute game configs. Put allowed game types here.
         GameType[] memory validGameTypes = new GameType[](3);
         validGameTypes[0] = GameTypes.CANNON;
@@ -665,6 +665,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
             // If the game is disabled, we must have a 0 init bond.
             if (!_cfg.disputeGameConfigs[i].enabled && _cfg.disputeGameConfigs[i].initBond != 0) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+
+            // During initial deployment, only PERMISSIONED_CANNON can be enabled, because no prestate exists for
+            // permissionless games.
+            if (
+                _isInitialDeployment && (validGameTypes[i].raw() != GameTypes.PERMISSIONED_CANNON.raw())
+                    && _cfg.disputeGameConfigs[i].enabled
+            ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
         }
@@ -691,7 +700,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         returns (ChainContracts memory)
     {
         // Validate the config.
-        _assertValidFullConfig(_cfg);
+        _assertValidFullConfig(_cfg, _isInitialDeployment);
 
         // Load the implementations.
         IOPContractsManagerContainer.Implementations memory impls = implementations();

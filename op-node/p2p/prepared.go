@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
 // Prepared provides a p2p host and discv5 service that is already set up.
@@ -52,7 +53,7 @@ func (p *Prepared) Host(log log.Logger, reporter metrics.Reporter, metrics HostM
 func (p *Prepared) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort uint16) (*enode.LocalNode, *discover.UDPv5, error) {
 	if p.LocalNode != nil {
 		dat := OpStackENRData{
-			chainID: rollupCfg.L2ChainID.Uint64(),
+			chainID: bigs.Uint64Strict(rollupCfg.L2ChainID),
 			version: 0,
 		}
 		p.LocalNode.Set(&dat)

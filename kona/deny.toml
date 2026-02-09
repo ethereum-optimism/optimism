@@ -14,9 +14,8 @@ ignore = [
     "RUSTSEC-2025-0012",
     # bincode is unmaintained but still functional; transitive dep from reth-nippy-jar and test-fuzz.
     "RUSTSEC-2025-0141",
-    # Potential UB in uint. Only available in discv5.
-    # Need to upgrade discv5 when new version is available: https://github.com/recmo/uint/issues/550.
-    "RUSTSEC-2025-0137",
+    # Integer overflow in `BytesMut::reserve`
+    "RUSTSEC-2026-0007"
 ]
 
 [licenses]
@@ -74,11 +73,6 @@ unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = [
     "https://github.com/paradigmxyz/reth",
-    "https://github.com/alloy-rs/hardforks",
-    "https://github.com/bluealloy/revm",
-    "https://github.com/alloy-rs/evm",
-    "https://github.com/paritytech/jsonrpsee",
-    "https://github.com/flashbots/rollup-boost",
 ]
 
 [sources.allow-org]

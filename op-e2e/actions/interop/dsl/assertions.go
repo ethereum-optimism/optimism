@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +41,7 @@ func RequireUnsafeTimeOffset(t helpers.Testing, c *Chain, timeOffset uint64) {
 func RequireL1Heads(t helpers.Testing, system *InteropDSL, latest, finalized uint64) {
 	latestHeader, err := system.Actors.L1Miner.EthClient().BlockByNumber(t.Ctx(), big.NewInt(int64(rpc.LatestBlockNumber)))
 	require.NoError(t, err)
-	require.Equal(t, latest, latestHeader.Number().Uint64(), "L1 latest number does not match expectation")
+	require.Equal(t, latest, bigs.Uint64Strict(latestHeader.Number()), "L1 latest number does not match expectation")
 
 	finalizedHeader, err := system.Actors.L1Miner.EthClient().BlockByNumber(t.Ctx(), big.NewInt(int64(rpc.FinalizedBlockNumber)))
 
@@ -51,7 +52,7 @@ func RequireL1Heads(t helpers.Testing, system *InteropDSL, latest, finalized uin
 		}
 		finalizedActual = 0
 	} else {
-		finalizedActual = finalizedHeader.Number().Uint64()
+		finalizedActual = bigs.Uint64Strict(finalizedHeader.Number())
 	}
 
 	require.Equal(t, finalized, finalizedActual, "L1 finalized number does not match expectation")

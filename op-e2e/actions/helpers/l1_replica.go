@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	opeth "github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -53,7 +54,7 @@ type L1Replica struct {
 // NewL1Replica constructs a L1Replica starting at the given genesis.
 func NewL1Replica(t Testing, log log.Logger, genesis *core.Genesis) *L1Replica {
 	ethCfg := &ethconfig.Config{
-		NetworkId:                 genesis.Config.ChainID.Uint64(),
+		NetworkId:                 bigs.Uint64Strict(genesis.Config.ChainID),
 		Genesis:                   genesis,
 		RollupDisableTxPoolGossip: true,
 		StateScheme:               rawdb.HashScheme,
@@ -112,14 +113,14 @@ func (s *L1Replica) ActL1RewindDepth(depth uint64) Action {
 		if depth == 0 {
 			return
 		}
-		head := s.l1Chain.CurrentHeader().Number.Uint64()
+		head := bigs.Uint64Strict(s.l1Chain.CurrentHeader().Number)
 		if head < depth {
 			t.InvalidAction("cannot rewind L1 past genesis (current: %d, rewind depth: %d)", head, depth)
 			return
 		}
 		finalized := s.l1Chain.CurrentFinalBlock()
-		if finalized != nil && head < finalized.Number.Uint64()+depth {
-			t.InvalidAction("cannot rewind head of chain past finalized block %d with rewind depth %d", finalized.Number.Uint64(), depth)
+		if finalized != nil && head < bigs.Uint64Strict(finalized.Number)+depth {
+			t.InvalidAction("cannot rewind head of chain past finalized block %d with rewind depth %d", bigs.Uint64Strict(finalized.Number), depth)
 			return
 		}
 		if err := s.l1Chain.SetHead(head - depth); err != nil {
@@ -133,7 +134,7 @@ func (s *L1Replica) ActL1RewindDepth(depth uint64) Action {
 func (s *L1Replica) ActL1Sync(canonL1 func(num uint64) *types.Block) Action {
 	return func(t Testing) {
 		selfHead := s.l1Chain.CurrentHeader()
-		n := selfHead.Number.Uint64()
+		n := bigs.Uint64Strict(selfHead.Number)
 		expected := canonL1(n)
 		if expected == nil || selfHead.Hash() != expected.Hash() {
 			s.ActL1RewindToParent(t)
@@ -213,7 +214,7 @@ func (s *L1Replica) UnsafeNum() uint64 {
 	head := s.l1Chain.CurrentBlock()
 	headNum := uint64(0)
 	if head != nil {
-		headNum = head.Number.Uint64()
+		headNum = bigs.Uint64Strict(head.Number)
 	}
 	return headNum
 }
@@ -222,7 +223,7 @@ func (s *L1Replica) SafeNum() uint64 {
 	safe := s.l1Chain.CurrentSafeBlock()
 	safeNum := uint64(0)
 	if safe != nil {
-		safeNum = safe.Number.Uint64()
+		safeNum = bigs.Uint64Strict(safe.Number)
 	}
 	return safeNum
 }
@@ -231,7 +232,7 @@ func (s *L1Replica) FinalizedNum() uint64 {
 	finalized := s.l1Chain.CurrentFinalBlock()
 	finalizedNum := uint64(0)
 	if finalized != nil {
-		finalizedNum = finalized.Number.Uint64()
+		finalizedNum = bigs.Uint64Strict(finalized.Number)
 	}
 	return finalizedNum
 }

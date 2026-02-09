@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/bindings"
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -46,7 +47,7 @@ func ForGamePublished(ctx context.Context, client *ethclient.Client, optimismPor
 	if err != nil {
 		return 0, err
 	}
-	return outputBlockNum.Uint64(), nil
+	return bigs.Uint64Strict(outputBlockNum), nil
 }
 
 // ForWithdrawalCheck waits until the withdrawal check in the portal succeeds.

@@ -382,7 +382,7 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 			fromAddr := crypto.PubkeyToAddress(transactor.Account.Key.PublicKey)
 			fromBalance, err := l2Verif.BalanceAt(context.Background(), fromAddr, nil)
 			require.NoError(t, err)
-			require.Greaterf(t, fromBalance.Uint64(), uint64(700_000_000_000), "insufficient balance for %s", fromAddr)
+			require.Truef(t, fromBalance.Cmp(big.NewInt(700_000_000_000)) > 0, "insufficient balance for %s", fromAddr)
 
 			// Initiate Withdrawal
 			withdrawAmount := big.NewInt(500_000_000_000)

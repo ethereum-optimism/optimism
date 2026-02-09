@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	oppreimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -298,7 +299,7 @@ func testOutputCannonStepWithKzgPointEvaluation(t *testing.T, allocType config.A
 		t.Logf("KZG Point Evaluation block number: %d", precompileBlock)
 
 		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-		game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", precompileBlock.Uint64(), common.Hash{0x01, 0xaa})
+		game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", bigs.Uint64Strict(precompileBlock), common.Hash{0x01, 0xaa})
 		require.NotNil(t, game)
 		outputRootClaim := game.DisputeLastBlock(ctx)
 		game.LogGameData(ctx)

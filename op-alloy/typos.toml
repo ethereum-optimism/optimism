@@ -1,0 +1,90 @@
+[files]
+extend-exclude = [
+    ".git",
+    "target",
+    "Cargo.lock",
+    "book/mermaid*.js",       # Minified JS files
+    "book/dist/",             # Built documentation
+    "book/theme/",            # Theme files may have intentional spellings
+    "*.min.js",               # All minified JS files
+    "CHANGELOG.md",           # Changelog may contain intentional typos in historical entries
+]
+
+[default]
+extend-ignore-re = [
+    # Hex strings of various lengths (common in blockchain projects)
+    "(?i)0x[0-9a-f]{8,}",    # 8+ hex chars with 0x prefix
+    "(?i)[0-9a-f]{32,}",     # 32+ hex chars without 0x (hashes, addresses)
+    "(?i)[0-9a-f]{8,}",      # 8+ hex chars without 0x (shorter hex values)
+    # Ordinals in identifiers
+    "[0-9]+nd",
+    "[0-9]+th", 
+    "[0-9]+st",
+    "[0-9]+rd",
+    # Base64 encoded strings (common in tests and configs)
+    "[A-Za-z0-9+/]{20,}={0,2}",
+]
+
+[default.extend-words]
+# Valid Rust/Cargo terms
+crate = "crate"
+crates = "crates"
+
+# Blockchain/Ethereum specific terms
+alloy = "alloy"
+asterisc = "asterisc"      # Valid project name in Optimism ecosystem
+bedrock = "bedrock"        # Optimism upgrade name
+batcher = "batcher"        # OP Stack component
+bootnode = "bootnode"
+chainid = "chainid"
+codegen = "codegen"
+derivation = "derivation"
+enr = "enr"
+ethereum = "ethereum"
+fpvm = "fpvm"              # Fault Proof Virtual Machine
+geth = "geth"
+interop = "interop"
+libmdbx = "libmdbx"
+merkle = "merkle"
+mips = "mips"
+mpsc = "mpsc"
+optimism = "optimism"
+preimage = "preimage"
+revm = "revm"
+risc = "risc"
+rollup = "rollup"
+rpc = "rpc"
+sequencer = "sequencer"
+ser = "ser"                # Serialization abbreviation
+serde = "serde"
+superchain = "superchain"  # Optimism Superchain
+trie = "trie"
+txs = "txs"                # Transactions abbreviation
+usize = "usize"
+workspaces = "workspaces"
+
+# Technical abbreviations and acronyms
+api = "api"
+cli = "cli"
+cfg = "cfg"
+const = "const"
+env = "env"
+impl = "impl"
+io = "io"
+lru = "lru"
+mpt = "mpt"                # Merkle Patricia Trie
+msg = "msg"
+mut = "mut"
+nums = "nums"
+num = "num"
+ok = "ok"
+std = "std"
+structs = "structs"
+ty = "ty"                  # Type abbreviation
+vec = "vec"
+
+# Additional project-specific terms that might be flagged as typos
+jsonrpsee = "jsonrpsee"    # JSON-RPC library
+tokio = "tokio"
+async = "async"
+await = "await"

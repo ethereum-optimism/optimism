@@ -96,6 +96,7 @@ func DialWS(ctx context.Context, cfg WSConfig) (*WSClient, error) {
 		}
 		return nil, err
 	}
+	conn.SetReadLimit(1024 * 1024 * 10) // Set the read limit per-message to 10MB
 
 	if cfg.Log != nil {
 		cfg.Log.Info("Websocket connection established", "url", cfg.URL)

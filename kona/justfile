@@ -7,9 +7,6 @@ import "./docker/apps/justfile"
 import "./docs/justfile"
 
 KONA_ROOT := source_directory()
-KONA_VERSION := shell('jq -r .version "$1/version.json"', KONA_ROOT)
-KONA_PRESTATE_HASH := shell('jq -r .prestateHash "$1/version.json"', KONA_ROOT)
-KONA_INTEROP_PRESTATE_HASH := shell('jq -r .interopPrestateHash "$1/version.json"', KONA_ROOT)
 
 set positional-arguments
 alias t := tests
@@ -194,84 +191,47 @@ check-no-std:
 
 ### TODO(ethereum-optimism/optimism#18654): Remove these recipes once the migration is complete
 
-build-all: build-prestates build-kona-host
-
 build-prestates: build-cannon-prestate build-interop-prestate
 
 build-cannon-prestate:
-    @just build-prestate kona-client {{KONA_PRESTATE_HASH}}
+    @just build-prestate kona-client prestate-artifacts-cannon
 
 build-interop-prestate:
-    @just build-prestate kona-client-int {{KONA_INTEROP_PRESTATE_HASH}}
+    @just build-prestate kona-client-int prestate-artifacts-cannon-interop
 
-build-prestate VARIANT HASH:
+build-prestate VARIANT OUTPUT_DIR:
     #!/usr/bin/env bash
     set -euo pipefail
+
+    echo "Building prestate for {{VARIANT}}..."
+    cd "{{KONA_ROOT}}/docker/fpvm-prestates"
+    CANNON_TAG=$(cat ../../.config/cannon_tag)
+    just cannon {{VARIANT}} "${CANNON_TAG}" "{{KONA_ROOT}}/{{OUTPUT_DIR}}"
 
     cd "{{KONA_ROOT}}"
-    # Check if required prestate already exists
-    if [[ -f "prestates/{{HASH}}.bin.gz" ]]; then
-        echo "Prestate {{HASH}} for variant {{VARIANT}} already exists"
-        exit
-    fi
-    echo "Building prestate..."
-    just checkout-kona
-    cd "{{KONA_ROOT}}/build/kona"
-    cd docker/fpvm-prestates
-    # Delete any existing artifacts (they're in .gitignore so reset --hard won't delete them)
-    rm -rf ../../prestate-artifacts-cannon
-    echo just cannon {{VARIANT}} "kona-client/v{{KONA_VERSION}}" $(cat ../../.config/cannon_tag)
-    just cannon {{VARIANT}} "kona-client/v{{KONA_VERSION}}" $(cat ../../.config/cannon_tag)
 
-    # Check the prestate hash matches what we expect
-    ACTUAL_HASH=$(jq -r .pre ../../prestate-artifacts-cannon/prestate-proof.json)
-    if [[ "${ACTUAL_HASH}" != "{{HASH}}" ]]; then
-      echo "Incorrect prestate hash, expected {{HASH}} but was ${ACTUAL_HASH}"
-      exit 1
-    fi
+    # Copy with hash-based name for challenger lookup
+    HASH=$(jq -r .pre "{{OUTPUT_DIR}}/prestate-proof.json")
+    cp "{{OUTPUT_DIR}}/prestate.bin.gz" "{{OUTPUT_DIR}}/${HASH}.bin.gz"
+    echo "Prestate for {{VARIANT}}: ${HASH}"
 
-    mkdir -p "{{KONA_ROOT}}/prestates"
-    cp ../../prestate-artifacts-cannon/prestate.bin.gz "{{KONA_ROOT}}/prestates/{{HASH}}.bin.gz"
+build-reproducible-prestate:
+    @just build-prestates
 
-build-kona-host:
-    #!/usr/bin/env bash
-    set -euo pipefail
+output-prestate-hash:
+    @echo "-------------------- Kona Prestates --------------------"
+    @echo ""
+    @echo "Cannon Absolute prestate hash:"
+    @jq -r .pre {{KONA_ROOT}}/prestate-artifacts-cannon/prestate-proof.json
+    @echo ""
+    @echo "Cannon Interop Absolute prestate hash:"
+    @jq -r .pre {{KONA_ROOT}}/prestate-artifacts-cannon-interop/prestate-proof.json
+    @echo ""
 
-    # Check if kona-host has already been built
-    # This is a simplistic check that relies on CircleCI's cache being keyed on this file
-    # which contains the kona version we're checking out. Locally you may need to run
-    # just clean to force a rebuild if the kona version has changed.
-    if [[ -f "bin/kona-host" ]]; then
-        echo "kona-host already built. Assuming it is built from kona-client/v{{KONA_VERSION}}"
-        exit
-    fi
-
-    echo "Building kona-host"
-    just checkout-kona
-    cd "{{KONA_ROOT}}/build/kona"
-    just build-native --bin kona-host
-
-    mkdir -p "{{KONA_ROOT}}/bin"
-    cp "{{KONA_ROOT}}/build/kona/target/debug/kona-host" "{{KONA_ROOT}}/bin/kona-host"
-
-checkout-kona:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    DIR="{{KONA_ROOT}}/build"
-    mkdir -p "${DIR}"
-    cd "${DIR}"
-    if [[ -d kona ]]; then
-      cd kona
-      git fetch origin
-      git checkout -f "kona-client/v{{KONA_VERSION}}"
-      git reset --hard HEAD
-    else
-      git clone -b "kona-client/v{{KONA_VERSION}}" https://github.com/op-rs/kona kona
-      cd kona
-    fi
+reproducible-prestate: build-reproducible-prestate output-prestate-hash
 
 clean:
   #!/usr/bin/env bash
   set -euo pipefail
-  rm -rf "{{KONA_ROOT}}/build" "{{KONA_ROOT}}/prestates" "{{KONA_ROOT}}/bin"
+  rm -rf "{{KONA_ROOT}}/build"
+  rm -rf "{{KONA_ROOT}}/prestate-artifacts-cannon" "{{KONA_ROOT}}/prestate-artifacts-cannon-interop"

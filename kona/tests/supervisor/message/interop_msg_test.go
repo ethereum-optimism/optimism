@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -80,7 +81,7 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 
 	// Write: Alice triggers initiating message
 	receipt := contract.Write(alice, eventLogger.EmitLog(topics, data))
-	block, err := clientA.BlockRefByNumber(t.Ctx(), receipt.BlockNumber.Uint64())
+	block, err := clientA.BlockRefByNumber(t.Ctx(), bigs.Uint64Strict(receipt.BlockNumber))
 	require.NoError(err)
 
 	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
@@ -91,7 +92,7 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 	payload := suptypes.LogToMessagePayload(receipt.Logs[logIdx])
 	identifier := suptypes.Identifier{
 		Origin:      eventLoggerAddress,
-		BlockNumber: receipt.BlockNumber.Uint64(),
+		BlockNumber: bigs.Uint64Strict(receipt.BlockNumber),
 		LogIndex:    logIdx,
 		Timestamp:   block.Time,
 		ChainID:     sys.L2ELA.ChainID(),

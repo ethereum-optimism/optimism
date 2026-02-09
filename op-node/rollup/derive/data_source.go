@@ -22,8 +22,8 @@ type L1TransactionFetcher interface {
 }
 
 type L1BlobsFetcher interface {
-	// GetBlobs fetches blobs that were confirmed in the given L1 block with the given indexed hashes.
-	GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error)
+	// GetBlobsByHash fetches blobs that were confirmed at the given timestamp with the given versioned hashes.
+	GetBlobsByHash(ctx context.Context, time uint64, hashes []common.Hash) ([]*eth.Blob, error)
 }
 
 type AltDAInputFetcher interface {

@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
 type CheckFjordConfig struct {
@@ -38,7 +39,7 @@ type CheckFjordConfig struct {
 
 func (ae *CheckFjordConfig) RecordGasUsed(rec *types.Receipt) {
 	ae.GasUsed += rec.GasUsed
-	ae.L1GasUsed += rec.L1GasUsed.Uint64()
+	ae.L1GasUsed += bigs.Uint64Strict(rec.L1GasUsed)
 	ae.Log.Debug("Recorded tx receipt gas", "gas_used", rec.GasUsed, "l1_gas_used", rec.L1GasUsed)
 }
 
@@ -183,7 +184,7 @@ func sendTxAndCheckFees(ctx context.Context, env *CheckFjordConfig, to *common.A
 		return fmt.Errorf("calling GasPriceOracle.GetL1GasUsed: %w", err)
 	}
 
-	env.Log.Info("retrieved L1 gas used", "gpoL1GasUsed", gpoL1GasUsed.Uint64())
+	env.Log.Info("retrieved L1 gas used", "gpoL1GasUsed", bigs.Uint64Strict(gpoL1GasUsed))
 
 	// Check that GetL1Fee takes into account fast LZ
 	gpoFee, err := gasPriceOracle.GetL1Fee(opts, txUnsigned)
@@ -195,7 +196,7 @@ func sendTxAndCheckFees(ctx context.Context, env *CheckFjordConfig, to *common.A
 	if err != nil {
 		return fmt.Errorf("calculating GPO fjordL1Cost: %w", err)
 	}
-	if gethGPOFee.Uint64() != gpoFee.Uint64() {
+	if !bigs.Equal(gethGPOFee, gpoFee) {
 		return fmt.Errorf("gethGPOFee (%s) does not match gpoFee (%s)", gethGPOFee, gpoFee)
 	}
 	env.Log.Info("gethGPOFee matches gpoFee")
@@ -204,7 +205,7 @@ func sendTxAndCheckFees(ctx context.Context, env *CheckFjordConfig, to *common.A
 	if err != nil {
 		return fmt.Errorf("calculating receipt fjordL1Cost: %w", err)
 	}
-	if gethFee.Uint64() != tx.receipt.L1Fee.Uint64() {
+	if !bigs.Equal(gethFee, tx.receipt.L1Fee) {
 		return fmt.Errorf("gethFee (%s) does not match receipt L1Fee (%s)", gethFee, tx.receipt.L1Fee)
 	}
 	env.Log.Info("gethFee matches receipt fee")
@@ -221,7 +222,7 @@ func sendTxAndCheckFees(ctx context.Context, env *CheckFjordConfig, to *common.A
 	if err != nil {
 		return fmt.Errorf("failed to calculate fjordL1Cost: %w", err)
 	}
-	if upperBoundCost.Uint64() != upperBound.Uint64() {
+	if !bigs.Equal(upperBoundCost, upperBound) {
 		return fmt.Errorf("upperBound (%s) does not meet expectation (%s)", upperBound, upperBoundCost)
 	}
 	env.Log.Info("GPO upper bound matches")

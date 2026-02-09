@@ -1,6 +1,8 @@
 package l1
 
 import (
+	"encoding/binary"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
@@ -46,6 +48,21 @@ var _ preimage.Hint = BlobHint{}
 
 func (l BlobHint) Hint() string {
 	return HintL1Blob + " " + hexutil.Encode(l)
+}
+
+// NewBlobHint constructs a 40 byte blob hint with timestamp.
+func NewBlobHint(blobHash common.Hash, timeStamp uint64) BlobHint {
+	metaData := make([]byte, 8)
+	binary.BigEndian.PutUint64(metaData[:], timeStamp)
+	return BlobHint(append(blobHash[:], metaData[:]...))
+}
+
+// NewLegacyBlobHint is deprecated, do not use. Constructs a 48 byte blob hint with timestamp and index.
+func NewLegacyBlobHint(blobHash common.Hash, index uint64, timeStamp uint64) BlobHint {
+	metaData := make([]byte, 16)
+	binary.BigEndian.PutUint64(metaData[0:8], index)
+	binary.BigEndian.PutUint64(metaData[8:16], timeStamp)
+	return BlobHint(append(blobHash[:], metaData[:]...))
 }
 
 type PrecompileHint []byte

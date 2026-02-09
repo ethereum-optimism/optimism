@@ -86,7 +86,7 @@ func TestOutputAlphabetGame_ReclaimBond(t *testing.T) {
 
 	// The dispute game should have a zero balance
 	balance := game.WethBalance(ctx, game.Addr)
-	require.Zero(t, balance.Uint64())
+	require.Zero(t, balance.BitLen(), "Expected zero WETH balance, got %v", balance)
 
 	alice := sys.Cfg.Secrets.Addresses().Alice
 

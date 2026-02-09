@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	engine2 "github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -133,8 +134,8 @@ func FinalizeWhileSyncing(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	}
 	l1Head := miner.L1Chain().CurrentHeader()
 	// finalize all of L1
-	miner.ActL1Safe(t, l1Head.Number.Uint64())
-	miner.ActL1Finalize(t, l1Head.Number.Uint64())
+	miner.ActL1Safe(t, bigs.Uint64Strict(l1Head.Number))
+	miner.ActL1Finalize(t, bigs.Uint64Strict(l1Head.Number))
 
 	// Now signal L1 finality to the verifier, while the verifier is not synced.
 	verifier.ActL1HeadSignal(t)

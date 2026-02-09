@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -119,7 +120,7 @@ func unmarshalDepositVersion0(dep *types.DepositTx, to common.Address, opaqueDat
 	if !gas.IsUint64() {
 		return fmt.Errorf("bad gas value: %x", opaqueData[offset:offset+8])
 	}
-	dep.Gas = gas.Uint64()
+	dep.Gas = bigs.Uint64Strict(gas)
 	offset += 8
 
 	// uint8 isCreation

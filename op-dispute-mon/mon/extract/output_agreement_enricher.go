@@ -110,13 +110,22 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 			outputRoot := common.Hash(output.OutputRoot)
 			results[i] = outputResult{outputRoot: outputRoot}
 
-			// Only check if the output root is safe if it matches the game's root claim
+			// If the output root that we computed matches the game's root claim, the game could
+			// still technically be invalid if the block that the game corresponds was not
+			// considered a "safe" block at the time the game was proposed. In this case, "safe"
+			// means that the block's data was fully available on the L1 at the time the game was
+			// proposed. The game itself is still "safe" from a security/liveness perspective, but
+			// the game would be challenged by an honest proposer.
 			if outputRoot == game.RootClaim {
 				safeHead, err := client.SafeHeadAtL1Block(ctx, game.L1HeadNum)
 				if err != nil {
+					// If safe head data isn't available, we can still consider the output root to
+					// be safe, which avoids making the dispute mon dependent on safe head db being
+					// available. There is no impact on actual user security/liveness, but if this
+					// case gets hit AND the game actually was not backed up by L1 data, the game
+					// could resolve counter to the dispute-mon prediction. An alert would fire in
+					// this case but there would be no security impact.
 					o.log.Warn("Unable to verify proposed block was safe", "l1HeadNum", game.L1HeadNum, "l2SequenceNumber", game.L2SequenceNumber, "err", err)
-					// If safe head data isn't available, assume the output root was safe
-					// Avoids making the dispute mon dependent on safe head db being available
 					results[i].isSafe = true
 					return
 				}

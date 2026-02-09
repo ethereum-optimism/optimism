@@ -65,6 +65,51 @@ func (m *mockInnerNode) SafeDB() rollupNode.SafeDBReader { return m.db }
 
 func (m *mockInnerNode) SyncStatus() *eth.SyncStatus { return &eth.SyncStatus{} }
 
+// mockSafeDBReader is a mock implementation of SafeDBReader for testing L1AtSafeHead
+type mockSafeDBReader struct {
+	// entries maps L1 block number to (L1 BlockID, L2 BlockID)
+	entries map[uint64]struct {
+		l1 eth.BlockID
+		l2 eth.BlockID
+	}
+}
+
+func newMockSafeDBReader() *mockSafeDBReader {
+	return &mockSafeDBReader{
+		entries: make(map[uint64]struct {
+			l1 eth.BlockID
+			l2 eth.BlockID
+		}),
+	}
+}
+
+func (m *mockSafeDBReader) addEntry(l1Num uint64, l1Hash, l2Hash [32]byte, l2Num uint64) {
+	m.entries[l1Num] = struct {
+		l1 eth.BlockID
+		l2 eth.BlockID
+	}{
+		l1: eth.BlockID{Number: l1Num, Hash: l1Hash},
+		l2: eth.BlockID{Number: l2Num, Hash: l2Hash},
+	}
+}
+
+func (m *mockSafeDBReader) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
+	// Find the entry at or before l1BlockNum
+	var best uint64
+	found := false
+	for num := range m.entries {
+		if num <= l1BlockNum && (!found || num > best) {
+			best = num
+			found = true
+		}
+	}
+	if !found {
+		return eth.BlockID{}, eth.BlockID{}, errors.New("no entry found")
+	}
+	entry := m.entries[best]
+	return entry.l1, entry.l2, nil
+}
+
 // Test helpers
 func createTestConfig() *opnodecfg.Config {
 	return &opnodecfg.Config{
@@ -369,5 +414,135 @@ func TestVirtualNode_InnerNodeIntegration(t *testing.T) {
 			return vn.cfg.Cancel != nil
 		}, 1*time.Second, 10*time.Millisecond)
 		cancel()
+	})
+}
+
+// TestVirtualNode_L1AtSafeHead tests the L1AtSafeHead function
+func TestVirtualNode_L1AtSafeHead(t *testing.T) {
+	t.Parallel()
+
+	genesisL1 := eth.BlockID{Number: 100, Hash: [32]byte{0x01}}
+	genesisL2 := eth.BlockID{Number: 0, Hash: [32]byte{0x02}}
+
+	createConfigWithGenesis := func() *opnodecfg.Config {
+		return &opnodecfg.Config{
+			Rollup: rollup.Config{
+				L2ChainID: big.NewInt(420),
+				Genesis: rollup.Genesis{
+					L1: genesisL1,
+					L2: genesisL2,
+				},
+			},
+		}
+	}
+
+	t.Run("returns error when inner node is nil", func(t *testing.T) {
+		cfg := createConfigWithGenesis()
+		log := createTestLogger()
+		vn := NewVirtualNode(cfg, log, nil, "test")
+
+		_, err := vn.L1AtSafeHead(context.Background(), eth.BlockID{Number: 10})
+		require.ErrorIs(t, err, ErrVirtualNodeNotRunning)
+	})
+
+	t.Run("returns error when SafeDB is nil", func(t *testing.T) {
+		cfg := createConfigWithGenesis()
+		log := createTestLogger()
+		vn := NewVirtualNode(cfg, log, nil, "test")
+
+		mock := newMockInnerNode()
+		mock.db = nil
+		vn.inner = mock
+		vn.state = VNStateRunning
+
+		_, err := vn.L1AtSafeHead(context.Background(), eth.BlockID{Number: 10})
+		require.ErrorIs(t, err, ErrVirtualNodeNotRunning)
+	})
+
+	t.Run("genesis L2 target returns genesis L1 directly", func(t *testing.T) {
+		cfg := createConfigWithGenesis()
+		log := createTestLogger()
+		vn := NewVirtualNode(cfg, log, nil, "test")
+
+		// Set up mock with SafeDB - but it shouldn't be called for genesis
+		mockDB := newMockSafeDBReader()
+		mock := newMockInnerNode()
+		mock.db = mockDB
+		vn.inner = mock
+		vn.state = VNStateRunning
+
+		// Query for genesis L2 block
+		result, err := vn.L1AtSafeHead(context.Background(), genesisL2)
+		require.NoError(t, err)
+		require.Equal(t, genesisL1, result)
+	})
+
+	t.Run("genesis L2 number with different hash is not treated as genesis", func(t *testing.T) {
+		cfg := createConfigWithGenesis()
+		log := createTestLogger()
+		vn := NewVirtualNode(cfg, log, nil, "test")
+
+		mockDB := newMockSafeDBReader()
+		mock := newMockInnerNode()
+		mock.db = mockDB
+		vn.inner = mock
+		vn.state = VNStateRunning
+
+		// Query with same number as genesis but different hash
+		// Should NOT match genesis since both number AND hash must match
+		target := eth.BlockID{Number: genesisL2.Number, Hash: [32]byte{0xff}}
+		_, err := vn.L1AtSafeHead(context.Background(), target)
+		// Returns error because mockDB is empty and walkback fails
+		require.Error(t, err)
+	})
+
+	t.Run("non-genesis target uses walkback to find earliest L1", func(t *testing.T) {
+		cfg := createConfigWithGenesis()
+		log := createTestLogger()
+		vn := NewVirtualNode(cfg, log, nil, "test")
+
+		mockDB := newMockSafeDBReader()
+		// Set up entries: L1 block -> L2 safe head
+		// L1=100 (genesis) -> L2=0
+		// L1=101 -> L2=5
+		// L1=102 -> L2=10
+		// L1=103 -> L2=15
+		// L1=104 -> L2=20
+		mockDB.addEntry(100, [32]byte{0x01}, [32]byte{0x02}, 0)
+		mockDB.addEntry(101, [32]byte{0x03}, [32]byte{0x04}, 5)
+		mockDB.addEntry(102, [32]byte{0x05}, [32]byte{0x06}, 10)
+		mockDB.addEntry(103, [32]byte{0x07}, [32]byte{0x08}, 15)
+		mockDB.addEntry(104, [32]byte{0x09}, [32]byte{0x0a}, 20)
+
+		mock := newMockInnerNode()
+		mock.db = mockDB
+		vn.inner = mock
+		vn.state = VNStateRunning
+
+		// Query for L2 block 10 - should return L1=102 (earliest L1 where L2 safe head >= 10)
+		target := eth.BlockID{Number: 10, Hash: [32]byte{0x06}}
+		result, err := vn.L1AtSafeHead(context.Background(), target)
+		require.NoError(t, err)
+		require.Equal(t, uint64(102), result.Number)
+	})
+
+	t.Run("target beyond latest returns error", func(t *testing.T) {
+		cfg := createConfigWithGenesis()
+		log := createTestLogger()
+		vn := NewVirtualNode(cfg, log, nil, "test")
+
+		mockDB := newMockSafeDBReader()
+		mockDB.addEntry(100, [32]byte{0x01}, [32]byte{0x02}, 0)
+		mockDB.addEntry(101, [32]byte{0x03}, [32]byte{0x04}, 5)
+
+		mock := newMockInnerNode()
+		mock.db = mockDB
+		vn.inner = mock
+		vn.state = VNStateRunning
+
+		// Query for L2 block 100 - beyond latest L2 safe head (5)
+		target := eth.BlockID{Number: 100, Hash: [32]byte{}}
+		_, err := vn.L1AtSafeHead(context.Background(), target)
+		require.ErrorIs(t, err, ErrL1AtSafeHeadNotFound)
 	})
 }

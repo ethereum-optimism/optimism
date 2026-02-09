@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -224,7 +225,7 @@ func waitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Dur
 				}
 				return nil, err
 			}
-			if block != nil && block.NumberU64() >= number.Uint64() {
+			if block != nil && block.NumberU64() >= bigs.Uint64Strict(number) {
 				return client.BlockByNumber(ctx, number)
 			}
 		case <-ctx.Done():

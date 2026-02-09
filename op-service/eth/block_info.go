@@ -3,6 +3,7 @@ package eth
 import (
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -113,7 +114,7 @@ func (h *headerBlockInfo) Root() common.Hash {
 }
 
 func (h *headerBlockInfo) NumberU64() uint64 {
-	return h.header.Number.Uint64()
+	return bigs.Uint64Strict(h.header.Number)
 }
 
 func (h *headerBlockInfo) Time() uint64 {

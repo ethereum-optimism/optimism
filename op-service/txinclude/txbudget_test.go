@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/accounting"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -104,7 +105,7 @@ func TestTxBudgetIncluded(t *testing.T) {
 
 	receipt := &types.Receipt{
 		EffectiveGasPrice: eth.WeiU64(1).ToBig(),
-		GasUsed:           budgetedCost.ToBig().Uint64(),
+		GasUsed:           bigs.Uint64Strict(budgetedCost.ToBig()),
 		Type:              types.DynamicFeeTxType,
 
 		L1GasPrice:          big.NewInt(1),

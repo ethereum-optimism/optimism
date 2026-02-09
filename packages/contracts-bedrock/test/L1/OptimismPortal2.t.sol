@@ -22,6 +22,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
 import "src/dispute/lib/Types.sol";
+import { UnknownChainId } from "src/dispute/lib/Errors.sol";
 
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -1168,16 +1169,23 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         });
     }
 
-    /// @notice Tests that `proveWithdrawalTransaction` reverts when using the Output Roots version
-    ///         of `proveWithdrawalTransaction` when `superRootsActive` is true.
-    function test_proveWithdrawalTransaction_outputRootVersionWhenSuperRootsActive_reverts() external {
+    /// @notice Tests that `proveWithdrawalTransaction` reverts when superRootsActive is true
+    ///         and the game's rootClaimByChainId reverts with UnknownChainId.
+    function test_proveWithdrawalTransaction_superRootsVersionBadChainId_reverts() external {
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
-        // Set superRootsActive to true.
+        // Enable super roots.
         setSuperRootsActive(true);
 
-        // Should revert.
-        vm.expectRevert(IOptimismPortalInterop.OptimismPortal_WrongProofMethod.selector);
+        // Mock rootClaimByChainId to revert with UnknownChainId.
+        vm.mockCallRevert(
+            address(game),
+            abi.encodeCall(game.rootClaimByChainId, (systemConfig.l2ChainId())),
+            abi.encodePacked(UnknownChainId.selector)
+        );
+
+        // Should revert because chainId not found in super root.
+        vm.expectRevert(UnknownChainId.selector);
         IOptimismPortalInterop(payable(optimismPortal2)).proveWithdrawalTransaction({
             _tx: _defaultTx,
             _disputeGameIndex: _proposedGameIndex,
@@ -1186,207 +1194,51 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         });
     }
 
-    /// @notice Tests that `proveWithdrawalTransaction` reverts when using the Super Roots version
-    ///         of `proveWithdrawalTransaction` when `superRootsActive` is false.
-    function test_proveWithdrawalTransaction_superRootsVersionWhenSuperRootsInactive_reverts() external {
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
-        // Set up a dummy super root proof.
-        Types.OutputRootWithChainId[] memory outputRootWithChainIdArr = new Types.OutputRootWithChainId[](1);
-        outputRootWithChainIdArr[0] =
-            Types.OutputRootWithChainId({ root: _outputRoot, chainId: systemConfig.l2ChainId() });
-        Types.SuperRootProof memory superRootProof = Types.SuperRootProof({
-            version: 0x01,
-            timestamp: uint64(block.timestamp),
-            outputRoots: outputRootWithChainIdArr
-        });
-
-        // Should revert.
-        vm.expectRevert(IOptimismPortalInterop.OptimismPortal_WrongProofMethod.selector);
-        IOptimismPortalInterop(payable(optimismPortal2)).proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameProxy: game,
-            _outputRootIndex: 0,
-            _superRootProof: superRootProof,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
-    }
-
-    /// @notice Tests that `proveWithdrawalTransaction` reverts when using the Super Roots version
-    ///         of `proveWithdrawalTransaction` when the provided proof is invalid.
-    function test_proveWithdrawalTransaction_superRootsVersionBadProof_reverts() external {
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
-        // Enable super roots.
-        setSuperRootsActive(true);
-
-        // Set up a dummy super root proof.
-        Types.OutputRootWithChainId[] memory outputRootWithChainIdArr = new Types.OutputRootWithChainId[](1);
-        outputRootWithChainIdArr[0] =
-            Types.OutputRootWithChainId({ root: _outputRoot, chainId: systemConfig.l2ChainId() });
-        Types.SuperRootProof memory superRootProof = Types.SuperRootProof({
-            version: 0x01,
-            timestamp: uint64(block.timestamp),
-            outputRoots: outputRootWithChainIdArr
-        });
-
-        // Should revert because the proof is wrong.
-        vm.expectRevert(IOptimismPortalInterop.OptimismPortal_InvalidSuperRootProof.selector);
-        IOptimismPortalInterop(payable(optimismPortal2)).proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameProxy: game,
-            _outputRootIndex: 0,
-            _superRootProof: superRootProof,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
-    }
-
-    /// @notice Tests that `proveWithdrawalTransaction` reverts when using the Super Roots version
-    ///         of `proveWithdrawalTransaction` when the provided proof is valid but the index is
-    ///         out of bounds.
-    function test_proveWithdrawalTransaction_superRootsVersionBadIndex_reverts() external {
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
-        // Enable super roots.
-        setSuperRootsActive(true);
-
-        // Set up a dummy super root proof.
-        Types.OutputRootWithChainId[] memory outputRootWithChainIdArr = new Types.OutputRootWithChainId[](1);
-        outputRootWithChainIdArr[0] =
-            Types.OutputRootWithChainId({ root: _outputRoot, chainId: systemConfig.l2ChainId() });
-        Types.SuperRootProof memory superRootProof = Types.SuperRootProof({
-            version: 0x01,
-            timestamp: uint64(block.timestamp),
-            outputRoots: outputRootWithChainIdArr
-        });
-
-        // Figure out what the right hash would be.
-        bytes32 expectedSuperRoot = Hashing.hashSuperRootProof(superRootProof);
-
-        // Mock the game to return the expected super root.
-        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(expectedSuperRoot));
-
-        // Should revert because the proof is wrong.
-        vm.expectRevert(IOptimismPortalInterop.OptimismPortal_InvalidOutputRootIndex.selector);
-        IOptimismPortalInterop(payable(optimismPortal2)).proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameProxy: game,
-            _outputRootIndex: outputRootWithChainIdArr.length, // out of bounds
-            _superRootProof: superRootProof,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
-    }
-
-    /// @notice Tests that `proveWithdrawalTransaction` reverts when using the Super Roots version
-    ///         of `proveWithdrawalTransaction` when the provided proof is valid, index is correct,
-    ///         but the output root has the wrong chain id.
-    function test_proveWithdrawalTransaction_superRootsVersionBadChainId_reverts() external {
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
-        // Enable super roots.
-        setSuperRootsActive(true);
-
-        // Set up a dummy super root proof.
-        Types.OutputRootWithChainId[] memory outputRootWithChainIdArr = new Types.OutputRootWithChainId[](1);
-        outputRootWithChainIdArr[0] = Types.OutputRootWithChainId({
-            root: _outputRoot,
-            chainId: systemConfig.l2ChainId() + 1 // wrong chain id
-         });
-        Types.SuperRootProof memory superRootProof = Types.SuperRootProof({
-            version: 0x01,
-            timestamp: uint64(block.timestamp),
-            outputRoots: outputRootWithChainIdArr
-        });
-
-        // Figure out what the right hash would be.
-        bytes32 expectedSuperRoot = Hashing.hashSuperRootProof(superRootProof);
-
-        // Mock the game to return the expected super root.
-        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(expectedSuperRoot));
-
-        // Should revert because the proof is wrong.
-        vm.expectRevert(IOptimismPortalInterop.OptimismPortal_InvalidOutputRootChainId.selector);
-        IOptimismPortalInterop(payable(optimismPortal2)).proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameProxy: game,
-            _outputRootIndex: 0,
-            _superRootProof: superRootProof,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
-    }
-
-    /// @notice Tests that `proveWithdrawalTransaction` reverts when using the Super Roots version
-    ///         of `proveWithdrawalTransaction` when the provided proof is valid, index is correct,
-    ///         chain id is correct, but the output root proof is invalid.
+    /// @notice Tests that `proveWithdrawalTransaction` reverts when superRootsActive is true
+    ///         and the output root proof doesn't match the game's rootClaimByChainId.
     function test_proveWithdrawalTransaction_superRootsVersionBadOutputRootProof_reverts() external {
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Enable super roots.
         setSuperRootsActive(true);
 
-        // Set up a dummy super root proof.
-        Types.OutputRootWithChainId[] memory outputRootWithChainIdArr = new Types.OutputRootWithChainId[](1);
-        outputRootWithChainIdArr[0] = Types.OutputRootWithChainId({
-            root: keccak256(abi.encode(_outputRoot)), // random root so the proof is wrong
-            chainId: systemConfig.l2ChainId()
-        });
-        Types.SuperRootProof memory superRootProof = Types.SuperRootProof({
-            version: 0x01,
-            timestamp: uint64(block.timestamp),
-            outputRoots: outputRootWithChainIdArr
-        });
+        // Mock rootClaimByChainId to return a different output root (wrong one).
+        bytes32 wrongOutputRoot = keccak256(abi.encode(_outputRoot));
+        vm.mockCall(
+            address(game),
+            abi.encodeCall(game.rootClaimByChainId, (systemConfig.l2ChainId())),
+            abi.encode(Claim.wrap(wrongOutputRoot))
+        );
 
-        // Figure out what the right hash would be.
-        bytes32 expectedSuperRoot = Hashing.hashSuperRootProof(superRootProof);
-
-        // Mock the game to return the expected super root.
-        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(expectedSuperRoot));
-
-        // Should revert because the proof is wrong.
+        // Should revert because the output root proof doesn't match.
         vm.expectRevert(IOptimismPortalInterop.OptimismPortal_InvalidOutputRootProof.selector);
         IOptimismPortalInterop(payable(optimismPortal2)).proveWithdrawalTransaction({
             _tx: _defaultTx,
-            _disputeGameProxy: game,
-            _outputRootIndex: 0,
-            _superRootProof: superRootProof,
+            _disputeGameIndex: _proposedGameIndex,
             _outputRootProof: _outputRootProof,
             _withdrawalProof: _withdrawalProof
         });
     }
 
-    /// @notice Tests that `proveWithdrawalTransaction` succeeds when all parameters are valid.
+    /// @notice Tests that `proveWithdrawalTransaction` succeeds when superRootsActive is true
+    ///         and all parameters are valid.
     function test_proveWithdrawalTransaction_superRootsVersion_succeeds() external {
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Enable super roots.
         setSuperRootsActive(true);
 
-        // Set up a dummy super root proof.
-        Types.OutputRootWithChainId[] memory outputRootWithChainIdArr = new Types.OutputRootWithChainId[](1);
-        outputRootWithChainIdArr[0] =
-            Types.OutputRootWithChainId({ root: _outputRoot, chainId: systemConfig.l2ChainId() });
-        Types.SuperRootProof memory superRootProof = Types.SuperRootProof({
-            version: 0x01,
-            timestamp: uint64(block.timestamp),
-            outputRoots: outputRootWithChainIdArr
-        });
-
-        // Figure out what the right hash would be.
-        bytes32 expectedSuperRoot = Hashing.hashSuperRootProof(superRootProof);
-
-        // Mock the game to return the expected super root.
-        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(expectedSuperRoot));
+        // Mock rootClaimByChainId to return the correct output root.
+        vm.mockCall(
+            address(game),
+            abi.encodeCall(game.rootClaimByChainId, (systemConfig.l2ChainId())),
+            abi.encode(Claim.wrap(_outputRoot))
+        );
 
         // Should succeed.
         IOptimismPortalInterop(payable(optimismPortal2)).proveWithdrawalTransaction({
             _tx: _defaultTx,
-            _disputeGameProxy: game,
-            _outputRootIndex: 0,
-            _superRootProof: superRootProof,
+            _disputeGameIndex: _proposedGameIndex,
             _outputRootProof: _outputRootProof,
             _withdrawalProof: _withdrawalProof
         });

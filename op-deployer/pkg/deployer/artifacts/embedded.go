@@ -43,6 +43,9 @@ func ExtractEmbedded(destDir string) (foundry.StatDirFs, error) {
 		return nil, fmt.Errorf("failed to create temp untar dir: %w", err)
 	}
 
+	// Register for automatic cleanup on process exit
+	RegisterForCleanup(untarPath)
+
 	tr := tar.NewReader(reader)
 	if err := ioutil.Untar(untarPath, tr); err != nil {
 		return nil, fmt.Errorf("failed to untar embedded artifacts: %w", err)
@@ -83,6 +86,9 @@ func ExtractFromFile(destDir string, tarFilePath string) (foundry.StatDirFs, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp untar dir: %w", err)
 	}
+
+	// Register for automatic cleanup on process exit
+	RegisterForCleanup(untarPath)
 
 	tr := tar.NewReader(reader)
 	if err := ioutil.Untar(untarPath, tr); err != nil {

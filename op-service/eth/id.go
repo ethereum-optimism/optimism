@@ -3,6 +3,7 @@ package eth
 import (
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -23,11 +24,11 @@ func (id BlockID) TerminalString() string {
 }
 
 func ReceiptBlockID(r *types.Receipt) BlockID {
-	return BlockID{Number: r.BlockNumber.Uint64(), Hash: r.BlockHash}
+	return BlockID{Number: bigs.Uint64Strict(r.BlockNumber), Hash: r.BlockHash}
 }
 
 func HeaderBlockID(h *types.Header) BlockID {
-	return BlockID{Number: h.Number.Uint64(), Hash: h.Hash()}
+	return BlockID{Number: bigs.Uint64Strict(h.Number), Hash: h.Hash()}
 }
 
 type L2BlockRef struct {
@@ -101,7 +102,7 @@ type BlockRef = L1BlockRef
 func BlockRefFromHeader(h *types.Header) *BlockRef {
 	return &BlockRef{
 		Hash:       h.Hash(),
-		Number:     h.Number.Uint64(),
+		Number:     bigs.Uint64Strict(h.Number),
 		ParentHash: h.ParentHash,
 		Time:       h.Time,
 	}

@@ -51,7 +51,7 @@ func (f *SuperFaultDisputeGameContractLatest) GetExtendedMetadata(ctx context.Co
 		return GameMetadata{}, fmt.Errorf("expected 5 results but got %v", len(results))
 	}
 	l1Head := results[0].GetHash(0)
-	l2Timestamp := results[1].GetBigInt(0).Uint64()
+	l2Timestamp := getBlockNumber(results[1], 0)
 	rootClaim := results[2].GetHash(0)
 	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
 	if err != nil {
@@ -83,7 +83,7 @@ func (f *SuperFaultDisputeGameContractLatest) GetMetadata(ctx context.Context, b
 		return GenericGameMetadata{}, fmt.Errorf("expected 4 results but got %v", len(results))
 	}
 	l1Head := results[0].GetHash(0)
-	l2SequenceNumber := results[1].GetBigInt(0).Uint64()
+	l2SequenceNumber := getBlockNumber(results[1], 0)
 	rootClaim := results[2].GetHash(0)
 	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
 	if err != nil {
@@ -119,7 +119,7 @@ func (f *SuperFaultDisputeGameContractLatest) GetGameRange(ctx context.Context) 
 		retErr = fmt.Errorf("expected 2 results but got %v", len(results))
 		return
 	}
-	prestateBlock = results[0].GetBigInt(0).Uint64()
-	poststateBlock = results[1].GetBigInt(0).Uint64()
+	prestateBlock = getBlockNumber(results[0], 0)
+	poststateBlock = getBlockNumber(results[1], 0)
 	return
 }

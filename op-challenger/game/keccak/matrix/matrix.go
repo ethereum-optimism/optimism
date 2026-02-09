@@ -137,7 +137,7 @@ func pad(input []byte, paddedInput *[types.BlockSize]byte, dsbyte byte) {
 
 func (d *StateMatrix) AbsorbUpTo(in io.Reader, maxLen int) (types.InputData, error) {
 	if maxLen < types.BlockSize || maxLen%types.BlockSize != 0 {
-		return types.InputData{}, ErrInvalidMaxLen
+		return types.InputData{}, fmt.Errorf("%w: %v", ErrInvalidMaxLen, maxLen)
 	}
 	input := make([]byte, 0, maxLen)
 	commitments := make([]common.Hash, 0, maxLen/types.BlockSize)

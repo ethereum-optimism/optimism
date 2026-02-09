@@ -54,7 +54,7 @@ type L1Source interface {
 }
 
 type L1BlobSource interface {
-	GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error)
+	GetBlobsByHash(ctx context.Context, time uint64, hashes []common.Hash) ([]*eth.Blob, error)
 }
 
 type Prefetcher struct {
@@ -316,23 +316,14 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		}
 		return p.storeReceipts(receipts)
 	case l1.HintL1Blob:
-		if len(hintBytes) != 48 {
-			return fmt.Errorf("invalid blob hint: %x", hint)
+		blobVersionHash, refTimestamp, err := parseBlobHint(hintBytes)
+		if err != nil {
+			return err
 		}
-
-		blobVersionHash := common.Hash(hintBytes[:32])
-		blobHashIndex := binary.BigEndian.Uint64(hintBytes[32:40])
-		refTimestamp := binary.BigEndian.Uint64(hintBytes[40:48])
-
-		// Fetch the blob for the indexed blob hash passed in the hint.
-		indexedBlobHash := eth.IndexedBlobHash{
-			Hash:  blobVersionHash,
-			Index: blobHashIndex,
-		}
-		// We pass an `eth.L1BlockRef`, but `GetBlobs` only uses the timestamp, which we received in the hint.
-		blobs, err := p.l1BlobFetcher.GetBlobs(ctx, eth.L1BlockRef{Time: refTimestamp}, []eth.IndexedBlobHash{indexedBlobHash})
+		// Fetch the blob for the versioned hash passed in the hint.
+		blobs, err := p.l1BlobFetcher.GetBlobsByHash(ctx, refTimestamp, []common.Hash{blobVersionHash})
 		if err != nil || len(blobs) != 1 {
-			return fmt.Errorf("failed to fetch blobs for %s %d: %w", blobVersionHash, blobHashIndex, err)
+			return fmt.Errorf("failed to fetch blob for %s: %w", blobVersionHash, err)
 		}
 		blob := blobs[0]
 		kzgCommitment, err := blob.ComputeKZGCommitment()
@@ -590,4 +581,25 @@ func parseHint(hint string) (string, []byte, error) {
 
 func getPrecompiledContract(address common.Address) vm.PrecompiledContract {
 	return vm.PrecompiledContractsPrague[address]
+}
+
+// parseBlobHint parses a blob hint string in wire protocol.
+// Returns the blob version hash, reference timestamp and error (if any).
+// It can parse legacy blob hints which contain a legacy blobHashIndex, no longer used.
+// It uses the length of the hintBytes to determine the format.
+func parseBlobHint(hintBytes []byte) (common.Hash, uint64, error) {
+	var blobVersionHash common.Hash
+	var refTimestamp uint64
+	switch len(hintBytes) {
+	case 48:
+		blobVersionHash = common.Hash(hintBytes[:32])
+		_ = binary.BigEndian.Uint64(hintBytes[32:40]) // contains legacy blobHashIndex, no longer used
+		refTimestamp = binary.BigEndian.Uint64(hintBytes[40:48])
+	case 40:
+		blobVersionHash = common.Hash(hintBytes[:32])
+		refTimestamp = binary.BigEndian.Uint64(hintBytes[32:40])
+	default:
+		return common.Hash{}, 0, fmt.Errorf("invalid blob hint: %x", hintBytes)
+	}
+	return blobVersionHash, refTimestamp, nil
 }
