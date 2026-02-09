@@ -1,4 +1,4 @@
-package proofs
+package fpp
 
 import (
 	"testing"
@@ -32,6 +32,7 @@ func TestNextSuperRootNotFound(gt *testing.T) {
 
 	// Stop the second sequencer so we have a point where new blocks aren't available (and thus no super root is found)
 	chainBLastBlockHash := sys.L2CLB.StopSequencer()
+	defer sys.L2CLB.StartSequencer() // Start the sequencer again for other tests.
 
 	chainBLastBlock := sys.L2ELB.BlockRefByHash(chainBLastBlockHash)
 
