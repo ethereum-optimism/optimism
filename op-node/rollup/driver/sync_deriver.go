@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -179,38 +178,20 @@ func (s *SyncDeriver) onEngineConfirmedReset(ctx context.Context, x engine.Engin
 			s.Log.Error("Failed to warn safe-head notifier of safe-head reset", "safe", x.CrossSafe)
 			return
 		}
-		if s.SafeHeadNotifs.Enabled() {
-			// The rollup genesis block is always safe by definition. We always record it when resetting
-			// to ensure SafeDB has a starting point for L1AtSafeHead queries.
-			// Note that it is not safe to use cfg.Genesis.L1 here as it is the block immediately before the L2 genesis,
+		if s.SafeHeadNotifs.Enabled() && x.LocalSafe.ID() == s.Config.Genesis.L2 {
+			// The rollup genesis block is always safe by definition. So if the pipeline resets this far back we know
+			// we will process all safe head updates and can record genesis as always safe from L1 genesis.
+			// Note that it is not safe to use cfg.Genesis.L1 here as it is the block immediately before the L2 genesis
 			// but the contracts may have been deployed earlier than that, allowing creating a dispute game
-			// with a L1 head prior to cfg.Genesis.L1. We use L1 genesis (block 0) instead.
+			// with a L1 head prior to cfg.Genesis.L1
 			l1Genesis, err := s.L1.L1BlockRefByNumber(s.Ctx, 0)
 			if err != nil {
 				s.Log.Error("Failed to retrieve L1 genesis, cannot notify genesis as safe block", "err", err)
 				return
 			}
-
-			genesisL2Ref := eth.L2BlockRef{
-				Hash:           s.Config.Genesis.L2.Hash,
-				Number:         s.Config.Genesis.L2.Number,
-				ParentHash:     common.Hash{}, // Genesis has no parent
-				Time:           s.Config.Genesis.L2Time,
-				L1Origin:       s.Config.Genesis.L1,
-				SequenceNumber: 0,
-			}
-			if err := s.SafeHeadNotifs.SafeHeadUpdated(genesisL2Ref, l1Genesis.ID()); err != nil {
-				s.Log.Error("Failed to notify safe-head listener of genesis block", "err", err)
+			if err := s.SafeHeadNotifs.SafeHeadUpdated(x.LocalSafe, l1Genesis.ID()); err != nil {
+				s.Log.Error("Failed to notify safe-head listener of safe-head", "err", err)
 				return
-			}
-
-			// If reset didn't go back to genesis, also record the local safe head
-			// This ensures continuity in SafeDB for L1AtSafeHead queries
-			if x.LocalSafe.ID() != s.Config.Genesis.L2 {
-				if err := s.SafeHeadNotifs.SafeHeadUpdated(x.LocalSafe, x.LocalSafe.L1Origin); err != nil {
-					s.Log.Error("Failed to notify safe-head listener of local safe head on reset", "err", err)
-					return
-				}
 			}
 		}
 	}
