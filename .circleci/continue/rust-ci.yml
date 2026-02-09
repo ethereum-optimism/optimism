@@ -2,7 +2,6 @@ version: 2.1
 
 # Unified Rust CI Configuration
 # This file contains all Rust CI commands, parameterized jobs, crate-specific jobs, and workflows.
-# It replaces the per-crate configs: kona.yml, op-reth.yml, op-alloy.yml, alloy-op-evm.yml, alloy-op-hardforks.yml.
 
 orbs:
   utils: ethereum-optimism/circleci-utils@1.0.23
