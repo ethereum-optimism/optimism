@@ -27,7 +27,7 @@ func (m *mockRunnable) Start(ctx context.Context) error {
 	<-ctx.Done()
 	return ctx.Err()
 }
-func (m *mockRunnable) Stop(ctx context.Context) error                  { m.stopped++; return nil }
+func (m *mockRunnable) Stop(ctx context.Context) error                { m.stopped++; return nil }
 func (m *mockRunnable) ResetOn(chainID eth.ChainID, timestamp uint64) {}
 
 // ensure it satisfies both Activity and RunnableActivity
@@ -51,8 +51,8 @@ func (s *rpcSvc) Echo(_ context.Context) (string, error) { return "ok", nil }
 
 type rpcAct struct{}
 
-func (a *rpcAct) RPCNamespace() string                               { return "act" }
-func (a *rpcAct) RPCService() interface{}                            { return &rpcSvc{} }
+func (a *rpcAct) RPCNamespace() string                          { return "act" }
+func (a *rpcAct) RPCService() interface{}                       { return &rpcSvc{} }
 func (a *rpcAct) ResetOn(chainID eth.ChainID, timestamp uint64) {}
 
 var _ activity.Activity = (*rpcAct)(nil)
