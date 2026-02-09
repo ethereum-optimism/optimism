@@ -51,7 +51,7 @@ contract ConditionalDeployer is ISemver {
         // Calldata format: salt + initcode
         (bool success, bytes memory data) =
             DETERMINISTIC_DEPLOYMENT_PROXY.call{ value: msg.value }(abi.encodePacked(_salt, _code));
-        if (!success) {
+        if (!success || implementation_.code.length == 0) {
             revert ConditionalDeployer_DeploymentFailed(data);
         }
 

@@ -136,4 +136,23 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
         );
         conditionalDeployer.deploy{ value: _value }(_salt, _initCode);
     }
+
+    /// @notice Tests that `deploy` reverts when the deployment call succeeds but no code is deployed.
+    /// @dev The deployment call to the DeterministicDeploymentProxy is mocked to succeed with no code deployed.
+    function testFuzz_deploy_deploymenCodeLengthZero_reverts(address _caller, bytes32 _salt, uint256 _value) public {
+        bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(0));
+
+        // Mock the deployment call to the DeterministicDeploymentProxy to succeed but deploy no code
+        vm.mockCall(
+            conditionalDeployer.deterministicDeploymentProxy(), _value, abi.encodePacked(_salt, _initCode), bytes("")
+        );
+
+        // Deal ETH to the caller and call `deploy`
+        vm.deal(_caller, _value);
+        vm.prank(_caller);
+        vm.expectRevert(
+            abi.encodeWithSelector(ConditionalDeployer.ConditionalDeployer_DeploymentFailed.selector, bytes(""))
+        );
+        conditionalDeployer.deploy{ value: _value }(_salt, _initCode);
+    }
 }
