@@ -19,12 +19,11 @@ interface IConditionalDeployer is ISemver {
     error ConditionalDeployer_DeploymentFailed(bytes data);
 
     /// @notice Deploys an implementation using CREATE2 if it doesn't already exist.
-    /// @param _value The amount of ETH to send with the deployment.
     /// @param _salt The salt to use for CREATE2 deployment.
     /// @param _code The initialization code for the contract.
     /// @return implementation_ The address of the deployed or existing implementation.
-    function deploy(uint256 _value, bytes32 _salt, bytes memory _code) external returns (address implementation_);
+    function deploy(bytes32 _salt, bytes memory _code) external payable returns (address implementation_);
 
-    /// @notice Address of the DeterministicDeploymentProxy (Nick's method).
+    /// @notice Address of the Arachnid's DeterministicDeploymentProxy.
     function deterministicDeploymentProxy() external pure returns (address payable deterministicDeploymentProxy_);
 }

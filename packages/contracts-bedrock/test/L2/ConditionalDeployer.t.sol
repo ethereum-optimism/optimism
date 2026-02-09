@@ -15,7 +15,7 @@ import { ConditionalDeployer } from "src/L2/ConditionalDeployer.sol";
 contract ConditionalDeployer_Harness {
     uint256 public immutable value;
 
-    constructor(uint256 _value) {
+    constructor(uint256 _value) payable {
         value = _value;
     }
 }
@@ -62,8 +62,10 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
         vm.expectEmit(address(conditionalDeployer));
         emit ImplementationDeployed(expectedImplementation, _salt);
 
+        // Deal ETH to the caller and call `deploy`
+        vm.deal(_caller, _value);
         vm.prank(_caller);
-        address implementation = conditionalDeployer.deploy(0, _salt, _initCode);
+        address implementation = conditionalDeployer.deploy{ value: _value }(_salt, _initCode);
 
         assertEq(implementation, expectedImplementation);
         assertEq(ConditionalDeployer_Harness(implementation).value(), _value);
@@ -91,8 +93,10 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
         vm.expectEmit(address(conditionalDeployer));
         emit ImplementationDeployed(expectedImplementation, _salt);
 
+        // Deal ETH to the caller and call `deploy`
+        vm.deal(_caller, _value);
         vm.prank(_caller);
-        address implementation1 = conditionalDeployer.deploy(0, _salt, _initCode);
+        address implementation1 = conditionalDeployer.deploy{ value: _value }(_salt, _initCode);
 
         // Assert that the implementation was deployed
         assert(implementation1.code.length != 0);
@@ -101,8 +105,10 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
         vm.expectEmit(address(conditionalDeployer));
         emit ImplementationExists(implementation1);
 
+        // Deal ETH to the caller and call `deploy`
+        vm.deal(_caller, _value);
         vm.prank(_caller);
-        address implementation2 = conditionalDeployer.deploy(0, _salt, _initCode);
+        address implementation2 = conditionalDeployer.deploy{ value: _value }(_salt, _initCode);
 
         assertEq(implementation1, implementation2);
     }
@@ -112,14 +118,22 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
     function testFuzz_deploy_deploymentFailed_reverts(address _caller, bytes32 _salt, uint256 _value) public {
         bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(0));
 
+        // Mock the deployment call to the DeterministicDeploymentProxy to revert
         vm.mockCallRevert(
-            conditionalDeployer.deterministicDeploymentProxy(), _value, abi.encodePacked(_salt, _initCode), bytes("")
+            conditionalDeployer.deterministicDeploymentProxy(),
+            _value,
+            abi.encodePacked(_salt, _initCode),
+            bytes("deployment failed")
         );
 
+        // Deal ETH to the caller and call `deploy`
+        vm.deal(_caller, _value);
         vm.prank(_caller);
         vm.expectRevert(
-            abi.encodeWithSelector(ConditionalDeployer.ConditionalDeployer_DeploymentFailed.selector, bytes(""))
+            abi.encodeWithSelector(
+                ConditionalDeployer.ConditionalDeployer_DeploymentFailed.selector, bytes("deployment failed")
+            )
         );
-        conditionalDeployer.deploy(_value, _salt, _initCode);
+        conditionalDeployer.deploy{ value: _value }(_salt, _initCode);
     }
 }

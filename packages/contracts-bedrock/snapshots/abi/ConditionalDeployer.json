@@ -2,11 +2,6 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "_value",
-        "type": "uint256"
-      },
-      {
         "internalType": "bytes32",
         "name": "_salt",
         "type": "bytes32"
@@ -25,7 +20,7 @@
         "type": "address"
       }
     ],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {

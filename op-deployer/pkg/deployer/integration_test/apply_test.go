@@ -382,7 +382,7 @@ func TestEndToEndApply(t *testing.T) {
 			CacheDir:           testCacheDir,
 		}))
 
-		// Check that the native asset liquidity predeploy has the configured amount in L2 genesis
+		// Check that the conditional deployer predeploy is deployed in L2 genesis
 		conditionalDeployerAddr := common.HexToAddress("0x420000000000000000000000000000000000002C")
 		l2Genesis := st.Chains[0].Allocs.Data.Accounts
 		account, exists := l2Genesis[conditionalDeployerAddr]
