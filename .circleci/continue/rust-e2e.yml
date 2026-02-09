@@ -250,7 +250,7 @@ workflows:
             - cannon-kona-prestate
             - cannon-kona-host
             - kona-build-release
-      # Proof tests (from proof.yaml) - single kind only, interop excluded per original config
+      # Proof tests - single kind only, interop excluded per original config
       - kona-proof-action-tests:
           name: kona-proof-action-single
           kind: single
