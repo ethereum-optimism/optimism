@@ -34,7 +34,7 @@ func TestSupervisorSource_SyncStatus(t *testing.T) {
 		actual, err := source.SyncStatus(context.Background())
 		require.NoError(t, err)
 		expected := SyncStatus{
-			CurrentL1:   response.MinSyncedL1,
+			CurrentL1:   response.MinSyncedL1.ID(),
 			SafeL2:      response.SafeTimestamp,
 			FinalizedL2: response.FinalizedTimestamp,
 		}
@@ -90,7 +90,7 @@ func TestSupervisorSource_SyncStatus(t *testing.T) {
 		require.NoError(t, err)
 		// Should use the response with the lowest MinSyncedL1 block number
 		expected := SyncStatus{
-			CurrentL1:   response2.MinSyncedL1,
+			CurrentL1:   response2.MinSyncedL1.ID(),
 			SafeL2:      response2.SafeTimestamp,
 			FinalizedL2: response2.FinalizedTimestamp,
 		}
@@ -120,7 +120,7 @@ func TestSupervisorSource_SyncStatus(t *testing.T) {
 		require.NoError(t, err)
 		// Should use the response with the lowest MinSyncedL1 block number
 		expected := SyncStatus{
-			CurrentL1:   response2.MinSyncedL1,
+			CurrentL1:   response2.MinSyncedL1.ID(),
 			SafeL2:      response2.SafeTimestamp,
 			FinalizedL2: response2.FinalizedTimestamp,
 		}
@@ -162,7 +162,7 @@ func TestSupervisorSource_SyncStatus(t *testing.T) {
 		require.NoError(t, err)
 		// Should use the response with the lowest MinSyncedL1 block number which is L1 genesis
 		expected := SyncStatus{
-			CurrentL1:   response3.MinSyncedL1,
+			CurrentL1:   response3.MinSyncedL1.ID(),
 			SafeL2:      response3.SafeTimestamp,
 			FinalizedL2: response3.FinalizedTimestamp,
 		}
@@ -192,7 +192,7 @@ func TestSupervisorSource_SyncStatus(t *testing.T) {
 		require.NoError(t, err)
 		// Should use the one successful response
 		expected := SyncStatus{
-			CurrentL1:   response.MinSyncedL1,
+			CurrentL1:   response.MinSyncedL1.ID(),
 			SafeL2:      response.SafeTimestamp,
 			FinalizedL2: response.FinalizedTimestamp,
 		}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/beacon/engine"
@@ -40,7 +41,7 @@ func TestNewPayloadV4(t *testing.T) {
 	for _, c := range cases {
 		genesis := createGenesisWithIsthmusTimeOffset(c.isthmusTime)
 		ethCfg := &ethconfig.Config{
-			NetworkId:   genesis.Config.ChainID.Uint64(),
+			NetworkId:   bigs.Uint64Strict(genesis.Config.ChainID),
 			Genesis:     genesis,
 			StateScheme: rawdb.HashScheme,
 			NoPruning:   true,
@@ -146,7 +147,7 @@ func newStubBackendWithConfig(t *testing.T, ethCfg *ethconfig.Config) *stubCachi
 func newStubBackend(t *testing.T) *stubCachingBackend {
 	genesis := createIsthmusGenesis()
 	ethCfg := &ethconfig.Config{
-		NetworkId:   genesis.Config.ChainID.Uint64(),
+		NetworkId:   bigs.Uint64Strict(genesis.Config.ChainID),
 		Genesis:     genesis,
 		StateScheme: rawdb.HashScheme,
 		NoPruning:   true,

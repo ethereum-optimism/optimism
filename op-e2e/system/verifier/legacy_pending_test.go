@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
@@ -72,7 +73,7 @@ func TestPendingGasLimit(t *testing.T) {
 
 		// Stop once the verifier passes genesis:
 		// this implies we checked a new block from the sequencer, on both sequencer and verifier nodes.
-		if latestVerifHeader.Number.Uint64() > 0 {
+		if bigs.Uint64Strict(latestVerifHeader.Number) > 0 {
 			break
 		}
 		time.Sleep(500 * time.Millisecond)
@@ -109,7 +110,7 @@ func TestPendingBlockIsLatest(t *testing.T) {
 			require.NoError(t, err)
 			latest, err := l2Seq.HeaderByNumber(context.Background(), nil)
 			require.NoError(t, err)
-			if pending.Number.Uint64() == latest.Number.Uint64() {
+			if bigs.Uint64Strict(pending.Number) == bigs.Uint64Strict(latest.Number) {
 				require.Equal(t, pending.Hash(), latest.Hash(), "pending must exactly match latest header")
 				return
 			}

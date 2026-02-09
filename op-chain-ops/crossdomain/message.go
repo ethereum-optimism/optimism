@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -42,7 +43,7 @@ func NewCrossDomainMessage(
 // It does this by looking at the first byte of the nonce.
 func (c *CrossDomainMessage) Version() uint64 {
 	_, version := DecodeVersionedNonce(c.Nonce)
-	return version.Uint64()
+	return bigs.Uint64Strict(version)
 }
 
 // Encode will encode a cross domain message based on the version.

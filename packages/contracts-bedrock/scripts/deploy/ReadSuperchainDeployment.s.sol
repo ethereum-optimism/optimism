@@ -10,6 +10,7 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 contract ReadSuperchainDeployment is Script {
     struct Input {
@@ -40,13 +41,13 @@ contract ReadSuperchainDeployment is Script {
             isOPCMV2 = true;
         } else {
             require(address(opcm).code.length > 0, "ReadSuperchainDeployment: OPCM address has no code");
-            isOPCMV2 = SemverComp.gte(opcm.version(), "7.0.0");
+            isOPCMV2 = SemverComp.gte(opcm.version(), Constants.OPCM_V2_MIN_VERSION);
         }
 
         if (isOPCMV2) {
             require(
-                address(_input.superchainConfigProxy) != address(0),
-                "ReadSuperchainDeployment: superchainConfigProxy required for OPCM v2"
+                address(_input.superchainConfigProxy).code.length > 0,
+                "ReadSuperchainDeployment: superchainConfigProxy has no code for OPCM v2"
             );
 
             // For OPCM v2, ProtocolVersions is being removed. Therefore, the ProtocolVersions-related fields
@@ -85,5 +86,11 @@ contract ReadSuperchainDeployment is Script {
                 bytes32(ProtocolVersion.unwrap(output_.protocolVersionsProxy.recommended()));
             output_.requiredProtocolVersion = bytes32(ProtocolVersion.unwrap(output_.protocolVersionsProxy.required()));
         }
+    }
+
+    function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        Input memory input = abi.decode(_input, (Input));
+        Output memory output = run(input);
+        return abi.encode(output);
     }
 }

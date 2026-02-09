@@ -14,7 +14,6 @@ jobs:
       image_name: ${{ steps.parse-tag.outputs.image_name }}
       version: ${{ steps.parse-tag.outputs.version }}
       versions: ${{ steps.prep.outputs.versions }}
-      kona_version: ${{ steps.prep.outputs.kona_version }}
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2
@@ -32,7 +31,7 @@ jobs:
 
   release:
     needs: prep
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@d04222c229c50320f513afe678b3264869ea11a9
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@f8f3cb4800e538003134fb5f50cc734c2c98d762
     with:
       mode: bake
       image_name: ${{ needs.prep.outputs.image_name }}
@@ -40,10 +39,9 @@ jobs:
       target: ${{ needs.prep.outputs.image_name }}
       tag: ${{ needs.prep.outputs.version }}
       gcp_project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
-      registry: us-docker.pkg.dev/oplabs-tools-artifacts/oss
+      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
       env: |
         GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[needs.prep.outputs.image_name] }}
-        KONA_VERSION=${{ needs.prep.outputs.kona_version }}
       set: |
         *.args.GIT_COMMIT=${{ github.sha }}
         *.args.GIT_DATE=${{ github.event.head_commit.timestamp }}

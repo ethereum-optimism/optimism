@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum"
@@ -76,7 +77,7 @@ func (n *node) BlockByNumber(ctx context.Context, number *big.Int) (eth.BlockInf
 	}
 	var block eth.BlockInfo
 	if number != nil {
-		block, err = client.InfoByNumber(ctx, number.Uint64())
+		block, err = client.InfoByNumber(ctx, bigs.Uint64Strict(number))
 	} else {
 		block, err = client.InfoByLabel(ctx, eth.Unsafe)
 	}

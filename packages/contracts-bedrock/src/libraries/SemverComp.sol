@@ -92,4 +92,11 @@ library SemverComp {
     function gte(string memory _a, string memory _b) internal pure returns (bool) {
         return eq(_a, _b) || gt(_a, _b);
     }
+
+    /// @notice Checks if a semver string has extra tags (prerelease "-" or build metadata "+").
+    /// @param _semver The semver string to check.
+    /// @return True if the semver has extra tags, false otherwise.
+    function hasExtraTag(string memory _semver) internal pure returns (bool) {
+        return LibString.contains(_semver, "-") || LibString.contains(_semver, "+");
+    }
 }

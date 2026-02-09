@@ -10,6 +10,7 @@ import (
 	"time"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/bgpo"
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -47,6 +48,9 @@ const (
 	ReceiptQueryIntervalFlagName       = "txmgr.receipt-query-interval"
 	AlreadyPublishedCustomErrsFlagName = "txmgr.already-published-custom-errs"
 	CellProofTimeFlagName              = "txmgr.cell-proof-time"
+	BlobTipCapDynamicFlagName          = "txmgr.blob-tip-cap-dynamic"
+	BlobTipCapPercentileFlagName       = "txmgr.blob-tip-cap-percentile"
+	BlobTipCapRangeFlagName            = "txmgr.blob-tip-cap-range"
 )
 
 var (
@@ -80,6 +84,9 @@ type DefaultFlagValues struct {
 	TxNotInMempoolTimeout     time.Duration
 	ReceiptQueryInterval      time.Duration
 	CellProofTime             uint64
+	BlobTipCapDynamic         bool
+	BlobTipCapPercentile      int
+	BlobTipCapRange           int
 }
 
 var (
@@ -100,6 +107,9 @@ var (
 		TxNotInMempoolTimeout:     2 * time.Minute,
 		ReceiptQueryInterval:      12 * time.Second,
 		CellProofTime:             defaultCellProofTime,
+		BlobTipCapDynamic:         false,
+		BlobTipCapPercentile:      60,
+		BlobTipCapRange:           20,
 	}
 	DefaultChallengerFlagValues = DefaultFlagValues{
 		NumConfirmations:          uint64(3),
@@ -116,14 +126,64 @@ var (
 		TxNotInMempoolTimeout:     1 * time.Minute,
 		ReceiptQueryInterval:      12 * time.Second,
 		CellProofTime:             defaultCellProofTime,
+		BlobTipCapDynamic:         false,
+		BlobTipCapPercentile:      0,
+		BlobTipCapRange:           0,
 	}
 
 	// geth enforces a 1 gwei minimum for blob tx fee
 	defaultMinBlobTxFee = big.NewInt(params.GWei)
 )
 
+// BTOConfig configures the BlobTipOracle for dynamic blob tip cap estimation.
+// If provided to txmgr.Config, the txmgr will create and manage a BlobTipOracle.
+type BTOConfig struct {
+	// Backend is the ethclient that implements bgpo.BTOBackend
+	Backend bgpo.BTOBackend
+	// ChainConfig is the L1 chain config for blob fee calculation
+	ChainConfig *params.ChainConfig
+	// BlobTipCapRange is the number of blocks to analyze (default: 20)
+	BlobTipCapRange int
+	// BlobTipCapPercentile is the percentile for tip suggestion (default: 60)
+	BlobTipCapPercentile int
+}
+
 func CLIFlags(envPrefix string) []cli.Flag {
 	return CLIFlagsWithDefaults(envPrefix, DefaultBatcherFlagValues)
+}
+
+// CLIFlagsWithBTO returns CLIFlags with the BlobTipOracle flags included.
+// Only the batcher should use this, as it's the only service that uses blob transactions.
+func CLIFlagsWithBTO(envPrefix string) []cli.Flag {
+	return CLIFlagsWithDefaultsAndBTO(envPrefix, DefaultBatcherFlagValues)
+}
+
+// CLIFlagsWithDefaultsAndBTO returns CLIFlagsWithDefaults with the BlobTipOracle flags included.
+// Only the batcher should use this, as it's the only service that uses blob transactions.
+func CLIFlagsWithDefaultsAndBTO(envPrefix string, defaults DefaultFlagValues) []cli.Flag {
+	prefixEnvVars := func(name string) []string {
+		return opservice.PrefixEnvVar(envPrefix, name)
+	}
+	return append(CLIFlagsWithDefaults(envPrefix, defaults),
+		&cli.BoolFlag{
+			Name:    BlobTipCapDynamicFlagName,
+			Usage:   "Use dynamic blob tip cap from the blob tip oracle instead of static tip cap for blob transactions. Regular transactions still use min-tip-cap/max-tip-cap.",
+			EnvVars: prefixEnvVars("TXMGR_BLOB_TIP_CAP_DYNAMIC"),
+			Value:   defaults.BlobTipCapDynamic,
+		},
+		&cli.IntFlag{
+			Name:    BlobTipCapPercentileFlagName,
+			Usage:   "Percentile of recent blob tx tips to use for suggestion (1-100). Only used when blob-tip-cap-dynamic is enabled.",
+			EnvVars: prefixEnvVars("TXMGR_BLOB_TIP_CAP_PERCENTILE"),
+			Value:   defaults.BlobTipCapPercentile,
+		},
+		&cli.IntFlag{
+			Name:    BlobTipCapRangeFlagName,
+			Usage:   "Number of recent blocks to analyze for blob tip cap distribution. Only used when blob-tip-cap-dynamic is enabled.",
+			EnvVars: prefixEnvVars("TXMGR_BLOB_TIP_CAP_RANGE"),
+			Value:   defaults.BlobTipCapRange,
+		},
+	)
 }
 
 func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Flag {
@@ -280,6 +340,9 @@ type CLIConfig struct {
 	TxNotInMempoolTimeout      time.Duration
 	AlreadyPublishedCustomErrs []string
 	CellProofTime              uint64
+	BlobTipCapDynamic          bool
+	BlobTipCapPercentile       int
+	BlobTipCapRange            int
 }
 
 func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
@@ -301,6 +364,9 @@ func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
 		ReceiptQueryInterval:      defaults.ReceiptQueryInterval,
 		SignerCLIConfig:           opsigner.NewCLIConfig(),
 		CellProofTime:             defaults.CellProofTime,
+		BlobTipCapDynamic:         defaults.BlobTipCapDynamic,
+		BlobTipCapPercentile:      defaults.BlobTipCapPercentile,
+		BlobTipCapRange:           defaults.BlobTipCapRange,
 	}
 }
 
@@ -332,6 +398,14 @@ func (m CLIConfig) Check() error {
 	}
 	if m.SafeAbortNonceTooLowCount == 0 {
 		return errors.New("SafeAbortNonceTooLowCount must not be 0")
+	}
+	if m.BlobTipCapDynamic {
+		if m.BlobTipCapPercentile < 1 || m.BlobTipCapPercentile > 100 {
+			return fmt.Errorf("BlobTipCapPercentile must be between 1 and 100, got %d", m.BlobTipCapPercentile)
+		}
+		if m.BlobTipCapRange < 1 {
+			return fmt.Errorf("BlobTipCapRange must be at least 1, got %d", m.BlobTipCapRange)
+		}
 	}
 	if err := m.SignerCLIConfig.Check(); err != nil {
 		return err
@@ -384,6 +458,9 @@ func ReadCLIConfig(ctx cliiface.Context) CLIConfig {
 		TxNotInMempoolTimeout:      ctx.Duration(TxNotInMempoolTimeoutFlagName),
 		AlreadyPublishedCustomErrs: ctx.StringSlice(AlreadyPublishedCustomErrsFlagName),
 		CellProofTime:              ctx.Uint64(CellProofTimeFlagName),
+		BlobTipCapDynamic:          ctx.Bool(BlobTipCapDynamicFlagName),
+		BlobTipCapPercentile:       ctx.Int(BlobTipCapPercentileFlagName),
+		BlobTipCapRange:            ctx.Int(BlobTipCapRangeFlagName),
 	}
 }
 
@@ -403,7 +480,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 	defer cancel()
 	chainID, err := l1.ChainID(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("could not dial fetch L1 chain ID: %w", err)
+		return nil, fmt.Errorf("could not fetch L1 chain ID: %w", err)
 	}
 
 	// Allow backwards compatible ways of specifying the HD path
@@ -434,9 +511,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 		return nil, fmt.Errorf("invalid min tip cap: %w", err)
 	}
 
-	var (
-		maxBaseFee, maxTipCap *big.Int
-	)
+	var maxBaseFee, maxTipCap *big.Int
 	if cfg.MaxBaseFeeGwei > 0 {
 		maxBaseFee, err = eth.GweiToWei(cfg.MaxBaseFeeGwei)
 		if err != nil {
@@ -469,6 +544,22 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 		SafeAbortNonceTooLowCount:  cfg.SafeAbortNonceTooLowCount,
 		AlreadyPublishedCustomErrs: cfg.AlreadyPublishedCustomErrs,
 		CellProofTime:              cellProofTime,
+	}
+
+	if cfg.BlobTipCapDynamic {
+		l1ChainID := eth.ChainIDFromBig(chainID)
+		l1ChainConfig := eth.L1ChainConfigByChainID(l1ChainID)
+		if l1ChainConfig == nil {
+			return nil, fmt.Errorf("failed to initialize blob tip oracle: L1 chain config not found for chain ID %s", chainID)
+		} else {
+			res.BlobTipCapDynamic.Store(cfg.BlobTipCapDynamic)
+			res.BTOConfig = &BTOConfig{
+				Backend:              l1,
+				ChainConfig:          l1ChainConfig,
+				BlobTipCapRange:      cfg.BlobTipCapRange,
+				BlobTipCapPercentile: cfg.BlobTipCapPercentile,
+			}
+		}
 	}
 
 	res.RebroadcastInterval.Store(int64(cfg.RebroadcastInterval))
@@ -583,6 +674,14 @@ type Config struct {
 
 	// CellProofTime is the time at which cell proofs are enabled in blob transaction (for Fusaka (EIP-7742) compatibility).
 	CellProofTime uint64
+
+	// BlobTipCapDynamic enables dynamic blob tip cap from the blob tip oracle
+	// instead of using static tip cap for blob transactions.
+	BlobTipCapDynamic atomic.Bool
+
+	// BTOConfig is the configuration for the BlobTipOracle.
+	// If nil, the BlobTipOracle will not be used.
+	BTOConfig *BTOConfig
 }
 
 func (m *Config) Check() error {

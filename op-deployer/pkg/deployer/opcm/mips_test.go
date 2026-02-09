@@ -1,38 +1,42 @@
 package opcm
 
 import (
+	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 )
 
-func TestDeployMIPS(t *testing.T) {
-	t.Parallel()
+func TestNewDeployMIPSScript(t *testing.T) {
+	t.Run("should not fail with current version of DeployMIPS contract", func(t *testing.T) {
+		host1 := createTestHost(t)
 
-	_, artifacts := testutil.LocalArtifacts(t)
+		deploySuperchain, err := NewDeployMIPSScript(host1)
+		require.NoError(t, err)
 
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		common.Address{'D'},
-		artifacts,
-	)
-	require.NoError(t, err)
+		mipsVersion := int64(standard.MIPSVersion)
+		output, err := deploySuperchain.Run(DeployMIPSInput{
+			PreimageOracle: common.Address{'P'},
+			MipsVersion:    big.NewInt(mipsVersion),
+		})
 
-	input := DeployMIPSInput{
-		MipsVersion:    uint64(standard.MIPSVersion),
-		PreimageOracle: common.Address{0xab},
-	}
+		require.NoError(t, err)
+		require.NotNil(t, output)
 
-	output, err := DeployMIPS(host, input)
-	require.NoError(t, err)
+		host2 := createTestHost(t)
+		deprecatedOutput, err := DeployMIPS(host2, DeployMIPSInput{
+			PreimageOracle: common.Address{'P'},
+			MipsVersion:    big.NewInt(mipsVersion),
+		})
 
-	require.NotEmpty(t, output.MipsSingleton)
+		require.NoError(t, err)
+		require.NotNil(t, deprecatedOutput)
+
+		require.Equal(t, deprecatedOutput.MipsSingleton, output.MipsSingleton)
+
+		require.Equal(t, host2.GetCode(deprecatedOutput.MipsSingleton), host1.GetCode(output.MipsSingleton))
+	})
 }

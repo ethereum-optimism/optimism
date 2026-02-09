@@ -272,6 +272,11 @@ func checkTestMethodName(artifact *solc.ForgeArtifact, contractName string, func
 			return nil
 		}
 	}
+	// Check for feature test pattern (e.g., FeatBatchUpgrade)
+	if strings.HasPrefix(functionName, "Feat") {
+		// Pattern: <ContractName>_Feat*_Test
+		return nil
+	}
 	// Pattern: <ContractName>_<FunctionName>_Test - validate function exists
 	if !checkFunctionExists(artifact, functionName) {
 		// Convert to camelCase for error message

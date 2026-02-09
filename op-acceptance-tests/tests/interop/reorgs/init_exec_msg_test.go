@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -116,7 +117,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	// sequence a conflicting block with a simple transfer tx, based on the parent of the parent of the unsafe head
 	{
 		var err error
-		divergenceBlockNumber_B = execReceipt.BlockNumber.Uint64()
+		divergenceBlockNumber_B = bigs.Uint64Strict(execReceipt.BlockNumber)
 		originalRef_B, err = sys.L2ELB.Escape().L2EthClient().L2BlockRefByHash(ctx, execReceipt.BlockHash)
 		require.NoError(t, err, "Expected to be able to call L2BlockRefByHash API, but got error")
 

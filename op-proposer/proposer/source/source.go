@@ -21,7 +21,7 @@ type Proposal struct {
 	CurrentL1 eth.BlockID
 
 	// Legacy provides data that is only available when retrieving data from a single rollup node.
-	// It should only be used for L2OO proposals.
+	// It should only be used for optional logs and metrics.
 	Legacy LegacyProposalData
 }
 
@@ -59,7 +59,7 @@ type ProposalSource interface {
 }
 
 type SyncStatus struct {
-	CurrentL1   eth.L1BlockRef
+	CurrentL1   eth.BlockID
 	SafeL2      uint64
 	FinalizedL2 uint64
 }

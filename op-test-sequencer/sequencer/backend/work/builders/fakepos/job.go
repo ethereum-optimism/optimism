@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opeth "github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -82,14 +83,14 @@ func (j *Job) setHeadSafeAndFinalized() {
 		j.safe = j.finalized
 	}
 
-	if j.head.Number.Uint64() > j.b.finalizedDistance { // progress finalized block, if we can
-		j.finalized, err = j.b.blockchain.HeaderByNumber(context.Background(), new(big.Int).SetUint64(j.head.Number.Uint64()-j.b.finalizedDistance))
+	if bigs.Uint64Strict(j.head.Number) > j.b.finalizedDistance { // progress finalized block, if we can
+		j.finalized, err = j.b.blockchain.HeaderByNumber(context.Background(), new(big.Int).SetUint64(bigs.Uint64Strict(j.head.Number)-j.b.finalizedDistance))
 		if err != nil {
 			panic("no block found finalizedDistance behind head")
 		}
 	}
-	if j.head.Number.Uint64() > j.b.safeDistance { // progress safe block, if we can
-		j.safe, err = j.b.blockchain.HeaderByNumber(context.Background(), new(big.Int).SetUint64(j.head.Number.Uint64()-j.b.safeDistance))
+	if bigs.Uint64Strict(j.head.Number) > j.b.safeDistance { // progress safe block, if we can
+		j.safe, err = j.b.blockchain.HeaderByNumber(context.Background(), new(big.Int).SetUint64(bigs.Uint64Strict(j.head.Number)-j.b.safeDistance))
 		if err != nil {
 			panic("no block found safeDistance behind head")
 		}
@@ -147,7 +148,7 @@ func (j *Job) Open(ctx context.Context) error {
 
 		j.b.envelopes[envelope.ExecutionPayload.ParentHash] = envelope
 	} else {
-		j.logger.Warn("already had a block with that parent", "parent", j.head.Hash(), "number", j.head.Number.Uint64(), "fee_recipient", envelope.ExecutionPayload.FeeRecipient)
+		j.logger.Warn("already had a block with that parent", "parent", j.head.Hash(), "number", j.head.Number, "fee_recipient", envelope.ExecutionPayload.FeeRecipient)
 
 		j.logger.Warn("updating block hash", "pre", envelope.ExecutionPayload.BlockHash, "fee_recipient", envelope.ExecutionPayload.FeeRecipient, "txs", len(envelope.ExecutionPayload.Transactions))
 

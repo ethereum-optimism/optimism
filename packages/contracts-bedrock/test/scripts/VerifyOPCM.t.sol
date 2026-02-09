@@ -13,9 +13,23 @@ import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
 
 // Interfaces
 import { IOPContractsManager, IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.sol";
+import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 
 contract VerifyOPCM_Harness is VerifyOPCM {
+    bool private _skipSecurityChecks;
+
+    function setSkipSecurityValueChecks(bool _skip) public {
+        _skipSecurityChecks = _skip;
+    }
+
+    function skipSecurityValueChecks() public view override returns (bool) {
+        return _skipSecurityChecks;
+    }
+
     function loadArtifactInfo(string memory _artifactPath) public view returns (ArtifactInfo memory) {
         return _loadArtifactInfo(_artifactPath);
     }
@@ -62,6 +76,26 @@ contract VerifyOPCM_Harness is VerifyOPCM {
     function removeExpectedGetter(string memory _getter) public {
         expectedGetters[_getter] = "";
     }
+
+    function verifyPreimageOracle(IMIPS64 _mips) public view returns (bool) {
+        return _verifyPreimageOracle(_mips);
+    }
+
+    function verifyPortalDelays(IOptimismPortal2 _portal) public view returns (bool) {
+        return _verifyPortalDelays(_portal);
+    }
+
+    function verifyAnchorStateRegistryDelays(IAnchorStateRegistry _asr) public view returns (bool) {
+        return _verifyAnchorStateRegistryDelays(_asr);
+    }
+
+    function verifyStandardValidatorArgs(IOPContractsManager _opcm, address _validator) public returns (bool) {
+        return _verifyStandardValidatorArgs(_opcm, _validator);
+    }
+
+    function setValidatorGetterCheck(string memory _getter, string memory _check) public {
+        validatorGetterChecks[_getter] = _check;
+    }
 }
 
 /// @title VerifyOPCM_TestInit
@@ -73,12 +107,44 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
         super.setUp();
         harness = new VerifyOPCM_Harness();
         harness.setUp();
+
+        // If OPCM V2 is enabled, set up the test environment for OPCM V2.
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
+        if (vm.envOr("DEV_FEATURE__OPCM_V2", false)) {
+            opcm = IOPContractsManager(address(opcmV2));
+        }
+
+        // Always set up the environment variables for the test.
+        setupEnvVars();
+
+        // Set the OPCM address so that runSingle also runs for V2 OPCM if the dev feature is enabled.
+        vm.setEnv("OPCM_ADDRESS", vm.toString(address(opcm)));
     }
 
     /// @notice Sets up the environment variables for the VerifyOPCM test.
     function setupEnvVars() public {
-        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
-        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
+        // If OPCM V2 is not enabled, set the environment variables for the old OPCM.
+        if (!isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
+            vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
+        }
+
+        // Grab a reference to the validator.
+        IOPContractsManagerStandardValidator validator =
+            IOPContractsManagerStandardValidator(opcm.opcmStandardValidator());
+
+        // Fetch all of the expected values from existing contracts, this just makes the tests pass
+        // by default. We will override these with bad values during tests to demonstrate that the
+        // script correctly rejects them.
+        vm.setEnv("EXPECTED_L1_PAO_MULTISIG", vm.toString(validator.l1PAOMultisig()));
+        vm.setEnv("EXPECTED_CHALLENGER", vm.toString(validator.challenger()));
+        vm.setEnv("EXPECTED_WITHDRAWAL_DELAY_SECONDS", vm.toString(validator.withdrawalDelaySeconds()));
+        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(optimismPortal2.superchainConfig())));
+        vm.setEnv("EXPECTED_PROOF_MATURITY_DELAY_SECONDS", vm.toString(optimismPortal2.proofMaturityDelaySeconds()));
+        vm.setEnv(
+            "EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS",
+            vm.toString(anchorStateRegistry.disputeGameFinalityDelaySeconds())
+        );
     }
 }
 
@@ -87,17 +153,6 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
 contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function setUp() public override {
         super.setUp();
-
-        // If OPCM V2 is enabled, set up the test environment for OPCM V2.
-        // nosemgrep: sol-style-vm-env-only-in-config-sol
-        if (vm.envOr("DEV_FEATURE__OPCM_V2", false)) {
-            opcm = IOPContractsManager(address(opcmV2));
-        } else {
-            setupEnvVars();
-        }
-
-        // Set the OPCM address so that runSingle also runs for V2 OPCM if the dev feature is enabled.
-        vm.setEnv("OPCM_ADDRESS", vm.toString(address(opcm)));
     }
 
     /// @notice Tests that the script succeeds when no changes are introduced.
@@ -158,6 +213,9 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function test_run_implementationDifferentInsideImmutable_succeeds() public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
+
+        // Skip security value checks since this test deliberately corrupts immutable values.
+        harness.setSkipSecurityValueChecks(true);
 
         // Grab the list of implementations.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "implementations", false);
@@ -227,6 +285,9 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function test_run_implementationDifferentOutsideImmutable_reverts() public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
+
+        // Skip security value checks since corrupted bytecode may break contract queries.
+        harness.setSkipSecurityValueChecks(true);
 
         // Grab the list of implementations.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "implementations", false);
@@ -575,9 +636,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Verify that immutable variables fail validation
         bool result = harness.verifyOpcmImmutableVariables(opcm);
         assertFalse(result, "OPCM with invalid immutable variables should fail verification");
-
-        // Clear mock calls and restore original environment variables to avoid test isolation issues
-        vm.clearMockedCalls();
     }
 
     /// @notice Tests that the script fails when OPCM immutable variables are invalid.
@@ -588,26 +646,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         // If OPCM V2 is enabled because we do not use environment variables for OPCM V2.
         skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
-        // Set expected addresses via environment variables
-        address expectedSuperchainConfig = address(0x1111);
-        address expectedProtocolVersions = address(0x2222);
-
-        // Use vm.mockCall instead of vm.setEnv to avoid global env mutation. We need to ignore
-        // semgrep here because envAddress has multiple potential signatures so we can't use
-        // abi.encodeCall.
-        // nosemgrep: sol-style-use-abi-encodecall
-        vm.mockCall(
-            address(vm),
-            abi.encodeWithSignature("envAddress(string)", "EXPECTED_SUPERCHAIN_CONFIG"),
-            abi.encode(expectedSuperchainConfig)
-        );
-        // nosemgrep: sol-style-use-abi-encodecall
-        vm.mockCall(
-            address(vm),
-            abi.encodeWithSignature("envAddress(string)", "EXPECTED_PROTOCOL_VERSIONS"),
-            abi.encode(expectedProtocolVersions)
-        );
 
         // Test that mocking each individual getter causes verification to fail
         _assertOnOpcmGetter(IOPContractsManager.superchainConfig.selector);
@@ -632,5 +670,90 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         expectedUnaccounted[0] = "blueprints";
         vm.expectRevert(abi.encodeWithSelector(VerifyOPCM.VerifyOPCM_UnaccountedGetters.selector, expectedUnaccounted));
         harness.validateAllGettersAccounted();
+    }
+}
+
+/// @title VerifyOPCM_verifyPortalDelays_Test
+/// @notice Tests for the portal delay verification function.
+contract VerifyOPCM_verifyPortalDelays_Test is VerifyOPCM_TestInit {
+    function setUp() public override {
+        super.setUp();
+        vm.setEnv("EXPECTED_PROOF_MATURITY_DELAY_SECONDS", vm.toString(optimismPortal2.proofMaturityDelaySeconds()));
+    }
+
+    /// @notice Tests that portal delay verification succeeds with correct values.
+    function test_verifyPortalDelays_matchingDelay_succeeds() public view {
+        bool result = harness.verifyPortalDelays(optimismPortal2);
+        assertTrue(result, "Portal delay verification should succeed");
+    }
+
+    /// @notice Tests that portal delay verification fails with wrong expected value.
+    function test_verifyPortalDelays_mismatchedDelay_fails() public {
+        // Mock the portal to return a different delay than expected.
+        vm.mockCall(
+            address(optimismPortal2),
+            abi.encodeCall(IOptimismPortal2.proofMaturityDelaySeconds, ()),
+            abi.encode(uint256(12345))
+        );
+        bool result = harness.verifyPortalDelays(optimismPortal2);
+        assertFalse(result, "Portal delay verification should fail with wrong expected value");
+    }
+}
+
+/// @title VerifyOPCM_verifyAnchorStateRegistryDelays_Test
+/// @notice Tests for the anchor state registry delay verification function.
+contract VerifyOPCM_verifyAnchorStateRegistryDelays_Test is VerifyOPCM_TestInit {
+    function setUp() public override {
+        super.setUp();
+        vm.setEnv(
+            "EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS",
+            vm.toString(anchorStateRegistry.disputeGameFinalityDelaySeconds())
+        );
+    }
+
+    /// @notice Tests that ASR delay verification succeeds with correct values.
+    function test_verifyAnchorStateRegistryDelays_matchingDelay_succeeds() public view {
+        bool result = harness.verifyAnchorStateRegistryDelays(anchorStateRegistry);
+        assertTrue(result, "ASR delay verification should succeed");
+    }
+
+    /// @notice Tests that ASR delay verification fails with wrong expected value.
+    function test_verifyAnchorStateRegistryDelays_mismatchedDelay_fails() public {
+        // Mock the ASR to return a different delay than expected.
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.disputeGameFinalityDelaySeconds, ()),
+            abi.encode(uint256(99999))
+        );
+        bool result = harness.verifyAnchorStateRegistryDelays(anchorStateRegistry);
+        assertFalse(result, "ASR delay verification should fail with wrong expected value");
+    }
+}
+
+/// @title VerifyOPCM_verifyPreimageOracle_Test
+/// @notice Tests for the PreimageOracle bytecode verification function.
+contract VerifyOPCM_verifyPreimageOracle_Test is VerifyOPCM_TestInit {
+    /// @notice Tests that PreimageOracle verification succeeds when bytecode matches.
+    function test_verifyPreimageOracle_matchingBytecode_succeeds() public {
+        skipIfCoverage();
+        IMIPS64 mipsImpl = IMIPS64(opcm.implementations().mipsImpl);
+        bool result = harness.verifyPreimageOracle(mipsImpl);
+        assertTrue(result, "PreimageOracle verification should succeed");
+    }
+
+    /// @notice Tests that PreimageOracle verification fails when bytecode doesn't match.
+    function test_verifyPreimageOracle_corruptedBytecode_fails() public {
+        skipIfCoverage();
+        IMIPS64 mipsImpl = IMIPS64(opcm.implementations().mipsImpl);
+        address oracleAddr = address(mipsImpl.oracle());
+
+        bytes memory corruptedCode = oracleAddr.code;
+        if (corruptedCode.length > 100) {
+            corruptedCode[100] = bytes1(uint8(corruptedCode[100]) ^ 0xFF);
+        }
+        vm.etch(oracleAddr, corruptedCode);
+
+        bool result = harness.verifyPreimageOracle(mipsImpl);
+        assertFalse(result, "PreimageOracle verification should fail with corrupted bytecode");
     }
 }

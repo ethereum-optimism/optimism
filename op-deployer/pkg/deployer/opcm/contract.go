@@ -52,6 +52,56 @@ func (c *Contract) GenericAddressGetter(ctx context.Context, functionName string
 	return c.callContractMethod(ctx, functionName, abi.Arguments{})
 }
 
+func (c *Contract) GenericStringGetter(ctx context.Context, functionName string) (string, error) {
+	return c.callContractMethodString(ctx, functionName, abi.Arguments{})
+}
+
+func (c *Contract) callContractMethodString(ctx context.Context, methodName string, inputs abi.Arguments, args ...interface{}) (string, error) {
+	method := abi.NewMethod(
+		methodName,
+		methodName,
+		abi.Function,
+		"view",
+		true,
+		false,
+		inputs,
+		abi.Arguments{
+			abi.Argument{
+				Name:    "string",
+				Type:    MustType("string"),
+				Indexed: false,
+			},
+		},
+	)
+
+	calldata, err := method.Inputs.Pack(args...)
+	if err != nil {
+		return "", fmt.Errorf("failed to pack inputs: %w", err)
+	}
+
+	msg := ethereum.CallMsg{
+		To:   &c.addr,
+		Data: append(bytes.Clone(method.ID), calldata...),
+	}
+	result, err := c.client.CallContract(ctx, msg, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to call contract: %w", err)
+	}
+
+	out, err := method.Outputs.Unpack(result)
+	if err != nil {
+		return "", fmt.Errorf("failed to unpack result: %w", err)
+	}
+	if len(out) != 1 {
+		return "", fmt.Errorf("unexpected output length: %d", len(out))
+	}
+	str, ok := out[0].(string)
+	if !ok {
+		return "", fmt.Errorf("unexpected type: %T", out[0])
+	}
+	return str, nil
+}
+
 func (c *Contract) callContractMethod(ctx context.Context, methodName string, inputs abi.Arguments, args ...interface{}) (common.Address, error) {
 	method := abi.NewMethod(
 		methodName,

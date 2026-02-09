@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/emit"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/inbox"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -159,7 +160,7 @@ func idForTx(t helpers.Testing, tx *types.Transaction, srcChain *dsl.Chain) styp
 
 	return stypes.Identifier{
 		Origin:      *tx.To(),
-		BlockNumber: receipt.BlockNumber.Uint64(),
+		BlockNumber: bigs.Uint64Strict(receipt.BlockNumber),
 		LogIndex:    0,
 		Timestamp:   block.Time(),
 		ChainID:     eth.ChainIDFromBig(srcChain.RollupCfg.L2ChainID),

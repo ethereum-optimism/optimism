@@ -12,6 +12,13 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	op_service "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/serialize"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -217,6 +224,80 @@ func TestGetStepData(t *testing.T) {
 		require.Empty(t, generator.generated)
 		require.Nil(t, data)
 	})
+}
+
+func TestLastStepCacheAccuracy(t *testing.T) {
+	dir := t.TempDir()
+	monorepoRoot, err := op_service.FindMonorepoRoot(".")
+	require.NoError(t, err)
+	logger := testlog.Logger(t, log.LevelInfo)
+	vmCfg := vm.Config{
+		VmType:          gameTypes.CannonGameType,
+		VmBin:           filepath.Join(monorepoRoot, "cannon/bin/cannon"),
+		InfoFreq:        10_000,
+		SnapshotFreq:    config.DefaultCannonSnapshotFreq,
+		BinarySnapshots: true,
+		Server:          "/usr/bin/true", // Preimages aren't required, just need something with a 0 exit code.
+	}
+	localInputs := utils.LocalGameInputs{
+		L1Head:           common.Hash{0x01},
+		L2Head:           common.Hash{0x02},
+		L2OutputRoot:     common.Hash{0x03},
+		L2Claim:          common.Hash{0x04},
+		L2SequenceNumber: big.NewInt(5),
+	}
+	prestate := filepath.Join(dir, "prestate.bin.gz")
+
+	// This requires cannon and its testdata to be built: cd cannon && make cannon elf
+	state, _ := testutil.LoadELFProgram(t, filepath.Join(monorepoRoot, "cannon/testdata/go-1-24/bin/hello.64.elf"), multithreaded.CreateInitialState)
+	versionedState, err := versions.NewFromState(versions.GetCurrentVersion(), state)
+	require.NoError(t, err)
+	err = serialize.Write(prestate, versionedState, os.FileMode(0o755))
+	require.NoError(t, err, "failed to write prestate")
+
+	newProvider := func() *CannonTraceProvider {
+		return NewTraceProvider(
+			logger,
+			metrics.NoopMetrics.ToTypedVmMetrics("cannon"),
+			vmCfg,
+			vm.NewOpProgramServerExecutor(logger),
+			nil,
+			prestate,
+			localInputs,
+			t.TempDir(),
+			types.Depth(30),
+		)
+	}
+	cachedProvider := newProvider()
+	t.Log("Priming cache so last step is cached")
+	_, _, _, err = cachedProvider.GetStepData(t.Context(), types.RootPosition)
+	require.NoError(t, err)
+
+	verifyStepDataMatches := func(step uint64) {
+		t.Logf("Generating step %d with cached provider with last step cached", step)
+		pos := PositionFromTraceIndex(cachedProvider, new(big.Int).SetUint64(step))
+		prestateData1, proofData1, _, err := cachedProvider.GetStepData(t.Context(), pos)
+		require.NoError(t, err)
+
+		t.Logf("Regenerating step %d with cached provider now exact step is cached", step)
+		prestateData2, proofData2, _, err := cachedProvider.GetStepData(t.Context(), pos)
+		require.NoError(t, err)
+		require.EqualValues(t, prestateData1, prestateData2)
+		require.EqualValues(t, proofData1, proofData2)
+
+		t.Logf("Generating step %d with uncached provider", step)
+		prestateDataUncached, proofDataUncached, _, err := newProvider().GetStepData(t.Context(), pos)
+		require.NoError(t, err)
+		require.EqualValues(t, prestateData1, prestateDataUncached)
+		require.EqualValues(t, proofData1, proofDataUncached)
+	}
+
+	for step := cachedProvider.lastStep - 2; step <= cachedProvider.lastStep+2; step++ {
+		verifyStepDataMatches(step)
+	}
+
+	// Verify it matches all the through the trace extension
+	verifyStepDataMatches(math.MaxUint64)
 }
 
 func setupTestData(t *testing.T) (string, string) {

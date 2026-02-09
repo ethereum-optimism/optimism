@@ -78,6 +78,9 @@ func newSuperCannonVMRegisterTaskWithConfig(
 		syncValidator:          syncValidator,
 		skipPrestateValidation: gameType == gameTypes.SuperPermissionedGameType,
 		getTopPrestateProvider: func(ctx context.Context, prestateTimestamp uint64) (faultTypes.PrestateProvider, error) {
+			if superNodeProvider != nil {
+				return super.NewSuperNodePrestateProvider(superNodeProvider, prestateTimestamp), nil
+			}
 			return super.NewSuperRootPrestateProvider(rootProvider, prestateTimestamp), nil
 		},
 		getBottomPrestateProvider: cachePrestates(
@@ -102,7 +105,7 @@ func newSuperCannonVMRegisterTaskWithConfig(
 			poststateBlock uint64) (*trace.Accessor, error) {
 			provider := vmPrestateProvider.(*vm.PrestateProvider)
 			preimagePrestateProvider := prestateProvider.(super.PreimagePrestateProvider)
-			return super.NewSuperCannonTraceAccessor(logger, m, vmCfg, serverExecutor, preimagePrestateProvider, rootProvider, superNodeProvider, provider.PrestatePath(), dir, l1Head, splitDepth, prestateBlock, poststateBlock)
+			return super.NewSuperCannonTraceAccessor(logger, m, vmCfg, serverExecutor, preimagePrestateProvider, rootProvider, superNodeProvider, superNodeProvider != nil, provider.PrestatePath(), dir, l1Head, splitDepth, prestateBlock, poststateBlock)
 		},
 	}
 }

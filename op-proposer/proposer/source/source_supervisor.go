@@ -80,7 +80,7 @@ func (s *SupervisorProposalSource) SyncStatus(ctx context.Context) (SyncStatus, 
 		return SyncStatus{}, fmt.Errorf("no available sync status sources: %w", errors.Join(errs...))
 	}
 	return SyncStatus{
-		CurrentL1:   earliestResponse.MinSyncedL1,
+		CurrentL1:   earliestResponse.MinSyncedL1.ID(),
 		SafeL2:      earliestResponse.SafeTimestamp,
 		FinalizedL2: earliestResponse.FinalizedTimestamp,
 	}, nil

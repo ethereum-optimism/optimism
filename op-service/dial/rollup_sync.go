@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type GetL1SyncStatus func(ctx context.Context) (eth.L1BlockRef, error)
+type GetL1SyncStatus func(ctx context.Context) (eth.BlockID, error)
 
 func WaitRollupSync(
 	ctx context.Context,
@@ -18,12 +18,12 @@ func WaitRollupSync(
 	l1BlockTarget uint64,
 	pollInterval time.Duration,
 ) error {
-	return WaitL1Sync(ctx, lgr, l1BlockTarget, pollInterval, func(ctx context.Context) (eth.L1BlockRef, error) {
+	return WaitL1Sync(ctx, lgr, l1BlockTarget, pollInterval, func(ctx context.Context) (eth.BlockID, error) {
 		status, err := rollup.SyncStatus(ctx)
 		if err != nil {
-			return eth.L1BlockRef{}, err
+			return eth.BlockID{}, err
 		}
-		return status.CurrentL1, nil
+		return status.CurrentL1.ID(), nil
 	})
 }
 

@@ -5,6 +5,8 @@ pragma solidity 0.8.15;
 import { VmSafe } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
+import { PastUpgrades } from "test/setup/PastUpgrades.sol";
+import { BatchUpgrader } from "test/L1/opcm/helpers/BatchUpgrader.sol";
 
 // Libraries
 import { Config } from "scripts/libraries/Config.sol";
@@ -13,6 +15,7 @@ import { Claim, Hash } from "src/dispute/lib/LibUDT.sol";
 import { GameType, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -32,7 +35,7 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @title OPContractsManagerV2_TestInit
 /// @notice Base test initialization contract for OPContractsManagerV2.
-contract OPContractsManagerV2_TestInit is CommonTest, DisputeGames {
+contract OPContractsManagerV2_TestInit is CommonTest {
     /// @notice Fake prestate for Cannon games.
     Claim cannonPrestate = Claim.wrap(bytes32(keccak256("cannonPrestate")));
 
@@ -221,9 +224,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
     /// @notice Buffer percentage (relative to EIP-7825 gas limit) allowed for upgrades.
     uint256 public constant UPGRADE_GAS_BUFFER_PERCENTAGE = 50; // 50%
 
-    /// @notice Thrown when trying to run past upgrades on an unsupported chain.
-    error UnsupportedChainId();
-
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
         super.disableUpgradedFork();
@@ -244,8 +244,8 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
 
         // Set up the default v2 upgrade input dispute game configs.
-        address initialChallengerForV2 = permissionedGameChallenger(disputeGameFactory);
-        address initialProposerForV2 = permissionedGameProposer(disputeGameFactory);
+        address initialChallengerForV2 = DisputeGames.permissionedGameChallenger(disputeGameFactory);
+        address initialProposerForV2 = DisputeGames.permissionedGameProposer(disputeGameFactory);
         v2UpgradeInput.systemConfig = systemConfig;
         v2UpgradeInput.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
@@ -284,11 +284,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") })
         );
-
-        // TODO(#18502): Remove the extra instruction for custom gas token after U18 ships.
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({ key: "overrides.cfg.useCustomGasToken", data: abi.encode(false) })
-        );
     }
 
     /// @notice Helper function that runs an OPCM V2 upgrade, asserts that the upgrade was successful,
@@ -306,8 +301,8 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         internal
     {
         // Grab some values before we upgrade, to be checked later
-        address initialChallenger = permissionedGameChallenger(disputeGameFactory);
-        address initialProposer = permissionedGameProposer(disputeGameFactory);
+        address initialChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
+        address initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
 
         // Execute the SuperchainConfig upgrade.
         prankDelegateCall(superchainPAO);
@@ -418,16 +413,8 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
     ///         upgrades from this function once they've been executed on mainnet and the
     ///         simulation block has been bumped beyond the execution block.
     /// @param _delegateCaller The address of the delegate caller to use for the upgrade.
-    function runPastUpgrades(address _delegateCaller) internal view {
-        // Run past upgrades depending on network.
-        if (block.chainid == 1) {
-            // Mainnet
-            // This is empty because the block number in the justfile is after the most recent upgrade so there are no
-            // past upgrades to run.
-            _delegateCaller;
-        } else {
-            revert UnsupportedChainId();
-        }
+    function runPastUpgrades(address _delegateCaller) internal {
+        PastUpgrades.runPastUpgrades(_delegateCaller, v2UpgradeInput.systemConfig, superchainConfig, disputeGameFactory);
     }
 
     /// @notice Executes the current V2 upgrade and checks the results.
@@ -661,22 +648,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
-    /// @notice Tests that the V2 upgrade function reverts when the user attempts to upgrade enabling custom gas token
-    ///         after initial deployment.
-    function test_upgrade_enableCustomGasTokenAfterInitialDeployment_reverts() public {
-        // Override the extra instruction for custom gas token to attempt to enable it.
-        v2UpgradeInput.extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
-            key: "overrides.cfg.useCustomGasToken",
-            data: abi.encode(true)
-        });
-
-        // nosemgrep: sol-style-use-abi-encodecall
-        runCurrentUpgradeV2(
-            chainPAO,
-            abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_CannotUpgradeToCustomGasToken.selector)
-        );
-    }
-
     /// @notice Tests that repeatedly upgrading can enable a previously disabled game type.
     function test_upgrade_enableGameType_succeeds() public {
         uint256 originalBond = disputeGameFactory.initBonds(GameTypes.CANNON);
@@ -745,8 +716,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[1].gameArgs = abi.encode(
             IOPContractsManagerUtils.PermissionedDisputeGameConfig({
                 absolutePrestate: newPrestate,
-                proposer: permissionedGameProposer(disputeGameFactory),
-                challenger: permissionedGameChallenger(disputeGameFactory)
+                proposer: DisputeGames.permissionedGameProposer(disputeGameFactory),
+                challenger: DisputeGames.permissionedGameChallenger(disputeGameFactory)
             })
         );
 
@@ -758,6 +729,30 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             Claim.unwrap(newPrestate),
             "permissioned prestate not updated"
         );
+    }
+
+    /// @notice INVARIANT: Upgrades must always work when the system is paused.
+    ///         This test validates that the OPCMv2 upgrade function can execute successfully
+    ///         even when the SuperchainConfig has the system globally paused. This is critical
+    ///         because upgrades may be needed during incident response when the system is paused.
+    function test_upgrade_whenPaused_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
+
+        // First, pause the system globally using the guardian.
+        address guardian = superchainConfig.guardian();
+        vm.prank(guardian);
+        superchainConfig.pause(address(0));
+
+        // Verify the system is actually paused.
+        assertTrue(superchainConfig.paused(address(0)), "System should be globally paused");
+
+        // Run the upgrade - this should succeed even while paused.
+        // The StandardValidator will report SPRCFG-10 because the system is paused,
+        // but the upgrade itself must complete successfully.
+        runCurrentUpgradeV2(chainPAO, hex"", "SPRCFG-10");
+
+        // Verify the system is still paused after the upgrade.
+        assertTrue(superchainConfig.paused(address(0)), "System should still be paused after upgrade");
     }
 }
 
@@ -890,7 +885,11 @@ contract OPContractsManagerV2_IsPermittedUpgradeSequence_Test is OPContractsMana
         address oldOPCM = makeAddr("oldOPCM");
 
         // Mock the current OPCM version to be 7.0.0 (below threshold).
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("7.0.0"));
+        vm.mockCall(
+            address(opcmV2),
+            abi.encodeCall(IOPContractsManagerV2.version, ()),
+            abi.encode(Constants.OPCM_V2_MIN_VERSION)
+        );
 
         // Mock lastUsedOPCM to return the old OPCM address.
         vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
@@ -1027,14 +1026,14 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         });
 
         // Set up dispute game configs using the same pattern as upgrade tests.
-        address initialChallenger = permissionedGameChallenger(disputeGameFactory);
-        address initialProposer = permissionedGameProposer(disputeGameFactory);
+        address initialChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
+        address initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
         deployConfig.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: DEFAULT_DISPUTE_GAME_INIT_BOND, // Standard init bond
+                enabled: false,
+                initBond: 0,
                 gameType: GameTypes.CANNON,
-                gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
+                gameArgs: bytes("")
             })
         );
         deployConfig.disputeGameConfigs.push(
@@ -1053,12 +1052,10 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
         deployConfig.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: DEFAULT_DISPUTE_GAME_INIT_BOND, // Standard init bond
+                enabled: false,
+                initBond: 0,
                 gameType: GameTypes.CANNON_KONA,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
-                )
+                gameArgs: bytes("")
             })
         );
     }
@@ -1066,7 +1063,9 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that the deploy function succeeds and passes standard validation.
     function test_deploy_succeeds() public {
         // Run the deploy and standard validator checks.
-        IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig);
+        // We expect PLDG-10 and CKDG-10 validator errors because CANNON and CANNON_KONA are
+        // disabled during initial deployment (no implementations registered).
+        IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), "PLDG-10,CKDG-10");
 
         // Verify key contracts are deployed.
         assertTrue(address(cts.systemConfig) != address(0), "systemConfig not deployed");
@@ -1139,6 +1138,26 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
             deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
         );
     }
+
+    function test_deploy_cannonGameEnabled_reverts() public {
+        deployConfig.disputeGameConfigs[0].enabled = true;
+        deployConfig.disputeGameConfigs[0].initBond = 1 ether;
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    function test_deploy_cannonKonaGameEnabled_reverts() public {
+        deployConfig.disputeGameConfigs[2].enabled = true;
+        deployConfig.disputeGameConfigs[2].initBond = 1 ether;
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
 }
 
 /// @title OPContractsManagerV2_DevFeatureBitmap_Test
@@ -1184,15 +1203,15 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         returns (IOPContractsManagerV2.ChainContracts memory cts_)
     {
         // Set up dispute game configs first since they're needed for the struct literal.
-        address initialChallenger = permissionedGameChallenger(disputeGameFactory);
-        address initialProposer = permissionedGameProposer(disputeGameFactory);
+        address initialChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
+        address initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](3);
         dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: 0.08 ether,
+            enabled: false,
+            initBond: 0,
             gameType: GameTypes.CANNON,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
+            gameArgs: bytes("")
         });
         dgConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
@@ -1207,10 +1226,10 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             )
         });
         dgConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: 0.08 ether,
+            enabled: false,
+            initBond: 0,
             gameType: GameTypes.CANNON_KONA,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+            gameArgs: bytes("")
         });
 
         // Set up the deploy config using struct literal for compile-time field checking.
@@ -1502,5 +1521,123 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         _doMigration(
             input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidStartingRespectedGameType.selector
         );
+    }
+}
+
+/// @title OPContractsManagerV2_FeatBatchUpgrade_Test
+/// @notice Tests batch upgrade functionality with freshly deployed chains (non-forked).
+contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_TestInit {
+    /// @notice Tests that multiple upgrade operations (15 chains) can be executed within a single transaction.
+    ///         This enforces the OPCMV2 invariant that approximately 15 upgrade operations should be
+    ///         executable in one transaction.
+    function test_batchUpgrade_multipleChains_succeeds() public {
+        skipIfCoverage();
+
+        uint256 numberOfChains = 15;
+
+        // 1. Deploy BatchUpgrader helper contract.
+        BatchUpgrader batchUpgrader = new BatchUpgrader(opcmV2);
+
+        // 2. Set up base configuration for deploying chains.
+        IOPContractsManagerV2.FullConfig memory baseConfig;
+        baseConfig.superchainConfig = superchainConfig;
+        baseConfig.proxyAdminOwner = address(batchUpgrader);
+        baseConfig.systemConfigOwner = makeAddr("systemConfigOwner");
+        baseConfig.batcher = makeAddr("batcher");
+        baseConfig.unsafeBlockSigner = makeAddr("unsafeBlockSigner");
+        baseConfig.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(hex"1234")), l2SequenceNumber: 123 });
+        baseConfig.startingRespectedGameType = GameTypes.PERMISSIONED_CANNON;
+        baseConfig.basefeeScalar = 1368;
+        baseConfig.blobBasefeeScalar = 801949;
+        baseConfig.gasLimit = 60_000_000;
+        baseConfig.resourceConfig = IResourceMetering.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            minimumBaseFee: 1 gwei,
+            systemTxMaxGas: 1_000_000,
+            maximumBaseFee: type(uint128).max
+        });
+
+        // Set up dispute game configs.
+        address initialChallenger = makeAddr("challenger");
+        address initialProposer = makeAddr("proposer");
+        baseConfig.disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](3);
+        baseConfig.disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON,
+            gameArgs: bytes("")
+        });
+        baseConfig.disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                    absolutePrestate: cannonPrestate,
+                    proposer: initialProposer,
+                    challenger: initialChallenger
+                })
+            )
+        });
+        baseConfig.disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON_KONA,
+            gameArgs: bytes("")
+        });
+
+        // 3. Deploy 15 separate chains using opcmV2.deploy().
+        IOPContractsManagerV2.ChainContracts[] memory chains =
+            new IOPContractsManagerV2.ChainContracts[](numberOfChains);
+        for (uint256 i = 0; i < numberOfChains; i++) {
+            IOPContractsManagerV2.FullConfig memory config = baseConfig;
+            config.saltMixer = string.concat("chain-", vm.toString(i));
+            config.l2ChainId = 1000 + i;
+            chains[i] = opcmV2.deploy(config);
+        }
+
+        // 4. Prepare upgrade inputs for each chain.
+        IOPContractsManagerV2.UpgradeInput[] memory upgradeInputs =
+            new IOPContractsManagerV2.UpgradeInput[](numberOfChains);
+        for (uint256 i = 0; i < numberOfChains; i++) {
+            upgradeInputs[i] = IOPContractsManagerV2.UpgradeInput({
+                systemConfig: chains[i].systemConfig,
+                disputeGameConfigs: baseConfig.disputeGameConfigs,
+                extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
+            });
+        }
+
+        // 5. Execute batch upgrade - all 15 upgrades in a single transaction.
+        batchUpgrader.batchUpgrade(upgradeInputs);
+        VmSafe.Gas memory gas = vm.lastCallGas();
+
+        // 6. Verify that the upgrade gas usage is less than the EIP-7825 gas limit.
+        // See https://eip.tools/eip/eip-7825.md for more details.
+        // The upgradeGasBuffer amount below is an approximation of the overhead that is required
+        // to execute a call to Safe.executeTransaction() prior to the call to IOPContractsManagerV2.upgrade().
+        // The approximate value of 65,000 gas, was taken from a previous upgrade transaction on OP Mainnet:
+        // https://dashboard.tenderly.co/oplabs/op-mainnet/tx/0x9b9aa2d8e857e1a28e55b124e931eac706b3ae04c1b33ba949f0366359860993/gas-usage?trace=0.1.7
+        uint256 fusakaLimit = 2 ** 24;
+        uint256 upgradeGasBuffer = 65_000;
+        assertLt(gas.gasTotalUsed, fusakaLimit - upgradeGasBuffer, "Upgrade exceeds gas target");
+
+        // 7. Verify all chains upgraded successfully.
+        for (uint256 i = 0; i < numberOfChains; i++) {
+            ISystemConfig systemConfig = chains[i].systemConfig;
+
+            // Verify OPCM release version was updated.
+            string memory version = systemConfig.lastUsedOPCMVersion();
+            assertEq(version, opcmV2.version(), string.concat("Chain ", vm.toString(i), " version mismatch"));
+
+            // Verify SystemConfig implementation was upgraded.
+            address impl = EIP1967Helper.getImplementation(address(systemConfig));
+            assertEq(
+                impl,
+                opcmV2.implementations().systemConfigImpl,
+                string.concat("Chain ", vm.toString(i), " SystemConfig impl not upgraded")
+            );
+        }
     }
 }

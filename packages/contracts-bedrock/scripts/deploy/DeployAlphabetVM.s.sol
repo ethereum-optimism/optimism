@@ -29,6 +29,12 @@ contract DeployAlphabetVM is Script {
         output_.alphabetVM = alphabetVM;
     }
 
+    function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        Input memory input = abi.decode(_input, (Input));
+        Output memory output = run(input);
+        return abi.encode(output);
+    }
+
     function assertValidInput(Input memory _input) private pure {
         require(_input.absolutePrestate != bytes32(0), "DeployAlphabetVM: absolutePrestate not set");
         require(address(_input.preimageOracle) != address(0), "DeployAlphabetVM: preimageOracle not set");

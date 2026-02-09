@@ -6,6 +6,8 @@ import { ILivenessModule2 } from "interfaces/safe/ILivenessModule2.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
 interface ISaferSafes is ISemver {
+    function __constructor__() external;
+
     event CancellationThresholdUpdated(ISafe indexed safe, uint256 oldThreshold, uint256 newThreshold);
     event ChallengeCancelled(address indexed safe);
     event ChallengeStarted(address indexed safe, uint256 challengeStartTime);

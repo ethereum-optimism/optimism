@@ -195,7 +195,7 @@ func init() {
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
-	optionalFlags = append(optionalFlags, txmgr.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, txmgr.CLIFlagsWithBTO(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, altda.CLIFlags(EnvVarPrefix, "")...)
 
 	Flags = append(requiredFlags, optionalFlags...)

@@ -35,6 +35,25 @@ contract MIPS64MemoryWithCalldata {
         uint256 proofOffset = MIPS64Memory.memoryProofOffset(proofDataOffset, _proofIndex);
         return MIPS64Memory.writeMem(_addr, proofOffset, _value);
     }
+
+    function isValidProof(
+        bytes32 _root,
+        uint64 _addr,
+        uint8 _proofIndex,
+        bytes calldata /* _proof */
+    )
+        external
+        pure
+        returns (bool valid_)
+    {
+        uint256 proofDataOffset = 4 + 32 + 32 + 32 + 32 + 32;
+        uint256 proofOffset = MIPS64Memory.memoryProofOffset(proofDataOffset, _proofIndex);
+        return MIPS64Memory.isValidProof(_root, _addr, proofOffset);
+    }
+
+    function memoryProofOffset(uint256 _proofDataOffset, uint8 _proofIndex) external pure returns (uint256 offset_) {
+        return MIPS64Memory.memoryProofOffset(_proofDataOffset, _proofIndex);
+    }
 }
 
 /// @title MIPS64Memory_TestInit
@@ -221,5 +240,73 @@ contract MIPS64Memory_WriteMem_Test is MIPS64Memory_TestInit {
         (, zeroProof) = ffi.getCannonMemory64Proof(0x100, 0);
         vm.expectRevert(InvalidAddress.selector);
         mem.writeMem(0x104, 0x0, 0, zeroProof);
+    }
+}
+
+/// @title MIPS64Memory_IsValidProof_Test
+/// @notice Tests the `isValidProof` function of the `MIPS64Memory` contract.
+contract MIPS64Memory_IsValidProof_Test is MIPS64Memory_TestInit {
+    /// @notice Static unit test asserting that a valid proof returns true.
+    function test_isValidProof_validProof_succeeds() external {
+        uint64 addr = 0x100;
+        uint64 word = 0x11_22_33_44_55_66_77_88;
+        bytes32 root;
+        bytes memory proof;
+        (root, proof) = ffi.getCannonMemory64Proof(addr, word);
+        bool valid = mem.isValidProof(root, addr, 0, proof);
+        assertTrue(valid);
+    }
+
+    /// @notice Static unit test asserting that an invalid proof returns false.
+    function test_isValidProof_invalidProof_succeeds() external {
+        uint64 addr = 0x100;
+        uint64 word = 0x11_22_33_44_55_66_77_88;
+        bytes32 root;
+        bytes memory proof;
+        (root, proof) = ffi.getCannonMemory64Proof(addr, word);
+        vm.assertTrue(proof[64] != 0x0);
+        proof[64] = 0x00;
+        bool valid = mem.isValidProof(root, addr, 0, proof);
+        assertFalse(valid);
+    }
+
+    /// @notice Static unit test asserting that a mismatched root returns false.
+    function test_isValidProof_mismatchedRoot_succeeds() external {
+        uint64 addr = 0x100;
+        uint64 word = 0x11_22_33_44_55_66_77_88;
+        bytes32 root;
+        bytes memory proof;
+        (root, proof) = ffi.getCannonMemory64Proof(addr, word);
+        bytes32 wrongRoot = bytes32(uint256(root) ^ 1);
+        bool valid = mem.isValidProof(wrongRoot, addr, 0, proof);
+        assertFalse(valid);
+    }
+}
+
+/// @title MIPS64Memory_MemoryProofOffset_Test
+/// @notice Tests the `memoryProofOffset` function of the `MIPS64Memory` contract.
+contract MIPS64Memory_MemoryProofOffset_Test is MIPS64Memory_TestInit {
+    uint64 internal constant MEM_PROOF_LEAF_COUNT = 60;
+
+    /// @notice Fuzz test asserting that memoryProofOffset computes the correct offset.
+    function testFuzz_memoryProofOffset_succeeds(uint256 _proofDataOffset, uint8 _proofIndex) external view {
+        _proofDataOffset = bound(_proofDataOffset, 0, type(uint128).max);
+        uint256 expectedOffset = _proofDataOffset + (uint256(_proofIndex) * (MEM_PROOF_LEAF_COUNT * 32));
+        uint256 actualOffset = mem.memoryProofOffset(_proofDataOffset, _proofIndex);
+        assertEq(actualOffset, expectedOffset);
+    }
+
+    /// @notice Static unit test asserting that memoryProofOffset returns the base offset for index 0.
+    function test_memoryProofOffset_zeroIndex_succeeds() external view {
+        uint256 proofDataOffset = 164;
+        uint256 offset = mem.memoryProofOffset(proofDataOffset, 0);
+        assertEq(offset, proofDataOffset);
+    }
+
+    /// @notice Static unit test asserting that memoryProofOffset correctly increments for index 1.
+    function test_memoryProofOffset_indexOne_succeeds() external view {
+        uint256 proofDataOffset = 164;
+        uint256 offset = mem.memoryProofOffset(proofDataOffset, 1);
+        assertEq(offset, proofDataOffset + (MEM_PROOF_LEAF_COUNT * 32));
     }
 }

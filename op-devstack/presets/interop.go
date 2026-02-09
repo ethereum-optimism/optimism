@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -23,6 +24,7 @@ type SingleChainInterop struct {
 	system stack.ExtensibleSystem
 
 	Supervisor    *dsl.Supervisor
+	SuperRoots    *dsl.Supernode
 	TestSequencer *dsl.TestSequencer
 	ControlPlane  stack.ControlPlane
 
@@ -40,6 +42,9 @@ type SingleChainInterop struct {
 	FaucetL1 *dsl.Faucet
 	FunderL1 *dsl.Funder
 	FunderA  *dsl.Funder
+
+	// May be nil if not using sysgo
+	challengerConfig *challengerConfig.Config
 }
 
 func NewSingleChainInterop(t devtest.T) *SingleChainInterop {
@@ -47,30 +52,49 @@ func NewSingleChainInterop(t devtest.T) *SingleChainInterop {
 	orch := Orchestrator()
 	orch.Hydrate(system)
 
-	// At this point, any supervisor is acceptable but as the DSL gets fleshed out this should be selecting supervisors
-	// that fit with specific networks and nodes. That will likely require expanding the metadata exposed by the system
-	// since currently there's no way to tell which nodes are using which supervisor.
-	t.Gate().GreaterOrEqual(len(system.Supervisors()), 1, "expected at least one supervisor")
+	// At this point, either an op-supervisor (legacy) or op-supernode (replacement) is acceptable.
+	// The proof DSL depends only on super-roots and can be backed by either source.
+	t.Gate().True(len(system.Supervisors()) > 0 || len(system.Supernodes()) > 0, "expected at least one supervisor or supernode")
 
 	t.Gate().Equal(len(system.TestSequencers()), 1, "expected exactly one test sequencer")
 
 	l1Net := system.L1Network(match.FirstL1Network)
 	l2A := system.L2Network(match.Assume(t, match.L2ChainA))
+
+	var supervisor *dsl.Supervisor
+	var superRoots *dsl.Supernode
+	switch {
+	case len(system.Supervisors()) > 0:
+		supervisor = dsl.NewSupervisor(system.Supervisor(match.Assume(t, match.FirstSupervisor)), orch.ControlPlane())
+	case len(system.Supernodes()) > 0:
+		supernode := system.Supernode(match.Assume(t, match.FirstSupernode))
+		superRoots = dsl.NewSupernode(supernode)
+	default:
+		t.Gate().True(false, "expected at least one supervisor or supernode")
+	}
+
+	var challengerCfg *challengerConfig.Config
+	if len(l2A.L2Challengers()) > 0 {
+		challengerCfg = l2A.L2Challengers()[0].Config()
+	}
+
 	out := &SingleChainInterop{
-		Log:           t.Logger(),
-		T:             t,
-		system:        system,
-		TestSequencer: dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer))),
-		Supervisor:    dsl.NewSupervisor(system.Supervisor(match.Assume(t, match.FirstSupervisor)), orch.ControlPlane()),
-		ControlPlane:  orch.ControlPlane(),
-		L1Network:     dsl.NewL1Network(l1Net),
-		L1EL:          dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
-		L2ChainA:      dsl.NewL2Network(l2A, orch.ControlPlane()),
-		L2ELA:         dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL)), orch.ControlPlane()),
-		L2CLA:         dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane()),
-		Wallet:        dsl.NewRandomHDWallet(t, 30), // Random for test isolation
-		FaucetA:       dsl.NewFaucet(l2A.Faucet(match.Assume(t, match.FirstFaucet))),
-		L2BatcherA:    dsl.NewL2Batcher(l2A.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+		Log:              t.Logger(),
+		T:                t,
+		system:           system,
+		TestSequencer:    dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer))),
+		Supervisor:       supervisor,
+		SuperRoots:       superRoots,
+		ControlPlane:     orch.ControlPlane(),
+		L1Network:        dsl.NewL1Network(l1Net),
+		L1EL:             dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
+		L2ChainA:         dsl.NewL2Network(l2A, orch.ControlPlane()),
+		L2ELA:            dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL)), orch.ControlPlane()),
+		L2CLA:            dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane()),
+		Wallet:           dsl.NewRandomHDWallet(t, 30), // Random for test isolation
+		FaucetA:          dsl.NewFaucet(l2A.Faucet(match.Assume(t, match.FirstFaucet))),
+		L2BatcherA:       dsl.NewL2Batcher(l2A.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+		challengerConfig: challengerCfg,
 	}
 	out.FaucetL1 = dsl.NewFaucet(out.L1Network.Escape().Faucet(match.Assume(t, match.FirstFaucet)))
 	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
@@ -114,11 +138,12 @@ func (s *SimpleInterop) L2Networks() []*dsl.L2Network {
 }
 
 func (s *SimpleInterop) DisputeGameFactory() *proofs.DisputeGameFactory {
-	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), nil, nil, s.Supervisor, nil)
+	supernode := s.system.Supernode(match.Assume(s.T, match.FirstSupernode))
+	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), nil, nil, supernode, s.challengerConfig)
 }
 
 func (s *SingleChainInterop) StandardBridge(l2Chain *dsl.L2Network) *dsl.StandardBridge {
-	return dsl.NewStandardBridge(s.T, l2Chain, s.Supervisor, s.L1EL)
+	return dsl.NewStandardBridge(s.T, l2Chain, s.L1EL)
 }
 
 // WithSimpleInterop specifies a system that meets the SimpleInterop criteria.
@@ -129,6 +154,16 @@ func WithSimpleInterop() stack.CommonOption {
 // WithSuperInterop specifies a super root system that meets the SimpleInterop criteria.
 func WithSuperInterop() stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultInteropProofsSystem(&sysgo.DefaultInteropSystemIDs{}))
+}
+
+// WithSuperInteropSupernode specifies a super root system (for proofs) that sources super-roots via op-supernode
+func WithSuperInteropSupernode() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultSupernodeInteropProofsSystem(&sysgo.DefaultSupernodeInteropProofsSystemIDs{}))
+}
+
+// WithIsthmusSuperSupernode specifies a super root system (for proofs) that sources super-roots via op-supernode
+func WithIsthmusSuperSupernode() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultSupernodeIsthmusSuperProofsSystem(&sysgo.DefaultSupernodeInteropProofsSystemIDs{}))
 }
 
 func WithIsthmusSuper() stack.CommonOption {
@@ -254,5 +289,49 @@ func NewMultiSupervisorInterop(t devtest.T) *MultiSupervisorInterop {
 		L2ELB2:              dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.SecondL2EL)), orch.ControlPlane()),
 		L2CLB2:              dsl.NewL2CLNode(l2B.L2CLNode(match.Assume(t, match.SecondL2CL)), orch.ControlPlane()),
 	}
+	return out
+}
+
+// MinimalInteropNoSupervisor is like Minimal but with interop contracts deployed.
+// No supervisor is running - this tests interop contract deployment with local finality.
+type MinimalInteropNoSupervisor struct {
+	Minimal
+}
+
+// WithMinimalInteropNoSupervisor specifies a minimal system with interop contracts but no supervisor.
+func WithMinimalInteropNoSupervisor() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultMinimalInteropSystem(&sysgo.DefaultMinimalSystemIDs{}))
+}
+
+// NewMinimalInteropNoSupervisor creates a MinimalInteropNoSupervisor preset for acceptance tests.
+func NewMinimalInteropNoSupervisor(t devtest.T) *MinimalInteropNoSupervisor {
+	system := shim.NewSystem(t)
+	orch := Orchestrator()
+	orch.Hydrate(system)
+
+	l1Net := system.L1Network(match.FirstL1Network)
+	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
+	sequencerCL := l2.L2CLNode(match.Assume(t, match.WithSequencerActive(t.Ctx())))
+	sequencerEL := l2.L2ELNode(match.Assume(t, match.EngineFor(sequencerCL)))
+
+	out := &MinimalInteropNoSupervisor{
+		Minimal: Minimal{
+			Log:          t.Logger(),
+			T:            t,
+			ControlPlane: orch.ControlPlane(),
+			system:       system,
+			L1Network:    dsl.NewL1Network(l1Net),
+			L1EL:         dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
+			L2Chain:      dsl.NewL2Network(l2, orch.ControlPlane()),
+			L2Batcher:    dsl.NewL2Batcher(l2.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+			L2EL:         dsl.NewL2ELNode(sequencerEL, orch.ControlPlane()),
+			L2CL:         dsl.NewL2CLNode(sequencerCL, orch.ControlPlane()),
+			Wallet:       dsl.NewRandomHDWallet(t, 30),
+			FaucetL2:     dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet))),
+		},
+	}
+	out.FaucetL1 = dsl.NewFaucet(out.L1Network.Escape().Faucet(match.Assume(t, match.FirstFaucet)))
+	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
+	out.FunderL2 = dsl.NewFunder(out.Wallet, out.FaucetL2, out.L2EL)
 	return out
 }

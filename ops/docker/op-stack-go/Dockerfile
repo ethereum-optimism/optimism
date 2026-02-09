@@ -12,10 +12,6 @@ ARG TARGET_BASE_IMAGE=alpine:3.20
 # The ubuntu target base image is used for the op-challenger build with kona.
 ARG UBUNTU_TARGET_BASE_IMAGE=ubuntu:22.04
 
-# The version of kona to use.
-# The only build that uses this is `op-challenger-target`.
-ARG KONA_VERSION=none
-
 # builder_foundry does not need to be built on $BUILDPLATFORM, as foundry produces static binaries.
 FROM alpine:3.21 AS builder_foundry
 
@@ -204,6 +200,31 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_INTEROP_MON_VERSION" \
   op-interop-mon/op-interop-mon
 
+# The Rust version must match kona/rust-toolchain.toml. We don't use "latest" to ensure reproducibility
+FROM --platform=$BUILDPLATFORM rust:1.88 AS kona-host-builder
+ARG TARGETARCH
+# Install build dependencies and cross-compilation toolchains
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  build-essential \
+  libssl-dev \
+  clang \
+  pkg-config \
+  gcc-aarch64-linux-gnu \
+  gcc-x86-64-linux-gnu \
+  && rm -rf /var/lib/apt/lists/*
+COPY ./kona /kona
+WORKDIR /kona
+# Map TARGETARCH to Rust target triple, install it, and build
+RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/kona/target \
+  case "$TARGETARCH" in \
+    amd64) RUST_TARGET=x86_64-unknown-linux-gnu ;; \
+    arm64) RUST_TARGET=aarch64-unknown-linux-gnu ;; \
+    *) echo "Unsupported architecture: $TARGETARCH" && exit 1 ;; \
+  esac && \
+  rustup target add "$RUST_TARGET" && \
+  RUSTFLAGS="-C target-cpu=generic" cargo build --bin kona-host --profile release-perf --target "$RUST_TARGET" && \
+  cp "/kona/target/$RUST_TARGET/release-perf/kona-host" /kona-host
+
 FROM $TARGET_BASE_IMAGE AS cannon-target
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/
 COPY --from=cannon-builder /app/cannon/multicannon/embeds/* /usr/local/bin/
@@ -221,9 +242,6 @@ FROM $TARGET_BASE_IMAGE AS op-node-target
 COPY --from=op-node-builder /app/op-node/bin/op-node /usr/local/bin/
 CMD ["op-node"]
 
-# Make the kona docker image published by upstream available as a source to copy kona from.
-FROM ghcr.io/op-rs/kona/kona-host:$KONA_VERSION AS kona
-
 # Also produce an op-challenger loaded with kona using ubuntu
 FROM $UBUNTU_TARGET_BASE_IMAGE AS op-challenger-target
 RUN apt-get update && apt-get install -y --no-install-recommends musl openssl ca-certificates
@@ -233,8 +251,8 @@ COPY --from=op-program-builder /app/op-program/bin/op-program /usr/local/bin/
 ENV OP_CHALLENGER_CANNON_SERVER=/usr/local/bin/op-program
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/
 ENV OP_CHALLENGER_CANNON_BIN=/usr/local/bin/cannon
-# Copy in kona
-COPY --from=kona /usr/local/bin/kona-host /usr/local/bin/
+# Copy in kona-host (built from local kona/ source)
+COPY --from=kona-host-builder /kona-host /usr/local/bin/kona-host
 ENV OP_CHALLENGER_ASTERISC_KONA_SERVER=/usr/local/bin/kona-host
 ENV OP_CHALLENGER_CANNON_KONA_SERVER=/usr/local/bin/kona-host
 CMD ["op-challenger"]

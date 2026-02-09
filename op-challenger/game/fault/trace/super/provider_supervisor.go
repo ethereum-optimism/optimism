@@ -7,8 +7,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -51,16 +51,6 @@ type SupervisorSuperTraceProvider struct {
 	poststateTimestamp uint64
 	l1Head             eth.BlockID
 	gameDepth          types.Depth
-}
-
-func NewSuperTraceProvider(logger log.Logger, rollupCfgs *RollupConfigs, prestateProvider PreimagePrestateProvider, rootProvider *sources.SupervisorClient, superNodeProvider *sources.SuperNodeClient, l1Head eth.BlockID, gameDepth types.Depth, prestateTimestamp, poststateTimestamp uint64) SuperTraceProvider {
-	if rootProvider == nil && superNodeProvider != nil {
-		return NewSuperNodeTraceProvider(logger, prestateProvider, superNodeProvider, l1Head, gameDepth, prestateTimestamp, poststateTimestamp)
-	} else if rootProvider != nil && superNodeProvider == nil {
-		return NewSupervisorSuperTraceProvider(logger, rollupCfgs, prestateProvider, rootProvider, l1Head, gameDepth, prestateTimestamp, poststateTimestamp)
-	} else {
-		panic(fmt.Sprintf("Invalid configuration: must provide either a super node provider or a root provider, but not both. Root provider: %v, SuperNodeProvider: %v", rootProvider, superNodeProvider))
-	}
 }
 
 func NewSupervisorSuperTraceProvider(logger log.Logger, rollupCfgs *RollupConfigs, prestateProvider PreimagePrestateProvider, rootProvider RootProvider, l1Head eth.BlockID, gameDepth types.Depth, prestateTimestamp, poststateTimestamp uint64) *SupervisorSuperTraceProvider {
@@ -188,7 +178,7 @@ func (s *SupervisorSuperTraceProvider) ComputeStep(pos types.Position) (timestam
 		return
 	}
 
-	traceIdx := bigIdx.Uint64() + 1
+	traceIdx := bigs.Uint64Strict(bigIdx) + 1
 	timestampIncrements := traceIdx / StepsPerTimestamp
 	timestamp = s.prestateTimestamp + timestampIncrements
 	if timestamp >= s.poststateTimestamp { // Apply trace extension once the claimed timestamp is reached

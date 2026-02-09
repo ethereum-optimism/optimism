@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -26,8 +25,10 @@ func NewSuperCannonTraceAccessor(
 	cfg vm.Config,
 	serverExecutor vm.OracleServerExecutor,
 	prestateProvider PreimagePrestateProvider,
-	rootProvider *sources.SupervisorClient,
-	superNodeProvider *sources.SuperNodeClient,
+	rootProvider RootProvider,
+	superNodeProvider SuperNodeRootProvider,
+	// Because go interfaces are a pointer and a type, they are not nil if the type is not nil. So we can't just check if the superNodeProvider != nil because it will have a type and be non-nil even though the pointer is nil.
+	useSuperNode bool,
 	cannonPrestate string,
 	dir string,
 	l1Head eth.BlockID,
@@ -39,7 +40,12 @@ func NewSuperCannonTraceAccessor(
 	if err != nil {
 		return nil, fmt.Errorf("failed to load rollup configs: %w", err)
 	}
-	outputProvider := NewSuperTraceProvider(logger, rollupCfgs, prestateProvider, rootProvider, superNodeProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
+	var outputProvider SuperTraceProvider
+	if useSuperNode {
+		outputProvider = NewSuperNodeTraceProvider(logger, prestateProvider, superNodeProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
+	} else {
+		outputProvider = NewSupervisorSuperTraceProvider(logger, rollupCfgs, prestateProvider, rootProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
+	}
 	cannonCreator := func(ctx context.Context, localContext common.Hash, depth types.Depth, claimInfo ClaimInfo) (types.TraceProvider, error) {
 		logger := logger.New("agreedPrestate", hexutil.Bytes(claimInfo.AgreedPrestate), "claim", claimInfo.Claim, "localContext", localContext)
 		subdir := filepath.Join(dir, localContext.Hex())

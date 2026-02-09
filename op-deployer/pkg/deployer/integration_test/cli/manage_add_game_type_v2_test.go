@@ -12,18 +12,20 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 )
 
 func TestManageAddGameTypeV2_CLI(t *testing.T) {
@@ -108,8 +110,6 @@ func TestManageAddGameTypeV2_CLI(t *testing.T) {
 
 // Tests the manage add-game-type-v2 command, from the CLI to the actual contract execution through the Solidity scripts.
 func TestManageAddGameTypeV2_Integration(t *testing.T) {
-	// TODO(#18718): Update this to use an actual deployed OPCM V2 contract once we have one.
-	// For now, we manually deploy the OPCM V2 contract using bootstrap.Implementations.
 	lgr := testlog.Logger(t, slog.LevelDebug)
 
 	l1Rpc, stopL1, err := devnet.NewForkedSepolia(lgr)
@@ -120,30 +120,19 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 	runner := NewCLITestRunnerWithNetwork(t, WithL1RPC(l1Rpc.RPCUrl()))
 	workDir := runner.GetWorkDir()
 
-	// Test values - using arbitrary addresses for testing
-	l1ProxyAdminOwner := deployer.DefaultL1ProxyAdminOwnerSepolia
-	systemConfigProxy := deployer.DefaultSystemConfigProxySepolia
+	// We deploy superchain, OPCM V2, and a fresh OP chain.
+	deployed := deployDependencies(t, runner)
 
-	// Deploy the OPCM V2 contract.
-	opcmV2 := deployDependencies(t, runner)
-
-	bytes32Type := deployer.Bytes32Type
-	addressType := deployer.AddressType
+	l1ProxyAdminOwner := deployed.proxyAdminOwner
+	systemConfigProxy := deployed.systemConfigProxy
+	opcmV2 := deployed.opcmV2
 
 	// FaultDisputeGameConfig just needs absolutePrestate (bytes32)
 	testPrestate := common.Hash{'P', 'R', 'E', 'S', 'T', 'A', 'T', 'E'}
-	cannonArgs, err := abi.Arguments{{Type: bytes32Type}}.Pack(testPrestate)
-	require.NoError(t, err)
 
 	// PermissionedDisputeGameConfig needs absolutePrestate, proposer, challenger
 	testProposer := common.Address{'P'}
 	testChallenger := common.Address{'C'}
-	permissionedArgs, err := abi.Arguments{
-		{Type: bytes32Type},
-		{Type: addressType},
-		{Type: addressType},
-	}.Pack(testPrestate, testProposer, testChallenger)
-	require.NoError(t, err)
 
 	testConfig := embedded.UpgradeOPChainInput{
 		Prank: l1ProxyAdminOwner,
@@ -155,30 +144,30 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 					Enabled:  true,
 					InitBond: big.NewInt(1000000000000000000),
 					GameType: embedded.GameTypeCannon,
-					GameArgs: cannonArgs,
+					FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+						AbsolutePrestate: testPrestate,
+					},
 				},
 				{
 					Enabled:  true,
 					InitBond: big.NewInt(1000000000000000000),
 					GameType: embedded.GameTypePermissionedCannon,
-					GameArgs: permissionedArgs,
+					PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
+						AbsolutePrestate: testPrestate,
+						Proposer:         testProposer,
+						Challenger:       testChallenger,
+					},
 				},
 				{
 					Enabled:  false,
 					InitBond: big.NewInt(0),
 					GameType: embedded.GameTypeCannonKona,
-					GameArgs: []byte{}, // Disabled games don't need args
 				},
 			},
 			ExtraInstructions: []embedded.ExtraInstruction{
 				{
 					Key:  "PermittedProxyDeployment",
 					Data: []byte("DelayedWETH"),
-				},
-				{
-					// TODO(#18502): Remove this extra instruction after U18 ships.
-					Key:  "overrides.cfg.useCustomGasToken",
-					Data: make([]byte, 32),
 				},
 			},
 		},
@@ -252,64 +241,68 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 	require.Equal(t, l1ProxyAdminOwner.Hex(), dump[0].To.Hex(), "calldata should be sent to prank address")
 }
 
-// TODO(#18718): Remove this once we have a deployed OPCM V2 contract.
-// deployDependencies deploys the superchain contracts and OPCM V2 implementation
-// using the DeployImplementations script, and returns the OPCM V2 address
-func deployDependencies(t *testing.T, runner *CLITestRunner) common.Address {
+// deployedChain holds the addresses returned from deploying a fresh OP chain
+type deployedChain struct {
+	opcmV2            common.Address
+	systemConfigProxy common.Address
+	proxyAdminOwner   common.Address
+}
+
+// deployDependencies deploys superchain, OPCM V2, and a fresh OP chain using ApplyPipeline.
+// Returns addresses needed for testing the add-game-type-v2 command.
+func deployDependencies(t *testing.T, runner *CLITestRunner) deployedChain {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
-	// First, deploy superchain contracts (required for OPCM deployment)
-	superchainProxyAdminOwner := common.Address{'S'}
-	superchainOut, err := bootstrap.Superchain(ctx, bootstrap.SuperchainConfig{
-		L1RPCUrl:                   runner.l1RPC,
-		PrivateKey:                 runner.privateKeyHex,
-		ArtifactsLocator:           artifacts.EmbeddedLocator,
-		Logger:                     runner.lgr,
-		SuperchainProxyAdminOwner:  superchainProxyAdminOwner,
-		ProtocolVersionsOwner:      common.Address{'P'},
-		Guardian:                   common.Address{'G'},
-		Paused:                     false,
-		RequiredProtocolVersion:    params.ProtocolVersionV0{Major: 1}.Encode(),
-		RecommendedProtocolVersion: params.ProtocolVersionV0{Major: 2}.Encode(),
-		CacheDir:                   testCacheDir,
-	})
-	require.NoError(t, err, "Failed to deploy superchain contracts")
+	// Get the private key and devkeys
+	pk, err := crypto.HexToECDSA(runner.privateKeyHex)
+	require.NoError(t, err)
 
-	// Deploy implementations with OPCM V2 enabled
-	implOut, err := bootstrap.Implementations(ctx, bootstrap.ImplementationsConfig{
-		L1RPCUrl:                        runner.l1RPC,
-		PrivateKey:                      runner.privateKeyHex,
-		ArtifactsLocator:                artifacts.EmbeddedLocator,
-		Logger:                          runner.lgr,
-		WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
-		MinProposalSizeBytes:            standard.MinProposalSizeBytes,
-		ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
-		ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
-		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-		MIPSVersion:                     int(standard.MIPSVersion),
-		DevFeatureBitmap:                deployer.OPCMV2DevFlag, // Enable OPCM V2
-		SuperchainConfigProxy:           superchainOut.SuperchainConfigProxy,
-		ProtocolVersionsProxy:           superchainOut.ProtocolVersionsProxy,
-		SuperchainProxyAdmin:            superchainOut.SuperchainProxyAdmin,
-		L1ProxyAdminOwner:               superchainProxyAdminOwner,
-		Challenger:                      common.Address{'C'},
-		CacheDir:                        testCacheDir,
-		FaultGameMaxGameDepth:           standard.DisputeMaxGameDepth,
-		FaultGameSplitDepth:             standard.DisputeSplitDepth,
-		FaultGameClockExtension:         standard.DisputeClockExtension,
-		FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
+	dk, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
+
+	l1ChainID := big.NewInt(11155111)
+
+	// We use the shared helper to create an intent and state
+	loc, _ := testutil.LocalArtifacts(t)
+	l2ChainID := uint256.NewInt(12345) // Test L2 chain ID
+
+	intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, 30_000_000)
+
+	// Ensure we are using OPCM V2
+	intent.GlobalDeployOverrides = map[string]any{
+		"devFeatureBitmap": deployer.OPCMV2DevFlag,
+	}
+
+	// Deploy using ApplyPipeline with live target
+	err = deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
+		DeploymentTarget:   deployer.DeploymentTargetLive,
+		L1RPCUrl:           runner.l1RPC,
+		DeployerPrivateKey: pk,
+		Intent:             intent,
+		State:              st,
+		Logger:             runner.lgr,
+		StateWriter:        pipeline.NoopStateWriter(),
+		CacheDir:           testCacheDir,
 	})
-	require.NoError(t, err, "Failed to deploy implementations")
+	require.NoError(t, err, "Failed to deploy OP chain")
 
 	// Verify OPCM V2 was deployed
-	require.NotEqual(t, common.Address{}, implOut.OpcmV2, "OPCM V2 address should be set")
-	require.Equal(t, common.Address{}, implOut.Opcm, "OPCM V1 address should be zero when V2 is deployed")
+	require.NotEqual(t, common.Address{}, st.ImplementationsDeployment.OpcmV2Impl, "OPCM V2 address should be set")
 
-	t.Logf("Deployed OPCM V2 at address: %s", implOut.OpcmV2.Hex())
-	t.Logf("SuperchainConfigProxy: %s", superchainOut.SuperchainConfigProxy.Hex())
+	// Get the chain state
+	require.Len(t, st.Chains, 1, "Expected one chain to be deployed")
+	chainState := st.Chains[0]
 
-	return implOut.OpcmV2
+	t.Logf("Deployed OPCM V2 at address: %s", st.ImplementationsDeployment.OpcmV2Impl.Hex())
+	t.Logf("Deployed SystemConfigProxy at address: %s", chainState.SystemConfigProxy.Hex())
+	t.Logf("ProxyAdminOwner: %s", intent.Chains[0].Roles.L1ProxyAdminOwner.Hex())
+
+	return deployedChain{
+		opcmV2:            st.ImplementationsDeployment.OpcmV2Impl,
+		systemConfigProxy: chainState.SystemConfigProxy,
+		proxyAdminOwner:   intent.Chains[0].Roles.L1ProxyAdminOwner,
+	}
 }

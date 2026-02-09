@@ -107,6 +107,7 @@ type DefaultTwoL2SystemIDs struct {
 	L2BCL stack.L2CLNodeID
 	L2BEL stack.L2ELNodeID
 
+	Supernode   stack.SupernodeID
 	L2ABatcher  stack.L2BatcherID
 	L2AProposer stack.L2ProposerID
 	L2BBatcher  stack.L2BatcherID
@@ -124,6 +125,7 @@ func NewDefaultTwoL2SystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultTwoL2System
 		L2B:         stack.L2NetworkID(l2BID),
 		L2BCL:       stack.NewL2CLNodeID("sequencer", l2BID),
 		L2BEL:       stack.NewL2ELNodeID("sequencer", l2BID),
+		Supernode:   stack.NewSupernodeID("supernode-two-l2-system", l2AID, l2BID),
 		L2ABatcher:  stack.NewL2BatcherID("main", l2AID),
 		L2AProposer: stack.NewL2ProposerID("main", l2AID),
 		L2BBatcher:  stack.NewL2BatcherID("main", l2BID),
@@ -200,7 +202,61 @@ func DefaultSupernodeTwoL2System(dest *DefaultTwoL2SystemIDs) stack.Option[*Orch
 	opt.Add(WithL2ELNode(ids.L2BEL))
 
 	// Shared supernode for both L2 chains
-	opt.Add(WithSharedSupernodeCLs([]L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}, {CLID: ids.L2BCL, ELID: ids.L2BEL}}, ids.L1CL, ids.L1EL))
+	opt.Add(WithSharedSupernodeCLs(ids.Supernode, []L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}, {CLID: ids.L2BCL, ELID: ids.L2BEL}}, ids.L1CL, ids.L1EL))
+
+	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
+	opt.Add(WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, nil))
+
+	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
+	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, nil))
+
+	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+
+	opt.Add(stack.Finally(func(orch *Orchestrator) {
+		*dest = ids
+	}))
+
+	return opt
+}
+
+// DefaultSupernodeInteropTwoL2System runs two L2 chains with a shared supernode that has
+// interop verification enabled. Use delaySeconds=0 for interop at genesis, or a positive value
+// to test the transition from normal safety to interop-verified safety.
+func DefaultSupernodeInteropTwoL2System(dest *DefaultTwoL2SystemIDs, delaySeconds uint64) stack.Option[*Orchestrator] {
+	ids := NewDefaultTwoL2SystemIDs(DefaultL1ID, DefaultL2AID, DefaultL2BID)
+	opt := stack.Combine[*Orchestrator]()
+	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
+		if delaySeconds == 0 {
+			o.P().Logger().Info("Setting up (supernode with interop)")
+		} else {
+			o.P().Logger().Info("Setting up (supernode with delayed interop)", "delay_seconds", delaySeconds)
+		}
+	}))
+
+	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
+
+	opt.Add(WithDeployer(),
+		WithDeployerOptions(
+			WithLocalContractSources(),
+			WithCommons(ids.L1.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2A.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2B.ChainID()),
+			WithInteropAtGenesis(), // Enable interop contracts
+		),
+	)
+
+	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
+
+	opt.Add(WithL2ELNode(ids.L2AEL))
+	opt.Add(WithL2ELNode(ids.L2BEL))
+
+	// Shared supernode for both L2 chains with interop enabled
+	cls := []L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}, {CLID: ids.L2BCL, ELID: ids.L2BEL}}
+	if delaySeconds == 0 {
+		opt.Add(WithSharedSupernodeCLsInterop(ids.Supernode, cls, ids.L1CL, ids.L1EL))
+	} else {
+		opt.Add(WithSharedSupernodeCLsInteropDelayed(ids.Supernode, cls, ids.L1CL, ids.L1EL, delaySeconds))
+	}
 
 	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
 	opt.Add(WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, nil))
@@ -337,6 +393,47 @@ func DefaultSingleChainInteropSystem(dest *DefaultSingleChainInteropSystemIDs) s
 	return opt
 }
 
+// DefaultMinimalInteropSystem creates a minimal system with interop contracts but no supervisor.
+// This tests interop contract deployment with local finality (SupervisorEnabled=false in op-node).
+func DefaultMinimalInteropSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Orchestrator] {
+	ids := NewDefaultMinimalSystemIDs(DefaultL1ID, DefaultL2AID)
+	opt := stack.Combine[*Orchestrator]()
+
+	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
+		o.P().Logger().Info("Setting up minimal interop (no supervisor)")
+	}))
+
+	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
+
+	opt.Add(WithDeployer(),
+		WithDeployerOptions(
+			WithLocalContractSources(),
+			WithCommons(ids.L1.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2.ChainID()),
+			WithInteropAtGenesis(),
+		),
+	)
+
+	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
+
+	// No supervisor - interop with local finality only
+	opt.Add(WithL2ELNode(ids.L2EL))
+	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, L2CLSequencer()))
+	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
+	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
+	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
+
+	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}))
+
+	opt.Add(WithL2MetricsDashboard())
+
+	opt.Add(stack.Finally(func(orch *Orchestrator) {
+		*dest = ids
+	}))
+
+	return opt
+}
+
 // baseInteropSystem defines a system that supports interop with a single chain
 // Components which are shared across multiple chains are not started, allowing them to be added later including
 // any additional chains that have been added.
@@ -454,6 +551,83 @@ func DefaultInteropProofsSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orc
 	return defaultSuperProofsSystem(dest, WithInteropAtGenesis())
 }
 
+type DefaultSupernodeInteropProofsSystemIDs struct {
+	DefaultInteropSystemIDs
+	Supernode stack.SupernodeID
+}
+
+func NewDefaultSupernodeInteropProofsSystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultSupernodeInteropProofsSystemIDs {
+	return DefaultSupernodeInteropProofsSystemIDs{
+		DefaultInteropSystemIDs: NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID),
+		Supernode:               stack.NewSupernodeID("supernode-two-system-proofs", l2AID, l2BID),
+	}
+}
+
+func DefaultSupernodeIsthmusSuperProofsSystem(dest *DefaultSupernodeInteropProofsSystemIDs) stack.Option[*Orchestrator] {
+	return defaultSupernodeSuperProofsSystem(dest)
+}
+
+// DefaultSupernodeInteropProofsSystem creates a super-roots proofs system that sources super-roots via op-supernode
+// (instead of op-supervisor). Interop is enabled at genesis.
+func DefaultSupernodeInteropProofsSystem(dest *DefaultSupernodeInteropProofsSystemIDs) stack.Option[*Orchestrator] {
+	return defaultSupernodeSuperProofsSystem(dest, WithInteropAtGenesis())
+}
+
+func defaultSupernodeSuperProofsSystem(dest *DefaultSupernodeInteropProofsSystemIDs, deployerOpts ...DeployerOption) stack.CombinedOption[*Orchestrator] {
+	ids := NewDefaultSupernodeInteropProofsSystemIDs(DefaultL1ID, DefaultL2AID, DefaultL2BID)
+	opt := stack.Combine[*Orchestrator]()
+
+	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
+		o.P().Logger().Info("Setting up (supernode)")
+	}))
+
+	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
+
+	opt.Add(WithDeployer(), WithDeployerOptions(
+		append([]DeployerOption{
+			WithLocalContractSources(),
+			WithCommons(ids.L1.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2A.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2B.ChainID()),
+			WithDevFeatureEnabled(deployer.OptimismPortalInteropDevFlag),
+		}, deployerOpts...)...,
+	))
+
+	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
+
+	opt.Add(WithL2ELNode(ids.L2AEL))
+	opt.Add(WithL2ELNode(ids.L2BEL))
+
+	// Shared supernode for both L2 chains (registers per-chain L2CL proxies)
+	opt.Add(WithSharedSupernodeCLs(ids.Supernode, []L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}, {CLID: ids.L2BCL, ELID: ids.L2BEL}}, ids.L1CL, ids.L1EL))
+
+	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2ACL, ids.L1EL, ids.L2AEL))
+
+	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
+	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
+
+	// Run super roots migration using supernode as super root source
+	opt.Add(WithSuperRootsFromSupernode(ids.L1.ChainID(), ids.L1EL, []stack.L2CLNodeID{ids.L2ACL, ids.L2BCL}, ids.Supernode, ids.L2A.ChainID()))
+
+	// Start challenger after migration; use supernode RPCs as super-roots source.
+	opt.Add(WithSupernodeL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supernode, &ids.Cluster, []stack.L2ELNodeID{
+		ids.L2BEL, ids.L2AEL,
+	}))
+
+	// Start proposer after migration; use supernode RPCs as proposal source.
+	opt.Add(WithSupernodeProposer(ids.L2AProposer, ids.L1EL, &ids.Supernode))
+
+	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+
+	opt.Add(WithL2MetricsDashboard())
+
+	opt.Add(stack.Finally(func(orch *Orchestrator) {
+		*dest = ids
+	}))
+
+	return opt
+}
+
 func defaultSuperProofsSystem(dest *DefaultInteropSystemIDs, deployerOpts ...DeployerOption) stack.CombinedOption[*Orchestrator] {
 	ids := NewDefaultInteropSystemIDs(DefaultL1ID, DefaultL2AID, DefaultL2BID)
 	opt := stack.Combine[*Orchestrator]()
@@ -493,7 +667,7 @@ func defaultSuperProofsSystem(dest *DefaultInteropSystemIDs, deployerOpts ...Dep
 
 	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
 
-	opt.Add(WithSuperRoots(ids.L1.ChainID(), ids.L1EL, ids.L2ACL, ids.Supervisor, ids.L2A.ChainID()))
+	opt.Add(WithSuperRoots(ids.L1.ChainID(), ids.L1EL, []stack.L2CLNodeID{ids.L2ACL, ids.L2BCL}, ids.Supervisor, ids.L2A.ChainID()))
 
 	opt.Add(WithSuperProposer(ids.L2AProposer, ids.L1EL, &ids.Supervisor))
 

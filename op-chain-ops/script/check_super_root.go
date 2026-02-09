@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -222,7 +223,7 @@ func (m *SuperRootMigrator) calculateTargetBlockNumbers(ctx context.Context) err
 			return fmt.Errorf("target timestamp is prior to genesis for endpoint %v", endpoint)
 		}
 		// Compute the target block number
-		targetBlockNumber := new(big.Int).SetUint64(latestBlock.Number().Uint64() - blocksToLookBack)
+		targetBlockNumber := new(big.Int).SetUint64(bigs.Uint64Strict(latestBlock.Number()) - blocksToLookBack)
 
 		// Store the computed values in the chain settings
 		m.chainSettings[endpoint].BlockTime = blockTime
@@ -246,7 +247,7 @@ func (m *SuperRootMigrator) calculateOutputRoots(ctx context.Context) error {
 		// Isthmus assumes WithdrawalsHash is present in the header.
 		if targetHeader.WithdrawalsHash == nil {
 			return fmt.Errorf("target block %d (%s) on chain %s (ID: %s) is missing withdrawals hash, required for Isthmus output root calculation",
-				targetHeader.Number.Uint64(), targetHeader.Hash(), url, settings.ChainID)
+				bigs.Uint64Strict(targetHeader.Number), targetHeader.Hash(), url, settings.ChainID)
 		}
 
 		// Construct OutputV0 using StateRoot, WithdrawalsHash (as MessagePasserStorageRoot), and BlockHash

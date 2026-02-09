@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -158,7 +159,7 @@ func (t *TxMetrics) RecordPendingTx(pending int64) {
 
 // TxConfirmed records lots of information about the confirmed transaction
 func (t *TxMetrics) TxConfirmed(receipt *types.Receipt) {
-	fee := float64(receipt.EffectiveGasPrice.Uint64() * receipt.GasUsed / params.GWei)
+	fee := float64(bigs.Uint64Strict(receipt.EffectiveGasPrice) * receipt.GasUsed / params.GWei)
 	t.confirmEvent.Record(receiptStatusString(receipt))
 	t.txL1GasFee.Set(fee)
 	t.txFeesTotal.Add(fee)

@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
@@ -30,10 +31,36 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/lmittmann/w3"
 	w3eth "github.com/lmittmann/w3/module/eth"
-	"github.com/stretchr/testify/require"
 )
 
-func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack.L2CLNodeID, supervisorID stack.SupervisorID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
+// V2 structs for OPCM >= 7.0.0 (using IOPContractsManagerMigrator interface)
+type DisputeGameConfigV2 struct {
+	Enabled  bool
+	InitBond *big.Int
+	GameType uint32
+	GameArgs []byte
+}
+
+type MigrateInputV2 struct {
+	ChainSystemConfigs        []common.Address
+	DisputeGameConfigs        []DisputeGameConfigV2
+	StartingAnchorRoot        bindings.Proposal
+	StartingRespectedGameType uint32
+}
+
+func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stack.L2CLNodeID, supervisorID stack.SupervisorID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
+	return withSuperRoots(l1ChainID, l1ELID, clIDs, primaryL2, func(t devtest.CommonT, o *Orchestrator, timestamp uint64) eth.Bytes32 {
+		return getSuperRoot(t, o, timestamp, supervisorID)
+	})
+}
+
+func WithSuperRootsFromSupernode(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stack.L2CLNodeID, supernodeID stack.SupernodeID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
+	return withSuperRoots(l1ChainID, l1ELID, clIDs, primaryL2, func(t devtest.CommonT, o *Orchestrator, timestamp uint64) eth.Bytes32 {
+		return getSuperRootFromSupernode(t, o, timestamp, supernodeID)
+	})
+}
+
+func withSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stack.L2CLNodeID, primaryL2 eth.ChainID, getSuperRootAtTimestamp func(t devtest.CommonT, o *Orchestrator, timestamp uint64) eth.Bytes32) stack.Option[*Orchestrator] {
 	return stack.FnOption[*Orchestrator]{
 		FinallyFn: func(o *Orchestrator) {
 			t := o.P()
@@ -48,16 +75,34 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 			client := ethclient.NewClient(rpcClient)
 			w3Client := w3.NewClient(rpcClient)
 
-			l2CL, ok := o.l2CLs.Get(l2CLID)
-			require.True(ok, "must have L2 CL node")
-			rollupClientProvider, err := dial.NewStaticL2RollupProvider(t.Ctx(), t.Logger(), l2CL.UserRPC())
-			require.NoError(err)
-			rollupClient, err := rollupClientProvider.RollupClient(t.Ctx())
-			require.NoError(err)
-			require.NoError(wait.ForSafeBlock(t.Ctx(), rollupClient, 1))
-			header, err := client.HeaderByNumber(t.Ctx(), big.NewInt(int64(rpc.SafeBlockNumber)))
-			require.NoError(err)
-			superRoot := getSuperRoot(t, o, header.Time, supervisorID)
+			var superrootTime uint64
+			// Supernode does not support super roots at geensis.
+			// So let's wait for safe heads to advance before querying atTimestamp.
+			for _, clID := range clIDs {
+				cl, ok := o.l2CLs.Get(clID)
+				require.True(ok, "must have L2 CL node")
+				// TODO(#18947): Ideally, we should be able to wait on the supernode's SyncStatus directly
+				// rather than check the sync statuses of all CLs
+				rollupClient, err := dial.DialRollupClientWithTimeout(t.Ctx(), t.Logger(), cl.UserRPC())
+				t.Require().NoError(err)
+				defer rollupClient.Close()
+				ctx, cancel := context.WithTimeout(t.Ctx(), time.Minute*2)
+				err = wait.For(ctx, time.Second*1, func() (bool, error) {
+					status, err := rollupClient.SyncStatus(ctx)
+					if err != nil {
+						return false, err
+					}
+					if status == nil {
+						return false, nil
+					}
+					superrootTime = status.SafeL2.Time
+					return status.SafeL2.Number > 0, nil
+				})
+				cancel()
+				t.Require().NoError(err, "waiting for supernode chain safe head to advance failed")
+			}
+
+			superRoot := getSuperRootAtTimestamp(t, o, superrootTime)
 
 			l1pao, err := o.keys.Address(devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole))
 			require.NoError(err, "must have L1 proxy admin owner private key")
@@ -66,8 +111,21 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 			superchainProxyAdmin := getProxyAdmin(t, w3Client, superchainConfigAddr)
 			require.NotEmpty(superchainProxyAdmin, "superchain proxy admin address is empty")
 
+			// Detect OPCM version to determine if we use V1 or V2 migration input
+			opcmAddr := o.wb.output.ImplementationsDeployment.OpcmImpl
+			useV2 := isOPCMV2(t, w3Client, opcmAddr)
+
 			absoluteCannonPrestate := getInteropCannonAbsolutePrestate(t)
 			absoluteCannonKonaPrestate := getInteropCannonKonaAbsolutePrestate(t)
+
+			// Use primaryL2 to determine which challenger / proposer roles to promote to the shared permissioned fdg
+			permissionedChainOps := devkeys.ChainOperatorKeys(primaryL2.ToBig())
+			proposer, err := o.keys.Address(permissionedChainOps(devkeys.ProposerRole))
+			o.P().Require().NoError(err, "must have configured proposer")
+			challenger, err := o.keys.Address(permissionedChainOps(devkeys.ChallengerRole))
+			o.P().Require().NoError(err, "must have configured challenger")
+
+			// Build chain configs for both V1 and V2 compatibility
 			var opChainConfigs []bindings.OPContractsManagerOpChainConfig
 			var l2ChainIDs []eth.ChainID
 			for l2ChainID, l2Deployment := range o.wb.outL2Deployment {
@@ -79,37 +137,60 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 				})
 			}
 
-			// Use primaryL2 to determine which challenger / proposer roles to promote to the shared permissioned fdg
-			permissionedChainOps := devkeys.ChainOperatorKeys(primaryL2.ToBig())
-			proposer, err := o.keys.Address(permissionedChainOps(devkeys.ProposerRole))
-			o.P().Require().NoError(err, "must have configured proposer")
-			challenger, err := o.keys.Address(permissionedChainOps(devkeys.ChallengerRole))
-			o.P().Require().NoError(err, "must have configured challenger")
-
 			opcmABI, err := bindings.OPContractsManagerMetaData.GetAbi()
 			o.P().Require().NoError(err, "invalid OPCM ABI")
-			opcmAddr := o.wb.output.ImplementationsDeployment.OpcmImpl
 			contract := batching.NewBoundContract(opcmABI, opcmAddr)
-			migrateInput := bindings.OPContractsManagerInteropMigratorMigrateInput{
-				UsePermissionlessGame: true,
-				StartingAnchorRoot: bindings.Proposal{
-					Root:             common.Hash(superRoot),
-					L2SequenceNumber: big.NewInt(int64(header.Time)),
-				},
-				GameParameters: bindings.OPContractsManagerInteropMigratorGameParameters{
-					Proposer:         proposer,
-					Challenger:       challenger,
-					MaxGameDepth:     big.NewInt(73),
-					SplitDepth:       big.NewInt(30),
-					InitBond:         big.NewInt(0),
-					ClockExtension:   10800,
-					MaxClockDuration: 302400,
-				},
-				OpChainConfigs: opChainConfigs,
+
+			var migrateCallData []byte
+			if useV2 {
+				// OPCM V2 (>= 7.0.0) uses IOPContractsManagerMigrator.MigrateInput
+				var chainSystemConfigs []common.Address
+				for _, cfg := range opChainConfigs {
+					chainSystemConfigs = append(chainSystemConfigs, cfg.SystemConfigProxy)
+				}
+
+				migrateInputV2 := MigrateInputV2{
+					ChainSystemConfigs: chainSystemConfigs,
+					DisputeGameConfigs: []DisputeGameConfigV2{
+						{
+							Enabled:  true,
+							InitBond: big.NewInt(0),
+							GameType: superCannonGameType,
+							GameArgs: absoluteCannonPrestate[:],
+						},
+					},
+					StartingAnchorRoot: bindings.Proposal{
+						Root:             common.Hash(superRoot),
+						L2SequenceNumber: big.NewInt(int64(superrootTime)),
+					},
+					StartingRespectedGameType: superCannonGameType,
+				}
+				migrateCall := contract.Call("migrate", migrateInputV2)
+				migrateCallData, err = migrateCall.Pack()
+				require.NoError(err)
+			} else {
+				// OPCM V1 (< 7.0.0) uses IOPContractsManagerInteropMigrator.MigrateInput
+				migrateInputV1 := bindings.OPContractsManagerInteropMigratorMigrateInput{
+					UsePermissionlessGame: true,
+					StartingAnchorRoot: bindings.Proposal{
+						Root:             common.Hash(superRoot),
+						L2SequenceNumber: big.NewInt(int64(superrootTime)),
+					},
+					GameParameters: bindings.OPContractsManagerInteropMigratorGameParameters{
+						Proposer:         proposer,
+						Challenger:       challenger,
+						MaxGameDepth:     big.NewInt(73),
+						SplitDepth:       big.NewInt(30),
+						InitBond:         big.NewInt(0),
+						ClockExtension:   10800,
+						MaxClockDuration: 302400,
+					},
+					OpChainConfigs: opChainConfigs,
+				}
+				migrateCall := contract.Call("migrate", migrateInputV1)
+				migrateCallData, err = migrateCall.Pack()
+				require.NoError(err)
 			}
-			migrateCall := contract.Call("migrate", migrateInput)
-			migrateCallData, err := migrateCall.Pack()
-			require.NoError(err)
 
 			chainOps := devkeys.ChainOperatorKeys(l1ChainID.ToBig())
 			l1PAOKey, err := o.keys.Secret(chainOps(devkeys.L1ProxyAdminOwnerRole))
@@ -228,35 +309,41 @@ func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervis
 	return super.SuperRoot
 }
 
+func getSuperRootFromSupernode(t devtest.CommonT, o *Orchestrator, timestamp uint64, supernodeID stack.SupernodeID) eth.Bytes32 {
+	supernode, ok := o.supernodes.Get(supernodeID)
+	t.Require().True(ok, "must have supernode")
+
+	client, err := dial.DialSuperNodeClientWithTimeout(t.Ctx(), t.Logger(), supernode.UserRPC())
+	t.Require().NoError(err)
+
+	ctx, cancel := context.WithTimeout(t.Ctx(), time.Minute*2)
+	err = wait.For(ctx, time.Second*1, func() (bool, error) {
+		resp, err := client.SuperRootAtTimestamp(ctx, timestamp)
+		if err != nil {
+			t.Logf("DEBUG: Failed to get super root at timestamp %d: err: %v", timestamp, err)
+			return false, err
+		}
+		return resp.Data != nil, nil
+	})
+	cancel()
+	t.Require().NoError(err, "waiting for supernode superroot to be ready failed")
+
+	resp, err := client.SuperRootAtTimestamp(t.Ctx(), timestamp)
+	t.Require().NoError(err, "super root at timestamp failed")
+	t.Require().NotNil(resp.Data, "super root data must be present")
+	return resp.Data.SuperRoot
+}
+
 func getInteropCannonAbsolutePrestate(t devtest.CommonT) common.Hash {
 	return getAbsolutePrestate(t, "op-program/bin/prestate-proof-interop.json")
 }
 
 func getInteropCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
-	return loadKonaVersions(t).InteropPrestateHash
+	return getAbsolutePrestate(t, "kona/prestate-artifacts-cannon-interop/prestate-proof.json")
 }
 
 func getCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
-	return loadKonaVersions(t).PrestateHash
-}
-
-func loadKonaVersions(t devtest.CommonT) konaVersions {
-	konaVersionPath := "kona/version.json"
-	root, err := findMonorepoRoot(konaVersionPath)
-	t.Require().NoError(err)
-	p := path.Join(root, konaVersionPath)
-	data, err := os.ReadFile(p)
-	t.Require().NoError(err, "Failed to read kona versions")
-	var versions konaVersions
-	err = json.Unmarshal(data, &versions)
-	require.NoError(t, err, "Failed to parse kona versions")
-	return versions
-}
-
-type konaVersions struct {
-	Version             string      `json:"version"`
-	PrestateHash        common.Hash `json:"prestateHash"`
-	InteropPrestateHash common.Hash `json:"interopPrestateHash"`
+	return getAbsolutePrestate(t, "kona/prestate-artifacts-cannon/prestate-proof.json")
 }
 
 func getAbsolutePrestate(t devtest.CommonT, prestatePath string) common.Hash {
@@ -290,7 +377,19 @@ var (
 	ethLockboxFn          = w3.MustNewFunc("ethLockbox()", "address")
 	anchorStateRegistryFn = w3.MustNewFunc("anchorStateRegistry()", "address")
 	transferOwnershipFn   = w3.MustNewFunc("transferOwnership(address)", "")
+	versionFn             = w3.MustNewFunc("version()", "string")
 )
+
+// isOPCMV2 is a helper function that checks the OPCM version and returns true if it is at least 7.0.0
+func isOPCMV2(t devtest.CommonT, client *w3.Client, opcmAddr common.Address) bool {
+	var version string
+	err := client.Call(w3eth.CallFunc(opcmAddr, versionFn).Returns(&version))
+	t.Require().NoError(err, "failed to get OPCM version")
+
+	isVersionAtLeast, err := deployer.IsVersionAtLeast(version, 7, 0, 0)
+	t.Require().NoError(err, "failed to check OPCM version")
+	return isVersionAtLeast
+}
 
 func getOptimismPortal(t devtest.CommonT, client *w3.Client, systemConfigProxy common.Address) common.Address {
 	var addr common.Address
@@ -423,6 +522,26 @@ func resetOwnershipAfterMigration(
 		proxyAdmin,
 		l1PAO,
 	)
+
+	// The migration temporarily transfers ownership of each portal ProxyAdmin to the DelegateCallProxy
+	// to satisfy the delegatecall requirement of the OPCM. Reset these back to the L1 proxy admin owner
+	// after the shared admin contracts are restored.
+	for _, cfg := range opChainConfigs {
+		portal := getOptimismPortal(t, w3Client, cfg.SystemConfigProxy)
+		portalProxyAdmin := getProxyAdmin(t, w3Client, portal)
+		// In some setups the migration may already restore ownership. Only reset when still owned by the proxy.
+		if getOwner(t, w3Client, portalProxyAdmin) == delegateCallProxy {
+			transferOwnershipForDelegateCallProxy(
+				t,
+				l1ChainID,
+				ownerPrivateKey,
+				client,
+				delegateCallProxy,
+				portalProxyAdmin,
+				l1PAO,
+			)
+		}
+	}
 
 	// The Proxy Admin owner is changed. Assert that the admin of other proxies are consistent
 	var sharedAnchorStateRegistryProxy common.Address

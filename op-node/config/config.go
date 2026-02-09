@@ -93,6 +93,11 @@ type Config struct {
 
 	// Experimental. Enables new opstack RPC namespace. Used by op-test-sequencer.
 	ExperimentalOPStackAPI bool
+
+	// SupervisorEnabled indicates whether supervisor-based interop features are enabled.
+	// When false (default), interop contracts deploy but cross-chain coordination is handled locally.
+	// When true, the node defers cross-unsafe/cross-safe/finality to the supervisor.
+	SupervisorEnabled bool
 }
 
 // ConductorRPCFunc retrieves the endpoint. The RPC may not immediately be available.

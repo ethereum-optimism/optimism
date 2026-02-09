@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig/test"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/superchain"
 	"github.com/stretchr/testify/require"
@@ -13,8 +14,8 @@ import (
 func TestGetCustomRollupConfig(t *testing.T) {
 	config, err := rollupConfigByChainID(eth.ChainIDFromUInt64(901), test.TestCustomChainConfigFS)
 	require.NoError(t, err)
-	require.Equal(t, config.L1ChainID.Uint64(), uint64(900))
-	require.Equal(t, config.L2ChainID.Uint64(), uint64(901))
+	require.Equal(t, bigs.Uint64Strict(config.L1ChainID), uint64(900))
+	require.Equal(t, bigs.Uint64Strict(config.L2ChainID), uint64(901))
 
 	_, err = rollupConfigByChainID(eth.ChainIDFromUInt64(900), test.TestCustomChainConfigFS)
 	require.Error(t, err)
@@ -29,7 +30,7 @@ func TestGetCustomRollupConfig_Missing(t *testing.T) {
 func TestGetCustomChainConfig(t *testing.T) {
 	config, err := l2ChainConfigByChainID(eth.ChainIDFromUInt64(901), test.TestCustomChainConfigFS)
 	require.NoError(t, err)
-	require.Equal(t, config.ChainID.Uint64(), uint64(901))
+	require.Equal(t, bigs.Uint64Strict(config.ChainID), uint64(901))
 
 	_, err = l2ChainConfigByChainID(eth.ChainIDFromUInt64(900), test.TestCustomChainConfigFS)
 	require.Error(t, err)
@@ -43,7 +44,7 @@ func TestGetCustomChainConfig_Missing(t *testing.T) {
 func TestGetCustomL1ChainConfig(t *testing.T) {
 	config, err := l1ChainConfigByChainID(eth.ChainIDFromUInt64(900), test.TestCustomChainConfigFS)
 	require.NoError(t, err)
-	require.Equal(t, config.ChainID.Uint64(), uint64(900))
+	require.Equal(t, bigs.Uint64Strict(config.ChainID), uint64(900))
 }
 
 func TestGetCustomL1ChainConfig_Missing(t *testing.T) {

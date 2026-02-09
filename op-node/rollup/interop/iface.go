@@ -29,6 +29,6 @@ type L2Source interface {
 }
 
 type Setup interface {
-	Setup(ctx context.Context, logger log.Logger, rollupCfg *rollup.Config, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer) (SubSystem, error)
+	Setup(ctx context.Context, logger log.Logger, rollupCfg *rollup.Config, supervisorEnabled bool, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer) (SubSystem, error)
 	Check() error
 }

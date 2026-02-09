@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,7 +25,7 @@ func FuzzVersionedNonce(f *testing.F) {
 
 		decodedNonce, decodedVersion := crossdomain.DecodeVersionedNonce(encodedNonce)
 
-		require.Equal(t, decodedNonce.Uint64(), inputNonce.Uint64())
-		require.Equal(t, decodedVersion.Uint64(), inputVersion.Uint64())
+		require.True(t, bigs.Equal(decodedNonce, inputNonce))
+		require.True(t, bigs.Equal(decodedVersion, inputVersion))
 	})
 }

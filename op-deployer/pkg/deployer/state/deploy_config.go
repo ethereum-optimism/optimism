@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
@@ -91,7 +92,7 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 			UpgradeScheduleDeployConfig: *upgradeSchedule,
 			L2CoreDeployConfig: genesis.L2CoreDeployConfig{
 				L1ChainID:                 intent.L1ChainID,
-				L2ChainID:                 chainState.ID.Big().Uint64(),
+				L2ChainID:                 bigs.Uint64Strict(chainState.ID.Big()),
 				L2BlockTime:               2,
 				FinalizationPeriodSeconds: 12,
 				MaxSequencerDrift:         600,

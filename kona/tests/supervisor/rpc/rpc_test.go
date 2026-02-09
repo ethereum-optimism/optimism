@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -224,7 +225,7 @@ func TestRPCCheckAccessList(gt *testing.T) {
 		return args.Access()
 	}
 
-	blockRef := sys.L2ChainA.PublicRPC().BlockRefByNumber(initReceipt.BlockNumber.Uint64())
+	blockRef := sys.L2ChainA.PublicRPC().BlockRefByNumber(bigs.Uint64Strict(initReceipt.BlockNumber))
 
 	var accessEntries []types.Access
 	for _, evLog := range initReceipt.Logs {

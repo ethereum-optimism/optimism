@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/bgpo"
 	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -21,10 +22,23 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
+
+// blobTipOracle is an interface for suggesting blob tip caps.
+// This interface allows the txmgr to use either the real blobTipOracle or a mock for testing.
+type blobTipOracle interface {
+	// Start starts the oracle's background processing.
+	Start() error
+	// SuggestBlobTipCap returns a suggested tip cap for blob transactions.
+	// Pass 0 for maxBlocks or percentile to use the oracle's configured defaults.
+	SuggestBlobTipCap(ctx context.Context, maxBlocks int, percentile int) (*big.Int, error)
+	// Close stops the oracle and releases resources.
+	Close()
+}
 
 const (
 	// geth requires a minimum fee bump of 10% for regular tx resubmission
@@ -145,6 +159,8 @@ type SimpleTxManager struct {
 	metr                metrics.TxMetricer
 	gasPriceEstimatorFn GasPriceEstimatorFn
 
+	blobTipOracle blobTipOracle
+
 	nonce     *uint64
 	nonceLock sync.RWMutex
 
@@ -168,19 +184,50 @@ func NewSimpleTxManagerFromConfig(name string, l log.Logger, m metrics.TxMetrice
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
-	if conf.GasPriceEstimatorFn == nil {
-		conf.GasPriceEstimatorFn = DefaultGasPriceEstimatorFn
+	mgr := &SimpleTxManager{
+		chainID: conf.ChainID,
+		name:    name,
+		cfg:     conf,
+		backend: conf.Backend,
+		l:       l.New("service", name),
+		metr:    m,
 	}
 
-	return &SimpleTxManager{
-		chainID:             conf.ChainID,
-		name:                name,
-		cfg:                 conf,
-		backend:             conf.Backend,
-		l:                   l.New("service", name),
-		metr:                m,
-		gasPriceEstimatorFn: conf.GasPriceEstimatorFn,
-	}, nil
+	// Initialize the BlobTipOracle if BTOConfig is provided
+	if conf.BTOConfig != nil {
+		btoConfig := conf.BTOConfig
+		oracleConfig := bgpo.DefaultBlobTipOracleConfig()
+		oracleConfig.NetworkTimeout = conf.NetworkTimeout
+		if btoConfig.BlobTipCapRange > 0 {
+			oracleConfig.MaxBlocks = btoConfig.BlobTipCapRange
+		}
+		if btoConfig.BlobTipCapPercentile > 0 {
+			oracleConfig.Percentile = btoConfig.BlobTipCapPercentile
+		}
+		// Use MinTipCap as the default priority fee for the oracle
+		if minTipCap := conf.MinTipCap.Load(); minTipCap != nil {
+			oracleConfig.DefaultPriorityFee = minTipCap
+		}
+
+		mgr.blobTipOracle = bgpo.NewBlobTipOracle(
+			btoConfig.Backend, btoConfig.ChainConfig,
+			l.New("module", "BTO"), oracleConfig)
+
+		if err := mgr.blobTipOracle.Start(); err != nil {
+			mgr.l.Error("Blob tip oracle failed to start", "err", err)
+		}
+
+		mgr.l.Info("Started blob tip oracle")
+	}
+
+	// Set up the gas price estimator function
+	if conf.GasPriceEstimatorFn != nil {
+		mgr.gasPriceEstimatorFn = conf.GasPriceEstimatorFn
+	} else {
+		mgr.gasPriceEstimatorFn = DefaultGasPriceEstimatorFn
+	}
+
+	return mgr, nil
 }
 
 func (m *SimpleTxManager) ChainID() eth.ChainID {
@@ -208,6 +255,10 @@ func (m *SimpleTxManager) API() rpc.API {
 // Close closes the underlying connection, and sets the closed flag.
 // once closed, the tx manager will refuse to send any new transactions, and may abandon pending ones.
 func (m *SimpleTxManager) Close() {
+	// Close the blob tip oracle if it's running
+	if m.blobTipOracle != nil {
+		m.blobTipOracle.Close()
+	}
 	m.backend.Close()
 	m.closed.Store(true)
 }
@@ -358,11 +409,15 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		m.metr.RPCError()
 		return nil, fmt.Errorf("failed to get gas price info or it's too high: %w", err)
 	}
+	isBlobTx := len(candidate.Blobs) > 0
+	if isBlobTx {
+		gasTipCap = blobTipCap
+	}
 	gasFeeCap := calcGasFeeCap(baseFee, gasTipCap)
 
 	var sidecar *types.BlobTxSidecar
 	var blobHashes []common.Hash
-	if len(candidate.Blobs) > 0 {
+	if isBlobTx {
 		if candidate.To == nil {
 			return nil, errors.New("blob txs cannot deploy contracts")
 		}
@@ -384,7 +439,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 	}
 
 	var txMessage types.TxData
-	if sidecar != nil {
+	if isBlobTx {
 		if blobBaseFee == nil {
 			return nil, errors.New("expected non-nil blobBaseFee")
 		}
@@ -395,18 +450,6 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 			Gas:        candidate.GasLimit,
 			BlobHashes: blobHashes,
 			Sidecar:    sidecar,
-		}
-
-		// graceful upgrade to using blob tip oracle, for now we just compare the fees based on current codebase and the new bgpo module
-		{
-			oracleSavings := blobTipCap.Cmp(gasTipCap) < 0
-
-			// TODO(18618): before activating the blob tip oracle, confirm in prod that we mostly get oracleSavings == true, otherwise
-			// it is not worth it using the oracle
-			m.l.Info("Comparison between blobTipCap and gasTipCap", "blobTipCap", blobTipCap, "gasTipCap", gasTipCap, "oracle_blob_savings", oracleSavings)
-
-			// TODO(18618): when activating the blob tip oracle, we should remove the assignment and use the suggested blob tip cap from the oracle
-			blobTipCap = gasTipCap
 		}
 
 		if err := finishBlobTx(message, m.chainID, blobTipCap, gasFeeCap, blobFeeCap, candidate.Value); err != nil {
@@ -522,6 +565,15 @@ func (m *SimpleTxManager) GetBumpFeeRetryTime() time.Duration {
 func (m *SimpleTxManager) SetBumpFeeRetryTime(val time.Duration) {
 	m.cfg.ResubmissionTimeout.Store(int64(val))
 	m.l.Info("txmgr config val changed: SetBumpFeeRetryTime", "newVal", val)
+}
+
+func (m *SimpleTxManager) GetBlobTipCapDynamic() bool {
+	return m.cfg.BlobTipCapDynamic.Load()
+}
+
+func (m *SimpleTxManager) SetBlobTipCapDynamic(val bool) {
+	m.cfg.BlobTipCapDynamic.Store(val)
+	m.l.Info("txmgr config val changed: SetBlobTipCapDynamic", "newVal", val)
 }
 
 // MakeSidecar builds & returns the BlobTxSidecar and corresponding blob hashes from the raw blob
@@ -864,7 +916,7 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 	// Receipt is confirmed to be valid from this point on
 	sendState.TxMined(txHash)
 
-	txHeight := receipt.BlockNumber.Uint64()
+	txHeight := bigs.Uint64Strict(receipt.BlockNumber)
 	tip, err := m.backend.HeaderByNumber(ctx, nil)
 	if err != nil {
 		m.metr.RPCError()
@@ -892,7 +944,7 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 	// transaction should be confirmed when txHeight is equal to
 	// tipHeight. The equation is rewritten in this form to avoid
 	// underflows.
-	tipHeight := tip.Number.Uint64()
+	tipHeight := bigs.Uint64Strict(tip.Number)
 	if txHeight+m.cfg.NumConfirmations <= tipHeight+1 {
 		m.l.Info("Transaction confirmed", "tx", txHash,
 			"block", eth.ReceiptBlockID(receipt),
@@ -913,13 +965,15 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
 	m.txLogger(tx, true).Info("bumping gas price for transaction")
 	tip, baseFee, blobTipCap, blobBaseFee, err := m.SuggestGasPriceCaps(ctx)
-	// TODO(18618): when activating the blob tip oracle, integrate blobTipCap into the rest of the logic around bumping the gas price when replacing txs
-	_ = blobTipCap
 	if err != nil {
 		m.txLogger(tx, false).Warn("failed to get suggested gas tip and base fee", "err", err)
 		return nil, err
 	}
-	bumpedTip, bumpedFee := updateFees(tx.GasTipCap(), tx.GasFeeCap(), tip, baseFee, tx.Type() == types.BlobTxType, m.l)
+	isBlobTx := tx.Type() == types.BlobTxType
+	if isBlobTx {
+		tip = blobTipCap
+	}
+	bumpedTip, bumpedFee := updateFees(tx.GasTipCap(), tx.GasFeeCap(), tip, baseFee, isBlobTx, m.l)
 
 	if err := m.checkLimits(tip, baseFee, bumpedTip, bumpedFee); err != nil {
 		return nil, err
@@ -935,7 +989,7 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 		Value:     tx.Value(),
 	}
 	var bumpedBlobFee *big.Int
-	if tx.Type() == types.BlobTxType {
+	if isBlobTx {
 		// Blob transactions have an additional blob gas price we must specify, so we must make sure it is
 		// getting bumped appropriately.
 		bumpedBlobFee = calcThresholdValue(tx.BlobGasFeeCap(), true)
@@ -1017,7 +1071,7 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	cCtx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
 
-	tip, baseFee, blobTipCap, blobBaseFee, err := m.gasPriceEstimatorFn(cCtx, m.backend)
+	tip, baseFee, blobBaseFee, err := m.gasPriceEstimatorFn(cCtx, m.backend)
 	if err != nil {
 		m.metr.RPCError()
 		return nil, nil, nil, nil, fmt.Errorf("failed to get gas price estimates: %w", err)
@@ -1026,29 +1080,39 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	m.metr.RecordTipCap(tip)
 	m.metr.RecordBaseFee(baseFee)
 	m.metr.RecordBlobBaseFee(blobBaseFee)
-	m.metr.RecordBlobTipCap(blobTipCap)
 
 	// Enforce minimum base fee and tip cap
 	minTipCap := m.cfg.MinTipCap.Load()
 	maxTipCap := m.cfg.MaxTipCap.Load()
 	minBaseFee := m.cfg.MinBaseFee.Load()
 	maxBaseFee := m.cfg.MaxBaseFee.Load()
+	dynamicBlobTipCap := m.cfg.BlobTipCapDynamic.Load()
 
-	// Enforce minimum tip cap (for non-blob txs)
+	// Enforce tip cap limits
 	if minTipCap != nil && tip.Cmp(minTipCap) == -1 {
 		m.l.Debug("Enforcing min tip cap", "minTipCap", minTipCap, "origTipCap", tip)
 		tip = new(big.Int).Set(minTipCap)
 	}
+
+	blobTip := new(big.Int).Set(tip)
+	if m.cfg.BlobTipCapDynamic.Load() {
+		// pass 0, 0 to use configured values
+		blobTip, err = m.blobTipOracle.SuggestBlobTipCap(ctx, 0, 0)
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("failed to get blob tip cap from oracle: %w", err)
+		}
+		m.metr.RecordBlobTipCap(blobTip)
+	}
+	// Note that we don't enforce a minimum blob tip cap if using the oracle.
+
+	m.l.Info("Estimated gas fees & tip caps", "gasTipCap", tip, "baseFee", baseFee,
+		"blobTipCap", blobTip, "blobBaseFee", blobBaseFee, "dynamicBlobTipCap", dynamicBlobTipCap)
+
 	if maxTipCap != nil && tip.Cmp(maxTipCap) > 0 {
 		return nil, nil, nil, nil, fmt.Errorf("tip is too high: %v, cap:%v", tip, maxTipCap)
 	}
-
-	// Comparing if the configured min tip cap is higher than the suggested blob tip cap, and if so, it means we are overpaying for the transaction
-	if minTipCap != nil && blobTipCap.Cmp(minTipCap) == -1 {
-		m.l.Warn("Suggested blobTipCap is lower than the configured min tip cap for blob txs", "minTipCap", minTipCap, "blobTipCap", blobTipCap)
-	}
-	if maxTipCap != nil && blobTipCap.Cmp(maxTipCap) > 0 {
-		return nil, nil, nil, nil, fmt.Errorf("blob tip cap is too high: %v, cap:%v", blobTipCap, maxTipCap)
+	if maxTipCap != nil && blobTip.Cmp(maxTipCap) > 0 {
+		return nil, nil, nil, nil, fmt.Errorf("blob tip cap is too high: %v, cap:%v", blobTip, maxTipCap)
 	}
 
 	if minBaseFee != nil && baseFee.Cmp(minBaseFee) == -1 {
@@ -1059,8 +1123,7 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 		return nil, nil, nil, nil, fmt.Errorf("baseFee is too high: %v, cap:%v", baseFee, maxBaseFee)
 	}
 
-	m.l.Info("Suggested gas price caps", "gasTipCap", tip, "baseFee", baseFee, "blobTipCap", blobTipCap, "blobBaseFee", blobBaseFee)
-	return tip, baseFee, blobTipCap, blobBaseFee, nil
+	return tip, baseFee, blobTip, blobBaseFee, nil
 }
 
 // checkLimits checks that the tip and baseFee have not increased by more than the configured multipliers

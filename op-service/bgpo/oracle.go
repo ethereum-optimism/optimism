@@ -2,6 +2,7 @@ package bgpo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"sort"
@@ -9,22 +10,29 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
-	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 )
+
+// BTOBackend is the interface for the blob tip oracle to interact with the L1 chain.
+// ethclient.Client implements this interface.
+type BTOBackend interface {
+	BlockNumber(ctx context.Context) (uint64, error)
+	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
+	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
+}
 
 // BlobTipOracle tracks blob base gas prices by subscribing to new block headers
 // and extracts the blob tip caps from blob txs from each block.
 type BlobTipOracle struct {
 	sync.Mutex
 
-	client      *client.PollingClient
+	backend     BTOBackend
 	chainConfig *params.ChainConfig
 	log         log.Logger
 	config      *BlobTipOracleConfig
@@ -41,17 +49,7 @@ type BlobTipOracle struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	sub ethereum.Subscription
-
-	cachePopulated chan struct{}
-}
-
-// rpcBlock structure for fetching blocks with transactions.
-// When eth_getBlockByNumber is called with true, it returns full transaction objects.
-type rpcBlock struct {
-	Number       hexutil.Uint64       `json:"number"`
-	Hash         hexutil.Bytes        `json:"hash"`
-	Transactions []*types.Transaction `json:"transactions"`
+	loopDone chan struct{}
 }
 
 // BlobTipOracleConfig configures the blob tip oracle.
@@ -90,7 +88,7 @@ func DefaultBlobTipOracleConfig() *BlobTipOracleConfig {
 
 // NewBlobTipOracle creates a new blob tip oracle that will subscribe
 // to newHeads and track blob base fees, and extract blob tip caps from blob txs.
-func NewBlobTipOracle(ctx context.Context, rpcClient client.RPC, chainConfig *params.ChainConfig, log log.Logger, config *BlobTipOracleConfig) *BlobTipOracle {
+func NewBlobTipOracle(backend BTOBackend, chainConfig *params.ChainConfig, log log.Logger, config *BlobTipOracleConfig) *BlobTipOracle {
 	defaultConfig := DefaultBlobTipOracleConfig()
 	if config == nil {
 		config = defaultConfig
@@ -108,97 +106,80 @@ func NewBlobTipOracle(ctx context.Context, rpcClient client.RPC, chainConfig *pa
 		config.Percentile = defaultConfig.Percentile
 	}
 
-	logger := log.With("module", "bgpo")
-
-	pollClient := client.NewPollingClient(ctx, logger, rpcClient, client.WithPollRate(config.PollRate))
-
-	oracleCtx, cancel := context.WithCancel(ctx)
+	oracleCtx, cancel := context.WithCancel(context.Background())
 	return &BlobTipOracle{
-		config:         config,
-		client:         pollClient,
-		chainConfig:    chainConfig,
-		log:            log.With("module", "bgpo"),
-		baseFees:       caching.NewLRUCache[uint64, *big.Int](config.Metrics, "bgpo_prices", config.PricesCacheSize),
-		priorityFees:   caching.NewLRUCache[uint64, []*big.Int](config.Metrics, "bgpo_tips", config.BlockCacheSize),
-		ctx:            oracleCtx,
-		cancel:         cancel,
-		cachePopulated: make(chan struct{}),
+		config:       config,
+		backend:      backend,
+		chainConfig:  chainConfig,
+		log:          log.With("module", "bgpo"),
+		baseFees:     caching.NewLRUCache[uint64, *big.Int](config.Metrics, "bgpo_prices", config.PricesCacheSize),
+		priorityFees: caching.NewLRUCache[uint64, []*big.Int](config.Metrics, "bgpo_tips", config.BlockCacheSize),
+		ctx:          oracleCtx,
+		cancel:       cancel,
 	}
 }
 
-// WaitCachePopulated waits for the cache to be populated.
-func (o *BlobTipOracle) WaitCachePopulated() {
-	select {
-	case <-o.cachePopulated:
-		o.log.Info("Done waiting for cache pre-population")
-		return
-	case <-o.ctx.Done():
-		o.log.Error("Cache pre-population timed out", "ctx", o.ctx.Err())
-		return
-	case <-time.After(o.config.NetworkTimeout * time.Duration(o.config.MaxBlocks)):
-		o.log.Error("Cache pre-population timed out after timeout", "timeout", o.config.NetworkTimeout, "maxBlocks", o.config.MaxBlocks)
-		return
-	}
-}
-
-// Start begins subscribing to newHeads and processing headers.
-// Before subscribing, it pre-populates the cache with the last MaxBlocks blocks.
-// This method blocks until the context is canceled or an error occurs.
+// Start starts the oracle's background processing. It returns after the cache is prepopulated and
+// the polling loop is started. To stop the background processing, call [BlobTipOracle.Close].
 func (o *BlobTipOracle) Start() error {
-	// Pre-populate cache with recent blocks before subscribing
+	// Pre-populate cache with recent blocks before starting the polling loop
 	if err := o.prePopulateCache(); err != nil {
 		o.log.Warn("Failed to pre-populate cache, continuing anyway", "err", err)
 	}
 
-	headers := make(chan *types.Header, 10)
+	o.log.Info("Blob tip oracle started, polling for new headers")
 
-	doSubscribe := func(ch chan<- *types.Header) (ethereum.Subscription, error) {
-		return o.client.Subscribe(o.ctx, "eth", ch, "newHeads")
-	}
+	o.loopDone = make(chan struct{})
+	go o.pollLoop()
+	return nil
+}
 
-	sub, err := doSubscribe(headers)
-	if err != nil {
-		return err
-	}
-	o.sub = sub
+func (o *BlobTipOracle) pollLoop() {
+	defer o.log.Debug("Blob tip oracle polling loop exited")
+	defer close(o.loopDone)
 
-	o.log.Info("Blob tip oracle started, subscribed to newHeads")
+	ticker := time.NewTicker(o.config.PollRate)
+	defer ticker.Stop()
 
-	// Process headers as they arrive
 	for {
 		select {
-		case header := <-headers:
-			if err := o.processHeader(header); err != nil {
-				o.log.Error("Error processing header", "err", err, "block", header.Number.Uint64())
-			}
-		case err := <-sub.Err():
-			if err != nil {
-				o.log.Error("Subscription error", "err", err)
-				return err
-			}
-			return nil
 		case <-o.ctx.Done():
 			o.log.Info("Blob tip oracle context canceled")
-			return nil
+			return
+		case <-ticker.C:
+			nextBlock := o.latestBlock + 1
+			header, err := func() (*types.Header, error) {
+				ctx, cancel := context.WithTimeout(o.ctx, o.config.NetworkTimeout)
+				defer cancel()
+				return o.backend.HeaderByNumber(ctx, big.NewInt(int64(nextBlock)))
+			}()
+			if errors.Is(err, ethereum.NotFound) {
+				continue // Block not yet available
+			}
+			if err != nil {
+				o.log.Warn("Failed to get header", "err", err, "block", nextBlock)
+				continue
+			}
+			if err := o.processHeader(header); err != nil {
+				o.log.Error("Error processing header", "err", err, "block", nextBlock)
+			}
 		}
 	}
 }
 
 // prePopulateCache fetches and processes the last MaxBlocks blocks to pre-populate the cache.
 func (o *BlobTipOracle) prePopulateCache() error {
-	defer close(o.cachePopulated) // signal that the cache is populated and we can start using the oracle
 	now := time.Now()
 
 	ctx, cancel := context.WithTimeout(o.ctx, o.config.NetworkTimeout)
 	defer cancel()
 
 	// Get the latest block number
-	var latestBlockNum hexutil.Uint64
-	if err := o.client.CallContext(ctx, &latestBlockNum, "eth_blockNumber"); err != nil {
+	latest, err := o.backend.BlockNumber(ctx)
+	if err != nil {
 		return fmt.Errorf("failed to get latest block number: %w", err)
 	}
 
-	latest := uint64(latestBlockNum)
 	var startBlock uint64
 	if latest >= uint64(o.config.MaxBlocks) {
 		startBlock = latest - uint64(o.config.MaxBlocks) + 1
@@ -211,9 +192,8 @@ func (o *BlobTipOracle) prePopulateCache() error {
 	// Fetch and process each block
 	for blockNum := startBlock; blockNum <= latest; blockNum++ {
 		// Fetch header
-		var header *types.Header
-		blockNumHex := hexutil.EncodeUint64(blockNum)
-		if err := o.client.CallContext(ctx, &header, "eth_getBlockByNumber", blockNumHex, false); err != nil {
+		header, err := o.backend.HeaderByNumber(ctx, big.NewInt(int64(blockNum)))
+		if err != nil {
 			o.log.Debug("Failed to fetch header for pre-population", "block", blockNum, "err", err)
 			continue
 		}
@@ -233,13 +213,13 @@ func (o *BlobTipOracle) prePopulateCache() error {
 // It also triggers an asynchronous fetch of the full block to extract blob fee caps.
 func (o *BlobTipOracle) processHeader(header *types.Header) error {
 	defer func(start time.Time) {
-		o.log.Debug("Processed header", "block", header.Number.Uint64(), "time", time.Since(start))
+		o.log.Debug("Processed header", "block", bigs.Uint64Strict(header.Number), "time", time.Since(start))
 	}(time.Now())
 
 	o.Lock()
 	defer o.Unlock()
 
-	blockNum := header.Number.Uint64()
+	blockNum := bigs.Uint64Strict(header.Number)
 
 	// Calculate blob base fee from the header
 	if _, ok := o.baseFees.Get(blockNum); ok {
@@ -281,9 +261,8 @@ func (o *BlobTipOracle) fetchBlockBlobFeeCaps(blockNum uint64, baseFee *big.Int)
 	defer cancel()
 
 	// Fetch the block
-	var block rpcBlock
-	blockNumHex := hexutil.EncodeUint64(blockNum)
-	if err := o.client.CallContext(ctx, &block, "eth_getBlockByNumber", blockNumHex, true); err != nil {
+	block, err := o.backend.BlockByNumber(ctx, big.NewInt(int64(blockNum)))
+	if err != nil {
 		o.log.Warn("Failed to fetch block for blob fee caps", "block", blockNum, "err", err)
 		return
 	}
@@ -374,24 +353,24 @@ func (o *BlobTipOracle) SuggestBlobTipCap(ctx context.Context, maxBlocks int, pe
 	}
 
 	// No blob transactions found, use the default priority fee - that should almost never happen, so we warn about it
-	o.log.Warn("No recent blob transactions found, using blob base fee + buffer", "block", latestBlockNum, "default_priority_fee", o.config.DefaultPriorityFee.String())
+	o.log.Warn("No recent blob transactions found, using default prio fee", "block", latestBlockNum, "defaultPriorityFee", o.config.DefaultPriorityFee)
 	return new(big.Int).Set(o.config.DefaultPriorityFee), nil
 }
 
 // extractTipsForBlobTxs extracts tips for blob transactions from a block's transactions.
-func (o *BlobTipOracle) extractTipsForBlobTxs(block rpcBlock, baseFee *big.Int) []*big.Int {
+func (o *BlobTipOracle) extractTipsForBlobTxs(block *types.Block, baseFee *big.Int) []*big.Int {
 	var tips []*big.Int
-	for _, tx := range block.Transactions {
+	for _, tx := range block.Transactions() {
 		// Check if it's a blob transaction (type 3) and has blob fee cap
 		if tx.Type() == types.BlobTxType {
 			tip, err := tx.EffectiveGasTip(baseFee) // tip calculated from execution gas, for a type 3 transaction
 			if err != nil {
-				o.log.Error("Failed to calculate effective gas tip", "block", uint64(block.Number), "err", err)
+				o.log.Error("Failed to calculate effective gas tip", "block", block.NumberU64(), "err", err)
 				continue
 			}
 
 			tips = append(tips, tip)
-			o.log.Debug("Extracted tip from blob tx", "block", uint64(block.Number), "tip", tip.String())
+			o.log.Debug("Extracted tip from blob tx", "block", block.NumberU64(), "tip", tip.String())
 		}
 	}
 	return tips
@@ -400,8 +379,8 @@ func (o *BlobTipOracle) extractTipsForBlobTxs(block rpcBlock, baseFee *big.Int) 
 // Close stops the oracle and cleans up resources.
 func (o *BlobTipOracle) Close() {
 	o.cancel()
-	if o.sub != nil {
-		o.sub.Unsubscribe()
+	if o.loopDone != nil {
+		<-o.loopDone
 	}
 	o.log.Info("Blob tip oracle closed")
 }

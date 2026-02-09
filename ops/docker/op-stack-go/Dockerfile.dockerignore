@@ -22,10 +22,15 @@
 !/op-supernode
 !/op-interop-filter
 !/op-test-sequencer
+!/op-validator
 !/op-wheel
 !/op-alt-da
 !/op-faucet
 !/op-interop-mon
+!/kona
+# Exclude large kona build artifacts
+kona/target
+kona/.git
 !/go.mod
 !/go.sum
 !/justfiles
@@ -36,3 +41,6 @@
 **/bin
 **/testdata
 **/tests
+
+# Re-include kona/bin which is excluded by **/bin above
+!/kona/bin

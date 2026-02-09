@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	types2 "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -142,7 +143,7 @@ func (s *SuperNodeTraceProvider) ComputeStep(pos types.Position) (timestamp uint
 		return
 	}
 
-	traceIdx := bigIdx.Uint64() + 1
+	traceIdx := bigs.Uint64Strict(bigIdx) + 1
 	timestampIncrements := traceIdx / StepsPerTimestamp
 	timestamp = s.prestateTimestamp + timestampIncrements
 	if timestamp >= s.poststateTimestamp { // Apply trace extension once the claimed timestamp is reached

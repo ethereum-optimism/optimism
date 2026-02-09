@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
@@ -39,8 +40,6 @@ type ProvenWithdrawalParameters struct {
 	DisputeGameAddress common.Address
 	DisputeGameIndex   *big.Int
 	Data               []byte
-	SuperRootProof     *bindings.SuperRootProof // Only set for games using super roots
-	OutputRootIndex    *big.Int                 // Only set for games using super roots
 	OutputRootProof    bindings.OutputRootProof
 	WithdrawalProof    [][]byte // List of trie nodes to prove L2 storage
 }
@@ -53,15 +52,14 @@ type StandardBridge struct {
 	disputeGameFactory  bindings.DisputeGameFactory
 	rollupCfg           *rollup.Config
 
-	l1Client         *L1ELNode
-	l2Client         apis.EthClient
-	supervisorClient apis.SupervisorQueryAPI
+	l1Client *L1ELNode
+	l2Client apis.EthClient
 
 	// L1 bridge contract
 	l1StandardBridge bindings.L1StandardBridge
 }
 
-func NewStandardBridge(t devtest.T, l2Network *L2Network, supervisor *Supervisor, l1EL *L1ELNode) *StandardBridge {
+func NewStandardBridge(t devtest.T, l2Network *L2Network, l1EL *L1ELNode) *StandardBridge {
 	l1Client := l1EL.EthClient()
 	l1PortalAddr := l2Network.DepositContractAddr()
 	l1Portal := bindings.NewBindings[bindings.OptimismPortal2](
@@ -83,10 +81,6 @@ func NewStandardBridge(t devtest.T, l2Network *L2Network, supervisor *Supervisor
 		bindings.WithTo(l2Network.Escape().Deployment().L1StandardBridgeProxyAddr()),
 		bindings.WithTest(t))
 
-	var supervisorClient apis.SupervisorQueryAPI
-	if supervisor != nil {
-		supervisorClient = supervisor.inner.QueryAPI()
-	}
 	return &StandardBridge{
 		commonImpl:          commonFromT(t),
 		l1PortalAddr:        l1PortalAddr,
@@ -97,7 +91,6 @@ func NewStandardBridge(t devtest.T, l2Network *L2Network, supervisor *Supervisor
 
 		l1Client:         l1EL,
 		l2Client:         l2Client,
-		supervisorClient: supervisorClient,
 		l1StandardBridge: l1StandardBridge,
 	}
 }
@@ -276,7 +269,7 @@ type disputeGame struct {
 // when required by the respected game type
 func (b *StandardBridge) forGamePublished(l2BlockNumber *big.Int) disputeGame {
 	respectedGameType := b.RespectedGameType()
-	l2SequenceNumber := l2BlockNumber.Uint64()
+	l2SequenceNumber := bigs.Uint64Strict(l2BlockNumber)
 	superRootsActive := b.UsesSuperRoots()
 	if superRootsActive {
 		l2SequenceNumber = b.rollupCfg.TimestampForBlock(l2SequenceNumber)
@@ -298,7 +291,7 @@ func (b *StandardBridge) forGamePublished(l2BlockNumber *big.Int) disputeGame {
 			bindings.WithTest(b.t))
 		seqNum, err := contractio.Read(gameContract.L2SequenceNumber(), b.ctx)
 		b.require.NoError(err, "Failed to read sequence number")
-		gameSeqNum = seqNum.Uint64()
+		gameSeqNum = bigs.Uint64Strict(seqNum)
 		b.log.Info("Found latest game", "index", gameIndex, "seqNum", gameSeqNum)
 		return gameSeqNum >= l2SequenceNumber
 	}, 90*time.Second, 100*time.Millisecond, "did not find a game of type %v at or after l2 sequence number %v", respectedGameType, l2SequenceNumber)
@@ -383,12 +376,7 @@ func (w *Withdrawal) Prove(user *EOA) {
 		Data:     params.Data,
 	}
 
-	var call bindings.TypedCall[any]
-	if params.SuperRootProof == nil {
-		call = w.bridge.l1Portal.ProveWithdrawalTransaction(tx, params.DisputeGameIndex, params.OutputRootProof, params.WithdrawalProof)
-	} else {
-		call = w.bridge.l1Portal.ProveWithdrawalTransactionSuperRoot(tx, params.DisputeGameAddress, params.OutputRootIndex, *params.SuperRootProof, params.OutputRootProof, params.WithdrawalProof)
-	}
+	call := w.bridge.l1Portal.ProveWithdrawalTransaction(tx, params.DisputeGameIndex, params.OutputRootProof, params.WithdrawalProof)
 	// Retry as withdrawals can't be proven in the same block as the game is created.
 	// estimateGas works against the current head so we may need to retry until it has progressed enough.
 	w.require.Eventually(func() bool {
@@ -445,28 +433,6 @@ func (w *Withdrawal) proveWithdrawalParametersForEvent(ev *nodebindings.L2ToL1Me
 		trieNodes[i] = s
 	}
 
-	var superRootProof *bindings.SuperRootProof
-	var outputRootIndex *big.Int
-	if disputeGame.UsesSuperRoots {
-		response, err := w.bridge.supervisorClient.SuperRootAtTimestamp(w.ctx, hexutil.Uint64(disputeGame.SequenceNumber))
-		w.require.NoErrorf(err, "failed to fetch superRoot for at timestamp %v", disputeGame.SequenceNumber)
-		outputRoots := make([]bindings.OutputRootWithChainID, len(response.Chains))
-		for i, chain := range response.Chains {
-			outputRoots[i] = bindings.OutputRootWithChainID{
-				ChainID: chain.ChainID.ToBig(),
-				Root:    chain.Canonical,
-			}
-			if chain.ChainID == eth.ChainIDFromBig(w.bridge.rollupCfg.L2ChainID) {
-				outputRootIndex = big.NewInt(int64(i))
-			}
-		}
-		superRootProof = &bindings.SuperRootProof{
-			Version:     [1]byte{response.Version},
-			Timestamp:   response.Timestamp,
-			OutputRoots: outputRoots,
-		}
-	}
-
 	return ProvenWithdrawalParameters{
 		Nonce:              ev.Nonce,
 		Sender:             ev.Sender,
@@ -476,8 +442,6 @@ func (w *Withdrawal) proveWithdrawalParametersForEvent(ev *nodebindings.L2ToL1Me
 		DisputeGameAddress: disputeGame.Address,
 		DisputeGameIndex:   disputeGame.Index,
 		Data:               ev.Data,
-		SuperRootProof:     superRootProof,
-		OutputRootIndex:    outputRootIndex,
 		OutputRootProof: bindings.OutputRootProof{
 			Version:                  [32]byte{}, // Empty for version 1
 			StateRoot:                l2Header.Root(),
@@ -585,7 +549,7 @@ func hasOperatorFee(rcpt *types.Receipt) bool {
 
 func (b *StandardBridge) receiptTimestamp(rcpt *types.Receipt, client apis.EthClient) *uint64 {
 	b.require.NotNil(rcpt.BlockNumber, "receipt missing block number")
-	blockInfo, err := client.InfoByNumber(b.ctx, rcpt.BlockNumber.Uint64())
+	blockInfo, err := client.InfoByNumber(b.ctx, bigs.Uint64Strict(rcpt.BlockNumber))
 	b.require.NoError(err, "failed to fetch block info for receipt")
 	ts := blockInfo.Time()
 	return &ts

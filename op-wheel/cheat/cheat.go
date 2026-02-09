@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -87,7 +88,7 @@ type HeadFn func(header *types.Header, headState *state.StateDB) error
 // (unless it ever re-applies the block).
 func (ch *Cheater) RunAndClose(fn HeadFn) error {
 	preHeader := ch.Blockchain.CurrentBlock()
-	if a, b := preHeader.Number.Uint64(), ch.Blockchain.Genesis().NumberU64(); a <= b {
+	if a, b := bigs.Uint64Strict(preHeader.Number), ch.Blockchain.Genesis().NumberU64(); a <= b {
 		return fmt.Errorf("cheating at genesis (head block %d <= genesis block %d) is not supported", a, b)
 	}
 	state, err := ch.Blockchain.StateAt(preHeader.Root)
@@ -105,7 +106,7 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 
 	isCancun := ch.Blockchain.Config().IsCancun(preHeader.Number, preHeader.Time)
 	// commit the changes, and then update the state-root
-	stateRoot, err := state.Commit(preHeader.Number.Uint64()+1, true, isCancun)
+	stateRoot, err := state.Commit(bigs.Uint64Strict(preHeader.Number)+1, true, isCancun)
 	if err != nil {
 		_ = ch.Close()
 		return fmt.Errorf("failed to commit state change: %w", err)
@@ -122,7 +123,7 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 	// based on core.BlockChain.writeHeadBlock:
 	// Add the block to the canonical chain number scheme and mark as the head
 	batch := ch.DB.NewBatch()
-	preID := eth.BlockID{Hash: preHeader.Hash(), Number: preHeader.Number.Uint64()}
+	preID := eth.BlockID{Hash: preHeader.Hash(), Number: bigs.Uint64Strict(preHeader.Number)}
 	if ch.Blockchain.CurrentFinalBlock().Hash() == preID.Hash {
 		rawdb.WriteFinalizedBlockHash(batch, blockHash)
 	}
@@ -323,7 +324,7 @@ func StoragePatch(patch io.Reader, address common.Address) HeadFn {
 			i += 1
 			if i%1000 == 0 { // for every 1000 values, commit to disk
 				// warning: if the account is empty, the storage change will not persist.
-				if _, err := headState.Commit(head.Number.Uint64(), true, false); err != nil {
+				if _, err := headState.Commit(bigs.Uint64Strict(head.Number), true, false); err != nil {
 					return fmt.Errorf("failed to commit state to disk after patching %d entries: %w", i, err)
 				}
 			}

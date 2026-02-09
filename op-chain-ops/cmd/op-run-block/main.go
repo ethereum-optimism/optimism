@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/triedb"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -224,7 +225,7 @@ func (r remoteChainCtx) CurrentHeader() *types.Header {
 
 // GetHeaderByNumber is part of consensus.ChainHeaderReader
 func (r remoteChainCtx) GetHeaderByNumber(u uint64) *types.Header {
-	if r.hdr.Number.Uint64() == u {
+	if bigs.Uint64Strict(r.hdr.Number) == u {
 		return r.hdr
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)

@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -340,11 +341,12 @@ func TestPreregolith(t *testing.T) {
 
 			contractBalance, err := opGeth.L2Client.BalanceAt(ctx, incorrectContractAddress, nil)
 			require.NoError(t, err)
-			require.Equal(t, uint64(0), contractBalance.Uint64(), "balance unchanged on incorrect contract address")
+			require.Zero(t, contractBalance.BitLen(), "balance unchanged on incorrect contract address")
 
 			contractBalance, err = opGeth.L2Client.BalanceAt(ctx, correctContractAddress, nil)
 			require.NoError(t, err)
-			require.Equal(t, uint64(params.Ether), contractBalance.Uint64(), "balance changed on correct contract address")
+			require.Truef(t, bigs.Equal(big.NewInt(params.Ether), contractBalance),
+				"balance changed on correct contract address, expected %v, got %v", params.Ether, contractBalance)
 
 			// Check the actual transaction nonce is reported correctly when retrieving the tx from the API.
 			tx, _, err := opGeth.L2Client.TransactionByHash(ctx, contractCreateTx.Hash())
@@ -527,7 +529,7 @@ func TestRegolith(t *testing.T) {
 
 			contractBalance, err := opGeth.L2Client.BalanceAt(ctx, createRcpt.ContractAddress, nil)
 			require.NoError(t, err)
-			require.Equal(t, uint64(params.Ether), contractBalance.Uint64(), "balance changed on correct contract address")
+			require.Truef(t, bigs.Equal(big.NewInt(params.Ether), contractBalance), "balance changed on correct contract address, expected %v, got %v", params.Ether, contractBalance)
 
 			// Check the actual transaction nonce is reported correctly when retrieving the tx from the API.
 			tx, _, err := opGeth.L2Client.TransactionByHash(ctx, contractCreateTx.Hash())

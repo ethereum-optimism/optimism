@@ -32,7 +32,7 @@
     "label": "anchorGame",
     "offset": 0,
     "slot": "2",
-    "type": "contract IFaultDisputeGame"
+    "type": "contract IDisputeGame"
   },
   {
     "bytes": "64",
