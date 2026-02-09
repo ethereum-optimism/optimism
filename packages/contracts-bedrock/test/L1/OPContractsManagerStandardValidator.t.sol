@@ -273,10 +273,10 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                         abi.encodeCall(
                             IOPContractsManagerV2.upgrade,
                             (IOPContractsManagerV2.UpgradeInput({
-                                    systemConfig: systemConfig,
-                                    disputeGameConfigs: disputeGameConfigs,
-                                    extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
-                                }))
+                                systemConfig: systemConfig,
+                                disputeGameConfigs: disputeGameConfigs,
+                                extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
+                            }))
                         )
                     );
                 assertTrue(success, "upgrade failed");

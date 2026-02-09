@@ -318,9 +318,9 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
                 abi.encodeCall(
                     IOPContractsManagerV2.upgradeSuperchain,
                     (IOPContractsManagerV2.SuperchainUpgradeInput({
-                            superchainConfig: superchainConfig,
-                            extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
-                        }))
+                        superchainConfig: superchainConfig,
+                        extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
+                    }))
                 )
             );
         if (success == false) {
