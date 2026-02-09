@@ -7,6 +7,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Unauthorized, ZeroAddress } from "src/libraries/errors/CommonErrors.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces
 import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
@@ -38,6 +39,15 @@ abstract contract SuperchainETHBridge_TestInit is CommonTest {
     function _mockAndExpect(address _receiver, bytes memory _calldata, bytes memory _returned) internal {
         vm.mockCall(_receiver, _calldata, _returned);
         vm.expectCall(_receiver, _calldata);
+    }
+}
+
+/// @title SuperchainETHBridge_Version_Test
+/// @notice Tests the `version` function.
+contract SuperchainETHBridge_Version_Test is SuperchainETHBridge_TestInit {
+    /// @notice Tests that version is valid semver format.
+    function test_version_validFormat_succeeds() external view {
+        SemverComp.parse(superchainETHBridge.version());
     }
 }
 
