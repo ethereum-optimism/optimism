@@ -178,9 +178,9 @@ func createTestVNConfig() *opnodecfg.Config {
 	}
 }
 
-func createTestCLIConfig() config.CLIConfig {
+func createTestCLIConfig(dataDir string) config.CLIConfig {
 	return config.CLIConfig{
-		DataDir: "/tmp/test",
+		DataDir: dataDir,
 		RPCConfig: oprpc.CLIConfig{
 			ListenAddr: "0.0.0.0",
 			ListenPort: 8545,
@@ -217,10 +217,10 @@ func TestChainContainer_Constructor(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(420)
 	vncfg := createTestVNConfig()
 	log := createTestLogger(t)
-	cfg := createTestCLIConfig()
 	initOverload := &rollupNode.InitializationOverrides{}
 
 	t.Run("creates container with correct config", func(t *testing.T) {
+		cfg := createTestCLIConfig(t.TempDir())
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 
 		require.NotNil(t, container)
@@ -237,21 +237,22 @@ func TestChainContainer_Constructor(t *testing.T) {
 	})
 
 	t.Run("SafeDBPath uses subPath", func(t *testing.T) {
+		dataDir := t.TempDir()
 		cfg := config.CLIConfig{
-			DataDir: "/tmp/datadir",
+			DataDir: dataDir,
 		}
 		container := NewChainContainer(eth.ChainIDFromUInt64(420), vncfg, log, cfg, initOverload, nil, nil, nil)
 
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
-		expectedPath := filepath.Join("/tmp/datadir", "420", "safe_db")
+		expectedPath := filepath.Join(dataDir, "420", "safe_db")
 		require.Equal(t, expectedPath, impl.vncfg.SafeDBPath)
 	})
 
 	t.Run("RPC config inherited from supernode config", func(t *testing.T) {
 		cfg := config.CLIConfig{
-			DataDir: "/tmp/test",
+			DataDir: t.TempDir(),
 			RPCConfig: oprpc.CLIConfig{
 				ListenAddr: "127.0.0.1",
 				ListenPort: 9545,
@@ -266,6 +267,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 	})
 
 	t.Run("appVersion set correctly", func(t *testing.T) {
+		cfg := createTestCLIConfig(t.TempDir())
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -274,31 +276,32 @@ func TestChainContainer_Constructor(t *testing.T) {
 	})
 
 	t.Run("subPath combines DataDir, chainID, and path correctly", func(t *testing.T) {
+		dataDir := t.TempDir()
 		cfg := config.CLIConfig{
-			DataDir: "/data",
+			DataDir: dataDir,
 		}
 		container := NewChainContainer(eth.ChainIDFromUInt64(420), vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
 		result := impl.subPath("safe_db")
-		expected := filepath.Join("/data", "420", "safe_db")
+		expected := filepath.Join(dataDir, "420", "safe_db")
 		require.Equal(t, expected, result)
 	})
 
 	t.Run("subPath works with various chain IDs", func(t *testing.T) {
+		dataDir := t.TempDir()
 		cfg := config.CLIConfig{
-			DataDir: "/data",
+			DataDir: dataDir,
 		}
 
 		testCases := []struct {
-			chainID  eth.ChainID
-			path     string
-			expected string
+			chainID eth.ChainID
+			path    string
 		}{
-			{eth.ChainIDFromUInt64(10), "safe_db", "/data/10/safe_db"},
-			{eth.ChainIDFromUInt64(11155420), "safe_db", "/data/11155420/safe_db"},
-			{eth.ChainIDFromUInt64(8453), "peerstore", "/data/8453/peerstore"},
+			{eth.ChainIDFromUInt64(10), "safe_db"},
+			{eth.ChainIDFromUInt64(11155420), "safe_db"},
+			{eth.ChainIDFromUInt64(8453), "peerstore"},
 		}
 
 		for _, tc := range testCases {
@@ -307,7 +310,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 			require.True(t, ok)
 
 			result := impl.subPath(tc.path)
-			expected := filepath.Join(cfg.DataDir, tc.chainID.String(), tc.path)
+			expected := filepath.Join(dataDir, tc.chainID.String(), tc.path)
 			require.Equal(t, expected, result, "subPath should work for chain %d", tc.chainID)
 		}
 	})
@@ -319,11 +322,11 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 
 	chainID := eth.ChainIDFromUInt64(420)
 	vncfg := createTestVNConfig()
-	cfg := createTestCLIConfig()
 	initOverload := &rollupNode.InitializationOverrides{}
 
 	t.Run("Start respects stop flag", func(t *testing.T) {
 		log := createTestLogger(t)
+		cfg := createTestCLIConfig(t.TempDir())
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -350,6 +353,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 
 	t.Run("Stop sets stop flag", func(t *testing.T) {
 		log := createTestLogger(t)
+		cfg := createTestCLIConfig(t.TempDir())
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -364,6 +368,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 
 	t.Run("signals stopped channel on exit", func(t *testing.T) {
 		log := createTestLogger(t)
+		cfg := createTestCLIConfig(t.TempDir())
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -393,6 +398,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 
 	t.Run("context cancellation stops restart loop", func(t *testing.T) {
 		log := createTestLogger(t)
+		cfg := createTestCLIConfig(t.TempDir())
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -433,6 +439,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 
 	t.Run("Stop flag stops restart loop", func(t *testing.T) {
 		log := createTestLogger(t)
+		cfg := createTestCLIConfig(t.TempDir())
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -475,11 +482,11 @@ func TestChainContainer_PauseResume(t *testing.T) {
 
 	chainID := eth.ChainIDFromUInt64(420)
 	vncfg := createTestVNConfig()
-	cfg := createTestCLIConfig()
 	initOverload := &rollupNode.InitializationOverrides{}
 
 	t.Run("Pause sets pause flag", func(t *testing.T) {
 		log := createTestLogger(t)
+		cfg := createTestCLIConfig(t.TempDir())
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -493,6 +500,7 @@ func TestChainContainer_PauseResume(t *testing.T) {
 
 	t.Run("Resume clears pause flag", func(t *testing.T) {
 		log := createTestLogger(t)
+		cfg := createTestCLIConfig(t.TempDir())
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -508,6 +516,7 @@ func TestChainContainer_PauseResume(t *testing.T) {
 
 	t.Run("paused container doesn't start VN, resumed does", func(t *testing.T) {
 		log := createTestLogger(t)
+		cfg := createTestCLIConfig(t.TempDir())
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -747,11 +756,11 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 
 	chainID := eth.ChainIDFromUInt64(420)
 	vncfg := createTestVNConfig()
-	cfg := createTestCLIConfig()
 	initOverload := &rollupNode.InitializationOverrides{}
 
 	t.Run("Start creates and starts virtual node", func(t *testing.T) {
 		log := createTestLogger(t)
+		cfg := createTestCLIConfig(t.TempDir())
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -782,6 +791,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 
 	t.Run("auto-restart virtual node on exit", func(t *testing.T) {
 		log := createTestLogger(t)
+		cfg := createTestCLIConfig(t.TempDir())
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -818,6 +828,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 
 	t.Run("Stop calls virtual node Stop", func(t *testing.T) {
 		log := createTestLogger(t)
+		cfg := createTestCLIConfig(t.TempDir())
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -863,6 +874,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		}
 
 		log := createTestLogger(t)
+		cfg := createTestCLIConfig(t.TempDir())
 		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, setHandler, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -895,7 +907,7 @@ func TestChainContainer_VerifiedAt(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(420)
 	vncfg := createTestVNConfig()
 	log := createTestLogger(t)
-	cfg := createTestCLIConfig()
+	cfg := createTestCLIConfig(t.TempDir())
 	initOverload := &rollupNode.InitializationOverrides{}
 
 	t.Run("returns error when verification activity reports not verified", func(t *testing.T) {
