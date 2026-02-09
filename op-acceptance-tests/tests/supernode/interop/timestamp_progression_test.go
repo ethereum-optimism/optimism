@@ -46,13 +46,13 @@ func TestSupernodeInteropVerifiedAt(gt *testing.T) {
 	)
 }
 
-// TestSupernodeInteropChainLag tests that interop verification is based on SAFE heads,
+// TestSupernodeInteropChainLag tests that interop verification is based on local SAFE heads,
 // not unsafe heads. When chain B's batcher is stopped (but CL keeps running):
 // - Chain B's unsafe head continues to advance
-// - Chain B's safe head is frozen (no batches submitted to L1)
-// - Timestamps should NOT be verified until safe heads catch up
+// - Chain B's local safe head is frozen (no batches submitted to L1)
+// - Timestamps should NOT be verified until local safe heads catch up
 //
-// This proves the supernode waits for all chains' safe heads before verifying.
+// This proves the supernode waits for all chains' local safe heads before verifying.
 func TestSupernodeInteropChainLag(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
@@ -91,12 +91,12 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 		"baseline_timestamp", baselineTimestamp,
 	)
 
-	// Stop Chain B's batcher to halt safe head progression
+	// Stop Chain B's batcher to halt local safe head progression
 	sys.L2BatcherB.Stop()
 	t.Logger().Info("stopped chain B batcher (CL still running)")
 
-	// Wait for in-flight batches to settle - the safe head should stabilize
-	// We wait until the safe head doesn't change for 10 seconds
+	// Wait for in-flight batches to settle - the local safe head should stabilize
+	// We wait until the local safe head doesn't change for 10 seconds
 	// or up to 30 seconds to fail the test
 	var bStoppedSafeNum uint64
 	var bStoppedSafeTime uint64
@@ -115,20 +115,20 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 		bStoppedSafeNum = current.LocalSafeL2.Number
 		bStoppedSafeTime = current.LocalSafeL2.Time
 		if time.Since(start) > 30*time.Second {
-			t.Logger().Error("safe head did not stabilize after 30 seconds")
+			t.Logger().Error("local safe head did not stabilize after 30 seconds")
 			t.FailNow()
 		}
 	}
 
 	bStoppedStatus := sys.L2BCL.SyncStatus()
-	t.Logger().Info("chain B batcher stopped (safe head stabilized)",
+	t.Logger().Info("chain B batcher stopped (local safe head stabilized)",
 		"chainB_local_safe", bStoppedSafeNum,
 		"chainB_local_safe_time", bStoppedSafeTime,
 		"chainB_unsafe", bStoppedStatus.UnsafeL2.Number,
 	)
 
-	// Watch safe/unsafe and verified for 30 seconds
-	// First wait for chain A to advance past chain B's frozen safe head
+	// Watch local safe/unsafe and verified for 30 seconds
+	// First wait for chain A to advance past chain B's frozen local safe head
 	start = time.Now()
 	var aheadTimestamp uint64
 	for {
@@ -156,7 +156,7 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 
 		// KEY ASSERTION 2: Chain B's safe head should be frozen (no batches)
 		t.Require().Equal(bStoppedSafeNum, newStatusB.LocalSafeL2.Number,
-			"chain B safe head should be frozen with batcher stopped")
+			"chain B local safe head should be frozen with batcher stopped")
 
 		// Use chain A's ahead timestamp for verification check
 		aheadTimestamp = newStatusA.LocalSafeL2.Time
@@ -180,12 +180,12 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 	sys.L2BatcherB.Start()
 	t.Logger().Info("resumed chain B batcher")
 
-	// Wait for chain B's SAFE head to catch up
+	// Wait for chain B's local SAFE head to catch up
 	timeout := time.Duration(blockTime*20+60) * time.Second
 	t.Require().Eventually(func() bool {
 		currentB := sys.L2BCL.SyncStatus()
 		return currentB.LocalSafeL2.Time >= aheadTimestamp
-	}, timeout, time.Second, "chain B safe head should catch up after batcher resumes")
+	}, timeout, time.Second, "chain B local safe head should catch up after batcher resumes")
 
 	// KEY ASSERTION 4: Now that safe heads are caught up, timestamp should be verified
 	t.Require().Eventually(func() bool {
@@ -195,9 +195,9 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 			return false
 		}
 		return resp.Data != nil
-	}, 60*time.Second, time.Second, "ahead timestamp should be verified after chain B safe catches up")
+	}, 60*time.Second, time.Second, "ahead timestamp should be verified after chain B local safe catches up")
 
-	t.Logger().Info("confirmed: ahead timestamp is now verified after chain B safe caught up",
+	t.Logger().Info("confirmed: ahead timestamp is now verified after chain B local safe caught up",
 		"ahead_timestamp", aheadTimestamp,
 	)
 
