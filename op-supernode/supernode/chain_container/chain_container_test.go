@@ -179,6 +179,7 @@ func createTestVNConfig() *opnodecfg.Config {
 	return &opnodecfg.Config{
 		Rollup: rollup.Config{
 			L2ChainID: big.NewInt(420),
+			BlockTime: 2, // Set a non-zero block time to avoid divide by zero
 		},
 	}
 }
