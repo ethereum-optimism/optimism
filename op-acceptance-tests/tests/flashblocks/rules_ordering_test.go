@@ -6,7 +6,9 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"math/rand"
 	"os"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -492,4 +494,195 @@ func TestMultipleSendersWithMixedPriorities(gt *testing.T) {
 		return nil
 	})
 	require.NoError(t, err, "multiple senders mixed priorities verification failed")
+}
+
+// TestSingleSenderRandomNonceOrderWithRandomScores sends 10 transactions from a single sender
+// with explicit nonces, random gas tips, and random boost recipients. The transactions are
+// submitted to the mempool in a shuffled nonce order to verify that op-rbuilder correctly
+// sorts by transaction score while still respecting nonce ordering for the same sender.
+//
+// Setup:
+//   - 1 sender, 10 transactions (nonces base+0 through base+9)
+//   - Each tx gets a random gas tip (1-50 gwei) AND a random recipient from
+//     {HighPriority, MediumPriority, LowPriority, Normal} for varied boost weights
+//   - Transactions are shuffled before submission so the mempool receives them out-of-order
+//
+// Expected: All 10 transactions are included with strict nonce ordering preserved,
+// i.e. within the same block tx with nonce N always has a lower TransactionIndex
+// than tx with nonce N+1, and across blocks lower nonces are in earlier blocks.
+func TestSingleSenderRandomNonceOrderWithRandomScores(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	skipIfRulesNotEnabled(t)
+
+	logger := t.Logger()
+	tracer := t.Tracer()
+	ctx := t.Ctx()
+
+	sys := presets.NewSingleChainWithFlashblocks(t)
+
+	topLevelCtx, span := tracer.Start(ctx, "test single sender random nonce order with random scores")
+	defer span.End()
+
+	ctx, cancel := context.WithTimeout(topLevelCtx, 120*time.Second)
+	defer cancel()
+
+	driveViaTestSequencer(t, sys, 2)
+
+	const txCount = 10
+
+	type recipientInfo struct {
+		addr   common.Address
+		weight int
+	}
+	normalRecipient := sys.Wallet.NewEOA(sys.L2EL)
+	normalRecipientAddr := normalRecipient.Address()
+	recipients := []recipientInfo{
+		{HighPriorityRecipient, 5000},
+		{MediumPriorityRecipient, 2000},
+		{LowPriorityRecipient, 500},
+		{normalRecipientAddr, 0},
+	}
+
+	const maxRetries = 3
+	err := retry.Do0(ctx, maxRetries, &retry.FixedStrategy{Dur: 0}, func() error {
+		sender := sys.FunderL2.NewFundedEOA(eth.Ether(1))
+		baseNonce := sender.PendingNonce()
+
+		logger.Info("Test sender created",
+			"address", sender.Address().Hex(),
+			"baseNonce", baseNonce,
+		)
+
+		rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+		type txConfig struct {
+			nonce     uint64
+			tipGwei   int64
+			recipient recipientInfo
+		}
+		configs := make([]txConfig, txCount)
+		for i := 0; i < txCount; i++ {
+			tipGwei := int64(1 + rng.Intn(50))
+			recip := recipients[rng.Intn(len(recipients))]
+			configs[i] = txConfig{
+				nonce:     baseNonce + uint64(i),
+				tipGwei:   tipGwei,
+				recipient: recip,
+			}
+			logger.Info("Transaction config",
+				"index", i,
+				"nonce", configs[i].nonce,
+				"tipGwei", tipGwei,
+				"recipient", recip.addr.Hex(),
+				"boostWeight", recip.weight,
+			)
+		}
+
+		submitOrder := rng.Perm(txCount)
+		logger.Info("Shuffled submission order", "order", submitOrder)
+
+		sendAmount := eth.OneHundredthEther
+		highFeeCap := new(big.Int).Mul(big.NewInt(200), big.NewInt(1_000_000_000))
+
+		plannedTxs := make([]*txplan.PlannedTx, txCount)
+		var wg sync.WaitGroup
+		for _, idx := range submitOrder {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				cfg := configs[i]
+				tip := new(big.Int).Mul(big.NewInt(cfg.tipGwei), big.NewInt(1_000_000_000))
+				recipAddr := cfg.recipient.addr
+				plannedTxs[i] = sender.Transact(
+					sender.Plan(),
+					txplan.WithStaticNonce(cfg.nonce),
+					txplan.WithTo(&recipAddr),
+					txplan.WithValue(sendAmount),
+					txplan.WithGasTipCap(tip),
+					txplan.WithGasFeeCap(highFeeCap),
+				)
+			}(idx)
+		}
+		wg.Wait()
+
+		type txResult struct {
+			nonce   uint64
+			tipGwei int64
+			weight  int
+			receipt *types.Receipt
+		}
+		results := make([]txResult, txCount)
+		for i := 0; i < txCount; i++ {
+			receipt, err := plannedTxs[i].Included.Eval(ctx)
+			if err != nil {
+				return fmt.Errorf("tx%d (nonce %d) inclusion: %w", i, configs[i].nonce, err)
+			}
+			results[i] = txResult{
+				nonce:   configs[i].nonce,
+				tipGwei: configs[i].tipGwei,
+				weight:  configs[i].recipient.weight,
+				receipt: receipt,
+			}
+			logger.Info("Transaction confirmed",
+				"index", i,
+				"nonce", configs[i].nonce,
+				"tipGwei", configs[i].tipGwei,
+				"boostWeight", configs[i].recipient.weight,
+				"block", receipt.BlockNumber,
+				"txIndex", receipt.TransactionIndex,
+			)
+		}
+
+		sort.Slice(results, func(i, j int) bool {
+			return results[i].nonce < results[j].nonce
+		})
+
+		// Count how many transactions share a block with at least one other tx.
+		// If every tx lands in its own block, nonce ordering is trivially
+		// guaranteed by the protocol and the test does not exercise the builder's
+		// intra-block ordering logic.  Treat that as a retryable condition so the
+		// next attempt (with a fresh sender/nonces) hopefully lands more txs in
+		// the same block.
+		blockCounts := make(map[uint64]int)
+		for _, r := range results {
+			blockCounts[r.receipt.BlockNumber.Uint64()]++
+		}
+		maxPerBlock := 0
+		for _, c := range blockCounts {
+			if c > maxPerBlock {
+				maxPerBlock = c
+			}
+		}
+		if maxPerBlock < 2 {
+			return fmt.Errorf("all %d transactions landed in separate blocks (%d blocks); "+
+				"need at least 2 in the same block to validate intra-block nonce ordering",
+				txCount, len(blockCounts))
+		}
+
+		for i := 0; i < len(results)-1; i++ {
+			cur := results[i]
+			next := results[i+1]
+
+			if cur.receipt.BlockNumber.Cmp(next.receipt.BlockNumber) == 0 {
+				require.Less(t, cur.receipt.TransactionIndex, next.receipt.TransactionIndex,
+					"nonce %d (tip=%d gwei, boost=%d, txIdx=%d) must have lower tx index than nonce %d (tip=%d gwei, boost=%d, txIdx=%d) in block %d",
+					cur.nonce, cur.tipGwei, cur.weight, cur.receipt.TransactionIndex,
+					next.nonce, next.tipGwei, next.weight, next.receipt.TransactionIndex,
+					cur.receipt.BlockNumber)
+			} else {
+				require.Less(t, cur.receipt.BlockNumber.Uint64(), next.receipt.BlockNumber.Uint64(),
+					"nonce %d must be in an earlier block than nonce %d (got blocks %d and %d)",
+					cur.nonce, next.nonce, cur.receipt.BlockNumber, next.receipt.BlockNumber)
+			}
+		}
+
+		logger.Info("Single sender random nonce order test passed - nonce ordering preserved despite random scores and shuffled submission",
+			"txCount", txCount,
+			"blocksUsed", len(blockCounts),
+			"maxTxsInOneBlock", maxPerBlock,
+			"nonceRange", fmt.Sprintf("%d-%d", results[0].nonce, results[len(results)-1].nonce),
+		)
+		return nil
+	})
+	require.NoError(t, err, "single sender random nonce order with random scores verification failed")
 }
