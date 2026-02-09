@@ -20,9 +20,6 @@ workflows:
         # Only check normal dependencies.
         # Propagating to dev-dependencies leads to compilation issues.
         "--dep-kinds=normal:check,dev:ignore",
-        # Ignores `miniz_oxide/serde`, since its `serde` feature implies `std`
-        # TODO: Remove once a release has been cut with https://github.com/Frommi/miniz_oxide/pull/178
-        "--ignore-missing-propagate=kona-protocol/serde:miniz_oxide/serde",
         "--show-path",
         "--quiet",
       ]

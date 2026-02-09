@@ -128,4 +128,5 @@ serde = [
 	"op-alloy-rpc-types-engine/serde",
 	"op-alloy-rpc-types/serde",
 	"tracing-subscriber?/serde",
+	"miniz_oxide/serde"
 ]
