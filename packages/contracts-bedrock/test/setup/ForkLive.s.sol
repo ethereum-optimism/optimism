@@ -251,9 +251,9 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
                 abi.encodeCall(
                     IOPContractsManagerV2.upgradeSuperchain,
                     (IOPContractsManagerV2.SuperchainUpgradeInput({
-                            superchainConfig: superchainConfig,
-                            extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
-                        }))
+                        superchainConfig: superchainConfig,
+                        extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
+                    }))
                 )
             );
         if (success == false) {
@@ -318,10 +318,10 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
                 abi.encodeCall(
                     IOPContractsManagerV2.upgrade,
                     (IOPContractsManagerV2.UpgradeInput({
-                            systemConfig: systemConfig,
-                            disputeGameConfigs: disputeGameConfigs,
-                            extraInstructions: extraInstructions
-                        }))
+                        systemConfig: systemConfig,
+                        disputeGameConfigs: disputeGameConfigs,
+                        extraInstructions: extraInstructions
+                    }))
                 )
             );
         assertTrue(upgradeSuccess, "upgrade failed");

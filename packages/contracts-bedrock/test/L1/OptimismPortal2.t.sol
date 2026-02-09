@@ -1181,11 +1181,11 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         vm.expectRevert(UnknownChainId.selector);
         IOptimismPortalInterop(payable(optimismPortal2))
             .proveWithdrawalTransaction({
-                _tx: _defaultTx,
-                _disputeGameIndex: _proposedGameIndex,
-                _outputRootProof: _outputRootProof,
-                _withdrawalProof: _withdrawalProof
-            });
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
     }
 
     /// @notice Tests that `proveWithdrawalTransaction` reverts when superRootsActive is true
@@ -1208,11 +1208,11 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         vm.expectRevert(IOptimismPortalInterop.OptimismPortal_InvalidOutputRootProof.selector);
         IOptimismPortalInterop(payable(optimismPortal2))
             .proveWithdrawalTransaction({
-                _tx: _defaultTx,
-                _disputeGameIndex: _proposedGameIndex,
-                _outputRootProof: _outputRootProof,
-                _withdrawalProof: _withdrawalProof
-            });
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
     }
 
     /// @notice Tests that `proveWithdrawalTransaction` succeeds when superRootsActive is true
@@ -1233,11 +1233,11 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         // Should succeed.
         IOptimismPortalInterop(payable(optimismPortal2))
             .proveWithdrawalTransaction({
-                _tx: _defaultTx,
-                _disputeGameIndex: _proposedGameIndex,
-                _outputRootProof: _outputRootProof,
-                _withdrawalProof: _withdrawalProof
-            });
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
     }
 
     /// @notice Tests that `proveWithdrawalTransaction` succeeds.

@@ -3,9 +3,10 @@ pragma solidity 0.8.15;
 
 // Testing
 import { Test } from "test/setup/Test.sol";
+import { TestERC20 } from "test/mocks/TestERC20.sol";
 
 // Contracts
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { PolicyEngineStaking } from "src/periphery/staking/PolicyEngineStaking.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
@@ -13,16 +14,6 @@ import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-
-/// @title MockOPToken
-/// @notice Simple ERC20 mock for testing PolicyEngineStaking at the OP token predeploy address.
-contract MockOPToken is ERC20 {
-    constructor() ERC20("Optimism", "OP") { }
-
-    function mint(address _to, uint256 _amount) external {
-        _mint(_to, _amount);
-    }
-}
 
 /// @title PolicyEngineStaking_TestInit
 /// @notice Reusable test initialization for `PolicyEngineStaking` tests.
@@ -64,20 +55,20 @@ abstract contract PolicyEngineStaking_TestInit is Test {
         vm.label(address(staking), "PolicyEngineStaking");
     }
 
-    /// @notice Deploys a mock OP token at the predeploy address and funds test accounts.
+    /// @notice Deploys TestERC20 at the predeploy address and funds test accounts.
     function _setupMockOPToken() internal {
-        MockOPToken opToken = new MockOPToken();
-        vm.etch(Predeploys.GOVERNANCE_TOKEN, address(opToken).code);
+        TestERC20 token = new TestERC20();
+        vm.etch(Predeploys.GOVERNANCE_TOKEN, address(token).code);
 
-        deal(Predeploys.GOVERNANCE_TOKEN, alice, 1_000 ether);
-        deal(Predeploys.GOVERNANCE_TOKEN, bob, 1_000 ether);
-        deal(Predeploys.GOVERNANCE_TOKEN, carol, 1_000 ether);
+        TestERC20(Predeploys.GOVERNANCE_TOKEN).mint(alice, 1_000 ether);
+        TestERC20(Predeploys.GOVERNANCE_TOKEN).mint(bob, 1_000 ether);
+        TestERC20(Predeploys.GOVERNANCE_TOKEN).mint(carol, 1_000 ether);
     }
 
     /// @notice Approves the staking contract and stakes tokens.
     function _stake(address _account, uint256 _amount, address _beneficiary) internal {
         vm.prank(_account);
-        ERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), _amount);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), _amount);
         vm.prank(_account);
         staking.stake(_amount, _beneficiary);
     }
@@ -115,7 +106,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         uint256 amount = 100 ether;
 
         vm.prank(alice);
-        ERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), amount);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), amount);
 
         vm.expectEmit(address(staking));
         emit Staked(alice, address(0), amount);
@@ -152,7 +143,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         staking.setAllowedStaker(alice, true);
 
         vm.prank(alice);
-        ERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 100 ether);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 100 ether);
 
         vm.expectEmit(address(staking));
         emit Staked(alice, bob, 100 ether);
@@ -183,7 +174,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         _stake(alice, 100 ether, bob);
 
         vm.prank(alice);
-        ERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
         vm.prank(alice);
         staking.stake(50 ether, bob);
 
@@ -200,7 +191,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         _amount = bound(_amount, 1, 1_000 ether);
 
         vm.prank(alice);
-        ERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), _amount);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), _amount);
 
         vm.prank(alice);
         staking.stake(_amount, address(0));
@@ -220,7 +211,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
     /// @notice Tests that staking to another beneficiary without allowlist reverts.
     function test_stake_toBeneficiaryWithoutAllowlist_reverts() external {
         vm.prank(alice);
-        ERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 100 ether);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 100 ether);
 
         vm.prank(alice);
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_NotAllowedToLink.selector);
@@ -234,7 +225,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         _stake(alice, 100 ether, bob);
 
         vm.prank(alice);
-        ERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 100 ether);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 100 ether);
 
         vm.prank(alice);
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_AlreadyLinked.selector);
@@ -249,7 +240,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         staking.setAllowedStaker(alice, true);
 
         vm.prank(alice);
-        ERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
 
         vm.prank(alice);
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_MustLinkOrUnstakeFirst.selector);
@@ -265,7 +256,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         vm.prank(carol);
         staking.setAllowedStaker(alice, true);
         vm.prank(alice);
-        ERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
 
         vm.prank(alice);
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_AlreadyLinked.selector);
@@ -275,7 +266,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
     /// @notice Tests that staking to beneficiary not in allowlist reverts.
     function test_stake_notAllowedToLink_reverts() external {
         vm.prank(alice);
-        ERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 100 ether);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 100 ether);
 
         vm.prank(alice);
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_NotAllowedToLink.selector);
@@ -292,7 +283,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         staking.setAllowedStaker(alice, false);
 
         vm.prank(alice);
-        ERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
         vm.prank(alice);
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_NotAllowedToLink.selector);
         staking.stake(50 ether, bob);
@@ -306,7 +297,7 @@ contract PolicyEngineStaking_Unstake_Test is PolicyEngineStaking_TestInit {
     function test_unstake_succeeds() external {
         _stake(alice, 100 ether, address(0));
 
-        uint256 aliceBalanceBefore = ERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
+        uint256 aliceBalanceBefore = IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
 
         vm.expectEmit(address(staking));
         emit Unstaked(alice, 100 ether);
@@ -316,7 +307,7 @@ contract PolicyEngineStaking_Unstake_Test is PolicyEngineStaking_TestInit {
 
         (uint256 aliceStaked,,) = staking.getStakedData(alice);
         assertEq(aliceStaked, 0);
-        assertEq(ERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice), aliceBalanceBefore + 100 ether);
+        assertEq(IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice), aliceBalanceBefore + 100 ether);
     }
 
     /// @notice Tests that unstaking when linked returns tokens to staker.
@@ -325,14 +316,14 @@ contract PolicyEngineStaking_Unstake_Test is PolicyEngineStaking_TestInit {
         staking.setAllowedStaker(alice, true);
         _stake(alice, 100 ether, bob);
 
-        uint256 aliceBalanceBefore = ERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
+        uint256 aliceBalanceBefore = IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
 
         vm.prank(alice);
         staking.unstake();
 
         (uint256 aliceStaked,,) = staking.getStakedData(alice);
         assertEq(aliceStaked, 0);
-        assertEq(ERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice), aliceBalanceBefore + 100 ether);
+        assertEq(IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice), aliceBalanceBefore + 100 ether);
         (, uint256 bobReceived,) = staking.getStakedData(bob);
         assertEq(bobReceived, 0);
     }
@@ -585,10 +576,10 @@ contract PolicyEngineStaking_Upgrade_Test is PolicyEngineStaking_TestInit {
         assertEq(slotsBefore[6], vm.load(address(staking), _sdSlot(bob, 1)));
         assertEq(slotsBefore[7], vm.load(address(staking), _allowlistSlot(bob, alice)));
 
-        uint256 balanceBefore = ERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
+        uint256 balanceBefore = IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
         vm.prank(alice);
         staking.unstake();
-        assertEq(ERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice), balanceBefore + 100 ether);
+        assertEq(IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice), balanceBefore + 100 ether);
     }
 }
 
@@ -607,7 +598,7 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
         staking.link(bob);
 
         vm.prank(alice);
-        ERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
         vm.prank(alice);
         staking.stake(50 ether, bob);
 
@@ -624,10 +615,10 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
         (, bobReceived,) = staking.getStakedData(bob);
         assertEq(bobReceived, 0);
 
-        uint256 aliceBalanceBefore = ERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
+        uint256 aliceBalanceBefore = IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
         vm.prank(alice);
         staking.unstake();
-        assertEq(ERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice), aliceBalanceBefore + 150 ether);
+        assertEq(IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice), aliceBalanceBefore + 150 ether);
         (staked,,) = staking.getStakedData(alice);
         assertEq(staked, 0);
     }

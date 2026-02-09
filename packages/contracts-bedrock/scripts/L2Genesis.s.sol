@@ -553,10 +553,10 @@ contract L2Genesis is Script {
 
         ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER)
             .initialize({
-                _owner: _input.liquidityControllerOwner,
-                _gasPayingTokenName: _input.gasPayingTokenName,
-                _gasPayingTokenSymbol: _input.gasPayingTokenSymbol
-            });
+            _owner: _input.liquidityControllerOwner,
+            _gasPayingTokenName: _input.gasPayingTokenName,
+            _gasPayingTokenSymbol: _input.gasPayingTokenSymbol
+        });
     }
 
     /// @notice This predeploy is following the safety invariant #1.
@@ -730,8 +730,8 @@ contract L2Genesis is Script {
         // Initialize the predeploy
         IFeeVault(payable(_vaultAddr))
             .initialize({
-                _recipient: recipient, _minWithdrawalAmount: minWithdrawalAmount, _withdrawalNetwork: network
-            });
+            _recipient: recipient, _minWithdrawalAmount: minWithdrawalAmount, _withdrawalNetwork: network
+        });
     }
 
     /// @notice Funds the default dev accounts with ether
