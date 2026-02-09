@@ -19,9 +19,9 @@ func TestDenyList_AddAndContains(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		setup  func(t *testing.T, dl *DenyList)
-		check  func(t *testing.T, dl *DenyList)
+		name  string
+		setup func(t *testing.T, dl *DenyList)
+		check func(t *testing.T, dl *DenyList)
 	}{
 		{
 			name: "single hash at height",
@@ -209,9 +209,9 @@ func TestDenyList_GetDeniedHashes(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		setup  func(t *testing.T, dl *DenyList)
-		check  func(t *testing.T, dl *DenyList)
+		name  string
+		setup func(t *testing.T, dl *DenyList)
+		check func(t *testing.T, dl *DenyList)
 	}{
 		{
 			name: "returns all hashes at height",
@@ -352,30 +352,30 @@ func TestInvalidateBlock(t *testing.T) {
 	blockTime := uint64(2)
 
 	tests := []struct {
-		name            string
-		height          uint64
-		payloadHash     common.Hash
+		name             string
+		height           uint64
+		payloadHash      common.Hash
 		currentBlockHash common.Hash
-		engineAvailable bool
-		expectRewind    bool
-		expectRewindTs  uint64
+		engineAvailable  bool
+		expectRewind     bool
+		expectRewindTs   uint64
 	}{
 		{
-			name:            "current block matches triggers rewind",
-			height:          5,
-			payloadHash:     common.HexToHash("0xdead"),
+			name:             "current block matches triggers rewind",
+			height:           5,
+			payloadHash:      common.HexToHash("0xdead"),
 			currentBlockHash: common.HexToHash("0xdead"), // Same hash
-			engineAvailable: true,
-			expectRewind:    true,
-			expectRewindTs:  genesisTime + (4 * blockTime), // height-1 timestamp
+			engineAvailable:  true,
+			expectRewind:     true,
+			expectRewindTs:   genesisTime + (4 * blockTime), // height-1 timestamp
 		},
 		{
-			name:            "current block differs no rewind",
-			height:          5,
-			payloadHash:     common.HexToHash("0xdead"),
+			name:             "current block differs no rewind",
+			height:           5,
+			payloadHash:      common.HexToHash("0xdead"),
 			currentBlockHash: common.HexToHash("0xbeef"), // Different hash
-			engineAvailable: true,
-			expectRewind:    false,
+			engineAvailable:  true,
+			expectRewind:     false,
 		},
 		{
 			name:            "engine unavailable adds to denylist only",
@@ -385,13 +385,13 @@ func TestInvalidateBlock(t *testing.T) {
 			expectRewind:    false,
 		},
 		{
-			name:            "rewind to height-1 timestamp calculated correctly",
-			height:          10,
-			payloadHash:     common.HexToHash("0xabcd"),
+			name:             "rewind to height-1 timestamp calculated correctly",
+			height:           10,
+			payloadHash:      common.HexToHash("0xabcd"),
 			currentBlockHash: common.HexToHash("0xabcd"),
-			engineAvailable: true,
-			expectRewind:    true,
-			expectRewindTs:  genesisTime + (9 * blockTime), // height 9
+			engineAvailable:  true,
+			expectRewind:     true,
+			expectRewindTs:   genesisTime + (9 * blockTime), // height 9
 		},
 	}
 

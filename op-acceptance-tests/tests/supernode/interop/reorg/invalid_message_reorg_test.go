@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -67,6 +68,8 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 
 	// Wait for some timestamps to be verified first
 	targetTimestamp := genesisTime + blockTime*2
+	// set supernode to pause verification just after this timestamp
+	sys.Supernode.PauseInterop(targetTimestamp + 1)
 	t.Require().Eventually(func() bool {
 		resp, err := snClient.SuperRootAtTimestamp(ctx, targetTimestamp)
 		if err != nil {
@@ -81,7 +84,6 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 	// Send an INVALID executing message on chain B
 	// Modify the message identifier to make it invalid (wrong log index)
 	invalidExecReceipt := sendInvalidExecMessageForReplacement(t, bob, initTx, 0)
-
 	invalidBlockNumber := bigs.Uint64Strict(invalidExecReceipt.BlockNumber)
 	invalidBlockHash := invalidExecReceipt.BlockHash
 	invalidBlock := sys.L2ELB.BlockRefByHash(invalidExecReceipt.BlockHash)
@@ -93,206 +95,67 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 		"timestamp", invalidBlockTimestamp,
 	)
 
-	// Observe for reset behavior:
-	// When the interop activity detects the invalid message and calls InvalidateBlock,
-	// it will trigger a rewind. We observe by watching for the unsafe head to go backwards
-	// or for the block at the invalid block number to change.
+	// Observe the invalid block is locally safe on Chain B
+	require.Eventually(t, func() bool {
+		numSame := sys.L2BCL.SyncStatus().LocalSafeL2.Number == invalidBlockNumber
+		hashSame := sys.L2BCL.SyncStatus().LocalSafeL2.Hash == invalidBlockHash
+		return numSame && hashSame
+	}, 60*time.Second, time.Second, "invalid block should become locally safe")
 
-	observationDuration := 60 * time.Second
-	checkInterval := time.Second
-
-	start := time.Now()
-	var resetDetected bool
-
-	for time.Since(start) < observationDuration {
-		time.Sleep(checkInterval)
-
+	// Resume interop and observe reorg
+	// Interop activity will proceed and invalidate the block, triggering a rewind, and building a replacement block
+	// We observe resets and replacements, but only proceed on replacement (we may miss reset if it happens quickly)
+	sys.Supernode.ResumeInterop()
+	require.Eventually(t, func() bool {
 		// Check if the block hash at the invalid block number changed or block doesn't exist
 		// Use the EthClient directly to handle errors (block may not exist after rewind)
 		currentBlock, err := sys.L2ELB.Escape().EthClient().BlockRefByNumber(ctx, invalidBlockNumber)
 		if err != nil {
 			// Block not found - this means the rewind happened and block was removed
-			resetDetected = true
 			t.Logger().Info("RESET DETECTED! Block no longer exists (rewound)",
 				"block_number", invalidBlockNumber,
 				"err", err,
 			)
 		} else if currentBlock.Hash != invalidBlockHash {
 			// Block exists but with different hash - replaced
-			resetDetected = true
 			t.Logger().Info("RESET DETECTED! Block hash changed",
 				"block_number", invalidBlockNumber,
 				"old_hash", invalidBlockHash,
 				"new_hash", currentBlock.Hash,
 			)
+			return true
 		}
+		return false
+	}, 60*time.Second, time.Second, "reset should be detected")
 
-		// Check verification status
+	// Wait for interop to proceed and verify the replacement block at the timestamp
+	require.Eventually(t, func() bool {
 		resp, err := snClient.SuperRootAtTimestamp(ctx, invalidBlockTimestamp)
 		if err != nil {
-			t.Logger().Info("SuperRootAtTimestamp error (may be resetting)",
-				"elapsed", time.Since(start).Round(time.Second),
-				"err", err,
-			)
-			continue
+			return false
 		}
-
-		var currentHash string
-		if currentBlock.Hash != ([32]byte{}) {
-			currentHash = currentBlock.Hash.String()[:10]
-		} else {
-			currentHash = "(none)"
-		}
-
-		t.Logger().Info("observation tick",
-			"elapsed", time.Since(start).Round(time.Second),
-			"invalid_block_ts", invalidBlockTimestamp,
-			"current_block_hash", currentHash,
-			"reset_detected", resetDetected,
-			"verified", resp.Data != nil,
-		)
-
-		// Exit early if we detect reset
-		if resetDetected {
-			t.Logger().Info("Reset behavior confirmed")
-			break
-		}
-	}
-
-	// ASSERTION: Reset should have been detected
-	// (either unsafe head went backward or block hash changed)
-	t.Require().True(resetDetected,
-		"reset should be triggered when invalid block is detected")
-
-	t.Logger().Info("reset confirmed, now waiting for replacement block",
-		"invalid_block_number", invalidBlockNumber,
-		"invalid_block_hash", invalidBlockHash,
-	)
-
-	// PHASE 2: Wait for a replacement block to appear at the same height
-	// After rewind, the derivation pipeline should rebuild the block with deposits-only
-	var replacementBlockHash eth.BlockID
-	var replacementDetected bool
-
-	replacementTimeout := 60 * time.Second
-	replacementStart := time.Now()
-
-	for time.Since(replacementStart) < replacementTimeout {
-		time.Sleep(checkInterval)
-
-		// Try to get the block at the invalid block number
-		currentBlock, err := sys.L2ELB.Escape().EthClient().BlockRefByNumber(ctx, invalidBlockNumber)
-		if err != nil {
-			t.Logger().Debug("waiting for replacement block",
-				"elapsed", time.Since(replacementStart).Round(time.Second),
-				"err", err,
-			)
-			continue
-		}
-
-		// Check if we got a different block than the invalid one
-		if currentBlock.Hash != invalidBlockHash {
-			replacementBlockHash = currentBlock.ID()
-			replacementDetected = true
-			t.Logger().Info("REPLACEMENT DETECTED! New block at same height",
-				"block_number", invalidBlockNumber,
-				"old_hash", invalidBlockHash,
-				"new_hash", currentBlock.Hash,
-			)
-			break
-		}
-
-		t.Logger().Debug("block exists but still has invalid hash (waiting)",
-			"elapsed", time.Since(replacementStart).Round(time.Second),
-			"hash", currentBlock.Hash,
-		)
-	}
-
-	// ASSERTION: Replacement block should have been created
-	t.Require().True(replacementDetected,
-		"replacement block should be created at the same height after invalidation")
-	t.Require().NotEqual(invalidBlockHash, replacementBlockHash.Hash,
-		"replacement block should have different hash than invalid block")
-
-	t.Logger().Info("replacement block confirmed, verifying it differs from original",
-		"replacement_hash", replacementBlockHash.Hash,
-	)
-
-	// ASSERTION: The replacement block is different than the original
-	// Fetch the replacement block with its transactions
-	replacementBlockInfo, replacementTxs, err := sys.L2ELB.Escape().EthClient().InfoAndTxsByNumber(ctx, invalidBlockNumber)
-	t.Require().NoError(err, "failed to fetch replacement block")
-
-	t.Require().NotEqual(invalidBlockHash, replacementBlockInfo.Hash(),
-		"replacement block hash must differ from invalid block hash")
-	t.Logger().Info("confirmed replacement block differs from original",
-		"original_hash", invalidBlockHash,
-		"replacement_hash", replacementBlockInfo.Hash(),
-	)
+		return resp.Data != nil
+	}, 60*time.Second, time.Second, "replacement should be verified")
 
 	// ASSERTION: The invalid transaction no longer exists in the chain
 	// The invalid exec message transaction should NOT be in the replacement block
+	replacementBlockInfo, replacementTxs, err := sys.L2ELB.Escape().EthClient().InfoAndTxsByNumber(ctx, invalidBlockNumber)
+	t.Require().NoError(err, "failed to fetch replacement block")
 	invalidTxHash := invalidExecReceipt.TxHash
-	txInReplacementBlock := false
 	for _, tx := range replacementTxs {
 		if tx.Hash() == invalidTxHash {
-			txInReplacementBlock = true
-			break
+			t.Logger().Error("invalid transaction should NOT exist in replacement block",
+				"invalid_tx_hash", invalidTxHash,
+				"replacement_tx_hash", tx.Hash(),
+			)
+			t.FailNow()
 		}
 	}
-	t.Require().False(txInReplacementBlock,
-		"invalid transaction should NOT exist in replacement block")
-
-	// Also verify the transaction receipt is no longer available at that block
-	// (the tx may have been re-included in a later block, but not at the same height)
-	t.Logger().Info("confirmed invalid transaction not in replacement block",
-		"invalid_tx_hash", invalidTxHash,
-		"replacement_block_tx_count", len(replacementTxs),
-	)
-
-	t.Logger().Info("replacement block validated, waiting for verification",
-		"replacement_hash", replacementBlockHash.Hash,
-	)
-
-	// PHASE 3: Wait for the replacement block's timestamp to become verified
-	var verified bool
-	verificationTimeout := 60 * time.Second
-	verificationStart := time.Now()
-
-	for time.Since(verificationStart) < verificationTimeout {
-		time.Sleep(checkInterval)
-
-		resp, err := snClient.SuperRootAtTimestamp(ctx, invalidBlockTimestamp)
-		if err != nil {
-			t.Logger().Debug("waiting for verification",
-				"elapsed", time.Since(verificationStart).Round(time.Second),
-				"err", err,
-			)
-			continue
-		}
-
-		if resp.Data != nil {
-			verified = true
-			t.Logger().Info("VERIFIED! Timestamp now verified with replacement block",
-				"timestamp", invalidBlockTimestamp,
-				"super_root", resp.Data.SuperRoot,
-			)
-			break
-		}
-
-		t.Logger().Debug("timestamp not yet verified",
-			"elapsed", time.Since(verificationStart).Round(time.Second),
-		)
-	}
-
-	// ASSERTION: The replacement block's timestamp should eventually be verified
-	t.Require().True(verified,
-		"replacement block timestamp should become verified")
 
 	t.Logger().Info("test complete: invalid block was replaced and verified",
 		"invalid_block_number", invalidBlockNumber,
 		"invalid_block_hash", invalidBlockHash,
-		"replacement_block_hash", replacementBlockHash.Hash,
+		"replacement_block_hash", replacementBlockInfo.Hash,
 	)
 }
 

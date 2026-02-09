@@ -451,3 +451,44 @@ All unit tests added for missing coverage:
 ## Next Steps
 
 Ready to commit all tests as "fill in missing unit tests" commit.
+
+---
+
+## Sub-Feature 6: Test Control for Interop Activity
+
+### Purpose
+Provide integration test control for pausing and resuming the interop activity at specific timestamps. This allows acceptance tests to precisely control when interop validation occurs.
+
+### Specification
+- `PauseInterop(ts uint64)`: When called, the interop activity pauses at the given timestamp - if it would process that timestamp in its progress loop, it returns early without making progress.
+- `ResumeInterop()`: Clears the pause, allowing normal processing to continue.
+- Zero value for `ts` indicates "not paused" (always process all values).
+- Values are stored atomically for concurrent read/write safety.
+- This is test-only functionality, not wired at production level.
+
+### Implementation
+
+| Component | Location | Changes |
+|-----------|----------|---------|
+| Interop Activity | `op-supernode/supernode/activity/interop/interop.go` | Added `pauseAtTimestamp atomic.Uint64` field, `PauseAt(ts)` and `Resume()` methods, check in `progressInterop()` |
+| Supernode | `op-supernode/supernode/supernode.go` | Added `PauseInterop(ts)` and `ResumeInterop()` methods that delegate to interop activity |
+| sysgo.SuperNode | `op-devstack/sysgo/l2_cl_supernode.go` | Added `PauseInterop(ts)` and `ResumeInterop()` methods |
+| Stack Interface | `op-devstack/stack/supernode.go` | Added `InteropTestControl` interface |
+| Orchestrator | `op-devstack/sysgo/orchestrator.go` | Added `InteropTestControl(id)` method to get test control for a supernode |
+| DSL Supernode | `op-devstack/dsl/supernode.go` | Added `testControl` field, `NewSupernodeWithTestControl()` constructor, `PauseInterop(ts)` and `ResumeInterop()` methods |
+| Preset | `op-devstack/presets/twol2.go` | Wire up `InteropTestControl` in `NewTwoL2SupernodeInterop()` |
+
+### Usage in Tests
+
+```go
+// Pause interop at a specific timestamp
+sys.Supernode.PauseInterop(targetTimestamp + 1)
+
+// ... perform test actions ...
+
+// Resume interop processing
+sys.Supernode.ResumeInterop()
+```
+
+### Test Coverage
+Test-only functionality - exercised through acceptance test usage.

@@ -240,6 +240,31 @@ func (s *Supernode) onChainReset(chainID eth.ChainID, timestamp uint64) {
 	}
 }
 
+// PauseInterop pauses the interop activity at the given timestamp.
+// When the interop activity attempts to process this timestamp, it returns early.
+// This function is for integration test control only.
+func (s *Supernode) PauseInterop(ts uint64) {
+	for _, a := range s.activities {
+		if ia, ok := a.(*interop.Interop); ok {
+			ia.PauseAt(ts)
+			return
+		}
+	}
+	s.log.Warn("PauseInterop called but no interop activity found")
+}
+
+// ResumeInterop clears any pause on the interop activity, allowing normal processing.
+// This function is for integration test control only.
+func (s *Supernode) ResumeInterop() {
+	for _, a := range s.activities {
+		if ia, ok := a.(*interop.Interop); ok {
+			ia.Resume()
+			return
+		}
+	}
+	s.log.Warn("ResumeInterop called but no interop activity found")
+}
+
 func (s *Supernode) Stopped() bool { return s.stopped }
 
 // RPCAddr returns the bound RPC address (host:port) if the server is listening.

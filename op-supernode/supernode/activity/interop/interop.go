@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -53,6 +54,11 @@ type Interop struct {
 	currentL1 eth.BlockID
 
 	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
+
+	// pauseAtTimestamp is used for integration test control only.
+	// When non-zero, progressInterop will return early without processing
+	// if the next timestamp to process matches this value.
+	pauseAtTimestamp atomic.Uint64
 }
 
 func (i *Interop) Name() string {
@@ -155,6 +161,22 @@ func (i *Interop) Stop(ctx context.Context) error {
 	return nil
 }
 
+// PauseAt sets a timestamp at which the interop activity should pause.
+// When progressInterop encounters this timestamp, it returns early without processing.
+// This function is for integration test control only.
+// Pass 0 to clear the pause (equivalent to calling Resume).
+func (i *Interop) PauseAt(ts uint64) {
+	i.pauseAtTimestamp.Store(ts)
+	i.log.Info("interop pause set", "pauseAtTimestamp", ts)
+}
+
+// Resume clears any pause timestamp, allowing normal processing to continue.
+// This function is for integration test control only.
+func (i *Interop) Resume() {
+	i.pauseAtTimestamp.Store(0)
+	i.log.Info("interop pause cleared")
+}
+
 // progressAndRecord attempts to progress interop and record the result.
 // Returns (madeProgress, error) where madeProgress indicates if we advanced the verified timestamp.
 func (i *Interop) progressAndRecord() (bool, error) {
@@ -238,6 +260,12 @@ func (i *Interop) progressInterop() (Result, error) {
 	} else {
 		i.log.Info("attempting to progress interop to next timestamp", "lastTimestamp", lastTimestamp, "timestamp", lastTimestamp+1)
 		ts = lastTimestamp + 1
+	}
+
+	// Check if we're paused at this timestamp (integration test control only)
+	if pauseTs := i.pauseAtTimestamp.Load(); pauseTs != 0 && ts == pauseTs {
+		i.log.Info("interop paused at timestamp", "timestamp", ts)
+		return Result{}, nil
 	}
 
 	// 1: check if all chains are ready to process the next timestamp.
