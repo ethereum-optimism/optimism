@@ -23,7 +23,7 @@ alloy-chains.workspace = true
 tracing.workspace = true
 serde = { workspace = true, features = ["derive"]}
 clap = { workspace = true, features = ["derive", "env"] }
-tracing-subscriber = { workspace = true, features = ["fmt", "env-filter", "json", "tracing-log"] }
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter", "json", "tracing-log", "ansi"] }
 tracing-appender.workspace = true
 metrics-exporter-prometheus = { workspace = true, features = ["http-listener"] }
 metrics-process.workspace = true

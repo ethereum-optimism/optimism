@@ -62,13 +62,7 @@ parameters:
   ai_contracts_test_dispatch:
     type: boolean
     default: false
-  kona_dispatch:
-    type: boolean
-    default: false
   rust_ci_dispatch:
-    type: boolean
-    default: false
-  op_reth_dispatch:
     type: boolean
     default: false
   rust_e2e_dispatch:
@@ -141,8 +135,6 @@ workflows:
             rust/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
             rust/.* base_image << pipeline.parameters.base_image >> .circleci/continue/rust-ci.yml
             rust/.* go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-ci.yml
-            rust/.* kona_dispatch << pipeline.parameters.kona_dispatch >> .circleci/continue/rust-ci.yml
-            rust/.* op_reth_dispatch << pipeline.parameters.op_reth_dispatch >> .circleci/continue/rust-ci.yml
 
             rust/.* rust_e2e_dispatch << pipeline.parameters.rust_e2e_dispatch >> .circleci/continue/rust-e2e.yml
             rust/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-e2e.yml

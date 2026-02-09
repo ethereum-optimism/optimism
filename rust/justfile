@@ -121,8 +121,10 @@ check-udeps:
   cargo +nightly udeps --release --workspace --all-features --all-targets
 
 # Run cargo hack for feature powerset checking
-hack:
-  cargo hack check --feature-powerset --depth 2 --no-dev-deps
+hack partition="":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  cargo hack check --feature-powerset --depth 2 --no-dev-deps {{ if partition != "" { "--partition " + partition } else { "" } }}
 
 ######################### Kona Prestates ##############################
 

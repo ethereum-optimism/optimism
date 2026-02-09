@@ -19,12 +19,6 @@ parameters:
   rust_ci_dispatch:
     type: boolean
     default: false
-  kona_dispatch:
-    type: boolean
-    default: false
-  op_reth_dispatch:
-    type: boolean
-    default: false
   go-cache-version:
     type: string
     default: "v0.0"
@@ -692,13 +686,6 @@ jobs:
   # Shared cargo hack job
   rust-ci-cargo-hack:
     parameters:
-      directory:
-        description: "Directory containing the Cargo workspace"
-        type: string
-      flags:
-        description: "Flags appended to cargo hack check (e.g. --feature-powerset --depth 2)"
-        type: string
-        default: "--feature-powerset --depth 2 --no-dev-deps --workspace"
       parallelism:
         description: "Number of parallel nodes (adds --partition automatically when > 1)"
         type: integer
@@ -711,8 +698,8 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &hack-cache-args
-          directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-hack
+          directory: rust
+          prefix: rust-hack
           features: "all"
       - install-cargo-binstall
       - run:
@@ -721,14 +708,14 @@ jobs:
             command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
       - run:
           name: Run cargo hack
-          working_directory: <<parameters.directory>>
+          working_directory: rust
           no_output_timeout: 60m
           command: |
             PARTITION_FLAG=""
             if [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
-              PARTITION_FLAG="--partition $((CIRCLE_NODE_INDEX + 1))/$CIRCLE_NODE_TOTAL"
+              PARTITION_FLAG="$((CIRCLE_NODE_INDEX + 1))/$CIRCLE_NODE_TOTAL"
             fi
-            cargo hack check <<parameters.flags>> $PARTITION_FLAG
+            just hack $PARTITION_FLAG
       - rust-save-build-cache: *hack-cache-args
 
   # --------------------------------------------------------------------------
@@ -824,9 +811,6 @@ jobs:
   # Kona Host Client Offline Runs
   kona-host-client-offline:
     parameters:
-      target:
-        description: The target platform (native, asterisc, cannon)
-        type: string
     machine:
       image: <<pipeline.parameters.base_image>>
       docker_layer_caching: true
@@ -841,26 +825,11 @@ jobs:
           name: Install cargo-llvm-cov
           command: |
             command -v cargo-llvm-cov >/dev/null || cargo binstall --no-confirm cargo-llvm-cov
-      - when:
-          condition:
-            equal: [asterisc, <<parameters.target>>]
-          steps:
-            - run:
-                name: Clone and build asterisc
-                command: |
-                  git clone --no-checkout --depth 1 https://github.com/ethereum-optimism/asterisc.git
-                  cd asterisc && git fetch --depth 1 origin v1.3.0 && git checkout v1.3.0
-                  make build-rvgo
-                  sudo mv ./rvgo/bin/asterisc /usr/local/bin/
-      - when:
-          condition:
-            equal: [cannon, <<parameters.target>>]
-          steps:
-            - run:
-                name: Build cannon
-                command: |
-                  cd cannon && make
-                  sudo mv ./bin/cannon /usr/local/bin/
+      - run:
+          name: Build cannon
+          command: |
+            cd cannon && make
+            sudo mv ./bin/cannon /usr/local/bin/
       - run:
           name: Set run environment
           command: |
@@ -882,8 +851,8 @@ jobs:
           no_output_timeout: 40m
           command: |
             source <(cargo llvm-cov show-env --export-prefix)
-            mkdir -p ../../target
-            just run-client-<<parameters.target>>-offline \
+            mkdir -p ../../../target
+            just run-client-cannon-offline \
               $BLOCK_NUMBER \
               $L2_CLAIM \
               $L2_OUTPUT_ROOT \
@@ -1169,8 +1138,6 @@ workflows:
 
       - rust-ci-cargo-hack:
           name: rust-cargo-hack
-          directory: rust
-          flags: "--feature-powerset --no-dev-deps --depth 2 --workspace --exclude example-gossip --exclude example-discovery"
           parallelism: 6
           context: *rust-ci-context
 
@@ -1273,6 +1240,11 @@ workflows:
           context: *rust-ci-context
           requires:
             - rust-tests
+
+      - kona-host-client-offline:
+          name: kona-host-client-offline-cannon
+          context: *rust-ci-context
+
 
   # ==========================================================================
   # Kona scheduled workflows

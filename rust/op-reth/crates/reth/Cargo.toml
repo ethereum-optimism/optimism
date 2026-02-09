@@ -41,6 +41,7 @@ reth-cli-util = { workspace = true, optional = true }
 reth-engine-local = { workspace = true, optional = true }
 
 # reth-op
+alloy-primitives.workspace = true
 reth-optimism-primitives.workspace = true
 reth-optimism-chainspec.workspace = true
 reth-optimism-consensus = { workspace = true, optional = true }
@@ -52,32 +53,35 @@ reth-optimism-cli = { workspace = true, optional = true }
 [features]
 default = ["std"]
 std = [
-    "reth-chainspec/std",
-    "reth-consensus?/std",
-    "reth-consensus-common?/std",
-    "reth-optimism-chainspec/std",
-    "reth-optimism-consensus?/std",
-    "reth-optimism-evm?/std",
-    "reth-optimism-primitives/std",
-    "reth-primitives-traits/std",
-    "reth-storage-api?/std",
-    "reth-evm?/std",
-    "reth-revm?/std",
+	"reth-chainspec/std",
+	"reth-consensus?/std",
+	"reth-consensus-common?/std",
+	"reth-optimism-chainspec/std",
+	"reth-optimism-consensus?/std",
+	"reth-optimism-evm?/std",
+	"reth-optimism-primitives/std",
+	"reth-primitives-traits/std",
+	"reth-storage-api?/std",
+	"reth-evm?/std",
+	"reth-revm?/std",
+	"alloy-primitives/std"
 ]
 arbitrary = [
-    "std",
-    "reth-chainspec/arbitrary",
-    "reth-optimism-primitives/arbitrary",
-    "reth-primitives-traits/arbitrary",
-    "reth-db?/arbitrary",
-    "reth-transaction-pool?/arbitrary",
-    "reth-eth-wire?/arbitrary",
-    "reth-codecs?/arbitrary",
+	"std",
+	"reth-chainspec/arbitrary",
+	"reth-optimism-primitives/arbitrary",
+	"reth-primitives-traits/arbitrary",
+	"reth-db?/arbitrary",
+	"reth-transaction-pool?/arbitrary",
+	"reth-eth-wire?/arbitrary",
+	"reth-codecs?/arbitrary",
+	"alloy-primitives/arbitrary"
 ]
 keccak-cache-global = [
-    "reth-optimism-node?/keccak-cache-global",
-    "reth-node-core?/keccak-cache-global",
-    "reth-optimism-cli?/keccak-cache-global",
+	"reth-optimism-node?/keccak-cache-global",
+	"reth-node-core?/keccak-cache-global",
+	"reth-optimism-cli?/keccak-cache-global",
+	"alloy-primitives/keccak-cache-global"
 ]
 test-utils = [
     "reth-chainspec/test-utils",
@@ -154,5 +158,5 @@ portable = [
 provider = ["storage-api", "tasks", "dep:reth-provider", "dep:reth-db", "dep:reth-codecs"]
 pool = ["dep:reth-transaction-pool"]
 storage-api = ["dep:reth-storage-api"]
-trie = ["dep:reth-trie"]
+trie = ["dep:reth-trie", "alloy-primitives/rayon"]
 trie-db = ["trie", "dep:reth-trie-db"]

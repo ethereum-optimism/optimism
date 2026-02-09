@@ -264,7 +264,7 @@ workflows:
   kona-supervisor-e2e:
     when:
       and:
-        - equal: [true, <<pipeline.parameters.kona_dispatch>>]
+        - equal: [true, <<pipeline.parameters.rust_e2e_dispatch>>]
         - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - kona-supervisor-e2e-tests:

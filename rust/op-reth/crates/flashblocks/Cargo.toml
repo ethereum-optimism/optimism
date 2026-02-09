@@ -42,7 +42,7 @@ tokio-tungstenite = { workspace = true, features = ["rustls-tls-native-roots"] }
 serde_json.workspace = true
 url.workspace = true
 futures-util.workspace = true
-brotli.workspace = true
+brotli = { workspace = true, features = ["std"] }
 
 # debug
 tracing.workspace = true

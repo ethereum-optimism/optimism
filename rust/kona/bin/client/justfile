@@ -15,8 +15,8 @@ run-client-asterisc block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc ver
   L2_NODE_ADDRESS="{{l2_rpc}}"
   OP_NODE_ADDRESS="{{rollup_node_rpc}}"
 
-  HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../target/release/kona-host"
-  CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../target/riscv64imac-unknown-none-elf/release-client-lto/kona-client"
+  HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/release/kona-host"
+  CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/riscv64imac-unknown-none-elf/release-client-lto/kona-client"
   STATE_PATH="{{KONA_CLIENT_ROOT}}/../../state.bin.gz"
 
   CLAIMED_L2_BLOCK_NUMBER={{block_number}}
@@ -144,8 +144,8 @@ run-client-native-offline block_number l2_claim l2_output_root l2_head l1_head l
 run-client-asterisc-offline block_number l2_claim l2_output_root l2_head l1_head l2_chain_id verbosity='':
   #!/usr/bin/env bash
 
-  HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../target/debug/kona-host"
-  CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../target/riscv64imac-unknown-none-elf/release-client-lto/kona-client"
+  HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/debug/kona-host"
+  CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/riscv64imac-unknown-none-elf/release-client-lto/kona-client"
   STATE_PATH="{{KONA_CLIENT_ROOT}}/../../state.bin.gz"
 
   CLAIMED_L2_BLOCK_NUMBER={{block_number}}
@@ -190,8 +190,8 @@ run-client-cannon block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc rollu
   #!/usr/bin/env bash
   set -o errexit -o nounset -o pipefail
 
-  HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../target/release/kona-host"
-  CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../target/mips64-unknown-none/release-client-lto/kona-client"
+  HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/release/kona-host"
+  CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/mips64-unknown-none/release-client-lto/kona-client"
   STATE_PATH="{{KONA_CLIENT_ROOT}}/../../state.bin.gz"
 
   L1_NODE_ADDRESS="{{l1_rpc}}"
@@ -255,8 +255,8 @@ run-client-cannon block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc rollu
 run-client-cannon-offline block_number l2_claim l2_output_root l2_head l1_head l2_chain_id verbosity='':
   #!/usr/bin/env bash
 
-  HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../target/debug/kona-host"
-  CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../target/mips64-unknown-none/release-client-lto/kona-client"
+  HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/debug/kona-host"
+  CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/mips64-unknown-none/release-client-lto/kona-client"
   STATE_PATH="{{KONA_CLIENT_ROOT}}/../../state.bin.gz"
 
   CLAIMED_L2_BLOCK_NUMBER={{block_number}}
