@@ -55,12 +55,12 @@
     "outputs": [
       {
         "internalType": "uint128",
-        "name": "effectiveStake",
+        "name": "effectiveStake_",
         "type": "uint128"
       },
       {
         "internalType": "uint64",
-        "name": "lastUpdate",
+        "name": "lastUpdate_",
         "type": "uint64"
       }
     ],

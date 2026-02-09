@@ -258,9 +258,9 @@ contract PolicyEngineStaking is Initializable, ReinitializableBase, ProxyAdminOw
 
     /// @notice Returns the Policy Engine data for an account.
     /// @param _account The account to query.
-    /// @return effectiveStake The effective stake used by the Policy Engine.
-    /// @return lastUpdate    Last update timestamp.
-    function getPEData(address _account) external view returns (uint128 effectiveStake, uint64 lastUpdate) {
+    /// @return effectiveStake_ The effective stake used by the Policy Engine.
+    /// @return lastUpdate_    Last update timestamp.
+    function getPEData(address _account) external view returns (uint128 effectiveStake_, uint64 lastUpdate_) {
         return _getPeData(_account);
     }
 
