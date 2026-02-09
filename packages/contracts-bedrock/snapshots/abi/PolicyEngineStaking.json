@@ -40,7 +40,7 @@
     "outputs": [
       {
         "internalType": "bool",
-        "name": "allowed",
+        "name": "",
         "type": "bool"
       }
     ],
@@ -356,6 +356,11 @@
   {
     "inputs": [],
     "name": "PolicyEngineStaking_AlreadyLinked",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PolicyEngineStaking_AmountExceedsEffectiveStakeLimit",
     "type": "error"
   },
   {
