@@ -210,33 +210,5 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 		"rewindToTimestamp", priorTimestamp,
 	)
 
-	// Notify activities about the reset
-	if c.onReset != nil {
-		c.onReset(c.chainID, priorTimestamp)
-	}
-
 	return true, nil
-}
-
-// SetResetCallback sets a callback that is invoked when the chain resets.
-// This must only be called during initialization, before the chain container starts processing.
-// Calling this while InvalidateBlock may be running is unsafe.
-func (c *simpleChainContainer) SetResetCallback(cb ResetCallback) {
-	c.onReset = cb
-}
-
-// blockNumberToTimestamp converts a block number to its timestamp using rollup config.
-func (c *simpleChainContainer) blockNumberToTimestamp(blockNum uint64) uint64 {
-	if c.vncfg == nil {
-		return 0
-	}
-	return c.vncfg.Rollup.Genesis.L2Time + (blockNum * c.vncfg.Rollup.BlockTime)
-}
-
-// IsDenied checks if a block hash is on the deny list at the given height.
-func (c *simpleChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
-	if c.denyList == nil {
-		return false, fmt.Errorf("deny list not initialized")
-	}
-	return c.denyList.Contains(height, payloadHash)
 }

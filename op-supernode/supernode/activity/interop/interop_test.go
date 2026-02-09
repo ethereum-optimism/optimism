@@ -80,6 +80,7 @@ func TestStartStop(t *testing.T) {
 		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
 		interop := New(testLogger(), 1000, chains, dataDir)
 		require.NotNil(t, interop)
+		defer func() { _ = interop.Stop(context.Background()) }()
 
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan error, 1)
@@ -116,6 +117,7 @@ func TestStartStop(t *testing.T) {
 		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
 		interop := New(testLogger(), 1000, chains, dataDir)
 		require.NotNil(t, interop)
+		defer func() { _ = interop.Stop(context.Background()) }()
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -1040,11 +1042,14 @@ type mockLogsDBForInterop struct {
 	// Track calls for verification
 	rewindCalls []eth.BlockID
 	clearCalls  int
+
+	// Configurable return value for FirstSealedBlock
+	firstSealedBlock suptypes.BlockSeal
 }
 
 func (m *mockLogsDBForInterop) LatestSealedBlock() (eth.BlockID, bool) { return eth.BlockID{}, false }
 func (m *mockLogsDBForInterop) FirstSealedBlock() (suptypes.BlockSeal, error) {
-	return suptypes.BlockSeal{}, nil
+	return m.firstSealedBlock, nil
 }
 func (m *mockLogsDBForInterop) FindSealedBlock(number uint64) (suptypes.BlockSeal, error) {
 	return suptypes.BlockSeal{}, nil
@@ -1102,6 +1107,7 @@ func TestResetOn(t *testing.T) {
 		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
 		interop := New(testLogger(), 1000, chains, dataDir)
 		require.NotNil(t, interop)
+		defer func() { _ = interop.Stop(context.Background()) }()
 		interop.ctx = context.Background()
 		interop.logsDBs[mock.id] = mockLogsDB
 
@@ -1127,6 +1133,7 @@ func TestResetOn(t *testing.T) {
 		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
 		interop := New(testLogger(), 1000, chains, dataDir)
 		require.NotNil(t, interop)
+		defer func() { _ = interop.Stop(context.Background()) }()
 		interop.ctx = context.Background()
 		interop.logsDBs[mock.id] = mockLogsDB
 
@@ -1143,15 +1150,22 @@ func TestResetOn(t *testing.T) {
 		dataDir := t.TempDir()
 
 		mock := newMockChainContainer(10)
-		mockLogsDB := &mockLogsDBForInterop{}
+		// Configure mock so firstSealedBlock.Number > targetBlock.Number
+		// When timestamp=1 and blockTime=1, targetTs=0, so targetBlock.Number=0
+		// Setting firstSealedBlock.Number=5 means DB starts after target, triggering Clear
+		mockLogsDB := &mockLogsDBForInterop{
+			firstSealedBlock: suptypes.BlockSeal{Number: 5},
+		}
 
 		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
 		interop := New(testLogger(), 1000, chains, dataDir)
 		require.NotNil(t, interop)
+		defer func() { _ = interop.Stop(context.Background()) }()
 		interop.ctx = context.Background()
 		interop.logsDBs[mock.id] = mockLogsDB
 
-		// Reset at timestamp 1 (blockTime=1, so no previous block)
+		// Reset at timestamp 1 (blockTime=1, so targetTs=0)
+		// Since firstSealedBlock.Number (5) > targetBlock.Number (0), Clear is called
 		interop.ResetOn(mock.id, 1)
 
 		// Verify logsDB.Clear was called
@@ -1171,6 +1185,7 @@ func TestResetOn(t *testing.T) {
 		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
 		interop := New(testLogger(), 1000, chains, dataDir)
 		require.NotNil(t, interop)
+		defer func() { _ = interop.Stop(context.Background()) }()
 		interop.ctx = context.Background()
 		interop.logsDBs[mock.id] = mockLogsDB
 
@@ -1214,6 +1229,7 @@ func TestResetOn(t *testing.T) {
 		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
 		interop := New(testLogger(), 1000, chains, dataDir)
 		require.NotNil(t, interop)
+		defer func() { _ = interop.Stop(context.Background()) }()
 		interop.ctx = context.Background()
 		interop.logsDBs[mock.id] = mockLogsDB
 
@@ -1235,6 +1251,7 @@ func TestResetOn(t *testing.T) {
 		chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
 		interop := New(testLogger(), 1000, chains, dataDir)
 		require.NotNil(t, interop)
+		defer func() { _ = interop.Stop(context.Background()) }()
 		interop.ctx = context.Background()
 
 		// Reset on unknown chain (should not panic)

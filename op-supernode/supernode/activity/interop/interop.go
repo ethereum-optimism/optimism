@@ -322,40 +322,15 @@ func (i *Interop) handleResult(result Result) error {
 	return nil
 }
 
-// invalidateBlock handles an invalid block by notifying the chain container to add it
-// to the denylist and potentially rewind if the chain is currently using that block.
+// invalidateBlock notifies the chain container to add the block to the denylist
+// and potentially rewind if the chain is currently using that block.
 func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID) error {
 	chain, ok := i.chains[chainID]
 	if !ok {
 		return fmt.Errorf("chain %s not found", chainID)
 	}
-
-	rewound, err := chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash)
-	if err != nil {
-		i.log.Error("failed to invalidate block",
-			"chainID", chainID,
-			"blockNumber", blockID.Number,
-			"blockHash", blockID.Hash,
-			"err", err,
-		)
-		return err
-	}
-
-	if rewound {
-		i.log.Warn("chain rewound due to invalid block",
-			"chainID", chainID,
-			"blockNumber", blockID.Number,
-			"blockHash", blockID.Hash,
-		)
-	} else {
-		i.log.Info("block added to denylist (no rewind needed)",
-			"chainID", chainID,
-			"blockNumber", blockID.Number,
-			"blockHash", blockID.Hash,
-		)
-	}
-
-	return nil
+	_, err := chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash)
+	return err
 }
 
 // checkChainsReady checks if all chains are ready to process the next timestamp.
@@ -430,60 +405,48 @@ func (i *Interop) ResetOn(chainID eth.ChainID, timestamp uint64) {
 		"timestamp", timestamp,
 	)
 
-	// Reset the logsDB for this chain
-	if db, ok := i.logsDBs[chainID]; ok {
-		// Find the block just before the reset timestamp
-		chain, chainOk := i.chains[chainID]
-		if !chainOk {
-			i.log.Error("chain not found for reset", "chainID", chainID)
-			return
-		}
+	chain, chainOk := i.chains[chainID]
+	if !chainOk {
+		i.log.Error("chain not found for reset", "chainID", chainID)
+		return
+	}
+	db, dbOk := i.logsDBs[chainID]
+	if !dbOk {
+		i.log.Error("logsDB not found for reset", "chainID", chainID)
+		return
+	}
 
-		// Get the block time to calculate the previous block's timestamp
-		blockTime := chain.BlockTime()
-		if timestamp > blockTime {
-			prevTimestamp := timestamp - blockTime
-			// Try to get the block at the previous timestamp to use as rewind target
-			prevBlock, err := chain.BlockAtTimestamp(i.ctx, prevTimestamp, eth.Safe)
-			if err == nil {
-				i.log.Info("rewinding logsDB to previous block",
-					"chainID", chainID,
-					"newHead", prevBlock.ID(),
-				)
-				if err := db.Rewind(&noopInvalidator{}, prevBlock.ID()); err != nil {
-					i.log.Error("failed to rewind logsDB",
-						"chainID", chainID,
-						"err", err,
-					)
-				}
-			} else {
-				// If we can't get the previous block, clear the entire logsDB
-				i.log.Warn("could not get previous block, clearing logsDB",
-					"chainID", chainID,
-					"prevTimestamp", prevTimestamp,
-					"err", err,
-				)
-				if err := db.Clear(&noopInvalidator{}); err != nil {
-					i.log.Error("failed to clear logsDB",
-						"chainID", chainID,
-						"err", err,
-					)
-				}
-			}
-		} else {
-			// If timestamp is at or before blockTime, clear the entire logsDB
-			i.log.Info("clearing logsDB (reset timestamp at or before first block)",
-				"chainID", chainID,
-			)
-			if err := db.Clear(&noopInvalidator{}); err != nil {
-				i.log.Error("failed to clear logsDB",
-					"chainID", chainID,
-					"err", err,
-				)
-			}
+	// Reset the logsDB for this chain
+	// Get the block time to calculate the previous block's timestamp
+	blockTime := chain.BlockTime()
+	targetTs := timestamp - blockTime
+	targetBlock, err := chain.BlockAtTimestamp(i.ctx, targetTs, eth.Safe)
+	if err != nil {
+		// If we can't find the target block, clear the entire logsDB
+		i.log.Warn("failed to get block at timestamp, clearing logsDB", "chainID", chainID, "timestamp", targetTs, "err", err)
+		if clearErr := db.Clear(&noopInvalidator{}); clearErr != nil {
+			i.log.Error("failed to clear logsDB", "chainID", chainID, "err", clearErr)
 		}
 	} else {
-		i.log.Warn("no logsDB found for chain", "chainID", chainID)
+		// check the first block in the logsDB
+		firstBlock, err := db.FirstSealedBlock()
+		if err != nil {
+			i.log.Error("failed to get first block", "chainID", chainID, "err", err)
+			return
+		}
+		if firstBlock.Number > targetBlock.Number {
+			i.log.Info("logsDB is to be cleared", "chainID", chainID)
+			if err := db.Clear(&noopInvalidator{}); err != nil {
+				i.log.Error("failed to clear logsDB", "chainID", chainID, "err", err)
+				return
+			}
+		} else {
+			i.log.Info("logsDB is to be rewound", "chainID", chainID, "targetBlock", targetBlock.Number, "firstBlock", firstBlock.Number)
+			if err := db.Rewind(&noopInvalidator{}, targetBlock.ID()); err != nil {
+				i.log.Error("failed to rewind logsDB", "chainID", chainID, "err", err)
+				return
+			}
+		}
 	}
 
 	// Remove any verified results at or after the timestamp
@@ -500,10 +463,6 @@ func (i *Interop) ResetOn(chainID eth.ChainID, timestamp uint64) {
 			// that are being reset. Log an error for visibility.
 			i.log.Error("UNEXPECTED: verified results were deleted on reset",
 				"chainID", chainID,
-				"timestamp", timestamp,
-			)
-		} else {
-			i.log.Info("verifiedDB rewound (no results deleted)",
 				"timestamp", timestamp,
 			)
 		}

@@ -48,16 +48,6 @@ import (
 
 var ErrAlreadyClosed = errors.New("node is already closed")
 
-// SuperAuthority provides supernode-level authority operations to op-node instances.
-// When running inside a supernode, this allows the node to check if payloads are denied
-// before applying them, enabling coordinated block invalidation across the supernode.
-type SuperAuthority interface {
-	// IsDenied checks if a payload hash is denied at the given block number.
-	// Returns true if the payload should not be applied.
-	// The error indicates if the check could not be performed (should be logged but not fatal).
-	IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error)
-}
-
 // L1Client is the interface that op-node uses to interact with L1.
 // This allows wrapped or mocked clients to be used
 type L1Client interface {
@@ -118,7 +108,7 @@ type OpNode struct {
 	appVersion string
 	metrics    *metrics.Metrics
 
-	superAuthority SuperAuthority // Supernode authority for payload validation (may be nil)
+	superAuthority rollup.SuperAuthority // Supernode authority for payload validation (may be nil)
 
 	l1HeadsSub     ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
 	l1SafeSub      ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
@@ -212,7 +202,7 @@ type InitializationOverrides struct {
 	Beacon          L1Beacon
 	RPCHandler      *oprpc.Handler
 	MetricsRegistry func(*prometheus.Registry)
-	SuperAuthority  SuperAuthority // Supernode authority for payload validation
+	SuperAuthority  rollup.SuperAuthority // Supernode authority for payload validation
 }
 
 // init progressively creates and sets up all the components of the OpNode

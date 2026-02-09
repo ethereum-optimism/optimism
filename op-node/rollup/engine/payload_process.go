@@ -33,7 +33,7 @@ func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProce
 		payload := ev.Envelope.ExecutionPayload
 		denied, err := e.superAuthority.IsDenied(uint64(payload.BlockNumber), payload.BlockHash)
 		if err != nil {
-			e.log.Warn("Failed to check SuperAuthority denylist, proceeding with payload",
+			e.log.Error("Failed to check SuperAuthority denylist, proceeding with payload",
 				"blockNumber", payload.BlockNumber,
 				"blockHash", payload.BlockHash,
 				"err", err,

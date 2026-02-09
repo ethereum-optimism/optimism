@@ -93,16 +93,6 @@ type CrossUpdateHandler interface {
 	OnCrossSafeUpdate(ctx context.Context, crossSafe eth.L2BlockRef, localSafe eth.L2BlockRef)
 }
 
-// SuperAuthority provides supernode-level authority operations.
-// When running inside a supernode, this allows the engine controller to check
-// if payloads are denied before applying them.
-type SuperAuthority interface {
-	// IsDenied checks if a payload hash is denied at the given block number.
-	// Returns true if the payload should not be applied.
-	// The error indicates if the check could not be performed (should be logged but not fatal).
-	IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error)
-}
-
 type EngineController struct {
 	engine            ExecEngine // Underlying execution engine RPC
 	log               log.Logger
@@ -169,7 +159,7 @@ type EngineController struct {
 	crossUpdateHandler CrossUpdateHandler
 
 	// SuperAuthority for payload validation (may be nil when not in supernode context)
-	superAuthority SuperAuthority
+	superAuthority rollup.SuperAuthority
 
 	unsafePayloads *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
 }
@@ -178,7 +168,7 @@ var _ event.Deriver = (*EngineController)(nil)
 
 func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger, m opmetrics.Metricer,
 	rollupCfg *rollup.Config, syncCfg *sync.Config, supervisorEnabled bool, l1 sync.L1Chain, emitter event.Emitter,
-	superAuthority SuperAuthority,
+	superAuthority rollup.SuperAuthority,
 ) *EngineController {
 	syncStatus := syncStatusCL
 	if syncCfg.SyncMode == sync.ELSync {
