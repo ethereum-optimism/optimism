@@ -175,6 +175,10 @@
     "initCodeHash": "0xbc2cd025153720943e51b79822c2dc374d270a78b92cf47d49548c468e218e46",
     "sourceCodeHash": "0x734a6b2aa6406bc145d848ad6071d3af1d40852aeb8f4b2f6f51beaad476e2d3"
   },
+  "src/L2/XForkL2ContractsManager.sol:XForkL2ContractsManager": {
+    "initCodeHash": "0x60d6330227c94f638d701f3311edae38e34012362f71038e9463d9411e78e976",
+    "sourceCodeHash": "0xc41e020e32ce453cbe2ef1bf83371180bb52979356230186f90c9039276b0110"
+  },
   "src/cannon/MIPS64.sol:MIPS64": {
     "initCodeHash": "0x13196c1652a1f51cf0c16191f0092898f127eff036c773923c72b02a2823c7f4",
     "sourceCodeHash": "0xd745aaf4ed265be7be7bff9bca1dd040e15dfe41e3a453906d72ca09a47f2c8b"

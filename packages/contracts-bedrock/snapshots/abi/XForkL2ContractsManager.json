@@ -1,0 +1,180 @@
+[
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "storageSetterImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l2CrossDomainMessengerImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "gasPriceOracleImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l2StandardBridgeImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "sequencerFeeWalletImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "optimismMintableERC20FactoryImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l2ERC721BridgeImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l1BlockAttributesImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l1BlockAttributesCGTImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l2ToL1MessagePasserImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l2ToL1MessagePasserCGTImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "optimismMintableERC721FactoryImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "proxyAdminImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "baseFeeVaultImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l1FeeVaultImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "operatorFeeVaultImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "schemaRegistryImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "easImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "crossL2InboxImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l2ToL2CrossDomainMessengerImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superchainETHBridgeImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "ethLiquidityImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "optimismSuperchainERC20FactoryImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "optimismSuperchainERC20BeaconImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superchainTokenBridgeImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "nativeAssetLiquidityImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "liquidityControllerImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "feeSplitterImpl",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct XForkL2CMTypes.Implementations",
+        "name": "_implementations",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "upgrade",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "XForkL2ContractsManager_OnlyDelegatecall",
+    "type": "error"
+  }
+]
