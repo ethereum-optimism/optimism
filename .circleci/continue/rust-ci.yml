@@ -6,7 +6,7 @@ version: 2.1
 # No workflows are defined here - workflows remain in each project's config.
 
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.23
+  utils: ethereum-optimism/circleci-utils@dev:sc-mise-v
 
 parameters:
   default_docker_image:
