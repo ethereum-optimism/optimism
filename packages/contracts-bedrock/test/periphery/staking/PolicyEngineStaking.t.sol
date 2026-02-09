@@ -278,6 +278,16 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         staking.stake(0, address(0));
     }
 
+    /// @notice Tests that staking to self (msg.sender as beneficiary) reverts.
+    function test_stake_toSelf_reverts() external {
+        vm.prank(alice);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 100 ether);
+
+        vm.prank(alice);
+        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_CannotLinkToSelf.selector);
+        staking.stake(100 ether, alice);
+    }
+
     /// @notice Tests that staking to another beneficiary without allowlist reverts.
     function test_stake_toBeneficiaryWithoutAllowlist_reverts() external {
         vm.prank(alice);
@@ -427,16 +437,13 @@ contract PolicyEngineStaking_Link_Test is PolicyEngineStaking_TestInit {
         assertEq(bobReceived, amount);
     }
 
-    /// @notice Tests that self-attribution (link to self) succeeds without allowlist.
-    function test_link_selfAttribution_succeeds() external {
-        uint256 amount = 100 ether;
-        _stake(alice, amount, address(0));
+    /// @notice Tests that linking to self reverts (would break receivedStake accounting).
+    function test_link_linkToSelf_reverts() external {
+        _stake(alice, 100 ether, address(0));
 
         vm.prank(alice);
+        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_CannotLinkToSelf.selector);
         staking.link(alice);
-
-        (uint256 aliceStaked,,) = staking.stakingData(alice);
-        assertEq(aliceStaked, amount);
     }
 
     /// @notice Tests that linking with zero beneficiary reverts.

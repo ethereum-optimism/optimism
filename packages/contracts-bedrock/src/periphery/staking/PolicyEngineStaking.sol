@@ -105,6 +105,9 @@ contract PolicyEngineStaking is ISemver {
     /// @notice Thrown when the beneficiary address is zero.
     error PolicyEngineStaking_ZeroBeneficiary();
 
+    /// @notice Thrown when trying to link to self. Use address(0) when staking for self-attribution.
+    error PolicyEngineStaking_CannotLinkToSelf();
+
     /// @notice Thrown when the staker is not allowed to link to the beneficiary.
     error PolicyEngineStaking_NotAllowedToLink();
 
@@ -152,6 +155,7 @@ contract PolicyEngineStaking is ISemver {
     ///                     Use address(0) for self-attribution.
     function stake(uint256 _amount, address _beneficiary) external whenNotPaused {
         if (_amount == 0) revert PolicyEngineStaking_ZeroAmount();
+        if (_beneficiary == msg.sender) revert PolicyEngineStaking_CannotLinkToSelf();
 
         (uint256 stakedAmount, uint256 receivedStake, address linkedTo) = _getStakedData(msg.sender);
 
@@ -202,9 +206,16 @@ contract PolicyEngineStaking is ISemver {
     }
 
     /// @notice Links the caller's stake to a beneficiary for ordering power.
-    /// @param _beneficiary New beneficiary address. Use address(0) for self-attribution.
+    /// @param _beneficiary New beneficiary address.
     function link(address _beneficiary) external whenNotPaused {
+        // Check if trying to link to zero address
         if (_beneficiary == address(0)) revert PolicyEngineStaking_ZeroBeneficiary();
+
+        // Check if trying to link to self
+        if (_beneficiary == msg.sender) revert PolicyEngineStaking_CannotLinkToSelf();
+
+        // Check if staker is allowed to link to the beneficiary
+        if (!allowlist[_beneficiary][msg.sender].allowed) revert PolicyEngineStaking_NotAllowedToLink();
 
         (uint256 stakedAmount, uint256 receivedStake, address linkedTo) = _getStakedData(msg.sender);
 
@@ -213,10 +224,6 @@ contract PolicyEngineStaking is ISemver {
 
         // Check if already linked
         if (linkedTo != address(0)) revert PolicyEngineStaking_AlreadyLinked();
-
-        if (_beneficiary != msg.sender && !allowlist[_beneficiary][msg.sender].allowed) {
-            revert PolicyEngineStaking_NotAllowedToLink();
-        }
 
         _setStakedData(msg.sender, stakedAmount, receivedStake, _beneficiary);
         _addStakeToBeneficiary(_beneficiary, stakedAmount);
@@ -279,6 +286,10 @@ contract PolicyEngineStaking is ISemver {
     }
 
     /// @notice Gets staking data for an account.
+    /// @param _account The account address.
+    /// @return stakedAmount_ The staked amount.
+    /// @return receivedStake_ The received stake from others.
+    /// @return linkedAddressTo_ The linked beneficiary address.
     function _getStakedData(address _account)
         internal
         view

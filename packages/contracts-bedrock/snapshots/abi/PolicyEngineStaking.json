@@ -360,6 +360,11 @@
   },
   {
     "inputs": [],
+    "name": "PolicyEngineStaking_CannotLinkToSelf",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "PolicyEngineStaking_MustLinkOrUnstakeFirst",
     "type": "error"
   },

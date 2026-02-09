@@ -228,8 +228,8 @@
     "sourceCodeHash": "0x955bd0c9b47e43219865e4e92abf28d916c96de20cbdf2f94c8ab14d02083759"
   },
   "src/periphery/staking/PolicyEngineStaking.sol:PolicyEngineStaking": {
-    "initCodeHash": "0x7f283f93495d217ef0148f7f1a9d7617f764b54bb74380c8d0c317619e603a19",
-    "sourceCodeHash": "0x7888dba891a0a173c3d28163c2bb8a7ee28f0e1edb05f0bf4bc33a2f72ff9eb0"
+    "initCodeHash": "0xb4e9f2979487c3a11a0d9c7c567d2ba1e7905d941245e808f99a114fee3c8d9b",
+    "sourceCodeHash": "0x403cb086fed5872e1df60ce7b1192c763637f82282579fb7eca73eb20551e090"
   },
   "src/safe/DeputyPauseModule.sol:DeputyPauseModule": {
     "initCodeHash": "0x18422b48c4901ed6fd9338d76d3c5aecfff9a7add34b05c6e21c23d0011ed6bf",
