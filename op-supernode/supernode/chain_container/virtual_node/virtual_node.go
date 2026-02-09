@@ -211,7 +211,7 @@ func (v *simpleVirtualNode) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64)
 
 var ErrL1AtSafeHeadNotFound = errors.New("l1 at safe head not found")
 
-// L1AtSafeHead finds the earliest L1 block at which the provided L2 block became safe,
+// L1AtSafeHead finds the earliest L1 block at which the provided L2 block became local safe,
 // using the monotonicity of SafeDB (L2 safe head number is non-decreasing over L1).
 func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
 	v.mu.Lock()
