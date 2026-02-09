@@ -11,7 +11,6 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         Users deposit OP tokens into the contract, and the Policy Engine reads a packed value
 ///         (effective stake amount and last update timestamp) directly from storage slots to
 ///         determine transaction priority during block building.
-///         This contract is immutable and non-upgradeable.
 contract PolicyEngineStaking is ISemver {
     using SafeERC20 for IERC20;
 
