@@ -146,29 +146,28 @@ contract XForkL2ContractsManager is ISemver {
     function upgrade() external {
         if (address(this) == THIS_L2CM) revert XForkL2ContractsManager_OnlyDelegatecall();
 
-        XForkL2CMTypes.FullConfig memory fullConfig = _fullConfig();
+        XForkL2CMTypes.FullConfig memory fullConfig = _loadFullConfig();
         _apply(fullConfig);
     }
 
     /// @notice Loads the full configuration for the L2 Predeploys.
     /// @return fullConfig_ The full configuration.
-    function _fullConfig() internal view returns (XForkL2CMTypes.FullConfig memory fullConfig_) {
+    function _loadFullConfig() internal view returns (XForkL2CMTypes.FullConfig memory fullConfig_) {
         bool isCustomGasToken = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken();
 
         // L2CrossDomainMessenger
         fullConfig_.crossDomainMessenger = XForkL2CMTypes.CrossDomainMessengerConfig({
-            otherMessenger: address(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger())
+            otherMessenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger()
         });
 
         // L2StandardBridge
         fullConfig_.standardBridge = XForkL2CMTypes.StandardBridgeConfig({
-            otherBridge: address(IStandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).otherBridge())
+            otherBridge: IStandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).otherBridge()
         });
 
         // L2ERC721Bridge
-        fullConfig_.erc721Bridge = XForkL2CMTypes.ERC721BridgeConfig({
-            otherBridge: address(IERC721Bridge(Predeploys.L2_ERC721_BRIDGE).otherBridge())
-        });
+        fullConfig_.erc721Bridge =
+            XForkL2CMTypes.ERC721BridgeConfig({ otherBridge: IERC721Bridge(Predeploys.L2_ERC721_BRIDGE).otherBridge() });
 
         // OptimismMintableERC20Factory
         fullConfig_.mintableERC20Factory = XForkL2CMTypes.MintableERC20FactoryConfig({
@@ -199,7 +198,7 @@ contract XForkL2ContractsManager is ISemver {
 
         // FeeSplitter
         fullConfig_.feeSplitter = XForkL2CMTypes.FeeSplitterConfig({
-            sharesCalculator: address(IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator())
+            sharesCalculator: IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator()
         });
     }
 
@@ -251,7 +250,7 @@ contract XForkL2ContractsManager is ISemver {
         _upgradeToAndCall(
             Predeploys.L2_ERC721_BRIDGE,
             L2_ERC721_BRIDGE_IMPL,
-            abi.encodeCall(IL2ERC721Bridge.initialize, (payable(_config.erc721Bridge.otherBridge))),
+            abi.encodeCall(IL2ERC721Bridge.initialize, payable(address(_config.erc721Bridge.otherBridge))),
             INITIALIZABLE_SLOT_OZ_V4,
             0
         );

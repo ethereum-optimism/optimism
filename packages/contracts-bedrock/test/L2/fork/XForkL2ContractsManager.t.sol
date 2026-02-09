@@ -11,6 +11,14 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 import { StorageSetter } from "src/universal/StorageSetter.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
+import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
+import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
+import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
+import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
+import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
+import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 
 import { StorageSetter } from "src/universal/StorageSetter.sol";
 import { WETH } from "src/L2/WETH.sol";
@@ -30,6 +38,8 @@ import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
 import { OptimismSuperchainERC20Beacon } from "src/L2/OptimismSuperchainERC20Beacon.sol";
 import { NativeAssetLiquidity } from "src/L2/NativeAssetLiquidity.sol";
 import { LiquidityController } from "src/L2/LiquidityController.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Features } from "src/libraries/Features.sol";
 
 /// @title XForkL2ContractsManager_Harness
 /// @notice Harness contract that exposes internal functions for testing.
@@ -37,8 +47,8 @@ contract XForkL2ContractsManager_Harness is XForkL2ContractsManager {
     constructor(XForkL2CMTypes.Implementations memory _implementations) XForkL2ContractsManager(_implementations) { }
 
     /// @notice Returns the full configuration for the L2 predeploys.
-    function fullConfig() external view returns (XForkL2CMTypes.FullConfig memory) {
-        return _fullConfig();
+    function loadFullConfig() external view returns (XForkL2CMTypes.FullConfig memory) {
+        return _loadFullConfig();
     }
 
     /// @notice Returns the target implementations for the L2 predeploys.
@@ -85,7 +95,6 @@ contract XForkL2ContractsManager_Test is CommonTest {
     /// @notice Struct to capture the post-upgrade state for comparison.
     struct PostUpgradeState {
         // Implementation addresses
-        address wethImpl;
         address gasPriceOracleImpl;
         address l2CrossDomainMessengerImpl;
         address l2StandardBridgeImpl;
@@ -182,7 +191,6 @@ contract XForkL2ContractsManager_Test is CommonTest {
     /// @return state_ The captured state.
     function _capturePostUpgradeState() internal view returns (PostUpgradeState memory state_) {
         // Capture implementation addresses
-        state_.wethImpl = EIP1967Helper.getImplementation(Predeploys.WETH);
         state_.gasPriceOracleImpl = EIP1967Helper.getImplementation(Predeploys.GAS_PRICE_ORACLE);
         state_.l2CrossDomainMessengerImpl = EIP1967Helper.getImplementation(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         state_.l2StandardBridgeImpl = EIP1967Helper.getImplementation(Predeploys.L2_STANDARD_BRIDGE);
@@ -216,7 +224,7 @@ contract XForkL2ContractsManager_Test is CommonTest {
         state_.feeSplitterImpl = EIP1967Helper.getImplementation(Predeploys.FEE_SPLITTER);
 
         // Capture config values using the harness
-        state_.config = l2cm.fullConfig();
+        state_.config = l2cm.loadFullConfig();
     }
 
     /// @notice Asserts that two post-upgrade states are identical.
@@ -224,7 +232,6 @@ contract XForkL2ContractsManager_Test is CommonTest {
     /// @param _state2 The second state.
     function _assertStatesEqual(PostUpgradeState memory _state1, PostUpgradeState memory _state2) internal pure {
         // Assert implementation addresses are equal
-        assertEq(_state1.wethImpl, _state2.wethImpl, "WETH impl mismatch");
         assertEq(_state1.gasPriceOracleImpl, _state2.gasPriceOracleImpl, "GasPriceOracle impl mismatch");
         assertEq(
             _state1.l2CrossDomainMessengerImpl,
@@ -282,18 +289,18 @@ contract XForkL2ContractsManager_Test is CommonTest {
 
         // Assert config values are equal
         assertEq(
-            _state1.config.crossDomainMessenger.otherMessenger,
-            _state2.config.crossDomainMessenger.otherMessenger,
+            address(_state1.config.crossDomainMessenger.otherMessenger),
+            address(_state2.config.crossDomainMessenger.otherMessenger),
             "CrossDomainMessenger config mismatch"
         );
         assertEq(
-            _state1.config.standardBridge.otherBridge,
-            _state2.config.standardBridge.otherBridge,
+            address(_state1.config.standardBridge.otherBridge),
+            address(_state2.config.standardBridge.otherBridge),
             "StandardBridge config mismatch"
         );
         assertEq(
-            _state1.config.erc721Bridge.otherBridge,
-            _state2.config.erc721Bridge.otherBridge,
+            address(_state1.config.erc721Bridge.otherBridge),
+            address(_state2.config.erc721Bridge.otherBridge),
             "ERC721Bridge config mismatch"
         );
         assertEq(
@@ -325,8 +332,8 @@ contract XForkL2ContractsManager_Test is CommonTest {
             "LiquidityController owner mismatch"
         );
         assertEq(
-            _state1.config.feeSplitter.sharesCalculator,
-            _state2.config.feeSplitter.sharesCalculator,
+            address(_state1.config.feeSplitter.sharesCalculator),
+            address(_state2.config.feeSplitter.sharesCalculator),
             "FeeSplitter sharesCalculator mismatch"
         );
     }
@@ -353,5 +360,301 @@ contract XForkL2ContractsManager_Test is CommonTest {
 
         // Assert both states are identical
         _assertStatesEqual(stateAfterFirstUpgrade, stateAfterSecondUpgrade);
+    }
+
+    /// @notice Tests that all network-specific configuration is preserved after upgrade.
+    function test_upgrade_preservesAllConfiguration() public {
+        // Get the pre-upgrade configuration
+        XForkL2CMTypes.FullConfig memory preUpgradeConfig = l2cm.loadFullConfig();
+
+        // Execute the upgrade
+        _executeUpgrade();
+
+        // Get the post-upgrade configuration from each of the predeploys
+
+        // L2CrossDomainMessenger
+        assertEq(
+            address(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger()),
+            address(preUpgradeConfig.crossDomainMessenger.otherMessenger),
+            "L2CrossDomainMessenger.otherMessenger not preserved"
+        );
+
+        // L2StandardBridge
+        assertEq(
+            address(IStandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).otherBridge()),
+            address(preUpgradeConfig.standardBridge.otherBridge),
+            "L2StandardBridge.otherBridge not preserved"
+        );
+
+        // L2ERC721Bridge
+        assertEq(
+            address(IERC721Bridge(Predeploys.L2_ERC721_BRIDGE).otherBridge()),
+            address(preUpgradeConfig.erc721Bridge.otherBridge),
+            "L2ERC721Bridge.otherBridge not preserved"
+        );
+
+        // OptimismMintableERC20Factory
+        assertEq(
+            address(IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY).bridge()),
+            address(preUpgradeConfig.mintableERC20Factory.bridge),
+            "OptimismMintableERC20Factory.bridge not preserved"
+        );
+
+        // SequencerFeeVault
+        assertEq(
+            IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).recipient(),
+            address(preUpgradeConfig.sequencerFeeVault.recipient),
+            "SequencerFeeVault.recipient not preserved"
+        );
+        assertEq(
+            IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).minWithdrawalAmount(),
+            preUpgradeConfig.sequencerFeeVault.minWithdrawalAmount,
+            "SequencerFeeVault.minWithdrawalAmount not preserved"
+        );
+        assertTrue(
+            IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).withdrawalNetwork()
+                == preUpgradeConfig.sequencerFeeVault.withdrawalNetwork,
+            "SequencerFeeVault.withdrawalNetwork not preserved"
+        );
+
+        // BaseFeeVault
+        assertEq(
+            IFeeVault(payable(Predeploys.BASE_FEE_VAULT)).recipient(),
+            preUpgradeConfig.baseFeeVault.recipient,
+            "BaseFeeVault.recipient not preserved"
+        );
+        assertEq(
+            IFeeVault(payable(Predeploys.BASE_FEE_VAULT)).minWithdrawalAmount(),
+            preUpgradeConfig.baseFeeVault.minWithdrawalAmount,
+            "BaseFeeVault.minWithdrawalAmount not preserved"
+        );
+        assertTrue(
+            IFeeVault(payable(Predeploys.BASE_FEE_VAULT)).withdrawalNetwork()
+                == preUpgradeConfig.baseFeeVault.withdrawalNetwork,
+            "BaseFeeVault.withdrawalNetwork not preserved"
+        );
+
+        // L1FeeVault
+        assertEq(
+            IFeeVault(payable(Predeploys.L1_FEE_VAULT)).recipient(),
+            preUpgradeConfig.l1FeeVault.recipient,
+            "L1FeeVault.recipient not preserved"
+        );
+        assertEq(
+            IFeeVault(payable(Predeploys.L1_FEE_VAULT)).minWithdrawalAmount(),
+            preUpgradeConfig.l1FeeVault.minWithdrawalAmount,
+            "L1FeeVault.minWithdrawalAmount not preserved"
+        );
+        assertTrue(
+            IFeeVault(payable(Predeploys.L1_FEE_VAULT)).withdrawalNetwork()
+                == preUpgradeConfig.l1FeeVault.withdrawalNetwork,
+            "L1FeeVault.withdrawalNetwork not preserved"
+        );
+
+        // OperatorFeeVault
+        assertEq(
+            IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT)).recipient(),
+            preUpgradeConfig.operatorFeeVault.recipient,
+            "OperatorFeeVault.recipient not preserved"
+        );
+        assertEq(
+            IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT)).minWithdrawalAmount(),
+            preUpgradeConfig.operatorFeeVault.minWithdrawalAmount,
+            "OperatorFeeVault.minWithdrawalAmount not preserved"
+        );
+        assertTrue(
+            IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT)).withdrawalNetwork()
+                == preUpgradeConfig.operatorFeeVault.withdrawalNetwork,
+            "OperatorFeeVault.withdrawalNetwork not preserved"
+        );
+
+        // FeeSplitter
+        assertEq(
+            address(IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator()),
+            address(preUpgradeConfig.feeSplitter.sharesCalculator),
+            "FeeSplitter.sharesCalculator not preserved"
+        );
+    }
+
+    /// @notice Tests that calling upgrade() directly (not via DELEGATECALL) reverts.
+    function test_upgrade_reverts_whenCalledDirectly() public {
+        // Calling upgrade() directly should revert with OnlyDelegatecall error
+        vm.expectRevert(XForkL2ContractsManager.XForkL2ContractsManager_OnlyDelegatecall.selector);
+        l2cm.upgrade();
+    }
+
+    /// @notice Tests that fee vault configurations with non-default values are preserved after upgrade.
+    function test_upgrade_preservesFeeVaultConfig_withNonDefaultValues() public {
+        // Define non-default test values
+        address customRecipient = makeAddr("customRecipient");
+        uint256 customMinWithdrawal = 50 ether;
+
+        // Get the ProxyAdmin owner
+        address proxyAdminOwner = IProxyAdmin(Predeploys.PROXY_ADMIN).owner();
+
+        // Set non-default values on all fee vaults before upgrade
+        vm.startPrank(proxyAdminOwner);
+
+        // SequencerFeeVault
+        IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).setRecipient(customRecipient);
+        IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).setMinWithdrawalAmount(customMinWithdrawal);
+        IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).setWithdrawalNetwork(Types.WithdrawalNetwork.L2);
+
+        // BaseFeeVault
+        IFeeVault(payable(Predeploys.BASE_FEE_VAULT)).setRecipient(customRecipient);
+        IFeeVault(payable(Predeploys.BASE_FEE_VAULT)).setMinWithdrawalAmount(customMinWithdrawal);
+        IFeeVault(payable(Predeploys.BASE_FEE_VAULT)).setWithdrawalNetwork(Types.WithdrawalNetwork.L2);
+
+        // L1FeeVault
+        IFeeVault(payable(Predeploys.L1_FEE_VAULT)).setRecipient(customRecipient);
+        IFeeVault(payable(Predeploys.L1_FEE_VAULT)).setMinWithdrawalAmount(customMinWithdrawal);
+        IFeeVault(payable(Predeploys.L1_FEE_VAULT)).setWithdrawalNetwork(Types.WithdrawalNetwork.L2);
+
+        // OperatorFeeVault
+        IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT)).setRecipient(customRecipient);
+        IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT)).setMinWithdrawalAmount(customMinWithdrawal);
+        IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT)).setWithdrawalNetwork(Types.WithdrawalNetwork.L2);
+
+        vm.stopPrank();
+
+        // Execute the upgrade
+        _executeUpgrade();
+
+        // Verify non-default values are preserved on all fee vaults
+
+        // SequencerFeeVault
+        _assertFeeVaultConfig(
+            IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)),
+            customRecipient,
+            customMinWithdrawal,
+            Types.WithdrawalNetwork.L2
+        );
+
+        // BaseFeeVault
+        _assertFeeVaultConfig(
+            IFeeVault(payable(Predeploys.BASE_FEE_VAULT)),
+            customRecipient,
+            customMinWithdrawal,
+            Types.WithdrawalNetwork.L2
+        );
+        // L1FeeVault
+        _assertFeeVaultConfig(
+            IFeeVault(payable(Predeploys.L1_FEE_VAULT)),
+            customRecipient,
+            customMinWithdrawal,
+            Types.WithdrawalNetwork.L2
+        );
+        // OperatorFeeVault
+        _assertFeeVaultConfig(
+            IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT)),
+            customRecipient,
+            customMinWithdrawal,
+            Types.WithdrawalNetwork.L2
+        );
+    }
+
+    function _assertFeeVaultConfig(
+        IFeeVault _feeVault,
+        address _expectedRecipient,
+        uint256 _expectedMinWithdrawalAmount,
+        Types.WithdrawalNetwork _expectedWithdrawalNetwork
+    )
+        internal
+        view
+    {
+        assertEq(_feeVault.recipient(), _expectedRecipient, "FeeVault.recipient not preserved");
+        assertEq(
+            _feeVault.minWithdrawalAmount(), _expectedMinWithdrawalAmount, "FeeVault.minWithdrawalAmount not preserved"
+        );
+        assertTrue(
+            _feeVault.withdrawalNetwork() == _expectedWithdrawalNetwork, "FeeVault.withdrawalNetwork not preserved"
+        );
+    }
+}
+
+/// @title XForkL2ContractsManager_CGT_Test
+/// @notice Test contract for the XForkL2ContractsManager on Custom Gas Token networks.
+contract XForkL2ContractsManager_CGT_Test is XForkL2ContractsManager_Test {
+    /// @notice Tests that CGT-specific contracts are upgraded when CGT is enabled.
+    function test_upgrade_upgradesCGTContracts_whenCGTEnabled() public {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        // Capture pre-upgrade implementations for CGT-specific contracts
+        address preUpgradeLiquidityControllerImpl = EIP1967Helper.getImplementation(Predeploys.LIQUIDITY_CONTROLLER);
+        address preUpgradeNativeAssetLiquidityImpl = EIP1967Helper.getImplementation(Predeploys.NATIVE_ASSET_LIQUIDITY);
+
+        // Execute the upgrade
+        _executeUpgrade();
+
+        // Verify LiquidityController was upgraded
+        address postUpgradeLiquidityControllerImpl = EIP1967Helper.getImplementation(Predeploys.LIQUIDITY_CONTROLLER);
+        assertEq(
+            postUpgradeLiquidityControllerImpl,
+            implementations.liquidityControllerImpl,
+            "LiquidityController should be upgraded to new implementation"
+        );
+        assertTrue(
+            postUpgradeLiquidityControllerImpl != preUpgradeLiquidityControllerImpl
+                || preUpgradeLiquidityControllerImpl == implementations.liquidityControllerImpl,
+            "LiquidityController implementation should change or already be target"
+        );
+
+        // Verify NativeAssetLiquidity was upgraded
+        address postUpgradeNativeAssetLiquidityImpl = EIP1967Helper.getImplementation(Predeploys.NATIVE_ASSET_LIQUIDITY);
+        assertEq(
+            postUpgradeNativeAssetLiquidityImpl,
+            implementations.nativeAssetLiquidityImpl,
+            "NativeAssetLiquidity should be upgraded to new implementation"
+        );
+        assertTrue(
+            postUpgradeNativeAssetLiquidityImpl != preUpgradeNativeAssetLiquidityImpl
+                || preUpgradeNativeAssetLiquidityImpl == implementations.nativeAssetLiquidityImpl,
+            "NativeAssetLiquidity implementation should change or already be target"
+        );
+
+        // Verify L1Block uses CGT implementation
+        address postUpgradeL1BlockImpl = EIP1967Helper.getImplementation(Predeploys.L1_BLOCK_ATTRIBUTES);
+        assertEq(
+            postUpgradeL1BlockImpl,
+            implementations.l1BlockAttributesCGTImpl,
+            "L1Block should use CGT implementation on CGT networks"
+        );
+
+        // Verify L2ToL1MessagePasser uses CGT implementation
+        address postUpgradeL2ToL1MessagePasserImpl = EIP1967Helper.getImplementation(Predeploys.L2_TO_L1_MESSAGE_PASSER);
+        assertEq(
+            postUpgradeL2ToL1MessagePasserImpl,
+            implementations.l2ToL1MessagePasserCGTImpl,
+            "L2ToL1MessagePasser should use CGT implementation on CGT networks"
+        );
+    }
+
+    /// @notice Tests that LiquidityController config is preserved after upgrade on CGT networks.
+    function test_upgrade_preservesLiquidityControllerConfig_onCGTNetwork() public {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        // Capture pre-upgrade config
+        XForkL2CMTypes.FullConfig memory preUpgradeConfig = l2cm.loadFullConfig();
+
+        // Execute the upgrade
+        _executeUpgrade();
+
+        // Verify LiquidityController config is preserved
+        ILiquidityController liquidityController = ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER);
+        assertEq(
+            liquidityController.owner(),
+            preUpgradeConfig.liquidityController.owner,
+            "LiquidityController.owner not preserved"
+        );
+        assertEq(
+            liquidityController.gasPayingTokenName(),
+            preUpgradeConfig.liquidityController.gasPayingTokenName,
+            "LiquidityController.gasPayingTokenName not preserved"
+        );
+        assertEq(
+            liquidityController.gasPayingTokenSymbol(),
+            preUpgradeConfig.liquidityController.gasPayingTokenSymbol,
+            "LiquidityController.gasPayingTokenSymbol not preserved"
+        );
     }
 }

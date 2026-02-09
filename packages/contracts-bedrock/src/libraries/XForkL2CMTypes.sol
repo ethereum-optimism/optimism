@@ -2,23 +2,27 @@
 pragma solidity ^0.8.0;
 
 import { Types } from "src/libraries/Types.sol";
+import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
+import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
+import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
+import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 
 /// @title XForkL2CMTypes
 /// @notice Type definitions for XForkL2ContractsManager upgrade operations.
 library XForkL2CMTypes {
     /// @notice Configuration for L2CrossDomainMessenger.
     struct CrossDomainMessengerConfig {
-        address otherMessenger;
+        ICrossDomainMessenger otherMessenger;
     }
 
     /// @notice Configuration for L2StandardBridge.
     struct StandardBridgeConfig {
-        address otherBridge;
+        IStandardBridge otherBridge;
     }
 
     /// @notice Configuration for L2ERC721Bridge.
     struct ERC721BridgeConfig {
-        address otherBridge;
+        IERC721Bridge otherBridge;
     }
 
     /// @notice Configuration for OptimismMintableERC20Factory.
@@ -42,7 +46,7 @@ library XForkL2CMTypes {
 
     /// @notice Configuration for FeeSplitter.
     struct FeeSplitterConfig {
-        address sharesCalculator;
+        ISharesCalculator sharesCalculator;
     }
 
     /// @notice Full network-specific configuration gathered from existing predeploys.
