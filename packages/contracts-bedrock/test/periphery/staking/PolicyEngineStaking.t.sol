@@ -368,6 +368,32 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_NotAllowedToLink.selector);
         staking.stake(50 ether, bob);
     }
+
+    /// @notice Tests that staking with amount > type(uint128).max reverts (effectiveStake limit).
+    function test_stake_amountExceedsUint128_reverts() external {
+        uint256 excessAmount = type(uint128).max;
+        excessAmount++;
+        // Revert happens in _increasePeData before transfer; no need to mint (avoids token overflow).
+
+        vm.prank(alice);
+        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_AmountExceedsEffectiveStakeLimit.selector);
+        staking.stake(excessAmount, address(0));
+    }
+
+    /// @notice Tests that staking with amount == type(uint128).max succeeds (boundary).
+    function test_stake_amountEqualsUint128Max_succeeds() external {
+        uint256 maxAmount = type(uint128).max;
+        TestERC20(Predeploys.GOVERNANCE_TOKEN).mint(alice, maxAmount);
+
+        vm.prank(alice);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), maxAmount);
+
+        vm.prank(alice);
+        staking.stake(maxAmount, address(0));
+
+        (uint128 effectiveStake,) = staking.peData(alice);
+        assertEq(effectiveStake, maxAmount);
+    }
 }
 
 /// @title PolicyEngineStaking_Unstake_Test
@@ -413,6 +439,30 @@ contract PolicyEngineStaking_Unstake_Test is PolicyEngineStaking_TestInit {
         vm.prank(alice);
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_NoStake.selector);
         staking.unstake();
+    }
+
+    /// @notice Tests that unstaking after staking type(uint128).max succeeds (_decreasePeData at boundary).
+    function test_unstake_afterStakingUint128Max_succeeds() external {
+        uint256 maxAmount = type(uint128).max;
+        TestERC20(Predeploys.GOVERNANCE_TOKEN).mint(alice, maxAmount);
+
+        vm.prank(alice);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), maxAmount);
+        vm.prank(alice);
+        staking.stake(maxAmount, address(0));
+
+        (uint128 effectiveBefore,) = staking.peData(alice);
+        assertEq(effectiveBefore, maxAmount);
+
+        uint256 balanceBefore = IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
+        vm.prank(alice);
+        staking.unstake();
+
+        (uint256 staked,,) = staking.stakingData(alice);
+        (uint128 effectiveAfter,) = staking.peData(alice);
+        assertEq(staked, 0);
+        assertEq(effectiveAfter, 0);
+        assertEq(IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice), balanceBefore + maxAmount);
     }
 }
 
