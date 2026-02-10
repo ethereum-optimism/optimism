@@ -1,6 +1,7 @@
 [tools]
 
 # Core dependencies
+# Mise comment
 go = "1.24.10"
 golangci-lint = "2.8.0"
 gotestsum = "1.12.3"
