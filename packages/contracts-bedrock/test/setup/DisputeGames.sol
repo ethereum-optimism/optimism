@@ -131,7 +131,14 @@ library DisputeGames {
     /// @param _dgf The dispute game factory.
     /// @param _gameType The game type to get the prestate for.
     /// @return prestate_ The absolute prestate claim.
-    function getGameImplPrestate(IDisputeGameFactory _dgf, GameType _gameType) internal view returns (Claim prestate_) {
+    function getGameImplPrestate(
+        IDisputeGameFactory _dgf,
+        GameType _gameType
+    )
+        internal
+        view
+        returns (Claim prestate_)
+    {
         // Return zero if no implementation exists for this game type
         address gameImpl = address(_dgf.gameImpls(_gameType));
         if (gameImpl == address(0)) {
@@ -201,7 +208,14 @@ library DisputeGames {
         }
     }
 
-    function _mockGameArg(IDisputeGameFactory _dgf, GameType _gameType, GameArg _gameArg, bytes memory _value) private {
+    function _mockGameArg(
+        IDisputeGameFactory _dgf,
+        GameType _gameType,
+        GameArg _gameArg,
+        bytes memory _value
+    )
+        private
+    {
         bytes memory modifiedGameArgs = _dgf.gameArgs(_gameType);
         uint256 offset = gameArgsOffset(_gameArg);
         modifiedGameArgs.overwriteAtOffset(offset, _value);

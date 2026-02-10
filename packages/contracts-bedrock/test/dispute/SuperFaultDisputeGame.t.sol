@@ -222,7 +222,11 @@ abstract contract SuperFaultDisputeGame_TestInit is BaseSuperFaultDisputeGame_Te
     }
 
     /// @notice Helper to return a pseudo-random super root proof with the specified l2SequenceNumber
-    function _dummySuper(uint64 _l2SequenceNumber) internal view returns (Types.SuperRootProof memory superRootProof_) {
+    function _dummySuper(uint64 _l2SequenceNumber)
+        internal
+        view
+        returns (Types.SuperRootProof memory superRootProof_)
+    {
         Types.OutputRootWithChainId[] memory outputRoots = new Types.OutputRootWithChainId[](1);
         outputRoots[0] = Types.OutputRootWithChainId({ chainId: 5, root: keccak256(abi.encode(gasleft())) });
         superRootProof_.version = bytes1(uint8(1));
@@ -292,12 +296,14 @@ contract SuperFaultDisputeGame_Constructor_Test is SuperFaultDisputeGame_TestIni
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     ISuperFaultDisputeGame.__constructor__,
-                    (ISuperFaultDisputeGame.GameConstructorParams({
+                    (
+                        ISuperFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: _maxGameDepth,
                             splitDepth: _maxGameDepth + 1,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days)
-                        }))
+                        })
+                    )
                 )
             )
         });
@@ -314,12 +320,14 @@ contract SuperFaultDisputeGame_Constructor_Test is SuperFaultDisputeGame_TestIni
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     ISuperFaultDisputeGame.__constructor__,
-                    (ISuperFaultDisputeGame.GameConstructorParams({
+                    (
+                        ISuperFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: maxGameDepth,
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days)
-                        }))
+                        })
+                    )
                 )
             )
         });
@@ -336,12 +344,14 @@ contract SuperFaultDisputeGame_Constructor_Test is SuperFaultDisputeGame_TestIni
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     ISuperFaultDisputeGame.__constructor__,
-                    (ISuperFaultDisputeGame.GameConstructorParams({
+                    (
+                        ISuperFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: 2 ** 3,
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days)
-                        }))
+                        })
+                    )
                 )
             )
         });
@@ -366,12 +376,14 @@ contract SuperFaultDisputeGame_Constructor_Test is SuperFaultDisputeGame_TestIni
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     ISuperFaultDisputeGame.__constructor__,
-                    (ISuperFaultDisputeGame.GameConstructorParams({
+                    (
+                        ISuperFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: 16,
                             splitDepth: 8,
                             clockExtension: Duration.wrap(_clockExtension),
                             maxClockDuration: Duration.wrap(_maxClockDuration)
-                        }))
+                        })
+                    )
                 )
             )
         });

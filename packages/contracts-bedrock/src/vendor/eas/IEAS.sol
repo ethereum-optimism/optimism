@@ -12,7 +12,7 @@ struct AttestationRequestData {
     bytes32 refUID; // The UID of the related attestation.
     bytes data; // Custom attestation data.
     uint256 value; // An explicit ETH amount to send to the resolver. This is important to prevent accidental user
-    // errors.
+        // errors.
 }
 
 /// @dev A struct representing the full arguments of the attestation request.
@@ -50,7 +50,7 @@ struct MultiDelegatedAttestationRequest {
 struct RevocationRequestData {
     bytes32 uid; // The UID of the attestation to revoke.
     uint256 value; // An explicit ETH amount to send to the resolver. This is important to prevent accidental user
-    // errors.
+        // errors.
 }
 
 /// @dev A struct representing the full arguments of the revocation request.
@@ -204,7 +204,10 @@ interface IEAS {
     /// @param multiRequests The arguments of the multi attestation requests. The requests should be grouped by distinct
     ///        schema ids to benefit from the best batching optimization.
     /// @return The UIDs of the new attestations.
-    function multiAttest(MultiAttestationRequest[] calldata multiRequests) external payable returns (bytes32[] memory);
+    function multiAttest(MultiAttestationRequest[] calldata multiRequests)
+        external
+        payable
+        returns (bytes32[] memory);
 
     /// @notice Attests to multiple schemas using via provided EIP712 signatures.
     ///
@@ -345,7 +348,9 @@ interface IEAS {
     /// @param multiDelegatedRequests The arguments of the delegated multi revocation attestation requests. The requests
     /// should be
     ///        grouped by distinct schema ids to benefit from the best batching optimization.
-    function multiRevokeByDelegation(MultiDelegatedRevocationRequest[] calldata multiDelegatedRequests) external payable;
+    function multiRevokeByDelegation(MultiDelegatedRevocationRequest[] calldata multiDelegatedRequests)
+        external
+        payable;
 
     /// @notice Timestamps the specified bytes32 data.
     /// @param data The data to timestamp.

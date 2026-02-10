@@ -652,7 +652,12 @@ contract FaultDisputeGame is Clone, ISemver {
     ///         and showing that the committed L2 block number is incorrect relative to the claimed L2 block number.
     /// @param _outputRootProof The output root proof.
     /// @param _headerRLP The RLP-encoded L2 block header.
-    function challengeRootL2Block(Types.OutputRootProof calldata _outputRootProof, bytes calldata _headerRLP) external {
+    function challengeRootL2Block(
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes calldata _headerRLP
+    )
+        external
+    {
         // INVARIANT: Moves cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 

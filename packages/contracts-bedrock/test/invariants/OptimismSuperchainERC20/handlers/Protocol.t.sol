@@ -97,8 +97,9 @@ contract ProtocolHandler is TestBase, StdUtils, Actors {
         withActor(msg.sender)
     {
         vm.prank(currentActor());
-        OptimismSuperchainERC20(allSuperTokens[bound(tokenIndex, 0, allSuperTokens.length)])
-            .transfer(getActorByRawIndex(toIndex), amount);
+        OptimismSuperchainERC20(allSuperTokens[bound(tokenIndex, 0, allSuperTokens.length)]).transfer(
+            getActorByRawIndex(toIndex), amount
+        );
     }
 
     function handler_supERC20TransferFrom(
@@ -111,8 +112,9 @@ contract ProtocolHandler is TestBase, StdUtils, Actors {
         withActor(msg.sender)
     {
         vm.prank(currentActor());
-        OptimismSuperchainERC20(allSuperTokens[bound(tokenIndex, 0, allSuperTokens.length)])
-            .transferFrom(getActorByRawIndex(fromIndex), getActorByRawIndex(toIndex), amount);
+        OptimismSuperchainERC20(allSuperTokens[bound(tokenIndex, 0, allSuperTokens.length)]).transferFrom(
+            getActorByRawIndex(fromIndex), getActorByRawIndex(toIndex), amount
+        );
     }
 
     function handler_supERC20Approve(
@@ -124,8 +126,9 @@ contract ProtocolHandler is TestBase, StdUtils, Actors {
         withActor(msg.sender)
     {
         vm.prank(currentActor());
-        OptimismSuperchainERC20(allSuperTokens[bound(tokenIndex, 0, allSuperTokens.length)])
-            .approve(getActorByRawIndex(spenderIndex), amount);
+        OptimismSuperchainERC20(allSuperTokens[bound(tokenIndex, 0, allSuperTokens.length)]).approve(
+            getActorByRawIndex(spenderIndex), amount
+        );
     }
 
     /// @notice deploy a remote token, that supertokens will be a representation of. They are  never called, so there

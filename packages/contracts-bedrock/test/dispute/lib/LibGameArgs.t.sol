@@ -151,9 +151,9 @@ contract LibGameArgs_Decode_Test is Test {
     }
 
     function testFuzz_decode_invalidLength_reverts(bytes memory _buf) public {
-        bool ok =
-            (_buf.length == LibGameArgs.PERMISSIONLESS_ARGS_LENGTH
-                || _buf.length == LibGameArgs.PERMISSIONED_ARGS_LENGTH);
+        bool ok = (
+            _buf.length == LibGameArgs.PERMISSIONLESS_ARGS_LENGTH || _buf.length == LibGameArgs.PERMISSIONED_ARGS_LENGTH
+        );
         vm.assume(!ok);
         vm.expectRevert(InvalidGameArgsLength.selector);
         harness.decode(_buf);

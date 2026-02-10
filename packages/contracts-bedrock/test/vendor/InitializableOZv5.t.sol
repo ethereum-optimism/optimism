@@ -47,9 +47,7 @@ contract InitializerOZv5_Test is Test {
                 target: address(
                     DeployUtils.create1({
                         _name: "OptimismSuperchainERC20",
-                        _args: DeployUtils.encodeConstructor(
-                            abi.encodeCall(IOptimismSuperchainERC20.__constructor__, ())
-                        )
+                        _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismSuperchainERC20.__constructor__, ()))
                     })
                 ),
                 initCalldata: abi.encodeCall(IOptimismSuperchainERC20.initialize, (address(0), "", "", 18))

@@ -246,16 +246,17 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
         // every time rather than adding or removing this code for each upgrade.
         vm.prank(superchainPAO, true);
-        (bool success, bytes memory reason) = address(_opcm)
-            .delegatecall(
-                abi.encodeCall(
-                    IOPContractsManagerV2.upgradeSuperchain,
-                    (IOPContractsManagerV2.SuperchainUpgradeInput({
+        (bool success, bytes memory reason) = address(_opcm).delegatecall(
+            abi.encodeCall(
+                IOPContractsManagerV2.upgradeSuperchain,
+                (
+                    IOPContractsManagerV2.SuperchainUpgradeInput({
                         superchainConfig: superchainConfig,
                         extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
-                    }))
+                    })
                 )
-            );
+            )
+        );
         if (success == false) {
             // Only acceptable revert reason is downgrade not allowed.
             assertTrue(
@@ -313,17 +314,18 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
             IOPContractsManagerUtils.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") });
 
         vm.prank(_delegateCaller, true);
-        (bool upgradeSuccess,) = address(_opcm)
-            .delegatecall(
-                abi.encodeCall(
-                    IOPContractsManagerV2.upgrade,
-                    (IOPContractsManagerV2.UpgradeInput({
+        (bool upgradeSuccess,) = address(_opcm).delegatecall(
+            abi.encodeCall(
+                IOPContractsManagerV2.upgrade,
+                (
+                    IOPContractsManagerV2.UpgradeInput({
                         systemConfig: systemConfig,
                         disputeGameConfigs: disputeGameConfigs,
                         extraInstructions: extraInstructions
-                    }))
+                    })
                 )
-            );
+            )
+        );
         assertTrue(upgradeSuccess, "upgrade failed");
     }
 

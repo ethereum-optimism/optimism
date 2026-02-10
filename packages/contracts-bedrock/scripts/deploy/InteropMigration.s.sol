@@ -97,11 +97,13 @@ contract InteropMigration is Script {
         // The DummyCaller uses a fallback that reverts on failure, so no need to check success.
         vm.startBroadcast(msg.sender);
         if (_useOPCMv2) {
-            IOPContractsManagerMigrator(prank)
-                .migrate(abi.decode(_imi.migrateInput(), (IOPContractsManagerMigrator.MigrateInput)));
+            IOPContractsManagerMigrator(prank).migrate(
+                abi.decode(_imi.migrateInput(), (IOPContractsManagerMigrator.MigrateInput))
+            );
         } else {
-            IOPContractsManagerInteropMigrator(prank)
-                .migrate(abi.decode(_imi.migrateInput(), (IOPContractsManagerInteropMigrator.MigrateInput)));
+            IOPContractsManagerInteropMigrator(prank).migrate(
+                abi.decode(_imi.migrateInput(), (IOPContractsManagerInteropMigrator.MigrateInput))
+            );
         }
         vm.stopBroadcast();
 

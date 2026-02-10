@@ -70,7 +70,8 @@ contract UpgradeSuperchainConfig is Script {
             data = abi.encodeCall(
                 IOPContractsManagerV2.upgradeSuperchain,
                 IOPContractsManagerV2.SuperchainUpgradeInput({
-                    superchainConfig: _input.superchainConfig, extraInstructions: _input.extraInstructions
+                    superchainConfig: _input.superchainConfig,
+                    extraInstructions: _input.extraInstructions
                 })
             );
         } else {

@@ -129,9 +129,11 @@ abstract contract EIP1271Verifier is EIP712 {
                 )
             )
         );
-        if (!SignatureChecker.isValidSignatureNow(
+        if (
+            !SignatureChecker.isValidSignatureNow(
                 request.attester, hash, abi.encodePacked(signature.r, signature.s, signature.v)
-            )) {
+            )
+        ) {
             revert InvalidSignature();
         }
     }
@@ -159,9 +161,11 @@ abstract contract EIP1271Verifier is EIP712 {
                 )
             )
         );
-        if (!SignatureChecker.isValidSignatureNow(
+        if (
+            !SignatureChecker.isValidSignatureNow(
                 request.revoker, hash, abi.encodePacked(signature.r, signature.s, signature.v)
-            )) {
+            )
+        ) {
             revert InvalidSignature();
         }
     }

@@ -494,7 +494,10 @@ contract FetchChainInfo is Script {
         }
     }
 
-    function _getFaultDisputeGame(address _disputeGameFactoryProxy, GameType _gameType)
+    function _getFaultDisputeGame(
+        address _disputeGameFactoryProxy,
+        GameType _gameType
+    )
         internal
         view
         returns (address)

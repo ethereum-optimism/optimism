@@ -40,7 +40,7 @@ contract DeployAltDA_Test is Test {
     function test_run_succeeds(
         DeployAltDA.Input memory _input,
         uint8 _resolverRefundPercentage // we use uint8 for a percentage value so that we don't need to reject almost
-        // every uint256
+            // every uint256
     )
         public
     {

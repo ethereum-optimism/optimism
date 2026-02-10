@@ -136,9 +136,12 @@ contract UpgradeSuperchainConfigV2_Run_Test is Test {
 
         // UpgradeCalled should be emitted by the prank since it's a delegate call.
         vm.expectEmit(address(prank));
-        emit UpgradeCalled(IOPContractsManagerV2.SuperchainUpgradeInput({
-                superchainConfig: superchainConfig, extraInstructions: extraInstructions
-            }));
+        emit UpgradeCalled(
+            IOPContractsManagerV2.SuperchainUpgradeInput({
+                superchainConfig: superchainConfig,
+                extraInstructions: extraInstructions
+            })
+        );
         upgradeSuperchainConfig.run(input);
     }
 
