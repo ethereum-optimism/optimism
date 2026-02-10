@@ -428,10 +428,11 @@ func (l *BatchSubmitter) sendToThrottlingLoop(unsafeBytesUpdated chan int64) {
 	if l.Config.ThrottleParams.LowerThreshold == 0 {
 		return
 	}
-
+	unsafeDABytes := l.unsafeDABytes()
+	l.Metr.RecordUnsafeDABytes(unsafeDABytes)
 	// notify the throttling loop it may be time to initiate throttling without blocking
 	select {
-	case unsafeBytesUpdated <- l.unsafeDABytes():
+	case unsafeBytesUpdated <- unsafeDABytes:
 	default:
 	}
 }
@@ -703,7 +704,6 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, unsafeBytesUpdated c
 	}
 
 	for unsafeBytes := range unsafeBytesUpdated {
-		l.Metr.RecordUnsafeDABytes(unsafeBytes)
 		newParams := l.throttleController.Update(uint64(unsafeBytes))
 		controllerType := l.throttleController.GetType()
 
