@@ -49,7 +49,7 @@ git-cliff = "2.12.0"
 kontrol = "1.0.90"
 binary_signer = "1.0.4"
 
-[alias]
+[tool_alias]
 forge = "ubi:foundry-rs/foundry[exe=forge]"
 cast = "ubi:foundry-rs/foundry[exe=cast]"
 anvil = "ubi:foundry-rs/foundry[exe=anvil]"
