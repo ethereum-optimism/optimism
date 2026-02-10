@@ -8,7 +8,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-var Namespace = "op_node"
+var Namespace = "op_wheel"
 
 type Metricer interface {
 	RecordBlockFail()
