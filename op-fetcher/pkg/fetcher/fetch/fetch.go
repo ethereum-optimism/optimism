@@ -38,7 +38,7 @@ func FetchChainInfoCLI() func(ctx *cli.Context) error {
 
 		result, err := fetcher.FetchChainInfo(cliCtx.Context)
 		if err != nil {
-			return fmt.Errorf("failed to validate: %w", err)
+			return fmt.Errorf("failed to fetch chain info: %w", err)
 		}
 
 		fileData := script.CreateChainConfig(result)
