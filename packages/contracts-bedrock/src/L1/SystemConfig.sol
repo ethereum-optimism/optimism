@@ -93,7 +93,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice The maximum gas limit that can be set for L2 blocks. This limit is used to enforce that the blocks
     ///         on L2 are not too large to process and prove. Over time, this value can be increased as various
     ///         optimizations and improvements are made to the system at large.
-    uint64 internal constant MAX_GAS_LIMIT = 500_000_000;
+    uint64 internal constant MAX_GAS_LIMIT = 10_000_000_000;
 
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     ///         Deprecated since the Ecotone network upgrade
