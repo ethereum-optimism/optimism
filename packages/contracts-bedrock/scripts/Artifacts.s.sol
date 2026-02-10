@@ -110,8 +110,8 @@ contract Artifacts {
             return payable(Predeploys.L1_BLOCK_NUMBER);
         } else if (digest == keccak256(bytes("LegacyMessagePasser"))) {
             return payable(Predeploys.LEGACY_MESSAGE_PASSER);
-        } else if (digest == keccak256(bytes("ProxyAdmin"))) {
-            return payable(Predeploys.PROXY_ADMIN);
+        } else if (digest == keccak256(bytes("L2ProxyAdmin"))) {
+            return payable(Predeploys.L2_PROXY_ADMIN);
         } else if (digest == keccak256(bytes("BaseFeeVault"))) {
             return payable(Predeploys.BASE_FEE_VAULT);
         } else if (digest == keccak256(bytes("L1FeeVault"))) {

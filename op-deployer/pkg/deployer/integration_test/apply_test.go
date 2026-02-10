@@ -1195,7 +1195,7 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 		addrAsSlot.SetBytes(chainIntent.Roles.L1ProxyAdminOwner.Bytes())
 		// slot 0
 		ownerSlot := common.Hash{}
-		checkStorageSlot(t, alloc, predeploys.ProxyAdminAddr, ownerSlot, addrAsSlot)
+		checkStorageSlot(t, alloc, predeploys.L2ProxyAdminAddr, ownerSlot, addrAsSlot)
 
 		if govEnabled {
 			var defaultGovOwner common.Hash

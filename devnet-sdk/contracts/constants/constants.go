@@ -19,7 +19,7 @@ var (
 	L2ToL1MessagePasser           types.Address = common.HexToAddress("0x4200000000000000000000000000000000000016")
 	L2ERC721Bridge                types.Address = common.HexToAddress("0x4200000000000000000000000000000000000014")
 	OptimismMintableERC721Factory types.Address = common.HexToAddress("0x4200000000000000000000000000000000000017")
-	ProxyAdmin                    types.Address = common.HexToAddress("0x4200000000000000000000000000000000000018")
+	L2ProxyAdmin                  types.Address = common.HexToAddress("0x4200000000000000000000000000000000000018")
 	BaseFeeVault                  types.Address = common.HexToAddress("0x4200000000000000000000000000000000000019")
 	L1FeeVault                    types.Address = common.HexToAddress("0x420000000000000000000000000000000000001a")
 	OperatorFeeVault              types.Address = common.HexToAddress("0x420000000000000000000000000000000000001B")

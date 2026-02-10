@@ -20,7 +20,7 @@ const (
 	LegacyMessagePasser           = "0x4200000000000000000000000000000000000000"
 	L2ERC721Bridge                = "0x4200000000000000000000000000000000000014"
 	OptimismMintableERC721Factory = "0x4200000000000000000000000000000000000017"
-	ProxyAdmin                    = "0x4200000000000000000000000000000000000018"
+	L2ProxyAdmin                  = "0x4200000000000000000000000000000000000018"
 	BaseFeeVault                  = "0x4200000000000000000000000000000000000019"
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
 	OperatorFeeVault              = "0x420000000000000000000000000000000000001b"
@@ -64,7 +64,7 @@ var (
 	LegacyMessagePasserAddr           = common.HexToAddress(LegacyMessagePasser)
 	L2ERC721BridgeAddr                = common.HexToAddress(L2ERC721Bridge)
 	OptimismMintableERC721FactoryAddr = common.HexToAddress(OptimismMintableERC721Factory)
-	ProxyAdminAddr                    = common.HexToAddress(ProxyAdmin)
+	L2ProxyAdminAddr                  = common.HexToAddress(L2ProxyAdmin)
 	BaseFeeVaultAddr                  = common.HexToAddress(BaseFeeVault)
 	L1FeeVaultAddr                    = common.HexToAddress(L1FeeVault)
 	OperatorFeeVaultAddr              = common.HexToAddress(OperatorFeeVault)
@@ -123,7 +123,7 @@ func init() {
 	Predeploys["LegacyMessagePasser"] = &Predeploy{Address: LegacyMessagePasserAddr}
 	Predeploys["L2ERC721Bridge"] = &Predeploy{Address: L2ERC721BridgeAddr}
 	Predeploys["OptimismMintableERC721Factory"] = &Predeploy{Address: OptimismMintableERC721FactoryAddr}
-	Predeploys["ProxyAdmin"] = &Predeploy{Address: ProxyAdminAddr}
+	Predeploys["L2ProxyAdmin"] = &Predeploy{Address: L2ProxyAdminAddr}
 	Predeploys["BaseFeeVault"] = &Predeploy{Address: BaseFeeVaultAddr}
 	Predeploys["L1FeeVault"] = &Predeploy{Address: L1FeeVaultAddr}
 	Predeploys["OperatorFeeVault"] = &Predeploy{Address: OperatorFeeVaultAddr}
