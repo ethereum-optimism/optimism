@@ -234,7 +234,7 @@ contract DeploySuperchain is Script {
         require(actualSuperchainConfigImpl == address(_output.superchainConfigImpl), "100"); // nosemgrep:
         // sol-style-malformed-require
         require(actualProtocolVersionsImpl == address(_output.protocolVersionsImpl), "200"); // nosemgrep:
-        // sol-style-malformed-require
+            // sol-style-malformed-require
     }
 
     function assertValidSuperchainProxyAdmin(InternalInput memory _input, Output memory _output) internal view {
@@ -245,7 +245,10 @@ contract DeploySuperchain is Script {
         // Proxy checks.
         ISuperchainConfig superchainConfig = _output.superchainConfigProxy;
         DeployUtils.assertInitialized({
-            _contractAddress: address(superchainConfig), _isProxy: true, _slot: 0, _offset: 0
+            _contractAddress: address(superchainConfig),
+            _isProxy: true,
+            _slot: 0,
+            _offset: 0
         });
         require(superchainConfig.guardian() == _input.guardian, "SUPCON-10");
 

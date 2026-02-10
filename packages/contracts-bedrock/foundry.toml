@@ -93,11 +93,6 @@ multiline_func_header='all'
 bracket_spacing=true
 wrap_comments=true
 
-# Desactiva el lint automático durante forge build (por defecto es true).
-# Útil para builds locales cuando hay muchos avisos de estilo pendientes.
-[lint]
-lint_on_build = false
-
 ################################################################
 #                         PROFILE: CI                          #
 ################################################################

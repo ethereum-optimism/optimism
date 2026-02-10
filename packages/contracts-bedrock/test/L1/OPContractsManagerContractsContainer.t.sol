@@ -54,7 +54,9 @@ contract OPContractsManagerContractsContainer_Constructor_Test is OPContractsMan
             OPContractsManagerContractsContainer.OPContractsManagerContractsContainer_DevFeatureInProd.selector
         );
         OPContractsManagerContractsContainer container = new OPContractsManagerContractsContainer({
-            _blueprints: blueprints, _implementations: implementations, _devFeatureBitmap: _devFeatureBitmap
+            _blueprints: blueprints,
+            _implementations: implementations,
+            _devFeatureBitmap: _devFeatureBitmap
         });
 
         // Constructor shouldn't have worked, foundry makes this return address(1).

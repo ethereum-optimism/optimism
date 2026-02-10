@@ -13,7 +13,10 @@ contract TestERC1271Wallet is Ownable, IERC1271 {
         transferOwnership(originalOwner);
     }
 
-    function isValidSignature(bytes32 _hash, bytes memory _signature)
+    function isValidSignature(
+        bytes32 _hash,
+        bytes memory _signature
+    )
         public
         view
         override
