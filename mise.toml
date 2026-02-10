@@ -23,7 +23,7 @@ svm-rs = "0.5.19"
 
 # Python dependencies
 "pipx:slither-analyzer" = "0.10.2"
-"pipx:semgrep" = "1.131.0"
+"pipx:semgrep" = "1.137.0"
 "pipx:md_toc" = "9.0.0"
 
 # Foundry dependencies
