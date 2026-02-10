@@ -9,16 +9,16 @@ orbs:
   codecov: codecov/codecov@5.0.3
 
 parameters:
-  default_docker_image:
+  c-default_docker_image:
     type: string
     default: cimg/base:2024.01
-  base_image:
+  c-base_image:
     type: string
     default: default
-  rust_ci_dispatch:
+  c-rust_ci_dispatch:
     type: boolean
     default: false
-  go-cache-version:
+  c-go-cache-version:
     type: string
     default: "v0.0"
 
@@ -326,7 +326,7 @@ jobs:
         type: string
         default: "cargo +nightly fmt --all --check"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -359,7 +359,7 @@ jobs:
         type: string
         default: "stable"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -392,7 +392,7 @@ jobs:
         type: string
         default: "cargo deny check"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -422,7 +422,7 @@ jobs:
         type: string
         default: "zepter run check"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -449,7 +449,7 @@ jobs:
         description: "Directory containing the Cargo workspace"
         type: string
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -487,7 +487,7 @@ jobs:
         type: string
         default: "just check-no-std"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -520,7 +520,7 @@ jobs:
         type: string
         default: "--cfg docsrs -D warnings --show-type-layout --generate-link-to-definition -Zunstable-options"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -552,7 +552,7 @@ jobs:
         type: string
         default: "cargo test --workspace --doc"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -590,7 +590,7 @@ jobs:
         type: string
         default: "release"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -624,7 +624,7 @@ jobs:
         type: string
         default: "just check-udeps"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -662,7 +662,7 @@ jobs:
         type: string
         default: "--workspace"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -690,7 +690,7 @@ jobs:
         type: integer
         default: 1
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     parallelism: <<parameters.parallelism>>
     steps:
@@ -724,7 +724,7 @@ jobs:
   # OP-Reth compact codec backwards compatibility
   op-reth-compact-codec:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -759,7 +759,7 @@ jobs:
   # OP-Reth Windows cross-compile check
   op-reth-windows-check:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -784,7 +784,7 @@ jobs:
   # Op-Alloy cfg check
   op-alloy-cfg-check:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -811,7 +811,7 @@ jobs:
   kona-host-client-offline:
     parameters:
     machine:
-      image: <<pipeline.parameters.base_image>>
+      image: <<pipeline.parameters.c-base_image>>
       docker_layer_caching: true
     resource_class: xlarge
     steps:
@@ -867,7 +867,7 @@ jobs:
         description: The lint target (native, cannon, asterisc)
         type: string
     machine:
-      image: <<pipeline.parameters.base_image>>
+      image: <<pipeline.parameters.c-base_image>>
       docker_layer_caching: true
     resource_class: xlarge
     steps:
@@ -892,7 +892,7 @@ jobs:
         description: The build target (cannon-client, asterisc-client)
         type: string
     machine:
-      image: <<pipeline.parameters.base_image>>
+      image: <<pipeline.parameters.c-base_image>>
       docker_layer_caching: true
     resource_class: xlarge
     steps:
@@ -909,7 +909,7 @@ jobs:
   # Kona Build Benchmarks
   kona-cargo-build-benches:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge
     steps:
       - utils/checkout-with-mise:
@@ -928,7 +928,7 @@ jobs:
   # Kona Coverage
   kona-coverage:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -965,7 +965,7 @@ jobs:
   # Kona Docs Build
   kona-docs-build:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -999,7 +999,7 @@ jobs:
     # OP-Reth docs build
   op-reth-docs-build:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -1026,7 +1026,7 @@ jobs:
   # Kona Link Checker
   kona-link-checker:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -1053,7 +1053,7 @@ jobs:
         description: The version to build (kona-client, kona-client-int)
         type: string
     machine:
-      image: <<pipeline.parameters.base_image>>
+      image: <<pipeline.parameters.c-base_image>>
       docker_layer_caching: true
     resource_class: xlarge
     steps:
@@ -1108,7 +1108,7 @@ workflows:
       or:
         - equal: ["webhook", << pipeline.trigger_source >>]
         - and:
-            - equal: [true, <<pipeline.parameters.rust_ci_dispatch>>]
+            - equal: [true, <<pipeline.parameters.c-rust_ci_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       # -----------------------------------------------------------------------
