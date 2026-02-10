@@ -7,13 +7,13 @@ version: 2.1
 
 parameters:
   # Required parameters (also in main.yml, merged during continuation)
-  default_docker_image:
+  c-default_docker_image:
     type: string
     default: cimg/base:2024.01
-  rust_e2e_dispatch:
+  c-rust_e2e_dispatch:
     type: boolean
     default: false
-  go-cache-version:
+  c-go-cache-version:
     type: string
     default: "v0.0"
 
@@ -28,7 +28,7 @@ commands:
         type: string
       version:
         type: string
-        default: <<pipeline.parameters.go-cache-version>>
+        default: <<pipeline.parameters.c-go-cache-version>>
     steps:
       - restore_cache:
           name: Restore go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
@@ -46,7 +46,7 @@ commands:
         type: string
       version:
         type: string
-        default: <<pipeline.parameters.go-cache-version>>
+        default: <<pipeline.parameters.c-go-cache-version>>
     steps:
       - save_cache:
           name: Save go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
@@ -70,7 +70,7 @@ jobs:
         type: boolean
         default: false
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -111,7 +111,7 @@ jobs:
   # Kona Node Restart Tests (from node_e2e_sysgo_tests.yaml)
   rust-restart-sysgo-tests:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -140,7 +140,7 @@ jobs:
         description: The test package to run
         type: string
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -162,7 +162,7 @@ jobs:
         description: The kind of action test (single or interop)
         type: string
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     parallelism: 4
     steps:
@@ -195,7 +195,7 @@ workflows:
       or:
         - equal: ["webhook", << pipeline.trigger_source >>]
         - and:
-            - equal: [true, <<pipeline.parameters.rust_e2e_dispatch>>]
+            - equal: [true, <<pipeline.parameters.c-rust_e2e_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - contracts-bedrock-build:
@@ -264,7 +264,7 @@ workflows:
   kona-supervisor-e2e:
     when:
       and:
-        - equal: [true, <<pipeline.parameters.rust_e2e_dispatch>>]
+        - equal: [true, <<pipeline.parameters.c-rust_e2e_dispatch>>]
         - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - kona-supervisor-e2e-tests:
