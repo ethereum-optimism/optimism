@@ -744,8 +744,16 @@ jobs:
             git fetch origin $BASE_BRANCH
             git checkout origin/$BASE_BRANCH
 
-            # Generate vectors on base
-            cargo run --bin op-reth --features "dev" --manifest-path rust/op-reth/bin/Cargo.toml -- test-vectors compact --write
+            # Generate vectors on base - handle both old and new workspace paths
+            if [ -f "rust/op-reth/bin/Cargo.toml" ]; then
+              MANIFEST_PATH="rust/op-reth/bin/Cargo.toml"
+            elif [ -f "op-reth/bin/Cargo.toml" ]; then
+              MANIFEST_PATH="op-reth/bin/Cargo.toml"
+            else
+              echo "Error: Could not find op-reth bin Cargo.toml"
+              exit 1
+            fi
+            cargo run --bin op-reth --features "dev" --manifest-path "$MANIFEST_PATH" -- test-vectors compact --write
 
             # Return to PR branch
             git checkout -
