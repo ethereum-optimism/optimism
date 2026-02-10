@@ -110,7 +110,7 @@ commands:
 
   rust-restore-build-cache:
     description: "Restore the target directory cache for a Rust workspace"
-    parameters: &cache-params
+    parameters:
       directory:
         description: "Directory containing the Cargo workspace"
         type: string
@@ -144,7 +144,26 @@ commands:
 
   rust-save-build-cache:
     description: "Save the target directory cache for a Rust workspace"
-    parameters: *cache-params
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      version:
+        description: "Version of the cache"
+        type: string
+        default: "15"
+      profile:
+        description: "Profile to restore the cache for"
+        type: string
+        default: "debug"
+      features:
+        description: "Comma-separated list of features to restore the cache for"
+        type: string
+        default: ""
+      prefix:
+        description: "Prefix to add to the cache key"
+        type: string
+        default: "rust-build"
     steps:
       - save_cache:
           key: << parameters.prefix >>-registry-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
@@ -163,7 +182,21 @@ commands:
   rust-prepare-and-restore-cache:
     description: "Prepare the Rust environment and restore the cache"
     parameters:
-      <<: *cache-params
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      version:
+        description: "Version of the cache"
+        type: string
+        default: "15"
+      profile:
+        description: "Profile to restore the cache for"
+        type: string
+        default: "debug"
+      prefix:
+        description: "Prefix to add to the cache key"
+        type: string
+        default: "rust-build"
       needs_clang:
         description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)"
         type: boolean
@@ -185,7 +218,21 @@ commands:
   rust-build:
     description: "Build a Rust workspace with target directory caching"
     parameters:
-      <<: *cache-params
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      version:
+        description: "Version of the cache"
+        type: string
+        default: "15"
+      profile:
+        description: "Profile to restore the cache for"
+        type: string
+        default: "debug"
+      prefix:
+        description: "Prefix to add to the cache key"
+        type: string
+        default: "rust-build"
       needs_clang:
         description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)"
         type: boolean
@@ -331,7 +378,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &fmt-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-fmt
       - rust-install-toolchain:
@@ -342,7 +389,9 @@ jobs:
           name: Check formatting
           working_directory: <<parameters.directory>>
           command: <<parameters.command>>
-      - rust-save-build-cache: *fmt-cache-args
+      - rust-save-build-cache:
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-fmt
 
   # Shared clippy lint job
   rust-ci-clippy:
@@ -364,7 +413,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &clippy-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-clippy
           features: "all"
@@ -379,7 +428,10 @@ jobs:
           environment:
             RUSTFLAGS: -Dwarnings
           command: <<parameters.command>>
-      - rust-save-build-cache: *clippy-cache-args
+      - rust-save-build-cache:
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-clippy
+          features: "all"
 
   # Shared cargo deny job
   rust-ci-deny:
@@ -397,7 +449,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &deny-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-deny
       - install-cargo-binstall
@@ -409,7 +461,9 @@ jobs:
           name: Run cargo deny
           working_directory: <<parameters.directory>>
           command: <<parameters.command>>
-      - rust-save-build-cache: *deny-cache-args
+      - rust-save-build-cache:
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-deny
 
   # Shared zepter feature propagation job
   rust-ci-zepter:
@@ -427,7 +481,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &zepter-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-zepter
       - install-cargo-binstall
@@ -440,7 +494,9 @@ jobs:
           name: Check feature propagation
           working_directory: <<parameters.directory>>
           command: <<parameters.command>>
-      - rust-save-build-cache: *zepter-cache-args
+      - rust-save-build-cache:
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-zepter
 
   # Shared typos check job
   rust-ci-typos:
@@ -454,7 +510,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &typos-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-typos
       - install-cargo-binstall
@@ -466,7 +522,9 @@ jobs:
           name: Check for typos
           working_directory: <<parameters.directory>>
           command: typos
-      - rust-save-build-cache: *typos-cache-args
+      - rust-save-build-cache:
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-typos
 
   # Shared no_std compatibility check job
   rust-ci-check-no-std:
@@ -492,7 +550,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &no-std-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-no-std
       - rust-install-toolchain:
@@ -503,7 +561,9 @@ jobs:
           working_directory: <<parameters.directory>>
           no_output_timeout: 30m
           command: <<parameters.command>>
-      - rust-save-build-cache: *no-std-cache-args
+      - rust-save-build-cache:
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-no-std
 
   # Shared documentation build job
   rust-ci-docs:
@@ -525,7 +585,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &docs-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-docs
           features: "all"
@@ -539,7 +599,10 @@ jobs:
           environment:
             RUSTDOCFLAGS: <<parameters.rustdocflags>>
           command: <<parameters.command>>
-      - rust-save-build-cache: *docs-cache-args
+      - rust-save-build-cache:
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-docs
+          features: "all"
 
   # Shared doc test job
   rust-ci-doctest:
@@ -557,7 +620,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &doctest-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-doctest
       - run:
@@ -565,7 +628,9 @@ jobs:
           working_directory: <<parameters.directory>>
           no_output_timeout: 30m
           command: <<parameters.command>>
-      - rust-save-build-cache: *doctest-cache-args
+      - rust-save-build-cache:
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-doctest
 
   # Shared cargo tests job
   rust-ci-cargo-tests:
@@ -595,7 +660,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &tests-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-tests
           profile: <<parameters.cache_profile>>
@@ -611,7 +676,10 @@ jobs:
           working_directory: <<parameters.directory>>
           no_output_timeout: 40m
           command: just <<parameters.command>> <<parameters.flags>>
-      - rust-save-build-cache: *tests-cache-args
+      - rust-save-build-cache:
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-tests
+          profile: <<parameters.cache_profile>>
 
   # Shared unused dependencies check job
   rust-ci-udeps:
@@ -629,7 +697,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &udeps-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-udeps
           profile: "release"
@@ -646,7 +714,10 @@ jobs:
           working_directory: <<parameters.directory>>
           no_output_timeout: 40m
           command: <<parameters.command>>
-      - rust-save-build-cache: *udeps-cache-args
+      - rust-save-build-cache:
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-udeps
+          profile: "release"
 
   # Shared cargo hack build job (cross-compile targets like WASM)
   rust-ci-cargo-hack-build:
@@ -667,7 +738,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &hack-build-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-hack-build
       - install-cargo-binstall
@@ -680,7 +751,9 @@ jobs:
           working_directory: <<parameters.directory>>
           no_output_timeout: 40m
           command: rustup target add <<parameters.target>> && cargo hack build --target <<parameters.target>> <<parameters.flags>>
-      - rust-save-build-cache: *hack-build-cache-args
+      - rust-save-build-cache:
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-hack-build
 
   # Shared cargo hack job
   rust-ci-cargo-hack:
@@ -696,7 +769,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &hack-cache-args
+      - rust-prepare-and-restore-cache:
           directory: rust
           prefix: rust-hack
           features: "all"
@@ -715,7 +788,10 @@ jobs:
               PARTITION_FLAG="$((CIRCLE_NODE_INDEX + 1))/$CIRCLE_NODE_TOTAL"
             fi
             just hack $PARTITION_FLAG
-      - rust-save-build-cache: *hack-cache-args
+      - rust-save-build-cache:
+          directory: rust
+          prefix: rust-hack
+          features: "all"
 
   # --------------------------------------------------------------------------
   # OP-Reth crate-specific jobs
@@ -729,7 +805,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-reth-compact-cache
+      - rust-prepare-and-restore-cache:
           directory: rust
           prefix: op-reth-compact
           profile: debug
@@ -754,7 +830,10 @@ jobs:
           name: Read compact vectors on PR branch
           command: |
             cargo run --bin op-reth --features "dev" --manifest-path rust/op-reth/bin/Cargo.toml -- test-vectors compact --read
-      - rust-save-build-cache: *op-reth-compact-cache
+      - rust-save-build-cache:
+          directory: rust
+          prefix: op-reth-compact
+          profile: debug
 
   # OP-Reth Windows cross-compile check
   op-reth-windows-check:
@@ -764,7 +843,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-reth-windows-cache
+      - rust-prepare-and-restore-cache:
           directory: rust
           prefix: op-reth-windows
           profile: debug
@@ -776,7 +855,10 @@ jobs:
           working_directory: rust
           no_output_timeout: 40m
           command: just --justfile op-reth/justfile check-windows
-      - rust-save-build-cache: *op-reth-windows-cache
+      - rust-save-build-cache:
+          directory: rust
+          prefix: op-reth-windows
+          profile: debug
 
   # --------------------------------------------------------------------------
   # Op-Alloy crate-specific jobs
@@ -789,7 +871,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-alloy-cfg-check-cache
+      - rust-prepare-and-restore-cache:
           directory: rust
           prefix: op-alloy-cfg-check
       - rust-install-toolchain:
@@ -801,7 +883,9 @@ jobs:
           no_output_timeout: 40m
           command: |
             just --justfile op-alloy/Justfile check
-      - rust-save-build-cache: *op-alloy-cfg-check-cache
+      - rust-save-build-cache:
+          directory: rust
+          prefix: op-alloy-cfg-check
 
   # --------------------------------------------------------------------------
   # Kona crate-specific jobs
@@ -914,7 +998,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &kona-benches-cache
+      - rust-prepare-and-restore-cache:
           directory: rust
           prefix: kona-benches
       - run:
@@ -923,7 +1007,9 @@ jobs:
           no_output_timeout: 40m
           command: |
             just benches
-      - rust-save-build-cache: *kona-benches-cache
+      - rust-save-build-cache:
+          directory: rust
+          prefix: kona-benches
 
   # Kona Coverage
   kona-coverage:
@@ -933,7 +1019,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &kona-coverage-cache
+      - rust-prepare-and-restore-cache:
           directory: rust
           prefix: kona-coverage
           version: "1"
@@ -960,7 +1046,10 @@ jobs:
           disable_search: true
           files: rust/kona/lcov.info
           flags: unit
-      - rust-save-build-cache: *kona-coverage-cache
+      - rust-save-build-cache:
+          directory: rust
+          prefix: kona-coverage
+          version: "1"
 
   # Kona Docs Build
   kona-docs-build:
@@ -1034,7 +1123,7 @@ jobs:
           checkout-method: blobless
       - rust-install-toolchain:
           components: llvm-tools-preview
-      - rust-prepare-and-restore-cache: &kona-publish-prestate-cache
+      - rust-prepare-and-restore-cache:
           directory: rust
           profile: release
       - gcp-cli/install
@@ -1065,7 +1154,9 @@ jobs:
             fi
             gsutil cp ./prestate-artifacts-<<parameters.kind>>/prestate.bin.gz "gs://oplabs-network-data/proofs/kona/<<parameters.kind>>/${PRESTATE_HASH}.bin.gz"
             echo "Successfully published prestates artifacts to GCS"
-      - rust-save-build-cache: *kona-publish-prestate-cache
+      - rust-save-build-cache:
+          directory: rust
+          profile: release
 
 # ============================================================================
 # WORKFLOWS
@@ -1089,73 +1180,85 @@ workflows:
       - rust-ci-fmt:
           name: rust-fmt
           directory: rust
-          context: &rust-ci-context
+          context:
             - circleci-repo-readonly-authenticated-github-token
 
       - rust-ci-clippy:
           name: rust-clippy
           directory: rust
           command: "cargo clippy --workspace --all-targets --all-features --locked"
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - rust-ci-deny:
           name: rust-deny
           directory: rust
           command: "cargo deny --all-features check all"
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - rust-ci-typos:
           name: rust-typos
           directory: rust
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - rust-ci-zepter:
           name: rust-zepter
           directory: rust
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - rust-ci-cargo-tests:
           name: rust-tests
           directory: rust
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - rust-ci-doctest:
           name: rust-doctest
           directory: rust
           command: "cargo test --doc --workspace --all-features"
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - rust-ci-docs:
           name: rust-docs
           directory: rust
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - rust-ci-udeps:
           name: rust-udeps
           directory: rust
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - rust-ci-cargo-hack:
           name: rust-cargo-hack
           parallelism: 6
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - rust-build-binary:
           name: rust-build
           directory: rust
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - rust-build-binary:
           name: rust-build-release
           directory: rust
           profile: release
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - rust-build-binary:
           name: rust-msrv
           directory: rust
           toolchain: "1.88.0"
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       # -----------------------------------------------------------------------
       # Unified cross-compilation jobs
@@ -1169,37 +1272,43 @@ workflows:
             just --justfile alloy-op-evm/justfile check-no-std
             just --justfile alloy-op-hardforks/justfile check-no-std
           toolchain: "1.88.0"
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - rust-ci-cargo-hack-build:
           name: rust-wasm-unknown
           directory: rust
           target: wasm32-unknown-unknown
           flags: "-p op-alloy-consensus -p op-alloy-rpc-types -p op-alloy-rpc-types-engine -p alloy-op-evm --no-default-features"
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - rust-ci-cargo-hack-build:
           name: rust-wasm-wasi
           directory: rust
           target: wasm32-wasip1
           flags: "-p op-alloy-consensus -p op-alloy-rpc-types-engine -p alloy-op-evm"
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       # -----------------------------------------------------------------------
       # OP-Reth crate-specific jobs
       # -----------------------------------------------------------------------
       - op-reth-compact-codec:
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - op-reth-windows-check:
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - rust-ci-cargo-tests:
           name: op-reth-integration-tests
           directory: rust
           command: "--justfile op-reth/justfile test-integration"
           cache_profile: debug
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - rust-ci-cargo-tests:
           name: op-reth-tests-edge
@@ -1207,13 +1316,15 @@ workflows:
           command: "--justfile op-reth/justfile test"
           flags: "edge"
           cache_profile: debug
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       # -----------------------------------------------------------------------
       # Op-Alloy crate-specific jobs
       # -----------------------------------------------------------------------
       - op-alloy-cfg-check:
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       # -----------------------------------------------------------------------
       # Kona crate-specific jobs (lint, FPVM builds, benches, coverage)
@@ -1223,26 +1334,31 @@ workflows:
           matrix:
             parameters:
               target: ["cannon", "asterisc"]
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - kona-build-fpvm:
           name: kona-build-fpvm-<<matrix.target>>
           matrix:
             parameters:
               target: ["cannon-client", "asterisc-client"]
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - kona-cargo-build-benches:
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
       - kona-coverage:
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - rust-tests
 
       - kona-host-client-offline:
           name: kona-host-client-offline-cannon
-          context: *rust-ci-context
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
 
   # ==========================================================================

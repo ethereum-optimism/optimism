@@ -79,7 +79,7 @@ jobs:
           at: .
       - go-restore-cache:
           namespace: kona-ci
-      - rust-build: &kona-rust-build-release
+      - rust-build:
           directory: rust
           profile: release
           binary: "kona-node"
@@ -121,7 +121,9 @@ jobs:
       - go-restore-cache:
           namespace: kona-ci
       - rust-build:
-          <<: *kona-rust-build-release
+          directory: rust
+          profile: release
+          binary: "kona-node"
       - run:
           name: Run restart tests for node with sysgo orchestrator
           no_output_timeout: 60m
@@ -146,7 +148,8 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
       - rust-build:
-          <<: *kona-rust-build-release
+          directory: rust
+          profile: release
           binary: "kona-supervisor"
       - run:
           name: Run supervisor tests for <<parameters.test_pkg>>
@@ -173,7 +176,8 @@ jobs:
       - go-restore-cache:
           namespace: kona-ci
       - rust-build:
-          <<: *kona-rust-build-release
+          directory: rust
+          profile: release
           binary: "kona-host"
       - run:
           name: Build kona and run action tests
@@ -202,19 +206,20 @@ workflows:
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate-quick: &rust-e2e-job-base
+      - cannon-prestate-quick:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - cannon-kona-prestate:
-          <<: *rust-e2e-job-base
-      - rust-build-binary: &cannon-kona-host
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-binary:
           name: cannon-kona-host
           directory: rust
           profile: release
           binary: "kona-host"
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary: &kona-build-release
+      - rust-build-binary:
           name: kona-build-release
           directory: rust
           profile: release
@@ -243,7 +248,8 @@ workflows:
             - op-reth-build
       - rust-restart-sysgo-tests:
           name: rust-e2e-restart
-          <<: *rust-e2e-job-base
+          context:
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
