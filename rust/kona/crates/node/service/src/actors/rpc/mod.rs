@@ -1,5 +1,5 @@
 mod actor;
-pub use actor::{RpcActor, RpcContext};
+pub use actor::{RpcActor, RpcActorBuilder};
 
 mod engine_rpc_client;
 pub use engine_rpc_client::QueuedEngineRpcClient;

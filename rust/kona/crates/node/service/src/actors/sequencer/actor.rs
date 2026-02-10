@@ -1,7 +1,7 @@
 //! The [`SequencerActor`].
 
 use crate::{
-    CancellableContext, NodeActor, SequencerAdminQuery, UnsafePayloadGossipClient,
+    NodeActor, SequencerAdminQuery, UnsafePayloadGossipClient,
     actors::{
         SequencerEngineClient,
         engine::EngineClientError,
@@ -29,11 +29,10 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tokio::{select, sync::mpsc};
-use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 
 /// The handle to a block that has been started but not sealed.
 #[derive(Debug)]
-pub(super) struct UnsealedPayloadHandle {
+pub(crate) struct UnsealedPayloadHandle {
     /// The [`PayloadId`] of the unsealed payload.
     pub payload_id: PayloadId,
     /// The [`OpAttributesWithParent`] used to start block building.
@@ -48,6 +47,71 @@ struct SealLastStartNextResult {
     pub unsealed_payload_handle: Option<UnsealedPayloadHandle>,
     /// How long it took to execute the seal operation.
     pub seal_duration: Duration,
+}
+
+/// Builder for the [`SequencerActor`].
+pub struct SequencerActorBuilder<
+    AttributesBuilder_,
+    Conductor_,
+    OriginSelector_,
+    SequencerEngineClient_,
+    UnsafePayloadGossipClient_,
+> where
+    AttributesBuilder_: AttributesBuilder,
+    Conductor_: Conductor,
+    OriginSelector_: OriginSelector,
+    SequencerEngineClient_: SequencerEngineClient,
+    UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
+{
+    /// The attributes builder used for block building.
+    pub attributes_builder: AttributesBuilder_,
+    /// The optional conductor RPC client.
+    pub conductor: Option<Conductor_>,
+    /// Whether the sequencer is active.
+    pub is_active: bool,
+    /// Whether the sequencer is in recovery mode.
+    pub in_recovery_mode: bool,
+    /// The struct used to determine the next L1 origin.
+    pub origin_selector: OriginSelector_,
+    /// The rollup configuration.
+    pub rollup_config: Arc<RollupConfig>,
+    /// The struct used to interact with the engine.
+    pub engine_client: SequencerEngineClient_,
+    /// A client to asynchronously sign and gossip built payloads to the network actor.
+    pub unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
+}
+
+impl<
+    AttributesBuilder_,
+    Conductor_,
+    OriginSelector_,
+    SequencerEngineClient_,
+    UnsafePayloadGossipClient_,
+> std::fmt::Debug
+    for SequencerActorBuilder<
+        AttributesBuilder_,
+        Conductor_,
+        OriginSelector_,
+        SequencerEngineClient_,
+        UnsafePayloadGossipClient_,
+    >
+where
+    AttributesBuilder_: AttributesBuilder,
+    Conductor_: Conductor,
+    OriginSelector_: OriginSelector,
+    SequencerEngineClient_: SequencerEngineClient,
+    UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SequencerActorBuilder").finish()
+    }
+}
+
+/// Inbound data for the [`SequencerActor`].
+#[derive(Debug)]
+pub struct SequencerInboundData {
+    /// The admin API sender.
+    pub admin_api_tx: mpsc::Sender<SequencerAdminQuery>,
 }
 
 /// The [`SequencerActor`] is responsible for building L2 blocks on top of the current unsafe head
@@ -68,25 +132,31 @@ pub struct SequencerActor<
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
 {
     /// Receiver for admin API requests.
-    pub admin_api_rx: mpsc::Receiver<SequencerAdminQuery>,
+    pub(crate) admin_api_rx: mpsc::Receiver<SequencerAdminQuery>,
     /// The attributes builder used for block building.
-    pub attributes_builder: AttributesBuilder_,
-    /// The cancellation token, shared between all tasks.
-    pub cancellation_token: CancellationToken,
+    pub(crate) attributes_builder: AttributesBuilder_,
     /// The optional conductor RPC client.
-    pub conductor: Option<Conductor_>,
+    pub(crate) conductor: Option<Conductor_>,
     /// The struct used to interact with the engine.
-    pub engine_client: SequencerEngineClient_,
+    pub(crate) engine_client: SequencerEngineClient_,
     /// Whether the sequencer is active.
-    pub is_active: bool,
+    pub(crate) is_active: bool,
     /// Whether the sequencer is in recovery mode.
-    pub in_recovery_mode: bool,
+    pub(crate) in_recovery_mode: bool,
     /// The struct used to determine the next L1 origin.
-    pub origin_selector: OriginSelector_,
+    pub(crate) origin_selector: OriginSelector_,
     /// The rollup configuration.
-    pub rollup_config: Arc<RollupConfig>,
+    pub(crate) rollup_config: Arc<RollupConfig>,
     /// A client to asynchronously sign and gossip built payloads to the network actor.
-    pub unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
+    pub(crate) unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
+    /// The ticker for block building.
+    pub(crate) build_ticker: tokio::time::Interval,
+    /// The next payload to seal.
+    pub(crate) next_payload_to_seal: Option<UnsealedPayloadHandle>,
+    /// The duration of the last seal operation.
+    pub(crate) last_seal_duration: Duration,
+    /// Whether the initial engine reset is needed.
+    pub(crate) needs_initial_reset: bool,
 }
 
 impl<
@@ -391,104 +461,99 @@ where
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient + Sync + 'static,
 {
     type Error = SequencerActorError;
-    type StartData = ();
-
-    async fn start(mut self, _: Self::StartData) -> Result<(), Self::Error> {
-        let mut build_ticker =
-            tokio::time::interval(Duration::from_secs(self.rollup_config.block_time));
-
-        self.update_metrics();
-
-        // Reset the engine state prior to beginning block building.
-        self.schedule_initial_reset().await?;
-
-        let mut next_payload_to_seal: Option<UnsealedPayloadHandle> = None;
-        let mut last_seal_duration = Duration::from_secs(0);
-        loop {
-            select! {
-                // We are using a biased select here to ensure that the admin queries are given priority over the block building task.
-                // This is important to limit the occurrence of race conditions where a stopped query is received when a sequencer is building a new block.
-                biased;
-                _ = self.cancellation_token.cancelled() => {
-                    info!(
-                        target: "sequencer",
-                        "Received shutdown signal. Exiting sequencer task."
-                    );
-                    return Ok(());
-                }
-                Some(query) = self.admin_api_rx.recv() => {
-                    let active_before = self.is_active;
-
-                    self.handle_admin_query(query).await;
-
-                    // immediately attempt to build a block if the sequencer was just started
-                    if !active_before && self.is_active {
-                        build_ticker.reset_immediately();
-                    }
-                }
-                // The sequencer must be active to build new blocks.
-                _ = build_ticker.tick(), if self.is_active => {
-
-                    match self.seal_last_and_start_next(next_payload_to_seal.as_ref()).await {
-                        Ok(res) => {
-                            next_payload_to_seal = res.unsealed_payload_handle;
-                            last_seal_duration = res.seal_duration;
-                        },
-                        Err(SequencerActorError::EngineError(EngineClientError::SealError(err))) => {
-                            if is_seal_task_err_fatal(&err) {
-                                error!(target: "sequencer", err=?err, "Critical seal task error occurred");
-                                self.cancellation_token.cancel();
-                                return Err(SequencerActorError::EngineError(EngineClientError::SealError(err)));
-                            }
-                            next_payload_to_seal = None;
-                        },
-                        Err(other_err) => {
-                            error!(target: "sequencer", err = ?other_err, "Unexpected error building or sealing payload");
-                            self.cancellation_token.cancel();
-                            return Err(other_err);
-                        }
-                    }
-
-                    if let Some(ref payload) = next_payload_to_seal {
-                        let next_block_seconds = payload.attributes_with_parent.parent().block_info.timestamp.saturating_add(self.rollup_config.block_time);
-                        // next block time is last + block_time - time it takes to seal.
-                        let next_block_time = UNIX_EPOCH + Duration::from_secs(next_block_seconds) - last_seal_duration;
-                        match next_block_time.duration_since(SystemTime::now()) {
-                            Ok(duration) => build_ticker.reset_after(duration),
-                            Err(_) => build_ticker.reset_immediately(),
-                        };
-                    } else {
-                        build_ticker.reset_immediately();
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl<
-    AttributesBuilder_,
-    Conductor_,
-    OriginSelector_,
-    SequencerEngineClient_,
-    UnsafePayloadGossipClient_,
-> CancellableContext
-    for SequencerActor<
+    type Builder = SequencerActorBuilder<
         AttributesBuilder_,
         Conductor_,
         OriginSelector_,
         SequencerEngineClient_,
         UnsafePayloadGossipClient_,
-    >
-where
-    AttributesBuilder_: AttributesBuilder,
-    Conductor_: Conductor,
-    OriginSelector_: OriginSelector,
-    SequencerEngineClient_: SequencerEngineClient,
-    UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
-{
-    fn cancelled(&self) -> WaitForCancellationFuture<'_> {
-        self.cancellation_token.cancelled()
+    >;
+    type InboundData = SequencerInboundData;
+
+    async fn init(builder: Self::Builder) -> Result<(Self, Self::InboundData), Self::Error> {
+        let (admin_api_tx, admin_api_rx) = mpsc::channel(1024);
+        let build_ticker =
+            tokio::time::interval(Duration::from_secs(builder.rollup_config.block_time));
+
+        let actor = Self {
+            admin_api_rx,
+            attributes_builder: builder.attributes_builder,
+            conductor: builder.conductor,
+            engine_client: builder.engine_client,
+            is_active: builder.is_active,
+            in_recovery_mode: builder.in_recovery_mode,
+            origin_selector: builder.origin_selector,
+            rollup_config: builder.rollup_config,
+            unsafe_payload_gossip_client: builder.unsafe_payload_gossip_client,
+            build_ticker,
+            next_payload_to_seal: None,
+            last_seal_duration: Duration::from_secs(0),
+            needs_initial_reset: true,
+        };
+        actor.update_metrics();
+
+        let inbound = SequencerInboundData { admin_api_tx };
+        Ok((actor, inbound))
+    }
+
+    async fn step(&mut self) -> Result<(), Self::Error> {
+        // On the first step, perform the initial engine reset.
+        if self.needs_initial_reset {
+            self.schedule_initial_reset().await?;
+            self.needs_initial_reset = false;
+            return Ok(());
+        }
+
+        select! {
+            // We are using a biased select here to ensure that the admin queries are given priority over the block building task.
+            // This is important to limit the occurrence of race conditions where a stopped query is received when a sequencer is building a new block.
+            biased;
+            Some(query) = self.admin_api_rx.recv() => {
+                let active_before = self.is_active;
+
+                self.handle_admin_query(query).await;
+
+                // immediately attempt to build a block if the sequencer was just started
+                if !active_before && self.is_active {
+                    self.build_ticker.reset_immediately();
+                }
+            }
+            // The sequencer must be active to build new blocks.
+            _ = self.build_ticker.tick(), if self.is_active => {
+
+                let payload_to_seal = self.next_payload_to_seal.take();
+                match self.seal_last_and_start_next(payload_to_seal.as_ref()).await {
+                    Ok(res) => {
+                        self.next_payload_to_seal = res.unsealed_payload_handle;
+                        self.last_seal_duration = res.seal_duration;
+                    },
+                    Err(SequencerActorError::EngineError(EngineClientError::SealError(err))) => {
+                        if is_seal_task_err_fatal(&err) {
+                            error!(target: "sequencer", err=?err, "Critical seal task error occurred");
+                            return Err(SequencerActorError::EngineError(EngineClientError::SealError(err)));
+                        }
+                        self.next_payload_to_seal = None;
+                    },
+                    Err(other_err) => {
+                        error!(target: "sequencer", err = ?other_err, "Unexpected error building or sealing payload");
+                        return Err(other_err);
+                    }
+                }
+
+                if let Some(ref payload) = self.next_payload_to_seal {
+                    let next_block_seconds = payload.attributes_with_parent.parent().block_info.timestamp.saturating_add(self.rollup_config.block_time);
+                    // next block time is last + block_time - time it takes to seal.
+                    let next_block_time = UNIX_EPOCH + Duration::from_secs(next_block_seconds) - self.last_seal_duration;
+                    match next_block_time.duration_since(SystemTime::now()) {
+                        Ok(duration) => self.build_ticker.reset_after(duration),
+                        Err(_) => self.build_ticker.reset_immediately(),
+                    };
+                } else {
+                    self.build_ticker.reset_immediately();
+                }
+            }
+        }
+        Ok(())
     }
 }
 
