@@ -215,6 +215,7 @@ func (h *Handler) listenToRollupBoost(ctx context.Context) {
 				time.Sleep(500 * time.Millisecond)
 				continue
 			}
+
 			// Try to connect if not connected indefinitely
 			if h.rollupBoostConn == nil {
 				h.log.Info("reconnecting to rollup boost WebSocket", "url", h.cfg.RollupBoostWsURL)
@@ -229,7 +230,6 @@ func (h *Handler) listenToRollupBoost(ctx context.Context) {
 				if err != nil {
 					h.log.Warn("failed to connect to rollup boost WebSocket, will retry",
 						"err", err, "retryIn", reconnectDelay)
-					// add a metric for the number of times we've tried to connect
 					h.metrics.RecordRollupBoostConnectionAttempts(false, h.cfg.RollupBoostWsURL)
 					time.Sleep(reconnectDelay)
 					continue
@@ -238,12 +238,14 @@ func (h *Handler) listenToRollupBoost(ctx context.Context) {
 				h.rollupBoostConn = conn
 				h.log.Info("successfully connected to rollup boost WebSocket")
 				h.metrics.RecordRollupBoostConnectionAttempts(true, h.cfg.RollupBoostWsURL)
+
+				// Start keepalive pings on the upstream connection.
+				// If the ping fails (stale TCP connection), close the conn
+				// so the read below errors out and triggers reconnection.
+				go h.pingUpstream(ctx)
 			}
 
-			// Read with timeout
-			readCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			_, message, err := h.rollupBoostConn.Read(readCtx)
-			cancel()
+			_, message, err := h.rollupBoostConn.Read(ctx)
 
 			if err != nil {
 				h.log.Warn("error reading from rollup boost WebSocket", "err", err)
@@ -256,6 +258,31 @@ func (h *Handler) listenToRollupBoost(ctx context.Context) {
 			}
 
 			h.handleRollupBoostMessage(ctx, message)
+		}
+	}
+}
+
+func (h *Handler) pingUpstream(ctx context.Context) {
+	ticker := time.NewTicker(pingInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			conn := h.rollupBoostConn
+			if conn == nil {
+				return
+			}
+			pingCtx, cancel := context.WithTimeout(ctx, pongTimeout)
+			err := conn.Ping(pingCtx)
+			cancel()
+			if err != nil {
+				h.log.Warn("upstream ping failed, closing connection for reconnect", "err", err)
+				conn.Close(websocket.StatusInternalError, "ping timeout")
+				return
+			}
 		}
 	}
 }

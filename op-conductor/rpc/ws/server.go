@@ -2,7 +2,6 @@ package ws
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -213,10 +212,11 @@ func (h *Handler) serveWs(w http.ResponseWriter, r *http.Request) {
 	h.readPump(client)
 }
 
-// readPump for followers where you don't expect regular data messages
+// readPump drains control frames (ping/pong/close) from a subscribe-only
+// client. CloseRead handles this internally and cancels the returned context
+// when the connection is closed, at which point we unregister the client.
 func (h *Handler) readPump(client *Client) {
 	defer func() {
-		// Unregister the client when the read pump exits
 		select {
 		case h.hub.unregister <- client:
 		case <-h.hub.done:
@@ -226,34 +226,8 @@ func (h *Handler) readPump(client *Client) {
 		h.log.Info("WebSocket read pump exited, client unregistered")
 	}()
 
-	for {
-		select {
-		case <-client.ctx.Done():
-			return
-		default:
-			// Always read to process control frames (ping/pong/close)
-			readCtx, cancel := context.WithTimeout(client.ctx, 30*time.Second)
-			_, message, err := client.conn.Read(readCtx)
-			cancel()
-
-			if err != nil {
-				if errors.Is(err, context.DeadlineExceeded) {
-					// Timeout is expected when no messages - continue reading
-					h.log.Debug("Read timeout occurred, continuing to process control frames")
-					continue
-				}
-				if websocket.CloseStatus(err) != -1 {
-					h.log.Debug("Client closed connection", "code", websocket.CloseStatus(err))
-					return
-				}
-				h.log.Debug("Error reading from WebSocket client", "err", err)
-				return
-			}
-
-			// Handle any data messages from clients if needed
-			h.log.Debug("Received message from client", "message", string(message))
-		}
-	}
+	closed := client.conn.CloseRead(client.ctx)
+	<-closed.Done()
 }
 
 // writePump pumps messages from the hub to the WebSocket connection

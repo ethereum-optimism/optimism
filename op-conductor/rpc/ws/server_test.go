@@ -414,12 +414,6 @@ func TestConcurrentConnections(t *testing.T) {
 			}
 			defer client.Close()
 
-			// Send a test message
-			err = client.Write(ctx, []byte("test message"))
-			if err != nil {
-				t.Errorf("Client %d write failed: %v", clientIdx, err)
-			}
-
 			// Keep connection alive for a short time
 			select {
 			case <-ctx.Done():
