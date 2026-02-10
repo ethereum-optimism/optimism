@@ -3,8 +3,6 @@ pragma solidity 0.8.15;
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
-import { IProxy } from "interfaces/universal/IProxy.sol";
-import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
@@ -21,6 +19,7 @@ import { IL1Block } from "interfaces/L2/IL1Block.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { XForkL2CMTypes } from "src/libraries/XForkL2CMTypes.sol";
+import { L2ContractsManagerUtils } from "src/libraries/L2ContractsManagerUtils.sol";
 
 /// @title XForkL2ContractsManager
 /// @notice Manages the upgrade of the L2 predeploys for the XFork upgrade.
@@ -177,16 +176,16 @@ contract XForkL2ContractsManager is ISemver {
         });
 
         // SequencerFeeVault
-        fullConfig_.sequencerFeeVault = _readFeeVaultConfig(Predeploys.SEQUENCER_FEE_WALLET);
+        fullConfig_.sequencerFeeVault = L2ContractsManagerUtils.readFeeVaultConfig(Predeploys.SEQUENCER_FEE_WALLET);
 
         // BaseFeeVault
-        fullConfig_.baseFeeVault = _readFeeVaultConfig(Predeploys.BASE_FEE_VAULT);
+        fullConfig_.baseFeeVault = L2ContractsManagerUtils.readFeeVaultConfig(Predeploys.BASE_FEE_VAULT);
 
         // L1FeeVault
-        fullConfig_.l1FeeVault = _readFeeVaultConfig(Predeploys.L1_FEE_VAULT);
+        fullConfig_.l1FeeVault = L2ContractsManagerUtils.readFeeVaultConfig(Predeploys.L1_FEE_VAULT);
 
         // OperatorFeeVault
-        fullConfig_.operatorFeeVault = _readFeeVaultConfig(Predeploys.OPERATOR_FEE_VAULT);
+        fullConfig_.operatorFeeVault = L2ContractsManagerUtils.readFeeVaultConfig(Predeploys.OPERATOR_FEE_VAULT);
 
         // LiquidityController
         if (isCustomGasToken) {
@@ -204,22 +203,6 @@ contract XForkL2ContractsManager is ISemver {
         });
     }
 
-    /// @notice Reads the configuration from a FeeVault predeploy.
-    /// @param _feeVault The address of the FeeVault predeploy.
-    /// @return config_ The FeeVault configuration.
-    function _readFeeVaultConfig(address _feeVault)
-        internal
-        view
-        returns (XForkL2CMTypes.FeeVaultConfig memory config_)
-    {
-        IFeeVault feeVault = IFeeVault(payable(_feeVault));
-        config_ = XForkL2CMTypes.FeeVaultConfig({
-            recipient: feeVault.recipient(),
-            minWithdrawalAmount: feeVault.minWithdrawalAmount(),
-            withdrawalNetwork: feeVault.withdrawalNetwork()
-        });
-    }
-
     /// @notice Upgrades each of the predeploys to its corresponding new implementation. Applies the appropriate
     ///         configuration to each predeploy.
     /// @param _config The full configuration for the L2 Predeploys.
@@ -229,36 +212,40 @@ contract XForkL2ContractsManager is ISemver {
         // Initializable predeploys.
 
         // L2CrossDomainMessenger
-        _upgradeToAndCall(
+        L2ContractsManagerUtils.upgradeToAndCall(
             Predeploys.L2_CROSS_DOMAIN_MESSENGER,
             L2_CROSS_DOMAIN_MESSENGER_IMPL,
+            STORAGE_SETTER_IMPL,
             abi.encodeCall(IL2CrossDomainMessenger.initialize, (_config.crossDomainMessenger.otherMessenger)),
             INITIALIZABLE_SLOT_OZ_V4,
             20 // Account for CrossDomainMessengerLegacySpacer0
         );
 
         // L2StandardBridge
-        _upgradeToAndCall(
+        L2ContractsManagerUtils.upgradeToAndCall(
             Predeploys.L2_STANDARD_BRIDGE,
             L2_STANDARD_BRIDGE_IMPL,
+            STORAGE_SETTER_IMPL,
             abi.encodeCall(IL2StandardBridge.initialize, (_config.standardBridge.otherBridge)),
             INITIALIZABLE_SLOT_OZ_V4,
             0
         );
 
         // L2ERC721Bridge
-        _upgradeToAndCall(
+        L2ContractsManagerUtils.upgradeToAndCall(
             Predeploys.L2_ERC721_BRIDGE,
             L2_ERC721_BRIDGE_IMPL,
+            STORAGE_SETTER_IMPL,
             abi.encodeCall(IL2ERC721Bridge.initialize, payable(address(_config.erc721Bridge.otherBridge))),
             INITIALIZABLE_SLOT_OZ_V4,
             0
         );
 
         // OptimismMintableERC20Factory
-        _upgradeToAndCall(
+        L2ContractsManagerUtils.upgradeToAndCall(
             Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY,
             OPTIMISM_MINTABLE_ERC20_FACTORY_IMPL,
+            STORAGE_SETTER_IMPL,
             abi.encodeCall(IOptimismMintableERC20Factory.initialize, (_config.mintableERC20Factory.bridge)),
             INITIALIZABLE_SLOT_OZ_V4,
             0
@@ -266,9 +253,10 @@ contract XForkL2ContractsManager is ISemver {
 
         // LiquidityController (only on custom gas token networks)
         if (isCustomGasToken) {
-            _upgradeToAndCall(
+            L2ContractsManagerUtils.upgradeToAndCall(
                 Predeploys.LIQUIDITY_CONTROLLER,
                 LIQUIDITY_CONTROLLER_IMPL,
+                STORAGE_SETTER_IMPL,
                 abi.encodeCall(
                     ILiquidityController.initialize,
                     (
@@ -283,18 +271,20 @@ contract XForkL2ContractsManager is ISemver {
         }
 
         // FeeSplitter
-        _upgradeToAndCall(
+        L2ContractsManagerUtils.upgradeToAndCall(
             Predeploys.FEE_SPLITTER,
             FEE_SPLITTER_IMPL,
+            STORAGE_SETTER_IMPL,
             abi.encodeCall(IFeeSplitter.initialize, (ISharesCalculator(_config.feeSplitter.sharesCalculator))),
             INITIALIZABLE_SLOT_OZ_V4,
             0
         );
 
         // SequencerFeeVault
-        _upgradeToAndCall(
+        L2ContractsManagerUtils.upgradeToAndCall(
             Predeploys.SEQUENCER_FEE_WALLET,
             SEQUENCER_FEE_WALLET_IMPL,
+            STORAGE_SETTER_IMPL,
             abi.encodeCall(
                 IFeeVault.initialize,
                 (
@@ -308,9 +298,10 @@ contract XForkL2ContractsManager is ISemver {
         );
 
         // BaseFeeVault
-        _upgradeToAndCall(
+        L2ContractsManagerUtils.upgradeToAndCall(
             Predeploys.BASE_FEE_VAULT,
             BASE_FEE_VAULT_IMPL,
+            STORAGE_SETTER_IMPL,
             abi.encodeCall(
                 IFeeVault.initialize,
                 (
@@ -324,9 +315,10 @@ contract XForkL2ContractsManager is ISemver {
         );
 
         // L1FeeVault
-        _upgradeToAndCall(
+        L2ContractsManagerUtils.upgradeToAndCall(
             Predeploys.L1_FEE_VAULT,
             L1_FEE_VAULT_IMPL,
+            STORAGE_SETTER_IMPL,
             abi.encodeCall(
                 IFeeVault.initialize,
                 (
@@ -340,9 +332,10 @@ contract XForkL2ContractsManager is ISemver {
         );
 
         // OperatorFeeVault
-        _upgradeToAndCall(
+        L2ContractsManagerUtils.upgradeToAndCall(
             Predeploys.OPERATOR_FEE_VAULT,
             OPERATOR_FEE_VAULT_IMPL,
+            STORAGE_SETTER_IMPL,
             abi.encodeCall(
                 IFeeVault.initialize,
                 (
@@ -356,65 +349,37 @@ contract XForkL2ContractsManager is ISemver {
         );
 
         // Non-initializable predeploys.
-        _upgradeTo(Predeploys.GAS_PRICE_ORACLE, GAS_PRICE_ORACLE_IMPL);
+        L2ContractsManagerUtils.upgradeTo(Predeploys.GAS_PRICE_ORACLE, GAS_PRICE_ORACLE_IMPL);
         // L1BlockAttributes and L2ToL1MessagePasser have different implementations for custom gas token networks.
-        _upgradeTo(
+        L2ContractsManagerUtils.upgradeTo(
             Predeploys.L1_BLOCK_ATTRIBUTES, isCustomGasToken ? L1_BLOCK_ATTRIBUTES_CGT_IMPL : L1_BLOCK_ATTRIBUTES_IMPL
         );
-        _upgradeTo(
+        L2ContractsManagerUtils.upgradeTo(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             isCustomGasToken ? L2_TO_L1_MESSAGE_PASSER_CGT_IMPL : L2_TO_L1_MESSAGE_PASSER_IMPL
         );
-        _upgradeTo(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL);
-        _upgradeTo(Predeploys.PROXY_ADMIN, PROXY_ADMIN_IMPL);
-        _upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
-        _upgradeTo(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL);
-        _upgradeTo(Predeploys.SUPERCHAIN_ETH_BRIDGE, SUPERCHAIN_ETH_BRIDGE_IMPL);
-        _upgradeTo(Predeploys.ETH_LIQUIDITY, ETH_LIQUIDITY_IMPL);
-        _upgradeTo(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY, OPTIMISM_SUPERCHAIN_ERC20_FACTORY_IMPL);
-        _upgradeTo(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON, OPTIMISM_SUPERCHAIN_ERC20_BEACON_IMPL);
-        _upgradeTo(Predeploys.SUPERCHAIN_TOKEN_BRIDGE, SUPERCHAIN_TOKEN_BRIDGE_IMPL);
+        L2ContractsManagerUtils.upgradeTo(
+            Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL
+        );
+        L2ContractsManagerUtils.upgradeTo(Predeploys.PROXY_ADMIN, PROXY_ADMIN_IMPL);
+        L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
+        L2ContractsManagerUtils.upgradeTo(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL
+        );
+        L2ContractsManagerUtils.upgradeTo(Predeploys.SUPERCHAIN_ETH_BRIDGE, SUPERCHAIN_ETH_BRIDGE_IMPL);
+        L2ContractsManagerUtils.upgradeTo(Predeploys.ETH_LIQUIDITY, ETH_LIQUIDITY_IMPL);
+        L2ContractsManagerUtils.upgradeTo(
+            Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY, OPTIMISM_SUPERCHAIN_ERC20_FACTORY_IMPL
+        );
+        L2ContractsManagerUtils.upgradeTo(
+            Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON, OPTIMISM_SUPERCHAIN_ERC20_BEACON_IMPL
+        );
+        L2ContractsManagerUtils.upgradeTo(Predeploys.SUPERCHAIN_TOKEN_BRIDGE, SUPERCHAIN_TOKEN_BRIDGE_IMPL);
         // NativeAssetLiquidity
         if (isCustomGasToken) {
-            _upgradeTo(Predeploys.NATIVE_ASSET_LIQUIDITY, NATIVE_ASSET_LIQUIDITY_IMPL);
+            L2ContractsManagerUtils.upgradeTo(Predeploys.NATIVE_ASSET_LIQUIDITY, NATIVE_ASSET_LIQUIDITY_IMPL);
         }
-        _upgradeTo(Predeploys.SCHEMA_REGISTRY, SCHEMA_REGISTRY_IMPL);
-        _upgradeTo(Predeploys.EAS, EAS_IMPL);
-    }
-
-    /// @notice Upgrades a predeploy to a new implementation without calling an initializer.
-    /// @param _proxy The proxy address of the predeploy.
-    /// @param _implementation The new implementation address.
-    function _upgradeTo(address _proxy, address _implementation) internal {
-        IProxy(payable(_proxy)).upgradeTo(_implementation);
-    }
-
-    /// @notice Upgrades an initializable Predeploy's implementation to _implementation by resetting the initialized
-    ///         slot and calling upgradeToAndCall with _data.
-    /// @dev It's important to make sure that only initializable Predeploys are upgraded to this way.
-    /// @param _proxy The proxy of the contract.
-    /// @param _implementation The new implementation of the contract.
-    /// @param _data The data to call upgradeToAndCall with.
-    /// @param _slot The slot where the initialized value is located.
-    /// @param _offset The offset of the initializer value in the slot.
-    function _upgradeToAndCall(
-        address _proxy,
-        address _implementation,
-        bytes memory _data,
-        bytes32 _slot,
-        uint8 _offset
-    )
-        internal
-    {
-        // Upgrade to StorageSetter.
-        IProxy(payable(_proxy)).upgradeTo(STORAGE_SETTER_IMPL);
-
-        // Reset the initialized slot by zeroing the single byte at `_offset` (from the right).
-        bytes32 current = IStorageSetter(_proxy).getBytes32(_slot);
-        uint256 mask = ~(uint256(0xff) << (uint256(_offset) * 8));
-        IStorageSetter(_proxy).setBytes32(_slot, bytes32(uint256(current) & mask));
-
-        // Upgrade to the implementation and call the initializer.
-        IProxy(payable(_proxy)).upgradeToAndCall(_implementation, _data);
+        L2ContractsManagerUtils.upgradeTo(Predeploys.SCHEMA_REGISTRY, SCHEMA_REGISTRY_IMPL);
+        L2ContractsManagerUtils.upgradeTo(Predeploys.EAS, EAS_IMPL);
     }
 }
