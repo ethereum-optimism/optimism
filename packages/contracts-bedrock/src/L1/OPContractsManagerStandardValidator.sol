@@ -282,7 +282,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = internalRequire(
             LibString.eq(getVersion(address(_sysCfg)), getVersion(systemConfigImpl)), "SYSCON-10", _errors
         );
-        _errors = internalRequire(_sysCfg.gasLimit() <= uint64(500_000_000), "SYSCON-20", _errors);
+        _errors = internalRequire(_sysCfg.gasLimit() <= uint64(50_000_000_000), "SYSCON-20", _errors);
         _errors = internalRequire(_sysCfg.scalar() != 0, "SYSCON-30", _errors);
         _errors =
             internalRequire(getProxyImplementation(_admin, address(_sysCfg)) == systemConfigImpl, "SYSCON-40", _errors);
