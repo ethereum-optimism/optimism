@@ -108,6 +108,14 @@ func DialWS(ctx context.Context, cfg WSConfig) (*WSClient, error) {
 	}, nil
 }
 
+// Ping sends a ping to the peer and waits for a pong.
+func (c *WSClient) Ping(ctx context.Context) error {
+	if c == nil || c.conn == nil {
+		return nil
+	}
+	return c.conn.Ping(ctx)
+}
+
 // Close closes the websocket connection with the given status and reason.
 func (c *WSClient) Close(status websocket.StatusCode, reason string) error {
 	if c == nil || c.conn == nil {
@@ -117,13 +125,10 @@ func (c *WSClient) Close(status websocket.StatusCode, reason string) error {
 }
 
 // Read reads the next message from the websocket connection.
-// If the context has no deadline, a default read timeout from the config is applied.
+// No default timeout is injected because coder/websocket destroys the
+// underlying TCP connection when a read context expires (coder/websocket#242).
+// Callers that need a bounded read should pass a context with a deadline.
 func (c *WSClient) Read(ctx context.Context) (websocket.MessageType, []byte, error) {
-	if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) <= 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, c.config.ReadTimeout)
-		defer cancel()
-	}
 	return c.conn.Read(ctx)
 }
 
