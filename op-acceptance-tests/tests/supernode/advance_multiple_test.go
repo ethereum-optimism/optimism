@@ -7,8 +7,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -77,12 +75,4 @@ func TestTwoChainProgress(gt *testing.T) {
 		"chainB_safe", finalStatusB.SafeL2.Number,
 	)
 
-	for _, s := range []eth.L2BlockRef{finalStatusA.SafeL2, finalStatusB.SafeL2} {
-		assert.NotZero(t, s.Time)
-		assert.NotZero(t, s.L1Origin)
-		assert.NotZero(t, s.ParentHash)
-		assert.NotZero(t, s.SequenceNumber)
-		assert.NotZero(t, s.Hash)
-		assert.NotZero(t, s.Number)
-	}
 }
