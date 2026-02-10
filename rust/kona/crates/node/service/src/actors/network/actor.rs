@@ -7,14 +7,23 @@ use libp2p::TransportError;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpNetworkPayloadEnvelope};
 use thiserror::Error;
 use tokio::{self, select, sync::mpsc};
-use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 
 use crate::{
-    CancellableContext, NetworkEngineClient, NodeActor,
+    NetworkEngineClient, NodeActor,
     actors::network::{
         builder::NetworkBuilder, driver::NetworkDriverError, error::NetworkBuilderError,
+        handler::NetworkHandler,
     },
 };
+
+/// Builder for the [`NetworkActor`].
+#[derive(Debug)]
+pub struct NetworkActorBuilder<E: NetworkEngineClient> {
+    /// The engine client used to interact with the engine actor.
+    pub engine_client: E,
+    /// The network builder used to construct the network handler.
+    pub network_builder: NetworkBuilder,
+}
 
 /// The network actor handles two core networking components of the rollup node:
 /// - *discovery*: Peer discovery over UDP using discv5.
@@ -45,20 +54,22 @@ use crate::{
 /// ```
 #[derive(Debug)]
 pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
-    /// Network driver
-    pub(super) builder: NetworkBuilder,
-    /// The cancellation token, shared between all tasks.
-    pub(super) cancellation_token: CancellationToken,
     /// A channel to receive the unsafe block signer address.
-    pub(super) signer: mpsc::Receiver<Address>,
+    signer: mpsc::Receiver<Address>,
     /// Handler for p2p RPC Requests.
-    pub(super) p2p_rpc: mpsc::Receiver<P2pRpcRequest>,
+    p2p_rpc: mpsc::Receiver<P2pRpcRequest>,
     /// A channel to receive admin rpc requests.
-    pub(super) admin_rpc: mpsc::Receiver<NetworkAdminQuery>,
+    admin_rpc: mpsc::Receiver<NetworkAdminQuery>,
     /// A channel to receive unsafe blocks and send them through the gossip layer.
-    pub(super) publish_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
+    publish_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
     /// A channel to use to interact with the engine actor.
-    pub(super) engine_client: NetworkEngineClient_,
+    engine_client: NetworkEngineClient_,
+    /// The network handler.
+    handler: NetworkHandler,
+    /// Sender for unsafe blocks received from gossip.
+    unsafe_block_tx: mpsc::UnboundedSender<OpExecutionPayloadEnvelope>,
+    /// Receiver for unsafe blocks received from gossip.
+    unsafe_block_rx: mpsc::UnboundedReceiver<OpExecutionPayloadEnvelope>,
 }
 
 /// The inbound data for the network actor.
@@ -74,42 +85,6 @@ pub struct NetworkInboundData {
     /// This channel should only be used by the sequencer actor/admin RPC api to forward their
     /// newly produced unsafe blocks to the network actor.
     pub gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
-}
-
-impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient_> {
-    /// Constructs a new [`NetworkActor`] given the [`NetworkBuilder`]
-    pub fn new(
-        engine_client: NetworkEngineClient_,
-        cancellation_token: CancellationToken,
-        driver: NetworkBuilder,
-    ) -> (NetworkInboundData, Self) {
-        let (signer_tx, signer_rx) = mpsc::channel(16);
-        let (rpc_tx, rpc_rx) = mpsc::channel(1024);
-        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
-        let (publish_tx, publish_rx) = tokio::sync::mpsc::channel(256);
-        let actor = Self {
-            builder: driver,
-            cancellation_token,
-            signer: signer_rx,
-            p2p_rpc: rpc_rx,
-            admin_rpc: admin_rpc_rx,
-            publish_rx,
-            engine_client,
-        };
-        let outbound_data = NetworkInboundData {
-            signer: signer_tx,
-            p2p_rpc: rpc_tx,
-            admin_rpc: admin_rpc_tx,
-            gossip_payload_tx: publish_tx,
-        };
-        (outbound_data, actor)
-    }
-}
-
-impl<E: NetworkEngineClient> CancellableContext for NetworkActor<E> {
-    fn cancelled(&self) -> WaitForCancellationFuture<'_> {
-        self.cancellation_token.cancelled()
-    }
 }
 
 /// An error from the network actor.
@@ -143,111 +118,128 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
     for NetworkActor<NetworkEngineClient_>
 {
     type Error = NetworkActorError;
-    type StartData = ();
+    type Builder = NetworkActorBuilder<NetworkEngineClient_>;
+    type InboundData = NetworkInboundData;
 
-    async fn start(mut self, _: Self::StartData) -> Result<(), Self::Error> {
-        let mut handler = self.builder.build()?.start().await?;
+    async fn init(builder: Self::Builder) -> Result<(Self::InboundData, Self), Self::Error> {
+        let (signer_tx, signer_rx) = mpsc::channel(16);
+        let (rpc_tx, rpc_rx) = mpsc::channel(1024);
+        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
+        let (publish_tx, publish_rx) = mpsc::channel(256);
 
-        // New unsafe block channel.
-        let (unsafe_block_tx, mut unsafe_block_rx) = tokio::sync::mpsc::unbounded_channel();
+        let handler = builder.network_builder.build()?.start().await?;
 
-        loop {
-            select! {
-                _ = self.cancellation_token.cancelled() => {
-                    info!(
-                        target: "network",
-                        "Received shutdown signal. Exiting network task."
-                    );
-                    return Ok(());
+        let (unsafe_block_tx, unsafe_block_rx) = mpsc::unbounded_channel();
+
+        let actor = Self {
+            signer: signer_rx,
+            p2p_rpc: rpc_rx,
+            admin_rpc: admin_rpc_rx,
+            publish_rx,
+            engine_client: builder.engine_client,
+            handler,
+            unsafe_block_tx,
+            unsafe_block_rx,
+        };
+        let inbound_data = NetworkInboundData {
+            signer: signer_tx,
+            p2p_rpc: rpc_tx,
+            admin_rpc: admin_rpc_tx,
+            gossip_payload_tx: publish_tx,
+        };
+        Ok((inbound_data, actor))
+    }
+
+    async fn step(&mut self) -> Result<(), Self::Error> {
+        select! {
+            block = self.unsafe_block_rx.recv() => {
+                let Some(block) = block else {
+                    error!(target: "node::p2p", "The unsafe block receiver channel has closed");
+                    return Err(NetworkActorError::ChannelClosed);
+                };
+
+                if self.engine_client.send_unsafe_block(block).await.is_err() {
+                    warn!(target: "network", "Failed to forward unsafe block to engine");
+                    return Err(NetworkActorError::ChannelClosed);
                 }
-                block = unsafe_block_rx.recv() => {
-                    let Some(block) = block else {
-                        error!(target: "node::p2p", "The unsafe block receiver channel has closed");
-                        return Err(NetworkActorError::ChannelClosed);
-                    };
-
-                    if self.engine_client.send_unsafe_block(block).await.is_err() {
-                        warn!(target: "network", "Failed to forward unsafe block to engine");
-                        return Err(NetworkActorError::ChannelClosed);
-                    }
-                }
-                signer = self.signer.recv() => {
-                    let Some(signer) = signer else {
-                        warn!(
-                            target: "network",
-                            "Found no unsafe block signer on receive"
-                        );
-                        return Err(NetworkActorError::ChannelClosed);
-                    };
-                    if handler.unsafe_block_signer_sender.send(signer).is_err() {
-                        warn!(
-                            target: "network",
-                            "Failed to send unsafe block signer to network handler",
-                        );
-                    }
-                }
-                Some(block) = self.publish_rx.recv(), if !self.publish_rx.is_closed() => {
-                    let timestamp = block.execution_payload.timestamp();
-                    let selector = |handler: &kona_gossip::BlockHandler| {
-                        handler.topic(timestamp)
-                    };
-                    let Some(signer) = handler.signer.as_ref() else {
-                        warn!(target: "net", "No local signer available to sign the payload");
-                        continue;
-                    };
-
-                    let chain_id = handler.discovery.chain_id;
-
-                    let sender_address = *handler.unsafe_block_signer_sender.borrow();
-
-                    let payload_hash = block.payload_hash();
-                    let signature = signer.sign_block(payload_hash, chain_id, sender_address).await?;
-
-                    let payload = OpNetworkPayloadEnvelope {
-                        payload: block.execution_payload,
-                        parent_beacon_block_root: block.parent_beacon_block_root,
-                        signature,
-                        payload_hash,
-                    };
-
-                    match handler.gossip.publish(selector, Some(payload)) {
-                        Ok(id) => info!("Published unsafe payload | {:?}", id),
-                        Err(e) => warn!("Failed to publish unsafe payload: {:?}", e),
-                    }
-                }
-                event = handler.gossip.next() => {
-                    let Some(event) = event else {
-                        error!(target: "node::p2p", "The gossip swarm stream has ended");
-                        return Err(NetworkActorError::ChannelClosed);
-                    };
-
-                    if let Some(payload) = handler.gossip.handle_event(event)
-                        && unsafe_block_tx.send(payload.into()).is_err()
-                    {
-                        warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
-                    }
-                },
-                enr = handler.enr_receiver.recv() => {
-                    let Some(enr) = enr else {
-                        error!(target: "node::p2p", "The enr receiver channel has closed");
-                        return Err(NetworkActorError::ChannelClosed);
-                    };
-                    handler.gossip.dial(enr);
-                },
-                _ = handler.peer_score_inspector.tick(), if handler.gossip.peer_monitoring.as_ref().is_some() => {
-                    handler.handle_peer_monitoring().await;
-                },
-                Some(NetworkAdminQuery::PostUnsafePayload { payload }) = self.admin_rpc.recv(), if !self.admin_rpc.is_closed() => {
-                    debug!(target: "node::p2p", "Broadcasting unsafe payload from admin api");
-                    if unsafe_block_tx.send(payload).is_err() {
-                        warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
-                    }
-                },
-                Some(req) = self.p2p_rpc.recv(), if !self.p2p_rpc.is_closed() => {
-                    req.handle(&mut handler.gossip, &handler.discovery);
-                },
             }
+            signer = self.signer.recv() => {
+                let Some(signer) = signer else {
+                    warn!(
+                        target: "network",
+                        "Found no unsafe block signer on receive"
+                    );
+                    return Err(NetworkActorError::ChannelClosed);
+                };
+                if self.handler.unsafe_block_signer_sender.send(signer).is_err() {
+                    warn!(
+                        target: "network",
+                        "Failed to send unsafe block signer to network handler",
+                    );
+                }
+            }
+            Some(block) = self.publish_rx.recv(), if !self.publish_rx.is_closed() => {
+                let timestamp = block.execution_payload.timestamp();
+                let selector = |handler: &kona_gossip::BlockHandler| {
+                    handler.topic(timestamp)
+                };
+                let Some(signer) = self.handler.signer.as_ref() else {
+                    warn!(target: "net", "No local signer available to sign the payload");
+                    return Ok(());
+                };
+
+                let chain_id = self.handler.discovery.chain_id;
+
+                let sender_address = *self.handler.unsafe_block_signer_sender.borrow();
+
+                let payload_hash = block.payload_hash();
+                let signature = signer.sign_block(payload_hash, chain_id, sender_address).await?;
+
+                let payload = OpNetworkPayloadEnvelope {
+                    payload: block.execution_payload,
+                    parent_beacon_block_root: block.parent_beacon_block_root,
+                    signature,
+                    payload_hash,
+                };
+
+                match self.handler.gossip.publish(selector, Some(payload)) {
+                    Ok(id) => info!("Published unsafe payload | {:?}", id),
+                    Err(e) => warn!("Failed to publish unsafe payload: {:?}", e),
+                }
+            }
+            event = self.handler.gossip.next() => {
+                let Some(event) = event else {
+                    error!(target: "node::p2p", "The gossip swarm stream has ended");
+                    return Err(NetworkActorError::ChannelClosed);
+                };
+
+                if let Some(payload) = self.handler.gossip.handle_event(event)
+                    && self.unsafe_block_tx.send(payload.into()).is_err()
+                {
+                    warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
+                }
+            },
+            enr = self.handler.enr_receiver.recv() => {
+                let Some(enr) = enr else {
+                    error!(target: "node::p2p", "The enr receiver channel has closed");
+                    return Err(NetworkActorError::ChannelClosed);
+                };
+                self.handler.gossip.dial(enr);
+            },
+            _ = self.handler.peer_score_inspector.tick(), if self.handler.gossip.peer_monitoring.as_ref().is_some() => {
+                self.handler.handle_peer_monitoring().await;
+            },
+            Some(NetworkAdminQuery::PostUnsafePayload { payload }) = self.admin_rpc.recv(), if !self.admin_rpc.is_closed() => {
+                debug!(target: "node::p2p", "Broadcasting unsafe payload from admin api");
+                if self.unsafe_block_tx.send(payload).is_err() {
+                    warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
+                }
+            },
+            Some(req) = self.p2p_rpc.recv(), if !self.p2p_rpc.is_closed() => {
+                req.handle(&mut self.handler.gossip, &self.handler.discovery);
+            },
         }
+        Ok(())
     }
 }
 

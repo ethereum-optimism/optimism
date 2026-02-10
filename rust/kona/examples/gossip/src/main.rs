@@ -23,7 +23,8 @@ use discv5::enr::CombinedKey;
 use kona_cli::{LogArgs, LogConfig};
 use kona_disc::LocalNode;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkConfig, NetworkEngineClient, NodeActor,
+    EngineClientResult, NetworkActor, NetworkActorBuilder, NetworkBuilder, NetworkConfig,
+    NetworkEngineClient, NodeActor,
 };
 use kona_registry::ROLLUP_CONFIGS;
 use libp2p::{Multiaddr, identity::Keypair};
@@ -33,7 +34,6 @@ use std::{
     time::Duration,
 };
 use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
 use tracing::error;
 use tracing_subscriber::EnvFilter;
 
@@ -106,10 +106,9 @@ impl GossipCommand {
             LocalNode::new(secret_key, IpAddr::V4(disc_ip), self.disc_port, self.disc_port);
 
         let (unsafe_blocks_tx, mut unsafe_blocks_rx) = mpsc::channel(1024);
-        let (_, network) = NetworkActor::new(
-            ForwardingNetworkEngineClient { block_tx: unsafe_blocks_tx },
-            CancellationToken::new(),
-            NetworkConfig {
+        let (_, mut network) = NetworkActor::init(NetworkActorBuilder {
+            engine_client: ForwardingNetworkEngineClient { block_tx: unsafe_blocks_tx },
+            network_builder: NetworkBuilder::from(NetworkConfig {
                 discovery_address: disc_addr,
                 gossip_address: gossip_addr,
                 unsafe_block_signer: signer,
@@ -131,20 +130,28 @@ impl GossipCommand {
                 rollup_config: rollup_config.clone(),
                 gossip_signer: None,
                 enr_update: true,
-            }
-            .into(),
-        );
-
-        network.start(()).await?;
+            }),
+        })
+        .await?;
 
         tracing::info!(target: "gossip", "Gossip driver started, receiving blocks.");
         loop {
-            match unsafe_blocks_rx.recv().await {
-                Some(block) => {
-                    tracing::info!(target: "gossip", "Received unsafe block: {:?}", block);
+            tokio::select! {
+                result = network.step() => {
+                    if let Err(e) = result {
+                        error!(target: "gossip", "Network actor step error: {:?}", e);
+                        return Err(e.into());
+                    }
                 }
-                None => {
-                    tracing::warn!(target: "gossip", "unsafe block gossip channel closed");
+                block = unsafe_blocks_rx.recv() => {
+                    match block {
+                        Some(block) => {
+                            tracing::info!(target: "gossip", "Received unsafe block: {:?}", block);
+                        }
+                        None => {
+                            tracing::warn!(target: "gossip", "unsafe block gossip channel closed");
+                        }
+                    }
                 }
             }
         }

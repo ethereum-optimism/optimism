@@ -1,7 +1,7 @@
 //! The [`EngineActor`] and its components.
 
 mod actor;
-pub use actor::EngineActor;
+pub use actor::{EngineActor, EngineActorBuilder};
 
 mod client;
 pub use client::{EngineDerivationClient, QueuedEngineDerivationClient};
