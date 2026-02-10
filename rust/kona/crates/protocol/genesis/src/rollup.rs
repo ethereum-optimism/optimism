@@ -15,6 +15,11 @@ pub const MAX_RLP_BYTES_PER_CHANNEL_FJORD: u64 = 100_000_000;
 /// The max sequencer drift when the Fjord hardfork is active.
 pub const FJORD_MAX_SEQUENCER_DRIFT: u64 = 1800;
 
+/// The max sequencer drift for chains that build only on finalized L1 blocks, where L1 finality
+/// delays can exceed the standard [`FJORD_MAX_SEQUENCER_DRIFT`].
+#[cfg(feature = "rollup_config_override")]
+pub(crate) const FJORD_MAX_SEQUENCER_DRIFT_OVERRIDE: u64 = 2892;
+
 /// The channel timeout once the Granite hardfork is active.
 pub const GRANITE_CHANNEL_TIMEOUT: u64 = 50;
 
@@ -329,7 +334,10 @@ impl RollupConfig {
     /// Returns the max sequencer drift for the given timestamp.
     pub fn max_sequencer_drift(&self, timestamp: u64) -> u64 {
         if self.is_fjord_active(timestamp) {
-            FJORD_MAX_SEQUENCER_DRIFT
+            #[cfg(feature = "rollup_config_override")]
+            return FJORD_MAX_SEQUENCER_DRIFT_OVERRIDE;
+            #[cfg(not(feature = "rollup_config_override"))]
+            return FJORD_MAX_SEQUENCER_DRIFT;
         } else {
             self.max_sequencer_drift
         }
@@ -800,7 +808,10 @@ mod tests {
         assert_eq!(config.max_sequencer_drift(0), 100);
         config.hardforks.fjord_time = Some(10);
         assert_eq!(config.max_sequencer_drift(0), 100);
+        #[cfg(not(feature = "rollup_config_override"))]
         assert_eq!(config.max_sequencer_drift(10), FJORD_MAX_SEQUENCER_DRIFT);
+        #[cfg(feature = "rollup_config_override")]
+        assert_eq!(config.max_sequencer_drift(10), FJORD_MAX_SEQUENCER_DRIFT_OVERRIDE);
     }
 
     #[test]
