@@ -1,8 +1,7 @@
 //! RPC Server Actor
 
-use crate::{NodeActor, RpcActorError, actors::CancellableContext};
+use crate::{NodeActor, RpcActorError};
 use async_trait::async_trait;
-use derive_more::Constructor;
 use jsonrpsee::{
     RpcModule,
     server::{Server, ServerHandle, middleware::http::ProxyGetRequestLayer},
@@ -13,46 +12,51 @@ use kona_rpc::{
     HealthzRpc, L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, P2pRpc, RollupNodeApiServer,
     RollupRpc, RpcBuilder, SequencerAdminAPIClient, WsRPC, WsServer,
 };
-use std::time::Duration;
+use std::{marker::PhantomData, time::Duration};
 use tokio::sync::mpsc;
-use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 
-/// An actor that handles the RPC server for the rollup node.
-#[derive(Constructor, Debug)]
-pub struct RpcActor<EngineRpcClient_, SequencerAdminApiClient_>
+/// Builder for the [`RpcActor`]. Folds in what was previously `RpcContext`.
+#[derive(Debug)]
+pub struct RpcActorBuilder<EngineRpcClient_, SeqAdminClient_>
 where
     EngineRpcClient_: EngineRpcClient,
-    SequencerAdminApiClient_: SequencerAdminAPIClient,
+    SeqAdminClient_: SequencerAdminAPIClient,
 {
     /// A launcher for the rpc.
-    config: RpcBuilder,
-
-    engine_rpc_client: EngineRpcClient_,
-    sequencer_admin_rpc_client: Option<SequencerAdminApiClient_>,
-}
-
-/// The communication context used by the RPC actor.
-#[derive(Debug)]
-pub struct RpcContext {
+    pub config: RpcBuilder,
+    /// The engine RPC client.
+    pub engine_rpc_client: EngineRpcClient_,
+    /// The optional sequencer admin RPC client.
+    pub sequencer_admin_rpc_client: Option<SeqAdminClient_>,
     /// The network p2p rpc sender.
     pub p2p_network: mpsc::Sender<P2pRpcRequest>,
     /// The network admin rpc sender.
     pub network_admin: mpsc::Sender<NetworkAdminQuery>,
     /// The l1 watcher queries sender.
     pub l1_watcher_queries: mpsc::Sender<L1WatcherQueries>,
-    /// The cancellation token, shared between all tasks.
-    pub cancellation: CancellationToken,
 }
 
-impl CancellableContext for RpcContext {
-    fn cancelled(&self) -> WaitForCancellationFuture<'_> {
-        self.cancellation.cancelled()
-    }
+/// An actor that handles the RPC server for the rollup node.
+///
+/// The generic parameters are consumed during [`init`](NodeActor::init) when the RPC modules are
+/// built. At runtime, the actor only holds the config, modules, and server handle.
+#[derive(Debug)]
+pub struct RpcActor<EngineRpcClient_: EngineRpcClient, SeqAdminClient_: SequencerAdminAPIClient> {
+    /// A launcher for the rpc.
+    config: RpcBuilder,
+    /// The RPC modules.
+    modules: RpcModule<()>,
+    /// The server handle.
+    handle: ServerHandle,
+    /// Maximum number of restarts.
+    max_restarts: u32,
+    /// Current restart count.
+    current_restarts: u32,
+    /// Phantom data for generic types consumed during init.
+    _phantom: PhantomData<(EngineRpcClient_, SeqAdminClient_)>,
 }
 
 /// Launches the jsonrpsee [`Server`].
-///
-/// If the RPC server is disabled, this will return `Ok(None)`.
 ///
 /// ## Errors
 ///
@@ -79,76 +83,77 @@ async fn launch(
 }
 
 #[async_trait]
-impl<EngineRpcClient_, SequencerAdminApiClient_> NodeActor
-    for RpcActor<EngineRpcClient_, SequencerAdminApiClient_>
+impl<EngineRpcClient_, SeqAdminClient_> NodeActor for RpcActor<EngineRpcClient_, SeqAdminClient_>
 where
     EngineRpcClient_: EngineRpcClient + 'static,
-    SequencerAdminApiClient_: SequencerAdminAPIClient + 'static,
+    SeqAdminClient_: SequencerAdminAPIClient + 'static,
 {
     type Error = RpcActorError;
-    type StartData = RpcContext;
+    type Builder = RpcActorBuilder<EngineRpcClient_, SeqAdminClient_>;
+    type InboundData = ();
 
-    async fn start(
-        mut self,
-        RpcContext {
-            cancellation,
-            p2p_network,
-            l1_watcher_queries,
-            network_admin,
-        }: Self::StartData,
-    ) -> Result<(), Self::Error> {
+    async fn init(builder: Self::Builder) -> Result<(Self::InboundData, Self), Self::Error> {
         let mut modules = RpcModule::new(());
 
         modules.merge(HealthzApiServer::into_rpc(HealthzRpc {}))?;
 
         // Build the p2p rpc module.
-        modules.merge(P2pRpc::new(p2p_network).into_rpc())?;
+        modules.merge(P2pRpc::new(builder.p2p_network).into_rpc())?;
 
         // Build the admin rpc module.
-        modules.merge(AdminRpc::new(self.sequencer_admin_rpc_client, network_admin).into_rpc())?;
+        modules.merge(
+            AdminRpc::new(builder.sequencer_admin_rpc_client, builder.network_admin).into_rpc(),
+        )?;
 
         // Create context for communication between actors.
-        let rollup_rpc = RollupRpc::new(self.engine_rpc_client.clone(), l1_watcher_queries);
+        let rollup_rpc =
+            RollupRpc::new(builder.engine_rpc_client.clone(), builder.l1_watcher_queries);
         modules.merge(rollup_rpc.into_rpc())?;
 
         // Add development RPC module for engine state introspection if enabled
-        if self.config.dev_enabled() {
-            let dev_rpc = DevEngineRpc::new(self.engine_rpc_client.clone());
+        if builder.config.dev_enabled() {
+            let dev_rpc = DevEngineRpc::new(builder.engine_rpc_client.clone());
             modules.merge(dev_rpc.into_rpc())?;
         }
 
-        if self.config.ws_enabled() {
-            modules.merge(WsRPC::new(self.engine_rpc_client.clone()).into_rpc())?;
+        if builder.config.ws_enabled() {
+            modules.merge(WsRPC::new(builder.engine_rpc_client.clone()).into_rpc())?;
         }
 
-        let restarts = self.config.restart_count();
+        let max_restarts = builder.config.restart_count();
+        let handle = launch(&builder.config, modules.clone()).await?;
 
-        let mut handle = launch(&self.config, modules.clone()).await?;
+        let actor = Self {
+            config: builder.config,
+            modules,
+            handle,
+            max_restarts,
+            current_restarts: 0,
+            _phantom: PhantomData,
+        };
+        Ok(((), actor))
+    }
 
-        for _ in 0..=restarts {
-            tokio::select! {
-                _ = handle.clone().stopped() => {
-                    match launch(&self.config, modules.clone()).await {
-                        Ok(h) => handle = h,
-                        Err(err) => {
-                            error!(target: "rpc", ?err, "Failed to launch rpc server");
-                            cancellation.cancel();
-                            return Err(RpcActorError::ServerStopped);
-                        }
-                    }
-                }
-                _ = cancellation.cancelled() => {
-                    // The cancellation token has been triggered, so we should stop the server.
-                    handle.stop().map_err(|_| RpcActorError::StopFailed)?;
-                    // Since the RPC Server didn't originate the error, we should return Ok.
-                    return Ok(());
-                }
+    async fn step(&mut self) -> Result<(), Self::Error> {
+        // Wait until the server stops.
+        self.handle.clone().stopped().await;
+
+        // Attempt to restart.
+        if self.current_restarts >= self.max_restarts {
+            return Err(RpcActorError::ServerStopped);
+        }
+
+        self.current_restarts += 1;
+        match launch(&self.config, self.modules.clone()).await {
+            Ok(h) => {
+                self.handle = h;
+                Ok(())
+            }
+            Err(err) => {
+                error!(target: "rpc", ?err, "Failed to launch rpc server");
+                Err(RpcActorError::ServerStopped)
             }
         }
-
-        // Stop the node if there has already been 3 rpc restarts.
-        cancellation.cancel();
-        return Err(RpcActorError::ServerStopped);
     }
 }
 

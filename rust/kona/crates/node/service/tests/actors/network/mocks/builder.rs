@@ -10,7 +10,8 @@ use async_trait::async_trait;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor,
+    EngineClientResult, NetworkActor, NetworkActorBuilder, NetworkBuilder, NetworkEngineClient,
+    NodeActor,
 };
 use kona_peers::BootNode;
 use kona_sources::BlockSigner;
@@ -18,7 +19,6 @@ use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rand::RngCore;
 use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
 use tracing::error;
 
 pub(crate) struct TestNetworkBuilder {
@@ -59,7 +59,7 @@ impl TestNetworkBuilder {
 
     /// Minimal network configuration.
     /// Only allows loopback addresses in the discovery table.
-    pub(crate) fn build(&mut self, bootnodes: Vec<Enr>) -> TestNetwork {
+    pub(crate) async fn build(&mut self, bootnodes: Vec<Enr>) -> TestNetwork {
         let keypair = self.custom_keypair.take().unwrap_or_else(Keypair::generate_secp256k1);
 
         let secp256k1_key = keypair.clone().try_into_secp256k1()
@@ -98,13 +98,18 @@ impl TestNetworkBuilder {
         .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into());
 
         let (blocks_tx, blocks_rx) = mpsc::channel(1024);
-        let (inbound_data, actor) = NetworkActor::new(
-            ForwardingNetworkEngineClient { blocks_tx },
-            CancellationToken::new(),
-            builder,
-        );
+        let (inbound_data, mut actor) = NetworkActor::init(NetworkActorBuilder {
+            engine_client: ForwardingNetworkEngineClient { blocks_tx },
+            network_builder: builder,
+        })
+        .await
+        .expect("Failed to init NetworkActor");
 
-        let handle = tokio::spawn(async move { actor.start(()).await });
+        let handle = tokio::spawn(async move {
+            loop {
+                actor.step().await?;
+            }
+        });
 
         TestNetwork { inbound_data, blocks_rx, handle }
     }

@@ -7,14 +7,13 @@ use jsonrpsee::{RpcModule, core::async_trait, server::Server};
 use kona_cli::LogConfig;
 use kona_gossip::P2pRpcRequest;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NetworkInboundData,
-    NodeActor,
+    EngineClientResult, NetworkActor, NetworkActorBuilder, NetworkBuilder, NetworkEngineClient,
+    NetworkInboundData, NodeActor,
 };
 use kona_registry::scr_rollup_config_by_alloy_ident;
 use kona_rpc::{OpP2PApiServer, P2pRpc, RpcBuilder};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 use url::Url;
 
@@ -74,13 +73,12 @@ impl NetCommand {
         let p2p_config = self.p2p.config(rollup_config, args, self.l1_eth_rpc).await?;
 
         let (block_tx, mut block_rx) = mpsc::channel(1024);
-        let (NetworkInboundData { p2p_rpc: rpc, .. }, network) = NetworkActor::new(
-            ForwardingNetworkEngineClient { block_tx },
-            CancellationToken::new(),
-            NetworkBuilder::from(p2p_config),
-        );
-
-        network.start(()).await?;
+        let (NetworkInboundData { p2p_rpc: rpc, .. }, mut network) =
+            NetworkActor::init(NetworkActorBuilder {
+                engine_client: ForwardingNetworkEngineClient { block_tx },
+                network_builder: NetworkBuilder::from(p2p_config),
+            })
+            .await?;
 
         info!(target: "net", "Network started, receiving blocks.");
 
@@ -103,6 +101,12 @@ impl NetCommand {
 
         loop {
             tokio::select! {
+                result = network.step() => {
+                    if let Err(e) = result {
+                        error!(target: "net", "Network actor step error: {:?}", e);
+                        return Err(e.into());
+                    }
+                }
                 Some(payload) = block_rx.recv() => {
                     info!(target: "net", "Received unsafe payload: {:?}", payload.execution_payload.block_hash());
                 }

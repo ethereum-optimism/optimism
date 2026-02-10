@@ -1,5 +1,5 @@
 mod actor;
-pub use actor::L1WatcherActor;
+pub use actor::{L1WatcherActor, L1WatcherActorBuilder, L1WatcherInboundData};
 
 mod blockstream;
 pub use blockstream::BlockStream;

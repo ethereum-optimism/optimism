@@ -3743,7 +3743,6 @@ dependencies = [
  "libp2p",
  "op-alloy-rpc-types-engine",
  "tokio",
- "tokio-util",
  "tracing",
  "tracing-subscriber 0.3.23",
 ]

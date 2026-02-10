@@ -8,10 +8,10 @@ use crate::actors::{
 async fn test_sequencer_network_conn() -> anyhow::Result<()> {
     let mut builder = TestNetworkBuilder::new().set_sequencer();
 
-    let sequencer_network = builder.build(vec![]);
+    let sequencer_network = builder.build(vec![]).await;
     let enr_1 = sequencer_network.peer_enr().await?;
 
-    let mut validator_network = builder.build(vec![enr_1]);
+    let mut validator_network = builder.build(vec![enr_1]).await;
 
     sequencer_network.is_connected_to_with_retries(&validator_network).await?;
 
@@ -45,13 +45,13 @@ async fn test_sequencer_network_propagation() -> anyhow::Result<()> {
 
     let mut builder = TestNetworkBuilder::new().set_sequencer();
 
-    let sequencer_network = builder.build(vec![]);
+    let sequencer_network = builder.build(vec![]).await;
     let mut previous_enrs = vec![sequencer_network.peer_enr().await?];
 
     let mut validator_networks = Vec::new();
 
     for _ in 0..NETWORKS {
-        let network = builder.build(previous_enrs.clone());
+        let network = builder.build(previous_enrs.clone()).await;
 
         previous_enrs.push(network.peer_enr().await?);
         validator_networks.push(network);

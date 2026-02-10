@@ -10,7 +10,7 @@ pub use origin_selector::{
 };
 
 mod actor;
-pub use actor::SequencerActor;
+pub use actor::{SequencerActor, SequencerActorBuilder, SequencerInboundData};
 
 mod admin_api_impl;
 pub use admin_api_impl::SequencerAdminQuery;
