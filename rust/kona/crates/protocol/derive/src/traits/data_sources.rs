@@ -3,8 +3,8 @@
 
 use crate::{PipelineErrorKind, PipelineResult};
 use alloc::{boxed::Box, fmt::Debug, string::ToString, vec::Vec};
-use alloy_eips::eip4844::{Blob, IndexedBlobHash};
-use alloy_primitives::{Address, Bytes};
+use alloy_eips::eip4844::Blob;
+use alloy_primitives::{Address, B256, Bytes};
 use async_trait::async_trait;
 use core::fmt::Display;
 use kona_protocol::BlockInfo;
@@ -19,7 +19,7 @@ pub trait BlobProvider {
     async fn get_and_validate_blobs(
         &mut self,
         block_ref: &BlockInfo,
-        blob_hashes: &[IndexedBlobHash],
+        blob_hashes: &[B256],
     ) -> Result<Vec<Box<Blob>>, Self::Error>;
 }
 

@@ -3,8 +3,8 @@
 use crate::{HintType, errors::OracleProviderError};
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use alloy_consensus::Blob;
-use alloy_eips::eip4844::{FIELD_ELEMENTS_PER_BLOB, IndexedBlobHash};
-use alloy_primitives::keccak256;
+use alloy_eips::eip4844::FIELD_ELEMENTS_PER_BLOB;
+use alloy_primitives::{B256, keccak256};
 use ark_bls12_381::Fr;
 use ark_ff::{AdditiveGroup, BigInteger, BigInteger256, Field, PrimeField};
 use async_trait::async_trait;
@@ -39,12 +39,11 @@ impl<T: CommsClient> OracleBlobProvider<T> {
     async fn get_blob(
         &self,
         block_ref: &BlockInfo,
-        blob_hash: &IndexedBlobHash,
+        blob_hash: &B256,
     ) -> Result<Blob, OracleProviderError> {
-        let mut blob_req_meta = [0u8; 48];
-        blob_req_meta[0..32].copy_from_slice(blob_hash.hash.as_ref());
-        blob_req_meta[32..40].copy_from_slice((blob_hash.index).to_be_bytes().as_ref());
-        blob_req_meta[40..48].copy_from_slice(block_ref.timestamp.to_be_bytes().as_ref());
+        let mut blob_req_meta = [0u8; 40];
+        blob_req_meta[0..32].copy_from_slice(blob_hash.as_ref());
+        blob_req_meta[32..40].copy_from_slice(block_ref.timestamp.to_be_bytes().as_ref());
 
         // Send a hint for the blob commitment and field elements.
         HintType::L1Blob.with_data(&[blob_req_meta.as_ref()]).send(self.oracle.as_ref()).await?;
@@ -52,7 +51,7 @@ impl<T: CommsClient> OracleBlobProvider<T> {
         // Fetch the blob commitment.
         let mut commitment = [0u8; 48];
         self.oracle
-            .get_exact(PreimageKey::new(*blob_hash.hash, PreimageKeyType::Sha256), &mut commitment)
+            .get_exact(PreimageKey::new(**blob_hash, PreimageKeyType::Sha256), &mut commitment)
             .await
             .map_err(OracleProviderError::Preimage)?;
 
@@ -77,8 +76,7 @@ impl<T: CommsClient> OracleBlobProvider<T> {
 
         tracing::info!(
             target: "client_blob_oracle",
-            index = blob_hash.index,
-            hash = ?blob_hash.hash,
+            hash = ?blob_hash,
             "Retrieved blob"
         );
 
@@ -94,7 +92,7 @@ impl<T: CommsClient + Sync + Send> BlobProvider for OracleBlobProvider<T> {
     async fn get_and_validate_blobs(
         &mut self,
         block_ref: &BlockInfo,
-        blob_hashes: &[IndexedBlobHash],
+        blob_hashes: &[B256],
     ) -> Result<Vec<Box<Blob>>, Self::Error> {
         let mut blobs = Vec::with_capacity(blob_hashes.len());
         for hash in blob_hashes {
