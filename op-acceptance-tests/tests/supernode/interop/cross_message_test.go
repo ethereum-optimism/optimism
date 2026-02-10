@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -74,6 +75,17 @@ func TestSupernodeInteropBidirectionalMessages(gt *testing.T) {
 	}, timeout, time.Second, "bidirectional messages should become safe")
 
 	t.Logger().Info("bidirectional messages processed successfully")
+
+	finalStatusA := sys.L2ACL.SyncStatus()
+	finalStatusB := sys.L2BCL.SyncStatus()
+	for _, s := range []eth.L2BlockRef{finalStatusA.SafeL2, finalStatusB.SafeL2} {
+		assert.NotZero(t, s.Time)
+		assert.NotZero(t, s.L1Origin)
+		assert.NotZero(t, s.ParentHash)
+		assert.NotZero(t, s.SequenceNumber)
+		assert.NotZero(t, s.Hash)
+		assert.NotZero(t, s.Number)
+	}
 }
 
 // randomInitTrigger creates a random init trigger for testing.

@@ -6,8 +6,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/stretchr/testify/assert"
 )
 
 // TestSupernodeInteropVerifiedAt tests that the VerifiedAt endpoint returns
@@ -215,15 +213,4 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 
 	t.Require().Greater(finalStatusA.LocalSafeL2.Number, statusA.LocalSafeL2.Number, "chain A should have advanced")
 	t.Require().Greater(finalStatusB.LocalSafeL2.Number, statusB.LocalSafeL2.Number, "chain B should have advanced")
-
-	for _, s := range []eth.L2BlockRef{finalStatusA.SafeL2, finalStatusB.SafeL2} {
-		if s.Number > 0 {
-			assert.NotZero(t, s.Time)
-			assert.NotZero(t, s.L1Origin)
-			assert.NotZero(t, s.ParentHash)
-			assert.NotZero(t, s.SequenceNumber)
-			assert.NotZero(t, s.Hash)
-			assert.NotZero(t, s.Number)
-		}
-	}
 }
