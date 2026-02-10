@@ -61,7 +61,6 @@ just op-node
 # - P2P private key: auto-generated when missing, used to maintain a stable peer identity.
 # - Peerstore DB: remember peer records to connect with, used to not wait for peer discovery.
 # - Discovery DB: maintain DHT data, to avoid repeating some discovery work after restarting.
-  --p2p.priv.path=opnode_p2p_priv.txt \
   --p2p.peerstore.path=opnode_peerstore_db \
   --p2p.discovery.path=opnode_discovery_db \
   --p2p.priv.path=opnode_p2p_priv.txt
