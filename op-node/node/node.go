@@ -205,7 +205,7 @@ type SuperAuthority interface {
 	// It returns an empty L2BlockRef if no fully verified head can be determined.
 	// Note that the returned block ref may not be local safe and the caller should
 	// verify the block's local safety before using it.
-	FullyVerifiedL2Head() eth.L2BlockRef
+	FullyVerifiedL2Head() eth.BlockID
 }
 
 type InitializationOverrides struct {

@@ -94,7 +94,7 @@ type CrossUpdateHandler interface {
 }
 
 type SuperAuthority interface {
-	FullyVerifiedL2Head() eth.L2BlockRef
+	FullyVerifiedL2Head() eth.BlockID
 }
 
 type EngineController struct {
@@ -202,11 +202,19 @@ func (e *EngineController) SetSuperAuthority(superAuthority SuperAuthority) {
 
 func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 	if e.superAuthority != nil {
-		fvsh := e.superAuthority.FullyVerifiedL2Head()
-		if fvsh.Number > e.localSafeHead.Number {
+		fvshid := e.superAuthority.FullyVerifiedL2Head()
+		if (fvshid == eth.BlockID{}) {
+			// No safe head yet
+			return eth.L2BlockRef{}
+		}
+		if fvshid.Number > e.localSafeHead.Number {
 			panic("super authority fully verified l2 head is ahead of local safe head")
 		}
-		return fvsh
+		br, err := e.engine.L2BlockRefByHash(context.Background(), fvshid.Hash)
+		if err != nil {
+			panic("TODO: supernode supplied an identifier for the safe head which is not known to the engine")
+		}
+		return br
 	} else if e.supervisorEnabled {
 		return e.deprecatedSafeHead
 	} else {
