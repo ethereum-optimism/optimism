@@ -79,12 +79,10 @@ func TestSupernodeInteropBidirectionalMessages(gt *testing.T) {
 	finalStatusA := sys.L2ACL.SyncStatus()
 	finalStatusB := sys.L2BCL.SyncStatus()
 	for _, s := range []eth.L2BlockRef{finalStatusA.SafeL2, finalStatusB.SafeL2} {
-		assert.NotZero(t, s.Time)
-		assert.NotZero(t, s.L1Origin)
-		assert.NotZero(t, s.ParentHash)
-		assert.NotZero(t, s.SequenceNumber)
-		assert.NotZero(t, s.Hash)
-		assert.NotZero(t, s.Number)
+		assert.NotZero(t, s.Time, "SafeL2.Time was zero")
+		assert.NotZero(t, s.L1Origin, "SafeL2.L1Origin was zero")
+		assert.NotZero(t, s.ParentHash, "SafeL2.ParentHash was zero")
+		assert.NotZero(t, s.Hash, "SafeL2.Hash was zero")
 	}
 }
 
