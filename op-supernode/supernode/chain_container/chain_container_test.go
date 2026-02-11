@@ -2,6 +2,7 @@ package chain_container
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"net/http"
 	"path/filepath"
@@ -112,7 +113,8 @@ func (m *mockVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, erro
 		return nil, m.safeHeadErr
 	}
 	return &eth.SyncStatus{
-		CurrentL1: eth.L1BlockRef{Hash: m.safeHeadL1.Hash, Number: m.safeHeadL1.Number},
+		CurrentL1:   eth.L1BlockRef{Hash: m.safeHeadL1.Hash, Number: m.safeHeadL1.Number},
+		LocalSafeL2: eth.L2BlockRef{Hash: m.safeHeadL2.Hash, Number: m.safeHeadL2.Number},
 	}, nil
 }
 
@@ -943,4 +945,132 @@ func TestChainContainer_VerifiedAt(t *testing.T) {
 		require.Equal(t, eth.BlockID{}, l2)
 		require.Equal(t, eth.BlockID{}, l1)
 	})
+}
+
+// TestChainContainer_LocalSafeBlockAtTimestamp tests the LocalSafeBlockAtTimestamp method
+func TestChainContainer_LocalSafeBlockAtTimestamp(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		name              string
+		genesisTime       uint64
+		blockTime         uint64
+		targetTimestamp   uint64
+		localSafeNumber   uint64
+		engineResult      *eth.L2BlockRef
+		engineError       error
+		syncStatusError   error
+		engineNil         bool
+		expectError       error
+		expectResult      *eth.L2BlockRef
+		expectErrorString string
+	}
+
+	tests := []testCase{
+		{
+			name:            "returns block when target is before local safe head",
+			genesisTime:     1000,
+			blockTime:       2,
+			targetTimestamp: 1010,
+			localSafeNumber: 100,
+			engineResult:    &eth.L2BlockRef{Hash: [32]byte{1}, Number: 5, Time: 1010},
+			expectResult:    &eth.L2BlockRef{Hash: [32]byte{1}, Number: 5, Time: 1010},
+		},
+		{
+			name:            "returns NotFound when target exceeds local safe head",
+			genesisTime:     1000,
+			blockTime:       2,
+			targetTimestamp: 2000,
+			localSafeNumber: 100,
+			expectError:     ethereum.NotFound,
+		},
+		{
+			name:            "returns error when engine is nil",
+			genesisTime:     1000,
+			blockTime:       2,
+			targetTimestamp: 1000,
+			engineNil:       true,
+			expectError:     engine_controller.ErrNoEngineClient,
+		},
+		{
+			name:            "returns block at exact timestamp match",
+			genesisTime:     1000,
+			blockTime:       2,
+			targetTimestamp: 1020,
+			localSafeNumber: 100,
+			engineResult:    &eth.L2BlockRef{Hash: [32]byte{5}, Number: 10, Time: 1020},
+			expectResult:    &eth.L2BlockRef{Hash: [32]byte{5}, Number: 10, Time: 1020},
+		},
+		{
+			name:              "returns error when sync status fails",
+			genesisTime:       1000,
+			blockTime:         2,
+			targetTimestamp:   1000,
+			syncStatusError:   errors.New("sync status error"),
+			expectErrorString: "sync status error",
+		},
+		{
+			name:            "handles genesis block correctly",
+			genesisTime:     1000,
+			blockTime:       2,
+			targetTimestamp: 1000,
+			localSafeNumber: 10,
+			engineResult:    &eth.L2BlockRef{Hash: [32]byte{0}, Number: 0, Time: 1000},
+			expectResult:    &eth.L2BlockRef{Hash: [32]byte{0}, Number: 0, Time: 1000},
+		},
+	}
+
+	runTest := func(t *testing.T, tc testCase) {
+		chainID := eth.ChainIDFromUInt64(420)
+		log := createTestLogger(t)
+		cfg := createTestCLIConfig()
+		initOverload := &rollupNode.InitializationOverrides{}
+
+		vncfg := createTestVNConfig()
+		vncfg.Rollup.Genesis.L2Time = tc.genesisTime
+		vncfg.Rollup.BlockTime = tc.blockTime
+
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		impl, ok := container.(*simpleChainContainer)
+		require.True(t, ok)
+
+		// Setup engine
+		if !tc.engineNil {
+			mockEngine := &mockEngineController{
+				l2BlockRefByNumberResult: eth.L2BlockRef{},
+				l2BlockRefByNumberErr:    tc.engineError,
+			}
+			if tc.engineResult != nil {
+				mockEngine.l2BlockRefByNumberResult = *tc.engineResult
+			}
+			impl.engine = mockEngine
+		}
+
+		// Setup virtual node
+		mockVN := newMockVirtualNode()
+		mockVN.safeHeadL2 = eth.BlockID{Number: tc.localSafeNumber}
+		mockVN.safeHeadErr = tc.syncStatusError
+		impl.vn = mockVN
+
+		// Execute test
+		result, err := container.LocalSafeBlockAtTimestamp(context.Background(), tc.targetTimestamp)
+
+		// Verify results
+		if tc.expectError != nil {
+			require.Error(t, err)
+			require.ErrorIs(t, err, tc.expectError)
+		} else if tc.expectErrorString != "" {
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.expectErrorString)
+		} else {
+			require.NoError(t, err)
+			require.Equal(t, *tc.expectResult, result)
+		}
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			runTest(t, tc)
+		})
+	}
 }
