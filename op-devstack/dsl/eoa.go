@@ -229,44 +229,19 @@ func (u *EOA) SendExecMessage(initIntent *txintent.IntentTx[*txintent.InitTrigge
 	return tx, receipt
 }
 
-// InvalidExecOption configures how the executing message should be invalidated
-type InvalidExecOption func(*invalidExecOpts)
-
-type invalidExecOpts struct {
-	logIndex *uint32
-}
-
-// WithInvalidLogIndex sets an invalid log index to make the message invalid
-func WithInvalidLogIndex(index uint32) InvalidExecOption {
-	return func(o *invalidExecOpts) {
-		o.logIndex = &index
-	}
-}
-
-// SendInvalidExecMessage sends an executing message with a modified (invalid) identifier.
-// By default, sets LogIndex to 9999 to reference a non-existent log.
-// The modification can be controlled via options (e.g., WithInvalidLogIndex).
+// SendInvalidExecMessage sends an executing message with an invalid identifier.
+// The log index is incremented to reference a non-existent log.
 func (u *EOA) SendInvalidExecMessage(
 	initIntent *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput],
 	eventIdx int,
-	opts ...InvalidExecOption,
 ) (*txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput], *types.Receipt) {
-	options := &invalidExecOpts{
-		logIndex: ptrTo(uint32(9999)), // Default invalid log index
-	}
-	for _, opt := range opts {
-		opt(options)
-	}
-
 	result, err := initIntent.Result.Eval(u.ctx)
 	u.t.Require().NoError(err, "failed to evaluate init result")
 	u.t.Require().Greater(len(result.Entries), eventIdx, "event index out of range")
 
-	// Get the message and modify it to be invalid
+	// Get the message and modify it to be invalid by incrementing the log index
 	msg := result.Entries[eventIdx]
-	if options.logIndex != nil {
-		msg.Identifier.LogIndex = *options.logIndex
-	}
+	msg.Identifier.LogIndex++
 
 	// Create the exec trigger with the invalid message
 	execTrigger := &txintent.ExecTrigger{
@@ -285,11 +260,6 @@ func (u *EOA) SendInvalidExecMessage(
 	u.t.Require().NoError(err, "invalid exec msg receipt not found")
 	u.log.Info("invalid exec message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
 	return tx, receipt
-}
-
-// ptrTo returns a pointer to the given value
-func ptrTo[T any](v T) *T {
-	return &v
 }
 
 // SendPackedRandomInitMessages batches random messages and initiates them via a single multicall

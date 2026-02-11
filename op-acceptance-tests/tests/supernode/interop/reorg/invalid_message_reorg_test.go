@@ -1,10 +1,12 @@
 package reorg
 
 import (
+	"errors"
 	"math/rand"
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -52,13 +54,8 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 	// Wait for chain B to catch up
 	sys.L2B.WaitForBlock()
 
-	// Record the verified timestamp before the invalid message
-	// We need to know what timestamp was verified before the invalid exec message
-	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
-	genesisTime := sys.L2A.Escape().RollupConfig().Genesis.L2Time
-
 	// Wait for some timestamps to be verified first
-	targetTimestamp := genesisTime + blockTime*2
+	targetTimestamp := sys.L2A.TimestampForBlockNum(2)
 	// set supernode to pause verification just after this timestamp
 	sys.Supernode.PauseInterop(targetTimestamp + 1)
 	sys.Supernode.AwaitValidatedTimestamp(targetTimestamp)
@@ -69,15 +66,14 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 	_, invalidExecReceipt := bob.SendInvalidExecMessage(initTx, 0)
 	invalidBlockNumber := bigs.Uint64Strict(invalidExecReceipt.BlockNumber)
 	invalidBlockHash := invalidExecReceipt.BlockHash
-	invalidBlock := sys.L2ELB.BlockRefByHash(invalidExecReceipt.BlockHash)
-	invalidBlockTimestamp := invalidBlock.Time
+	invalidBlockTimestamp := sys.L2B.TimestampForBlockNum(invalidBlockNumber)
 	t.Logger().Info("invalid executing message sent on chain B",
 		"block", invalidBlockNumber,
 		"hash", invalidBlockHash,
 		"timestamp", invalidBlockTimestamp,
 	)
 
-	// Wait for safety to include the invalid block
+	// Wait for local safety to include the invalid block
 	require.Eventually(t, func() bool {
 		numSafe := sys.L2BCL.SyncStatus().LocalSafeL2.Number >= invalidBlockNumber
 		return numSafe
@@ -92,13 +88,17 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 		// Use the EthClient directly to handle errors (block may not exist after rewind)
 		currentBlock, err := sys.L2ELB.Escape().EthClient().BlockRefByNumber(ctx, invalidBlockNumber)
 		if err != nil {
-			// Block not found - this means the rewind happened and block was removed
-			t.Logger().Info("RESET DETECTED! Block no longer exists (rewound)",
-				"block_number", invalidBlockNumber,
-				"err", err,
-			)
+			if errors.Is(eth.MaybeAsNotFoundErr(err), ethereum.NotFound) {
+				t.Logger().Info("RESET DETECTED! Block no longer exists (rewound)",
+					"block_number", invalidBlockNumber,
+				)
+			} else {
+				t.Logger().Warn("unexpected error checking block",
+					"block_number", invalidBlockNumber,
+					"err", err,
+				)
+			}
 		} else if currentBlock.Hash != invalidBlockHash {
-			// Block exists but with different hash - replaced
 			t.Logger().Info("RESET DETECTED! Block hash changed",
 				"block_number", invalidBlockNumber,
 				"old_hash", invalidBlockHash,
