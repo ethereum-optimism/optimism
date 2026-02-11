@@ -37,7 +37,7 @@ phases:
         command: cd ../../ && semgrep scan --error --config .semgrep/rules/ ./packages/contracts-bedrock
       - name: semgrep-test-validity
         description: Check semgrep tests are valid
-        command: cd ../.. && forge fmt .semgrep/tests/sol-rules.t.sol --check
+        command: forge fmt ../../.semgrep/tests/sol-rules.t.sol --check
       - name: deploy-configs
         description: Validate deploy configurations
         command: ./scripts/checks/check-deploy-configs.sh
