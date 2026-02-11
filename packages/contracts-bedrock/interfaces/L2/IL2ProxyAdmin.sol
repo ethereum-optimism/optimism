@@ -8,8 +8,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @title IL2ProxyAdmin
 interface IL2ProxyAdmin is IProxyAdmin, ISemver {
     /// @notice Emitted when the predeploys are upgraded.
-    /// @param xForkL2ContractsManager Address of the xForkL2ContractsManager contract.
-    event PredeploysUpgraded(address indexed xForkL2ContractsManager);
+    /// @param l2ContractsManager Address of the L2ContractsManager contract.
+    event PredeploysUpgraded(address indexed l2ContractsManager);
 
     /// @notice Thrown when the caller is not the depositor account.
     error L2ProxyAdmin__Unauthorized();
@@ -19,7 +19,7 @@ interface IL2ProxyAdmin is IProxyAdmin, ISemver {
 
     function __constructor__(address _owner) external;
 
-    /// @notice Upgrades the predeploys via delegatecall to the xForkL2ContractsManager contract.
-    /// @param xForkL2ContractsManager Address of the xForkL2ContractsManager contract.
-    function upgradePredeploys(address xForkL2ContractsManager) external;
+    /// @notice Upgrades the predeploys via delegatecall to the L2ContractsManager contract.
+    /// @param l2ContractsManager Address of the L2ContractsManager contract.
+    function upgradePredeploys(address l2ContractsManager) external;
 }

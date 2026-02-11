@@ -101,7 +101,7 @@
   },
   "src/L2/L2ProxyAdmin.sol:L2ProxyAdmin": {
     "initCodeHash": "0x85b054c8105191d272014459858020a90fcf7db401ef0fb028999f967461d25a",
-    "sourceCodeHash": "0xe1b5050b2d9a2e6490a9d80f4d4fd5cece38c20ffa54520e0630f298632220dc"
+    "sourceCodeHash": "0x17a76a766c9776b7f9c3d0b0a0ae5de23311b66d45902a21c75680d5786949e4"
   },
   "src/L2/L2StandardBridge.sol:L2StandardBridge": {
     "initCodeHash": "0xba5b288a396b34488ba7be68473305529c7da7c43e5f1cfc48d6a4aecd014103",

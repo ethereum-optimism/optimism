@@ -288,7 +288,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "xForkL2ContractsManager",
+        "name": "l2ContractsManager",
         "type": "address"
       }
     ],
@@ -335,7 +335,7 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "xForkL2ContractsManager",
+        "name": "l2ContractsManager",
         "type": "address"
       }
     ],
