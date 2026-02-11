@@ -9,23 +9,25 @@ use reth_node_core::{
 use reth_optimism_chainspec::BASE_MAINNET;
 use reth_optimism_node::OpNode;
 use reth_rpc_api::servers::AdminApiServer;
-use reth_tasks::TaskManager;
+use reth_tasks::Runtime;
 
 // <https://github.com/paradigmxyz/reth/issues/19765>
 #[tokio::test]
 async fn test_admin_external_ip() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
 
-    let exec = TaskManager::current();
-    let exec = exec.executor();
+    let exec = Runtime::test();
 
     let external_ip = "10.64.128.71".parse().unwrap();
     // Node setup
+    let mut network_args = NetworkArgs::default()
+        .with_unused_ports()
+        .with_nat_resolver(NatResolver::ExternalIp(external_ip));
+    network_args.discovery.discv5_port = 0;
+    network_args.discovery.discv5_port_ipv6 = 0;
     let node_config = NodeConfig::test()
         .map_chain(BASE_MAINNET.clone())
-        .with_network(
-            NetworkArgs::default().with_nat_resolver(NatResolver::ExternalIp(external_ip)),
-        )
+        .with_network(network_args)
         .with_rpc(RpcServerArgs::default().with_unused_ports().with_http());
 
     let NodeHandle { node, node_exit_future: _ } =

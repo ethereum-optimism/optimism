@@ -47,7 +47,7 @@ async fn test_op_node_custom_genesis_number() {
             .unwrap_or_chain_default(config.chain.chain(), config.datadir.clone())
             .db(),
     );
-    let tasks = reth_tasks::TaskManager::current();
+    let runtime = reth_tasks::Runtime::test();
     let node_handle = NodeBuilder::new(config.clone())
         .with_database(db)
         .with_types_and_provider::<OpNode, BlockchainProvider<_>>()
@@ -55,7 +55,7 @@ async fn test_op_node_custom_genesis_number() {
         .with_add_ons(OpNode::new(Default::default()).add_ons())
         .launch_with_fn(|builder| {
             let launcher = EngineNodeLauncher::new(
-                tasks.executor(),
+                runtime.clone(),
                 builder.config.datadir(),
                 Default::default(),
             );
@@ -70,23 +70,22 @@ async fn test_op_node_custom_genesis_number() {
     // Verify stage checkpoints are initialized to genesis block number (1000)
     for stage in StageId::ALL {
         let checkpoint = node.inner.provider.get_stage_checkpoint(stage).unwrap();
-        assert!(checkpoint.is_some(), "Stage {:?} checkpoint should exist", stage);
+        assert!(checkpoint.is_some(), "Stage {stage:?} checkpoint should exist");
         assert_eq!(
             checkpoint.unwrap().block_number,
             1000,
-            "Stage {:?} checkpoint should be at genesis block 1000",
-            stage
+            "Stage {stage:?} checkpoint should be at genesis block 1000"
         );
     }
 
     // Query genesis block should succeed
     let genesis_header = node.inner.provider.header_by_number(genesis_number).unwrap();
-    assert!(genesis_header.is_some(), "Genesis block at {} should exist", genesis_number);
+    assert!(genesis_header.is_some(), "Genesis block at {genesis_number} should exist");
 
     // Query blocks before genesis should return None
     for block_num in [0, 1, genesis_number - 1] {
         let header = node.inner.provider.header_by_number(block_num).unwrap();
-        assert!(header.is_none(), "Block {} before genesis should not exist", block_num);
+        assert!(header.is_none(), "Block {block_num} before genesis should not exist");
     }
 
     // Advance the chain with a single block

@@ -75,7 +75,6 @@ serde = [
     "alloy-eips/serde",
     "rand/serde",
     "rand_08/serde",
-    "secp256k1/serde",
     "bytes/serde",
     "reth-codecs/serde",
 ]

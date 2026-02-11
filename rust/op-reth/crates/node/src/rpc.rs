@@ -23,7 +23,7 @@
 //! use reth_provider::providers::BlockchainProvider;
 //! use reth_rpc::TraceApi;
 //! use reth_rpc_eth_types::{EthConfig, EthStateCache};
-//! use reth_tasks::{TaskManager, pool::BlockingTaskGuard};
+//! use reth_tasks::{Runtime, pool::BlockingTaskGuard};
 //! use reth_trie_db::ChangesetCache;
 //! use std::sync::Arc;
 //!
@@ -32,8 +32,8 @@
 //!     // build core node with all components disabled except EVM and state
 //!     let sepolia = NodeConfig::new(OP_SEPOLIA.clone());
 //!     let db = create_test_rw_db_with_path(sepolia.datadir());
-//!     let tasks = TaskManager::current();
-//!     let launch_ctx = LaunchContext::new(tasks.executor(), sepolia.datadir());
+//!     let runtime = Runtime::with_existing_handle(tokio::runtime::Handle::current()).unwrap();
+//!     let launch_ctx = LaunchContext::new(runtime, sepolia.datadir());
 //!     let node = launch_ctx
 //!         .with_loaded_toml_config(sepolia)
 //!         .unwrap()

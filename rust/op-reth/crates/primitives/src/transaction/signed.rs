@@ -33,7 +33,7 @@ use reth_primitives_traits::{
 #[cfg_attr(any(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(rlp))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Eq)]
-pub struct OpTransactionSigned {
+pub(crate) struct OpTransactionSigned {
     /// Transaction hash
     #[cfg_attr(feature = "serde", serde(skip))]
     hash: OnceLock<TxHash>,
@@ -481,7 +481,7 @@ impl<'a> arbitrary::Arbitrary<'a> for OpTransactionSigned {
         let mut transaction = OpTypedTransaction::arbitrary(u)?;
 
         let secp = secp256k1::Secp256k1::new();
-        let key_pair = secp256k1::Keypair::new(&secp, &mut rand_08::thread_rng());
+        let key_pair = secp256k1::Keypair::new(&secp, &mut rand::rng());
         let signature = reth_primitives_traits::crypto::secp256k1::sign_message(
             B256::from_slice(&key_pair.secret_bytes()[..]),
             signature_hash(&transaction),

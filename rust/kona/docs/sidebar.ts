@@ -182,7 +182,6 @@ export const sidebar: SidebarItem[] = [
           { text: "Introduction", link: "/sdk/examples/intro" },
           { text: "Load a Rollup Config", link: "/sdk/examples/load-a-rollup-config" },
           { text: "Transform Frames to a Batch", link: "/sdk/examples/frames-to-batch" },
-          { text: "Transform a Batch into Frames", link: "/sdk/examples/batch-to-frames" },
           { text: "Create a new L1BlockInfoTx Hardfork Variant", link: "/sdk/examples/new-l1-block-info-tx-hardfork" },
           { text: "Create a new kona-executor test fixture", link: "/sdk/examples/executor-test-fixtures" },
           { text: "Configuring P2P Network Peer Scoring", link: "/sdk/examples/p2p-peer-scoring" },
