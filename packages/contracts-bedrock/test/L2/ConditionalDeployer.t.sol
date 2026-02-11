@@ -148,19 +148,43 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
         conditionalDeployer.deploy(_salt, _initCode);
     }
 
-    /// @notice Tests that `deploy` reverts when the deployment call succeeds but no code is deployed.
-    /// @dev The deployment call to the DeterministicDeploymentProxy is mocked to succeed with no code deployed.
-    function testFuzz_deploy_deploymentCodeLengthZero_reverts(address _caller, bytes32 _salt) public {
-        bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(0));
-
-        // Mock the deployment call to the DeterministicDeploymentProxy to succeed but deploy no code
-        vm.mockCall(
-            conditionalDeployer.deterministicDeploymentProxy(), 0, abi.encodePacked(_salt, _initCode), bytes("")
+    /// @notice Tests that `deploy` reverts when the deployment call to the DeterministicDeploymentProxy returns the
+    /// wrong address.
+    /// @dev The deployment call to the DeterministicDeploymentProxy is mocked to return the wrong address.
+    function testFuzz_deploy_notExpectedAddress_reverts(
+        address _caller,
+        bytes32 _salt,
+        address _notExpectedAddress,
+        uint256 _value
+    )
+        public
+    {
+        bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(_value));
+        bytes32 codeHash = keccak256(_initCode);
+        address expectedImplementation = address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            bytes1(0xff), conditionalDeployer.deterministicDeploymentProxy(), _salt, codeHash
+                        )
+                    )
+                )
+            )
         );
+        vm.assume(_notExpectedAddress != expectedImplementation);
 
+        vm.mockCall(
+            conditionalDeployer.deterministicDeploymentProxy(),
+            0,
+            abi.encodePacked(_salt, _initCode),
+            abi.encode(_notExpectedAddress)
+        );
         vm.prank(_caller);
         vm.expectRevert(
-            abi.encodeWithSelector(ConditionalDeployer.ConditionalDeployer_DeploymentFailed.selector, bytes(""))
+            abi.encodeWithSelector(
+                ConditionalDeployer.ConditionalDeployer_DeploymentFailed.selector, abi.encode(_notExpectedAddress)
+            )
         );
         conditionalDeployer.deploy(_salt, _initCode);
     }

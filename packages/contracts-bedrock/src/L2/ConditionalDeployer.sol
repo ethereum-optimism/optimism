@@ -33,31 +33,35 @@ contract ConditionalDeployer is ISemver {
 
     /// @notice Deploys an implementation using CREATE2 if it doesn't already exist.
     /// @dev Does not support deployments requiring ETH.
+    /// @dev Reverts when the deployment call to the DeterministicDeploymentProxy fails.
     /// @param _salt The salt to use for CREATE2 deployment.
     /// @param _code The initialization code for the contract.
     /// @return implementation_ The address of the deployed or existing implementation.
     function deploy(bytes32 _salt, bytes memory _code) external returns (address implementation_) {
         // Compute the address where the contract will be deployed using CREATE2 formula
         bytes32 codeHash = keccak256(_code);
-        implementation_ = address(
+        address _expectedImplementation = address(
             uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), DETERMINISTIC_DEPLOYMENT_PROXY, _salt, codeHash))))
         );
 
         // Check if implementation already exists
-        if (implementation_.code.length != 0) {
-            emit ImplementationExists(implementation_);
-            return implementation_;
+        if (_expectedImplementation.code.length != 0) {
+            emit ImplementationExists(_expectedImplementation);
+            return _expectedImplementation;
         }
 
         // Deploy using Arachnid's DeterministicDeploymentProxy
         // Calldata format: salt + initcode
+        // Returns: raw 20 bytes (deployed address, not ABI-encoded
         (bool success, bytes memory data) = DETERMINISTIC_DEPLOYMENT_PROXY.call(abi.encodePacked(_salt, _code));
-        if (!success || implementation_.code.length == 0) {
+
+        // Decode the returned address (raw 20 bytes)
+        implementation_ = address(bytes20(data));
+        if (!success || implementation_ != _expectedImplementation) {
             revert ConditionalDeployer_DeploymentFailed(data);
         }
 
         emit ImplementationDeployed(implementation_, _salt);
-        return implementation_;
     }
 
     /// @notice Returns the address of the Arachnid's DeterministicDeploymentProxy.
