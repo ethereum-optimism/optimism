@@ -9,6 +9,7 @@ use crate::{
 use alloy_primitives::B256;
 use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
+use alloy_transport_http::reqwest::Url;
 use anyhow::Context;
 use clap::Parser;
 use kona_cli::cli_styles;
@@ -20,7 +21,6 @@ use kona_proof::HintType;
 use kona_providers_alloy::{OnlineBeaconClient, OnlineBlobProvider};
 use kona_std_fpvm::{FileChannel, FileDescriptor};
 use op_alloy_network::Optimism;
-use reqwest::Url;
 use serde::Serialize;
 use std::{path::PathBuf, sync::Arc};
 use tokio::{
