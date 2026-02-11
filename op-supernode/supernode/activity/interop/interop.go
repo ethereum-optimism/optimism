@@ -394,13 +394,13 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 	return i.verifiedDB.Has(ts)
 }
 
-// ResetOn is called when a chain container resets to a given timestamp.
+// Reset is called when a chain container resets to a given timestamp.
 // It clears the logsDB for that chain and removes any verified results at or after the timestamp.
-func (i *Interop) ResetOn(chainID eth.ChainID, timestamp uint64) {
+func (i *Interop) Reset(chainID eth.ChainID, timestamp uint64) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
-	i.log.Warn("ResetOn called",
+	i.log.Warn("Reset called",
 		"chainID", chainID,
 		"timestamp", timestamp,
 	)

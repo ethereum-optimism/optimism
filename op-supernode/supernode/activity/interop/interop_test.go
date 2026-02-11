@@ -1085,10 +1085,10 @@ func (m *mockLogsDBForInterop) Close() error { return nil }
 var _ LogsDB = (*mockLogsDBForInterop)(nil)
 
 // =============================================================================
-// TestResetOn
+// TestReset
 // =============================================================================
 
-func TestResetOn(t *testing.T) {
+func TestReset(t *testing.T) {
 	t.Parallel()
 
 	t.Run("rewinds logsDB when previous block available", func(t *testing.T) {
@@ -1112,7 +1112,7 @@ func TestResetOn(t *testing.T) {
 		interop.logsDBs[mock.id] = mockLogsDB
 
 		// Reset at timestamp 100 (blockTime=1, so prev=99)
-		interop.ResetOn(mock.id, 100)
+		interop.Reset(mock.id, 100)
 
 		// Verify logsDB.Rewind was called
 		require.Len(t, mockLogsDB.rewindCalls, 1)
@@ -1138,7 +1138,7 @@ func TestResetOn(t *testing.T) {
 		interop.logsDBs[mock.id] = mockLogsDB
 
 		// Reset at timestamp 100
-		interop.ResetOn(mock.id, 100)
+		interop.Reset(mock.id, 100)
 
 		// Verify logsDB.Clear was called
 		require.Len(t, mockLogsDB.rewindCalls, 0)
@@ -1166,7 +1166,7 @@ func TestResetOn(t *testing.T) {
 
 		// Reset at timestamp 1 (blockTime=1, so targetTs=0)
 		// Since firstSealedBlock.Number (5) > targetBlock.Number (0), Clear is called
-		interop.ResetOn(mock.id, 1)
+		interop.Reset(mock.id, 1)
 
 		// Verify logsDB.Clear was called
 		require.Len(t, mockLogsDB.rewindCalls, 0)
@@ -1200,7 +1200,7 @@ func TestResetOn(t *testing.T) {
 		}
 
 		// Reset at timestamp 100 (should remove 100, 101, 102)
-		interop.ResetOn(mock.id, 100)
+		interop.Reset(mock.id, 100)
 
 		// Verify results at 98, 99 still exist
 		has, _ := interop.verifiedDB.Has(98)
@@ -1237,7 +1237,7 @@ func TestResetOn(t *testing.T) {
 		interop.currentL1 = eth.BlockID{Number: 500, Hash: common.HexToHash("0xL1")}
 
 		// Reset
-		interop.ResetOn(mock.id, 100)
+		interop.Reset(mock.id, 100)
 
 		// Verify currentL1 is reset to zero
 		require.Equal(t, eth.BlockID{}, interop.currentL1)
@@ -1256,7 +1256,7 @@ func TestResetOn(t *testing.T) {
 
 		// Reset on unknown chain (should not panic)
 		unknownChain := eth.ChainIDFromUInt64(999)
-		interop.ResetOn(unknownChain, 100)
+		interop.Reset(unknownChain, 100)
 
 		// Just verify it didn't panic
 	})

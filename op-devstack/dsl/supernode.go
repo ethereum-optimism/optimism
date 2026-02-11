@@ -91,7 +91,7 @@ func (s *Supernode) AwaitValidatedTimestamp(timestamp uint64) {
 // Requires the Supernode to be created with NewSupernodeWithTestControl.
 func (s *Supernode) PauseInterop(ts uint64) {
 	s.require.NotNil(s.testControl, "PauseInterop requires test control; use NewSupernodeWithTestControl")
-	s.testControl.PauseInterop(ts)
+	s.testControl.PauseInteropActivity(ts)
 }
 
 // ResumeInterop clears any pause on the interop activity, allowing normal processing.
@@ -99,5 +99,5 @@ func (s *Supernode) PauseInterop(ts uint64) {
 // Requires the Supernode to be created with NewSupernodeWithTestControl.
 func (s *Supernode) ResumeInterop() {
 	s.require.NotNil(s.testControl, "ResumeInterop requires test control; use NewSupernodeWithTestControl")
-	s.testControl.ResumeInterop()
+	s.testControl.ResumeInteropActivity()
 }

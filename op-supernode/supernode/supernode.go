@@ -236,14 +236,14 @@ func (s *Supernode) onChainReset(chainID eth.ChainID, timestamp uint64) {
 		"timestamp", timestamp,
 	)
 	for _, a := range s.activities {
-		a.ResetOn(chainID, timestamp)
+		a.Reset(chainID, timestamp)
 	}
 }
 
-// PauseInterop pauses the interop activity at the given timestamp.
+// PauseInteropActivity pauses the interop activity at the given timestamp.
 // When the interop activity attempts to process this timestamp, it returns early.
 // This function is for integration test control only.
-func (s *Supernode) PauseInterop(ts uint64) {
+func (s *Supernode) PauseInteropActivity(ts uint64) {
 	for _, a := range s.activities {
 		if ia, ok := a.(*interop.Interop); ok {
 			ia.PauseAt(ts)
@@ -253,9 +253,9 @@ func (s *Supernode) PauseInterop(ts uint64) {
 	s.log.Warn("PauseInterop called but no interop activity found")
 }
 
-// ResumeInterop clears any pause on the interop activity, allowing normal processing.
+// ResumeInteropActivity clears any pause on the interop activity, allowing normal processing.
 // This function is for integration test control only.
-func (s *Supernode) ResumeInterop() {
+func (s *Supernode) ResumeInteropActivity() {
 	for _, a := range s.activities {
 		if ia, ok := a.(*interop.Interop); ok {
 			ia.Resume()

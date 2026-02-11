@@ -66,12 +66,12 @@ type Supernode interface {
 // InteropTestControl provides integration test control methods for the interop activity.
 // This interface is for integration test control only.
 type InteropTestControl interface {
-	// PauseInterop pauses the interop activity at the given timestamp.
+	// PauseInteropActivity pauses the interop activity at the given timestamp.
 	// When the interop activity attempts to process this timestamp, it returns early.
 	// This function is for integration test control only.
-	PauseInterop(ts uint64)
+	PauseInteropActivity(ts uint64)
 
-	// ResumeInterop clears any pause on the interop activity, allowing normal processing.
+	// ResumeInteropActivity clears any pause on the interop activity, allowing normal processing.
 	// This function is for integration test control only.
-	ResumeInterop()
+	ResumeInteropActivity()
 }

@@ -167,7 +167,7 @@ func (m *mockVerificationActivity) VerifiedAtTimestamp(ts uint64) (bool, error) 
 	return m.verifiedAtTimestampResult, m.verifiedAtTimestampErr
 }
 
-func (m *mockVerificationActivity) ResetOn(chainID eth.ChainID, timestamp uint64) {}
+func (m *mockVerificationActivity) Reset(chainID eth.ChainID, timestamp uint64) {}
 
 // Test helpers
 func createTestVNConfig() *opnodecfg.Config {

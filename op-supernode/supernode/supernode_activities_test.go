@@ -27,8 +27,8 @@ func (m *mockRunnable) Start(ctx context.Context) error {
 	<-ctx.Done()
 	return ctx.Err()
 }
-func (m *mockRunnable) Stop(ctx context.Context) error                { m.stopped++; return nil }
-func (m *mockRunnable) ResetOn(chainID eth.ChainID, timestamp uint64) {}
+func (m *mockRunnable) Stop(ctx context.Context) error              { m.stopped++; return nil }
+func (m *mockRunnable) Reset(chainID eth.ChainID, timestamp uint64) {}
 
 // ensure it satisfies both Activity and RunnableActivity
 var _ activity.Activity = (*mockRunnable)(nil)
@@ -37,7 +37,7 @@ var _ activity.RunnableActivity = (*mockRunnable)(nil)
 // plain marker-only activity
 type plainActivity struct{}
 
-func (p *plainActivity) ResetOn(chainID eth.ChainID, timestamp uint64) {}
+func (p *plainActivity) Reset(chainID eth.ChainID, timestamp uint64) {}
 
 var _ activity.Activity = (*plainActivity)(nil)
 
@@ -51,9 +51,9 @@ func (s *rpcSvc) Echo(_ context.Context) (string, error) { return "ok", nil }
 
 type rpcAct struct{}
 
-func (a *rpcAct) RPCNamespace() string                          { return "act" }
-func (a *rpcAct) RPCService() interface{}                       { return &rpcSvc{} }
-func (a *rpcAct) ResetOn(chainID eth.ChainID, timestamp uint64) {}
+func (a *rpcAct) RPCNamespace() string                        { return "act" }
+func (a *rpcAct) RPCService() interface{}                     { return &rpcSvc{} }
+func (a *rpcAct) Reset(chainID eth.ChainID, timestamp uint64) {}
 
 var _ activity.Activity = (*rpcAct)(nil)
 var _ activity.RPCActivity = (*rpcAct)(nil)

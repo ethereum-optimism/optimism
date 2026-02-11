@@ -56,8 +56,8 @@ func (h *Heartbeat) Stop(ctx context.Context) error {
 	return nil
 }
 
-// ResetOn is a no-op for heartbeat - it has no chain-specific state.
-func (h *Heartbeat) ResetOn(chainID eth.ChainID, timestamp uint64) {
+// Reset is a no-op for heartbeat - it has no chain-specific state.
+func (h *Heartbeat) Reset(chainID eth.ChainID, timestamp uint64) {
 	// No-op: heartbeat has no chain-specific cached state
 }
 

@@ -43,16 +43,7 @@ func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProce
 				"blockNumber", payload.BlockNumber,
 				"blockHash", payload.BlockHash,
 			)
-			// If derived and Holocene is active, request a deposits-only replacement
-			if ev.DerivedFrom != (eth.L1BlockRef{}) && e.rollupCfg.IsHolocene(ev.DerivedFrom.Time) {
-				e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom)
-				return
-			}
-			// Otherwise emit invalid event
-			e.emitter.Emit(ctx, PayloadInvalidEvent{
-				Envelope: ev.Envelope,
-				Err:      fmt.Errorf("payload %s denied by SuperAuthority", payload.BlockHash),
-			})
+			e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom)
 			return
 		}
 	}

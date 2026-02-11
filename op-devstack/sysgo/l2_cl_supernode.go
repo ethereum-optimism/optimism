@@ -143,23 +143,23 @@ func (n *SuperNode) Stop() {
 	n.sn = nil
 }
 
-// PauseInterop pauses the interop activity at the given timestamp.
+// PauseInteropActivity pauses the interop activity at the given timestamp.
 // This function is for integration test control only.
-func (n *SuperNode) PauseInterop(ts uint64) {
+func (n *SuperNode) PauseInteropActivity(ts uint64) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.sn != nil {
-		n.sn.PauseInterop(ts)
+		n.sn.PauseInteropActivity(ts)
 	}
 }
 
-// ResumeInterop clears any pause on the interop activity.
+// ResumeInteropActivity clears any pause on the interop activity.
 // This function is for integration test control only.
-func (n *SuperNode) ResumeInterop() {
+func (n *SuperNode) ResumeInteropActivity() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.sn != nil {
-		n.sn.ResumeInterop()
+		n.sn.ResumeInteropActivity()
 	}
 }
 
