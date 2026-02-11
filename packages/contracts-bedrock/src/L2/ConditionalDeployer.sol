@@ -20,6 +20,7 @@ contract ConditionalDeployer is ISemver {
     event ImplementationExists(address indexed implementation);
 
     /// @notice Error thrown when deployment fails.
+    /// @param data The data returned from the deployment call.
     error ConditionalDeployer_DeploymentFailed(bytes data);
 
     /// @notice Address of the Arachnid DeterministicDeploymentProxy.
@@ -31,10 +32,11 @@ contract ConditionalDeployer is ISemver {
     string public constant version = "1.0.0";
 
     /// @notice Deploys an implementation using CREATE2 if it doesn't already exist.
+    /// @dev Does not support deployments requiring ETH.
     /// @param _salt The salt to use for CREATE2 deployment.
     /// @param _code The initialization code for the contract.
     /// @return implementation_ The address of the deployed or existing implementation.
-    function deploy(bytes32 _salt, bytes memory _code) external payable returns (address implementation_) {
+    function deploy(bytes32 _salt, bytes memory _code) external returns (address implementation_) {
         // Compute the address where the contract will be deployed using CREATE2 formula
         bytes32 codeHash = keccak256(_code);
         implementation_ = address(
@@ -49,8 +51,7 @@ contract ConditionalDeployer is ISemver {
 
         // Deploy using Arachnid's DeterministicDeploymentProxy
         // Calldata format: salt + initcode
-        (bool success, bytes memory data) =
-            DETERMINISTIC_DEPLOYMENT_PROXY.call{ value: msg.value }(abi.encodePacked(_salt, _code));
+        (bool success, bytes memory data) = DETERMINISTIC_DEPLOYMENT_PROXY.call(abi.encodePacked(_salt, _code));
         if (!success || implementation_.code.length == 0) {
             revert ConditionalDeployer_DeploymentFailed(data);
         }

@@ -86,6 +86,7 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 	// Check if L2CM feature is enabled
 	var useL2CM bool
 	if devFeatureBitmap, ok := intent.GlobalDeployOverrides["devFeatureBitmap"].(common.Hash); ok {
+		// TODO(#19151): Replace this with the L2CMDevFlag constant when we fix import cycles.
 		l2CMFlag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000100000")
 		if isDevFeatureEnabled(devFeatureBitmap, l2CMFlag) {
 			useL2CM = true
