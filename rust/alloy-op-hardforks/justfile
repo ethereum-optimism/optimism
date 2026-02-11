@@ -5,8 +5,3 @@ default:
 # Run cargo tests
 test *args='':
   cargo test --workspace {{args}}
-
-# Check no_std compatibility
-check-no-std:
-  rustup target add riscv32imac-unknown-none-elf
-  cargo check --target riscv32imac-unknown-none-elf --no-default-features

@@ -1200,10 +1200,7 @@ workflows:
           name: rust-check-no-std
           directory: rust
           command: |
-            just --justfile kona/justfile check-no-std
-            just --justfile op-alloy/Justfile check-no-std
-            just --justfile alloy-op-evm/justfile check-no-std
-            just --justfile alloy-op-hardforks/justfile check-no-std
+            just check-no-std
           toolchain: "1.88.0"
           context: *rust-ci-context
 

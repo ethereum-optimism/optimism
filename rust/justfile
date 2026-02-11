@@ -72,7 +72,7 @@ lint-docs:
 
 ############################ no_std #################################
 
-# Check no_std compatibility for proof and protocol crates
+# Check no_std compatibility for proof, protocol, alloy, and op-alloy crates
 check-no-std:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -100,7 +100,16 @@ check-no-std:
     # alloy
     alloy-op-evm
     alloy-op-hardforks
+
+    # op-alloy
+    op-alloy
+    op-alloy-consensus
+    op-alloy-rpc-types
+    op-alloy-rpc-types-engine
   )
+
+  # We need to install the riscv32imac-unknown-none-elf target before starting to build the no-std crates.
+  rustup target add riscv32imac-unknown-none-elf
 
   for package in "${no_std_packages[@]}"; do
     echo "Checking no_std build for: $package"

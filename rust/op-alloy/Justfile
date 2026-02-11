@@ -66,9 +66,3 @@ source:
 # Generate file bindings for super-registry
 bind:
   @just --justfile ./crates/registry/Justfile bind
-
-# Check no_std compatibility
-check-no-std:
-  rustup target add riscv32imac-unknown-none-elf
-  cargo check -p op-alloy -p op-alloy-consensus -p op-alloy-rpc-types -p op-alloy-rpc-types-engine --target riscv32imac-unknown-none-elf --no-default-features
-
