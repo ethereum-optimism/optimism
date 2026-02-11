@@ -178,12 +178,12 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
             conditionalDeployer.deterministicDeploymentProxy(),
             0,
             abi.encodePacked(_salt, _initCode),
-            abi.encode(_notExpectedAddress)
+            abi.encodePacked(_notExpectedAddress)
         );
         vm.prank(_caller);
         vm.expectRevert(
             abi.encodeWithSelector(
-                ConditionalDeployer.ConditionalDeployer_DeploymentFailed.selector, abi.encode(_notExpectedAddress)
+                ConditionalDeployer.ConditionalDeployer_DeploymentFailed.selector, abi.encodePacked(_notExpectedAddress)
             )
         );
         conditionalDeployer.deploy(_salt, _initCode);
