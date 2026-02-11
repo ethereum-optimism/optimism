@@ -5,10 +5,18 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
+
+func TestNewIntentStandard_producesZeroPAOs(t *testing.T) {
+	intent, err := NewIntentStandard(11155111, []common.Hash{common.HexToHash("0x336")})
+	require.NoError(t, err)
+	require.Equal(t, common.Address{}, intent.Chains[0].Roles.L1ProxyAdminOwner, "L1ProxyAdminOwner should be zero - user must specify manually")
+	require.Equal(t, common.Address{}, intent.Chains[0].Roles.L2ProxyAdminOwner, "L2ProxyAdminOwner should be zero - user must specify manually")
+}
 
 func TestValidateStandardValues(t *testing.T) {
 	intent, err := NewIntentStandard(11155111, []common.Hash{common.HexToHash("0x336")})
@@ -16,9 +24,9 @@ func TestValidateStandardValues(t *testing.T) {
 
 	err = intent.Check()
 	require.Error(t, err)
-	require.ErrorIs(t, err, addresses.ErrZeroAddress)
+	require.ErrorIs(t, err, ErrPAOMustBeSpecified)
 
-	setChainRoles(&intent)
+	setChainRolesForStandard(&intent)
 	err = intent.Check()
 	require.Error(t, err)
 	require.ErrorIs(t, err, ErrFeeVaultZeroAddress)
@@ -114,7 +122,7 @@ func TestValidateStandardValues(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			intent, err := NewIntentStandard(11155111, []common.Hash{common.HexToHash("0x336")})
 			require.NoError(t, err)
-			setChainRoles(&intent)
+			setChainRolesForStandard(&intent)
 			setFeeAddresses(&intent)
 			setRevenueShare(&intent)
 
@@ -259,6 +267,19 @@ func setChainRoles(intent *Intent) {
 	}
 
 	intent.Chains[0].Roles.L2ProxyAdminOwner = common.HexToAddress("0x02")
+	intent.Chains[0].Roles.SystemConfigOwner = common.HexToAddress("0x03")
+	intent.Chains[0].Roles.UnsafeBlockSigner = common.HexToAddress("0x04")
+	intent.Chains[0].Roles.Batcher = common.HexToAddress("0x05")
+	intent.Chains[0].Roles.Proposer = common.HexToAddress("0x06")
+}
+
+// setChainRolesForStandard sets chain roles for standard config validation tests.
+// For standard config, L1ProxyAdminOwner and L2ProxyAdminOwner must match the standard addresses.
+func setChainRolesForStandard(intent *Intent) {
+	l1PAO, _ := standard.L1ProxyAdminOwner(11155111)
+	l2PAO, _ := standard.L2ProxyAdminOwner(11155111)
+	intent.Chains[0].Roles.L1ProxyAdminOwner = l1PAO
+	intent.Chains[0].Roles.L2ProxyAdminOwner = l2PAO
 	intent.Chains[0].Roles.SystemConfigOwner = common.HexToAddress("0x03")
 	intent.Chains[0].Roles.UnsafeBlockSigner = common.HexToAddress("0x04")
 	intent.Chains[0].Roles.Batcher = common.HexToAddress("0x05")
