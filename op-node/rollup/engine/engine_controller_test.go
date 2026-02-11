@@ -371,8 +371,17 @@ func TestEngineController_ForkchoiceUpdateUsesSuperAuthority(t *testing.T) {
 	}
 	ec.SetSuperAuthority(mockSA)
 
-	// Mock engine to return the verified ref
-	mockEngine.ExpectL2BlockRefByHash(verifiedRef.Hash, verifiedRef, nil)
+	// Mock initializeUnknowns calls
+	mockEngine.ExpectL2BlockRefByLabel(eth.Unsafe, unsafeRef, nil)
+	// SafeL2Head is called multiple times during initialization and forkchoice - be generous
+	for i := 0; i < 10; i++ {
+		mockEngine.ExpectL2BlockRefByHash(verifiedRef.Hash, verifiedRef, nil)
+	}
+	mockEngine.ExpectL2BlockRefByLabel(eth.Safe, localSafeRef, nil)
+	mockEngine.ExpectL2BlockRefByLabel(eth.Finalized, finalizedRef, nil)
+
+	// Expect emitter events
+	emitter.ExpectOnceType("ForkchoiceUpdateEvent")
 
 	// Expect forkchoice update with SuperAuthority's safe head
 	expectedFC := eth.ForkchoiceState{
