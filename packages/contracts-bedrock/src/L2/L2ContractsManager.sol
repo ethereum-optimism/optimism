@@ -18,14 +18,14 @@ import { IL1Block } from "interfaces/L2/IL1Block.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { XForkL2CMTypes } from "src/libraries/XForkL2CMTypes.sol";
+import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 import { L2ContractsManagerUtils } from "src/libraries/L2ContractsManagerUtils.sol";
 
-/// @title XForkL2ContractsManager
-/// @notice Manages the upgrade of the L2 predeploys for the XFork upgrade.
-contract XForkL2ContractsManager is ISemver {
+/// @title L2ContractsManager
+/// @notice Manages the upgrade of the L2 predeploys.
+contract L2ContractsManager is ISemver {
     /// @notice Thrown when the upgrade function is called outside of a DELEGATECALL context.
-    error XForkL2ContractsManager_OnlyDelegatecall();
+    error L2ContractsManager_OnlyDelegatecall();
 
     /// @notice The semantic version of the L2ContractsManager contract.
     /// @custom:semver 1.0.0
@@ -103,10 +103,10 @@ contract XForkL2ContractsManager is ISemver {
     /// @notice FeeSplitter implementation.
     address internal immutable FEE_SPLITTER_IMPL;
 
-    /// @notice Constructor for the XForkL2ContractsManager contract.
+    /// @notice Constructor for the L2ContractsManager contract.
     /// @param _implementations The implementation struct containing the new implementation addresses for the L2
     /// predeploys.
-    constructor(XForkL2CMTypes.Implementations memory _implementations) {
+    constructor(L2ContractsManagerTypes.Implementations memory _implementations) {
         // Store the address of this contract for DELEGATECALL enforcement.
         THIS_L2CM = address(this);
 
@@ -145,33 +145,38 @@ contract XForkL2ContractsManager is ISemver {
     /// @notice Executes the upgrade for all predeploys.
     /// @dev This function MUST be called via DELEGATECALL from the L2ProxyAdmin.
     function upgrade() external {
-        if (address(this) == THIS_L2CM) revert XForkL2ContractsManager_OnlyDelegatecall();
+        if (address(this) == THIS_L2CM) revert L2ContractsManager_OnlyDelegatecall();
 
-        XForkL2CMTypes.FullConfig memory fullConfig = _loadFullConfig();
+        L2ContractsManagerTypes.FullConfig memory fullConfig = _loadFullConfig();
         _apply(fullConfig);
     }
 
     /// @notice Loads the full configuration for the L2 Predeploys.
     /// @return fullConfig_ The full configuration.
-    function _loadFullConfig() internal view returns (XForkL2CMTypes.FullConfig memory fullConfig_) {
+    function _loadFullConfig() internal view returns (L2ContractsManagerTypes.FullConfig memory fullConfig_) {
+        // Note: Currently, this is the only way to determine if the network is a custom gas token network.
+        // We need our upgrades be able to determine if the network is a custom gas token network so that we can
+        // apply the appropriate configuration to the LiquidityController predeploy. In networks without custom gas
+        // tokens, the LiquidityController predeploy is not used and points to address(0).
         bool isCustomGasToken = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken();
 
         // L2CrossDomainMessenger
-        fullConfig_.crossDomainMessenger = XForkL2CMTypes.CrossDomainMessengerConfig({
+        fullConfig_.crossDomainMessenger = L2ContractsManagerTypes.CrossDomainMessengerConfig({
             otherMessenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger()
         });
 
         // L2StandardBridge
-        fullConfig_.standardBridge = XForkL2CMTypes.StandardBridgeConfig({
+        fullConfig_.standardBridge = L2ContractsManagerTypes.StandardBridgeConfig({
             otherBridge: IStandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).otherBridge()
         });
 
         // L2ERC721Bridge
-        fullConfig_.erc721Bridge =
-            XForkL2CMTypes.ERC721BridgeConfig({ otherBridge: IERC721Bridge(Predeploys.L2_ERC721_BRIDGE).otherBridge() });
+        fullConfig_.erc721Bridge = L2ContractsManagerTypes.ERC721BridgeConfig({
+            otherBridge: IERC721Bridge(Predeploys.L2_ERC721_BRIDGE).otherBridge()
+        });
 
         // OptimismMintableERC20Factory
-        fullConfig_.mintableERC20Factory = XForkL2CMTypes.MintableERC20FactoryConfig({
+        fullConfig_.mintableERC20Factory = L2ContractsManagerTypes.MintableERC20FactoryConfig({
             bridge: IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY).bridge()
         });
 
@@ -190,7 +195,7 @@ contract XForkL2ContractsManager is ISemver {
         // LiquidityController
         if (isCustomGasToken) {
             ILiquidityController liquidityController = ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER);
-            fullConfig_.liquidityController = XForkL2CMTypes.LiquidityControllerConfig({
+            fullConfig_.liquidityController = L2ContractsManagerTypes.LiquidityControllerConfig({
                 owner: liquidityController.owner(),
                 gasPayingTokenName: liquidityController.gasPayingTokenName(),
                 gasPayingTokenSymbol: liquidityController.gasPayingTokenSymbol()
@@ -198,17 +203,17 @@ contract XForkL2ContractsManager is ISemver {
         }
 
         // FeeSplitter
-        fullConfig_.feeSplitter = XForkL2CMTypes.FeeSplitterConfig({
+        fullConfig_.feeSplitter = L2ContractsManagerTypes.FeeSplitterConfig({
             sharesCalculator: IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator()
         });
+
+        fullConfig_.isCustomGasToken = isCustomGasToken;
     }
 
     /// @notice Upgrades each of the predeploys to its corresponding new implementation. Applies the appropriate
     ///         configuration to each predeploy.
     /// @param _config The full configuration for the L2 Predeploys.
-    function _apply(XForkL2CMTypes.FullConfig memory _config) internal {
-        bool isCustomGasToken = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken();
-
+    function _apply(L2ContractsManagerTypes.FullConfig memory _config) internal {
         // Initializable predeploys.
 
         // L2CrossDomainMessenger
@@ -252,7 +257,7 @@ contract XForkL2ContractsManager is ISemver {
         );
 
         // LiquidityController (only on custom gas token networks)
-        if (isCustomGasToken) {
+        if (_config.isCustomGasToken) {
             L2ContractsManagerUtils.upgradeToAndCall(
                 Predeploys.LIQUIDITY_CONTROLLER,
                 LIQUIDITY_CONTROLLER_IMPL,
@@ -268,6 +273,9 @@ contract XForkL2ContractsManager is ISemver {
                 INITIALIZABLE_SLOT_OZ_V4,
                 0
             );
+
+            // NativeAssetLiquidity
+            L2ContractsManagerUtils.upgradeTo(Predeploys.NATIVE_ASSET_LIQUIDITY, NATIVE_ASSET_LIQUIDITY_IMPL);
         }
 
         // FeeSplitter
@@ -352,11 +360,12 @@ contract XForkL2ContractsManager is ISemver {
         L2ContractsManagerUtils.upgradeTo(Predeploys.GAS_PRICE_ORACLE, GAS_PRICE_ORACLE_IMPL);
         // L1BlockAttributes and L2ToL1MessagePasser have different implementations for custom gas token networks.
         L2ContractsManagerUtils.upgradeTo(
-            Predeploys.L1_BLOCK_ATTRIBUTES, isCustomGasToken ? L1_BLOCK_ATTRIBUTES_CGT_IMPL : L1_BLOCK_ATTRIBUTES_IMPL
+            Predeploys.L1_BLOCK_ATTRIBUTES,
+            _config.isCustomGasToken ? L1_BLOCK_ATTRIBUTES_CGT_IMPL : L1_BLOCK_ATTRIBUTES_IMPL
         );
         L2ContractsManagerUtils.upgradeTo(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
-            isCustomGasToken ? L2_TO_L1_MESSAGE_PASSER_CGT_IMPL : L2_TO_L1_MESSAGE_PASSER_IMPL
+            _config.isCustomGasToken ? L2_TO_L1_MESSAGE_PASSER_CGT_IMPL : L2_TO_L1_MESSAGE_PASSER_IMPL
         );
         L2ContractsManagerUtils.upgradeTo(
             Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL
@@ -375,10 +384,6 @@ contract XForkL2ContractsManager is ISemver {
             Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON, OPTIMISM_SUPERCHAIN_ERC20_BEACON_IMPL
         );
         L2ContractsManagerUtils.upgradeTo(Predeploys.SUPERCHAIN_TOKEN_BRIDGE, SUPERCHAIN_TOKEN_BRIDGE_IMPL);
-        // NativeAssetLiquidity
-        if (isCustomGasToken) {
-            L2ContractsManagerUtils.upgradeTo(Predeploys.NATIVE_ASSET_LIQUIDITY, NATIVE_ASSET_LIQUIDITY_IMPL);
-        }
         L2ContractsManagerUtils.upgradeTo(Predeploys.SCHEMA_REGISTRY, SCHEMA_REGISTRY_IMPL);
         L2ContractsManagerUtils.upgradeTo(Predeploys.EAS, EAS_IMPL);
     }

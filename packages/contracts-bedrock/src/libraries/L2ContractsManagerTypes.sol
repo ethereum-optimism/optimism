@@ -7,9 +7,9 @@ import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 
-/// @title XForkL2CMTypes
-/// @notice Type definitions for XForkL2ContractsManager upgrade operations.
-library XForkL2CMTypes {
+/// @title L2ContractsManagerTypes
+/// @notice Type definitions for L2ContractsManager upgrade operations.
+library L2ContractsManagerTypes {
     /// @notice Configuration for L2CrossDomainMessenger.
     struct CrossDomainMessengerConfig {
         ICrossDomainMessenger otherMessenger;
@@ -62,9 +62,10 @@ library XForkL2CMTypes {
         FeeVaultConfig operatorFeeVault;
         LiquidityControllerConfig liquidityController;
         FeeSplitterConfig feeSplitter;
+        bool isCustomGasToken;
     }
 
-    /// @notice The implementation addresses to manage the XFork upgrade.
+    /// @notice The current implementation addresses for the L2 predeploys.
     struct Implementations {
         address storageSetterImpl;
         address l2CrossDomainMessengerImpl;

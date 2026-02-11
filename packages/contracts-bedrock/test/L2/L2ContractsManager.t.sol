@@ -2,8 +2,8 @@
 pragma solidity 0.8.15;
 
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { XForkL2ContractsManager } from "src/L2/XForkL2ContractsManager.sol";
-import { XForkL2CMTypes } from "src/libraries/XForkL2CMTypes.sol";
+import { L2ContractsManager } from "src/L2/L2ContractsManager.sol";
+import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { StorageSetter } from "src/universal/StorageSetter.sol";
@@ -36,19 +36,19 @@ import { LiquidityController } from "src/L2/LiquidityController.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Features } from "src/libraries/Features.sol";
 
-/// @title XForkL2ContractsManager_Harness
+/// @title L2ContractsManager_Harness
 /// @notice Harness contract that exposes internal functions for testing.
-contract XForkL2ContractsManager_FullConfigExposer_Harness is XForkL2ContractsManager {
-    constructor(XForkL2CMTypes.Implementations memory _implementations) XForkL2ContractsManager(_implementations) { }
+contract L2ContractsManager_FullConfigExposer_Harness is L2ContractsManager {
+    constructor(L2ContractsManagerTypes.Implementations memory _implementations) L2ContractsManager(_implementations) { }
 
     /// @notice Returns the full configuration for the L2 predeploys.
-    function loadFullConfig() external view returns (XForkL2CMTypes.FullConfig memory) {
+    function loadFullConfig() external view returns (L2ContractsManagerTypes.FullConfig memory) {
         return _loadFullConfig();
     }
 
     /// @notice Returns the target implementations for the L2 predeploys.
-    function implementations() external view returns (XForkL2CMTypes.Implementations memory) {
-        return XForkL2CMTypes.Implementations({
+    function implementations() external view returns (L2ContractsManagerTypes.Implementations memory) {
+        return L2ContractsManagerTypes.Implementations({
             storageSetterImpl: STORAGE_SETTER_IMPL,
             l2CrossDomainMessengerImpl: L2_CROSS_DOMAIN_MESSENGER_IMPL,
             gasPriceOracleImpl: GAS_PRICE_ORACLE_IMPL,
@@ -81,11 +81,11 @@ contract XForkL2ContractsManager_FullConfigExposer_Harness is XForkL2ContractsMa
     }
 }
 
-/// @title XForkL2ContractsManager_Test
-/// @notice Test contract for the XForkL2ContractsManager contract, testing the upgrade path for this fork.
-contract XForkL2ContractsManager_Upgrade_Test is CommonTest {
-    XForkL2ContractsManager_FullConfigExposer_Harness internal l2cm;
-    XForkL2CMTypes.Implementations internal implementations;
+/// @title L2ContractsManager_Test
+/// @notice Test contract for the L2ContractsManager contract, testing the upgrade path.
+contract L2ContractsManager_Upgrade_Test is CommonTest {
+    L2ContractsManager_FullConfigExposer_Harness internal l2cm;
+    L2ContractsManagerTypes.Implementations internal implementations;
 
     /// @notice Struct to capture the post-upgrade state for comparison.
     struct PostUpgradeState {
@@ -117,7 +117,7 @@ contract XForkL2ContractsManager_Upgrade_Test is CommonTest {
         address liquidityControllerImpl;
         address feeSplitterImpl;
         // Config values, take advantage of the harness to capture the config values
-        XForkL2CMTypes.FullConfig config;
+        L2ContractsManagerTypes.FullConfig config;
     }
 
     function setUp() public override {
@@ -166,10 +166,10 @@ contract XForkL2ContractsManager_Upgrade_Test is CommonTest {
         implementations.feeSplitterImpl = deployCode("src/L2/FeeSplitter.sol:FeeSplitter");
     }
 
-    /// @notice Deploys the XForkL2ContractsManager with the loaded implementations.
+    /// @notice Deploys the L2ContractsManager with the loaded implementations.
     function _deployL2CM() internal {
-        l2cm = new XForkL2ContractsManager_FullConfigExposer_Harness(implementations);
-        vm.label(address(l2cm), "XForkL2ContractsManager");
+        l2cm = new L2ContractsManager_FullConfigExposer_Harness(implementations);
+        vm.label(address(l2cm), "L2ContractsManager");
     }
 
     /// @notice Executes the upgrade via DELEGATECALL from the L2ProxyAdmin context.
@@ -178,7 +178,7 @@ contract XForkL2ContractsManager_Upgrade_Test is CommonTest {
         // We simulate this by pranking as the ProxyAdmin and using delegatecall.
         address proxyAdmin = Predeploys.PROXY_ADMIN;
         prankDelegateCall(proxyAdmin);
-        (bool success,) = address(l2cm).delegatecall(abi.encodeCall(XForkL2ContractsManager.upgrade, ()));
+        (bool success,) = address(l2cm).delegatecall(abi.encodeCall(L2ContractsManager.upgrade, ()));
         require(success, "L2ContractsManager: Upgrade failed");
     }
 
@@ -360,7 +360,7 @@ contract XForkL2ContractsManager_Upgrade_Test is CommonTest {
     /// @notice Tests that all network-specific configuration is preserved after upgrade.
     function test_upgradePreservesAllConfiguration_succeeds() public {
         // Get the pre-upgrade configuration
-        XForkL2CMTypes.FullConfig memory preUpgradeConfig = l2cm.loadFullConfig();
+        L2ContractsManagerTypes.FullConfig memory preUpgradeConfig = l2cm.loadFullConfig();
 
         // Execute the upgrade
         _executeUpgrade();
@@ -474,7 +474,7 @@ contract XForkL2ContractsManager_Upgrade_Test is CommonTest {
     /// @notice Tests that calling upgrade() directly (not via DELEGATECALL) reverts.
     function test_upgrade_whenCalledDirectly_reverts() public {
         // Calling upgrade() directly should revert with OnlyDelegatecall error
-        vm.expectRevert(XForkL2ContractsManager.XForkL2ContractsManager_OnlyDelegatecall.selector);
+        vm.expectRevert(L2ContractsManager.L2ContractsManager_OnlyDelegatecall.selector);
         l2cm.upgrade();
     }
 
@@ -567,9 +567,9 @@ contract XForkL2ContractsManager_Upgrade_Test is CommonTest {
     }
 }
 
-/// @title XForkL2ContractsManager_CGT_Test
-/// @notice Test contract for the XForkL2ContractsManager on Custom Gas Token networks.
-contract XForkL2ContractsManager_Upgrade_CGT_Test is XForkL2ContractsManager_Upgrade_Test {
+/// @title L2ContractsManager_CGT_Test
+/// @notice Test contract for the L2ContractsManager on Custom Gas Token networks.
+contract L2ContractsManager_Upgrade_CGT_Test is L2ContractsManager_Upgrade_Test {
     /// @notice Tests that CGT-specific contracts are upgraded when CGT is enabled.
     function test_upgradeUpgradesCGTContracts_whenCGTEnabled_succeeds() public {
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
@@ -629,7 +629,7 @@ contract XForkL2ContractsManager_Upgrade_CGT_Test is XForkL2ContractsManager_Upg
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
 
         // Capture pre-upgrade config
-        XForkL2CMTypes.FullConfig memory preUpgradeConfig = l2cm.loadFullConfig();
+        L2ContractsManagerTypes.FullConfig memory preUpgradeConfig = l2cm.loadFullConfig();
 
         // Execute the upgrade
         _executeUpgrade();
