@@ -109,9 +109,9 @@
         "type": "uint128"
       },
       {
-        "internalType": "uint64",
+        "internalType": "uint128",
         "name": "lastUpdate",
-        "type": "uint64"
+        "type": "uint128"
       }
     ],
     "stateMutability": "view",
@@ -172,35 +172,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "stakingData",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "stakedAmount",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "receivedStake",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "linkedTo",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "unlink",
     "outputs": [],
@@ -219,19 +190,6 @@
     "name": "unstake",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "version",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -396,6 +354,11 @@
   {
     "inputs": [],
     "name": "PolicyEngineStaking_Paused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PolicyEngineStaking_StakerHasReceivedStake",
     "type": "error"
   },
   {

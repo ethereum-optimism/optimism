@@ -14,9 +14,9 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
-/// @title PolicyEngineStaking_TestHarness
+/// @title PolicyEngineStaking_Harness
 /// @notice Extends PolicyEngineStaking to expose internal _stakingData for testing.
-contract PolicyEngineStaking_ForTest is PolicyEngineStaking {
+contract PolicyEngineStaking_Harness is PolicyEngineStaking {
     constructor(address _owner) PolicyEngineStaking(_owner) { }
 
     /// @notice Exposes _stakingData for tests. Not in production contract.
@@ -35,7 +35,7 @@ contract PolicyEngineStaking_ForTest is PolicyEngineStaking {
 abstract contract PolicyEngineStaking_TestInit is CommonTest {
     address internal carol = address(0xC4101);
 
-    PolicyEngineStaking_ForTest internal staking;
+    PolicyEngineStaking_Harness internal staking;
     address internal owner;
 
     event Staked(address indexed account, address indexed beneficiary, uint256 amount);
@@ -49,7 +49,7 @@ abstract contract PolicyEngineStaking_TestInit is CommonTest {
     function setUp() public virtual override {
         super.setUp();
         owner = makeAddr("owner");
-        staking = new PolicyEngineStaking_ForTest(owner);
+        staking = new PolicyEngineStaking_Harness(owner);
 
         _setupMockOPToken();
 
@@ -386,6 +386,51 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         staking.stake(excessAmount, address(0));
     }
 
+    /// @notice Tests that staking to beneficiary reverts when caller has received stake from others.
+    function test_stake_toBeneficiaryWhenStakerHasReceivedStake_reverts() external {
+        // Alice receives stake from Bob (Bob links to Alice)
+        vm.prank(alice);
+        staking.setAllowedStaker(bob, true);
+        _stake(bob, 100 ether, alice);
+
+        (, uint256 aliceReceived,) = staking.stakingData(alice);
+        assertEq(aliceReceived, 100 ether);
+
+        // Carol allows Alice to link to her
+        vm.prank(carol);
+        staking.setAllowedStaker(alice, true);
+
+        // Alice cannot stake to Carol because she has received stake from Bob
+        vm.prank(alice);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
+        vm.prank(alice);
+        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_StakerHasReceivedStake.selector);
+        staking.stake(50 ether, carol);
+    }
+
+    /// @notice Tests that self-stake succeeds when caller has received stake (only beneficiary stake is restricted).
+    function test_stake_selfAttributionWhenStakerHasReceivedStake_succeeds() external {
+        // Alice receives stake from Bob
+        vm.prank(alice);
+        staking.setAllowedStaker(bob, true);
+        _stake(bob, 100 ether, alice);
+
+        (, uint256 aliceReceived,) = staking.stakingData(alice);
+        assertEq(aliceReceived, 100 ether);
+
+        // Alice can still self-stake (stake to address(0))
+        vm.prank(alice);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
+        vm.prank(alice);
+        staking.stake(50 ether, address(0));
+
+        (uint256 aliceStaked,,) = staking.stakingData(alice);
+        (uint128 aliceEffective,) = staking.peData(alice);
+        assertEq(aliceStaked, 50 ether);
+        assertEq(aliceReceived, 100 ether);
+        assertEq(aliceEffective, 150 ether);
+    }
+
     /// @notice Tests that staking with amount == type(uint128).max succeeds (boundary).
     function test_stake_amountEqualsUint128Max_succeeds() external {
         uint256 maxAmount = type(uint128).max;
@@ -535,6 +580,27 @@ contract PolicyEngineStaking_Link_Test is PolicyEngineStaking_TestInit {
 
         vm.prank(alice);
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_AlreadyLinked.selector);
+        staking.link(carol);
+    }
+
+    /// @notice Tests that linking reverts when caller has received stake from others.
+    function test_link_stakerHasReceivedStake_reverts() external {
+        // Bob stakes self, Alice links to Bob -> Bob has receivedStake > 0
+        _stake(bob, 100 ether, address(0));
+        vm.prank(bob);
+        staking.setAllowedStaker(alice, true);
+        _stake(alice, 50 ether, bob);
+
+        (, uint256 bobReceived,) = staking.stakingData(bob);
+        assertEq(bobReceived, 50 ether);
+
+        // Carol allows Bob to link to her
+        vm.prank(carol);
+        staking.setAllowedStaker(bob, true);
+
+        // Bob cannot link to Carol because he has received stake from Alice
+        vm.prank(bob);
+        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_StakerHasReceivedStake.selector);
         staking.link(carol);
     }
 }
@@ -819,5 +885,36 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
         assertEq(aliceReceived, 0);
         assertEq(bobEffective, 100 ether);
         assertEq(aliceEffective, 0);
+    }
+
+    /// @notice Tests that a beneficiary who received stake cannot stake or link to others.
+    function test_receivedStake_cannotStakeOrLinkToOthers_succeeds() external {
+        // Alice links to Bob -> Bob has receivedStake > 0
+        vm.prank(bob);
+        staking.setAllowedStaker(alice, true);
+        _stake(alice, 100 ether, bob);
+
+        (, uint256 bobReceived,) = staking.stakingData(bob);
+        assertEq(bobReceived, 100 ether);
+
+        // Carol allows Bob to link/stake to her
+        vm.prank(carol);
+        staking.setAllowedStaker(bob, true);
+
+        // Bob cannot stake to Carol (has received stake from Alice)
+        vm.prank(bob);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
+        vm.prank(bob);
+        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_StakerHasReceivedStake.selector);
+        staking.stake(50 ether, carol);
+
+        // Bob stakes self first, then cannot link to Carol (has received stake from Alice)
+        _stake(bob, 50 ether, address(0));
+        (uint256 bobStaked,,) = staking.stakingData(bob);
+        assertEq(bobStaked, 50 ether);
+
+        vm.prank(bob);
+        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_StakerHasReceivedStake.selector);
+        staking.link(carol);
     }
 }

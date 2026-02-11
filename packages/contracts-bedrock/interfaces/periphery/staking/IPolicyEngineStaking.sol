@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 /// @notice Interface for the PolicyEngineStaking contract.
 interface IPolicyEngineStaking {
     /// @notice Returns the contract owner.
-    function owner() external view returns (address);
+    function OWNER_ADDRESS() external view returns (address);
 
     /// @notice Returns whether the contract is paused.
     function paused() external view returns (bool);
@@ -13,12 +13,6 @@ interface IPolicyEngineStaking {
     /// @notice Base storage slot for PE data mapping. Policy Engine reads from keccak256(abi.encode(account,
     /// PE_DATA_SLOT)).
     function PE_DATA_SLOT() external view returns (bytes32);
-
-    /// @notice Returns staking data for an account.
-    function stakingData(address _account)
-        external
-        view
-        returns (uint256 stakedAmount_, uint256 receivedStake_, address linkedTo_);
 
     /// @notice Returns Policy Engine data for an account.
     function peData(address _account) external view returns (uint128 effectiveStake_, uint64 lastUpdate_);

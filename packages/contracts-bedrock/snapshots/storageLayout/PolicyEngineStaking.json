@@ -8,17 +8,17 @@
   },
   {
     "bytes": "32",
-    "label": "stakingData",
+    "label": "allowlist",
     "offset": 0,
     "slot": "1",
-    "type": "mapping(address => struct PolicyEngineStaking.StakedData)"
+    "type": "mapping(address => mapping(address => bool))"
   },
   {
     "bytes": "32",
-    "label": "allowlist",
+    "label": "_stakingData",
     "offset": 0,
     "slot": "2",
-    "type": "mapping(address => mapping(address => bool))"
+    "type": "mapping(address => struct PolicyEngineStaking.StakedData)"
   },
   {
     "bytes": "1",
