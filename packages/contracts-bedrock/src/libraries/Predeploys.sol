@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+// Libraries
 import { Fork } from "scripts/libraries/Config.sol";
+
+// Interfaces
+import { IStaticERC1967Proxy } from "interfaces/universal/IStaticERC1967Proxy.sol";
 
 /// @title Predeploys
 /// @notice Contains constant addresses for protocol contracts that are pre-deployed to the L2 system.
@@ -202,5 +206,15 @@ library Predeploys {
         return address(
             uint160(uint256(uint160(_addr)) & 0xffff | uint256(uint160(0xc0D3C0d3C0d3C0D3c0d3C0d3c0D3C0d3c0d30000)))
         );
+    }
+
+    /// @notice Returns true if the predeploy is upgradeable. In this context, upgradeable means that the predeploy
+    ///         is in the predeploy namespace, is proxied, and has an implementation contract with code.
+    /// @param _proxy The address of the predeploy.
+    /// @return isUpgradeable_ True if the predeploy is upgradeable, false otherwise.
+    function isUpgradeable(address _proxy) internal view returns (bool isUpgradeable_) {
+        address implementation = IStaticERC1967Proxy(_proxy).implementation();
+
+        isUpgradeable_ = isPredeployNamespace(_proxy) && !notProxied(_proxy) && implementation.code.length > 0;
     }
 }

@@ -15,18 +15,25 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 
 /// @title L2ContractsManagerUtils
 /// @notice L2ContractsManagerUtils is a library that provides utility functions for the L2ContractsManager system.
+/// @dev Upgrade functions silently skip predeploys that are not upgradeable (i.e., not deployed on the chain).
+///      This is intentional to support chains where certain predeploys are conditionally deployed, such as
+///      CrossL2Inbox on non-interop chains or LiquidityController on non-custom-gas-token chains.
 library L2ContractsManagerUtils {
     /// @notice Thrown when a user attempts to downgrade a contract.
     /// @param _target The address of the contract that was attempted to be downgraded.
     error L2ContractsManager_DowngradeNotAllowed(address _target);
 
     /// @notice Upgrades a predeploy to a new implementation without calling an initializer.
+    ///         If the predeploy is not upgradeable, this function is a no-op.
     /// @param _proxy The proxy address of the predeploy.
     /// @param _implementation The new implementation address.
     function upgradeTo(address _proxy, address _implementation) internal {
+        // Skip if the predeploy is not upgradeable (e.g., not deployed on this chain).
+        if (!Predeploys.isUpgradeable(_proxy)) return;
+
         // We avoid downgrading Predeploys
         if (
-            // Predploys.PROXY_ADMIN is not checked for downgrades because it has no version number.
+            // Predeploys.PROXY_ADMIN is not checked for downgrades because it has no version number.
             _proxy != Predeploys.PROXY_ADMIN
                 && ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy) != address(0)
                 && SemverComp.gt(ISemver(_proxy).version(), ISemver(_implementation).version())
@@ -57,10 +64,12 @@ library L2ContractsManagerUtils {
     }
 
     /// @notice Upgrades an initializable Predeploy's implementation to _implementation by resetting the initialized
-    ///         slot and calling upgradeToAndCall with _data.
-    /// @dev It's important to make sure that only initializable Predeploys are upgraded to this way.
+    ///         slot and calling upgradeToAndCall with _data. If the predeploy is not upgradeable, this function
+    ///         is a no-op.
+    /// @dev It's important to make sure that only initializable Predeploys are upgraded this way.
     /// @param _proxy The proxy of the contract.
     /// @param _implementation The new implementation of the contract.
+    /// @param _storageSetterImpl The address of the StorageSetter implementation.
     /// @param _data The data to call upgradeToAndCall with.
     /// @param _slot The slot where the initialized value is located.
     /// @param _offset The offset of the initializer value in the slot.
@@ -74,6 +83,9 @@ library L2ContractsManagerUtils {
     )
         internal
     {
+        // Skip if the predeploy is not upgradeable (e.g., not deployed on this chain).
+        if (!Predeploys.isUpgradeable(_proxy)) return;
+
         if (
             // Predeploys.PROXY_ADMIN is not checked for downgrades because it has no version number.
             // This should never be the case, if you're trying to initialize the ProxyAdmin, it's probably a mistake.
