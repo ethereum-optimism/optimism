@@ -15,6 +15,7 @@ type SuperAuthority interface {
 
 // SafeL2Head returns the safe L2 head block identifier.
 // It returns an empty BlockID if no fully verified head can be determined.
+// Panics if verifiers disagree on the block hash for the same timestamp.
 func (c *simpleChainContainer) FullyVerifiedL2Head() eth.BlockID {
 	timestamp := uint64(math.MaxUint64)
 	oldestVerifiedBlock := eth.BlockID{}
@@ -26,6 +27,8 @@ func (c *simpleChainContainer) FullyVerifiedL2Head() eth.BlockID {
 		if ts < timestamp {
 			timestamp = ts
 			oldestVerifiedBlock = bId
+		} else if ts == timestamp && bId != oldestVerifiedBlock {
+			panic("verifiers disagree on block hash for same timestamp")
 		}
 	}
 	return oldestVerifiedBlock
