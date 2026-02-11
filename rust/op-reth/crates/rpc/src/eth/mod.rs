@@ -16,12 +16,12 @@ use alloy_consensus::BlockHeader;
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{B256, U256};
 use alloy_rpc_types_eth::{Filter, Log};
-use alloy_transport_http::reqwest::Url;
 use eyre::WrapErr;
 use futures::StreamExt;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
+use reqwest::Url;
 use reth_chainspec::{EthereumHardforks, Hardforks};
 use reth_evm::ConfigureEvm;
 use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodeTypes};
@@ -590,7 +590,7 @@ where
             let flashblocks_sequence = service.block_sequence_broadcaster().clone();
             let received_flashblocks = service.flashblocks_broadcaster().clone();
             let in_progress_rx = service.subscribe_in_progress();
-            ctx.components.task_executor().spawn(Box::pin(service.run(tx)));
+            ctx.components.task_executor().spawn_task(Box::pin(service.run(tx)));
 
             if flashblock_consensus {
                 info!(target: "reth::cli", "Launching FlashBlockConsensusClient");
@@ -598,7 +598,7 @@ where
                     ctx.engine_handle.clone(),
                     flashblocks_sequence.subscribe(),
                 )?;
-                ctx.components.task_executor().spawn(Box::pin(flashblock_client.run()));
+                ctx.components.task_executor().spawn_task(Box::pin(flashblock_client.run()));
             }
 
             Some(FlashblocksListeners::new(

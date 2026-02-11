@@ -61,6 +61,7 @@ op-revm.workspace = true
 tokio.workspace = true
 futures.workspace = true
 tokio-stream.workspace = true
+reqwest.workspace = true
 async-trait.workspace = true
 tower.workspace = true
 

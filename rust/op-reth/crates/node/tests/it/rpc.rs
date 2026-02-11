@@ -21,14 +21,11 @@ async fn test_admin_external_ip() -> eyre::Result<()> {
 
     let external_ip = "10.64.128.71".parse().unwrap();
     // Node setup
-    let mut network_args = NetworkArgs::default()
-        .with_unused_ports()
-        .with_nat_resolver(NatResolver::ExternalIp(external_ip));
-    network_args.discovery.discv5_port = 0;
-    network_args.discovery.discv5_port_ipv6 = 0;
     let node_config = NodeConfig::test()
         .map_chain(BASE_MAINNET.clone())
-        .with_network(network_args)
+        .with_network(
+            NetworkArgs::default().with_nat_resolver(NatResolver::ExternalIp(external_ip)),
+        )
         .with_rpc(RpcServerArgs::default().with_unused_ports().with_http());
 
     let NodeHandle { node, node_exit_future: _ } =

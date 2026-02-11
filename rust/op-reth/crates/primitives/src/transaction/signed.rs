@@ -33,7 +33,7 @@ use reth_primitives_traits::{
 #[cfg_attr(any(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(rlp))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Eq)]
-pub(super) struct OpTransactionSigned {
+pub struct OpTransactionSigned {
     /// Transaction hash
     #[cfg_attr(feature = "serde", serde(skip))]
     hash: OnceLock<TxHash>,
@@ -431,19 +431,11 @@ impl reth_codecs::Compact for OpTransactionSigned {
 
         let tx_bits = if zstd_bit {
             let mut tmp = Vec::with_capacity(256);
-            if cfg!(feature = "std") {
-                reth_zstd_compressors::TRANSACTION_COMPRESSOR.with(|compressor| {
-                    let mut compressor = compressor.borrow_mut();
-                    let tx_bits = self.transaction.to_compact(&mut tmp);
-                    buf.put_slice(&compressor.compress(&tmp).expect("Failed to compress"));
-                    tx_bits as u8
-                })
-            } else {
-                let mut compressor = reth_zstd_compressors::create_tx_compressor();
+            reth_zstd_compressors::with_tx_compressor(|compressor| {
                 let tx_bits = self.transaction.to_compact(&mut tmp);
                 buf.put_slice(&compressor.compress(&tmp).expect("Failed to compress"));
                 tx_bits as u8
-            }
+            })
         } else {
             self.transaction.to_compact(buf) as u8
         };
@@ -465,29 +457,15 @@ impl reth_codecs::Compact for OpTransactionSigned {
 
         let zstd_bit = bitflags >> 3;
         let (transaction, buf) = if zstd_bit != 0 {
-            if cfg!(feature = "std") {
-                reth_zstd_compressors::TRANSACTION_DECOMPRESSOR.with(|decompressor| {
-                    let mut decompressor = decompressor.borrow_mut();
-
-                    // TODO: enforce that zstd is only present at a "top" level type
-                    let transaction_type = (bitflags & 0b110) >> 1;
-                    let (transaction, _) = OpTypedTransaction::from_compact(
-                        decompressor.decompress(buf),
-                        transaction_type,
-                    );
-
-                    (transaction, buf)
-                })
-            } else {
-                let mut decompressor = reth_zstd_compressors::create_tx_decompressor();
+            reth_zstd_compressors::with_tx_decompressor(|decompressor| {
+                // TODO: enforce that zstd is only present at a "top" level type
                 let transaction_type = (bitflags & 0b110) >> 1;
                 let (transaction, _) = OpTypedTransaction::from_compact(
                     decompressor.decompress(buf),
                     transaction_type,
                 );
-
                 (transaction, buf)
-            }
+            })
         } else {
             let transaction_type = bitflags >> 1;
             OpTypedTransaction::from_compact(buf, transaction_type)
@@ -503,7 +481,7 @@ impl<'a> arbitrary::Arbitrary<'a> for OpTransactionSigned {
         let mut transaction = OpTypedTransaction::arbitrary(u)?;
 
         let secp = secp256k1::Secp256k1::new();
-        let key_pair = secp256k1::Keypair::new(&secp, &mut rand::rng());
+        let key_pair = secp256k1::Keypair::new(&secp, &mut rand_08::thread_rng());
         let signature = reth_primitives_traits::crypto::secp256k1::sign_message(
             B256::from_slice(&key_pair.secret_bytes()[..]),
             signature_hash(&transaction),

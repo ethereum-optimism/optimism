@@ -87,7 +87,7 @@ where
 
         let (tx, rx) = oneshot::channel();
         let this = self.clone();
-        self.inner.task_spawner.spawn_blocking(Box::pin(async move {
+        self.inner.task_spawner.spawn_blocking_task(Box::pin(async move {
             let res = this.inner.builder.payload_witness(parent_header, attributes);
             let _ = tx.send(res);
         }));

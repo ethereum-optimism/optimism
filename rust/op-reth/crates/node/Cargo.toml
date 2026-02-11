@@ -109,10 +109,7 @@ js-tracer = [
     "reth-rpc-eth-types/js-tracer",
 ]
 test-utils = [
-	"reth-codec",
 	"reth-tasks",
-	"dep:reth-db-api",
-	"reth-db-api/op",
 	"reth-e2e-test-utils",
 	"alloy-genesis",
 	"serde_json",
@@ -132,7 +129,8 @@ test-utils = [
 	"reth-trie-common/test-utils",
 	"reth-trie-db/test-utils",
 	"reth-stages-types/test-utils",
-	"reth-db-api?/test-utils"
+	"reth-db-api?/test-utils",
+	"reth-tasks?/test-utils"
 ]
 reth-codec = ["reth-optimism-primitives/reth-codec"]
 

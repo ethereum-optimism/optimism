@@ -219,10 +219,9 @@ impl OpNode {
     /// use reth_optimism_chainspec::OpChainSpecBuilder;
     /// use reth_optimism_node::OpNode;
     /// use reth_provider::providers::{RocksDBProvider, StaticFileProvider};
-    /// use std::sync::Arc;
     ///
     /// let factory = OpNode::provider_factory_builder()
-    ///     .db(Arc::new(open_db_read_only("db", Default::default()).unwrap()))
+    ///     .db(open_db_read_only("db", Default::default()).unwrap())
     ///     .chainspec(OpChainSpecBuilder::base_mainnet().build().into())
     ///     .static_file(StaticFileProvider::read_only("db/static_files", false).unwrap())
     ///     .rocksdb_provider(RocksDBProvider::builder("db/rocksdb").build().unwrap())
@@ -1022,7 +1021,7 @@ where
         if ctx.chain_spec().is_interop_active_at_timestamp(ctx.head().timestamp) {
             // spawn the Op txpool maintenance task
             let chain_events = ctx.provider().canonical_state_stream();
-            ctx.task_executor().spawn_critical(
+            ctx.task_executor().spawn_critical_task(
                 "Op txpool interop maintenance task",
                 reth_optimism_txpool::maintain::maintain_transaction_pool_interop_future(
                     transaction_pool.clone(),
@@ -1036,7 +1035,7 @@ where
         if self.enable_tx_conditional {
             // spawn the Op txpool maintenance task
             let chain_events = ctx.provider().canonical_state_stream();
-            ctx.task_executor().spawn_critical(
+            ctx.task_executor().spawn_critical_task(
                 "Op txpool conditional maintenance task",
                 reth_optimism_txpool::maintain::maintain_transaction_pool_conditional_future(
                     transaction_pool.clone(),
