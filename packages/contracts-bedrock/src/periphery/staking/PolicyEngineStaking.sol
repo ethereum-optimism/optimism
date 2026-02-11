@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Interfaces
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ISemver } from "interfaces/universal/ISemver.sol";
 
 // Libraries
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -120,6 +119,9 @@ contract PolicyEngineStaking {
     /// @notice Thrown when amount exceeds uint128 max (PE effectiveStake limit).
     error PolicyEngineStaking_AmountExceedsEffectiveStakeLimit();
 
+    /// @notice Thrown when the staker has received stake from another beneficiary.
+    error PolicyEngineStaking_StakerHasReceivedStake();
+
     /// @notice Constructs the PolicyEngineStaking contract.
     /// @param _owner The address that can pause and unpause staking.
     constructor(address _owner) {
@@ -174,6 +176,10 @@ contract PolicyEngineStaking {
             if (linkedTo != address(0)) revert PolicyEngineStaking_AlreadyLinked();
             _increasePeData(msg.sender, _amount);
         } else {
+            // Check if staker has received stake, if you are already have received stake from another beneficiary, you
+            // cannot link to another
+            // beneficiary.
+            if (receivedStake > 0) revert PolicyEngineStaking_StakerHasReceivedStake();
             // If not self-attribution, check if already staked and not linked to a beneficiary.
             if (linkedTo == address(0) && stakedAmount > 0) revert PolicyEngineStaking_MustLinkOrUnstakeFirst();
             // Check if already linked to a different beneficiary.
@@ -225,6 +231,11 @@ contract PolicyEngineStaking {
         if (_beneficiary == msg.sender) revert PolicyEngineStaking_CannotLinkToSelf();
 
         (uint256 stakedAmount, uint256 receivedStake, address linkedTo) = _getStakedData(msg.sender);
+
+        // Check if staker has received stake, if you are already have received stake from another beneficiary, you
+        // cannot link to another
+        // beneficiary.
+        if (receivedStake > 0) revert PolicyEngineStaking_StakerHasReceivedStake();
 
         // Check if staker has no stake
         if (stakedAmount == 0) revert PolicyEngineStaking_NoStake();
