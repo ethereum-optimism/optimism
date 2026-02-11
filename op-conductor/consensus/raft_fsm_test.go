@@ -69,6 +69,18 @@ func TestUnsafeHeadTracker(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, hexutil.Uint64(333), tracker.unsafeHead.ExecutionPayload.BlockNumber)
 	})
+
+	t.Run("Snapshot with nil unsafeHead", func(t *testing.T) {
+		emptyTracker := &unsafeHeadTracker{
+			log:        testlog.Logger(t, log.LevelDebug),
+			unsafeHead: nil,
+		}
+
+		snapshot, err := emptyTracker.Snapshot()
+		require.Error(t, err)
+		require.Nil(t, snapshot)
+		require.Contains(t, err.Error(), "no unsafe head available")
+	})
 }
 
 type mockReadCloser struct {

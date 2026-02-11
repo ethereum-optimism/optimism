@@ -81,6 +81,11 @@ func (t *unsafeHeadTracker) Snapshot() (raft.FSMSnapshot, error) {
 	t.mtx.RLock()
 	defer t.mtx.RUnlock()
 
+	// Cannot snapshot if no unsafe head has been committed yet
+	if t.unsafeHead == nil {
+		return nil, fmt.Errorf("cannot create snapshot: no unsafe head available")
+	}
+
 	return &snapshot{
 		unsafeHead: t.unsafeHead,
 	}, nil
