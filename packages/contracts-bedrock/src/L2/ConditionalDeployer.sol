@@ -52,7 +52,7 @@ contract ConditionalDeployer is ISemver {
 
         // Deploy using Arachnid's DeterministicDeploymentProxy
         // Calldata format: salt + initcode
-        // Returns: raw 20 bytes (deployed address, not ABI-encoded
+        // Returns: raw 20 bytes (deployed address, not ABI-encoded)
         (bool success, bytes memory data) = DETERMINISTIC_DEPLOYMENT_PROXY.call(abi.encodePacked(_salt, _code));
 
         // Decode the returned address (raw 20 bytes)

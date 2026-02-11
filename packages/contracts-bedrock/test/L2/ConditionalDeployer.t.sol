@@ -35,24 +35,6 @@ contract ConditionalDeployer_TestInit is CommonTest {
     }
 }
 
-/// @title ConditionalDeployer_Getters_Test
-/// @notice Tests the getter functions of the `ConditionalDeployer` contract.
-contract ConditionalDeployer_Version_Test is ConditionalDeployer_TestInit {
-    /// @notice Tests that the version function returns a valid string.
-    function test_version_succeeds() external view {
-        assert(bytes(conditionalDeployer.version()).length > 0);
-    }
-}
-
-/// @title ConditionalDeployer_DeterministicDeploymentProxy_Test
-/// @notice Tests the deterministicDeploymentProxy function of the `ConditionalDeployer` contract.
-contract ConditionalDeployer_DeterministicDeploymentProxy_Test is ConditionalDeployer_TestInit {
-    /// @notice Tests that the deterministicDeploymentProxy function returns the correct address.
-    function test_deterministicDeploymentProxy_succeeds() external view {
-        assertEq(conditionalDeployer.deterministicDeploymentProxy(), payable(Preinstalls.DeterministicDeploymentProxy));
-    }
-}
-
 /// @title ConditionalDeployer_Deploy_Test
 /// @notice Tests the `deploy` function of the `ConditionalDeployer` contract.
 contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
@@ -187,5 +169,16 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
             )
         );
         conditionalDeployer.deploy(_salt, _initCode);
+    }
+}
+
+/// @title ConditionalDeployer_Uncategorized_Test
+/// @notice General tests that are not testing any function directly of the `ConditionalDeployer`
+///         contract or are testing multiple functions.
+contract ConditionalDeployer_Uncategorized_Test is ConditionalDeployer_TestInit {
+    /// @notice Tests that the getters return valid values.
+    function test_getters_succeeds() external view {
+        assert(bytes(conditionalDeployer.version()).length > 0);
+        assertEq(conditionalDeployer.deterministicDeploymentProxy(), payable(Preinstalls.DeterministicDeploymentProxy));
     }
 }
