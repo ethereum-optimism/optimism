@@ -54,6 +54,8 @@ func (n *noopLogsDBMetrics) RecordDBSearchEntriesRead(count int64)       {}
 
 // noopInvalidator implements reads.Invalidator as a no-op.
 // Used for rewind operations where we don't need cache invalidation.
+// noopInvalidator is a stub needed to use the logs.DB.Rewind method.
+// read-handle invalidation is not currently used
 type noopInvalidator struct{}
 
 func (n *noopInvalidator) TryInvalidate(rule reads.InvalidationRule) (release func(), err error) {
