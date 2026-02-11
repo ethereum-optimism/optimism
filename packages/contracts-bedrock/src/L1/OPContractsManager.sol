@@ -557,7 +557,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                         anchorStateRegistry: address(getAnchorStateRegistry(ISystemConfig(gameConfig.systemConfig))),
                         weth: address(outputs[i].delayedWETH),
                         l2ChainId: gameConfig.disputeGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw() ? l2ChainId : 0, // must
-                        // be zero for SUPER gam types
+                            // be zero for SUPER gam types
                         proposer: getProposer(
                             dgf, IPermissionedDisputeGame(address(existingGame)), gameConfig.disputeGameType
                         ),

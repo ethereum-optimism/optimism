@@ -9,22 +9,22 @@
 
 /// begin SemgrepTest__sol-style-no-bare-imports
 // ok: sol-style-no-bare-imports
-import {SomeStruct} from "some-library.sol";
+import { SomeStruct } from "some-library.sol";
 
 // ok: sol-style-no-bare-imports
-import {SomeStruct, AnotherThing} from "some-library.sol";
+import { SomeStruct, AnotherThing } from "some-library.sol";
 
 // ok: sol-style-no-bare-imports
-import {SomeStruct as SomeOtherStruct} from "some-library.sol";
+import { SomeStruct as SomeOtherStruct } from "some-library.sol";
 
 // ok: sol-style-no-bare-imports
-import {SomeStruct as SomeOtherStruct, AnotherThing as AnotherOtherThing} from "some-library.sol";
+import { SomeStruct as SomeOtherStruct, AnotherThing as AnotherOtherThing } from "some-library.sol";
 
 // ok: sol-style-no-bare-imports
-import {SomeStruct as SomeOtherStruct, AnotherThing} from "some-library.sol";
+import { SomeStruct as SomeOtherStruct, AnotherThing } from "some-library.sol";
 
 // ok: sol-style-no-bare-imports
-import {AnotherThing, SomeStruct as SomeOtherStruct} from "some-library.sol";
+import { AnotherThing, SomeStruct as SomeOtherStruct } from "some-library.sol";
 
 // ruleid: sol-style-no-bare-imports
 import "some-library.sol";
@@ -34,11 +34,13 @@ contract SemgrepTest__sol_safety_deployutils_args {
     function test() {
         // ruleid: sol-safety-deployutils-args
         DeployUtils.create1AndSave({
-            _save: this, _name: "SuperchainConfig", _args: abi.encodeCall(ISuperchainConfig.__constructor__, ())
+            _save: this,
+            _name: "SuperchainConfig",
+            _args: abi.encodeCall(ISuperchainConfig.__constructor__, ())
         });
 
         // ruleid: sol-safety-deployutils-args
-        DeployUtils.create1({_name: "SuperchainConfig", _args: abi.encodeCall(ISuperchainConfig.__constructor__, ())});
+        DeployUtils.create1({ _name: "SuperchainConfig", _args: abi.encodeCall(ISuperchainConfig.__constructor__, ()) });
 
         // ruleid: sol-safety-deployutils-args
         DeployUtils.create2AndSave({
@@ -50,12 +52,16 @@ contract SemgrepTest__sol_safety_deployutils_args {
 
         // ruleid: sol-safety-deployutils-args
         DeployUtils.create2({
-            _salt: _implSalt(), _name: "SuperchainConfig", _args: abi.encodeCall(ISuperchainConfig.__constructor__, ())
+            _salt: _implSalt(),
+            _name: "SuperchainConfig",
+            _args: abi.encodeCall(ISuperchainConfig.__constructor__, ())
         });
 
         // ruleid: sol-safety-deployutils-args
         DeployUtils.createDeterministic({
-            _name: "SuperchainConfig", _args: abi.encodeCall(ISuperchainConfig.__constructor__, ()), _salt: _implSalt()
+            _name: "SuperchainConfig",
+            _args: abi.encodeCall(ISuperchainConfig.__constructor__, ()),
+            _salt: _implSalt()
         });
 
         // ok: sol-safety-deployutils-args
@@ -134,7 +140,7 @@ contract SemgrepTest__sol_safety_deployutils_named_args_parameter {
         );
 
         // ruleid: sol-safety-deployutils-named-args-parameter
-        DeployUtils.create1({_save: _args, _name: "Proxy", _nick: "DataAvailabilityChallengeProxy"});
+        DeployUtils.create1({ _save: _args, _name: "Proxy", _nick: "DataAvailabilityChallengeProxy" });
 
         // ruleid: sol-safety-deployutils-named-args-parameter
         DeployUtils.createDeterministic(
@@ -142,16 +148,16 @@ contract SemgrepTest__sol_safety_deployutils_named_args_parameter {
         );
 
         // ruleid: sol-safety-deployutils-named-args-parameter
-        DeployUtils.create1AndSave({_save: this, _name: "Proxy", _nick: "DataAvailabilityChallengeProxy"});
+        DeployUtils.create1AndSave({ _save: this, _name: "Proxy", _nick: "DataAvailabilityChallengeProxy" });
 
         // ruleid: sol-safety-deployutils-named-args-parameter
-        DeployUtils.create1({_save: this, _name: "Proxy", _nick: "DataAvailabilityChallengeProxy"});
+        DeployUtils.create1({ _save: this, _name: "Proxy", _nick: "DataAvailabilityChallengeProxy" });
 
         // ruleid: sol-safety-deployutils-named-args-parameter
-        DeployUtils.create2AndSave({_save: this, _name: "Proxy", _nick: "DataAvailabilityChallengeProxy"});
+        DeployUtils.create2AndSave({ _save: this, _name: "Proxy", _nick: "DataAvailabilityChallengeProxy" });
 
         // ruleid: sol-safety-deployutils-named-args-parameter
-        DeployUtils.create2({_save: this, _name: "Proxy", _nick: "DataAvailabilityChallengeProxy"});
+        DeployUtils.create2({ _save: this, _name: "Proxy", _nick: "DataAvailabilityChallengeProxy" });
 
         // ok: sol-safety-deployutils-named-args-parameter
         DeployUtils.create1AndSave({
@@ -693,17 +699,15 @@ contract SemgrepTest__sol_safety_try_catch_eip_150 {
         // ok: sol-safety-trycatch-eip150
         // eip150-safe
         try someContract.someFunction() {
-        // ...
-        }
-            catch {
+            // ...
+        } catch {
             // ...
         }
 
         // ruleid: sol-safety-trycatch-eip150
         try someContract.someFunction() {
-        // ...
-        }
-            catch {
+            // ...
+        } catch {
             // ...
         }
     }

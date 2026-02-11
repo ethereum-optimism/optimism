@@ -292,7 +292,7 @@ semver-diff-check: build semver-diff-check-no-build
 
 # Checks that the semgrep tests are valid.
 semgrep-test-validity-check:
-  cd ../.. && forge fmt .semgrep/tests/sol-rules.t.sol --check
+  forge fmt ../../.semgrep/tests/sol-rules.t.sol --check
 
 # Validates forge test conventions and structure. Does not build contracts.
 lint-forge-tests-check-no-build:
