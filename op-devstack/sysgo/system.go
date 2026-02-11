@@ -66,21 +66,27 @@ func defaultMinimalSystemOpts(ids *DefaultMinimalSystemIDs, dest *DefaultMinimal
 		),
 	)
 
+	// Level 1: L1 nodes (must be first)
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
 
+	// Level 2: L2 EL (depends on L1)
 	opt.Add(WithL2ELNode(ids.L2EL))
-	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, L2CLSequencer()))
 
-	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
-	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
+	// Level 3: L2 CL + Faucets in parallel (both only need L1 + L2 EL)
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, L2CLSequencer()),
+		WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}),
+	))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}))
-
-	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
-
-	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{
-		ids.L2EL,
-	}))
+	// Level 4: Services that need L2 CL, in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL),
+		WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil),
+		WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL),
+		WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{
+			ids.L2EL,
+		}),
+	))
 
 	opt.Add(WithL2MetricsDashboard())
 
@@ -153,19 +159,26 @@ func DefaultTwoL2System(dest *DefaultTwoL2SystemIDs) stack.Option[*Orchestrator]
 
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
 
-	opt.Add(WithL2ELNode(ids.L2AEL))
-	opt.Add(WithL2CLNode(ids.L2ACL, ids.L1CL, ids.L1EL, ids.L2AEL, L2CLSequencer()))
+	// Both L2 ELs in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithL2ELNode(ids.L2AEL),
+		WithL2ELNode(ids.L2BEL),
+	))
 
-	opt.Add(WithL2ELNode(ids.L2BEL))
-	opt.Add(WithL2CLNode(ids.L2BCL, ids.L1CL, ids.L1EL, ids.L2BEL, L2CLSequencer()))
+	// Both L2 CLs + Faucets in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithL2CLNode(ids.L2ACL, ids.L1CL, ids.L1EL, ids.L2AEL, L2CLSequencer()),
+		WithL2CLNode(ids.L2BCL, ids.L1CL, ids.L1EL, ids.L2BEL, L2CLSequencer()),
+		WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}),
+	))
 
-	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
-	opt.Add(WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, nil))
-
-	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
-	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, nil))
-
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+	// All batchers and proposers in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL),
+		WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, nil),
+		WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL),
+		WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, nil),
+	))
 
 	opt.Add(WithL2MetricsDashboard())
 
@@ -198,19 +211,23 @@ func DefaultSupernodeTwoL2System(dest *DefaultTwoL2SystemIDs) stack.Option[*Orch
 
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
 
-	opt.Add(WithL2ELNode(ids.L2AEL))
-	opt.Add(WithL2ELNode(ids.L2BEL))
+	// Both L2 ELs in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithL2ELNode(ids.L2AEL),
+		WithL2ELNode(ids.L2BEL),
+	))
 
 	// Shared supernode for both L2 chains
 	opt.Add(WithSharedSupernodeCLs(ids.Supernode, []L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}, {CLID: ids.L2BCL, ELID: ids.L2BEL}}, ids.L1CL, ids.L1EL))
 
-	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
-	opt.Add(WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, nil))
-
-	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
-	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, nil))
-
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+	// All batchers, proposers, and faucets in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL),
+		WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, nil),
+		WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL),
+		WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, nil),
+		WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}),
+	))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
@@ -247,8 +264,11 @@ func DefaultSupernodeInteropTwoL2System(dest *DefaultTwoL2SystemIDs, delaySecond
 
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
 
-	opt.Add(WithL2ELNode(ids.L2AEL))
-	opt.Add(WithL2ELNode(ids.L2BEL))
+	// Both L2 ELs in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithL2ELNode(ids.L2AEL),
+		WithL2ELNode(ids.L2BEL),
+	))
 
 	// Shared supernode for both L2 chains with interop enabled
 	cls := []L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}, {CLID: ids.L2BCL, ELID: ids.L2BEL}}
@@ -258,13 +278,14 @@ func DefaultSupernodeInteropTwoL2System(dest *DefaultTwoL2SystemIDs, delaySecond
 		opt.Add(WithSharedSupernodeCLsInteropDelayed(ids.Supernode, cls, ids.L1CL, ids.L1EL, delaySeconds))
 	}
 
-	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
-	opt.Add(WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, nil))
-
-	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
-	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, nil))
-
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+	// All batchers, proposers, and faucets in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL),
+		WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, nil),
+		WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL),
+		WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, nil),
+		WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}),
+	))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
@@ -307,23 +328,28 @@ func DefaultMinimalSystemWithSyncTester(dest *DefaultMinimalSystemWithSyncTester
 		),
 	)
 
+	// Level 1: L1 nodes
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
 
+	// Level 2: L2 EL
 	opt.Add(WithL2ELNode(ids.L2EL))
-	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, L2CLSequencer()))
 
-	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
-	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
+	// Level 3: L2 CL + Faucets + SyncTester in parallel (all only need L1 + L2 EL)
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, L2CLSequencer()),
+		WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}),
+		WithSyncTester(ids.SyncTester, []stack.L2ELNodeID{ids.L2EL}),
+	))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}))
-
-	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
-
-	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{
-		ids.L2EL,
-	}))
-
-	opt.Add(WithSyncTester(ids.SyncTester, []stack.L2ELNodeID{ids.L2EL}))
+	// Level 4: Services that need L2 CL, in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL),
+		WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil),
+		WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL),
+		WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{
+			ids.L2EL,
+		}),
+	))
 
 	opt.Add(WithL2MetricsDashboard())
 
@@ -378,11 +404,13 @@ func DefaultSingleChainInteropSystem(dest *DefaultSingleChainInteropSystemIDs) s
 	opt := stack.Combine[*Orchestrator]()
 	opt.Add(baseInteropSystem(&ids))
 
-	opt.Add(WithL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, &ids.L2ACL, []stack.L2ELNodeID{
-		ids.L2AEL,
-	}))
-
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL}))
+	// Challenger and faucets in parallel (both depend on services started by baseInteropSystem)
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, &ids.L2ACL, []stack.L2ELNodeID{
+			ids.L2AEL,
+		}),
+		WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL}),
+	))
 
 	// Upon evaluation of the option, export the contents we created.
 	// Ids here are static, but other things may be exported too.
@@ -418,12 +446,19 @@ func DefaultMinimalInteropSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Or
 
 	// No supervisor - interop with local finality only
 	opt.Add(WithL2ELNode(ids.L2EL))
-	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, L2CLSequencer()))
-	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
-	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
-	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}))
+	// L2 CL + Faucets in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, L2CLSequencer()),
+		WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}),
+	))
+
+	// Services that need L2 CL, in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL),
+		WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL),
+		WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil),
+	))
 
 	opt.Add(WithL2MetricsDashboard())
 
@@ -460,14 +495,16 @@ func baseInteropSystem(ids *DefaultSingleChainInteropSystemIDs) stack.Option[*Or
 
 	opt.Add(WithL2ELNode(ids.L2AEL, L2ELWithSupervisor(ids.Supervisor)))
 	opt.Add(WithL2CLNode(ids.L2ACL, ids.L1CL, ids.L1EL, ids.L2AEL, L2CLSequencer(), L2CLIndexing()))
-	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2ACL, ids.L1EL, ids.L2AEL))
-	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
 
-	opt.Add(WithManagedBySupervisor(ids.L2ACL, ids.Supervisor))
-
-	// Note: we provide L2 CL nodes still, even though they are not used post-interop.
-	// Since we may create an interop infra-setup, before interop is even scheduled to run.
-	opt.Add(WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, &ids.Supervisor))
+	// Services that need L2 CL, in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2ACL, ids.L1EL, ids.L2AEL),
+		WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL),
+		WithManagedBySupervisor(ids.L2ACL, ids.Supervisor),
+		// Note: we provide L2 CL nodes still, even though they are not used post-interop.
+		// Since we may create an interop infra-setup, before interop is even scheduled to run.
+		WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, &ids.Supervisor),
+	))
 
 	opt.Add(WithL2MetricsDashboard())
 
@@ -513,24 +550,24 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 	))
 	opt.Add(WithL2ELNode(ids.L2BEL, L2ELWithSupervisor(ids.Supervisor)))
 	opt.Add(WithL2CLNode(ids.L2BCL, ids.L1CL, ids.L1EL, ids.L2BEL, L2CLSequencer(), L2CLIndexing()))
-	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
 
-	opt.Add(WithManagedBySupervisor(ids.L2BCL, ids.Supervisor))
-
-	// Note: we provide L2 CL nodes still, even though they are not used post-interop.
-	// Since we may create an interop infra-setup, before interop is even scheduled to run.
-	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, &ids.Supervisor))
-
-	// Deploy separate challengers for each chain.  Can be reduced to a single challenger when the DisputeGameFactory
-	// is actually shared.
-	opt.Add(WithL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, &ids.L2ACL, []stack.L2ELNodeID{
-		ids.L2AEL, ids.L2BEL,
-	}))
-	opt.Add(WithL2Challenger(ids.L2ChallengerB, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, &ids.L2BCL, []stack.L2ELNodeID{
-		ids.L2BEL, ids.L2AEL,
-	}))
-
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+	// Chain B post-CL services, challengers, and faucets in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL),
+		WithManagedBySupervisor(ids.L2BCL, ids.Supervisor),
+		// Note: we provide L2 CL nodes still, even though they are not used post-interop.
+		// Since we may create an interop infra-setup, before interop is even scheduled to run.
+		WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, &ids.Supervisor),
+		// Deploy separate challengers for each chain.  Can be reduced to a single challenger when the DisputeGameFactory
+		// is actually shared.
+		WithL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, &ids.L2ACL, []stack.L2ELNodeID{
+			ids.L2AEL, ids.L2BEL,
+		}),
+		WithL2Challenger(ids.L2ChallengerB, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, &ids.L2BCL, []stack.L2ELNodeID{
+			ids.L2BEL, ids.L2AEL,
+		}),
+		WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}),
+	))
 
 	opt.Add(WithL2MetricsDashboard())
 
@@ -595,29 +632,35 @@ func defaultSupernodeSuperProofsSystem(dest *DefaultSupernodeInteropProofsSystem
 
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
 
-	opt.Add(WithL2ELNode(ids.L2AEL))
-	opt.Add(WithL2ELNode(ids.L2BEL))
+	// Both L2 ELs in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithL2ELNode(ids.L2AEL),
+		WithL2ELNode(ids.L2BEL),
+	))
 
 	// Shared supernode for both L2 chains (registers per-chain L2CL proxies)
 	opt.Add(WithSharedSupernodeCLs(ids.Supernode, []L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}, {CLID: ids.L2BCL, ELID: ids.L2BEL}}, ids.L1CL, ids.L1EL))
 
-	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2ACL, ids.L1EL, ids.L2AEL))
-
-	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
-	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
+	// TestSequencer and batchers in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2ACL, ids.L1EL, ids.L2AEL),
+		WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL),
+		WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL),
+	))
 
 	// Run super roots migration using supernode as super root source
 	opt.Add(WithSuperRootsFromSupernode(ids.L1.ChainID(), ids.L1EL, []stack.L2CLNodeID{ids.L2ACL, ids.L2BCL}, ids.Supernode, ids.L2A.ChainID()))
 
-	// Start challenger after migration; use supernode RPCs as super-roots source.
-	opt.Add(WithSupernodeL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supernode, &ids.Cluster, []stack.L2ELNodeID{
-		ids.L2BEL, ids.L2AEL,
-	}))
-
-	// Start proposer after migration; use supernode RPCs as proposal source.
-	opt.Add(WithSupernodeProposer(ids.L2AProposer, ids.L1EL, &ids.Supernode))
-
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+	// Post-migration services in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		// Start challenger after migration; use supernode RPCs as super-roots source.
+		WithSupernodeL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supernode, &ids.Cluster, []stack.L2ELNodeID{
+			ids.L2BEL, ids.L2AEL,
+		}),
+		// Start proposer after migration; use supernode RPCs as proposal source.
+		WithSupernodeProposer(ids.L2AProposer, ids.L1EL, &ids.Supernode),
+		WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}),
+	))
 
 	opt.Add(WithL2MetricsDashboard())
 
@@ -651,29 +694,37 @@ func defaultSuperProofsSystem(dest *DefaultInteropSystemIDs, deployerOpts ...Dep
 
 	opt.Add(WithSupervisor(ids.Supervisor, ids.Cluster, ids.L1EL))
 
-	opt.Add(WithL2ELNode(ids.L2AEL, L2ELWithSupervisor(ids.Supervisor)))
-	opt.Add(WithL2CLNode(ids.L2ACL, ids.L1CL, ids.L1EL, ids.L2AEL, L2CLSequencer(), L2CLIndexing()))
+	// Both L2 ELs in parallel (both need supervisor)
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithL2ELNode(ids.L2AEL, L2ELWithSupervisor(ids.Supervisor)),
+		WithL2ELNode(ids.L2BEL, L2ELWithSupervisor(ids.Supervisor)),
+	))
 
-	opt.Add(WithL2ELNode(ids.L2BEL, L2ELWithSupervisor(ids.Supervisor)))
-	opt.Add(WithL2CLNode(ids.L2BCL, ids.L1CL, ids.L1EL, ids.L2BEL, L2CLSequencer(), L2CLIndexing()))
+	// Both L2 CLs in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithL2CLNode(ids.L2ACL, ids.L1CL, ids.L1EL, ids.L2AEL, L2CLSequencer(), L2CLIndexing()),
+		WithL2CLNode(ids.L2BCL, ids.L1CL, ids.L1EL, ids.L2BEL, L2CLSequencer(), L2CLIndexing()),
+	))
 
-	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2ACL, ids.L1EL, ids.L2AEL))
-
-	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
-	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
-
-	opt.Add(WithManagedBySupervisor(ids.L2ACL, ids.Supervisor))
-	opt.Add(WithManagedBySupervisor(ids.L2BCL, ids.Supervisor))
-
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+	// Post-CL services in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2ACL, ids.L1EL, ids.L2AEL),
+		WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL),
+		WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL),
+		WithManagedBySupervisor(ids.L2ACL, ids.Supervisor),
+		WithManagedBySupervisor(ids.L2BCL, ids.Supervisor),
+		WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}),
+	))
 
 	opt.Add(WithSuperRoots(ids.L1.ChainID(), ids.L1EL, []stack.L2CLNodeID{ids.L2ACL, ids.L2BCL}, ids.Supervisor, ids.L2A.ChainID()))
 
-	opt.Add(WithSuperProposer(ids.L2AProposer, ids.L1EL, &ids.Supervisor))
-
-	opt.Add(WithSuperL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, []stack.L2ELNodeID{
-		ids.L2BEL, ids.L2AEL,
-	}))
+	// Post-migration services in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithSuperProposer(ids.L2AProposer, ids.L1EL, &ids.Supervisor),
+		WithSuperL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, []stack.L2ELNodeID{
+			ids.L2BEL, ids.L2AEL,
+		}),
+	))
 
 	opt.Add(WithL2MetricsDashboard())
 
@@ -716,20 +767,28 @@ func MultiSupervisorInteropSystem(dest *MultiSupervisorInteropSystemIDs) stack.O
 	// add backup supervisor
 	opt.Add(WithSupervisor(ids.SupervisorSecondary, ids.Cluster, ids.L1EL))
 
-	opt.Add(WithL2ELNode(ids.L2A2EL, L2ELWithSupervisor(ids.SupervisorSecondary)))
-	opt.Add(WithL2CLNode(ids.L2A2CL, ids.L1CL, ids.L1EL, ids.L2A2EL, L2CLIndexing()))
+	// Both verifier L2 ELs in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithL2ELNode(ids.L2A2EL, L2ELWithSupervisor(ids.SupervisorSecondary)),
+		WithL2ELNode(ids.L2B2EL, L2ELWithSupervisor(ids.SupervisorSecondary)),
+	))
 
-	opt.Add(WithL2ELNode(ids.L2B2EL, L2ELWithSupervisor(ids.SupervisorSecondary)))
-	opt.Add(WithL2CLNode(ids.L2B2CL, ids.L1CL, ids.L1EL, ids.L2B2EL, L2CLIndexing()))
+	// Both verifier L2 CLs in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithL2CLNode(ids.L2A2CL, ids.L1CL, ids.L1EL, ids.L2A2EL, L2CLIndexing()),
+		WithL2CLNode(ids.L2B2CL, ids.L1CL, ids.L1EL, ids.L2B2EL, L2CLIndexing()),
+	))
 
-	// verifier must be also managed or it cannot advance
-	// we attach verifier L2CL with backup supervisor
-	opt.Add(WithManagedBySupervisor(ids.L2A2CL, ids.SupervisorSecondary))
-	opt.Add(WithManagedBySupervisor(ids.L2B2CL, ids.SupervisorSecondary))
-
-	// P2P connect L2CL nodes
-	opt.Add(WithL2CLP2PConnection(ids.L2ACL, ids.L2A2CL))
-	opt.Add(WithL2CLP2PConnection(ids.L2BCL, ids.L2B2CL))
+	// Post-CL services in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		// verifier must be also managed or it cannot advance
+		// we attach verifier L2CL with backup supervisor
+		WithManagedBySupervisor(ids.L2A2CL, ids.SupervisorSecondary),
+		WithManagedBySupervisor(ids.L2B2CL, ids.SupervisorSecondary),
+		// P2P connect L2CL nodes
+		WithL2CLP2PConnection(ids.L2ACL, ids.L2A2CL),
+		WithL2CLP2PConnection(ids.L2BCL, ids.L2B2CL),
+	))
 
 	opt.Add(WithL2MetricsDashboard())
 
@@ -823,16 +882,16 @@ func singleChainSystemWithFlashblocksOpts(ids *SingleChainSystemWithFlashblocksI
 
 	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, stack.L2ELNodeID(ids.L2RollupBoost), L2CLSequencer()))
 
-	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
-	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
-
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}))
-
-	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
-
-	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{
-		ids.L2EL,
-	}))
+	// Services that need L2 CL, in parallel
+	opt.Add(stack.InParallel[*Orchestrator](
+		WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL),
+		WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil),
+		WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}),
+		WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL),
+		WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{
+			ids.L2EL,
+		}),
+	))
 
 	opt.Add(WithL2MetricsDashboard())
 

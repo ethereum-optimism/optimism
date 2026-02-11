@@ -1,6 +1,8 @@
 package stack
 
 import (
+	"sync"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 )
@@ -140,6 +142,83 @@ func (c CombinedOption[O]) PreHydrate(sys System) {
 
 func (c CombinedOption[O]) PostHydrate(sys System) {
 	for _, opt := range c {
+		opt.PostHydrate(sys)
+	}
+}
+
+// ParallelOption wraps multiple options whose AfterDeploy phases
+// can safely run concurrently. All other lifecycle phases run sequentially.
+// Use this to parallelize independent service startups within a dependency level.
+type ParallelOption[O Orchestrator] struct {
+	opts []Option[O]
+}
+
+var _ CommonOption = (*ParallelOption[Orchestrator])(nil)
+
+// InParallel creates a ParallelOption that runs AfterDeploy concurrently for all given options.
+// BeforeDeploy, Deploy, Finally, PreHydrate, and PostHydrate still run sequentially.
+func InParallel[O Orchestrator](opts ...Option[O]) *ParallelOption[O] {
+	return &ParallelOption[O]{opts: opts}
+}
+
+func (p *ParallelOption[O]) BeforeDeploy(orch O) {
+	for _, opt := range p.opts {
+		opt.BeforeDeploy(orch)
+	}
+}
+
+func (p *ParallelOption[O]) Deploy(orch O) {
+	for _, opt := range p.opts {
+		opt.Deploy(orch)
+	}
+}
+
+func (p *ParallelOption[O]) AfterDeploy(orch O) {
+	if len(p.opts) <= 1 {
+		for _, opt := range p.opts {
+			opt.AfterDeploy(orch)
+		}
+		return
+	}
+
+	var wg sync.WaitGroup
+	panics := make(chan any, len(p.opts))
+
+	for _, opt := range p.opts {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					panics <- r
+				}
+			}()
+			opt.AfterDeploy(orch)
+		}()
+	}
+
+	wg.Wait()
+	close(panics)
+
+	if r, ok := <-panics; ok {
+		panic(r)
+	}
+}
+
+func (p *ParallelOption[O]) Finally(orch O) {
+	for _, opt := range p.opts {
+		opt.Finally(orch)
+	}
+}
+
+func (p *ParallelOption[O]) PreHydrate(sys System) {
+	for _, opt := range p.opts {
+		opt.PreHydrate(sys)
+	}
+}
+
+func (p *ParallelOption[O]) PostHydrate(sys System) {
+	for _, opt := range p.opts {
 		opt.PostHydrate(sys)
 	}
 }
