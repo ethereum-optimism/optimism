@@ -13,14 +13,16 @@ func TestParseNUTBundle(t *testing.T) {
 	data, err := os.ReadFile("testdata/test-nut.json")
 	require.NoError(t, err)
 
-	bundle, err := ParseNUTBundle(data)
+	bundle, err := ParseNUTBundle("Test", data)
 	require.NoError(t, err)
 
+	require.Equal(t, "Test", bundle.ForkName)
 	require.Equal(t, "1.0.0", bundle.Metadata.Version)
 	require.Len(t, bundle.Transactions, 2)
 
 	// First tx: no value field, zero address from
 	tx0 := bundle.Transactions[0]
+	require.Equal(t, "First Transaction", tx0.Intent)
 	require.Equal(t, common.Address{}, tx0.From)
 	require.NotNil(t, tx0.To)
 	require.Equal(t, common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), *tx0.To)
@@ -30,6 +32,7 @@ func TestParseNUTBundle(t *testing.T) {
 
 	// Second tx: has value and non-zero from
 	tx1 := bundle.Transactions[1]
+	require.Equal(t, "Second Transaction", tx1.Intent)
 	require.Equal(t, common.HexToAddress("0x000000000000000000000000000000000000abba"), tx1.From)
 	require.NotNil(t, tx1.To)
 	require.Equal(t, uint64(5000000), tx1.GasLimit)
@@ -40,33 +43,58 @@ func TestNUTBundleToDepositTransactions(t *testing.T) {
 	data, err := os.ReadFile("testdata/test-nut.json")
 	require.NoError(t, err)
 
-	bundle, err := ParseNUTBundle(data)
+	bundle, err := ParseNUTBundle("Test", data)
 	require.NoError(t, err)
 
 	txs, err := bundle.ToDepositTransactions()
 	require.NoError(t, err)
 	require.Len(t, txs, 2)
 
-	// Verify first tx round-trips to a valid deposit tx
+	// Verify first tx: qualified intent is "Test 0: First Transaction"
+	expectedSource0 := UpgradeDepositSource{Intent: "Test 0: First Transaction"}
 	from0, dep0 := toDepositTxn(t, txs[0])
 	require.Equal(t, common.Address{}, from0)
+	require.Equal(t, expectedSource0.SourceHash(), dep0.SourceHash())
 	require.NotNil(t, dep0.To())
 	require.Equal(t, common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), *dep0.To())
 	require.Equal(t, uint64(1000000), dep0.Gas())
 	require.Equal(t, common.FromHex("0xabcdef"), dep0.Data())
 	require.Equal(t, big.NewInt(0), dep0.Value())
 
-	// Verify second tx round-trips with value
+	// Verify second tx: qualified intent is "Test 1: Second Transaction"
+	expectedSource1 := UpgradeDepositSource{Intent: "Test 1: Second Transaction"}
 	from1, dep1 := toDepositTxn(t, txs[1])
 	require.Equal(t, common.HexToAddress("0x000000000000000000000000000000000000abba"), from1)
+	require.Equal(t, expectedSource1.SourceHash(), dep1.SourceHash())
 	require.Equal(t, uint64(5000000), dep1.Gas())
 	require.Equal(t, big.NewInt(100), dep1.Value())
+	// Source hashes must be unique
+	require.NotEqual(t, dep0.SourceHash(), dep1.SourceHash())
 }
 
 func TestParseNUTBundleInvalidJSON(t *testing.T) {
-	_, err := ParseNUTBundle([]byte(`{invalid`))
+	_, err := ParseNUTBundle("Test", []byte(`{invalid`))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to parse NUT bundle")
+}
+
+func TestNUTBundleMissingIntent(t *testing.T) {
+	jsonData := []byte(`{
+		"metadata": {"version": "1.0.0"},
+		"transactions": [{
+			"from": "0x0000000000000000000000000000000000000000",
+			"to": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+			"data": "0xabcdef",
+			"gasLimit": 1000000
+		}]
+	}`)
+
+	bundle, err := ParseNUTBundle("Test", jsonData)
+	require.NoError(t, err)
+
+	_, err = bundle.ToDepositTransactions()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "missing intent")
 }
 
 // TestNUTBundleNullTo verifies that "to": null in JSON produces a contract creation (deploy) transaction.
@@ -76,6 +104,7 @@ func TestNUTBundleNullTo(t *testing.T) {
 	jsonData := []byte(`{
 		"metadata": {"version": "1.0.0"},
 		"transactions": [{
+			"intent": "Deploy Contract",
 			"from": "0x4210000000000000000000000000000000000006",
 			"to": null,
 			"data": "0xdeadbeef",
@@ -83,7 +112,7 @@ func TestNUTBundleNullTo(t *testing.T) {
 		}]
 	}`)
 
-	bundle, err := ParseNUTBundle(jsonData)
+	bundle, err := ParseNUTBundle("Test", jsonData)
 	require.NoError(t, err)
 	require.Nil(t, bundle.Transactions[0].To)
 

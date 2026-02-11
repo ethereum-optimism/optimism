@@ -20,6 +20,7 @@ type NUTMetadata struct {
 
 // NUTTransaction defines a single deposit transaction within a NUT bundle.
 type NUTTransaction struct {
+	Intent   string          `json:"intent"`
 	From     common.Address  `json:"from"`
 	To       *common.Address `json:"to"`
 	Data     hexutil.Bytes   `json:"data"`
@@ -29,16 +30,19 @@ type NUTTransaction struct {
 
 // NUTBundle is the top-level structure of a NUT file.
 type NUTBundle struct {
+	ForkName     string           `json:"-"`
 	Metadata     NUTMetadata      `json:"metadata"`
 	Transactions []NUTTransaction `json:"transactions"`
 }
 
-// ParseNUTBundle parses a NUT bundle from JSON bytes.
-func ParseNUTBundle(data []byte) (*NUTBundle, error) {
+// ParseNUTBundle parses a NUT bundle from JSON bytes. The forkName is used to
+// namespace each transaction's intent when deriving source hashes.
+func ParseNUTBundle(forkName string, data []byte) (*NUTBundle, error) {
 	var bundle NUTBundle
 	if err := json.Unmarshal(data, &bundle); err != nil {
 		return nil, fmt.Errorf("failed to parse NUT bundle: %w", err)
 	}
+	bundle.ForkName = forkName
 	return &bundle, nil
 }
 
@@ -46,13 +50,19 @@ func ParseNUTBundle(data []byte) (*NUTBundle, error) {
 func (b *NUTBundle) ToDepositTransactions() ([]hexutil.Bytes, error) {
 	txs := make([]hexutil.Bytes, 0, len(b.Transactions))
 	for i, nutTx := range b.Transactions {
+		if nutTx.Intent == "" {
+			return nil, fmt.Errorf("tx %d: missing intent", i)
+		}
+
 		value := nutTx.Value
 		if value == nil {
 			value = big.NewInt(0)
 		}
 
+		qualifiedIntent := fmt.Sprintf("%s %d: %s", b.ForkName, i, nutTx.Intent)
+		source := UpgradeDepositSource{Intent: qualifiedIntent}
 		depTx := &types.DepositTx{
-			// TODO: source hash derivation
+			SourceHash:          source.SourceHash(),
 			From:                nutTx.From,
 			To:                  nutTx.To,
 			Mint:                big.NewInt(0),
