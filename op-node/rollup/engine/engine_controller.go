@@ -210,9 +210,9 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 		if fvshid.Number > e.localSafeHead.Number {
 			panic("super authority fully verified l2 head is ahead of local safe head")
 		}
-		br, err := e.engine.L2BlockRefByHash(context.Background(), fvshid.Hash)
+		br, err := e.engine.L2BlockRefByHash(e.ctx, fvshid.Hash)
 		if err != nil {
-			panic("TODO: supernode supplied an identifier for the safe head which is not known to the engine")
+			panic("superAuthority supplied an identifier for the safe head which is not known to the engine")
 		}
 		return br
 	} else if e.supervisorEnabled {
