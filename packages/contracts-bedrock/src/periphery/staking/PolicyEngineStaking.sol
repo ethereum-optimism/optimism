@@ -3,30 +3,24 @@ pragma solidity 0.8.15;
 
 // Interfaces
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
+
+// Libraries
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 /// @title PolicyEngineStaking
 /// @notice A periphery contract that enables stake-based transaction ordering in op-rbuilder.
 ///         Users deposit OP tokens into the contract, and the Policy Engine reads a packed value
 ///         (effective stake amount and last update timestamp) directly from storage slots to
 ///         determine transaction priority during block building.
-contract PolicyEngineStaking is ISemver {
+contract PolicyEngineStaking {
     using SafeERC20 for IERC20;
 
-    /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant override version = "1.0.0";
-
-    /// @notice Base storage slot for PE data mapping. Policy Engine reads from keccak256(abi.encode(account,
-    /// PE_DATA_SLOT)). Struct is packed: effectiveStake (128 bits) | lastUpdate (64 bits).
-    bytes32 public constant PE_DATA_SLOT = bytes32(uint256(0));
-
-    /// @notice The address of the OP token on OP Mainnet
-    /// @custom:network-specific
-    address internal constant OP_TOKEN_ADDRESS = 0x4200000000000000000000000000000000000042;
-
     /// @notice Staking data per account.
+    /// @custom:field stakedAmount The amount of OP tokens staked by the account.
+    /// @custom:field receivedStake The amount of OP tokens received by the account from others.
+    /// @custom:field linkedTo The address to which the account is linked.
     struct StakedData {
         uint256 stakedAmount;
         uint256 receivedStake;
@@ -34,25 +28,31 @@ contract PolicyEngineStaking is ISemver {
     }
 
     /// @notice Policy Engine data per account. Packed in one slot for PE reads.
+    /// @custom:field effectiveStake The amount of OP tokens that the account has contributed to the Policy Engine.
+    /// @custom:field lastUpdate The timestamp of the last update to the Policy Engine data.
     struct PEData {
         uint128 effectiveStake;
-        uint64 lastUpdate;
+        uint128 lastUpdate;
     }
+
+    /// @notice Base storage slot for PE data mapping. Policy Engine reads from keccak256(abi.encode(account,
+    /// PE_DATA_SLOT)). Struct is packed: effectiveStake (128 bits) | lastUpdate (128 bits).
+    bytes32 public constant PE_DATA_SLOT = bytes32(uint256(0));
+
+    /// @notice The immutable owner of the contract. Can pause and unpause staking.
+    address internal immutable OWNER_ADDRESS;
 
     /// @notice Slot 0: PE data mapping.
     mapping(address => PEData) public peData;
 
-    /// @notice Staking data mapping.
-    mapping(address => StakedData) public stakingData;
-
     /// @notice Allowlist: beneficiary => staker => entry.
     mapping(address => mapping(address => bool)) public allowlist;
 
+    /// @notice Staking data mapping.
+    mapping(address => StakedData) internal _stakingData;
+
     /// @notice Paused state.
     bool public paused;
-
-    /// @notice The immutable owner of the contract. Can pause and unpause.
-    address public immutable owner;
 
     /// @notice Emitted when a user stakes OP tokens.
     /// @param account     The address that staked tokens.
@@ -81,16 +81,16 @@ contract PolicyEngineStaking is ISemver {
     /// @param allowed     The new permission state.
     event BeneficiaryAllowlistUpdated(address indexed beneficiary, address indexed staker, bool allowed);
 
-    /// @notice Emitted when the contract is paused.
+    /// @notice Emitted when staking is paused.
     event Paused();
 
-    /// @notice Emitted when the contract is unpaused.
+    /// @notice Emitted when the staking is unpaused.
     event Unpaused();
 
     /// @notice Thrown when the caller is not the owner.
     error PolicyEngineStaking_OnlyOwner();
 
-    /// @notice Thrown when the contract is paused.
+    /// @notice Thrown when the staking is paused.
     error PolicyEngineStaking_Paused();
 
     /// @notice Thrown when the amount is zero.
@@ -121,27 +121,35 @@ contract PolicyEngineStaking is ISemver {
     error PolicyEngineStaking_AmountExceedsEffectiveStakeLimit();
 
     /// @notice Constructs the PolicyEngineStaking contract.
-    /// @param _owner The address that can pause and unpause the contract.
+    /// @param _owner The address that can pause and unpause staking.
     constructor(address _owner) {
-        owner = _owner;
+        OWNER_ADDRESS = _owner;
     }
 
-    /// @notice Modifier that reverts when the contract is paused.
+    /// @notice Modifier that reverts when the staking is paused.
     modifier whenNotPaused() {
         if (paused) revert PolicyEngineStaking_Paused();
         _;
     }
 
+    modifier onlyOwner() {
+        if (msg.sender != OWNER_ADDRESS) revert PolicyEngineStaking_OnlyOwner();
+        _;
+    }
+
+    /// @notice Returns the owner address.
+    function owner() external view returns (address) {
+        return OWNER_ADDRESS;
+    }
+
     /// @notice Pauses the contract. Stake and link are disabled while paused.
-    function pause() external {
-        if (msg.sender != owner) revert PolicyEngineStaking_OnlyOwner();
+    function pause() external onlyOwner {
         paused = true;
         emit Paused();
     }
 
     /// @notice Unpauses the contract.
-    function unpause() external {
-        if (msg.sender != owner) revert PolicyEngineStaking_OnlyOwner();
+    function unpause() external onlyOwner {
         paused = false;
         emit Unpaused();
     }
@@ -162,13 +170,17 @@ contract PolicyEngineStaking is ISemver {
 
         // If self-attribution, check if already linked to a different beneficiary
         if (isSelfAttribution) {
+            // It is not allowed to self-attribute and be linked to a different beneficiary.
             if (linkedTo != address(0)) revert PolicyEngineStaking_AlreadyLinked();
             _increasePeData(msg.sender, _amount);
         } else {
+            // If not self-attribution, check if already staked and not linked to a beneficiary.
             if (linkedTo == address(0) && stakedAmount > 0) revert PolicyEngineStaking_MustLinkOrUnstakeFirst();
+            // Check if already linked to a different beneficiary.
             if (linkedTo != _beneficiary && linkedTo != address(0)) revert PolicyEngineStaking_AlreadyLinked();
+            // Check if the staker is allowed to link to the beneficiary.
             if (!allowlist[_beneficiary][msg.sender]) revert PolicyEngineStaking_NotAllowedToLink();
-            _addStakeToBeneficiary(_beneficiary, _amount);
+            _setStakeToBeneficiary(_beneficiary, _amount, true);
             _increasePeData(_beneficiary, _amount);
         }
 
@@ -176,7 +188,7 @@ contract PolicyEngineStaking is ISemver {
         _setStakedData(msg.sender, stakedAmount + _amount, receivedStake, _beneficiary);
 
         // Transfer tokens from caller to contract (interaction last)
-        IERC20(OP_TOKEN_ADDRESS).safeTransferFrom(msg.sender, address(this), _amount);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).safeTransferFrom(msg.sender, address(this), _amount);
 
         emit Staked(msg.sender, _beneficiary, _amount);
     }
@@ -190,7 +202,7 @@ contract PolicyEngineStaking is ISemver {
         if (linkedTo == address(0)) {
             _decreasePeData(msg.sender, stakedAmount);
         } else {
-            _removeStakeFromBeneficiary(linkedTo, stakedAmount);
+            _setStakeToBeneficiary(linkedTo, stakedAmount, false);
             _decreasePeData(linkedTo, stakedAmount);
         }
 
@@ -198,7 +210,7 @@ contract PolicyEngineStaking is ISemver {
         _setStakedData(msg.sender, 0, receivedStake, address(0));
 
         // Transfer all tokens back to caller
-        IERC20(OP_TOKEN_ADDRESS).safeTransfer(msg.sender, stakedAmount);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).safeTransfer(msg.sender, stakedAmount);
 
         emit Unstaked(msg.sender, stakedAmount);
     }
@@ -224,7 +236,7 @@ contract PolicyEngineStaking is ISemver {
         if (!allowlist[_beneficiary][msg.sender]) revert PolicyEngineStaking_NotAllowedToLink();
 
         _setStakedData(msg.sender, stakedAmount, receivedStake, _beneficiary);
-        _addStakeToBeneficiary(_beneficiary, stakedAmount);
+        _setStakeToBeneficiary(_beneficiary, stakedAmount, true);
         _increasePeData(_beneficiary, stakedAmount);
         _decreasePeData(msg.sender, stakedAmount);
 
@@ -239,7 +251,7 @@ contract PolicyEngineStaking is ISemver {
         if (linkedTo == address(0)) revert PolicyEngineStaking_NotLinked();
 
         _setStakedData(msg.sender, stakedAmount, receivedStake, address(0));
-        _removeStakeFromBeneficiary(linkedTo, stakedAmount);
+        _setStakeToBeneficiary(linkedTo, stakedAmount, false);
         _decreasePeData(linkedTo, stakedAmount);
         _increasePeData(msg.sender, stakedAmount);
 
@@ -270,17 +282,13 @@ contract PolicyEngineStaking is ISemver {
     /// @notice Increases beneficiary's received stake (staking data only, not PE data).
     /// @param _beneficiary The beneficiary address.
     /// @param _amount The amount to increase.
-    function _addStakeToBeneficiary(address _beneficiary, uint256 _amount) internal {
-        (uint256 staked, uint256 received, address linkedTo) = _getStakedData(_beneficiary);
-        _setStakedData(_beneficiary, staked, received + _amount, linkedTo);
-    }
-
-    /// @notice Decreases beneficiary's received stake (staking data only, not PE data).
-    /// @param _beneficiary The beneficiary address.
-    /// @param _amount The amount to decrease.
-    function _removeStakeFromBeneficiary(address _beneficiary, uint256 _amount) internal {
-        (uint256 staked, uint256 received, address linkedTo) = _getStakedData(_beneficiary);
-        _setStakedData(_beneficiary, staked, received - _amount, linkedTo);
+    /// @param _add Whether to add the stake or remove it.
+    function _setStakeToBeneficiary(address _beneficiary, uint256 _amount, bool _add) internal {
+        if (_add) {
+            _stakingData[_beneficiary].receivedStake += _amount;
+        } else {
+            _stakingData[_beneficiary].receivedStake -= _amount;
+        }
     }
 
     /// @notice Sets staking data for an account.
@@ -296,7 +304,7 @@ contract PolicyEngineStaking is ISemver {
     )
         internal
     {
-        stakingData[_account] =
+        _stakingData[_account] =
             StakedData({ stakedAmount: _stakedAmount, receivedStake: _receivedStake, linkedTo: _linkedAddressTo });
     }
 
@@ -306,7 +314,7 @@ contract PolicyEngineStaking is ISemver {
     /// @return The received stake from others.
     /// @return The linked beneficiary address.
     function _getStakedData(address _account) internal view returns (uint256, uint256, address) {
-        StakedData memory d = stakingData[_account];
+        StakedData memory d = _stakingData[_account];
         return (d.stakedAmount, d.receivedStake, d.linkedTo);
     }
 
