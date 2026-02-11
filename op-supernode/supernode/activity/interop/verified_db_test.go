@@ -204,7 +204,7 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 		require.Equal(t, uint64(105), lastTs)
 
 		// Rewind to 103 (should remove 103, 104, 105)
-		deleted, err := db.RewindTo(103)
+		deleted, err := db.Rewind(103)
 		require.NoError(t, err)
 		require.True(t, deleted)
 
@@ -248,7 +248,7 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 		}
 
 		// Rewind to 200 (nothing to delete)
-		deleted, err := db.RewindTo(200)
+		deleted, err := db.Rewind(200)
 		require.NoError(t, err)
 		require.False(t, deleted)
 
@@ -278,7 +278,7 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 		}
 
 		// Rewind to 0 (delete all)
-		deleted, err := db.RewindTo(0)
+		deleted, err := db.Rewind(0)
 		require.NoError(t, err)
 		require.True(t, deleted)
 
@@ -315,7 +315,7 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 		}
 
 		// Rewind to 103
-		_, err = db.RewindTo(103)
+		_, err = db.Rewind(103)
 		require.NoError(t, err)
 
 		// Should be able to commit 103 again (sequential from 102)

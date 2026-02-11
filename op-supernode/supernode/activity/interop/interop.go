@@ -395,7 +395,7 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 }
 
 // Reset is called when a chain container resets to a given timestamp.
-// It clears the logsDB for that chain and removes any verified results at or after the timestamp.
+// It prunes the logsDB and verifiedDB for that chain at and after the timestamp.
 func (i *Interop) Reset(chainID eth.ChainID, timestamp uint64) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
@@ -417,7 +417,7 @@ func (i *Interop) Reset(chainID eth.ChainID, timestamp uint64) {
 	}
 
 	i.resetLogsDB(chainID, chain, db, timestamp)
-	i.resetVerifiedDB(chainID, timestamp)
+	i.resetVerifiedDB(timestamp)
 
 	// Reset the currentL1 to force re-evaluation
 	i.currentL1 = eth.BlockID{}
@@ -458,12 +458,12 @@ func (i *Interop) resetLogsDB(chainID eth.ChainID, chain cc.ChainContainer, db L
 }
 
 // resetVerifiedDB removes any verified results at or after the given timestamp.
-func (i *Interop) resetVerifiedDB(chainID eth.ChainID, timestamp uint64) {
+func (i *Interop) resetVerifiedDB(timestamp uint64) {
 	if i.verifiedDB == nil {
 		return
 	}
 
-	deleted, err := i.verifiedDB.RewindTo(timestamp)
+	deleted, err := i.verifiedDB.Rewind(timestamp)
 	if err != nil {
 		i.log.Error("failed to rewind verifiedDB",
 			"timestamp", timestamp,
@@ -474,7 +474,6 @@ func (i *Interop) resetVerifiedDB(chainID eth.ChainID, timestamp uint64) {
 		// This is unexpected - we shouldn't have verified results at timestamps
 		// that are being reset. Log an error for visibility.
 		i.log.Error("UNEXPECTED: verified results were deleted on reset",
-			"chainID", chainID,
 			"timestamp", timestamp,
 		)
 	}

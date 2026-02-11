@@ -181,9 +181,9 @@ func (v *VerifiedDB) LastTimestamp() (uint64, bool) {
 	return v.lastTimestamp, v.initialized
 }
 
-// RewindTo removes all verified results at or after the given timestamp.
+// Rewind removes all verified results at or after the given timestamp.
 // Returns true if any results were deleted, false otherwise.
-func (v *VerifiedDB) RewindTo(timestamp uint64) (bool, error) {
+func (v *VerifiedDB) Rewind(timestamp uint64) (bool, error) {
 	var deleted bool
 
 	err := v.db.Update(func(tx *bolt.Tx) error {
