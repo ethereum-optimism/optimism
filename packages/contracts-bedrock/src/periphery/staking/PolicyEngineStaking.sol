@@ -2,8 +2,6 @@
 pragma solidity 0.8.15;
 
 // Interfaces
-
-// Interfaces
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
