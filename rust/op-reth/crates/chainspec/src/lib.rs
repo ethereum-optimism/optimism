@@ -508,14 +508,6 @@ pub fn make_op_genesis_header(genesis: &Genesis, hardforks: &ChainHardforks) -> 
         )));
     }
 
-    // If Jovian is active at genesis, encode the base fee parameters in extra_data
-    if hardforks.fork(OpHardfork::Jovian).active_at_timestamp(header.timestamp) {
-        use op_alloy_consensus::encode_jovian_extra_data;
-        // Encode with empty nonce (8 zero bytes)
-        header.extra_data =
-            encode_jovian_extra_data([0u8; 8].into(), BaseFeeParams::optimism(), 0).unwrap();
-    }
-
     header
 }
 
