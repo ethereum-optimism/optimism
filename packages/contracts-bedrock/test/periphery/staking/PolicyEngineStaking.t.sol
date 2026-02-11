@@ -1,25 +1,41 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing
-import { Test } from "test/setup/Test.sol";
+// Testing utilities
+import { CommonTest } from "test/setup/CommonTest.sol";
 import { TestERC20 } from "test/mocks/TestERC20.sol";
 
 // Contracts
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { PolicyEngineStaking } from "src/periphery/staking/PolicyEngineStaking.sol";
+
+// Interfaces
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
+/// @title PolicyEngineStaking_TestHarness
+/// @notice Extends PolicyEngineStaking to expose internal _stakingData for testing.
+contract PolicyEngineStaking_ForTest is PolicyEngineStaking {
+    constructor(address _owner) PolicyEngineStaking(_owner) { }
+
+    /// @notice Exposes _stakingData for tests. Not in production contract.
+    function stakingData(address _account)
+        external
+        view
+        returns (uint256 stakedAmount, uint256 receivedStake, address linkedTo)
+    {
+        StakedData memory d = _stakingData[_account];
+        return (d.stakedAmount, d.receivedStake, d.linkedTo);
+    }
+}
+
 /// @title PolicyEngineStaking_TestInit
 /// @notice Reusable test initialization for `PolicyEngineStaking` tests.
-abstract contract PolicyEngineStaking_TestInit is Test {
-    address internal alice = address(0xA11CE);
-    address internal bob = address(0xB0B);
+abstract contract PolicyEngineStaking_TestInit is CommonTest {
     address internal carol = address(0xC4101);
 
-    PolicyEngineStaking internal staking;
+    PolicyEngineStaking_ForTest internal staking;
     address internal owner;
 
     event Staked(address indexed account, address indexed beneficiary, uint256 amount);
@@ -30,14 +46,13 @@ abstract contract PolicyEngineStaking_TestInit is Test {
     event Paused();
     event Unpaused();
 
-    function setUp() public virtual {
+    function setUp() public virtual override {
+        super.setUp();
         owner = makeAddr("owner");
-        staking = new PolicyEngineStaking(owner);
+        staking = new PolicyEngineStaking_ForTest(owner);
 
         _setupMockOPToken();
 
-        vm.label(alice, "alice");
-        vm.label(bob, "bob");
         vm.label(carol, "carol");
         vm.label(address(staking), "PolicyEngineStaking");
     }
@@ -58,15 +73,6 @@ abstract contract PolicyEngineStaking_TestInit is Test {
         IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), _amount);
         vm.prank(_account);
         staking.stake(_amount, _beneficiary);
-    }
-}
-
-/// @title PolicyEngineStaking_Version_Test
-/// @notice Tests the version of the `PolicyEngineStaking` contract.
-contract PolicyEngineStaking_Version_Test is PolicyEngineStaking_TestInit {
-    /// @notice Tests that version is set correctly.
-    function test_version_succeeds() external view {
-        assertEq(staking.version(), "1.0.0");
     }
 }
 
@@ -185,7 +191,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         staking.stake(amount, address(0));
 
         (uint256 staked, uint256 received, address linkedTo) = staking.stakingData(alice);
-        (uint128 effectiveStake, uint64 lastUpdate) = staking.peData(alice);
+        (uint128 effectiveStake, uint128 lastUpdate) = staking.peData(alice);
 
         assertEq(staked, amount);
         assertEq(received, 0);
@@ -202,7 +208,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         (uint256 aliceStaked, uint256 aliceReceived,) = staking.stakingData(alice);
         assertEq(aliceStaked, 600 ether);
         assertEq(aliceReceived, 0);
-        (uint128 aliceEffectiveStake, uint64 aliceLastUpdate) = staking.peData(alice);
+        (uint128 aliceEffectiveStake, uint128 aliceLastUpdate) = staking.peData(alice);
         assertEq(aliceEffectiveStake, 600 ether);
         assertEq(aliceLastUpdate, block.timestamp);
     }
@@ -222,7 +228,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         staking.stake(100 ether, bob);
 
         (uint256 staked, uint256 received, address linkedTo) = staking.stakingData(alice);
-        (uint128 effectiveStake, uint64 lastUpdate) = staking.peData(alice);
+        (uint128 effectiveStake, uint128 lastUpdate) = staking.peData(alice);
         assertEq(staked, 100 ether);
         assertEq(received, 0);
         assertEq(linkedTo, bob);
@@ -232,7 +238,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         (uint256 bobStaked, uint256 bobReceived,) = staking.stakingData(bob);
         assertEq(bobStaked, 0);
         assertEq(bobReceived, 100 ether);
-        (uint128 bobEffectiveStake, uint64 bobLastUpdate) = staking.peData(bob);
+        (uint128 bobEffectiveStake, uint128 bobLastUpdate) = staking.peData(bob);
         assertEq(bobEffectiveStake, 100 ether);
         assertEq(bobLastUpdate, block.timestamp);
     }
@@ -266,7 +272,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         vm.prank(alice);
         staking.stake(_amount, address(0));
 
-        (uint128 effectiveStake, uint64 lastUpdate) = staking.peData(alice);
+        (uint128 effectiveStake, uint128 lastUpdate) = staking.peData(alice);
         assertEq(effectiveStake, _amount);
         assertEq(lastUpdate, block.timestamp);
     }
@@ -773,5 +779,45 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
         staking.stake(50 ether, address(0));
         (staked,,) = staking.stakingData(alice);
         assertEq(staked, 150 ether);
+    }
+
+    /// @notice Tests that revoking allowlist does not auto-unlink: staker keeps link until explicit unlink.
+    function test_revokeAllowlist_stakeRemainsUntilUnlink_succeeds() external {
+        vm.prank(alice);
+        staking.setAllowedStaker(bob, true);
+        _stake(bob, 100 ether, alice);
+
+        (uint256 bobStaked,, address bobLinkedTo) = staking.stakingData(bob);
+        (, uint256 aliceReceived,) = staking.stakingData(alice);
+        (uint128 aliceEffective,) = staking.peData(alice);
+        assertEq(bobStaked, 100 ether);
+        assertEq(bobLinkedTo, alice);
+        assertEq(aliceReceived, 100 ether);
+        assertEq(aliceEffective, 100 ether);
+
+        vm.prank(alice);
+        staking.setAllowedStaker(bob, false);
+
+        // Bob stays linked - stake and effective power remain with Alice until Bob unlinks
+        (bobStaked,, bobLinkedTo) = staking.stakingData(bob);
+        (, aliceReceived,) = staking.stakingData(alice);
+        (aliceEffective,) = staking.peData(alice);
+        assertEq(bobStaked, 100 ether);
+        assertEq(aliceReceived, 100 ether);
+        assertEq(aliceEffective, 100 ether);
+
+        vm.prank(bob);
+        staking.unlink();
+
+        // Now Bob is self-attributed, Alice lost the received stake
+        (bobStaked,, bobLinkedTo) = staking.stakingData(bob);
+        (, aliceReceived,) = staking.stakingData(alice);
+        (uint128 bobEffective,) = staking.peData(bob);
+        (aliceEffective,) = staking.peData(alice);
+        assertEq(bobStaked, 100 ether);
+        assertEq(bobLinkedTo, address(0));
+        assertEq(aliceReceived, 0);
+        assertEq(bobEffective, 100 ether);
+        assertEq(aliceEffective, 0);
     }
 }
