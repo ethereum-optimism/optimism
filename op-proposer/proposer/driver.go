@@ -161,42 +161,42 @@ func (l *L2OutputSubmitter) StopL2OutputSubmitting() error {
 // a boolean for whether the proposal should be submitted at all.
 // The passed context is expected to be a lifecycle context. A network timeout
 // context will be derived from it.
-func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (source.Proposal, bool, error) {
+func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (source.Proposal, bool, uint64, error) {
 	cutoff := time.Now().Add(-l.Cfg.ProposalInterval)
 	proposedRecently, proposalTime, claim, err := l.dgfContract.HasProposedSince(ctx, l.Txmgr.From(), cutoff, l.Cfg.DisputeGameType)
 	if err != nil {
-		return source.Proposal{}, false, fmt.Errorf("could not check for recent proposal: %w", err)
-	}
-
-	if proposedRecently {
-		l.Log.Debug("Duration since last game not past proposal interval", "duration", time.Since(proposalTime))
-		return source.Proposal{}, false, nil
+		return source.Proposal{}, false, 0, fmt.Errorf("could not check for recent proposal: %w", err)
 	}
 
 	// Fetch the current L2 heads
 	currentBlockNumber, err := l.FetchCurrentBlockNumber(ctx)
 	if err != nil {
-		return source.Proposal{}, false, fmt.Errorf("could not fetch current block number: %w", err)
+		return source.Proposal{}, false, 0, fmt.Errorf("could not fetch current block number: %w", err)
 	}
 
 	if currentBlockNumber == 0 {
 		l.Log.Info("Skipping proposal for genesis block")
-		return source.Proposal{}, false, nil
+		return source.Proposal{}, false, 0, nil
+	}
+
+	if proposedRecently {
+		l.Log.Debug("Duration since last game not past proposal interval", "duration", time.Since(proposalTime))
+		return source.Proposal{}, false, currentBlockNumber, nil
 	}
 
 	output, err := l.FetchOutput(ctx, currentBlockNumber)
 	if err != nil {
-		return source.Proposal{}, false, fmt.Errorf("could not fetch output at current block number %d: %w", currentBlockNumber, err)
+		return source.Proposal{}, false, 0, fmt.Errorf("could not fetch output at current block number %d: %w", currentBlockNumber, err)
 	}
 
 	if claim == output.Root {
 		l.Log.Debug("Skipping proposal: output root unchanged since last proposed game", "last_proposed_root", claim, "output_root", output.Root)
-		return source.Proposal{}, false, nil
+		return source.Proposal{}, false, currentBlockNumber, nil
 	}
 
 	l.Log.Info("No proposals found for at least proposal interval, submitting proposal now", "proposalInterval", l.Cfg.ProposalInterval)
 
-	return output, true, nil
+	return output, true, currentBlockNumber, nil
 }
 
 // FetchCurrentBlockNumber gets the current block number from the [L2OutputSubmitter]'s [RollupClient]. If the `AllowNonFinalized` configuration
@@ -277,12 +277,13 @@ func (l *L2OutputSubmitter) loop() {
 			// A note on retrying: the outer ticker already runs on a short
 			// poll interval, which has a default value of 6 seconds. So no
 			// retry logic is needed around proposal fetching here.
-			proposal, shouldPropose, err := l.FetchDGFOutput(ctx)
+			proposal, shouldPropose, currentBlockNumber, err := l.FetchDGFOutput(ctx)
 			if err != nil {
-				l.Log.Warn("Error getting proposal", "err", err)
+				l.Log.Warn("Error getting proposal", "err", err, "currentBlockNumber", currentBlockNumber)
 				continue
 			} else if !shouldPropose {
 				// debug logging already in FetchDGFOutput
+				l.Metr.RecordSkippedL2Proposal(currentBlockNumber)
 				continue
 			}
 

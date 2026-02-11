@@ -35,6 +35,7 @@ type Metricer interface {
 
 	RecordL2Proposal(sequenceNum uint64)
 	RecordL2BlocksProposed(l2ref eth.L2BlockRef)
+	RecordSkippedL2Proposal(currentBlockNumber uint64)
 }
 
 type Metrics struct {
@@ -47,6 +48,7 @@ type Metrics struct {
 	opmetrics.RPCMetrics
 
 	proposalSequenceNum prometheus.Gauge
+	skippedL2Proposal   prometheus.Gauge
 
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
@@ -76,6 +78,11 @@ func NewMetrics(procName string) *Metrics {
 			Namespace: ns,
 			Name:      "proposed_sequence_number",
 			Help:      "Sequence number (block number or timestamp) of the latest proposal",
+		}),
+		skippedL2Proposal: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "skipped_l2_proposal",
+			Help:      "Latest skipped L2 block number",
 		}),
 		info: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -122,6 +129,10 @@ func (m *Metrics) RecordL2BlocksProposed(l2ref eth.L2BlockRef) {
 
 func (m *Metrics) RecordL2Proposal(seqNum uint64) {
 	m.proposalSequenceNum.Set(float64(seqNum))
+}
+
+func (m *Metrics) RecordSkippedL2Proposal(currentBlockNumber uint64) {
+	m.skippedL2Proposal.Set(float64(currentBlockNumber))
 }
 
 func (m *Metrics) Document() []opmetrics.DocumentedMetric {

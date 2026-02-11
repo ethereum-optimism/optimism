@@ -192,7 +192,7 @@ func estimateGasPending(ctx context.Context, ec *ethclient.Client, msg ethereum.
 }
 
 func (p *L2Proposer) fetchNextOutput(t Testing) (source.Proposal, bool, error) {
-	output, shouldPropose, err := p.driver.FetchDGFOutput(t.Ctx())
+	output, shouldPropose, _, err := p.driver.FetchDGFOutput(t.Ctx())
 	if err != nil || !shouldPropose {
 		return source.Proposal{}, false, err
 	}
