@@ -999,7 +999,7 @@ jobs:
     # OP-Reth docs build
   op-reth-docs-build:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -1200,10 +1200,7 @@ workflows:
           name: rust-check-no-std
           directory: rust
           command: |
-            just --justfile kona/justfile check-no-std
-            just --justfile op-alloy/Justfile check-no-std
-            just --justfile alloy-op-evm/justfile check-no-std
-            just --justfile alloy-op-hardforks/justfile check-no-std
+            just check-no-std
           toolchain: "1.88.0"
           context: *rust-ci-context
 
