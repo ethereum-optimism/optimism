@@ -24,6 +24,7 @@ func (c *simpleChainContainer) FullyVerifiedL2Head() eth.BlockID {
 			return bId
 		}
 		if ts < timestamp {
+			timestamp = ts
 			oldestVerifiedBlock = bId
 		}
 	}
