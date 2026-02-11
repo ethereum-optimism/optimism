@@ -91,6 +91,47 @@ func RequireSendTxs(t *testing.T, ctx context.Context, client *ethclient.Client,
 	return txs, receipts
 }
 
+// SendTxs submits multiple transactions attempting to batch them together in blocks as much as possible.
+// Like RequireSendTxs but returns errors instead of requiring *testing.T.
+// Note that if the transactions depend on one another, the gas limit may need to be manually set as estimateGas will
+// be executed before the earlier transactions have been processed.
+func SendTxs(ctx context.Context, client *ethclient.Client, candidates []txmgr.TxCandidate, privKey *ecdsa.PrivateKey, opts ...SendTxOpt) ([]*types.Transaction, []*types.Receipt, error) {
+	if len(candidates) == 0 {
+		return nil, nil, nil
+	}
+	cfg := makeSendTxCfg(opts...)
+	nonce, err := client.PendingNonceAt(ctx, crypto.PubkeyToAddress(privKey.PublicKey))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get pending nonce: %w", err)
+	}
+
+	txs := make([]*types.Transaction, len(candidates))
+	for i, candidate := range candidates {
+		tx, err := createTx(ctx, client, candidate, privKey, nonce)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create tx %d: %w", i, err)
+		}
+		txs[i] = tx
+		nonce++
+	}
+
+	for i, tx := range txs {
+		if err := client.SendTransaction(ctx, tx); err != nil {
+			return nil, nil, fmt.Errorf("failed to send tx %d (%s): %w", i, tx.Hash(), errutil.TryAddRevertReason(err))
+		}
+	}
+
+	receipts := make([]*types.Receipt, len(txs))
+	for i, tx := range txs {
+		receipt, err := wait.ForReceiptMaybe(ctx, client, tx.Hash(), cfg.receiptStatus, cfg.ignoreReceiptStatus)
+		if err != nil {
+			return txs, receipts, fmt.Errorf("failed to get receipt for tx %d (%s): %w", i, tx.Hash(), err)
+		}
+		receipts[i] = receipt
+	}
+	return txs, receipts, nil
+}
+
 func SendTx(ctx context.Context, client *ethclient.Client, candidate txmgr.TxCandidate, privKey *ecdsa.PrivateKey, opts ...SendTxOpt) (*types.Transaction, *types.Receipt, error) {
 	cfg := makeSendTxCfg(opts...)
 	nonce, err := client.PendingNonceAt(ctx, crypto.PubkeyToAddress(privKey.PublicKey))

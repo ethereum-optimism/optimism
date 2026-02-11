@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"os"
 	"path"
@@ -23,6 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -75,31 +77,56 @@ func withSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stac
 			client := ethclient.NewClient(rpcClient)
 			w3Client := w3.NewClient(rpcClient)
 
-			var superrootTime uint64
-			// Supernode does not support super roots at geensis.
-			// So let's wait for safe heads to advance before querying atTimestamp.
+			// Supernode does not support super roots at genesis.
+			// Wait for all L2 safe heads to advance in parallel before querying atTimestamp.
+			// TODO(#18947): Ideally, we should be able to wait on the supernode's SyncStatus directly
+			// rather than check the sync statuses of all CLs
+			type safeHeadResult struct {
+				time uint64
+				err  error
+			}
+			safeHeadCh := make(chan safeHeadResult, len(clIDs))
 			for _, clID := range clIDs {
-				cl, ok := o.l2CLs.Get(clID)
-				require.True(ok, "must have L2 CL node")
-				// TODO(#18947): Ideally, we should be able to wait on the supernode's SyncStatus directly
-				// rather than check the sync statuses of all CLs
-				rollupClient, err := dial.DialRollupClientWithTimeout(t.Ctx(), t.Logger(), cl.UserRPC())
-				t.Require().NoError(err)
-				defer rollupClient.Close()
-				ctx, cancel := context.WithTimeout(t.Ctx(), time.Minute*2)
-				err = wait.For(ctx, time.Second*1, func() (bool, error) {
-					status, err := rollupClient.SyncStatus(ctx)
+				go func(clID stack.L2CLNodeID) {
+					cl, ok := o.l2CLs.Get(clID)
+					if !ok {
+						safeHeadCh <- safeHeadResult{err: fmt.Errorf("must have L2 CL node %v", clID)}
+						return
+					}
+					rollupClient, err := dial.DialRollupClientWithTimeout(t.Ctx(), t.Logger(), cl.UserRPC())
 					if err != nil {
-						return false, err
+						safeHeadCh <- safeHeadResult{err: fmt.Errorf("dialing rollup client for %v: %w", clID, err)}
+						return
 					}
-					if status == nil {
-						return false, nil
+					defer rollupClient.Close()
+					ctx, cancel := context.WithTimeout(t.Ctx(), time.Minute*2)
+					defer cancel()
+					var headTime uint64
+					err = wait.For(ctx, time.Second*1, func() (bool, error) {
+						status, err := rollupClient.SyncStatus(ctx)
+						if err != nil {
+							return false, err
+						}
+						if status == nil {
+							return false, nil
+						}
+						headTime = status.SafeL2.Time
+						return status.SafeL2.Number > 0, nil
+					})
+					if err != nil {
+						safeHeadCh <- safeHeadResult{err: fmt.Errorf("waiting for %v safe head: %w", clID, err)}
+						return
 					}
-					superrootTime = status.SafeL2.Time
-					return status.SafeL2.Number > 0, nil
-				})
-				cancel()
-				t.Require().NoError(err, "waiting for supernode chain safe head to advance failed")
+					safeHeadCh <- safeHeadResult{time: headTime}
+				}(clID)
+			}
+			var superrootTime uint64
+			for range clIDs {
+				r := <-safeHeadCh
+				require.NoError(r.err, "waiting for supernode chain safe head to advance failed")
+				if superrootTime == 0 || r.time < superrootTime {
+					superrootTime = r.time
+				}
 			}
 
 			superRoot := getSuperRootAtTimestamp(t, o, superrootTime)
@@ -203,8 +230,14 @@ func withSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stac
 			// The DelegateCallProxy is used to simulate a GnosisSafe proxy that satisfies the delegatecall requirement of the OPCM.
 			delegateCallProxy, proxyContract := deployDelegateCallProxy(t, transactOpts, client, l1pao)
 			oldSuperchainProxyAdminOwner := getOwner(t, w3Client, superchainProxyAdmin)
-			transferOwnership(t, l1PAOKey, client, superchainProxyAdmin, delegateCallProxy)
 
+			// Collect all pre-migration ownership transfer candidates for batch sending.
+			// All transfers move ownership to the delegateCallProxy so the OPCM migration can execute via delegatecall.
+			// Deduplicate by target address: some proxy admins may be shared across chains.
+			preMigrationCandidates := []txmgr.TxCandidate{
+				ownershipTransferCandidate(delegateCallProxy, superchainProxyAdmin),
+			}
+			preMigrationSeen := map[common.Address]bool{superchainProxyAdmin: true}
 			oldDisputeGameFactories := make(map[eth.ChainID]common.Address)
 			for i, opChainConfig := range opChainConfigs {
 				var portal common.Address
@@ -213,12 +246,23 @@ func withSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stac
 						w3eth.CallFunc(opChainConfig.SystemConfigProxy, optimismPortalFn).Returns(&portal),
 					))
 				portalProxyAdmin := getProxyAdmin(t, w3Client, portal)
-				transferOwnership(t, l1PAOKey, client, portalProxyAdmin, delegateCallProxy)
+				if !preMigrationSeen[portalProxyAdmin] {
+					preMigrationSeen[portalProxyAdmin] = true
+					preMigrationCandidates = append(preMigrationCandidates,
+						ownershipTransferCandidate(delegateCallProxy, portalProxyAdmin))
+				}
 
 				dgf := getDisputeGameFactory(t, w3Client, portal)
-				transferOwnership(t, l1PAOKey, client, dgf, delegateCallProxy)
+				if !preMigrationSeen[dgf] {
+					preMigrationSeen[dgf] = true
+					preMigrationCandidates = append(preMigrationCandidates,
+						ownershipTransferCandidate(delegateCallProxy, dgf))
+				}
 				oldDisputeGameFactories[l2ChainIDs[i]] = dgf
 			}
+			t.Log("Batch sending pre-migration ownership transfers")
+			_, _, err = transactions.SendTxs(t.Ctx(), client, preMigrationCandidates, l1PAOKey)
+			require.NoError(err, "pre-migration ownership transfers failed")
 
 			t.Log("Executing delegate call")
 			migrateTx, err := proxyContract.ExecuteDelegateCall(transactOpts, opcmAddr, migrateCallData)
@@ -243,30 +287,86 @@ func withSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stac
 				}
 			}
 
-			// reset ownership transfers
-			resetOwnershipAfterMigration(t,
-				o,
-				l1ChainID.ToBig(),
-				l1PAOKey,
-				w3Client,
-				client,
-				delegateCallProxy,
-				opChainConfigs,
-			)
+			// Collect all post-migration ownership reset candidates for batch sending.
+			// All resets transfer ownership from the delegateCallProxy back to the original owners.
+			// Deduplicate by target address: e.g. ethLockboxAdmin and portalProxyAdmin can be the same contract.
+			delegateProxyABI, err := delegatecallproxy.DelegatecallproxyMetaData.GetAbi()
+			require.NoError(err, "failed to get delegate call proxy ABI")
 
-			resetOldDisputeGameFactories(t,
-				o,
-				l1ChainID.ToBig(),
-				l1PAOKey,
-				client,
-				delegateCallProxy,
-				oldDisputeGameFactories,
-			)
+			postMigrationCandidates := []txmgr.TxCandidate{}
+			postMigrationSeen := make(map[common.Address]bool)
 
-			transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, superchainProxyAdmin, oldSuperchainProxyAdminOwner)
+			// Reset shared DGF ownership
+			postMigrationSeen[sharedDGF] = true
+			postMigrationCandidates = append(postMigrationCandidates,
+				delegateProxyTransferCandidate(delegateProxyABI, delegateCallProxy, sharedDGF, l1pao))
 
+			// Reset EthLockbox proxy admin ownership
+			portal0 := getOptimismPortal(t, w3Client, opChainConfigs[0].SystemConfigProxy)
+			var sharedEthLockboxProxy common.Address
+			err = w3Client.Call(w3eth.CallFunc(portal0, ethLockboxFn).Returns(&sharedEthLockboxProxy))
+			require.NoError(err)
+			ethLockboxAdmin := getAdmin(t, w3Client, sharedEthLockboxProxy)
+			if !postMigrationSeen[ethLockboxAdmin] {
+				postMigrationSeen[ethLockboxAdmin] = true
+				postMigrationCandidates = append(postMigrationCandidates,
+					delegateProxyTransferCandidate(delegateProxyABI, delegateCallProxy, ethLockboxAdmin, l1pao))
+			}
+
+			// Reset portal proxy admin ownership (conditional - only if still owned by proxy)
+			for _, cfg := range opChainConfigs {
+				portal := getOptimismPortal(t, w3Client, cfg.SystemConfigProxy)
+				portalProxyAdmin := getProxyAdmin(t, w3Client, portal)
+				if !postMigrationSeen[portalProxyAdmin] && getOwner(t, w3Client, portalProxyAdmin) == delegateCallProxy {
+					postMigrationSeen[portalProxyAdmin] = true
+					postMigrationCandidates = append(postMigrationCandidates,
+						delegateProxyTransferCandidate(delegateProxyABI, delegateCallProxy, portalProxyAdmin, l1pao))
+				}
+			}
+
+			// Reset old dispute game factory ownership
+			for l2ChainID, oldDGF := range oldDisputeGameFactories {
+				if !postMigrationSeen[oldDGF] {
+					postMigrationSeen[oldDGF] = true
+					chainOpsForL2 := devkeys.ChainOperatorKeys(l2ChainID.ToBig())
+					l1PAOForL2, err := o.keys.Address(chainOpsForL2(devkeys.L1ProxyAdminOwnerRole))
+					require.NoError(err, "must have configured L1 proxy admin owner private key")
+					postMigrationCandidates = append(postMigrationCandidates,
+						delegateProxyTransferCandidate(delegateProxyABI, delegateCallProxy, oldDGF, l1PAOForL2))
+				}
+			}
+
+			// Reset superchain proxy admin ownership back to original owner
+			if !postMigrationSeen[superchainProxyAdmin] {
+				postMigrationSeen[superchainProxyAdmin] = true
+				postMigrationCandidates = append(postMigrationCandidates,
+					delegateProxyTransferCandidate(delegateProxyABI, delegateCallProxy, superchainProxyAdmin, oldSuperchainProxyAdminOwner))
+			}
+
+			t.Log("Batch sending post-migration ownership resets")
+			_, _, err = transactions.SendTxs(t.Ctx(), client, postMigrationCandidates, l1PAOKey)
+			require.NoError(err, "post-migration ownership resets failed")
+
+			// Verify ownership was correctly restored
 			superchainProxyAdminOwner := getOwner(t, w3Client, superchainProxyAdmin)
 			t.Require().Equal(oldSuperchainProxyAdminOwner, superchainProxyAdminOwner, "superchain proxy admin owner is not the L1PAO")
+
+			var sharedAnchorStateRegistryProxy common.Address
+			err = w3Client.Call(w3eth.CallFunc(portal0, anchorStateRegistryFn).Returns(&sharedAnchorStateRegistryProxy))
+			require.NoError(err)
+			asrAdminOwner := getProxyAdminOwner(t, w3Client, sharedAnchorStateRegistryProxy)
+			require.Equal(l1pao, asrAdminOwner, "sharedAnchorStateRegistryProxy proxy admin owner is not the L1PAO")
+
+			gameTypes := []uint32{superPermissionedGameType, superCannonGameType}
+			for _, gameType := range gameTypes {
+				var gameArgsBytes []byte
+				err = w3Client.Call(w3eth.CallFunc(sharedDGF, gameArgsFn, gameType).Returns(&gameArgsBytes))
+				require.NoError(err)
+				parsedGameArgs, err := gameargs.Parse(gameArgsBytes)
+				require.NoErrorf(err, "invalid game args for gameType %d", gameType)
+				wethAdminOwner := getProxyAdminOwner(t, w3Client, parsedGameArgs.Weth)
+				require.Equal(l1pao, wethAdminOwner, "wethProxy proxy admin owner is not the L1PAO")
+			}
 
 			for _, l2Deployment := range o.wb.outL2Deployment {
 				l2Deployment.disputeGameFactoryProxy = sharedDGF
@@ -440,6 +540,30 @@ func getProxyAdmin(t devtest.CommonT, client *w3.Client, addr common.Address) co
 	return proxyAdmin
 }
 
+// ownershipTransferCandidate builds a TxCandidate for transferring ownership of a contract to a new owner.
+// Used for batch-sending multiple ownership transfers in a single block.
+func ownershipTransferCandidate(newOwner common.Address, target common.Address) txmgr.TxCandidate {
+	data, err := transferOwnershipFn.EncodeArgs(newOwner)
+	if err != nil {
+		panic(fmt.Sprintf("failed to encode transferOwnership args: %v", err))
+	}
+	to := target
+	return txmgr.TxCandidate{To: &to, TxData: data, GasLimit: 1_000_000}
+}
+
+// delegateProxyTransferCandidate builds a TxCandidate for transferring ownership via the DelegateCallProxy.
+// Used for batch-sending multiple proxy ownership resets in a single block.
+func delegateProxyTransferCandidate(proxyABI *abi.ABI, delegateCallProxyAddr, proxyAdminOwned, newOwner common.Address) txmgr.TxCandidate {
+	contract := batching.NewBoundContract(proxyABI, delegateCallProxyAddr)
+	call := contract.Call("transferOwnership", proxyAdminOwned, newOwner)
+	data, err := call.Pack()
+	if err != nil {
+		panic(fmt.Sprintf("failed to pack delegate proxy transferOwnership: %v", err))
+	}
+	to := delegateCallProxyAddr
+	return txmgr.TxCandidate{To: &to, TxData: data, GasLimit: 1_000_000}
+}
+
 func transferOwnership(t devtest.CommonT, privateKey *ecdsa.PrivateKey, client *ethclient.Client, l1ProxyAdmin common.Address, newOwner common.Address) {
 	data, err := transferOwnershipFn.EncodeArgs(newOwner)
 	t.Require().NoError(err)
@@ -482,108 +606,4 @@ func transferOwnershipForDelegateCallProxy(
 	_, receipt, err := transactions.SendTx(t.Ctx(), client, candidate, privateKey)
 	t.Require().NoErrorf(err, "transferOwnership failed: %v", errutil.TryAddRevertReason(err))
 	t.Require().Equal(receipt.Status, types.ReceiptStatusSuccessful, "transferOwnership failed")
-}
-
-func resetOwnershipAfterMigration(
-	t devtest.CommonT,
-	o *Orchestrator,
-	l1ChainID *big.Int,
-	ownerPrivateKey *ecdsa.PrivateKey,
-	w3Client *w3.Client,
-	client *ethclient.Client,
-	delegateCallProxy common.Address,
-	opChainConfigs []bindings.OPContractsManagerOpChainConfig,
-) {
-	l1PAO, err := o.keys.Address(devkeys.ChainOperatorKeys(l1ChainID)(devkeys.L1ProxyAdminOwnerRole))
-	t.Require().NoError(err, "must have L1 proxy admin owner private key")
-
-	portal0 := getOptimismPortal(t, w3Client, opChainConfigs[0].SystemConfigProxy)
-	sharedDGF := getDisputeGameFactory(t, w3Client, portal0)
-	transferOwnershipForDelegateCallProxy(
-		t,
-		l1ChainID,
-		ownerPrivateKey,
-		client,
-		delegateCallProxy,
-		sharedDGF,
-		l1PAO,
-	)
-
-	var sharedEthLockboxProxy common.Address
-	err = w3Client.Call(w3eth.CallFunc(portal0, ethLockboxFn).Returns(&sharedEthLockboxProxy))
-	t.Require().NoError(err)
-	proxyAdmin := getAdmin(t, w3Client, sharedEthLockboxProxy)
-	transferOwnershipForDelegateCallProxy(
-		t,
-		l1ChainID,
-		ownerPrivateKey,
-		client,
-		delegateCallProxy,
-		proxyAdmin,
-		l1PAO,
-	)
-
-	// The migration temporarily transfers ownership of each portal ProxyAdmin to the DelegateCallProxy
-	// to satisfy the delegatecall requirement of the OPCM. Reset these back to the L1 proxy admin owner
-	// after the shared admin contracts are restored.
-	for _, cfg := range opChainConfigs {
-		portal := getOptimismPortal(t, w3Client, cfg.SystemConfigProxy)
-		portalProxyAdmin := getProxyAdmin(t, w3Client, portal)
-		// In some setups the migration may already restore ownership. Only reset when still owned by the proxy.
-		if getOwner(t, w3Client, portalProxyAdmin) == delegateCallProxy {
-			transferOwnershipForDelegateCallProxy(
-				t,
-				l1ChainID,
-				ownerPrivateKey,
-				client,
-				delegateCallProxy,
-				portalProxyAdmin,
-				l1PAO,
-			)
-		}
-	}
-
-	// The Proxy Admin owner is changed. Assert that the admin of other proxies are consistent
-	var sharedAnchorStateRegistryProxy common.Address
-	err = w3Client.Call(w3eth.CallFunc(portal0, anchorStateRegistryFn).Returns(&sharedAnchorStateRegistryProxy))
-	t.Require().NoError(err)
-	asrAAdminOwner := getProxyAdminOwner(t, w3Client, sharedAnchorStateRegistryProxy)
-	t.Require().Equal(l1PAO, asrAAdminOwner, "sharedAnchorStateRegistryProxy proxy admin owner is not the L1PAO")
-
-	gameTypes := []uint32{superPermissionedGameType, superCannonGameType}
-	for _, gameType := range gameTypes {
-		var gameArgsBytes []byte
-		err = w3Client.Call(w3eth.CallFunc(sharedDGF, gameArgsFn, gameType).Returns(&gameArgsBytes))
-		t.Require().NoError(err)
-		gameArgs, err := gameargs.Parse(gameArgsBytes)
-		t.Require().NoErrorf(err, "invalid game args for gameType %d", gameType)
-		wethAdminOwner := getProxyAdminOwner(t, w3Client, gameArgs.Weth)
-		t.Require().Equal(l1PAO, wethAdminOwner, "wethProxy proxy admin owner is not the L1PAO")
-	}
-}
-
-func resetOldDisputeGameFactories(
-	t devtest.CommonT,
-	o *Orchestrator,
-	l1ChainID *big.Int,
-	ownerPrivateKey *ecdsa.PrivateKey,
-	client *ethclient.Client,
-	delegateCallProxy common.Address,
-	oldDisputeGameFactories map[eth.ChainID]common.Address,
-) {
-	for l2ChainID, oldDGF := range oldDisputeGameFactories {
-		chainOpsForL2 := devkeys.ChainOperatorKeys(l2ChainID.ToBig())
-		l1PAOForL2, err := o.keys.Address(chainOpsForL2(devkeys.L1ProxyAdminOwnerRole))
-		t.Require().NoError(err, "must have configured L1 proxy admin owner private key")
-		// Not required since the old DGFs are not used; but done to prevent surprises later
-		transferOwnershipForDelegateCallProxy(
-			t,
-			l1ChainID,
-			ownerPrivateKey,
-			client,
-			delegateCallProxy,
-			oldDGF,
-			l1PAOForL2,
-		)
-	}
 }
