@@ -251,7 +251,7 @@ commands:
               export FEATURES="--all-features"
             fi
 
-            cd << parameters.directory >> && cargo build $PROFILE $TARGET $PACKAGE $FEATURES
+            cd << parameters.directory >> && cargo build $PROFILE $PACKAGE $BINARY $FEATURES
           no_output_timeout: 30m
       - when:
           condition: << parameters.save_cache >>
@@ -717,6 +717,60 @@ jobs:
             just hack $PARTITION_FLAG
       - rust-save-build-cache: *hack-cache-args
 
+  # Shared build binary job (wraps the rust-build command)
+  rust-build-binary:
+    description: "Build a Rust workspace with target directory caching"
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      needs_clang:
+        description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)"
+        type: boolean
+        default: true
+      version:
+        description: "Version of the cache"
+        type: string
+        default: "15"
+      profile:
+        description: "Profile to build the binary with"
+        type: string
+        default: "debug"
+      features:
+        description: "Comma-separated list of features to build the binary with"
+        type: string
+        default: "default"
+      package:
+        description: "Package name to build. If not specified, the workspace will be built."
+        type: string
+        default: ""
+      binary:
+        description: "Binary name to build. If not specified, all targets will be built."
+        type: string
+        default: ""
+      toolchain:
+        description: "Rust toolchain version to install before building (empty = use default)"
+        type: string
+        default: ""
+      save_cache:
+        description: "Whether to save the cache at the end of the build"
+        type: boolean
+        default: true
+    steps:
+      - rust-build:
+          directory: << parameters.directory >>
+          needs_clang: << parameters.needs_clang >>
+          version: << parameters.version >>
+          profile: << parameters.profile >>
+          features: << parameters.features >>
+          package: << parameters.package >>
+          binary: << parameters.binary >>
+          toolchain: << parameters.toolchain >>
+          save_cache: << parameters.save_cache >>
+
   # --------------------------------------------------------------------------
   # OP-Reth crate-specific jobs
   # --------------------------------------------------------------------------
@@ -809,7 +863,6 @@ jobs:
 
   # Kona Host Client Offline Runs
   kona-host-client-offline:
-    parameters:
     machine:
       image: <<pipeline.parameters.base_image>>
       docker_layer_caching: true
@@ -961,40 +1014,6 @@ jobs:
           files: rust/kona/lcov.info
           flags: unit
       - rust-save-build-cache: *kona-coverage-cache
-
-  # Kona Docs Build
-  kona-docs-build:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare
-      - run:
-          name: Install Node.js and Bun
-          command: |
-            curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-            sudo apt-get install -y nodejs
-            curl -fsSL https://bun.sh/install | bash
-            echo 'export BUN_INSTALL="$HOME/.bun"' >> $BASH_ENV
-            echo 'export PATH="$BUN_INSTALL/bin:$PATH"' >> $BASH_ENV
-      - run:
-          name: Install dependencies and Playwright browsers
-          working_directory: rust/kona/docs
-          command: |
-            bun i
-            npx playwright install --with-deps chromium
-      - run:
-          name: Build Vocs documentation
-          working_directory: rust/kona/docs
-          no_output_timeout: 60m
-          command: |
-            bun run build
-            echo "Vocs Build Complete"
-      - store_artifacts:
-          path: rust/kona/docs/docs/dist
-          destination: kona-docs
 
   # Kona Link Checker
   kona-link-checker:
@@ -1253,14 +1272,6 @@ workflows:
       equal: [build_weekly, <<pipeline.schedule.name>>]
     jobs:
       - kona-link-checker:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-
-  scheduled-kona-sync:
-    when:
-      equal: [build_weekly, <<pipeline.schedule.name>>]
-    jobs:
-      - kona-update-monorepo:
           context:
             - circleci-repo-readonly-authenticated-github-token
 
