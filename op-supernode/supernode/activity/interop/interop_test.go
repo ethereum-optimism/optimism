@@ -290,9 +290,9 @@ func TestCollectCurrentL1(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		setup func(h *interopTestHarness) *interopTestHarness
-		run   func(t *testing.T, h *interopTestHarness)
+		name   string
+		setup  func(h *interopTestHarness) *interopTestHarness
+		assert func(t *testing.T, l1 eth.BlockID, err error)
 	}{
 		{
 			name: "returns minimum L1 across multiple chains",
@@ -303,8 +303,7 @@ func TestCollectCurrentL1(t *testing.T) {
 					m.currentL1 = eth.BlockRef{Number: 100, Hash: common.HexToHash("0x1")} // minimum
 				}).Build()
 			},
-			run: func(t *testing.T, h *interopTestHarness) {
-				l1, err := h.interop.collectCurrentL1()
+			assert: func(t *testing.T, l1 eth.BlockID, err error) {
 				require.NoError(t, err)
 				require.Equal(t, uint64(100), l1.Number)
 				require.Equal(t, common.HexToHash("0x1"), l1.Hash)
@@ -317,8 +316,7 @@ func TestCollectCurrentL1(t *testing.T) {
 					m.currentL1 = eth.BlockRef{Number: 500, Hash: common.HexToHash("0x5")}
 				}).Build()
 			},
-			run: func(t *testing.T, h *interopTestHarness) {
-				l1, err := h.interop.collectCurrentL1()
+			assert: func(t *testing.T, l1 eth.BlockID, err error) {
 				require.NoError(t, err)
 				require.Equal(t, uint64(500), l1.Number)
 			},
@@ -330,8 +328,7 @@ func TestCollectCurrentL1(t *testing.T) {
 					m.currentL1Err = errors.New("chain not synced")
 				}).Build()
 			},
-			run: func(t *testing.T, h *interopTestHarness) {
-				l1, err := h.interop.collectCurrentL1()
+			assert: func(t *testing.T, l1 eth.BlockID, err error) {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "not ready")
 				require.Equal(t, eth.BlockID{}, l1)
@@ -343,7 +340,8 @@ func TestCollectCurrentL1(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newInteropTestHarness(t)
 			tc.setup(h)
-			tc.run(t, h)
+			l1, err := h.interop.collectCurrentL1()
+			tc.assert(t, l1, err)
 		})
 	}
 }
@@ -356,9 +354,9 @@ func TestCheckChainsReady(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		setup func(h *interopTestHarness) *interopTestHarness
-		run   func(t *testing.T, h *interopTestHarness)
+		name   string
+		setup  func(h *interopTestHarness) *interopTestHarness
+		assert func(t *testing.T, h *interopTestHarness, blocks map[eth.ChainID]eth.BlockID, err error)
 	}{
 		{
 			name: "all chains ready returns blocks",
@@ -369,8 +367,7 @@ func TestCheckChainsReady(t *testing.T) {
 					m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
 				}).Build()
 			},
-			run: func(t *testing.T, h *interopTestHarness) {
-				blocks, err := h.interop.checkChainsReady(1000)
+			assert: func(t *testing.T, h *interopTestHarness, blocks map[eth.ChainID]eth.BlockID, err error) {
 				require.NoError(t, err)
 				require.Len(t, blocks, 2)
 				require.NotEqual(t, common.Hash{}, blocks[h.Mock(10).id].Hash)
@@ -386,8 +383,7 @@ func TestCheckChainsReady(t *testing.T) {
 					m.blockAtTimestampErr = ethereum.NotFound
 				}).Build()
 			},
-			run: func(t *testing.T, h *interopTestHarness) {
-				blocks, err := h.interop.checkChainsReady(1000)
+			assert: func(t *testing.T, h *interopTestHarness, blocks map[eth.ChainID]eth.BlockID, err error) {
 				require.Error(t, err)
 				require.Nil(t, blocks)
 			},
@@ -403,8 +399,7 @@ func TestCheckChainsReady(t *testing.T) {
 				}
 				return h.Build()
 			},
-			run: func(t *testing.T, h *interopTestHarness) {
-				blocks, err := h.interop.checkChainsReady(1000)
+			assert: func(t *testing.T, h *interopTestHarness, blocks map[eth.ChainID]eth.BlockID, err error) {
 				require.NoError(t, err)
 				require.Len(t, blocks, 5)
 			},
@@ -415,7 +410,8 @@ func TestCheckChainsReady(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newInteropTestHarness(t)
 			tc.setup(h)
-			tc.run(t, h)
+			blocks, err := h.interop.checkChainsReady(1000)
+			tc.assert(t, h, blocks, err)
 		})
 	}
 }
@@ -427,10 +423,17 @@ func TestCheckChainsReady(t *testing.T) {
 func TestProgressInterop(t *testing.T) {
 	t.Parallel()
 
+	// Default verifyFn that passes through
+	passThroughVerifyFn := func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+		return Result{Timestamp: ts, L2Heads: blocks}, nil
+	}
+
 	tests := []struct {
-		name  string
-		setup func(h *interopTestHarness) *interopTestHarness
-		run   func(t *testing.T, h *interopTestHarness)
+		name     string
+		setup    func(h *interopTestHarness) *interopTestHarness
+		verifyFn func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error)
+		assert   func(t *testing.T, result Result, err error)
+		run      func(t *testing.T, h *interopTestHarness) // override for complex cases
 	}{
 		{
 			name: "not initialized uses activation timestamp",
@@ -439,17 +442,10 @@ func TestProgressInterop(t *testing.T) {
 					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
 				}).Build()
 			},
-			run: func(t *testing.T, h *interopTestHarness) {
-				var capturedTimestamp uint64
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-					capturedTimestamp = ts
-					return Result{Timestamp: ts, L2Heads: blocks}, nil
-				}
-
-				result, err := h.interop.progressInterop()
+			verifyFn: passThroughVerifyFn,
+			assert: func(t *testing.T, result Result, err error) {
 				require.NoError(t, err)
 				require.Equal(t, uint64(5000), result.Timestamp)
-				require.Equal(t, uint64(5000), capturedTimestamp)
 			},
 		},
 		{
@@ -460,9 +456,7 @@ func TestProgressInterop(t *testing.T) {
 				}).Build()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-					return Result{Timestamp: ts, L2Heads: blocks}, nil
-				}
+				h.interop.verifyFn = passThroughVerifyFn
 
 				// First progress
 				result1, err := h.interop.progressInterop()
@@ -486,8 +480,7 @@ func TestProgressInterop(t *testing.T) {
 					m.blockAtTimestampErr = ethereum.NotFound
 				}).Build()
 			},
-			run: func(t *testing.T, h *interopTestHarness) {
-				result, err := h.interop.progressInterop()
+			assert: func(t *testing.T, result Result, err error) {
 				require.NoError(t, err)
 				require.True(t, result.IsEmpty())
 			},
@@ -499,8 +492,7 @@ func TestProgressInterop(t *testing.T) {
 					m.blockAtTimestampErr = errors.New("internal error")
 				}).Build()
 			},
-			run: func(t *testing.T, h *interopTestHarness) {
-				result, err := h.interop.progressInterop()
+			assert: func(t *testing.T, result Result, err error) {
 				require.Error(t, err)
 				require.True(t, result.IsEmpty())
 			},
@@ -513,12 +505,10 @@ func TestProgressInterop(t *testing.T) {
 					m.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
 				}).Build()
 			},
-			run: func(t *testing.T, h *interopTestHarness) {
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-					return Result{}, errors.New("verification failed")
-				}
-
-				result, err := h.interop.progressInterop()
+			verifyFn: func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+				return Result{}, errors.New("verification failed")
+			},
+			assert: func(t *testing.T, result Result, err error) {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "verification failed")
 				require.True(t, result.IsEmpty())
@@ -530,7 +520,15 @@ func TestProgressInterop(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newInteropTestHarness(t)
 			tc.setup(h)
-			tc.run(t, h)
+			if tc.run != nil {
+				tc.run(t, h)
+				return
+			}
+			if tc.verifyFn != nil {
+				h.interop.verifyFn = tc.verifyFn
+			}
+			result, err := h.interop.progressInterop()
+			tc.assert(t, result, err)
 		})
 	}
 }
