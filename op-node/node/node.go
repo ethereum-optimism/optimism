@@ -153,7 +153,7 @@ type OpNode struct {
 
 	tracer tracer.Tracer // used for testing PublishBlock and SignAndPublishL2Payload
 
-	superAuthority SuperAuthority // optional supernode authority for coordination
+	superAuthority rollup.SuperAuthority // optional supernode authority for coordination
 }
 
 // New creates a new OpNode instance.
@@ -197,23 +197,12 @@ func NewWithOverride(ctx context.Context, cfg *config.Config, log log.Logger, ap
 	return n, nil
 }
 
-// SuperAuthority is an interface for supernode-level authority operations.
-// It is passed to op-node instances during initialization to provide
-// supernode-specific functionality and coordination.
-type SuperAuthority interface {
-	// FullyVerifiedL2Head returns the fully verified L2 head block reference.
-	// It returns an empty L2BlockRef if no fully verified head can be determined.
-	// Note that the returned block ref may not be local safe and the caller should
-	// verify the block's local safety before using it.
-	FullyVerifiedL2Head() eth.BlockID
-}
-
 type InitializationOverrides struct {
 	L1Source        L1Source
 	Beacon          L1Beacon
 	RPCHandler      *oprpc.Handler
 	MetricsRegistry func(*prometheus.Registry)
-	SuperAuthority  SuperAuthority
+	SuperAuthority  rollup.SuperAuthority
 }
 
 // init progressively creates and sets up all the components of the OpNode
@@ -238,6 +227,9 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 	if err != nil {
 		return fmt.Errorf("failed to init event system: %w", err)
 	}
+
+	// Store the supernode authority for payload validation
+	n.superAuthority = overrides.SuperAuthority
 
 	if overrides.Beacon == nil {
 		beacon, err := initL1BeaconAPI(ctx, cfg, n)
@@ -267,8 +259,6 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 	if err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
 	}
-
-	n.l2Driver.SyncDeriver.Engine.SetSuperAuthority(overrides.SuperAuthority)
 
 	n.l1HeadsSub, n.l1SafeSub, n.l1FinalizedSub, err = initL1Handlers(cfg, n)
 	if err != nil {
@@ -626,7 +616,7 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 	}
 
 	l2Driver := driver.NewDriver(node.eventSys, node.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.L1ChainConfig, cfg.DependencySet, l2Source, node.l1Source, upstreamFollowSource,
-		node.beacon, node, node, node.log, node.metrics, cfg.ConfigPersistence, safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode)
+		node.beacon, node, node, node.log, node.metrics, cfg.ConfigPersistence, safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode, node.superAuthority)
 
 	// Wire up IndexingMode to engine controller for direct procedure call
 	if sys != nil {

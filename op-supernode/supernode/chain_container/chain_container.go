@@ -11,6 +11,7 @@ import (
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -50,7 +51,7 @@ type ChainContainer interface {
 	BlockTime() uint64
 }
 
-type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollupNode.SuperAuthority) virtual_node.VirtualNode
+type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
 
 type simpleChainContainer struct {
 	vn                 virtual_node.VirtualNode
@@ -132,7 +133,7 @@ func (c *simpleChainContainer) RegisterVerifier(v activity.VerificationActivity)
 }
 
 // defaultVirtualNodeFactory is the default factory that creates a real VirtualNode
-func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollupNode.SuperAuthority) virtual_node.VirtualNode {
+func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 	initOverload.SuperAuthority = superAuthority
 	return virtual_node.NewVirtualNode(cfg, log, initOverload, appVersion)
 }

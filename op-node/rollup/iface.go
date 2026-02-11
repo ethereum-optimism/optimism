@@ -2,6 +2,17 @@ package rollup
 
 import "github.com/ethereum-optimism/optimism/op-service/eth"
 
+// SuperAuthority is an interface for supernode-level authority operations.
+// It is passed to op-node instances during initialization to provide
+// supernode-specific functionality and coordination.
+type SuperAuthority interface {
+	// FullyVerifiedL2Head returns the fully verified L2 head block reference.
+	// It returns an empty L2BlockRef if no fully verified head can be determined.
+	// Note that the returned block ref may not be local safe and the caller should
+	// verify the block's local safety before using it.
+	FullyVerifiedL2Head() eth.BlockID
+}
+
 // SafeHeadListener is called when the safe head is updated.
 // The safe head may advance by more than one block in a single update
 // The l1Block specified is the first L1 block that includes sufficient information to derive the new safe head

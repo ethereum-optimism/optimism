@@ -93,10 +93,6 @@ type CrossUpdateHandler interface {
 	OnCrossSafeUpdate(ctx context.Context, crossSafe eth.L2BlockRef, localSafe eth.L2BlockRef)
 }
 
-type SuperAuthority interface {
-	FullyVerifiedL2Head() eth.BlockID
-}
-
 type EngineController struct {
 	engine            ExecEngine // Underlying execution engine RPC
 	log               log.Logger
@@ -166,13 +162,13 @@ type EngineController struct {
 
 	unsafePayloads *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
 
-	superAuthority SuperAuthority
+	superAuthority rollup.SuperAuthority
 }
 
 var _ event.Deriver = (*EngineController)(nil)
 
 func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger, m opmetrics.Metricer,
-	rollupCfg *rollup.Config, syncCfg *sync.Config, supervisorEnabled bool, l1 sync.L1Chain, emitter event.Emitter,
+	rollupCfg *rollup.Config, syncCfg *sync.Config, supervisorEnabled bool, l1 sync.L1Chain, emitter event.Emitter, superAuthority rollup.SuperAuthority,
 ) *EngineController {
 	syncStatus := syncStatusCL
 	if syncCfg.SyncMode == sync.ELSync {
@@ -193,11 +189,8 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 		ctx:               ctx,
 		emitter:           emitter,
 		unsafePayloads:    NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
+		superAuthority:    superAuthority,
 	}
-}
-
-func (e *EngineController) SetSuperAuthority(superAuthority SuperAuthority) {
-	e.superAuthority = superAuthority
 }
 
 func (e *EngineController) SafeL2Head() eth.L2BlockRef {

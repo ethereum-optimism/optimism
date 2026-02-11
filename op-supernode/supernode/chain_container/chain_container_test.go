@@ -378,7 +378,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 
 		mockVN := newMockVirtualNode()
 		mockVN.blockOnStart = true
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollupNode.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -410,7 +410,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 			return nil // Exit immediately to trigger restart
 		}
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollupNode.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -450,7 +450,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 			return nil // Exit immediately
 		}
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollupNode.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -524,7 +524,7 @@ func TestChainContainer_PauseResume(t *testing.T) {
 		var totalStartCalls int
 		var mu sync.Mutex
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollupNode.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			mockVN := newMockVirtualNode()
 			mockVN.blockOnStart = true
 			mockVN.startFunc = func(ctx context.Context) error {
@@ -767,7 +767,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		mockVN := newMockVirtualNode()
 		mockVN.blockOnStart = true
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollupNode.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -808,7 +808,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 			return ctx.Err()
 		}
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollupNode.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -833,7 +833,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		mockVN := newMockVirtualNode()
 		mockVN.blockOnStart = true
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollupNode.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -877,7 +877,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 
 		mockVN := newMockVirtualNode()
 		mockVN.blockOnStart = true
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollupNode.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
