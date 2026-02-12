@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -26,23 +27,25 @@ import (
 func TestSupernodeInterop_SafeHeadTrailsLocalSafe(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
+	attempts := 15 // each attempt is hardcoded with a 2s by the DSL.
 
-	attempts := 10
 	// Pause interop verification at block 5 on both chains
-	// check safe and localsafe heads get to at least that height
+	// check safe heads get to at least that height,
+	// let local safe heads run ahead
 	pauseTimestamp := sys.L2A.TimestampForBlockNum(5)
 	sys.Supernode.PauseInterop(pauseTimestamp)
-	sys.L2ACL.Reached(types.LocalSafe, 4, attempts)
-	sys.L2BCL.Reached(types.LocalSafe, 4, attempts)
-	sys.L2ACL.Reached(types.CrossSafe, 4, attempts)
-	sys.L2BCL.Reached(types.CrossSafe, 4, attempts)
+	dsl.CheckAll(t,
+		sys.L2ACL.ReachedFn(types.LocalSafe, 10, attempts),
+		sys.L2BCL.ReachedFn(types.LocalSafe, 10, attempts),
+		sys.L2ACL.ReachedFn(types.CrossSafe, 4, attempts),
+		sys.L2BCL.ReachedFn(types.CrossSafe, 4, attempts),
+	)
 
-	// Let local safes run ahead and expect
-	// cross safe to stall since we paused the interop activity
-	sys.L2ACL.Reached(types.LocalSafe, 10, attempts)
-	sys.L2BCL.Reached(types.LocalSafe, 10, attempts)
-	sys.L2ACL.NotAdvanced(types.CrossSafe, attempts)
-	sys.L2BCL.NotAdvanced(types.CrossSafe, attempts)
+	// Expect cross safe to stall since we paused the interop activity
+	dsl.CheckAll(t,
+		sys.L2ACL.NotAdvancedFn(types.CrossSafe, 2),
+		sys.L2BCL.NotAdvancedFn(types.CrossSafe, 2),
+	)
 
 	// Check EL labels
 	safeA := sys.L2ELA.BlockRefByLabel(eth.Safe)
@@ -53,8 +56,10 @@ func TestSupernodeInterop_SafeHeadTrailsLocalSafe(gt *testing.T) {
 	// Resume interop verification
 	// expect cross safe to catch up
 	sys.Supernode.ResumeInterop()
-	sys.L2ACL.Reached(types.CrossSafe, 10, attempts)
-	sys.L2BCL.Reached(types.CrossSafe, 10, attempts)
+	dsl.CheckAll(t,
+		sys.L2ACL.ReachedFn(types.CrossSafe, 10, attempts),
+		sys.L2BCL.ReachedFn(types.CrossSafe, 10, attempts),
+	)
 
 	// check EL labels
 	safeA = sys.L2ELA.BlockRefByLabel(eth.Safe)

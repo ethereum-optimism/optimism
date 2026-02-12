@@ -4,7 +4,10 @@ import (
 	"os"
 	"testing"
 
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 )
 
 // TestMain creates a two-L2 setup with a shared supernode that has interop enabled.
@@ -12,5 +15,8 @@ import (
 func TestMain(m *testing.M) {
 	// Set the L2CL kind to supernode for all tests in this package
 	_ = os.Setenv("DEVSTACK_L2CL_KIND", "supernode")
-	presets.DoMain(m, presets.WithTwoL2SupernodeInterop(0))
+	presets.DoMain(m, presets.WithTwoL2SupernodeInterop(0),
+		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {
+			cfg.MaxChannelDuration = 1
+		})))
 }
