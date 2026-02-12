@@ -318,6 +318,11 @@
   },
   {
     "inputs": [],
+    "name": "PolicyEngineStaking_BeneficiaryIsLinked",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "PolicyEngineStaking_CannotLinkToSelf",
     "type": "error"
   },
