@@ -2,9 +2,7 @@ package interop
 
 import (
 	"testing"
-	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -99,127 +97,57 @@ func TestSupernodeInterop_SafeHeadTrailsLocalSafe(gt *testing.T) {
 func TestSupernodeInterop_SafeHeadWithUnevenProgress(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
+	attempts := 15
 
-	waitTime := 500 * time.Millisecond
+	initialTargetBlockNum := uint64(5)
+	finalTargetBlockNum := uint64(10)
 
 	// Wait for initial sync
-	waitForInitialSync(t, sys, 5, 30*time.Second)
+	dsl.CheckAll(t,
+		sys.L2ACL.ReachedFn(types.LocalSafe, initialTargetBlockNum, attempts),
+		sys.L2BCL.ReachedFn(types.LocalSafe, initialTargetBlockNum, attempts),
+	)
 
-	baselineStatusA := sys.L2ACL.SyncStatus()
-	baselineStatusB := sys.L2BCL.SyncStatus()
+	baselineLocalSafeB := sys.L2BCL.SyncStatus().LocalSafeL2.Number
 
-	logSyncState(t, "baseline state", baselineStatusA, baselineStatusB)
-
-	// Stop chain B's batcher temporarily to create uneven progress
+	// Stop chain B's batcher to create uneven progress
 	sys.L2BatcherB.Stop()
-	t.Logger().Info("stopped chain B batcher to create uneven progress")
 
-	// Let chain A advance while chain B's local safe head is frozen
-	time.Sleep(10 * time.Second)
+	// Chain A advances while B is frozen
+	dsl.CheckAll(t,
+		sys.L2ACL.ReachedFn(types.LocalSafe, finalTargetBlockNum, attempts),
+	)
 
 	unevenStatusA := sys.L2ACL.SyncStatus()
 	unevenStatusB := sys.L2BCL.SyncStatus()
 
-	logSyncState(t, "uneven progress state", unevenStatusA, unevenStatusB)
-
-	// KEY ASSERTION 1: Chain A's local safe should have advanced
-	assert.Greater(t, unevenStatusA.LocalSafeL2.Number, baselineStatusA.LocalSafeL2.Number,
-		"chain A local safe should advance while chain B is stopped")
-
-	// KEY ASSERTION 2: Chain B's local safe should be relatively stable (may advance slightly from in-flight batches)
-	assert.LessOrEqual(t, unevenStatusB.LocalSafeL2.Number, baselineStatusB.LocalSafeL2.Number+5,
+	// Chain B's local safe should be relatively stable
+	require.LessOrEqual(t, unevenStatusB.LocalSafeL2.Number, baselineLocalSafeB+5,
 		"chain B local safe should not advance much with batcher stopped")
 
-	// KEY ASSERTION 3: Cross-safe heads should be gated by slower chain
-	// The safe head should not exceed chain B's local safe head
-	assert.LessOrEqual(t, unevenStatusA.SafeL2.Number, unevenStatusB.LocalSafeL2.Number+2,
-		"safe heads should be gated by slower chain's local safe")
-	assert.LessOrEqual(t, unevenStatusB.SafeL2.Number, unevenStatusB.LocalSafeL2.Number+2,
-		"safe heads should be gated by slower chain's local safe")
+	// Cross-safe heads should be gated by slower chain
+	require.LessOrEqual(t, unevenStatusA.SafeL2.Number, unevenStatusB.LocalSafeL2.Number+2,
+		"cross-safe should be gated by slower chain's local safe")
+
+	snapshotCrossSafeA := unevenStatusA.SafeL2.Number
 
 	// Resume chain B's batcher
 	sys.L2BatcherB.Start()
-	t.Logger().Info("resumed chain B batcher")
 
-	// Wait for chain B to catch up
-	t.Require().Eventually(func() bool {
-		statusB := sys.L2BCL.SyncStatus()
-		// Chain B should catch up to approximately where chain A was
-		return statusB.LocalSafeL2.Number >= unevenStatusA.LocalSafeL2.Number-5
-	}, 60*time.Second, waitTime, "chain B should catch up after batcher resumes")
-
-	// Wait for safe heads to catch up
-	t.Require().Eventually(func() bool {
-		statusA := sys.L2ACL.SyncStatus()
-		statusB := sys.L2BCL.SyncStatus()
-		// Safe heads should advance significantly from the uneven state
-		return statusA.SafeL2.Number > unevenStatusA.SafeL2.Number+5 &&
-			statusB.SafeL2.Number > unevenStatusB.SafeL2.Number+5
-	}, 60*time.Second, waitTime, "safe heads should advance after chain B catches up")
-
-	// Take snapshot of local safe heads after recovery
-	snapshotStatusA := sys.L2ACL.SyncStatus()
-	snapshotStatusB := sys.L2BCL.SyncStatus()
-	snapshotLocalSafeA := snapshotStatusA.LocalSafeL2.Number
-	snapshotLocalSafeB := snapshotStatusB.LocalSafeL2.Number
-
-	logSyncState(t, "snapshot state after recovery", snapshotStatusA, snapshotStatusB)
-
-	// Wait for safe heads to catch up to the snapshot of local safe heads
-	t.Require().Eventually(func() bool {
-		statusA := sys.L2ACL.SyncStatus()
-		statusB := sys.L2BCL.SyncStatus()
-		return statusA.SafeL2.Number >= snapshotLocalSafeA &&
-			statusB.SafeL2.Number >= snapshotLocalSafeB
-	}, 60*time.Second, waitTime, "safe heads should eventually catch up to snapshot of local safe heads after recovery")
-}
-
-// Helper functions for safe head progression tests
-
-// requireSafeNotAboveLocalSafe asserts that SafeL2 never exceeds LocalSafeL2
-func requireSafeNotAboveLocalSafe(t devtest.T, status *eth.SyncStatus, chainName string) {
-	assert.LessOrEqual(t, status.SafeL2.Number, status.LocalSafeL2.Number,
-		"%s: SafeL2 should never exceed LocalSafeL2", chainName)
-}
-
-// requireSafeL2FieldsPopulated asserts that SafeL2 fields are non-zero when block number is non-zero
-func requireSafeL2FieldsPopulated(t devtest.T, status *eth.SyncStatus, chainName string) {
-	if status.SafeL2.Number > 0 {
-		assert.NotZero(t, status.SafeL2.Time, "%s: SafeL2.Time should be non-zero", chainName)
-		assert.NotZero(t, status.SafeL2.Hash, "%s: SafeL2.Hash should be non-zero", chainName)
-	}
-}
-
-// logSyncState logs the current sync status for both chains
-func logSyncState(t devtest.T, label string, statusA, statusB *eth.SyncStatus) {
-	t.Logger().Info(label,
-		"chainA_local_safe", statusA.LocalSafeL2.Number,
-		"chainA_safe", statusA.SafeL2.Number,
-		"chainB_local_safe", statusB.LocalSafeL2.Number,
-		"chainB_safe", statusB.SafeL2.Number,
+	// Chain B catches up
+	dsl.CheckAll(t,
+		sys.L2BCL.ReachedFn(types.LocalSafe, finalTargetBlockNum, attempts),
 	)
-}
 
-// logDetailedState logs detailed state including gaps
-func logDetailedState(t devtest.T, label string, statusA, statusB *eth.SyncStatus) {
-	gapA := statusA.LocalSafeL2.Number - statusA.SafeL2.Number
-	gapB := statusB.LocalSafeL2.Number - statusB.SafeL2.Number
-	t.Logger().Info(label,
-		"chainA_local_safe", statusA.LocalSafeL2.Number,
-		"chainA_safe", statusA.SafeL2.Number,
-		"chainA_gap", gapA,
-		"chainB_local_safe", statusB.LocalSafeL2.Number,
-		"chainB_safe", statusB.SafeL2.Number,
-		"chainB_gap", gapB,
+	// Cross-safe heads advance after chain B catches up
+	dsl.CheckAll(t,
+		sys.L2ACL.ReachedFn(types.CrossSafe, snapshotCrossSafeA+5, attempts),
+		sys.L2BCL.ReachedFn(types.CrossSafe, snapshotCrossSafeA+5, attempts),
 	)
-}
 
-// waitForInitialSync waits for both chains to reach a minimum block number
-func waitForInitialSync(t devtest.T, sys *presets.TwoL2SupernodeInterop, minBlocks uint64, timeout time.Duration) {
-	waitTime := 500 * time.Millisecond
-	t.Require().Eventually(func() bool {
-		statusA := sys.L2ACL.SyncStatus()
-		statusB := sys.L2BCL.SyncStatus()
-		return statusA.LocalSafeL2.Number > minBlocks && statusB.LocalSafeL2.Number > minBlocks
-	}, timeout, waitTime, "chains should sync initially")
+	// Check EL labels
+	safeA := sys.L2ELA.BlockRefByLabel(eth.Safe)
+	safeB := sys.L2ELB.BlockRefByLabel(eth.Safe)
+	require.Greater(t, safeA.Number, snapshotCrossSafeA)
+	require.Greater(t, safeB.Number, snapshotCrossSafeA)
 }
