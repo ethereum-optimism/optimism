@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	bolt "go.etcd.io/bbolt"
 )
@@ -178,7 +177,7 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 		return false, nil
 	}
 
-	currentBlock, err := c.engine.BlockAtTimestamp(ctx, c.blockNumberToTimestamp(height), eth.Unsafe)
+	currentBlock, err := c.engine.L2BlockRefByNumber(ctx, height)
 	if err != nil {
 		c.log.Warn("failed to get current block at height", "height", height, "err", err)
 		return false, nil
