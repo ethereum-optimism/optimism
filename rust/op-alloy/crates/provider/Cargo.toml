@@ -1,0 +1,41 @@
+[package]
+name = "op-alloy-provider"
+description = "Interface with an OP Stack blockchain"
+
+version = "0.23.1"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage = "https://github.com/alloy-rs/op-alloy"
+authors = ["Alloy Contributors"]
+repository = "https://github.com/alloy-rs/op-alloy"
+exclude = ["benches/", "tests/"]
+
+[lints]
+workspace = true
+
+[dependencies]
+# Workspace
+op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+
+# Alloy
+alloy-network.workspace = true
+alloy-provider.workspace = true
+alloy-transport.workspace = true
+alloy-primitives = { workspace = true, features = ["rlp", "serde"] }
+alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+
+# misc
+async-trait.workspace = true
+
+[features]
+std = [
+	"op-alloy-rpc-types-engine/std",
+	"alloy-primitives/std",
+	"alloy-rpc-types-engine/std"
+]
+serde = [
+	"op-alloy-rpc-types-engine/serde",
+	"alloy-primitives/serde",
+	"alloy-rpc-types-engine/serde"
+]

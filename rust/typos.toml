@@ -1,0 +1,115 @@
+[files]
+extend-exclude = [
+    ".git",
+    "target",
+    "Cargo.lock",
+    "kona/docker/recipes/kona-node-dev/kona-node/bootstores",
+    "op-alloy/book/mermaid*.js",
+    "op-alloy/book/dist/",
+    "op-alloy/book/theme/",
+    "*.min.js",
+    "op-alloy/CHANGELOG.md",
+    "op-reth/crates/storage/libmdbx-rs/mdbx-sys/libmdbx",
+    "op-reth/testing/ef-tests",
+]
+
+[default]
+extend-ignore-re = [
+    # Hex strings of various lengths
+    "(?i)0x[0-9a-f]{8,}",
+    "(?i)[0-9a-f]{32,}",
+    "(?i)[0-9a-f]{8}",
+    "(?i)[0-9a-f]{40}",
+    "(?i)[0-9a-f]{64}",
+    # Ordinals in identifiers
+    "[0-9]+nd",
+    "[0-9]+th",
+    "[0-9]+st",
+    "[0-9]+rd",
+    # Base64 encoded strings (common in tests and configs)
+    "[A-Za-z0-9+/]{20,}={0,2}",
+]
+
+[default.extend-words]
+# Valid Rust/Cargo terms
+crate = "crate"
+crates = "crates"
+
+# Blockchain/Ethereum specific terms
+alloy = "alloy"
+anvil = "anvil"
+asm = "asm"
+asterisc = "asterisc"
+batcher = "batcher"
+bedrock = "bedrock"
+bootnode = "bootnode"
+cannon = "cannon"
+chainid = "chainid"
+codegen = "codegen"
+derivation = "derivation"
+enr = "enr"
+ethereum = "ethereum"
+fpvm = "fpvm"
+geth = "geth"
+hel = "hel"
+interop = "interop"
+kona = "kona"
+libmdbx = "libmdbx"
+merkle = "merkle"
+mips = "mips"
+mpsc = "mpsc"
+optimism = "optimism"
+preimage = "preimage"
+revm = "revm"
+risc = "risc"
+rollup = "rollup"
+rpc = "rpc"
+sequencer = "sequencer"
+ser = "ser"
+serde = "serde"
+supervisor = "supervisor"
+superchain = "superchain"
+trie = "trie"
+txs = "txs"
+udeps = "udeps"
+usize = "usize"
+workspaces = "workspaces"
+
+# Technical abbreviations and acronyms
+api = "api"
+cli = "cli"
+cfg = "cfg"
+const = "const"
+env = "env"
+impl = "impl"
+io = "io"
+lru = "lru"
+mpt = "mpt"
+msg = "msg"
+mut = "mut"
+nums = "nums"
+num = "num"
+ok = "ok"
+std = "std"
+structs = "structs"
+ty = "ty"
+typ = "typ"
+vec = "vec"
+
+# Additional project-specific terms
+flate = "flate"
+ratatui = "ratatui"
+superseed = "superseed"
+jsonrpsee = "jsonrpsee"
+tokio = "tokio"
+async = "async"
+await = "await"
+
+# op-reth specific
+seeked = "seeked"
+Seeked = "Seeked"
+Whe = "Whe"
+ONL = "ONL"
+Iy = "Iy"
+Pn = "Pn"
+BA = "BA"

@@ -344,8 +344,8 @@ target "op-rbuilder" {
 }
 
 target "kona-node" {
-  dockerfile = "docker/apps/kona_app_generic.dockerfile"
-  context = "kona"
+  dockerfile = "kona/docker/apps/kona_app_generic.dockerfile"
+  context = "rust"
   args = {
     REPO_LOCATION = "local"
     BIN_TARGET = "kona-node"

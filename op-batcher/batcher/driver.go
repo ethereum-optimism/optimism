@@ -423,16 +423,15 @@ func (l *BatchSubmitter) unsafeDABytes() int64 {
 }
 
 // sendToThrottlingLoop sends the current unsafe bytes to the throttling loop.
-// It is not blocking, no signal will be sent if the channel is full.
+// It is not blocking, no signal will be sent if the channel is full or if the throttling loop is not running.
 func (l *BatchSubmitter) sendToThrottlingLoop(unsafeBytesUpdated chan int64) {
-	if l.Config.ThrottleParams.LowerThreshold == 0 {
-		return
-	}
-
+	unsafeDABytes := l.unsafeDABytes()
+	l.Metr.RecordUnsafeDABytes(unsafeDABytes)
 	// notify the throttling loop it may be time to initiate throttling without blocking
 	select {
-	case unsafeBytesUpdated <- l.unsafeDABytes():
+	case unsafeBytesUpdated <- unsafeDABytes:
 	default:
+		// drop the update if there is no ready reader for the channel
 	}
 }
 
@@ -703,7 +702,6 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, unsafeBytesUpdated c
 	}
 
 	for unsafeBytes := range unsafeBytesUpdated {
-		l.Metr.RecordUnsafeDABytes(unsafeBytes)
 		newParams := l.throttleController.Update(uint64(unsafeBytes))
 		controllerType := l.throttleController.GetType()
 

@@ -160,6 +160,9 @@ type EngineController struct {
 	// Handler for cross-unsafe and cross-safe updates
 	crossUpdateHandler CrossUpdateHandler
 
+	// SuperAuthority for payload validation (may be nil when not in supernode context)
+	superAuthority rollup.SuperAuthority
+
 	unsafePayloads *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
 
 	superAuthority rollup.SuperAuthority
@@ -168,7 +171,8 @@ type EngineController struct {
 var _ event.Deriver = (*EngineController)(nil)
 
 func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger, m opmetrics.Metricer,
-	rollupCfg *rollup.Config, syncCfg *sync.Config, supervisorEnabled bool, l1 sync.L1Chain, emitter event.Emitter, superAuthority rollup.SuperAuthority,
+	rollupCfg *rollup.Config, syncCfg *sync.Config, supervisorEnabled bool, l1 sync.L1Chain, emitter event.Emitter,
+	superAuthority rollup.SuperAuthority,
 ) *EngineController {
 	syncStatus := syncStatusCL
 	if syncCfg.SyncMode == sync.ELSync {
@@ -188,6 +192,7 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 		l1:                l1,
 		ctx:               ctx,
 		emitter:           emitter,
+		superAuthority:    superAuthority,
 		unsafePayloads:    NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 		superAuthority:    superAuthority,
 	}

@@ -181,6 +181,52 @@ func (v *VerifiedDB) LastTimestamp() (uint64, bool) {
 	return v.lastTimestamp, v.initialized
 }
 
+// Rewind removes all verified results at or after the given timestamp.
+// Returns true if any results were deleted, false otherwise.
+func (v *VerifiedDB) Rewind(timestamp uint64) (bool, error) {
+	var deleted bool
+
+	err := v.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketName)
+		c := b.Cursor()
+
+		// Start from the timestamp and delete all entries at or after it
+		startKey := timestampToKey(timestamp)
+		for k, _ := c.Seek(startKey); k != nil; k, _ = c.Next() {
+			if err := b.Delete(k); err != nil {
+				return err
+			}
+			deleted = true
+		}
+		return nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to rewind verifiedDB: %w", err)
+	}
+
+	// Update state
+	if deleted {
+		// Reinitialize lastTimestamp from the database
+		if err := v.initLastTimestamp(); err != nil {
+			return deleted, fmt.Errorf("failed to reinitialize lastTimestamp after rewind: %w", err)
+		}
+		// If no timestamps remain, reset initialized state
+		if err := v.db.View(func(tx *bolt.Tx) error {
+			b := tx.Bucket(bucketName)
+			c := b.Cursor()
+			if k, _ := c.First(); k == nil {
+				v.initialized = false
+				v.lastTimestamp = 0
+			}
+			return nil
+		}); err != nil {
+			return deleted, err
+		}
+	}
+
+	return deleted, nil
+}
+
 // Close closes the database.
 func (v *VerifiedDB) Close() error {
 	return v.db.Close()

@@ -397,3 +397,4 @@ func TestEngineController_ForkchoiceUpdateUsesSuperAuthority(t *testing.T) {
 	err := ec.tryUpdateEngineInternal(context.Background())
 	require.NoError(t, err)
 }
+// SuperAuthority tests are in super_authority_deny_test.go

@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -34,6 +35,10 @@ type LogsDB interface {
 	AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error
 	// SealBlock seals a block in the database.
 	SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error
+	// Rewind removes all blocks after newHead from the database.
+	Rewind(inv reads.Invalidator, newHead eth.BlockID) error
+	// Clear removes all data from the database.
+	Clear(inv reads.Invalidator) error
 	// Close closes the database.
 	Close() error
 }
@@ -46,6 +51,18 @@ type noopLogsDBMetrics struct{}
 
 func (n *noopLogsDBMetrics) RecordDBEntryCount(kind string, count int64) {}
 func (n *noopLogsDBMetrics) RecordDBSearchEntriesRead(count int64)       {}
+
+// noopInvalidator implements reads.Invalidator as a no-op.
+// Used for rewind operations where we don't need cache invalidation.
+// noopInvalidator is a stub needed to use the logs.DB.Rewind method.
+// read-handle invalidation is not currently used
+type noopInvalidator struct{}
+
+func (n *noopInvalidator) TryInvalidate(rule reads.InvalidationRule) (release func(), err error) {
+	return func() {}, nil
+}
+
+var _ reads.Invalidator = (*noopInvalidator)(nil)
 
 // openLogsDB opens a logs.DB for the given chain in the data directory.
 func openLogsDB(logger log.Logger, chainID eth.ChainID, dataDir string) (LogsDB, error) {

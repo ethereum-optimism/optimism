@@ -108,6 +108,8 @@ type OpNode struct {
 	appVersion string
 	metrics    *metrics.Metrics
 
+	superAuthority rollup.SuperAuthority // Supernode authority for payload validation (may be nil)
+
 	l1HeadsSub     ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
 	l1SafeSub      ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
 	l1FinalizedSub ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
@@ -202,7 +204,7 @@ type InitializationOverrides struct {
 	Beacon          L1Beacon
 	RPCHandler      *oprpc.Handler
 	MetricsRegistry func(*prometheus.Registry)
-	SuperAuthority  rollup.SuperAuthority
+	SuperAuthority  rollup.SuperAuthority // Supernode authority for payload validation
 }
 
 // init progressively creates and sets up all the components of the OpNode

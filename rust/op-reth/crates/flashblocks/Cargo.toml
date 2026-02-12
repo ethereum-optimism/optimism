@@ -1,0 +1,60 @@
+[package]
+name = "reth-optimism-flashblocks"
+version = "1.10.2"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage = "https://paradigmxyz.github.io/reth"
+repository = "https://github.com/paradigmxyz/reth"
+
+[lints]
+workspace = true
+
+[dependencies]
+# reth
+reth-optimism-primitives = { workspace = true, features = ["serde"] }
+reth-chain-state = { workspace = true, features = ["serde"] }
+reth-primitives-traits = { workspace = true, features = ["serde"] }
+reth-engine-primitives = { workspace = true, features = ["std"] }
+reth-execution-types = { workspace = true, features = ["serde"] }
+reth-evm.workspace = true
+reth-revm.workspace = true
+reth-optimism-payload-builder.workspace = true
+reth-rpc-eth-types.workspace = true
+reth-errors.workspace = true
+reth-payload-primitives.workspace = true
+reth-storage-api.workspace = true
+reth-tasks.workspace = true
+reth-metrics.workspace = true
+
+# alloy
+alloy-eips = { workspace = true, features = ["serde"] }
+alloy-primitives = { workspace = true, features = ["serde"] }
+alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+alloy-consensus.workspace = true
+
+# op-alloy
+op-alloy-rpc-types-engine = { workspace = true, features = ["k256"] }
+
+# io
+tokio.workspace = true
+tokio-tungstenite = { workspace = true, features = ["rustls-tls-native-roots"] }
+serde_json.workspace = true
+url.workspace = true
+futures-util.workspace = true
+brotli = { workspace = true, features = ["std"] }
+
+# debug
+tracing.workspace = true
+metrics.workspace = true
+
+# errors
+eyre.workspace = true
+
+ringbuffer.workspace = true
+derive_more.workspace = true
+
+[dev-dependencies]
+test-case.workspace = true
+alloy-consensus.workspace = true
+op-alloy-consensus.workspace = true
