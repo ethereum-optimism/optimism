@@ -446,7 +446,7 @@ func (i *Interop) Reset(chainID eth.ChainID, timestamp uint64) {
 func (i *Interop) resetLogsDB(chainID eth.ChainID, chain cc.ChainContainer, db LogsDB, timestamp uint64) {
 	blockTime := chain.BlockTime()
 	targetTs := timestamp - blockTime
-	targetBlock, err := chain.BlockAtTimestamp(i.ctx, targetTs, eth.Safe)
+	targetBlock, err := chain.LocalSafeBlockAtTimestamp(i.ctx, targetTs)
 	if err != nil {
 		// If we can't find the target block, clear the entire logsDB
 		i.log.Warn("failed to get block at timestamp, clearing logsDB", "chainID", chainID, "timestamp", targetTs, "err", err)

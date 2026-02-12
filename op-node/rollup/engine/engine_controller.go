@@ -164,8 +164,6 @@ type EngineController struct {
 	superAuthority rollup.SuperAuthority
 
 	unsafePayloads *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
-
-	superAuthority rollup.SuperAuthority
 }
 
 var _ event.Deriver = (*EngineController)(nil)
@@ -194,7 +192,6 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 		emitter:           emitter,
 		superAuthority:    superAuthority,
 		unsafePayloads:    NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
-		superAuthority:    superAuthority,
 	}
 }
 

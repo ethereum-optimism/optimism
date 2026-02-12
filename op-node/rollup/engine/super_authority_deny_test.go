@@ -2,10 +2,7 @@ package engine
 
 import (
 	"context"
-	"fmt"
 	"testing"
-
-	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -15,33 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
-
-// mockSuperAuthority implements SuperAuthority for testing.
-type mockSuperAuthority struct {
-	deniedBlocks map[uint64]common.Hash
-	shouldError  bool
-}
-
-func newMockSuperAuthority() *mockSuperAuthority {
-	return &mockSuperAuthority{
-		deniedBlocks: make(map[uint64]common.Hash),
-	}
-}
-
-func (m *mockSuperAuthority) denyBlock(blockNumber uint64, hash common.Hash) {
-	m.deniedBlocks[blockNumber] = hash
-}
-
-func (m *mockSuperAuthority) IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error) {
-	if m.shouldError {
-		return false, fmt.Errorf("superauthority check failed")
-	}
-	deniedHash, exists := m.deniedBlocks[blockNumber]
-	if exists && deniedHash == payloadHash {
-		return true, nil
-	}
-	return false, nil
-}
 
 // superAuthorityTestCase defines a test scenario for SuperAuthority behavior
 type superAuthorityTestCase struct {

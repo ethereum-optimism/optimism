@@ -323,6 +323,10 @@ func (m *mockEngineForInvalidation) Close() error {
 	return nil
 }
 
+func (m *mockEngineForInvalidation) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
+
 // mockVNForInvalidation implements virtual_node.VirtualNode for invalidation tests
 type mockVNForInvalidation struct {
 	stopErr error

@@ -214,17 +214,6 @@ func TestInvalidPayloadForNonHead_NoDrop(t *testing.T) {
 
 // note: nil-envelope behavior is not tested to match current implementation
 
-// mockSuperAuthority implements SuperAuthority for testing
-type mockSuperAuthority struct {
-	fullyVerifiedL2Head eth.BlockID
-}
-
-func (m *mockSuperAuthority) FullyVerifiedL2Head() eth.BlockID {
-	return m.fullyVerifiedL2Head
-}
-
-var _ rollup.SuperAuthority = (*mockSuperAuthority)(nil)
-
 // TestEngineController_SafeL2Head tests SafeL2Head behavior with various configurations
 func TestEngineController_SafeL2Head(t *testing.T) {
 	tests := []struct {
@@ -397,4 +386,5 @@ func TestEngineController_ForkchoiceUpdateUsesSuperAuthority(t *testing.T) {
 	err := ec.tryUpdateEngineInternal(context.Background())
 	require.NoError(t, err)
 }
+
 // SuperAuthority tests are in super_authority_deny_test.go

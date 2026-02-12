@@ -10,21 +10,15 @@ import (
 // When running inside a supernode, this allows the engine controller to check
 // if payloads are denied before applying them, enabling coordinated block invalidation.
 type SuperAuthority interface {
-	// IsDenied checks if a payload hash is denied at the given block number.
-	// Returns true if the payload should not be applied.
-	// The error indicates if the check could not be performed (should be logged but not fatal).
-	IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error)
-}
-
-// SuperAuthority is an interface for supernode-level authority operations.
-// It is passed to op-node instances during initialization to provide
-// supernode-specific functionality and coordination.
-type SuperAuthority interface {
 	// FullyVerifiedL2Head returns the fully verified L2 head block reference.
 	// It returns an empty L2BlockRef if no fully verified head can be determined.
 	// Note that the returned block ref may not be local safe and the caller should
 	// verify the block's local safety before using it.
 	FullyVerifiedL2Head() eth.BlockID
+	// IsDenied checks if a payload hash is denied at the given block number.
+	// Returns true if the payload should not be applied.
+	// The error indicates if the check could not be performed (should be logged but not fatal).
+	IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error)
 }
 
 // SafeHeadListener is called when the safe head is updated.

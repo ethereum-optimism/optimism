@@ -154,8 +154,6 @@ type OpNode struct {
 	halted atomic.Bool
 
 	tracer tracer.Tracer // used for testing PublishBlock and SignAndPublishL2Payload
-
-	superAuthority rollup.SuperAuthority // optional supernode authority for coordination
 }
 
 // New creates a new OpNode instance.

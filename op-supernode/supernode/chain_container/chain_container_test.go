@@ -130,6 +130,10 @@ type mockEngineController struct {
 	l2BlockRefByNumberErr    error
 }
 
+func (m *mockEngineController) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
+
 func (m *mockEngineController) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
 	return m.l2BlockRefByNumberResult, m.l2BlockRefByNumberErr
 }
@@ -1036,7 +1040,7 @@ func TestChainContainer_LocalSafeBlockAtTimestamp(t *testing.T) {
 	runTest := func(t *testing.T, tc testCase) {
 		chainID := eth.ChainIDFromUInt64(420)
 		log := createTestLogger(t)
-		cfg := createTestCLIConfig()
+		cfg := createTestCLIConfig("TODO")
 		initOverload := &rollupNode.InitializationOverrides{}
 
 		vncfg := createTestVNConfig()
