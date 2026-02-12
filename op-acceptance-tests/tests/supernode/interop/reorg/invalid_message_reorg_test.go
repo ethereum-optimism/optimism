@@ -41,6 +41,11 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 	sys.L2B.CatchUpTo(sys.L2A)
 	sys.L2A.CatchUpTo(sys.L2B)
 
+	// Pause interop and verify it has stopped
+	// Uses max local safe timestamp from both chains, pauses at +10, awaits validation at +9
+	paused := sys.Supernode.EnsureInteropPaused(sys.L2ACL, sys.L2BCL, 10)
+	t.Logger().Info("interop paused", "paused", paused)
+
 	rng := rand.New(rand.NewSource(12345))
 
 	// Send an initiating message on chain A
@@ -53,14 +58,6 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 
 	// Wait for chain B to catch up
 	sys.L2B.WaitForBlock()
-
-	// Wait for some timestamps to be verified first
-	targetTimestamp := sys.L2A.TimestampForBlockNum(2)
-	// set supernode to pause verification just after this timestamp
-	sys.Supernode.PauseInterop(targetTimestamp + 1)
-	sys.Supernode.AwaitValidatedTimestamp(targetTimestamp)
-
-	t.Logger().Info("initial verification confirmed", "timestamp", targetTimestamp)
 
 	// Send an INVALID executing message on chain B
 	_, invalidExecReceipt := bob.SendInvalidExecMessage(initTx, 0)
