@@ -77,8 +77,8 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 	)
 
 	// Ensure the invalid block is after the pause point
-	require.Greater(t, invalidBlockTimestamp, pauseTimestamp,
-		"invalid block timestamp must be after pause timestamp to test interop detection")
+	require.GreaterOrEqual(t, invalidBlockTimestamp, pauseTimestamp,
+		"invalid block timestamp must be after or equal to pause timestamp to ensure it can become local safe (until interop activity is resumed)")
 
 	// Wait for local safety to include the invalid block
 	require.Eventually(t, func() bool {
