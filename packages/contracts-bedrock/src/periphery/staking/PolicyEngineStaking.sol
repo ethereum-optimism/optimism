@@ -106,7 +106,7 @@ contract PolicyEngineStaking {
     /// @notice Thrown when the beneficiary address is zero.
     error PolicyEngineStaking_ZeroBeneficiary();
 
-    /// @notice Thrown when trying to link to self. Use address(0) when staking for self-attribution.
+    /// @notice Thrown when trying to link to self. Use msg.sender when staking for self-attribution.
     error PolicyEngineStaking_CannotLinkToSelf();
 
     /// @notice Thrown when the staker is not allowed to link to the beneficiary.
@@ -165,15 +165,17 @@ contract PolicyEngineStaking {
     /// @notice Stakes OP tokens and attributes ordering power to a beneficiary.
     /// @param _amount      The amount of OP tokens to stake.
     /// @param _beneficiary Address that receives ordering power from this stake.
-    ///                     Use address(0) for self-attribution.
+    ///                     Use msg.sender for self-attribution.
     function stake(uint256 _amount, address _beneficiary) external whenNotPaused {
         if (_amount == 0) revert PolicyEngineStaking_ZeroAmount();
+        // Check if trying to link to zero address
+        if (_beneficiary == address(0)) revert PolicyEngineStaking_ZeroBeneficiary();
 
         // Get staking data of msg.sender
         StakedData storage stakingData = _stakingData[msg.sender];
 
         // Check if self-attribution
-        bool isSelfAttribution = _beneficiary == address(0) || _beneficiary == msg.sender;
+        bool isSelfAttribution = _beneficiary == msg.sender;
 
         // If self-attribution, check if already linked to a different beneficiary
         if (isSelfAttribution) {
