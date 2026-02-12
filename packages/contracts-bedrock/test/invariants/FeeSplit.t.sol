@@ -124,7 +124,7 @@ contract FeeSplitter_Preconditions is CommonTest {
     function setMinAmount(uint256 _minAmount, uint256 _vaultIndex) public {
         _vaultIndex = bound(_vaultIndex, 0, 3);
 
-        vm.prank(IL2ProxyAdmin(Predeploys.L2_PROXY_ADMIN).owner());
+        vm.prank(IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner());
 
         if (_vaultIndex == 0) {
             IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).setMinWithdrawalAmount(_minAmount);

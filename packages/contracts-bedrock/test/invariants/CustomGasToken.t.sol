@@ -202,7 +202,7 @@ contract CustomGasToken_Invariants_Test is CommonTest {
         randomActor.initAddresses(address(actor_minter), address(actor_funder));
 
         // Authorize the minter actor (simple access control in unit tests)
-        vm.prank(IL2ProxyAdmin(Predeploys.L2_PROXY_ADMIN).owner());
+        vm.prank(IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner());
         liquidityController.authorizeMinter(address(actor_minter));
 
         // Create the initial supply

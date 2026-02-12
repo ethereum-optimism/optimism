@@ -46,7 +46,7 @@ contract FeeSplitter_TestInit is CommonTest {
         super.setUp();
 
         // Get the owner from L2ProxyAdmin
-        _owner = IL2ProxyAdmin(Predeploys.L2_PROXY_ADMIN).owner();
+        _owner = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner();
 
         // Initialize fee vaults array
         _feeVaults[0] = Predeploys.SEQUENCER_FEE_WALLET;

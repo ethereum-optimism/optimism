@@ -60,7 +60,7 @@ abstract contract OptimismSuperchainERC20_TestInit is Test {
         // Deploy the ERC1967Proxy contract at the Predeploy
         bytes memory code = vm.getDeployedCode("universal/Proxy.sol:Proxy");
         vm.etch(_addr, code);
-        EIP1967Helper.setAdmin(_addr, Predeploys.L2_PROXY_ADMIN);
+        EIP1967Helper.setAdmin(_addr, Predeploys.PROXY_ADMIN);
         EIP1967Helper.setImplementation(_addr, _impl);
 
         // Mock implementation address

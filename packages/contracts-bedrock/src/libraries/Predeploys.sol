@@ -62,7 +62,7 @@ library Predeploys {
     address internal constant OPTIMISM_MINTABLE_ERC721_FACTORY = 0x4200000000000000000000000000000000000017;
 
     /// @notice Address of the L2ProxyAdmin predeploy.
-    address internal constant L2_PROXY_ADMIN = 0x4200000000000000000000000000000000000018;
+    address internal constant PROXY_ADMIN = 0x4200000000000000000000000000000000000018;
 
     /// @notice Address of the BaseFeeVault predeploy.
     address internal constant BASE_FEE_VAULT = 0x4200000000000000000000000000000000000019;
@@ -139,7 +139,7 @@ library Predeploys {
         if (_addr == L1_BLOCK_ATTRIBUTES) return "L1Block";
         if (_addr == L2_TO_L1_MESSAGE_PASSER) return "L2ToL1MessagePasser";
         if (_addr == OPTIMISM_MINTABLE_ERC721_FACTORY) return "OptimismMintableERC721Factory";
-        if (_addr == L2_PROXY_ADMIN) return "L2ProxyAdmin";
+        if (_addr == PROXY_ADMIN) return "ProxyAdmin";
         if (_addr == BASE_FEE_VAULT) return "BaseFeeVault";
         if (_addr == L1_FEE_VAULT) return "L1FeeVault";
         if (_addr == OPERATOR_FEE_VAULT) return "OperatorFeeVault";
@@ -180,7 +180,7 @@ library Predeploys {
             || _addr == L2_CROSS_DOMAIN_MESSENGER || _addr == GAS_PRICE_ORACLE || _addr == L2_STANDARD_BRIDGE
             || _addr == SEQUENCER_FEE_WALLET || _addr == OPTIMISM_MINTABLE_ERC20_FACTORY || _addr == L1_BLOCK_NUMBER
             || _addr == L2_ERC721_BRIDGE || _addr == L1_BLOCK_ATTRIBUTES || _addr == L2_TO_L1_MESSAGE_PASSER
-            || _addr == OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == L2_PROXY_ADMIN || _addr == BASE_FEE_VAULT
+            || _addr == OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == PROXY_ADMIN || _addr == BASE_FEE_VAULT
             || _addr == L1_FEE_VAULT || _addr == OPERATOR_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS
             || _addr == GOVERNANCE_TOKEN || _addr == FEE_SPLITTER
             || (_fork >= uint256(Fork.INTEROP) && _enableCrossL2Inbox && _addr == CROSS_L2_INBOX)

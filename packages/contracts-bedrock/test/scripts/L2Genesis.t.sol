@@ -43,11 +43,11 @@ abstract contract L2Genesis_TestInit is Test {
 
     function testProxyAdmin() internal view {
         // Verify owner in the proxy
-        assertEq(input.opChainProxyAdminOwner, IL2ProxyAdmin(Predeploys.L2_PROXY_ADMIN).owner());
+        assertEq(input.opChainProxyAdminOwner, IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner());
 
         // Verify owner in the implementation to catch storage shifting issues
         // The implementation is stored in the code namespace
-        address proxyAdminImpl = Predeploys.predeployToCodeNamespace(Predeploys.L2_PROXY_ADMIN);
+        address proxyAdminImpl = Predeploys.predeployToCodeNamespace(Predeploys.PROXY_ADMIN);
         assertEq(
             input.opChainProxyAdminOwner,
             IL2ProxyAdmin(proxyAdminImpl).owner(),
@@ -68,7 +68,7 @@ abstract contract L2Genesis_TestInit is Test {
             // All predeploys should have code
             assertGt(addr.code.length, 0);
             // All proxied predeploys should have the 1967 admin slot set to the ProxyAdmin
-            assertEq(Predeploys.L2_PROXY_ADMIN, EIP1967Helper.getAdmin(addr));
+            assertEq(Predeploys.PROXY_ADMIN, EIP1967Helper.getAdmin(addr));
 
             // If it's not a supported predeploy, skip next checks.
             if (!Predeploys.isSupportedPredeploy(addr, uint256(LATEST_FORK), true, input.useCustomGasToken)) {

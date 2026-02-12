@@ -219,7 +219,7 @@ contract L2Genesis is Script {
             }
 
             vm.etch(addr, code);
-            EIP1967Helper.setAdmin(addr, Predeploys.L2_PROXY_ADMIN);
+            EIP1967Helper.setAdmin(addr, Predeploys.PROXY_ADMIN);
 
             if (Predeploys.isSupportedPredeploy(addr, _input.fork, _input.deployCrossL2Inbox, _input.useCustomGasToken))
             {
@@ -274,12 +274,12 @@ contract L2Genesis is Script {
 
     function setL2ProxyAdmin(Input memory _input) internal {
         // Note the L2ProxyAdmin implementation itself is behind a proxy that owns itself.
-        address impl = _setImplementationCode(Predeploys.L2_PROXY_ADMIN);
+        address impl = _setImplementationCode(Predeploys.PROXY_ADMIN);
 
         bytes32 _ownerSlot = bytes32(0);
 
         // there is no initialize() function, so we just set the storage manually.
-        vm.store(Predeploys.L2_PROXY_ADMIN, _ownerSlot, bytes32(uint256(uint160(_input.opChainProxyAdminOwner))));
+        vm.store(Predeploys.PROXY_ADMIN, _ownerSlot, bytes32(uint256(uint160(_input.opChainProxyAdminOwner))));
         // update the proxy to not be uninitialized (although not standard initialize pattern)
         vm.store(impl, _ownerSlot, bytes32(uint256(uint160(_input.opChainProxyAdminOwner))));
     }

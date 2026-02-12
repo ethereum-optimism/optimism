@@ -18,7 +18,7 @@ contract LegacyFeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
         legacyFeeSplitter = new LegacyFeeSplitter();
 
         // Setup the legacy splitter as the recipient in the vaults
-        address owner = IL2ProxyAdmin(Predeploys.L2_PROXY_ADMIN).owner();
+        address owner = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner();
 
         vm.startPrank(owner);
         IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).setRecipient(address(legacyFeeSplitter));

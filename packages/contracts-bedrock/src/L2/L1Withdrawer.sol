@@ -82,7 +82,7 @@ contract L1Withdrawer is ISemver {
     /// @notice Updates the minimum withdrawal amount. Only callable by the ProxyAdmin owner.
     /// @param _newMinWithdrawalAmount The new minimum withdrawal amount.
     function setMinWithdrawalAmount(uint256 _newMinWithdrawalAmount) external {
-        if (msg.sender != IL2ProxyAdmin(Predeploys.L2_PROXY_ADMIN).owner()) {
+        if (msg.sender != IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
             revert L1Withdrawer_OnlyProxyAdminOwner();
         }
         uint256 oldMinWithdrawalAmount = minWithdrawalAmount;
@@ -95,7 +95,7 @@ contract L1Withdrawer is ISemver {
     /// when the withdrawal is finalized.
     /// @param _newRecipient The new recipient address.
     function setRecipient(address _newRecipient) external {
-        if (msg.sender != IL2ProxyAdmin(Predeploys.L2_PROXY_ADMIN).owner()) {
+        if (msg.sender != IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
             revert L1Withdrawer_OnlyProxyAdminOwner();
         }
         address oldRecipient = recipient;
@@ -107,7 +107,7 @@ contract L1Withdrawer is ISemver {
     /// @param _newWithdrawalGasLimit The new withdrawal gas limit.
     /// @dev If target on L1 is `FeesDepositor`, the gas limit should be at or above 800k gas.
     function setWithdrawalGasLimit(uint32 _newWithdrawalGasLimit) external {
-        if (msg.sender != IL2ProxyAdmin(Predeploys.L2_PROXY_ADMIN).owner()) {
+        if (msg.sender != IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
             revert L1Withdrawer_OnlyProxyAdminOwner();
         }
         uint32 oldWithdrawalGasLimit = withdrawalGasLimit;

@@ -103,7 +103,7 @@ contract SuperchainRevSharesCalculator is ISemver, ISharesCalculator {
     /// @notice Sets the share recipient. Only callable by the ProxyAdmin owner.
     /// @param _newShareRecipient The new share recipient address.
     function setShareRecipient(address payable _newShareRecipient) external {
-        if (msg.sender != IL2ProxyAdmin(Predeploys.L2_PROXY_ADMIN).owner()) {
+        if (msg.sender != IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
             revert SharesCalculator_OnlyProxyAdminOwner();
         }
         address oldShareRecipient = shareRecipient;
@@ -114,7 +114,7 @@ contract SuperchainRevSharesCalculator is ISemver, ISharesCalculator {
     /// @notice Sets the remainder recipient. Only callable by the ProxyAdmin owner.
     /// @param _newRemainderRecipient The new remainder recipient address.
     function setRemainderRecipient(address payable _newRemainderRecipient) external {
-        if (msg.sender != IL2ProxyAdmin(Predeploys.L2_PROXY_ADMIN).owner()) {
+        if (msg.sender != IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
             revert SharesCalculator_OnlyProxyAdminOwner();
         }
         address oldRemainderRecipient = remainderRecipient;

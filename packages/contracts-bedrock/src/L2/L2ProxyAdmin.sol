@@ -33,6 +33,7 @@ contract L2ProxyAdmin is ProxyAdmin, ISemver {
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
+    /// @notice The constructor for the L2ProxyAdmin contract.
     /// @param _owner Address of the initial owner of this contract.
     constructor(address _owner) ProxyAdmin(_owner) { }
 
