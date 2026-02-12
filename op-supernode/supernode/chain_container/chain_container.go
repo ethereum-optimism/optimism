@@ -545,11 +545,3 @@ func (c *simpleChainContainer) blockNumberToTimestamp(blockNum uint64) uint64 {
 	}
 	return c.vncfg.Rollup.Genesis.L2Time + (blockNum * c.vncfg.Rollup.BlockTime)
 }
-
-// IsDenied checks if a block hash is on the deny list at the given height.
-func (c *simpleChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
-	if c.denyList == nil {
-		return false, fmt.Errorf("deny list not initialized")
-	}
-	return c.denyList.Contains(height, payloadHash)
-}
