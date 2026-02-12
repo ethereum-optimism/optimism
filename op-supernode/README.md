@@ -27,6 +27,8 @@ but redundant access is eliminated.
 - Data Directories are namespaced to protect SafeDB and P2P resources
 - Flag configuration can be shared amongst chains for common setup.
 
+#### Safety labels
+See [this document](./safety-labels.md)
 
 #### Flag Configuration Tips
 
