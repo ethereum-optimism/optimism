@@ -263,7 +263,7 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			expectResult:      &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 300},
 		},
 		{
-			name:              "panics when SuperAuthority block ahead of local safe",
+			name:              "falls back to local safe when SuperAuthority block ahead of local safe",
 			supervisorEnabled: true,
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{
@@ -271,7 +271,7 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 				}
 			},
 			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
-			expectPanic:    "super authority fully verified l2 head is ahead of local safe head",
+			expectResult:   &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
 		},
 		{
 			name:              "panics when SuperAuthority block unknown to engine",

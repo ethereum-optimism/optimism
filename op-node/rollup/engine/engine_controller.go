@@ -203,7 +203,8 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 			return eth.L2BlockRef{}
 		}
 		if fvshid.Number > e.localSafeHead.Number {
-			panic("super authority fully verified l2 head is ahead of local safe head")
+			e.log.Debug("super authority fully verified l2 head is ahead of local safe head, using local safe head as SafeL2Head")
+			return e.localSafeHead
 		}
 		br, err := e.engine.L2BlockRefByHash(e.ctx, fvshid.Hash)
 		if err != nil {
