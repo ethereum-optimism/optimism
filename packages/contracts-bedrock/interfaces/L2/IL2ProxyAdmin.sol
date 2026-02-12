@@ -18,8 +18,7 @@ interface IL2ProxyAdmin is IProxyAdmin, ISemver {
     error L2ProxyAdmin__UpgradeFailed(bytes data);
 
     function __constructor__(address _owner) external;
-
     /// @notice Upgrades the predeploys via delegatecall to the L2ContractsManager contract.
-    /// @param l2ContractsManager Address of the L2ContractsManager contract.
-    function upgradePredeploys(address l2ContractsManager) external;
+    /// @param _l2ContractsManager Address of the L2ContractsManager contract.
+    function upgradePredeploys(address _l2ContractsManager) external;
 }

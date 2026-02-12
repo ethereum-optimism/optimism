@@ -37,15 +37,15 @@ contract L2ProxyAdmin is ProxyAdmin, ISemver {
     constructor(address _owner) ProxyAdmin(_owner) { }
 
     /// @notice Upgrades the predeploys via delegatecall to the l2ContractsManager contract.
-    /// @param l2ContractsManager Address of the l2ContractsManager contract.
-    function upgradePredeploys(address l2ContractsManager) external {
+    /// @param _l2ContractsManager Address of the l2ContractsManager contract.
+    function upgradePredeploys(address _l2ContractsManager) external {
         if (msg.sender != Constants.DEPOSITOR_ACCOUNT) revert L2ProxyAdmin__Unauthorized();
 
         (bool success, bytes memory data) =
-            l2ContractsManager.delegatecall(abi.encodeCall(IL2ContractsManager.upgrade, ()));
+            _l2ContractsManager.delegatecall(abi.encodeCall(IL2ContractsManager.upgrade, ()));
 
         if (!success) revert L2ProxyAdmin__UpgradeFailed(data);
 
-        emit PredeploysUpgraded(l2ContractsManager);
+        emit PredeploysUpgraded(_l2ContractsManager);
     }
 }

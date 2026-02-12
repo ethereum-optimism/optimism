@@ -288,7 +288,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "l2ContractsManager",
+        "name": "_l2ContractsManager",
         "type": "address"
       }
     ],
