@@ -29,18 +29,38 @@ func TestSupernodeInterop_SafeHeadTrailsLocalSafe(gt *testing.T) {
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 	attempts := 15 // each attempt is hardcoded with a 2s by the DSL.
 
-	// Pause interop verification at block 5 on both chains
+	initialTargetBlockNum := uint64(4)
+
+	// This block will have a different timestamp on each chain
+	// if they have different block periods. That's ok.
+	finalTargetBlockNum := uint64(10)
+
+	// We want to pause interop when the slowest chain has
+	// moved its (cross) safe head up to block 4. The faster chain
+	// can run ahead of that, but must stop before finalTargetBlockNum
+	blockPeriodA, genesisTimeA := sys.L2A.Escape().RollupConfig().BlockTime,
+		sys.L2A.Escape().RollupConfig().Genesis.L2Time
+	blockPeriodB, genesisTimeB := sys.L2B.Escape().RollupConfig().BlockTime,
+		sys.L2B.Escape().RollupConfig().Genesis.L2Time
+	var pauseTimestamp uint64
+	if blockPeriodA > blockPeriodB {
+		pauseTimestamp = genesisTimeA + initialTargetBlockNum*blockPeriodA
+		require.Less(t, pauseTimestamp, sys.L2B.TimestampForBlockNum(finalTargetBlockNum),
+			"when we pause interop, the faster chain must not reach finalTargetBlockNum")
+	} else {
+		pauseTimestamp = genesisTimeB + initialTargetBlockNum*blockPeriodB
+		require.Less(t, pauseTimestamp, sys.L2A.TimestampForBlockNum(finalTargetBlockNum),
+			"when we pause interop, the faster chain must not reach finalTargetBlockNum")
+	}
+
 	// check safe heads get to at least that height,
 	// let local safe heads run ahead
-	initialTargetBlockNum := uint64(4)
-	finalTargetBlockNum := uint64(10)
-	pauseTimestamp := sys.L2A.TimestampForBlockNum(initialTargetBlockNum + 1)
 	sys.Supernode.PauseInterop(pauseTimestamp)
 	dsl.CheckAll(t,
 		sys.L2ACL.ReachedFn(types.LocalSafe, finalTargetBlockNum, attempts),
 		sys.L2BCL.ReachedFn(types.LocalSafe, finalTargetBlockNum, attempts),
-		sys.L2ACL.ReachedFn(types.CrossSafe, initialTargetBlockNum, attempts),
-		sys.L2BCL.ReachedFn(types.CrossSafe, initialTargetBlockNum, attempts),
+		sys.L2ACL.ReachedFn(types.CrossSafe, initialTargetBlockNum-1, attempts),
+		sys.L2BCL.ReachedFn(types.CrossSafe, initialTargetBlockNum-1, attempts),
 	)
 
 	// Expect cross safe to stall since we paused the interop activity
@@ -53,8 +73,6 @@ func TestSupernodeInterop_SafeHeadTrailsLocalSafe(gt *testing.T) {
 	// Check EL labels
 	safeA := sys.L2ELA.BlockRefByLabel(eth.Safe)
 	safeB := sys.L2ELB.BlockRefByLabel(eth.Safe)
-	require.LessOrEqual(t, safeA.Number, initialTargetBlockNum)
-	require.LessOrEqual(t, safeB.Number, initialTargetBlockNum)
 
 	// Resume interop verification
 	// expect cross safe to catch up
