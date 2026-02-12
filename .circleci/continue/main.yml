@@ -2280,6 +2280,7 @@ jobs:
               --testdir tests \
               --flake-shake \
               --flake-shake-iterations "$FLAKE_SHAKE_ITERATIONS" \
+              --log.level debug \
               --orchestrator sysgo \
               --logdir "./$OUTPUT_DIR"
       - persist_to_workspace:
