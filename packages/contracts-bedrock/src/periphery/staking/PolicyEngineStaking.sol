@@ -127,6 +127,9 @@ contract PolicyEngineStaking {
     /// @notice Thrown when the staker has received stake from another beneficiary.
     error PolicyEngineStaking_StakerHasReceivedStake();
 
+    /// @notice Thrown when staking to a beneficiary who is themselves linked to another (linkers cannot receive stake).
+    error PolicyEngineStaking_BeneficiaryIsLinked();
+
     /// @notice Constructs the PolicyEngineStaking contract.
     /// @param _owner The address that can pause and unpause staking.
     constructor(address _owner) {
@@ -276,7 +279,8 @@ contract PolicyEngineStaking {
         uint256 amount = stakingData.stakedAmount;
         address linkedTo = stakingData.linkedTo;
 
-        // Update linked beneficiary
+        // Update linked beneficiary. receivedStake is 0 for linkers (BeneficiaryIsLinked prevents
+        // anyone from staking to a linker).
         stakingData.linkedTo = address(0);
         stakingData.receivedStake = 0;
 
@@ -325,10 +329,16 @@ contract PolicyEngineStaking {
     )
         internal
     {
+        // Beneficiary must not be a linker; linkers cannot receive stake.
+        if (_stakingData[_beneficiary].linkedTo != address(0)) {
+            revert PolicyEngineStaking_BeneficiaryIsLinked();
+        }
         // If the staker has received stake from another beneficiary , cannot link to a different beneficiary.
         if (_receivedStake > 0) revert PolicyEngineStaking_StakerHasReceivedStake();
+
         // Check if the staker is allowed to link to the beneficiary.
         if (!allowlist[_beneficiary][_staker]) revert PolicyEngineStaking_NotAllowedToLink();
+
         // Update beneficiary's received stake
         _stakingData[_beneficiary].receivedStake = _stakingData[_beneficiary].receivedStake + _amount;
         _updatePeData(_beneficiary, _amount, UpdateOperation.INCREASE);

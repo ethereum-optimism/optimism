@@ -58,6 +58,9 @@ interface IPolicyEngineStaking {
     /// @notice Thrown when the staker has received stake from another beneficiary.
     error PolicyEngineStaking_StakerHasReceivedStake();
 
+    /// @notice Thrown when staking to a beneficiary who is themselves linked to another (linkers cannot receive stake).
+    error PolicyEngineStaking_BeneficiaryIsLinked();
+
     /// @notice Returns the contract owner.
     function owner() external view returns (address);
 

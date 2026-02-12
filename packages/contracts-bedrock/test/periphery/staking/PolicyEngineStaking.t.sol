@@ -294,6 +294,23 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         staking.stake(100 ether, address(0));
     }
 
+    /// @notice Tests that staking to a beneficiary who is linked to another reverts.
+    function test_stake_toLinkedBeneficiary_reverts() external {
+        vm.prank(bob);
+        staking.setAllowedStaker(alice, true);
+        _stake(alice, 100 ether, bob); // Alice is now linked to Bob
+
+        vm.prank(alice);
+        staking.setAllowedStaker(carol, true);
+
+        vm.prank(carol);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
+
+        vm.prank(carol);
+        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_BeneficiaryIsLinked.selector);
+        staking.stake(50 ether, alice); // Carol cannot stake to Alice (Alice is linked to Bob)
+    }
+
     /// @notice Tests that staking to another beneficiary without allowlist reverts.
     function test_stake_toBeneficiaryWithoutAllowlist_reverts() external {
         vm.prank(alice);
