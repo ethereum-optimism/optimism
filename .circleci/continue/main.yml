@@ -2281,6 +2281,7 @@ jobs:
               --flake-shake \
               --flake-shake-iterations "$FLAKE_SHAKE_ITERATIONS" \
               --orchestrator sysgo \
+              --log.level debug \
               --logdir "./$OUTPUT_DIR"
       - persist_to_workspace:
           root: op-acceptance-tests
