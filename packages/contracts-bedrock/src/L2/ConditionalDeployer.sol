@@ -40,14 +40,14 @@ contract ConditionalDeployer is ISemver {
     function deploy(bytes32 _salt, bytes memory _code) external returns (address implementation_) {
         // Compute the address where the contract will be deployed using CREATE2 formula
         bytes32 codeHash = keccak256(_code);
-        address _expectedImplementation = address(
+        address expectedImplementation = address(
             uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), DETERMINISTIC_DEPLOYMENT_PROXY, _salt, codeHash))))
         );
 
         // Check if implementation already exists
-        if (_expectedImplementation.code.length != 0) {
-            emit ImplementationExists(_expectedImplementation);
-            return _expectedImplementation;
+        if (expectedImplementation.code.length != 0) {
+            emit ImplementationExists(expectedImplementation);
+            return expectedImplementation;
         }
 
         // Deploy using Arachnid's DeterministicDeploymentProxy
@@ -57,7 +57,7 @@ contract ConditionalDeployer is ISemver {
 
         // Decode the returned address (raw 20 bytes)
         implementation_ = address(bytes20(data));
-        if (!success || implementation_ != _expectedImplementation) {
+        if (!success || implementation_ != expectedImplementation) {
             revert ConditionalDeployer_DeploymentFailed(data);
         }
 
@@ -66,7 +66,7 @@ contract ConditionalDeployer is ISemver {
 
     /// @notice Returns the address of the Arachnid's DeterministicDeploymentProxy.
     /// @return deterministicDeploymentProxy_ The address of the Arachnid's DeterministicDeploymentProxy.
-    function deterministicDeploymentProxy() external pure returns (address payable deterministicDeploymentProxy_) {
+    function deterministicDeploymentProxy() external pure returns (address deterministicDeploymentProxy_) {
         deterministicDeploymentProxy_ = DETERMINISTIC_DEPLOYMENT_PROXY;
     }
 }

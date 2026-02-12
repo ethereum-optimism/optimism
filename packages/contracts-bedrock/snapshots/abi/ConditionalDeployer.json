@@ -28,7 +28,7 @@
     "name": "deterministicDeploymentProxy",
     "outputs": [
       {
-        "internalType": "address payable",
+        "internalType": "address",
         "name": "deterministicDeploymentProxy_",
         "type": "address"
       }

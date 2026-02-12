@@ -12,12 +12,13 @@ import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { ConditionalDeployer } from "src/L2/ConditionalDeployer.sol";
 
 /// @title ConditionalDeployer_Harness
-/// @notice A simple contract harness used for deployment testing of the ConditionalDeployer.
+/// @notice This contract is deployed by the ConditionalDeployer to test the deployment of an
+/// implementation.
 contract ConditionalDeployer_Harness {
-    uint256 public immutable value;
+    uint256 public immutable number;
 
-    constructor(uint256 _value) payable {
-        value = _value;
+    constructor(uint256 _number) {
+        number = _number;
     }
 }
 
@@ -45,20 +46,9 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
     event ImplementationExists(address indexed implementation);
 
     /// @notice Tests that `deploy` succeeds and emits the correct event.
-    function testFuzz_deploy_succeeds(address _caller, bytes32 _salt, uint256 _value) public {
-        bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(_value));
-        bytes32 codeHash = keccak256(_initCode);
-        address expectedImplementation = address(
-            uint160(
-                uint256(
-                    keccak256(
-                        abi.encodePacked(
-                            bytes1(0xff), conditionalDeployer.deterministicDeploymentProxy(), _salt, codeHash
-                        )
-                    )
-                )
-            )
-        );
+    function testFuzz_deploy_succeeds(address _caller, bytes32 _salt, uint256 _number) public {
+        bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(_number));
+        address expectedImplementation = getExpectedImplementation(_initCode, _salt);
 
         vm.expectEmit(address(conditionalDeployer));
         emit ImplementationDeployed(expectedImplementation, _salt);
@@ -67,36 +57,28 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
         address implementation = conditionalDeployer.deploy(_salt, _initCode);
 
         assertEq(implementation, expectedImplementation);
-        assertEq(ConditionalDeployer_Harness(implementation).value(), _value);
+        assertEq(ConditionalDeployer_Harness(implementation).number(), _number);
         assert(implementation.code.length != 0);
     }
 
     /// @notice Tests that `deploy` is idempotent and produces the same address when called multiple times.
-    function testFuzz_deploy_idempotent_succeeds(address _caller, bytes32 _salt, uint256 _value) public {
-        bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(_value));
+    function testFuzz_deploy_idempotent_succeeds(address _caller, bytes32 _salt, uint256 _number) public {
+        bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(_number));
+        address expectedImplementation = getExpectedImplementation(_initCode, _salt);
 
         // First Deployment
-        bytes32 codeHash = keccak256(_initCode);
-        address expectedImplementation = address(
-            uint160(
-                uint256(
-                    keccak256(
-                        abi.encodePacked(
-                            bytes1(0xff), conditionalDeployer.deterministicDeploymentProxy(), _salt, codeHash
-                        )
-                    )
-                )
-            )
-        );
-
         vm.expectEmit(address(conditionalDeployer));
         emit ImplementationDeployed(expectedImplementation, _salt);
+
+        assertEq(expectedImplementation.code.length, 0);
 
         vm.prank(_caller);
         address implementation1 = conditionalDeployer.deploy(_salt, _initCode);
 
         // Assert that the implementation was deployed
+        assertEq(implementation1, expectedImplementation);
         assert(implementation1.code.length != 0);
+        assertEq(ConditionalDeployer_Harness(implementation1).number(), _number);
 
         // Second Deployment
         vm.expectEmit(address(conditionalDeployer));
@@ -110,8 +92,8 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
 
     /// @notice Tests that `deploy` reverts when the deployment call to the DeterministicDeploymentProxy fails.
     /// @dev The deployment call to the DeterministicDeploymentProxy is mocked to revert.
-    function testFuzz_deploy_deploymentFailed_reverts(address _caller, bytes32 _salt) public {
-        bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(0));
+    function testFuzz_deploy_deploymentFailed_reverts(address _caller, bytes32 _salt, uint256 _number) public {
+        bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(_number));
 
         // Mock the deployment call to the DeterministicDeploymentProxy to revert
         vm.mockCallRevert(
@@ -137,23 +119,12 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
         address _caller,
         bytes32 _salt,
         address _notExpectedAddress,
-        uint256 _value
+        uint256 _number
     )
         public
     {
-        bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(_value));
-        bytes32 codeHash = keccak256(_initCode);
-        address expectedImplementation = address(
-            uint160(
-                uint256(
-                    keccak256(
-                        abi.encodePacked(
-                            bytes1(0xff), conditionalDeployer.deterministicDeploymentProxy(), _salt, codeHash
-                        )
-                    )
-                )
-            )
-        );
+        bytes memory _initCode = abi.encodePacked(simpleContractCreationCode, abi.encode(_number));
+        address expectedImplementation = getExpectedImplementation(_initCode, _salt);
         vm.assume(_notExpectedAddress != expectedImplementation);
 
         vm.mockCall(
@@ -169,6 +140,33 @@ contract ConditionalDeployer_Deploy_Test is ConditionalDeployer_TestInit {
             )
         );
         conditionalDeployer.deploy(_salt, _initCode);
+    }
+
+    /// @notice Returns the expected implementation address for the given initialization code and salt.
+    /// @dev Uses the CREATE2 formula to compute the expected implementation address.
+    /// @param _initCode The initialization code for the contract.
+    /// @param _salt The salt to use for deployment.
+    /// @return expectedImplementation_ The expected implementation address.
+    function getExpectedImplementation(
+        bytes memory _initCode,
+        bytes32 _salt
+    )
+        internal
+        view
+        returns (address expectedImplementation_)
+    {
+        bytes32 codeHash = keccak256(_initCode);
+        expectedImplementation_ = address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            bytes1(0xff), conditionalDeployer.deterministicDeploymentProxy(), _salt, codeHash
+                        )
+                    )
+                )
+            )
+        );
     }
 }
 

@@ -27,5 +27,5 @@ interface IConditionalDeployer is ISemver {
 
     /// @notice Address of the Arachnid's DeterministicDeploymentProxy.
     /// @return deterministicDeploymentProxy_ The address of the Arachnid's DeterministicDeploymentProxy.
-    function deterministicDeploymentProxy() external pure returns (address payable deterministicDeploymentProxy_);
+    function deterministicDeploymentProxy() external pure returns (address deterministicDeploymentProxy_);
 }
