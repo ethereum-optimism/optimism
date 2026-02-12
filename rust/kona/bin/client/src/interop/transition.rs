@@ -133,6 +133,19 @@ where
     // L2 block.
     match driver.advance_to_target(rollup_config.as_ref(), Some(disputed_l2_block_number)).await {
         Ok((safe_head, output_root)) => {
+            // If derivation didn't reach the target, L1 data was insufficient.
+            if safe_head.block_info.number < disputed_l2_block_number {
+                warn!(
+                  target: "interop_client",
+                  "Exhausted data source; Transitioning to invalid state."
+                );
+                return (boot.claimed_post_state == INVALID_TRANSITION_HASH).then_some(()).ok_or(
+                    FaultProofProgramError::InvalidClaim(
+                        INVALID_TRANSITION_HASH,
+                        boot.claimed_post_state,
+                    ),
+                );
+            }
             let optimistic_block = OptimisticBlock::new(safe_head.block_info.hash, output_root);
             transition_and_check(
                 boot.agreed_pre_state,
