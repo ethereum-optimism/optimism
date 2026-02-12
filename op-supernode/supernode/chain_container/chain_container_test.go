@@ -1036,7 +1036,7 @@ func TestChainContainer_LocalSafeBlockAtTimestamp(t *testing.T) {
 	runTest := func(t *testing.T, tc testCase) {
 		chainID := eth.ChainIDFromUInt64(420)
 		log := createTestLogger(t)
-		cfg := createTestCLIConfig("TODO")
+		cfg := createTestCLIConfig(t.TempDir())
 		initOverload := &rollupNode.InitializationOverrides{}
 
 		vncfg := createTestVNConfig()
