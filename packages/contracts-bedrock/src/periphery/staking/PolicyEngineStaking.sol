@@ -170,7 +170,7 @@ contract PolicyEngineStaking {
         if (_amount == 0) revert PolicyEngineStaking_ZeroAmount();
 
         // Get staking data of msg.sender
-        StakedData storage stakingData = _stakingDataRef(msg.sender);
+        StakedData storage stakingData = _stakingData[msg.sender];
 
         // Check if self-attribution
         bool isSelfAttribution = _beneficiary == address(0) || _beneficiary == msg.sender;
@@ -208,7 +208,7 @@ contract PolicyEngineStaking {
     /// @notice Unstakes all tokens of the caller from the contract.
     function unstake() external {
         // Get staking data of msg.sender
-        StakedData storage stakingData = _stakingDataRef(msg.sender);
+        StakedData storage stakingData = _stakingData[msg.sender];
 
         // Check if staker has no stake
         if (stakingData.stakedAmount == 0) revert PolicyEngineStaking_NoStake();
@@ -223,7 +223,7 @@ contract PolicyEngineStaking {
             _updatePeData(msg.sender, amount, UpdateOperation.DECREASE);
         } else {
             // If linked, unlink and decrease PE data and received stake of the beneficiary
-            _updateBeneficiaryReceivedStake(linkedTo, amount, UpdateOperation.DECREASE);
+            _stakingData[linkedTo].receivedStake = _stakingData[linkedTo].receivedStake - amount;
             _updatePeData(linkedTo, amount, UpdateOperation.DECREASE);
         }
 
@@ -246,12 +246,13 @@ contract PolicyEngineStaking {
         // Check if trying to link to self
         if (_beneficiary == msg.sender) revert PolicyEngineStaking_CannotLinkToSelf();
 
-        StakedData storage stakingData = _stakingDataRef(msg.sender);
+        StakedData storage stakingData = _stakingData[msg.sender];
 
         // Check if staker has no stake
         if (stakingData.stakedAmount == 0) revert PolicyEngineStaking_NoStake();
 
-        // Check if already linked
+        // Check if already linked to a different beneficiary. As in stake we not allow to do a self-attribution and be
+        // linked to a different beneficiary, so we can just check if linked to a different beneficiary.
         if (stakingData.linkedTo != address(0)) revert PolicyEngineStaking_AlreadyLinked();
 
         // Update linked beneficiary
@@ -264,7 +265,7 @@ contract PolicyEngineStaking {
 
     /// @notice Removes the current beneficiary attribution and reverts to self-attribution.
     function unlink() external {
-        StakedData storage stakingData = _stakingDataRef(msg.sender);
+        StakedData storage stakingData = _stakingData[msg.sender];
 
         // Check if linked
         if (stakingData.linkedTo == address(0)) revert PolicyEngineStaking_NotLinked();
@@ -279,7 +280,7 @@ contract PolicyEngineStaking {
 
         // Decrease PE data and received stake of the linked beneficiary
         _updatePeData(linkedTo, amount, UpdateOperation.DECREASE);
-        _updateBeneficiaryReceivedStake(linkedTo, amount, UpdateOperation.DECREASE);
+        _stakingData[linkedTo].receivedStake = _stakingData[linkedTo].receivedStake - amount;
 
         // Increase PE data of the staker
         _updatePeData(msg.sender, amount, UpdateOperation.INCREASE);
@@ -327,35 +328,11 @@ contract PolicyEngineStaking {
         // Check if the staker is allowed to link to the beneficiary.
         if (!allowlist[_beneficiary][_staker]) revert PolicyEngineStaking_NotAllowedToLink();
         // Update beneficiary's received stake
-        _updateBeneficiaryReceivedStake(_beneficiary, _amount, UpdateOperation.INCREASE);
+        _stakingData[_beneficiary].receivedStake = _stakingData[_beneficiary].receivedStake + _amount;
         _updatePeData(_beneficiary, _amount, UpdateOperation.INCREASE);
         if (!_isNewStake) {
             _updatePeData(_staker, _amount, UpdateOperation.DECREASE);
         }
-    }
-
-    /// @notice Updates beneficiary's received stake (staking data only, not PE data).
-    /// @param _beneficiary The beneficiary address.
-    /// @param _amount The amount to add or subtract.
-    /// @param _direction Increase or Decrease.
-    function _updateBeneficiaryReceivedStake(
-        address _beneficiary,
-        uint256 _amount,
-        UpdateOperation _direction
-    )
-        internal
-    {
-        // If increasing, add the amount to the received stake.
-        // If decreasing, subtract the amount from the received stake.
-        _stakingData[_beneficiary].receivedStake = _direction == UpdateOperation.INCREASE
-            ? _stakingData[_beneficiary].receivedStake + _amount
-            : _stakingData[_beneficiary].receivedStake - _amount;
-    }
-
-    /// @notice Returns a storage reference to staking data for an account.
-    /// @param _account The account address.
-    function _stakingDataRef(address _account) internal view returns (StakedData storage) {
-        return _stakingData[_account];
     }
 
     /// @notice Updates PE data (effective stake) and last update timestamp for an account.

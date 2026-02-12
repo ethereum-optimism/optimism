@@ -318,11 +318,6 @@
   },
   {
     "inputs": [],
-    "name": "PolicyEngineStaking_AmountExceedsEffectiveStakeLimit",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "PolicyEngineStaking_CannotLinkToSelf",
     "type": "error"
   },
