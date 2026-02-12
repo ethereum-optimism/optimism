@@ -474,7 +474,7 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		// Query for genesis L2 block
 		result, err := vn.L1AtSafeHead(context.Background(), genesisL2)
 		require.NoError(t, err)
-		require.Equal(t, genesisL1, result)
+		require.Equal(t, eth.BlockID{}, result) // Genesis L2 target returns genesis L1 directly, but without the hash
 	})
 
 	t.Run("genesis L2 number with different hash is not treated as genesis", func(t *testing.T) {

@@ -175,3 +175,160 @@ func TestVerifiedDB_Persistence(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+func TestVerifiedDB_RewindTo(t *testing.T) {
+	t.Parallel()
+
+	t.Run("removes entries at and after timestamp", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		db, err := OpenVerifiedDB(dataDir)
+		require.NoError(t, err)
+		defer db.Close()
+
+		chainID := eth.ChainIDFromUInt64(10)
+
+		// Commit several timestamps
+		for ts := uint64(100); ts <= 105; ts++ {
+			err = db.Commit(VerifiedResult{
+				Timestamp: ts,
+				L1Head:    eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
+				L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
+			})
+			require.NoError(t, err)
+		}
+
+		// Verify all exist
+		lastTs, _ := db.LastTimestamp()
+		require.Equal(t, uint64(105), lastTs)
+
+		// Rewind to 103 (should remove 103, 104, 105)
+		deleted, err := db.Rewind(103)
+		require.NoError(t, err)
+		require.True(t, deleted)
+
+		// Verify 100, 101, 102 still exist
+		for ts := uint64(100); ts <= 102; ts++ {
+			has, err := db.Has(ts)
+			require.NoError(t, err)
+			require.True(t, has, "timestamp %d should still exist", ts)
+		}
+
+		// Verify 103, 104, 105 are gone
+		for ts := uint64(103); ts <= 105; ts++ {
+			has, err := db.Has(ts)
+			require.NoError(t, err)
+			require.False(t, has, "timestamp %d should be deleted", ts)
+		}
+
+		// Last timestamp should be updated to 102
+		lastTs, _ = db.LastTimestamp()
+		require.Equal(t, uint64(102), lastTs)
+	})
+
+	t.Run("returns false when no entries deleted", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		db, err := OpenVerifiedDB(dataDir)
+		require.NoError(t, err)
+		defer db.Close()
+
+		chainID := eth.ChainIDFromUInt64(10)
+
+		// Commit up to timestamp 100
+		for ts := uint64(98); ts <= 100; ts++ {
+			err = db.Commit(VerifiedResult{
+				Timestamp: ts,
+				L1Head:    eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
+				L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
+			})
+			require.NoError(t, err)
+		}
+
+		// Rewind to 200 (nothing to delete)
+		deleted, err := db.Rewind(200)
+		require.NoError(t, err)
+		require.False(t, deleted)
+
+		// All entries should still exist
+		lastTs, _ := db.LastTimestamp()
+		require.Equal(t, uint64(100), lastTs)
+	})
+
+	t.Run("rewind all entries", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		db, err := OpenVerifiedDB(dataDir)
+		require.NoError(t, err)
+		defer db.Close()
+
+		chainID := eth.ChainIDFromUInt64(10)
+
+		// Commit a few entries
+		for ts := uint64(100); ts <= 102; ts++ {
+			err = db.Commit(VerifiedResult{
+				Timestamp: ts,
+				L1Head:    eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
+				L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
+			})
+			require.NoError(t, err)
+		}
+
+		// Rewind to 0 (delete all)
+		deleted, err := db.Rewind(0)
+		require.NoError(t, err)
+		require.True(t, deleted)
+
+		// No entries should exist
+		for ts := uint64(100); ts <= 102; ts++ {
+			has, err := db.Has(ts)
+			require.NoError(t, err)
+			require.False(t, has)
+		}
+
+		// Last timestamp should be reset to uninitialized
+		_, initialized := db.LastTimestamp()
+		require.False(t, initialized)
+	})
+
+	t.Run("allows sequential commits after rewind", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		db, err := OpenVerifiedDB(dataDir)
+		require.NoError(t, err)
+		defer db.Close()
+
+		chainID := eth.ChainIDFromUInt64(10)
+
+		// Commit 100-105
+		for ts := uint64(100); ts <= 105; ts++ {
+			err = db.Commit(VerifiedResult{
+				Timestamp: ts,
+				L1Head:    eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
+				L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
+			})
+			require.NoError(t, err)
+		}
+
+		// Rewind to 103
+		_, err = db.Rewind(103)
+		require.NoError(t, err)
+
+		// Should be able to commit 103 again (sequential from 102)
+		err = db.Commit(VerifiedResult{
+			Timestamp: 103,
+			L1Head:    eth.BlockID{Hash: common.HexToHash("0xNEW"), Number: 103},
+			L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xNEW2"), Number: 103}},
+		})
+		require.NoError(t, err)
+
+		// Verify new data
+		result, err := db.Get(103)
+		require.NoError(t, err)
+		require.Equal(t, common.HexToHash("0xNEW"), result.L1Head.Hash)
+	})
+}

@@ -146,6 +146,13 @@ func NewTwoL2SupernodeInterop(t devtest.T, delaySeconds uint64) *TwoL2SupernodeI
 	l2aNet := dsl.NewL2Network(l2a, orch.ControlPlane())
 	genesisTime := l2aNet.Escape().RollupConfig().Genesis.L2Time
 
+	// Get the supernode and its test control
+	stackSupernode := system.Supernode(match.Assume(t, match.FirstSupernode))
+	var testControl stack.InteropTestControl
+	if sysgoOrch, ok := orch.(*sysgo.Orchestrator); ok {
+		testControl = sysgoOrch.InteropTestControl(stackSupernode.ID())
+	}
+
 	out := &TwoL2SupernodeInterop{
 		TwoL2: TwoL2{
 			Log:          t.Logger(),
@@ -158,7 +165,7 @@ func NewTwoL2SupernodeInterop(t devtest.T, delaySeconds uint64) *TwoL2SupernodeI
 			L2ACL:        dsl.NewL2CLNode(l2aCL, orch.ControlPlane()),
 			L2BCL:        dsl.NewL2CLNode(l2bCL, orch.ControlPlane()),
 		},
-		Supernode:             dsl.NewSupernode(system.Supernode(match.Assume(t, match.FirstSupernode))),
+		Supernode:             dsl.NewSupernodeWithTestControl(stackSupernode, testControl),
 		L2ELA:                 dsl.NewL2ELNode(l2a.L2ELNode(match.Assume(t, match.FirstL2EL)), orch.ControlPlane()),
 		L2ELB:                 dsl.NewL2ELNode(l2b.L2ELNode(match.Assume(t, match.FirstL2EL)), orch.ControlPlane()),
 		L2BatcherA:            dsl.NewL2Batcher(l2a.L2Batcher(match.Assume(t, match.FirstL2Batcher))),

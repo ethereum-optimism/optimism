@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	gethlog "github.com/ethereum/go-ethereum/log"
@@ -53,6 +54,11 @@ func (h *Heartbeat) Stop(ctx context.Context) error {
 		h.cancel()
 	}
 	return nil
+}
+
+// Reset is a no-op for heartbeat - it has no chain-specific state.
+func (h *Heartbeat) Reset(chainID eth.ChainID, timestamp uint64) {
+	// No-op: heartbeat has no chain-specific cached state
 }
 
 // RPCNamespace returns the JSON-RPC namespace for this activity.

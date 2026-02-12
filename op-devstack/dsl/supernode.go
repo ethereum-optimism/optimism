@@ -14,7 +14,8 @@ import (
 // Supernode wraps a stack.Supernode interface for DSL operations
 type Supernode struct {
 	commonImpl
-	inner stack.Supernode
+	inner       stack.Supernode
+	testControl stack.InteropTestControl
 }
 
 // NewSupernode creates a new Supernode DSL wrapper
@@ -22,6 +23,16 @@ func NewSupernode(inner stack.Supernode) *Supernode {
 	return &Supernode{
 		commonImpl: commonFromT(inner.T()),
 		inner:      inner,
+	}
+}
+
+// NewSupernodeWithTestControl creates a new Supernode DSL wrapper with test control support.
+// The testControl parameter can be nil if no test control is needed.
+func NewSupernodeWithTestControl(inner stack.Supernode, testControl stack.InteropTestControl) *Supernode {
+	return &Supernode{
+		commonImpl:  commonFromT(inner.T()),
+		inner:       inner,
+		testControl: testControl,
 	}
 }
 
@@ -72,4 +83,21 @@ func (s *Supernode) AwaitValidatedTimestamp(timestamp uint64) {
 		return resp.Data != nil, nil
 	})
 	s.require.NoError(err, "super-root at timestamp %d was not validated in time", timestamp)
+}
+
+// PauseInterop pauses the interop activity at the given timestamp.
+// When the interop activity attempts to process this timestamp, it returns early.
+// This function is for integration test control only.
+// Requires the Supernode to be created with NewSupernodeWithTestControl.
+func (s *Supernode) PauseInterop(ts uint64) {
+	s.require.NotNil(s.testControl, "PauseInterop requires test control; use NewSupernodeWithTestControl")
+	s.testControl.PauseInteropActivity(ts)
+}
+
+// ResumeInterop clears any pause on the interop activity, allowing normal processing.
+// This function is for integration test control only.
+// Requires the Supernode to be created with NewSupernodeWithTestControl.
+func (s *Supernode) ResumeInterop() {
+	s.require.NotNil(s.testControl, "ResumeInterop requires test control; use NewSupernodeWithTestControl")
+	s.testControl.ResumeInteropActivity()
 }

@@ -1,58 +1,25 @@
-# Monorepo - default to go-reviewers
-* @ethereum-optimism/go-reviewers
-
-# OP Stack general
-/op-alt-da      @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
-/op-batcher     @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
-/op-chain-ops   @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
-/op-e2e         @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
-/op-node        @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
-/op-proposer    @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
-/op-wheel       @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
-/ops-bedrock    @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
-/op-devstack    @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
+# Monorepo - default to monorepo-reviewers
+* @ethereum-optimism/monorepo-reviewers
 
 # Expert areas
-/op-deployer    @ethereum-optimism/platforms-team
-/op-validator   @ethereum-optimism/platforms-team
 
-/op-node/rollup @ethereum-optimism/consensus @ethereum-optimism/go-reviewers
+/op-node/rollup/derive @ethereum-optimism/consensus # exclusive
+/rust/kona/crates/protocol @ethereum-optimism/consensus # exclusive
 
-/op-supervisor  @ethereum-optimism/interop @ethereum-optimism/go-reviewers
+/op-deployer    @ethereum-optimism/platforms-team @ethereum-optimism/monorepo-reviewers
+/op-validator   @ethereum-optimism/platforms-team @ethereum-optimism/monorepo-reviewers
 
-/op-conductor   @ethereum-optimism/op-conductor @ethereum-optimism/go-reviewers
-
-/cannon                @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
-/op-challenger         @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
-/op-dispute-mon        @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
-/op-preimage           @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
-/op-program            @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
-/op-e2e/actions/proofs @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
-/op-e2e/faultproofs    @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
-
-# Kona
-/kona                  @ethereum-optimism/kona-reviewers
-
-# op-reth
-/op-reth                  @ethereum-optimism/kona-reviewers
-
-# op-alloy
-/op-alloy                  @ethereum-optimism/kona-reviewers
-
-# Alloy OP Hardforks
-/alloy-op-hardforks         @ethereum-optimism/kona-reviewers
-
-# Alloy
-/alloy-op-evm           @ethereum-optimism/kona-reviewers
-
-# Ops
-/.cursor/rules/solidity-styles.mdc @ethereum-optimism/contract-reviewers
+/op-conductor   @ethereum-optimism/op-conductor @ethereum-optimism/monorepo-reviewers
 
 # Contracts
 # We require a minimum of 2 reviewers for all changes to the contracts-bedrock
 # directory unless only markdown files are being changed.
 /packages/contracts-bedrock/**           @ethereum-optimism/contract-reviewers #[min:2]
 /packages/contracts-bedrock/**/*.md      @ethereum-optimism/contract-reviewers
+/.cursor/rules/solidity-styles.mdc       @ethereum-optimism/contract-reviewers
 
 # Security docs
 /docs/security-reviews @ethereum-optimism/evm-safety
+
+# Must come last to avoid being overridden
+/.github/CODEOWNERS  @ethereum-optimism/cloud-security

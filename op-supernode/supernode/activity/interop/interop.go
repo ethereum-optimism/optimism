@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -53,6 +54,11 @@ type Interop struct {
 	currentL1 eth.BlockID
 
 	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
+
+	// pauseAtTimestamp is used for integration test control only.
+	// When non-zero, progressInterop will return early without processing
+	// if the next timestamp to process matches this value.
+	pauseAtTimestamp atomic.Uint64
 }
 
 func (i *Interop) Name() string {
@@ -155,6 +161,22 @@ func (i *Interop) Stop(ctx context.Context) error {
 	return nil
 }
 
+// PauseAt sets a timestamp at which the interop activity should pause.
+// When progressInterop encounters this timestamp, it returns early without processing.
+// This function is for integration test control only.
+// Pass 0 to clear the pause (equivalent to calling Resume).
+func (i *Interop) PauseAt(ts uint64) {
+	i.pauseAtTimestamp.Store(ts)
+	i.log.Info("interop pause set", "pauseAtTimestamp", ts)
+}
+
+// Resume clears any pause timestamp, allowing normal processing to continue.
+// This function is for integration test control only.
+func (i *Interop) Resume() {
+	i.pauseAtTimestamp.Store(0)
+	i.log.Info("interop pause cleared")
+}
+
 // progressAndRecord attempts to progress interop and record the result.
 // Returns (madeProgress, error) where madeProgress indicates if we advanced the verified timestamp.
 func (i *Interop) progressAndRecord() (bool, error) {
@@ -240,6 +262,12 @@ func (i *Interop) progressInterop() (Result, error) {
 		ts = lastTimestamp + 1
 	}
 
+	// Check if we're paused at this timestamp (integration test control only)
+	if pauseTs := i.pauseAtTimestamp.Load(); pauseTs != 0 && ts == pauseTs {
+		i.log.Info("interop paused at timestamp", "timestamp", ts)
+		return Result{}, nil
+	}
+
 	// 1: check if all chains are ready to process the next timestamp.
 	// if all chains are ready, we can proceed to download the logs
 	blocksAtTimestamp, err := i.checkChainsReady(ts)
@@ -294,12 +322,15 @@ func (i *Interop) handleResult(result Result) error {
 	return nil
 }
 
-// invalidateBlock handles an invalid block by notifying the chain to reorg.
+// invalidateBlock notifies the chain container to add the block to the denylist
+// and potentially rewind if the chain is currently using that block.
 func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID) error {
-	// TODO(#18944): Implement block invalidation
-	// This should trigger the chain container to reorg away from the invalid block
-	i.log.Warn("invalidateBlock called but not implemented", "chainID", chainID, "blockID", blockID)
-	return nil
+	chain, ok := i.chains[chainID]
+	if !ok {
+		return fmt.Errorf("chain %s not found", chainID)
+	}
+	_, err := chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash)
+	return err
 }
 
 // checkChainsReady checks if all chains are ready to process the next timestamp.
@@ -361,4 +392,89 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 		return true, nil
 	}
 	return i.verifiedDB.Has(ts)
+}
+
+// Reset is called when a chain container resets to a given timestamp.
+// It prunes the logsDB and verifiedDB for that chain at and after the timestamp.
+func (i *Interop) Reset(chainID eth.ChainID, timestamp uint64) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	i.log.Warn("Reset called",
+		"chainID", chainID,
+		"timestamp", timestamp,
+	)
+
+	chain, chainOk := i.chains[chainID]
+	if !chainOk {
+		i.log.Error("chain not found for reset", "chainID", chainID)
+		return
+	}
+	db, dbOk := i.logsDBs[chainID]
+	if !dbOk {
+		i.log.Error("logsDB not found for reset", "chainID", chainID)
+		return
+	}
+
+	i.resetLogsDB(chainID, chain, db, timestamp)
+	i.resetVerifiedDB(timestamp)
+
+	// Reset the currentL1 to force re-evaluation
+	i.currentL1 = eth.BlockID{}
+}
+
+// resetLogsDB rewinds or clears the logsDB for a chain to the block before the given timestamp.
+func (i *Interop) resetLogsDB(chainID eth.ChainID, chain cc.ChainContainer, db LogsDB, timestamp uint64) {
+	blockTime := chain.BlockTime()
+	targetTs := timestamp - blockTime
+	targetBlock, err := chain.BlockAtTimestamp(i.ctx, targetTs, eth.Safe)
+	if err != nil {
+		// If we can't find the target block, clear the entire logsDB
+		i.log.Warn("failed to get block at timestamp, clearing logsDB", "chainID", chainID, "timestamp", targetTs, "err", err)
+		if clearErr := db.Clear(&noopInvalidator{}); clearErr != nil {
+			i.log.Error("failed to clear logsDB", "chainID", chainID, "err", clearErr)
+		}
+		return
+	}
+
+	// Check the first block in the logsDB to decide whether to clear or rewind
+	firstBlock, err := db.FirstSealedBlock()
+	if err != nil {
+		i.log.Error("failed to get first block", "chainID", chainID, "err", err)
+		return
+	}
+
+	if firstBlock.Number > targetBlock.Number {
+		i.log.Info("logsDB is to be cleared", "chainID", chainID)
+		if err := db.Clear(&noopInvalidator{}); err != nil {
+			i.log.Error("failed to clear logsDB", "chainID", chainID, "err", err)
+		}
+	} else {
+		i.log.Info("logsDB is to be rewound", "chainID", chainID, "targetBlock", targetBlock.Number, "firstBlock", firstBlock.Number)
+		if err := db.Rewind(&noopInvalidator{}, targetBlock.ID()); err != nil {
+			i.log.Error("failed to rewind logsDB", "chainID", chainID, "err", err)
+		}
+	}
+}
+
+// resetVerifiedDB removes any verified results at or after the given timestamp.
+func (i *Interop) resetVerifiedDB(timestamp uint64) {
+	if i.verifiedDB == nil {
+		return
+	}
+
+	deleted, err := i.verifiedDB.Rewind(timestamp)
+	if err != nil {
+		i.log.Error("failed to rewind verifiedDB",
+			"timestamp", timestamp,
+			"err", err,
+		)
+	}
+	if deleted {
+		// This is unexpected - we shouldn't have verified results at timestamps
+		// that are being reset. Log an error for visibility.
+		i.log.Error("UNEXPECTED: verified results were deleted on reset",
+			"timestamp", timestamp,
+		)
+	}
 }

@@ -11,6 +11,7 @@ import (
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -20,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -49,15 +51,29 @@ type ChainContainer interface {
 	FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, types.Receipts, error)
 	// BlockTime returns the block time in seconds for this chain.
 	BlockTime() uint64
+	// InvalidateBlock adds a block to the deny list and triggers a rewind if the chain
+	// currently uses that block at the specified height.
+	// Returns true if a rewind was triggered, false otherwise.
+	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error)
+	// IsDenied checks if a block hash is on the deny list at the given height.
+	IsDenied(height uint64, payloadHash common.Hash) (bool, error)
+	// SetResetCallback sets a callback that is invoked when the chain resets.
+	// The supernode uses this to notify activities about chain resets.
+	SetResetCallback(cb ResetCallback)
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode
+
+// ResetCallback is called when the chain container resets to a given timestamp.
+// The supernode uses this to notify activities about the reset.
+type ResetCallback func(chainID eth.ChainID, timestamp uint64)
 
 type simpleChainContainer struct {
 	vn                 virtual_node.VirtualNode
 	vncfg              *opnodecfg.Config
 	cfg                config.CLIConfig
 	engine             engine_controller.EngineController
+	denyList           *DenyList
 	pause              atomic.Bool
 	stop               atomic.Bool
 	stopped            chan struct{}
@@ -71,10 +87,12 @@ type simpleChainContainer struct {
 	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
 	verifiers          []activity.VerificationActivity
+	onReset            ResetCallback // Called when chain resets to notify activities
 }
 
 // Interface conformance assertions
 var _ ChainContainer = (*simpleChainContainer)(nil)
+var _ rollup.SuperAuthority = (*simpleChainContainer)(nil)
 
 func NewChainContainer(
 	chainID eth.ChainID,
@@ -106,6 +124,13 @@ func NewChainContainer(
 		if err := c.attachInProcRollupClient(); err != nil {
 			log.Warn("failed to attach in-proc rollup client (initial)", "err", err)
 		}
+	}
+	// Initialize the deny list for block invalidation
+	denyListPath := c.subPath("denylist")
+	if denyList, err := OpenDenyList(denyListPath); err != nil {
+		log.Error("failed to open deny list", "err", err)
+	} else {
+		c.denyList = denyList
 	}
 	// Initialize engine controller (separate connection, not an op-node override) with a short setup timeout
 	if vncfg.L2 != nil {
@@ -167,6 +192,8 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 					c.addMetricsRegistry(c.chainID.String(), reg)
 				}
 			}
+			// Pass the chain container as SuperAuthority for payload denylist checks
+			c.initOverload.SuperAuthority = c
 		}
 		c.vn = c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion)
 		if c.pause.Load() {
@@ -225,6 +252,13 @@ func (c *simpleChainContainer) Stop(ctx context.Context) error {
 	// Close engine controller RPC resources
 	if c.engine != nil {
 		_ = c.engine.Close()
+	}
+
+	// Close deny list database
+	if c.denyList != nil {
+		if err := c.denyList.Close(); err != nil {
+			c.log.Error("error closing deny list", "error", err)
+		}
 	}
 
 	select {
@@ -468,6 +502,11 @@ retryLoop:
 		}
 	}
 
+	// Notify activities about the reset
+	if c.onReset != nil {
+		c.onReset(c.chainID, timestamp)
+	}
+
 	// resume the chain container to trigger a new vn to be started
 	err = c.Resume(ctx)
 	if err != nil {
@@ -476,4 +515,27 @@ retryLoop:
 	c.log.Info("chain_container/RewindEngine: resumed container")
 
 	return nil
+}
+
+// SetResetCallback sets a callback that is invoked when the chain resets.
+// This must only be called during initialization, before the chain container starts processing.
+// Calling this while InvalidateBlock may be running is unsafe.
+func (c *simpleChainContainer) SetResetCallback(cb ResetCallback) {
+	c.onReset = cb
+}
+
+// blockNumberToTimestamp converts a block number to its timestamp using rollup config.
+func (c *simpleChainContainer) blockNumberToTimestamp(blockNum uint64) uint64 {
+	if c.vncfg == nil {
+		return 0
+	}
+	return c.vncfg.Rollup.Genesis.L2Time + (blockNum * c.vncfg.Rollup.BlockTime)
+}
+
+// IsDenied checks if a block hash is on the deny list at the given height.
+func (c *simpleChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
+	if c.denyList == nil {
+		return false, fmt.Errorf("deny list not initialized")
+	}
+	return c.denyList.Contains(height, payloadHash)
 }

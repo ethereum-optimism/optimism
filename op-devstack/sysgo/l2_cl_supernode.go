@@ -143,6 +143,26 @@ func (n *SuperNode) Stop() {
 	n.sn = nil
 }
 
+// PauseInteropActivity pauses the interop activity at the given timestamp.
+// This function is for integration test control only.
+func (n *SuperNode) PauseInteropActivity(ts uint64) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sn != nil {
+		n.sn.PauseInteropActivity(ts)
+	}
+}
+
+// ResumeInteropActivity clears any pause on the interop activity.
+// This function is for integration test control only.
+func (n *SuperNode) ResumeInteropActivity() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sn != nil {
+		n.sn.ResumeInteropActivity()
+	}
+}
+
 // WithSupernode constructs a Supernode-based L2 CL node
 func WithSupernode(supernodeID stack.SupernodeID, l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	args := []L2CLs{{CLID: l2CLID, ELID: l2ELID}}

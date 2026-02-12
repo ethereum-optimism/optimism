@@ -1,0 +1,54 @@
+[package]
+name = "reth-optimism-payload-builder"
+version = "1.10.2"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage = "https://paradigmxyz.github.io/reth"
+repository = "https://github.com/paradigmxyz/reth"
+description = "A payload builder for op-reth that builds optimistic payloads."
+
+[lints]
+workspace = true
+
+[dependencies]
+# reth
+reth-chainspec.workspace = true
+reth-primitives-traits.workspace = true
+reth-revm = { workspace = true, features = ["witness"] }
+reth-transaction-pool.workspace = true
+reth-storage-api.workspace = true
+reth-evm.workspace = true
+reth-execution-types.workspace = true
+reth-payload-builder.workspace = true
+reth-payload-builder-primitives.workspace = true
+reth-payload-util.workspace = true
+reth-payload-primitives = { workspace = true, features = ["op"] }
+reth-basic-payload-builder.workspace = true
+reth-payload-validator.workspace = true
+
+# op-reth
+reth-optimism-evm.workspace = true
+reth-optimism-forks.workspace = true
+reth-optimism-primitives.workspace = true
+reth-optimism-txpool.workspace = true
+
+# ethereum
+revm.workspace = true
+alloy-eips.workspace = true
+alloy-primitives.workspace = true
+alloy-rlp.workspace = true
+op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+op-alloy-consensus.workspace = true
+alloy-rpc-types-engine.workspace = true
+alloy-rpc-types-debug.workspace = true
+alloy-consensus.workspace = true
+alloy-evm.workspace = true
+
+# misc
+derive_more.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+sha2.workspace = true
+serde.workspace = true
+either.workspace = true

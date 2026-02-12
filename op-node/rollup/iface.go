@@ -1,6 +1,20 @@
 package rollup
 
-import "github.com/ethereum-optimism/optimism/op-service/eth"
+import (
+	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
+
+// SuperAuthority provides payload validation functionality from a supernode.
+// When running inside a supernode, this allows the engine controller to check
+// if payloads are denied before applying them, enabling coordinated block invalidation.
+type SuperAuthority interface {
+	// IsDenied checks if a payload hash is denied at the given block number.
+	// Returns true if the payload should not be applied.
+	// The error indicates if the check could not be performed (should be logged but not fatal).
+	IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error)
+}
 
 // SafeHeadListener is called when the safe head is updated.
 // The safe head may advance by more than one block in a single update

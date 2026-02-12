@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
@@ -97,6 +98,13 @@ func (m *mockCC) ID() eth.ChainID {
 }
 
 func (m *mockCC) BlockTime() uint64 { return 1 }
+func (m *mockCC) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+	return false, nil
+}
+func (m *mockCC) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
+	return false, nil
+}
+func (m *mockCC) SetResetCallback(cb cc.ResetCallback) {}
 
 var _ cc.ChainContainer = (*mockCC)(nil)
 
