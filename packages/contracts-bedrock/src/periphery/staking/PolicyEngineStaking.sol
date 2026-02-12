@@ -34,6 +34,14 @@ contract PolicyEngineStaking {
         uint128 lastUpdate;
     }
 
+    /// @notice Operation for updating a balance (add or subtract).
+    /// @param DECREASE Decrease the balance.
+    /// @param INCREASE Increase the balance.
+    enum UpdateOperation {
+        DECREASE,
+        INCREASE
+    }
+
     /// @notice Base storage slot for PE data mapping. Policy Engine reads from keccak256(abi.encode(account,
     /// PE_DATA_SLOT)). Struct is packed: effectiveStake (128 bits) | lastUpdate (128 bits).
     bytes32 public constant PE_DATA_SLOT = bytes32(uint256(0));
@@ -116,9 +124,6 @@ contract PolicyEngineStaking {
     /// @notice Thrown when trying to stake while not linked and having stake.
     error PolicyEngineStaking_MustLinkOrUnstakeFirst();
 
-    /// @notice Thrown when amount exceeds uint128 max (PE effectiveStake limit).
-    error PolicyEngineStaking_AmountExceedsEffectiveStakeLimit();
-
     /// @notice Thrown when the staker has received stake from another beneficiary.
     error PolicyEngineStaking_StakerHasReceivedStake();
 
@@ -134,6 +139,7 @@ contract PolicyEngineStaking {
         _;
     }
 
+    /// @notice Modifier that reverts when the caller is not the owner.
     modifier onlyOwner() {
         if (msg.sender != OWNER_ADDRESS) revert PolicyEngineStaking_OnlyOwner();
         _;
@@ -162,36 +168,36 @@ contract PolicyEngineStaking {
     ///                     Use address(0) for self-attribution.
     function stake(uint256 _amount, address _beneficiary) external whenNotPaused {
         if (_amount == 0) revert PolicyEngineStaking_ZeroAmount();
-        if (_amount > type(uint128).max) revert PolicyEngineStaking_AmountExceedsEffectiveStakeLimit();
-        if (_beneficiary == msg.sender) revert PolicyEngineStaking_CannotLinkToSelf();
 
-        (uint256 stakedAmount, uint256 receivedStake, address linkedTo) = _getStakedData(msg.sender);
+        // Get staking data of msg.sender
+        StakedData storage stakingData = _stakingData[msg.sender];
 
         // Check if self-attribution
-        bool isSelfAttribution = _beneficiary == address(0);
+        bool isSelfAttribution = _beneficiary == address(0) || _beneficiary == msg.sender;
 
         // If self-attribution, check if already linked to a different beneficiary
         if (isSelfAttribution) {
             // It is not allowed to self-attribute and be linked to a different beneficiary.
-            if (linkedTo != address(0)) revert PolicyEngineStaking_AlreadyLinked();
-            _increasePeData(msg.sender, _amount);
+            if (stakingData.linkedTo != address(0)) revert PolicyEngineStaking_AlreadyLinked();
+            // Update PE data of the staker
+            _updatePeData(msg.sender, _amount, UpdateOperation.INCREASE);
         } else {
-            // Check if staker has received stake, if you are already have received stake from another beneficiary, you
-            // cannot link to another
-            // beneficiary.
-            if (receivedStake > 0) revert PolicyEngineStaking_StakerHasReceivedStake();
             // If not self-attribution, check if already staked and not linked to a beneficiary.
-            if (linkedTo == address(0) && stakedAmount > 0) revert PolicyEngineStaking_MustLinkOrUnstakeFirst();
+            if (stakingData.linkedTo == address(0) && stakingData.stakedAmount > 0) {
+                revert PolicyEngineStaking_MustLinkOrUnstakeFirst();
+            }
             // Check if already linked to a different beneficiary.
-            if (linkedTo != _beneficiary && linkedTo != address(0)) revert PolicyEngineStaking_AlreadyLinked();
-            // Check if the staker is allowed to link to the beneficiary.
-            if (!allowlist[_beneficiary][msg.sender]) revert PolicyEngineStaking_NotAllowedToLink();
-            _setStakeToBeneficiary(_beneficiary, _amount, true);
-            _increasePeData(_beneficiary, _amount);
+            if (stakingData.linkedTo != _beneficiary && stakingData.linkedTo != address(0)) {
+                revert PolicyEngineStaking_AlreadyLinked();
+            }
+            // Attribute stake to the beneficiary
+            _attributeToBeneficiary(msg.sender, _beneficiary, stakingData.receivedStake, _amount, true);
         }
 
         // Update staking data
-        _setStakedData(msg.sender, stakedAmount + _amount, receivedStake, _beneficiary);
+        stakingData.stakedAmount += _amount;
+        // Update linked beneficiary
+        stakingData.linkedTo = isSelfAttribution ? address(0) : _beneficiary;
 
         // Transfer tokens from caller to contract (interaction last)
         IERC20(Predeploys.GOVERNANCE_TOKEN).safeTransferFrom(msg.sender, address(this), _amount);
@@ -199,26 +205,36 @@ contract PolicyEngineStaking {
         emit Staked(msg.sender, _beneficiary, _amount);
     }
 
-    /// @notice Unstakes all OP tokens from the contract.
+    /// @notice Unstakes all tokens of the caller from the contract.
     function unstake() external {
-        (uint256 stakedAmount, uint256 receivedStake, address linkedTo) = _getStakedData(msg.sender);
+        // Get staking data of msg.sender
+        StakedData storage stakingData = _stakingData[msg.sender];
 
-        if (stakedAmount == 0) revert PolicyEngineStaking_NoStake();
+        // Check if staker has no stake
+        if (stakingData.stakedAmount == 0) revert PolicyEngineStaking_NoStake();
 
+        // Get amount of tokens to unstake
+        uint256 amount = stakingData.stakedAmount;
+        // Get linked beneficiary
+        address linkedTo = stakingData.linkedTo;
+
+        // If not linked, decrease PE data and return tokens to the staker
         if (linkedTo == address(0)) {
-            _decreasePeData(msg.sender, stakedAmount);
+            _updatePeData(msg.sender, amount, UpdateOperation.DECREASE);
         } else {
-            _setStakeToBeneficiary(linkedTo, stakedAmount, false);
-            _decreasePeData(linkedTo, stakedAmount);
+            // If linked, unlink and decrease PE data and received stake of the beneficiary
+            _stakingData[linkedTo].receivedStake = _stakingData[linkedTo].receivedStake - amount;
+            _updatePeData(linkedTo, amount, UpdateOperation.DECREASE);
         }
 
-        // Clear staking data (stakedAmount = 0, linkedTo = address(0))
-        _setStakedData(msg.sender, 0, receivedStake, address(0));
+        // Update staking data
+        stakingData.stakedAmount = 0;
+        stakingData.linkedTo = address(0);
 
         // Transfer all tokens back to caller
-        IERC20(Predeploys.GOVERNANCE_TOKEN).safeTransfer(msg.sender, stakedAmount);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).safeTransfer(msg.sender, amount);
 
-        emit Unstaked(msg.sender, stakedAmount);
+        emit Unstaked(msg.sender, amount);
     }
 
     /// @notice Links the caller's stake to a beneficiary for ordering power.
@@ -230,41 +246,44 @@ contract PolicyEngineStaking {
         // Check if trying to link to self
         if (_beneficiary == msg.sender) revert PolicyEngineStaking_CannotLinkToSelf();
 
-        (uint256 stakedAmount, uint256 receivedStake, address linkedTo) = _getStakedData(msg.sender);
-
-        // Check if staker has received stake, if you are already have received stake from another beneficiary, you
-        // cannot link to another
-        // beneficiary.
-        if (receivedStake > 0) revert PolicyEngineStaking_StakerHasReceivedStake();
+        StakedData storage stakingData = _stakingData[msg.sender];
 
         // Check if staker has no stake
-        if (stakedAmount == 0) revert PolicyEngineStaking_NoStake();
+        if (stakingData.stakedAmount == 0) revert PolicyEngineStaking_NoStake();
 
-        // Check if already linked
-        if (linkedTo != address(0)) revert PolicyEngineStaking_AlreadyLinked();
+        // Check if already linked to a different beneficiary. As in stake we not allow to do a self-attribution and be
+        // linked to a different beneficiary, so we can just check if linked to a different beneficiary.
+        if (stakingData.linkedTo != address(0)) revert PolicyEngineStaking_AlreadyLinked();
 
-        // Check if staker is allowed to link to the beneficiary
-        if (!allowlist[_beneficiary][msg.sender]) revert PolicyEngineStaking_NotAllowedToLink();
-
-        _setStakedData(msg.sender, stakedAmount, receivedStake, _beneficiary);
-        _setStakeToBeneficiary(_beneficiary, stakedAmount, true);
-        _increasePeData(_beneficiary, stakedAmount);
-        _decreasePeData(msg.sender, stakedAmount);
+        // Update linked beneficiary
+        stakingData.linkedTo = _beneficiary;
+        // Attribute stake to the beneficiary
+        _attributeToBeneficiary(msg.sender, _beneficiary, stakingData.receivedStake, stakingData.stakedAmount, false);
 
         emit Linked(msg.sender, _beneficiary);
     }
 
     /// @notice Removes the current beneficiary attribution and reverts to self-attribution.
     function unlink() external {
-        (uint256 stakedAmount, uint256 receivedStake, address linkedTo) = _getStakedData(msg.sender);
+        StakedData storage stakingData = _stakingData[msg.sender];
 
         // Check if linked
-        if (linkedTo == address(0)) revert PolicyEngineStaking_NotLinked();
+        if (stakingData.linkedTo == address(0)) revert PolicyEngineStaking_NotLinked();
 
-        _setStakedData(msg.sender, stakedAmount, receivedStake, address(0));
-        _setStakeToBeneficiary(linkedTo, stakedAmount, false);
-        _decreasePeData(linkedTo, stakedAmount);
-        _increasePeData(msg.sender, stakedAmount);
+        // Get amount of tokens to unstake
+        uint256 amount = stakingData.stakedAmount;
+        address linkedTo = stakingData.linkedTo;
+
+        // Update linked beneficiary
+        stakingData.linkedTo = address(0);
+        stakingData.receivedStake = 0;
+
+        // Decrease PE data and received stake of the linked beneficiary
+        _updatePeData(linkedTo, amount, UpdateOperation.DECREASE);
+        _stakingData[linkedTo].receivedStake = _stakingData[linkedTo].receivedStake - amount;
+
+        // Increase PE data of the staker
+        _updatePeData(msg.sender, amount, UpdateOperation.INCREASE);
 
         emit Unlinked(msg.sender, linkedTo);
     }
@@ -290,62 +309,46 @@ contract PolicyEngineStaking {
         }
     }
 
-    /// @notice Increases beneficiary's received stake (staking data only, not PE data).
-    /// @param _beneficiary The beneficiary address.
-    /// @param _amount The amount to increase.
-    /// @param _add Whether to add the stake or remove it.
-    function _setStakeToBeneficiary(address _beneficiary, uint256 _amount, bool _add) internal {
-        if (_add) {
-            _stakingData[_beneficiary].receivedStake += _amount;
-        } else {
-            _stakingData[_beneficiary].receivedStake -= _amount;
-        }
-    }
-
-    /// @notice Sets staking data for an account.
-    /// @param _account         The account address.
-    /// @param _stakedAmount    The staked amount.
-    /// @param _receivedStake   The received stake from others.
-    /// @param _linkedAddressTo The linked beneficiary address.
-    function _setStakedData(
-        address _account,
-        uint256 _stakedAmount,
+    /// @notice Attributes stake to a beneficiary: updates PE data and beneficiary's receivedStake.
+    /// @param _staker      The account whose stake is being attributed.
+    /// @param _beneficiary The beneficiary receiving the attribution.
+    /// @param _amount      The amount to attribute.
+    /// @param _isNewStake  If true, new tokens (no decrease on staker); if false, moving existing stake.
+    function _attributeToBeneficiary(
+        address _staker,
+        address _beneficiary,
         uint256 _receivedStake,
-        address _linkedAddressTo
+        uint256 _amount,
+        bool _isNewStake
     )
         internal
     {
-        _stakingData[_account] =
-            StakedData({ stakedAmount: _stakedAmount, receivedStake: _receivedStake, linkedTo: _linkedAddressTo });
+        // If the staker has received stake from another beneficiary , cannot link to a different beneficiary.
+        if (_receivedStake > 0) revert PolicyEngineStaking_StakerHasReceivedStake();
+        // Check if the staker is allowed to link to the beneficiary.
+        if (!allowlist[_beneficiary][_staker]) revert PolicyEngineStaking_NotAllowedToLink();
+        // Update beneficiary's received stake
+        _stakingData[_beneficiary].receivedStake = _stakingData[_beneficiary].receivedStake + _amount;
+        _updatePeData(_beneficiary, _amount, UpdateOperation.INCREASE);
+        if (!_isNewStake) {
+            _updatePeData(_staker, _amount, UpdateOperation.DECREASE);
+        }
     }
 
-    /// @notice Gets staking data for an account.
+    /// @notice Updates PE data (effective stake) and last update timestamp for an account.
     /// @param _account The account address.
-    /// @return The staked amount.
-    /// @return The received stake from others.
-    /// @return The linked beneficiary address.
-    function _getStakedData(address _account) internal view returns (uint256, uint256, address) {
-        StakedData memory d = _stakingData[_account];
-        return (d.stakedAmount, d.receivedStake, d.linkedTo);
-    }
-
-    /// @notice Increases PE data (effective stake) and updates last update timestamp for an account.
-    /// @param _account The account address.
-    /// @param _amount The amount to increase.
-    function _increasePeData(address _account, uint256 _amount) internal {
-        if (_amount > type(uint128).max) revert PolicyEngineStaking_AmountExceedsEffectiveStakeLimit();
+    /// @param _amount The amount to add or subtract.
+    /// @param _direction Increase or Decrease.
+    function _updatePeData(address _account, uint256 _amount, UpdateOperation _direction) internal {
         PEData storage pe = peData[_account];
-        pe.effectiveStake += uint128(_amount);
-        pe.lastUpdate = uint64(block.timestamp);
-    }
 
-    /// @notice Decreases PE data (effective stake) and updates last update timestamp for an account.
-    /// @param _account The account address.
-    /// @param _amount The amount to decrease.
-    function _decreasePeData(address _account, uint256 _amount) internal {
-        if (_amount > type(uint128).max) revert PolicyEngineStaking_AmountExceedsEffectiveStakeLimit();
-        PEData storage pe = peData[_account];
-        pe.effectiveStake -= uint128(_amount);
-        pe.lastUpdate = uint64(block.timestamp);
+        // If increasing, add the amount to the effective stake.
+        // If decreasing, subtract the amount from the effective stake.
+        pe.effectiveStake = _direction == UpdateOperation.INCREASE
+            ? pe.effectiveStake + uint128(_amount)
+            : pe.effectiveStake - uint128(_amount);
+
+        // Update the last update timestamp.
+        pe.lastUpdate = uint128(block.timestamp);
     }
 }

@@ -284,16 +284,6 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         staking.stake(0, address(0));
     }
 
-    /// @notice Tests that staking to self (msg.sender as beneficiary) reverts.
-    function test_stake_toSelf_reverts() external {
-        vm.prank(alice);
-        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 100 ether);
-
-        vm.prank(alice);
-        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_CannotLinkToSelf.selector);
-        staking.stake(100 ether, alice);
-    }
-
     /// @notice Tests that staking to another beneficiary without allowlist reverts.
     function test_stake_toBeneficiaryWithoutAllowlist_reverts() external {
         vm.prank(alice);
@@ -373,17 +363,6 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         vm.prank(alice);
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_NotAllowedToLink.selector);
         staking.stake(50 ether, bob);
-    }
-
-    /// @notice Tests that staking with amount > type(uint128).max reverts (effectiveStake limit).
-    function test_stake_amountExceedsUint128_reverts() external {
-        uint256 excessAmount = type(uint128).max;
-        excessAmount++;
-        // Revert happens in _increasePeData before transfer; no need to mint (avoids token overflow).
-
-        vm.prank(alice);
-        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_AmountExceedsEffectiveStakeLimit.selector);
-        staking.stake(excessAmount, address(0));
     }
 
     /// @notice Tests that staking to beneficiary reverts when caller has received stake from others.
@@ -492,7 +471,7 @@ contract PolicyEngineStaking_Unstake_Test is PolicyEngineStaking_TestInit {
         staking.unstake();
     }
 
-    /// @notice Tests that unstaking after staking type(uint128).max succeeds (_decreasePeData at boundary).
+    /// @notice Tests that unstaking after staking type(uint128).max succeeds (_updatePeData at boundary).
     function test_unstake_afterStakingUint128Max_succeeds() external {
         uint256 maxAmount = type(uint128).max;
         TestERC20(Predeploys.GOVERNANCE_TOKEN).mint(alice, maxAmount);
@@ -916,5 +895,32 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
         vm.prank(bob);
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_StakerHasReceivedStake.selector);
         staking.link(carol);
+    }
+
+    /// @notice Tests that lastUpdate is updated after new staking and linking when time advances.
+    function test_lastUpdate_updatesAfterStakingAndLinking_succeeds() external {
+        // Initial stake
+        _stake(alice, 100 ether, address(0));
+        (, uint128 lastUpdate0) = staking.peData(alice);
+        uint256 ts0 = block.timestamp;
+        assertEq(lastUpdate0, ts0);
+
+        // Warp time and stake again; lastUpdate should advance
+        vm.warp(block.timestamp + 1);
+        vm.prank(alice);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
+        vm.prank(alice);
+        staking.stake(50 ether, address(0));
+        (, uint128 lastUpdate1) = staking.peData(alice);
+        assertEq(lastUpdate1, ts0 + 1);
+
+        // Warp time and link to bob; bob's lastUpdate should be the new timestamp
+        vm.warp(block.timestamp + 1);
+        vm.prank(bob);
+        staking.setAllowedStaker(alice, true);
+        vm.prank(alice);
+        staking.link(bob);
+        (, uint128 bobLastUpdate) = staking.peData(bob);
+        assertEq(bobLastUpdate, ts0 + 2);
     }
 }
