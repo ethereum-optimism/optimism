@@ -71,6 +71,8 @@ func TestSupernodeInterop_SafeHeadTrailsLocalSafe(gt *testing.T) {
 	// Check EL labels
 	safeA := sys.L2ELA.BlockRefByLabel(eth.Safe)
 	safeB := sys.L2ELB.BlockRefByLabel(eth.Safe)
+	require.Less(t, safeA.Number, initialTargetBlockNum)
+	require.Less(t, safeB.Number, initialTargetBlockNum)
 
 	// Resume interop verification
 	// expect cross safe to catch up
