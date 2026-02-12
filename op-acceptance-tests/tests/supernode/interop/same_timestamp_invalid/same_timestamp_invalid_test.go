@@ -44,7 +44,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// TestSupernodeSameTimestampInvalidExecMessage tests that executing messages
+// TestSupernodeSameTimestampExecMessage tests that executing messages
 // referencing initiating messages from the same timestamp are detected as invalid
 // and the containing block is replaced.
 //
@@ -54,7 +54,7 @@ import (
 // - Interop detects the invalid executing message
 // - Chain B's block is replaced with a deposits-only block
 // - The executing message transaction no longer exists
-func TestSupernodeSameTimestampInvalidExecMessage(gt *testing.T) {
+func TestSupernodeSameTimestampExecMessage(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 	ctx := t.Ctx()
