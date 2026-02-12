@@ -58,7 +58,7 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 	targetTimestamp := sys.L2A.TimestampForBlockNum(10)
 	// Pause just after the target to allow verification up to target, then stop
 	pauseTimestamp := targetTimestamp + 1
-	err := sys.Supernode.PauseInterop(pauseTimestamp)
+	err := sys.Supernode.PauseInteropActivity(pauseTimestamp)
 	require.NoError(t, err, "failed to pause interop: activity may have already progressed past target")
 	sys.Supernode.AwaitValidatedTimestamp(targetTimestamp)
 
@@ -90,7 +90,7 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 	// Resume interop and observe reorg
 	// Interop activity will proceed and invalidate the block, triggering a rewind, and building a replacement block
 	// We observe resets and replacements, but only proceed on replacement (we may miss reset if it happens quickly)
-	sys.Supernode.ResumeInterop()
+	sys.Supernode.ResumeInteropActivity()
 	require.Eventually(t, func() bool {
 		// Check if the block hash at the invalid block number changed or block doesn't exist
 		// Use the EthClient directly to handle errors (block may not exist after rewind)
