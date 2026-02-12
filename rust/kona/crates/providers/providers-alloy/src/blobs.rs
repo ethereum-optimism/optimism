@@ -31,7 +31,7 @@ pub struct BlobWithCommitmentAndProof {
     pub kzg_proof: Bytes48,
 }
 
-/// An online implementation of the [BlobProvider] trait.
+/// An online implementation of the [`BlobProvider`] trait.
 #[derive(Debug, Clone)]
 pub struct OnlineBlobProvider<B: BeaconClient> {
     /// The Beacon API client.
