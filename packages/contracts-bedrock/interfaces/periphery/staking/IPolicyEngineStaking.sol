@@ -37,7 +37,7 @@ interface IPolicyEngineStaking {
     /// @notice Thrown when the beneficiary address is zero.
     error PolicyEngineStaking_ZeroBeneficiary();
 
-    /// @notice Thrown when trying to link to self. Use address(0) when staking for self-attribution.
+    /// @notice Thrown when trying to link to self. Use msg.sender when staking for self-attribution.
     error PolicyEngineStaking_CannotLinkToSelf();
 
     /// @notice Thrown when the staker is not allowed to link to the beneficiary.
@@ -57,6 +57,9 @@ interface IPolicyEngineStaking {
 
     /// @notice Thrown when the staker has received stake from another beneficiary.
     error PolicyEngineStaking_StakerHasReceivedStake();
+
+    /// @notice Thrown when staking to a beneficiary who is themselves linked to another (linkers cannot receive stake).
+    error PolicyEngineStaking_BeneficiaryIsLinked();
 
     /// @notice Returns the contract owner.
     function owner() external view returns (address);
@@ -82,7 +85,7 @@ interface IPolicyEngineStaking {
 
     /// @notice Stakes OP tokens and attributes ordering power to a beneficiary.
     /// @param _amount      The amount of OP tokens to stake.
-    /// @param _beneficiary Address that receives ordering power. Use address(0) for self-attribution.
+    /// @param _beneficiary Address that receives ordering power. Use msg.sender for self-attribution.
     function stake(uint256 _amount, address _beneficiary) external;
 
     /// @notice Unstakes all tokens of the caller from the contract.

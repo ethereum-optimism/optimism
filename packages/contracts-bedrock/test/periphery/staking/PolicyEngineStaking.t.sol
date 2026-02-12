@@ -125,12 +125,12 @@ contract PolicyEngineStaking_Pause_Test is PolicyEngineStaking_TestInit {
 
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_Paused.selector);
         vm.prank(alice);
-        staking.stake(100 ether, address(0));
+        staking.stake(100 ether, alice);
     }
 
     /// @notice Tests that link reverts when paused.
     function test_link_whenPaused_reverts() external {
-        _stake(alice, 100 ether, address(0));
+        _stake(alice, 100 ether, alice);
         vm.prank(bob);
         staking.setAllowedStaker(alice, true);
 
@@ -144,7 +144,7 @@ contract PolicyEngineStaking_Pause_Test is PolicyEngineStaking_TestInit {
 
     /// @notice Tests that unstake works when paused.
     function test_unstake_whenPaused_succeeds() external {
-        _stake(alice, 100 ether, address(0));
+        _stake(alice, 100 ether, alice);
         vm.prank(owner);
         staking.pause();
 
@@ -156,7 +156,7 @@ contract PolicyEngineStaking_Pause_Test is PolicyEngineStaking_TestInit {
 
     /// @notice Tests that unlink works when paused.
     function test_unlink_whenPaused_succeeds() external {
-        _stake(alice, 100 ether, address(0));
+        _stake(alice, 100 ether, alice);
         vm.prank(bob);
         staking.setAllowedStaker(alice, true);
         vm.prank(alice);
@@ -185,10 +185,10 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), amount);
 
         vm.expectEmit(address(staking));
-        emit Staked(alice, address(0), amount);
+        emit Staked(alice, alice, amount);
 
         vm.prank(alice);
-        staking.stake(amount, address(0));
+        staking.stake(amount, alice);
 
         (uint256 staked, uint256 received, address linkedTo) = staking.stakingData(alice);
         (uint128 effectiveStake, uint128 lastUpdate) = staking.peData(alice);
@@ -201,9 +201,9 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
     }
 
     function test_stake_severalSelfAttributions_succeeds() external {
-        _stake(alice, 100 ether, address(0));
-        _stake(alice, 200 ether, address(0));
-        _stake(alice, 300 ether, address(0));
+        _stake(alice, 100 ether, alice);
+        _stake(alice, 200 ether, alice);
+        _stake(alice, 300 ether, alice);
 
         (uint256 aliceStaked, uint256 aliceReceived,) = staking.stakingData(alice);
         assertEq(aliceStaked, 600 ether);
@@ -270,7 +270,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), _amount);
 
         vm.prank(alice);
-        staking.stake(_amount, address(0));
+        staking.stake(_amount, alice);
 
         (uint128 effectiveStake, uint128 lastUpdate) = staking.peData(alice);
         assertEq(effectiveStake, _amount);
@@ -281,7 +281,34 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
     function test_stake_zeroAmount_reverts() external {
         vm.prank(alice);
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_ZeroAmount.selector);
-        staking.stake(0, address(0));
+        staking.stake(0, alice);
+    }
+
+    /// @notice Tests that staking with zero beneficiary reverts.
+    function test_stake_zeroBeneficiary_reverts() external {
+        vm.prank(alice);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 100 ether);
+
+        vm.prank(alice);
+        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_ZeroBeneficiary.selector);
+        staking.stake(100 ether, address(0));
+    }
+
+    /// @notice Tests that staking to a beneficiary who is linked to another reverts.
+    function test_stake_toLinkedBeneficiary_reverts() external {
+        vm.prank(bob);
+        staking.setAllowedStaker(alice, true);
+        _stake(alice, 100 ether, bob); // Alice is now linked to Bob
+
+        vm.prank(alice);
+        staking.setAllowedStaker(carol, true);
+
+        vm.prank(carol);
+        IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
+
+        vm.prank(carol);
+        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_BeneficiaryIsLinked.selector);
+        staking.stake(50 ether, alice); // Carol cannot stake to Alice (Alice is linked to Bob)
     }
 
     /// @notice Tests that staking to another beneficiary without allowlist reverts.
@@ -305,12 +332,12 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
 
         vm.prank(alice);
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_AlreadyLinked.selector);
-        staking.stake(100 ether, address(0));
+        staking.stake(100 ether, alice);
     }
 
     /// @notice Tests that staking to beneficiary with existing self-stake reverts (must link or unstake first).
     function test_stake_mustLinkOrUnstakeFirst_reverts() external {
-        _stake(alice, 100 ether, address(0));
+        _stake(alice, 100 ether, alice);
 
         vm.prank(bob);
         staking.setAllowedStaker(alice, true);
@@ -397,11 +424,11 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         (, uint256 aliceReceived,) = staking.stakingData(alice);
         assertEq(aliceReceived, 100 ether);
 
-        // Alice can still self-stake (stake to address(0))
+        // Alice can still self-stake (stake to self)
         vm.prank(alice);
         IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
         vm.prank(alice);
-        staking.stake(50 ether, address(0));
+        staking.stake(50 ether, alice);
 
         (uint256 aliceStaked,,) = staking.stakingData(alice);
         (uint128 aliceEffective,) = staking.peData(alice);
@@ -419,7 +446,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), maxAmount);
 
         vm.prank(alice);
-        staking.stake(maxAmount, address(0));
+        staking.stake(maxAmount, alice);
 
         (uint128 effectiveStake,) = staking.peData(alice);
         assertEq(effectiveStake, maxAmount);
@@ -431,7 +458,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
 contract PolicyEngineStaking_Unstake_Test is PolicyEngineStaking_TestInit {
     /// @notice Tests that unstaking succeeds.
     function test_unstake_succeeds() external {
-        _stake(alice, 100 ether, address(0));
+        _stake(alice, 100 ether, alice);
 
         uint256 aliceBalanceBefore = IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
 
@@ -479,7 +506,7 @@ contract PolicyEngineStaking_Unstake_Test is PolicyEngineStaking_TestInit {
         vm.prank(alice);
         IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), maxAmount);
         vm.prank(alice);
-        staking.stake(maxAmount, address(0));
+        staking.stake(maxAmount, alice);
 
         (uint128 effectiveBefore,) = staking.peData(alice);
         assertEq(effectiveBefore, maxAmount);
@@ -502,7 +529,7 @@ contract PolicyEngineStaking_Link_Test is PolicyEngineStaking_TestInit {
     /// @notice Tests that linking to beneficiary succeeds.
     function test_link_succeeds() external {
         uint256 amount = 100 ether;
-        _stake(alice, amount, address(0));
+        _stake(alice, amount, alice);
 
         vm.prank(bob);
         staking.setAllowedStaker(alice, true);
@@ -519,7 +546,7 @@ contract PolicyEngineStaking_Link_Test is PolicyEngineStaking_TestInit {
 
     /// @notice Tests that linking to self reverts (would break receivedStake accounting).
     function test_link_linkToSelf_reverts() external {
-        _stake(alice, 100 ether, address(0));
+        _stake(alice, 100 ether, alice);
 
         vm.prank(alice);
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_CannotLinkToSelf.selector);
@@ -528,7 +555,7 @@ contract PolicyEngineStaking_Link_Test is PolicyEngineStaking_TestInit {
 
     /// @notice Tests that linking with zero beneficiary reverts.
     function test_link_zeroBeneficiary_reverts() external {
-        _stake(alice, 100 ether, address(0));
+        _stake(alice, 100 ether, alice);
 
         vm.prank(alice);
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_ZeroBeneficiary.selector);
@@ -537,7 +564,7 @@ contract PolicyEngineStaking_Link_Test is PolicyEngineStaking_TestInit {
 
     /// @notice Tests that linking without allowlist reverts.
     function test_link_notAllowed_reverts() external {
-        _stake(alice, 100 ether, address(0));
+        _stake(alice, 100 ether, alice);
 
         vm.prank(alice);
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_NotAllowedToLink.selector);
@@ -565,7 +592,7 @@ contract PolicyEngineStaking_Link_Test is PolicyEngineStaking_TestInit {
     /// @notice Tests that linking reverts when caller has received stake from others.
     function test_link_stakerHasReceivedStake_reverts() external {
         // Bob stakes self, Alice links to Bob -> Bob has receivedStake > 0
-        _stake(bob, 100 ether, address(0));
+        _stake(bob, 100 ether, bob);
         vm.prank(bob);
         staking.setAllowedStaker(alice, true);
         _stake(alice, 50 ether, bob);
@@ -680,11 +707,11 @@ contract PolicyEngineStaking_Uncategorized_Test is PolicyEngineStaking_TestInit 
         (uint256 staked,,) = staking.stakingData(alice);
         assertEq(staked, 0);
 
-        _stake(alice, 100 ether, address(0));
+        _stake(alice, 100 ether, alice);
         (staked,,) = staking.stakingData(alice);
         assertEq(staked, 100 ether);
 
-        _stake(alice, 50 ether, address(0));
+        _stake(alice, 50 ether, alice);
         (staked,,) = staking.stakingData(alice);
         assertEq(staked, 150 ether);
     }
@@ -710,7 +737,7 @@ contract PolicyEngineStaking_Uncategorized_Test is PolicyEngineStaking_TestInit 
 contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
     /// @notice Tests full flow: stake -> link -> stake more -> unlink -> unstake.
     function test_fullFlow_succeeds() external {
-        _stake(alice, 100 ether, address(0));
+        _stake(alice, 100 ether, alice);
         (uint256 staked,,) = staking.stakingData(alice);
         assertEq(staked, 100 ether);
 
@@ -763,7 +790,7 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
 
     /// @notice Tests that a beneficiary with own stake plus received stake has correct effective stake.
     function test_beneficiaryWithOwnStakeAndReceived_succeeds() external {
-        _stake(bob, 50 ether, address(0));
+        _stake(bob, 50 ether, bob);
         vm.prank(bob);
         staking.setAllowedStaker(alice, true);
         _stake(alice, 100 ether, bob);
@@ -802,7 +829,7 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
 
     /// @notice Tests stake -> pause -> stake reverts -> unpause -> stake works.
     function test_stakePauseUnpause_stakeFlow_succeeds() external {
-        _stake(alice, 100 ether, address(0));
+        _stake(alice, 100 ether, alice);
         (uint256 staked,,) = staking.stakingData(alice);
         assertEq(staked, 100 ether);
 
@@ -814,14 +841,14 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
         IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
         vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_Paused.selector);
         vm.prank(alice);
-        staking.stake(50 ether, address(0));
+        staking.stake(50 ether, alice);
 
         vm.prank(owner);
         staking.unpause();
         assertFalse(staking.paused());
 
         vm.prank(alice);
-        staking.stake(50 ether, address(0));
+        staking.stake(50 ether, alice);
         (staked,,) = staking.stakingData(alice);
         assertEq(staked, 150 ether);
     }
@@ -888,7 +915,7 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
         staking.stake(50 ether, carol);
 
         // Bob stakes self first, then cannot link to Carol (has received stake from Alice)
-        _stake(bob, 50 ether, address(0));
+        _stake(bob, 50 ether, bob);
         (uint256 bobStaked,,) = staking.stakingData(bob);
         assertEq(bobStaked, 50 ether);
 
@@ -900,7 +927,7 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
     /// @notice Tests that lastUpdate is updated after new staking and linking when time advances.
     function test_lastUpdate_updatesAfterStakingAndLinking_succeeds() external {
         // Initial stake
-        _stake(alice, 100 ether, address(0));
+        _stake(alice, 100 ether, alice);
         (, uint128 lastUpdate0) = staking.peData(alice);
         uint256 ts0 = block.timestamp;
         assertEq(lastUpdate0, ts0);
@@ -910,7 +937,7 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
         vm.prank(alice);
         IERC20(Predeploys.GOVERNANCE_TOKEN).approve(address(staking), 50 ether);
         vm.prank(alice);
-        staking.stake(50 ether, address(0));
+        staking.stake(50 ether, alice);
         (, uint128 lastUpdate1) = staking.peData(alice);
         assertEq(lastUpdate1, ts0 + 1);
 
@@ -922,5 +949,132 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
         staking.link(bob);
         (, uint128 bobLastUpdate) = staking.peData(bob);
         assertEq(bobLastUpdate, ts0 + 2);
+    }
+}
+
+/// @title PolicyEngineStaking_Fuzz_Test
+/// @notice Fuzzing tests for PolicyEngineStaking with various amounts and addresses.
+contract PolicyEngineStaking_Fuzz_Test is PolicyEngineStaking_TestInit {
+    /// @notice Tests self-stake and unstake preserves balance for any valid amount.
+    function testFuzz_selfStakeUnstakeAmount_succeeds(uint256 _amount) external {
+        _amount = bound(_amount, 1, 1_000 ether);
+
+        uint256 balanceBefore = IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
+        _stake(alice, _amount, alice);
+        vm.prank(alice);
+        staking.unstake();
+        uint256 balanceAfter = IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
+
+        assertEq(balanceAfter, balanceBefore);
+        (uint256 staked,,) = staking.stakingData(alice);
+        assertEq(staked, 0);
+    }
+
+    /// @notice Tests stake to beneficiary and unstake preserves staker balance.
+    function testFuzz_stakeToBeneficiaryUnstakeAmount_succeeds(uint256 _amount) external {
+        _amount = bound(_amount, 1, 1_000 ether);
+
+        vm.prank(bob);
+        staking.setAllowedStaker(alice, true);
+
+        uint256 balanceBefore = IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
+        _stake(alice, _amount, bob);
+        vm.prank(alice);
+        staking.unstake();
+        uint256 balanceAfter = IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
+
+        assertEq(balanceAfter, balanceBefore);
+        (uint256 aliceStaked,,) = staking.stakingData(alice);
+        (, uint256 bobReceived,) = staking.stakingData(bob);
+        assertEq(aliceStaked, 0);
+        assertEq(bobReceived, 0);
+    }
+
+    /// @notice Tests stake -> link -> unlink -> unstake full cycle.
+    function testFuzz_linkUnlinkCycleAmount_succeeds(uint256 _amount) external {
+        _amount = bound(_amount, 1, 1_000 ether);
+
+        vm.prank(bob);
+        staking.setAllowedStaker(alice, true);
+
+        uint256 balanceBefore = IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
+        _stake(alice, _amount, alice);
+        vm.prank(alice);
+        staking.link(bob);
+        vm.prank(alice);
+        staking.unlink();
+        vm.prank(alice);
+        staking.unstake();
+        uint256 balanceAfter = IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
+
+        assertEq(balanceAfter, balanceBefore);
+    }
+
+    /// @notice Tests multiple self-stakes and single unstake.
+    function testFuzz_multipleSelfStakesUnstakeAmounts_succeeds(
+        uint256 _amount1,
+        uint256 _amount2,
+        uint256 _amount3
+    )
+        external
+    {
+        _amount1 = bound(_amount1, 1, 300 ether);
+        _amount2 = bound(_amount2, 1, 300 ether);
+        _amount3 = bound(_amount3, 1, 300 ether);
+
+        uint256 total = _amount1 + _amount2 + _amount3;
+
+        uint256 balanceBefore = IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice);
+        _stake(alice, _amount1, alice);
+        _stake(alice, _amount2, alice);
+        _stake(alice, _amount3, alice);
+
+        (uint256 staked,,) = staking.stakingData(alice);
+        (uint128 effective,) = staking.peData(alice);
+        assertEq(staked, total);
+        assertEq(effective, total);
+
+        vm.prank(alice);
+        staking.unstake();
+        assertEq(IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(alice), balanceBefore);
+    }
+
+    /// @notice Tests stake/link with different staker-beneficiary pairs.
+    function testFuzz_stakeToBeneficiaryDifferentAccounts_succeeds(
+        uint8 _stakerIdx,
+        uint8 _beneficiaryIdx,
+        uint256 _amount
+    )
+        external
+    {
+        address[] memory accounts = _accounts();
+        _stakerIdx = uint8(bound(_stakerIdx, 0, 2));
+        _beneficiaryIdx = uint8(bound(_beneficiaryIdx, 0, 2));
+        if (_stakerIdx == _beneficiaryIdx) return; // self-attribution, skip
+
+        address staker = accounts[_stakerIdx];
+        address beneficiary = accounts[_beneficiaryIdx];
+        _amount = bound(_amount, 1, 300 ether);
+
+        vm.prank(beneficiary);
+        staking.setAllowedStaker(staker, true);
+
+        uint256 balanceBefore = IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(staker);
+        _stake(staker, _amount, beneficiary);
+        vm.prank(staker);
+        staking.unstake();
+        uint256 balanceAfter = IERC20(Predeploys.GOVERNANCE_TOKEN).balanceOf(staker);
+
+        assertEq(balanceAfter, balanceBefore);
+        (, uint256 benReceived,) = staking.stakingData(beneficiary);
+        assertEq(benReceived, 0);
+    }
+
+    function _accounts() internal view returns (address[] memory) {
+        address[] memory a = new address[](3);
+        a[0] = alice;
+        a[1] = bob;
+        a[2] = carol;
+        return a;
     }
 }
