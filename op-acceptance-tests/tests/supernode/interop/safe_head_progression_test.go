@@ -32,40 +32,43 @@ func TestSupernodeInterop_SafeHeadTrailsLocalSafe(gt *testing.T) {
 	// Pause interop verification at block 5 on both chains
 	// check safe heads get to at least that height,
 	// let local safe heads run ahead
-	pauseTimestamp := sys.L2A.TimestampForBlockNum(5)
+	initialTargetBlockNum := uint64(4)
+	finalTargetBlockNum := uint64(10)
+	pauseTimestamp := sys.L2A.TimestampForBlockNum(initialTargetBlockNum + 1)
 	sys.Supernode.PauseInterop(pauseTimestamp)
 	dsl.CheckAll(t,
-		sys.L2ACL.ReachedFn(types.LocalSafe, 10, attempts),
-		sys.L2BCL.ReachedFn(types.LocalSafe, 10, attempts),
-		sys.L2ACL.ReachedFn(types.CrossSafe, 4, attempts),
-		sys.L2BCL.ReachedFn(types.CrossSafe, 4, attempts),
+		sys.L2ACL.ReachedFn(types.LocalSafe, finalTargetBlockNum, attempts),
+		sys.L2BCL.ReachedFn(types.LocalSafe, finalTargetBlockNum, attempts),
+		sys.L2ACL.ReachedFn(types.CrossSafe, initialTargetBlockNum, attempts),
+		sys.L2BCL.ReachedFn(types.CrossSafe, initialTargetBlockNum, attempts),
 	)
 
 	// Expect cross safe to stall since we paused the interop activity
+	numAttempts := 2 // implies a 4s wait
 	dsl.CheckAll(t,
-		sys.L2ACL.NotAdvancedFn(types.CrossSafe, 2),
-		sys.L2BCL.NotAdvancedFn(types.CrossSafe, 2),
+		sys.L2ACL.NotAdvancedFn(types.CrossSafe, numAttempts),
+		sys.L2BCL.NotAdvancedFn(types.CrossSafe, numAttempts),
 	)
 
 	// Check EL labels
 	safeA := sys.L2ELA.BlockRefByLabel(eth.Safe)
 	safeB := sys.L2ELB.BlockRefByLabel(eth.Safe)
-	require.LessOrEqual(t, safeA.Number, uint64(5))
-	require.LessOrEqual(t, safeB.Number, uint64(5))
+	require.LessOrEqual(t, safeA.Number, initialTargetBlockNum)
+	require.LessOrEqual(t, safeB.Number, initialTargetBlockNum)
 
 	// Resume interop verification
 	// expect cross safe to catch up
 	sys.Supernode.ResumeInterop()
 	dsl.CheckAll(t,
-		sys.L2ACL.ReachedFn(types.CrossSafe, 10, attempts),
-		sys.L2BCL.ReachedFn(types.CrossSafe, 10, attempts),
+		sys.L2ACL.ReachedFn(types.CrossSafe, finalTargetBlockNum, attempts),
+		sys.L2BCL.ReachedFn(types.CrossSafe, finalTargetBlockNum, attempts),
 	)
 
 	// check EL labels
 	safeA = sys.L2ELA.BlockRefByLabel(eth.Safe)
 	safeB = sys.L2ELB.BlockRefByLabel(eth.Safe)
-	require.GreaterOrEqual(t, safeA.Number, uint64(10))
-	require.GreaterOrEqual(t, safeB.Number, uint64(10))
+	require.GreaterOrEqual(t, safeA.Number, finalTargetBlockNum)
+	require.GreaterOrEqual(t, safeB.Number, finalTargetBlockNum)
 }
 
 // TestSupernodeInterop_SafeHeadWithUnevenProgress tests safe head behavior

@@ -172,10 +172,6 @@ func (m *mockVerificationActivity) VerifiedAtTimestamp(ts uint64) (bool, error) 
 	return m.verifiedAtTimestampResult, m.verifiedAtTimestampErr
 }
 
-func (m *mockVerificationActivity) Late(num uint64) (bool, error) {
-	return m.verifiedAtTimestampResult, m.verifiedAtTimestampErr
-}
-
 func (m *mockVerificationActivity) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
 	return eth.BlockID{}, 0
 }

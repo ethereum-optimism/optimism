@@ -251,9 +251,6 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 		n.l1Source = overrides.L1Source
 	}
 
-	// Attach SuperAuthority if provided
-	n.superAuthority = overrides.SuperAuthority
-
 	// initL2 may use side effects to register interop subsystem to the node.EventSystem
 	n.l2Source, n.interopSys, n.l2Driver, n.safeDB, err = initL2(ctx, cfg, n)
 	if err != nil {

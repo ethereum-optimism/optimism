@@ -1,17 +1,13 @@
 package chain_container
 
 import (
+	"fmt"
 	"math"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
 )
-
-// SuperAuthority is an interface for supernode-level authority operations.
-// It is passed to op-node instances during initialization to provide
-// supernode-specific functionality and coordination.
-type SuperAuthority interface {
-	FullyVerifiedL2Head() eth.BlockID
-}
 
 // SafeL2Head returns the safe L2 head block identifier.
 // It returns an empty BlockID if no fully verified head can be determined.
@@ -34,5 +30,13 @@ func (c *simpleChainContainer) FullyVerifiedL2Head() eth.BlockID {
 	return oldestVerifiedBlock
 }
 
+// IsDenied checks if a block hash is on the deny list at the given height.
+func (c *simpleChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
+	if c.denyList == nil {
+		return false, fmt.Errorf("deny list not initialized")
+	}
+	return c.denyList.Contains(height, payloadHash)
+}
+
 // Interface satisfaction static check
-var _ SuperAuthority = (*simpleChainContainer)(nil)
+var _ rollup.SuperAuthority = (*simpleChainContainer)(nil)
