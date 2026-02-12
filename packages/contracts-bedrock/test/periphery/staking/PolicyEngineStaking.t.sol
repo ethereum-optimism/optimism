@@ -430,10 +430,10 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         vm.prank(alice);
         staking.stake(50 ether, alice);
 
-        (uint256 aliceStaked,,) = staking.stakingData(alice);
+        (uint256 aliceStaked, uint256 aliceReceivedPost,) = staking.stakingData(alice);
         (uint128 aliceEffective,) = staking.peData(alice);
         assertEq(aliceStaked, 50 ether);
-        assertEq(aliceReceived, 100 ether);
+        assertEq(aliceReceivedPost, 100 ether);
         assertEq(aliceEffective, 150 ether);
     }
 

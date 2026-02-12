@@ -27,8 +27,8 @@ contract PolicyEngineStaking {
     }
 
     /// @notice Policy Engine data per account. Packed in one slot for PE reads.
-    /// @custom:field effectiveStake The amount of OP tokens that the account has contributed to the Policy Engine.
-    /// @custom:field lastUpdate The timestamp of the last update to the Policy Engine data.
+    /// @custom:field effectiveStake The exact stake amount used for ordering.
+    /// @custom:field lastUpdate The timestamp of the latest change on their effective stake.
     struct PEData {
         uint128 effectiveStake;
         uint128 lastUpdate;
@@ -318,6 +318,7 @@ contract PolicyEngineStaking {
     /// @notice Attributes stake to a beneficiary: updates PE data and beneficiary's receivedStake.
     /// @param _staker      The account whose stake is being attributed.
     /// @param _beneficiary The beneficiary receiving the attribution.
+    /// @param _receivedStake The amount of stake the beneficiary has received from other stakers.
     /// @param _amount      The amount to attribute.
     /// @param _isNewStake  If true, new tokens (no decrease on staker); if false, moving existing stake.
     function _attributeToBeneficiary(
@@ -350,13 +351,13 @@ contract PolicyEngineStaking {
     /// @notice Updates PE data (effective stake) and last update timestamp for an account.
     /// @param _account The account address.
     /// @param _amount The amount to add or subtract.
-    /// @param _direction Increase or Decrease.
-    function _updatePeData(address _account, uint256 _amount, UpdateOperation _direction) internal {
+    /// @param _operation The operation to perform.
+    function _updatePeData(address _account, uint256 _amount, UpdateOperation _operation) internal {
         PEData storage pe = peData[_account];
 
         // If increasing, add the amount to the effective stake.
         // If decreasing, subtract the amount from the effective stake.
-        pe.effectiveStake = _direction == UpdateOperation.INCREASE
+        pe.effectiveStake = _operation == UpdateOperation.INCREASE
             ? pe.effectiveStake + uint128(_amount)
             : pe.effectiveStake - uint128(_amount);
 
