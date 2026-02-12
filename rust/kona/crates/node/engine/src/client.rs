@@ -187,7 +187,7 @@ impl EngineClientBuilder {
     /// Sets up JWT-authenticated connections to the Engine API endpoint through the rollup-boost
     /// server along with an unauthenticated connection to the L1 chain.
     ///
-    /// # FIXME(@theochap, `<https://github.com/op-rs/kona/issues/3053>`, `<https://github.com/op-rs/kona/issues/3054>`):
+    /// # FIXME(@theochap, `<https://github.com/ethereum-optimism/optimism/issues/3053>`, `<https://github.com/ethereum-optimism/optimism/issues/3054>`):
     /// This method can be simplified/improved in a few ways:
     /// - Unify kona's and rollup-boost's RPC client creation
     /// - Removed the `dyn RollupBoostServerLike` type erasure.

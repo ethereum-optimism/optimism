@@ -1,13 +1,13 @@
 import { SidebarItem } from "vocs";
 import { opRethCliSidebar } from "./sidebar-cli-op-reth";
 
-export const sidebar: SidebarItem[] = [
+export const opRethSidebar: SidebarItem[] = [
     {
         text: "Introduction",
         items: [
             {
                 text: "Overview",
-                link: "/"
+                link: "/op-reth/"
             }
         ]
     },
@@ -16,7 +16,7 @@ export const sidebar: SidebarItem[] = [
         items: [
             {
                 text: "OP Stack",
-                link: "/run/opstack"
+                link: "/op-reth/run/opstack"
             },
             {
                 text: "FAQ",
@@ -24,7 +24,7 @@ export const sidebar: SidebarItem[] = [
                 items: [
                     {
                         text: "Sync OP Mainnet",
-                        link: "/run/faq/sync-op-mainnet"
+                        link: "/op-reth/run/faq/sync-op-mainnet"
                     }
                 ]
             }
@@ -32,7 +32,7 @@ export const sidebar: SidebarItem[] = [
     },
     {
         text: "CLI Reference",
-        link: "/cli/op-reth",
+        link: "/op-reth/cli/op-reth",
         collapsed: false,
         items: [
             opRethCliSidebar

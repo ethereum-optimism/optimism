@@ -5,7 +5,7 @@ import { Callout } from 'vocs/components'
 :::note
 
 If you haven't already built the `kona-node` binary, head over to the
-[Installation](/node/install/overview) guide.
+[Installation](/kona/node/install/overview) guide.
 
 :::
 
@@ -29,12 +29,12 @@ cli flag. More on that in the
 <Callout type="info">
 This tutorial walks through running the `kona-node` as
 a binary. To use docker, head over to the
-[Docker Guide](/node/run/docker) which uses a `docker-compose`
+[Docker Guide](/kona/node/run/docker) which uses a `docker-compose`
 setup provided by `kona`. The `docker-compose` setup
 automatically bootstraps the `kona-node` with `op-reth`,
 provisioning grafana dashboards and a default Prometheus
 configuration. It is encouraged to follow the
-[Docker Guide](/node/run/docker) to avoid misconfigurations.
+[Docker Guide](/kona/node/run/docker) to avoid misconfigurations.
 </Callout>
 
 The `kona-node` requires a few CLI flags.
@@ -215,7 +215,7 @@ engine actor to insert into the chain.
 ### Configuring a Dockerfile
 
 To learn more about running a `kona-node` using docker, check
-out the [docker guide](/node/run/docker).
+out the [docker guide](/kona/node/run/docker).
 
 
 [tracing-env]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#method.from_default_env
@@ -227,6 +227,6 @@ out the [docker guide](/node/run/docker).
 [op-reth]: https://github.com/paradigmxyz/reth/blob/main/crates/optimism/bin/src/main.rs
 [op-geth]: https://github.com/ethereum-optimism/op-geth
 
-[buildx]: https://github.com/op-rs/kona/tree/main/docker
+[buildx]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/docker
 [packages]: https://github.com/orgs/op-rs/packages?repo_name=kona
-[pdocs]: https://github.com/op-rs/kona/pkgs/container/kona%2Fkona-node/446969659?tag=latest
+[pdocs]: https://github.com/ethereum-optimism/optimism/pkgs/container/kona%2Fkona-node/446969659?tag=latest

@@ -4,15 +4,15 @@
 
 Building from source requires that the Rust toolchain is installed, as well as the `just` command runner.
 
-Visit the [Prerequisites](/node/install/overview) for details on installing Rust and `just`.
+Visit the [Prerequisites](/kona/node/install/overview) for details on installing Rust and `just`.
 
 :::
 
 First clone the repository:
 
 ```bash
-git clone https://github.com/op-rs/kona.git
-cd kona
+git clone https://github.com/ethereum-optimism/optimism.git
+cd rust/kona
 ```
 
 Then, install the `kona-node` binary into your PATH directly via:
@@ -65,19 +65,18 @@ If you have installed Rust using rustup, simply run `rustup update`.
 
 If you can't install the latest version of Rust you can instead compile
 using the Minimum Supported Rust Version (MSRV) which is listed under
-the `rust-version` key in kona's [Cargo.toml](https://github.com/op-rs/kona/blob/main/Cargo.toml).
+the `rust-version` key in kona's [Cargo.toml](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/Cargo.toml).
 
 If compilation fails with `(signal: 9, SIGKILL: kill)`, this could mean
 your machine ran out of memory during compilation. If you are on Docker,
 consider increasing the memory of the container, or use a [pre-built
-binary](/node/install/binaries).
+binary](/kona/node/install/binaries).
 
 If compilation fails with `error: linking with cc failed: exit code: 1`,
 try running `cargo clean`.
 
-
 ## Next Steps
 
-- Read the [Overview](/intro/overview) to understand Kona's architecture
-- Check out the [Binaries](/node/run/binary) documentation
-- Explore the [Examples](/sdk/examples/intro)
+- Read the [Overview](/kona/intro/overview) to understand Kona's architecture
+- Check out the [Binaries](/kona/node/run/binary) documentation
+- Explore the [Examples](/kona/sdk/examples/intro)

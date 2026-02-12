@@ -14,4 +14,4 @@ Otherwise if you already have an example you'd like to add, open a PR!
 
 <!-- Links -->
 
-[issue]: https://github.com/op-rs/kona/issues/new
+[issue]: https://github.com/ethereum-optimism/optimism/issues/new

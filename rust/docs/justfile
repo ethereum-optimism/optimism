@@ -1,11 +1,15 @@
-# Run the vocs documentation
-run-vocs:
-  npm install && npm run dev -- --host
+# Install documentation dependencies
+docs-install:
+    bun install
 
-# Build the vocs static site
-build-vocs:
-  npm install && npm run build
+# Start the documentation development server
+docs-dev: docs-install
+    bun run dev
 
-# Builds and opens the static site in the browser
-open-site: build-vocs
-  open docs/dist/index.html
+# Build the documentation for production
+docs-build: docs-install
+    bun run build
+
+# Preview the built documentation
+docs-preview: docs-build
+    bun run preview

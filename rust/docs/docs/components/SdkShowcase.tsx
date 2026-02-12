@@ -12,13 +12,13 @@ const projects: SdkProject[] = [
     name: 'Kona Client',
     description: 'Fault proof program for rollup state transitions',
     linesOfCode: '~3K LoC',
-    githubUrl: 'https://github.com/op-rs/kona/tree/main/bin/client'
+    githubUrl: 'https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/client'
   },
   {
     name: 'Kona Node',
     description: 'Modular OP Stack rollup node implementation',
     linesOfCode: '~8K LoC',
-    githubUrl: 'https://github.com/op-rs/kona/tree/main/bin/node'
+    githubUrl: 'https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/node'
   },
   {
     name: 'OP Succinct',

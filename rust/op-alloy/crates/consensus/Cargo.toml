@@ -7,8 +7,8 @@ edition.workspace = true
 rust-version.workspace = true
 authors = ["Alloy Contributors"]
 license.workspace = true
-homepage = "https://github.com/alloy-rs/op-alloy"
-repository = "https://github.com/alloy-rs/op-alloy"
+homepage = "https://github.com/ethereum-optimism/optimism"
+repository = "https://github.com/ethereum-optimism/optimism"
 exclude = ["benches/", "tests/"]
 
 [lints]

@@ -83,7 +83,7 @@ TAG="<target_name>/<version>"
 git tag -a $TAG -m "<tag description>" && git push origin tag $TAG
 ```
 
-To run the workflow manually, navigate over to the ["Build and Publish Docker Image"](https://github.com/op-rs/kona/actions/workflows/docker.yaml)
+To run the workflow manually, navigate over to the ["Build and Publish Docker Image"](https://github.com/ethereum-optimism/optimism/actions/workflows/docker.yaml)
 action. From there, run a `workflow_dispatch` trigger, select the tag you just pushed, and then finally select the image to release.
 
 Or, if you prefer to use the `gh` CLI, you can run:

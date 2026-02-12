@@ -2,42 +2,56 @@ import { defineConfig } from 'vocs'
 import { sidebar } from './sidebar'
 
 export default defineConfig({
-  title: 'Kona',
-  description: 'Modular, performant, and secure OP Stack infrastructure in Rust',
+  title: 'OP Stack Rust',
+  description: 'Rust implementations for the OP Stack: Kona, op-reth, and op-alloy',
   logoUrl: '/logo.png',
   iconUrl: '/logo.png',
-  ogImageUrl: '/kona-prod.png',
   sidebar,
+  search: {
+    fuzzy: true
+  },
   topNav: [
-    { text: 'Run', link: '/node/run/overview' },
-    { text: 'SDK', link: '/sdk/overview' },
-    { text: 'Rustdocs', link: 'https://docs.rs/kona-node/latest/' },
-    { text: 'GitHub', link: 'https://github.com/op-rs/kona' },
     {
-      text: 'v0.1.0',
+      text: 'Kona',
       items: [
-        {
-          text: 'Releases',
-          link: 'https://github.com/op-rs/kona/releases'
-        },
-        {
-          text: 'Contributing',
-          link: 'https://github.com/op-rs/kona/blob/main/CONTRIBUTING.md'
-        }
+        { text: 'Overview', link: '/kona/intro/overview' },
+        { text: 'Run a Node', link: '/kona/node/run/overview' },
+        { text: 'SDK', link: '/kona/sdk/overview' },
+        { text: 'Rustdocs', link: 'https://docs.rs/kona-node/latest/' },
       ]
-    }
+    },
+    {
+      text: 'op-reth',
+      items: [
+        { text: 'Overview', link: '/op-reth/' },
+        { text: 'Run', link: '/op-reth/run/opstack' },
+        { text: 'CLI Reference', link: '/op-reth/cli/op-reth' },
+      ]
+    },
+    {
+      text: 'op-alloy',
+      items: [
+        { text: 'Overview', link: '/op-alloy/intro' },
+        { text: 'Getting Started', link: '/op-alloy/starting' },
+        { text: 'Building', link: '/op-alloy/building' },
+      ]
+    },
+    { text: 'GitHub', link: 'https://github.com/ethereum-optimism/optimism/tree/develop/rust' },
   ],
   socials: [
     {
       icon: 'github',
-      link: 'https://github.com/op-rs/kona',
+      link: 'https://github.com/ethereum-optimism/optimism',
     },
   ],
   theme: {
     accentColor: {
-      light: '#1f1f1f',
-      dark: '#ffffff'
+      light: '#ff0420',
+      dark: '#ff0420',
     }
+  },
+  editLink: {
+    pattern: "https://github.com/ethereum-optimism/optimism/edit/develop/rust/docs/:path",
   },
   sponsors: [
     {

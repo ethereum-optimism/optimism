@@ -26,7 +26,7 @@ verifiable manner.
 
 ## Backend Traits
 
-Covered in the [FPVM Backend](/sdk/proof/fpvm-backend) section of the book, `kona-client` ships with an implementation of
+Covered in the [FPVM Backend](/kona/sdk/proof/fpvm-backend) section of the book, `kona-client` ships with an implementation of
 `kona-derive` and `kona-executor`'s data source traits which pull in data over the [PreimageOracle ABI][preimage-specs].
 
 However, running `kona-client` on top of a different verifiable environment, i.e. a zkVM or TEE, is also possible
@@ -85,7 +85,7 @@ let pipeline = PipelineBuilder::new()
 ```
 
 From here, a custom derivation driver is needed to produce the desired execution payload(s). An example of this for
-`kona-client` can be found in the [single proof implementation](https://github.com/op-rs/kona/blob/main/bin/client/src/single.rs#L98).
+`kona-client` can be found in the [single proof implementation](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/bin/client/src/single.rs#L98).
 
 ### `kona-mpt` / `kona-executor` sources
 
@@ -113,7 +113,7 @@ let header = executor.execute_payload(...).expect("Failed execution");
 ### Bringing it Together
 
 Once your custom backend traits for both `kona-derive` and `kona-executor` have been implemented,
-your final binary may look something like [that of `kona-client`'s](https://github.com/op-rs/kona/blob/main/bin/client/src/kona.rs).
+your final binary may look something like [that of `kona-client`'s](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/bin/client/src/kona.rs).
 Alternatively, if you're looking to prove a wider range of blocks, [`op-succinct`'s `range` program](https://github.com/succinctlabs/op-succinct/tree/main/programs/range)
 offers a good example of running the pipeline and executor across a string of contiguous blocks.
 
@@ -130,10 +130,10 @@ offers a good example of running the pipeline and executor across a string of co
 [op-succinct]: https://github.com/succinctlabs/op-succinct
 [revm]: https://github.com/bluealloy/revm
 
-[kona]: https://github.com/op-rs/kona
-[issues]: https://github.com/op-rs/kona/issues
-[new-issue]: https://github.com/op-rs/kona/issues/new
-[contributing]: https://github.com/op-rs/kona/tree/main/CONTRIBUTING.md
+[kona]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona
+[issues]: https://github.com/ethereum-optimism/optimism/issues
+[new-issue]: https://github.com/ethereum-optimism/optimism/issues/new
+[contributing]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/CONTRIBUTING.md
 
 [op-labs]: https://github.com/ethereum-optimism
 [bad-boi-labs]: https://github.com/BadBoiLabs

@@ -1,9 +1,9 @@
 # Installation
 
-[op-alloy][op-alloy] consists of a number of crates that provide a range of functionality
+[op-alloy](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-alloy) consists of a number of crates that provide a range of functionality
 essential for interfacing with any OP Stack chain.
 
-The most succinct way to work with `op-alloy` is to add the [`op-alloy`][op-alloy-crate] crate
+The most succinct way to work with `op-alloy` is to add the [`op-alloy`](https://crates.io/crates/op-alloy) crate
 with the `full` feature flag from the command-line using Cargo.
 
 ```txt
@@ -36,7 +36,7 @@ use op_alloy::{
 
 ## Features
 
-The [`op-alloy`][op-alloy-crate] defines many [feature flags][op-alloy-ff] including the following.
+The [`op-alloy`](https://crates.io/crates/op-alloy) defines many [feature flags](https://docs.rs/crate/op-alloy/latest/features) including the following.
 
 Default
 - `std`
@@ -61,23 +61,20 @@ so `op-alloy-consensus` types can be used from `op-alloy` through `op_alloy::con
 
 ## Crates
 
-- [`op-alloy-network`][op-alloy-network]
-- [`op-alloy-provider`][op-alloy-provider]
-- [`op-alloy-consensus`][op-alloy-consensus] (supports `no_std`)
-- [`op-alloy-rpc-jsonrpsee`][op-alloy-rpc-jsonrpsee]
-- [`op-alloy-rpc-types`][op-alloy-rpc-types] (supports `no_std`)
-- [`op-alloy-rpc-types-engine`][op-alloy-rpc-types-engine] (supports `no_std`)
+- [`op-alloy-network`](https://crates.io/crates/op-alloy-network)
+- [`op-alloy-provider`](https://crates.io/crates/op-alloy-provider)
+- [`op-alloy-consensus`](https://crates.io/crates/op-alloy-consensus) (supports `no_std`)
+- [`op-alloy-rpc-jsonrpsee`](https://crates.io/crates/op-alloy-rpc-jsonrpsee)
+- [`op-alloy-rpc-types`](https://crates.io/crates/op-alloy-rpc-types) (supports `no_std`)
+- [`op-alloy-rpc-types-engine`](https://crates.io/crates/op-alloy-rpc-types-engine) (supports `no_std`)
 
 ## `no_std`
 
 As noted above, the following crates are `no_std` compatible.
 
-- [`op-alloy-consensus`][op-alloy-consensus]
-- [`op-alloy-rpc-types-engine`][op-alloy-rpc-types-engine]
-- [`op-alloy-rpc-types`][op-alloy-rpc-types]
+- [`op-alloy-consensus`](https://crates.io/crates/op-alloy-consensus)
+- [`op-alloy-rpc-types-engine`](https://crates.io/crates/op-alloy-rpc-types-engine)
+- [`op-alloy-rpc-types`](https://crates.io/crates/op-alloy-rpc-types)
 
-To add `no_std` support to a crate, ensure the [check_no_std][check-no-std]
+To add `no_std` support to a crate, ensure the [check_no_std](https://github.com/ethereum-optimism/optimism/blob/develop/rust/op-alloy/scripts/check_no_std.sh)
 script is updated to include this crate once `no_std` compatible.
-
-
-{{#include ./links.md}}

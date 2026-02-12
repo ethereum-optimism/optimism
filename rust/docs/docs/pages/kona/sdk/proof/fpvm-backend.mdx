@@ -1,17 +1,17 @@
 # FPVM Backend
 
-> 📖 Before reading this section of the book, it is advised to read the [Fault Proof Program Environment](/sdk/fpp-dev/env)
+> 📖 Before reading this section of the book, it is advised to read the [Fault Proof Program Environment](/kona/sdk/fpp-dev/env)
 > section to familiarize yourself with the PreimageOracle IO pattern.
 
 Kona is effectively split into three parts:
 
 - OP Stack state transition logic (`kona-derive`, `kona-executor`, `kona-mpt`)
 - OP Stack state transition proof SDK (`kona-preimage`, `kona-proof`)
-- [Fault Proof VM](/glossary#fault-proof-vm) IO and utilities
+- [Fault Proof VM](/kona/glossary#fault-proof-vm) IO and utilities
   (`kona-std-fpvm`, `kona-std-fpvm-proc`)
 
 This section of the book focuses on the usage of `kona-std-fpvm` and `kona-preimage` to facilitate communication between host and client
-for programs running on top of the [FPVM targets](/sdk/fpp-dev/env).
+for programs running on top of the [FPVM targets](/kona/sdk/fpp-dev/env).
 
 ## Host and Client Communication API
 
@@ -51,14 +51,14 @@ io::exit(0);
 
 With this library, you can implement a custom communication protocol between the host and client, or extend the existing
 [PreimageOracle ABI][preimage-specs]. However, for most developers, we recommend sticking with `kona-preimage`
-when developing programs that target the [FPVMs](/sdk/fpp-dev/env), barring needs like printing directly to
+when developing programs that target the [FPVMs](/kona/sdk/fpp-dev/env), barring needs like printing directly to
 `stdout`.
 
 ### `kona-preimage`
 
 `kona-preimage` is an implementation of the [PreimageOracle ABI][preimage-specs]. This crate enables synchronous
 communication between the host and client program, described in
-[Host - Client Communication](/sdk/fpp-dev/env#host---client-communication) in the FPP Dev environment section of the
+[Host - Client Communication](/kona/sdk/fpp-dev/env#host---client-communication) in the FPP Dev environment section of the
 book.
 
 The crate is built around the [`Channel`](https://docs.rs/kona-preimage/latest/kona_preimage/trait.Channel.html) trait,
@@ -98,9 +98,9 @@ of the consumer are not covered by the to-[spec][preimage-specs] implementations
 
 Finally, in `kona-proof`, implementations of data source traits from `kona-derive` and `kona-executor` are provided
 to pull in untyped data from the host by `PreimageKey`. These data source traits are covered in more detail within
-the [Custom Backend](/sdk/proof/custom-backend) section, but we'll quickly gloss over them here to build intuition.
+the [Custom Backend](/kona/sdk/proof/custom-backend) section, but we'll quickly gloss over them here to build intuition.
 
-Let's take, for example, [`OracleL1ChainProvider`](https://github.com/op-rs/kona/blob/40a8d7ec3def4a1eeb26492a1e4338d8b032e428/bin/client/src/l1/chain_provider.rs#L16-L23).
+Let's take, for example, [`OracleL1ChainProvider`](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/bin/client/src/l1/chain_provider.rs#L16-L23).
 The [`ChainProvider`](https://docs.rs/kona-derive/latest/kona_derive/trait.ChainProvider.html) trait in `kona-derive`
 defines a simple interface for fetching information about the L1 chain. In the `OracleL1ChainProvider`, this information
 is pulled in over the [PreimageOracle ABI][preimage-specs]. There are many other examples of these data source traits,
@@ -150,10 +150,10 @@ it to the user.
 [op-succinct]: https://github.com/succinctlabs/op-succinct
 [revm]: https://github.com/bluealloy/revm
 
-[kona]: https://github.com/op-rs/kona
-[issues]: https://github.com/op-rs/kona/issues
-[new-issue]: https://github.com/op-rs/kona/issues/new
-[contributing]: https://github.com/op-rs/kona/tree/main/CONTRIBUTING.md
+[kona]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona
+[issues]: https://github.com/ethereum-optimism/optimism/issues
+[new-issue]: https://github.com/ethereum-optimism/optimism/issues/new
+[contributing]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/CONTRIBUTING.md
 
 [op-labs]: https://github.com/ethereum-optimism
 [bad-boi-labs]: https://github.com/BadBoiLabs

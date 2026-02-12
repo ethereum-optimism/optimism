@@ -5,7 +5,7 @@ import { Callout } from 'vocs/components'
 <Callout type="info">
 This tutorial walks through running the `kona-node` as
 a binary. To use docker, head over to the
-[Docker Guide](/node/install/docker) which uses a `docker-compose`
+[Docker Guide](/kona/node/install/docker) which uses a `docker-compose`
 setup provided by `kona`. The `docker-compose` setup
 automatically bootstraps the `kona-node` with `op-reth`,
 provisioning grafana dashboards and a default Prometheus
@@ -17,8 +17,8 @@ data source.
 In order to follow this tutorial, you'll need:
 
 1. An L1 Archive node (e.g., `op-geth`) with enough history for the rollup network you want to run.
-2. A `kona-node` binary. See [installation](/node/install/binaries) for instructions.
-3. A rollup configuration file. See [rollup configuration](/sdk/protocol/genesis/rollup-config) for more information.
+2. A `kona-node` binary. See [installation](/kona/node/install/binaries) for instructions.
+3. A rollup configuration file. See [rollup configuration](/kona/sdk/protocol/genesis/rollup-config) for more information.
 
 ## Quick Start
 
@@ -26,7 +26,7 @@ The fastest way to get started is to use one of the pre-built configurations:
 
 ```bash
 # Download a rollup configuration
-curl -o rollup.json https://raw.githubusercontent.com/op-rs/kona/main/configs/base-mainnet.json
+curl -o rollup.json https://raw.githubusercontent.com/ethereum-optimism/optimism/develop/rust/kona/configs/base-mainnet.json
 
 # Run the node
 kona-node --rollup-config rollup.json --l1-rpc-url http://localhost:8545
@@ -50,7 +50,7 @@ kona-node --help
 
 ## Next Steps
 
-- [Docker Support](/node/run/docker) - Run with Docker
-- [Monitoring](/node/monitoring) - Set up monitoring and metrics
-- [CLI Reference](/node/configuration) - Complete CLI documentation
-- [Subcommands](/node/subcommands) - Available subcommands
+- [Docker Support](/kona/node/run/docker) - Run with Docker
+- [Monitoring](/kona/node/monitoring) - Set up monitoring and metrics
+- [CLI Reference](/kona/node/configuration) - Complete CLI documentation
+- [Subcommands](/kona/node/subcommands) - Available subcommands

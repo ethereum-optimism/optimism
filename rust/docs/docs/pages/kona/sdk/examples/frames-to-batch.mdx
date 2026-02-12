@@ -1,9 +1,5 @@
 # Transform Frames into a Batch
 
-:::info
-This example performs the reverse transformation as the [batch-to-frames][batch-to-frames] example.
-:::
-
 This example walks through transforming [`Frame`][frame]s into the [`Batch`][batch] types.
 
 :::danger
@@ -11,7 +7,6 @@ Steps and handling of types with respect to chain tip, ordering of frames, re-or
 more are not covered by this example. This example solely demonstrates the most trivial
 way to transform individual [`Frame`][frame]s into a [`Batch`][batch] type.
 :::
-
 
 ## Walkthrough
 
@@ -27,7 +22,6 @@ the first step is to decode the frame data into [`Frame`][frame]s using
 the [`Channel`][channel] can be constructed using the [`ChannelId`][channel-id]
 of the first frame.
 
-
 :::info
 [`Frame`][frame]s may also be added to a [`Channel`][channel]
 once decoded with the [`Channel::add_frame`][add-frame] method.
@@ -42,10 +36,9 @@ which hardforks are activated (using the `RollupConfig`). For the sake of this e
 brotli bytes can then be passed right into [`Batch::decode`][decode-batch]
 to wind up with the example's desired [`Batch`][batch].
 
+## Running this example
 
-## Running this example:
-
-- Clone the examples repository: `git clone git@github.com:op-rs/kona.git`
+- Clone the examples repository: `git clone git@github.com:ethereum-optimism/optimism.git`
 - Run: `cargo run --example frames_to_batch`
 
 ```rust
@@ -155,8 +148,6 @@ fn example_transactions() -> Vec<Bytes> {
 }
 ```
 
-
-[batch-to-frames]: /sdk/examples/batch-to-frames
 [frame]: https://docs.rs/kona-protocol/latest/kona_protocol/struct.Frame.html
 [batch]: https://docs.rs/kona-protocol/latest/kona_protocol/enum.Batch.html
 [channel]: https://docs.rs/kona-protocol/latest/kona_protocol/struct.Channel.html
@@ -169,25 +160,3 @@ fn example_transactions() -> Vec<Bytes> {
 [decode-batch]: https://docs.rs/kona-protocol/latest/kona_protocol/enum.Batch.html#method.decode
 [fjord]: https://specs.optimism.io/protocol/fjord/overview.html
 [channel-id]: https://docs.rs/kona-protocol/latest/kona_protocol/type.ChannelId.html
-
-
-[op-stack]: https://github.com/ethereum-optimism/optimism
-[op-program]: https://github.com/ethereum-optimism/optimism/tree/develop/op-program
-[cannon]: https://github.com/ethereum-optimism/optimism/tree/develop/cannon
-[cannon-rs]: https://github.com/op-rs/cannon-rs
-[asterisc]: https://github.com/ethereum-optimism/asterisc
-[fp-specs]: https://specs.optimism.io/experimental/fault-proof/index.html
-[fpp-specs]: https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program
-[preimage-specs]: https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle
-[cannon-specs]: https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine
-[l2-output-root]: https://specs.optimism.io/protocol/proposals.html#l2-output-commitment-construction
-[op-succinct]: https://github.com/succinctlabs/op-succinct
-[revm]: https://github.com/bluealloy/revm
-
-[kona]: https://github.com/op-rs/kona
-[issues]: https://github.com/op-rs/kona/issues
-[new-issue]: https://github.com/op-rs/kona/issues/new
-[contributing]: https://github.com/op-rs/kona/tree/main/CONTRIBUTING.md
-
-[op-labs]: https://github.com/ethereum-optimism
-[bad-boi-labs]: https://github.com/BadBoiLabs

@@ -135,6 +135,22 @@ hack partition="":
   set -euo pipefail
   cargo hack check --feature-powerset --depth 2 --no-dev-deps {{ if partition != "" { "--partition " + partition } else { "" } }}
 
+######################### Documentation ################################
+
+DOCS_DIR := justfile_directory() / "docs"
+
+# Start the documentation development server
+docs-dev:
+    cd "{{DOCS_DIR}}" && just docs-dev
+
+# Build the documentation for production
+docs-build:
+    cd "{{DOCS_DIR}}" && just docs-build
+
+# Preview the built documentation
+docs-preview:
+    cd "{{DOCS_DIR}}" && just docs-preview
+
 ######################### Kona Prestates ##############################
 
 KONA_DIR := justfile_directory() / "kona"

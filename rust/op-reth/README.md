@@ -1,10 +1,5 @@
 # reth
 
-[![bench status](https://github.com/paradigmxyz/reth/actions/workflows/bench.yml/badge.svg)](https://github.com/paradigmxyz/reth/actions/workflows/bench.yml)
-[![CI status](https://github.com/paradigmxyz/reth/workflows/unit/badge.svg)][gh-ci]
-[![cargo-lint status](https://github.com/paradigmxyz/reth/actions/workflows/lint.yml/badge.svg)][gh-lint]
-[![Telegram Chat][tg-badge]][tg-url]
-
 **Modular, contributor-friendly and blazing-fast implementation of the Ethereum protocol**
 
 ![](./assets/reth-prod.png)
@@ -13,10 +8,6 @@
 | [User Docs](https://reth.rs)
 | [Developer Docs](./docs)
 | [Crate Docs](https://reth.rs/docs)
-
-[gh-ci]: https://github.com/paradigmxyz/reth/actions/workflows/unit.yml
-[gh-lint]: https://github.com/paradigmxyz/reth/actions/workflows/lint.yml
-[tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=chat&url=https%3A%2F%2Ftg.sumanjay.workers.dev%2Fparadigm%5Freth
 
 ## What is Reth?
 

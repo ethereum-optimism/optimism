@@ -7,7 +7,7 @@ variable "REGISTRY" {
 }
 
 variable "REPOSITORY" {
-  default = "op-rs/kona"
+  default = "ethereum-optimism/kona"
 }
 
 // The tag to use for the built image.
