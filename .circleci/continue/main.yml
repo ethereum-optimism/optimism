@@ -2505,13 +2505,13 @@ jobs:
           enable-mise-cache: true
       - restore_cache:
           name: Restore kona cache
-          key: kona-prestate-{{ checksum "./rust/justfile" }}-{{ checksum "./rust/kona/.config/cannon_tag" }}
+          key: kona-prestate-{{ checksum "./rust/justfile" }}-{{ checksum "./rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile" }}
       - run:
           name: Build kona prestates
           command: just build-kona-prestates
           working_directory: rust
       - save_cache:
-          key: kona-prestate-{{ checksum "./rust/justfile" }}-{{ checksum "./rust/kona/.config/cannon_tag" }}
+          key: kona-prestate-{{ checksum "./rust/justfile" }}-{{ checksum "./rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile" }}
           name: Save Kona to cache
           paths:
             - "rust/kona/prestate-artifacts-*/"

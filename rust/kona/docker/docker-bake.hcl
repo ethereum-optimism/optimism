@@ -78,12 +78,9 @@ target "generic" {
 //                        Proof Images                        //
 ////////////////////////////////////////////////////////////////
 
-// The tag of `cannon` to use in the `kona-cannon-prestate` target.
-//
-// You can override this if you'd like to use a different tag to generate the prestate.
-// https://github.com/ethereum-optimism/optimism/releases
-variable "CANNON_TAG" {
-  default = "cannon/v1.5.0-alpha.1"
+// The path to the monorepo root, used to build cannon from local source.
+variable "MONOREPO_CONTEXT" {
+  default = ".."
 }
 
 // The `kona-client` binary to use in the `kona-cannon-prestate` target.
@@ -131,10 +128,10 @@ target "kona-cannon-prestate" {
   dockerfile = "kona/docker/fpvm-prestates/cannon-repro.dockerfile"
   contexts = {
     custom_configs = "${CUSTOM_CONFIGS_CONTEXT}"
+    monorepo = "${MONOREPO_CONTEXT}"
   }
   args = {
     CLIENT_BIN = "${CLIENT_BIN}"
-    CANNON_TAG = "${CANNON_TAG}"
     KONA_CUSTOM_CONFIGS = "${KONA_CUSTOM_CONFIGS}"
   }
   # Only build on linux/amd64 for a single source of reproducibility.

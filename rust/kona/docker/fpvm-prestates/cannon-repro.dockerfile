@@ -1,15 +1,14 @@
 ################################################################
-#                  Build Cannon @ `CANNON_TAG`                 #
+#              Build Cannon from local monorepo                #
 ################################################################
 
 FROM ubuntu:22.04 AS cannon-build
 SHELL ["/bin/bash", "-c"]
 
 ARG TARGETARCH
-ARG CANNON_TAG
 
 # Install deps
-RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates make
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates make
 
 ENV GO_VERSION=1.23.8
 
@@ -19,10 +18,14 @@ RUN curl -sL https://go.dev/dl/go$GO_VERSION.linux-$TARGETARCH.tar.gz -o go$GO_V
 ENV GOPATH=/go
 ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
 
-# Clone and build Cannon @ `CANNON_TAG`
-RUN git clone https://github.com/ethereum-optimism/optimism && \
-  cd optimism/cannon && \
-  git checkout $CANNON_TAG && \
+# Copy monorepo source needed for the cannon build
+COPY --from=monorepo go.mod go.sum /optimism/
+COPY --from=monorepo cannon/ /optimism/cannon/
+COPY --from=monorepo op-service/ /optimism/op-service/
+COPY --from=monorepo op-preimage/ /optimism/op-preimage/
+
+# Build cannon from local source
+RUN cd /optimism/cannon && \
   make && \
   cp bin/cannon /cannon-bin
 

@@ -1073,9 +1073,8 @@ jobs:
           working_directory: rust/kona
           no_output_timeout: 60m
           command: |
-            CANNON_TAG="$(cat .config/cannon_tag)"
             cd docker/fpvm-prestates
-            just "<<parameters.kind>>" "<<parameters.version>>" "$CANNON_TAG" "../.."
+            just "<<parameters.kind>>" "<<parameters.version>>" "../.."
       - run:
           name: Upload prestates to GCS
           working_directory: rust/kona

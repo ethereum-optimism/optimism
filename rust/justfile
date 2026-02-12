@@ -154,8 +154,7 @@ build-kona-prestate VARIANT OUTPUT_DIR:
 
     echo "Building prestate for {{VARIANT}}..."
     cd "{{KONA_DIR}}/docker/fpvm-prestates"
-    CANNON_TAG=$(cat "{{KONA_DIR}}/.config/cannon_tag")
-    just cannon {{VARIANT}} "${CANNON_TAG}" "{{KONA_DIR}}/{{OUTPUT_DIR}}"
+    just cannon {{VARIANT}} "{{KONA_DIR}}/{{OUTPUT_DIR}}"
 
     cd "{{KONA_DIR}}"
 
