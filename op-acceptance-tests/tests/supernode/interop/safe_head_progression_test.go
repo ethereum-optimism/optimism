@@ -123,7 +123,7 @@ func TestSupernodeInterop_SafeHeadWithUnevenProgress(gt *testing.T) {
 
 	// Chain B's local safe should be relatively stable
 	require.LessOrEqual(t, unevenStatusB.LocalSafeL2.Number, baselineLocalSafeB+5,
-		"chain B local safe should not advance much with batcher stopped")
+		"chain B local safe should not advance with batcher stopped")
 
 	// Cross-safe heads should be gated by slower chain
 	require.LessOrEqual(t, unevenStatusA.SafeL2.Number, unevenStatusB.LocalSafeL2.Number+2,
