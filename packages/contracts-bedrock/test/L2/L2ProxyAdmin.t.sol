@@ -6,6 +6,10 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
+import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 
 // Contracts
 import { L2ProxyAdmin } from "src/L2/L2ProxyAdmin.sol";
@@ -14,7 +18,7 @@ import { IL2ContractsManager } from "interfaces/L2/IL2ContractsManager.sol";
 /// @title L2ProxyAdmin_TestInit
 /// @notice Reusable test initialization for `L2ProxyAdmin` tests.
 abstract contract L2ProxyAdmin_TestInit is CommonTest {
-    L2ProxyAdmin public l2ProxyAdmin;
+    IL2ProxyAdmin public l2ProxyAdmin;
     address public owner;
 
     // Events
@@ -23,14 +27,26 @@ abstract contract L2ProxyAdmin_TestInit is CommonTest {
     /// @notice Test setup.
     function setUp() public virtual override {
         super.setUp();
-        owner = address(this);
-        l2ProxyAdmin = new L2ProxyAdmin(owner);
+        l2ProxyAdmin = IL2ProxyAdmin(Predeploys.PROXY_ADMIN);
+        owner = l2ProxyAdmin.owner();
     }
 
     /// @notice Helper function to setup a mock and expect a call to it.
     function _mockAndExpect(address _receiver, bytes memory _calldata, bytes memory _returned) internal {
         vm.mockCall(_receiver, _calldata, _returned);
         vm.expectCall(_receiver, _calldata);
+    }
+}
+
+/// @title L2ProxyAdmin_Constructor_Test
+/// @notice Tests the `constructor` function of the `L2ProxyAdmin` contract.
+contract L2ProxyAdmin_Constructor_Test is L2ProxyAdmin_TestInit {
+    /// @notice Tests that the `constructor` function succeeds.
+    function test_constructor_succeeds(address _owner) public {
+        // Deploy the L2ProxyAdmin contract
+        l2ProxyAdmin = IL2ProxyAdmin(address(new L2ProxyAdmin(_owner)));
+        // It sets the owner to the correct address
+        assertEq(l2ProxyAdmin.owner(), _owner);
     }
 }
 
@@ -64,7 +80,7 @@ contract L2ProxyAdmin_UpgradePredeploys_Test is L2ProxyAdmin_TestInit {
     }
 
     /// @notice Tests that upgradePredeploys succeeds when called by DEPOSITOR_ACCOUNT.
-    function testFuzz_upgradePredeploys_authorizedCaller_succeeds(address _l2ContractsManager) public {
+    function testFuzz_upgradePredeploys_succeeds(address _l2ContractsManager) public {
         assumeAddressIsNot(_l2ContractsManager, AddressType.Precompile, AddressType.ForgeAddress);
 
         // Mock the delegatecall to return success
