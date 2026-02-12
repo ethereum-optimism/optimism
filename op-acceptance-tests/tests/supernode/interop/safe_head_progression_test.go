@@ -5,76 +5,62 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // TestSupernodeInterop_SafeHeadTrailsLocalSafe tests that the cross-safe head
 // (SafeL2) trails behind the local safe head (LocalSafeL2) and eventually catches up
-// after interop verification completes.
+// after interop verification completes (assuming no node resets occur).
 //
 // This test verifies:
-// - SafeL2 <= LocalSafeL2 at all times
-// - SafeL2 advances after verification
-// - SafeL2 eventually catches up to LocalSafeL2
+//   - SafeL2 <= LocalSafeL2 at all times (the exception to this might be during a node reset where the local safe has to catch back up,
+//     but we don't trigger that here)
+//   - SafeL2 advances after verification
+//   - SafeL2 eventually catches up to LocalSafeL2 (assuming we don't insert any invalid message, which we don't)
+//   - EL safe label is consistent with the SafeL2 from the CL
 func TestSupernodeInterop_SafeHeadTrailsLocalSafe(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
-	waitTime := 500 * time.Millisecond
+	attempts := 10
+	// Pause interop verification at block 5 on both chains
+	// check safe and localsafe heads get to at least that height
+	pauseTimestamp := sys.L2A.TimestampForBlockNum(5)
+	sys.Supernode.PauseInterop(pauseTimestamp)
+	sys.L2ACL.Reached(types.LocalSafe, 4, attempts)
+	sys.L2BCL.Reached(types.LocalSafe, 4, attempts)
+	sys.L2ACL.Reached(types.CrossSafe, 4, attempts)
+	sys.L2BCL.Reached(types.CrossSafe, 4, attempts)
 
-	// Wait for initial sync
-	waitForInitialSync(t, sys, 5, 30*time.Second)
+	// Let local safes run ahead and expect
+	// cross safe to stall since we paused the interop activity
+	sys.L2ACL.Reached(types.LocalSafe, 10, attempts)
+	sys.L2BCL.Reached(types.LocalSafe, 10, attempts)
+	sys.L2ACL.NotAdvanced(types.CrossSafe, attempts)
+	sys.L2BCL.NotAdvanced(types.CrossSafe, attempts)
 
-	// Track progression over time
-	var previousSafeA, previousSafeB uint64
-	progressCount := 0
+	// Check EL labels
+	safeA := sys.L2ELA.BlockRefByLabel(eth.Safe)
+	safeB := sys.L2ELB.BlockRefByLabel(eth.Safe)
+	require.LessOrEqual(t, safeA.Number, uint64(5))
+	require.LessOrEqual(t, safeB.Number, uint64(5))
 
-	for i := 0; i < 20; i++ {
-		time.Sleep(waitTime)
+	// Resume interop verification
+	// expect cross safe to catch up
+	sys.Supernode.ResumeInterop()
+	sys.L2ACL.Reached(types.CrossSafe, 10, attempts)
+	sys.L2BCL.Reached(types.CrossSafe, 10, attempts)
 
-		statusA := sys.L2ACL.SyncStatus()
-		statusB := sys.L2BCL.SyncStatus()
-
-		t.Logger().Info("safe head progression", "iteration", i)
-		logSyncState(t, "current state", statusA, statusB)
-
-		// KEY ASSERTION 1: Safe head must never exceed local safe head
-		requireSafeNotAboveLocalSafe(t, statusA, "chain A")
-		requireSafeNotAboveLocalSafe(t, statusB, "chain B")
-
-		// KEY ASSERTION 2: SafeL2 fields should be populated
-		requireSafeL2FieldsPopulated(t, statusA, "chain A")
-		requireSafeL2FieldsPopulated(t, statusB, "chain B")
-
-		// Track if safe heads are progressing
-		if statusA.SafeL2.Number > previousSafeA || statusB.SafeL2.Number > previousSafeB {
-			progressCount++
-			previousSafeA = statusA.SafeL2.Number
-			previousSafeB = statusB.SafeL2.Number
-		}
-	}
-
-	// KEY ASSERTION 3: Safe heads should have progressed multiple times
-	assert.Greater(t, progressCount, 3, "safe heads should progress multiple times during test")
-
-	// Final check: safe heads should eventually catch up to a snapshot of local safe heads
-	snapshotStatusA := sys.L2ACL.SyncStatus()
-	snapshotStatusB := sys.L2BCL.SyncStatus()
-	snapshotLocalSafeA := snapshotStatusA.LocalSafeL2.Number
-	snapshotLocalSafeB := snapshotStatusB.LocalSafeL2.Number
-
-	logDetailedState(t, "snapshot state for catchup", snapshotStatusA, snapshotStatusB)
-
-	// Wait for safe heads to catch up to the snapshot of local safe heads
-	t.Require().Eventually(func() bool {
-		statusA := sys.L2ACL.SyncStatus()
-		statusB := sys.L2BCL.SyncStatus()
-		return statusA.SafeL2.Number >= snapshotLocalSafeA &&
-			statusB.SafeL2.Number >= snapshotLocalSafeB
-	}, 60*time.Second, waitTime, "safe heads should eventually catch up to snapshot of local safe heads")
+	// check EL labels
+	safeA = sys.L2ELA.BlockRefByLabel(eth.Safe)
+	safeB = sys.L2ELB.BlockRefByLabel(eth.Safe)
+	require.GreaterOrEqual(t, safeA.Number, uint64(10))
+	require.GreaterOrEqual(t, safeB.Number, uint64(10))
 }
 
 // TestSupernodeInterop_SafeHeadWithUnevenProgress tests safe head behavior
