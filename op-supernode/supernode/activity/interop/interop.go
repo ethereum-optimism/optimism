@@ -165,9 +165,24 @@ func (i *Interop) Stop(ctx context.Context) error {
 // When progressInterop encounters this timestamp, it returns early without processing.
 // This function is for integration test control only.
 // Pass 0 to clear the pause (equivalent to calling Resume).
-func (i *Interop) PauseAt(ts uint64) {
+// Returns an error if the activity has already verified past the target timestamp.
+func (i *Interop) PauseAt(ts uint64) error {
+	// Allow clearing the pause (ts == 0)
+	if ts == 0 {
+		i.pauseAtTimestamp.Store(ts)
+		i.log.Info("interop pause cleared")
+		return nil
+	}
+
+	// Check if we've already verified past this timestamp
+	lastTimestamp, initialized := i.verifiedDB.LastTimestamp()
+	if initialized && lastTimestamp >= ts {
+		return fmt.Errorf("cannot pause at timestamp %d: activity already verified up to %d", ts, lastTimestamp)
+	}
+
 	i.pauseAtTimestamp.Store(ts)
 	i.log.Info("interop pause set", "pauseAtTimestamp", ts)
+	return nil
 }
 
 // Resume clears any pause timestamp, allowing normal processing to continue.

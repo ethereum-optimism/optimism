@@ -89,9 +89,10 @@ func (s *Supernode) AwaitValidatedTimestamp(timestamp uint64) {
 // When the interop activity attempts to process this timestamp, it returns early.
 // This function is for integration test control only.
 // Requires the Supernode to be created with NewSupernodeWithTestControl.
-func (s *Supernode) PauseInterop(ts uint64) {
+// Returns an error if the activity has already verified past the target timestamp.
+func (s *Supernode) PauseInterop(ts uint64) error {
 	s.require.NotNil(s.testControl, "PauseInterop requires test control; use NewSupernodeWithTestControl")
-	s.testControl.PauseInteropActivity(ts)
+	return s.testControl.PauseInteropActivity(ts)
 }
 
 // ResumeInterop clears any pause on the interop activity, allowing normal processing.

@@ -243,14 +243,15 @@ func (s *Supernode) onChainReset(chainID eth.ChainID, timestamp uint64) {
 // PauseInteropActivity pauses the interop activity at the given timestamp.
 // When the interop activity attempts to process this timestamp, it returns early.
 // This function is for integration test control only.
-func (s *Supernode) PauseInteropActivity(ts uint64) {
+// Returns an error if the activity has already verified past the target timestamp.
+func (s *Supernode) PauseInteropActivity(ts uint64) error {
 	for _, a := range s.activities {
 		if ia, ok := a.(*interop.Interop); ok {
-			ia.PauseAt(ts)
-			return
+			return ia.PauseAt(ts)
 		}
 	}
 	s.log.Warn("PauseInterop called but no interop activity found")
+	return fmt.Errorf("no interop activity found")
 }
 
 // ResumeInteropActivity clears any pause on the interop activity, allowing normal processing.

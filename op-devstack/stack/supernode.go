@@ -69,7 +69,8 @@ type InteropTestControl interface {
 	// PauseInteropActivity pauses the interop activity at the given timestamp.
 	// When the interop activity attempts to process this timestamp, it returns early.
 	// This function is for integration test control only.
-	PauseInteropActivity(ts uint64)
+	// Returns an error if the activity has already verified past the target timestamp.
+	PauseInteropActivity(ts uint64) error
 
 	// ResumeInteropActivity clears any pause on the interop activity, allowing normal processing.
 	// This function is for integration test control only.

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -24,10 +25,8 @@ import (
 // - A replacement block is built at the same height (deposits-only)
 // - The replacement block's timestamp eventually becomes verified
 func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
-
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
-
 	ctx := t.Ctx()
 
 	// Create funded EOAs on both chains
@@ -54,16 +53,20 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 	// Wait for chain B to catch up
 	sys.L2B.WaitForBlock()
 
-	// Wait for some timestamps to be verified first
-	targetTimestamp := sys.L2A.TimestampForBlockNum(2)
-	// set supernode to pause verification just after this timestamp
-	sys.Supernode.PauseInterop(targetTimestamp + 1)
+	// Wait for some timestamps to be verified first, then pause ahead of that
+	// Use a higher block number to avoid race with interop activity startup
+	targetTimestamp := sys.L2A.TimestampForBlockNum(10)
+	// Pause just after the target to allow verification up to target, then stop
+	pauseTimestamp := targetTimestamp + 1
+	err := sys.Supernode.PauseInterop(pauseTimestamp)
+	require.NoError(t, err, "failed to pause interop: activity may have already progressed past target")
 	sys.Supernode.AwaitValidatedTimestamp(targetTimestamp)
 
 	t.Logger().Info("initial verification confirmed", "timestamp", targetTimestamp)
 
 	// Send an INVALID executing message on chain B
 	_, invalidExecReceipt := bob.SendInvalidExecMessage(initTx, 0)
+	require.Equal(t, types.ReceiptStatusSuccessful, invalidExecReceipt.Status)
 	invalidBlockNumber := bigs.Uint64Strict(invalidExecReceipt.BlockNumber)
 	invalidBlockHash := invalidExecReceipt.BlockHash
 	invalidBlockTimestamp := sys.L2B.TimestampForBlockNum(invalidBlockNumber)
@@ -73,8 +76,13 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 		"timestamp", invalidBlockTimestamp,
 	)
 
+	// Ensure the invalid block is after the pause point
+	require.Greater(t, invalidBlockTimestamp, pauseTimestamp,
+		"invalid block timestamp must be after pause timestamp to test interop detection")
+
 	// Wait for local safety to include the invalid block
 	require.Eventually(t, func() bool {
+		t.Logger().Info("l2b sync status", "local_safe_l2", sys.L2BCL.SyncStatus())
 		numSafe := sys.L2BCL.SyncStatus().LocalSafeL2.Number >= invalidBlockNumber
 		return numSafe
 	}, 60*time.Second, time.Second, "invalid block should become locally safe")
