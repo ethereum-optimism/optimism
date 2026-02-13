@@ -6,7 +6,7 @@ import { IKailuaTreasury } from "interfaces/dispute/zk/IKailuaTreasury.sol";
 import { IRiscZeroVerifier } from "interfaces/dispute/zk/IRiscZeroVerifier.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { Duration } from "src/dispute/lib/Types.sol";
-import { KailuaLib } from "src/dispute/zk/KailuaLib.sol";
+import { KailuaLib } from "src/dispute/lib/KailuaLib.sol";
 import {
     ClockNotExpired,
     IncorrectBondAmount,

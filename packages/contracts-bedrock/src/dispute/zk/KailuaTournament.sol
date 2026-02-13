@@ -11,7 +11,7 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { Clone } from "@solady/utils/Clone.sol";
 import { Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
-import { KailuaLib } from "src/dispute/zk/KailuaLib.sol";
+import { KailuaLib } from "src/dispute/lib/KailuaLib.sol";
 import {
     AlreadyInitialized,
     Blacklisted,

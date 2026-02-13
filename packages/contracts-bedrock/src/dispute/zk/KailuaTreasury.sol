@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { KailuaLib } from "src/dispute/zk/KailuaLib.sol";
+import { KailuaLib } from "src/dispute/lib/KailuaLib.sol";
 import { KailuaTournament } from "src/dispute/zk/KailuaTournament.sol";
 import { IInitializable } from "interfaces/dispute/IInitializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";

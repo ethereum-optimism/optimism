@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import { IInitializable } from "interfaces/dispute/IInitializable.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IKailuaTreasury } from "interfaces/dispute/zk/IKailuaTreasury.sol";
-import { KailuaLib } from "src/dispute/zk/KailuaLib.sol";
+import { KailuaLib } from "src/dispute/lib/KailuaLib.sol";
 import { KailuaTournament } from "src/dispute/zk/KailuaTournament.sol";
 import { KailuaTreasury } from "src/dispute/zk/KailuaTreasury.sol";
 import { Duration, GameStatus, Hash, Timestamp } from "src/dispute/lib/Types.sol";
