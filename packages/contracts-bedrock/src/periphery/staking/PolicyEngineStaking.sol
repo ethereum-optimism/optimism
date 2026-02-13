@@ -176,9 +176,9 @@ contract PolicyEngineStaking {
             _increasePeData(_beneficiary, uint128(stakingData.stakedAmount));
             emit Linked(msg.sender, _beneficiary);
         } else {
-            // Same beneficiary: re-check allowlist (skip for self-link)
-            if (_beneficiary != msg.sender) {
-                if (!allowlist[_beneficiary][msg.sender]) revert PolicyEngineStaking_NotAllowedToLink();
+            // Skip if Self-Attributing
+            if (_beneficiary != _staker && !allowlist[_beneficiary][_staker]) {
+                revert PolicyEngineStaking_NotAllowedToLink();
             }
         }
 
@@ -264,9 +264,7 @@ contract PolicyEngineStaking {
     /// @param _data        The staker's storage data reference.
     function _link(address _staker, address _beneficiary, StakedData storage _data) internal {
         // Skip if Self-Attributing
-        if (_beneficiary != _staker) {
-            if (!allowlist[_beneficiary][_staker]) revert PolicyEngineStaking_NotAllowedToLink();
-        }
+        if (_beneficiary != _staker && !allowlist[_beneficiary][_staker]) revert PolicyEngineStaking_NotAllowedToLink();
         _data.linkedTo = _beneficiary;
     }
 
