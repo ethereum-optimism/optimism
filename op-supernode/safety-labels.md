@@ -19,11 +19,7 @@ Customers expect the EL's `Safe` label to guarantee data won't revert (barring L
 
 The consensus layer (CL) maintains the full, rich set of safety pointers `[Unsafe, Safe, CrossSafe, Finalized]` and remains the **sole controller of the engine**. The supernode exerts influence through an "authority" pattern that virtual nodes defer to, without requiring them to understand interop mechanics.
 
-This approach:
-- Avoids multiple stateful controllers getting out of sync
-- Maintains clean separation of concerns
-- Prevents deadlocks by keeping locally-derived state accessible through the CL
-- Preserves the EL's guarantee that `Safe` means verified and non-reverting (barring L1 reverts)
+This approach avoids having multiple stateful controllers which could get out of sync.
 
 ### Key Takeaway
 

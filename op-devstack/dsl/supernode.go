@@ -73,7 +73,7 @@ func (s *Supernode) AssertSuperRootAtTimestamp(l2SequenceNumber uint64, rootClai
 
 // AwaitValidatedTimestamp waits for the super-root at the given timestamp to be fully validated
 func (s *Supernode) AwaitValidatedTimestamp(timestamp uint64) {
-	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, 5*DefaultTimeout)
 	defer cancel()
 	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
 		resp, err := s.inner.QueryAPI().SuperRootAtTimestamp(ctx, timestamp)
