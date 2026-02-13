@@ -287,6 +287,12 @@ func (i *Interop) progressInterop() (Result, error) {
 	// 2: load the logs up through the next timestamp
 	// the previous timestamp is assumed to already be downloaded and verified
 	if err := i.loadLogs(ts); err != nil {
+		// If the logsDB is empty (likely after a reset), treat it like chains not ready
+		// The chains will rebuild blocks and we'll retry on the next tick
+		if errors.Is(err, ErrPreviousTimestampNotSealed) {
+			i.log.Info("logsDB not ready (likely after reset), returning early", "timestamp", ts, "err", err)
+			return Result{}, nil
+		}
 		i.log.Error("failed to load logs", "err", err)
 		return Result{}, err
 	}
