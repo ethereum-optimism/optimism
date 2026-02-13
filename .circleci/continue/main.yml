@@ -2449,36 +2449,6 @@ jobs:
           command: make sanitize-program GUEST_PROGRAM=../op-program/bin/op-program-client64.elf
           working_directory: cannon
 
-  cannon-prestate-quick:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - restore_cache:
-          name: Restore cannon prestate cache
-          key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
-      - run:
-          name: Build prestates
-          command: make cannon-prestates
-      - save_cache:
-          key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
-          name: Save Cannon prestate to cache
-          paths:
-            - "op-program/bin/prestate*.bin.gz"
-            - "op-program/bin/meta*.json"
-            - "op-program/bin/prestate-proof*.json"
-      - persist_to_workspace:
-          root: .
-          paths:
-            - "op-program/bin/prestate*"
-            - "op-program/bin/meta*"
-            - "op-program/bin/op-program"
-            - "op-program/bin/op-program-client"
-            - "cannon/bin"
-
   cannon-prestate:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -2489,7 +2459,7 @@ jobs:
       - setup_remote_docker
       - run:
           name: Build prestates
-          command: make reproducible-prestate
+          command: make -j reproducible-prestate
       - persist_to_workspace:
           root: .
           paths:
@@ -3130,7 +3100,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
+            - cannon-prestate
       - go-tests:
           name: go-tests-short
           parallelism: 12
@@ -3138,7 +3108,7 @@ workflows:
           test_timeout: 20m
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
+            - cannon-prestate
           context:
             - circleci-repo-readonly-authenticated-github-token
           filters:
@@ -3156,7 +3126,7 @@ workflows:
               only: develop # Only runs on develop branch (post-merge)
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
+            - cannon-prestate
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -3189,12 +3159,12 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
-      - cannon-prestate-quick:
+      - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - sanitize-op-program:
           requires:
-            - cannon-prestate-quick
+            - cannon-prestate
           context:
             - circleci-repo-readonly-authenticated-github-token
       - check-generated-mocks-op-node:
@@ -3275,7 +3245,7 @@ workflows:
             - discord
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
+            - cannon-prestate
             - cannon-kona-prestate
             - cannon-kona-host
             - rust-binaries-for-sysgo
@@ -3568,7 +3538,7 @@ workflows:
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate-quick:
+      - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary:
@@ -3590,7 +3560,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
+            - cannon-prestate
             - rust-binaries-for-sysgo
       - op-acceptance-tests-flake-shake-report:
           requires:
@@ -3638,7 +3608,7 @@ workflows:
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate-quick: # needed for sysgo tests
+      - cannon-prestate: # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
       - op-acceptance-sync-tests-docker:
@@ -3650,7 +3620,7 @@ workflows:
             - slack
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
+            - cannon-prestate
           matrix:
             parameters:
               network_preset:
