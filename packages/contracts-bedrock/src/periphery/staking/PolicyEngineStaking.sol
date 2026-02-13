@@ -177,7 +177,7 @@ contract PolicyEngineStaking {
             emit Linked(msg.sender, _beneficiary);
         } else {
             // Skip if Self-Attributing
-            if (_beneficiary != _staker && !allowlist[_beneficiary][_staker]) {
+            if (_beneficiary != msg.sender && !allowlist[_beneficiary][msg.sender]) {
                 revert PolicyEngineStaking_NotAllowedToLink();
             }
         }
