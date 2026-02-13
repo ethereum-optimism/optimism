@@ -2464,30 +2464,7 @@ jobs:
           paths:
             - "op-program/bin/prestate*"
             - "op-program/bin/meta*"
-
-  cannon-kona-prestate:
-    machine:
-      docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - restore_cache:
-          name: Restore kona cache
-          key: kona-prestate-{{ checksum "./rust/justfile" }}-{{ checksum "./rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile" }}
-      - run:
-          name: Build kona prestates
-          command: just build-kona-prestates
-          working_directory: rust
-      - save_cache:
-          key: kona-prestate-{{ checksum "./rust/justfile" }}-{{ checksum "./rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile" }}
-          name: Save Kona to cache
-          paths:
             - "rust/kona/prestate-artifacts-*/"
-      - persist_to_workspace:
-          root: .
-          paths:
-            - "rust/kona/prestate-artifacts-*/*"
 
 
   # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
@@ -3194,9 +3171,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       # Acceptance test jobs (formerly in separate acceptance-tests workflow)
-      - cannon-kona-prestate: # needed for sysgo tests (if any package is in-memory)
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary: &cannon-kona-host
           name: cannon-kona-host
           directory: rust
@@ -3245,7 +3219,6 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - cannon-kona-prestate
             - cannon-kona-host
             - rust-binaries-for-sysgo
       # Generate flaky test report
