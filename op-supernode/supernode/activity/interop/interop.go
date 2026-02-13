@@ -66,11 +66,13 @@ func (i *Interop) Name() string {
 }
 
 // New constructs a new Interop activity.
+// If initialPauseTimestamp is non-zero, the activity will start paused at that timestamp.
 func New(
 	log log.Logger,
 	activationTimestamp uint64,
 	chains map[eth.ChainID]cc.ChainContainer,
 	dataDir string,
+	initialPauseTimestamp uint64,
 ) *Interop {
 	verifiedDB, err := OpenVerifiedDB(dataDir)
 	if err != nil {
@@ -106,6 +108,13 @@ func New(
 	// default to using the verifyInteropMessages function
 	// (can be overridden by tests)
 	i.verifyFn = i.verifyInteropMessages
+
+	// Set initial pause if configured
+	if initialPauseTimestamp > 0 {
+		i.pauseAtTimestamp.Store(initialPauseTimestamp)
+		log.Info("interop activity starting with initial pause", "pauseAtTimestamp", initialPauseTimestamp)
+	}
+
 	return i
 }
 

@@ -221,6 +221,11 @@ type SupernodeConfig struct {
 	// InteropActivationTimestamp enables the interop activity at the given timestamp.
 	// Set to 0 to disable interop (default).
 	InteropActivationTimestamp uint64
+
+	// InitialPauseTimestamp pauses interop verification at the given timestamp on startup.
+	// Set to 0 to start with interop unpaused (default).
+	// This is useful for tests that want to avoid race conditions by starting with interop paused.
+	InitialPauseTimestamp uint64
 }
 
 // SupernodeOption is a functional option for configuring the supernode.
@@ -233,9 +238,18 @@ func WithSupernodeInterop(activationTimestamp uint64) SupernodeOption {
 	}
 }
 
+// WithInitialInteropPause pauses interop verification at the given timestamp on startup.
+// This is useful for tests that want to avoid race conditions by starting with interop paused.
+func WithInitialInteropPause(pauseTimestamp uint64) SupernodeOption {
+	return func(cfg *SupernodeConfig) {
+		cfg.InitialPauseTimestamp = pauseTimestamp
+	}
+}
+
 // WithSharedSupernodeCLsInterop starts one supernode for N L2 chains with interop enabled at genesis.
 // The interop activation timestamp is computed from the first chain's genesis time.
-func WithSharedSupernodeCLsInterop(supernodeID stack.SupernodeID, cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
+// Additional options can be passed to configure the supernode (e.g., WithInitialInteropPause).
+func WithSharedSupernodeCLsInterop(supernodeID stack.SupernodeID, cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, extraOpts ...SupernodeOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		// Get genesis timestamp from first chain
 		if len(cls) == 0 {
@@ -250,14 +264,17 @@ func WithSharedSupernodeCLsInterop(supernodeID stack.SupernodeID, cls []L2CLs, l
 		genesisTime := l2Net.rollupCfg.Genesis.L2Time
 		orch.P().Logger().Info("enabling supernode interop at genesis", "activation_timestamp", genesisTime)
 
+		// Combine interop option with any extra options
+		opts := append([]SupernodeOption{WithSupernodeInterop(genesisTime)}, extraOpts...)
 		// Call the main implementation with interop enabled
-		withSharedSupernodeCLsImpl(orch, supernodeID, cls, l1CLID, l1ELID, WithSupernodeInterop(genesisTime))
+		withSharedSupernodeCLsImpl(orch, supernodeID, cls, l1CLID, l1ELID, opts...)
 	})
 }
 
 // WithSharedSupernodeCLsInteropDelayed starts one supernode for N L2 chains with interop enabled
 // at a specified offset from genesis. This allows testing the transition from non-interop to interop mode.
-func WithSharedSupernodeCLsInteropDelayed(supernodeID stack.SupernodeID, cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, delaySeconds uint64) stack.Option[*Orchestrator] {
+// Additional options can be passed to configure the supernode (e.g., WithInitialInteropPause).
+func WithSharedSupernodeCLsInteropDelayed(supernodeID stack.SupernodeID, cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, delaySeconds uint64, extraOpts ...SupernodeOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		// Get genesis timestamp from first chain
 		if len(cls) == 0 {
@@ -277,8 +294,10 @@ func WithSharedSupernodeCLsInteropDelayed(supernodeID stack.SupernodeID, cls []L
 			"delay_seconds", delaySeconds,
 		)
 
+		// Combine interop option with any extra options
+		opts := append([]SupernodeOption{WithSupernodeInterop(activationTime)}, extraOpts...)
 		// Call the main implementation with interop enabled at delayed timestamp
-		withSharedSupernodeCLsImpl(orch, supernodeID, cls, l1CLID, l1ELID, WithSupernodeInterop(activationTime))
+		withSharedSupernodeCLsImpl(orch, supernodeID, cls, l1CLID, l1ELID, opts...)
 	})
 }
 
@@ -383,9 +402,13 @@ func withSharedSupernodeCLsImpl(orch *Orchestrator, supernodeID stack.SupernodeI
 		L1BeaconAddr:               l1CL.beaconHTTPAddr,
 		RPCConfig:                  oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 		InteropActivationTimestamp: snOpts.InteropActivationTimestamp,
+		InitialPauseTimestamp:      snOpts.InitialPauseTimestamp,
 	}
 	if snOpts.InteropActivationTimestamp > 0 {
 		logger.Info("supernode interop enabled", "activation_timestamp", snOpts.InteropActivationTimestamp)
+	}
+	if snOpts.InitialPauseTimestamp > 0 {
+		logger.Info("supernode interop starting paused", "initial_pause_timestamp", snOpts.InitialPauseTimestamp)
 	}
 	ctx, cancel := context.WithCancel(p.Ctx())
 	exitFn := func(err error) { p.Require().NoError(err, "supernode critical error") }

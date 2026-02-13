@@ -109,6 +109,17 @@ func (s *Supernode) ResumeInterop() {
 // 3. Finds the first timestamp that is NOT verified (the actual pause point)
 // Returns the first unverified timestamp (adjusted if pause came in late).
 // Requires the Supernode to be created with NewSupernodeWithTestControl.
+//
+// Note: For tests that want to avoid race conditions, consider using the
+// initial pause feature instead. In TestMain, configure your system with:
+//
+//	WithTwoL2SupernodeInteropPaused(delaySeconds, initialPauseTimestamp)
+//
+// Then in tests, use the regular factory:
+//
+//	NewTwoL2SupernodeInterop(t, delaySeconds)
+//
+// The interop will start paused at the configured timestamp, avoiding race conditions.
 func (s *Supernode) EnsureInteropPaused(clA, clB *L2CLNode, pauseOffset uint64) uint64 {
 	s.require.NotNil(s.testControl, "EnsureInteropPaused requires test control; use NewSupernodeWithTestControl")
 
