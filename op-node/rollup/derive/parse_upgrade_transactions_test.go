@@ -1,6 +1,7 @@
 package derive
 
 import (
+	"bytes"
 	"math/big"
 	"os"
 	"testing"
@@ -10,11 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseNUTBundle(t *testing.T) {
-	data, err := os.ReadFile("testdata/test-nut.json")
+func TestReadNUTBundle(t *testing.T) {
+	f, err := os.Open("testdata/test-nut.json")
 	require.NoError(t, err)
+	defer f.Close()
 
-	bundle, err := ParseNUTBundle("Test", data)
+	bundle, err := ReadNUTBundle("Test", f)
 	require.NoError(t, err)
 
 	require.Equal(t, forks.Name("Test"), bundle.ForkName)
@@ -39,10 +41,11 @@ func TestParseNUTBundle(t *testing.T) {
 }
 
 func TestNUTBundleToDepositTransactions(t *testing.T) {
-	data, err := os.ReadFile("testdata/test-nut.json")
+	f, err := os.Open("testdata/test-nut.json")
 	require.NoError(t, err)
+	defer f.Close()
 
-	bundle, err := ParseNUTBundle("Test", data)
+	bundle, err := ReadNUTBundle("Test", f)
 	require.NoError(t, err)
 
 	txs, err := bundle.ToDepositTransactions()
@@ -71,8 +74,8 @@ func TestNUTBundleToDepositTransactions(t *testing.T) {
 	require.NotEqual(t, dep0.SourceHash(), dep1.SourceHash())
 }
 
-func TestParseNUTBundleInvalidJSON(t *testing.T) {
-	_, err := ParseNUTBundle("Test", []byte(`{invalid`))
+func TestReadNUTBundleInvalidJSON(t *testing.T) {
+	_, err := ReadNUTBundle("Test", bytes.NewReader([]byte(`{invalid`)))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to parse NUT bundle")
 }
@@ -88,7 +91,7 @@ func TestNUTBundleMissingIntent(t *testing.T) {
 		}]
 	}`)
 
-	bundle, err := ParseNUTBundle("Test", jsonData)
+	bundle, err := ReadNUTBundle("Test", bytes.NewReader(jsonData))
 	require.NoError(t, err)
 
 	_, err = bundle.ToDepositTransactions()
@@ -111,7 +114,7 @@ func TestNUTBundleNullTo(t *testing.T) {
 		}]
 	}`)
 
-	bundle, err := ParseNUTBundle("Test", jsonData)
+	bundle, err := ReadNUTBundle("Test", bytes.NewReader(jsonData))
 	require.NoError(t, err)
 	require.Nil(t, bundle.Transactions[0].To)
 

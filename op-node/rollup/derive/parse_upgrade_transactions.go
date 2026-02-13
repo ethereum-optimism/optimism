@@ -3,6 +3,7 @@ package derive
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
@@ -35,11 +36,11 @@ type NUTBundle struct {
 	Transactions []NetworkUpgradeTransaction `json:"transactions"`
 }
 
-// ParseNUTBundle parses a NUT bundle from JSON bytes. The fork name is used to
-// namespace each transaction's intent when deriving source hashes.
-func ParseNUTBundle(fork forks.Name, data []byte) (*NUTBundle, error) {
+// ReadNUTBundle reads and parses a NUT bundle from an io.Reader. The fork name
+// is used to namespace each transaction's intent when deriving source hashes.
+func ReadNUTBundle(fork forks.Name, r io.Reader) (*NUTBundle, error) {
 	var bundle NUTBundle
-	if err := json.Unmarshal(data, &bundle); err != nil {
+	if err := json.NewDecoder(r).Decode(&bundle); err != nil {
 		return nil, fmt.Errorf("failed to parse NUT bundle: %w", err)
 	}
 	bundle.ForkName = fork
