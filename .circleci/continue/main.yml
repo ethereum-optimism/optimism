@@ -2450,8 +2450,8 @@ jobs:
           working_directory: cannon
 
   cannon-prestate:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+    machine:
+      docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
