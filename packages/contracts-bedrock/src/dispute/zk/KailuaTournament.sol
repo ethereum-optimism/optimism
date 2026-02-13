@@ -15,13 +15,32 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.24;
 
-import "interfaces/L1/IOptimismPortal2.sol";
-import "interfaces/dispute/IFaultDisputeGame.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IKailuaTournament } from "interfaces/dispute/zk/IKailuaTournament.sol";
 import { IKailuaTreasury } from "interfaces/dispute/zk/IKailuaTreasury.sol";
-//import "src/dispute/zk//KailuaLib.sol";
-import { KailuaVerifier } from "src/dispute/zk//KailuaVerifier.sol";
-import "@solady/utils/Clone.sol";
+import { IKailuaVerifier } from "interfaces/dispute/zk/IKailuaVerifier.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
+import { Clone } from "@solady/utils/Clone.sol";
+import { Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
+import { KailuaLib } from "src/dispute/zk/KailuaLib.sol";
+import {
+    AlreadyInitialized,
+    Blacklisted,
+    UnknownGame,
+    InvalidParent,
+    ClaimAlreadyResolved,
+    NotProposed,
+    GameNotInProgress,
+    InvalidDisputedClaimIndex,
+    NoConflict,
+    UnknownGame,
+    AlreadyProven,
+    GameNotResolved,
+    NotProven
+} from "src/dispute/lib/Errors.sol";
 
 abstract contract KailuaTournament is Clone, IDisputeGame, ISemver {
     /// @notice Semantic version.
@@ -46,7 +65,7 @@ abstract contract KailuaTournament is Clone, IDisputeGame, ISemver {
     IKailuaTreasury public immutable KAILUA_TREASURY;
 
     /// @notice The Kailua Verifier contract
-    KailuaVerifier public immutable KAILUA_VERIFIER;
+    IKailuaVerifier public immutable KAILUA_VERIFIER;
 
     /// @notice The number of outputs a proposal must publish
     uint64 public immutable PROPOSAL_OUTPUT_COUNT;
@@ -68,7 +87,7 @@ abstract contract KailuaTournament is Clone, IDisputeGame, ISemver {
 
     constructor(
         IKailuaTreasury _kailuaTreasury,
-        KailuaVerifier _kailuaVerifier,
+        IKailuaVerifier _kailuaVerifier,
         uint64 _proposalOutputCount,
         uint64 _outputBlockSpan,
         GameType _gameType,
@@ -80,8 +99,8 @@ abstract contract KailuaTournament is Clone, IDisputeGame, ISemver {
         OUTPUT_BLOCK_SPAN = _outputBlockSpan;
         // discard published root commitment in calldata
         _proposalOutputCount--;
-        PROPOSAL_BLOBS = (_proposalOutputCount / uint64(KailuaKZGLib.FIELD_ELEMENTS_PER_BLOB))
-            + ((_proposalOutputCount % uint64(KailuaKZGLib.FIELD_ELEMENTS_PER_BLOB)) == 0 ? 0 : 1);
+        PROPOSAL_BLOBS = (_proposalOutputCount / uint64(KailuaLib.FIELD_ELEMENTS_PER_BLOB))
+            + ((_proposalOutputCount % uint64(KailuaLib.FIELD_ELEMENTS_PER_BLOB)) == 0 ? 0 : 1);
         GAME_TYPE = _gameType;
         OPTIMISM_PORTAL = _optimismPortal;
         DISPUTE_GAME_FACTORY = OPTIMISM_PORTAL.disputeGameFactory();
@@ -228,7 +247,10 @@ abstract contract KailuaTournament is Clone, IDisputeGame, ISemver {
         uint256 outputFe,
         bytes calldata blobCommitment,
         bytes calldata kzgProof
-    ) external virtual returns (bool success);
+    )
+        external
+        virtual
+        returns (bool success);
 
     /// @notice Updates the provability of a child signature if not already set
     function updateProofStatus(address payoutRecipient, bytes32 childSignature, ProofStatus outcome) internal {
@@ -305,8 +327,8 @@ abstract contract KailuaTournament is Clone, IDisputeGame, ISemver {
     bool public wasRespectedGameTypeWhenCreated;
 
     /// @notice This is a workaround for withdrawal compatibility under op-contracts v5.0.0
-    function anchorStateRegistry() external view returns (address registry_) {
-        registry_ = msg.sender;
+    function anchorStateRegistry() external view returns (IAnchorStateRegistry registry_) {
+        registry_ = IAnchorStateRegistry(msg.sender);
     }
 
     // ------------------------------
@@ -455,7 +477,12 @@ abstract contract KailuaTournament is Clone, IDisputeGame, ISemver {
     }
 
     /// @notice Proves that a proposal is valid
-    function proveValidity(address payoutRecipient, address l1HeadSource, uint64 childIndex, bytes calldata encodedSeal)
+    function proveValidity(
+        address payoutRecipient,
+        address l1HeadSource,
+        uint64 childIndex,
+        bytes calldata encodedSeal
+    )
         external
     {
         KailuaTournament childContract = children[childIndex];
@@ -514,7 +541,9 @@ abstract contract KailuaTournament is Clone, IDisputeGame, ISemver {
         bytes32[2] memory ac,
         uint256 proposedOutputFe,
         bytes[][2] calldata kzgCommitmentsProofs
-    ) external {
+    )
+        external
+    {
         KailuaTournament childContract = children[co[0]];
         // INVARIANT: Proofs cannot be submitted unless the child is playing.
         if (childContract.status() != GameStatus.IN_PROGRESS) {
@@ -541,7 +570,7 @@ abstract contract KailuaTournament is Clone, IDisputeGame, ISemver {
             // Prove common output publication
             require(
                 childContract.verifyIntermediateOutput(
-                    co[1] - 1, KailuaKZGLib.hashToFe(ac[0]), kzgCommitmentsProofs[0][0], kzgCommitmentsProofs[1][0]
+                    co[1] - 1, KailuaLib.hashToFe(ac[0]), kzgCommitmentsProofs[0][0], kzgCommitmentsProofs[1][0]
                 ),
                 "bad acceptedOutput kzg"
             );
@@ -566,7 +595,7 @@ abstract contract KailuaTournament is Clone, IDisputeGame, ISemver {
                 "bad proposedOutput kzg"
             );
             // INVARIANT: Proofs can only show disparities
-            if (KailuaKZGLib.hashToFe(ac[1]) == proposedOutputFe) {
+            if (KailuaLib.hashToFe(ac[1]) == proposedOutputFe) {
                 revert NoConflict();
             }
         }
@@ -592,7 +621,9 @@ abstract contract KailuaTournament is Clone, IDisputeGame, ISemver {
         uint256 proposedOutputFe,
         bytes calldata blobCommitment,
         bytes calldata kzgProof
-    ) external {
+    )
+        external
+    {
         KailuaTournament childContract = children[co[0]];
         // INVARIANT: Proofs cannot be submitted unless the children are playing.
         if (childContract.status() != GameStatus.IN_PROGRESS) {
@@ -618,8 +649,8 @@ abstract contract KailuaTournament is Clone, IDisputeGame, ISemver {
         // one to correctly point to the target trailing zero output
         // INVARIANT: The divergence occurs in the last blob
         uint64 feOffset = co[1] - 1;
-        if (KailuaKZGLib.blobIndex(feOffset) != PROPOSAL_BLOBS - 1) {
-            revert IFaultDisputeGame.InvalidDataRemainder();
+        if (KailuaLib.blobIndex(feOffset) != PROPOSAL_BLOBS - 1) {
+            revert InvalidDisputedClaimIndex();
         }
 
         // Validate the claimed output root publications
@@ -648,7 +679,9 @@ abstract contract KailuaTournament is Clone, IDisputeGame, ISemver {
         bytes calldata encodedSeal,
         bytes32 childSignature,
         ProofStatus outcome
-    ) internal {
+    )
+        internal
+    {
         // Validate the l1Head source
         if (KAILUA_TREASURY.proposerOf(l1HeadSource) == address(0x0)) {
             revert UnknownGame();

@@ -16,8 +16,6 @@
 pragma solidity 0.8.24;
 
 import { BondTransferFailed } from "src/dispute/lib/Errors.sol";
-import "@openzeppelin/contracts/utils/Timers.sol";
-
 
 library KailuaLib {
     /// @notice Transfers ETH from the contract's balance to the recipient

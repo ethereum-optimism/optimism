@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.24;
 
-import { IRiscZeroVerifier } from "interfaces/dispute/zk/IRiscZeroVerifier.sol";
-import { ISemver } from "interfaces/universal/ISemver.sol";
+import { IKailuaTournament } from "interfaces/dispute/zk/IKailuaTournament.sol";
 import {
     AlreadyEliminated,
     BadTarget,
@@ -14,6 +13,8 @@ import {
     ProvenFaulty
 } from "src/dispute/lib/Errors.sol";
 import { Duration } from "src/dispute/lib/Types.sol";
+import { IRiscZeroVerifier } from "interfaces/dispute/zk/IRiscZeroVerifier.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
 interface IKailuaVerifier is ISemver {
     function FPVM_IMAGE_ID() external view returns (bytes32);
@@ -21,7 +22,7 @@ interface IKailuaVerifier is ISemver {
     function RISC_ZERO_VERIFIER() external view returns (IRiscZeroVerifier);
     function ROLLUP_CONFIG_HASH() external view returns (bytes32);
     function acquireFaultProofPermit(
-        address proposalParent,
+        IKailuaTournament proposalParent,
         bytes32 proposalSignature,
         uint64 numExpiredPermits,
         address payoutRecipient
@@ -38,15 +39,27 @@ interface IKailuaVerifier is ISemver {
         view
         returns (uint64, uint256, uint64);
     function faultProofPermitBeneficiary(
-        address proposalParent,
+        IKailuaTournament proposalParent,
         bytes32 proposalSignature
     )
         external
         view
         returns (address);
     function faultProofPermitBond(address treasury) external view returns (uint256 bond);
-    function faultProofPermitKey(address proposalParent, bytes32 proposalSignature) external pure returns (bytes32);
-    function faultProofPermitProvenAt(address proposalParent, bytes32 proposalSignature) external view returns (uint64);
+    function faultProofPermitKey(
+        IKailuaTournament proposalParent,
+        bytes32 proposalSignature
+    )
+        external
+        pure
+        returns (bytes32);
+    function faultProofPermitProvenAt(
+        IKailuaTournament proposalParent,
+        bytes32 proposalSignature
+    )
+        external
+        view
+        returns (uint64);
     function faultProofPermits(
         bytes32,
         uint256
@@ -55,7 +68,7 @@ interface IKailuaVerifier is ISemver {
         view
         returns (uint256 aggregateCollateral, address recipient, uint64 timestamp, bool released);
     function releaseFaultProofPermit(
-        address proposalParent,
+        IKailuaTournament proposalParent,
         bytes32 proposalSignature,
         uint64 numExpiredPermits,
         uint64 permitIndex

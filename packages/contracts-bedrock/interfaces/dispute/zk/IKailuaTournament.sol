@@ -15,12 +15,15 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.24;
 
-import "interfaces/dispute/zk/IKailuaTreasury.sol";
-import "interfaces/dispute/zk/IKailuaVerifier.sol";
-import "src/dispute/lib/Types.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { IKailuaVerifier } from "interfaces/dispute/zk/IKailuaVerifier.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 
-
-interface IKailuaTournament {
+interface IKailuaTournament is IDisputeGame, ISemver {
     /// @notice Denotes the proven status of the game
     enum ProofStatus {
         NONE,
@@ -31,19 +34,19 @@ interface IKailuaTournament {
     /// @notice Emitted when a proof is submitted.
     event Proven(bytes32 indexed signature, ProofStatus indexed status);
 
-    function DISPUTE_GAME_FACTORY() external view returns (address);
+    function DISPUTE_GAME_FACTORY() external view returns (IDisputeGameFactory);
     function GAME_TYPE() external view returns (GameType);
-    function KAILUA_TREASURY() external view returns (IKailuaTreasury);
+    function KAILUA_TREASURY() external view returns (IKailuaTournament);
     function KAILUA_VERIFIER() external view returns (IKailuaVerifier);
-    function OPTIMISM_PORTAL() external view returns (address);
+    function OPTIMISM_PORTAL() external view returns (IOptimismPortal2);
     function OUTPUT_BLOCK_SPAN() external view returns (uint64);
     function PROPOSAL_BLOBS() external view returns (uint64);
     function PROPOSAL_OUTPUT_COUNT() external view returns (uint64);
-    function anchorStateRegistry() external view returns (address registry_);
+    function anchorStateRegistry() external view returns (IAnchorStateRegistry registry_);
     function appendChild() external;
     function blobsHash() external view returns (bytes32 blobsHash_);
     function childCount() external view returns (uint256 count_);
-    function children(uint256) external view returns (address);
+    function children(uint256) external view returns (IKailuaTournament);
     function contenderDuplicates(uint256) external view returns (uint64);
     function contenderIndex() external view returns (uint64);
     function createdAt() external view returns (Timestamp);
@@ -59,7 +62,7 @@ interface IKailuaTournament {
     function l2SequenceNumber() external pure returns (uint256 l2SequenceNumber_);
     function minCreationTime() external view returns (Timestamp minCreationTime_);
     function opponentIndex() external view returns (uint64);
-    function parentGame() external view returns (address parentGame_);
+    function parentGame() external view returns (IKailuaTournament parentGame_);
     function proofStatus(bytes32) external view returns (ProofStatus);
     function proposalBlobHashes(uint256) external view returns (Hash);
     function proposer() external view returns (address proposer_);
@@ -70,19 +73,26 @@ interface IKailuaTournament {
         bytes32[2] memory ac,
         uint256 proposedOutputFe,
         bytes[][2] memory kzgCommitmentsProofs
-    ) external;
+    )
+        external;
     function proveTrailFault(
         address payoutRecipient,
         uint64[2] memory co,
         uint256 proposedOutputFe,
         bytes memory blobCommitment,
         bytes memory kzgProof
-    ) external;
-    function proveValidity(address payoutRecipient, address l1HeadSource, uint64 childIndex, bytes memory encodedSeal)
-    external;
+    )
+        external;
+    function proveValidity(
+        address payoutRecipient,
+        address l1HeadSource,
+        uint64 childIndex,
+        bytes memory encodedSeal
+    )
+        external;
     function provenAt(bytes32) external view returns (Timestamp);
     function prover(bytes32) external view returns (address);
-    function pruneChildren(uint256 stepLimit) external returns (address);
+    function pruneChildren(uint256 stepLimit) external returns (IKailuaTournament);
     function resolve() external returns (GameStatus status_);
     function resolvedAt() external view returns (Timestamp);
     function rootClaim() external pure returns (Claim rootClaim_);
@@ -95,7 +105,9 @@ interface IKailuaTournament {
         uint256 outputFe,
         bytes memory blobCommitment,
         bytes memory kzgProof
-    ) external returns (bool success);
+    )
+        external
+        returns (bool success);
     function version() external view returns (string memory);
     function wasRespectedGameTypeWhenCreated() external view returns (bool);
 }

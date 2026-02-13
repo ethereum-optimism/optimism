@@ -15,35 +15,36 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.24;
 
-/// @notice Emitted when the participation bond is updated
-/// @param amount The new required bond amount
-event BondUpdated(uint256 amount);
+import { IKailuaTournament } from "interfaces/dispute/zk/IKailuaTournament.sol";
+import { Claim, Duration, GameStatus, GameType, Timestamp } from "src/dispute/lib/Types.sol";
 
-interface IKailuaTreasury {
-    /// @notice Returns the game index at which proposer was proven faulty
-    function eliminationRound(address proposer) external view returns (uint256);
+interface IKailuaTreasury is IKailuaTournament {
 
-    /// @notice Returns the proposer of a game
-    function proposerOf(address game) external view returns (address);
+    /// @notice Emitted when the participation bond is updated
+    /// @param amount The new required bond amount
+    event BondUpdated(uint256 amount);
 
-    /// @notice Eliminates a child's proposer and allocates their bond to the prover
-    function eliminate(address child, address prover) external;
-
-    /// @notice Returns true iff a proposal is currently being submitted
-    function isProposing() external view returns (bool);
-
-    /// @notice Returns the last resolved proposal contract address
-    function lastResolved() external view returns (address);
-
-    /// @notice Updates the last resolved contract address to that of the caller
-    function updateLastResolved() external;
-
-    /// @notice Returns the collateral required to submit proposals
-    function participationBond() external view returns (uint256);
-
-    /// @notice Returns the prover's number of shares in elimination rewards
-    function ELIMINATION_SPLIT_PROVER_NUM() external view returns (uint256);
-
-    /// @notice Returns the total number of shares for elimination rewards
     function ELIMINATION_SPLIT_DENOM() external view returns (uint256);
+    function ELIMINATION_SPLIT_PROVER_NUM() external view returns (uint256);
+    function ELIMINATION_SPLIT_WINNER_NUM() external view returns (uint256);
+    function L2_BLOCK_NUMBER() external view returns (uint64);
+    function ROOT_CLAIM() external view returns (Claim);
+    function assignVanguard(address _vanguard, Duration _vanguardAdvantage) external;
+    function claimEliminationRewards() external;
+    function claimProposerBond() external;
+    function eliminate(address _child, address prover) external;
+    function eliminationRewards(address) external view returns (uint256);
+    function eliminationRound(address) external view returns (uint256);
+    function isProposing() external view returns (bool);
+    function lastProposal(address) external view returns (IKailuaTournament);
+    function lastResolved() external view returns (address);
+    function paidBonds(address) external view returns (uint256);
+    function participationBond() external view returns (uint256);
+    function propose(Claim _rootClaim, bytes memory _extraData) external payable returns (IKailuaTournament tournament);
+    function proposerOf(address) external view returns (address);
+    function setParticipationBond(uint256 amount) external;
+    function treasuryAddress() external pure returns (IKailuaTreasury treasuryAddress_);
+    function updateLastResolved() external;
+    function vanguard() external view returns (address);
+    function vanguardAdvantage() external view returns (Duration);
 }
