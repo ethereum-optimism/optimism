@@ -138,7 +138,7 @@ contract PolicyEngineStaking {
         return OWNER_ADDRESS;
     }
 
-    /// @notice Pauses the contract. Stake and changeBeneficiary are disabled while paused.
+    /// @notice Pauses the contract. Stake is disabled while paused.
     function pause() external onlyOwner {
         paused = true;
         emit Paused();
