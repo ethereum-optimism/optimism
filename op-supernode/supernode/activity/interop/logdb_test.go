@@ -456,7 +456,7 @@ func TestLoadLogs_ParentHashMismatch(t *testing.T) {
 	}
 
 	chains := map[eth.ChainID]cc.ChainContainer{chainID: mockChain}
-	interop := New(gethlog.New(), 1000, chains, dataDir)
+	interop := New(gethlog.New(), 1000, chains, dataDir, 0)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 	defer func() { _ = interop.Stop(context.Background()) }()
