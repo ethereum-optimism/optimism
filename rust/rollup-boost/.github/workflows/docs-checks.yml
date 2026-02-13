@@ -1,0 +1,59 @@
+# Documentation and mdbook related jobs.
+# Heavily inspired by Reth https://github.com/paradigmxyz/reth/blob/main/.github/workflows/book.yml
+
+name: "[docs] Checks"
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'book/**'
+
+jobs:
+  test:
+    runs-on: warp-ubuntu-latest-x64-16x
+    name: test
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt
+
+      - name: Install Dependencies
+        run: |
+          cargo install mdbook
+          cargo install mdbook-mermaid
+          cargo install mdbook-template
+
+      - name: Run tests
+        working-directory: ./book
+        run: mdbook test
+
+  lint:
+    runs-on: warp-ubuntu-latest-x64-16x
+    name: lint
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt
+
+      - name: Install Dependencies
+        run: |
+          cargo install mdbook-linkcheck
+
+      - name: Run linkcheck
+        working-directory: ./book
+        run: mdbook-linkcheck --standalone
