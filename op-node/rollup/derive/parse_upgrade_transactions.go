@@ -18,8 +18,8 @@ type NUTMetadata struct {
 	Version string `json:"version"`
 }
 
-// NUTTransaction defines a single deposit transaction within a NUT bundle.
-type NUTTransaction struct {
+// NetworkUpgradeTransaction defines a single deposit transaction within a NUT bundle.
+type NetworkUpgradeTransaction struct {
 	Intent   string          `json:"intent"`
 	From     common.Address  `json:"from"`
 	To       *common.Address `json:"to"`
@@ -32,7 +32,7 @@ type NUTTransaction struct {
 type NUTBundle struct {
 	ForkName     string           `json:"-"`
 	Metadata     NUTMetadata      `json:"metadata"`
-	Transactions []NUTTransaction `json:"transactions"`
+	Transactions []NetworkUpgradeTransaction `json:"transactions"`
 }
 
 // ParseNUTBundle parses a NUT bundle from JSON bytes. The forkName is used to
