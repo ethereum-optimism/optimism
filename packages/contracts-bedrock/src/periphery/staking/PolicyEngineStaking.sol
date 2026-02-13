@@ -8,11 +8,9 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title PolicyEngineStaking
-/// @notice A periphery contract that enables staking of governance tokens and linking to a beneficiary for ordering
-/// power.
-///         Separates stake and link operations, supports partial unstake, and enforces
-///         the invariant that every staked token always has a beneficiary.
-///         No `receivedStake` tracking, no dormant state, no `unlink()`.
+/// @notice Periphery contract for stake-based transaction ordering in op-rbuilder. Users stake governance tokens
+///         and optionally link to a beneficiary who receives ordering power. Supports partial unstake.
+///         Invariant: every staked token has a beneficiary (self or linked). No receivedStake tracking or unlink().
 contract PolicyEngineStaking {
     using SafeERC20 for IERC20;
 
