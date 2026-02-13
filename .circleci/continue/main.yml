@@ -3107,6 +3107,7 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
+            - go-binaries-for-sysgo
           context:
             - circleci-repo-readonly-authenticated-github-token
           filters:
