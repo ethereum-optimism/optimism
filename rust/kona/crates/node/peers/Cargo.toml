@@ -1,0 +1,62 @@
+[package]
+name = "kona-peers"
+version = "0.1.2"
+description = "Network peers library for the OP Stack"
+
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Kona
+kona-registry.workspace = true
+
+# Alloy
+alloy-rlp.workspace = true
+alloy-primitives = { workspace = true, features = ["k256", "getrandom"] }
+
+# Networking
+discv5 = { workspace = true, features = ["libp2p"] }
+libp2p-identity = { workspace = true, features = ["secp256k1"] }
+libp2p = { workspace = true, features = ["macros", "tokio", "tcp", "noise", "gossipsub", "ping", "yamux", "identify"] }
+
+# Cryptography
+secp256k1.workspace = true
+
+# Misc
+url.workspace = true
+dirs.workspace = true
+serde.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+lazy_static.workspace = true
+unsigned-varint.workspace = true
+serde_json = { workspace = true, features = ["std"] }
+derive_more = { workspace = true, features = ["display", "deref", "debug"] }
+
+# `arbitrary` feature dependencies
+arbitrary = { workspace = true, features = ["derive"], optional = true }
+
+[dev-dependencies]
+arbtest.workspace = true
+tempfile.workspace = true
+multihash.workspace = true
+serde_json.workspace = true
+
+kona-genesis.workspace = true
+
+arbitrary = { workspace = true, features = ["derive"] }
+alloy-primitives = { workspace = true, features = ["arbitrary"] }
+alloy-consensus = { workspace = true, features = ["arbitrary", "k256"] }
+
+[features]
+default = []
+arbitrary = [ "alloy-primitives/arbitrary", "dep:arbitrary" ]

@@ -1,0 +1,228 @@
+---
+title: Sending data between L1 and L2
+description: Learn how bridging works between L1 and L2, how to use it, and what to watch out for.
+---
+
+Smart contracts on L1 (Ethereum) can interact with smart contracts on L2 (OP Mainnet) through a process called "bridging".
+This page explains how bridging works, how to use it, and what to watch out for.
+
+<Info>
+  This is a high-level overview of the bridging process.
+  For a step-by-step tutorial on how to send data between L1 and L2, check out the [Solidity tutorial](/app-developers/tutorials/bridging/cross-dom-solidity).
+</Info>
+
+## Understanding contract calls
+
+It can be easier to understand bridging if you first have a basic understanding of how contracts on EVM-based blockchains like OP Mainnet and Ethereum communicate within the *same* network.
+The interface for sending messages *between* Ethereum and OP Mainnet is designed to mimic the standard contract communication interface as much as possible.
+
+Here's how a contract on Ethereum might trigger a function within another contract on Ethereum:
+
+```solidity
+contract MyContract {
+    function doTheThing(address myContractAddress, uint256 myFunctionParam) public {
+        MyOtherContract(myContractAddress).doSomething(myFunctionParam);
+    }
+}
+```
+
+Here, `MyContract.doTheThing` triggers a call to `MyOtherContract.doSomething`.
+Under the hood, Solidity is triggering the code for `MyOtherContract` by sending an [ABI encoded](https://docs.soliditylang.org/en/v0.8.23/abi-spec.html) call for the `doSomething` function.
+A lot of this complexity is abstracted away to simplify the developer experience.
+Solidity also has manual encoding tools that allow us to demonstrate the same process in a more verbose way.
+
+Here's how you might manually encode the same call:
+
+```solidity
+contract MyContract {
+    function doTheThing(address myContractAddress, uint256 myFunctionParam) public {
+        myContractAddress.call(
+            abi.encodeCall(
+                MyOtherContract.doSomething,
+                (
+                    myFunctionParam
+                )
+            )
+        );
+    }
+}
+```
+
+Here you're using the [low-level "call" function](https://docs.soliditylang.org/en/v0.8.23/units-and-global-variables.html#members-of-address-types) and one of the [ABI encoding functions built into Solidity](https://docs.soliditylang.org/en/v0.8.23/units-and-global-variables.html#abi-encoding-and-decoding-functions).
+Although these two code snippets look a bit different, they're doing the exact same thing.
+Because of limitations of Solidity, **the OP Stack's bridging interface is designed to look like the second code snippet**.
+
+## Basics of communication between layers
+
+At a high level, the process for sending data between L1 and L2 is pretty similar to the process for sending data between two contracts on Ethereum (with a few caveats).
+Communication between L1 and L2 is made possible by a pair of special smart contracts called the "messenger" contracts.
+Each layer has its own messenger contract, which serves to abstract away some lower-level communication details, a lot like how HTTP libraries abstract away physical network connections.
+
+We won't get into *too* much detail about these contracts here.
+The most important thing that you need to know is that each messenger contract has a `sendMessage` function that allows you to send a message to a contract on the other layer.
+
+```solidity
+function sendMessage(
+    address _target,
+    bytes memory _message,
+    uint32 _minGasLimit
+) public;
+```
+
+The `sendMessage` function has three parameters:
+
+1.  The `address _target` of the contract to call on the other layer.
+2.  The `bytes memory _message` calldata to send to the contract on the other layer.
+3.  The `uint32 _minGasLimit` minimum gas limit that can be used when executing the message on the other layer.
+
+This is basically equivalent to:
+
+```solidity
+address(_target).call{gas: _minGasLimit}(_message);
+```
+
+Except, of course, that you're calling a contract on a completely different network.
+
+This is glossing over a lot of the technical details that make this whole thing work under the hood, but this should be enough to get you started.
+Want to call a contract on OP Mainnet from a contract on Ethereum?
+It's dead simple:
+
+```solidity
+// Pretend this is on L2
+contract MyOptimisticContract {
+    function doSomething(uint256 myFunctionParam) public {
+        // ... some sort of code goes here
+    }
+}
+
+// And pretend this is on L1
+contract MyContract {
+    function doTheThing(address myOptimisticContractAddress, uint256 myFunctionParam) public {
+        messenger.sendMessage(
+            myOptimisticContractAddress,
+            abi.encodeCall(
+                MyOptimisticContract.doSomething,
+                (
+                    myFunctionParam
+                )
+            ),
+            1000000 // or use whatever gas limit you want
+        )
+    }
+}
+```
+
+<Info>
+  You can find the addresses of the `L1CrossDomainMessenger` and the `L2CrossDomainMessenger` contracts on OP Mainnet and OP Sepolia on the [Contract Addresses](/op-mainnet/network-information/op-addresses) page.
+</Info>
+
+## Communication speed
+
+Unlike calls between contracts on the same blockchain, calls between Ethereum and OP Mainnet are *not* instantaneous.
+The speed of a cross-chain transaction depends on the direction in which the transaction is sent.
+
+### For L1 to L2 transactions
+
+Transactions sent from L1 to L2 take **approximately 1-3 minutes** to get from Ethereum to OP Mainnet, or from Sepolia to OP Sepolia.
+This is because the Sequencer waits for a certain number of L1 blocks to be created before including L1 to L2 transactions to avoid potentially annoying [reorgs](https://www.alchemy.com/overviews/what-is-a-reorg).
+
+### For L2 to L1 transactions
+
+Transactions sent from L2 to L1 take **approximately 7 days** to get from OP Mainnet to Ethereum, or from OP Sepolia to Sepolia.
+This is because the bridge contract on L1 must wait for the L2 state to be *proven* to the L1 chain before it can relay the message.
+
+The process of sending transactions from L2 to L1 involves four distinct steps:
+
+1.  The L2 transaction that sends a message to L1 is sent to the Sequencer.
+    This is just like any other L2 transaction and takes just a few seconds to be confirmed by the Sequencer.
+
+2.  The block containing the L2 transaction is proposed to the L1.
+    This typically takes approximately 20 minutes.
+
+3.  A proof of the transaction is submitted to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L209) contract on L1.
+    This can be done any time after step 2 is complete.
+
+4.  The transaction is finalized on L1.
+    This can *only* be done after the [fault challenge period](#understanding-the-challenge-period) has elapsed.
+    This period is 7 days on Ethereum and a few seconds on Sepolia.
+    This waiting period is a core part of the security model of the OP Stack and cannot be circumvented.
+
+## Accessing `msg.sender`
+
+Contracts frequently make use of `msg.sender` to make decisions based on the calling address.
+For example, many contracts will use the [Ownable](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/access/Ownable.sol) pattern to selectively restrict access to certain functions.
+Because messages are essentially shuttled between L1 and L2 by the messenger contracts, **the `msg.sender` you'll see when receiving one of these messages will be the messenger contract** corresponding to the layer you're on.
+
+In order to get around this, you can find a `xDomainMessageSender` function to each messenger:
+
+```solidity
+function xDomainMessageSender() public returns (address);
+```
+
+If your contract has been called by one of the messenger contracts, you can use this function to see who's *actually* sending this message.
+Here's how you might implement an `onlyOwner` modifier on L2:
+
+```solidity
+modifier onlyOwner() {
+    require(
+        msg.sender == address(messenger)
+        && messenger.xDomainMessageSender() == owner
+    );
+    _;
+}
+```
+
+## Fees for sending data between L1 and L2
+
+### For L1 to L2 transactions
+
+The majority of the cost of an L1 to L2 transaction comes from the smart contract execution on L1.
+When sending an L1 to L2 transaction, you send to the [`L1CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol) contract, which then sends a call to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol) contract.
+This involves some execution on L1, which costs gas.
+The total cost is ultimately determined by gas prices on Ethereum when you're sending the cross-chain transaction.
+
+L1 to L2 execution also triggers contract execution on L2.
+The `OptimismPortal` contract charges you for this L2 execution by burning a dynamic amount of L1 gas during your L1 to L2 transaction, depending on the gas limit you requested on L2.
+The amount of L1 gas charged increases when more people are sending L1 to L2 transactions (and decreases when fewer people are sending L1 to L2 transactions).
+
+<Info>
+  Since the gas amount charged is dynamic, the gas burn can change from block to block.
+  You should always add a buffer of at least 20% to the gas limit for your L1 to L2 transaction to avoid running out of gas.
+</Info>
+
+### For L2 to L1 transactions
+
+Each message from L2 to L1 requires three transactions:
+
+1.  An L2 transaction that *initiates* the transaction, which is priced the same as any other transaction made on OP Mainnet.
+
+2.  An L1 transaction that *proves* the transaction.
+    This transaction can only be submitted after the L2 block, including your L2 transaction, is proposed on L1.
+    This transaction is expensive because it includes verifying a [Merkle trie](/connect/resources/glossary#merkle-patricia-trie) inclusion proof on L1.
+
+3.  An L1 transaction that *finalizes* the transaction.
+    This transaction can only be submitted after the transaction challenge period (7 days on mainnet) has passed.
+
+The total cost of an L2 to L1 transaction is therefore the combined cost of the L2 initialization transaction and the two L1 transactions.
+The L1 proof and finalization transactions are typically significantly more expensive than the L2 initialization transaction.
+
+## Understanding the challenge period
+
+One of the most important things to understand about L1 ⇔ L2 interaction is that **mainnet messages sent from Layer 2 to Layer 1 cannot be relayed for at least 7 days**.
+This means that any messages you send from Layer 2 will only be received on Layer 1 after this one-week period has elapsed.
+We call this period of time the "challenge period" because it is the time during which a transaction can be challenged with a [fault proof](/op-stack/protocol/overview#fault-proofs).
+
+Optimistic Rollups are "optimistic" because they're based around the idea of publishing the *result* of a transaction to Ethereum without actually executing the transaction on Ethereum.
+In the "optimistic" case, this transaction result is correct and one can completely avoid the need to perform complicated (and expensive) logic on Ethereum.
+
+However, one still needs to find a way to prevent incorrect transaction results from being published in place of correct ones.
+Here's where the "fault proof" comes into play.
+Whenever a transaction result is published, it's considered "pending" for a period of time known as the challenge period.
+During this period of time, anyone may re-execute the transaction *on Ethereum* in an attempt to demonstrate that the published result was incorrect.
+
+If someone can prove that a transaction result is faulty, then the result is scrubbed from existence and anyone can publish another result in its place (hopefully the correct one this time, financial punishments make faulty results *very* costly for their publishers).
+Once the window for a given transaction result has fully passed without a challenge, the result can be considered fully valid (or else someone would've challenged it).
+
+Anyway, the point here is that **you don't want to be making decisions about Layer 2 transaction results from inside a smart contract on Layer 1 until this challenge period has elapsed**.
+Otherwise you might be making decisions based on an invalid transaction result.
+As a result, L2 ⇒ L1 messages sent using the standard messenger contracts cannot be relayed until they've waited out the full challenge period.

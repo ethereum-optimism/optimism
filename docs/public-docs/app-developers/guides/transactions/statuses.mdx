@@ -1,0 +1,51 @@
+---
+title: Transaction statuses on OP Mainnet
+description: Learn about the statuses transactions can have on OP Mainnet.
+---
+
+Transactions on OP Mainnet can have a number of different statuses depending on where a transaction is in the process of being included in the blockchain.
+Understanding these statuses can help you troubleshoot issues, build safer applications, and display more accurate information to your users.
+
+## Pending
+
+**Instant after sending to the Sequencer**
+
+A transaction is considered "pending" when it has been sent to the Sequencer but has not yet been included in a block.
+This is the first status a transaction will have after being sent to the Sequencer.
+At this point the transaction is not part of the blockchain and there is no guarantee that the transaction will be included in the blockchain.
+
+The list of all pending transactions can be retrieved by calling the standard JSON-RPC method [`eth_getBlockByNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getblockbynumber) with the parameter `pending` as the block number.
+
+## Sequencer confirmed or unsafe
+
+**Typically within 2-4 seconds**
+
+A transaction is considered "sequencer confirmed" or "unsafe" when it has been included in a block by the Sequencer but that block has **not** yet been published to Ethereum.
+Although the transaction is included in a block, it is still possible for the transaction to be excluded from the final blockchain if the Sequencer fails to publish the block to Ethereum within the [Sequencing Window](/connect/resources/glossary#sequencing-window) (approximately 12 hours).
+Applications should make sure to consider this possibility when displaying information about transactions that are in this state.
+
+The latest "sequencer confirmed" block can be retrieved by calling the standard JSON-RPC method [`eth_getBlockByNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getblockbynumber) with the parameter `safe` as the block number and comparing this to the result returned for the `latest` block.
+If the `safe` block is behind the `latest` block, then the earliest "sequencer confirmed" block is the `safe` block plus one.
+
+## Published to Ethereum or safe
+
+**Typically within 5-10 minutes, up to 12 hours**
+
+A transaction is considered "safe" when it has been included in a block by the Sequencer and that block has been published to Ethereum but that block is not yet finalized.
+Once a block has been published to Ethereum there is a high likelihood that the block will be included in the final blockchain.
+However, it is still possible for the block to be excluded from the final blockchain if the Ethereum blockchain experiences a reorganization.
+
+The latest "safe" block can be retrieved by calling the standard JSON-RPC method [`eth_getBlockByNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getblockbynumber) with the parameter `safe` as the block number.
+
+Transactions typically become "safe" within a few minutes of becoming "sequencer confirmed".
+
+
+## Finalized
+
+**Typically within 15-20 minutes, up to 12 hours**
+
+A transaction is considered "finalized" when it has been included in a block by the Sequencer, that block has been published to Ethereum, and that block has been finalized.
+Once a block has been finalized it is guaranteed to be included in the OP Mainnet blockchain.
+Applications that require the highest level of certainty that a transaction will be included in the blockchain should wait until the transaction is "finalized" before considering the transaction to be successful.
+
+The latest "finalized" block can be retrieved by calling the standard JSON-RPC method [`eth_getBlockByNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getblockbynumber) with the parameter `finalized` as the block number.

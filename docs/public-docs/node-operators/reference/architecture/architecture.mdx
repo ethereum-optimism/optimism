@@ -1,0 +1,49 @@
+---
+title: Node architecture
+description: Learn about node architecture.
+---
+
+This page reviews node architecture for all nodes running on OP Stack networks. All OP Mainnet nodes are composed of two core software services, the Rollup Node and the Execution Client.
+OP Mainnet also optionally supports a third component, Legacy Geth, that can serve stateful queries for blocks and transactions created before the [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/).
+
+## Node flow diagram
+The following diagram shows how the Rollup Node, Execution Client, and Legacy Geth components work together to form a complete node running on OP Stack networks.
+This diagram uses the `op-node` implementation of the Rollup Node and shows the general architecture that applies to all execution client implementations.
+
+![OP Mainnet node architecture diagram.](/public/img/guides/node-operators/node-arch.svg)
+
+## Rollup node
+
+The Rollup Node is responsible for deriving L2 block payloads from L1 data and passing those payloads to the Execution Client. The Rollup Node can also optionally participate in a peer-to-peer network to receive blocks directly from the Sequencer before those blocks are submitted to L1. The Rollup Node is largely analogous to a [consensus client](https://ethereum.org/en/developers/docs/nodes-and-clients/#what-are-nodes-and-clients) in Ethereum.
+
+## Execution client
+
+The Execution Client is responsible for executing the block payloads it receives from the Rollup Node over JSON-RPC via the standard [Ethereum Engine API](https://github.com/ethereum/execution-apis/blob/main/src/engine/common.md#engine-api----common-definitions).
+The Execution Client exposes the standard JSON-RPC API that Ethereum developers are familiar with, and can be used to query blockchain data and submit transactions to the network.
+The Execution Client is largely analogous to an [execution client](https://ethereum.org/en/developers/docs/nodes-and-clients/#what-are-nodes-and-clients) in Ethereum.
+
+The OP Stack supports multiple execution client implementations:
+
+### op-geth
+
+`op-geth` is the original execution client for the OP Stack, based on the Go Ethereum (Geth) implementation. It has been modified to support the specific requirements of OP Stack chains.
+
+### Nethermind
+
+Nethermind is a high-performance execution client implementation written in C#. The `Nethermind` client has been adapted to support OP Stack chains, providing an alternative execution client option for node operators.
+
+## Legacy Geth
+
+OP Mainnet underwent a large database migration as part of the [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/) in 2023.
+Blocks and transactions included in OP Mainnet prior to the Bedrock Upgrade are served by current execution engines but cannot be executed without the help of a special component called Legacy Geth.
+This means that you will need to run Legacy Geth if you want to be able to run RPC calls such as `eth_call` on blocks before the Bedrock Upgrade.
+
+Legacy Geth is the software that was used to run OP Mainnet nodes prior to the Bedrock Upgrade.
+If you run an instance of Legacy Geth alongside your OP Mainnet node, your node will be able to forward requests against historical transactions to the Legacy Geth instance.
+Legacy Geth is **not** required and is typically only necessary if you want to maintain a complete archive node for OP Mainnet.
+
+## Next steps
+
+*   To get your node up and running, start with the [run a node from docker](/node-operators/tutorials/node-from-docker) or [build a node from source](/node-operators/tutorials/node-from-source) tutorial. These guides include instructions for both `op-geth` and `Nethermind` execution clients.
+*   If you've already got your node up and running, check out the [Node Metrics and Monitoring Guide](/node-operators/guides/monitoring/metrics) to learn how to keep tabs on your node and make sure it keeps running smoothly.
+*   If you run into any problems, please visit the [Node Troubleshooting Guide](/node-operators/guides/troubleshooting) for help.

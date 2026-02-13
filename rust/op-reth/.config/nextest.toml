@@ -1,0 +1,17 @@
+[profile.default]
+retries = { backoff = "exponential", count = 2, delay = "2s", jitter = true }
+slow-timeout = { period = "30s", terminate-after = 4 }
+
+[[profile.default.overrides]]
+filter = "test(general_state_tests)"
+slow-timeout = { period = "1m", terminate-after = 10 }
+
+[[profile.default.overrides]]
+filter = "test(eest_fixtures)"
+slow-timeout = { period = "2m", terminate-after = 10 }
+
+# E2E tests using the testsuite framework from crates/e2e-test-utils
+# These tests are located in tests/e2e-testsuite/ directories across various crates
+[[profile.default.overrides]]
+filter = "binary(e2e_testsuite)"
+slow-timeout = { period = "2m", terminate-after = 3 }

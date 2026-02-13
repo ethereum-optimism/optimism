@@ -1,0 +1,121 @@
+# Use the shared network across all stacks
+networks:
+  stf-net:
+    external: true
+
+services:
+  prometheus:
+    restart: unless-stopped
+    image: prom/prometheus:latest
+    volumes:
+      - "prometheus_data:/prometheus"
+      - "./prometheus:/etc/prometheus"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - stf-net
+
+  grafana:
+    restart: unless-stopped
+    image: grafana/grafana:latest
+    depends_on:
+      - prometheus
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      PROMETHEUS_URL: ${PROMETHEUS_URL:-http://prometheus:9090}
+    volumes:
+      - "grafana_data:/var/lib/grafana"
+      - "./grafana/datasources:/etc/grafana/provisioning/datasources"
+      - "./grafana/dashboards:/etc/grafana/provisioning_temp/dashboards"
+    entrypoint: >
+      sh -c "cp -r /etc/grafana/provisioning_temp/dashboards/. /etc/grafana/provisioning/dashboards &&
+        find /etc/grafana/provisioning/dashboards/ -name '*.json' -exec sed -i 's/$${DS_PROMETHEUS}/Prometheus/g' {} \+ &&
+        /run.sh"
+    networks:
+      - stf-net
+
+
+  op-rs-op-sepolia-reth:
+    container_name: reth
+    build:
+      context: .
+      dockerfile: op-reth/op-reth.dockerfile
+    ports:
+      - "${OP_RETH_METRICS_PORT:-9001}:${OP_RETH_METRICS_PORT:-9001}"
+      - "${OP_RETH_DISCOVERY_PORT:-30303}:${OP_RETH_DISCOVERY_PORT:-30303}/udp"
+      - "${OP_RETH_DISCOVERY_PORT:-30303}:${OP_RETH_DISCOVERY_PORT:-30303}/tcp"
+      - "${OP_RETH_RPC_PORT:-8545}:${OP_RETH_RPC_PORT:-8545}"
+      - "${OP_RETH_ENGINE_PORT:-8551}:${OP_RETH_ENGINE_PORT:-8551}"
+    volumes:
+      - "./datadirs/reth-2:/db"
+    networks:
+      - stf-net
+    command: >
+      node
+      -vvv
+      --datadir /db
+      --chain optimism-sepolia
+      --metrics 0.0.0.0:${OP_RETH_METRICS_PORT:-9001}
+      --rollup.sequencer-http https://sepolia-sequencer.optimism.io/
+      --http
+      --http.port ${OP_RETH_RPC_PORT:-8545}
+      --http.addr 0.0.0.0
+      --http.api all
+      --authrpc.jwtsecret jwt.hex
+      --authrpc.addr 0.0.0.0
+      --authrpc.port ${OP_RETH_ENGINE_PORT:-8551}
+      --port ${OP_RETH_DISCOVERY_PORT:-30303}
+      --rpc.eth-proof-window 4096
+
+  op-rs-op-sepolia-kona-node:
+    container_name: kona
+    depends_on:
+      - prometheus
+      - op-rs-op-sepolia-reth
+    build:
+      context: .
+      dockerfile: kona-node/kona-node.dockerfile
+    ports:
+      - "${KONA_NODE_DISCOVERY_PORT:-9223}:${KONA_NODE_DISCOVERY_PORT:-9223}/tcp"
+      - "${KONA_NODE_DISCOVERY_PORT:-9223}:${KONA_NODE_DISCOVERY_PORT:-9223}/udp"
+      - "${KONA_NODE_METRICS_PORT:-9002}:${KONA_NODE_METRICS_PORT:-9002}"
+      - "${KONA_NODE_RPC_PORT:-5060}:${KONA_NODE_RPC_PORT:-5090}"
+
+    volumes:
+      - "./datadirs/kona-node:/db"
+    networks:
+      - stf-net
+    command: >
+      -vvv
+      --chain optimism-sepolia
+      --metrics.enabled
+      --metrics.port ${KONA_NODE_METRICS_PORT:-9002}
+      node
+      --l1 ${L1_PROVIDER_RPC:?}
+      --l1-beacon ${L1_BEACON_API:?}
+      --l2 "http://op-rs-op-sepolia-reth:${OP_RETH_ENGINE_PORT:-8551}"
+      --l2-engine-jwt-secret /jwt.hex
+      --rpc.port ${KONA_NODE_RPC_PORT:-5060}
+      --p2p.listen.tcp ${KONA_NODE_DISCOVERY_PORT:-9223}
+      --p2p.listen.udp ${KONA_NODE_DISCOVERY_PORT:-9223}
+      --p2p.scoring light
+      --p2p.bootstore /db
+
+
+
+
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  logs:
+    driver: local
+
+
+
+

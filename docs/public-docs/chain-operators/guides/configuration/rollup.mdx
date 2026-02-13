@@ -1,0 +1,1227 @@
+---
+title: Rollup deployment configuration
+description: Learn about the OP Stack rollup deployment configurations.
+---
+
+<Warning>
+    This documentation is out of date.
+</Warning>
+
+<Info>
+  The Rollup configuration is an active work in progress and will likely evolve
+  significantly as time goes on. If something isn't working about your
+  configuration, you can refer to the [source code](https://github.com/ethereum-optimism/optimism/blob/develop/op-chain-ops/genesis/config.go).
+</Info>
+
+<Info>
+  Standard configuration is the set of requirements for an OP Stack chain to be
+  considered a Standard Chain within the OP Stack. These requirements are
+  currently a draft, pending governance approval. For more details, please see
+  this [governance thread](https://gov.optimism.io/t/season-6-draft-standard-rollup-charter/8135)
+  and the actual requirements in the [OP Stack Configurability Specification](https://specs.optimism.io/protocol/configurability.html?utm_source=op-docs&utm_medium=docs).
+</Info>
+
+## Deployment configuration values
+
+These values are provided to the deployment configuration JSON file when 
+deploying the L1 contracts.
+
+### Offset values
+
+These offset values determine when network upgrades (hardforks) activate on
+your blockchain.
+
+#### l2GenesisRegolithTimeOffset
+
+L2GenesisRegolithTimeOffset is the number of seconds after genesis block that
+Regolith hard fork activates. Set it to 0 to activate at genesis. Nil to
+disable Regolith.
+
+*   **Type:** Number of seconds
+*   **Default value:** nil
+*   **Recommended value:** "0x0"
+*   **Notes:** 
+*   **Standard Config Requirement:** Network upgrade (hardfork) is activated. 
+
+***
+
+#### l2GenesisCanyonTimeOffset
+
+L2GenesisCanyonTimeOffset is the number of seconds after genesis block that
+Canyon hard fork activates. Set it to 0 to activate at genesis. Nil to
+disable Canyon.
+
+*   **Type:** Number of seconds
+*   **Default value:** nil
+*   **Recommended value:** "0x0"
+*   **Notes:** 
+*   **Standard Config Requirement:** Network upgrade (hardfork) is activated.
+
+***
+
+#### l2GenesisDeltaTimeOffset
+
+L2GenesisDeltaTimeOffset is the number of seconds after genesis block that
+Delta hard fork activates. Set it to 0 to activate at genesis. Nil to disable
+Delta.
+
+*   **Type:** Number of seconds
+*   **Default value:** nil
+*   **Recommended value:** "0x0"
+*   **Notes:** 
+*   **Standard Config Requirement:** Network upgrade (hardfork) is activated. 
+
+***
+
+#### l2GenesisEcotoneTimeOffset
+
+L2GenesisEcotoneTimeOffset is the number of seconds after genesis block that
+Ecotone hard fork activates. Set it to 0 to activate at genesis. Nil to disable
+Ecotone.
+
+*   **Type:** Number of seconds
+*   **Default value:** nil
+*   **Recommended value:** "0x0"
+*   **Notes:** 
+*   **Standard Config Requirement:** Network upgrade (hardfork) is activated. 
+
+***
+
+#### l2GenesisFjordTimeOffset
+
+L2GenesisFjordTimeOffset is the number of seconds after genesis block that
+Fjord hard fork activates. Set it to 0 to activate at genesis. Nil to
+disable Fjord.
+
+*   **Type:** Number of seconds
+*   **Default value:** nil
+*   **Recommended value:** "0x0"
+*   **Notes:** 
+*   **Standard Config Requirement:** Network upgrade (hardfork) is activated.
+
+***
+
+#### l2GenesisInteropTimeOffset
+
+L2GenesisInteropTimeOffset is the number of seconds after genesis block that
+the Interop hard fork activates. Set it to 0 to activate at genesis. Nil to
+disable Interop.
+
+*   **Type:** Number of seconds
+*   **Default value:** nil
+*   **Recommended value:** 
+*   **Notes:** Interoperability is still [experimental](https://specs.optimism.io/interop/overview.html?utm_source=op-docs&utm_medium=docs). 
+*   **Standard Config Requirement:** Non-standard feature.
+
+***
+
+#### l1CancunTimeOffset
+
+When Cancun activates. Relative to L1 genesis.
+
+*   **Type:** Number of seconds
+*   **Default value:** None
+*   **Recommended value:** "0x0"
+*   **Notes:** 
+*   **Standard Config Requirement:** Network upgrade (hardfork) is activated.
+
+***
+
+### Admin addresses
+
+#### finalSystemOwner
+
+FinalSystemOwner is the L1 system owner. It owns any ownable L1 contracts.
+
+*   **Type:** L1 Address
+*   **Default value:** None
+*   **Recommended value:** It is recommended to have a single admin
+    address to retain a common security model.
+*   **Notes:** Must not be `address(0)`
+*   **Standard Config Requirement:**  Must be Chain Governor or Servicer. 
+However, the L1 ProxyAdmin owner must be held by Optimism Security Council.
+At the moment, this is L1 ProxyAdmin owner is transferred from the Chain
+Governor or Servicer to [0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A](https://etherscan.io/address/0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A)
+
+***
+
+#### proxyAdminOwner
+
+ProxyAdmin contract owner on the L2, which owns all of the Proxy contracts for
+every predeployed contract in the range `0x42...0000` to `0x42...2048`. This 
+makes predeployed contracts easily upgradeable.
+
+*   **Type:** L2 Address
+*   **Default value:** None
+*   **Recommended value:** It is recommended to have a single admin
+    address to retain a common security model.
+*   **Notes:** Must not be `address(0)`
+*   **Standard Config Requirement:**  
+
+***
+
+### Proxy addresses
+
+#### l1StandardBridgeProxy
+
+L1StandardBridgeProxy represents the address of the L1StandardBridgeProxy on L1
+and is used as part of building the L2 genesis state.
+
+*   **Type:** L1 Address
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `address(0)`
+*   **Standard Config Requirement:** Implementation contract must be the most 
+up-to-date, governance-approved version of the OP Stack codebase, and, if the 
+chain has been upgraded in the past, that the previous versions were a standard
+release of the codebase.
+
+***
+
+#### l1CrossDomainMessengerProxy
+
+L1CrossDomainMessengerProxy represents the address of the
+L1CrossDomainMessengerProxy on L1 and is used as part of building the L2
+genesis state.
+
+*   **Type:** L1 Address
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `address(0)`
+*   **Standard Config Requirement:** Implementation contract must be the most 
+up-to-date, governance-approved version of the OP Stack codebase, and, if the 
+chain has been upgraded in the past, that the previous versions were a standard
+release of the codebase.
+
+***
+
+#### l1ERC721BridgeProxy
+
+L1ERC721BridgeProxy represents the address of the L1ERC721Bridge on L1 and is
+used as part of building the L2 genesis state.
+
+*   **Type:** L1 Address
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `address(0)`
+*   **Standard Config Requirement:** Implementation contract must be the most 
+up-to-date, governance-approved version of the OP Stack codebase, and, if the 
+chain has been upgraded in the past, that the previous versions were a standard
+release of the codebase.
+
+***
+
+#### systemConfigProxy
+
+SystemConfigProxy represents the address of the SystemConfigProxy on L1 and is
+used as part of the derivation pipeline.
+
+*   **Type:** L1 Address
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `address(0)`
+*   **Standard Config Requirement:** Implementation contract must be the most 
+up-to-date, governance-approved version of the OP Stack codebase, and, if the 
+chain has been upgraded in the past, that the previous versions were a standard
+release of the codebase.
+
+***
+
+#### optimismPortalProxy
+
+OptimismPortalProxy represents the address of the OptimismPortalProxy on L1 and
+is used as part of the derivation pipeline.
+
+*   **Type:** L1 Address
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `address(0)`
+*   **Standard Config Requirement:** Implementation contract must be the most 
+up-to-date, governance-approved version of the OP Stack codebase, and, if the 
+chain has been upgraded in the past, that the previous versions were a standard
+release of the codebase. 
+
+***
+
+### Blocks
+
+These fields apply to L2 blocks: Their timing, when they need to be written to L1, and how they get written.
+
+#### l2BlockTime
+
+Number of seconds between each L2 block. Must be \< L1 block time (12 on mainnet and Sepolia).
+
+*   **Type:** Number of seconds
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `0`. Must be less than the L1 blocktime and a whole number.
+*   **Standard Config Requirement:** 1 or 2 seconds
+
+***
+
+#### maxSequencerDrift
+
+How far the L2 timestamp can differ from the actual L1 timestamp.
+
+*   **Type:** Number of seconds
+*   **Default value:** None
+*   **Recommended value:** 1800
+*   **Notes:** Must not be `0`. 1800 (30 minutes) is the constant that takes 
+effect with the [Fjord activation](/op-stack/protocol/network-upgrades#fjord).
+*   **Standard Config Requirement:**  
+
+***
+
+#### sequencerWindowSize
+
+Maximum number of L1 blocks that a Sequencer can wait to incorporate the
+information in a specific L1 block. For example, if the window is 10 then the
+information in L1 block n must be incorporated by L1 block n+10.
+
+*   **Type:** Number of blocks
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `0`. 3600 (12 hours) is suggested.
+*   **Standard Config Requirement:**  3\_600 base layer blocks (12 hours for an
+    L2 on Ethereum, assuming 12 second L1 blocktime). This is an important value
+    for constraining the sequencer's ability to re-order transactions; higher
+    values would pose a risk to user protections.
+
+***
+
+#### channelTimeout
+
+Maximum number of L1 blocks that a transaction channel frame can be considered
+valid. A transaction channel frame is a chunk of a compressed batch of
+transactions. After the timeout, the frame is dropped.
+
+*   **Type:** Number of blocks
+*   **Default value:** 50
+*   **Recommended value:** 
+*   **Notes:** This default value was introduced in the [Granite network upgrade](/op-stack/protocol/network-upgrades#granite)
+*   **Standard Config Requirement:**  
+
+***
+
+#### p2pSequencerAddress
+
+Address of the key that the Sequencer uses to sign blocks on the p2p network.
+
+*   **Type:** L1 Address
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:**  No requirement.
+
+***
+
+#### batchInboxAddress
+
+Address that Sequencer transaction batches are sent to on L1.
+
+*   **Type:** L1 Address
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Recommendation:** Convention is `versionByte` || 
+`keccak256(bytes32(chainId))[:19]`, where || denotes concatenation, 
+`versionByte` is `0x00`, and `chainId` is a `uint256`.
+This is to cover the full range of chain ids, to the full `uint256` size. 
+Here's how you can get this address:
+    ```solidity
+    bytes32 hash = keccak256(abi.encodePacked(bytes32(uint256(chainId)))); 
+    # [:19] means taking the first 19 bytes of the hash
+    # then preppending a version byte of zero: 0x00
+    # `0x00{hash[:19]}`
+    ```
+
+***
+
+#### batchSenderAddress
+
+Address that nodes will filter for when searching for Sequencer transaction
+batches being sent to the batchInboxAddress. Can be updated later via the
+SystemConfig contract on L1.
+
+*   **Type:** L1 Address
+*   **Default value:** Batcher, an address for which you own the private key.
+*   **Recommended value:** 
+*   **Notes:** Must not be `address(0)`
+*   **Standard Config Requirement:**  No requirement.
+
+***
+
+#### systemConfigStartBlock
+
+SystemConfigStartBlock represents the block at which the op-node should start
+syncing from. It is an override to set this value on legacy networks where it
+is not set by default. It can be removed once all networks have this value set
+in their storage.
+
+*   **Type:** L2 Block Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:** The block where the SystemConfig was
+    initialized.
+
+***
+
+#### daFootprintGasScalar
+Scalar value which is multiplied by the `daUsageEstimate` to limit the total amount of estimated compressed transaction data that can fit into a block.
+As of Jovian (Upgrade 17), the base fee update calculation now uses `gasMetered := max(gasUsed, blobGasUsed)` in place of the `gasUsed` value used before. 
+As a result, blocks with high DA usage may cause the base fee to increase in subsequent blocks.
+*   **Type:** L2 Block Number
+*   **Default value:** 400
+*   **Recommended value:** 400 
+*   **Notes:** [Refer to the specs for more detail](https://specs.optimism.io/protocol/jovian/exec-engine.html#da-footprint-block-limit).
+*   **Standard Config Requirement:** 
+
+***
+
+### Chain Information
+
+#### l1StartingBlockTag
+
+Block tag for the L1 block where the L2 chain will begin syncing from.
+It is generally recommended to use a finalized block to avoid issues with reorgs.
+
+*   **Type:** Block hash
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `0`.
+*   **Standard Config Requirement:**  
+
+***
+
+#### l1ChainID
+
+Chain ID of the L1 chain.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `0`. 1 for L1 Ethereum mainnet, 11155111 for the
+    Sepolia test network, and See [here](https://chainlist.org/?testnets=true)
+    for other blockchains.
+*   **Standard Config Requirement:** 1 (Ethereum) 
+
+***
+
+#### l2ChainID
+
+Chain ID of the L2 chain.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `0`. For security reasons, should be unique. Chains
+should add their chain IDs to [ethereum-lists/chains](https://github.com/ethereum-lists/chains).
+*   **Standard Config Requirement:** Foundation-approved, globally unique value.
+
+***
+
+#### l2GenesisBlockExtraData
+
+L2GenesisBlockExtraData is configurable extradata. Will default to
+\[]byte("BEDROCK") if left unspecified.
+
+*   **Type:** Number
+*   **Default value:** \[]byte("BEDROCK")
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:**  
+ 
+***
+
+#### superchainConfigGuardian
+
+SuperchainConfigGuardian represents the GUARDIAN account in the
+SuperchainConfig. Has the ability to pause withdrawals.
+
+*   **Type:** L1 Address
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `address(0)`
+*   **Standard Config Requirement:** [0x09f7150D8c019BeF34450d6920f6B3608ceFdAf2](https://etherscan.io/address/0x09f7150D8c019BeF34450d6920f6B3608ceFdAf2)
+A 1/1 Safe owned by the Security Council Safe, with the [Deputy Guardian Module](https://specs.optimism.io/protocol/safe-extensions.html?utm_source=op-docs&utm_medium=docs#deputy-guardian-module)
+enabled to allow the Optimism Foundation to act as Guardian.
+
+***
+
+### Gas
+
+*   **Standard Config Requirement:** Set such that Fee Margin is between 0 and
+    50%.
+*   **Standard Config Requirement:** No higher than 200\_000\_000 gas. Chain
+    operators are driven to maintain a stable and reliable chain. When considering
+    a change to this value, careful deliberation is necessary.
+
+#### l2GenesisBlockGasLimit
+
+L2GenesisBlockGasLimit represents the chain's block gas limit. 
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `0`. Must be greater than `MaxResourceLimit` + `SystemTxMaxGas`.
+*   **Standard Config Requirement:**  
+
+***
+
+#### l2GenesisBlockBaseFeePerGas
+
+L2GenesisBlockBaseFeePerGas represents the base fee per gas.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** L2 genesis block base fee per gas cannot be `nil`.
+*   **Standard Config Requirement:**  
+
+***
+
+#### eip1559Elasticity
+
+EIP1559Elasticity is the elasticity of the EIP1559 fee market.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `0`.
+*   **Standard Config Requirement:**  
+
+***
+
+#### eip1559Denominator
+
+EIP1559Denominator is the denominator of EIP1559 base fee market.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `0`.
+*   **Standard Config Requirement:**
+
+***
+
+#### eip1559DenominatorCanyon
+
+EIP1559DenominatorCanyon is the denominator of EIP1559 base fee market when
+Canyon is active.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 250
+*   **Notes:** Must not be `0` if Canyon is activated.
+*   **Standard Config Requirement:**  
+
+***
+
+#### gasPriceOracleBaseFeeScalar
+
+GasPriceOracleBaseFeeScalar represents the value of the base fee scalar used
+for fee calculations.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Should not be `0`.
+*   **Standard Config Requirement:**
+
+***
+
+#### gasPriceOracleBlobBaseFeeScalar
+
+GasPriceOracleBlobBaseFeeScalar represents the value of the blob base fee
+scalar used for fee calculations.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Should not be `0`.
+*   **Standard Config Requirement:**
+
+***
+
+#### minBaseFee
+
+Allows chain operators to specify a minimum base fee to help shorten the length of priority fee auctions.
+The `minBaseFee` is an absolute minimum expressed in wei.
+0 disables the `minBaseFee` entirely (disabled by default).
+
+*   **Type:** Number
+*   **Default value:** 0
+*   **Recommended value:** 100000 wei
+*   **Notes:** Setting the minimum too high may make transactions harder to get included for users. [See the specs for more detail](https://specs.optimism.io/protocol/jovian/exec-engine.html#minimum-base-fee).
+*   **Standard Config Requirement:** Must not be set higher than 10000000000 wei
+***
+
+### Proposal fields
+
+These fields apply to output root proposals. The
+l2OutputOracleSubmissionInterval is configurable, see the section below for
+guidance.
+
+#### l2OutputOracleStartingBlockNumber
+
+Block number of the first OP Stack block. Typically this should be zero, but
+this may be non-zero for networks that have been upgraded from a legacy system
+(like OP Mainnet). Will be removed with the addition of permissionless
+proposals.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 0
+*   **Notes:** Should be `0` for new chains.
+*   **Standard Config Requirement:**  
+
+***
+
+#### l2OutputOracleStartingTimestamp
+
+Timestamp of the first OP Stack block. This MUST be the timestamp corresponding
+to the block defined by the l1StartingBlockTag. Will be removed with the
+addition of permissionless proposals.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** this MUST be the timestamp corresponding to the block defined by
+    the l1StartingBlockTag.
+*   **Standard Config Requirement:**
+
+***
+
+#### l2OutputOracleSubmissionInterval
+
+Number of blocks between proposals to the L2OutputOracle. Will be removed with
+the addition of permissionless proposals.
+
+*   **Type:** Number of blocks
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `0`. 120 (4 minutes) is suggested. 
+*   **Standard Config Requirement:**  
+
+***
+
+#### finalizationPeriodSeconds
+
+Number of seconds that a proposal must be available to challenge before it is
+considered finalized by the OptimismPortal contract.
+
+*   **Type:** Number of seconds
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `0`. Recommend 12 on test networks, seven days on
+    production ones.
+*   **Standard Config Requirement:** 7 days. High security. Excessively safe
+    upper bound that leaves enough time to consider social layer solutions to a
+    hack if necessary. Allows enough time for other network participants to
+    challenge the integrity of the corresponding output root.
+
+***
+
+#### l2OutputOracleProposer
+
+Address that is allowed to submit output proposals to the L2OutputOracle
+contract. Will be removed when the OP Stack has permissionless proposals.
+
+*   **Type:** L1 Address
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `address(0)`
+*   **Standard Config Requirement:** No requirement. This role is only active 
+when the OptimismPortal respected game type is `PERMISSIONED_CANNON`. The 
+L1ProxyAdmin sets the implementation of the `PERMISSIONED_CANNON` game type. 
+Thus, it determines the proposer configuration of the permissioned dispute game.
+
+***
+
+#### l2OutputOracleChallenger
+
+Address that is allowed to challenge output proposals submitted to the
+L2OutputOracle. Will be removed when the OP Stack has permissionless
+challenges.
+
+*   **Type:** L1 Address
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `address(0)`. It is recommended to have a single admin
+    address to retain a common security model.
+*   **Standard Config Requirement:** 
+
+***
+
+### Fee recipients
+
+#### baseFeeVaultRecipient
+
+BaseFeeVaultRecipient represents the recipient of fees accumulated in the
+BaseFeeVault. Can be an account on L1 or L2, depending on the
+BaseFeeVaultWithdrawalNetwork value.
+
+*   **Type:** L1 or L2 Address
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `address(0)`. It is recommended to have a single admin
+    address to retain a common security model.
+*   **Standard Config Requirement:**  
+
+***
+
+#### l1FeeVaultRecipient
+
+L1FeeVaultRecipient represents the recipient of fees accumulated in the
+L1FeeVault. Can be an account on L1 or L2, depending on the
+L1FeeVaultWithdrawalNetwork value.
+
+*   **Type:** L1 or L2 Address
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `address(0)`. It is recommended to have a single admin
+    address to retain a common security model.
+*   **Standard Config Requirement:** 
+
+***
+
+#### sequencerFeeVaultRecipient
+
+SequencerFeeVaultRecipient represents the recipient of fees accumulated in the
+SequencerFeeVault. Can be an account on L1 or L2, depending on the
+SequencerFeeVaultWithdrawalNetwork value.
+
+*   **Type:** L1 or L2 Address
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be `address(0)`. It is recommended to have a single admin
+    address to retain a common security model.
+*   **Standard Config Requirement:**  
+
+***
+
+### Minimum fee withdrawal amounts
+
+Withdrawals to L1 are expensive and the minimum fee is to prevent overhead
+costs of continuous tiny withdrawals. If the withdrawal execution costs more
+than the fee-reward, then the fee Must not be collected economically.
+
+***
+
+#### baseFeeVaultMinimumWithdrawalAmount
+
+BaseFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount
+for the BaseFeeVault.
+
+*   **Type:** Number in wei
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:**  
+
+***
+
+#### l1FeeVaultMinimumWithdrawalAmount
+
+L1FeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for
+the L1FeeVault.
+
+*   **Type:** Number in wei
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:**
+
+***
+
+#### sequencerFeeVaultWithdrawalAmount
+
+SequencerFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal
+amount for the SequencerFeeVault.
+
+*   **Type:** Number in wei
+*   **Recommended value:** 
+*   **Default value:** None
+*   **Notes:** 
+*   **Standard Config Requirement:**  
+
+***
+
+### Withdrawal network
+
+***
+
+#### baseFeeVaultWithdrawalNetwork
+
+BaseFeeVaultWithdrawalNetwork represents the withdrawal network for the
+BaseFeeVault. value of 0 will withdraw ETH to the recipient address on L1 and
+a value of 1 will withdraw ETH to the recipient address on L2.
+
+*   **Type:** Number representing network enum
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Withdrawals to Ethereum are more expensive.
+*   **Standard Config Requirement:** 
+
+***
+
+#### l1FeeVaultWithdrawalNetwork
+
+L1FeeVaultWithdrawalNetwork represents the withdrawal network for the
+L1FeeVault. A value of 0 will withdraw ETH to the recipient address on L1 and a
+value of 1 will withdraw ETH to the recipient address on L2.
+
+*   **Type:** Number representing network enum
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Withdrawals to Ethereum are more expensive.
+*   **Standard Config Requirement:**  
+
+***
+
+#### sequencerFeeVaultWithdrawalNetwork
+
+SequencerFeeVaultWithdrawalNetwork represents the withdrawal network for the
+SequencerFeeVault. A value of 0 will withdraw ETH to the recipient address on
+L1 and a value of 1 will withdraw ETH to the recipient address on L2.
+
+*   **Type:** Number representing network enum
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Withdrawals to Ethereum are more expensive.
+*   **Standard Config Requirement:**  
+
+***
+
+### Fault proofs
+
+***
+
+#### faultGameAbsolutePrestate
+
+FaultGameAbsolutePrestate is the absolute prestate of Cannon. This is computed
+by generating a proof from the 0th -> 1st instruction and grabbing the prestate
+from the output JSON. All honest challengers should agree on the setup state of
+the program.
+
+*   **Type:** Hash
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:**  
+
+***
+
+#### faultGameMaxDepth
+
+FaultGameMaxDepth is the maximum depth of the position tree within the fault
+dispute game. `2^{FaultGameMaxDepth}` is how many instructions the execution
+trace bisection game supports. Ideally, this should be conservatively set so
+that there is always enough room for a full Cannon trace.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:** 
+
+***
+
+#### faultGameClockExtension
+
+FaultGameClockExtension is the amount of time that the dispute game will set
+the potential grandchild claim's, clock to, if the remaining time is less than
+this value at the time of a claim's creation.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:**  
+
+***
+
+#### faultGameMaxClockDuration
+
+FaultGameMaxClockDuration is the maximum amount of time that may accumulate on
+a team's chess clock before they may no longer respond.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:**  
+
+***
+
+#### faultGameGenesisBlock
+
+FaultGameGenesisBlock is the block number for genesis.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:** 
+
+***
+
+#### faultGameGenesisOutputRoot
+
+FaultGameGenesisOutputRoot is the output root for the genesis block.
+
+*   **Type:** Hash
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:**  
+
+***
+
+#### faultGameSplitDepth
+
+FaultGameSplitDepth is the depth at which the fault dispute game splits from
+output roots to execution trace claims.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:** 
+
+***
+
+#### faultGameWithdrawalDelay
+
+FaultGameWithdrawalDelay is the number of seconds that users must wait before
+withdrawing ETH from a fault game.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:**  
+
+***
+
+#### preimageOracleMinProposalSize
+
+PreimageOracleMinProposalSize is the minimum number of bytes that a large
+preimage oracle proposal can be.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:**  
+
+***
+
+#### preimageOracleChallengePeriod
+
+PreimageOracleChallengePeriod is the number of seconds that challengers have to
+challenge a large preimage proposal.
+
+*   **Type:** Number of Seconds
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:**
+
+***
+
+#### proofMaturityDelaySeconds
+
+ProofMaturityDelaySeconds is the number of seconds that a proof must be mature
+before it can be used to finalize a withdrawal.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Should not be `0`.
+*   **Standard Config Requirement:**  
+
+***
+
+#### disputeGameFinalityDelaySeconds
+
+DisputeGameFinalityDelaySeconds is an additional number of seconds a dispute
+game must wait before it can be used to finalize a withdrawal.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Should not be `0`.
+*   **Standard Config Requirement:**  
+
+***
+
+#### respectedGameType
+
+RespectedGameType is the dispute game type that the OptimismPortal contract
+will respect for finalizing withdrawals.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:**  
+
+***
+
+#### useFaultProofs
+
+UseFaultProofs is a flag that indicates if the system is using fault proofs
+instead of the older output oracle mechanism.
+
+*   **Type:** Boolean
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** You should understand the implications of running a Fault Proof
+    chain. 
+*   **Standard Config Requirement:**  
+
+***
+
+### Alt-DA Mode
+
+Alt-DA Mode enables seamless integration of various Data Availability (DA) 
+Layers, regardless of their commitment type, into the OP Stack. This allows 
+any chain operator to launch an OP Stack chain using their favorite DA Layer 
+for sustainably low costs. Learn more [here](/op-stack/features/experimental/alt-da-mode).
+
+***
+
+#### useAltDA
+
+UseAltDA is a flag that indicates if the system is using op-alt-da
+
+*   **Type:** bool
+*   **Recommended value:** 
+*   **Default value:** None
+*   **Notes:** 
+*   **Standard Config Requirement:**  Non-standard feature.
+
+***
+
+#### daCommitmentType
+
+DACommitmentType specifies the allowed commitment
+
+*   **Type:** string
+*   **Default value:** None
+*   **Notes:** DACommitmentType must be either KeccakCommitment or 
+GenericCommitment. However, KeccakCommitment will be deprecated soon.
+*   **Recommended value:** GenericCommitment
+*   **Standard Config Requirement:**  Non-standard feature.
+
+***
+
+#### daChallengeWindow
+
+DAChallengeWindow represents the block interval during which the availability
+of a data commitment can be challenged.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** DAChallengeWindow must not be 0 when using altda mode
+*   **Standard Config Requirement:** Non-standard feature.
+
+***
+
+#### daResolveWindow
+
+DAResolveWindow represents the block interval during which a data availability
+challenge can be resolved.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** DAChallengeWindow must not be 0 when using altda mode
+*   **Standard Config Requirement:** Non-standard feature.
+
+***
+
+#### daBondSize
+
+DABondSize represents the required bond size to initiate a data availability
+challenge.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:** Non-standard feature. 
+
+***
+
+#### daResolverRefundPercentage
+
+DAResolverRefundPercentage represents the percentage of the resolving cost to
+be refunded to the resolver such as 100 means 100% refund.
+
+*   **Type:** Number
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:** Non-standard feature. 
+
+***
+
+#### daChallengeProxy
+
+DAChallengeProxy represents the L1 address of the DataAvailabilityChallenge
+contract.
+
+*   **Type:** Address
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** Must not be address(0) when using altda mode
+*   **Standard Config Requirement:** Non-standard feature. 
+
+***
+
+### Interoperability
+
+***
+
+#### useInterop
+
+UseInterop is a flag that indicates if the system is using interop.
+
+*   **Type:** boolean
+*   **Default value:** None
+*   **Recommended value:** false
+*   **Notes:** Interoperability is still [experimental](https://specs.optimism.io/interop/overview.html?utm_source=op-docs&utm_medium=docs). 
+*   **Standard Config Requirement:** Non-standard feature. 
+
+***
+
+### Governance
+
+***
+
+#### enableGovernance
+
+EnableGovernance determines whether to include governance token predeploy.
+
+*   **Type:** boolean
+*   **Default value:** None
+*   **Recommended value:** false
+*   **Notes:** 
+*   **Standard Config Requirement:** 
+
+***
+
+#### governanceTokenSymbol
+
+GovernanceTokenSymbol represents the  ERC20 symbol of the GovernanceToken.
+
+*   **Type**: string
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:** 
+
+***
+
+#### governanceTokenName
+
+GovernanceTokenName represents the ERC20 name of the GovernanceToken
+
+*   **Type**: string
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:**  
+
+***
+
+#### governanceTokenOwner
+
+GovernanceTokenOwner represents the owner of the GovernanceToken. Has the
+ability to mint and burn tokens.
+
+*   **Type**: L2 Address
+*   **Default value:** None
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:**  
+
+***
+
+### Miscellaneous
+
+***
+
+#### fundDevAccounts
+
+FundDevAccounts determines whether to fund the dev accounts. Should only
+be used during devnet deployments.
+
+*   **Type**: Boolean
+*   **Default value:** 
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:** 
+ 
+***
+
+#### requiredProtocolVersion
+
+RequiredProtocolVersion indicates the protocol version that nodes are
+recommended to adopt, to stay in sync with the network.
+
+*   **Type**: String
+*   **Default value:** 
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:** 
+
+***
+
+#### recommendedProtocolVersion
+
+RecommendedProtocolVersion indicates the protocol version that nodes are
+recommended to adopt, to stay in sync with the network.
+
+*   **Type**: String
+*   **Default value:** 
+*   **Recommended value:** 
+*   **Notes:** 
+*   **Standard Config Requirement:**  
+
+***
+
+### Deprecated
+ 
+***
+
+#### (**DEPRECATED**) gasPriceOracleScalar
+
+GasPriceOracleScalar represents the initial value of the gas scalar in the
+GasPriceOracle predeploy. Deprecated: Since Ecotone, this field is superseded
+by GasPriceOracleBaseFeeScalar and GasPriceOracleBlobBaseFeeScalar.
+
+***
+
+#### (**DEPRECATED**) gasPriceOracleOverhead
+
+GasPriceOracleOverhead represents the initial value of the gas overhead in the
+GasPriceOracle predeploy. Deprecated: Since Ecotone, this field is superseded
+by GasPriceOracleBaseFeeScalar and GasPriceOracleBlobBaseFeeScalar.
+
+***
+
+#### (**DEPRECATED**) deploymentWaitConfirmations
+
+DeploymentWaitConfirmations is the number of confirmations to wait during
+deployment. This is DEPRECATED and should be removed in a future PR.
+
+***
+
+#### (**DEPRECATED**) numDeployConfirmations
+
+Number of confirmations to wait when deploying smart contracts to L1.

@@ -1,0 +1,21 @@
+---
+title: Superchain withdrawal pause test
+description: Notice about the Superchain withdrawal pause test.
+---
+
+<Info>
+  *   Sepolia Superchain withdrawal pause test was successfully completed on **April 14th 2025**.
+  *   Mainnet Superchain withdrawal pause test will happen **May 14th 2025**.
+</Info>
+
+The Optimism Collective will be testing improved incident response features on the Sepolia Superchain.
+
+## What's happening
+
+1.  During this exercise, the privileged [`GUARDIAN`](/op-stack/protocol/privileged-roles#guardian) address will call the `pause` function on the `SuperchainConfig`.
+2.  Members of the Optimism Collective's security team will ensure that the pause is executed correctly and the incident response improvements worked as intended.
+3.  Then the `unpause` function will be called to resume normal operations.
+
+To learn more about this functionality, please refer to this [documentation](/op-stack/security/pause).
+
+This functionality is important for the security of the Superchain and should be understood by Chain Operators, users, and especially for centralized exchanges and third-party bridge operators. **Please note that this will not affect any L1-to-L2 deposit transactions or L2 transactions. No action is required from users or operators.**

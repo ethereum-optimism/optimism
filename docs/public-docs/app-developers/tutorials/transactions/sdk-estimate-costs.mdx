@@ -1,0 +1,245 @@
+---
+title: Estimating transaction costs on OP Stack
+description: Learn how to use viem to estimate the cost of a transaction on OP Stack.
+---
+
+In this tutorial, you'll learn how to use [viem](https://viem.sh/op-stack/) to estimate the cost of a transaction on OP Mainnet.
+You'll learn how to estimate the [execution gas fee](/app-developers/transactions/fees#execution-gas-fee) and the [L1 data fee](/app-developers/transactions/fees#l1-data-fee) independently.
+You'll also learn how to estimate the total cost of the transaction all at once.
+
+<Info>
+  Check out the full explainer on [OP Stack transaction fees](/app-developers/guides/transactions/fees) for more information on how OP Mainnet charges fees under the hood.
+</Info>
+
+## Supported networks
+
+Viem supports any of the [OP Stack networks](/op-mainnet/network-information/connecting-to-op).
+The OP Stack networks are included in Viem by default.
+If you want to use a network that isn't included by default, you can add it to Viem's chain configurations.
+
+## Dependencies
+
+*   [node](https://nodejs.org/en/)
+*   [pnpm](https://pnpm.io/installation)
+
+## Create a demo project
+
+You're going to use Viem for this tutorial.
+Since Viem is a [Node.js](https://nodejs.org/en/) library, you'll need to create a Node.js project to use it.
+
+<Steps>
+  <Step title="Make a project folder">
+
+  ```bash
+  mkdir op-est-cost-tutorial
+  cd op-est-cost-tutorial
+  ```
+
+  </Step>
+  <Step title="Initialize the project">
+
+  ```bash
+  pnpm init
+  ```
+
+  </Step>
+  <Step title="Install viem">
+
+  ```bash
+  pnpm add viem
+  ```
+  </Step>
+</Steps>
+
+<Info>
+  Want to create a new wallet for this tutorial?
+  If you have [`cast`](https://book.getfoundry.sh/getting-started/installation) installed you can run `cast wallet new` in your terminal to create a new wallet and get the private key.
+</Info>
+
+## Get ETH on Sepolia
+
+This tutorial explains how to bridge ETH from Sepolia to OP Sepolia.
+You will need to get some ETH on Sepolia to follow along.
+
+<Info>
+  You can use [this faucet](https://sepoliafaucet.com) to get ETH on Sepolia.
+</Info>
+
+## Get ETH on OP Sepolia
+
+This tutorial explains how to estimate transaction costs on OP Sepolia.
+You will need to get some ETH on OP Sepolia in order to run the code in this tutorial.
+
+<Info>
+  You can use the [Superchain faucet](https://console.optimism.io/faucet?utm_source=op-docs&utm_medium=docs) to get ETH on OP Sepolia.
+</Info>
+
+## Add a private key to your environment
+
+You need a private key in order to sign transactions.
+Set your private key as an environment variable with the `export` command.
+Make sure this private key corresponds to an address that has ETH on Sepolia.
+
+```bash
+export TUTORIAL_PRIVATE_KEY=0x...
+```
+
+## Start the Node REPL
+
+You're going to use the Node REPL to interact with Viem.
+To start the Node REPL run the following command in your terminal:
+
+```bash
+node
+```
+
+This will bring up a Node REPL prompt that allows you to run JavaScript code.
+
+## Set session variables
+
+You'll need a few variables throughout this tutorial.
+Let's set those up now.
+
+<Steps>
+
+  <Step title="Import viem and other necessary modules">
+
+```js
+const { createPublicClient, createWalletClient, http, parseEther, parseGwei, formatEther } = require('viem');
+const { privateKeyToAccount } = require('viem/accounts');
+const { optimismSepolia } = require('viem/chains');
+const { publicActionsL2, walletActionsL2 } = require('viem/op-stack');
+```
+
+  </Step>
+  <Step title="Set up the account">
+
+```js
+const privateKey = process.env.TUTORIAL_PRIVATE_KEY
+const account = privateKeyToAccount(privateKey)
+```
+
+  </Step>
+  <Step title="Create the public client">
+
+```js
+const publicClient = createPublicClient({
+  chain: optimismSepolia,
+  transport: http("https://sepolia.optimism.io"),
+}).extend(publicActionsL2())
+```
+
+  </Step>
+  <Step title="Create the wallet client">
+
+```js
+const walletClientL2 = createWalletClient({
+  chain: optimismSepolia,
+  transport: http("https://sepolia.optimism.io"),
+}).extend(walletActionsL2())
+```
+  </Step>
+</Steps>
+
+## Estimate transaction costs
+
+You're now going to use the Viem to estimate the cost of a transaction on OP Mainnet. 
+Here you'll estimate the cost of a simple transaction that sends a small amount of ETH from your address to the address `0x1000000000000000000000000000000000000000`.
+
+<Steps>
+  <Step title="Create the unsigned transaction">
+
+  Viem makes it easy to create unsigned transactions so you can estimate the cost of a transaction before asking a user to sign it.
+  Here you'll create an unsigned transaction that sends a small amount of ETH from your address to the address `0x1000000000000000000000000000000000000000`. 
+
+```js
+  const transaction = {
+  account,
+  to: '0x1000000000000000000000000000000000000000',
+  value: parseEther('0.00069420'),
+  gasPrice: await publicClient.getGasPrice() 
+  }
+```
+
+  </Step>
+  <Step title="Estimate the total cost">
+
+  With Viem you can estimate the total cost of a transaction using the [estimateTotalFee](https://viem.sh/op-stack/actions/estimateTotalFee) method.
+
+```js
+  const totalEstimate = await publicClient.estimateTotalFee(transaction)
+  console.log(`Estimated Total Cost: ${formatEther(totalEstimate)} ETH`)
+```
+
+  </Step>
+  <Step title="Send the transaction">
+
+  Now that you've estimated the total cost of the transaction, go ahead and send it to the network.
+  This will make it possible to see the actual cost of the transaction to compare to your estimate.
+
+```js
+  const txHash = await walletClientL2.sendTransaction(transaction)
+  console.log(`Transaction Hash: ${txHash}`)
+
+  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
+  console.log('receipt', receipt);
+```
+
+  </Step>
+  <Step title="Check the actual execution gas fee">
+
+  Once you get back the transaction receipt, check the actual execution gas fee.
+  You can do so by accessing the `gasUsed` and `effectiveGasPrice` from the transaction receipt.
+  You can then multiply these values to get the actual L2 cost of the transaction
+
+```js
+  const l2CostActual = receipt.gasUsed * receipt.effectiveGasPrice
+  console.log(`Actual Execution Gas Fee: ${formatEther(l2CostActual)} ETH`)
+```
+
+  </Step>
+  <Step title="Check the actual L1 data fee">
+
+  You can also check the actual L1 data fee.
+
+```js
+  const l1CostActual = receipt.l1Fee
+  console.log(`Actual L1 Data Fee: ${formatEther(l1CostActual)} ETH`)
+```
+
+  </Step>
+  <Step title="Check the actual total cost">
+
+  Sum these two together to get the actual total cost of the transaction.
+
+```js
+  const totalActual = l2CostActual + l1CostActual
+  console.log(`Actual Total Cost: ${formatEther(totalActual)} ETH`)
+```
+
+  </Step>
+  <Step title="Check the difference">
+
+  Finally, check the difference between the estimated total cost and the actual total cost.
+  This will give you a sense of how accurate your estimate was.
+  Estimates will never be entirely accurate, but they should be close!
+
+```js
+  const difference = totalEstimate >= totalActual ? totalEstimate - totalActual : totalActual - totalEstimate
+  console.log(`Estimation Difference: ${formatEther(difference)} ETH`)
+```
+  </Step>
+</Steps>
+
+<Info>
+Estimates will never be entirely accurate due to network conditions and gas price fluctuation, but they should be close to the actual costs.
+</Info>
+
+## Next steps
+
+*   Always estimate before sending: Estimating costs before sending a transaction helps prevent unexpected fees and failed transactions.
+*   Account for gas price volatility: Gas prices can change rapidly. Consider adding a buffer to your estimates or implementing a gas price oracle for more accurate pricing.
+*   Optimize transaction data: Minimize the amount of data in your transactions to reduce L1 data fees.
+*   Monitor network conditions: Keep an eye on network congestion and adjust your estimates accordingly.
+*   Use appropriate gas limits: Setting too low a gas limit can cause transactions to fail, while setting it too high can result in unnecessary costs.
+*   Implement retry mechanisms: If a transaction fails due to underestimated gas, implement a retry mechanism with adjusted gas parameters.

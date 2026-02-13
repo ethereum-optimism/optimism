@@ -1,0 +1,16 @@
+[
+  {
+    "bytes": "20",
+    "label": "owner",
+    "offset": 0,
+    "slot": "0",
+    "type": "address"
+  },
+  {
+    "bytes": "32",
+    "label": "whitelist",
+    "offset": 0,
+    "slot": "1",
+    "type": "mapping(address => bool)"
+  }
+]

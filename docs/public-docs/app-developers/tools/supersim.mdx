@@ -1,0 +1,54 @@
+---
+title: Supersim Multichain Development Environment
+description: Learn how to use the Supersim local dev environment tool designed to simulate the OP Stack multi-chain environment.
+---
+
+<Info>
+  Interop is currently in active development and not yet ready for production use. The information provided here may change. Check back regularly for the most up-to-date information.
+</Info>
+
+[Supersim](https://github.com/ethereum-optimism/Supersim) is a local development environment tool designed to simulate the OP Stack for developers building multi-chain applications. It provides a simplified way to test and develop applications that interact with multiple chains within the OP Stack ecosystem.
+
+## Supersim workflow
+
+```mermaid
+graph LR
+    A[Write Smart Contracts] --> B[Deploy on Supersim]
+    B --> C[Test Cross-Chain Interactions]
+    C --> D[Debug and Refine]
+    D --> B
+    C --> E[Ready for Production]
+```
+
+This diagram illustrates the typical workflow for developers using Supersim, from writing smart contracts to testing and refining cross-chain interactions.
+
+## Features and benefits
+
+*   Simulates multiple OP Stack chains locally (e.g., chain 901, 902)
+*   Supports testing of cross-chain messaging and interactions
+*   Includes pre-deployed interoperability contracts
+*   Offers a CLI interface for starting and managing Supersim instances
+*   Provides local JSON-RPC endpoints for each simulated chain
+*   Allows for custom configuration of chain parameters
+*   Facilitates testing of Superchain-specific features like cross-chain token transfers
+*   Easy to use with common Ethereum development tools 
+*   Supports chain forking
+
+## Supersim CLI interaction
+
+```mermaid
+graph TD
+    A[Developer] --> B[Supersim CLI]
+    B --> C[Chain 901]
+    B --> D[Chain 902]
+    B --> E[...]
+    C --> F[JSON-RPC Endpoint]
+    D --> G[JSON-RPC Endpoint]
+    E --> H[JSON-RPC Endpoint]
+```
+
+This diagram illustrates how developers interact with Supersim through the CLI, which simulates OP Stack-specific features (specifically interop) on locally run chains, each with its own JSON-RPC endpoint and pre-deployed interoperability contracts.
+
+## Next steps
+
+*   View more [Supersim tutorials](/app-developers/tutorials/development/supersim)

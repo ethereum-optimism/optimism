@@ -1,0 +1,25 @@
+---
+title: Upgrade L1 contracts using op-deployer (Deprecated)
+description: The op-deployer upgrade command has been deprecated. This page documents which versions it was available for.
+---
+
+<Warning>
+The `op-deployer upgrade` command has been deprecated and is no longer maintained. For L1 contract upgrades, use
+[superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide) or interact with the
+OPCM directly. See the [deprecation notice](/notices/op-deployer-upgrade-deprecation) for details.
+</Warning>
+
+## Version availability
+
+The `op-deployer upgrade` command supported the following contract upgrade paths:
+
+| Upgrade path | op-deployer version | Status |
+|---|---|---|
+| op-contracts/v1.8.0 to op-contracts/v2.0.0 | v0.2.x | Deprecated |
+| op-contracts/v2.0.0 to op-contracts/v3.0.0 | v0.3.x | Deprecated |
+
+Each minor version of `op-deployer` supported a single release of the governance-approved smart contracts. See the [releases guide](/chain-operators/tools/op-deployer/reference/releases) for more information on versioning.
+
+## Migration
+
+For all future L1 contract upgrades, use [superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide). For non-Optimism governed chains, you can interact with the OPCM directly using your own tooling.

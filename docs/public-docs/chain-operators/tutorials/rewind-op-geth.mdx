@@ -1,0 +1,56 @@
+---
+title: How to rewind op-geth
+description: Learn how to rewind an op-geth node to a previous chain head.
+---
+
+## Overview 
+
+This tutorial teaches you how to rewind a single op-geth instance to a previous chain head. 
+This can be helpful to fix a divergent node, recreate archival state, or the safedb from an earlier chain state.
+
+## Rewind op-geth
+
+Follow these steps to rewind your op-geth node.
+
+<Steps>
+  <Step title="Shut down the CL">
+    Whatever CL clients are driving the op-geth instance need to be stopped to prevent them from interfering with the rewind later. 
+    This would typically be a locally running `op-node` or `kona-node` application, a Docker container or a pod in a Kubernetes cluster.
+
+    <Note>
+        Make sure you don't have something like ArgoCD syncing the app in question which would just scale the pod back up again.
+    </Note>
+  </Step>
+  <Step title="Determine rewind target">
+    If you already know the block number/hash you want to rewind to, you can proceed to the next step.
+
+    If you only know the *timestamp* you want to rewind to, you can find the corresponding block with
+
+    ```bash
+    cast find-block 1741890000 -r <ETH_RPC_URL>
+    ```
+
+    Where `<ETH_RPC_URL>` points to your op-geth node’s RPC endpoint, e.g. `http://localhost:8545` if it was a local instance with the default port and `1741890000` is an example unix timestamp. You can use e.g. https://www.epochconverter.com/ to convert from human times to unix timestamps.
+  </Step>
+  <Step title="Rewind op-geth">
+    You need the JWT secret and *open* & *admin* port (default `8545` & `8551`). 
+    Then you can use the `op-wheel` command from the [monorepo](https://github.com/ethereum-optimism/optimism/tree/develop/op-wheel) to issue the rewind.
+
+    ```bash
+    # save JWT secret to env var
+    export JWT="YourJWTSecret123"
+    # assuming default ports 8545 and 8551 and local endpoint
+    go run ./op-wheel/cmd engine rewind \
+    --engine.open http://localhost:8545 \
+    --engine http://localhost:8551 \
+    --engine.jwt-secret $JWT \
+    --log.level DEBUG \
+    --set-head --to 8460000
+    ```
+
+    This would rewind the op-geth node to the block with number `8460000`. You should have determined the right block number in step 2.
+  </Step>
+    <Step title="Start the CL">
+        You can now start your CL client again. It will sync from the rewound block head. 
+    </Step>        
+</Steps>

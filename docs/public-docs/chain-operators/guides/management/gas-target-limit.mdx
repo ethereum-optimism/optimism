@@ -1,0 +1,79 @@
+---
+title: Changing gas target/limit
+description: Learn how to change the gas target and limit on your OP Stack chain.
+---
+
+This guide covers how to optimize block processing performance at higher gas limits, test your infrastructure before activation, and safely change the gas target and/or limit on a live chain.
+This guide assumes your OP Stack chain has the [Holocene features](/notices/archive/holocene-changes) activated. 
+
+## Recommended config for best performance
+
+Some known ways to improve block processing performance:
+
+*   **Use NVMe for storage** instead of local SSDs or other persistent disks
+*   **Use full nodes where possible** over archive nodes
+
+## Pre-activation testing
+
+To ensure your chain and supporting infrastructure can consistently process blocks up to your gas limit, you should run some performance tests. 
+You'll want to run benchmarks and perform careful analysis of the results to ensure your execution clients can handle the increased gas usage.
+
+## Changing the gas target/limit change
+
+How to change the gas target/limit on a live chain.
+
+### Relevant configuration parameters
+
+The gas configuration on an OP Stack chain use the same EIP-1559 parameters as Ethereum. 
+Where the **gas target** = **gas limit** / **elasticity**. 
+These values can be found in the `SystemConfig` contract.
+
+### Procedure
+
+Holocene introduces the ability to change the EIP-1559 parameters `elasticity` and `denominator` via the `SystemConfig`. This will allow you to set proper values for the `elasticity` and block `gasLimit`.
+
+**Example**: to double the *target* while keeping the block *limit* at 30Mgas/block:
+
+<Steps>
+  <Step title="Retrieve existing EIP-1559 values">
+    Retrieve the existing `eip1559Elasticity` and `eip1559Denominator` values:
+
+    ```solidity
+    elasticity = SystemConfig.eip1559Elasticity() // 6
+    denominator = SystemConfig.eip1559Denominator() // 50
+    limit = SystemConfig.gasLimit() // 30_000_000 gas, 30Mgas    
+    ```
+
+    Current target = `30Mgas / 6 = 5Mgas per block`
+  </Step>
+
+  <Step title="Set new EIP-1559 params">
+    Use value from previous step as input to set new params and reduce the `elasticity` from `6` to `3`:
+    ```solidity
+    SystemConfig.setEIP1559Params(denominator, 3)
+    ```
+    New target = `30Mgas / 3 = 10Mgas per block`
+  </Step>
+</Steps>
+
+## Post-activation monitoring
+
+What to monitor after executing the gas changes.
+
+### SystemConfig contract values
+
+*   `SystemConfig.gasLimit()` 
+*   `SystemConfig.eip1559Denominator()`
+*   `SystemConfig.eip1559Elasticity()` 
+
+### Block explorer
+
+For example, on [OP Mainnet](https://optimistic.etherscan.io/blocks):
+
+*   Any block with `gasUsed > gasTarget` should cause the base fee to increase
+*   Any block with `gasUsed < gasTarget` should cause the base fee to decrease
+
+### Node performance
+
+*   Verify nodes are processing blocks faster than the block period
+*   Monitor CPU/memory usage and p99 tail latency of block processing

@@ -1,0 +1,619 @@
+package batcher
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"math"
+
+	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/queue"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
+)
+
+var ErrReorg = errors.New("block does not extend existing chain")
+
+type ChannelOutFactory func(cfg ChannelConfig, rollupCfg *rollup.Config) (derive.ChannelOut, error)
+
+// channelManager stores a contiguous set of blocks & turns them into channels.
+// Upon receiving tx confirmation (or a tx failure), it does channel error handling.
+//
+// For simplicity, it only creates a single pending channel at a time & waits for
+// the channel to either successfully be submitted or timeout before creating a new
+// channel.
+// Public functions on channelManager are safe for concurrent access.
+type channelManager struct {
+	log         log.Logger
+	metr        metrics.Metricer
+	cfgProvider ChannelConfigProvider
+	rollupCfg   *rollup.Config
+
+	outFactory ChannelOutFactory
+
+	// All blocks which are not yet safe
+	blocks queue.Queue[SizedBlock]
+	// blockCursor is an index into blocks queue. It points at the next block
+	// to build a channel with. blockCursor = len(blocks) is reserved for when
+	// there are no blocks ready to build with.
+	blockCursor int
+	// The latest L1 block from all the L2 blocks in the most recently submitted channel.
+	// Used to track channel duration timeouts.
+	l1OriginLastSubmittedChannel eth.BlockID
+	// The default ChannelConfig to use for the next channel
+	defaultCfg ChannelConfig
+	// last block hash - for reorg detection
+	tip common.Hash
+
+	// channel to write new block data to
+	currentChannel *channel
+	// channels to read frame data from, for writing batches onchain
+	channelQueue []*channel
+	// used to lookup channels by tx ID upon tx success / failure
+	txChannels map[string]*channel
+}
+
+func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider ChannelConfigProvider, rollupCfg *rollup.Config) *channelManager {
+	return &channelManager{
+		log:         log,
+		metr:        metr,
+		cfgProvider: cfgProvider,
+		defaultCfg:  cfgProvider.ChannelConfig(false),
+		rollupCfg:   rollupCfg,
+		outFactory:  NewChannelOut,
+		txChannels:  make(map[string]*channel),
+	}
+}
+
+func (s *channelManager) SetChannelOutFactory(outFactory ChannelOutFactory) {
+	s.outFactory = outFactory
+}
+
+// Clear clears the entire state of the channel manager.
+// It is intended to be used before launching op-batcher and after an L2 reorg.
+func (s *channelManager) Clear(l1OriginLastSubmittedChannel eth.BlockID) {
+	s.log.Trace("clearing channel manager state")
+	s.blocks.Clear()
+	s.blockCursor = 0
+	s.l1OriginLastSubmittedChannel = l1OriginLastSubmittedChannel
+	s.tip = common.Hash{}
+	s.currentChannel = nil
+	s.channelQueue = nil
+
+	// This is particularly important because pendingDABytes metric controls throttling:
+	s.metr.ClearAllStateMetrics()
+
+	s.txChannels = make(map[string]*channel)
+}
+
+func (s *channelManager) pendingBlocks() int {
+	return s.blocks.Len() - s.blockCursor
+}
+
+// TxFailed records a transaction as failed. It will attempt to resubmit the data
+// in the failed transaction.
+func (s *channelManager) TxFailed(_id txID) {
+	id := _id.String()
+	if channel, ok := s.txChannels[id]; ok {
+		delete(s.txChannels, id)
+		channel.TxFailed(id)
+	} else {
+		s.log.Warn("transaction from unknown channel marked as failed", "id", id)
+	}
+}
+
+// TxConfirmed marks a transaction as confirmed on L1. Only if the channel timed out
+// the channelManager's state is modified.
+func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
+	id := _id.String()
+	if channel, ok := s.txChannels[id]; ok {
+		delete(s.txChannels, id)
+		if timedOut := channel.TxConfirmed(id, inclusionBlock); timedOut {
+			s.log.Warn("channel timed out on chain", "channel_id", channel.ID(), "tx_id", id)
+			s.handleChannelInvalidated(channel)
+		}
+	} else {
+		s.log.Warn("transaction from unknown channel marked as confirmed", "id", id)
+	}
+	s.metr.RecordBatchTxSubmitted()
+	s.log.Debug("marked transaction as confirmed", "id", id, "block", inclusionBlock)
+}
+
+// rewindToBlock updates the blockCursor to point at
+// the block with the supplied hash, only if that block exists
+// in the block queue and the blockCursor is ahead of it.
+// Panics if the block is not in state.
+func (s *channelManager) rewindToBlock(block eth.BlockID) {
+	initialCursor := s.blockCursor
+	idx := block.Number - bigs.Uint64Strict(s.blocks[0].Number())
+	if s.blocks[idx].Hash() == block.Hash && idx < uint64(s.blockCursor) {
+		s.blockCursor = int(idx)
+	} else {
+		panic("rewindToBlock: tried to rewind to nonexistent block")
+	}
+
+	// Ensure metrics stay in sync by re-adding blocks which the cursor rewound over
+	for i := initialCursor - 1; i >= s.blockCursor; i-- {
+		block, ok := s.blocks.PeekN(i)
+		if !ok {
+			panic("rewindToBlock: block not found at index " + fmt.Sprint(i))
+		}
+		s.metr.RecordL2BlockInPendingQueue(block.RawSize(), block.EstimatedDABytes())
+	}
+}
+
+// handleChannelInvalidated rewinds the channelManager's blockCursor
+// to point at the first block added to the provided channel,
+// and removes the channel from the channelQueue, along with
+// any channels which are newer than the provided channel.
+func (s *channelManager) handleChannelInvalidated(c *channel) {
+	if len(c.ChannelBuilder.blocks) > 0 {
+		// This is usually true, but there is an edge case
+		// where a channel timed out before any blocks got added.
+		// In that case we end up with an empty frame (header only),
+		// and there are no blocks to requeue.
+		blockID := eth.ToBlockID(c.ChannelBuilder.blocks[0])
+		s.rewindToBlock(blockID)
+	} else {
+		s.log.Debug("channelManager.handleChannelInvalidated: channel had no blocks")
+	}
+
+	// Trim provided channel and any newer channels:
+	invalidatedChannelIdx := 0
+
+	for i := range s.channelQueue {
+		if s.channelQueue[i] == c {
+			invalidatedChannelIdx = i
+			break
+		}
+	}
+
+	for i := invalidatedChannelIdx; i < len(s.channelQueue); i++ {
+		s.log.Warn("Dropped channel",
+			"id", s.channelQueue[i].ID(),
+			"none_submitted", s.channelQueue[i].noneSubmitted(),
+			"fully_submitted", s.channelQueue[i].isFullySubmitted(),
+			"timed_out", s.channelQueue[i].isTimedOut(),
+			"full_reason", s.channelQueue[i].FullErr(),
+			"oldest_l2", s.channelQueue[i].OldestL2(),
+			"newest_l2", s.channelQueue[i].LatestL2(),
+		)
+		// Remove the channel from the txChannels map
+		for txID := range s.txChannels {
+			if s.txChannels[txID] == s.channelQueue[i] {
+				delete(s.txChannels, txID)
+			}
+		}
+	}
+	s.channelQueue = s.channelQueue[:invalidatedChannelIdx]
+
+	s.metr.RecordChannelQueueLength(len(s.channelQueue))
+
+	// We want to start writing to a new channel, so reset currentChannel.
+	s.currentChannel = nil
+}
+
+// nextTxData dequeues frames from the channel and returns them encoded in a transaction.
+// It also updates the internal tx -> channels mapping
+func (s *channelManager) nextTxData(channel *channel) (txData, error) {
+	if channel == nil || !channel.HasTxData() {
+		s.log.Trace("no next tx data")
+		return txData{}, io.EOF
+	}
+	tx := channel.NextTxData()
+
+	// update s.l1OriginLastSubmittedChannel so that the next
+	// channel's duration timeout will trigger properly
+	if channel.LatestL1Origin().Number > s.l1OriginLastSubmittedChannel.Number {
+		s.l1OriginLastSubmittedChannel = channel.LatestL1Origin()
+	}
+	s.txChannels[tx.ID().String()] = channel
+	return tx, nil
+}
+
+// TxData returns the next tx data that should be submitted to L1.
+//
+// If the current channel is
+// full, it only returns the remaining frames of this channel until it got
+// successfully fully sent to L1. It returns io.EOF if there's no pending tx data.
+//
+// It will decide whether to switch DA type automatically.
+// When switching DA type, the channelManager state will be rebuilt
+// with a new ChannelConfig.
+func (s *channelManager) TxData(l1Head eth.BlockID, isThrottling bool, pi pubInfo) (txData, error) {
+	channel, err := s.getReadyChannel(l1Head, pi)
+	if err != nil {
+		return emptyTxData, err
+	}
+	// If the channel has already started being submitted,
+	// return now and ensure no requeuing happens
+	if !channel.noneSubmitted() {
+		return s.nextTxData(channel)
+	}
+
+	// Call provider method to reassess optimal DA type
+	newCfg := s.cfgProvider.ChannelConfig(isThrottling)
+
+	// No change:
+	if newCfg.UseBlobs == s.defaultCfg.UseBlobs {
+		s.log.Debug("Recomputing optimal ChannelConfig: no need to switch DA type",
+			"useBlobs", s.defaultCfg.UseBlobs)
+		return s.nextTxData(channel)
+	}
+
+	// Change:
+	s.log.Info("Recomputing optimal ChannelConfig: changing DA type and requeing blocks...",
+		"useBlobsBefore", s.defaultCfg.UseBlobs,
+		"useBlobsAfter", newCfg.UseBlobs)
+
+	// Invalidate the channel so its blocks
+	// get requeued:
+	s.handleChannelInvalidated(channel)
+
+	// Set the defaultCfg so new channels
+	// pick up the new ChannelConfig
+	s.defaultCfg = newCfg
+
+	// Try again to get data to send on chain.
+	channel, err = s.getReadyChannel(l1Head, pi)
+	if err != nil {
+		return emptyTxData, err
+	}
+	return s.nextTxData(channel)
+}
+
+// pubInfo is a struct that contains signal information sent on the publishSignal channel
+type pubInfo struct {
+	// forcePublish is set to true if the current channel should be force-closed and submitted now.
+	forcePublish bool
+
+	// ignoreMaxChannelDuration is set to true if we should keep the current channel open even if it's duration is exceeded.
+	// For example, if we know there are more blocks to load and we want to pack those into the current channel before sending it.
+	ignoreMaxChannelDuration bool
+}
+
+// getReadyChannel returns the next channel ready to submit data, or an error.
+// It will create a new channel if necessary.
+// If there is no data ready to send, it adds blocks from the block queue
+// to the current channel and generates frames for it.
+// Always returns nil and the io.EOF sentinel error when
+// there is no channel with txData
+// If forcePublish is true, it will force close channels and
+// generate frames for them.
+func (s *channelManager) getReadyChannel(l1Head eth.BlockID, pi pubInfo) (*channel, error) {
+	if pi.forcePublish && s.currentChannel != nil && s.currentChannel.TotalFrames() == 0 {
+		s.log.Info("Force-closing channel and creating frames", "channel_id", s.currentChannel.ID())
+		s.currentChannel.Close()
+		if err := s.currentChannel.OutputFrames(); err != nil {
+			return nil, err
+		}
+	}
+
+	var firstWithTxData *channel
+	for _, ch := range s.channelQueue {
+		if ch.HasTxData() {
+			firstWithTxData = ch
+			break
+		}
+	}
+
+	dataPending := firstWithTxData != nil
+	s.log.Debug("Requested tx data", "l1Head", l1Head, "txdata_pending", dataPending, "blocks_pending", s.blocks.Len())
+
+	// Short circuit if there is pending tx data or the channel manager is closed
+	if dataPending {
+		return firstWithTxData, nil
+	}
+
+	// No pending tx data, so we have to add new blocks to the channel
+	// If we have no saved blocks, we will not be able to create valid frames
+	if s.pendingBlocks() == 0 {
+		return nil, io.EOF
+	}
+
+	if err := s.ensureChannelWithSpace(l1Head); err != nil {
+		return nil, err
+	}
+
+	if err := s.processBlocks(); err != nil {
+		return nil, err
+	}
+
+	if !pi.ignoreMaxChannelDuration {
+		// Register current L1 head (which checks for the max duration timeout)
+		// only after all blocks in the manager's state have been
+		// processed, and only if we weren't told to ignore the max channel duration.
+		// The aim is to prefer to optimally pack blocks into channels when
+		// instead of timing out the channel when more blocks soon to be processed.
+		s.registerL1Block(l1Head)
+	}
+
+	if err := s.outputFrames(); err != nil {
+		return nil, err
+	}
+
+	if s.currentChannel.HasTxData() {
+		return s.currentChannel, nil
+	}
+
+	return nil, io.EOF
+}
+
+// ensureChannelWithSpace ensures currentChannel is populated with a channel that has
+// space for more data (i.e. channel.IsFull returns false). If currentChannel is nil
+// or full, a new channel is created.
+func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
+	if s.currentChannel != nil && !s.currentChannel.IsFull() {
+		return nil
+	}
+
+	// We reuse the ChannelConfig from the last channel.
+	// This will be reassessed at channel submission-time,
+	// but this is our best guess at the appropriate values for now.
+	cfg := s.defaultCfg
+
+	channelOut, err := s.outFactory(cfg, s.rollupCfg)
+	if err != nil {
+		return fmt.Errorf("creating channel out: %w", err)
+	}
+
+	pc := newChannel(s.log, s.metr, cfg, s.rollupCfg, s.l1OriginLastSubmittedChannel.Number, channelOut)
+
+	s.currentChannel = pc
+	s.log.Info("Created channel",
+		"id", pc.ID(),
+		"l1Head", l1Head,
+		"blocks_pending", s.pendingBlocks(),
+		"l1OriginLastSubmittedChannel", s.l1OriginLastSubmittedChannel,
+		"batch_type", cfg.BatchType,
+		"compression_algo", cfg.CompressorConfig.CompressionAlgo,
+		"target_num_frames", cfg.TargetNumFrames,
+		"max_frame_size", cfg.MaxFrameSize,
+		"use_blobs", cfg.UseBlobs,
+	)
+	s.metr.RecordChannelOpened(pc.ID(), s.pendingBlocks())
+
+	s.channelQueue = append(s.channelQueue, pc)
+	s.metr.RecordChannelQueueLength(len(s.channelQueue))
+	s.log.Debug("Channel queue length", "length", len(s.channelQueue))
+
+	return nil
+}
+
+// registerL1Block registers the given block at the current channel.
+func (s *channelManager) registerL1Block(l1Head eth.BlockID) {
+	s.currentChannel.CheckTimeout(l1Head.Number)
+	s.log.Debug("new L1-block registered at channel builder",
+		"l1Head", l1Head,
+		"channel_full", s.currentChannel.IsFull(),
+		"full_reason", s.currentChannel.FullErr(),
+	)
+}
+
+// processBlocks adds blocks from the blocks queue to the current channel until
+// either the queue got exhausted or the channel is full.
+func (s *channelManager) processBlocks() error {
+	var (
+		blocksAdded int
+		_chFullErr  *ChannelFullError // throw away, just for type checking
+		latestL2ref eth.L2BlockRef
+	)
+
+	defer func() {
+		s.blockCursor += blocksAdded
+
+		s.metr.RecordL2BlocksAdded(latestL2ref,
+			blocksAdded,
+			s.pendingBlocks(),
+			s.currentChannel.InputBytes(),
+			s.currentChannel.ReadyBytes())
+		s.log.Debug("Added blocks to channel",
+			"blocks_added", blocksAdded,
+			"blocks_pending", s.pendingBlocks(),
+			"channel_full", s.currentChannel.IsFull(),
+			"input_bytes", s.currentChannel.InputBytes(),
+			"ready_bytes", s.currentChannel.ReadyBytes(),
+		)
+	}()
+
+	for i := s.blockCursor; ; i++ {
+		block, ok := s.blocks.PeekN(i)
+		if !ok {
+			break
+		}
+
+		l1info, err := s.currentChannel.AddBlock(block)
+		if errors.As(err, &_chFullErr) {
+			// current block didn't get added because channel is already full
+			break
+		} else if err != nil {
+			return fmt.Errorf("adding block[%d] to channel builder: %w", i, err)
+		}
+		s.log.Debug("Added block to channel", "id", s.currentChannel.ID(), "block", eth.ToBlockID(block))
+
+		blocksAdded += 1
+		latestL2ref = l2BlockRefFromBlockAndL1Info(block.Block, l1info)
+		s.metr.RecordL2BlockInChannel(block.RawSize(), block.EstimatedDABytes())
+		// current block got added but channel is now full
+		if s.currentChannel.IsFull() {
+			break
+		}
+	}
+	return nil
+}
+
+// outputFrames generates frames for the current channel, and computes and logs the compression ratio
+func (s *channelManager) outputFrames() error {
+	if err := s.currentChannel.OutputFrames(); err != nil {
+		return fmt.Errorf("creating frames with channel builder: %w", err)
+	}
+	if !s.currentChannel.IsFull() {
+		return nil
+	}
+
+	inBytes, outBytes := s.currentChannel.InputBytes(), s.currentChannel.OutputBytes()
+	s.metr.RecordChannelClosed(
+		s.currentChannel.ID(),
+		s.pendingBlocks(),
+		s.currentChannel.TotalFrames(),
+		inBytes,
+		outBytes,
+		s.currentChannel.FullErr(),
+	)
+
+	var comprRatio float64
+	if inBytes > 0 {
+		comprRatio = float64(outBytes) / float64(inBytes)
+	}
+
+	s.log.Info("Channel closed",
+		"id", s.currentChannel.ID(),
+		"blocks_pending", s.pendingBlocks(),
+		"block_cursor", s.blockCursor,
+		"blocks_len", s.blocks.Len(),
+		"num_frames", s.currentChannel.TotalFrames(),
+		"input_bytes", inBytes,
+		"output_bytes", outBytes,
+		"oldest_l1_origin", s.currentChannel.OldestL1Origin(),
+		"l1_origin", s.currentChannel.LatestL1Origin(),
+		"oldest_l2", s.currentChannel.OldestL2(),
+		"latest_l2", s.currentChannel.LatestL2(),
+		"full_reason", s.currentChannel.FullErr(),
+		"compr_ratio", comprRatio,
+	)
+
+	s.currentChannel.ChannelBuilder.co.DiscardCompressor() // Free up memory by discarding the compressor
+
+	return nil
+}
+
+// AddL2Block adds an L2 block to the internal blocks queue. It returns ErrReorg
+// if the block does not extend the last block loaded into the state. If no
+// blocks were added yet, the parent hash check is skipped.
+func (s *channelManager) AddL2Block(block *types.Block) error {
+	if s.tip != (common.Hash{}) && s.tip != block.ParentHash() {
+		return ErrReorg
+	}
+
+	b := ToSizedBlock(block)
+	s.metr.RecordL2BlockInPendingQueue(b.RawSize(), b.EstimatedDABytes())
+	s.blocks.Enqueue(b)
+	s.tip = block.Hash()
+
+	return nil
+}
+
+func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info *derive.L1BlockInfo) eth.L2BlockRef {
+	return eth.L2BlockRef{
+		Hash:           block.Hash(),
+		Number:         block.NumberU64(),
+		ParentHash:     block.ParentHash(),
+		Time:           block.Time(),
+		L1Origin:       eth.BlockID{Hash: l1info.BlockHash, Number: l1info.Number},
+		SequenceNumber: l1info.SequenceNumber,
+	}
+}
+
+var ErrPendingAfterClose = errors.New("pending channels remain after closing channel-manager")
+
+// PruneSafeBlocks dequeues the provided number of blocks from the internal blocks queue
+func (s *channelManager) PruneSafeBlocks(num int) {
+	discardedBlocks, ok := s.blocks.DequeueN(int(num))
+	if !ok {
+		panic("tried to prune more blocks than available")
+	}
+	s.blockCursor -= int(num)
+	if s.blockCursor < 0 {
+		// This is a rare edge case where a block is loaded and pruned before it gets into a channel.
+		// This may happen if a previous batcher instance build a channel with that block
+		// which was confirmed _after_ the current batcher pulled it from the sequencer.
+		numDiscardedPendingBlocks := -1 * s.blockCursor
+		for i := 0; i < numDiscardedPendingBlocks; i++ {
+			s.metr.RecordPendingBlockPruned(
+				discardedBlocks[i].RawSize(),
+				discardedBlocks[i].EstimatedDABytes())
+		}
+		s.blockCursor = 0
+	}
+}
+
+// PruneChannels dequeues the provided number of channels from the internal channels queue
+func (s *channelManager) PruneChannels(num int) {
+	clearCurrentChannel := false
+	for i := 0; i < num; i++ {
+		if s.channelQueue[i] == s.currentChannel {
+			clearCurrentChannel = true
+		}
+	}
+	s.channelQueue = s.channelQueue[num:]
+	s.metr.RecordChannelQueueLength(len(s.channelQueue))
+	if clearCurrentChannel {
+		s.currentChannel = nil
+	}
+}
+
+// PendingDABytes returns the current number of bytes pending to be written to the DA layer (from blocks fetched from L2
+// but not yet in a channel).
+func (s *channelManager) PendingDABytes() int64 {
+	f := s.metr.PendingDABytes()
+	if f >= math.MaxInt64 {
+		return math.MaxInt64
+	}
+	if f <= math.MinInt64 {
+		return math.MinInt64
+	}
+	return int64(f)
+}
+
+func (m *channelManager) LastStoredBlock() eth.BlockID {
+	if m.blocks.Len() == 0 {
+		return eth.BlockID{}
+	}
+	return eth.ToBlockID(m.blocks[m.blocks.Len()-1])
+}
+
+func (s *channelManager) UnsafeDABytes() int64 {
+	return s.unsafeBytesInPendingBlocks() + s.unsafeBytesInOpenChannels() + s.unsafeBytesInClosedChannels()
+}
+
+func (s *channelManager) unsafeBytesInPendingBlocks() int64 {
+	var bytesNotYetInChannels int64
+	for _, block := range s.blocks[s.blockCursor:] {
+		bytesNotYetInChannels += int64(block.EstimatedDABytes())
+	}
+	return bytesNotYetInChannels
+}
+
+func (s *channelManager) unsafeBytesInOpenChannels() int64 {
+	// In theory, an open channel can provide accurate estimate of
+	// the DA bytes in the channel so far. However, in practice,
+	// the compressors we use can only provide such an estimate in a
+	// way which leads to a worse compression ratio. So increased
+	// observability actually hurts the bottom line.
+	// Therefore, for now just use a block-by-block estimate which should match
+	// the estimate for the blocks before they were added.
+	var bytesInOpenChannels int64
+	for _, channel := range s.channelQueue {
+		if channel.TotalFrames() == 0 {
+			for _, block := range channel.ChannelBuilder.blocks {
+				bytesInOpenChannels += int64(block.EstimatedDABytes())
+			}
+		}
+	}
+	return bytesInOpenChannels
+}
+
+func (s *channelManager) unsafeBytesInClosedChannels() int64 {
+	var bytesInClosedChannels int64
+	for _, channel := range s.channelQueue {
+		if channel.TotalFrames() > 0 {
+			bytesInClosedChannels += int64(channel.OutputBytes())
+		}
+	}
+	return bytesInClosedChannels
+}

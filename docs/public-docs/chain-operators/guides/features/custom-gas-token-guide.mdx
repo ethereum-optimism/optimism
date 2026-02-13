@@ -1,0 +1,253 @@
+---
+title: Deploy a Custom Gas Token chain
+description: Learn how to deploy a Custom Gas Token chain using OP Deployer.
+---
+
+This guide provides instructions for chain operators who want to deploy a Custom Gas Token (CGT) chain. 
+See the [Custom Gas Token overview](/op-stack/features/custom-gas-token) for a general understanding of this OP Stack feature.
+
+A Custom Gas Token chain enables you to use any asset as the native fee currency instead of ETH. 
+This asset may be an existing L1 token, a representation of a token from another chain, or a newly defined asset (or new L2 token) created at genesis.
+
+<Warning>
+Custom Gas Token v2 is a new implementation that is not compatible with legacy CGT chains. 
+There is currently no migration path from legacy CGT to CGT v2, though one is planned to be put together.
+</Warning>
+
+## Prerequisites
+
+Before deploying a CGT chain, ensure you have:
+
+*   **OP Deployer installed**: See [OP Deployer installation](/chain-operators/tools/op-deployer/installation) for setup instructions
+*   **L1 RPC endpoint**: Access to an Ethereum L1 node for deployment
+*   **Funded deployer account**: ETH for L1 gas costs during deployment
+*   **Token design**: Clear plan for your native asset (supply, distribution, bridging mechanism)
+*   **Security audit**: Thorough review of any authorized minters or bridge contracts you plan to deploy
+
+## Deployment steps
+
+Deploying a CGT chain follows the standard OP Stack deployment process with additional configuration for Custom Gas Token specific parameters.
+
+<Steps>
+  <Step title="Initialize your intent file">
+    Create a new intent file using OP Deployer's [init command](/chain-operators/tools/op-deployer/usage/init):
+
+    ```bash
+    op-deployer init \
+      --l1-chain-id <chain ID of your L1> \
+      --l2-chain-ids <comma separated list of chain IDs for your L2s> \
+      --intent-type custom
+    ```
+
+    This creates an `intent.toml` file.
+  </Step>
+
+  <Step title="Configure Custom Gas Token parameters">
+    Open your `intent.toml` file and add the Custom Gas Token configuration. Below is an example with CGT-specific fields:
+
+    ```toml
+    configType = "custom"
+    l1ChainID = 11155111
+    fundDevAccounts = false
+    useInterop = false
+    l1ContractsLocator = "tag://op-contracts/v6.0.0"
+    l2ContractsLocator = "tag://op-contracts/v6.0.0"
+
+    [superchainRoles]
+      SuperchainProxyAdminOwner = "0xYourMultisigAddress"
+      SuperchainGuardian = "0xYourMultisigAddress"
+      ProtocolVersionsOwner = "0xYourMultisigAddress"
+      Challenger = "0xYourMultisigAddress"
+
+    [[chains]]
+      id = "0x0000000000000000000000000000000000000000000000000000000000001234"
+      baseFeeVaultRecipient = "0xYourFeeRecipientAddress"
+      l1FeeVaultRecipient = "0xYourFeeRecipientAddress"
+      sequencerFeeVaultRecipient = "0xYourFeeRecipientAddress"
+      operatorFeeVaultRecipient = "0xYourFeeRecipientAddress"
+      eip1559DenominatorCanyon = 0
+      eip1559Denominator = 0
+      eip1559Elasticity = 0
+      gasLimit = 60000000
+      operatorFeeScalar = 0
+      operatorFeeConstant = 0
+      chainFeesRecipient = "0x0000000000000000000000000000000000000000"
+      minBaseFee = 0
+      daFootprintGasScalar = 0
+
+      [chains.roles]
+        l1ProxyAdminOwner = "0xYourMultisigAddress"
+        l2ProxyAdminOwner = "0xYourMultisigAddress"
+        systemConfigOwner = "0xYourMultisigAddress"
+        unsafeBlockSigner = "0xYourSequencerAddress"
+        batcher = "0xYourBatcherAddress"
+        proposer = "0xYourProposerAddress"
+        challenger = "0xYourChallengerAddress"
+        
+      [chains.customGasToken]
+        name = "My Custom Token"
+        symbol = "MCT"
+        initialLiquidity = "0x..."  # optional, default: type(uint248).max
+        liquidityControllerOwner = "0x..."  # optional, default: L2ProxyAdminOwner
+    ```
+
+    ### Key CGT configuration fields
+
+    | Field | Description | Required |
+    |-------|-------------|----------|
+    | `name` | Name of the native asset (e.g., "My Custom Token") | Yes |
+    | `symbol` | Symbol for the native asset (e.g., "MCT") | Yes |
+    | `initialLiquiditySupply` | Initial supply minted to NativeAssetLiquidity at genesis | No, default: type(uint248).max |
+    | `liquidityControllerOwner` | Manages the asset supply | No, `L2ProxyAdminOwner` will be used as default |
+
+    <Warning>
+    **Fee parameter calculation is critical**: Your `minBaseFee` and `operatorFee` must accurately account for L1 gas costs and DA fees denominated in your custom token. If set too low, your chain may not cover operational costs. If set too high, users will pay excessive fees.
+    </Warning>
+
+    <Info>
+    **Decimal support**: CGT v2 currently supports only 18-decimal tokens. Support for other decimals may be added in future releases.
+    </Info>
+  </Step>
+
+  <Step title="Deploy L1 contracts">
+    Deploy your L1 contracts using OP Deployer's [apply command](/chain-operators/tools/op-deployer/usage/apply)
+
+    ```bash
+    op-deployer apply \
+      --l1-rpc-url <your L1 RPC URL> \
+      --private-key <your deployer private key>
+    ```
+
+    This deploys all necessary L1 contracts including `SystemConfig` with the `isCustomGasToken` flag enabled, which instructs L1 contracts to reject ETH-value transactions.
+
+    <Info>
+    The deployment process will automatically deploy the CGT-specific predeploys (`NativeAssetLiquidity` and `LiquidityController`) during genesis initialization.
+    </Info>
+  </Step>
+
+  <Step title="(Optional) Verify L1 contracts">
+    Optionally you can use OP Deployer's [verify command](/chain-operators/tools/op-deployer/usage/verify) to verify your L1 contracts on Blockscout or Etherscan.
+  </Step>
+
+  <Step title="Create genesis file with CGT configuration">
+    After L1 deployment completes, initialize your L2 genesis with OP Deployer's [apply command](/chain-operators/tools/op-deployer/usage/apply):
+
+    ```bash
+    op-deployer apply \
+      --deployment-target genesis
+    ```
+
+    The genesis configuration is applied based on your `initent.toml`.
+  </Step>
+
+  <Step title="Start your chain services">
+    Start your OP Stack services to start sequencing your CGT chain:
+
+    * Sequencer Execution Client
+    * Sequencer Consensus Client 
+    * Batcher 
+    * Proposer 
+    * Challenger 
+
+  </Step>
+
+  <Step title="Verify and test">
+    Before going live, thoroughly test your CGT chain. The following are some key areas to check:
+
+    **Verify flag alignment**
+    * Check L1 SystemConfig.isCustomGasToken() returns true
+    * Check L2 L1Block.isCustomGasToken() returns true
+    * Verify both flags match
+    
+    **Test native asset operations**
+    * Test minting native assets via authorized minter
+    * Test burning native assets
+    * Test fee payments in native token
+    * Verify fee vault accumulation
+    
+
+    **Test ETH rejection**
+    * Attempt ETH deposit via OptimismPortal (should fail)
+    * Attempt ETH withdrawal via L2ToL1MessagePasser (should fail)
+    * Verify ETH operations are properly blocked
+    
+
+    **Test bridge functionality**
+
+    * Test deposits (L1 → L2 native asset minting)
+    * Test withdrawals (L2 native → L1 token)
+    * Verify proper locking/unlocking in liquidity contract
+    
+  </Step>
+</Steps>
+
+## Post-deployment considerations
+
+### Supply management
+
+After deployment, you can:
+
+*   **Withdraw excess liquidity**: If genesis created more supply than needed, withdraw and burn via `L2ToL1MessagePasser`
+*   **Add new minters**: Authorize additional contracts to mint native assets as your ecosystem grows
+*   **Revoke minters**: Remove authorization from compromised or deprecated contracts
+*   **Implement rate limits**: Add safeguards to control minting velocity
+
+### Fee parameter adjustments
+
+Monitor your chain's operational costs and adjust fee parameters as needed:
+
+*   **minBaseFee**: Adjust based on L1 gas costs and your token's value
+*   **operatorFee**: Adjust based on data availability costs
+*   Use `SystemConfig.setGasConfig()` to update parameters
+
+### Developer documentation
+
+Create clear documentation for your users covering:
+
+*   How to acquire native assets (bridge, DEX, faucet, etc.)
+*   Bridge contract addresses and interfaces
+*   Fee structure and token economics
+*   Wallet configuration (RPC endpoints, chain ID, token metadata)
+
+## Troubleshooting
+
+### Flag mismatch errors
+
+**Symptom**: Transactions failing with "custom gas token mismatch" errors
+
+**Solution**: Verify that `SystemConfig.isCustomGasToken()` on L1 and `L1Block.isCustomGasToken()` on L2 return the same value. If mismatched, this indicates a critical configuration error.
+
+### Fee parameter issues
+
+**Symptom**: Chain operator losing money on transaction costs or users complaining about excessive fees
+
+**Solution**: Review and recalculate your `minBaseFee` and `operatorFee` parameters based on:
+*   Current L1 gas prices
+*   Your token's market value or peg
+*   Data availability costs
+*   Target fee structure for users
+
+### Liquidity depletion
+
+**Symptom**: Minting transactions failing due to insufficient liquidity
+
+**Solution**:
+*   Check `NativeAssetLiquidity` balance
+*   If depleted, this indicates an imbalance between minting and burning
+*   Review bridge logic to ensure burns are occurring correctly
+*   Consider increasing initial liquidity supply in future deployments
+
+### Unauthorized minting attempts
+
+**Symptom**: Unauthorized addresses attempting to mint native assets
+
+**Solution**:
+*   Review access control configuration on `LiquidityController`
+*   Ensure only audited and secured contracts are authorized
+*   Implement rate limiting if not already in place
+*   Consider revoking and re-authorizing with additional safeguards
+
+## Resources
+
+*   [Custom Gas Token feature overview](/op-stack/features/custom-gas-token)
+*   [OP Deployer documentation](/chain-operators/tools/op-deployer/overview)

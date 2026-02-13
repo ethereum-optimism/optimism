@@ -1,0 +1,213 @@
+---
+title: Upgrading Smart Contracts from v1.3.0 to v1.8.0
+description: Learn about upgrading the smart contracts that make up the OP Stack.
+---
+
+This guide provides specific instructions for upgrading the OP Stack's Layer 1 contracts from `op-contracts/v1.3.0` to `op-contracts/v1.8.0`. This upgrade includes important changes to the system configuration and introduces the Fault Proof System.
+
+## Overview of the Holocene upgrade
+
+The Holocene upgrade is a protocol upgrade. Learn more about it in the [Holocene notice page](https://docs.optimism.io/notices/holocene-changes). This guide shows you how to take your OP Stack chain from the L2 Output Oracle System to a permissioned Fault Proof System contract version associated with the Holocene upgrade. 
+
+After upgrading to OP Stack contracts v1.8.0 and enabling permissioned fault proofs, all pending (unfinalized) withdrawal proofs created on L1 are invalidated. This means that withdrawals must be manually reproven by users after the upgrade; the process is not automatic.
+
+### Formatting config files
+
+You need your chain's `deployments.json` and `deploy-config.json`
+
+Ensure both files are correctly formatted, using the exact field names shown in the below examples, with **ALL** values - particularly the relevant ones - updated for **your specific chain**:
+
+`deployments.json`:
+
+```json
+{
+  "AddressManager": "0xEF8115F2733fb2033a7c756402Fc1deaa56550Ef",
+  "L2OutputOracleProxy": "0x9E6204F750cD866b299594e2aC9eA824E2e5f95c",
+  "OptimismMintableERC20FactoryProxy": "0xc52BC7344e24e39dF1bf026fe05C4e6E23CfBcFf",
+  "L1StandardBridgeProxy": "0x3e2Ea9B92B7E48A52296fD261dc26fd995284631",
+  "ProxyAdmin": "0xD4ef175B9e72cAEe9f1fe7660a6Ec19009903b49",
+  "L1CrossDomainMessengerProxy": "0xdC40a14d9abd6F410226f1E6de71aE03441ca506",
+  "L1ERC721BridgeProxy": "0x83A4521A3573Ca87f3a971B169C5A0E1d34481c3",
+  "OptimismPortalProxy": "0x1a0ad011913A150f69f6A19DF447A0CfD9551054",
+  "SystemConfigProxy": "0xA3cAB0126d5F504B071b81a3e8A2BBBF17930d86"
+}
+```
+
+`deploy-config.json`:
+
+```json
+{
+  "l1StartingBlockTag": "0x10aa183",
+  "l1ChainID": 1,
+  "l2ChainID": 7777777,
+  "l2BlockTime": 2,
+  "finalizationPeriodSeconds": 604800,
+  "controller": "0xEe729F57F0111FD0F660867d0F522f983202a5aF",
+  "baseFeeVaultRecipient": "0xe900b3Edc1BA0430CFa9a204A1027B90825ac951",
+  "l1FeeVaultRecipient": "0xe900b3Edc1BA0430CFa9a204A1027B90825ac951",
+  "sequencerFeeVaultRecipient": "0xe900b3Edc1BA0430CFa9a204A1027B90825ac951",
+  "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
+  "governanceTokenOwner": "0xC72aE5c7cc9a332699305E29F68Be66c73b60542",
+  "governanceTokenSymbol": "OP",
+  "governanceTokenName": "Optimism",
+  "maxSequencerDrift": 600,
+  "sequencerWindowSize": 3600,
+  "channelTimeout": 300,
+  "p2pSequencerAddress": "0x3Dc8Dfd0709C835cAd15a6A27e089FF4cF4C9228",
+  "optimismL2FeeRecipient": "0x63AA492609175d1824dD668BDadF0042E74b0fC8",
+  "batchInboxAddress": "0x6F54Ca6F6EdE96662024Ffd61BFd18f3f4e34DFf",
+  "batchSenderAddress": "0x625726c858dBF78c0125436C943Bf4b4bE9d9033",
+  "l2GenesisRegolithTimeOffset": "0x0",
+  "l2OutputOracleSubmissionInterval": 180,
+  "l2OutputOracleStartingTimestamp": -1,
+  "l2OutputOracleStartingBlockNumber": "0x0",
+  "l2GenesisBlockGasLimit": "0x1c9c380",
+  "fundDevAccounts": false,
+  "gasPriceOracleOverhead": 188,
+  "gasPriceOracleScalar": 684000,
+  "eip1559Denominator": 50,
+  "eip1559Elasticity": 6,
+  "optimismBaseFeeRecipient": "0xea4591A6e5a31CF0b822A4f563163CeeBeEe4eb1",
+  "optimismL1FeeRecipient": "0xdD7aCF916c3E3Fb959CA3bB29beFffcAD2e90be6",
+  "l2CrossDomainMessengerOwner": "0xA53EF9bBec25fdA4b6Da7EF5617565794369A2A5",
+  "gasPriceOracleOwner": "0x9c3651E0B3CE47A0b17d775077E3d9B712582be0",
+  
+- RELEVANT VALUES
+  "systemConfigOwner": "0xC72aE5c7cc9a332699305E29F68Be66c73b60542",
+  "finalSystemOwner": "0xC72aE5c7cc9a332699305E29F68Be66c73b60542",
+  "superchainConfigGuardian": "0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A",
+  "portalGuardian": "0xC72aE5c7cc9a332699305E29F68Be66c73b60542",
+  "l2OutputOracleProposer": "0x48247032092e7b0ecf5dEF611ad89eaf3fC888Dd",
+  "l2OutputOracleOwner": "0xDA1F62857EA7f10444725c6c435235243D623540",
+  "proxyAdmin": "0x027860cA56cF779371461C14c3a483c94e1aA8a0",
+  "proxyAdminOwner": "0xb0cCdbD6fe09D2199171BE19450aF249250518A0",
+  "l2OutputOracleChallenger": "0xcA4571b1ecBeC86Ea2E660d242c1c29FcB55Dc72",
+
+- add the below default values, if you expect different values for your chain reach out to OP Labs support for clarification before proceeding
+  "useFaultProofs": true,
+  "faultGameMaxDepth": 73,
+  "faultGameSplitDepth": 30,
+  "faultGameWithdrawalDelay": 604800,
+  "faultGameMaxClockDuration": 302400,
+  "faultGameClockExtension": 10800,
+  
+- You can update this to the latest absolute prestate hash in the superchain-registry; however, the permissioned Fault Proof System doesn't use this. This comes into play when you upgrade your chain to the permissionless Fault Proof System.
+  "faultGameAbsolutePrestate": "0x03925193e3e89f87835bbdf3a813f60b2aa818a36bbe71cd5d8fd7e79f52bafe",
+  
+- add the below default values, if you expect different values for your chain, reach out to OP Labs support for clarification before proceeding  
+  "faultGameGenesisBlock": 0,
+  "faultGameGenesisOutputRoot": "0xdead000000000000000000000000000000000000000000000000000000000000",
+  "respectedGameType": 1,
+  "preimageOracleMinProposalSize": 126000,
+  "preimageOracleChallengePeriod": 86400,
+  "proofMaturityDelaySeconds": 604800,
+  "disputeGameFinalityDelaySeconds": 302400,
+  "enableGovernance": false,
+  "systemConfigStartBlock": 0,
+  "requiredProtocolVersion": "0x0000000000000000000000000000000000000003000000010000000000000000",
+  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000003000000010000000000000000",
+  
+- make sure to add the below if not present already, these values won't matter but the script needs them to be present in the config  
+  "sequencerFeeVaultWithdrawalNetwork": 0,
+  "baseFeeVaultWithdrawalNetwork": 0,
+  "l1FeeVaultWithdrawalNetwork": 0,
+  "baseFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "l1FeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "sequencerFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000"
+}
+```
+
+Make sure that important addresses (like the `ProxyAdmin`, `ProxyAdminOwner`, all L1 addresses, `L2OO`) are actually up to date by cross checking the superchain-registry and on-chain (you can do this easily with [`op-fetcher`](https://github.com/ethereum-optimism/optimism/tree/develop/op-fetcher), especially for the `deployments.json`.
+
+## Step-by-step upgrade process
+
+### 1. Create your working directory
+
+Create a working directory:
+
+```shell
+mkdir upgrade-dir
+cd upgrade-dir
+```
+
+And then create an outputs directory:
+
+```shell
+mkdir outputs
+```
+
+### 2. Copy config files
+
+Copy your `deployments.json` and `deploy-config.json` into the working directory
+
+### 3. Configure and deploy environment
+
+Create and update an `.env` file with the required information:
+
+```json
+##############################################
+#               ↓  Required  ↓               #
+##############################################
+
+# Can be "mainnet" or "sepolia"
+NETWORK=
+
+# Etherscan API key used to verify contract bytecode
+ETHERSCAN_API_KEY=
+
+# RPC URL for the L1 network that matches $NETWORK
+ETH_RPC_URL=
+
+# Private key used to deploy the new contracts for this upgrade
+PRIVATE_KEY=
+
+# Base fee scalar for the SystemConfig
+BASE_FEE_SCALAR=
+
+# Blob base fee scalar for the SystemConfig
+BLOB_BASE_FEE_SCALAR=
+
+# Check if required files and folders exist
+if [ ! -f "./deploy_config.json" ]; then
+    echo "Error: deploy_config.json not found"
+fi
+if [ ! -f "./deployments.json" ]; then
+    echo "Error: deployments.json not found"
+fi
+if [ ! -d "./outputs" ]; then
+    echo "Error: outputs folder not found"
+fi
+```
+
+### 4. Run the deployment process
+
+Run the deployment process with the following command:
+
+```docker 
+    docker run -t
+    --env-file .env
+    -v ./deploy_config.json:/deploy_config.json
+    -v ./deployments.json:/deployments.json
+    -v ./outputs:/outputs
+    kfoplabs/upgrade-v1.3.0-v1.8.0-permissioned /deploy_config.json /deployments.json
+```
+
+### 5. Verify outputs
+
+The deployment should output four files:
+
+*   `deploy.log` is a log of the deployment process
+*   `deployments.json` includes the newly deployed contract addresses
+*   `bundle.json` is the safe transaction bundle
+*   `transactions.json` is the summary of the executed deployment transactions
+*   `standard-addresses.json` is the addresses of `SystemConfigImpl`, `OptimismPortal2Impl`, `L1CrossDomainMessengerImpl`, `L1StandardBridgeImpl`, `L1ERC721BridgeImpl`, and `OptimismMintableERC20FactoryImpl`
+*   `validation.txt` is used for Tenderly state diff validation. Some info needed for the superchain-ops task might be missing from this file, and will instead be generated during the Tenderly simulation. 
+
+### 6. Verify outputs
+
+Now you have the calldata that can be executed onchain to perform the L1 contract upgrade. You should simulate this upgrade and make sure the changes are expected. You can reference the validation files of previously executed upgrade tasks in the [superchain-ops repo](https://github.com/ethereum-optimism/superchain-ops/blob/main/tasks/eth/022-holocene-fp-upgrade/NestedSignFromJson.s.sol) to see what the expected changes are. Once you're confident the state changes are expected, you can sign and execute the upgrade.
+
+## Additional Resources
+
+*   [superchain-ops Repository](https://github.com/ethereum-optimism/superchain-ops)
+*   [Optimism Monorepo](https://github.com/ethereum-optimism/optimism)

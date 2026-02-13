@@ -1,209 +1,176 @@
-![Rollup Boost banner](./assets/Rollup-Boost_brand-assets/rollup-boost_banner.png)
+<div align="center">
+  <br />
+  <br />
+  <a href="https://optimism.io"><img alt="Optimism" src="./logo.svg" width=600></a>
+  <br />
+  <h3><a href="https://optimism.io">Optimism</a> is Ethereum, scaled.</h3>
+  <br />
+</div>
 
-[![Test status](https://github.com/flashbots/rollup-boost/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/flashbots/rollup-boost/actions?query=workflow%3A%22Tests%22)
+**Table of Contents**
 
-# Rollup Boost
+<!--TOC-->
 
-Rollup Boost is a block builder sidecar for Optimism Stack chains to enable external block production. To read more about the design, check out the [design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/external-block-production.md).
+- [What is Optimism?](#what-is-optimism)
+- [Documentation](#documentation)
+- [Specification](#specification)
+- [Community](#community)
+- [Contributing](#contributing)
+- [Security Policy and Vulnerability Reporting](#security-policy-and-vulnerability-reporting)
+- [Directory Structure](#directory-structure)
+- [Development and Release Process](#development-and-release-process)
+  - [Overview](#overview)
+  - [Production Releases](#production-releases)
+  - [Development branch](#development-branch)
+- [License](#license)
 
-## Usage
+<!--TOC-->
 
-Run the rollup-boost server using the following command:
+## What is Optimism?
+
+[Optimism](https://www.optimism.io/) is a project dedicated to scaling Ethereum's technology and expanding its ability to coordinate people from across the world to build effective decentralized economies and governance systems. The [Optimism Collective](https://www.optimism.io/vision) builds open-source software that powers scalable blockchains and aims to address key governance and economic challenges in the wider Ethereum ecosystem. Optimism operates on the principle of **impact=profit**, the idea that individuals who positively impact the Collective should be proportionally rewarded with profit. **Change the incentives and you change the world.**
+
+In this repository you'll find numerous core components of the OP Stack, the decentralized software stack maintained by the Optimism Collective that powers Optimism and forms the backbone of blockchains like [OP Mainnet](https://explorer.optimism.io/) and [Base](https://base.org). The OP Stack is designed to be aggressively open-source — you are welcome to explore, modify, and extend this code.
+
+## Documentation
+
+- If you want to build on top of OP Mainnet, refer to the [Optimism Documentation](https://docs.optimism.io)
+- If you want to build your own OP Stack based blockchain, refer to the [OP Stack Guide](https://docs.optimism.io/stack/getting-started) and make sure to understand this repository's [Development and Release Process](#development-and-release-process)
+
+## Specification
+
+Detailed specifications for the OP Stack can be found within the [OP Stack Specs](https://github.com/ethereum-optimism/specs) repository.
+
+## Community
+
+General discussion happens most frequently on the [Optimism discord](https://discord.gg/optimism).
+Governance discussion can also be found on the [Optimism Governance Forum](https://gov.optimism.io/).
+
+## Contributing
+
+The OP Stack is a collaborative project. By collaborating on free, open software and shared standards, the Optimism Collective aims to prevent siloed software development and rapidly accelerate the development of the Ethereum ecosystem. Come contribute, build the future, and redefine power, together.
+
+[CONTRIBUTING.md](./CONTRIBUTING.md) contains a detailed explanation of the contributing process for this repository. Make sure to use the [Developer Quick Start](./CONTRIBUTING.md#development-quick-start) to properly set up your development environment.
+
+[Good First Issues](https://github.com/ethereum-optimism/optimism/issues?q=is:open+is:issue+label:D-good-first-issue) are a great place to look for tasks to tackle if you're not sure where to start, and see [CONTRIBUTING.md](./CONTRIBUTING.md) for info on larger projects.
+
+## Security Policy and Vulnerability Reporting
+
+Please refer to the canonical [Security Policy](https://github.com/ethereum-optimism/.github/blob/master/SECURITY.md) document for detailed information about how to report vulnerabilities in this codebase.
+Bounty hunters are encouraged to check out the [Optimism Immunefi bug bounty program](https://immunefi.com/bounty/optimism/).
+The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vulnerabilities.
+
+## Directory Structure
+
+<pre>
+├── <a href="./cannon">cannon</a>: Onchain MIPS instruction emulator for fault proofs
+├── <a href="./docs">docs</a>: A collection of documents including audits and post-mortems
+│   └── <a href="./docs/public-docs">public-docs</a>: Public developer documentation for <a href="https://docs.optimism.io">docs.optimism.io</a>
+├── <a href="./op-acceptance-tests">op-acceptance-tests</a>: Acceptance tests and configuration for OP Stack
+├── <a href="./op-alt-da">op-alt-da</a>: Alternative Data Availability mode (beta)
+├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
+├── <a href="./op-chain-ops">op-chain-ops</a>: State surgery utilities
+├── <a href="./op-challenger">op-challenger</a>: Dispute game challenge agent
+├── <a href="./op-conductor">op-conductor</a>: High-availability sequencer service
+├── <a href="./op-deployer">op-deployer</a>: CLI tool for deploying and upgrading OP Stack smart contracts
+├── <a href="./op-devstack">op-devstack</a>: Flexible test frontend for integration and acceptance testing
+├── <a href="./op-dispute-mon">op-dispute-mon</a>: Off-chain service to monitor dispute games
+├── <a href="./op-dripper">op-dripper</a>: Controlled token distribution service
+├── <a href="./op-e2e">op-e2e</a>: End-to-End testing of all bedrock components in Go
+├── <a href="./op-faucet">op-faucet</a>: Dev-faucet with support for multiple chains
+├── <a href="./op-fetcher">op-fetcher</a>: Data fetching utilities
+├── <a href="./op-interop-mon">op-interop-mon</a>: Interoperability monitoring service
+├── <a href="./op-node">op-node</a>: Rollup consensus-layer client
+├── <a href="./op-preimage">op-preimage</a>: Go bindings for Preimage Oracle
+├── <a href="./op-program">op-program</a>: Fault proof program
+├── <a href="./op-proposer">op-proposer</a>: L2-Output Submitter, submits proposals to L1
+├── <a href="./op-service">op-service</a>: Common codebase utilities
+├── <a href="./op-supervisor">op-supervisor</a>: Service to monitor chains and determine cross-chain message safety
+├── <a href="./op-sync-tester">op-sync-tester</a>: Sync testing utilities
+├── <a href="./op-test-sequencer">op-test-sequencer</a>: Test sequencer for development
+├── <a href="./op-up">op-up</a>: Deployment and management utilities
+├── <a href="./op-validator">op-validator</a>: Tool for validating Optimism chain configurations and deployments
+├── <a href="./op-wheel">op-wheel</a>: Database utilities
+├── <a href="./ops">ops</a>: Various operational packages
+├── <a href="./packages">packages</a>
+│   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
+</pre>
+
+## Development and Release Process
+
+### Overview
+
+Please read this section carefully if you're planning to fork or make frequent PRs into this repository.
+
+### Production Releases
+
+Production releases are always tags, versioned as `<component-name>/v<semver>`.
+For example, an `op-node` release might be versioned as `op-node/v1.1.2`, and  smart contract releases might be versioned as `op-contracts/v1.0.0`.
+Release candidates are versioned in the format `op-node/v1.1.2-rc.1`.
+We always start with `rc.1` rather than `rc`.
+
+For contract releases, refer to the GitHub release notes for a given release which will list the specific contracts being released. Not all contracts are considered production ready within a release and many are under active development.
+
+Tags of the form `v<semver>`, such as `v1.1.4`, indicate releases of all Go code only, and **DO NOT** include smart contracts.
+This naming scheme is required by Golang.
+In the above list, this means these `v<semver>` releases contain all `op-*` components and exclude all `contracts-*` components.
+
+`op-geth` embeds upstream geth’s version inside its own version as follows: `vMAJOR.GETH_MAJOR GETH_MINOR GETH_PATCH.PATCH`.
+Basically, geth’s version is our minor version.
+For example if geth is at `v1.12.0`, the corresponding op-geth version would be `v1.101200.0`.
+Note that we pad out to three characters for the geth minor version and two characters for the geth patch version.
+Since we cannot left-pad with zeroes, the geth major version is not padded.
+
+See the [Node Software Releases](https://docs.optimism.io/builders/node-operators/releases) page of the documentation for more information about releases for the latest node components.
+
+The full set of components that have releases are:
+
+- `op-batcher`
+- `op-contracts`
+- `op-challenger`
+- `op-node`
+- `op-proposer`
+
+All other components and packages should be considered development components only and do not have releases.
+
+### Development branch
+
+The primary development branch is [`develop`](https://github.com/ethereum-optimism/optimism/tree/develop/).
+`develop` contains the most up-to-date software that remains backwards compatible with the latest experimental [network deployments](https://docs.optimism.io/chain/networks).
+If you're making a backwards compatible change, please direct your pull request towards `develop`.
+
+**Changes to contracts within `packages/contracts-bedrock/src` are usually NOT considered backwards compatible.**
+Some exceptions to this rule exist for cases in which we absolutely must deploy some new contract after a tag has already been fully deployed.
+If you're changing or adding a contract and you're unsure about which branch to make a PR into, default to using a feature branch.
+Feature branches are typically used when there are conflicts between 2 projects touching the same code, to avoid conflicts from merging both into `develop`.
+
+## Downloading & Shallow-Cloning the Monorepo
+
+If you want to use the monorepo as a dependency, e.g. in CI, you can greatly speed up the fetching process by either downloading it directly as an archive from Github instead of cloning as a git repository or shallow-cloning it.
+This avoids downloading the full monorepo git history, which is unfortunately a few GBs in size, but which also isn't needed for many use cases, like CI.
+
+To fetch the monorepo at a specific commit/branch/tag `$REF`, download and unpack with
+```
+curl -L https://github.com/ethereum-optimism/optimism/archive/$REF.tar.gz | tar xz
+```
+Note that if you need any of its submodules, you'd need to manually download those too.
+
+If you want a shallow git clone of latest `develop`, you can just do
+```
+git clone --depth 1 --shallow-submodules https://github.com/ethereum-optimism/optimism.git
+```
+which takes only a few seconds on a good internet connection.
+
+If you want to shallow-checkout a specific branch or tag `$REF`, do
 
 ```
-cargo run --bin rollup-boost -- [OPTIONS]
+git clone --no-checkout --depth 1 --shallow-submodules https://github.com/ethereum-optimism/optimism.git
+cd optimism
+git fetch --depth 1 origin "$REF"
+git checkout "$REF"
 ```
-
-### Command-line Options
-
-- `--l2-jwt-token <TOKEN>`: JWT token for L2 authentication (required)
-- `--l2-jwt-path <PATH>`: Path to the L2 JWT secret file (required if `--l2-jwt-token` is not provided)
-- `--l2-url <URL>`: URL of the local L2 execution engine (required)
-- `--builder-url <URL>`: URL of the builder execution engine (required)
-- `--builder-jwt-token <TOKEN>`: JWT token for builder authentication (required)
-- `--builder-jwt-path <PATH>`: Path to the builder JWT secret file (required if `--builder-jwt-token` is not provided)
-- `--rpc-host <HOST>`: Host to run the server on (default: 127.0.0.1)
-- `--rpc-port <PORT>`: Port to run the server on (default: 8081)
-- `--tracing`: Enable tracing (default: false)
-- `--log-level <LEVEL>`: Log level (default: info)
-- `--log-format <FORMAT>`: Log format (default: text)
-- `--metrics`: Enable metrics (default: false)
-- `--metrics-host <METRICS_HOST>`: Host to run the metrics server on (default: 127.0.0.1)
-- `--debug-host <HOST>`: Host to run the server on (default: 127.0.0.1)
-- `--debug-server-port <PORT>`: Port to run the debug server on (default: 5555)
-
-### Environment Variables
-
-You can also set the options using environment variables. See .env.example to use the default values.
-
-### Example
-
-```
-cargo run --bin rollup-boost -- --l2-jwt-token your_jwt_token --l2-url http://localhost:8545 --builder-jwt-token your_jwt_token --builder-url http://localhost:8546
-```
-
-## Core System Workflow
-
-1. `rollup-boost` receives an `engine_FCU` with the attributes to initiate block building:
-   - It relays the call to proposer `op-geth` as usual and multiplexes the call to builder.
-   - The FCU call returns the proposer payload id and internally maps the builder payload id to proposer payload id in the case the payload ids are not the same.
-2. When `rollup-boost` receives an `engine_getPayload`:
-   - It queries proposer `op-geth` for a fallback block.
-   - In parallel, it queries builder for a block.
-3. Upon receiving the builder block:
-   - `rollup-boost` validates the block with proposer `op-geth` using `engine_newPayload`.
-   - This validation ensures the block will be valid for proposer `op-geth`, preventing network stalls due to invalid blocks.
-   - If the external block is valid, it is returned to the proposer `op-node`. Otherwise, `rollup-boost` will return the fallback block.
-4. The proposer `op-node` sends a `engine_newPayload` request to `rollup-boost` and another `engine_FCU` without attributes to update chain state.
-   - `rollup-boost` just relays the calls to proposer `op-geth`.
-   - Note that since we already called `engine_newPayload` on the proposer `op-geth` in the previous step, the block should be cached and add minimal latency.
-   - The builder `op-node` will receive blocks via p2p gossip and keep the builder node in sync via the engine api.
-
-```mermaid
-sequenceDiagram
-    box Proposer
-        participant op-node
-        participant rollup-boost
-        participant op-geth
-    end
-    box Builder
-        participant builder-op-node as op-node
-        participant builder-op-geth as builder
-    end
-
-    Note over op-node, builder-op-geth: 1. Triggering Block Building
-    op-node->>rollup-boost: engine_FCU (with attrs)
-    rollup-boost->>op-geth: engine_FCU (with attrs)
-    rollup-boost->>builder-op-geth: engine_FCU (with attrs)
-    rollup-boost->>op-node: proposer payload id
-
-    Note over op-node, builder-op-geth: 2. Get Local and Builder Blocks
-    op-node->>rollup-boost: engine_getPayload
-    rollup-boost->>op-geth: engine_getPayload
-    rollup-boost->>builder-op-geth: engine_getPayload
-
-    Note over op-node, builder-op-geth: 3. Validating and Returning Builder Block
-    rollup-boost->>op-geth: engine_newPayload
-    op-geth->>rollup-boost: block validity
-    rollup-boost->>op-node: block payload
-
-    Note over op-node, builder-op-geth: 4. Updating Chain State
-    op-node->>rollup-boost: engine_newPayload
-    rollup-boost->>op-geth: engine_newPayload
-    op-node->>rollup-boost: engine_FCU (without attrs)
-    rollup-boost->>op-geth: engine_FCU (without attrs)
-```
-
-## RPC Calls
-
-By default, `rollup-boost` will proxy all RPC calls from the proposer `op-node` to its local `op-geth` node. These are the list of RPC calls that are proxied to both the proposer and the builder execution engines:
-
-- `engine_forkchoiceUpdatedV3`: this call is only multiplexed to the builder if the call contains payload attributes and the no_tx_pool attribute is false.
-- `engine_getPayloadV3`: this is used to get the builder block.
-- `miner_*`: this allows the builder to be aware of changes in effective gas price, extra data, and [DA throttling requests](https://docs.optimism.io/builders/chain-operators/configuration/batcher) from the batcher.
-- `eth_sendRawTransaction*`: this forwards transactions the proposer receives to the builder for block building. This call may not come from the proposer `op-node`, but directly from the rollup's rpc engine.
-
-## Debug API
-
-The Debug API is a JSON-RPC API that can be used to configure rollup-boost's execution mode. The execution mode determines how rollup-boost makes requests to the builder:
-
-- `enabled`: The builder receives all the engine API calls from rollup-boost.
-- `dry-run`: The builder receives all the engine API calls from rollup-boost except for the get payload request.
-- `disabled`: The builder does not receive any engine API calls from rollup-boost. This allows rollup-boost to stop sending requests to the builder during runtime without needing a restart.
-
-By default, the debug server runs on port 5555.
-
-### Specification
-
-The debug API implements the following methods:
-
-#### `debug_setExecutionMode`
-
-Sets the execution mode of rollup-boost.
-
-**Params**
-
-- execution_mode: The new execution mode (available options 'dry_run', 'enabled' or 'disabled').
-
-**Returns**
-
-- `execution_mode`: The new execution mode.
-
-**Example**
-
-To set dry run mode:
-
-```bash
-curl -X POST -H "Content-Type: application/json" --data '{
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "debug_setExecutionMode",
-    "params": [{"execution_mode":"dry_run"}]
-}' http://localhost:5555
-```
-
-To disable rollup-boost calls to the builder:
-
-```bash
-curl -X POST -H "Content-Type: application/json" --data '{
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "debug_setExecutionMode",
-    "params": [{"execution_mode":"disabled"}]
-}' http://localhost:5555
-```
-
-#### `debug_getExecutionMode`
-
-Gets the current execution mode of rollup-boost.
-
-**Params**
-
-None
-
-**Returns**
-
-- `execution_mode`: The current execution mode.
-
-**Example**
-
-```bash
-curl -X POST -H "Content-Type: application/json" --data '{
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "debug_getExecutionMode",
-    "params": []
-}' http://localhost:5555
-```
-
-### Debug Command
-
-`rollup-boost` also includes a debug command to interact with the debug API from rollup-boost.
-
-This is useful for testing interactions with external block builders in a production environment without jeopardizing OP stack liveness, especially for network upgrades.
-
-### Usage
-
-To run rollup-boost in debug mode with a specific execution mode, you can use the following command:
-
-```
-rollup-boost debug set-execution-mode [enabled|dry-run|disabled]
-```
-
-## Maintainers
-
-- [@avalonche](https://github.com/avalonche)
-- [@ferranbt](https://github.com/ferranbt)
-- [@0xOsiris](https://github.com/0xOsiris)
-- [@0xKitsune](https://github.com/0xKitsune)
-- [Eric Woolsey](https://github.com/0xForerunner)
+which should also only take a few seconds.
 
 ## License
 
-The code in this project is free software under the [MIT License](/LICENSE).
-
----
-
-Made with ☀️ by the ⚡🤖 collective.
-
-🎨 For Rollup Boost brand guidelines and to download brand assets, [click here](https://desert-shelf-a90.notion.site/Rollup-Boost-Brand-Guide-1c08490ae44f80ecaafee5975f71228f).
+All other files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/master/LICENSE) unless stated otherwise.

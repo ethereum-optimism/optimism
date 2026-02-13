@@ -1,0 +1,28 @@
+# Monorepo - default to monorepo-reviewers
+* @ethereum-optimism/monorepo-reviewers
+
+# Expert areas
+
+/op-node/rollup/derive @ethereum-optimism/consensus # exclusive
+/rust/kona/crates/protocol @ethereum-optimism/consensus # exclusive
+
+/op-deployer    @ethereum-optimism/core-team @ethereum-optimism/monorepo-reviewers
+/op-validator   @ethereum-optimism/core-team @ethereum-optimism/monorepo-reviewers
+
+/op-conductor   @ethereum-optimism/op-conductor @ethereum-optimism/monorepo-reviewers
+
+# Contracts
+# We require a minimum of 2 reviewers for all changes to the contracts-bedrock
+# directory unless only markdown files are being changed.
+/packages/contracts-bedrock/**           @ethereum-optimism/contract-reviewers #[min:2]
+/packages/contracts-bedrock/**/*.md      @ethereum-optimism/contract-reviewers
+/.cursor/rules/solidity-styles.mdc       @ethereum-optimism/contract-reviewers
+
+# Security docs
+/docs/security-reviews @ethereum-optimism/evm-safety
+
+# Public developer documentation
+/docs/public-docs/  @ethereum-optimism/solutions
+
+# Must come last to avoid being overridden
+/.github/CODEOWNERS  @ethereum-optimism/cloud-security

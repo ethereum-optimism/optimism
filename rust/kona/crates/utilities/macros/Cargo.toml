@@ -1,0 +1,21 @@
+[package]
+name = "kona-macros"
+version = "0.1.2"
+description = "Utility macros for kona crates"
+
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+
+[features]
+default = []

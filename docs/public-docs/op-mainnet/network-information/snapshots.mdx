@@ -1,0 +1,54 @@
+---
+title: Snapshots
+description: Find download links for data directories and database snapshots for running your own node.
+---
+
+
+
+# Node snapshots
+
+This page contains download links for data directories and node snapshots.
+State snapshots are pre-synced node data that let you start an OP Stack execution client from a recent chain state instead of replaying from genesis. You download the snapshot and run your node from it, which dramatically cuts initial sync time.
+
+<Info>
+  Data directories and node snapshots are **not required** in the following cases:
+
+  *   When using [snap sync](/node-operators/guides/management/snap-sync) with op-geth
+  *   When using [Nethermind](https://docs.nethermind.io/get-started/running-node/l2-networks#op-stack) (automatically handles snapshots)
+
+  They are still required for archive nodes and in instances when you need to trace the entire chain with `op-reth` or `op-geth`.
+</Info>
+
+
+OP Mainnet underwent a large [database migration](https://web.archive.org/web/20240110231645/https://blog.oplabs.co/reproduce-bedrock-migration/) as part of the [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/) in 2023.
+Node operators using `op-reth` or `op-geth` must have a migrated OP Mainnet database to run an archival node.
+Migrated OP Mainnet databases can be generated manually or pre-migrated databases can be downloaded from the links below.
+
+
+## Available OP Mainnet Snapshots
+
+<Info>
+  Using [aria2](https://aria2.github.io/) to download snapshots can significantly speed up the download process.
+</Info>
+
+All snapshots for OP Mainnet can be found at the OP Labs managed [Data Directories](https://datadirs.optimism.io/) website.
+All geth snapshots are configured for pebbleDB and the hash state scheme.
+
+
+### Nethermind
+
+[Nethermind](https://docs.nethermind.io/get-started/running-node/l2-networks#op-stack) automatically handles downloading and applying the necessary snapshots when you start the node. No manual snapshot download is required. The node will:
+
+1.  Start with an empty database
+2.  Automatically download the required ancient data
+3.  Apply the data and continue syncing
+
+This process is fully automated and requires no additional configuration.
+When you run `Nethermind` with the `-c op-mainnet` flag, it uses this configuration automatically.
+
+## 3rd Party Snapshots
+
+[Allnodes](https://www.allnodes.com) provides full node snapshots for OP Mainnet and Testnet. You can find them [here](https://www.publicnode.com/snapshots#optimism).
+**Please note:** Allnodes is a 3rd party provider, and the Optimism Foundation hasn't verified the snapshots.
+
+

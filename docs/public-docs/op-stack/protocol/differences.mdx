@@ -1,0 +1,92 @@
+---
+title: Differences from Ethereum
+description: Learn the minor differences between the behavior of Ethereum and the OP Stack.
+---
+
+OP Stack chains are designed to be [EVM equivalent](https://web.archive.org/web/20231127160757/https://medium.com/ethereum-optimism/introducing-evm-equivalence-5c2021deb306) and introduces as few changes as possible to the Ethereum protocol.
+However, there are some minor differences between the behavior of Ethereum and OP Stack chains that developers should be aware of.
+
+## Bridging
+
+### Bridging - Deposit Transactions
+
+Deposit transactions don't exist on L1s, and are how transactions on an L2 can be initiated from the L1. Importantly, this is how bridge applications can get L1 ETH or tokens into an L2 OP Stack chain. You can read more on deposit transactions [here](/op-stack/bridging/deposit-flow).
+
+### Bridging - Withdrawal Transactions and Fault Proofs
+
+Withdrawal transactions are how the state of the L2 rollup can be proven to the L1. Often this involves users withdrawing tokens or ETH to the L1. Fault proofs are the mechanism by which withdrawal transactions are currently proven to the L1. You can read more about fault proofs [here](/op-stack/fault-proofs/explainer).
+
+## Opcodes
+
+| Opcode       | Solidity Equivalent | Behavior                                                                                                                                                                                                                                                |
+| ------------ | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `COINBASE`   | `block.coinbase`    | Returns the address of the current Sequencer's fee wallet. Effectively the same as Ethereum with the caveat that the value typically does not change from block to block.                                                                               |
+| `PREVRANDAO` | `block.prevrandao`  | Returns the PREVRANDAO (the most recent [RANDAO](https://eips.ethereum.org/EIPS/eip-4399)) value of L1 at the current L1 origin block.                                                                                                                  |
+| `ORIGIN`     | `tx.origin`         | If the transaction is an L1 ⇒ L2 transaction triggered by a smart contract on L1, then `tx.origin` is set to the [aliased address](#address-aliasing) of the address that triggered the L1 ⇒ L2 transaction. Otherwise, this opcode behaves normally.   |
+| `CALLER`     | `msg.sender`        | If the transaction is an L1 ⇒ L2 transaction triggered by a smart contract on L1, and this is the first call frame (rather than an internal transaction from one contract to another), the same [address aliasing](#address-aliasing) behavior applies. |
+
+### Address aliasing
+
+<Info>
+  Address aliasing is an important security feature that impacts the behavior of transactions sent from L1 to L2 by smart contracts.
+  Make sure to read this section carefully if you are working with cross-chain transactions.
+  Note that the `CrossChainMessenger` contracts will handle address aliasing internally on your behalf.
+</Info>
+
+When transactions are sent from L1 to L2 by an Externally Owned Account, the address of the sender of the transaction on L2 will be set to the address of the sender of the transaction on L1.
+**However, the address of the sender of a transaction on L2 will be different if the transaction was triggered by a smart contract on L1**.
+
+Because of the behavior of the `CREATE` opcode, it is possible to create a contract on both L1 and on L2 that share the same address but have different bytecode.
+Even though these contracts share the same address, they are fundamentally two different smart contracts and cannot be treated as the same contract.
+As a result, the sender of a transaction sent from L1 to L2 by a smart contract cannot be the address of the smart contract on L1 or the smart contract on L1 could act as if it were the smart contract on L2 (because the two contracts share the same address).
+
+To prevent this sort of impersonation, the sender of a transaction is slightly modified by the `OptimismPortal` when a smart contract calls `depositTransaction` to send a transaction from L1 to L2.
+This alias is applied when the caller has code, and that code is not a valid EIP-7702 delegation.
+When the address has no code, or the code present at the address is a valid EIP-7702 delegation, the sender is not modified.
+Note that ephemeral contracts (those that are created and self-destructed in the same transaction) WILL be aliased, despite having no code at the start or end of transaction execution.
+
+Instead of appearing to be sent from the actual L1 contract address, the L2 transaction is sent from an "aliased" version of the L1 contract address.
+This aliased address is produced by treating the address as a 160-bit integer, adding a constant offset with overflows allowed, and then truncating the result to a 20-byte address.
+The address hashing function ensures that aliased address will never conflict with any other address on L2. 
+The simple offset original L1 address can easily be recovered from the aliased address.
+
+The `OptimismPortal` applies this change only to L2 transactions sent by L1 smart contracts.
+In all other cases, the transaction sender address is set according to the same rules used by Ethereum.
+
+| Transaction Source                                        | Sender Address                                                              |
+| --------------------------------------------------------- | --------------------------------------------------------------------------- |
+| L2 user (Externally Owned, or EIP-7702 Delegated Account) | The user's address (same as in Ethereum)                                    |
+| L1 user (Externally Owned, or EIP-7702 Delegated Account) | The user's address (same as in Ethereum)                                    |
+| L1 contract (using `OptimismPortal.depositTransaction`)   | `uint160(L1_contract_address) + 0x1111000000000000000000000000000000001111` |
+
+## Transactions
+
+### Transaction fees
+
+Transactions on OP Stack chains must pay for an [L1 data fee](/op-stack/transactions/fees#the-l1-data-fee) on top of the standard [execution gas fee](/op-stack/transactions/fees#execution-gas-fee) you would expect on Ethereum.
+Refer to the guide on [OP Stack Transaction Fees](/op-stack/transactions/fees) for more information.
+
+You can use the [JS library viem](https://viem.sh/op-stack) to estimate the entire transaction gas costs, including the L1 Data Fee.
+
+### EIP-1559 parameters
+
+The base fee on OP Stack is, like Ethereum, computed via the [EIP-1559](https://notes.ethereum.org/@vbuterin/eip-1559-faq) mechanism.
+The EIP-1559 parameters used by OP Stack differ per chain.
+
+### Mempool rules
+
+Unlike Ethereum, OP Stack chains do not have a public mempool.
+The OP Stack mempool is currently only visible to the Sequencer.
+The Sequencer executes transactions from the mempool in priority fee order (highest fee first).
+
+## Chain Finality
+
+Unlike L1s such as Ethereum, OP Stack chains have Unsafe, Safe, and Finalized Heads which indicate the state of finality for a given L2 block. Fault proofs do not impact the finalization of the L2 rollup, only the finalization of withdrawal transactions to the L1. You can read more about these [in the docs glossary](/connect/resources/glossary#unsafe-l2-block).
+
+## What's Next
+
+There are various useful tools linked above. Here are a few more tools and links you may want to check out:
+
+*   [OP-viem](https://viem.sh/op-stack): JS framework that can handle many of these unique functions on OP Chains. It is similar to Ethers.js for OP Stack chains.
+
+*   [Specs](https://specs.optimism.io/root.html?utm_source=op-docs&utm_medium=docs): For more in-depth technical explanations and examples.

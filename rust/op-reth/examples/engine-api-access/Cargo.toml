@@ -1,0 +1,15 @@
+[package]
+name = "example-engine-api-access"
+version = "0.0.0"
+publish = false
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# reth
+reth-db = { workspace = true, features = ["op", "test-utils"] }
+reth-node-builder.workspace = true
+reth-optimism-node.workspace = true
+reth-optimism-chainspec.workspace = true
+
+tokio = { workspace = true, features = ["sync"] }

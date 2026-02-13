@@ -1,0 +1,9 @@
+version: 1
+listen-for-events:
+  pull_request:
+    #https://docs.github.com/en/webhooks/webhook-events-and-payloads#issues
+    types: [labeled]
+    event-to-parameters-mappings:
+      - pull_request_number: .pull_request.number
+      - label_name: .label.name
+

@@ -1,0 +1,192 @@
+---
+title: Making cross-chain event reads (tic-tac-toe)
+description: Learn how to make cross-chain event reads using tic-tac-toe.
+---
+
+<Info>OP Stack interop is in active development. Some features may be experimental.</Info>
+This guide reviews a horizontally scalable implementation of TicTacToe. This [implementation](https://github.com/ethereum-optimism/supersim/blob/main/contracts/src/tictactoe/TicTacToe.sol) allows players to play each other from any chain without cross-chain calls, instead relying on cross-chain event reading. Since OP Stack interop can allow for event reading with a 1-block latency, the experience is the **same as a single-chain implementation**.
+
+<Info>
+  Check out the [frontend documentation](https://github.com/ethereum-optimism/supersim/tree/main/examples/tictactoe) to see how the game UI is presented to the player.
+</Info>
+
+## How it works
+
+We use events to define the ordering of a game with players only maintaining a local view. By default, a chain is also a part of its own interoperable dependency set, which means players on the same chain can also play each other **with no code changes**!
+
+The system predeploy that enables pulling in validated cross-chain events is the [CrossL2Inbox](https://specs.optimism.io/interop/predeploys.html?utm_source=op-docs&utm_medium=docs#crossl2inbox).
+
+```solidity
+contract ICrossL2Inbox {
+    function validateMessage(Identifier calldata _id, bytes32 _msgHash) external view;
+}
+```
+
+This contract relies on a **CREATE2** deployment to ensure a consistent address across all chains, used to assert the origin of the pulled in game event.
+
+<Steps>
+  <Step title="Intent to play">
+  A game is uniquely identified by the chain it was started from with a unique nonce. This identifier is included in all event fields such that each player can uniquely reference it locally.
+  
+    To start a game, a player invokes `newGame` which broadcasts a `NewGame` event that any opponent **on any chain** can react to.
+  
+    ```solidity
+    event NewGame(uint256 chainId, uint256 gameId, address player);
+  
+    function newGame() external {
+        emit NewGame(block.chainid, nextGameId, msg.sender);
+        nextGameId++;
+    }
+    ```
+  </Step>
+
+  <Step title="Accepting a game">
+  When a `NewGame` event is observed, any player can declare their intent to play via `acceptGame`, referencing the `NewGame` event. An `AcceptedGame` event is emitted to signal to the creator that a game is ready to begin.
+  
+    ```solidity
+    event AcceptedGame(uint256 chainId, uint256 gameId, address opponent, address player);
+  
+    function acceptGame(ICrossL2Inbox.Identifier calldata _newGameId, bytes calldata _newGameData) external {
+        if (_newGameId.origin != address(this)) revert IdOriginNotTicTacToe();
+        ICrossL2Inbox(Predeploys.CROSS_L2_INBOX).validateMessage(_newGameId, keccak256(_newGameData));
+  
+        bytes32 selector = abi.decode(_newGameData[:32], (bytes32));
+        if (selector != NewGame.selector) revert DataNotNewGame();
+  
+        ...
+  
+        emit AcceptedGame(chainId, gameId, game.opponent, game.player);
+    }
+    ```
+  
+    To prepare for the game, the event data is decoded and a local view of this game is stored.
+  
+    ```solidity
+    (uint256 chainId, uint256 gameId, address opponent) = abi.decode(_newGameData[32:], (uint256, uint256, address));
+    if (opponent == msg.sender) revert SenderIsOpponent();
+  
+    // Record Game Metadata (no moves)
+    Game storage game = games[chainId][gameId][msg.sender];
+    game.player = msg.sender;
+    game.opponent = opponent;
+    game.gameId = gameId;
+    game.lastOpponentId = _newGameId;
+    game.movesLeft = 9;
+  
+    emit AcceptedGame(chainId, gameId, game.opponent, game.player);
+    ```
+  </Step>
+
+  <Step title="Starting the game">
+  As `AcceptedGame` events are emitted, the player must pick one opponent to play. The opponent's `AcceptedGame` event is used to instantiate the game and play the starting move via the `MovePlayed` event.
+  
+    ```solidity
+    event MovePlayed(uint256 chainId, uint256 gameId, address player, uint8 _x, uint8 _y);
+  
+    function startGame(ICrossL2Inbox.Identifier calldata _acceptedGameId, bytes calldata _acceptedGameData, uint8 _x, uint8 _y) external {
+        if (_acceptedGameId.origin != address(this)) revert IdOriginNotTicTacToe();
+        ICrossL2Inbox(Predeploys.CROSS_L2_INBOX).validateMessage(_acceptedGameId, keccak256(_acceptedGameData));
+  
+        bytes32 selector = abi.decode(_acceptedGameData[:32], (bytes32));
+        if (selector != AcceptedGame.selector) revert DataNotAcceptedGame();
+  
+        ...
+  
+        emit MovePlayed(chainId, gameId, game.player, _x, _y);
+    ```
+  
+    The event fields contain the information required to perform the necessary validation.
+  
+    *   The game identifier for lookup
+    *   The caller is the appropriate player
+    *   The player is accepting from the same starting chain
+  
+    ```solidity
+    (uint256 chainId, uint256 gameId, address player, address opponent) = // player, opponent swapped in local view
+        abi.decode(_acceptedGameData[32:], (uint256, uint256, address, address));
+  
+    // The accepted game was started from this chain, from the sender
+    if (chainId != block.chainid) revert GameChainMismatch();
+    if (msg.sender != player) revert SenderNotPlayer();
+  
+    // Game has not already been started with an opponent.
+    Game storage game = games[chainId][gameId][msg.sender];
+    if (game.opponent != address(0)) revert GameStarted();
+  
+    // Store local view of this game
+    ...
+  
+    // Locally record the move by the player with 1
+    game.moves[_x][_y] = 1;
+    game.lastOpponentId = _acceptedGameId;
+  
+    emit MovePlayed(chainId, gameId, game.player, _x, _y);
+    ```
+  </Step>
+
+  <Step title="Making moves">
+  Once a game is started, players can continually make moves by invoking `makeMove`, reacting to a `MovePlayed` event of their opponent.
+  
+    ```solidity
+    function makeMove(ICrossL2Inbox.Identifier calldata _movePlayedId, bytes calldata _movePlayedData, uint8 _x, uint8 _y) external {
+        if (_movePlayedId.origin != address(this)) revert IdOriginNotTicTacToe();
+        ICrossL2Inbox(Predeploys.CROSS_L2_INBOX).validateMessage(_movePlayedId, keccak256(_movePlayedData));
+  
+        bytes32 selector = abi.decode(_movePlayedData[:32], (bytes32));
+        if (selector != MovePlayed.selector) revert DataNotMovePlayed();
+    }
+    ```
+  
+    Similar to `acceptGame`, validation is performed and the move of their opponent is first locally recorded.
+  
+    *   The game identifier for lookup
+    *   The caller is the player for this game
+    *   The opponent event corresponds to the same game
+    *   Ordering is enforced by ensuring that the supplied event is always forward progressing.
+  
+    ```solidity
+    (uint256 chainId, uint256 gameId,, uint8 oppX, uint8 oppY) = abi.decode(_movePlayedData[32:], (uint256, uint256, address, uint8, uint8));
+  
+    // Game was instantiated for this player & the move is for the same game
+    Game storage game = games[chainId][gameId][msg.sender];
+    if (game.player != msg.sender) revert GameNotExists();
+    if (game.gameId != gameId) revert GameNotExists();
+  
+    // The move played event is forward progressing from the last observed event
+    if (_movePlayedId.chainId != game.lastOpponentId.chainId) revert IdChainMismatch();
+    if (_movePlayedId.blockNumber <= game.lastOpponentId.blockNumber) revert MoveNotForwardProgressing();
+    game.lastOpponentId = _movePlayedId;
+  
+    // Mark the opponents move
+    game.moves[oppX][oppY] = 2;
+    game.movesLeft--;
+    ```
+  
+    When a move is played we check if the game has been drawn or won, determining the subsequent event to emit.
+  
+    The `makeMove` function is only callable when an opponent has a new `MovePlayed` event. Therefore, if the game is won or drawn, it cannot be progressed any further by the opponent.
+  
+    ```solidity
+    // Make the players move
+    game.moves[_x][_y] = 1;
+    game.movesLeft--;
+  
+    // Determine the status of the game
+    if (_isGameWon(game)) {
+        emit GameWon(chainId, gameId, game.player, _x, _y);
+    } else if (game.movesLeft == 0) {
+        emit GameDraw(chainId, gameId, game.player, _x, _y);
+    } else {
+        emit MovePlayed(chainId, gameId, game.player, _x, _y);
+    }
+    ```
+  </Step>
+</Steps>
+
+## Takeaways
+
+Leveraging superchain interop, we can build new types of horizontally scalable contracts that do not rely on hub/spoke messaging with relayers.
+
+*   As new chains are added to the superchain, this contract can be installed by anyone and immediately playable with no necessary code changes. The frontend simply needs to react the addition of a new chain.
+*   The concept of a "chain" can be completely abstracted away from the user. When connecting their wallet, the frontend can simply pick the chain which the user has funds on with the lowest gas fees.
+*   Event reading enables a new level of composability for cross-chain interactions. Imagine [contests](/app-developers/tutorials/interoperability/event-contests) contract that resolves based on the outcome of a TicTacToe game via the `GameWon` or `GameLost` event without the need for a trusted oracle, nor permission or native integration with the TicTacToe contract.

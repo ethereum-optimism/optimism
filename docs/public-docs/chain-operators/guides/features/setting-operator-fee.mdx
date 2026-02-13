@@ -1,0 +1,90 @@
+---
+title: Set the Operator Fee
+description: Learn how to configure the operator fee on your OP Stack Chain
+---
+
+## Overview
+
+| Parameter               | Default | Recommended    | Type                         |
+| :---------------------- | :-----: | :------------- | :----------------------------|
+| `operatorFeeScalar`     | 0       | Chain-specific | uint32 scalar (scaled by 1e6)|
+| `operatorFeeConstant`   | 0       | Chain-specific | uint64 scalar (wei)          |
+
+The **Operator Fee** was introduced in the **[Isthmus upgrade](https://docs.optimism.io/notices/upgrade-14#operator-fee)** and modified in the **[Jovian upgrade](https://docs.optimism.io/notices/upgrade-17#breaking-changes)**.  
+It allows OP Stack chain operators to charge an additional fee on transactions, on top of the **execution gas fee** (base fee + priority fee) and the **L1 data fee**.
+
+This mechanism gives operators two levers:
+
+- a **gas-proportional component** (`operatorFeeScalar`) that scales with gas used
+- a **flat component** (`operatorFeeConstant`)
+
+<Info>
+  The operator fee is only applied on chains that have enabled the Isthmus upgrade.
+</Info>
+
+<Info>
+  **Deposit transactions do not get charged operator fees.**  
+  For all deposit transactions, regardless of the operator fee configuration, the operator fee is always zero.
+</Info>
+
+---
+
+## Operator Fee Formula
+
+The operator fee is calculated using the following formula, depending on the active fork.
+
+**After Isthmus:**
+
+```text
+operatorFee = operatorFeeConstant + (operatorFeeScalar * gasUsed / 1e6)
+```
+
+**After Jovian:**
+
+```text
+operatorFee = operatorFeeConstant + (operatorFeeScalar × gasUsed × 100)
+```
+
+<Warning>
+  Setting operator fee values too high can significantly increase transaction costs and reduce user adoption.
+  The operator fee directly impacts UX and competitiveness and should be adjusted conservatively.
+  The default value for standard chains is 0, any other value is considered non-standard.
+</Warning>
+
+---
+
+## How to Update the Operator Fee
+
+To update the operator fee parameters, call the following method on the `SystemConfig` contract from the `SystemConfigOwner`:
+
+`setOperatorFeeScalars(uint32 _operatorFeeScalar, uint64 _operatorFeeConstant) external onlyOwner;`
+
+Example using cast:
+
+    ```bash title="cast"
+    cast send  --rpc-url <RPC_URL> --private-key <PRIVATE_KEY> \
+      <SYSTEM_CONFIG_PROXY_ADDRESS> \
+      "setOperatorFeeScalars(uint32,uint64)" \
+      500000 1000000000000
+    ```
+
+After the transaction confirms, verify the current configuration by calling the following:
+
+    `function operatorFeeScalar() view returns (uint32);`  
+    `function operatorFeeConstant() view returns (uint64);`
+
+Example using cast:
+
+    ```bash title="cast"
+    cast call --rpc-url <RPC_URL> <SYSTEM_CONFIG_PROXY_ADDRESS> "operatorFeeScalar()"
+    cast call --rpc-url <RPC_URL> <SYSTEM_CONFIG_PROXY_ADDRESS> "operatorFeeConstant()"
+    ```
+
+---
+
+## References
+
+- [Operator Fee Overview – OP Stack Fee Docs](https://docs.optimism.io/op-stack/transactions/fees#operator-fee-component)
+- [SystemConfig Operator Fee Parameter Configuration – OP Stack Specs](https://specs.optimism.io/protocol/isthmus/system-config.html#operator-fee-parameter-configuration)
+- [Isthmus Operator Fee Details – OP Stack Specs](https://specs.optimism.io/protocol/isthmus/exec-engine.html#operator-fee)
+

@@ -1,0 +1,279 @@
+package attributes
+
+import (
+	"bytes"
+	"errors"
+	"fmt"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
+
+var (
+	ErrCanyonMustHaveWithdrawals       = errors.New("canyon: expected withdrawals in block to be non-nil and empty")
+	ErrCanyonWithdrawalsRoot           = errors.New("canyon: expected withdrawalsRoot in block to be default")
+	ErrBedrockMustHaveEmptyWithdrawals = errors.New("bedrock: expected withdrawals in attributes to be nil")
+	ErrIsthmusMustHaveWithdrawalsRoot  = errors.New("isthmus: expected withdrawalsRoot in block to be non-nil")
+	ErrNilBlockOrAttributes            = errors.New("nil attributes or block")
+)
+
+// AttributesMatchBlock checks if the L2 attributes pre-inputs match the output
+// nil if it is a match. If err is not nil, the error contains the reason for the mismatch
+func AttributesMatchBlock(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes, parentHash common.Hash, envelope *eth.ExecutionPayloadEnvelope, l log.Logger) error {
+	block := envelope.ExecutionPayload
+
+	if parentHash != block.ParentHash {
+		return fmt.Errorf("parent hash field does not match. expected: %v. got: %v", parentHash, block.ParentHash)
+	}
+	if attrs.Timestamp != block.Timestamp {
+		return fmt.Errorf("timestamp field does not match. expected: %v. got: %v", uint64(attrs.Timestamp), block.Timestamp)
+	}
+	if attrs.PrevRandao != block.PrevRandao {
+		return fmt.Errorf("random field does not match. expected: %v. got: %v", attrs.PrevRandao, block.PrevRandao)
+	}
+	if len(attrs.Transactions) != len(block.Transactions) {
+		missingSafeHashes, missingUnsafeHashes, err := getMissingTxnHashes(l, attrs.Transactions, block.Transactions)
+		if err != nil {
+			l.Error("failed to get missing txn hashes", "err", err)
+		} else {
+			l.Error("mismatched hashes",
+				"missingSafeHashes", missingSafeHashes,
+				"missingUnsafeHashes", missingUnsafeHashes,
+			)
+		}
+
+		return fmt.Errorf("transaction count does not match. expected: %d. got: %d", len(attrs.Transactions), len(block.Transactions))
+	}
+	for i, otx := range attrs.Transactions {
+		if expect := block.Transactions[i]; !bytes.Equal(otx, expect) {
+			if i == 0 {
+				logL1InfoTxns(rollupCfg, l, uint64(block.BlockNumber), uint64(block.Timestamp), otx, block.Transactions[i])
+			}
+			return fmt.Errorf("transaction %d does not match. expected: %v. got: %v", i, expect, otx)
+		}
+	}
+	if attrs.GasLimit == nil {
+		return fmt.Errorf("expected gaslimit in attributes to not be nil, expected %d", block.GasLimit)
+	}
+	if *attrs.GasLimit != block.GasLimit {
+		return fmt.Errorf("gas limit does not match. expected %d. got: %d", *attrs.GasLimit, block.GasLimit)
+	}
+	if withdrawalErr := checkWithdrawals(rollupCfg, attrs, block); withdrawalErr != nil {
+		return withdrawalErr
+	}
+	if err := checkParentBeaconBlockRootMatch(attrs.ParentBeaconBlockRoot, envelope.ParentBeaconBlockRoot); err != nil {
+		return err
+	}
+	if attrs.SuggestedFeeRecipient != block.FeeRecipient {
+		return fmt.Errorf("fee recipient data does not match, expected %s but got %s", block.FeeRecipient, attrs.SuggestedFeeRecipient)
+	}
+	if err := checkExtraDataParamsMatch(rollupCfg, uint64(block.Timestamp), attrs.EIP1559Params, attrs.MinBaseFee, block.ExtraData); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func checkParentBeaconBlockRootMatch(attrRoot, blockRoot *common.Hash) error {
+	if blockRoot == nil {
+		if attrRoot != nil {
+			return fmt.Errorf("expected non-nil parent beacon block root %s but got nil", *attrRoot)
+		}
+	} else {
+		if attrRoot == nil {
+			return fmt.Errorf("expected nil parent beacon block root but got non-nil %s", *blockRoot)
+		} else if *blockRoot != *attrRoot {
+			return fmt.Errorf("parent beacon block root does not match. expected %s. got: %s", *attrRoot, *blockRoot)
+		}
+	}
+	return nil
+}
+
+func checkExtraDataParamsMatch(cfg *rollup.Config, blockTimestamp uint64, attrParams *eth.Bytes8, attrMinBaseFee *uint64, blockExtraData []byte) error {
+	// Note that we can assume that the attributes' eip1559params are non-nil iff Holocene is active
+	// according to the local rollup config.
+	if attrParams != nil {
+		params := (*attrParams)[:]
+
+		// The validity checks are necessary because the Decode functions return 0,0 if the inputs are invalid.
+		// But 0,0 are valid values during derivation, namely, if the SystemConfig doesn't set the parameters yet,
+		// they are set to 0,0 and then the execution layer must translate them to the pre-Holocene constants.
+		if err := eip1559.ValidateHolocene1559Params(params); err != nil {
+			// This would be a critical error, because the attributes are generated by derivation and must be valid.
+			return fmt.Errorf("invalid attributes EIP1559 parameters: %w", err)
+		}
+
+		ad, ae := eip1559.DecodeHolocene1559Params(params)
+		var translated bool
+		// Translate 0,0 to the pre-Holocene protocol constants, like the EL does too.
+		if ad == 0 {
+			// If attrParams are non-nil, Holocene, and so Canyon, must be active.
+			ad = *cfg.ChainOpConfig.EIP1559DenominatorCanyon
+			ae = cfg.ChainOpConfig.EIP1559Elasticity
+			translated = true
+		}
+
+		// Decode block parameters and check for mismatch
+		err := eip1559.ValidateOptimismExtraData(cfg, blockTimestamp, blockExtraData)
+		if err != nil {
+			return fmt.Errorf("invalid block extraData: %w", err)
+		}
+		bd, be, bm := eip1559.DecodeOptimismExtraData(cfg, blockTimestamp, blockExtraData)
+
+		if ad != bd || ae != be {
+			extraErr := ""
+			if translated {
+				extraErr = " (translated from 0,0)"
+			}
+			return fmt.Errorf("eip1559 parameters do not match, attributes: %d, %d%s, block: %d, %d", ad, ae, extraErr, bd, be)
+		}
+		if bm == nil && attrMinBaseFee != nil || bm != nil && attrMinBaseFee == nil || bm != nil && attrMinBaseFee != nil && *bm != *attrMinBaseFee {
+			return fmt.Errorf("minBaseFee does not match, attributes: %d, block: %d", attrMinBaseFee, bm)
+		}
+	} else if len(blockExtraData) > 0 {
+		// When deriving pre-Holocene blocks, the extraData must be empty.
+		return fmt.Errorf("nil EIP1559Params in attributes but non-nil extraData in block: %v", blockExtraData)
+	}
+	return nil
+}
+
+// checkWithdrawals checks if the withdrawals list and withdrawalsRoot are as expected in the attributes and block,
+// based on the active hard fork.
+func checkWithdrawals(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes, block *eth.ExecutionPayload) error {
+	if attrs == nil || block == nil {
+		return ErrNilBlockOrAttributes
+	}
+
+	attrWithdrawals := attrs.Withdrawals
+	blockWithdrawals := block.Withdrawals
+
+	isCanyon := rollupCfg.IsCanyon(uint64(block.Timestamp))
+	isIsthmus := rollupCfg.IsIsthmus(uint64(block.Timestamp))
+
+	if isCanyon {
+		// canyon: the withdrawals list should be non nil and empty
+		if blockWithdrawals == nil || len(*blockWithdrawals) != 0 {
+			return fmt.Errorf("%w: block", ErrCanyonMustHaveWithdrawals)
+		}
+		if attrWithdrawals == nil || len(*attrWithdrawals) != 0 {
+			return fmt.Errorf("%w: attributes", ErrCanyonMustHaveWithdrawals)
+		}
+		if !isIsthmus {
+			// canyon: the withdrawals root should be set to the empty withdrawals hash
+			if block.WithdrawalsRoot != nil && *block.WithdrawalsRoot != types.EmptyWithdrawalsHash {
+				return fmt.Errorf("%w: got %v", ErrCanyonWithdrawalsRoot, *block.WithdrawalsRoot)
+			}
+		}
+	} else {
+		// bedrock: the withdrawals list should be nil
+		if attrWithdrawals != nil {
+			return fmt.Errorf("%w: got %d", ErrBedrockMustHaveEmptyWithdrawals, len(*attrWithdrawals))
+		}
+	}
+
+	if isIsthmus {
+		// isthmus: the withdrawals root should be non nil
+		if block.WithdrawalsRoot == nil {
+			return ErrIsthmusMustHaveWithdrawalsRoot
+		}
+	}
+
+	return nil
+}
+
+// logL1InfoTxns reports the values from the L1 info tx when they differ to aid
+// debugging. This check is the one that has been most frequently triggered.
+func logL1InfoTxns(rollupCfg *rollup.Config, l log.Logger, l2Number, l2Timestamp uint64, safeTx, unsafeTx hexutil.Bytes) {
+	// First decode into *types.Transaction to get the tx data.
+	var safeTxValue, unsafeTxValue types.Transaction
+	errSafe := (&safeTxValue).UnmarshalBinary(safeTx)
+	errUnsafe := (&unsafeTxValue).UnmarshalBinary(unsafeTx)
+	if errSafe != nil || errUnsafe != nil {
+		l.Error("failed to umarshal tx", "errSafe", errSafe, "errUnsafe", errUnsafe)
+		return
+	}
+
+	// Then decode the ABI encoded parameters
+	safeInfo, errSafe := derive.L1BlockInfoFromBytes(rollupCfg, l2Timestamp, safeTxValue.Data())
+	unsafeInfo, errUnsafe := derive.L1BlockInfoFromBytes(rollupCfg, l2Timestamp, unsafeTxValue.Data())
+	if errSafe != nil || errUnsafe != nil {
+		l.Error("failed to umarshal l1 info", "errSafe", errSafe, "errUnsafe", errUnsafe)
+		return
+	}
+
+	l = l.New("number", l2Number, "time", l2Timestamp,
+		"safe_l1_number", safeInfo.Number, "safe_l1_hash", safeInfo.BlockHash,
+		"safe_l1_time", safeInfo.Time, "safe_seq_num", safeInfo.SequenceNumber,
+		"safe_l1_basefee", safeInfo.BaseFee, "safe_batcher_addr", safeInfo.BatcherAddr,
+		"unsafe_l1_number", unsafeInfo.Number, "unsafe_l1_hash", unsafeInfo.BlockHash,
+		"unsafe_l1_time", unsafeInfo.Time, "unsafe_seq_num", unsafeInfo.SequenceNumber,
+		"unsafe_l1_basefee", unsafeInfo.BaseFee, "unsafe_batcher_addr", unsafeInfo.BatcherAddr,
+	)
+	if bytes.HasPrefix(safeTxValue.Data(), types.EcotoneL1AttributesSelector) {
+		l.Error("L1 Info transaction differs",
+			"safe_l1_blob_basefee", safeInfo.BlobBaseFee,
+			"safe_l1_basefee_scalar", safeInfo.BaseFeeScalar,
+			"safe_l1_blob_basefee_scalar", safeInfo.BlobBaseFeeScalar,
+			"unsafe_l1_blob_basefee", unsafeInfo.BlobBaseFee,
+			"unsafe_l1_basefee_scalar", unsafeInfo.BaseFeeScalar,
+			"unsafe_l1_blob_basefee_scalar", unsafeInfo.BlobBaseFeeScalar)
+	} else {
+		l.Error("L1 Info transaction differs",
+			"safe_gpo_scalar", safeInfo.L1FeeScalar, "safe_gpo_overhead", safeInfo.L1FeeOverhead,
+			"unsafe_gpo_scalar", unsafeInfo.L1FeeScalar, "unsafe_gpo_overhead", unsafeInfo.L1FeeOverhead)
+	}
+}
+
+func getMissingTxnHashes(l log.Logger, safeTxns, unsafeTxns []hexutil.Bytes) ([]common.Hash, []common.Hash, error) {
+	safeTxnHashes := make(map[common.Hash]struct{}, len(safeTxns))
+	unsafeTxnHashes := make(map[common.Hash]struct{}, len(unsafeTxns))
+
+	for _, tx := range safeTxns {
+		safeTxValue := &types.Transaction{}
+		errSafe := safeTxValue.UnmarshalBinary(tx)
+		if errSafe != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal safe tx: %w", errSafe)
+		}
+
+		if _, ok := safeTxnHashes[safeTxValue.Hash()]; ok {
+			l.Warn("duplicate safe tx value hash detected", "safeTxValueHash", safeTxValue.Hash())
+		}
+		safeTxnHashes[safeTxValue.Hash()] = struct{}{}
+	}
+
+	for _, tx := range unsafeTxns {
+		unsafeTxValue := &types.Transaction{}
+		errUnsafe := unsafeTxValue.UnmarshalBinary(tx)
+		if errUnsafe != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal unsafe tx: %w", errUnsafe)
+		}
+
+		if _, ok := unsafeTxnHashes[unsafeTxValue.Hash()]; ok {
+			l.Warn("duplicate unsafe tx value hash detected", "unsafeTxValueHash", unsafeTxValue.Hash())
+		}
+		unsafeTxnHashes[unsafeTxValue.Hash()] = struct{}{}
+	}
+
+	missingUnsafeHashes := []common.Hash{}
+	for hash := range safeTxnHashes {
+		if _, ok := unsafeTxnHashes[hash]; !ok {
+			missingUnsafeHashes = append(missingUnsafeHashes, hash)
+		}
+	}
+
+	missingSafeHashes := []common.Hash{}
+	for hash := range unsafeTxnHashes {
+		if _, ok := safeTxnHashes[hash]; !ok {
+			missingSafeHashes = append(missingSafeHashes, hash)
+		}
+	}
+
+	return missingSafeHashes, missingUnsafeHashes, nil
+}

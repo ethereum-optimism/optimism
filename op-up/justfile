@@ -1,0 +1,20 @@
+import '../justfiles/go.just'
+
+_LDFLAGSSTRING := "'" + trim(
+    "-X main.Version=" + VERSION + " " + \
+    "-X main.VersionMeta=" + VERSION_META + " " + \
+    "-X main.GitCommit=" + GITCOMMIT + " " + \
+    "-X main.GitDate=" + GITDATE + " " + \
+    "") + "'"
+
+BINARY := "./bin/op-up"
+
+default: op-up
+
+op-up: (go_build BINARY "." "-ldflags" _LDFLAGSSTRING)
+
+artifacts:
+    just ../op-deployer/copy-contract-artifacts
+
+clean:
+    rm -f {{ BINARY }}

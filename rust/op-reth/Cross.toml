@@ -1,0 +1,38 @@
+[build]
+pre-build = [
+    # Use HTTPS for package sources
+    "apt-get update && apt-get install --assume-yes --no-install-recommends ca-certificates",
+    "find /etc/apt/ -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|http://|https://|g' {} +",
+
+    # Configure APT retries and timeouts to handle network issues
+    "echo 'Acquire::Retries \"3\";' > /etc/apt/apt.conf.d/80-retries",
+    "echo 'Acquire::http::Timeout \"60\";' >> /etc/apt/apt.conf.d/80-retries",
+    "echo 'Acquire::ftp::Timeout \"60\";' >> /etc/apt/apt.conf.d/80-retries",
+
+    # rust-bindgen dependencies: llvm-dev libclang-dev (>= 10) clang (>= 10)
+    # See: https://github.com/cross-rs/cross/wiki/FAQ#using-clang--bindgen for
+    # recommended clang versions for the given cross and bindgen version.
+    "apt-get update && apt-get install --assume-yes --no-install-recommends llvm-dev libclang-dev clang",
+]
+
+[target.x86_64-pc-windows-gnu]
+# Why do we need a custom Dockerfile on Windows:
+# 1. `reth-libmdbx` stopped working with MinGW 9.3 that cross image comes with.
+# 2. To be able to update the version of MinGW, we need to also update the Ubuntu that the image is based on.
+#
+# Also see https://github.com/cross-rs/cross/issues/1667
+# Inspired by https://github.com/cross-rs/cross/blob/9e2298e17170655342d3248a9c8ac37ef92ba38f/docker/Dockerfile.x86_64-pc-windows-gnu#L51
+dockerfile = "./Dockerfile.x86_64-pc-windows-gnu"
+
+[target.riscv64gc-unknown-linux-gnu]
+image = "ubuntu:24.04"
+pre-build = [
+    "apt update",
+    "apt install --yes gcc gcc-riscv64-linux-gnu libclang-dev make",
+]
+env.passthrough = [
+    "CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER=riscv64-linux-gnu-gcc",
+]
+
+[build.env]
+passthrough = ["JEMALLOC_SYS_WITH_LG_PAGE"]

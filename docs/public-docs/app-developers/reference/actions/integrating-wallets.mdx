@@ -1,0 +1,86 @@
+---
+title: Integrating wallets
+description: Reference guide for integrating wallet providers with Actions SDK.
+---
+
+## Which wallets are right for my use case?
+
+In order to let your users access DeFi, they will need an <Tooltip tip="Ethereum Virtual Machine" cta="Learn more" href="https://ethereum.org/developers/docs/evm/">EVM</Tooltip>-compatible wallet. There are plenty of considerations when selecting a wallet schema that works for you:
+
+- Who will maintain custody of funds?
+- What permissions must exist for my use case?
+- Where in my stack should transaction signatures originate?
+- How can my users on and off ramp funds?
+
+Actions SDK supports popular [embedded wallet providers](#embedded-wallet-providers) to address all of these questions while remaining flexible to your use case.
+
+## Embedded Wallet Providers
+
+Embedded wallet providers give your users the ability to sign onchain transactions through your app's existing email authentication and authorization flows.
+
+Actions works with:
+
+<CardGroup cols={3}>
+  <Card
+    title="Privy"
+    href="https://www.privy.io/"
+    icon="/public/img/actions/Privy.png"
+  ></Card>
+  <Card
+    title="Turnkey"
+    href="https://www.turnkey.com/"
+    icon="/public/img/actions/turnkey.png"
+  ></Card>
+  <Card
+    title="Dynamic"
+    href="https://www.dynamic.xyz/"
+    icon="/public/img/actions/dynamic.png"
+  ></Card>
+</CardGroup>
+
+## Gas Sponsorship
+
+Signing and sending onchain transactions requires gas, or fee payment, which adds [additional overhead](/app-developers/guides/transactions/estimates) for you and friction for users.
+
+Actions supports gas sponsorship via a combination of smart contract wallets and [paymasters](https://eips.ethereum.org/EIPS/eip-7677). First, configure a paymaster in the chain config by specifying a bundler url. Now, any transactions submitted via an actions SmartWallet on that chain will automatically use your paymaster, therefore eliminating the need for the wallet to pay gas.
+
+## Connect your wallet to Actions
+
+Regardless of where and how transactions are signed, Actions has you covered.
+
+<Steps>
+  <Step title="Choose a wallet provider">
+    Follow embedded wallet provider documentation and installation steps.
+    Actions works with Typescript clients, both frontend React and backend Node.
+  </Step>
+  <Step title="Import Actions SDK">
+    Import [Actions SDK](https://actions.money/) alongside your chosen wallet
+    provider SDK.
+  </Step>
+  <Step title="Create and fetch embedded user wallets">
+    Follow embedded wallet provider documentation for wallet creation and
+    access.
+  </Step>
+  <Step title="Pass the wallet to Actions">
+    Call `actions.wallet.toActionsWallet(...)`, and [pass
+    in](/app-developers/quickstarts/actions#choose-a-wallet-provider) the
+    provider wallet.
+  </Step>
+  <Step title="Take Action">
+    The returned [Wallet
+    ](/app-developers/reference/actions/integrating-wallets#wallet-instance) is
+    now capable of calling Actions
+    [functions](/app-developers/quickstarts/actions#take-action) like Lend,
+    Borrow, Swap and Pay!
+  </Step>
+</Steps>
+
+## Smart wallets & signers
+
+In addition to using embedded provider wallets directly, Actions [supports the creation](/app-developers/quickstarts/actions#choose-a-wallet-provider) of custom smart contract wallets. This additional wallet type is separate from, but still controlled by the owner of the embedded wallet.
+
+If you [configure it](/app-developers/guides/configuring-actions), Actions will deploy a [EIP-4337](https://eips.ethereum.org/EIPS/eip-4337) compliant [Coinbase Smart Wallets](https://github.com/coinbase/smart-wallet) on the chains you've chosen to support.
+
+Once created, an embedded wallet can be added as a signer on the smart wallet, capable of signing transactions on behalf of the Smart Wallet.
+
+See [Wallet Documentation](/app-developers/reference/actions/wallet-definitions) for additional details.

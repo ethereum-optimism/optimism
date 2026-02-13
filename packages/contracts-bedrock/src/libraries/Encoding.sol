@@ -1,0 +1,346 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+// Libraries
+import { Types } from "src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { RLPWriter } from "src/libraries/rlp/RLPWriter.sol";
+
+/// @title Encoding
+/// @notice Encoding handles Optimism's various different encoding schemes.
+library Encoding {
+    /// @notice Thrown when a provided Super Root proof has an invalid version.
+    error Encoding_InvalidSuperRootVersion();
+
+    /// @notice Thrown when a provided Super Root proof has no Output Roots.
+    error Encoding_EmptySuperRoot();
+
+    /// @notice Thrown when attempting to decode an invalid Super Root Proof encoding.
+    error Encoding_InvalidSuperRootEncoding();
+
+    /// @notice RLP encodes the L2 transaction that would be generated when a given deposit is sent
+    ///         to the L2 system. Useful for searching for a deposit in the L2 system. The
+    ///         transaction is prefixed with 0x7e to identify its EIP-2718 type.
+    /// @param _tx User deposit transaction to encode.
+    /// @return RLP encoded L2 deposit transaction.
+    function encodeDepositTransaction(Types.UserDepositTransaction memory _tx) internal pure returns (bytes memory) {
+        bytes32 source = Hashing.hashDepositSource(_tx.l1BlockHash, _tx.logIndex);
+        bytes[] memory raw = new bytes[](8);
+        raw[0] = RLPWriter.writeBytes(abi.encodePacked(source));
+        raw[1] = RLPWriter.writeAddress(_tx.from);
+        raw[2] = _tx.isCreation ? RLPWriter.writeBytes("") : RLPWriter.writeAddress(_tx.to);
+        raw[3] = RLPWriter.writeUint(_tx.mint);
+        raw[4] = RLPWriter.writeUint(_tx.value);
+        raw[5] = RLPWriter.writeUint(uint256(_tx.gasLimit));
+        raw[6] = RLPWriter.writeBool(false);
+        raw[7] = RLPWriter.writeBytes(_tx.data);
+        return abi.encodePacked(uint8(0x7e), RLPWriter.writeList(raw));
+    }
+
+    /// @notice Encodes the cross domain message based on the version that is encoded into the
+    ///         message nonce.
+    /// @param _nonce    Message nonce with version encoded into the first two bytes.
+    /// @param _sender   Address of the sender of the message.
+    /// @param _target   Address of the target of the message.
+    /// @param _value    ETH value to send to the target.
+    /// @param _gasLimit Gas limit to use for the message.
+    /// @param _data     Data to send with the message.
+    /// @return Encoded cross domain message.
+    function encodeCrossDomainMessage(
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        (, uint16 version) = decodeVersionedNonce(_nonce);
+        if (version == 0) {
+            return encodeCrossDomainMessageV0(_target, _sender, _data, _nonce);
+        } else if (version == 1) {
+            return encodeCrossDomainMessageV1(_nonce, _sender, _target, _value, _gasLimit, _data);
+        } else {
+            revert("Encoding: unknown cross domain message version");
+        }
+    }
+
+    /// @notice Encodes a cross domain message based on the V0 (legacy) encoding.
+    /// @param _target Address of the target of the message.
+    /// @param _sender Address of the sender of the message.
+    /// @param _data   Data to send with the message.
+    /// @param _nonce  Message nonce.
+    /// @return Encoded cross domain message.
+    function encodeCrossDomainMessageV0(
+        address _target,
+        address _sender,
+        bytes memory _data,
+        uint256 _nonce
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        // nosemgrep: sol-style-use-abi-encodecall
+        return abi.encodeWithSignature("relayMessage(address,address,bytes,uint256)", _target, _sender, _data, _nonce);
+    }
+
+    /// @notice Encodes a cross domain message based on the V1 (current) encoding.
+    /// @param _nonce    Message nonce.
+    /// @param _sender   Address of the sender of the message.
+    /// @param _target   Address of the target of the message.
+    /// @param _value    ETH value to send to the target.
+    /// @param _gasLimit Gas limit to use for the message.
+    /// @param _data     Data to send with the message.
+    /// @return Encoded cross domain message.
+    function encodeCrossDomainMessageV1(
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        // nosemgrep: sol-style-use-abi-encodecall
+        return abi.encodeWithSignature(
+            "relayMessage(uint256,address,address,uint256,uint256,bytes)",
+            _nonce,
+            _sender,
+            _target,
+            _value,
+            _gasLimit,
+            _data
+        );
+    }
+
+    /// @notice Adds a version number into the first two bytes of a message nonce.
+    /// @param _nonce   Message nonce to encode into.
+    /// @param _version Version number to encode into the message nonce.
+    /// @return Message nonce with version encoded into the first two bytes.
+    function encodeVersionedNonce(uint240 _nonce, uint16 _version) internal pure returns (uint256) {
+        uint256 nonce;
+        assembly {
+            nonce := or(shl(240, _version), _nonce)
+        }
+        return nonce;
+    }
+
+    /// @notice Pulls the version out of a version-encoded nonce.
+    /// @param _nonce Message nonce with version encoded into the first two bytes.
+    /// @return Nonce without encoded version.
+    /// @return Version of the message.
+    function decodeVersionedNonce(uint256 _nonce) internal pure returns (uint240, uint16) {
+        uint240 nonce;
+        uint16 version;
+        assembly {
+            nonce := and(_nonce, 0x0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
+            version := shr(240, _nonce)
+        }
+        return (nonce, version);
+    }
+
+    /// @notice Returns an appropriately encoded call to L1Block.setL1BlockValuesEcotone
+    /// @param _baseFeeScalar       L1 base fee Scalar
+    /// @param _blobBaseFeeScalar   L1 blob base fee Scalar
+    /// @param _sequenceNumber      Number of L2 blocks since epoch start.
+    /// @param _timestamp           L1 timestamp.
+    /// @param _number              L1 blocknumber.
+    /// @param _baseFee             L1 base fee.
+    /// @param _blobBaseFee         L1 blob base fee.
+    /// @param _hash                L1 blockhash.
+    /// @param _batcherHash         Versioned hash to authenticate batcher by.
+    function encodeSetL1BlockValuesEcotone(
+        uint32 _baseFeeScalar,
+        uint32 _blobBaseFeeScalar,
+        uint64 _sequenceNumber,
+        uint64 _timestamp,
+        uint64 _number,
+        uint256 _baseFee,
+        uint256 _blobBaseFee,
+        bytes32 _hash,
+        bytes32 _batcherHash
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        bytes4 functionSignature = bytes4(keccak256("setL1BlockValuesEcotone()"));
+        return abi.encodePacked(
+            functionSignature,
+            _baseFeeScalar,
+            _blobBaseFeeScalar,
+            _sequenceNumber,
+            _timestamp,
+            _number,
+            _baseFee,
+            _blobBaseFee,
+            _hash,
+            _batcherHash
+        );
+    }
+
+    /// @notice Returns an appropriately encoded call to L1Block.setL1BlockValuesIsthmus
+    /// @param _baseFeeScalar       L1 base fee Scalar
+    /// @param _blobBaseFeeScalar   L1 blob base fee Scalar
+    /// @param _sequenceNumber      Number of L2 blocks since epoch start.
+    /// @param _timestamp           L1 timestamp.
+    /// @param _number              L1 blocknumber.
+    /// @param _baseFee             L1 base fee.
+    /// @param _blobBaseFee         L1 blob base fee.
+    /// @param _hash                L1 blockhash.
+    /// @param _batcherHash         Versioned hash to authenticate batcher by.
+    /// @param _operatorFeeScalar   Operator fee scalar.
+    /// @param _operatorFeeConstant Operator fee constant.
+    function encodeSetL1BlockValuesIsthmus(
+        uint32 _baseFeeScalar,
+        uint32 _blobBaseFeeScalar,
+        uint64 _sequenceNumber,
+        uint64 _timestamp,
+        uint64 _number,
+        uint256 _baseFee,
+        uint256 _blobBaseFee,
+        bytes32 _hash,
+        bytes32 _batcherHash,
+        uint32 _operatorFeeScalar,
+        uint64 _operatorFeeConstant
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        bytes4 functionSignature = bytes4(keccak256("setL1BlockValuesIsthmus()"));
+        return abi.encodePacked(
+            functionSignature,
+            _baseFeeScalar,
+            _blobBaseFeeScalar,
+            _sequenceNumber,
+            _timestamp,
+            _number,
+            _baseFee,
+            _blobBaseFee,
+            _hash,
+            _batcherHash,
+            _operatorFeeScalar,
+            _operatorFeeConstant
+        );
+    }
+
+    /// @notice Returns an appropriately encoded call to L1Block.setL1BlockValuesJovian
+    /// @param _baseFeeScalar        L1 base fee Scalar
+    /// @param _blobBaseFeeScalar    L1 blob base fee Scalar
+    /// @param _sequenceNumber       Number of L2 blocks since epoch start.
+    /// @param _timestamp            L1 timestamp.
+    /// @param _number               L1 blocknumber.
+    /// @param _baseFee              L1 base fee.
+    /// @param _blobBaseFee          L1 blob base fee.
+    /// @param _hash                 L1 blockhash.
+    /// @param _batcherHash          Versioned hash to authenticate batcher by.
+    /// @param _operatorFeeScalar    Operator fee scalar.
+    /// @param _operatorFeeConstant  Operator fee constant.
+    /// @param _daFootprintGasScalar DA Footprint scalar.
+    function encodeSetL1BlockValuesJovian(
+        uint32 _baseFeeScalar,
+        uint32 _blobBaseFeeScalar,
+        uint64 _sequenceNumber,
+        uint64 _timestamp,
+        uint64 _number,
+        uint256 _baseFee,
+        uint256 _blobBaseFee,
+        bytes32 _hash,
+        bytes32 _batcherHash,
+        uint32 _operatorFeeScalar,
+        uint64 _operatorFeeConstant,
+        uint16 _daFootprintGasScalar
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        bytes4 functionSignature = bytes4(keccak256("setL1BlockValuesJovian()"));
+
+        // Split up the encoding into multiple parts to avoid stack too deep.
+        return abi.encodePacked(
+            abi.encodePacked(
+                functionSignature, _baseFeeScalar, _blobBaseFeeScalar, _sequenceNumber, _timestamp, _number, _baseFee
+            ),
+            abi.encodePacked(
+                _blobBaseFee, _hash, _batcherHash, _operatorFeeScalar, _operatorFeeConstant, _daFootprintGasScalar
+            )
+        );
+    }
+
+    /// @notice Encodes a super root proof into the preimage of a Super Root.
+    /// @param _superRootProof Super root proof to encode.
+    /// @return Encoded super root proof.
+    function encodeSuperRootProof(Types.SuperRootProof memory _superRootProof) internal pure returns (bytes memory) {
+        // Version must match the expected version.
+        if (_superRootProof.version != 0x01) {
+            revert Encoding_InvalidSuperRootVersion();
+        }
+
+        // Output roots must not be empty.
+        if (_superRootProof.outputRoots.length == 0) {
+            revert Encoding_EmptySuperRoot();
+        }
+
+        // Start with version byte and timestamp.
+        bytes memory encoded = bytes.concat(bytes1(_superRootProof.version), bytes8(_superRootProof.timestamp));
+
+        // Add each output root (chainId + root)
+        for (uint256 i = 0; i < _superRootProof.outputRoots.length; i++) {
+            Types.OutputRootWithChainId memory outputRoot = _superRootProof.outputRoots[i];
+            encoded = bytes.concat(encoded, bytes32(outputRoot.chainId), outputRoot.root);
+        }
+
+        return encoded;
+    }
+
+    /// @notice Decodes a super root proof from the preimage of a Super Root.
+    /// @param _super Encoded super root proof.
+    /// @return Decoded super root proof.
+    function decodeSuperRootProof(bytes memory _super) internal pure returns (Types.SuperRootProof memory) {
+        if (_super.length < 9) {
+            revert Encoding_InvalidSuperRootEncoding();
+        }
+        uint8 version = uint8(_super[0]);
+        if (version != 0x01) {
+            revert Encoding_InvalidSuperRootVersion();
+        }
+
+        uint256 offset = 1;
+        uint64 superTimestamp;
+        assembly {
+            superTimestamp := shr(192, mload(add(_super, add(32, offset))))
+        }
+        offset += 8;
+
+        if (_super.length <= offset) {
+            revert Encoding_EmptySuperRoot();
+        }
+        if ((_super.length - offset) % 64 != 0) {
+            revert Encoding_InvalidSuperRootEncoding();
+        }
+
+        Types.OutputRootWithChainId[] memory outputRoots =
+            new Types.OutputRootWithChainId[]((_super.length - offset) / 64);
+        for (uint256 i = 0; i < outputRoots.length; i++) {
+            uint256 chainId;
+            bytes32 root;
+            assembly {
+                chainId := mload(add(_super, add(32, offset)))
+                root := mload(add(_super, add(32, add(offset, 0x20))))
+            }
+            offset += 64;
+            outputRoots[i] = Types.OutputRootWithChainId({ chainId: chainId, root: root });
+        }
+
+        return Types.SuperRootProof({ version: bytes1(version), timestamp: superTimestamp, outputRoots: outputRoots });
+    }
+}

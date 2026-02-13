@@ -1,0 +1,7 @@
+# default recipe to display help information
+default:
+  @just --list
+
+# Run cargo tests
+test *args='':
+  cargo nextest run --workspace {{args}}

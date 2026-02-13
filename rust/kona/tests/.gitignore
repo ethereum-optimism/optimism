@@ -1,0 +1,7 @@
+devnets/specs/*
+optimism-package
+kona-test-logs
+proofs
+actions
+builder_jwt.hex
+tmp/

@@ -1,0 +1,45 @@
+[
+  {
+    "name": "test1",
+    "identifier": "test1/testnet",
+    "chainId": 123999119,
+    "rpc": [
+      "https://rpc.test1.com"
+    ],
+    "explorers": [
+      "https://explorer.test1.com"
+    ],
+    "superchainLevel": 0,
+    "governedByOptimism": false,
+    "dataAvailabilityType": "eth-da",
+    "parent": {
+      "type": "L2",
+      "chain": "testnet"
+    },
+    "faultProofs": {
+      "status": "none"
+    }
+  },
+  {
+    "name": "test2",
+    "identifier": "test2/testnet",
+    "chainId": 223999119,
+    "rpc": [
+      "https://rpc.test2.com"
+    ],
+    "explorers": [
+      "https://explorer.test2.com"
+    ],
+    "superchainLevel": 0,
+    "governedByOptimism": false,
+    "dataAvailabilityType": "eth-da",
+    "parent": {
+      "type": "L2",
+      "chain": "testnet"
+    },
+    "faultProofs": {
+      "status": "none"
+    }
+  }
+]
+ 

@@ -1,0 +1,23 @@
+---
+title: OP Contracts Manager
+description: Learn how OP Contracts Manager deploys the OP Stack with one transaction.
+---
+
+The OP Contracts Manager is a contract that deploys the L1 contracts for an OP Stack chain in a single transaction. It provides a minimal set of user-configurable parameters to ensure that the resulting chain meets the standard configuration requirements. Additionally, as of [Upgrade 13](https://gov.optimism.io/t/upgrade-proposal-13-opcm-and-incident-response-improvements/9739), instances of OPCM can upgrade existing OP Stack chains.
+
+The version deployed is always a governance-approved contract release. The set of governance approved contract releases can be found on the Optimism Monorepo releases page, and is the set of releases named `op-contracts/vX.Y.Z`. It deploys the [Fault Proof System](/op-stack/fault-proofs/explainer), using the [PermissionedDisputeGame](/op-stack/protocol/smart-contracts#permissioneddisputegame).
+
+## Purpose
+
+OPCM simplifies the L1 contract deployments for new OP Stack chains. For each smart contract release there will be a new OPCM instance. It addresses three aspects of deploying the OP Stack's L1 contracts:
+
+1.  **Deploy Shared Contracts.** Shared contracts are used between many OP chains, so this occurs only occasionally in production.
+2.  **Deploy Shared Implementation Contracts.** This occurs once per contracts release in production.
+3.  **Deploy OP Chain Contracts.** This occurs for every OP chain deployment in production.
+
+Additionally, after the Upgrade 13 network upgrade, OPCM instances will be used to upgrade existing OP Stack chains.
+
+## Learn more
+
+*   Checkout the [OPCM specs](https://specs.optimism.io/experimental/op-contracts-manager.html?utm_source=op-docs&utm_medium=docs)
+*   Checkout the [OPCM design document](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/op-contracts-manager-arch.md)

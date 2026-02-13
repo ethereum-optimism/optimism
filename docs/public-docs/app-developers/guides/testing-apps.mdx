@@ -1,0 +1,42 @@
+---
+title: Testing apps for OP Stack chains
+description: Learn best practices for testing apps on OP Stack chains.
+---
+
+For the most part, running applications on OP Stack chains is identical to running them on Ethereum, so the testing is identical too.
+In this guide, you learn the best practices for OP Stack testing where there are differences.
+
+## Unit tests and single layer integration tests
+
+The vast majority of tests do not involve any OP Stack-specific features.
+In those cases, while you *could* test everything on an OP Stack chain or a test network, that would normally be inefficient.
+Most Ethereum development stacks include features that make testing easier, which normal Ethereum clients, such as geth (and our modified version, `op-geth`) don't support.
+Therefore, it is a good idea to run the majority of tests, which do not rely on OP Stack-specific features, in the development stack.
+It is a lot faster.
+
+It is a best practice to design and run thorough tests across an OP test network, either in your [local multichain development environment](/app-developers/tools/development/supersim), our [devnets](/op-stack/introduction/op-stack), or on [the test network](/op-mainnet/network-information/connecting-to-op#op-sepolia), depending on your use case. Alternatively, with [Tenderly Virtual TestNets](https://docs.tenderly.co/virtual-testnets?mtm_campaign=ext-docs&mtm_kwd=optimism)you can run tests with complete integration with existing protocols, access to unlimited faucets, continuous state sync, and access to development tools such as Debugger and Simulator UI.
+Running proper testing is key to identifying fringe cases where the equivalence between OP Stack chains and Ethereum breaks down (or where Ethereum mainnet itself and the development stack may be non-equivalent in a production environment).
+
+## Multilayer integration tests
+
+Some apps need OP Stack-specific features that aren't available as part of the development stack.
+For example, if your decentralized application relies on [inter-domain communication](/app-developers/guides/bridging/messaging), the effort of developing a stub to let you debug it in a development stack is probably greater than the hassle of having the automated test go to [a local multichain development environment](/app-developers/tools/development/supersim) each time.
+
+## Testing and Staging with Tenderly
+
+Tenderly [Virtual TestNets](https://docs.tenderly.co/virtual-testnets?mtm_campaign=ext-docs&mtm_kwd=optimism) provide a powerful environment for testing OP Stack applications with mainnet-like conditions. They offer several advantages for testing OP Stack applications:
+
+*   **Mainnet State Replication**: Virtual TestNets can sync with the latest OP Stack mainnet state, allowing you to test against real network conditions and interact with up-to-date protocols without spending real assets.
+*   **Unlimited Faucet**: Access [unlimited test tokens](https://docs.tenderly.co/virtual-testnets/unlimited-faucet?mtm_campaign=ext-docs&mtm_kwd=optimism) for both native currency and ERC-20 tokens, enabling comprehensive testing of complex DeFi interactions.
+*   **Collaborative Testing**: Your entire team can access the same testing environment, making it easier to debug issues and validate fixes.
+*   **CI/CD Integration**: Incorporate automated testing in your deployment pipeline using [Virtual TestNets' API](https://docs.tenderly.co/reference/api#/operations/createAlert?mtm_campaign=ext-docs&mtm_kwd=optimism) and [GitHub Actions integration](https://docs.tenderly.co/virtual-testnets/ci-cd/github-actions-foundry?mtm_campaign=ext-docs&mtm_kwd=optimism).
+*   **Development tools**: Rely on the built-in [developer explorer](https://docs.tenderly.co/developer-explorer?mtm_campaign=ext-docs&mtm_kwd=optimism) and debugging tools to analyze test transactions and contract interactions.
+
+## Integration with other products
+
+In many cases a decentralized application requires the services of other contracts.
+For example, [Perpetual v. 2](https://docs.perp.com/docs/guides/integration-guide) cannot function without [Uniswap v. 3](https://uniswap.org/blog/uniswap-v3).
+
+*   If that is the case, you can use [mainnet forking](/app-developers/reference/tools/supersim/fork). It works with OP Stack chains.
+*   Create a Virtual TestNet to get access to third party contracts (e.g. Uniswap) and it's latest or historical state.
+*   Alternatively, you can connect to our [test network](/op-mainnet/network-information/connecting-to-op#op-sepolia) if those contracts are also deployed there (in many cases they are).

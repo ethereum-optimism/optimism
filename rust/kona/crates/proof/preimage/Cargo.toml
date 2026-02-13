@@ -1,0 +1,43 @@
+[package]
+name = "kona-preimage"
+description = "Bindings and types for interacting with the PreimageOracle ABI"
+version = "0.3.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# General
+tracing.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+alloy-primitives.workspace = true
+
+# `std` feature dependencies
+async-channel = { workspace = true, optional = true }
+
+# `rkyv` feature dependencies
+rkyv = { workspace = true, optional = true }
+
+# `serde` feature dependencies
+serde = { workspace = true, optional = true, features = ["derive"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+
+[features]
+default = []
+std = [
+	"alloy-primitives/std",
+	"dep:async-channel",
+	"serde?/std",
+	"thiserror/std",
+	"tracing/std",
+]
+rkyv = [ "dep:rkyv" ]
+serde = [ "alloy-primitives/serde", "dep:serde" ]

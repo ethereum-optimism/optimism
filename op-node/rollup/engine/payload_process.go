@@ -1,0 +1,98 @@
+package engine
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
+
+type PayloadProcessEvent struct {
+	// if payload should be promoted to (local) safe (must also be pending safe, see DerivedFrom)
+	Concluding bool
+	// payload is promoted to pending-safe if non-zero
+	DerivedFrom  eth.L1BlockRef
+	BuildStarted time.Time
+
+	Envelope *eth.ExecutionPayloadEnvelope
+	Ref      eth.L2BlockRef
+}
+
+func (ev PayloadProcessEvent) String() string {
+	return "payload-process"
+}
+
+func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProcessEvent) {
+	rpcCtx, cancel := context.WithTimeout(e.ctx, payloadProcessTimeout)
+	defer cancel()
+
+	// Check SuperAuthority denylist before inserting the payload
+	if e.superAuthority != nil && ev.Envelope != nil && ev.Envelope.ExecutionPayload != nil {
+		payload := ev.Envelope.ExecutionPayload
+		denied, err := e.superAuthority.IsDenied(uint64(payload.BlockNumber), payload.BlockHash)
+		if err != nil {
+			e.log.Error("Failed to check SuperAuthority denylist, proceeding with payload",
+				"blockNumber", payload.BlockNumber,
+				"blockHash", payload.BlockHash,
+				"err", err,
+			)
+		} else if denied {
+			if ev.DerivedFrom != (eth.L1BlockRef{}) {
+				e.log.Warn("Requesting deposits-only replacement for derived payload",
+					"blockNumber", payload.BlockNumber,
+					"blockHash", payload.BlockHash,
+					"derivedFrom", ev.DerivedFrom,
+				)
+				e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom)
+			} else {
+				e.log.Warn("Unsafe payload denied by SuperAuthority, dropping",
+					"blockNumber", payload.BlockNumber,
+					"blockHash", payload.BlockHash,
+				)
+			}
+			return
+		}
+	}
+
+	insertStart := time.Now()
+	status, err := e.engine.NewPayload(rpcCtx,
+		ev.Envelope.ExecutionPayload, ev.Envelope.ParentBeaconBlockRoot)
+	if err != nil {
+		e.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
+			Err: fmt.Errorf("failed to insert execution payload: %w", err),
+		})
+		return
+	}
+	switch status.Status {
+	case eth.ExecutionInvalid, eth.ExecutionInvalidBlockHash:
+		// Depending on execution engine, not all block-validity checks run immediately on build-start
+		// at the time of the forkchoiceUpdated engine-API call, nor during getPayload.
+		if ev.DerivedFrom != (eth.L1BlockRef{}) && e.rollupCfg.IsHolocene(ev.DerivedFrom.Time) {
+			e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom)
+			return
+		}
+
+		e.emitter.Emit(ctx, PayloadInvalidEvent{
+			Envelope: ev.Envelope,
+			Err:      eth.NewPayloadErr(ev.Envelope.ExecutionPayload, status),
+		})
+		return
+	case eth.ExecutionValid:
+		e.emitter.Emit(ctx, PayloadSuccessEvent{
+			Concluding:    ev.Concluding,
+			DerivedFrom:   ev.DerivedFrom,
+			BuildStarted:  ev.BuildStarted,
+			InsertStarted: insertStart,
+			Envelope:      ev.Envelope,
+			Ref:           ev.Ref,
+		})
+		return
+	default:
+		e.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
+			Err: eth.NewPayloadErr(ev.Envelope.ExecutionPayload, status),
+		})
+		return
+	}
+}

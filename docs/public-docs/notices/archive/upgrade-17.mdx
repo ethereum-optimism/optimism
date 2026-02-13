@@ -1,0 +1,168 @@
+---
+title: Upgrade 17 - Jovian Hard Fork
+description: Learn how to prepare for the Jovian hard fork
+---
+
+The Jovian hardfork is a proposed network upgrade for OP Stack chains, which brings several improvements to the way rollup fees are calculated as well as performing a maintenance update to the fault proof virtual machine.
+
+<Info>
+  The Jovian hard fork for the Sepolia Superchain will be activated at Wed 19 Nov 2025 16:00:01 UTC (`1763568001`) and the Mainnet Superchain will be optimistically activated at Tue 2 Dec 2025 16:00:01 UTC (`1764691201`) pending governance approval.
+
+  The smart contract upgrade will be prepared by OP Labs for the following chains: `OP`, `Base`, `Soneium`, `Ink`, `Unichain`, `Metal`, `Mode`, `Zora`, `Arena-Z`, and `Swell` (Swell Mainnet only). The Optimism Security Council will review and sign the upgrades.
+
+  Chains that inherit activations from the Superchain Registry and are NOT listed above must perform the upgrade themselves before the activation time. To check if you are inheriting the activation time automatically, see if your chain's [Superchain Registry toml file](https://github.com/ethereum-optimism/superchain-registry/tree/main/superchain/configs) includes the Jovian activation and the `superchain_time` field.
+
+  Additionally, Swell Mainnet will activate the Isthmus hard fork at Tue 2 Dec 2025 04:00:01 UTC (`1764648001`).
+</Info>
+
+## What's included in Upgrade 17
+
+Upgrade 17 introduces the following changes:
+
+* **Cannon Go 1.24 support:** upgrading the on-chain fault proof virtual machine implementation to support Go 1.24.
+* **Configurable Minimum Base Fee:** allows chain operators to specify a minimum base fee to shorten the length of priority fee auctions (disabled by default).
+* **Data Availability Footprint Block Limit:** adds an in-protocol limit to estimated DA usage of transactions to prevent DA spam and priority fee auctions. (enabled by default; can be disabled via zero scalar on-chain).
+
+For more information on the Jovian implementation details, please review the [Jovian specifications](https://specs.optimism.io/protocol/jovian/overview.html).
+
+## Breaking Changes
+
+### Block header changes
+
+* `extraData` field is extended (for the [minBaseFee](https://specs.optimism.io/protocol/jovian/exec-engine.html#minimum-base-fee-in-block-header))
+* `blobGasUsed` may become nonzero when the DA footprint feature is enabled
+
+The `blobGasUsed` property of each block header is set to that block's `daFootprint`. Note that since Ecotone it was set to `0`, as OP Stack chains don't support blobs. It is now repurposed to store the DA footprint. If you want to disable it, set a scalar of 1. Setting 0 (or never setting the scalar value) implies the default value of the scalar, which can be updated in future forks. Please ensure your nodes and tooling can handle these updated header semantics.
+
+For more information, see the [specs](https://specs.optimism.io/protocol/jovian/exec-engine.html#da-footprint-block-limit).
+
+### Operator Fee
+The offchain formula for operator fee was changed to support more flexible fee configurations for rollup operators and lays groundwork for future custom gas token support.
+<Info>
+If you are running operator fee with nonzero scalars, make sure to adjust them before activating the fork to avoid overcharging users.
+We recommend setting the scalars to zero before the fork activates, and then reevaluating appropriate new scalars given the formula after the fork.
+This will ensure that the operator fee is calculated correctly and that users are not overcharged.
+</Info>
+
+For more information, see the [specs](https://specs.optimism.io/protocol/jovian/exec-engine.html#operator-fee).
+
+## For node operators
+
+These following steps are necessary for every node operator:
+
+<Steps>
+  <Step title="Update to the latest release">
+  The releases contain both the Jovian Mainnet and Sepolia Superchain activation timestamps.
+  
+    *   op-node: [op-node/v1.16.2](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.16.2)
+    *   op-geth: [v1.101603.5](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101603.5)
+    *   op-reth: [op-reth/v1.9.2](https://github.com/paradigmxyz/reth/releases/tag/v1.9.2) or [op-reth/v1.9.3](https://github.com/paradigmxyz/reth/releases/tag/v1.9.3) for chains running flashblocks
+  </Step>
+
+  <Step title="Configure the Jovian activation date">
+  <Info>
+      If you are operating a node for an OP Chain that has opted into the [hardfork activation inheritance behavior](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/hardfork-activation-inheritance.md) and are utilizing the network flags, the Jovian activation date is part of the `op-node` and `op-geth` nodes. So, no action is needed for the sequencer after upgrading to the latest release. Please skip to [Step 3: Verify Your Configuration](#verify-your-configuration).
+  
+      The following chains are included but are subject to change: `OP`, `Base`, `Soneium`, `Ink`, `Unichain`, `Metal`, `Mode`, `Zora`, `Arena-Z`, and `Swell` (Swell Mainnet only).
+    </Info>
+  
+    For node operators of not using the [hardfork activation inheritance behavior](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/hardfork-activation-inheritance.md), you will need to manually configure the activation. This can be done one of two ways:
+  
+    *   **Option 1:** Set the activation time via overrides (CLI) in both `op-node` and `op-geth`. These will need to be set on `op-node` and `op-geth` for the sequencer and all other nodes.
+    *   **Option 2:** Set the activation time in the `rollup.json` for `op-node`. You will still need to set the `override.isthmus` flag in `op-geth` or set the time in the EL clients genesis file if you use this option. 
+    
+  </Step>
+
+  <Step title="Verify Your Configuration">
+  Make the following checks to verify that your node is properly configured.
+  
+    *   `op-node` and `op-geth` will log their configurations at startup
+    *   Check that the Jovian time is set to its correct activation timestamp in the op-node startup logs
+    *   Check that the Jovian time is set to its correct activation timestamp in the op-geth startup logs
+  </Step>
+</Steps>
+
+## For chain operators
+
+Update the following components:
+
+| Component       | Version                                                                                               | Notes                                                                                                                                                                                          |
+| --------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `proxyd`        | [v4.19.0](https://github.com/ethereum-optimism/infra/releases/tag/proxyd%2Fv4.19.0) or greater        | You need to whitelist `eth_blobBaseFee` rpc if using proxyd for L1 load balancing. If you use `dugtrio` ensure this is also updated to the latest release.                                                                                                              |
+| `op-batcher`    | [v1.16.2](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher%2Fv1.16.2)            | The `op-batcher` must be restarted at least once after updating `op-node` to the latest release. The batcher loads the rollup config once at startup and this will need to happen to update the activation timestamps for Jovian. We've opened this [issue](https://github.com/ethereum-optimism/optimism/issues/18178) to improve this experience in the future.                       |
+| `op-node`       | [v1.16.2](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.16.2)               | L1 chain config must be supplied via a new flag (see the release notes). Not necessary for chains deriving from Ethereum Mainnet, Sepolia, Holesky or Hoodi.                                            |
+| `op-geth`       | [v1.101603.5](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101603.5)                  |                                                                                                                                                                                                |
+| `op-challenger` | [v1.7.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.7.0)           | If deriving from a chain other than Ethereum Mainnet, Sepolia or Hoodi then L1 chain config must be supplied via a new flag.                                            |
+| `kona-node`     | [v1.2.4](https://github.com/op-rs/kona/releases/tag/kona-node%2Fv1.2.4)                               |                                                                                                                                                                                                |
+| `kona-host`     | [v1.2.4](https://github.com/op-rs/kona/releases/tag/kona-host%2Fv1.2.4)                     |                                                                                                                                                                                                |
+| `kona-client`   | [v1.2.4](https://github.com/op-rs/kona/releases/tag/kona-client%2Fv1.2.4)                   |                                                                                                                                                                                                |
+| `op-reth`       | [v1.9.2](https://github.com/paradigmxyz/reth/releases/tag/v1.9.2) or [v1.9.3](https://github.com/paradigmxyz/reth/releases/tag/v1.9.3) for chains running flashblocks |                                                                                                                                                                                                |
+| `op-rbuilder`   | [v0.2.13](https://github.com/flashbots/op-rbuilder/releases/tag/op-rbuilder%2Fv0.2.13) |  | 
+| `rollup-boost`  | [v0.7.11](https://github.com/flashbots/rollup-boost/releases/tag/rollup-boost%2Fv0.7.11) |  | 
+
+### For permissionless fault proof enabled chains
+
+Chains running permissionless fault proofs will need to deploy new dispute game contracts with new absolute prestates.
+These prestates also contain support for the L1 Fusaka activation.
+
+<Note>
+  The Superchain will be bundling [Fusaka support](/notices/fusaka-notice) and the Mainnet Jovian hard fork support into a single absolute prestate.
+</Note>
+
+<Info>
+  Optimism will complete the onchain prestate update (including Dispute Game deployment and implementation set) on OP, Ink, and Unichain Mainnet and Sepolia. 
+  However, off chain components (op-challenger) must still be configured by operators to use the new prestate.
+  If you are a Permissionless FP enabled chain not included in the list above, you must perform all steps below yourself.
+</Info>
+
+<Steps>
+  <Step title="Verify the new absolute prestate">
+
+  The absolute prestate is generated with the [op-program/v1.8.0-rc.4](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.8.0-rc.4). You can use this new absolute prestate `0x03caa1871bb9fe7f9b11217c245c16e4ded33367df5b3ccb2c6d0a847a217d1b` for the following chains:
+
+  *   Mainnet and Sepolia: `OP`, `Base`, `Ink`, and `Unichain`
+
+  You can verify this absolute prestate by running the following command in the root of the monorepo on the `op-program/v1.8.0-rc.4` tag:
+
+  ```shell
+  make reproducible-prestate
+  ```
+
+  This will output the calculated prestates, the tail end of the output should look like this:
+
+  ```shell
+  -------------------- Production Prestates --------------------
+
+  Cannon64 Absolute prestate hash: 
+  0x03caa1871bb9fe7f9b11217c245c16e4ded33367df5b3ccb2c6d0a847a217d1b
+
+  -------------------- Experimental Prestates --------------------
+
+  Cannon64Next Absolute prestate hash: 
+  0x03caa1871bb9fe7f9b11217c245c16e4ded33367df5b3ccb2c6d0a847a217d1b
+
+  CannonInterop Absolute prestate hash: 
+  0x03455f7f2179327853a989648c3ac9f2d58be45137bae603271660519b4d5245
+
+  CannonInteropNext Absolute prestate hash: 
+  0x03455f7f2179327853a989648c3ac9f2d58be45137bae603271660519b4d5245
+  ```
+
+  *   The "Cannon64" hash is the 64-bit prestate.
+
+  Verify that your target prestate was calculated as expected and matches the corresponding entry in
+  [standard-prestates.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml).
+  </Step>
+
+  <Step title="Upload your new preimage file">
+    During the previous step, you also generated the preimage of the absolute prestate, which is the op-program serialized into a binary file. You'll find that new file at `optimism/op-program/bin/prestate-mt64.bin.gz`. Rename that file to have the absolute prestate hash as the filename so it looks like `PRESTATEHASH.bin.gz`.
+
+    Upload that file to where you're storing your other absolute preimage files. This should be the location where you're pointing your `--cannon-prestates-url` at. The `op-challenger` will grab this file and use it when it needs to challenge games.
+  </Step>
+</Steps>
+
+## Execute the L1 Contract Upgrade 
+
+Once your `op-challenger` is ready with the new preimage, you can execute the upgrade transaction. This should be done by making a delegatecall to the `upgrade()` function of the OP Contract Manager at the address listed in [the registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml).
+
+Please simulate and validate the expected output prior to executing the transaction.

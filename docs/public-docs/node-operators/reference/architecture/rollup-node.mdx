@@ -1,0 +1,132 @@
+---
+title: How to run an OP Stack node
+description: Learn how to run an OP Stack rollup node.
+---
+
+This guide provides an overview of how to run an OP Stack rollup node. It walks you through how to build, configure, run, and monitor your node on one of the OP Stack chains. To skip ahead to building and running a node, you can explore the [node operator tutorials](#node-operator-tutorials).
+
+## Build your node
+
+Before building your node, you will learn fundamental aspects of OP Stack rollup nodes.
+
+<Steps>
+  <Step title="Learn Fundamentals of OP Stack Nodes">
+These are the two fundamental components of an OP Stack rollup node:
+
+  *   **Node Architecture**: OP Stack rollup nodes use the rollup node and execution client and can also support legacy geth for pre-bedrock historical execution requests. For more details, see the [Node Architecture](/node-operators/reference/architecture/architecture) guide.
+  *   **Network Upgrades**: Network upgrades for OP Stack rollup nodes are generally [activated by timestamps](/operators/node-operators/network-upgrades#activations). Failing to upgrade your node before the timestamp causes a chain divergence, requiring you to resync your node to reconcile the chain. Follow the established [Node Upgrade Process](/operators/node-operators/network-upgrades#upgrade-process) to avoid chain divergence.
+
+  <Info>
+    If you are building an archive node on OP Mainnet, then you'll need a [node snapshot](/node-operators/guides/management/snapshots). This is **not required** for nodes using [snap sync](/node-operators/guides/management/snap-sync).
+  </Info>
+
+  </Step>
+
+  <Step title="Build Your OP Stack Node">
+Now, you are ready to build your OP Stack rollup node. You have two options for this:
+
+  *   **Option 1:** Follow the [Running a Node with Docker](/node-operators/tutorials/node-from-docker) tutorial, which gets your OP Stack rollup node up and running without having to build it from source.
+  *   **Option 2:** Follow the [Building a Node from Source](/node-operators/tutorials/node-from-source) tutorial, if you need to use a specific architecture or want to inspect the source code of your OP Stack rollup node.
+
+
+  </Step></Steps>
+
+## Configure your node
+
+OP Stack rollup nodes can be configured for individual needs. The following steps will get you started with a working base configuration for OP Stack rollup nodes, along with recommended flags.
+
+<Steps>
+  <Step title="Setup Your Working Base Configs">
+*   Configure your execution client using the [Execution Client Configuration](/node-operators/guides/configuration/execution-clients) guide
+  *   Configure your consensus client using the [Consensus Client Configuration](/node-operators/guides/configuration/consensus-clients) guide
+
+  </Step>
+
+  <Step title="Enable Snap Sync">
+*   Enable [snap sync](/node-operators/guides/management/snap-sync) for your node to significantly improve the experience and speed of syncing an OP Stack node.
+      This is an **optional** feature but highly recommended for node providers.
+
+  <Info>
+    Additional configuration options exist for [`op-geth`](/node-operators/reference/op-geth-config) and [`op-node`](/node-operators/reference/op-node-config), respectively.
+  </Info>
+
+
+  </Step></Steps>
+
+## Run your node
+
+Now, you will run your node and set your node debugging log level for more granular feedback.
+
+<Steps>
+  <Step title="Run Your Node From Source">
+You will now run your node from source for your OP Stack network. Here are your options.
+
+  <Info>
+    The tutorial [Building a Node from Source](/node-operators/tutorials/node-from-source) is a **pre-requisite** to running your node from source and must be completed first.
+  </Info>
+
+  *   **Option 1:** Follow the [Running an OP Sepolia Node from Source](/node-operators/tutorials/run-node-from-source) tutorial.
+  *   **Option 2:** Follow the [Running an OP Mainnet Node from Source](/node-operators/tutorials/run-node-from-source) tutorial, if you plan to run a full node or archive node.
+
+  </Step>
+
+  <Step title="Update Node Log Level">
+As part of running your rollup node, you may want to adjust the log level for more or less granular feedback when debugging.
+
+  *   Update node [log level](/node-operators/reference/op-node-config#loglevel) based on individual needs. For more details, see the guide on [Geth Logs](https://geth.ethereum.org/docs/fundamentals/logs).
+
+
+  </Step></Steps>
+
+## Monitor your node
+
+It is important to regularly monitor your node, and you can optionally configure Prometheus and Grafana dashboard to make this process easier for you.
+
+<Steps>
+  <Step title="Enable the Metrics Port">
+*   Enable the [metrics port](/node-operators/guides/monitoring/metrics) for your node by passing the `--metrics.enabled` flag to `op-node`.
+  *   Optionally, you can customize the metrics port and address via the `--metrics.port` and `--metrics.addr` flags, respectively.
+
+  </Step>
+
+  <Step title="Set up Prometheus & Grafana">
+<Info>
+    The following steps are intended for `go-ethereum`, so it must be tweaked to work for rollup nodes running on OP Stack networks.
+  </Info>
+
+  For `op-geth`:
+  *   Set up [InfluxDB](https://geth.ethereum.org/docs/monitoring/dashboards#setting-up-influxdb) to hold metrics data
+  *   Set up [Prometheus](https://geth.ethereum.org/docs/monitoring/dashboards#setting-up-prometheus) to read your endpoint
+  *   Set up your [Grafana dashboard](https://geth.ethereum.org/docs/monitoring/dashboards#setting-up-grafana) to provide a UI for metrics
+
+  For `Nethermind`:
+  *   Set up [Grafana and Prometheus](https://docs.nethermind.io/monitoring/metrics/grafana-and-prometheus/#step-1-set-up-grafana-and-prometheus)
+  *   Follow the [metrics documentation](https://docs.nethermind.io/monitoring/metrics/) for detailed monitoring setup
+
+
+  </Step></Steps>
+
+## Follow node updates
+
+*   It's important to keep your node software up to date. Software updates can also include important bug fixes and patches that can help keep your node stable.
+*   Notifications are also posted to the Optimism Upgrade Announcement Channels on [**Discord**](https://discord.com/channels/667044843901681675/754090866435424270) and [**Telegram**](https://t.me/+LtAJL1Mt1PYyNjBh).
+*   You can also stay up to date in the [OP Stack Developer Discord](https://guild.xyz/superchain-devs).
+
+## Node operator tutorials
+
+<Info>
+  Got an idea for a new tutorial?
+  We'd love to hear it.
+  Head over to GitHub to [suggest a new tutorial](https://github.com/ethereum-optimism/docs/issues/new?assignees=\&labels=tutorial%2Cdocumentation%2Ccommunity-request\&projects=\&template=suggest_tutorial.yaml\&title=%5BTUTORIAL%5D+Add+PR+title).
+</Info>
+
+| Tutorial Name                                                           | Description                                            | Difficulty Level |
+| ----------------------------------------------------------------------- | ------------------------------------------------------ | ---------------- |
+| [Running a node with docker](/node-operators/tutorials/node-from-docker)                | Learn how to run a node with Docker.                   | 🟢 Easy          |
+| [Building an OP Stack node from source](/node-operators/tutorials/node-from-source)    | Learn how to compile node components from source code. | 🟢 Easy          |
+| [Running an OP Stack node from source](/node-operators/tutorials/run-node-from-source) | Learn how to run an OP Stack node from source code.   | 🟡 Medium        |
+
+## Next steps
+
+*   If you've already got your node up and running, check out the [Node Metrics and Monitoring Guide](/node-operators/guides/monitoring/metrics) to learn how to keep tabs on your node and make sure it keeps running smoothly.
+*   If you run into any problems, please visit the [Node Troubleshooting Guide](/node-operators/guides/troubleshooting) for help.

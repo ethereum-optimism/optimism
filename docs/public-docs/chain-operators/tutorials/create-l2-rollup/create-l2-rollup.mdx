@@ -1,0 +1,231 @@
+---
+title: Creating your own L2 rollup testnet
+description: Learn how to deploy and orchestrate all OP Stack components for a complete testnet deployment.
+---
+
+Welcome to the complete guide for deploying your own OP Stack L2 rollup testnet. This multi-part tutorial will walk you through each component step-by-step, from initial setup to a fully functioning rollup.
+
+<Info>
+This tutorial requires **intermediate-level experience working with EVM chains**.
+You should be comfortable with concepts like smart contracts, private keys, RPC endpoints, gas fees, and command-line operations.
+Basic familiarity with Docker is also recommended.
+</Info>
+
+## What you'll build
+
+By the end of this tutorial, you'll have a complete OP Stack testnet with:
+
+*   **L1 Smart Contracts** deployed on Sepolia testnet
+*   **Execution Client** (op-geth) processing transactions
+*   **Consensus Client** (op-node) managing rollup consensus
+*   **Batcher** (op-batcher) publishing transaction data to L1
+*   **Proposer** (op-proposer) submitting state root proposals
+*   **Challenger** (op-challenger) monitoring for disputes
+
+## Quick setup (Recommended)
+
+If you want to get started quickly, you can use the complete working implementation provided in this repository. This automated setup handles all the configuration and deployment steps for you.
+
+<Info>
+  **Complete working example**
+
+  A complete, working implementation is available in the [`create-l2-rollup-example/`](https://github.com/ethereum-optimism/docs/tree/main/create-l2-rollup-example/) directory. This includes all necessary scripts, Docker Compose configuration, and example environment files.
+</Info>
+
+### Automated setup steps
+
+1.  **Clone and navigate to the code directory:**
+    ```bash
+    git clone https://github.com/ethereum-optimism/docs.git
+    cd docs/create-l2-rollup-example
+    ```
+
+2.  **Configure your environment:**
+    ```bash
+    cp .example.env .env
+    # Edit .env with your L1_RPC_URL, PRIVATE_KEY, and other settings
+    ```
+
+3.  **Run the automated setup:**
+    ```bash
+    make init    # Download op-deployer
+    make setup   # Deploy contracts and generate configs
+    make up      # Start all services
+    make test-l1 # Verify L1 connectivity
+    make test-l2 # Verify L2 functionality
+    ```
+
+4.  **Monitor your rollup:**
+    ```bash
+    make logs     # View all service logs
+    make status   # Check service health
+    ```
+
+The automated setup uses the standard OP Stack environment variable conventions (prefixed with `OP_*`) and handles all the complex configuration automatically.
+
+## Manual setup (Step-by-Step)
+
+If you prefer to understand each component in detail or need custom configurations, follow the step-by-step guide below.
+
+## Before you start
+
+### Software dependencies
+
+| Dependency                                                    | Version  | Version check command |
+| ------------------------------------------------------------- | -------- | --------------------- |
+| [git](https://git-scm.com/)                                   | `^2`     | `git --version`       |
+| [go](https://go.dev/)                                         | `^1.21`  | `go version`          |
+| [node](https://nodejs.org/en/)                                | `^20`    | `node --version`      |
+| [pnpm](https://pnpm.io/installation)                          | `^8`     | `pnpm --version`      |
+| [foundry](https://github.com/foundry-rs/foundry#installation) | `^0.2.0` | `forge --version`     |
+| [make](https://linux.die.net/man/1/make)                      | `^3`     | `make --version`      |
+| [jq](https://github.com/jqlang/jq)                            | `^1.6`   | `jq --version`        |
+| [direnv](https://direnv.net)                                  | `^2`     | `direnv --version`    |
+| [Docker](https://docs.docker.com/get-docker/)                 | `^24`    | `docker --version`    |
+
+### Notes on specific dependencies
+
+<Info>
+  Expand each dependency below for details
+</Info>
+
+<Expandable title="node">
+
+  We recommend using the latest LTS version of Node.js (currently v20).\
+  [`nvm`](https://github.com/nvm-sh/nvm) is a useful tool that can help you manage multiple versions of Node.js on your machine.\
+  You may experience unexpected errors on older versions of Node.js.
+</Expandable>
+
+<Expandable title="foundry">
+
+  We will use cast to generate wallet addresses in this guide.
+</Expandable>
+
+<Expandable title="direnv">
+
+  Parts of this tutorial use [`direnv`](https://direnv.net) as a way of loading environment variables from `.envrc` files into your shell.\
+  This means you won't have to manually export environment variables every time you want to use them.\
+  `direnv` only ever has access to files that you explicitly allow it to see.
+
+  After [installing `direnv`](https://direnv.net/docs/installation.html), you will need to **make sure that [`direnv` is hooked into your shell](https://direnv.net/docs/hook.html)**.\
+  Make sure you've followed [the guide on the `direnv` website](https://direnv.net/docs/hook.html), then **close your terminal and reopen it** so that the changes take effect (or `source` your config file if you know how to do that).
+
+  <Info>
+    Make sure that you have correctly hooked `direnv` into your shell by modifying your shell configuration file (like `~/.bashrc` or `~/.zshrc`).\
+    If you haven't edited a config file then you probably haven't configured `direnv` properly (and things might not work later).
+  </Info>
+</Expandable>
+
+<Expandable title="Docker">
+
+  Docker is used extensively in this tutorial for running various OP Stack components.\
+  Make sure you have both Docker and Docker Compose installed and running on your system.\
+  On Linux, you may need to [configure Docker to run without sudo](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user).
+
+  <Info>
+    If you're using Docker Desktop, ensure it's running before starting the tutorial.\
+    You can verify your installation with:
+
+    ```bash
+    docker run hello-world
+    ```
+  </Info>
+</Expandable>
+
+### Get access to a sepolia node
+
+Since you're deploying your OP Stack chain to Sepolia, you'll need to have access to a Sepolia node.
+You can either use a node provider like [Alchemy](https://www.alchemy.com/) (easier) or run your own Sepolia node (harder).
+
+### Required resources
+
+*   **Sepolia ETH** - You'll need about 2-3 ETH:
+    *   Start with [Superchain Faucet](https://console.optimism.io/faucet) (gives 0.05 ETH)
+    *   Get more from:
+        *   [Alchemy Faucet](https://sepoliafaucet.com/)
+        *   [Infura Faucet](https://www.infura.io/faucet/sepolia)
+        *   [Paradigm Faucet](https://faucet.paradigm.xyz/)
+        
+*   **L1 RPC URL** - An RPC endpoint to connect to the Sepolia network. You can get this from node providers like [Alchemy](https://www.alchemy.com/), [Infura](https://www.infura.io/). This is required so `op-deployer` and other services can read from and send transactions to L1.
+
+<Info>
+  **Testnet Only**: This guide is for **testnet deployment only**.
+</Info>
+
+<Info>
+  **Follow in Order**: Each step builds on the previous one. Start with spinning up op-deployer and complete them sequentially for the best experience.
+</Info>
+
+## Directory structure
+
+To keep your rollup deployment organized, we'll create a dedicated directory structure. All components will be set up within this structure:
+
+```bash
+rollup/
+├── deployer/        # op-deployer files and contracts
+├── sequencer/  # op-geth and op-node
+├── batcher/    # op-batcher configuration
+├── proposer/   # op-proposer setup
+└── challenger/ # op-challenger files
+```
+
+Each component's documentation will show you how the directory structure evolves as you add files and configurations.
+
+<Info>
+  Throughout this tutorial, all file paths will be relative to this `rollup` directory structure. Make sure to adjust any commands if you use different directory names.
+</Info>
+
+## Manual Tutorial Overview
+
+If you're following the manual setup path, this tutorial is organized into sequential steps that build upon each other:
+
+<Steps>
+<Step title="Spin up op-deployer">
+
+Install op-deployer, deploy L1 contracts, and prepare your environment
+
+[Go to op-deployer setup →](/chain-operators/tutorials/create-l2-rollup/op-deployer-setup)
+</Step>
+
+<Step title="Spin up sequencer">
+
+Set up and run op-geth and op-node (the execution and consensus layers)
+
+[Go to sequencer setup →](/chain-operators/tutorials/create-l2-rollup/op-geth-setup)
+</Step>
+
+<Step title="Spin up batcher">
+
+Configure and start op-batcher for L1 data publishing
+
+[Go to batcher setup →](/chain-operators/tutorials/create-l2-rollup/op-batcher-setup)
+</Step>
+
+<Step title="Spin up proposer">
+
+Set up op-proposer for state root submissions
+
+[Go to proposer setup →](/chain-operators/tutorials/create-l2-rollup/op-proposer-setup)
+</Step>
+
+<Step title="Spin up challenger">
+
+Configure op-challenger for dispute resolution monitoring
+
+[Go to challenger setup →](/chain-operators/tutorials/create-l2-rollup/op-challenger-setup)
+</Step>
+</Steps>
+
+## Ready to Start?
+
+Now that you understand what you'll be building, let's begin with the first step!
+
+<Card title="Spin up op-deployer" href="/operators/chain-operators/tutorials/create-l2-rollup/op-deployer-setup">
+  Already have your dependencies? Get started and spin up op-deployer
+</Card>
+
+***
+
+## Need Help?
+
+*   **Issues**: Report bugs on GitHub

@@ -1,0 +1,39 @@
+---
+title: Key management
+description: A guide for chain operators on managing private keys on their chain, covering hot and cold wallets, and the use of an HSM.
+---
+
+This guide informs chain operators on important key management considerations. 
+There are certain [privileged roles](/op-stack/protocol/privileged-roles) that 
+need careful consideration. The privileged roles are categorized as hot wallets
+or cold wallets.
+
+## Hot wallets
+
+The addresses for the `Batcher` and the `Proposer` need to have their private 
+keys online somewhere for a component of the system to work. If these addresses
+are compromised, the system can be exploited.
+
+It is up to the chain operator to make the decision on how they want to manage
+these keys. One suggestion is to use a Hardware Security Module (HSM) to provide
+a safer environment for key management. Cloud providers oftentimes provide 
+Key Management Systems (KMS) that can work with your developer operations 
+configurations. This can be used in conjunction with the `eth_signTransaction`
+RPC method.
+
+<Info>
+  You can take a look at the signer client [source code](https://github.com/ethereum-optimism/optimism/blob/develop/op-service/signer/client.go)
+  if you're interested in what's happening under the hood.
+</Info>
+
+## Cold wallets 
+
+The addresses for the cold wallets cannot be used without human intervention. 
+These can be set up as multisig contracts, so they can be controlled by groups 
+of community members and avoid a single point of failure. The signers behind a
+multisig should probably also use a hardware wallet. 
+
+<Info>
+  Refer to the [privileged roles](/op-stack/protocol/privileged-roles) documentation
+  for more information about these different addresses and their security concerns.
+</Info>

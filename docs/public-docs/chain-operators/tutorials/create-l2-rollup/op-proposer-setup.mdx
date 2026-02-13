@@ -1,0 +1,477 @@
+---
+title: Spin up proposer
+description: Learn how to set up and configure an OP Stack proposer to post L2 state roots.
+---
+
+After you have spun up your sequencer and batcher, you need to attach a proposer to post your L2 state roots data back onto L1 so we can prove withdrawal validity. The proposer is a critical component that enables trustless L2-to-L1 messaging and creates the authoritative view of L2 state from L1's perspective.
+
+<Info>
+  **Step 4 of 5**: This tutorial is designed to be followed step-by-step. Each step builds on the previous one.
+</Info>
+
+<Info>
+  **Automated Setup Available**
+
+  For a complete working setup with all components, check out the [automated approach](https://github.com/ethereum-optimism/docs/tree/main/create-l2-rollup-example/) in the code directory.
+</Info>
+
+This guide assumes you already have a functioning sequencer, batcher, and the necessary L1 contracts deployed using [`op-deployer`](./op-deployer-setup). If you haven't set up your sequencer and batcher yet, please refer to the [sequencer guide](./op-geth-setup) and [batcher guide](./op-batcher-setup) first.
+
+To see configuration info for the proposer, check out the [configuration page](/chain-operators/guides/configuration/proposer).
+
+## Understanding the proposer's role
+
+The proposer (`op-proposer`) serves as a crucial bridge between your L2 chain and L1. Its primary responsibilities include:
+
+*   **State commitment**: Proposing L2 state roots to L1 at regular intervals
+*   **Withdrawal enablement**: Providing the necessary commitments for users to prove and finalize withdrawals
+
+The proposer creates dispute games via the `DisputeGameFactory` contract.
+
+## Prerequisites
+
+Before setting up your proposer, ensure you have:
+
+**Running infrastructure:**
+
+*   An operational sequencer node
+*   Access to a L1 RPC endpoint
+
+**Network information:**
+
+*   Your L2 chain ID and network configuration
+*   L1 network details (chain ID, RPC endpoints)
+
+For setting up the proposer, we recommend using Docker as it provides a consistent and isolated environment. Building from source is also available as an option.
+
+<Tabs>
+  <Tab title="Use docker">
+    If you prefer containerized deployment, you can use the official Docker images and do the following:
+
+    <Steps>
+
+      <Step title="Set up directory structure and copy configuration files">
+
+      ```bash
+      # Create a proposer directory inside rollup
+      cd ../    # Go back to rollup directory if you're in batcher
+      mkdir proposer
+      cd proposer
+      # inside the proposer directory, copy the state.json file from the op-deployer setup
+      # Copy configuration files from deployer
+      cp ../deployer/.deployer/state.json .
+
+      # Extract the DisputeGameFactory address
+      GAME_FACTORY_ADDRESS=$(cat state.json | jq -r '.opChainDeployments[0].DisputeGameFactoryProxy')
+      echo "DisputeGameFactory Address: $GAME_FACTORY_ADDRESS"
+      ```
+
+      </Step>
+
+      <Step title="Create environment variables file">
+
+      <Info>
+        **OP Stack Standard Variables**
+
+        The proposer uses OP Stack standard environment variables following the OP Stack conventions. These are prefixed with `OP_PROPOSER_` for proposer-specific settings.
+      </Info>
+
+      ```bash
+      # Create .env file with your actual values
+      cat > .env << 'EOF'
+      #  L1 Configuration - Replace with your actual RPC URLs
+      OP_PROPOSER_L1_RPC_URL=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
+
+      # L2 Configuration - Should match your sequencer setup
+      OP_PROPOSER_ROLLUP_RPC=http://op-node:8547
+
+      # Contract addresses - Extract from your op-deployer output
+      OP_PROPOSER_GAME_FACTORY_ADDRESS=YOUR_ACTUAL_GAME_FACTORY_ADDRESS
+
+      # Private key - Replace with your actual private key
+      OP_PROPOSER_PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
+
+      # OP Stack proposer configuration (optional - defaults provided)
+      OP_PROPOSER_PROPOSAL_INTERVAL=3600s
+      OP_PROPOSER_GAME_TYPE=0
+      OP_PROPOSER_POLL_INTERVAL=20s
+      OP_PROPOSER_ALLOW_NON_FINALIZED=true
+      OP_PROPOSER_WAIT_NODE_SYNC=true
+      EOF
+      ```
+
+      **Important**: Replace ALL placeholder values (`YOUR_ACTUAL_*`) with your real configuration values.
+
+      </Step>
+
+      <Step title="Create docker-compose.yml">
+
+      <Info>
+        If you get "failed to dial address" errors, ensure your proposer is in the same Docker network as your sequencer.
+
+        Common fixes:
+
+        *   Add `networks: - sequencer-node_default` to your proposer's docker-compose.yml
+        *   Use service names like `op-geth:8545` and `op-node:8547` in your `.env` file
+        *   Verify your sequencer network name with `docker network ls`
+      </Info>
+
+      ```yaml
+
+      services:
+        op-proposer:
+          image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:v1.10.0
+          volumes:
+            - .:/workspace
+          working_dir: /workspace
+          ports:
+            - "8560:8560"
+          env_file:
+            - .env
+          command: >
+            op-proposer
+            --rpc.port=8560
+            --log.level=info
+            --log.format=json
+          restart: unless-stopped
+          networks:
+            - sequencer-node_default
+
+      networks:
+        sequencer-node_default:
+          external: false
+
+      ```
+
+      </Step>
+
+      <Step title="Start the proposer service">
+
+      ```bash
+      # Make sure your sequencer network exists
+      docker network create op-stack 2>/dev/null || true
+
+      # Start the proposer
+      docker-compose up -d
+
+      # View logs
+      docker-compose logs -f op-proposer
+      ```
+
+      </Step>
+
+      <Step title="Verify proposer is running">
+
+      ```bash
+      # Check container status
+      docker-compose ps
+      ```
+
+      </Step>
+
+      <Step title="Final directory structure">
+
+      ```bash
+      rollup/
+      ├── deployer/            # From previous step
+      │   └── .deployer/      # Contains state.json
+      ├── sequencer/          # From previous step
+      ├── batcher/           # From previous step
+      └── proposer/         # You are here
+          ├── state.json    # Copied from deployer
+          ├── .env          # Environment variables
+          └── docker-compose.yml # Docker configuration
+      ```
+    
+      </Step>
+    </Steps>
+
+    <Expandable title="Understanding proposer startup logs">
+
+      When you first start your proposer, you'll see several types of log messages:
+
+      1.  **Initialization messages** (normal):
+          ```
+          lvl=info msg="Initializing L2Output Submitter"
+          lvl=info msg="Connected to DisputeGameFactory"
+          lvl=info msg="Starting JSON-RPC server"
+          ```
+
+      2.  **Sync status messages** (expected during startup):
+          ```
+          msg="rollup current L1 block still behind target, retrying"
+          current_l1=...:9094035 target_l1=9132815
+          ```
+          This is normal! It means:
+          *   Your rollup is still syncing with L1 (e.g., Sepolia)
+          *   The proposer is waiting until sync is closer to L1 tip
+          *   You'll see the `current_l1` number increasing as it catches up
+          *   Once caught up, the proposer will start submitting proposals
+
+      Don't worry about the "retrying" messages - they show healthy progress as your rollup catches up to the latest L1 blocks.
+
+      **Common log patterns:**
+
+      *   Startup: You'll see initialization messages as services start
+      *   Sync: "block still behind target" messages while catching up
+      *   Normal operation: Regular proposal submissions once synced
+      *   Network: Connection messages to L1/L2 endpoints
+
+      If you see errors about "failed to dial" or connection issues:
+
+      *   For source build: Verify your localhost ports and services
+    </Expandable>
+
+    Your proposer is now operational and will continuously submit state roots to L1!
+  </Tab>
+
+  <Tab title="Build from source">
+
+    ### Finding the current stable releases
+
+    To ensure you're using the latest compatible versions of OP Stack components, always check the official [releases page](https://github.com/ethereum-optimism/optimism/releases).
+
+    Look for the latest `op-proposer/v*` release that's compatible with your sequencer setup.
+
+    <Info>
+      This guide uses `op-proposer/v1.10.0` which is compatible with op-node/v1.13.3 and op-geth/v1.101511.1 from the sequencer setup.
+      Always check the [release notes](https://github.com/ethereum-optimism/optimism/releases) for compatibility information.
+    </Info>
+    Building from source gives you full control over the binaries.
+
+    <Steps>
+
+      <Step title="Clone and build op-proposer">
+
+      ```bash
+      # If you don't already have the optimism repository from the sequencer setup
+      git clone https://github.com/ethereum-optimism/optimism.git
+      cd optimism
+
+      # Checkout the latest release tag
+      git checkout op-proposer/v1.10.0
+
+      # Build op-proposer
+      cd op-proposer
+      just
+
+      # Binary will be available at ./bin/op-proposer
+      ```
+
+      </Step>
+
+      <Step title="Verify installation">
+
+      Run this command to verify the installation:
+
+      ```bash
+      ./bin/op-proposer --version
+      ```
+    
+      </Step>
+    </Steps>
+
+    ## Configuration setup
+
+    <Info>
+      The rest of this guide assumes you're using the **build-from-source** approach.
+      If you chose Docker, all the necessary configuration was covered in the Docker tab above.
+    </Info>
+
+    <Steps>
+
+      <Step title="Organize your workspace">
+
+      Create your proposer working directory at the same level as your sequencer:
+
+      ```bash
+      # Create proposer directory inside rollup
+      cd ../    # Go back to rollup directory
+      mkdir proposer
+      cd proposer
+
+      # Create scripts directory
+      mkdir scripts
+      ```
+
+      </Step>
+
+      <Step title="Extract DisputeGameFactory address">
+
+      Extract the `DisputeGameFactory` contract address from your op-deployer output:
+
+      ```bash
+      # Make sure you're in the rollup/proposer directory
+      cd rollup/proposer
+
+      # Copy the state.json from deployer
+      cp ../deployer/.deployer/state.json .
+
+      # Extract the DisputeGameFactory address
+      GAME_FACTORY_ADDRESS=$(cat state.json | jq -r '.opChainDeployments[0].disputeGameFactoryProxyAddress')
+      echo "DisputeGameFactory Address: $GAME_FACTORY_ADDRESS"
+      ```
+
+      <Info>
+        The proposer only needs the `DisputeGameFactory` address to submit proposals.
+        The `GAME_TYPE=0` represents the standard fault proof game type.
+      </Info>
+
+      </Step>
+
+      <Step title="Set up environment variables">
+
+      Create your `.env` file with the actual values:
+
+      ```bash
+      # Create .env file with your actual values
+      # L1 Configuration - Replace with your actual RPC URL
+      L1_RPC_URL=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
+
+      # L2 Configuration - Should match your sequencer setup
+            L2_RPC_URL=http://localhost:8545
+          ROLLUP_RPC_URL=http://localhost:8547
+
+      # Contract addresses - Extract from your op-deployer output
+      GAME_FACTORY_ADDRESS=YOUR_ACTUAL_GAME_FACTORY_ADDRESS
+
+      # Private key - Replace with your actual private key
+      PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
+
+      # Proposer configuration
+      PROPOSAL_INTERVAL=3600s
+      GAME_TYPE=0
+      POLL_INTERVAL=20s
+
+      # RPC configuration
+      PROPOSER_RPC_PORT=8560
+      ```
+
+      **Important**: Replace ALL placeholder values (`YOUR_ACTUAL_*`) with your real configuration values!
+
+      </Step>
+
+      <Step title="Get your private key">
+
+      Get a private key from your wallet that will be used for submitting proposals to L1. This account needs sufficient ETH to pay for L1 gas costs.
+
+      <Info>
+        The proposer account needs to be funded with ETH on L1 to pay for proposal submission transactions. Monitor this account's balance regularly as it will consume ETH for each proposal submission.
+      </Info>
+    
+      </Step>
+    </Steps>
+
+    ## Proposer configuration
+
+    Create `scripts/start-proposer.sh`:
+
+    ```bash
+    #!/bin/bash
+
+    source .env
+
+    # Path to the op-proposer binary we built
+    ../../optimism/op-proposer/bin/op-proposer \
+      --poll-interval=$POLL_INTERVAL \
+      --rpc.port=$PROPOSER_RPC_PORT \
+      --rpc.enable-admin \
+      --rollup-rpc=$ROLLUP_RPC_URL \
+      --l1-eth-rpc=$L1_RPC_URL \
+      --private-key=$PRIVATE_KEY \
+      --game-factory-address=$GAME_FACTORY_ADDRESS \
+      --game-type=$GAME_TYPE \
+      --proposal-interval=$PROPOSAL_INTERVAL \
+      --num-confirmations=1 \
+      --resubmission-timeout=30s \
+      --wait-node-sync=true \
+      --log.level=info
+    ```
+
+    Your final directory structure should look like:
+
+    ```bash
+    rollup/
+    ├── deployer/              # From previous step
+    │   └── .deployer/        # Contains state.json
+    ├── optimism/             # Contains op-proposer binary
+    ├── sequencer/           # From previous step
+    ├── batcher/            # From previous step
+    └── proposer/          # You are here
+        ├── state.json     # Copied from deployer
+        ├── .env          # Environment variables
+        └── scripts/      # Startup scripts
+            └── start-proposer.sh
+    ```
+
+    ## Starting the proposer
+
+    <Steps>
+
+      <Step title="Start the proposer">
+
+      ```bash
+      # Make the script executable
+      chmod +x scripts/start-proposer.sh
+
+      # Start the proposer
+      ./scripts/start-proposer.sh
+      ```
+    
+      </Step>
+    </Steps>
+
+    <Expandable title="Understanding proposer startup logs">
+
+      When you first start your proposer, you'll see several types of log messages:
+
+      1.  **Initialization messages** (normal):
+          ```
+          lvl=info msg="Initializing L2Output Submitter"
+          lvl=info msg="Connected to DisputeGameFactory"
+          lvl=info msg="Starting JSON-RPC server"
+          ```
+
+      2.  **Sync status messages** (expected during startup):
+          ```
+          msg="rollup current L1 block still behind target, retrying"
+          current_l1=...:9094035 target_l1=9132815
+          ```
+          This is normal! It means:
+          *   Your rollup is still syncing with L1 (e.g., Sepolia)
+          *   The proposer is waiting until sync is closer to L1 tip
+          *   You'll see the `current_l1` number increasing as it catches up
+          *   Once caught up, the proposer will start submitting proposals
+
+      Don't worry about the "retrying" messages - they show healthy progress as your rollup catches up to the latest L1 blocks.
+
+      **Common log patterns:**
+
+      *   Startup: You'll see initialization messages as services start
+      *   Sync: "block still behind target" messages while catching up
+      *   Normal operation: Regular proposal submissions once synced
+      *   Network: Connection messages to L1/L2 endpoints
+
+      If you see errors about "failed to dial" or connection issues:
+
+      *   For Docker: Check your network configuration and service names
+    </Expandable>
+
+    Your proposer is now operational!
+  </Tab>
+</Tabs>
+
+## What's Next?
+
+Perfect! Your proposer is submitting state roots to L1. The final step is to set up the challenger to monitor and respond to disputes.
+
+<Card title="Spin up challenger →" href="./op-challenger-setup">
+  **Next**: Configure and start op-challenger to monitor disputes and maintain your rollup's security.
+</Card>
+
+***
+
+## Need Help?
+
+*   **Proposer Configuration**: [op-proposer Configuration Reference](/chain-operators/guides/configuration/proposer)
+*   **Dispute Games**: [Deploying Dispute Games with OPCM](/chain-operators/tutorials/dispute-games)

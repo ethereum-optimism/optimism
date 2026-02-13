@@ -1,0 +1,76 @@
+[package]
+name = "kona-derive"
+description = "A no_std derivation pipeline implementation for the OP Stack"
+version = "0.4.5"
+resolver = "2"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Protocol
+kona-macros.workspace = true
+kona-genesis.workspace = true
+kona-protocol.workspace = true
+kona-hardforks.workspace = true
+
+# Alloy
+alloy-eips.workspace = true
+alloy-rpc-types-engine.workspace = true
+alloy-rlp = { workspace = true, features = ["derive"] }
+alloy-consensus = { workspace = true, features = ["k256"] }
+alloy-primitives = { workspace = true, features = ["rlp", "k256", "map"] }
+
+# Op Alloy
+op-alloy-rpc-types-engine.workspace = true
+op-alloy-consensus = { workspace = true, features = ["k256"] }
+
+# General
+tracing.workspace = true
+async-trait.workspace = true
+thiserror.workspace = true
+serde = { workspace = true, optional = true }
+
+# `test-utils` feature dependencies
+spin = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true, features = ["fmt"] }
+
+# `metrics` feature
+metrics = { workspace = true, optional = true }
+
+[dev-dependencies]
+spin.workspace = true
+proptest.workspace = true
+serde_json.workspace = true
+kona-registry.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing-subscriber = { workspace = true, features = ["fmt"] }
+tracing = { workspace = true, features = ["std"] }
+alloy-primitives = { workspace = true, features = ["rlp", "k256", "map", "arbitrary"] }
+op-alloy-consensus = { workspace = true, features = ["k256"] }
+
+[features]
+default = []
+metrics = [ "dep:metrics" ]
+serde = [
+	"alloy-consensus/serde",
+	"alloy-eips/serde",
+	"alloy-primitives/serde",
+	"alloy-rpc-types-engine/serde",
+	"dep:serde",
+	"kona-genesis/serde",
+	"kona-protocol/serde",
+	"op-alloy-consensus/serde",
+	"op-alloy-rpc-types-engine/serde",
+	"tracing-subscriber?/serde",
+]
+test-utils = [
+	"dep:spin",
+	"dep:tracing-subscriber",
+	"kona-protocol/test-utils",
+]

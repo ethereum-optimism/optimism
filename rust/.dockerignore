@@ -1,0 +1,7 @@
+target/
+book/
+assets/
+monorepo/
+.config/
+.github/
+tests/

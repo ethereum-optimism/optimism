@@ -1,0 +1,211 @@
+---
+title: Rollup operations
+description: Learn basics of rollup operations, such as how to start and stop your rollup, get your rollup config, and how to add nodes.
+---
+
+This guide reviews the basics of rollup operations, such as how to start your rollup, stop your rollup, get your rollup config, and add nodes.
+
+## Stopping your rollup
+
+An orderly shutdown is done in the reverse order to the order in which components were started:
+<Steps>
+  <Step title="To stop the batcher, use this command:">
+  ```sh
+      curl -d '{"id":0,"jsonrpc":"2.0","method":"admin_stopBatcher","params":[]}' \
+          -H "Content-Type: application/json" http://localhost:8548 | jq
+      ```
+  
+      This way the batcher knows to save any data it has cached to L1.
+      Wait until you see `Batch Submitter stopped` in batcher's output before you stop the process.
+  </Step>
+
+  <Step title="Stop `op-proposer`">
+  To stop the proposer, terminate the process directly. This can be done by:
+  
+  *   Pressing **Ctrl+C** in the terminal running the process
+  *   Using system commands like `kill -TERM <pid>` to stop the process gracefully
+  
+  Ensure that the proposer process has terminated completely before proceeding to stop other components.
+  </Step>
+
+  <Step title="Stop `op-node`">
+  This component is stateless, so you can just stop the process.
+  </Step>
+
+  <Step title="Stop `op-geth`">
+  Make sure you use **CTRL-C** to avoid database corruption. If Geth stops unexpectedly the database can be corrupted. This is known as an "[unclean shutdown](https://geth.ethereum.org/docs/fundamentals/databases#unclean-shutdowns)" and it can lead to a variety of problems for the node when it is restarted.
+  </Step>
+</Steps>
+
+## Starting your rollup
+
+To restart the blockchain, use the same order of components you did when you initialized it.
+<Steps>
+  <Step title="Start `op-geth`">
+  
+  </Step>
+
+  <Step title="Start `op-node`">
+  
+  </Step>
+
+  <Step title="Start `op-batcher`">
+  If `op-batcher` is still running and you just stopped it using RPC, you can start it with this command:
+  
+      ```sh
+      curl -d '{"id":0,"jsonrpc":"2.0","method":"admin_startBatcher","params":[]}' \
+          -H "Content-Type: application/json" http://localhost:8548 | jq   
+      ```
+  </Step>
+
+  <Step title="Start `op-proposer`">
+  Start the proposer using the appropriate command. Here's an example:
+  
+    ```sh
+    ./bin/op-proposer \
+      --poll-interval=12s \
+      --rpc.port=8560 \
+      --rollup-rpc=http://localhost:8547 \
+      --l2oo-address=0xYourL2OutputOracleAddress \
+      --private-key=$PROPOSER_PRIVATE_KEY \
+      --l1-eth-rpc=$L1_RPC_URL
+    ```
+    | Parameter     | Description                                                    |
+    | ------------- | -------------------------------------------------------------- |
+    | poll-interval | How often to check for new output proposals (recommended: 12s) |
+    | rpc.port      | Local RPC port for the proposer service                        |
+    | l2oo-address  | The L2 Output Oracle contract address (0x-prefixed hex)        |
+    | private-key   | Private key for signing proposals                              |
+    | l1-eth-rpc    | L1 network RPC endpoint URL                                    |
+  </Step>
+</Steps>
+<Info>
+Synchronization takes time
+
+`op-batcher` might have warning messages similar to:
+
+```
+WARN [03-21|14:13:55.248] Error calculating L2 block range         err="failed to get sync status: Post \"http://localhost:8547\": context deadline exceeded"
+WARN [03-21|14:13:57.328] Error calculating L2 block range         err="failed to get sync status: Post \"http://localhost:8547\": context deadline exceeded"
+```
+
+This means that `op-node` is not yet synchronized up to the present time.
+Just wait until it is.
+
+</Info>
+
+## Getting your rollup config
+
+Use this tool to get your rollup config from `op-node`. This will only work if your chain is **already** in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/chainList.json) and `op-node` has been updated to pull those changes in from the registry.
+
+<Info>
+This script will NOT work for chain operators trying to generate this data in order to submit it to the registry.
+</Info>
+
+<Steps>
+  <Step title="Get your rollup config from `op-node`">
+  You'll need to run this tool:
+  
+  ```
+  ./bin/op-node networks dump-rollup-config --network=op-sepolia   
+  {
+    "genesis": {
+      "l1": {
+        "hash": "0x48f520cf4ddaf34c8336e6e490632ea3cf1e5e93b0b2bc6e917557e31845371b",
+        "number": 4071408
+      },
+      "l2": {
+        "hash": "0x102de6ffb001480cc9b8b548fd05c34cd4f46ae4aa91759393db90ea0409887d",
+        "number": 0
+      },
+      "l2_time": 1691802540,
+      "system_config": {
+        "batcherAddr": "0x8f23bb38f531600e5d8fddaaec41f13fab46e98c",
+        "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+        "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0",
+        "gasLimit": 30000000
+      }
+    },
+    "block_time": 2,
+    "max_sequencer_drift": 600,
+    "seq_window_size": 3600,
+    "channel_timeout": 300,
+    "l1_chain_id": 11155111,
+    "l2_chain_id": 11155420,
+    "regolith_time": 0,
+    "canyon_time": 1699981200,
+    "delta_time": 1703203200,
+    "ecotone_time": 1708534800,
+    "batch_inbox_address": "0xff00000000000000000000000000000011155420",
+    "deposit_contract_address": "0x16fc5058f25648194471939df75cf27a2fdc48bc",
+    "l1_system_config_address": "0x034edd2a225f7f429a63e0f1d2084b9e0a93b538",
+    "protocol_versions_address": "0x79add5713b383daa0a138d3c4780c7a1804a8090",
+    "da_challenge_address": "0x0000000000000000000000000000000000000000",
+    "da_challenge_window": 0,
+    "da_resolve_window": 0,
+    "use_plasma": false
+  }
+  ```
+  </Step>
+
+  <Step title="Check the flags">
+  Ensure that you are using the appropriate flag. 
+  The `--network=op-sepolia` flag allows the tool to pick up the appropriate data from the registry, and uses the OPChains mapping under the hood.
+  </Step>
+</Steps>
+
+## Adding nodes
+
+To add nodes to the rollup, you need to initialize `op-node` and `op-geth`, similar to what you did for the first node.
+You should *not* add an `op-batcher` because there should be only one.
+<Steps>
+  <Step title="Configure the OS and prerequisites as you did for the first node">
+  
+  </Step>
+
+  <Step title="Build the Optimism monorepo and `op-geth` as you did for the first node">
+  
+  </Step>
+
+  <Step title="Copy from the first node these files:">
+  ```bash
+      ~/op-geth/genesis.json
+      ~/optimism/op-node/rollup.json
+      ```
+  </Step>
+
+  <Step title="Create a new `jwt.txt` file as a shared secret:">
+  ```bash
+      cd ~/op-geth
+      openssl rand -hex 32 > jwt.txt
+      cp jwt.txt ~/optimism/op-node
+      ```
+  </Step>
+
+  <Step title="Initialize the new op-geth:">
+  ```bash
+      cd ~/op-geth
+      ./build/bin/geth init --datadir=./datadir ./genesis.json
+      ```
+  </Step>
+
+  <Step title="Turn on peer to peer synchronization to enable L2 nodes to synchronize directly">
+  If you do it this way, you won't have to wait until the transactions are written to L1.
+      If you already have peer to peer synchronization, add the new node to the `--p2p.static` list so it can synchronize.
+  </Step>
+
+  <Step title="Start `op-geth` (using the same command line you used on the initial node)">
+  <Info>
+  **Important:** Make sure to configure the `--rollup.sequencerhttp` flag to point to your sequencer node. This HTTP endpoint is crucial because `op-geth` will route `eth_sendRawTransaction` calls to this URL. The OP Stack does not currently have a public mempool, so configuring this is required if you want your node to support transaction submission.
+  </Info>
+  </Step>
+
+  <Step title="Start `op-node` (using the same command line you used on the initial node)">
+  
+  </Step>
+</Steps>
+
+## Next steps
+
+*   See the [Consensus Client Configuration](/node-operators/guides/configuration/consensus-clients) and [Execution Client Configuration](/node-operators/guides/configuration/execution-clients) guides for additional explanation or customization.
+*   If you experience difficulty at any stage of this process, please reach out to [developer support](https://github.com/ethereum-optimism/developers/discussions).

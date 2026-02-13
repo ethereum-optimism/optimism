@@ -1,29 +1,13 @@
-# Version control
 .github
-.gitignore
-
-# Include for vergen constants
-!/.git
-
-# Build artifacts
-**/target
-integration_logs
-
-# Development files
 .vscode
+
 .env
-**/*.log
+.envrc
+**/.env
 
-
-# Cargo artifacts
-**/.cargo
-**/Cargo.lock
-
-# Documentation
-**/*.md
-docs/
-
-# Scripts that aren't needed for runtime
-scripts/
-tests/
-**/integration
+test
+**/*_test.go
+build/_workspace
+build/bin
+build/_bin
+tests/testdata

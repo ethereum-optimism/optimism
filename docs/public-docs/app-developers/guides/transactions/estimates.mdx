@@ -1,0 +1,101 @@
+---
+title: Estimating transaction fees on OP Mainnet
+description: Learn how to properly estimate the total cost of a transaction on OP Mainnet.
+---
+
+<Info>
+Check out the guide on understanding [Transaction Fees on OP Mainnet](/op-stack/transactions/fees) for an in-depth explanation of how OP Mainnet transaction fees work.
+</Info>
+
+It's important to properly estimate the cost of a transaction on OP Mainnet before submitting it to the network.
+Here you'll learn how to estimate both of the components that make up the total cost of an OP Mainnet transaction, the [execution gas fee](/op-stack/transactions/fees#execution-gas-fee) and the [L1 data fee](/op-stack/transactions/fees#l1-data-fee).
+Make sure to read the guide on [Transaction Fees on OP Mainnet](/op-stack/transactions/fees) for a detailed look at how these fees work under the hood.
+
+## Execution gas fee 
+
+<Info>
+Estimating the execution gas fee on OP Mainnet is just like estimating the execution gas fee on Ethereum.
+Steps are provided here for reference and convenience, but you can use the same tooling that you'd use to estimate the execution gas fee for a transaction on Ethereum.
+</Info>
+
+A transaction's execution gas fee is exactly the same fee that you would pay for the same transaction on Ethereum.
+This fee is equal to the amount of gas used by the transaction multiplied by the gas price attached to the transaction.
+Refer to the guide on [Transaction Fees on OP Mainnet](/op-stack/transactions/fees#execution-gas-fee) for more information about the execution gas fee.
+
+When estimating the execution gas fee for a transaction, you'll need to know the gas limit and the [max fee per gas](https://ethereum.org/en/developers/docs/gas/#maxfee) for the transaction.
+Your transaction fee will then be the product of these two values.
+Refer to the guide on [Setting Transaction Gas Parameters on OP Mainnet](./parameters) to learn how to select an appropriate gas limit and max fee per gas for your transaction.
+
+<Steps>
+  <Step title="Estimate the gas limit">
+Using the same tooling that you'd use to estimate the gas limit for a transaction on Ethereum, estimate the gas limit for your transaction on OP Mainnet.
+  OP Mainnet is designed to be [EVM equivalent](https://web.archive.org/web/20231127160757/https://medium.com/ethereum-optimism/introducing-evm-equivalence-5c2021deb306) so transactions will use the same amount of gas on OP Mainnet as they would on Ethereum.
+  This means you can feed your transaction to the [`eth_estimateGas`](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_estimategas) JSON-RPC method just like you would on Ethereum. Alternatively, use Tenderly's [`tenderly_estimateGas`](https://docs.tenderly.co/node/rpc-reference/optimism-mainnet/tenderly_estimateGas) for 100% accurate gas estimations.
+
+  </Step>
+  
+  <Step title="Estimate the max fee per gas">
+Like Ethereum, OP Mainnet uses an `EIP-1559` style fee market to determine the current base fee per gas.
+  You can then additionally specify a priority fee (also known as a tip) to incentivize the Sequencer to include your transaction more quickly.
+  Make sure to check out the guide on [Setting Transaction Gas Parameters on OP Mainnet](./parameters) to learn more about how to select an appropriate max fee per gas for your transaction.
+
+  
+  </Step></Steps>
+
+## L1 data fee
+
+<Info>
+The Viem library provides a convenient method for estimating the L1 data fee for a transaction.
+Check out the tutorial on [Estimating Transaction Costs on OP Mainnet](/app-developers/tutorials/transactions/sdk-estimate-costs) to learn how to use the Viem library to estimate the L1 data fee for your transaction.
+Keep reading if you'd like to learn how to estimate the L1 data fee without the Viem library.
+</Info>
+
+The L1 data fee is a fee paid to the Sequencer for the cost of publishing your transaction to Ethereum.
+This fee is paid in ETH and is calculated based on the size of your transaction in bytes and the current gas price on Ethereum.
+Refer to the guide on [Transaction Fees on OP Mainnet](/op-stack/transactions/fees#l1-data-fee) for more information about the L1 data fee.
+
+Unlike the execution gas fee, the L1 data fee is an **intrinsic** fee for every transaction.
+This fee is automatically charged based on the size of your transaction and the current Ethereum gas price.
+You currently cannot specify a custom L1 data fee for your transaction.
+
+<Info>
+The L1 data fee is paid based on the current Ethereum gas price as tracked within the [`GasPriceOracle`](https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/packages/contracts/contracts/L2/predeploys/OVM_GasPriceOracle.sol) smart contract.
+This gas price is updated automatically by the OP Mainnet protocol.
+Your transaction will be charged the Ethereum gas price seen by the protocol at the time that your transaction is included in an OP Mainnet block.
+This means that the L1 data fee for your transaction may differ from your estimated L1 data fee.
+</Info>
+
+<Steps>
+  <Step title="Serialize your transaction">
+The L1 data fee is calculated based on the size of your serialized transaction in bytes.
+  Most Ethereum tooling will provide a method for serializing a transaction.
+  For instance, Ethers.js provides the [`ethers.utils.serializeTransaction`](https://docs.ethers.org/v5/api/utils/transactions/#utils-serializeTransaction) method.
+
+  </Step>
+  
+  <Step title="Estimate the L1 data fee">
+Once you have serialized your transaction, you can estimate the L1 data fee by calling the [`getL1Fee`](https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/packages/contracts/contracts/L2/predeploys/OVM_GasPriceOracle.sol#L109-L124) method on the [`GasPriceOracle`](https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/packages/contracts/contracts/L2/predeploys/OVM_GasPriceOracle.sol) smart contract available on OP Mainnet and all OP Stack chains.
+  This method takes the serialized transaction as input and returns the L1 data fee in wei using the formula described in the [Transaction Fees on OP Mainnet](/op-stack/transactions/fees#l1-data-fee) guide.
+  
+  <Info>
+  Fee estimation is typically performed before the transaction is signed.
+  As a result, the `getL1Fee` method assumes that your input is an **unsigned** Ethereum transaction.
+  </Info>
+
+  
+  </Step></Steps>
+
+### Tooling
+
+Several tools are available to help you estimate the L1 Data Fee for your transaction.
+Selecting the right tool for your use case will depend on your specific needs.
+
+*   [Viem](https://viem.sh/op-stack#getting-started-with-op-stack) provides first-class support for OP Stack chains, including OP Mainnet. You can use Viem to estimate gas costs and send cross-chain transactions (like transactions through the Standard Bridge system). It's strongly recommended to use Viem if you are able to do so as it will provide the best native support at the moment.
+
+### Future proofing
+
+The L1 Data Fee formula is subject to change in the future, especially as the data availability landscape evolves.
+As a result, it's important to future-proof your transaction fee estimation code to ensure that it will continue to function properly as the L1 Data Fee formula changes.
+
+*   Use existing [tooling](#tooling) to estimate the L1 Data Fee for your transaction if possible. This tooling will be updated to reflect any changes to the L1 Data Fee formula. This way you won't need to modify your code to account for any changes to the formula.
+*   Use the `getL1Fee` method on the `GasPriceOracle` if you are unable to use existing tooling. The `getL1Fee` method will be updated to reflect any changes to the L1 Data Fee formula. It's strongly recommended that you do **not** implement the L1 Data Fee formula yourself.

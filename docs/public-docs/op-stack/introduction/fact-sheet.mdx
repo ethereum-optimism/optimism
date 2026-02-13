@@ -1,0 +1,29 @@
+---
+title: Fact sheet
+description: A quick look of the OP Stack's capabilities
+---
+
+While the OP Stack allows for full customization, standard OP Stack chains adhere to a [standard set of technical and governance parameters](/op-stack/protocol/blockspace-charter), facilitating OP Stack interoperability, network security, and ease of upgrading your chain.
+
+# Technical stack
+
+| Feature                           | Standard OP Stack             | OP Stack                    |
+| --------------------------------- | ----------------------------- | --------------------------- |
+| **Parent chain**                  | Ethereum                      | Any L1, any L2              |
+| **Throughput<sup>1</sup>**        | 32.5Mgas/s                    | 50Mgas/s                    |
+| **Gas limit<sup>2</sup>**         | 200M                          | 200M                        |
+| **Blocktimes<sup>3</sup>**        | 200ms                         | 200ms                       |
+| **Data availability support**     | Ethereum                      | Ethereum, Celestia, EigenDA |
+| **Gas token support<sup>4</sup>** | ETH                           | ETH, Custom Gas Token       |
+| **Upgrades**                      | Facilitated via OP Governance | Self-managed                |
+| **EVM compatibility**             | Equivalent                    | Variable                    |
+
+<sup>1</sup>Data for Standard OP Stack from [Base](https://etherscan.io/address/0x73a79Fab69143498Ed3712e519A88a918e1f4072#readProxyContract#F14). Data for OP Stack from [opBNB](https://docs.bnbchain.org/bnb-opbnb/core-concepts/opbnb-metrics/).
+
+<sup>2</sup>The standard blockspace charter has a max gas limit of [200m](https://specs.optimism.io/protocol/configurability.html?utm_source=op-docs&utm_medium=docs#gas-limit). Both gas limit and gas target can be configured through the system config.
+
+<sup>3</sup>While protocol blocktimes can be lowered to 1 second, subsecond blocktimes can be achieved using [Rollup Boost and Flashblocks](https://writings.flashbots.net/introducing-rollup-boost).
+
+<sup>4</sup>OP Stack chains can use [Custom Gas Token](/op-stack/features/custom-gas-token) to enable any asset as the native fee currency. Standard OP Stack chains use ETH as the gas token, though chain operators can achieve similar UX using an ERC-20 paymaster.
+
+

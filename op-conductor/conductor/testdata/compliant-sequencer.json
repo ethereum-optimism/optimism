@@ -1,0 +1,10 @@
+[
+  {
+    "method": "miner_setMaxDASize",
+    "params": [
+      "0x1",
+      "0x2"
+    ],
+    "result": true
+  }
+]

@@ -1,0 +1,55 @@
+---
+title: Account abstraction
+description: This guide explains how to use account abstraction to remove friction from
+  your app experience
+---
+
+<Info>
+  This page includes providers that meet specific [inclusion criteria](#inclusion-criteria), as outlined below. Please visit the [community account abstractions page](https://github.com/ethereum-optimism/developers/blob/main/community/tools/account-abstraction.md) for an additional listing of third-party account abstraction tools.
+</Info>
+
+[ERC-4337](https://www.erc4337.io/docs/paymasters/introduction), also known as Account Abstraction, enables more opportunities for apps and wallet developers to innovate on user experiences, including the ability to:
+
+*   Batch transactions together (e.g. approve and execute a swap in one go)
+*   Offer wallets with easy recovery and no seed phrase
+*   Sponsor the gas fees for transactions
+*   Enable users to pay gas in the token(s) of their choice
+
+## Bundlers
+
+The OP Stack includes support for the `eth_sendRawTransactionConditional` RPC method to assist bundlers on shared 4337 mempools. See the [specification](/op-stack/features/send-raw-transaction-conditional) for how this method is implemented in op-geth.
+
+If used by the chain operator, also see the supplemental [op-txproxy](/chain-operators/tools/op-txproxy) service which may apply additional restrictions prior to reaching the block builder.
+
+<Info>
+    As of today, this endpoint is not enabled by default in the stack. The operator must explicitly configure this.
+</Info>
+
+## Account abstraction tools
+
+Ready to enable account abstraction experiences in your app? Here's some helpful information on account abstraction infrastructure like ERC-4337 bundler and gas manager APIs that are available on OP Mainnet:
+
+*   [Alchemy](https://www.alchemy.com/account-abstraction): 
+    Account Kit is a complete solution for account abstraction. Using Account Kit, you can create a smart contract wallet for every user that leverages account abstraction to simplify every step of your app's onboarding experience. It also offers Gas Manager and Bundler APIs for sponsoring gas and batching transactions.
+
+*   [Biconomy](https://docs.biconomy.io/): is an Account Abstraction toolkit that enables you to provide the simplest UX for your app or wallet. It offers modular smart accounts, as well as paymasters and bundlers as a service for sponsoring gas and executing transactions at scale.
+
+*   [GroupOS](https://docs.groupos.xyz/introduction/group-os): provides Smart Wallets that are ERC-4337 compliant smart wallets, offering full flexibility, programmability and extensibility as well as out-of-the-box toolkit groups need to gaslessly onboard and activate wallets to games, applications, and/or protocols.
+
+*   [Openfort](https://openfort.io/docs/?utm_source=optimism&utm_medium=docs&utm_campaign=backlinks): an open-source wallet infrastructure solution. The core offerings include embedded wallets, global wallets and AA infrastructure (Paymaster and Bundler). It enables rapid integration of wallet functionality, intuitive onboarding, and stablecoin flows.
+
+*   [Pimlico](https://docs.pimlico.io/): provides an infrastructure platform that makes building smart accounts simpler. If you are developing an ERC-4337 smart account, they provide bundlers, verifying paymasters, ERC-20 paymasters, and much more.
+
+*   [Reown](https://reown.com/?utm_source=optimism&utm_medium=docs&utm_campaign=backlinks) gives developers the tools to build user experiences that make digital ownership effortless, intuitive, and secure. Using Reown's AppKit SDK, you can enable your users to create a smart wallet using their social logins, configure a paymaster to sponsor gas fees, enable chain abstraction and a lot more.
+
+*   [Safe](https://docs.safe.global/home/what-is-safe): provides modular smart account infrastructure and account abstraction stack via their Safe\{Core\} Account Abstraction SDK, API, and Protocol.
+
+*   [Stackup](https://docs.stackup.sh/docs): provides smart account tooling for building account abstraction within your apps. They offer Paymaster and Bundler APIs for sponsoring gas and sending account abstraction transactions.
+
+*   [thirdweb](https://portal.thirdweb.com/react/v5/account-abstraction/get-started?utm_source=opdocs&utm_medium=docs):
+    offers the complete tool-kit to leverage account abstraction technology to enable seamless user experiences for your users. This includes Account Factory contracts that lets your users spin up Smart Accounts, Bundler for UserOps support, and Paymaster to enable gas sponsorships. 
+
+## Helpful tips
+
+*   [EIP-1271 Signature Validation](https://eip1271.io/)
+*   [Making smart accounts work with WalletConnect v2](https://safe-global.notion.site/WalletConnect-v2-update-Issues-and-solutions-for-smart-wallets-3fc32fad6af4485fa5823eaebd486819)

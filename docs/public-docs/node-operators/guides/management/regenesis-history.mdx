@@ -1,0 +1,69 @@
+---
+title: Accessing pre-regenesis history
+description: Learn how to access pre-regenesis history using the Etherscan CSV exporting tool.
+---
+
+This tutorial explains how to access transaction history between 23 June 2021 and the final regenesis.
+Because of our final regenesis on 11 November 2021, older transactions are not part of the current blockchain and do not appear on [Etherscan](https://explorer.optimism.io/?utm_source=op-docs&utm_medium=docs).
+
+## Dune access
+
+You can use a query on [Dune Analytics](https://dune.com), similar to [this query](https://dune.com/queries/354886?addr=%5Cx25E1c58040f27ECF20BBd4ca83a09290326896B3).
+You have to log on with a Dune account, but their free tier is sufficient.
+
+<Steps>
+  <Step title="Browse to the [OVM1.0 User Address Transactions](https://dune.com/optimismfnd/OVM1.0-User-Address-Transactions) Dashboard on Dune.">
+  
+  </Step>
+
+  <Step title="Enter the address you wish to search in the `Address` text box in the top left.">
+  
+  </Step>
+
+  <Step title="Run the query (This requires log in. A free Dune account is sufficient).">
+  
+  </Step>
+</Steps>
+
+Alternatively, to run custom queries in Dune, you can use the `optimism_legacy_ovm1` schema defined in [Dune Docs here](https://dune.com/docs/data-tables/?h=ovm#optimism).
+
+## Lost data directories
+
+Three data directories that were used by legacy L2Geth Sequencer instances
+during the period of January 2021 to July 2021 had been errantly deleted during
+an infra cleanup in August 2023.
+
+These data directories contained information about the effects of transactions,
+once executed. This information can only be obtained by properly executing the
+transaction chain. The most valuable data within these directories was (1) events
+emitted by smart contracts during each transaction and (2) the success state of
+the transaction (whether or not the transaction executed or reverted). This
+information is valuable for tracking things like ETH transfers or ERC-20 token
+transfers. Without this we can still know the final set of balances but the
+intermediate balances become opaque.
+
+The transaction data for this period of time was published to a smart contract
+on Ethereum called the [CanonicalTransactionChain](https://etherscan.io/address/0x5e4e65926ba27467555eb562121fac00d24e9dd2).
+While it is theoretically possible to recover the data by downloading and
+re-executing this chain of transactions from Ethereum, this is a labor intensive
+and costly task that may not fully recover the data. The OP Labs team did
+attempt data recovery efforts, including reaching out to several partners.
+
+### Impact
+
+No state, balances, or user assets were lost. Most of the impact is felt by data
+providers who want complete data sets for analysis purposes and by individuals
+who may want this information for tax purposes.
+
+Since this was very early during the history of OP Mainnet there are relatively
+few transactions in this period and this data is infrequently requested. Most
+requests for this data came from individuals who needed access to this information
+for the 2021 tax season though this is mostly no longer relevant today (many
+people who needed this data already retrieved it).
+
+### Going forward
+
+We recognize the inconvenience this has caused some of our community and their
+users and we're sorry for the frustrations. In an effort to prevent similar
+situations from happening again in the future, we are evaluating and updating
+existing processes and frameworks.

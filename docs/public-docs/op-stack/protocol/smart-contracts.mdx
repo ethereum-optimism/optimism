@@ -1,0 +1,775 @@
+---
+title: Smart Contract overview
+description: Learn about the smart contracts that make up the OP Stack.
+---
+
+
+
+# Overview
+
+This guide provides an overview of the functionality of the smart contract components. You can also find [contract addresses](/op-mainnet/network-information/op-addresses) on OP Mainnet.
+
+## Layer 1 contracts
+
+The layer 1 contracts of the OP Stack are deployed on Ethereum. Their primary
+purpose is to facilitate the cross domain message passing and maintain the
+valid state root of the layer 2.
+
+### Upgrading Layer 1 contracts
+
+There are two main ways to upgrade L1 contracts:
+
+*   [`op-deployer`](/chain-operators/tutorials/l1-contract-upgrades/op-deployer-upgrade): a simple tool to upgrade your contracts.
+*   [`superchain-ops`](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide): a workflow for chains that require security council signing or a more secure upgrade path.
+
+### Official releases
+
+The full smart contract release process is documented in the [monorepo](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/book/src/policies/versioning.md).
+All production releases are always tagged, versioned as `<component-name>/v<semver>`.
+Contract releases have a component name of `op-contracts` and therefore are tagged as `op-contract/vX.Y.Z`.
+
+<Info>
+  For contract releases, refer to the GitHub release notes for a given release,
+  which will list the specific contracts being released—**all contracts within a release touched by OPCM are
+  considered release-ready**. These release pages are linked below.
+
+  Releases or tags of the form `v<semver>` without a component name, such as `v1.1.4`, indicate releases of all Go code
+  only, and **DO NOT** include smart contracts. DO NOT use these releases for deploying
+  smart contracts—only deploy from `op-contracts/vX.Y.Z`
+</Info>
+
+#### op-contracts/v1.8.0 - Holocene contract changes
+
+This release is suitable for the L1 contracts as part of the Holocene network upgrade. The Holocene network upgrade contains three changes:
+
+*   Holocene block derivation: a set of changes that render the derivation pipeline stricter and simpler, but also improve worst-case scenarios for Fault Proofs and Interoperability.
+
+*   EIP-1559 configurability: The elasticity and denominator EIP-1559 parameters become configurable via the SystemConfig L1 contract, allowing gas target and gas limit to be independently configured.
+
+*   MIPS contract upgrade: Updates to support additional calls made by the new op-program version.
+
+*   [Official - Holocene Contract Release](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv1.8.0)
+
+*   [Governance Post](https://gov.optimism.io/t/upgrade-proposal-11-holocene-network-upgrade/9313)
+
+<Expandable title="**Changelog**">
+  **Added:**
+
+  *   MIPS: [1.2.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.8.0/packages/contracts-bedrock/src/cannon/MIPS.sol)
+  *   SystemConfig: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.8.0/packages/contracts-bedrock/src/L1/SystemConfig.sol)
+  *   FaultDisputeGame: [1.3.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.8.0/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol)
+  *   PermissionedDisputeGame: [1.3.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.8.0/packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol)
+
+  **No change:**
+
+  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol)
+  *   AnchorStateRegistry: [2.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol#L31)
+  *   DelayedWETH: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/weth/DelayedWETH.sol#L25)
+  *   L1CrossDomainMessenger: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L24)
+  *   L1ERC721Bridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L27)
+  *   L1StandardBridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73)
+  *   OptimismMintableERC20Factory: [1.9.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L46)
+  *   OptimismPortal: [3.10.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L144)
+  *   DisputeGameFactory: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L25)
+  *   PreimageOracle: [1.1.2](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/cannon/PreimageOracle.sol)
+  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39)
+  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38)
+</Expandable>
+
+#### op-contracts/v1.6.0 - Fault proof fixes
+
+The release fixes security vulnerabilities found in Fault Proof contracts. They were made in response to security vulnerabilities identified during a series of third-party security audits by Spearbit, Cantina, and Code4rena. None of the vulnerabilities have been exploited, and user assets are not and were never at risk.
+
+The upgrade was coupled with the Granite network upgrade to improve the stability and performance of the Fault Proof System. In addition, the capabilities of the Guardian and DeputyGuardian have been extended to set the anchor state for the Fault Proof System in order to prevent referencing invalid anchor states.
+
+*   [Official - Fault Proof Fixes Release](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv1.6.0)
+*   [Governance Post](https://gov.optimism.io/t/upgrade-proposal-10-granite-network-upgrade/8733)
+
+<Expandable title="**Changelog**">
+  **Added:**
+
+  *   MIPS: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/cannon/MIPS.sol)
+  *   PreimageOracle: [1.1.2](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/cannon/PreimageOracle.sol)
+  *   FaultDisputeGame: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol#L73)
+  *   PermissionedDisputeGame: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol)
+  *   DelayedWETH: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/weth/DelayedWETH.sol#L25)
+  *   DeputyGuardianModule: [2.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/Safe/SafeSigners.sol)
+  *   AnchorStateRegistry: [2.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol#L31)
+
+  **No change:**
+
+  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol)
+  *   L1CrossDomainMessenger: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L24)
+  *   L1ERC721Bridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L27)
+  *   L1StandardBridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73)
+  *   OptimismMintableERC20Factory: [1.9.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L46)
+  *   OptimismPortal: [3.10.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L144)
+  *   SystemConfig: [2.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/SystemConfig.sol#L111)
+  *   DisputeGameFactory: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L25)
+  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38)
+  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39)
+</Expandable>
+
+#### op-contracts/v1.5.0 - Safe extensions
+
+The Safe Extensions protocol upgrade is intended to increase the security and
+decentralization of the OP Stack by:
+
+1.  Increasing the Security Council Safe's signing threshold, from 4 to 10, out
+    of 13 owners. This meets the 75% threshold requirement for a Stage 1 rollup
+    outlined in [L2Beat's Stages framework](https://medium.com/l2beat/stages-update-security-council-requirements-4c79cea8ef52)
+2.  Reassigning the role of Guardian from the Foundation to a new Guardian Safe
+    with the Security Council Safe as its sole owner. This moves OP Stack chains
+    closer to satisfying the 1 week exit window requirement for Stage 1.
+    *   Additionally the Foundation is appointed to the new DeputyGuardian role
+        which is able to act as Guardian through the Guardian Safe. This
+        appointment can be revoked by the Security Council Safe at any time.
+3.  Reassigning the owner of the L2ProxyAdmin contract from the Foundation to
+    the Security Council. This ensures the Security Council Safe has a blocking
+    vote for L2 predeploy upgrades and is a requirement for Stage 1.
+
+*   [Official - Safe Extensions Release](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv1.5.0)
+*   [Governance Post](https://gov.optimism.io/t/final-protocol-upgrade-8-guardian-security-council-threshold-and-l2-proxyadmin-ownership-changes-for-stage-1-decentralization/8157)
+
+<Expandable title="**Changelog**">
+  **Added:**
+
+  *   LivenessGuard: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/9047beb54c66a5c572784efec8984f259302ec92/packages/contracts-bedrock/src/Safe/LivenessGuard.sol#L29)
+  *   LivenessModule: [1.2.0](https://github.com/ethereum-optimism/optimism/blob/9047beb54c66a5c572784efec8984f259302ec92/packages/contracts-bedrock/src/Safe/LivenessModule.sol#L57)
+  *   DeputyGuardianModule: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.5.0/packages/contracts-bedrock/src/Safe/SafeSigners.sol)
+
+  **No change:**
+
+  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol)
+  *   L1CrossDomainMessenger: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L24)
+  *   L1ERC721Bridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L27)
+  *   L1StandardBridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73)
+  *   OptimismMintableERC20Factory: [1.9.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L46)
+  *   OptimismPortal: [3.10.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L144)
+  *   SystemConfig: [2.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/SystemConfig.sol#L111)
+  *   FaultDisputeGame: [1.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol#L73)
+  *   PermissionedDisputeGame: [1.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol)
+  *   DisputeGameFactory: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L25)
+  *   AnchorStateRegistry: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol#L28)
+  *   DelayedWETH: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/weth/DelayedWETH.sol#L25)
+  *   MIPS: [1.0.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/cannon/MIPS.sol#L47)
+  *   PreimageOracle: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/cannon/PreimageOracle.sol#L33)
+  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38)
+  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39)
+</Expandable>
+
+#### op-contracts/v1.4.0 - Fault proofs
+
+This protocol upgrade reduces the trust assumptions for users of the OP Stack
+by enabling permissionless output proposals and a permissionless fault proof
+system. As part of a responsible and safe rollout of Fault Proofs, it preserves
+the ability for the guardian to override if necessary to maintain security.
+
+As a result, withdrawals no longer depend on the privileged proposer role
+posting an output root, allowing the entire withdrawal process to be completed
+without any privileged actions. The trust assumption is reduced to requiring
+only that the Guardian role does not act to intervene.
+
+Combined with the Guardian, Security Council Threshold and L2 ProxyAdmin
+Ownership changes 23 proposals, this satisfies the criteria to have OP Chains
+reach Stage 1 status.
+
+*   [Official - Fault Proof Release](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts/v1.4.0)
+*   [Governance Post](https://gov.optimism.io/t/final-protocol-upgrade-7-fault-proofs/8161)
+
+<Expandable title="**Changelog**">
+  **Added:**
+
+  *   FaultDisputeGame: [1.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol#L73)
+  *   PermissionedDisputeGame: [1.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol)
+  *   DisputeGameFactory: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L25)
+  *   AnchorStateRegistry: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol#L28)
+  *   DelayedWETH: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/weth/DelayedWETH.sol#L25)
+  *   MIPS: [1.0.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/cannon/MIPS.sol#L47)
+  *   PreimageOracle: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/cannon/PreimageOracle.sol#L33)
+
+  **Upgraded:**
+
+  *   OptimismPortal: [3.10.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L144)
+  *   SystemConfig: [2.2.0](https://github.com/ethereum-optimism/optimism/blob/547ea72d9849e13ce169fd31df0f9197651b3f86/packages/contracts-bedrock/src/L1/SystemConfig.sol#L111)
+
+  **Deprecated:**
+
+  *   L2OutputOracle: 1.8.0
+
+  **No change:**
+
+  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol)
+  *   L1CrossDomainMessenger: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L24)
+  *   L1ERC721Bridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L27)
+  *   L1StandardBridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73)
+  *   OptimismMintableERC20Factory: [1.9.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L46)
+  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38)
+  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39)
+</Expandable>
+
+#### op-contracts/v1.3.0 - Multi-Chain Prep (MCP)
+
+<Info>
+  This is the current recommended contract release for new production chains.
+</Info>
+
+This protocol upgrade strengthens the security and upgradeability of the
+OP Stack by enabling L1 contracts to be upgraded atomically across multiple
+chains in a single transaction. This upgrade also extends the `SystemConfig`
+to contain the addresses of the contracts in the network, allowing users to
+discover the system's contract addresses programmatically.
+
+*   [Official - MCP Release](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv1.3.0)
+*   [Governance Post](https://gov.optimism.io/t/upgrade-proposal-6-multi-chain-prep-mcp-l1/7677)
+
+<Expandable title="**Changelog**">
+
+  **Upgraded:**
+
+  *   OptimismPortal: [2.5.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L94)
+  *   L1CrossDomainMessenger: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L24)
+  *   L1StandardBridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73)
+  *   L1ERC721Bridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L27)
+  *   OptimismMintableERC20Factory: [1.9.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L46)
+  *   L2OutputOracle: [1.8.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L2OutputOracle.sol#L59)
+  *   SystemConfig: [1.12.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/SystemConfig.sol#L104)
+
+  **No change:**
+
+  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol)
+  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38)
+  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39)
+</Expandable>
+
+#### op-contracts/v1.2.0 - SuperchainConfig with Extended Pause Functionality
+
+The SuperchainConfig contract is used to manage global configuration values for
+multiple OP Stack chains.
+
+*   [Official - SuperchainConfig and Extended Pause Release](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv1.2.0)
+*   [Governance post](https://gov.optimism.io/t/upgrade-proposal-4/7534)
+
+<Expandable title="**Changelog**">
+
+  **Added:**
+
+  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38)
+
+  **Upgraded:**
+
+  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol)
+  *   L1CrossDomainMessenger: [2.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L25)
+  *   L1ERC721Bridge: [2.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L26)
+  *   L1StandardBridge: [2.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73)
+  *   L2OutputOracle: [1.7.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/L2OutputOracle.sol#L63)
+  *   OptimismMintableERC20Factory: [1.8.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L35)
+  *   OptimismPortal: [2.4.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L96)
+  *   SystemConfig: [1.11.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SystemConfig.sol#L67)
+  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39)
+
+  **No change:**
+
+  *   AddressManager: Latest (this has no version)
+</Expandable>
+
+#### op-contracts/v1.1.0 - ProtocolVersions
+
+The Protocol Version documents the progression of the total set of canonical
+OP Stack specifications. Components of the OP Stack implement the subset of
+their respective protocol component domain, up to a given Protocol Version
+of the OP Stack.
+
+The Protocol Version is NOT a hardfork identifier, but rather indicates
+software-support for a well-defined set of features introduced in past and
+future hardforks, not the activation of said hardforks.
+
+<Info>
+  The Protocol Version only applies to the Protocol specifications with the
+  [Superchain Targets](https://specs.optimism.io/protocol/superchain-upgrades.html?utm_source=op-docs\&utm_medium=docs#superchain-target)
+  specified within. This versioning is independent of the Semver versioning
+  used in OP Stack smart contracts, and the Semver-versioned reference software
+  of the OP-Stack. This is an optional feature.
+</Info>
+
+*   [Official ProtocolVersions Release](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv1.1.0)
+
+<Expandable title="**Changelog**">
+
+  **Added:**
+
+  *   ProtocolVersions: 1.0.0
+
+  **No change:**
+
+  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol)
+  *   L1CrossDomainMessenger: [1.4.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1CrossDomainMessenger.sol#L23)
+  *   L1ERC721Bridge: [1.1.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1ERC721Bridge.sol#L23)
+  *   L1StandardBridge: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1StandardBridge.sol#L94)
+  *   L2OutputOracle: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L2OutputOracle.sol#L81)
+  *   OptimismMintableERC20Factory: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/universal/OptimismMintableERC20Factory.sol#L47)
+  *   OptimismPortal: [1.6.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L143)
+  *   SystemConfig: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/SystemConfig.sol#L83)
+</Expandable>
+
+#### op-contracts/v1.0.0 - Bedrock
+
+The Bedrock protocol upgrade was designed to minimize the amount
+of code in the OP Stack, pushes it as close as possible to Ethereum-Equivalence,
+and most importantly making the stack modular.
+
+*   [Official - Bedrock Release](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv1.0.0) ...
+*   [Governance post](https://gov.optimism.io/t/final-upgrade-1-bedrock-protocol-upgrade-v2/5548)
+
+<Expandable title="**Changelog**">
+
+  **Added:**
+
+  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol)
+  *   L1CrossDomainMessenger: [1.4.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1CrossDomainMessenger.sol#L23)
+  *   L1ERC721Bridge: [1.1.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1ERC721Bridge.sol#L23)
+  *   L1StandardBridge: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1StandardBridge.sol#L94)
+  *   L2OutputOracle: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L2OutputOracle.sol#L81)
+  *   OptimismMintableERC20Factory: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/universal/OptimismMintableERC20Factory.sol#L47)
+  *   OptimismPortal: [1.6.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L143)
+  *   SystemConfig: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/SystemConfig.sol#L83)
+</Expandable>
+
+### L1 Contract Details
+
+#### AddressManager
+
+`AddressManager` is a legacy contract that was used in the old version of the
+Optimism system to manage a registry of string names to addresses. We now use a
+more standard proxy system for most contracts, but this contract is still used for
+the L1CrossDomainMessenger, via ResolvedDelegateProxy
+
+#### SuperchainConfig
+
+The `SuperchainConfig` contract is used to manage configuration of global
+OP Stack values. It has the ability to pause and unpause all withdrawals
+across OP Stack chains.
+
+#### L1CrossDomainMessenger
+
+The `L1CrossDomainMessenger` is a message passing interface between L1 and L2
+responsible for sending and receiving data on the L1 side. Users are encouraged
+to use this interface instead of interacting with lower-level contracts directly.
+
+#### L1ERC721Bridge
+
+The `L1ERC721bridge` is a contract which works together with the `L2ERC721Bridge`
+to make it possible to transfer ERC721 tokens from Ethereum to OP Mainnet. This
+contract acts as an escrow for ERC721 tokens deposited into L2.
+
+#### L1StandardBridge
+
+<Info>
+  This contract is not intended to support all variations of ERC20 tokens. Examples
+  of some token types that may not be properly supported by this contract include, but are
+  not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
+</Info>
+
+The `L1StandardBridge` is responsible for transferring ETH and ERC20 tokens between L1 and
+L2. In the case that an ERC20 token is native to L1, it will be escrowed within this
+contract. If the ERC20 token is native to L2, it will be burnt.
+
+#### OptimismPortal
+
+The `OptimismPortal` is a low-level contract responsible for passing messages between L1
+and L2. Messages sent directly to the `OptimismPortal` have no form of replayability.
+Users are encouraged to use the `L1CrossDomainMessenger` for a higher-level interface.
+
+#### ProtocolVersions
+
+The `ProtocolVersions` contract is used to manage OP Stack protocol version
+information. It exposes a recommended and required version for node operators.
+The recommended/required versions are changed with each hard fork. Nodes can
+optionally halt if using the wrong version.
+
+#### SystemConfig
+
+The `SystemConfig` contract helps manage configuration of an OP Stack
+network. Much of the network's configuration is stored on L1 and picked up by
+L2 as part of the derivation of the L2 chain. The contract also contains
+references to all other contract addresses for the chain.
+
+#### DisputeGameFactory
+
+The `DisputeGameFactory` deploys instances of `FaultDisputeGame` and `PermissionedDisputeGame`
+to resolve disputes about the OP Stack chain state at specific block numbers.
+It serves as the entry point for creating and managing dispute games.
+The factory uses the `AnchorStateRegistry` for initialization,
+and integrates the `DelayedWETH` contract to manage participant bonds.
+
+#### FaultDisputeGame
+
+The `FaultDisputeGame` resolves disputes about the OP Stack chain state by
+allowing participants to propose or challenge states.
+It is deployed by the `DisputeGameFactory` and includes logic to finalize disputes.
+The contract uses the `AnchorStateRegistry` to start from trusted states,
+`MIPS` to execute fault proofs, the `PreimageOracle` to validate hash-based claims,
+and the `DelayedWETH` contract to handle bonds.
+
+#### PermissionedDisputeGame
+
+The `PermissionedDisputeGame` is also deployed by the `DisputeGameFactory`,
+and inherits logic and dependencies from `FaultDisputeGame` while adding role-based restrictions.
+It restricts participation to specific roles, such as designated proposers or challengers.
+It is used when stricter access controls are required, as enforced by the Guardian.
+
+#### AnchorStateRegistry
+
+The `AnchorStateRegistry` stores the latest "anchor" state for each dispute game type.
+An anchor state is the most recent state proposed on L1 that was not challenged within the challenge period.
+These states allow new dispute games to start from a trusted, recent state, reducing offchain computation requirements.
+
+#### DelayedWETH
+
+The `DelayedWETH` contract manages bonds posted by participants during disputes.
+It delays payouts to allow time for verification, ensuring that funds are distributed correctly.
+This mechanism ensures participants are financially committed and disputes are finalized securely.
+
+#### MIPS
+
+The `MIPS` contract provides an on-chain implementation of a big-endian MIPS32 R1 virtual machine,
+designed to execute fault proofs for disputes by processing a standardized instruction set.
+This enables instances of `FaultDisputeGame` and `PermissionedDisputeGame` to resolve disputes
+over state transitions accurately and consistently.
+The process starts from the trusted anchor state provided by the `AnchorStateRegistry`,
+ensuring that the dispute is based on a reliable foundation.
+The `PreimageOracle` is then used to retrieve pre-images of hash-based claims,
+validating the data used in the computation and ensuring its integrity.
+
+#### PreimageOracle
+
+The `PreimageOracle` maps hashes to their corresponding pre-images for secure and permissioned data retrieval.
+It validates hash-based claims used in disputes, such as state transitions or computational steps.
+This ensures the integrity of fault proofs in `FaultDisputeGame` and `PermissionedDisputeGame` instances.
+
+#### DEPRECATED - L2OutputOracle
+
+The `L2OutputOracle` contains an array of L2 state outputs, where each output is a
+commitment to the state of the L2 chain. Other contracts like the `OptimismPortal` use
+these outputs to verify information about the state of L2.
+
+## Layer 2 Contracts (Predeploys)
+
+Predeployed smart contracts exist at predetermined addresses in the genesis
+state. They are similar to precompiles but instead run directly in the EVM
+instead of running native code outside the EVM.
+
+Predeploys are used instead of precompiles to make it easier for multiclient
+implementations as well as allowing for more integration with hardhat/foundry
+network forking.
+
+### WETH9
+
+`WETH9` is the standard implementation of Wrapped Ether. It is a commonly used
+contract and is placed as a predeploy so that it is at a deterministic address.
+
+*   **Address:** `0x4200000000000000000000000000000000000006`
+*   **Introduced:** Legacy
+*   **Deprecated:** no
+*   **Proxied:** no
+
+### L2CrossDomainMessenger
+
+The `L2CrossDomainMessenger` is a high-level interface for message passing
+between L1 and L2 on the L2 side. Users are generally encouraged to use this
+contract instead of lower level message passing contracts.
+
+*   **Address:** `0x4200000000000000000000000000000000000007`
+*   **Introduced:** Legacy
+*   **Deprecated:** no
+*   **Proxied:** yes
+
+### L2StandardBridge
+
+<Info>
+  This contract is not intended to support all variations of ERC20 tokens. Examples
+  of some token types that may not be properly supported by this contract include, but are
+  not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
+</Info>
+
+The `L2StandardBridge` is responsible for transferring ETH and ERC20 tokens between L1 and
+L2. In the case that an ERC20 token is native to L2, it will be escrowed within this
+contract. If the ERC20 token is native to L1, it will be burnt.
+
+*   **Address:** `0x4200000000000000000000000000000000000010`
+*   **Introduced:** Legacy
+*   **Deprecated:** no
+*   **Proxied:** yes
+
+### SequencerFeeVault
+
+The `SequencerFeeVault` is the contract that holds any fees paid to the
+Sequencer during transaction processing and block production.
+
+*   **Address:** `0x4200000000000000000000000000000000000011`
+*   **Introduced:** Legacy
+*   **Deprecated:** no
+*   **Proxied:** yes
+
+### OptimismMintableERC20Factory
+
+The `OptimismMintableERC20Factory` is responsible for creating ERC20 contracts
+on L2 that can be used for depositing native L1 tokens into. These ERC20
+contracts can be created permissionlessly and implement the interface required
+by the StandardBridge to just work with deposits and withdrawals.
+
+Each ERC20 contract that is created by the `OptimismMintableERC20Factory`
+allows for the L2StandardBridge to mint and burn tokens, depending on if the
+user is depositing from L1 to L2 or withdrawing from L2 to L1.
+
+*   **Address:** `0x4200000000000000000000000000000000000012`
+*   **Introduced:** Legacy
+*   **Deprecated:** no
+*   **Proxied:** yes
+
+### GasPriceOracle
+
+The `GasPriceOracle` is no longer a permissioned contract like in the legacy
+system. It only exists to preserve the API for offchain gas estimation. The
+function `getL1Fee(bytes)` accepts an unsigned RLP transaction and will return
+the L1 portion of the fee. This fee pays for using L1 as a data availability
+layer and should be added to the L2 portion of the fee, which pays for
+execution, to compute the total transaction fee.
+
+Following the Ecotone upgrade, the values used for L1 fee computation are:
+
+*   `baseFeeScalar`
+*   `blobBaseFeeScalar`
+*   `decimals`
+
+These new scalar values are managed by the `SystemConfig` contract on the L1 by
+introducing a backwards compatible versioned encoding scheme of its scalars
+storage slot. The decimals remain hardcoded to 6, and the overhead value is
+ignored.
+
+*   **Address:** `0x420000000000000000000000000000000000000F`
+*   **Introduced:** Legacy
+*   **Deprecated:** no
+*   **Proxied:** yes
+
+### GovernanceToken
+
+The OP token used in governance and supporting voting and delegation.
+Implements EIP 2612 allowing signed approvals. Contract is "owned" by a
+`MintManager` instance with permission to the `mint` function only, for the
+purposes of enforcing the token inflation schedule.
+
+*   **Address:** `0x4200000000000000000000000000000000000042`
+*   **Introduced:** Legacy
+*   **Deprecated:** no
+*   **Proxied:** no
+
+### L1Block
+
+The `L1Block` predeploy gives users access to information about the last known
+L1 block. Values within this contract are updated once per epoch (every L1
+block) and can only be set by the "depositor" account, a special system
+address. Depositor account transactions are created by the protocol whenever we
+move to a new epoch.
+
+*   **Address:** `0x4200000000000000000000000000000000000015`
+*   **Introduced:** Bedrock
+*   **Deprecated:** no
+*   **Proxied:** yes
+
+### L2ToL1MessagePasser
+
+The `L2ToL1MessagePasser` is a dedicated contract where messages that are being
+sent from L2 to L1 can be stored. The storage root of this contract is pulled
+up to the top level of the L2 output to reduce the cost of proving the
+existence of sent messages.
+
+*   **Address:** `0x4200000000000000000000000000000000000016`
+*   **Introduced:** Bedrock
+*   **Deprecated:** no
+*   **Proxied:** yes
+
+### L2ERC721Bridge
+
+<Info>
+  Do not bridge an ERC721 that was originally deployed on Optimism. This
+  bridge ONLY supports ERC721s originally deployed on Ethereum. Users will need to
+  wait for the one-week challenge period to elapse before their Optimism-native NFT
+  can be refunded on L2.
+</Info>
+
+The `L2ERC721Bridge` is a contract which works together with the `L1ERC721Bridge` to
+make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
+acts as a minter for new tokens when it hears about deposits into the `L1ERC721Bridge`.
+This contract also acts as a burner for tokens being withdrawn.
+
+*   **Address:** `0x4200000000000000000000000000000000000014`
+*   **Introduced:** Legacy
+*   **Deprecated:** no
+*   **Proxied:** yes
+
+### OptimismMintableERC721Factory
+
+Factory contract for creating `OptimismMintableERC721` contracts.
+
+*   **Address:** `0x4200000000000000000000000000000000000017`
+*   **Introduced:** Bedrock
+*   **Deprecated:** no
+*   **Proxied:** yes
+
+### ProxyAdmin
+
+The `ProxyAdmin` is the owner of all of the proxy contracts set at the
+predeploys. It is itself behind a proxy. The owner of the `ProxyAdmin` will
+have the ability to upgrade any of the other predeploy contracts.
+
+*   **Address:** `0x4200000000000000000000000000000000000018`
+*   **Introduced:** Bedrock
+*   **Deprecated:** no
+*   **Proxied:** yes
+
+### BaseFeeVault
+
+The `BaseFeeVault` predeploy receives the base fees on L2. The base fee is not
+burnt on L2 like it is on L1. Once the contract has received a certain amount
+of fees, the ETH can be withdrawn to an immutable address on L1.
+
+*   **Address:** `0x4200000000000000000000000000000000000019`
+*   **Introduced:** Bedrock
+*   **Deprecated:** no
+*   **Proxied:** yes
+
+### L1FeeVault
+
+The `L1FeeVault` predeploy receives the L1 portion of the transaction fees.
+Once the contract has received a certain amount of fees, the ETH can be
+withdrawn to an immutable address on L1.
+
+*   **Address:** `0x420000000000000000000000000000000000001a`
+*   **Introduced:** Bedrock
+*   **Deprecated:** no
+*   **Proxied:** yes
+
+### OperatorFeeVault
+
+The `OperatorFeeVault` predeploy (introduced with the [Isthmus hardfork](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/isthmus/predeploys.md#operatorfeevault)) receives the operator portion of the transaction fees.
+Once the contract has received a certain amount of fees, funds can be withdrawn to
+the BaseFeeVault on the L2 network.
+
+*   **Address:** `0x420000000000000000000000000000000000001B`
+*   **Introduced:** Isthmus
+*   **Deprecated:** no
+*   **Proxied:** yes
+
+### SchemaRegistry
+
+The `SchemaRegistry` predeploy implements the global attestation schemas for the Ethereum Attestation Service protocol.
+
+*   **Address:** `0x4200000000000000000000000000000000000020`
+*   **Introduced:** Bedrock
+*   **Deprecated:** no
+*   **Proxied:** yes
+
+The SchemaRegistry works alongside the Ethereum Attestation Service (EAS) to enable attestations. 
+
+### EAS (Ethereum Attestation Service)
+
+The [Ethereum Attestation Service (EAS)](https://attest.sh/) is an open-source public good included as a predeploy in the OP Stack. It allows developers to issue and manage attestations on-chain, supporting use cases such as decentralized identity and other data integrity scenarios.
+
+The `EAS` predeploy implements the Ethereum Attestation Service protocol.
+
+*   **Address:** `0x4200000000000000000000000000000000000021`
+*   **Introduced:** Bedrock
+*   **Deprecated:** no
+*   **Proxied:** yes
+
+### Contract addresses
+
+EAS contracts are deployed on these networks:
+
+| Network    | Attestation Contract                                                                                                                  | Schema Registry Contract                                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| OP Sepolia | [0x4200000000000000000000000000000000000021](https://testnet-explorer.optimism.io/address/0x4200000000000000000000000000000000000021) | [0x4200000000000000000000000000000000000020](https://testnet-explorer.optimism.io/address/0x4200000000000000000000000000000000000020) |
+| OP Mainnet | [0x4200000000000000000000000000000000000021](https://explorer.optimism.io/address/0x4200000000000000000000000000000000000021)         | [0x4200000000000000000000000000000000000020](https://explorer.optimism.io/address/0x4200000000000000000000000000000000000020)         |
+
+### How to use EAS
+
+You can interact with the Ethereum Attestation Service in several ways:
+
+1.  **Using the EAS Scan UI:**
+    *   [EAS Scan for OP Mainnet](https://optimism.easscan.org/)
+    *   [EAS Scan for OP Sepolia](https://optimism-sepolia.easscan.org/)
+
+2.  **Using the JavaScript SDK:**
+    *   [EAS SDK Documentation](https://docs.attest.sh/docs/developer-tools/eas-sdk)
+
+3.  **Access Directly Onchain:**
+    *   See the [EAS Smart Contract Implementation](https://github.com/ethereum-attestation-service/eas-contracts/blob/master/contracts/EAS.sol).
+
+### Indexing Attestations
+
+Attestations made via EAS can be indexed through the following tools:
+
+*   [GraphQL Endpoint](https://docs.attest.sh/docs/developer-tools/api)
+*   [Ponder Graph](https://github.com/ethereum-attestation-service/eas-ponder-graph)
+*   [Open Source Indexer](https://github.com/ethereum-attestation-service/eas-indexing-service)
+
+### BeaconBlockRoot
+
+The `BeaconBlockRoot` predeploy provides access to the L1 beacon block roots.
+This was added during the Ecotone network upgrade and is specified in
+[EIP-4788](https://eips.ethereum.org/EIPS/eip-4788).
+
+*   **Address:** `0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02`
+*   **Introduced:** Ecotone
+*   **Deprecated:** no
+*   **Proxied:** no
+
+### DEPRECATED Contracts
+
+#### DEPRECATED - LegacyMessagePasser
+
+The `LegacyMessagePasser` was the low-level mechanism used to send messages
+from L2 to L1 before the Bedrock upgrade.
+
+*   **Address:** `0x4200000000000000000000000000000000000000`
+*   **Introduced:** Legacy
+*   **Deprecated:** yes
+*   **Proxied:** yes
+
+#### DEPRECATED - DeployerWhitelist
+
+`DeployerWhitelist` is a legacy contract that was originally used to act as a
+whitelist of addresses allowed to the Optimism network. The `DeployerWhitelist`
+has since been disabled, but the code is kept in state for the sake of full
+backwards compatibility. As of the Bedrock upgrade, the `DeployerWhitelist` is
+completely unused by the Optimism system and could, in theory, be removed entirely.
+
+*   **Address:** `0x4200000000000000000000000000000000000002`
+*   **Introduced:** Legacy
+*   **Deprecated:** yes
+*   **Proxied:** yes
+
+#### DEPRECATED - LegacyERC20ETH
+
+`LegacyERC20ETH` is a legacy contract that held ETH balances before the Bedrock
+upgrade. All ETH balances held within this contract were migrated to the state
+trie as part of the Bedrock upgrade. Functions within this contract that mutate
+state were already disabled as part of the EVM equivalence upgrade.
+
+*   **Address:** `0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000`
+*   **Introduced:** Legacy
+*   **Deprecated:** yes
+*   **Proxied:** yes
+
+#### DEPRECATED - L1BlockNumber
+
+`L1BlockNumber` is a legacy contract that fills the role of the
+`OVM_L1BlockNumber` contract in the old version of the Optimism system. Only
+necessary for backwards compatibility. If you want to access the L1 block
+number going forward, you should use the `L1Block`contract instead.
+
+*   **Address:** `0x4200000000000000000000000000000000000013`
+*   **Introduced:** Legacy
+*   **Deprecated:** yes
+*   **Proxied:** yes

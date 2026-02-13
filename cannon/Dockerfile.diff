@@ -1,0 +1,41 @@
+FROM golang:1.24.13-alpine3.22 AS builder
+
+# Install just from GitHub releases to match the version pinned in mise.toml.
+# The Alpine package is too old and doesn't support the [script] attribute
+# used in testdata justfiles.
+RUN apk add --no-cache bash curl && \
+    curl -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin --tag 1.46.0
+
+COPY ./go.mod /app/go.mod
+COPY ./go.sum /app/go.sum
+
+WORKDIR /app
+
+RUN echo "go mod cache: $(go env GOMODCACHE)"
+RUN echo "go build cache: $(go env GOCACHE)"
+
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build go mod download
+
+COPY . /app
+
+# We avoid copying the full .git dir into the build for just some metadata.
+# Instead, specify:
+# --build-arg GIT_COMMIT=$(git rev-parse HEAD)
+# --build-arg GIT_DATE=$(git show -s --format='%ct')
+ARG GIT_COMMIT
+ARG GIT_DATE
+
+ARG TARGETOS TARGETARCH
+
+FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon:v1.6.0 AS cannon-multithreaded64-5
+
+FROM --platform=$BUILDPLATFORM builder AS cannon-verify
+COPY --from=cannon-multithreaded64-5 /usr/local/bin/cannon /usr/local/bin/cannon-multithreaded64-5
+
+# Check cannon-multithreaded64-5
+# verify the latest multithreaded VM behavior against multithreaded64-5
+RUN cd cannon && OTHER_CANNON=/usr/local/bin/cannon-multithreaded64-5 just diff-cannon multithreaded64-5
+RUN --mount=type=cache,target=/root/.cache/go-build cd cannon && \
+ OTHER_CANNON=/usr/local/bin/cannon-multithreaded64-5 \
+ GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE \
+ just diff-cannon multithreaded64-5

@@ -1,0 +1,9 @@
+[
+  {
+    "bytes": "1",
+    "label": "ownershipTransferredToFallback",
+    "offset": 0,
+    "slot": "0",
+    "type": "bool"
+  }
+]

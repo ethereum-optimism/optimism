@@ -1,0 +1,501 @@
+---
+title: Spin up sequencer
+description: Set up and run op-geth and op-node, the execution and consensus layers for your rollup.
+---
+
+Now that you have op-deployer configured, it's time to spin up the sequencer for your rollup. This involves running both `op-geth` and `op-node` to create a functioning sequencer.
+
+<Info>
+  **Step 2 of 5**: This tutorial builds on [Spin up op-deployer](./op-deployer-setup). Make sure you've completed that first.
+</Info>
+
+## What you'll set up
+
+The sequencer node consists of two core components:
+
+- `op-geth`: Execution layer that processes transactions and maintains state  
+- `op-node`: Consensus layer that orders transactions and creates L2 blocks
+
+The sequencer is responsible for:
+
+- Ordering transactions from users  
+- Building L2 blocks  
+- Signing blocks on the P2P network
+
+## Software installation
+
+For spinning up a sequencer, we recommend using Docker, as it provides a simpler setup and consistent environment. In this guide, building from source is also provided as an alternative for those who need more control and easier debugging.
+
+<Tabs>
+  <Tab title="Use docker">
+    <Steps>
+      <Step title="Set up directory structure and copy configuration files">
+
+      If you prefer containerized deployment, you can use the official Docker images, and do the following:
+
+      ```bash
+      # Create your sequencer directory inside rollup
+      cd ../    # Go back to rollup directory if you're in deployer
+      mkdir sequencer
+      cd sequencer
+
+      # Copy configuration files from deployer
+      cp ../deployer/.deployer/genesis.json .
+      cp ../deployer/.deployer/rollup.json .
+
+      # Generate JWT secret
+      openssl rand -hex 32 > jwt.txt
+      chmod 600 jwt.txt
+      ```
+      </Step>
+
+      <Step title="Create environment variables file">
+
+      ```bash
+      # Create .env file with your actual values
+      cat > .env << 'EOF'
+      # L1 Configuration - Replace with your actual RPC URLs
+      L1_RPC_URL=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
+      L1_BEACON_URL=https://ethereum-sepolia-beacon-api.publicnode.com
+
+      # Private keys - Replace with your actual private key
+      PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
+
+      # P2P configuration - Replace with your actual public IP
+      # Run `curl ifconfig.me` in a separate shell to obtain the value, then paste it below 
+      P2P_ADVERTISE_IP=YOUR_ACTUAL_PUBLIC_IP
+
+      EOF
+      ```
+
+      **Important**: Replace ALL placeholder values (`YOUR_ACTUAL_*`) with your real configuration values.
+      </Step>
+
+      <Step title="Make sure your docker application is running">
+
+      Create a `docker-compose.yml` file in the same directory:
+
+      ```yaml
+      services:
+        op-geth:
+          image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:v1.101511.1
+          volumes:
+            # Mount entire directory to avoid file mounting issues
+            - .:/workspace
+          working_dir: /workspace
+          ports:
+            - "8545:8545"
+            - "8546:8546"
+            - "8551:8551"
+          command:
+            - "--datadir=/workspace/op-geth-data"
+            - "--http"
+            - "--http.addr=0.0.0.0"
+            - "--http.port=8545"
+            - "--ws"
+            - "--ws.addr=0.0.0.0"
+            - "--ws.port=8546"
+            - "--authrpc.addr=0.0.0.0"
+            - "--authrpc.port=8551"
+            - "--authrpc.jwtsecret=/workspace/jwt.txt"
+            - "--syncmode=full"
+            - "--gcmode=archive"
+            - "--rollup.disabletxpoolgossip=true"
+            - "--http.vhosts=*"
+            - "--http.corsdomain=*"
+            - "--http.api=eth,net,web3,debug,txpool,admin"
+            - "--ws.origins=*"
+            - "--ws.api=eth,net,web3,debug,txpool,admin"
+            - "--authrpc.vhosts=*"
+
+        op-node:
+          image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:v1.13.5
+          depends_on:
+            - op-geth
+          volumes:
+            - .:/workspace
+          working_dir: /workspace
+          ports:
+            - "8547:8547"
+            - "9222:9222"
+          environment:
+            - L1_RPC_URL=${L1_RPC_URL}
+            - L1_BEACON_URL=${L1_BEACON_URL}
+            - PRIVATE_KEY=${PRIVATE_KEY}
+            - P2P_ADVERTISE_IP=${P2P_ADVERTISE_IP}
+          command:
+            - "op-node"
+            - "--l1=${L1_RPC_URL}"
+            - "--l1.beacon=${L1_BEACON_URL}"
+            - "--l2=http://op-geth:8551"
+            - "--l2.jwt-secret=/workspace/jwt.txt"
+            - "--rollup.config=/workspace/rollup.json"
+            - "--sequencer.enabled=true"
+            - "--sequencer.stopped=false"
+            - "--sequencer.max-safe-lag=3600"
+            - "--verifier.l1-confs=4"
+            - "--p2p.listen.ip=0.0.0.0"
+            - "--p2p.listen.tcp=9222"
+            - "--p2p.listen.udp=9222"
+            - "--p2p.advertise.ip=${P2P_ADVERTISE_IP}"
+            - "--p2p.advertise.tcp=9222"
+            - "--p2p.advertise.udp=9222"
+            - "--p2p.sequencer.key=${PRIVATE_KEY}"
+            - "--rpc.addr=0.0.0.0"
+            - "--rpc.port=8547"
+            - "--rpc.enable-admin"
+            - "--log.level=info"
+            - "--log.format=json"
+      ```
+      </Step>
+
+      <Step title="Initialize op-geth with Docker">
+
+      ```bash
+      # Make sure you're in the rollup/sequencer directory with all files copied
+      cd rollup/sequencer
+
+      # Initialize op-geth using Docker
+      docker run --rm \
+        -v $(pwd):/workspace \
+        -w /workspace \
+        us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:v1.101511.1 \
+        init --datadir=./op-geth-data --state.scheme=hash ./genesis.json
+      ```
+      </Step>
+
+      <Step title="Start the services">
+
+      ```bash
+      # Start both services
+      docker-compose up -d
+
+      # View logs
+      docker-compose logs -f
+      ```
+      </Step>
+
+      <Step title="Final directory structure">
+
+      ```bash
+      rollup/
+      ├── deployer/              # From previous step
+      │   └── .deployer/         # Contains genesis.json and rollup.json
+      └── sequencer/             # You are here
+          ├── jwt.txt            # Generated JWT secret
+          ├── genesis.json       # Copied from deployer
+          ├── rollup.json        # Copied from deployer
+          ├── .env               # Environment variables
+          ├── docker-compose.yml # Docker configuration
+          ├── opnode_discovery_db/ # Created by Docker
+          ├── opnode_peerstore_db/ # Created by Docker
+          └── op-geth-data/      # Created by Docker
+              ├── geth/          # Geth data
+              └── keystore/      # Key files
+      ```
+
+      Your sequencer node is now operational and ready to process transactions.
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Build from source">
+
+    To ensure you're using the latest compatible versions of OP Stack components, always check the official [release page](https://github.com/ethereum-optimism/optimism/releases).
+
+    The main components you'll need for sequencer deployment are:
+
+    - `op-node`: Look for the latest `op-node/v*` [release](https://github.com/ethereum-optimism/optimism/releases)  
+    - `op-geth`: Look for the latest `op-geth/v*` [release](https://github.com/ethereum-optimism/op-geth/releases)
+
+    <Info>
+      The versions used in this guide (**op-node/v1.13.5** and **op-geth/v1.101511.1**) are verified compatible versions.
+
+      According to the **op-node v1.13.5** [release notes](https://github.com/ethereum-optimism/optimism/releases), this op-node version specifically corresponds to **op-geth v1.101511.1**.  
+      Always check the release notes to ensure you're using compatible versions.
+    </Info>
+
+    Building from source gives you full control over the binaries.
+
+    <Steps>
+      <Step title="Clone and build op-node">
+
+      ```bash
+      # Clone the optimism monorepo
+      git clone https://github.com/ethereum-optimism/optimism.git
+      cd optimism
+
+      # Checkout the latest release tag
+      git checkout op-node/v1.13.5
+
+      # Build op-node
+      cd op-node
+      just
+
+      # Binary will be available at ./bin/op-node
+      ```
+      </Step>
+
+      <Step title="Clone and build op-geth">
+
+      ```bash
+      # Clone op-geth repository (in a separate directory)
+      git clone https://github.com/ethereum-optimism/op-geth.git
+      cd op-geth
+
+      # Checkout to this release tag
+      git checkout v1.101511.1
+
+      # Build op-geth
+      make geth
+
+      # Binary will be available at ./build/bin/geth
+      ```
+      </Step>
+
+      <Step title="Verify installation">
+
+      Check that you have properly installed the needed components.
+
+      ```bash
+      # Make sure you're in the right directory
+      ./bin/op-node --version
+      ./build/bin/geth version
+      ```
+      </Step>
+    </Steps>
+
+    ## Configuration setup
+
+    <Steps>
+      <Step title="Organize your workspace">
+
+      After building the binaries, you should have the following directory structure:
+
+      ```bash
+      rollup/
+      ├── deployer/              # From previous step
+      │   └── .deployer/         # Contains genesis.json and rollup.json
+      ├── optimism/              # Optimism monorepo
+      │   └── op-node/
+      │       └── bin/
+      │           └── op-node
+      └── op-geth/
+          └── build/
+              └── bin/
+                  └── geth
+      ```
+
+      Now create your sequencer working directory:
+
+      ```bash
+      cd ../
+      mkdir sequencer
+      cd sequencer
+      ```
+
+      <Expandable title="Alternative: Copy binaries to sequencer directory">
+
+        ```bash
+        mkdir sequencer-node/bin
+        cp optimism/op-node/bin/op-node sequencer-node/bin/
+        cp op-geth/build/bin/geth sequencer-node/bin/
+        ```
+      </Expandable>
+      </Step>
+
+      <Step title="Generate JWT secret">
+
+      ```bash
+      openssl rand -hex 32 > jwt.txt
+      chmod 600 jwt.txt
+      ```
+      </Step>
+
+      <Step title="Set up directory structure and copy files">
+
+      ```bash
+      mkdir scripts
+      cp ../deployer/.deployer/genesis.json .
+      cp ../deployer/.deployer/rollup.json .
+      ```
+      </Step>
+
+      <Step title="Environment variables">
+
+      You'll need to gather several pieces of information before creating your configuration.
+      </Step>
+
+      <Step title="Get L1 network access">
+
+      You need access to the L1 network (Ethereum mainnet or Sepolia testnet) and its beacon node.
+
+      **L1 RPC URL options:**
+      - **Infura**: [infura.io](https://infura.io)
+      - **Alchemy**: [alchemy.com](https://alchemy.com)
+
+      **L1 Beacon URL options:**
+      - `https://ethereum-sepolia-beacon-api.publicnode.com`
+      - `https://ethereum-beacon-api.publicnode.com`
+      </Step>
+
+      <Step title="Get private key from your wallet">
+      For this basic sequencer setup, you only need a private key during op-node initialization.
+      </Step>
+
+      <Step title="Get your public IP address">
+
+      ```bash
+      curl ifconfig.me
+      curl ipinfo.io/ip
+      ```
+      </Step>
+
+      <Step title="Choose your ports">
+
+      - `8545`: op-geth HTTP RPC  
+      - `8546`: op-geth WebSocket RPC  
+      - `8551`: op-geth Auth RPC  
+      - `8547`: op-node RPC  
+      - `9222`: P2P networking  
+      </Step>
+    </Steps>
+
+    <Expandable title=".env template">
+
+      ```bash
+      L1_RPC_URL=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
+      L1_BEACON_URL=https://ethereum-sepolia-beacon-api.publicnode.com
+      SEQUENCER_ENABLED=true
+      SEQUENCER_STOPPED=false
+      PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
+      P2P_LISTEN_PORT=9222
+      P2P_ADVERTISE_IP=YOUR_ACTUAL_PUBLIC_IP
+      OP_NODE_RPC_PORT=8547
+      OP_GETH_HTTP_PORT=8545
+      OP_GETH_WS_PORT=8546
+      OP_GETH_AUTH_PORT=8551
+      JWT_SECRET=./jwt.txt
+      ```
+    </Expandable>
+
+    ## Sequencer specific configuration
+
+    ### op-geth configuration for sequencer
+
+    ```bash
+    #!/bin/bash
+    source .env
+
+    ../../op-geth/build/bin/geth \
+      --datadir=./op-geth-data \
+      --http \
+      --http.addr=0.0.0.0 \
+      --http.port=$OP_GETH_HTTP_PORT \
+      --http.vhosts="*" \
+      --http.corsdomain="*" \
+      --http.api=eth,net,web3,debug,txpool,admin,miner \
+      --ws \
+      --ws.addr=0.0.0.0 \
+      --ws.port=$OP_GETH_WS_PORT \
+      --ws.origins="*" \
+      --ws.api=eth,net,web3,debug,txpool,admin,miner \
+      --authrpc.addr=0.0.0.0 \
+      --authrpc.port=$OP_GETH_AUTH_PORT \
+      --authrpc.vhosts="*" \
+      --authrpc.jwtsecret=$JWT_SECRET \
+      --syncmode=full \
+      --gcmode=archive \
+      --rollup.disabletxpoolgossip=true \
+      --rollup.sequencerhttp=http://localhost:$OP_NODE_RPC_PORT
+    ```
+
+    ### op-node configuration for sequencer
+
+    ```bash
+    #!/bin/bash
+    source .env
+
+    ../../optimism/op-node/bin/op-node \
+      --l1=$L1_RPC_URL \
+      --l1.beacon=$L1_BEACON_URL \
+      --l2=http://localhost:$OP_GETH_AUTH_PORT \
+      --l2.jwt-secret=$JWT_SECRET \
+      --rollup.config=./rollup.json \
+      --sequencer.enabled=$SEQUENCER_ENABLED \
+      --sequencer.stopped=$SEQUENCER_STOPPED \
+      --sequencer.max-safe-lag=3600 \
+      --verifier.l1-confs=4 \
+      --p2p.listen.ip=0.0.0.0 \
+      --p2p.listen.tcp=$P2P_LISTEN_PORT \
+      --p2p.listen.udp=$P2P_LISTEN_PORT \
+      --p2p.advertise.ip=$P2P_ADVERTISE_IP \
+      --p2p.advertise.tcp=$P2P_LISTEN_PORT \
+      --p2p.advertise.udp=$P2P_LISTEN_PORT \
+      --p2p.sequencer.key=$PRIVATE_KEY \
+      --rpc.addr=0.0.0.0 \
+      --rpc.port=$OP_NODE_RPC_PORT \
+      --rpc.enable-admin \
+      --log.level=info \
+      --log.format=json
+    ```
+
+    ## Initializing and starting the sequencer
+
+    <Steps>
+      <Step title="Initialize op-geth with your genesis file">
+
+      ```bash
+      cd rollup/sequencer
+      ../../op-geth/build/bin/geth init --datadir=./op-geth-data --state.scheme=hash ./genesis.json
+      ```
+      </Step>
+
+      <Step title="Start op-geth">
+
+      ```bash
+      chmod +x scripts/start-op-geth.sh
+      chmod +x scripts/start-op-node.sh
+      ./scripts/start-op-geth.sh
+      ```
+      </Step>
+
+      <Step title="Start op-node">
+
+      ```bash
+      ./scripts/start-op-node.sh
+      ```
+      </Step>
+
+      <Step title="Verify sequencer is running">
+
+      ```bash
+      curl -X POST -H "Content-Type: application/json" \
+        --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+        http://localhost:8545
+
+      curl -X POST -H "Content-Type: application/json" \
+        --data '{"jsonrpc":"2.0","method":"admin_sequencerActive","params":[],"id":1}' \
+        http://localhost:8547
+      ```
+      </Step>
+    </Steps>
+
+    Your sequencer node is now operational and ready to process transactions.
+  </Tab>
+</Tabs>
+
+## What's Next?
+
+Great! Your sequencer is running and processing transactions. The next step is to set up the batcher to publish transaction data to L1.
+
+<Card title="Spin up batcher →" href="./op-batcher-setup">
+  **Next**: Configure and start op-batcher to publish L2 transaction data to L1 for data availability.
+</Card>
+
+---
+
+## Need Help?
+
+- **Batcher Configuration**: [op-batcher Configuration Guide](/chain-operators/guides/configuration/batcher)  
+- **Best Practices**: [Chain Operator Best Practices](/chain-operators/guides/management/best-practices)

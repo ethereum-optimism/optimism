@@ -1,8 +1,53 @@
-/target
-/.idea/
-/.vscode/
+.DS_Store
+node_modules
+results
+temp
+coverage.json
+**/lcov.info
+**/lcov-upgrade.info
+**/lcov-all.info
+
+yarn-error.log
+.yarn/*
+!.yarn/releases
+!.yarn/plugins
+.pnp.*
+
+dist
+artifacts
+cache
+
+!op-chain-ops/foundry/testdata/srcmaps/cache
+!op-chain-ops/foundry/testdata/srcmaps/artifacts
+
+!op-deployer/pkg/deployer/artifacts
+
+packages/contracts-bedrock/deployments/anvil
+
+# vim
+*.sw*
+
+# jetbrains
+.idea/
+
+.secrets
 .env
-websocket-proxy/.env
-websocket-proxy/target
-integration_logs
-.vscode
+.env*
+!.env.example
+!.envrc.example
+*.log
+
+.devnet*
+
+# Ignore local fuzzing results
+**/testdata/fuzz/
+
+coverage.out
+
+__pycache__
+
+# Ignore echidna artifacts
+crytic-export
+
+# ignore local asdf config
+.tool-versions

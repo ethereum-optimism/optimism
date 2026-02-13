@@ -1,0 +1,6 @@
+# NUT Bundle Fork Lock
+# To update a locked bundle, update both the bundle file and this hash in the same PR.
+
+[karst]
+bundle = "op-node/rollup/derive/karst_nut_bundle.json"
+hash = "sha256:b9c610d09ca05ab24ef84ea38e4f563d71401f592f9eff13fa97dac879bee600"

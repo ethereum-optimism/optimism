@@ -1,0 +1,58 @@
+---
+title: Fault proofs security
+description: Learn about changes to the security model for the Fault Proofs System.
+---
+
+<Info>
+  Source code for Fault Proof contracts approved by Optimism Governance can be found [here](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.5.0).
+</Info>
+
+This page details changes to the security model of the OP Stack with the introduction of the Fault Proof upgrade.
+The most significant change introduced by the Fault Proof upgrade is the modification of the `OptimismPortal` to reference the `DisputeGameFactory` instead of the permissioned `L2OutputOracle`.
+*   The `DisputeGameFactory` contract generates `FaultDisputeGame` contract instances that each act as a host to a proposal about the state of the OP Stack chain at a given block number.
+*   Unlike the `L2OutputOracle`, the `DisputeGameFactory` contract offers users the ability to permissionlessly play "fault dispute games" in which the correctness of the proposal is determined programmatically.
+
+## Security model
+
+Fault Proof is a large contract upgrade that introduces a number of novel components.
+Given the relative complexity of these novel components, the approach to security for FPM has been to limit the blast radius of potential bugs to very specific contracts and fallback mechanisms that can be easily audited.
+
+### Handling invalid game results
+
+All of the security mechanisms put in place generally revolve around the possibility that a `FaultDisputeGame` contract may incorrectly finalize an invalid game result.
+There are two variations of this:
+
+1.  Resolving that an invalid proposal is valid potentially leading to stolen funds, and 
+2.  Resolving that a valid proposal is invalid causing liveness delays or failures.
+
+Both cases would cause honest challengers to lose bonds (unless the `Guardian` stepped in). Potential impact is managed through the introduction of a number of safeguards within the `OptimismPortal` and `FaultDisputeGame` contracts.
+
+### Safeguards within `OptimismPortal`
+
+The `OptimismPortal` contract includes various security mechanisms that allow the `Guardian` and `SystemOwner` roles to collaborate to prevent invalid proposals from impacting withdrawals.
+
+*   The `SystemOwner` can replace the `Guardian` address.
+*   The `Guardian` can trigger the global pause mechanism found in the original system.
+*   The `Guardian` can "blacklist" specific `FaultDisputeGame` contracts that resolve incorrectly.
+*   The `Guardian` can change the respected type of `FaultDisputeGame` contract in the case that an entire class of `FaultDisputeGame` contracts is found to have critical bugs. If desired, the `Guardian` can also choose to revert to a `PermissionedDisputeGame` contract that only allows specific roles to submit and challenge proposals.
+
+### Safeguards within `FaultDisputeGame`
+
+The `FaultDisputeGame` contracts store bonds within a `DelayedWETH` contract that is managed by the `SystemOwner`. Withdrawals from the `DelayedWETH` contract are delayed which gives the `SystemOwner` the ability to manually recover from situations in which bonds would be incorrectly distributed. This delay is set to 7 days on OP Mainnet to give the `SystemOwner` or `Guardian` sufficient time to respond to potential security concerns.
+
+### Safeguards within `DelayedWETH`
+
+*   The `SystemOwner` can replace the `Guardian` address.
+*   The `SystemOwner` can hold funds from any specific `DisputeGame` contract.
+*   The `SystemOwner` can remove funds from the `DelayedWETH` contract if the issue extends to so many `DisputeGame` contracts that holding funds from specific contracts is not viable.
+*   The `Guardian` can trigger the global pause mechanism to halt WETH withdrawals.
+
+### Cumulative security impact
+
+As with the original system, the cumulative effect of these security capabilities is that the `Guardian` role provides fast response capabilities while the `SystemOwner` can always step in to resolve all classes of bugs that could result in a loss of funds.
+With the introduction of Fault Proofs, The most significant change in the security model is that `SystemOwner` can take a more passive role. Invalid proposals will generally be rejected by the Fault Proof System, while the `Guardian` can act as a backstop only in case of a failure in the fault proof game.
+
+## Next steps
+
+*   See the [FP Components](/op-stack/fault-proofs/fp-components) for an overview of FP system components and how they work together to enhance decentralization in the Optimism ecosystem.
+*   See the [specs](https://specs.optimism.io/fault-proof/index.html?utm_source=op-docs&utm_medium=docs) for detailed information about the entire FP program, FP virtual machine, and dispute game.

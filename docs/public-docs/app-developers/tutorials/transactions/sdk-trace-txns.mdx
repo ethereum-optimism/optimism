@@ -1,0 +1,202 @@
+---
+title: Tracing deposits and withdrawals
+description: Learn how to use the viem library to trace deposits and withdrawals between L1
+  and L2.
+---
+In this tutorial, you'll learn how to use the [viem](https://viem.sh) library to trace a [Standard Bridge](/app-developers/guides/bridging/standard-bridge) deposit or withdrawal between L1 and L2.
+You'll specifically learn how to determine the status of a deposit or withdrawal and how to retrieve the transaction receipt for the executed transaction on L1 (for withdrawals) or L2 (for deposits).
+
+## Dependencies
+
+*   [node](https://nodejs.org/en/)
+*   [pnpm](https://pnpm.io/installation)
+
+## Create a demo project
+
+You're going to use the viem library for this tutorial.
+Since viem is a [Node.js](https://nodejs.org/en/) library, you'll need to create a Node.js project to use it.
+
+<Steps>
+  <Step title="Make a Project Folder">
+
+  ```bash
+  mkdir trace-trx
+  cd trace-trx
+  ```
+
+  </Step>
+  <Step title="Initialize the project">
+
+  ```bash
+  pnpm init
+  ```
+
+  </Step>
+  <Step title="Install viem">
+
+  ```bash
+  pnpm add viem 
+  ```
+  </Step>
+</Steps>
+
+## Add RPC URLs to your environment
+
+You'll be using the `getTransactionReceipt` function from the viem library during this tutorial. This function uses event queries to retrieve the receipt for a deposit or withdrawal.
+Since this function uses large event queries, you'll need to use an RPC provider like [Alchemy](https://alchemy.com) that supports indexed event queries.
+Grab an L1 and L2 RPC URL for Sepolia and OP Sepolia, respectively.
+
+```bash
+export L1_RPC_URL="https://YOUR_L1_ SEPOLIA_RPC_URL_HERE"
+export L2_RPC_URL="https://YOUR_L2_OP_SEPOLIA_RPC_URL_HERE"
+```
+
+## Start the Node REPL
+
+You're going to use the Node REPL to interact with viem. To start the Node REPL, run the following command in your terminal:
+
+```bash
+node
+```
+
+This will bring up a Node REPL prompt that allows you to run JavaScript code.
+
+## Import dependencies
+
+You need to import some dependencies into your Node REPL session.
+
+### Import viem
+
+```js
+const { createPublicClient, http } = require('viem');
+const { optimismSepolia, sepolia } = require('viem/chains');
+```
+  
+## Set session variables
+
+You'll need a few variables throughout this tutorial. Let's set those up now.
+
+<Steps>
+  <Step title="Import RPC URLs">
+
+  ```js
+  const l1RpcUrl = process.env.L1_RPC_URL;
+  const l2RpcUrl = process.env.L2_RPC_URL;
+  ```
+
+  </Step>
+  <Step title="Set the deposit to trace">
+
+  You'll be tracing a specific deposit in this tutorial. Deposit tracing is generally based on the transaction hash of the transaction that triggered the deposit. You can replace this transaction hash with your own if you'd like.
+
+  ```js
+  const depositHash = '0x5896d6e4a47b465e0d925723bab838c62ef53468139a5e9ba501efd70f90cccb'
+  ```
+
+  </Step>
+  <Step title="Set the withdrawal to trace">
+
+  You'll also be tracing a specific withdrawal in this tutorial. Like with deposits, withdrawal tracing is generally based on the transaction hash of the transaction that triggered the withdrawal. You can replace this transaction hash with your own if you'd like.
+
+  ```js
+  const withdrawalHash = '0x18b8b4022b8d9e380fd89417a2e897adadf31e4f41ca17442870bf89ad024f42'
+  ```
+
+  </Step>
+  <Step title="Create the RPC providers">
+
+  ```js
+  const l1Client = createPublicClient({
+    chain: sepolia,
+    transport: http(l1RpcUrl),
+  });
+
+  const l2Client = createPublicClient({
+    chain: optimismSepolia,
+    transport: http(l2RpcUrl),
+  });
+  ```
+  </Step>
+</Steps>
+
+## Trace a Deposit
+
+You can use viem to trace a deposit.
+
+<Steps>
+  <Step title="Get the deposit status">
+
+  You can query for the deposit status using the transaction hash of the deposit.
+
+  ```js
+  console.log('Grabbing deposit status...')
+  const depositStatus = await l2Client.getTransactionReceipt({ hash: depositHash });
+  console.log(depositStatus);
+  ```
+
+  </Step>
+  <Step title="Get the deposit transaction receipt">
+
+  Retrieve the transaction receipt for the deposit using the viem client.
+
+  ```js
+console.log('Grabbing deposit receipt...')
+const depositReceipt = await l2Client.getTransaction({ hash: depositHash });
+console.log(depositReceipt);
+```
+
+  </Step>
+  <Step title="Get the deposit transaction">
+
+  You can directly query for the L2 transaction that executed the deposit.
+
+  ```js
+console.log('Grabbing deposit txn...')
+const depositTransaction = await l2Client.getTransaction({ hash: depositHash });
+console.log(depositTransaction);
+```
+  </Step>
+</Steps>
+
+## Trace a withdrawal
+
+You can use viem's functions to trace a withdrawal.
+
+<Steps>
+  <Step title="Get the withdrawal status">
+
+  Like deposits, withdrawals can have multiple statuses depending on where they are in the process.
+
+  ```js
+console.log('Grabbing withdrawal status...')
+const withdrawalStatus = await l1Client.getTransactionReceipt({ hash: withdrawalHash });
+console.log(withdrawalStatus);
+```
+
+  </Step>
+  <Step title="Get the withdrawal transaction receipt">
+
+  Retrieve the L1 transaction receipt for the withdrawal.
+
+  ```js
+console.log('Grabbing withdrawal receipt...')
+const withdrawalReceipt = await l1Client.getTransaction({ hash: withdrawalHash });
+console.log(withdrawalReceipt);
+```
+
+  </Step>
+  <Step title="Get the withdrawal transaction">
+
+  Directly query for the L1 transaction that executed the withdrawal.
+
+  ```js
+console.log('Grabbing withdrawal txn...')
+const withdrawalTransaction = await l1Client.getTransaction({ hash: withdrawalHash });
+console.log(withdrawalTransaction);
+```
+  </Step>
+</Steps>
+
+## Next steps
+
+*   Check out the tutorial on [bridging ERC-20 tokens with the @eth-optimism/viem package](/app-developers/tutorials/bridging/cross-dom-bridge-erc20) to learn how to create deposits and withdrawals.

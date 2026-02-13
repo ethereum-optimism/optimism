@@ -1,0 +1,44 @@
+---
+title: Span Batches
+description: Learn how to use and enable span batches on your chain.
+---
+
+Span batches are an important feature that optimize batch processing within the chain. This section provides an overview of span batches, instructions on how to enable them, and links to detailed design documents.
+
+## Overview
+
+Span batches allow for efficient processing of multiple batches in a single operation, reducing overhead and improving performance. By grouping transactions together, span batches can help optimize the throughput of the network.
+
+## Enabling span batches
+
+To enable span batches, follow these steps:
+
+<Steps>
+  1.  **Configuration**:
+
+      *   Locate your chain configuration file.
+      *   Add or update the following settings to enable span batches:
+
+      ```yaml
+      span_batches:
+          enabled: true
+          max_batch_size: <desired_max_batch_size>  # Set your desired maximum batch size
+          batch_interval: <desired_batch_interval>  # Set your desired batch interval in seconds
+      ```
+
+  2.  **Deploy**:
+
+      *   After updating the configuration, redeploy your chain node to apply the changes.
+
+  3.  **Verify**:
+
+      *   Check the logs to ensure that span batches are enabled and functioning correctly.
+      *   You should see log entries indicating that batches are being processed according to the configured settings.
+</Steps>
+
+## Links to related pages
+
+For more detailed information on the design and implementation of span batches, refer to the following resources:
+
+*   [Span Batches Specification](https://specs.optimism.io/protocol/delta/span-batches.html#span-batches?utm_source=op-docs&utm_medium=docs)
+*   [Span Batch Design Docs](https://op-tip.notion.site/Span-Batch-Design-Docs-b85e599a47774dcdb8171cc84cab2476)

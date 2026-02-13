@@ -1,0 +1,985 @@
+---
+title: op-node JSON-RPC API
+description: Complete reference for op-node RPC methods including rollup-specific functionality.
+---
+
+`op-node` implements rollup-specific functionality as the Consensus Layer, similar to an L1 beacon node. It provides RPC methods for querying rollup state, managing peers, and controlling sequencer operations.
+
+<Info>
+  Use [`eth_gasPrice`](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_gasprice) instead of `rollup_gasPrices` for the L2 gas price.
+  For the L1 gas price, you can call the [`GasPriceOracle`'s `l1BaseFee` function](https://explorer.optimism.io/address/0x420000000000000000000000000000000000000F#readProxyContract#F11).
+  If you want to estimate the cost of a transaction, you can [use the SDK](/app-developers/tutorials/transactions/sdk-estimate-costs).
+</Info>
+
+## Making RPC Requests
+
+The following examples show you how to make requests with [`curl`](https://curl.se/) and [`cast`](https://book.getfoundry.sh/cast/).
+
+<Info>
+  Protip: piping these commands into [`jq`](https://jqlang.github.io/jq/) will give you nicely formatted JSON responses.
+
+  `$ cast rpc optimism_syncStatus --rpc-url http://localhost:9545 | jq`
+</Info>
+
+## optimism Namespace
+
+Optimism-specific rollup methods for querying chain state and configuration.
+
+### optimism_outputAtBlock
+
+Get the output root at a specific block. This method is documented in [the specifications](https://specs.optimism.io/protocol/rollup-node.html?utm_source=op-docs&utm_medium=docs#output-method-api).
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data  \
+      '{"jsonrpc":"2.0","method":"optimism_outputAtBlock","params":["<hex_block_number>"],"id":1}' \
+      http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc optimism_outputAtBlock <hex_block_number> --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+   "jsonrpc":"2.0",
+   "id":1,
+   "result":[
+      "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "0xabe711e34c1387c8c56d0def8ce77e454d6a0bfd26cef2396626202238442421"
+   ]
+}
+```
+
+### optimism_syncStatus
+
+Get the synchronization status of the rollup node. This method provides detailed information about L1 and L2 block processing states.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"optimism_syncStatus","params":[],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc optimism_syncStatus --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "current_l1": {
+    "hash": "0xff3b3253058411b727ac662f4c9ae1698918179e02ecebd304beb1a1ae8fc4fd",
+    "number": 4427350,
+    "parentHash": "0xb26586390c3f04678706dde13abfb5c6e6bb545e59c22774e651db224b16cd48",
+    "timestamp": 1696478784
+  },
+  "current_l1_finalized": {
+    "hash": "0x7157f91b8ae21ef869c604e5b268e392de5aa69a9f44466b9b0f838d56426541",
+    "number": 4706784,
+    "parentHash": "0x1ac2612a500b9facd650950b8755d97cf2470818da2d88552dea7cd563e86a17",
+    "timestamp": 1700160084
+  },
+  "head_l1": {
+    "hash": "0x6110a8e6ed4c4aaab20477a3eac81bf99e505bf6370cd4d2e3c6d34aa5f4059a",
+    "number": 4706863,
+    "parentHash": "0xee8a9cba5d93481f11145c24890fd8f536384f3c3c043f40006650538fbdcb56",
+    "timestamp": 1700161272
+  },
+  "safe_l1": {
+    "hash": "0x8407c9968ce278ab435eeaced18ba8f2f94670ad9d3bdd170560932cf46e2804",
+    "number": 4706811,
+    "parentHash": "0x6593cccab3e772776418ff691f6e4e75597af18505373522480fdd97219c06ef",
+    "timestamp": 1700160480
+  },
+  "finalized_l1": {
+    "hash": "0x7157f91b8ae21ef869c604e5b268e392de5aa69a9f44466b9b0f838d56426541",
+    "number": 4706784,
+    "parentHash": "0x1ac2612a500b9facd650950b8755d97cf2470818da2d88552dea7cd563e86a17",
+    "timestamp": 1700160084
+  },
+  "unsafe_l2": {
+    "hash": "0x9a3b2edab72150de252d45cabe2f1ac57d48ddd52bb891831ffed00e89408fe4",
+    "number": 2338094,
+    "parentHash": "0x935b94ec0bac0e63c67a870b1a97d79e3fa84dda86d31996516cb2f940753f53",
+    "timestamp": 1696478728,
+    "l1origin": {
+      "hash": "0x38731e0a6eeb40091f0c4a00650e911c57d054aaeb5b158f55cd5705fa6a3ebf",
+      "number": 4427339
+    },
+    "sequenceNumber": 3
+  },
+  "safe_l2": {
+    "hash": "0x9a3b2edab72150de252d45cabe2f1ac57d48ddd52bb891831ffed00e89408fe4",
+    "number": 2338094,
+    "parentHash": "0x935b94ec0bac0e63c67a870b1a97d79e3fa84dda86d31996516cb2f940753f53",
+    "timestamp": 1696478728,
+    "l1origin": {
+      "hash": "0x38731e0a6eeb40091f0c4a00650e911c57d054aaeb5b158f55cd5705fa6a3ebf",
+      "number": 4427339
+    },
+    "sequenceNumber": 3
+  },
+  "finalized_l2": {
+    "hash": "0x285b03afb46faad747be1ca7ab6ef50ef0ff1fe04e4eeabafc54f129d180fad2",
+    "number": 2337942,
+    "parentHash": "0x7e7f36cba1fd1ccdcdaa81577a1732776a01c0108ab5f98986cf997724eb48ac",
+    "timestamp": 1696478424,
+    "l1origin": {
+      "hash": "0x983309dadf7e0ab8447f3050f2a85b179e9acde1cd884f883fb331908c356412",
+      "number": 4427314
+    },
+    "sequenceNumber": 7
+  },
+  "pending_safe_l2": {
+    "hash": "0x9a3b2edab72150de252d45cabe2f1ac57d48ddd52bb891831ffed00e89408fe4",
+    "number": 2338094,
+    "parentHash": "0x935b94ec0bac0e63c67a870b1a97d79e3fa84dda86d31996516cb2f940753f53",
+    "timestamp": 1696478728,
+    "l1origin": {
+      "hash": "0x38731e0a6eeb40091f0c4a00650e911c57d054aaeb5b158f55cd5705fa6a3ebf",
+      "number": 4427339
+    },
+    "sequenceNumber": 3
+  },
+  "queued_unsafe_l2": {
+    "hash": "0x3af253f5b993f58fffdd5e594b3f53f5b7b254cdc18f4bdb13ea7331149942db",
+    "number": 4054795,
+    "parentHash": "0x284b7dc92bac97be8ec3b2cf548e75208eb288704de381f2557938ecdf86539d",
+    "timestamp": 1699912130,
+    "l1origin": {
+      "hash": "0x1490a63c372090a0331e05e63ec6a7a6e84835f91776306531f28b4217394d76",
+      "number": 4688196
+    },
+    "sequenceNumber": 2
+  },
+  "engine_sync_target": {
+    "hash": "0x9a3b2edab72150de252d45cabe2f1ac57d48ddd52bb891831ffed00e89408fe4",
+    "number": 2338094,
+    "parentHash": "0x935b94ec0bac0e63c67a870b1a97d79e3fa84dda86d31996516cb2f940753f53",
+    "timestamp": 1696478728,
+    "l1origin": {
+      "hash": "0x38731e0a6eeb40091f0c4a00650e911c57d054aaeb5b158f55cd5705fa6a3ebf",
+      "number": 4427339
+    },
+    "sequenceNumber": 3
+  }
+}
+```
+
+### optimism_rollupConfig
+
+Get the rollup configuration parameters.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"optimism_rollupConfig","params":[],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc optimism_rollupConfig --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "genesis": {
+    "l1": {
+      "hash": "0x48f520cf4ddaf34c8336e6e490632ea3cf1e5e93b0b2bc6e917557e31845371b",
+      "number": 4071408
+    },
+    "l2": {
+      "hash": "0x102de6ffb001480cc9b8b548fd05c34cd4f46ae4aa91759393db90ea0409887d",
+      "number": 0
+    },
+    "l2_time": 1691802540,
+    "system_config": {
+      "batcherAddr": "0x8f23bb38f531600e5d8fddaaec41f13fab46e98c",
+      "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0",
+      "gasLimit": 30000000
+    }
+  },
+  "block_time": 2,
+  "max_sequencer_drift": 600,
+  "seq_window_size": 3600,
+  "channel_timeout": 300,
+  "l1_chain_id": 11155111,
+  "l2_chain_id": 11155420,
+  "regolith_time": 0,
+  "canyon_time": 1699981200,
+  "batch_inbox_address": "0xff00000000000000000000000000000011155420",
+  "deposit_contract_address": "0x16fc5058f25648194471939df75cf27a2fdc48bc",
+  "l1_system_config_address": "0x034edd2a225f7f429a63e0f1d2084b9e0a93b538",
+  "protocol_versions_address": "0x79add5713b383daa0a138d3c4780c7a1804a8090"
+}
+```
+
+### optimism_version
+
+Get the software version of the op-node.
+
+<Info>
+At the moment, building from source will not give you the correct version, but our docker images will.
+</Info>
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"optimism_version","params":[],"id":1}' \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc optimism_version --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+   "jsonrpc":"2.0",
+   "id":1,
+   "result":"v0.0.0-"
+}
+```
+
+## opp2p Namespace
+
+The `opp2p` namespace handles peer-to-peer networking interactions, allowing you to manage peer connections, discovery, and network policies.
+
+### opp2p_self
+
+Returns your node's peer information including peer ID, addresses, and network configuration.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_self","params":[],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_self --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "peerID": "16Uiu2HAm2y6DXp6THWHCyquczNUh8gVAm4spo6hjP3Ns1dGRiAdE",
+    "nodeID": "75a52a90fe5f972171fefce2399ca5a73191c654e7c7ddfdd71edf4fca6697f0",
+    "userAgent": "",
+    "protocolVersion": "",
+    "ENR": "enr:-J-4QFOtI_hDBa_kilrQcg4iTJt9VMAuDLCbgAAKMa--WfxoPml1xDYxypUG7IsWga83FOlvr78LG3oH8CfzRzUmsDyGAYvKqIZ2gmlkgnY0gmlwhGxAaceHb3BzdGFja4Xc76gFAIlzZWNwMjU2azGhAnAON-FvpiWY2iG_LXJDYosknGyikaajPDd1cQARsVnBg3RjcIIkBoN1ZHCC0Vs",
+    "addresses": [
+      "/ip4/127.0.0.1/tcp/9222/p2p/16Uiu2HAm2y6DXp6THWHCyquczNUh8gVAm4spo6hjP3Ns1dGRiAdE",
+      "/ip4/192.168.1.71/tcp/9222/p2p/16Uiu2HAm2y6DXp6THWHCyquczNUh8gVAm4spo6hjP3Ns1dGRiAdE",
+      "/ip4/108.64.105.199/tcp/9222/p2p/16Uiu2HAm2y6DXp6THWHCyquczNUh8gVAm4spo6hjP3Ns1dGRiAdE"
+    ],
+    "protocols": null,
+    "connectedness": 0,
+    "direction": 0,
+    "protected": false,
+    "chainID": 0,
+    "latency": 0,
+    "gossipBlocks": true,
+    "scores": {
+      "gossip": {
+        "total": 0,
+        "blocks": {
+          "timeInMesh": 0,
+          "firstMessageDeliveries": 0,
+          "meshMessageDeliveries": 0,
+          "invalidMessageDeliveries": 0
+        },
+        "IPColocationFactor": 0,
+        "behavioralPenalty": 0
+      },
+      "reqResp": {
+        "validResponses": 0,
+        "errorResponses": 0,
+        "rejectedPayloads": 0
+      }
+    }
+  }
+}
+```
+
+### opp2p_peers
+
+Returns a list of your node's peers with detailed connection information.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_peers","params":[true],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_peers true --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "totalConnected": 20,
+    "peers": {
+      "16Uiu2HAkvNYscHu4V1uj6fVWkwrAMCRsqXDSq4mUbhpGq4LttYsC": {
+        "peerID": "16Uiu2HAkvNYscHu4V1uj6fVWkwrAMCRsqXDSq4mUbhpGq4LttYsC",
+        "nodeID": "d693c5b58424016c0c38ec5539c272c754cb6b8007b322e0ecf16a4ee13f96fb",
+        "userAgent": "optimism",
+        "protocolVersion": "",
+        "ENR": "",
+        "addresses": [
+          "/ip4/20.249.62.215/tcp/9222/p2p/16Uiu2HAkvNYscHu4V1uj6fVWkwrAMCRsqXDSq4mUbhpGq4LttYsC"
+        ],
+        "protocols": [
+          "/ipfs/ping/1.0.0",
+          "/meshsub/1.0.0",
+          "/meshsub/1.1.0",
+          "/opstack/req/payload_by_number/11155420/0",
+          "/floodsub/1.0.0",
+          "/ipfs/id/1.0.0",
+          "/ipfs/id/push/1.0.0"
+        ],
+        "connectedness": 1,
+        "direction": 1,
+        "protected": false,
+        "chainID": 0,
+        "latency": 0,
+        "gossipBlocks": true,
+        "scores": {
+          "gossip": {
+            "total": -5.04,
+            "blocks": {
+              "timeInMesh": 0,
+              "firstMessageDeliveries": 0,
+              "meshMessageDeliveries": 0,
+              "invalidMessageDeliveries": 0
+            },
+            "IPColocationFactor": 0,
+            "behavioralPenalty": 0
+          },
+          "reqResp": {
+            "validResponses": 0,
+            "errorResponses": 0,
+            "rejectedPayloads": 0
+          }
+        }
+      }
+    },
+    "bannedPeers": [],
+    "bannedIPS": [],
+    "bannedSubnets": []
+  }
+}
+```
+
+### opp2p_peerStats
+
+Returns aggregate statistics about your peer connections.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_peerStats","params":[],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_peerStats --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "connected": 20,
+    "table": 94,
+    "blocksTopic": 20,
+    "blocksTopicV2": 18,
+    "banned": 0,
+    "known": 71
+  }
+}
+```
+
+### opp2p_discoveryTable
+
+Returns your peer discovery table containing node records (ENRs) of discovered peers.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_discoveryTable","params":[],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_discoveryTable --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": [
+  "enr:-J24QGC_SzoGG4EqyvO_082paQOwhvECeWGT-kaenrHdE2_iLTLeGmH-IOVpqEjC0L-yWmkI-c7598VaCjHQRNWn1CyGAYsqDgrFgmlkgnY0gmlwhNgp3WeHb3BzdGFja4OFQgCJc2VjcDI1NmsxoQPiq20PNZYzyvpEifcGVrOXHfM94JeWSgDL07I2hSl0d4N0Y3CCJAaDdWRwgiQG",
+  "enr:-J24QKvt2ThBM8-FPeHfAmpoaVLdfVD2cw1cRpNuwmvH_bQtQ1dqrrZw9FqiMbXbFRQf9IvjrlKSFLodbsRALIFATICGAYuQClJigmlkgnY0gmlwhKI3ZuaHb3BzdGFja4O6BACJc2VjcDI1NmsxoQLQRz2CH95qQd6vmF5saV-WOoTZobNfSt-FUdVa7R35nYN0Y3CCIyuDdWRwgiMr"
+  ]
+}
+```
+
+### opp2p_blockPeer
+
+Blocks a peer by peer ID, preventing future connections.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_blockPeer","params":["<peerID>"],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_blockPeer <peerID> --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": null
+}
+```
+
+### opp2p_unblockPeer
+
+Unblocks a previously blocked peer.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_unblockPeer","params":["<peerID>"],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_unblockPeer <peerID> --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": null
+}
+```
+
+### opp2p_listBlockedPeers
+
+Returns a list of blocked peer IDs.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_listBlockedPeers","params":[],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_listBlockedPeers --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": [
+    "16Uiu2HAmV3PueiaHj7Rg2bs3mrRUo2RVhjXRMpH67k9iZquDGQ8v"
+  ]
+}
+```
+
+### opp2p_blockAddr
+
+Blocks connections from a specific IP address.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_blockAddr","params":["<ip-address>"],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_blockAddr <ip-address> --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": null
+}
+```
+
+### opp2p_unblockAddr
+
+Unblocks a previously blocked IP address.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_unblockAddr","params":["<ip-address>"],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_unblockAddr <ip-address> --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": null
+}
+```
+
+### opp2p_listBlockedAddrs
+
+Returns a list of blocked IP addresses.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_listBlockedAddrs","params":[],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_listBlockedAddrs --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": [
+    "2607:f8b0:4002:c0c::65"
+  ]
+}
+```
+
+### opp2p_blockSubnet
+
+Blocks connections from a specific subnet (CIDR notation).
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_blockSubnet","params":["<subnet>"],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_blockSubnet <subnet> --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": null
+}
+```
+
+### opp2p_unblockSubnet
+
+Unblocks a previously blocked subnet.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_unblockSubnet","params":["<subnet>"],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_unblockSubnet <subnet> --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": null
+}
+```
+
+### opp2p_listBlockedSubnets
+
+Returns a list of blocked subnets.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_listBlockedSubnets","params":[],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_listBlockedSubnets --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": []
+}
+```
+
+### opp2p_protectPeer
+
+Protects a peer from being pruned from the connection pool.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_protectPeer","params":["<peerID>"],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_protectPeer <peerID> --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": null
+}
+```
+
+### opp2p_unprotectPeer
+
+Removes protection from a peer, allowing it to be pruned if necessary.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_unprotectPeer","params":["<peerID>"],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_unprotectPeer <peerID> --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": null
+}
+```
+
+### opp2p_connectPeer
+
+Initiates a connection to a peer using its multiaddress.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_connectPeer","params":["<peer multiaddr>"],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_connectPeer <peer multiaddr> --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": null
+}
+```
+
+### opp2p_disconnectPeer
+
+Disconnects from a specific peer.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"opp2p_disconnectPeer","params":["<peerID>"],"id":1}'  \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc opp2p_disconnectPeer <peerID> --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": null
+}
+```
+
+## admin Namespace
+
+Administrative methods for controlling sequencer operations and the derivation pipeline.
+
+### admin_resetDerivationPipeline
+
+Resets the derivation pipeline, forcing it to re-derive L2 blocks from L1 data.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"admin_resetDerivationPipeline","params":[],"id":1}' \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc admin_resetDerivationPipeline --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": null
+}
+```
+
+### admin_startSequencer
+
+Starts the sequencer if it was previously stopped. This allows the node to begin producing new blocks.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"admin_startSequencer","params":[],"id":1}' \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc admin_startSequencer --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": null
+}
+```
+
+### admin_stopSequencer
+
+Stops the sequencer, preventing it from producing new blocks. The node will continue to sync from other sequencers.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"admin_stopSequencer","params":[],"id":1}' \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc admin_stopSequencer --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": null
+}
+```
+
+### admin_sequencerActive
+
+Returns whether the sequencer is currently active and producing blocks.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"admin_sequencerActive","params":[],"id":1}' \
+        http://localhost:9545
+    ```
+  </Tab>
+  <Tab title="cast">
+    ```sh
+    cast rpc admin_sequencerActive --rpc-url http://localhost:9545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": true
+}
+```

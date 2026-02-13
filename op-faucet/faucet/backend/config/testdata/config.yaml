@@ -1,0 +1,20 @@
+faucets:
+  users-a:
+    el_rpc: "http://localhost:8545"
+    chain_id: 1234
+    tx_cfg:
+      private_key: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+  power-users-a:
+    el_rpc: "http://localhost:8545"
+    chain_id: 1234
+    tx_cfg:
+      private_key: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+  users-b:
+    el_rpc: "http://localhost:9545"
+    chain_id: 10000
+    tx_cfg:
+      private_key: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+
+defaults:
+  1234: users-a
+  # defaults are optional. It will resolve to a faucet by finding the faucet with the lowest faucet-ID.

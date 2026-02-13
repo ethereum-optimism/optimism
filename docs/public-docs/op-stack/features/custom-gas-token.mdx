@@ -1,0 +1,99 @@
+---
+title: Custom Gas Token
+description: Learn how utilize a Custom Gas Token for OP Stack chains.
+---
+
+Custom Gas Token (CGT) enables OP Stack chains to use any asset as their native fee currency instead of ETH. 
+This opens up new possibilities for chain operators to align their economic model with their specific use case, whether that's using a stablecoin for predictable fees, a governance token for ecosystem alignment, or creating an entirely new native asset.
+
+This iteration of CGT is a redesign that prioritizes flexibility, minimal core protocol changes, and future-proof standardization by decoupling native asset management from core bridging infrastructure.
+
+## Key features
+
+*   **Token flexibility**: Use any token as the native gas token - existing L1 ERC-20s, L2-native tokens, or entirely new assets
+*   **Application-layer bridging**: No bridge or token is enshrined in the protocol; bridges and converters live entirely at the application layer
+*   **Flexible supply management**: Chain governors have complete control over token supply, emission schedules, and distribution mechanisms
+*   **Future-proof design**: Built to support cross-chain interoperability
+
+## How it works
+
+CGT is configured at genesis and comes with two new predeploy contracts to manage native assets independently from ETH bridging:
+
+### The `isCustomGasToken()` flag
+
+When enabled:
+
+*   **On L1**: Placed in `SystemConfig`, instructs `OptimismPortal`, `L1CrossDomainMessenger`, and `L1StandardBridge` to reject transactions containing ETH value (`msg.value`)
+*   **On L2**: Located in `L1Block`, prevents ETH-related operations in `L2ToL1MessagePasser`, `L2CrossDomainMessenger`, `L2StandardBridge`, and `FeeVaults`
+
+This enables native asset mints and burns to be decoupled from deposits and moved to the application layer.
+
+### Two new predeploy contracts
+
+**NativeAssetLiquidity**
+
+Holds pre-minted native assets created at genesis with two core functions:
+
+*   `deposit()`: Receives native assets (callable only by LiquidityController)
+*   `withdraw()`: Releases native assets to the controller
+
+**LiquidityController**
+
+Governance-controlled contract that manages asset supply through:
+
+*   `authorizeMinter()` / `deauthorizeMinter()`: Grants or revokes minting permissions
+*   `mint()`: Unlocks assets from liquidity reserves for authorized parties
+*   `burn()`: Accepts native assets and locks them in the liquidity contract
+*   Stores token metadata for wrapped asset compatibility
+
+## Use cases
+
+*   **Stablecoin fees**: Use USDC or other stablecoins for predictable transaction costs
+*   **Governance alignment**: Use your chain's governance token as the gas token to align incentives
+*   **L2-native economies**: Create entirely new native assets with custom supply mechanics
+*   **Simplified UX**: Reduce the number of tokens users need to hold for interacting with your chain
+
+## Comparison with previous design
+
+Custom Gas Token v2 was introduced in Upgrade 18 and is available in `op-contracts/v6.0.0`.
+
+| Aspect | Legacy CGT | CGT v2 |
+|--------|-----------|---------|
+| **Token basis** | Anchored to L1 ERC-20 | Independent native asset at genesis |
+| **Flexibility** | Restricted to specific configurations | Supports any release mechanism |
+| **Bridging** | Built into core contracts | Application-layer responsibility |
+| **Supply control** | System transaction minting | Minter authorization model |
+| **Adaptability** | Limited post-deployment changes | Upgradeable and flexible |
+
+<Warning>
+**Migration from legacy CGT**: There is currently no migration path from legacy CGT to CGT v2. A migration path is planned to be put together. Chains using the previous CGT design will need to coordinate a hard fork to adopt the new architecture.
+</Warning>
+
+## Developer impact
+
+*   **Decoupled from core components**: Since native asset management is decoupled from core components, obtaining native assets might vary chain-by-chain. That means that bridging, conversions, and features utilized would be different. It's suggested to create some library or templates that cover basic uses cases (e.g., L2-native, bridging from L1) to standardize most implementations.
+    * Chain Governors are encouraged to audit their implementations.
+    * Developers would need to look at the chain's docs to understand how to obtain native assets.
+    * Ideally CGT Chain Operators can work together to formalize a common set of CGT patterns that don't come out of the box.
+*   **No unified API**: The flexibility of this implementation means each CGT chain may have different methods for obtaining native assets
+*   **ETH bridging**: ETH bridging routes through L1-WETH as an ERC-20 wrapper
+*   **Documentation**: Clear documentation becomes critical for users to understand how to acquire native assets
+
+## Risks and considerations
+
+### Supply management
+
+*   **Minter security**: Any address granted minter permissions requires thorough security review and auditing
+*   **Access control**: Misconfigurations in bridges or controllers could lead to unintended minting or burning
+*   **Rate limiting**: Consider implementing rate limits on minting velocity to reduce risk
+
+### Configuration accuracy
+
+*   **Flag alignment**: `isCustomGasToken` must match between L1 and L2 to prevent protocol violations
+*   **Fee parameters**: `minBaseFee` and `operatorFee` must accurately account for execution and data availability costs in the native token's denomination
+*   **Decimal support**: CGT currently supports only 18-decimal tokens. 
+ERC20s with different decimals require custom logic to handle rounding when converting between the token and the native asset.
+
+## Next steps
+
+*   **For chain operators**: See [Deploy a Custom Gas Token chain](/chain-operators/guides/features/custom-gas-token-guide) for detailed deployment instructions

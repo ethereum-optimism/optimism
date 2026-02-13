@@ -1,0 +1,65 @@
+---
+title: Setting transaction gas parameters on OP Mainnet
+description: Learn how to set gas parameters for transactions on OP Mainnet.
+---
+
+OP Mainnet is designed to be [EVM equivalent](https://web.archive.org/web/20231127160757/https://medium.com/ethereum-optimism/introducing-evm-equivalence-5c2021deb306) which means that it is as compatible with Ethereum as possible, down to the client software used to run OP Mainnet nodes.
+Like Ethereum, OP Mainnet has an EIP-1559 style fee mechanism that dynamically adjusts a [base fee](https://ethereum.org/en/developers/docs/gas/#base-fee) that acts as the minimum fee that a transaction must pay to be included in a block.
+OP Mainnet also allows transactions to pay a [priority fee](https://ethereum.org/en/developers/docs/gas/#priority-fee) (also known as a tip) to incentivize the Sequencer to include transactions more quickly.
+
+Setting the base fee and the priority fee appropriately is important to ensure that your transactions are included in a timely manner.
+This guide will walk you through some best practices for determining the base fee and priority fee for your transactions.
+
+## Selecting the base fee
+
+The base fee is the minimum fee that a transaction must pay to be included in a block.
+Transactions that specify a maximum fee per gas that is less than the current base fee cannot be included in the blockchain.
+
+The simplest way to select a base fee is to look at the latest available OP Mainnet block.
+Each OP Mainnet block includes the current base fee and the amount of gas used within that block.
+You can use this information to predict a reasonable maximum fee for your transaction.
+
+Note that, like Ethereum, the base fee is not explicitly defined within a transaction.
+Instead, the maximum base fee is determined as the difference between the `maxFeePerGas` and the `maxPriorityFeePerGas` fields of any given transaction.
+
+<Steps>
+  <Step title="Retrieve the latest block">
+Using the JSON-RPC API or your favorite Ethereum library, retrieve the latest block on OP Mainnet.
+
+  </Step>
+
+  <Step title="Retrieve the base fee and gas used">
+From the block, retrieve the `baseFeePerGas` and `gasUsed` fields.
+
+
+  </Step>
+
+  <Step title="Predict the next base fee">
+OP Mainnet adjusts the base fee based on the amount of gas used in the previous block.
+  If the previous block used more than 5m gas (of the 30m gas limit), then the base fee will increase by up to 10%.
+  If the previous block used less than 5m gas, then the base fee will decrease by up to 10%.
+  Refer to the [OP Mainnet EIP-1559 Parameters](/op-stack/protocol/differences#eip-1559-parameters) section for more details.
+
+
+  </Step>
+
+  <Step title="Select a base fee per gas">
+Using the current base fee per gas and the amount of gas used in the previous block, you can predict the next base fee per gas.
+  If you are highly sensitive to the base fee, you may want to select a base fee per gas that is either 10% higher or 10% lower than the previous base fee.
+  However, you may run the risk that your transaction will not be included in a block quickly.
+  If you are less sensitive to the base fee, you may wish to simply use a large multiple of the previous base fee (e.g. 2x).
+
+
+  </Step></Steps>
+
+## Selecting the priority fee
+
+The priority fee is an optional tip that can be paid to the Sequencer to incentivize them to include your transaction more quickly.
+The priority fee is paid in addition to the base fee.
+
+The simplest way to select a priority fee is to use the [`eth_maxPriorityFeePerGas`](https://docs.alchemy.com/reference/eth-maxpriorityfeepergas) JSON-RPC method to retrieve an estimate for an acceptable priority fee.
+Many Ethereum libraries will provide a function to call this JSON-RPC method.
+You can also use the [`eth_feeHistory`](https://docs.alchemy.com/reference/eth-feehistory) JSON-RPC method to retrieve historical priority fee data.
+You can then use this data to predict a reasonable priority fee for your transaction.
+
+Alternatively, you can rely on Tenderly's [`tenderly_gasPrice`](https://docs.tenderly.co/node/rpc-reference/optimism-mainnet/tenderly_gasPrice?mtm_campaign=ext-docs\&mtm_kwd=optimism) to get real-time gas predictions with 3 levels of likelihood for transaction inclusion.

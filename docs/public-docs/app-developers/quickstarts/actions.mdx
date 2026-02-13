@@ -1,0 +1,438 @@
+---
+title: Integrating DeFi with Actions SDK
+description: Perform DeFi actions with lightweight, composable, and type-safe modules.
+---
+
+<Warning>
+  Actions SDK is still under construction and not ready for production use! This
+  guide is meant for early testing purposes only.
+</Warning>
+
+The [Actions SDK](https://actions.money/) is an open source Typescript development toolkit that simplifies the act of integrating DeFi into your application.
+
+## How it works
+
+Here's a breakdown of what's under the hood:
+
+- **Modular Providers**: Actions is built with a set of core adapters called "Providers". Providers let you to pick an choose the right services and protocols for your use-case.
+
+- **Embedded Wallets**: Actions supports popular embedded [wallet providers](https://actions.money/#wallet), allowing your users to access DeFi with email authentication flows alone.
+
+- **Configure Actions**: Extend your embedded wallet with DeFi actions like Lend, Borrow, Swap, and Pay. Set multiple providers for each Action to choose the best markets across DeFi.
+
+- **Customize assets & chains**: Allow and block assets, markets, chains, and protocols from your application from a single config.
+
+## Installation
+
+Install the Actions SDK in your project:
+
+<CodeGroup>
+```bash npm
+npm install @eth-optimism/actions-sdk
+```
+
+```bash pnpm
+pnpm add @eth-optimism/actions-sdk
+```
+
+```bash yarn
+yarn add @eth-optimism/actions-sdk
+```
+
+```bash bun
+bun add @eth-optimism/actions-sdk
+```
+
+```bash deno
+deno add @eth-optimism/actions-sdk
+```
+
+</CodeGroup>
+
+## Choose a Wallet Provider
+
+Actions works with both frontend and backend wallets depending on your needs:
+
+<Tabs>
+  <Tab title="Frontend">
+    Select a wallet provider:
+
+    <Tabs>
+      <Tab title="Privy">
+        **Set Up Privy**
+
+        Sign up for Privy and follow the full Privy installation [guide](https://docs.privy.io/basics/react/installation).
+
+        **Configure Wallet Provider**
+
+        Once you have set up Privy embedded wallets, pass them to Actions SDK:
+
+        ```typescript
+        import { actions } from './config'
+        import { useWallets } from '@privy-io/react-auth'
+
+        // PRIVY: Fetch wallet
+        const { wallets } = useWallets()
+        const embeddedWallet = wallets.find(
+          (wallet) => wallet.walletClientType === 'privy',
+        )
+
+        // ACTIONS: Let wallet make onchain Actions
+        const wallet = await actions.wallet.toActionsWallet({
+          connectedWallet: embeddedWallet,
+        })
+        ```
+
+        **Configure Smart Wallets**
+
+        Optionally, create signers for smart wallets you control:
+
+        ```typescript
+        import { actions } from './config'
+        import { useWallets } from '@privy-io/react-auth'
+
+        // PRIVY: Fetch wallet
+        const { wallets } = useWallets()
+        const embeddedWallet = wallets.find(
+          (wallet) => wallet.walletClientType === 'privy',
+        )
+
+        // ACTIONS: Create signer from hosted wallet
+        const signer = await actions.wallet.createSigner({
+          connectedWallet: embeddedWallet,
+        })
+
+        // ACTIONS: Create smart wallet
+        const { wallet } = await actions.wallet.createSmartWallet({
+          signer: signer
+        })
+        ```
+      </Tab>
+
+      <Tab title="Turnkey">
+        **Set Up Turnkey**
+
+        Sign up for Turnkey and follow the full Turnkey installation [guide](https://docs.turnkey.com/sdks/react/getting-started).
+
+        **Configure Wallet Provider**
+
+        Once you have set up Turnkey embedded wallets, pass them to Actions SDK:
+
+        ```typescript
+        import { useTurnkey, WalletSource } from "@turnkey/react-wallet-kit"
+        import { actions, USDC, ExampleMarket } from './config'
+
+        // Fetch Turnkey wallet
+        const { wallets, httpClient, session } = useTurnkey()
+        const embeddedWallet = wallets.find(
+          (wallet) =>
+            wallet.accounts.some(
+              (account) => account.addressFormat === 'ADDRESS_FORMAT_ETHEREUM',
+            ) && wallet.source === WalletSource.Embedded,
+        )
+
+        const walletAddress = embeddedWallet.accounts[0].address
+
+        // Convert to Actions wallet
+        const wallet = await actions.wallet.toActionsWallet({
+          client: httpClient,
+          organizationId: session.organizationId,
+          signWith: walletAddress,
+        })
+
+        // Wallet can now take action
+        const receipt = await wallet.lend.openPosition({
+          amount: 100,
+          asset: USDC,
+          ...ExampleMarket
+        })
+        ```
+
+        **Configure Smart Wallets**
+
+        Optionally, create signers for smart wallets you control:
+
+        ```typescript
+        import { useTurnkey, WalletSource } from "@turnkey/react-wallet-kit"
+        import { actions } from './config'
+
+        // Fetch Turnkey wallet
+        const { wallets, httpClient, session } = useTurnkey()
+        const embeddedWallet = wallets.find(
+          (wallet) =>
+            wallet.accounts.some(
+              (account) => account.addressFormat === 'ADDRESS_FORMAT_ETHEREUM',
+            ) && wallet.source === WalletSource.Embedded,
+        )
+        const walletAddress = embeddedWallet.accounts[0].address
+
+        // Create signer
+        const signer = await actions.wallet.createSigner({
+          client: httpClient,
+          organizationId: session.organizationId,
+          signWith: walletAddress,
+        })
+
+        // Create smart wallet
+        const { wallet } = await actions.wallet.createSmartWallet({
+          signer: signer
+        })
+        ```
+      </Tab>
+
+      <Tab title="Dynamic">
+        **Set Up Dynamic**
+
+        Sign up for Dynamic and follow the full Dynamic installation [guide](https://www.dynamic.xyz/docs/wallets/embedded-wallets/mpc/setup).
+
+        **Configure Wallet Provider**
+
+        Once you have set up Dynamic embedded wallets, pass them to Actions SDK:
+
+        ```typescript
+        import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
+        import { actions, USDC, ExampleMarket } from './config'
+
+        // Fetch Dynamic wallet
+        const { primaryWallet } = useDynamicContext()
+
+        // Convert to Actions wallet
+        const wallet = await actions.wallet.toActionsWallet({
+          wallet: primaryWallet,
+        })
+
+        // Wallet can now take action
+        const receipt = await wallet.lend.openPosition({
+          amount: 100,
+          asset: USDC,
+          ...ExampleMarket
+        })
+        ```
+
+        **Configure Smart Wallets**
+
+        Optionally, create signers for smart wallets you control:
+
+        ```typescript
+        import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
+        import { actions } from './config'
+
+        // Fetch Dynamic wallet
+        const { primaryWallet } = useDynamicContext()
+
+        // Create signer
+        const signer = await actions.wallet.createSigner({
+          wallet: primaryWallet
+        })
+
+        // Create smart wallet
+        const { wallet } = await actions.wallet.createSmartWallet({
+          signer: signer
+        })
+        ```
+      </Tab>
+    </Tabs>
+
+  </Tab>
+
+  <Tab title="Backend">
+    Select a wallet provider:
+
+    <Tabs>
+      <Tab title="Privy">
+        **Set Up Privy**
+
+        Sign up for Privy and follow the full Privy installation [guide](https://docs.privy.io/basics/nodeJS/installation).
+
+        **Configure Wallet Provider**
+
+        Once you have set up Privy embedded wallets, pass them to Actions SDK:
+
+        ```typescript
+        import { actions } from './config'
+        import { PrivyClient } from '@privy-io/node'
+
+        // PRIVY: Create wallet
+        const privyClient = new PrivyClient(env.PRIVY_APP_ID, env.PRIVY_APP_SECRET)
+
+        const privyWallet = await privyClient.wallets().create({
+          chain_type: 'ethereum',
+          owner: { user_id: 'privy:did:xxxxx' },
+        })
+
+        // ACTIONS: Let wallet make onchain Actions
+        const wallet = await actions.wallet.toActionsWallet({
+          walletId: privyWallet.id,
+          address: privyWallet.address,
+        })
+        ```
+
+        **Configure Smart Wallets**
+
+        Optionally, create signers for smart wallets you control:
+
+        ```typescript
+        import { actions } from './config'
+        import { PrivyClient } from '@privy-io/node'
+        import { getAddress } from 'viem'
+
+        const privyClient = new PrivyClient(env.PRIVY_APP_ID, env.PRIVY_APP_SECRET)
+
+        // PRIVY: Create wallet
+        const privyWallet = await privyClient.wallets().create({
+          chain_type: 'ethereum',
+          owner: { user_id: 'privy:did:xxxxx' },
+        })
+
+        // ACTIONS: Create signer
+        const signer = await actions.wallet.createSigner({
+          walletId: privyWallet.id,
+          address: getAddress(privyWallet.address),
+        })
+
+        // ACTIONS: Create smart wallet
+        const { wallet } = await actions.wallet.createSmartWallet({
+          signer: signer
+        })
+        ```
+      </Tab>
+
+      <Tab title="Turnkey">
+        **Set Up Turnkey**
+
+        Sign up for Turnkey and follow the full Turnkey installation [guide](https://docs.turnkey.com/sdks/javascript-server).
+
+        **Configure Wallet Provider**
+
+        Once you have set up Turnkey embedded wallets, pass them to Actions SDK:
+
+        ```typescript
+        import { Turnkey } from '@turnkey/sdk-server'
+        import { actions, USDC, ExampleMarket } from './config'
+
+        const turnkeyClient = new Turnkey({
+          apiBaseUrl: 'https://api.turnkey.com',
+          apiPublicKey: process.env.TURNKEY_API_KEY,
+          apiPrivateKey: process.env.TURNKEY_API_SECRET,
+          defaultOrganizationId: process.env.TURNKEY_ORGANIZATION_ID,
+        })
+
+        // Create Turnkey wallet
+        const turnkeyWallet = await turnkeyClient.apiClient().createWallet({
+          walletName: 'ETH Wallet',
+          accounts: [{
+            curve: 'CURVE_SECP256K1',
+            pathFormat: 'PATH_FORMAT_BIP32',
+            path: "m/44'/60'/0'/0/0",
+            addressFormat: 'ADDRESS_FORMAT_ETHEREUM',
+          }],
+        })
+
+        // Convert to Actions wallet
+        const wallet = await actions.wallet.toActionsWallet({
+          organizationId: turnkeyWallet.activity.organizationId,
+          signWith: turnkeyWallet.addresses[0],
+        })
+
+        // Wallet can now take action
+        const receipt = await wallet.lend.openPosition({
+          amount: 100,
+          asset: USDC,
+          ...ExampleMarket
+        })
+        ```
+
+        **Configure Smart Wallets**
+
+        Optionally, create signers for smart wallets you control:
+
+        ```typescript
+        import { Turnkey } from '@turnkey/sdk-server'
+        import { actions } from './config'
+
+        const turnkeyClient = new Turnkey({
+          apiBaseUrl: 'https://api.turnkey.com',
+          apiPublicKey: process.env.TURNKEY_API_KEY,
+          apiPrivateKey: process.env.TURNKEY_API_SECRET,
+          defaultOrganizationId: process.env.TURNKEY_ORGANIZATION_ID,
+        })
+
+        // Create Turnkey wallet
+        const turnkeyWallet = await turnkeyClient.apiClient().createWallet({
+          walletName: 'ETH Wallet',
+          accounts: [{
+            curve: 'CURVE_SECP256K1',
+            pathFormat: 'PATH_FORMAT_BIP32',
+            path: "m/44'/60'/0'/0/0",
+            addressFormat: 'ADDRESS_FORMAT_ETHEREUM',
+          }],
+        })
+
+        // Create signer
+        const signer = await actions.wallet.createSigner({
+          organizationId: turnkeyWallet.activity.organizationId,
+          signWith: turnkeyWallet.addresses[0],
+        })
+
+        // Create smart wallet
+        const { wallet } = await actions.wallet.createSmartWallet({
+          signer: signer
+        })
+        ```
+      </Tab>
+    </Tabs>
+
+  </Tab>
+</Tabs>
+
+## Create your ActionsConfig
+
+Follow the [Configuring Actions](/app-developers/guides/configuring-actions) guide to define which protocols, chains, and assets to support.
+
+## Take Action
+
+Once configured, you can use Actions to perform DeFi operations:
+
+```typescript
+import { USDC, ETH, USDT } from "@eth-optimism/actions-sdk/assets";
+import { ExampleMarket } from "@/actions/markets";
+
+// Enable asset lending in DeFi
+const lendReceipt = await wallet.lend.openPosition({
+  amount: 1,
+  asset: USDC,
+  ...ExampleMarket,
+});
+
+// Manage user market positions
+const lendPosition = await wallet.lend.getPosition(market);
+
+// Fetch wallet balance
+const balance = await wallet.getBalance();
+
+// ⚠️ COMING SOON
+const borrowReceipt = await wallet.borrow.openPosition({
+  amount: 1,
+  asset: USDT,
+  ...market,
+});
+
+// ⚠️ COMING SOON
+const swapReceipt = await wallet.swap.execute({
+  amountIn: 1,
+  assetIn: USDC,
+  assetOut: ETH,
+});
+
+// ⚠️ COMING SOON
+const sendReceipt = await wallet.send({
+  amount: 1,
+  asset: USDC,
+  to: "vitalik.eth",
+});
+```
+
+## Next Steps
+
+- [Configure Actions](/app-developers/guides/configuring-actions) to customize protocols, chains, and assets
+- Check out the [Actions demo](https://actions.money/earn) for a complete example application

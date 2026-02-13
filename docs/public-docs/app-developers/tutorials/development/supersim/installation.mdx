@@ -1,0 +1,47 @@
+---
+title: Installation
+description: Learn how to install Supersim.
+---
+
+This page provides installation instructions for `supersim`.
+
+<Steps>
+  <Step title="Prerequisites: foundry">
+  `supersim` requires `anvil`, which is installed alongside the Foundry toolchain.
+  
+    Follow the [Foundry toolchain](https://book.getfoundry.sh/getting-started/installation) guide for detailed instructions.
+  </Step>
+
+  <Step title="Install supersim">
+  Either download precompiled binaries or install using Homebrew:
+  
+    *   Precompiled binaries: Download the executable for your platform from the [GitHub releases page](https://github.com/ethereum-optimism/supersim/releases).
+  
+    *   Homebrew: Install [Homebrew](https://brew.sh/) (OS X, Linux), and then run:
+  
+    ```sh
+    brew tap ethereum-optimism/tap
+    brew install supersim
+    ```
+  </Step>
+
+  <Step title="Start supersim in vanilla mode">
+  Start `supersim` in vanilla mode by running:
+  
+      ```sh
+    supersim
+    ```
+    Vanilla mode will start 3 chains, with the OP Stack contracts already deployed.
+    
+      *   (1) L1 Chain
+          *   Chain 900
+      *   (2) L2 Chains
+          *   Chain 901
+          *   Chain 902
+  </Step>
+</Steps>
+
+## Next steps
+
+*   Continue to the [First Steps](/app-developers/tutorials/development/supersim/first-steps) tutorial to try L1 to L2 message passing.
+*   Explore [Supersim](/app-developers/tutorials/development/supersim) features, particularly in [vanilla mode](/app-developers/reference/tools/supersim/vanilla), which starts 3 chains (L1 and L2).

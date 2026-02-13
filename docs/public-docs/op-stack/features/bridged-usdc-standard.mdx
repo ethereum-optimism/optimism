@@ -1,0 +1,33 @@
+---
+title: Bridged USDC Standard on OP Stack
+description: Overview of the Bridged USDC Standard and how chain operators can deploy it.
+---
+
+## Bridged USDC Standard
+
+USDC is one of the most bridged assets across the crypto ecosystem, and USDC is often bridged to new chains prior to any action from Circle. This can create a challenge when bridged USDC achieves substantial market share, but native USDC (issued by Circle) is preferred by the ecosystem, leading to fragmentation between multiple versions of USDC. Circle introduced the [Bridged USDC Standard](https://www.circle.com/en/bridged-usdc) to ensure that chain operators can easily deploy a form of bridged USDC that is capable of being upgraded in-place by Circle to native USDC, if and when appropriate, and prevent the fragmentation problem.
+
+Bridged USDC Standard for the OP Stack allows for an efficient and modular solution for expanding the Bridged USDC Standard across the OP Stack ecosystem. 
+
+Chain operators can use the Bridged USDC Standard for the OP Stack to get bridged USDC on their OP Stack chain while also providing the optionality for Circle to seamlessly upgrade bridged USDC to native USDC and retain existing supply, holders, and app integrations. 
+
+
+<Info>
+  Chain operators can deploy the Bridged USDC Standard for the OP Stack, providing immediate USDC availability for their users.
+  Importantly, the Bridged USDC Standard allows for a seamless, in-place upgrade to native USDC if an agreement is later reached between the chain operator and Circle.
+</Info>
+
+## Security 
+
+The referenced implementation for the OP Stack has undergone [audits from Spearbit](https://github.com/defi-wonderland/opUSDC/blob/main/audits/spearbit.pdf) and is recommended for production use.
+
+## Next steps
+
+*   Ready to get started? Read the setup guide for the [Bridged USDC Standard for the OP Stack](https://github.com/defi-wonderland/opUSDC#setup).
+*   If you experience any problems, please reach out to [developer support](https://github.com/ethereum-optimism/developers/discussions).
+
+## Bridged USDC Standard Factory Disclaimer
+
+This software is provided "as is," without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.
+
+Please review [Circle's disclaimer](https://github.com/circlefin/stablecoin-evm/blob/master/doc/bridged_USDC_standard.md#for-more-information) for the limitations around Circle obtaining ownership of the Bridged USDC Standard token contract.
