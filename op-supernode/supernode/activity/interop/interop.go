@@ -57,7 +57,7 @@ type Interop struct {
 
 	// pauseAtTimestamp is used for integration test control only.
 	// When non-zero, progressInterop will return early without processing
-	// if the next timestamp to process matches this value.
+	// if the next timestamp to process is >= this value.
 	pauseAtTimestamp atomic.Uint64
 }
 
@@ -162,7 +162,8 @@ func (i *Interop) Stop(ctx context.Context) error {
 }
 
 // PauseAt sets a timestamp at which the interop activity should pause.
-// When progressInterop encounters this timestamp, it returns early without processing.
+// When progressInterop encounters this timestamp or any later timestamp, it returns early without processing.
+// Uses >= check so that if the activity is already beyond the pause point, it will still stop.
 // This function is for integration test control only.
 // Pass 0 to clear the pause (equivalent to calling Resume).
 func (i *Interop) PauseAt(ts uint64) {
@@ -263,8 +264,9 @@ func (i *Interop) progressInterop() (Result, error) {
 	}
 
 	// Check if we're paused at this timestamp (integration test control only)
-	if pauseTs := i.pauseAtTimestamp.Load(); pauseTs != 0 && ts == pauseTs {
-		i.log.Info("interop paused at timestamp", "timestamp", ts)
+	// Uses >= so that if the activity is already beyond the pause point, it will still stop.
+	if pauseTs := i.pauseAtTimestamp.Load(); pauseTs != 0 && ts >= pauseTs {
+		i.log.Info("interop paused at timestamp", "timestamp", ts, "pauseTs", pauseTs)
 		return Result{}, nil
 	}
 
