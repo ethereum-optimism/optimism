@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
