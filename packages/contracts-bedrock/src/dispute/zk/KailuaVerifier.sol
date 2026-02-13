@@ -190,7 +190,7 @@ contract KailuaVerifier is ISemver {
             revert ProvenFaulty();
         }
         // INVARIANT: The collateral submitted for the permit covers two times the proving reward
-        IKailuaTreasury treasury = proposalParent.KAILUA_TREASURY();
+        IKailuaTreasury treasury = IKailuaTreasury(address(proposalParent.KAILUA_TREASURY()));
         if (msg.value < faultProofPermitBond(treasury)) {
             revert IncorrectBondAmount();
         }

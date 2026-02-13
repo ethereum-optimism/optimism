@@ -15,10 +15,27 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.24;
 
-import "./KailuaLib.sol";
-import "./KailuaTournament.sol";
-import "./KailuaTreasury.sol";
-import "./KailuaVerifier.sol";
+import { IInitializable } from "interfaces/dispute/IInitializable.sol";
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+import { IKailuaTreasury } from "interfaces/dispute/zk/IKailuaTreasury.sol";
+import { KailuaLib } from "src/dispute/zk/KailuaLib.sol";
+import { KailuaTournament } from "src/dispute/zk/KailuaTournament.sol";
+import { KailuaTreasury } from "src/dispute/zk/KailuaTreasury.sol";
+import { Duration, GameStatus, Hash, Timestamp } from "src/dispute/lib/Types.sol";
+import {
+    GameNotInProgress,
+    BlockNumberMismatch,
+    BadExtraData,
+    BlockNumberMismatch,
+    NotProven,
+    ClockNotExpired,
+    ProvenFaulty,
+    OutOfOrderResolution,
+    ProposalGapRemaining,
+    InvalidParent,
+    BlobHashMissing,
+    InvalidDuplicationCounter
+} from "src/dispute/lib/Errors.sol";
 
 contract KailuaGame is KailuaTournament {
     // ------------------------------
@@ -29,15 +46,15 @@ contract KailuaGame is KailuaTournament {
     Duration public immutable MAX_CLOCK_DURATION;
 
     /// @notice The timestamp of the genesis l2 block
-    uint256 public immutable GENESIS_TIME_STAMP;
+    uint64 public immutable GENESIS_TIME_STAMP;
 
     /// @notice The time between l2 blocks
-    uint256 public immutable L2_BLOCK_TIME;
+    uint64 public immutable L2_BLOCK_TIME;
 
     constructor(
         KailuaTreasury _kailuaTreasury,
-        uint256 _genesisTimeStamp,
-        uint256 _l2BlockTime,
+        uint64 _genesisTimeStamp,
+        uint64 _l2BlockTime,
         Duration _maxClockDuration
     )
         KailuaTournament(
@@ -83,9 +100,9 @@ contract KailuaGame is KailuaTournament {
         }
 
         // Only allow monotonic duplication counter
-        uint256 duplicationCounter_ = duplicationCounter();
+        uint64 duplicationCounter_ = duplicationCounter();
         if (duplicationCounter_ > 0) {
-            bytes memory extra = abi.encodePacked(msg.data[0x58:0x68], uint64(duplicationCounter_ - 1));
+            bytes memory extra = abi.encodePacked(msg.data[0x58:0x68], duplicationCounter_ - 1);
             (IDisputeGame previousDuplicate,) = DISPUTE_GAME_FACTORY.games(GAME_TYPE, rootClaim(), extra);
             if (address(previousDuplicate) == address(0x0)) {
                 revert InvalidDuplicationCounter();
@@ -155,7 +172,7 @@ contract KailuaGame is KailuaTournament {
             if (signature() != parentGame_.validChildSignature()) {
                 revert ProvenFaulty();
             }
-        } else if (getChallengerDuration(block.timestamp).raw() > 0) {
+        } else if (getChallengerDuration(uint64(block.timestamp)).raw() > 0) {
             revert ClockNotExpired();
         }
 
@@ -206,28 +223,31 @@ contract KailuaGame is KailuaTournament {
         uint256 outputFe,
         bytes calldata blobCommitment,
         bytes calldata kzgProof
-    ) external override returns (bool success) {
-        uint256 blobIndex = KailuaKZGLib.blobIndex(outputNumber);
-        uint32 blobPosition = KailuaKZGLib.fieldElementIndex(outputNumber);
-        bytes32 proposalBlobHash = KailuaKZGLib.versionedKZGHash(blobCommitment);
+    )
+        external
+        override
+        returns (bool success)
+    {
+        uint256 blobIndex = KailuaLib.blobIndex(outputNumber);
+        uint32 blobPosition = KailuaLib.fieldElementIndex(outputNumber);
+        bytes32 proposalBlobHash = KailuaLib.versionedKZGHash(blobCommitment);
         // Note: Only known blobs can be used to validate an intermediate output
         if (proposalBlobHash != proposalBlobHashes[blobIndex].raw()) {
             success = false;
         } else {
-            success =
-                KailuaKZGLib.verifyKZGBlobProof(proposalBlobHash, blobPosition, outputFe, blobCommitment, kzgProof);
+            success = KailuaLib.verifyKZGBlobProof(proposalBlobHash, blobPosition, outputFe, blobCommitment, kzgProof);
         }
     }
 
     /// @inheritdoc KailuaTournament
-    function getChallengerDuration(uint256 asOfTimestamp) public view override returns (Duration duration_) {
+    function getChallengerDuration(uint64 asOfTimestamp) public view override returns (Duration duration_) {
         // INVARIANT: The game must be in progress to query the remaining time to respond to a given claim.
         if (status != GameStatus.IN_PROGRESS) {
             revert GameNotInProgress();
         }
 
         // Compute the duration elapsed of the potential challenger's clock.
-        uint64 elapsed = uint64(asOfTimestamp - createdAt.raw());
+        uint64 elapsed = asOfTimestamp - createdAt.raw();
         uint64 maximum = MAX_CLOCK_DURATION.raw();
         duration_ = elapsed >= maximum ? Duration.wrap(0) : Duration.wrap(maximum - elapsed);
     }

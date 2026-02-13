@@ -174,7 +174,7 @@ contract KailuaTreasury is KailuaTournament {
     }
 
     /// @inheritdoc KailuaTournament
-    function getChallengerDuration(uint256) public pure override returns (Duration duration_) {
+    function getChallengerDuration(uint64) public pure override returns (Duration duration_) {
         // No challenge period
     }
 
