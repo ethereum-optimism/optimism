@@ -117,10 +117,7 @@ func (s *Supernode) EnsureInteropPaused(clA, clB *L2CLNode, pauseOffset uint64) 
 	statusB := clB.SyncStatus()
 
 	// Use the maximum local safe timestamp between both chains
-	localSafeTimestamp := statusA.LocalSafeL2.Time
-	if statusB.LocalSafeL2.Time > localSafeTimestamp {
-		localSafeTimestamp = statusB.LocalSafeL2.Time
-	}
+	localSafeTimestamp := max(statusA.LocalSafeL2.Time, statusB.LocalSafeL2.Time)
 
 	s.log.Info("EnsureInteropPaused: initial sync status",
 		"chainA_local_safe_num", statusA.LocalSafeL2.Number,
@@ -147,18 +144,15 @@ func (s *Supernode) EnsureInteropPaused(clA, clB *L2CLNode, pauseOffset uint64) 
 	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
 	defer cancel()
 
-	actualPauseTimestamp := pauseTimestamp
 	for ts := pauseTimestamp; ts < pauseTimestamp+100; ts++ {
 		resp, err := s.inner.QueryAPI().SuperRootAtTimestamp(ctx, ts)
-		if err != nil {
-			// Transient error - assume not verified
-			actualPauseTimestamp = ts
-			break
-		}
-		if resp.Data == nil {
+		if err != nil || resp.Data == nil {
 			// Found the first unverified timestamp
-			actualPauseTimestamp = ts
-			break
+			s.log.Info("EnsureInteropPaused: confirmed interop is paused",
+				"intendedPauseTimestamp", pauseTimestamp,
+				"actualPauseTimestamp", ts,
+			)
+			return ts
 		}
 		// This timestamp is verified, continue scanning
 		s.log.Warn("EnsureInteropPaused: pause came in late, timestamp already verified",
@@ -167,10 +161,7 @@ func (s *Supernode) EnsureInteropPaused(clA, clB *L2CLNode, pauseOffset uint64) 
 		)
 	}
 
-	s.log.Info("EnsureInteropPaused: confirmed interop is paused",
-		"intendedPauseTimestamp", pauseTimestamp,
-		"actualPauseTimestamp", actualPauseTimestamp,
-	)
-
-	return actualPauseTimestamp
+	s.t.Error("EnsureInteropPaused: failed to find unverified timestamp within 100 timestamps")
+	s.t.FailNow()
+	return pauseTimestamp
 }
