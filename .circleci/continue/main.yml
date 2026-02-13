@@ -1839,6 +1839,28 @@ jobs:
           paths:
             - "/home/circleci/.cache/golangci-lint"
 
+  go-binaries-for-sysgo:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: large
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - go-restore-cache:
+          namespace: sysgo-go-binaries
+      - run:
+          name: Build Go binaries for sysgo
+          command: make cannon op-program
+      - go-save-cache:
+          namespace: sysgo-go-binaries
+      - persist_to_workspace:
+          root: .
+          paths:
+            - "cannon/bin"
+            - "op-program/bin/op-program"
+            - "op-program/bin/op-program-client"
+
   check-op-geth-version:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -3207,6 +3229,7 @@ workflows:
             - kona-build-release
             - rust-build-op-rbuilder
             - rust-build-rollup-boost
+      - go-binaries-for-sysgo
       # IN-MEMORY (all)
       - op-acceptance-tests:
           name: memory-all
@@ -3221,6 +3244,7 @@ workflows:
             - cannon-prestate
             - cannon-kona-host
             - rust-binaries-for-sysgo
+            - go-binaries-for-sysgo
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report
