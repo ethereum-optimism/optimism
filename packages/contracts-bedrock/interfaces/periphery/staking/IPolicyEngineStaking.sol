@@ -51,6 +51,9 @@ interface IPolicyEngineStaking {
     /// @notice Thrown when trying to unstake more than the staked amount.
     error PolicyEngineStaking_InsufficientStake();
 
+    /// @notice The immutable owner of the contract. Can pause and unpause staking.
+    function OWNER_ADDRESS() external view returns (address);
+
     /// @notice Returns the contract owner.
     function owner() external view returns (address);
 

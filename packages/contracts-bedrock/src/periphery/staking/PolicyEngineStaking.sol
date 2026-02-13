@@ -37,7 +37,7 @@ contract PolicyEngineStaking {
 
     /// @notice The immutable owner of the contract. Can pause and unpause staking.
     // nosemgrep: sol-safety-no-immutable-variables
-    address internal immutable OWNER_ADDRESS;
+    address public immutable OWNER_ADDRESS;
 
     /// @notice The ERC20 token used for staking.
     // nosemgrep: sol-safety-no-immutable-variables
@@ -138,7 +138,7 @@ contract PolicyEngineStaking {
         return OWNER_ADDRESS;
     }
 
-    /// @notice Pauses the contract. Stake and changeBeneficiary are disabled while paused.
+    /// @notice Pauses the contract. Stake is disabled while paused.
     function pause() external onlyOwner {
         paused = true;
         emit Paused();
@@ -160,29 +160,29 @@ contract PolicyEngineStaking {
         if (_amount == 0) revert PolicyEngineStaking_ZeroAmount();
         if (_beneficiary == address(0)) revert PolicyEngineStaking_ZeroBeneficiary();
 
-        StakedData storage data = stakingData[msg.sender];
-        address currentLink = data.linkedTo;
+        StakedData storage stakingData = stakingData[msg.sender];
+        address currentLink = stakingData.linkedTo;
 
         if (currentLink == address(0)) {
             // First-time staking: establish link
-            _link(msg.sender, _beneficiary, data);
+            _link(msg.sender, _beneficiary, stakingData);
             emit Linked(msg.sender, _beneficiary);
         } else if (currentLink != _beneficiary) {
             // Re-linking: move existing stake from old beneficiary to new
-            _decreasePeData(currentLink, uint128(data.stakedAmount));
+            _decreasePeData(currentLink, uint128(stakingData.stakedAmount));
             emit Unlinked(msg.sender, currentLink);
 
-            _link(msg.sender, _beneficiary, data);
-            _increasePeData(_beneficiary, uint128(data.stakedAmount));
+            _link(msg.sender, _beneficiary, stakingData);
+            _increasePeData(_beneficiary, uint128(stakingData.stakedAmount));
             emit Linked(msg.sender, _beneficiary);
         } else {
-            // Same beneficiary: re-check allowlist (skip for self-link)
-            if (_beneficiary != msg.sender) {
-                if (!allowlist[_beneficiary][msg.sender]) revert PolicyEngineStaking_NotAllowedToLink();
+            // Skip if Self-Attributing
+            if (_beneficiary != msg.sender && !allowlist[_beneficiary][msg.sender]) {
+                revert PolicyEngineStaking_NotAllowedToLink();
             }
         }
 
-        data.stakedAmount += _amount;
+        stakingData.stakedAmount += _amount;
         _increasePeData(_beneficiary, uint128(_amount));
 
         STAKING_TOKEN.safeTransferFrom(msg.sender, address(this), _amount);
@@ -196,18 +196,18 @@ contract PolicyEngineStaking {
     function changeBeneficiary(address _beneficiary) external {
         if (_beneficiary == address(0)) revert PolicyEngineStaking_ZeroBeneficiary();
 
-        StakedData storage data = stakingData[msg.sender];
-        if (data.stakedAmount == 0) revert PolicyEngineStaking_NoStake();
+        StakedData storage stakingData = stakingData[msg.sender];
+        if (stakingData.stakedAmount == 0) revert PolicyEngineStaking_NoStake();
 
-        address currentLink = data.linkedTo;
+        address currentLink = stakingData.linkedTo;
         if (currentLink == _beneficiary) return;
 
         // Move existing stake from old beneficiary to new
-        _decreasePeData(currentLink, uint128(data.stakedAmount));
+        _decreasePeData(currentLink, uint128(stakingData.stakedAmount));
         emit Unlinked(msg.sender, currentLink);
 
-        _link(msg.sender, _beneficiary, data);
-        _increasePeData(_beneficiary, uint128(data.stakedAmount));
+        _link(msg.sender, _beneficiary, stakingData);
+        _increasePeData(_beneficiary, uint128(stakingData.stakedAmount));
 
         emit Linked(msg.sender, _beneficiary);
     }
@@ -218,16 +218,16 @@ contract PolicyEngineStaking {
     function unstake(uint256 _amount) external {
         if (_amount == 0) revert PolicyEngineStaking_ZeroAmount();
 
-        StakedData storage data = stakingData[msg.sender];
-        if (data.stakedAmount < _amount) revert PolicyEngineStaking_InsufficientStake();
+        StakedData storage stakingData = stakingData[msg.sender];
+        if (stakingData.stakedAmount < _amount) revert PolicyEngineStaking_InsufficientStake();
 
-        address linkedTo = data.linkedTo;
+        address linkedTo = stakingData.linkedTo;
         _decreasePeData(linkedTo, uint128(_amount));
-        data.stakedAmount -= _amount;
+        stakingData.stakedAmount -= _amount;
 
         // Auto-unlink on full unstake
-        if (data.stakedAmount == 0) {
-            data.linkedTo = address(0);
+        if (stakingData.stakedAmount == 0) {
+            stakingData.linkedTo = address(0);
             emit Unlinked(msg.sender, linkedTo);
         }
 
@@ -264,9 +264,7 @@ contract PolicyEngineStaking {
     /// @param _data        The staker's storage data reference.
     function _link(address _staker, address _beneficiary, StakedData storage _data) internal {
         // Skip if Self-Attributing
-        if (_beneficiary != _staker) {
-            if (!allowlist[_beneficiary][_staker]) revert PolicyEngineStaking_NotAllowedToLink();
-        }
+        if (_beneficiary != _staker && !allowlist[_beneficiary][_staker]) revert PolicyEngineStaking_NotAllowedToLink();
         _data.linkedTo = _beneficiary;
     }
 
