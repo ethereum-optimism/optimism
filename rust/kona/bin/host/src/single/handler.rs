@@ -59,7 +59,7 @@ pub fn parse_blob_hint(hint_data: &[u8]) -> Result<(B256, u64)> {
     }
 }
 
-/// The [HintHandler] for the [SingleChainHost].
+/// The [`HintHandler`] for the [`SingleChainHost`].
 #[derive(Debug, Clone, Copy)]
 pub struct SingleChainHintHandler;
 
