@@ -113,13 +113,13 @@ func (s *Supernode) ResumeInterop() {
 // Note: For tests that want to avoid race conditions, consider using the
 // initial pause feature instead. In TestMain, configure your system with:
 //
-//	WithTwoL2SupernodeInteropPaused(delaySeconds, initialPauseTimestamp)
+//	WithTwoL2SupernodeInteropPaused(delaySeconds)
 //
 // Then in tests, use the regular factory:
 //
 //	NewTwoL2SupernodeInterop(t, delaySeconds)
 //
-// The interop will start paused at the configured timestamp, avoiding race conditions.
+// The interop will start paused at timestamp 1, avoiding race conditions.
 func (s *Supernode) EnsureInteropPaused(clA, clB *L2CLNode, pauseOffset uint64) uint64 {
 	s.require.NotNil(s.testControl, "EnsureInteropPaused requires test control; use NewSupernodeWithTestControl")
 

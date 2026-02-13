@@ -99,7 +99,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			cfg.InteropActivationTimestamp,
 			s.chains,
 			cfg.DataDir,
-			cfg.InitialPauseTimestamp,
+			cfg.StartInteropPaused,
 		)
 		s.activities = append(s.activities, interopActivity)
 		for _, chain := range s.chains {

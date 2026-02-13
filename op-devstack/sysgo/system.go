@@ -222,9 +222,9 @@ func DefaultSupernodeTwoL2System(dest *DefaultTwoL2SystemIDs) stack.Option[*Orch
 // DefaultSupernodeInteropTwoL2System runs two L2 chains with a shared supernode that has
 // interop verification enabled. Use delaySeconds=0 for interop at genesis, or a positive value
 // to test the transition from normal safety to interop-verified safety.
-// Use initialPauseTimestamp=0 to start with interop unpaused, or set it to pause interop at that
-// timestamp on startup (useful for avoiding race conditions in tests).
-func DefaultSupernodeInteropTwoL2System(dest *DefaultTwoL2SystemIDs, delaySeconds uint64, initialPauseTimestamp uint64) stack.Option[*Orchestrator] {
+// Use startPaused=false to start with interop unpaused (default), or true to pause interop at
+// timestamp 1 on startup (useful for avoiding race conditions in tests).
+func DefaultSupernodeInteropTwoL2System(dest *DefaultTwoL2SystemIDs, delaySeconds uint64, startPaused bool) stack.Option[*Orchestrator] {
 	ids := NewDefaultTwoL2SystemIDs(DefaultL1ID, DefaultL2AID, DefaultL2BID)
 	opt := stack.Combine[*Orchestrator]()
 	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
@@ -255,14 +255,14 @@ func DefaultSupernodeInteropTwoL2System(dest *DefaultTwoL2SystemIDs, delaySecond
 	// Shared supernode for both L2 chains with interop enabled
 	cls := []L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}, {CLID: ids.L2BCL, ELID: ids.L2BEL}}
 	if delaySeconds == 0 {
-		if initialPauseTimestamp > 0 {
-			opt.Add(WithSharedSupernodeCLsInterop(ids.Supernode, cls, ids.L1CL, ids.L1EL, WithInitialInteropPause(initialPauseTimestamp)))
+		if startPaused {
+			opt.Add(WithSharedSupernodeCLsInterop(ids.Supernode, cls, ids.L1CL, ids.L1EL, WithStartInteropPaused()))
 		} else {
 			opt.Add(WithSharedSupernodeCLsInterop(ids.Supernode, cls, ids.L1CL, ids.L1EL))
 		}
 	} else {
-		if initialPauseTimestamp > 0 {
-			opt.Add(WithSharedSupernodeCLsInteropDelayed(ids.Supernode, cls, ids.L1CL, ids.L1EL, delaySeconds, WithInitialInteropPause(initialPauseTimestamp)))
+		if startPaused {
+			opt.Add(WithSharedSupernodeCLsInteropDelayed(ids.Supernode, cls, ids.L1CL, ids.L1EL, delaySeconds, WithStartInteropPaused()))
 		} else {
 			opt.Add(WithSharedSupernodeCLsInteropDelayed(ids.Supernode, cls, ids.L1CL, ids.L1EL, delaySeconds))
 		}

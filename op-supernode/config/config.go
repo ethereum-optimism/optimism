@@ -23,9 +23,9 @@ type CLIConfig struct {
 	PprofConfig                oppprof.CLIConfig
 	RawCtx                     *cli.Context
 	InteropActivationTimestamp uint64
-	// InitialPauseTimestamp pauses interop verification at this timestamp on startup.
-	// Set to 0 to start with interop unpaused (default).
-	InitialPauseTimestamp uint64
+	// StartInteropPaused pauses interop verification at timestamp 1 on startup.
+	// When true, interop will not verify any blocks until resumed.
+	StartInteropPaused bool
 }
 
 func (c *CLIConfig) Check() error {

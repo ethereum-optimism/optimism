@@ -43,15 +43,15 @@ func WithTwoL2Supernode() stack.CommonOption {
 // Use delaySeconds=0 for interop at genesis, or a positive value to test the transition from
 // normal safety to interop-verified safety.
 func WithTwoL2SupernodeInterop(delaySeconds uint64) stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultSupernodeInteropTwoL2System(&sysgo.DefaultTwoL2SystemIDs{}, delaySeconds, 0))
+	return stack.MakeCommon(sysgo.DefaultSupernodeInteropTwoL2System(&sysgo.DefaultTwoL2SystemIDs{}, delaySeconds, false))
 }
 
 // WithTwoL2SupernodeInteropPaused specifies a two-L2 system using a shared supernode with interop enabled
-// and initially paused at the given timestamp. This avoids race conditions in tests.
-// Use delaySeconds=0 for interop at genesis. The initialPauseTimestamp is the timestamp at which
-// interop verification will pause on startup.
-func WithTwoL2SupernodeInteropPaused(delaySeconds uint64, initialPauseTimestamp uint64) stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultSupernodeInteropTwoL2System(&sysgo.DefaultTwoL2SystemIDs{}, delaySeconds, initialPauseTimestamp))
+// and initially paused at timestamp 1. This avoids race conditions in tests by preventing interop
+// verification until explicitly resumed.
+// Use delaySeconds=0 for interop at genesis.
+func WithTwoL2SupernodeInteropPaused(delaySeconds uint64) stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultSupernodeInteropTwoL2System(&sysgo.DefaultTwoL2SystemIDs{}, delaySeconds, true))
 }
 
 func NewTwoL2(t devtest.T) *TwoL2 {
