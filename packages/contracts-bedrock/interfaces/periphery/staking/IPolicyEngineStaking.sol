@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 /// @title IPolicyEngineStaking
 /// @notice Interface for the PolicyEngineStaking contract.
 interface IPolicyEngineStaking {
     /// @notice Emitted when a user stakes OP tokens.
-    event Staked(address indexed account, address indexed beneficiary, uint256 amount);
+    event Staked(address indexed account, uint256 amount);
 
     /// @notice Emitted when a user unstakes OP tokens.
     event Unstaked(address indexed account, uint256 amount);
@@ -13,8 +15,11 @@ interface IPolicyEngineStaking {
     /// @notice Emitted when a staker links their stake to a beneficiary.
     event Linked(address indexed staker, address indexed beneficiary);
 
-    /// @notice Emitted when a staker unlinks and reverts to self-attribution.
+    /// @notice Emitted when a staker is unlinked from a beneficiary (on re-link or full unstake).
     event Unlinked(address indexed staker, address indexed previousBeneficiary);
+
+    /// @notice Emitted when effective stake changes for an account.
+    event EffectiveStakeChanged(address indexed account, uint256 newEffectiveStake);
 
     /// @notice Emitted when a beneficiary updates their allowlist.
     event BeneficiaryAllowlistUpdated(address indexed beneficiary, address indexed staker, bool allowed);
@@ -37,29 +42,14 @@ interface IPolicyEngineStaking {
     /// @notice Thrown when the beneficiary address is zero.
     error PolicyEngineStaking_ZeroBeneficiary();
 
-    /// @notice Thrown when trying to link to self. Use msg.sender when staking for self-attribution.
-    error PolicyEngineStaking_CannotLinkToSelf();
-
     /// @notice Thrown when the staker is not allowed to link to the beneficiary.
     error PolicyEngineStaking_NotAllowedToLink();
 
-    /// @notice Thrown when trying to link while already linked to a different address.
-    error PolicyEngineStaking_AlreadyLinked();
-
-    /// @notice Thrown when trying to unlink but not linked.
-    error PolicyEngineStaking_NotLinked();
-
-    /// @notice Thrown when trying to link with no stake.
+    /// @notice Thrown when trying to operate with no stake.
     error PolicyEngineStaking_NoStake();
 
-    /// @notice Thrown when trying to stake while not linked and having stake.
-    error PolicyEngineStaking_MustLinkOrUnstakeFirst();
-
-    /// @notice Thrown when the staker has received stake from another beneficiary.
-    error PolicyEngineStaking_StakerHasReceivedStake();
-
-    /// @notice Thrown when staking to a beneficiary who is themselves linked to another (linkers cannot receive stake).
-    error PolicyEngineStaking_BeneficiaryIsLinked();
+    /// @notice Thrown when trying to unstake more than the staked amount.
+    error PolicyEngineStaking_InsufficientStake();
 
     /// @notice Returns the contract owner.
     function owner() external view returns (address);
@@ -67,8 +57,8 @@ interface IPolicyEngineStaking {
     /// @notice Returns whether the contract is paused.
     function paused() external view returns (bool);
 
-    /// @notice Base storage slot for PE data mapping. Policy Engine reads from keccak256(abi.encode(account,
-    /// PE_DATA_SLOT)).
+    /// @notice Base storage slot for PE data mapping. Policy Engine reads from
+    ///         keccak256(abi.encode(account, PE_DATA_SLOT)).
     function PE_DATA_SLOT() external view returns (bytes32);
 
     /// @notice Returns Policy Engine data for an account.
@@ -77,26 +67,30 @@ interface IPolicyEngineStaking {
     /// @notice Returns allowlist entry for a beneficiary-staker pair.
     function allowlist(address _beneficiary, address _staker) external view returns (bool allowed_);
 
+    /// @notice Returns staking data for an account.
+    function stakingData(address _account) external view returns (uint256 stakedAmount_, address linkedTo_);
+
+    /// @notice Returns the ERC20 token used for staking.
+    function STAKING_TOKEN() external view returns (IERC20);
+
     /// @notice Pauses the contract. Only callable by owner.
     function pause() external;
 
     /// @notice Unpauses the contract. Only callable by owner.
     function unpause() external;
 
-    /// @notice Stakes OP tokens and attributes ordering power to a beneficiary.
-    /// @param _amount      The amount of OP tokens to stake.
+    /// @notice Stakes tokens and links to a beneficiary atomically.
+    /// @param _amount      The amount of tokens to stake.
     /// @param _beneficiary Address that receives ordering power. Use msg.sender for self-attribution.
     function stake(uint256 _amount, address _beneficiary) external;
 
-    /// @notice Unstakes all tokens of the caller from the contract.
-    function unstake() external;
-
-    /// @notice Links the caller's stake to a beneficiary for ordering power.
+    /// @notice Re-links existing stake to a new beneficiary.
     /// @param _beneficiary New beneficiary address.
-    function link(address _beneficiary) external;
+    function changeBeneficiary(address _beneficiary) external;
 
-    /// @notice Removes the current beneficiary attribution and reverts to self-attribution.
-    function unlink() external;
+    /// @notice Unstakes OP tokens. Supports partial and full unstake.
+    /// @param _amount The amount of OP tokens to unstake.
+    function unstake(uint256 _amount) external;
 
     /// @notice Sets whether a staker can link to the caller (beneficiary).
     /// @param _staker  The staker address.
