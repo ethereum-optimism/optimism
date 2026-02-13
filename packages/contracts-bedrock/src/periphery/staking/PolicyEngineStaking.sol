@@ -37,7 +37,7 @@ contract PolicyEngineStaking {
 
     /// @notice The immutable owner of the contract. Can pause and unpause staking.
     // nosemgrep: sol-safety-no-immutable-variables
-    address internal immutable OWNER_ADDRESS;
+    address public immutable OWNER_ADDRESS;
 
     /// @notice The ERC20 token used for staking.
     // nosemgrep: sol-safety-no-immutable-variables
