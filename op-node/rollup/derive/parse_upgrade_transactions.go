@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -29,19 +30,19 @@ type NetworkUpgradeTransaction struct {
 
 // NUTBundle is the top-level structure of a NUT file.
 type NUTBundle struct {
-	ForkName     string           `json:"-"`
+	ForkName     forks.Name       `json:"-"`
 	Metadata     NUTMetadata      `json:"metadata"`
 	Transactions []NetworkUpgradeTransaction `json:"transactions"`
 }
 
-// ParseNUTBundle parses a NUT bundle from JSON bytes. The forkName is used to
+// ParseNUTBundle parses a NUT bundle from JSON bytes. The fork name is used to
 // namespace each transaction's intent when deriving source hashes.
-func ParseNUTBundle(forkName string, data []byte) (*NUTBundle, error) {
+func ParseNUTBundle(fork forks.Name, data []byte) (*NUTBundle, error) {
 	var bundle NUTBundle
 	if err := json.Unmarshal(data, &bundle); err != nil {
 		return nil, fmt.Errorf("failed to parse NUT bundle: %w", err)
 	}
-	bundle.ForkName = forkName
+	bundle.ForkName = fork
 	return &bundle, nil
 }
 

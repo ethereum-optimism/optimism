@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +17,7 @@ func TestParseNUTBundle(t *testing.T) {
 	bundle, err := ParseNUTBundle("Test", data)
 	require.NoError(t, err)
 
-	require.Equal(t, "Test", bundle.ForkName)
+	require.Equal(t, forks.Name("Test"), bundle.ForkName)
 	require.Equal(t, "1.0.0", bundle.Metadata.Version)
 	require.Len(t, bundle.Transactions, 2)
 
