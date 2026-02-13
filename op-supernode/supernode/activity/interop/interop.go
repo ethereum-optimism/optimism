@@ -51,7 +51,8 @@ type Interop struct {
 	cancel  context.CancelFunc
 	started bool
 
-	currentL1 eth.BlockID
+	currentL1   eth.BlockID
+	finalizedL1 eth.BlockID
 
 	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
 
@@ -100,7 +101,6 @@ func New(
 		verifiedDB:          verifiedDB,
 		logsDBs:             logsDBs,
 		dataDir:             dataDir,
-		currentL1:           eth.BlockID{},
 		activationTimestamp: activationTimestamp,
 	}
 	// default to using the verifyInteropMessages function
@@ -187,6 +187,13 @@ func (i *Interop) progressAndRecord() (bool, error) {
 		i.log.Error("failed to collect current L1", "err", err)
 		return false, err
 	}
+	finalizedL1, err := i.collectFinalizedL1()
+	if err != nil {
+		i.log.Error("failed to collect finalized L1", "err", err)
+		return false, err
+	}
+	i.finalizedL1 = finalizedL1
+
 	// Perform the interop evaluation
 	result, err := i.progressInterop()
 	if err != nil {
@@ -242,6 +249,23 @@ func (i *Interop) collectCurrentL1() (eth.BlockID, error) {
 		}
 	}
 	return currentL1, nil
+}
+
+func (i *Interop) collectFinalizedL1() (eth.BlockID, error) {
+	var finalizedL1 eth.BlockID
+	first := true
+	for _, chain := range i.chains {
+		status, err := chain.SyncStatus(i.ctx)
+		if err != nil {
+			return eth.BlockID{}, fmt.Errorf("chain %s not ready: %w", chain.ID(), err)
+		}
+		block := status.FinalizedL1
+		if first || block.Number < finalizedL1.Number {
+			finalizedL1 = block.ID()
+			first = false
+		}
+	}
+	return finalizedL1, nil
 }
 
 func (i *Interop) progressInterop() (Result, error) {
@@ -423,6 +447,14 @@ func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint6
 
 func (i *Interop) LatestFinalizedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
 	// TODO: implement finalized block tracking
+	// we can use i.finalizedL1 to get the finalized l1 block number
+	// then we just need to get the latest result from verifiedDB with an l1 block number
+	// at that head or below
+	res,err :=i.verifiedDB.Get(1)
+	if err != nil {
+		return eth.BlockID{}, 0
+	}
+	res.
 	return eth.BlockID{}, 0
 }
 
