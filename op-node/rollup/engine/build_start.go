@@ -32,7 +32,7 @@ func (e *EngineController) onBuildStart(ctx context.Context, ev BuildStartEvent)
 	fcEvent := ForkchoiceUpdateEvent{
 		UnsafeL2Head:    ev.Attributes.Parent,
 		SafeL2Head:      e.SafeL2Head(),
-		FinalizedL2Head: e.finalizedHead,
+		FinalizedL2Head: e.FinalizedHead(),
 	}
 	if fcEvent.UnsafeL2Head.Number < fcEvent.FinalizedL2Head.Number {
 		err := fmt.Errorf("invalid block-building pre-state, unsafe head %s is behind finalized head %s", fcEvent.UnsafeL2Head, fcEvent.FinalizedL2Head)

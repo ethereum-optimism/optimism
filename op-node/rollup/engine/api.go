@@ -37,7 +37,7 @@ func (e *EngineController) OpenBlock(ctx context.Context, parent eth.BlockID, at
 	fc := eth.ForkchoiceState{
 		HeadBlockHash:      parent.Hash,
 		SafeBlockHash:      e.SafeL2Head().Hash,
-		FinalizedBlockHash: e.finalizedHead.Hash,
+		FinalizedBlockHash: e.FinalizedHead().Hash,
 	}
 	id, errTyp, err := e.startPayload(ctx, fc, attrs)
 	if err != nil {
