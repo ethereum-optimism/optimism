@@ -36,9 +36,11 @@ contract PolicyEngineStaking {
     bytes32 public constant PE_DATA_SLOT = bytes32(uint256(0));
 
     /// @notice The immutable owner of the contract. Can pause and unpause staking.
+    // nosemgrep: sol-safety-no-immutable-variables
     address internal immutable OWNER_ADDRESS;
 
     /// @notice The ERC20 token used for staking.
+    // nosemgrep: sol-safety-no-immutable-variables
     IERC20 public immutable STAKING_TOKEN;
 
     /// @notice Slot 0: PE data mapping.
