@@ -15,18 +15,28 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.24;
 
-import "../../../interfaces/L1/IOptimismPortal2.sol";
-import "../../../interfaces/dispute/IFaultDisputeGame.sol";
-import "../../../interfaces/dispute/zk/IKailuaTournament.sol";
-import "../../../interfaces/dispute/zk/IKailuaTreasury.sol";
-import "./KailuaLib.sol";
-import "./KailuaVerifier.sol";
+import "interfaces/L1/IOptimismPortal2.sol";
+import "interfaces/dispute/IFaultDisputeGame.sol";
+import { IKailuaTournament } from "interfaces/dispute/zk/IKailuaTournament.sol";
+import { IKailuaTreasury } from "interfaces/dispute/zk/IKailuaTreasury.sol";
+//import "src/dispute/zk//KailuaLib.sol";
+import { KailuaVerifier } from "src/dispute/zk//KailuaVerifier.sol";
 import "@solady/utils/Clone.sol";
 
 abstract contract KailuaTournament is Clone, IDisputeGame, ISemver {
     /// @notice Semantic version.
     /// @custom:semver 1.2.0
     string public constant version = "1.2.0";
+
+    /// @notice Denotes the proven status of the game
+    enum ProofStatus {
+        NONE,
+        FAULT,
+        VALIDITY
+    }
+
+    /// @notice Emitted when a proof is submitted.
+    event Proven(bytes32 indexed signature, ProofStatus indexed status);
 
     // ------------------------------
     // Immutable configuration

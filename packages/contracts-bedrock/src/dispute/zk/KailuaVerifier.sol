@@ -15,11 +15,21 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.24;
 
-import "../../../interfaces/dispute/zk/IKailuaTournament.sol";
-import "../../../interfaces/dispute/zk/IRiscZeroVerifier.sol";
-import "../../../interfaces/universal/ISemver.sol";
-import "./KailuaLib.sol";
-import "src/dispute/lib/Types.sol";
+import { IKailuaTournament } from "interfaces/dispute/zk/IKailuaTournament.sol";
+import { IKailuaTreasury } from "interfaces/dispute/zk/IKailuaTreasury.sol";
+import { IRiscZeroVerifier } from "interfaces/dispute/zk/IRiscZeroVerifier.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
+import { Duration } from "src/dispute/lib/Types.sol";
+import { KailuaLib } from "src/dispute/zk/KailuaLib.sol";
+import {
+    ClockNotExpired,
+    IncorrectBondAmount,
+    NoCreditToClaim,
+    AlreadyEliminated,
+    NotProven,
+    ProvenFaulty,
+    BadTarget
+} from "src/dispute/lib/Errors.sol";
 
 contract KailuaVerifier is ISemver {
     /// @notice Semantic version.
@@ -61,7 +71,10 @@ contract KailuaVerifier is ISemver {
     }
 
     /// @notice Returns the key for indexing fault proving permits
-    function faultProofPermitKey(IKailuaTournament proposalParent, bytes32 proposalSignature)
+    function faultProofPermitKey(
+        IKailuaTournament proposalParent,
+        bytes32 proposalSignature
+    )
         public
         pure
         returns (bytes32)
@@ -70,7 +83,10 @@ contract KailuaVerifier is ISemver {
     }
 
     /// @notice Returns the earliest timestamp at which a fault proof permit can be released
-    function faultProofPermitProvenAt(IKailuaTournament proposalParent, bytes32 proposalSignature)
+    function faultProofPermitProvenAt(
+        IKailuaTournament proposalParent,
+        bytes32 proposalSignature
+    )
         public
         view
         returns (uint64)
@@ -92,7 +108,10 @@ contract KailuaVerifier is ISemver {
     }
 
     /// @notice Returns the exclusive beneficiary of a fault proof reward
-    function faultProofPermitBeneficiary(IKailuaTournament proposalParent, bytes32 proposalSignature)
+    function faultProofPermitBeneficiary(
+        IKailuaTournament proposalParent,
+        bytes32 proposalSignature
+    )
         public
         view
         returns (address)
@@ -116,8 +135,13 @@ contract KailuaVerifier is ISemver {
         return proposalPermits[0].recipient;
     }
 
-    /// @notice Given a reference timestamp, returns the number of expired permits, their total collateral, and the number of active permits
-    function countExpiredPermits(bytes32 proposalKey, uint64 numExpiredPermits, uint64 timestamp)
+    /// @notice Given a reference timestamp, returns the number of expired permits, their total collateral, and the
+    /// number of active permits
+    function countExpiredPermits(
+        bytes32 proposalKey,
+        uint64 numExpiredPermits,
+        uint64 timestamp
+    )
         public
         view
         returns (uint64, uint256, uint64)
@@ -156,7 +180,11 @@ contract KailuaVerifier is ISemver {
         bytes32 proposalSignature,
         uint64 numExpiredPermits,
         address payoutRecipient
-    ) external payable returns (uint256 totalPermitsIssued_) {
+    )
+        external
+        payable
+        returns (uint256 totalPermitsIssued_)
+    {
         // INVARIANT: The child signature is still viable so no proof is submitted for/against it
         if (!proposalParent.isViableSignature(proposalSignature)) {
             revert ProvenFaulty();
@@ -181,7 +209,14 @@ contract KailuaVerifier is ISemver {
             aggregateCollateral += proposalPermits[totalPermitsIssued_ - 1].aggregateCollateral;
         }
         // Assign a new permit
-        proposalPermits.push(FaultProofPermit(aggregateCollateral, payoutRecipient, uint64(block.timestamp), false));
+        proposalPermits.push(
+            FaultProofPermit({
+                aggregateCollateral: aggregateCollateral,
+                recipient: payoutRecipient,
+                timestamp: uint64(block.timestamp),
+                released: false
+            })
+        );
     }
 
     /// @notice Claims the total payout for a permit
@@ -190,7 +225,9 @@ contract KailuaVerifier is ISemver {
         bytes32 proposalSignature,
         uint64 numExpiredPermits,
         uint64 permitIndex
-    ) external {
+    )
+        external
+    {
         // INVARIANT: The child signature is proven faulty
         if (proposalParent.isViableSignature(proposalSignature)) {
             revert NotProven();
@@ -219,7 +256,7 @@ contract KailuaVerifier is ISemver {
         }
         // Pay out recipient
         permit.released = true;
-        KailuaPayLib.pay(payout, payable(permit.recipient));
+        KailuaLib.pay(payout, payable(permit.recipient));
     }
 
     /// @notice Verifies a ZK proof
@@ -231,7 +268,10 @@ contract KailuaVerifier is ISemver {
         bytes32 claimedL2OutputRoot,
         uint64 claimedL2BlockNumber,
         bytes calldata encodedSeal
-    ) external view {
+    )
+        external
+        view
+    {
         // Construct the expected journal
         bytes memory journal = abi.encodePacked(
             // The address of the recipient of the payout for this proof

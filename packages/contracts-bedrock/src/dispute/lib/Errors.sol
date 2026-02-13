@@ -180,3 +180,55 @@ error InvalidProposalStatus();
 
 /// @notice Thrown when the game is initialized by an incorrect factory.
 error IncorrectDisputeGameFactory();
+
+////////////////////////////////////////////////////////////////
+//                       `Kailua` Errors                      //
+////////////////////////////////////////////////////////////////
+
+/// @notice Thrown when a blacklisted address attempts to interact with the game.
+error Blacklisted(address source, address expected);
+
+/// @notice Thrown when a child from an unknown source appends itself to a tournament
+error UnknownGame();
+
+/// @notice Thrown when eliminating an already removed child
+error AlreadyEliminated();
+
+/// @notice Thrown when a proof is submitted for an already proven game
+error AlreadyProven();
+
+/// @notice Thrown when a resolution is attempted for an unproven claim
+error NotProven();
+
+/// @notice Thrown when resolving a faulty proposal
+error ProvenFaulty();
+
+/// @notice Thrown when pruning is attempted with no children
+error NotProposed();
+
+/// @notice Thrown when proving is attempted with two agreeing outputs
+error NoConflict();
+
+/// @notice Thrown when proposing before the minimum creation time
+error ProposalGapRemaining(uint256 currentTime, uint256 minCreationTime);
+
+/// @notice Thrown when a blob hash is missing
+error BlobHashMissing(uint256 index, uint256 count);
+
+/// @notice Occurs when the duplication counter is wrong
+error InvalidDuplicationCounter();
+
+/// @notice Occurs when the anchored game block number is different
+/// @param anchored The L2 block number of the anchored game
+/// @param initialized This game's l2 block number
+error BlockNumberMismatch(uint256 anchored, uint256 initialized);
+
+/// @notice Occurs when a proposer attempts to extend the chain before the vanguard
+/// @param parentGame The address of the parent proposal being extended
+error VanguardError(address parentGame);
+
+/// @notice Thrown when a non-factory owner calls an owner-only function.
+error NotFactoryOwner();
+
+/// @notice Error for when a deposit or withdrawal is to a bad target.
+error BadTarget();

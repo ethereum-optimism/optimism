@@ -15,10 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.24;
 
-import "./KailuaLib.sol";
-import "./KailuaTournament.sol";
-import "./KailuaVerifier.sol";
-import "interfaces/dispute/IInitializable.sol";
+import "src/dispute/zk/KailuaLib.sol";
+import { KailuaTournament} from "src/dispute/zk/KailuaTournament.sol";
+import { KailuaVerifier } from "src/dispute/zk/KailuaVerifier.sol";
+import { IInitializable } from "interfaces/dispute/IInitializable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 contract KailuaTreasury is KailuaTournament {

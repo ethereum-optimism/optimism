@@ -15,80 +15,17 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.24;
 
-import "../lib/Errors.sol";
+import { BondTransferFailed } from "src/dispute/lib/Errors.sol";
 import "@openzeppelin/contracts/utils/Timers.sol";
 
-// 0xd36871fd
-/// @notice Thrown when a blacklisted address attempts to interact with the game.
-error Blacklisted(address source, address expected);
 
-// 0x9d3e7d24
-/// @notice Thrown when a child from an unknown source appends itself to a tournament
-error UnknownGame();
-
-// 0x8b1dfa22
-/// @notice Thrown when eliminating an already removed child
-error AlreadyEliminated();
-
-// 0x2c06a364
-/// @notice Thrown when a proof is submitted for an already proven game
-error AlreadyProven();
-
-// 0xa506d334
-/// @notice Thrown when a resolution is attempted for an unproven claim
-error NotProven();
-
-// 0x5e22e582
-/// @notice Thrown when resolving a faulty proposal
-error ProvenFaulty();
-
-// 0xf2a87d5e
-/// @notice Thrown when pruning is attempted with no children
-error NotProposed();
-
-// 0x7412124e
-/// @notice Thrown when proving is attempted with two agreeing outputs
-error NoConflict();
-
-// 0x9276ab5a
-/// @notice Thrown when proposing before the minimum creation time
-error ProposalGapRemaining(uint256 currentTime, uint256 minCreationTime);
-
-// 0x1434391f
-/// @notice Thrown when a blob hash is missing
-error BlobHashMissing(uint256 index, uint256 count);
-
-// 0x19e3a1dc
-/// @notice Occurs when the duplication counter is wrong
-error InvalidDuplicationCounter();
-
-// 0xeaa0996e
-/// @notice Occurs when the anchored game block number is different
-/// @param anchored The L2 block number of the anchored game
-/// @param initialized This game's l2 block number
-error BlockNumberMismatch(uint256 anchored, uint256 initialized);
-
-// 0x627fad6e
-/// @notice Occurs when a proposer attempts to extend the chain before the vanguard
-/// @param parentGame The address of the parent proposal being extended
-error VanguardError(address parentGame);
-
-// 0x428e0b92
-/// @notice Thrown when a non-factory owner calls an owner-only function.
-error NotFactoryOwner();
-
-/// @notice Error for when a deposit or withdrawal is to a bad target.
-error BadTarget();
-
-library KailuaPayLib {
+library KailuaLib {
     /// @notice Transfers ETH from the contract's balance to the recipient
     function pay(uint256 amount, address recipient) internal {
         (bool success,) = recipient.call{value: amount}(hex"");
         if (!success) revert BondTransferFailed();
     }
-}
 
-library KailuaKZGLib {
     /// @notice The KZG commitment version
     bytes32 internal constant KZG_COMMITMENT_VERSION =
         bytes32(0x0100000000000000000000000000000000000000000000000000000000000000);
