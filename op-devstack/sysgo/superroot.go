@@ -95,8 +95,8 @@ func withSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stac
 					if status == nil {
 						return false, nil
 					}
-					superrootTime = status.SafeL2.Time
-					return status.SafeL2.Number > 0, nil
+					superrootTime = status.LocalSafeL2.Time
+					return status.LocalSafeL2.Number > 0, nil
 				})
 				cancel()
 				t.Require().NoError(err, "waiting for supernode chain safe head to advance failed")
