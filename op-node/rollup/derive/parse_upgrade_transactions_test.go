@@ -28,15 +28,13 @@ func TestParseNUTBundle(t *testing.T) {
 	require.Equal(t, common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), *tx0.To)
 	require.Equal(t, common.FromHex("0xabcdef"), []byte(tx0.Data))
 	require.Equal(t, uint64(1000000), tx0.GasLimit)
-	require.Nil(t, tx0.Value)
 
-	// Second tx: has value and non-zero from
+	// Second tx: non-zero from
 	tx1 := bundle.Transactions[1]
 	require.Equal(t, "Second Transaction", tx1.Intent)
 	require.Equal(t, common.HexToAddress("0x000000000000000000000000000000000000abba"), tx1.From)
 	require.NotNil(t, tx1.To)
 	require.Equal(t, uint64(5000000), tx1.GasLimit)
-	require.Equal(t, big.NewInt(100), tx1.Value)
 }
 
 func TestNUTBundleToDepositTransactions(t *testing.T) {
@@ -67,7 +65,7 @@ func TestNUTBundleToDepositTransactions(t *testing.T) {
 	require.Equal(t, common.HexToAddress("0x000000000000000000000000000000000000abba"), from1)
 	require.Equal(t, expectedSource1.SourceHash(), dep1.SourceHash())
 	require.Equal(t, uint64(5000000), dep1.Gas())
-	require.Equal(t, big.NewInt(100), dep1.Value())
+	require.Equal(t, big.NewInt(0), dep1.Value())
 	// Source hashes must be unique
 	require.NotEqual(t, dep0.SourceHash(), dep1.SourceHash())
 }

@@ -25,7 +25,6 @@ type NetworkUpgradeTransaction struct {
 	To       *common.Address `json:"to"`
 	Data     hexutil.Bytes   `json:"data"`
 	GasLimit uint64          `json:"gasLimit"`
-	Value    *big.Int        `json:"value,omitempty"`
 }
 
 // NUTBundle is the top-level structure of a NUT file.
@@ -54,11 +53,6 @@ func (b *NUTBundle) ToDepositTransactions() ([]hexutil.Bytes, error) {
 			return nil, fmt.Errorf("tx %d: missing intent", i)
 		}
 
-		value := nutTx.Value
-		if value == nil {
-			value = big.NewInt(0)
-		}
-
 		qualifiedIntent := fmt.Sprintf("%s %d: %s", b.ForkName, i, nutTx.Intent)
 		source := UpgradeDepositSource{Intent: qualifiedIntent}
 		depTx := &types.DepositTx{
@@ -66,7 +60,7 @@ func (b *NUTBundle) ToDepositTransactions() ([]hexutil.Bytes, error) {
 			From:                nutTx.From,
 			To:                  nutTx.To,
 			Mint:                big.NewInt(0),
-			Value:               value,
+			Value:               big.NewInt(0),
 			Gas:                 nutTx.GasLimit,
 			IsSystemTransaction: false,
 			Data:                nutTx.Data,
