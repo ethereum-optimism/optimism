@@ -43,7 +43,8 @@ type ChainContainer interface {
 	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error)
 	// RewindEngine rewinds the engine to the highest block with timestamp less than or equal to the given timestamp.
-	RewindEngine(ctx context.Context, timestamp uint64) error
+	// invalidatedBlock is the block that triggered the rewind and is passed to reset callbacks.
+	RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error
 	RegisterVerifier(v activity.VerificationActivity)
 	// FetchReceipts fetches the receipts for a given block by hash.
 	// Returns block info and receipts, or an error if the block or receipts cannot be fetched.
@@ -63,9 +64,10 @@ type ChainContainer interface {
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
 
-// ResetCallback is called when the chain container resets to a given timestamp.
+// ResetCallback is called when the chain container resets due to an invalidated block.
 // The supernode uses this to notify activities about the reset.
-type ResetCallback func(chainID eth.ChainID, timestamp uint64)
+// invalidatedBlock is the block that was invalidated and triggered the reset.
+type ResetCallback func(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef)
 
 type simpleChainContainer struct {
 	vn                 virtual_node.VirtualNode
@@ -471,7 +473,7 @@ func isCriticalRewindError(err error) bool {
 		errors.Is(err, engine_controller.ErrRewindOverFinalizedHead)
 }
 
-func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint64) error {
+func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	if c.vn == nil {
 		return fmt.Errorf("virtual node not initialized")
 	}
@@ -518,7 +520,7 @@ retryLoop:
 
 	// Notify activities about the reset
 	if c.onReset != nil {
-		c.onReset(c.chainID, timestamp)
+		c.onReset(c.chainID, timestamp, invalidatedBlock)
 	}
 
 	// resume the chain container to trigger a new vn to be started

@@ -594,7 +594,7 @@ func (m *statefulMockChainContainer) SyncStatus(ctx context.Context) (*eth.SyncS
 	return &eth.SyncStatus{}, nil
 }
 func (m *statefulMockChainContainer) BlockTime() uint64 { return 1 }
-func (m *statefulMockChainContainer) RewindEngine(ctx context.Context, timestamp uint64) error {
+func (m *statefulMockChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	return nil
 }
 func (m *statefulMockChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {

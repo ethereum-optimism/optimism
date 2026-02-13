@@ -198,9 +198,11 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 		"hash", payloadHash,
 	)
 
+	invalidatedBlock := currentBlock.BlockRef()
+
 	// Rewind to the prior block's timestamp
 	priorTimestamp := c.blockNumberToTimestamp(height - 1)
-	if err := c.RewindEngine(ctx, priorTimestamp); err != nil {
+	if err := c.RewindEngine(ctx, priorTimestamp, invalidatedBlock); err != nil {
 		return false, fmt.Errorf("failed to rewind engine: %w", err)
 	}
 

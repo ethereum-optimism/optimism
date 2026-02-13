@@ -32,7 +32,7 @@ func (s *Superroot) ActivityName() string { return "superroot" }
 
 // Reset is a no-op for superroot - it always queries chain containers directly
 // and doesn't maintain any chain-specific cached state.
-func (s *Superroot) Reset(chainID eth.ChainID, timestamp uint64) {
+func (s *Superroot) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
 	// No-op: superroot queries chain containers directly
 }
 

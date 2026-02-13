@@ -175,7 +175,8 @@ func (m *mockVerificationActivity) VerifiedAtTimestamp(ts uint64) (bool, error) 
 func (m *mockVerificationActivity) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
 	return eth.BlockID{}, 0
 }
-func (m *mockVerificationActivity) Reset(chainID eth.ChainID, timestamp uint64) {}
+func (m *mockVerificationActivity) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
+}
 
 // Test helpers
 func createTestVNConfig() *opnodecfg.Config {
@@ -611,7 +612,8 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		// Call RewindEngine
 		ctx := context.Background()
 		rewindTimestamp := uint64(1234567890)
-		err := c.RewindEngine(ctx, rewindTimestamp)
+		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: rewindTimestamp + 2}
+		err := c.RewindEngine(ctx, rewindTimestamp, invalidatedBlock)
 		require.NoError(t, err)
 
 		// Verify RewindToTimestamp was called with correct timestamp
@@ -646,7 +648,8 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		// Call RewindEngine - should retry and eventually fail
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second) // this will prevent infinite retries
 		defer cancel()
-		err := c.RewindEngine(ctx, 12345)
+		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
+		err := c.RewindEngine(ctx, 12345, invalidatedBlock)
 		require.Error(t, err)
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 
@@ -687,7 +690,8 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 
 				// Call RewindEngine - should fail immediately without retry
 				ctx := context.Background()
-				err := c.RewindEngine(ctx, 12345)
+				invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
+				err := c.RewindEngine(ctx, 12345, invalidatedBlock)
 				require.Error(t, err)
 				require.ErrorIs(t, err, tc.err)
 
@@ -715,7 +719,8 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 
 		// Call RewindEngine - should fail on VN stop
 		ctx := context.Background()
-		err := c.RewindEngine(ctx, 12345)
+		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
+		err := c.RewindEngine(ctx, 12345, invalidatedBlock)
 		require.Error(t, err)
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 
@@ -748,7 +753,8 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 
 		// Call RewindEngine - should succeed after retries
 		ctx := context.Background()
-		err := c.RewindEngine(ctx, 12345)
+		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
+		err := c.RewindEngine(ctx, 12345, invalidatedBlock)
 		require.NoError(t, err)
 
 		// Verify RewindToTimestamp was called 3 times (2 failures + 1 success)

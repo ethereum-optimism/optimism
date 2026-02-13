@@ -57,7 +57,7 @@ func (h *Heartbeat) Stop(ctx context.Context) error {
 }
 
 // Reset is a no-op for heartbeat - it has no chain-specific state.
-func (h *Heartbeat) Reset(chainID eth.ChainID, timestamp uint64) {
+func (h *Heartbeat) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
 	// No-op: heartbeat has no chain-specific cached state
 }
 

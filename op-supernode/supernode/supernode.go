@@ -228,15 +228,16 @@ func (s *Supernode) Stop(ctx context.Context) error {
 	return nil
 }
 
-// onChainReset is called when a chain container resets to a given timestamp.
+// onChainReset is called when a chain container resets due to an invalidated block.
 // It notifies all activities about the reset so they can clean up cached state.
-func (s *Supernode) onChainReset(chainID eth.ChainID, timestamp uint64) {
+func (s *Supernode) onChainReset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
 	s.log.Info("chain reset detected, notifying activities",
 		"chainID", chainID,
 		"timestamp", timestamp,
+		"invalidatedBlock", invalidatedBlock,
 	)
 	for _, a := range s.activities {
-		a.Reset(chainID, timestamp)
+		a.Reset(chainID, timestamp, invalidatedBlock)
 	}
 }
 
