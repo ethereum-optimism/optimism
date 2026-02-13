@@ -33,11 +33,7 @@ pub struct ExecutionPayloadFlashblockDeltaV1 {
     /// The withdrawals root of the block.
     pub withdrawals_root: B256,
     /// The blob gas used
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        with = "alloy_serde::quantity::opt"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "alloy_serde::quantity::opt")]
     pub blob_gas_used: Option<u64>,
 }
 
@@ -101,17 +97,13 @@ impl Encodable for FlashblocksPayloadV1 {
 
         let base_len = self.base.as_ref().map(|b| b.length()).unwrap_or(empty_len);
 
-        let payload_len = self.payload_id.0.length()
-            + self.index.length()
-            + self.diff.length()
-            + json_bytes.length()
-            + base_len;
+        let payload_len = self.payload_id.0.length() +
+            self.index.length() +
+            self.diff.length() +
+            json_bytes.length() +
+            base_len;
 
-        Header {
-            list: true,
-            payload_length: payload_len,
-        }
-        .encode(out);
+        Header { list: true, payload_length: payload_len }.encode(out);
 
         // 1. `payload_id` – the inner `B64` already impls `Encodable`
         self.payload_id.0.encode(out);
@@ -144,18 +136,13 @@ impl Encodable for FlashblocksPayloadV1 {
         let base_len = self.base.as_ref().map(|b| b.length()).unwrap_or(empty_len);
 
         // list header length + payload length
-        let payload_length = self.payload_id.0.length()
-            + self.index.length()
-            + self.diff.length()
-            + json_bytes.length()
-            + base_len;
+        let payload_length = self.payload_id.0.length() +
+            self.index.length() +
+            self.diff.length() +
+            json_bytes.length() +
+            base_len;
 
-        Header {
-            list: true,
-            payload_length,
-        }
-        .length()
-            + payload_length
+        Header { list: true, payload_length }.length() + payload_length
     }
 }
 
@@ -188,13 +175,7 @@ impl Decodable for FlashblocksPayloadV1 {
         // advance the original buffer cursor
         *buf = &buf[header.payload_length..];
 
-        Ok(Self {
-            payload_id,
-            index,
-            diff,
-            metadata,
-            base,
-        })
+        Ok(Self { payload_id, index, diff, metadata, base })
     }
 }
 
@@ -242,19 +223,12 @@ mod tests {
         };
 
         let encoded = encode(&original);
-        assert_eq!(
-            encoded.len(),
-            original.length(),
-            "length() must match actually-encoded size"
-        );
+        assert_eq!(encoded.len(), original.length(), "length() must match actually-encoded size");
 
         let mut slice = encoded.as_ref();
         let decoded = FlashblocksPayloadV1::decode(&mut slice).expect("decode succeeds");
         assert_eq!(original, decoded, "round-trip must be loss-less");
-        assert!(
-            slice.is_empty(),
-            "decoder should consume the entire input buffer"
-        );
+        assert!(slice.is_empty(), "decoder should consume the entire input buffer");
     }
 
     #[test]
@@ -292,9 +266,6 @@ mod tests {
 
         let mut slice = corrupted.as_ref();
         let result = FlashblocksPayloadV1::decode(&mut slice);
-        assert!(
-            result.is_err(),
-            "decoder must flag malformed / truncated input"
-        );
+        assert!(result.is_err(), "decoder must flag malformed / truncated input");
     }
 }

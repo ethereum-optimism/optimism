@@ -1,28 +1,29 @@
 use super::outbound::WebSocketPublisher;
-use crate::flashblocks::metrics::FlashblocksServiceMetrics;
-use crate::{ClientResult, EngineApiExt, RpcClient};
+use crate::{
+    ClientResult, EngineApiExt, RpcClient, flashblocks::metrics::FlashblocksServiceMetrics,
+};
 use alloy_primitives::U256;
 use alloy_rpc_types_engine::{
-    BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, ExecutionPayloadV3,
+    BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, ExecutionPayloadV3, ForkchoiceState,
+    ForkchoiceUpdated, PayloadId, PayloadStatus,
 };
-use alloy_rpc_types_engine::{ForkchoiceState, ForkchoiceUpdated, PayloadId, PayloadStatus};
 use alloy_rpc_types_eth::{Block, BlockNumberOrTag};
 use core::net::SocketAddr;
 use jsonrpsee::core::async_trait;
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
-    OpPayloadAttributes,
-};
-use op_alloy_rpc_types_engine::{
-    OpFlashblockPayload, OpFlashblockPayloadBase, OpFlashblockPayloadDelta,
+    OpFlashblockPayload, OpFlashblockPayloadBase, OpFlashblockPayloadDelta, OpPayloadAttributes,
 };
 use rollup_boost_types::payload::{NewPayload, OpExecutionPayloadEnvelope, PayloadVersion};
-use std::io;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{
+    io,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+};
 use thiserror::Error;
-use tokio::sync::RwLock;
-use tokio::sync::mpsc;
+use tokio::sync::{RwLock, mpsc};
 use tracing::{debug, error, info};
 
 #[derive(Debug, Error, PartialEq)]
@@ -97,10 +98,7 @@ impl FlashblockBuilder {
         let base = self.base.as_ref().ok_or(FlashblocksError::MissingPayload)?;
 
         // There must be at least one delta
-        let diff = self
-            .flashblocks
-            .last()
-            .ok_or(FlashblocksError::MissingDelta)?;
+        let diff = self.flashblocks.last().ok_or(FlashblocksError::MissingDelta)?;
 
         let (transactions, withdrawals) = self.flashblocks.iter().fold(
             (Vec::new(), Vec::new()),
@@ -138,17 +136,17 @@ impl FlashblockBuilder {
         };
 
         match version {
-            PayloadVersion::V3 => Ok(OpExecutionPayloadEnvelope::V3(
-                OpExecutionPayloadEnvelopeV3 {
+            PayloadVersion::V3 => {
+                Ok(OpExecutionPayloadEnvelope::V3(OpExecutionPayloadEnvelopeV3 {
                     parent_beacon_block_root: base.parent_beacon_block_root,
                     block_value: U256::ZERO,
                     blobs_bundle: BlobsBundleV1::default(),
                     should_override_builder: false,
                     execution_payload,
-                },
-            )),
-            PayloadVersion::V4 => Ok(OpExecutionPayloadEnvelope::V4(
-                OpExecutionPayloadEnvelopeV4 {
+                }))
+            }
+            PayloadVersion::V4 => {
+                Ok(OpExecutionPayloadEnvelope::V4(OpExecutionPayloadEnvelopeV4 {
                     parent_beacon_block_root: base.parent_beacon_block_root,
                     block_value: U256::ZERO,
                     blobs_bundle: BlobsBundleV1::default(),
@@ -158,8 +156,8 @@ impl FlashblockBuilder {
                         payload_inner: execution_payload,
                     },
                     execution_requests: vec![],
-                },
-            )),
+                }))
+            }
         }
     }
 }
@@ -209,8 +207,8 @@ impl FlashblocksService {
         // Check that we have flashblocks for correct payload
         if *self.current_payload_id.read().await != Some(payload_id) {
             // We have outdated `current_payload_id` so we should fallback to get_payload
-            // Clearing best_payload in here would cause situation when old `get_payload` would clear
-            // currently built correct flashblocks.
+            // Clearing best_payload in here would cause situation when old `get_payload` would
+            // clear currently built correct flashblocks.
             // This will self-heal on the next FCU.
             return Err(FlashblocksError::MissingPayload);
         }
@@ -222,8 +220,7 @@ impl FlashblocksService {
                 .max_flashblocks
                 .fetch_max(flashblocks_number, Ordering::Relaxed)
                 .max(flashblocks_number);
-            self.metrics
-                .record_flashblocks(flashblocks_number, max_flashblocks);
+            self.metrics.record_flashblocks(flashblocks_number, max_flashblocks);
             tracing::Span::current().record("flashblocks_count", flashblocks_number);
             // Take payload and place new one in its place in one go to avoid double locking
             std::mem::replace(&mut *builder, FlashblockBuilder::new()).into_envelope(version)?
@@ -301,8 +298,7 @@ impl FlashblocksService {
 
     pub async fn run(&mut self, mut stream: mpsc::Receiver<OpFlashblockPayload>) {
         while let Some(event) = stream.recv().await {
-            self.on_event(FlashblocksEngineMessage::OpFlashblockPayload(event))
-                .await;
+            self.on_event(FlashblocksEngineMessage::OpFlashblockPayload(event)).await;
         }
     }
 }
@@ -320,10 +316,8 @@ impl EngineApiExt for FlashblocksService {
             self.set_current_payload_id(payload_id).await;
         }
 
-        let resp = self
-            .client
-            .fork_choice_updated_v3(fork_choice_state, payload_attributes)
-            .await?;
+        let resp =
+            self.client.fork_choice_updated_v3(fork_choice_state, payload_attributes).await?;
 
         if let Some(payload_id) = resp.payload_id {
             let current_payload = *self.current_payload_id.read().await;
@@ -404,20 +398,14 @@ mod tests {
         let jwt_secret = JwtSecret::random();
 
         let builder_auth_rpc = Uri::from_str(&format!("http://{fallback_server_addr}")).unwrap();
-        let builder_client = RpcClient::new(
-            builder_auth_rpc.clone(),
-            jwt_secret,
-            2000,
-            PayloadSource::Builder,
-        )?;
+        let builder_client =
+            RpcClient::new(builder_auth_rpc.clone(), jwt_secret, 2000, PayloadSource::Builder)?;
 
         let service =
             FlashblocksService::new(builder_client, "127.0.0.1:8000".parse().unwrap()).unwrap();
 
         // by default, builder_mock returns a valid payload always
-        service
-            .get_payload(PayloadId::default(), PayloadVersion::V3)
-            .await?;
+        service.get_payload(PayloadId::default(), PayloadVersion::V3).await?;
 
         let get_payload_requests_builder = builder_mock.get_payload_requests.clone();
         assert_eq!(get_payload_requests_builder.lock().len(), 1);
@@ -433,12 +421,8 @@ mod tests {
         let jwt_secret = JwtSecret::random();
 
         let builder_auth_rpc = Uri::from_str(&format!("http://{fallback_server_addr}")).unwrap();
-        let builder_client = RpcClient::new(
-            builder_auth_rpc.clone(),
-            jwt_secret,
-            2000,
-            PayloadSource::Builder,
-        )?;
+        let builder_client =
+            RpcClient::new(builder_auth_rpc.clone(), jwt_secret, 2000, PayloadSource::Builder)?;
 
         let service =
             FlashblocksService::new(builder_client, "127.0.0.1:8001".parse().unwrap()).unwrap();
@@ -448,9 +432,7 @@ mod tests {
 
         // We ensure that request will skip rollup-boost and serve payload from backup if payload id
         // don't match
-        service
-            .get_payload(PayloadId::default(), PayloadVersion::V3)
-            .await?;
+        service.get_payload(PayloadId::default(), PayloadVersion::V3).await?;
 
         let get_payload_requests_builder = builder_mock.get_payload_requests.clone();
         assert_eq!(get_payload_requests_builder.lock().len(), 1);
@@ -475,9 +457,7 @@ mod tests {
         let result = builder.extend(OpFlashblockPayload {
             payload_id: PayloadId::default(),
             index: 0,
-            base: Some(OpFlashblockPayloadBase {
-                ..Default::default()
-            }),
+            base: Some(OpFlashblockPayloadBase { ..Default::default() }),
             ..Default::default()
         });
         assert!(result.is_ok());
@@ -486,9 +466,7 @@ mod tests {
         let result = builder.extend(OpFlashblockPayload {
             payload_id: PayloadId::default(),
             index: 1,
-            base: Some(OpFlashblockPayloadBase {
-                ..Default::default()
-            }),
+            base: Some(OpFlashblockPayloadBase { ..Default::default() }),
             ..Default::default()
         });
         assert!(result.is_err());

@@ -422,7 +422,7 @@ commands:
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/rust/target/release/kona-supervisor" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$ROOT_DIR/rust/target/release/rollup-boost" >> "$BASH_ENV"
 
   rust-prepare:
     parameters:
@@ -2145,7 +2145,7 @@ jobs:
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/rust/target/release/kona-supervisor" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$ROOT_DIR/rust/target/release/rollup-boost" >> "$BASH_ENV"
       # Restore cached Go modules
       - restore_cache:
           keys:
@@ -3236,8 +3236,8 @@ workflows:
           save_cache: true
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary: &kona-build-release
-          name: kona-build-release
+      - rust-build-binary: &rust-build-release
+          name: rust-build-release
           directory: rust
           profile: "release"
           features: "default"
@@ -3252,18 +3252,10 @@ workflows:
           needs_clang: true
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule: &rust-build-rollup-boost
-          name: rust-build-rollup-boost
-          directory: rollup-boost
-          binaries: "rollup-boost"
-          build_command: cargo build --release -p rollup-boost --bin rollup-boost
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - rust-binaries-for-sysgo:
           requires:
-            - kona-build-release
+            - rust-build-release
             - rust-build-op-rbuilder
-            - rust-build-rollup-boost
       # IN-MEMORY (all)
       - op-acceptance-tests:
           name: memory-all
@@ -3572,19 +3564,17 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary:
-          name: kona-build-release
+          name: rust-build-release
           directory: rust
           needs_clang: true
           profile: "release"
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-submodule: *rust-build-op-rbuilder
-      - rust-build-submodule: *rust-build-rollup-boost
       - rust-binaries-for-sysgo:
           requires:
-            - kona-build-release
+            - rust-build-release
             - rust-build-op-rbuilder
-            - rust-build-rollup-boost
       - op-acceptance-tests-flake-shake:
           context:
             - circleci-repo-readonly-authenticated-github-token

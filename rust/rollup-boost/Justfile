@@ -1,16 +1,17 @@
-# Build docker image (release)
-build:
-    docker buildx build --build-arg RELEASE=true -t flashbots/rollup-boost:develop .
+set positional-arguments
 
-# Build docker image (debug)
-build-debug:
-    docker buildx build --build-arg RELEASE=false -t flashbots/rollup-boost:develop .
+# Run rollup-boost tests
+test *args='':
+  cargo nextest run -p rollup-boost -p rollup-boost-types -p flashblocks-websocket-proxy {{args}}
 
-clippy:
-    cargo clippy --workspace -- -D warnings
+# Build rollup-boost binary (release)
+build-release:
+  cargo build --release --bin rollup-boost
 
-fmt:
-    cargo fmt --all
+# Build docker image
+build-docker:
+  docker buildx build --build-arg RELEASE=true -t flashbots/rollup-boost:develop .
 
-test:
-    cargo nextest run --workspace
+# Build docker debug image
+build-docker-debug:
+  docker buildx build --build-arg RELEASE=false -t flashbots/rollup-boost:develop .

@@ -30,7 +30,7 @@ pub use probe::*;
 mod health;
 pub use health::*;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "integration"))]
 pub mod tests;
 
 mod selection;

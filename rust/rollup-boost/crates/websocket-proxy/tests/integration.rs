@@ -1,23 +1,24 @@
 use axum::extract::ws::Message;
 use futures::StreamExt;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::error::Error;
-use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use tokio::net::TcpListener;
-use tokio::sync::broadcast;
-use tokio::sync::broadcast::Sender;
-use tokio::task::JoinHandle;
+use std::{
+    collections::{HashMap, hash_map::Entry},
+    error::Error,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+use tokio::{
+    net::TcpListener,
+    sync::{broadcast, broadcast::Sender},
+    task::JoinHandle,
+};
 use tokio_tungstenite::connect_async;
 use tokio_util::sync::CancellationToken;
 use tracing::error;
-use websocket_proxy::auth::Authentication;
-use websocket_proxy::metrics::Metrics;
-use websocket_proxy::rate_limit::InMemoryRateLimit;
-use websocket_proxy::registry::Registry;
-use websocket_proxy::server::Server;
+use websocket_proxy::{
+    auth::Authentication, metrics::Metrics, rate_limit::InMemoryRateLimit, registry::Registry,
+    server::Server,
+};
 
 struct TestHarness {
     received_messages: Arc<Mutex<HashMap<usize, Vec<String>>>>,
@@ -44,11 +45,8 @@ impl TestHarness {
         let (sender, _) = broadcast::channel(5);
         let metrics = Arc::new(Metrics::default());
         let registry = Registry::new(sender.clone(), metrics.clone(), false, 120000);
-        let app_rate_limits = if let Some(auth) = &auth {
-            auth.get_rate_limits()
-        } else {
-            HashMap::new()
-        };
+        let app_rate_limits =
+            if let Some(auth) = &auth { auth.get_rate_limits() } else { HashMap::new() };
         let rate_limited = Arc::new(InMemoryRateLimit::new(3, 10, app_rate_limits));
 
         Self {
@@ -56,14 +54,7 @@ impl TestHarness {
             clients_failed_to_connect: Arc::new(Mutex::new(HashMap::new())),
             current_client_id: 0,
             cancel_token: CancellationToken::new(),
-            server: Server::new(
-                addr,
-                registry,
-                metrics,
-                rate_limited,
-                auth,
-                "header".to_string(),
-            ),
+            server: Server::new(addr, registry, metrics, rate_limited, auth, "header".to_string()),
             server_addr: addr,
             client_id_to_handle: HashMap::new(),
             sender,
@@ -171,7 +162,8 @@ impl TestHarness {
                 }
             };
 
-            // Do nothing - just keep the connection alive but don't read messages or respond to pings
+            // Do nothing - just keep the connection alive but don't read messages or respond to
+            // pings
             loop {
                 tokio::time::sleep(Duration::from_millis(1000)).await;
             }
@@ -184,12 +176,7 @@ impl TestHarness {
     fn send_messages(&mut self, messages: Vec<&str>) {
         for message_str in messages.iter() {
             let message = Message::Binary(message_str.as_bytes().to_vec().into());
-            match self.sender.send(message) {
-                Ok(_) => {}
-                Err(_) => {
-                    assert!(false)
-                }
-            }
+            self.sender.send(message).expect("failed to send message");
         }
     }
 
@@ -220,7 +207,7 @@ impl TestHarness {
             handle.abort();
             _ = handle.await;
         } else {
-            assert!(false)
+            panic!("client_id {client_id} not found")
         }
     }
 }
@@ -272,10 +259,7 @@ async fn test_server_limits_connections() {
 
     assert_eq!(vec!["one", "two"], harness.messages_for_client(client_one));
     assert_eq!(vec!["one", "two"], harness.messages_for_client(client_two));
-    assert_eq!(
-        vec!["one", "two"],
-        harness.messages_for_client(client_three)
-    );
+    assert_eq!(vec!["one", "two"], harness.messages_for_client(client_three));
 
     // Client four was not able to be setup as the test has a limit of three
     assert!(harness.messages_for_client(client_four).is_empty());
@@ -304,10 +288,7 @@ async fn test_deregister() {
 
     assert_eq!(vec!["one", "two"], harness.messages_for_client(client_one));
     assert_eq!(vec!["one", "two"], harness.messages_for_client(client_two));
-    assert_eq!(
-        vec!["one", "two"],
-        harness.messages_for_client(client_three)
-    );
+    assert_eq!(vec!["one", "two"], harness.messages_for_client(client_three));
 
     harness.stop_client(client_three).await;
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -338,14 +319,8 @@ async fn test_deregister() {
         vec!["one", "two", "three", "four", "five", "six"],
         harness.messages_for_client(client_two)
     );
-    assert_eq!(
-        vec!["one", "two"],
-        harness.messages_for_client(client_three)
-    );
-    assert_eq!(
-        vec!["five", "six"],
-        harness.messages_for_client(client_four)
-    );
+    assert_eq!(vec!["one", "two"], harness.messages_for_client(client_three));
+    assert_eq!(vec!["five", "six"], harness.messages_for_client(client_four));
 }
 
 #[tokio::test]
@@ -398,14 +373,7 @@ async fn test_ping_timeout_disconnects_client() {
         clients_failed_to_connect: Arc::new(Mutex::new(HashMap::new())),
         current_client_id: 0,
         cancel_token: CancellationToken::new(),
-        server: Server::new(
-            addr,
-            registry,
-            metrics,
-            rate_limited,
-            None,
-            "header".to_string(),
-        ),
+        server: Server::new(addr, registry, metrics, rate_limited, None, "header".to_string()),
         server_addr: addr,
         client_id_to_handle: HashMap::new(),
         sender,

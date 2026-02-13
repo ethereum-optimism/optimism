@@ -37,7 +37,7 @@ While this does not ensure high availability for the builder, the chain will hav
 
 - `/readyz` Used by kubernetes to determine if the service is ready to accept traffic. Should always respond with `200 OK`
 
-- `/livez` determines wether or not `rollup-boost` is live (running and not deadlocked) and responding to requests. If `rollup-boost` fails to respond, kubernetes can use this as a signal to restart the pod. Should always respond with `200 OK`
+- `/livez` determines whether or not `rollup-boost` is live (running and not deadlocked) and responding to requests. If `rollup-boost` fails to respond, kubernetes can use this as a signal to restart the pod. Should always respond with `200 OK`
 
 ## Observability
 

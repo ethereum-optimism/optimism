@@ -8,11 +8,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let build_builder = BuildBuilder::default().build_timestamp(true).build()?;
     emitter.add_instructions(&build_builder)?;
 
-    let git_builder = Git2Builder::default()
-        .describe(false, true, None)
-        .dirty(true)
-        .sha(false)
-        .build()?;
+    let git_builder =
+        Git2Builder::default().describe(false, true, None).dirty(true).sha(false).build()?;
 
     emitter.add_instructions(&git_builder)?;
 

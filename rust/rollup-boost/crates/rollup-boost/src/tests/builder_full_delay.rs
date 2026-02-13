@@ -1,10 +1,11 @@
-use super::common::RollupBoostTestHarnessBuilder;
-use super::common::proxy::BuilderProxyHandler;
+use super::common::{RollupBoostTestHarnessBuilder, proxy::BuilderProxyHandler};
 use futures::FutureExt;
 use serde_json::Value;
-use std::pin::Pin;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::{
+    pin::Pin,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 // Create a dynamic handler that delays all the calls by 2 seconds
 struct DelayHandler {
@@ -31,12 +32,10 @@ impl BuilderProxyHandler for DelayHandler {
 async fn builder_full_delay() -> eyre::Result<()> {
     let delay = Arc::new(Mutex::new(Duration::from_secs(0)));
 
-    let handler = Arc::new(DelayHandler {
-        delay: delay.clone(),
-    });
+    let handler = Arc::new(DelayHandler { delay: delay.clone() });
 
-    // This integration test checks that if the builder has a general delay in processing ANY of the requests,
-    // rollup-boost does not stop building blocks.
+    // This integration test checks that if the builder has a general delay in processing ANY of the
+    // requests, rollup-boost does not stop building blocks.
     let harness = RollupBoostTestHarnessBuilder::new("builder_full_delay")
         .proxy_handler(handler)
         .build()
@@ -47,19 +46,13 @@ async fn builder_full_delay() -> eyre::Result<()> {
     // create 3 blocks that are processed by the builder
     for _ in 0..3 {
         let (_block, block_creator) = block_generator.generate_block(false).await?;
-        assert!(
-            block_creator.is_builder(),
-            "Block creator should be the builder"
-        );
+        assert!(block_creator.is_builder(), "Block creator should be the builder");
     }
 
     // create 3 blocks that are processed by the builder
     for _ in 0..3 {
         let (_block, block_creator) = block_generator.generate_block(false).await?;
-        assert!(
-            block_creator.is_builder(),
-            "Block creator should be the builder"
-        );
+        assert!(block_creator.is_builder(), "Block creator should be the builder");
     }
 
     // add the delay

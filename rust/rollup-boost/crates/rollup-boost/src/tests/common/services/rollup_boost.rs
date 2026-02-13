@@ -81,7 +81,7 @@ impl RollupBoostConfig {
         let _handle = tokio::spawn(async move {
             let res = args.clone().run().await;
             if let Err(e) = &res {
-                eprintln!("Error: {:?}", e);
+                eprintln!("Error: {e:?}");
             }
             res
         });
@@ -89,10 +89,6 @@ impl RollupBoostConfig {
         // Allow some time for the app to startup
         tokio::time::sleep(Duration::from_secs(4)).await;
 
-        RollupBoost {
-            args: self.args,
-            _handle,
-            _tracing_guard: guard,
-        }
+        RollupBoost { args: self.args, _handle, _tracing_guard: guard }
     }
 }

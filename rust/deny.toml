@@ -17,6 +17,10 @@ ignore = [
   "RUSTSEC-2025-0012",
   # bincode is unmaintained but still functional; transitive dep from reth-nippy-jar and test-fuzz.
   "RUSTSEC-2025-0141",
+  # rustls-pemfile unmaintained; dev-dep via testcontainers -> bollard.
+  "RUSTSEC-2025-0134",
+  # tokio-tar PAX header vulnerability; dev-dep via testcontainers. No fix available.
+  "RUSTSEC-2025-0111",
 ]
 
 # This section is considered when running `cargo deny check bans`.
@@ -102,7 +106,6 @@ allow-git = [
   "https://github.com/paradigmxyz/jsonrpsee",
   "https://github.com/paradigmxyz/revm-inspectors",
   "https://github.com/foundry-rs/block-explorers",
-  "https://github.com/flashbots/rollup-boost",
 ]
 unknown-registry = "warn"
 unknown-git = "deny"

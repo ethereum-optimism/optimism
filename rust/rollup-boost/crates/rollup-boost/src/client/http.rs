@@ -7,11 +7,11 @@ use http::Uri;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Body;
 use hyper_rustls::HttpsConnector;
-use hyper_util::client::legacy::Client;
-use hyper_util::client::legacy::connect::HttpConnector;
-use hyper_util::rt::TokioExecutor;
-use jsonrpsee::core::BoxError;
-use jsonrpsee::server::HttpBody;
+use hyper_util::{
+    client::legacy::{Client, connect::HttpConnector},
+    rt::TokioExecutor,
+};
+use jsonrpsee::{core::BoxError, server::HttpBody};
 use opentelemetry::trace::SpanKind;
 use rollup_boost_types::payload::PayloadSource;
 use tower::{
@@ -51,11 +51,7 @@ impl HttpClient {
             .layer(AuthLayer::new(secret))
             .service(client);
 
-        Self {
-            client,
-            url,
-            target,
-        }
+        Self { client, url, target }
     }
 
     /// Forwards an HTTP request to the `authrpc`, attaching the provided JWT authorization.

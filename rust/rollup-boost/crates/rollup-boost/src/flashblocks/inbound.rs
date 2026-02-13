@@ -1,19 +1,21 @@
 use super::metrics::FlashblocksWsInboundMetrics;
 use crate::FlashblocksWebsocketConfig;
-use backoff::ExponentialBackoff;
-use backoff::backoff::Backoff;
+use backoff::{ExponentialBackoff, backoff::Backoff};
 use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
 use lru::LruCache;
 use op_alloy_rpc_types_engine::OpFlashblockPayload;
-use std::io::ErrorKind::TimedOut;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::time::Duration;
+use std::{
+    io::ErrorKind::TimedOut,
+    num::NonZeroUsize,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use tokio::{sync::mpsc, time::interval};
-use tokio_tungstenite::tungstenite::Error::Io;
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{Error::Io, Message},
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 use url::Url;
@@ -63,20 +65,13 @@ impl FlashblocksReceiverService {
         sender: mpsc::Sender<OpFlashblockPayload>,
         websocket_config: FlashblocksWebsocketConfig,
     ) -> Self {
-        Self {
-            url,
-            sender,
-            websocket_config,
-            metrics: Default::default(),
-        }
+        Self { url, sender, websocket_config, metrics: Default::default() }
     }
 
     pub async fn run(self) {
         let mut backoff = self.websocket_config.backoff();
-        let timeout = Duration::from_millis(
-            self.websocket_config
-                .flashblock_builder_ws_connect_timeout_ms,
-        );
+        let timeout =
+            Duration::from_millis(self.websocket_config.flashblock_builder_ws_connect_timeout_ms);
 
         info!("FlashblocksReceiverService starting reconnection loop");
         loop {
@@ -232,7 +227,8 @@ impl FlashblocksReceiverService {
         cancel_token.cancel();
 
         // Only reset backoff if connection was stable for the max_interval set
-        // This prevents rapid reconnection loops when a proxy accepts and immediately drops connections
+        // This prevents rapid reconnection loops when a proxy accepts and immediately drops
+        // connections
         if connection_start.elapsed() >= backoff.max_interval {
             backoff.reset();
         }
@@ -247,8 +243,10 @@ mod tests {
     use tokio_tungstenite::{accept_async, tungstenite::Utf8Bytes};
 
     use super::*;
-    use std::net::{SocketAddr, TcpListener};
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::{
+        net::{SocketAddr, TcpListener},
+        sync::atomic::{AtomicBool, Ordering},
+    };
 
     async fn start(
         addr: SocketAddr,
@@ -265,9 +263,7 @@ mod tests {
         let listener = TcpListener::bind(addr)?;
         let url = Url::parse(&format!("ws://{addr}"))?;
 
-        listener
-            .set_nonblocking(true)
-            .expect("Failed to set TcpListener socket to non-blocking");
+        listener.set_nonblocking(true).expect("Failed to set TcpListener socket to non-blocking");
 
         let listener = tokio::net::TcpListener::from_std(listener)
             .expect("Failed to convert TcpListener to tokio TcpListener");
@@ -297,12 +293,9 @@ mod tests {
                                                     write.send(Message::Text(utf8_bytes)).await.expect("message sent");
                                                 },
                                                 msg = read.next() => {
-                                                    match msg {
-                                                        // we need to read for the library to handle pong messages
-                                                        Some(Ok(Message::Ping(_))) => {
-                                                            send_ping_tx.send(()).await.expect("ping notification sent");
-                                                        },
-                                                        _ => {}
+                                                    // we need to read for the library to handle pong messages
+                                                    if let Some(Ok(Message::Ping(_))) = msg {
+                                                        send_ping_tx.send(()).await.expect("ping notification sent");
                                                     }
                                                 }
                                                 _ = term_rx.changed() => {
@@ -314,7 +307,7 @@ mod tests {
                                         }
                                     }
                                     Err(e) => {
-                                        eprintln!("Failed to accept WebSocket connection: {}", e);
+                                        eprintln!("Failed to accept WebSocket connection: {e}");
                                     }
                                 }
                             }
@@ -343,9 +336,7 @@ mod tests {
         let listener = TcpListener::bind(addr)?;
         let url = Url::parse(&format!("ws://{addr}"))?;
 
-        listener
-            .set_nonblocking(true)
-            .expect("can set TcpListener socket to non-blocking");
+        listener.set_nonblocking(true).expect("can set TcpListener socket to non-blocking");
 
         let listener = tokio::net::TcpListener::from_std(listener)
             .expect("can convert TcpListener to tokio TcpListener");
@@ -362,7 +353,8 @@ mod tests {
                                     if send_pongs.load(Ordering::Relaxed) {
                                         let msg = read.next().await;
                                         match msg {
-                                            // we need to read for the library to handle pong messages
+                                            // we need to read for the library to handle pong
+                                            // messages
                                             Some(Ok(Message::Ping(data))) => {
                                                 send_ping_tx
                                                     .send(data)
@@ -381,7 +373,7 @@ mod tests {
                                 }
                             }
                             Err(e) => {
-                                eprintln!("Failed to accept WebSocket connection: {}", e);
+                                eprintln!("Failed to accept WebSocket connection: {e}");
                             }
                         }
                     }
@@ -402,9 +394,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_flashblocks_receiver_service() -> eyre::Result<()> {
-        let addr = "127.0.0.1:8080"
-            .parse::<SocketAddr>()
-            .expect("valid socket address");
+        let addr = "127.0.0.1:8080".parse::<SocketAddr>().expect("valid socket address");
         let (term, send_msg, _, url) = start(addr).await?;
 
         let (tx, mut rx) = mpsc::channel(100);
@@ -417,7 +407,7 @@ mod tests {
             flashblock_builder_ws_connect_timeout_ms: 5000,
         };
         let service = FlashblocksReceiverService::new(url, tx, config);
-        let _ = tokio::spawn(async move {
+        tokio::spawn(async move {
             service.run().await;
         });
 
@@ -456,9 +446,7 @@ mod tests {
         // test that if the builder is not sending any messages back, the service will send
         // ping messages to test the connection periodically
 
-        let addr = "127.0.0.1:8081"
-            .parse::<SocketAddr>()
-            .expect("valid socket address");
+        let addr = "127.0.0.1:8081".parse::<SocketAddr>().expect("valid socket address");
         let send_pongs = Arc::new(AtomicBool::new(true));
         let (term, mut ping_rx, url) = start_ping_server(addr, send_pongs.clone()).await?;
         let config = FlashblocksWebsocketConfig {
@@ -471,7 +459,7 @@ mod tests {
 
         let (tx, _rx) = mpsc::channel(100);
         let service = FlashblocksReceiverService::new(url, tx, config);
-        let _ = tokio::spawn(async move {
+        tokio::spawn(async move {
             service.run().await;
         });
 
@@ -512,9 +500,7 @@ mod tests {
         let listener = TcpListener::bind(addr)?;
         let url = Url::parse(&format!("ws://{addr}"))?;
 
-        listener
-            .set_nonblocking(true)
-            .expect("can set TcpListener socket to non-blocking");
+        listener.set_nonblocking(true).expect("can set TcpListener socket to non-blocking");
 
         let listener = tokio::net::TcpListener::from_std(listener)
             .expect("can convert TcpListener to tokio TcpListener");
@@ -546,9 +532,7 @@ mod tests {
     #[tokio::test]
     async fn test_flashblocks_receiver_service_connect_timeout() -> eyre::Result<()> {
         // Test that if the WebSocket handshake hangs, the service will timeout
-        let addr = "127.0.0.1:8082"
-            .parse::<SocketAddr>()
-            .expect("valid socket address");
+        let addr = "127.0.0.1:8082".parse::<SocketAddr>().expect("valid socket address");
 
         let (term, url) = start_stuck_server(addr).await?;
 
@@ -571,17 +555,13 @@ mod tests {
         // Call connect_and_handle directly - it should timeout and return an error
         let result = service.connect_and_handle(&mut backoff, timeout).await;
 
-        assert!(
-            result.is_err(),
-            "connect_and_handle should return error on timeout"
-        );
+        assert!(result.is_err(), "connect_and_handle should return error on timeout");
 
         // Verify it's a connection error (timeout is wrapped as connection error)
         let err = result.unwrap_err();
         assert!(
             matches!(err, FlashblocksReceiverError::Connection(_)),
-            "expected Connection error, got: {:?}",
-            err
+            "expected Connection error, got: {err:?}"
         );
 
         term.send(true).expect("termination signal sent");
