@@ -44,8 +44,21 @@ func (c *simpleChainContainer) FullyVerifiedL2Head() (eth.BlockID, bool) {
 }
 
 func (c *simpleChainContainer) FinalizedL2Head() eth.BlockID {
-	// TODO
-	return eth.BlockID{}
+	timestamp := uint64(math.MaxUint64)
+	oldestFinalizedBlock := eth.BlockID{}
+	for _, v := range c.verifiers {
+		bId, ts := v.LatestFinalizedL2Block(c.chainID)
+		if (bId == eth.BlockID{} || ts == 0) {
+			return bId
+		}
+		if ts < timestamp {
+			timestamp = ts
+			oldestFinalizedBlock = bId
+		} else if ts == timestamp && bId != oldestFinalizedBlock {
+			panic("verifiers disagree on block hash for same timestamp")
+		}
+	}
+	return oldestFinalizedBlock
 }
 
 // IsDenied checks if a block hash is on the deny list at the given height.
