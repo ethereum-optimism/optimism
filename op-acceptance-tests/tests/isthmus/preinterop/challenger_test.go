@@ -17,8 +17,8 @@ func TestChallengerPlaysGame(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	dsl.CheckAll(t,
-		sys.L2CLA.AdvancedFn(types.CrossSafe, 1, 30),
-		sys.L2CLB.AdvancedFn(types.CrossSafe, 1, 30),
+		sys.L2CLA.AdvancedFn(types.LocalSafe, 1, 30),
+		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 30),
 	)
 
 	badClaim := common.HexToHash("0xdeadbeef00000000000000000000000000000000000000000000000000000000")
