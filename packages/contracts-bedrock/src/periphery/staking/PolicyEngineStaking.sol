@@ -8,10 +8,9 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title PolicyEngineStaking
-/// @notice A simplified stake-based transaction ordering contract for op-rbuilder.
-///         Separates stake and link operations, supports partial unstake, and enforces
-///         the invariant that every staked token always has a beneficiary.
-///         No `receivedStake` tracking, no dormant state, no `unlink()`.
+/// @notice Periphery contract for stake-based transaction ordering in op-rbuilder. Users stake governance tokens
+///         and optionally link to a beneficiary who receives ordering power. Supports partial unstake.
+///         Invariant: every staked token has a beneficiary (self or linked). No receivedStake tracking or unlink().
 contract PolicyEngineStaking {
     using SafeERC20 for IERC20;
 
@@ -159,30 +158,28 @@ contract PolicyEngineStaking {
     function stake(uint256 _amount, address _beneficiary) external whenNotPaused {
         if (_amount == 0) revert PolicyEngineStaking_ZeroAmount();
         if (_beneficiary == address(0)) revert PolicyEngineStaking_ZeroBeneficiary();
+        if (_beneficiary != msg.sender && !allowlist[_beneficiary][msg.sender]) {
+            revert PolicyEngineStaking_NotAllowedToLink();
+        }
 
-        StakedData storage stakingData = stakingData[msg.sender];
-        address currentLink = stakingData.linkedTo;
+        StakedData storage stakedData = stakingData[msg.sender];
+        address currentLink = stakedData.linkedTo;
 
         if (currentLink == address(0)) {
             // First-time staking: establish link
-            _link(msg.sender, _beneficiary, stakingData);
+            stakedData.linkedTo = _beneficiary;
             emit Linked(msg.sender, _beneficiary);
         } else if (currentLink != _beneficiary) {
             // Re-linking: move existing stake from old beneficiary to new
-            _decreasePeData(currentLink, uint128(stakingData.stakedAmount));
+            _decreasePeData(currentLink, uint128(stakedData.stakedAmount));
             emit Unlinked(msg.sender, currentLink);
 
-            _link(msg.sender, _beneficiary, stakingData);
-            _increasePeData(_beneficiary, uint128(stakingData.stakedAmount));
+            stakedData.linkedTo = _beneficiary;
+            _increasePeData(_beneficiary, uint128(stakedData.stakedAmount));
             emit Linked(msg.sender, _beneficiary);
-        } else {
-            // Skip if Self-Attributing
-            if (_beneficiary != msg.sender && !allowlist[_beneficiary][msg.sender]) {
-                revert PolicyEngineStaking_NotAllowedToLink();
-            }
         }
 
-        stakingData.stakedAmount += _amount;
+        stakedData.stakedAmount += _amount;
         _increasePeData(_beneficiary, uint128(_amount));
 
         STAKING_TOKEN.safeTransferFrom(msg.sender, address(this), _amount);
@@ -195,19 +192,22 @@ contract PolicyEngineStaking {
     /// @param _beneficiary New beneficiary address.
     function changeBeneficiary(address _beneficiary) external {
         if (_beneficiary == address(0)) revert PolicyEngineStaking_ZeroBeneficiary();
+        if (_beneficiary != msg.sender && !allowlist[_beneficiary][msg.sender]) {
+            revert PolicyEngineStaking_NotAllowedToLink();
+        }
 
-        StakedData storage stakingData = stakingData[msg.sender];
-        if (stakingData.stakedAmount == 0) revert PolicyEngineStaking_NoStake();
+        StakedData storage stakedData = stakingData[msg.sender];
+        if (stakedData.stakedAmount == 0) revert PolicyEngineStaking_NoStake();
 
-        address currentLink = stakingData.linkedTo;
+        address currentLink = stakedData.linkedTo;
         if (currentLink == _beneficiary) return;
 
         // Move existing stake from old beneficiary to new
-        _decreasePeData(currentLink, uint128(stakingData.stakedAmount));
+        _decreasePeData(currentLink, uint128(stakedData.stakedAmount));
         emit Unlinked(msg.sender, currentLink);
 
-        _link(msg.sender, _beneficiary, stakingData);
-        _increasePeData(_beneficiary, uint128(stakingData.stakedAmount));
+        stakedData.linkedTo = _beneficiary;
+        _increasePeData(_beneficiary, uint128(stakedData.stakedAmount));
 
         emit Linked(msg.sender, _beneficiary);
     }
@@ -218,16 +218,16 @@ contract PolicyEngineStaking {
     function unstake(uint256 _amount) external {
         if (_amount == 0) revert PolicyEngineStaking_ZeroAmount();
 
-        StakedData storage stakingData = stakingData[msg.sender];
-        if (stakingData.stakedAmount < _amount) revert PolicyEngineStaking_InsufficientStake();
+        StakedData storage stakedData = stakingData[msg.sender];
+        if (stakedData.stakedAmount < _amount) revert PolicyEngineStaking_InsufficientStake();
 
-        address linkedTo = stakingData.linkedTo;
+        address linkedTo = stakedData.linkedTo;
         _decreasePeData(linkedTo, uint128(_amount));
-        stakingData.stakedAmount -= _amount;
+        stakedData.stakedAmount -= _amount;
 
         // Auto-unlink on full unstake
-        if (stakingData.stakedAmount == 0) {
-            stakingData.linkedTo = address(0);
+        if (stakedData.stakedAmount == 0) {
+            stakedData.linkedTo = address(0);
             emit Unlinked(msg.sender, linkedTo);
         }
 
@@ -256,16 +256,6 @@ contract PolicyEngineStaking {
                 ++i;
             }
         }
-    }
-
-    /// @notice Sets the linkedTo field and checks allowlist (skips for self-link).
-    /// @param _staker      The staker address.
-    /// @param _beneficiary The beneficiary address.
-    /// @param _data        The staker's storage data reference.
-    function _link(address _staker, address _beneficiary, StakedData storage _data) internal {
-        // Skip if Self-Attributing
-        if (_beneficiary != _staker && !allowlist[_beneficiary][_staker]) revert PolicyEngineStaking_NotAllowedToLink();
-        _data.linkedTo = _beneficiary;
     }
 
     /// @notice Increases effective stake for an account and updates timestamp.
