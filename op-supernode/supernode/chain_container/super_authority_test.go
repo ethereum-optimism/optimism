@@ -30,6 +30,9 @@ func (m *mockVerificationActivityForSuperAuthority) LatestVerifiedL2Block(chainI
 	return m.latestVerifiedBlock, m.latestVerifiedTS
 }
 func (m *mockVerificationActivityForSuperAuthority) Reset(eth.ChainID, uint64, eth.BlockRef) {}
+func (m *mockVerificationActivityForSuperAuthority) LatestFinalizedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
+	return eth.BlockID{}, 0
+}
 
 var _ activity.VerificationActivity = (*mockVerificationActivityForSuperAuthority)(nil)
 

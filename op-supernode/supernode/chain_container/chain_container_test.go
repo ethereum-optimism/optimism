@@ -177,6 +177,9 @@ func (m *mockVerificationActivity) LatestVerifiedL2Block(chainID eth.ChainID) (e
 }
 func (m *mockVerificationActivity) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
 }
+func (m *mockVerificationActivity) LatestFinalizedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
+	return eth.BlockID{}, 0
+}
 
 // Test helpers
 func createTestVNConfig() *opnodecfg.Config {

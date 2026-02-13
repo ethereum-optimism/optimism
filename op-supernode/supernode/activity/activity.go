@@ -38,4 +38,5 @@ type VerificationActivity interface {
 	CurrentL1() eth.BlockID
 	VerifiedAtTimestamp(ts uint64) (bool, error)
 	LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64)
+	LatestFinalizedL2Block(chainID eth.ChainID) (eth.BlockID, uint64)
 }
