@@ -32,6 +32,8 @@ pub use eip1559::{
 mod source;
 pub use source::*;
 
+mod size;
+
 mod block;
 pub use block::OpBlock;
 
