@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.30;
 
 // Interfaces
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -250,11 +250,8 @@ contract PolicyEngineStaking {
     function setAllowedStakers(address[] calldata _stakers, bool _allowed) external {
         uint256 stakersLength = _stakers.length;
 
-        for (uint256 i; i < stakersLength;) {
+        for (uint256 i; i < stakersLength; ++i) {
             setAllowedStaker(_stakers[i], _allowed);
-            unchecked {
-                ++i;
-            }
         }
     }
 

@@ -5,11 +5,9 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { TestERC20 } from "test/mocks/TestERC20.sol";
 
-// Contracts
-import { PolicyEngineStaking } from "src/periphery/staking/PolicyEngineStaking.sol";
-
 // Interfaces
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IPolicyEngineStaking } from "interfaces/periphery/staking/IPolicyEngineStaking.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -19,7 +17,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 abstract contract PolicyEngineStaking_TestInit is CommonTest {
     address internal carol = address(0xC4101);
 
-    PolicyEngineStaking internal staking;
+    IPolicyEngineStaking internal staking;
     address internal owner;
 
     event Staked(address indexed account, uint256 amount);
@@ -34,7 +32,9 @@ abstract contract PolicyEngineStaking_TestInit is CommonTest {
     function setUp() public virtual override {
         super.setUp();
         owner = makeAddr("owner");
-        staking = new PolicyEngineStaking(owner, Predeploys.GOVERNANCE_TOKEN);
+        staking = IPolicyEngineStaking(
+            vm.deployCode("PolicyEngineStaking.sol:PolicyEngineStaking", abi.encode(owner, Predeploys.GOVERNANCE_TOKEN))
+        );
 
         _setupMockOPToken();
 
@@ -85,7 +85,7 @@ contract PolicyEngineStaking_Pause_Test is PolicyEngineStaking_TestInit {
     /// @notice Tests that non-owner cannot pause.
     function testFuzz_pause_notOwner_reverts(address _caller) external {
         vm.assume(_caller != owner && _caller != address(0));
-        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_OnlyOwner.selector);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_OnlyOwner.selector);
         vm.prank(_caller);
         staking.pause();
     }
@@ -96,7 +96,7 @@ contract PolicyEngineStaking_Pause_Test is PolicyEngineStaking_TestInit {
         staking.pause();
 
         vm.assume(_caller != owner && _caller != address(0));
-        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_OnlyOwner.selector);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_OnlyOwner.selector);
         vm.prank(_caller);
         staking.unpause();
     }
@@ -106,7 +106,7 @@ contract PolicyEngineStaking_Pause_Test is PolicyEngineStaking_TestInit {
         vm.prank(owner);
         staking.pause();
 
-        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_Paused.selector);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_Paused.selector);
         vm.prank(alice);
         staking.stake(100 ether, alice);
     }
@@ -270,21 +270,21 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
     /// @notice Tests that stake with zero amount reverts.
     function test_stake_zeroAmount_reverts() external {
         vm.prank(alice);
-        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_ZeroAmount.selector);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_ZeroAmount.selector);
         staking.stake(0, alice);
     }
 
     /// @notice Tests that stake with zero beneficiary reverts.
     function test_stake_zeroBeneficiary_reverts() external {
         vm.prank(alice);
-        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_ZeroBeneficiary.selector);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_ZeroBeneficiary.selector);
         staking.stake(100 ether, address(0));
     }
 
     /// @notice Tests that stake to beneficiary without allowlist reverts.
     function test_stake_toBeneficiaryWithoutAllowlist_reverts() external {
         vm.prank(alice);
-        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_NotAllowedToLink.selector);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_NotAllowedToLink.selector);
         staking.stake(100 ether, bob);
     }
 
@@ -294,7 +294,7 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         staking.stake(100 ether, alice);
 
         vm.prank(alice);
-        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_NotAllowedToLink.selector);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_NotAllowedToLink.selector);
         staking.stake(50 ether, bob);
     }
 }
@@ -333,14 +333,14 @@ contract PolicyEngineStaking_Unstake_Test is PolicyEngineStaking_TestInit {
         staking.stake(100 ether, alice);
 
         vm.prank(alice);
-        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_ZeroAmount.selector);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_ZeroAmount.selector);
         staking.unstake(0);
     }
 
     /// @notice Tests that unstake with no stake reverts.
     function test_unstake_noStake_reverts() external {
         vm.prank(alice);
-        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_InsufficientStake.selector);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_InsufficientStake.selector);
         staking.unstake(100 ether);
     }
 
@@ -350,7 +350,7 @@ contract PolicyEngineStaking_Unstake_Test is PolicyEngineStaking_TestInit {
         staking.stake(100 ether, alice);
 
         vm.prank(alice);
-        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_InsufficientStake.selector);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_InsufficientStake.selector);
         staking.unstake(101 ether);
     }
 
@@ -504,7 +504,7 @@ contract PolicyEngineStaking_ChangeBeneficiary_Test is PolicyEngineStaking_TestI
         staking.stake(100 ether, alice);
 
         vm.prank(alice);
-        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_ZeroBeneficiary.selector);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_ZeroBeneficiary.selector);
         staking.changeBeneficiary(address(0));
     }
 
@@ -514,14 +514,14 @@ contract PolicyEngineStaking_ChangeBeneficiary_Test is PolicyEngineStaking_TestI
         staking.stake(100 ether, alice);
 
         vm.prank(alice);
-        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_NotAllowedToLink.selector);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_NotAllowedToLink.selector);
         staking.changeBeneficiary(bob);
     }
 
     /// @notice Tests that changeBeneficiary with no stake reverts.
     function test_changeBeneficiary_noStake_reverts() external {
         vm.prank(alice);
-        vm.expectRevert(PolicyEngineStaking.PolicyEngineStaking_NoStake.selector);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_NoStake.selector);
         staking.changeBeneficiary(bob);
     }
 }
