@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -15,18 +16,20 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
 type L2Batcher struct {
-	id      stack.L2BatcherID
-	service *bss.BatcherService
-	rpc     string
-	l1RPC   string
-	l2CLRPC string
-	l2ELRPC string
+	id          stack.L2BatcherID
+	service     *bss.BatcherService
+	rpc         string
+	l1RPC       string
+	l2CLRPC     string
+	l2ELRPC     string
+	testControl *batcherTestControl
 }
 
 func (b *L2Batcher) hydrate(system stack.ExtensibleSystem) {
@@ -42,6 +45,49 @@ func (b *L2Batcher) hydrate(system stack.ExtensibleSystem) {
 	})
 	l2Net := system.L2Network(stack.L2NetworkID(b.id.ChainID()))
 	l2Net.(stack.ExtensibleL2Network).AddL2Batcher(bFrontend)
+}
+
+// proxyingEndpointProvider wraps an L2EndpointProvider and injects a rollup client proxy.
+type proxyingEndpointProvider struct {
+	inner      dial.L2EndpointProvider
+	proxy      *rollupClientProxy
+	realClient dial.RollupClientInterface
+	clientOnce sync.Once
+	clientErr  error
+}
+
+func (p *proxyingEndpointProvider) RollupClient(ctx context.Context) (dial.RollupClientInterface, error) {
+	// Create the real clients once and wrap them with the proxy
+	p.clientOnce.Do(func() {
+		p.realClient, p.clientErr = p.inner.RollupClient(ctx)
+		if p.clientErr != nil {
+			return
+		}
+		// Update the proxy's inner client to be the real rollup client
+		p.proxy.inner = p.realClient
+
+		// Also fetch the L2 eth client for the proxy
+		l2EthClient, err := p.inner.EthClient(ctx)
+		if err != nil {
+			p.clientErr = err
+			return
+		}
+		p.proxy.l2Client = l2EthClient
+	})
+	if p.clientErr != nil {
+		return nil, p.clientErr
+	}
+	return p.proxy, nil
+}
+
+func (p *proxyingEndpointProvider) EthClient(ctx context.Context) (dial.EthClientInterface, error) {
+	return p.inner.EthClient(ctx)
+}
+
+func (p *proxyingEndpointProvider) Close() {
+	if p.inner != nil {
+		p.inner.Close()
+	}
 }
 
 type BatcherOption func(id stack.L2BatcherID, cfg *bss.CLIConfig)
@@ -120,9 +166,36 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			p.Errorf("closeAppFn called, batcher hit a critical error: %v", cause)
 			cancelBatcherCtx()
 		}
+
+		// Variables to store proxy and test control
+		var rollupProxy *rollupClientProxy
+		var testControl *batcherTestControl
+
+		// Driver setup option that creates and injects the proxy
+		withProxyOption := func(setup *bss.DriverSetup) {
+			// Create rollup client proxy for test control
+			// The inner client and l2Client will be set lazily when RollupClient() is called
+			rollupProxy = &rollupClientProxy{}
+
+			// Create proxying endpoint provider that wraps the original
+			proxyingProvider := &proxyingEndpointProvider{
+				inner: setup.EndpointProvider,
+				proxy: rollupProxy,
+			}
+
+			// Replace the endpoint provider with our proxying version
+			setup.EndpointProvider = proxyingProvider
+
+			// Create test control
+			testControl = &batcherTestControl{
+				proxy: rollupProxy,
+				log:   logger,
+			}
+		}
+
 		batcher, err := bss.BatcherServiceFromCLIConfig(
 			batcherContext, closeAppFn, "0.0.1", batcherCLIConfig,
-			logger)
+			logger, withProxyOption)
 		require.NoError(err)
 		require.NoError(batcher.Start(p.Ctx()))
 		p.Cleanup(func() {
@@ -134,13 +207,42 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 		})
 
 		b := &L2Batcher{
-			id:      batcherID,
-			service: batcher,
-			rpc:     batcher.HTTPEndpoint(),
-			l1RPC:   l1EL.UserRPC(),
-			l2CLRPC: l2CL.UserRPC(),
-			l2ELRPC: l2EL.UserRPC(),
+			id:          batcherID,
+			service:     batcher,
+			rpc:         batcher.HTTPEndpoint(),
+			l1RPC:       l1EL.UserRPC(),
+			l2CLRPC:     l2CL.UserRPC(),
+			l2ELRPC:     l2EL.UserRPC(),
+			testControl: testControl,
 		}
 		orch.batchers.Set(batcherID, b)
 	})
+}
+
+// batcherTestControl provides test control over the batcher by manipulating
+// the rollup client proxy to control what blocks the batcher sees.
+type batcherTestControl struct {
+	proxy *rollupClientProxy
+	log   log.Logger
+}
+
+// PauseAtBlock pauses the batcher at the specified block number.
+// The batcher will process up to and including blockNum, but won't see
+// any blocks beyond it. Returns the highest block number the batcher will see.
+func (tc *batcherTestControl) PauseAtBlock(blockNum uint64) uint64 {
+	tc.log.Info("pausing batcher at block", "blockNum", blockNum)
+
+	// Set the pause in the proxy
+	tc.proxy.setPauseAtBlock(blockNum)
+
+	// The batcher will naturally stop processing when it queries sync status
+	// and sees unsafe head capped at blockNum (inclusive)
+
+	return blockNum
+}
+
+// Unpause resumes normal batcher operation, allowing it to see all available blocks.
+func (tc *batcherTestControl) Unpause() {
+	tc.log.Info("unpausing batcher")
+	tc.proxy.clearPause()
 }
