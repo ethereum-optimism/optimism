@@ -56,6 +56,33 @@ func TestWorkerShouldProcessJobsUntilContextDone(t *testing.T) {
 	wg.Wait()
 }
 
+func TestWorkerShouldShutdownWhenResultChannelBlocked(t *testing.T) {
+	in := make(chan job, 2)
+	out := make(chan job) // No buffer, will block on any publish
+
+	ms := &metricSink{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go progressGames(ctx, in, out, &wg, ms.ThreadActive, ms.ThreadIdle)
+
+	in <- job{
+		player: &test.StubGamePlayer{StatusValue: types.GameStatusInProgress},
+	}
+	waitErr := wait.For(context.Background(), 100*time.Millisecond, func() (bool, error) {
+		return ms.activeCalls.Load() >= 1, nil
+	})
+	require.NoError(t, waitErr)
+	require.EqualValues(t, ms.activeCalls.Load(), 1)
+	require.EqualValues(t, ms.idleCalls.Load(), 0) // Can't publish idle because it blocks on publishing the result
+
+	// Cancel the context which should exit the worker
+	cancel()
+	wg.Wait()
+
+}
+
 type metricSink struct {
 	activeCalls atomic.Int32
 	idleCalls   atomic.Int32
