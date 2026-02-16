@@ -32,13 +32,13 @@ func TestBatcherTestControl_PauseAtBlock(t *testing.T) {
 	mockL2 := &mockL2Client{blocks: blocks}
 
 	proxy := newRollupClientProxy(mockRollup, mockL2)
-	testControl := &batcherTestControl{
+	batcher := &L2Batcher{
 		proxy: proxy,
 		log:   logger,
 	}
 
 	// Pause at block 50
-	result := testControl.PauseAtBlock(50)
+	result := batcher.PauseAtBlock(50)
 
 	// Should return 50 (the highest block the batcher will see)
 	require.Equal(t, uint64(50), result)
@@ -73,17 +73,17 @@ func TestBatcherTestControl_Unpause(t *testing.T) {
 	mockL2 := &mockL2Client{blocks: blocks}
 
 	proxy := newRollupClientProxy(mockRollup, mockL2)
-	testControl := &batcherTestControl{
+	batcher := &L2Batcher{
 		proxy: proxy,
 		log:   logger,
 	}
 
 	// Pause at block 50
-	testControl.PauseAtBlock(50)
+	batcher.PauseAtBlock(50)
 	require.Equal(t, uint64(50), proxy.getPause())
 
 	// Unpause
-	testControl.Unpause()
+	batcher.Unpause()
 
 	// Verify the proxy is cleared
 	require.Equal(t, uint64(0), proxy.getPause())
@@ -114,7 +114,7 @@ func TestBatcherTestControl_PauseAndUnpauseCycle(t *testing.T) {
 	mockL2 := &mockL2Client{blocks: blocks}
 
 	proxy := newRollupClientProxy(mockRollup, mockL2)
-	testControl := &batcherTestControl{
+	batcher := &L2Batcher{
 		proxy: proxy,
 		log:   logger,
 	}
@@ -127,7 +127,7 @@ func TestBatcherTestControl_PauseAndUnpauseCycle(t *testing.T) {
 	require.Equal(t, uint64(100), status.UnsafeL2.Number)
 
 	// Pause at 30
-	result := testControl.PauseAtBlock(30)
+	result := batcher.PauseAtBlock(30)
 	require.Equal(t, uint64(30), result)
 
 	status, err = proxy.SyncStatus(ctx)
@@ -135,7 +135,7 @@ func TestBatcherTestControl_PauseAndUnpauseCycle(t *testing.T) {
 	require.Equal(t, uint64(30), status.UnsafeL2.Number)
 
 	// Pause at 60 (change pause point)
-	result = testControl.PauseAtBlock(60)
+	result = batcher.PauseAtBlock(60)
 	require.Equal(t, uint64(60), result)
 
 	status, err = proxy.SyncStatus(ctx)
@@ -143,14 +143,14 @@ func TestBatcherTestControl_PauseAndUnpauseCycle(t *testing.T) {
 	require.Equal(t, uint64(60), status.UnsafeL2.Number)
 
 	// Unpause
-	testControl.Unpause()
+	batcher.Unpause()
 
 	status, err = proxy.SyncStatus(ctx)
 	require.NoError(t, err)
 	require.Equal(t, uint64(100), status.UnsafeL2.Number)
 }
 
-func TestL2Batcher_TestControl(t *testing.T) {
+func TestL2Batcher_PausableBatcher(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelInfo)
 
 	blocks := make(map[uint64]*types.Block)
@@ -169,33 +169,42 @@ func TestL2Batcher_TestControl(t *testing.T) {
 	mockL2 := &mockL2Client{blocks: blocks}
 
 	proxy := newRollupClientProxy(mockRollup, mockL2)
-	testControl := &batcherTestControl{
+
+	// Create L2Batcher with proxy
+	batcher := &L2Batcher{
 		proxy: proxy,
 		log:   logger,
 	}
 
-	// Create L2Batcher with test control
-	batcher := &L2Batcher{
-		testControl: testControl,
-	}
-
-	// Verify TestControl() returns the test control
-	tc := batcher.TestControl()
-	require.NotNil(t, tc)
-
-	// Verify it's the same instance
-	require.Equal(t, testControl, tc)
-
-	// Verify we can use it to pause/unpause
+	// Verify we can use the PausableBatcher methods directly on the batcher
 	ctx := context.Background()
-	result := tc.PauseAtBlock(50)
+
+	// Initially not paused
+	isPaused, pauseBlock := batcher.IsPaused()
+	require.False(t, isPaused)
+	require.Equal(t, uint64(0), pauseBlock)
+
+	// Pause at block 50
+	result := batcher.PauseAtBlock(50)
 	require.Equal(t, uint64(50), result)
+
+	// Verify pause state
+	isPaused, pauseBlock = batcher.IsPaused()
+	require.True(t, isPaused)
+	require.Equal(t, uint64(50), pauseBlock)
 
 	status, err := proxy.SyncStatus(ctx)
 	require.NoError(t, err)
 	require.Equal(t, uint64(50), status.UnsafeL2.Number)
 
-	tc.Unpause()
+	// Unpause
+	batcher.Unpause()
+
+	// Verify unpause state
+	isPaused, pauseBlock = batcher.IsPaused()
+	require.False(t, isPaused)
+	require.Equal(t, uint64(0), pauseBlock)
+
 	status, err = proxy.SyncStatus(ctx)
 	require.NoError(t, err)
 	require.Equal(t, uint64(100), status.UnsafeL2.Number)

@@ -54,3 +54,36 @@ func (b *L2Batcher) Start() {
 	})
 	require.NoError(b.t, err, fmt.Sprintf("Expected to be able to call StartBatcher API on chain %s, but got error", b.inner.ID().ChainID()))
 }
+
+// PauseAtBlock pauses the batcher at the specified block number.
+// The batcher will process up to and including blockNum, but won't see any blocks beyond it.
+// Returns the highest block number the batcher will see.
+// This function is for integration test control only.
+// Only works if the underlying batcher implements PausableBatcher.
+func (b *L2Batcher) PauseAtBlock(blockNum uint64) uint64 {
+	pausable, ok := b.inner.(stack.PausableBatcher)
+	b.require.True(ok, "batcher does not implement PausableBatcher")
+	pauseBlock := pausable.PauseAtBlock(blockNum)
+	err := b.ActivityAPI().FlushBatcher(b.ctx)
+	b.require.NoError(err, "Failed to flush batcher")
+	return pauseBlock
+}
+
+// Unpause resumes normal batcher operation, allowing it to see all available blocks.
+// This function is for integration test control only.
+// Only works if the underlying batcher implements PausableBatcher.
+func (b *L2Batcher) Unpause() {
+	pausable, ok := b.inner.(stack.PausableBatcher)
+	b.require.True(ok, "batcher does not implement PausableBatcher")
+	pausable.Unpause()
+}
+
+// IsPaused returns true if the batcher is currently paused, and the block number it's paused at.
+// Returns (false, 0) if not paused.
+// This function is for integration test control only.
+// Only works if the underlying batcher implements PausableBatcher.
+func (b *L2Batcher) IsPaused() (bool, uint64) {
+	pausable, ok := b.inner.(stack.PausableBatcher)
+	b.require.True(ok, "batcher does not implement PausableBatcher")
+	return pausable.IsPaused()
+}

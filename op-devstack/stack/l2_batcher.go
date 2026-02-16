@@ -73,3 +73,24 @@ type L2Batcher interface {
 	ID() L2BatcherID
 	ActivityAPI() apis.BatcherActivity
 }
+
+// PausableBatcher extends L2Batcher with pause control for integration testing.
+// This interface is for integration test control only.
+type PausableBatcher interface {
+	L2Batcher
+
+	// PauseAtBlock pauses the batcher at the specified block number.
+	// The batcher will process up to and including blockNum, but won't see
+	// any blocks beyond it. Returns the highest block number the batcher will see.
+	// This function is for integration test control only.
+	PauseAtBlock(blockNum uint64) uint64
+
+	// Unpause resumes normal batcher operation, allowing it to see all available blocks.
+	// This function is for integration test control only.
+	Unpause()
+
+	// IsPaused returns true if the batcher is currently paused, and the block number it's paused at.
+	// Returns (false, 0) if not paused.
+	// This function is for integration test control only.
+	IsPaused() (bool, uint64)
+}

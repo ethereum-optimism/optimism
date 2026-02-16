@@ -23,13 +23,14 @@ import (
 )
 
 type L2Batcher struct {
-	id          stack.L2BatcherID
-	service     *bss.BatcherService
-	rpc         string
-	l1RPC       string
-	l2CLRPC     string
-	l2ELRPC     string
-	testControl *batcherTestControl
+	id      stack.L2BatcherID
+	service *bss.BatcherService
+	rpc     string
+	l1RPC   string
+	l2CLRPC string
+	l2ELRPC string
+	proxy   *rollupClientProxy
+	log     log.Logger
 }
 
 func (b *L2Batcher) hydrate(system stack.ExtensibleSystem) {
@@ -42,6 +43,7 @@ func (b *L2Batcher) hydrate(system stack.ExtensibleSystem) {
 		CommonConfig: shim.NewCommonConfig(system.T()),
 		ID:           b.id,
 		Client:       rpcCl,
+		Backend:      b, // Pass backend for test control access
 	})
 	l2Net := system.L2Network(stack.L2NetworkID(b.id.ChainID()))
 	l2Net.(stack.ExtensibleL2Network).AddL2Batcher(bFrontend)
@@ -167,9 +169,8 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			cancelBatcherCtx()
 		}
 
-		// Variables to store proxy and test control
+		// Variable to store proxy for test control
 		var rollupProxy *rollupClientProxy
-		var testControl *batcherTestControl
 
 		// Driver setup option that creates and injects the proxy
 		withProxyOption := func(setup *bss.DriverSetup) {
@@ -185,12 +186,6 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 
 			// Replace the endpoint provider with our proxying version
 			setup.EndpointProvider = proxyingProvider
-
-			// Create test control
-			testControl = &batcherTestControl{
-				proxy: rollupProxy,
-				log:   logger,
-			}
 		}
 
 		batcher, err := bss.BatcherServiceFromCLIConfig(
@@ -207,33 +202,31 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 		})
 
 		b := &L2Batcher{
-			id:          batcherID,
-			service:     batcher,
-			rpc:         batcher.HTTPEndpoint(),
-			l1RPC:       l1EL.UserRPC(),
-			l2CLRPC:     l2CL.UserRPC(),
-			l2ELRPC:     l2EL.UserRPC(),
-			testControl: testControl,
+			id:      batcherID,
+			service: batcher,
+			rpc:     batcher.HTTPEndpoint(),
+			l1RPC:   l1EL.UserRPC(),
+			l2CLRPC: l2CL.UserRPC(),
+			l2ELRPC: l2EL.UserRPC(),
+			proxy:   rollupProxy,
+			log:     logger,
 		}
 		orch.batchers.Set(batcherID, b)
 	})
 }
 
-// batcherTestControl provides test control over the batcher by manipulating
+// PausableBatcher interface implementation for L2Batcher
+// These methods provide pause functionality for integration testing by manipulating
 // the rollup client proxy to control what blocks the batcher sees.
-type batcherTestControl struct {
-	proxy *rollupClientProxy
-	log   log.Logger
-}
 
 // PauseAtBlock pauses the batcher at the specified block number.
 // The batcher will process up to and including blockNum, but won't see
 // any blocks beyond it. Returns the highest block number the batcher will see.
-func (tc *batcherTestControl) PauseAtBlock(blockNum uint64) uint64 {
-	tc.log.Info("pausing batcher at block", "blockNum", blockNum)
+func (b *L2Batcher) PauseAtBlock(blockNum uint64) uint64 {
+	b.log.Info("Pausing batcher at block", "blockNum", blockNum)
 
 	// Set the pause in the proxy
-	tc.proxy.setPauseAtBlock(blockNum)
+	b.proxy.setPauseAtBlock(blockNum)
 
 	// The batcher will naturally stop processing when it queries sync status
 	// and sees unsafe head capped at blockNum (inclusive)
@@ -242,7 +235,14 @@ func (tc *batcherTestControl) PauseAtBlock(blockNum uint64) uint64 {
 }
 
 // Unpause resumes normal batcher operation, allowing it to see all available blocks.
-func (tc *batcherTestControl) Unpause() {
-	tc.log.Info("unpausing batcher")
-	tc.proxy.clearPause()
+func (b *L2Batcher) Unpause() {
+	b.log.Info("Unpausing batcher")
+	b.proxy.clearPause()
+}
+
+// IsPaused returns true if the batcher is currently paused, and the block number it's paused at.
+// Returns (false, 0) if not paused.
+func (b *L2Batcher) IsPaused() (bool, uint64) {
+	pauseBlock := b.proxy.getPause()
+	return pauseBlock > 0, pauseBlock
 }
