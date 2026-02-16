@@ -44,13 +44,13 @@ contract PolicyEngineStaking {
     IERC20 public immutable STAKING_TOKEN;
 
     /// @notice Slot 0: PE data mapping.
-    mapping(address => PEData) public peData;
+    mapping(address account => PEData) public peData;
 
     /// @notice Allowlist: beneficiary => staker => allowed.
-    mapping(address => mapping(address => bool)) public allowlist;
+    mapping(address beneficiary => mapping(address staker => bool allowed)) public allowlist;
 
     /// @notice Staking data mapping.
-    mapping(address => StakedData) public stakingData;
+    mapping(address account => StakedData) public stakingData;
 
     /// @notice Paused state.
     bool public paused;
