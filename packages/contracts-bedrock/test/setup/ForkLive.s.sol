@@ -179,15 +179,28 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
 
         // The PermissionedDisputeGame and PermissionedDelayedWETHProxy are not listed in the registry for OP, so we
-        // look it up onchain
-        IFaultDisputeGame permissionedDisputeGame =
-            IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)));
-        artifacts.save("PermissionedDisputeGame", address(permissionedDisputeGame));
-        artifacts.save("PermissionedDelayedWETHProxy", address(permissionedDisputeGame.weth()));
+        // look it up onchain.
+        // Try gameArgs first (v2 structure), fall back to gameImpl.weth() (v1 structure).
+        address permissionedGameImpl = address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON));
+        artifacts.save("PermissionedDisputeGame", permissionedGameImpl);
 
-        // The SR seems out-of-date, so pull the DelayedWETH addresses from the PermissionedDisputeGame.
-        artifacts.save("DelayedWETHProxy", address(permissionedDisputeGame.weth()));
-        artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(permissionedDisputeGame.weth())));
+        IDelayedWETH delayedWeth;
+        try disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON) returns (bytes memory gameArgsData) {
+            if (gameArgsData.length > 0) {
+                // V2 structure: DelayedWETH is in gameArgs
+                delayedWeth = IDelayedWETH(payable(LibGameArgs.decode(gameArgsData).weth));
+            } else {
+                // V1 structure: DelayedWETH is on game impl
+                delayedWeth = IFaultDisputeGame(permissionedGameImpl).weth();
+            }
+        } catch {
+            // V1 structure (gameArgs() doesn't exist): DelayedWETH is on game impl
+            delayedWeth = IFaultDisputeGame(permissionedGameImpl).weth();
+        }
+
+        artifacts.save("PermissionedDelayedWETHProxy", address(delayedWeth));
+        artifacts.save("DelayedWETHProxy", address(delayedWeth));
+        artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(delayedWeth)));
     }
 
     /// @notice Calls to the Deploy.s.sol contract etched by Setup.sol to a deterministic address, sets up the
