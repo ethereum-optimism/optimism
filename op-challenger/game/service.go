@@ -271,53 +271,43 @@ func (s *Service) Stop(ctx context.Context) error {
 	s.logger.Info("Stopping challenger game service")
 
 	var result error
-	s.logger.Info("Stopping challenger monitor")
 	if s.monitor != nil {
 		s.monitor.StopMonitoring()
 	}
-	s.logger.Info("Stopping challenger scheduler")
 	if s.sched != nil {
 		if err := s.sched.Close(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close scheduler: %w", err))
 		}
 	}
-	s.logger.Info("Stopping challenger claimer")
 	if s.claimer != nil {
 		if err := s.claimer.Close(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close claimer: %w", err))
 		}
 	}
-	s.logger.Info("Stopping challenger client provider")
 	if s.clientProvider != nil {
 		s.clientProvider.Close()
 	}
-	s.logger.Info("Stopping challenger pprof service")
 	if s.pprofService != nil {
 		if err := s.pprofService.Stop(ctx); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close pprof server: %w", err))
 		}
 	}
-	s.logger.Info("Stopping challenger balance metricer")
 	if s.balanceMetricer != nil {
 		if err := s.balanceMetricer.Close(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close balance metricer: %w", err))
 		}
 	}
 
-	s.logger.Info("Stopping challenger tx manager")
 	if s.txMgr != nil {
 		s.txMgr.Close()
 	}
 
-	s.logger.Info("Stopping challenger l1 RPC")
 	if s.l1RPC != nil {
 		s.l1RPC.Close()
 	}
-	s.logger.Info("Stopping challenger l1 client")
 	if s.l1Client != nil {
 		s.l1Client.Close()
 	}
-	s.logger.Info("Stopping challenger metrics server")
 	if s.metricsSrv != nil {
 		if err := s.metricsSrv.Stop(ctx); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close metrics server: %w", err))
