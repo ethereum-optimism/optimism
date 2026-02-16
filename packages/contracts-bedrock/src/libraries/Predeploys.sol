@@ -193,6 +193,9 @@ library Predeploys {
             || (_isCustomGasToken && _addr == NATIVE_ASSET_LIQUIDITY);
     }
 
+    /// @notice Returns true if the address is in the predeploy namespace.
+    /// @param _addr The address to check.
+    /// @return True if the address is in range 0x4200...0000 to 0x4200...07FF.
     function isPredeployNamespace(address _addr) internal pure returns (bool) {
         return uint160(_addr) >> 11 == uint160(0x4200000000000000000000000000000000000000) >> 11;
     }

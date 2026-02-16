@@ -91,6 +91,10 @@
     "initCodeHash": "0x6efb9055142e90b408c6312074243769df0d365f6f984e226e0320bec55a45b8",
     "sourceCodeHash": "0x6a12e541b47b79f19d1061ff7b64ffdcffa1e8d06225cca6798daca53fd96890"
   },
+  "src/L2/L2ContractsManager.sol:L2ContractsManager": {
+    "initCodeHash": "0x5770f8b4f605f5b13b8f499a7d21f90df2aad86b09268dcb517c14fef33e2f76",
+    "sourceCodeHash": "0x1b45f8de05722ce89d5ae075a5c94fad57e24a433de5761923946abb57dd50ca"
+  },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0xe160be403df12709c371c33195d1b9c3b5e9499e902e86bdabc8eed749c3fd61",
     "sourceCodeHash": "0x12ea125038b87e259a0d203e119faa6e9726ab2bdbc30430f820ccd48fe87e14"
@@ -174,10 +178,6 @@
   "src/L2/WETH.sol:WETH": {
     "initCodeHash": "0xbc2cd025153720943e51b79822c2dc374d270a78b92cf47d49548c468e218e46",
     "sourceCodeHash": "0x734a6b2aa6406bc145d848ad6071d3af1d40852aeb8f4b2f6f51beaad476e2d3"
-  },
-  "src/L2/XForkL2ContractsManager.sol:XForkL2ContractsManager": {
-    "initCodeHash": "0x35c9fa7868ac67f1f6465613f9a8c49d8cec3c4841206d031138a729d33298dc",
-    "sourceCodeHash": "0xacd5a2b5ec2f0527aa471dcb2db9ba92a1bd71285f144f14b3def39d499598c0"
   },
   "src/cannon/MIPS64.sol:MIPS64": {
     "initCodeHash": "0x13196c1652a1f51cf0c16191f0092898f127eff036c773923c72b02a2823c7f4",

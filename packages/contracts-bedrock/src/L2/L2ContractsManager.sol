@@ -130,6 +130,8 @@ contract L2ContractsManager is ISemver {
         OPERATOR_FEE_VAULT_IMPL = _implementations.operatorFeeVaultImpl;
         SCHEMA_REGISTRY_IMPL = _implementations.schemaRegistryImpl;
         EAS_IMPL = _implementations.easImpl;
+        // TODO(#18838): Add dev flagging for CrossL2Inbox and L2ToL2CrossDomainMessenger once DevFeatures is
+        // implemented for L2.
         CROSS_L2_INBOX_IMPL = _implementations.crossL2InboxImpl;
         L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL = _implementations.l2ToL2CrossDomainMessengerImpl;
         SUPERCHAIN_ETH_BRIDGE_IMPL = _implementations.superchainETHBridgeImpl;
@@ -371,6 +373,8 @@ contract L2ContractsManager is ISemver {
             Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL
         );
         L2ContractsManagerUtils.upgradeTo(Predeploys.PROXY_ADMIN, PROXY_ADMIN_IMPL);
+        // TODO(#18838): Add dev flagging for CrossL2Inbox and L2ToL2CrossDomainMessenger once DevFeatures is
+        // implemented for L2.
         L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
         L2ContractsManagerUtils.upgradeTo(
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL

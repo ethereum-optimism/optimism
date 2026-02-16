@@ -144,7 +144,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct XForkL2CMTypes.Implementations",
+        "internalType": "struct L2ContractsManagerTypes.Implementations",
         "name": "_implementations",
         "type": "tuple"
       }
@@ -173,8 +173,24 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_target",
+        "type": "address"
+      }
+    ],
+    "name": "L2ContractsManager_DowngradeNotAllowed",
+    "type": "error"
+  },
+  {
     "inputs": [],
-    "name": "XForkL2ContractsManager_OnlyDelegatecall",
+    "name": "L2ContractsManager_OnlyDelegatecall",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SemverComp_InvalidSemverParts",
     "type": "error"
   }
 ]

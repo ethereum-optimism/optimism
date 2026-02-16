@@ -177,7 +177,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         // The L2CM must be called via DELEGATECALL from the ProxyAdmin.
         // We simulate this by pranking as the ProxyAdmin and using delegatecall.
         address proxyAdmin = Predeploys.PROXY_ADMIN;
-        prankDelegateCall(proxyAdmin);
+        vm.prank(proxyAdmin, true);
         (bool success,) = address(l2cm).delegatecall(abi.encodeCall(L2ContractsManager.upgrade, ()));
         require(success, "L2ContractsManager: Upgrade failed");
     }
