@@ -185,10 +185,10 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         artifacts.save("PermissionedDisputeGame", permissionedGameImpl);
 
         IDelayedWETH delayedWeth;
-        try disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON) returns (bytes memory gameArgsData) {
-            if (gameArgsData.length > 0) {
+        try disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON) returns (bytes memory gameArgsData_) {
+            if (gameArgsData_.length > 0) {
                 // V2 structure: DelayedWETH is in gameArgs
-                delayedWeth = IDelayedWETH(payable(LibGameArgs.decode(gameArgsData).weth));
+                delayedWeth = IDelayedWETH(payable(LibGameArgs.decode(gameArgsData_).weth));
             } else {
                 // V1 structure: DelayedWETH is on game impl
                 delayedWeth = IFaultDisputeGame(permissionedGameImpl).weth();
