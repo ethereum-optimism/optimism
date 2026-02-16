@@ -620,7 +620,7 @@ commands:
               export PACKAGE="--package << parameters.package >>"
             fi
 
-            export BINARY="--all-targets"
+            export BINARY=""
             if [ -n "<< parameters.binary >>" ]; then
               export BINARY="--bin << parameters.binary >>"
             fi
@@ -630,7 +630,7 @@ commands:
               export FEATURES="--all-features"
             fi
 
-            cd << parameters.directory >> && cargo build $PROFILE $TARGET $PACKAGE $FEATURES
+            cd << parameters.directory >> && cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
           no_output_timeout: 30m
       - when:
           condition: << parameters.save_cache >>
