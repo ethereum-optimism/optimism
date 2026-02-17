@@ -10,7 +10,6 @@ import { KailuaTreasury } from "src/dispute/zk/KailuaTreasury.sol";
 import { Duration, GameStatus, Hash, Timestamp } from "src/dispute/lib/Types.sol";
 import {
     GameNotInProgress,
-    BlockNumberMismatch,
     BadExtraData,
     BlockNumberMismatch,
     NotProven,

@@ -15,7 +15,6 @@ import { KailuaLib } from "src/dispute/lib/KailuaLib.sol";
 import {
     AlreadyInitialized,
     Blacklisted,
-    UnknownGame,
     InvalidParent,
     ClaimAlreadyResolved,
     NotProposed,

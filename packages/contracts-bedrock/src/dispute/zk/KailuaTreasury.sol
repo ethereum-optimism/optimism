@@ -16,7 +16,6 @@ import {
     GameNotInProgress,
     GameNotResolved,
     VanguardError,
-    BlockNumberMismatch,
     IncorrectBondAmount,
     BadAuth,
     NoCreditToClaim,
